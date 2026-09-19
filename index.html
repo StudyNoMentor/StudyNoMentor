@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v85b4575d37">
+<meta name="diario-versao" content="v73a192e552">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -7645,16 +7645,16 @@ window.__idbBoot = (function () {
       <div id="tec-totais" style="display:grid; grid-template-columns: repeat(4,1fr); gap:14px; margin-top:16px;"></div>
 
       <!-- Desempenho por disciplina -->
-      <div class="card">
-        <div class="evo-card-head">
-          <div>
+      <div class="card tec-analysis-card">
+        <div class="evo-card-head tec-analysis-head">
+          <div class="tec-analysis-title">
             <small class="tec-escopo-lista">FATOS DO SEU TEC · NENHUM MODELO OPINA AQUI</small>
             <h2>📊 Aproveitamento por disciplina</h2>
-            <p class="sub">Toda a sua medição, disciplina por disciplina e assunto por assunto. Filtre por uma para analisá-la sozinha, ou veja todas em cascata.</p>
+            <p class="sub">Toda a sua medição, disciplina por disciplina e assunto por assunto. Você pode analisar todas ou combinar várias matérias no mesmo recorte.</p>
           </div>
-          <div class="field tec-cfg" style="margin-bottom:0; min-width:230px;">
-            <label for="tec-disc-filter" class="tec-inline-lbl" data-info="Todas: uma linha por disciplina, da mais fraca para a mais forte, abrindo em cascata. Uma disciplina: abre o primeiro nível dela e mostra um resumo em destaque. O ▲▼ de cada linha compara o último retrato do escopo com o anterior.">Disciplina</label>
-            <select id="tec-disc-filter"></select>
+          <div class="field tec-cfg tec-disc-picker-field">
+            <label class="tec-inline-lbl" data-info="Marque uma ou várias disciplinas. Nenhuma marcada significa todas. A lista permanece aberta e na mesma posição enquanto você seleciona, sem recalcular o restante da tela a cada clique.">Disciplinas</label>
+            <div class="tec-disc-pick" id="tec-disc-pick"></div>
           </div>
         </div>
         <!-- A ordem vale para a árvore INTEIRA: escolher "pontos fracos" reordena
@@ -7677,38 +7677,44 @@ window.__idbBoot = (function () {
           <div class="card-header">
             <div>
               <h2>🏛️ Incidência da banca</h2>
-              <p class="sub">Quantas vezes cada tópico já caiu no histórico da banca. Esta aba não olha o seu desempenho: ela descreve a PROVA. É o que a aba 🎯 Reforço cruza com os seus erros, e o que alimenta a ordem "fraqueza × incidência" do 🏁 Plano.</p>
+              <p class="sub">Quantas vezes cada tópico já caiu no histórico da banca. Esta aba não olha o seu desempenho: ela descreve a PROVA e alimenta o peso do Motor no pós-edital.</p>
             </div>
           </div>
-          <div style="padding: 14px 24px 22px;">
-            <div class="field-group">
-              <div class="field">
-                <label for="incid-banca" data-info="O nome que você digitar vira uma banca. Cuidado com variações: &quot;FGV&quot; e &quot;Fgv &quot; seriam duas bancas separadas — se acontecer, use ✎ na lista abaixo para renomear, em vez de apagar e reimportar.">Banca <span class="req">*</span></label>
-                <input type="text" id="incid-banca" list="incid-banca-list" placeholder="Ex.: FCC, Cebraspe, FGV">
-                <datalist id="incid-banca-list"></datalist>
+          <details class="incid-import-details" id="incid-import-details">
+            <summary>
+              <span><b>＋ Importar ou colar incidência</b><small>Envie a planilha Índice do Caderno ou cole os dados manualmente.</small></span>
+              <i aria-hidden="true">⌄</i>
+            </summary>
+            <div class="incid-import-body">
+              <div class="field-group">
+                <div class="field">
+                  <label for="incid-banca" data-info="O nome que você digitar vira uma banca. Cuidado com variações: &quot;FGV&quot; e &quot;Fgv &quot; seriam duas bancas separadas — se acontecer, use ✎ na lista abaixo para renomear, em vez de apagar e reimportar.">Banca <span class="req">*</span></label>
+                  <input type="text" id="incid-banca" list="incid-banca-list" placeholder="Ex.: FCC, Cebraspe, FGV">
+                  <datalist id="incid-banca-list"></datalist>
+                </div>
+                <div class="field" style="display:flex; align-items:flex-end;">
+                  <label class="co-check" style="margin:0;" data-info="Ligado: apaga tudo o que existe desta banca e grava só o que você está enviando agora — é o certo ao reimportar um caderno atualizado. Desligado: mistura com o que já existe; tópico repetido é ATUALIZADO (nunca somado), e o aviso ao salvar diz quantos eram repetição."><input type="checkbox" id="incid-replace" checked> Substituir o que já existe desta banca</label>
+                </div>
               </div>
-              <div class="field" style="display:flex; align-items:flex-end;">
-                <label class="co-check" style="margin:0;" data-info="Ligado: apaga tudo o que existe desta banca e grava só o que você está enviando agora — é o certo ao reimportar um caderno atualizado. Desligado: mistura com o que já existe; tópico repetido é ATUALIZADO (nunca somado), e o aviso ao salvar diz quantos eram repetição."><input type="checkbox" id="incid-replace" checked> Substituir o que já existe desta banca</label>
+              <div id="incid-dropzone" class="tec-dropzone">
+                <input type="file" id="incid-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none;">
+                <div class="tec-dropzone-icon">🏛️</div>
+                <div class="tec-dropzone-text"><strong>Clique para enviar</strong> ou arraste o arquivo</div>
+                <div class="tec-dropzone-hint">Ideal: a planilha <b>Índice do Caderno</b> do TecConcursos (Hierarquia · Índice · Quantidade encontrada) — o app entende a hierarquia inteira. Também aceita três colunas simples: Disciplina · Tópico · Incidência.</div>
+                <div id="incid-file-name" class="tec-file-name" style="display:none;"></div>
+              </div>
+              <div class="tec-or-divider"><span>ou cole manualmente</span></div>
+              <div class="field full">
+                <label for="incid-text" data-info="Dois formatos são aceitos. O melhor é o &quot;Índice do Caderno&quot; do TecConcursos colado inteiro: o app entende a hierarquia (disciplina → assunto → tópico) e usa a coluna &quot;Quantidade encontrada&quot; como incidência. O formato simples também funciona: Disciplina · Tópico · Incidência, separados por TAB, ponto e vírgula ou vírgula.">Dados colados <span class="opt">(Índice do Caderno do TEC, ou Disciplina · Tópico · Incidência)</span></label>
+                <textarea id="incid-text" style="min-height: 120px; font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;" placeholder="Contabilidade Geral&#9;Balanço Patrimonial&#9;12&#10;Direito Tributário&#9;Crédito Tributário&#9;30"></textarea>
+                <p class="hint" id="incid-preview">Aguardando dados...</p>
+              </div>
+              <div class="submit-row" style="margin-top:6px;">
+                <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza</span>
+                <button class="btn-primary" id="incid-save" type="button">Salvar incidência</button>
               </div>
             </div>
-            <div id="incid-dropzone" class="tec-dropzone">
-              <input type="file" id="incid-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none;">
-              <div class="tec-dropzone-icon">🏛️</div>
-              <div class="tec-dropzone-text"><strong>Clique para enviar</strong> ou arraste o arquivo</div>
-              <div class="tec-dropzone-hint">Ideal: a planilha <b>Índice do Caderno</b> do TecConcursos (Hierarquia · Índice · Quantidade encontrada) — o app entende a hierarquia inteira. Também aceita três colunas simples: Disciplina · Tópico · Incidência.</div>
-              <div id="incid-file-name" class="tec-file-name" style="display:none;"></div>
-            </div>
-            <div class="tec-or-divider"><span>ou cole manualmente</span></div>
-            <div class="field full">
-              <label for="incid-text" data-info="Dois formatos são aceitos. O melhor é o &quot;Índice do Caderno&quot; do TecConcursos colado inteiro: o app entende a hierarquia (disciplina → assunto → tópico) e usa a coluna &quot;Quantidade encontrada&quot; como incidência. O formato simples também funciona: Disciplina · Tópico · Incidência, separados por TAB, ponto e vírgula ou vírgula.">Dados colados <span class="opt">(Índice do Caderno do TEC, ou Disciplina · Tópico · Incidência)</span></label>
-              <textarea id="incid-text" style="min-height: 120px; font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;" placeholder="Contabilidade Geral&#9;Balanço Patrimonial&#9;12&#10;Direito Tributário&#9;Crédito Tributário&#9;30"></textarea>
-              <p class="hint" id="incid-preview">Aguardando dados...</p>
-            </div>
-            <div class="submit-row" style="margin-top:6px;">
-              <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza</span>
-              <button class="btn-primary" id="incid-save" type="button">Salvar incidência</button>
-            </div>
-          </div>
+          </details>
         </div>
         <div class="card" id="incid-bancas-card" style="display:none;">
           <div class="card-header">
@@ -14341,6 +14347,345 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 @media (max-width: 560px) {
   #screen-leis .lr-law-editor { grid-template-columns: 1fr; padding: 12px; gap: 8px; }
   #screen-leis .lr-law-editor label { padding: 9px 10px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   11. DESEMPENHO TEC — ANÁLISE, INCIDÊNCIA E MOTOR EM UMA HIERARQUIA LIMPA
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ANÁLISE: o cabeçalho vira uma grade estável. O seletor não encosta no título
+   nem cruza a borda do card quando a largura cai. */
+#tec-panel-analise .tec-analysis-card { overflow: visible; }
+#tec-panel-analise .tec-analysis-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 360px);
+  align-items: start;
+  gap: 16px 24px;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+#tec-panel-analise .tec-analysis-title { min-width: 0; }
+#tec-panel-analise .tec-analysis-title .sub {
+  max-width: 76ch;
+  line-height: 1.5;
+  margin-bottom: 0;
+}
+#tec-panel-analise .tec-disc-picker-field {
+  min-width: 0 !important;
+  width: 100%;
+  margin: 0;
+  align-self: start;
+}
+#tec-panel-analise .tec-ordem {
+  margin: 14px 24px 4px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-sunken);
+}
+#tec-disc-focus:empty { display: none; }
+#tec-panel-analise #tec-disc-list { padding-top: 8px !important; }
+
+/* Seletor múltiplo de disciplinas. Mantém a lista no DOM enquanto o usuário
+   marca várias caixas; só o resultado abaixo é repintado. */
+.tec-disc-pick { position: relative; width: 100%; }
+.tec-disc-pick-btn {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px 9px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.tec-disc-pick-btn:hover,
+.tec-disc-pick-btn[aria-expanded="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.tec-disc-pick-btn:disabled { cursor: default; opacity: .7; }
+.tec-disc-pick-main { min-width: 0; display: grid; gap: 2px; }
+.tec-disc-pick-label {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-xs); font-weight: 800; line-height: 1.25;
+}
+.tec-disc-pick-main small { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600; }
+.tec-disc-pick-count {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-3xs);
+  font-weight: 800;
+  white-space: nowrap;
+}
+.tec-disc-pick-count.is-all { background: var(--surface-sunken); color: var(--text-soft); }
+.tec-disc-pick-btn .chev { color: var(--text-faint); transition: transform .16s ease; }
+.tec-disc-pick-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
+
+.tec-disc-pick-panel {
+  position: absolute;
+  z-index: 80;
+  top: calc(100% + 7px);
+  right: 0;
+  width: min(430px, calc(100vw - 32px));
+  max-height: min(500px, 70vh);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  padding: 9px;
+  border: 1.5px solid var(--border-strong, var(--border));
+  border-radius: 15px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg, 0 16px 38px rgba(0,0,0,.18));
+}
+.tec-disc-pick-panel[hidden] { display: none; }
+.tec-disc-pick-search-wrap {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  margin-bottom: 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-sunken);
+}
+.tec-disc-pick-search-wrap > span { color: var(--text-faint); font-size: var(--fs-sm); }
+.tec-disc-pick-search {
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  min-height: 28px !important;
+  font-size: var(--fs-xs) !important;
+  color: var(--text);
+}
+.tec-disc-pick-list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 1px 3px 1px 1px;
+}
+.tec-disc-pick-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 9px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.tec-disc-pick-item:hover { background: var(--surface-sunken); }
+.tec-disc-pick-item:has(input:checked) { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+.tec-disc-pick-item input[type="checkbox"] {
+  width: 17px; height: 17px; min-width: 17px; margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+.tec-disc-pick-item > span { min-width: 0; display: grid; gap: 2px; }
+.tec-disc-pick-item b {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-xs); color: var(--text);
+}
+.tec-disc-pick-item small { font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.35; }
+.tec-disc-pick-foot {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+}
+.tec-disc-pick-foot button {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-sunken);
+  color: var(--text-soft);
+  font-size: var(--fs-3xs);
+  font-weight: 800;
+  cursor: pointer;
+}
+.tec-disc-pick-foot span { font-size: var(--fs-3xs); color: var(--text-faint); padding: 0 4px; }
+.tec-focus-multi {
+  margin: 10px 24px 0;
+  padding: 10px 12px;
+  display: grid;
+  gap: 3px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface-sunken);
+}
+.tec-focus-multi b { font-size: var(--fs-xs); }
+.tec-focus-multi span { font-size: var(--fs-3xs); color: var(--text-soft); line-height: 1.45; }
+
+/* INCIDÊNCIA: importar é uma ação eventual; por isso nasce recolhida. */
+.incid-import-details {
+  margin: 12px 24px 20px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+}
+.incid-import-details > summary {
+  list-style: none;
+  min-height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.incid-import-details > summary::-webkit-details-marker { display: none; }
+.incid-import-details > summary span { min-width: 0; display: grid; gap: 2px; }
+.incid-import-details > summary b { font-size: var(--fs-xs); color: var(--text); }
+.incid-import-details > summary small { font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.4; }
+.incid-import-details > summary i {
+  font-style: normal; color: var(--text-faint); transition: transform .16s ease;
+}
+.incid-import-details[open] > summary {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+.incid-import-details[open] > summary i { transform: rotate(180deg); }
+.incid-import-body { padding: 14px 14px 16px; background: var(--surface); }
+
+/* MOTOR: dois passos visuais — matéria primeiro, tópico depois. */
+.ms-stage { margin-top: 16px; }
+.ms-stage > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 9px;
+}
+.ms-stage > header > span {
+  width: 26px; height: 26px; flex: 0 0 26px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-2xs);
+  font-weight: 900;
+}
+.ms-stage > header > div { min-width: 0; display: grid; gap: 1px; }
+.ms-stage > header b { font-size: var(--fs-sm); color: var(--text); }
+.ms-stage > header small { font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.4; }
+
+.ms-disc-list { display: grid; gap: 8px; }
+.ms-disc-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.ms-disc-main { min-width: 0; display: grid; gap: 2px; }
+.ms-disc-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
+.ms-disc-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-3xs); color: var(--text-faint); }
+.ms-disc-kpis { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+.ms-disc-kpis span {
+  display: grid;
+  gap: 1px;
+  min-width: 62px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  font-size: var(--fs-2xs);
+  font-weight: 800;
+  text-align: right;
+}
+.ms-disc-kpis i { font-style: normal; font-size: var(--fs-3xs); font-weight: 700; color: var(--text-faint); }
+
+.ms-selo-nivel { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
+
+.ms-rankings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin-top: 14px;
+}
+.ms-rankings details {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.ms-rankings summary {
+  list-style: none;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 11px;
+  cursor: pointer;
+  font-size: var(--fs-xs);
+  font-weight: 800;
+}
+.ms-rankings summary::-webkit-details-marker { display: none; }
+.ms-rankings summary small { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600; }
+.ms-rankings summary i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
+.ms-rankings details[open] summary { border-bottom: 1px solid var(--border); background: var(--surface-sunken); }
+.ms-rankings details[open] summary i { transform: rotate(180deg); }
+.ms-rankings ol { list-style: none; margin: 0; padding: 6px; max-height: 360px; overflow-y: auto; }
+.ms-rankings li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 7px 6px;
+  border-radius: 8px;
+}
+.ms-rankings li:hover { background: var(--surface-sunken); }
+.ms-rankings li > span {
+  grid-row: 1 / 3;
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  color: var(--text-soft);
+  font-size: var(--fs-3xs);
+  font-weight: 800;
+}
+.ms-rankings li b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-2xs); }
+.ms-rankings li small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-3xs); color: var(--text-faint); }
+.ms-rankings li.is-incerto { opacity: .72; }
+
+@media (max-width: 760px) {
+  #tec-panel-analise .tec-analysis-head {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px 16px 14px;
+    gap: 12px;
+  }
+  #tec-panel-analise .tec-ordem { margin: 12px 16px 4px; }
+  .tec-focus-card, .tec-focus-multi { margin-left: 16px; margin-right: 16px; }
+  .tec-disc-pick-panel { left: 0; right: auto; width: min(430px, calc(100vw - 36px)); }
+  .ms-disc-card { grid-template-columns: auto minmax(0, 1fr); }
+  .ms-disc-kpis { grid-column: 2; justify-content: flex-start; }
+  .ms-disc-kpis span { text-align: left; }
+  .ms-rankings { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .incid-import-details { margin: 10px 14px 16px; }
+  .incid-import-body { padding: 12px; }
+  .tec-disc-pick-main small { display: none; }
+  .tec-disc-pick-btn { min-height: 44px; }
+  .ms-disc-kpis span { min-width: 0; }
 }
 
 </style>
@@ -38018,6 +38363,12 @@ const DesempenhoTecScreen = {
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
     if (['fracos', 'fortes', 'indice'].includes(_p.treeOrdem)) this.treeOrdem = _p.treeOrdem;
+    if (this.discFilters === null) {
+      const salvas = Array.isArray(_p.discFilters) ? _p.discFilters : [];
+      this.discFilters = [...new Set(salvas.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()))];
+      // compatibilidade com chamadas antigas que ainda leem discFilter
+      this.discFilter = this.discFilters.length === 1 ? this.discFilters[0] : '__todas__';
+    }
     // Na primeira abertura, restaura inclusive []: "Limpar" é um estado válido.
     if (this.selectedSnapIds === null) {
       const salvos = Array.isArray(_p.selectedSnapIds) ? _p.selectedSnapIds : null;
@@ -39019,11 +39370,12 @@ const DesempenhoTecScreen = {
     return false;
   },
   /* ── A ABA DO MOTOR ──────────────────────────────────────────────────────
-     Ela mostra três coisas, nesta ordem: em que fase o motor está pensando,
-     o que ele escolheu, e POR QUE cada linha ficou no nível em que ficou. A
-     última é a que faz a tela ser auditável em vez de um oráculo — uma linha
-     que diz "23 questões, ±14pp, bloco de 4 subtópicos" pode ser conferida
-     contra a árvore da Análise em dez segundos. */
+     A leitura agora é deliberadamente em DOIS PASSOS:
+       1) quais matérias concentram a maior lacuna mensurável;
+       2) dentro de cada uma, qual tópico é o melhor filtro executável.
+     Disciplina é contexto de prioridade; atividade sempre nasce em tópico ou
+     subtópico. Isso evita transformar "matéria fraca" em caderno da matéria
+     inteira e deixa a decisão auditável contra a árvore da Análise. */
   renderMotor() {
     const host = document.getElementById('motor-lista');
     const fase = document.getElementById('motor-fase');
@@ -39048,22 +39400,40 @@ const DesempenhoTecScreen = {
       return;
     }
     if (!r.itens.length) {
-      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Nenhuma frente alcança o mínimo de ${r.prefs.doseMin} questões por rodada. Aumente o caderno ou baixe o mínimo por frente em ⚙ Ajustes.</p>`;
+      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Há dados de desempenho, mas nenhum <b>tópico</b> tem amostra suficiente para virar reforço com a margem atual de ±${r.prefs.margemMax}pp. O motor não vai substituir isso por uma disciplina inteira. Ajuste a margem ou acumule mais questões.</p>`;
       return;
     }
+
+    const fmt1 = v => Math.round(Number(v || 0) * 10) / 10;
+    const discTop = (r.disciplinas || []).slice(0, Math.min(3, r.prefs.maxFrentes || 3));
+    const disciplinasHtml = discTop.map((d, i) => {
+      const top = d.melhorTopico;
+      return `
+        <article class="ms-disc-card">
+          <span class="ms-rank">${i + 1}</span>
+          <div class="ms-disc-main">
+            <b>${escapeHtml(d.nome)}</b>
+            <small>melhor recorte: ${escapeHtml(top ? top.nome : '—')}</small>
+          </div>
+          <div class="ms-disc-kpis">
+            <span><i>erro</i>${fmt1(d.taxaErro)}%</span>
+            <span><i>resolvidas</i>${d.questoes.toLocaleString('pt-BR')}</span>
+            <span><i>lacuna</i>${Math.round(d.score)}</span>
+          </div>
+        </article>`;
+    }).join('');
+
     const totalDose = r.itens.reduce((a, x) => a + x.dose, 0);
     const linhas = r.itens.map((x, i) => {
-      const erroPct = Math.round(x.taxaErro * 10) / 10;
-      const margem = x.margem == null ? '—' : '±' + (Math.round(x.margem * 10) / 10) + 'pp';
+      const erroPct = fmt1(x.taxaErro);
+      const margem = x.margem == null ? '—' : '±' + fmt1(x.margem) + 'pp';
       const bloco = x.agregado ? (() => {
         const partes = [];
         if (x.membros && x.membros.length) partes.push(x.membros.length + ' ramo' + (x.membros.length > 1 ? 's' : '') + ' miúdo' + (x.membros.length > 1 ? 's' : ''));
         if (x.residuo > 0) partes.push(x.residuo + ' questões sem subtópico detalhado');
-        const dica = 'Filtre por "' + x.nome + '" no TecConcursos: este bloco é ' + partes.join(' + ')
-          + (x.membros && x.membros.length ? ' — ' + x.membros.join(' · ') : '')
-          + '. Sozinhos, nenhum deles tem questões suficientes para o percentual significar algo.';
-        return `<span class="ms-selo" title="${escapeHtml(dica)}">bloco · ${escapeHtml(partes.join(' + '))}</span>`;
-      })() : '';
+        const dica = 'O motor subiu para "' + x.nome + '" porque os níveis abaixo, isolados, não têm amostra suficiente. A disciplina inteira nunca é usada como filtro.';
+        return `<span class="ms-selo" title="${escapeHtml(dica)}">nível agregado · ${escapeHtml(partes.join(' + '))}</span>`;
+      })() : `<span class="ms-selo ms-selo-nivel">nível ${Math.max(1, x.nivel)}</span>`;
       const peso = r.fase === 'pos'
         ? `<i>incidência</i>${x.peso}`
         : `<i>volume</i>${x.questoes}`;
@@ -39072,7 +39442,7 @@ const DesempenhoTecScreen = {
           <div class="ms-item-top">
             <span class="ms-rank">${i + 1}</span>
             <div class="ms-id">
-              <small>${escapeHtml(x.disciplina)}</small>
+              <small>${escapeHtml(x.disciplina)} · tópico recomendado</small>
               <b>${escapeHtml(x.nome)}</b>${bloco}
             </div>
             <span class="ms-dose" title="Questões desta frente no caderno da rodada">${x.dose}<small>questões</small></span>
@@ -39080,21 +39450,48 @@ const DesempenhoTecScreen = {
           <div class="ms-nums">
             <span class="ms-pill"><i>erro</i>${erroPct}%</span>
             <span class="ms-pill"><i>resolvidas</i>${x.questoes}</span>
-            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança. É ela que decidiu parar neste nível da árvore."><i>margem</i>${margem}</span>
+            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança."><i>margem</i>${margem}</span>
             <span class="ms-pill">${peso}</span>
-            <span class="ms-pill ms-score" title="${escapeHtml(r.fase === 'pos' ? 'Incidência da banca × taxa de erro: o erro esperado na prova.' : 'Volume × taxa de erro: literalmente o número de questões que você erra aqui.')}"><i>lacuna</i>${Math.round(x.score)}</span>
+            <span class="ms-pill ms-score"><i>lacuna</i>${Math.round(x.score)}</span>
           </div>
           <div class="ms-acoes">
             <button type="button" class="btn-secondary" data-motor-extra="${i}">+ Criar atividade de ${x.dose} questões</button>
           </div>
         </div>`;
     }).join('');
+
+    const discRank = (r.disciplinas || []).slice(0, 30).map((d, i) =>
+      `<li><span>${i + 1}</span><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxaErro)}% erro · lacuna ${Math.round(d.score)} · melhor tópico: ${escapeHtml((d.melhorTopico || {}).nome || 'sem tópico confiável')}</small></li>`
+    ).join('');
+    const topRank = (r.todos || []).slice(0, 30).map((x, i) =>
+      `<li class="${x.legivel ? '' : 'is-incerto'}"><span>${i + 1}</span><b>${escapeHtml(x.nome)}</b><small>${escapeHtml(x.disciplina)} · ${fmt1(x.taxaErro)}% erro · ${x.questoes} questões · ${x.legivel ? 'amostra utilizável' : 'amostra ainda fraca'}</small></li>`
+    ).join('');
+
     host.innerHTML = `
-      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno ·
-        margem tolerada de ±${r.prefs.margemMax}pp ·
-        peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
-      <div class="ms-lista">${linhas}</div>
-      <p class="hint ms-nota">Cada linha parou no nível em que a margem ainda sustenta o percentual: descer mais devolveria nós pequenos demais para medir. “Bloco” é um agrupamento dos ramos miúdos do mesmo pai — filtre por eles juntos no TecConcursos.</p>`;
+      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno · margem tolerada de ±${r.prefs.margemMax}pp · peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
+
+      <section class="ms-stage">
+        <header><span>1</span><div><b>Disciplinas prioritárias</b><small>Primeiro o motor escolhe as matérias; disciplina não vira atividade.</small></div></header>
+        <div class="ms-disc-list">${disciplinasHtml}</div>
+      </section>
+
+      <section class="ms-stage">
+        <header><span>2</span><div><b>Tópicos para atacar agora</b><small>Um tópico de cada disciplina acima, no nível mais específico que a amostra sustenta.</small></div></header>
+        <div class="ms-lista">${linhas}</div>
+      </section>
+
+      <div class="ms-rankings">
+        <details>
+          <summary>Ranking de disciplinas <small>${(r.disciplinas || []).length} com tópico mensurável</small><i>⌄</i></summary>
+          <ol>${discRank}</ol>
+        </details>
+        <details>
+          <summary>Ranking de tópicos <small>${(r.todos || []).length} candidatos</small><i>⌄</i></summary>
+          <ol>${topRank}</ol>
+        </details>
+      </div>
+      <p class="hint ms-nota">A poda nunca ultrapassa a fronteira da disciplina. Se um subtópico tem poucas questões, o motor sobe para o tópico-pai; se nem o tópico for confiável, ele fica fora da rodada em vez de recomendar a matéria inteira.</p>`;
+
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
       if (!x) return;
@@ -39713,15 +40110,14 @@ const DesempenhoTecScreen = {
       pend = root.querySelectorAll('.tnode-children[data-lazy]');
     }
   },
-  discFilter: '__todas__', // '__todas__' = todas as disciplinas | nome = focar numa
+  discFilter: '__todas__', // compatibilidade: uma seleção = nome; várias/nenhuma = __todas__
+  discFilters: null,           // [] = todas; [a,b,...] = recorte múltiplo persistido
   /* ── A ORDEM VALE PARA A ÁRVORE INTEIRA ─────────────────────────────────
      Ordenar só o primeiro nível responde "qual disciplina vai mal" e para aí:
      para saber O QUE nela vai mal é preciso abrir e ler tópico por tópico.
      Aplicando a mesma ordem em cada nível, abrir a disciplina mais fraca leva
-     direto ao tópico mais fraco dela, e dali ao subtópico — que é o caminho
-     que se percorre de verdade. Índice devolve a ordem do próprio TecConcursos
-     (pelo código), para conferir contra a planilha. */
-  treeOrdem: 'fracos',   // 'fracos' | 'fortes' | 'indice'
+     direto ao tópico mais fraco dela, e dali ao subtópico. */
+  treeOrdem: 'fracos',
   _ordenarNos(arr) {
     const lista = (arr || []).slice();
     if (this.treeOrdem === 'indice') {
@@ -39730,34 +40126,141 @@ const DesempenhoTecScreen = {
     const dir = this.treeOrdem === 'fortes' ? -1 : 1;
     return lista.sort((a, b) => dir * (this.nodePct(a) - this.nodePct(b)) || b.questoes - a.questoes);
   },
-  renderDisciplinas(snap) {
+  _discSelecionadas(forest) {
+    const nomes = new Map((forest || []).map(d => [ReforcoEngine.norm(d.nome), d.nome]));
+    const base = Array.isArray(this.discFilters) ? this.discFilters : [];
+    const limpas = [];
+    const vistos = new Set();
+    base.forEach(n => {
+      const real = nomes.get(ReforcoEngine.norm(n));
+      const k = real && ReforcoEngine.norm(real);
+      if (!real || vistos.has(k)) return;
+      vistos.add(k); limpas.push(real);
+    });
+    this.discFilters = limpas;
+    this.discFilter = limpas.length === 1 ? limpas[0] : '__todas__';
+    return limpas;
+  },
+  _sincronizarDiscPicker(host, selecionadas) {
+    if (!host) return false;
+    const btn = host.querySelector('.tec-disc-pick-btn');
+    const panel = host.querySelector('.tec-disc-pick-panel');
+    if (!btn || !panel) return false;
+    const selNorm = new Set((selecionadas || []).map(ReforcoEngine.norm));
+    panel.querySelectorAll('input[type="checkbox"]').forEach(ch => {
+      ch.checked = selNorm.has(ReforcoEngine.norm(ch.value));
+    });
+    const rot = !selecionadas.length ? 'Todas as disciplinas'
+      : selecionadas.length === 1 ? selecionadas[0]
+      : selecionadas.length + ' disciplinas selecionadas';
+    const label = btn.querySelector('.tec-disc-pick-label');
+    if (label) label.textContent = rot;
+    const count = btn.querySelector('.tec-disc-pick-count');
+    if (count) {
+      count.textContent = selecionadas.length ? String(selecionadas.length) : 'Todas';
+      count.classList.toggle('is-all', !selecionadas.length);
+    }
+    const foot = panel.querySelector('.tec-disc-pick-foot');
+    if (foot) {
+      foot.innerHTML = selecionadas.length
+        ? '<button type="button" data-disc-acao="todas">↺ Mostrar todas</button>'
+        : '<span>Nenhum filtro: todas as disciplinas estão visíveis.</span>';
+      const b = foot.querySelector('[data-disc-acao="todas"]');
+      if (b) b.onclick = () => this._setDiscFilters([], panel);
+    }
+    return true;
+  },
+  _setDiscFilters(lista, panel) {
+    const limpa = [...new Set((lista || []).filter(Boolean))];
+    this.discFilters = limpa;
+    this.discFilter = limpa.length === 1 ? limpa[0] : '__todas__';
+    this.savePrefs({ discFilters: limpa });
+    const host = document.getElementById('tec-disc-pick');
+    const y = panel ? panel.scrollTop : 0;
+    this._sincronizarDiscPicker(host, limpa);
+    const snap = this.scopedSnapshot();
+    if (snap) this.renderDisciplinas(snap, { preservarPicker: true });
+    if (panel) {
+      panel.removeAttribute('hidden');
+      const btn = host && host.querySelector('.tec-disc-pick-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+      panel.scrollTop = y;
+    }
+  },
+  renderDiscPicker(alpha, selecionadas) {
+    const host = document.getElementById('tec-disc-pick');
+    if (!host) return;
+    const marcada = n => (selecionadas || []).some(x => ReforcoEngine.norm(x) === ReforcoEngine.norm(n));
+    host.innerHTML = `
+      <button type="button" class="tec-disc-pick-btn" aria-expanded="false">
+        <span class="tec-disc-pick-main"><span class="tec-disc-pick-label"></span><small>combine várias matérias sem sair da lista</small></span>
+        <span class="tec-disc-pick-count"></span><span class="chev">▾</span>
+      </button>
+      <div class="tec-disc-pick-panel" hidden>
+        <div class="tec-disc-pick-search-wrap">
+          <span>⌕</span><input type="search" class="tec-disc-pick-search" placeholder="Buscar disciplina" autocomplete="off">
+        </div>
+        <div class="tec-disc-pick-list">
+          ${alpha.map(d => `<label class="tec-disc-pick-item" data-s="${escapeHtml(ReforcoEngine.norm(d.nome))}">
+            <input type="checkbox" value="${escapeHtml(d.nome)}" ${marcada(d.nome) ? 'checked' : ''}>
+            <span><b>${escapeHtml(d.nome)}</b><small>${d.questoes.toLocaleString('pt-BR')} questões · ${this.nodePct(d)}% de acerto</small></span>
+          </label>`).join('')}
+        </div>
+        <div class="tec-disc-pick-foot"></div>
+      </div>`;
+    const btn = host.querySelector('.tec-disc-pick-btn');
+    const panel = host.querySelector('.tec-disc-pick-panel');
+    const search = host.querySelector('.tec-disc-pick-search');
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const abrir = panel.hasAttribute('hidden');
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => {
+        if (p !== panel) p.setAttribute('hidden', '');
+      });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => {
+        if (b !== btn) b.setAttribute('aria-expanded', 'false');
+      });
+      if (abrir) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); if (search) search.focus({ preventScroll: true }); }
+      else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+    };
+    panel.onclick = e => e.stopPropagation();
+    panel.onchange = e => {
+      if (!e.target.matches('input[type="checkbox"]')) return;
+      const lista = [...panel.querySelectorAll('input[type="checkbox"]:checked')].map(x => x.value);
+      this._setDiscFilters(lista, panel);
+    };
+    if (search) search.oninput = () => {
+      const q = ReforcoEngine.norm(search.value);
+      panel.querySelectorAll('.tec-disc-pick-item').forEach(item => {
+        item.style.display = !q || (item.dataset.s || '').includes(q) ? '' : 'none';
+      });
+    };
+    this._sincronizarDiscPicker(host, selecionadas || []);
+  },
+  renderDisciplinas(snap, opcoes) {
+    const preservarPicker = !!(opcoes && opcoes.preservarPicker);
     const container = document.getElementById('tec-disc-list');
     const focusEl = document.getElementById('tec-disc-focus');
-    const filterSel = document.getElementById('tec-disc-filter');
-    // árvore completa, ordenada do pior para o melhor aproveitamento
-    // (desempate: quem tem mais questões aparece antes)
+    const pickerHost = document.getElementById('tec-disc-pick');
     let forest = this._ordenarNos(TecEngine.buildTree(snap));
     const prevIdx = this.parIndices();
     if (forest.length === 0) {
       focusEl.innerHTML = '';
       container.innerHTML = `<p class="wd-empty" style="padding:12px 0;">Sem dados neste retrato.</p>`;
-      filterSel.innerHTML = `<option>—</option>`;
+      if (pickerHost) pickerHost.innerHTML = '<button class="tec-disc-pick-btn" disabled><span class="tec-disc-pick-main"><span class="tec-disc-pick-label">Sem disciplinas</span></span></button>';
       return;
     }
-    // popula o seletor (ordem alfabética, mais natural para procurar)
-    const alpha = forest.slice().sort((a, b) => a.nome.localeCompare(b.nome));
-    // se a disciplina filtrada não existe neste retrato, volta para "todas"
-    if (this.discFilter !== '__todas__' && !forest.find(d => d.nome === this.discFilter)) {
-      this.discFilter = '__todas__';
-    }
-    filterSel.innerHTML = `<option value="__todas__">Todas as disciplinas (${forest.length})</option>` +
-      alpha.map(d => `<option value="${escapeHtml(d.nome)}" ${d.nome === this.discFilter ? 'selected' : ''}>${escapeHtml(d.nome)} — ${this.nodePct(d)}%</option>`).join('');
 
-    const focused = this.discFilter !== '__todas__';
-    const shown = focused ? forest.filter(d => d.nome === this.discFilter) : forest;
+    const alpha = forest.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const selecionadas = this._discSelecionadas(forest);
+    if (!preservarPicker || !pickerHost || !pickerHost.querySelector('.tec-disc-pick-panel')) this.renderDiscPicker(alpha, selecionadas);
+    else this._sincronizarDiscPicker(pickerHost, selecionadas);
 
-    // resumo em destaque quando uma disciplina está em foco
-    if (focused && shown.length) {
+    const selNorm = new Set(selecionadas.map(ReforcoEngine.norm));
+    const focused = selecionadas.length > 0;
+    const shown = focused ? forest.filter(d => selNorm.has(ReforcoEngine.norm(d.nome))) : forest;
+
+    if (selecionadas.length === 1 && shown.length) {
       const d = shown[0];
       const pct = this.nodePct(d);
       const tone = this.toneOf(pct);
@@ -39773,51 +40276,53 @@ const DesempenhoTecScreen = {
             <div class="tfs"><span class="tfs-val" style="color:var(--good)">${d.acertos}</span><span class="tfs-lbl">acertos</span></div>
           </div>
         </div>`;
+    } else if (selecionadas.length > 1) {
+      focusEl.innerHTML = `<div class="tec-focus-multi"><b>${selecionadas.length} disciplinas no recorte</b><span>${selecionadas.map(escapeHtml).join(' · ')}</span></div>`;
     } else {
       focusEl.innerHTML = '';
     }
 
     const toolbar = `
       <div class="tec-tree-toolbar">
-        <span class="tec-tree-hint">${focused ? 'Detalhamento por tópico · ' : 'Clique para abrir/fechar cada nível · '}</span>
+        <span class="tec-tree-hint">${selecionadas.length === 1 ? 'Detalhamento por tópico · ' : selecionadas.length > 1 ? selecionadas.length + ' disciplinas combinadas · ' : 'Clique para abrir/fechar cada nível · '}</span>
         <button type="button" class="tec-tree-btn" id="tec-expand-all">⊞ Expandir tudo</button>
         <button type="button" class="tec-tree-btn" id="tec-collapse-all">⊟ Recolher tudo</button>
       </div>`;
-    // ao focar numa disciplina, já abre o primeiro nível para leitura imediata
-    this._lazyReg.clear();   // render novo: descarta promessas do render anterior
+    this._lazyReg.clear();
     container.innerHTML = toolbar + `<div class="tec-tree">${shown.map(d => this.treeNodeHtml(d, prevIdx, 0)).join('')}</div>`;
-    // ao focar numa disciplina o primeiro nível já abre — então precisa nascer agora
-    if (focused) container.querySelectorAll('.tnode.lvl0[data-haskids="1"]').forEach(n => {
+    if (selecionadas.length === 1) container.querySelectorAll('.tnode.lvl0[data-haskids="1"]').forEach(n => {
       n.classList.add('open');
       this._hydrate(n.querySelector(':scope > .tnode-children'));
     });
 
-    // Toggle por DELEGAÇÃO: um único listener no contêiner, em vez de um por linha.
-    // Necessário porque as linhas passam a ser criadas depois (sob demanda) — e de
-    // quebra elimina milhares de listeners que antes eram registrados de uma vez.
-    container.addEventListener('click', (e) => {
+    // O contêiner é persistente; atribuir o handler evita acumular listeners a cada filtro.
+    container.onclick = (e) => {
+      const exp = e.target.closest('#tec-expand-all');
+      if (exp) {
+        this._hydrateAll(container);
+        container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.add('open'));
+        return;
+      }
+      const col = e.target.closest('#tec-collapse-all');
+      if (col) {
+        container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.remove('open'));
+        return;
+      }
       const row = e.target.closest('.tnode-row.has-kids');
       if (!row || !container.contains(row)) return;
       e.stopPropagation();
       const nodeEl = row.closest('.tnode');
       const box = nodeEl.querySelector(':scope > .tnode-children');
-      if (!nodeEl.classList.contains('open')) this._hydrate(box);  // abrindo: materializa
+      if (!nodeEl.classList.contains('open')) this._hydrate(box);
       nodeEl.classList.toggle('open');
-    });
-    const setAll = (open) => {
-      if (open) this._hydrateAll(container);   // só ao expandir é que vale pagar a árvore toda
-      container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.toggle('open', open));
     };
-    container.querySelector('#tec-expand-all').addEventListener('click', () => setAll(true));
-    container.querySelector('#tec-collapse-all').addEventListener('click', () => setAll(false));
   }
 };
 
-// Um toque fora fecha o seletor de bancas (ele é o único painel flutuante desta
-// tela; sem isto, ficaria aberto por cima da lista que a pessoa quer ler).
+// Um toque fora fecha os seletores flutuantes sem reconstruí-los.
 document.addEventListener('click', () => {
-  document.querySelectorAll('.banca-pick-panel').forEach(p => p.setAttribute('hidden', ''));
-  document.querySelectorAll('.banca-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => p.setAttribute('hidden', ''));
+  document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
 });
 
 // Listeners da tela Desempenho TEC
@@ -39839,12 +40344,6 @@ $id('tec-import-text').addEventListener('input', () => DesempenhoTecScreen.updat
 // validação do intervalo de datas (sem sobreposição)
 $id('tec-import-start').addEventListener('change', () => DesempenhoTecScreen.validateRange());
 $id('tec-import-end').addEventListener('change', () => DesempenhoTecScreen.validateRange());
-// filtro por disciplina na árvore
-$id('tec-disc-filter').addEventListener('change', (e) => {
-  DesempenhoTecScreen.discFilter = e.target.value;
-  const snap = DesempenhoTecScreen.scopedSnapshot();
-  if (snap) DesempenhoTecScreen.renderDisciplinas(snap);
-});
 // upload de arquivo (clique + arrastar-e-soltar)
 (function () {
   const dz = document.getElementById('tec-dropzone');
@@ -50381,19 +50880,24 @@ else CloudStore.init();
     },
 
     /* ── A DOSE ─────────────────────────────────────────────────────────────
-       O caderno inteiro repartido na proporção do score, com piso para nenhuma
-       frente nascer pequena demais para medir. Quem não alcança o piso fica de
-       fora da rodada em vez de entrar com uma dose simbólica. */
+       Primeiro reserva o piso de TODA frente escolhida e só depois reparte o
+       restante pelo score. Assim um caderno de 25 com três frentes e piso 5
+       entrega três frentes de verdade; a conta antiga podia dar 3/9/13 e
+       eliminar justamente a terceira disciplina depois de tê-la escolhido. */
     dosar(itens, alvo, doseMin) {
-      const total = itens.reduce((a, x) => a + x.score, 0);
-      if (!(total > 0)) return itens.map(x => Object.assign(x, { dose: 0 }));
-      let restante = alvo;
-      itens.forEach((x, i) => {
-        const bruta = i === itens.length - 1 ? restante : Math.round(alvo * x.score / total);
-        x.dose = Math.max(0, Math.min(restante, bruta));
-        restante -= x.dose;
+      const maxCabem = Math.floor(alvo / Math.max(1, doseMin));
+      const ativos = (itens || []).slice(0, Math.max(0, maxCabem));
+      if (!ativos.length) return [];
+      const total = ativos.reduce((a, x) => a + Math.max(0, x.score), 0);
+      let restante = alvo - ativos.length * doseMin;
+      ativos.forEach((x, i) => {
+        const extra = i === ativos.length - 1
+          ? restante
+          : Math.max(0, Math.min(restante, Math.round((alvo - ativos.length * doseMin) * (total > 0 ? x.score / total : 1 / ativos.length))));
+        x.dose = doseMin + extra;
+        restante -= extra;
       });
-      return itens.filter(x => x.dose >= doseMin);
+      return ativos;
     },
 
     /* Resultado único do motor. `itens` é a fila executável (já dosada);
@@ -50425,11 +50929,22 @@ else CloudStore.init();
         }
       }
 
+      /* DISCIPLINA É CONTEXTO, NUNCA FILTRO EXECUTÁVEL.
+         A falha anterior nascia aqui: a poda começava na raiz (depth 0). Se os
+         tópicos fossem pequenos, eles eram agregados no pai e o pai se chamava
+         "Contabilidade Geral" — logo a disciplina inteira virava "tópico".
+         Agora a poda começa NOS FILHOS da disciplina. Ela pode subir de um
+         subtópico miúdo para o tópico-pai, mas jamais atravessa a fronteira da
+         matéria. É exatamente o comportamento do filtro do TEC: escolhemos o
+         nível mais alto necessário DENTRO da disciplina, não a disciplina. */
       const folhas = [];
-      forest.forEach(d => this._folhasEfetivas(d, p.margemMax, folhas));
+      forest.forEach(d => {
+        (d.children || []).filter(x => num(x.questoes) > 0)
+          .forEach(top => this._folhasEfetivas(top, p.margemMax, folhas));
+      });
 
       const todos = folhas
-        .filter(x => x.questoes > 0 && x.taxaErro > 0)
+        .filter(x => x.nivel > 0 && x.questoes > 0 && x.taxaErro > 0)
         .map(x => {
           x.peso = this._peso(x, p.fase, incMap);
           x.score = x.peso * (x.taxaErro / 100);
@@ -50439,28 +50954,53 @@ else CloudStore.init();
         .filter(x => x.score > 0)
         .sort((a, b) => b.score - a.score || b.questoes - a.questoes);
 
-      /* Uma frente por disciplina na fila executável: o caderno existe para
-         concentrar esforço, e três tópicos da mesma matéria no mesmo dia é o
-         contrário disso. O ranking completo continua inteiro em `todos`. */
-      /* UMA FRENTE POR DISCIPLINA, ATÉ `maxFrentes`. A FILA SÓ ACEITA O QUE A
-         RÉGUA SUSTENTA. Um ramo miúdo sem irmãos para
-         juntar (o último tópico de uma disciplina pouco praticada) não vira
-         bloco nem alcança a margem: ele continua no ranking, marcado, mas não
-         é oferecido como frente — recomendar 3 questões erradas de 3 é a
-         própria distorção que este motor existe para não repetir. */
-      const vistas = new Set(), fila = [];
+      /* PRIMEIRO RANQUEIA MATÉRIAS, DEPOIS ESCOLHE UM TÓPICO DE CADA.
+         O score da disciplina é a soma das lacunas MEDÍVEIS dos seus tópicos;
+         assim a prioridade da matéria e a prioridade do tópico falam a mesma
+         língua. Uma matéria sem nenhum tópico confiável aparece no ranking
+         completo, mas não vira atividade inventando precisão. */
+      const porDisc = new Map();
       todos.forEach(x => {
-        if (fila.length >= p.maxFrentes) return;
-        if (!x.legivel && !x.agregado) return;
         const k = norm(x.disciplina);
-        if (vistas.has(k)) return;
-        vistas.add(k); fila.push(Object.assign({}, x));
+        if (!porDisc.has(k)) porDisc.set(k, []);
+        porDisc.get(k).push(x);
+      });
+      const disciplinasTodas = forest.map(d => {
+        const cand = (porDisc.get(norm(d.nome)) || []).slice().sort((a, b) => b.score - a.score || b.questoes - a.questoes);
+        const mediveis = cand.filter(x => x.legivel);
+        const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
+        const taxa = q > 0 ? ac / q * 100 : null;
+        return {
+          nome: d.nome,
+          questoes: q,
+          acertos: ac,
+          taxa,
+          taxaErro: taxa == null ? null : 100 - taxa,
+          margem: this.margem(q, ac),
+          score: mediveis.reduce((s, x) => s + x.score, 0),
+          topicosMediveis: mediveis.length,
+          melhorTopico: mediveis[0] || null
+        };
+      }).sort((a, b) => {
+        const aOk = a.melhorTopico ? 1 : 0, bOk = b.melhorTopico ? 1 : 0;
+        return bOk - aOk || b.score - a.score || (b.taxaErro || 0) - (a.taxaErro || 0) || b.questoes - a.questoes;
+      });
+      const disciplinas = disciplinasTodas.filter(d => d.melhorTopico);
+      disciplinas.forEach((d, i) => { d.rank = i + 1; });
+
+      const fila = disciplinas.slice(0, p.maxFrentes).map((d, i) => {
+        const x = Object.assign({}, d.melhorTopico);
+        x.disciplinaRank = i + 1;
+        x.disciplinaScore = d.score;
+        return x;
       });
 
       return {
         fase: p.fase, prefs: p, erro: null,
         banca: p.fase === 'pos' ? banca : null,
         itens: this.dosar(fila, p.alvoQuestoes, p.doseMin),
+        disciplinas,
+        disciplinasTodas,
         todos
       };
     }
