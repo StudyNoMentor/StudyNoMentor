@@ -12,6 +12,12 @@ const RelationalStore = {
   _channelProfile: null,
   _rtTimer: null,
   _resubTimer: null,
+  _heavyReady: new Set(),
+  _heavyDirty: new Set(),
+  _heavyLoads: new Map(),
+  _heavyTimers: new Map(),
+  _lastChangeId: new Map(),
+  _lastHydratedAt: new Map(),
 
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
@@ -62,12 +68,32 @@ const RelationalStore = {
     try { localStorage.removeItem(k); }
     finally { this._applying = false; }
   },
-  _clearProfileMemory(profileId) {
+  _isHeavyMemoryKey(profileId, key) {
+    const p=this._pfx(profileId);
+    if(!key || key.indexOf(p)!==0) return false;
+    return /^p:[^:]+:(tec|incidencia)$/.test(key.slice(p.length));
+  },
+  _clearProfileMemory(profileId, opts) {
+    opts=opts||{};
     const p = this._pfx(profileId), keys=[];
     this._applying = true;
     try {
       for (let i=0;i<localStorage.length;i++) {
-        const k=localStorage.key(i); if(k && k.indexOf(p)===0) keys.push(k);
+        const k=localStorage.key(i);
+        if(!k || k.indexOf(p)!==0) continue;
+        if(opts.preserveHeavy && this._isHeavyMemoryKey(profileId,k)) continue;
+        keys.push(k);
+      }
+      keys.forEach(k=>localStorage.removeItem(k));
+    } finally { this._applying=false; }
+  },
+  _clearHeavyMemory(profileId) {
+    const keys=[];
+    this._applying=true;
+    try {
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(this._isHeavyMemoryKey(profileId,k)) keys.push(k);
       }
       keys.forEach(k=>localStorage.removeItem(k));
     } finally { this._applying=false; }
@@ -78,26 +104,9 @@ const RelationalStore = {
     return m;
   },
 
-  async hydrateUserPreferences() {
-    if (!this.isReady()) return false;
-    const uid = CloudStore.session && CloudStore.session.user && CloudStore.session.user.id;
-    if (!uid) return false;
-    const { data, error } = await CloudStore.client.from('user_preferences').select('key,value').eq('user_id', uid);
-    if (error) throw error;
-    this._applying=true;
-    try {
-      (data||[]).forEach(r => localStorage.setItem('diario-estudos:' + r.key, this._raw(r.value)));
-    } finally { this._applying=false; }
-    return true;
-  },
 
-  async hydrateProfile(profileId, opts) {
-    if (!this.isReady()) throw new Error('Banco indisponível');
-    const profileQ = CloudStore.client.from('study_profiles')
-      .select('id,profile_name,avatar,color,pin_hash,active_plan_id,created_at,updated_at')
-      .eq('id', profileId).maybeSingle();
-
-    const specs = [
+  _coreSpecs() {
+    return [
       ['plans','study_plans',[{col:'position'}]],
       ['profileSettings','study_profile_settings',[{col:'key'}]],
       ['planState','study_plan_state',[{col:'plan_id'},{col:'key'}]],
@@ -117,28 +126,115 @@ const RelationalStore = {
       ['siglas','study_custom_siglas',[{col:'plan_id'},{col:'position'}]],
       ['cycles','study_cycle_history',[{col:'plan_id'},{col:'position'}]],
       ['savedGrades','study_saved_grades',[{col:'plan_id'},{col:'position'}]],
-      ['tracks','study_track_items',[{col:'plan_id'},{col:'subject_name'},{col:'position'}]],
+      ['tracks','study_track_items',[{col:'plan_id'},{col:'subject_name'},{col:'position'}]]
+    ];
+  },
+  _heavySpecs() {
+    return [
       ['tecSnapshots','study_tec_snapshots',[{col:'plan_id'},{col:'position'}]],
       ['tecRows','study_tec_snapshot_rows',[{col:'plan_id'},{col:'snapshot_id'},{col:'row_no'}]],
       ['incidence','study_incidence',[{col:'plan_id'},{col:'row_no'}]]
     ];
-    const [profileRes, ...loaded] = await Promise.all([
-      profileQ,
-      ...specs.map(s=>this._all(s[1],profileId,s[2]))
-    ]);
-    if (profileRes.error) throw profileRes.error;
-    if (!profileRes.data) { const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
-    const d={}; specs.forEach((s,i)=>d[s[0]]=loaded[i]);
+  },
+  _rpcMissing(error) {
+    const code=String(error&&error.code||'');
+    const msg=String(error&&error.message||'').toLowerCase();
+    return code==='PGRST202'||code==='42883'||msg.includes('could not find the function')||msg.includes('does not exist');
+  },
+  async _rpcBundle(name, args) {
+    const {data,error}=await CloudStore.client.rpc(name,args||{});
+    if(error){
+      if(this._rpcMissing(error)) return {missing:true,data:null};
+      throw error;
+    }
+    return {missing:false,data};
+  },
+  async _loadCoreBundle(profileId) {
+    const rpc=await this._rpcBundle('read_study_profile_core',{p_profile_id:profileId});
+    if(!rpc.missing){
+      if(!rpc.data||!rpc.data.profile){ const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
+      return rpc.data;
+    }
+    const profileQ=CloudStore.client.from('study_profiles')
+      .select('id,profile_name,avatar,color,pin_hash,active_plan_id,created_at,updated_at')
+      .eq('id',profileId).maybeSingle();
+    const specs=this._coreSpecs();
+    const [profileRes,...loaded]=await Promise.all([profileQ,...specs.map(x=>this._all(x[1],profileId,x[2]))]);
+    if(profileRes.error) throw profileRes.error;
+    if(!profileRes.data){ const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
+    const d={profile:profileRes.data}; specs.forEach((x,i)=>d[x[0]]=loaded[i]);
+    return d;
+  },
+  async _loadHeavyBundle(profileId) {
+    const rpc=await this._rpcBundle('read_study_profile_heavy',{p_profile_id:profileId});
+    if(!rpc.missing) return rpc.data||{tecSnapshots:[],tecRows:[],incidence:[]};
+    const specs=this._heavySpecs();
+    const loaded=await Promise.all(specs.map(x=>this._all(x[1],profileId,x[2])));
+    const d={}; specs.forEach((x,i)=>d[x[0]]=loaded[i]);
+    return d;
+  },
+  _trace(etapa,extra) {
+    try { if(window.StartupTrace&&StartupTrace.mark) StartupTrace.mark(etapa,extra||{}); } catch(e){ _quiet(e,'rel-trace'); }
+  },
+  async _latestChangeId(profileId) {
+    const {data,error}=await CloudStore.client.from('study_change_log')
+      .select('change_id').eq('profile_id',profileId)
+      .order('change_id',{ascending:false}).limit(1);
+    if(error) throw error;
+    return data&&data[0] ? Number(data[0].change_id)||0 : 0;
+  },
+  async _changeSummary(profileId, after) {
+    const base=Number(after)||0;
+    const rpc=await this._rpcBundle('read_study_change_summary',{
+      p_profile_id:profileId,p_after_change_id:base
+    });
+    if(!rpc.missing){
+      const d=rpc.data||{};
+      return {
+        count:Number(d.count)||0,
+        maxChangeId:Number(d.max_change_id)||base,
+        tables:Array.isArray(d.tables)?d.tables.filter(Boolean):[],
+        truncated:false
+      };
+    }
+    const {data,error}=await CloudStore.client.from('study_change_log')
+      .select('change_id,table_name').eq('profile_id',profileId)
+      .gt('change_id',base).order('change_id',{ascending:true}).limit(1000);
+    if(error) throw error;
+    const rows=data||[];
+    return {
+      count:rows.length,
+      maxChangeId:rows.length?Number(rows[rows.length-1].change_id)||base:base,
+      tables:[...new Set(rows.map(x=>x.table_name).filter(Boolean))],
+      truncated:rows.length>=1000
+    };
+  },
 
-    this._clearProfileMemory(profileId);
+  async hydrateUserPreferences() {
+    if (!this.isReady()) return false;
+    const uid = CloudStore.session && CloudStore.session.user && CloudStore.session.user.id;
+    if (!uid) return false;
+    const { data, error } = await CloudStore.client.from('user_preferences').select('key,value').eq('user_id', uid);
+    if (error) throw error;
+    this._applying=true;
+    try {
+      (data||[]).forEach(r => localStorage.setItem('diario-estudos:' + r.key, this._raw(r.value)));
+    } finally { this._applying=false; }
+    return true;
+  },
+
+  _applyCoreBundle(profileId, d, opts) {
+    opts=opts||{};
+    this._clearProfileMemory(profileId,{preserveHeavy:!!opts.preserveHeavy});
     const pfx=this._pfx(profileId);
+    const profile=d.profile||{};
     const visiblePlans=(d.plans||[]).filter(p=>!p.hidden);
     this._memSet(pfx+'planejamentos', JSON.stringify(visiblePlans.map(p=>({
       id:p.plan_id,nome:p.name,tipo:p.plan_type||'',createdAt:p.created_at
     }))));
-    let active=profileRes.data.active_plan_id;
-    if (!active || !visiblePlans.some(p=>p.plan_id===active)) active=visiblePlans[0] && visiblePlans[0].plan_id;
-    if (active) this._memSet(pfx+'active-plan', active);
+    let active=profile.active_plan_id;
+    if(!active||!visiblePlans.some(p=>p.plan_id===active)) active=visiblePlans[0]&&visiblePlans[0].plan_id;
+    if(active) this._memSet(pfx+'active-plan',active);
 
     (d.profileSettings||[]).forEach(r=>this._memSet(pfx+r.key,this._raw(r.value)));
     (d.planState||[]).forEach(r=>this._memSet(pfx+'p:'+r.plan_id+':'+r.key,this._raw(r.value)));
@@ -210,7 +306,14 @@ const RelationalStore = {
       }));
     });
     trackGroups.forEach((obj,plan)=>this._memSet(pfx+'p:'+plan+':tracks',JSON.stringify(obj)));
+  },
 
+  _applyHeavyBundle(profileId, d) {
+    this._clearHeavyMemory(profileId);
+    const pfx=this._pfx(profileId);
+    const putGroups=(rows,suffix,map)=>{
+      this._group(rows).forEach((arr,plan)=>this._memSet(pfx+'p:'+plan+':'+suffix,JSON.stringify(arr.map(map))));
+    };
     const tecRowsBy=new Map();
     (d.tecRows||[]).forEach(r=>{
       const k=r.plan_id+'\u0000'+r.snapshot_id;if(!tecRowsBy.has(k))tecRowsBy.set(k,[]);
@@ -227,11 +330,71 @@ const RelationalStore = {
       id:r.incidence_id,pct:r.pct==null?null:Number(r.pct),banca:r.banca,depth:r.depth,codigo:r.code,topico:r.topic,
       disciplina:r.discipline,incidencia:r.incidence==null?null:Number(r.incidence)
     }));
+  },
 
-    this._lastSyncAt=Date.now(); this._lastError=null;
+  isHeavyReady(profileId) {
+    const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
+    return !!(id&&this._heavyReady.has(id)&&!this._heavyDirty.has(id));
+  },
+
+  async ensureHeavyData(profileId, opts) {
+    opts=opts||{};
+    const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
+    if(!id||!this.isReady())return false;
+    const force=!!opts.force||this._heavyDirty.has(id);
+    if(!force&&this._heavyReady.has(id))return {ok:true,mudou:0,cached:true};
+    if(this._heavyLoads.has(id))return this._heavyLoads.get(id);
+    const job=(async()=>{
+      const t0=Date.now();
+      this._trace('rel-heavy-inicio',{profileId:id,reason:opts.reason||'demand'});
+      const d=await this._loadHeavyBundle(id);
+      this._applyHeavyBundle(id,d||{});
+      this._heavyReady.add(id);this._heavyDirty.delete(id);
+      this._lastSyncAt=Date.now();this._lastError=null;
+      this._trace('rel-heavy-ok',{profileId:id,ms:Date.now()-t0});
+      try{window.dispatchEvent(new CustomEvent('data:relational-heavy-hydrated',{detail:{profileId:id,reason:opts.reason||'demand'}}));}catch(e){_quiet(e,'rel-heavy-event');}
+      return {ok:true,mudou:1};
+    })();
+    this._heavyLoads.set(id,job);
+    try{return await job;}
+    catch(e){this._lastError=e;throw e;}
+    finally{this._heavyLoads.delete(id);}
+  },
+
+  scheduleHeavyData(profileId, opts) {
+    opts=opts||{};
+    const id=profileId;if(!id||this.isHeavyReady(id)||this._heavyLoads.has(id))return false;
+    try{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c&&c.saveData)return false;}catch(_){}
+    if(this._heavyTimers.has(id))return true;
+    const run=()=>{this._heavyTimers.delete(id);this.ensureHeavyData(id,{reason:opts.reason||'idle-prefetch'}).catch(e=>_quiet(e,'rel-heavy-prefetch'));};
+    const delay=Math.max(300,Number(opts.delay)||2500);
+    const timer=setTimeout(()=>{
+      if(typeof requestIdleCallback==='function')requestIdleCallback(run,{timeout:2500});else run();
+    },delay);
+    this._heavyTimers.set(id,timer);
+    return true;
+  },
+
+  async hydrateProfile(profileId, opts) {
+    opts=opts||{};
+    if(!this.isReady())throw new Error('Banco indisponível');
+    const t0=Date.now();
+    this._trace('rel-core-inicio',{profileId,reason:opts.reason||'open'});
+    let watermark=this._lastChangeId.get(profileId)||0;
+    if(!this._lastChangeId.has(profileId)&&!opts.skipWatermark){
+      try{watermark=await this._latestChangeId(profileId);}catch(e){_quiet(e,'rel-watermark');}
+    }
+    const d=await this._loadCoreBundle(profileId);
+    this._applyCoreBundle(profileId,d,{preserveHeavy:!!opts.preserveHeavy});
+    if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
+    this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
+    this._lastHydratedAt.set(profileId,Date.now());
+    this._lastSyncAt=Date.now();this._lastError=null;
     this.subscribeProfile(profileId);
-    try { window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:(opts&&opts.reason)||'open'}})); } catch(e){ _quiet(e, 'rel-hydrated-event'); }
-    return {ok:true,mudou:1,profile:profileRes.data};
+    this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
+    try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
+    if(opts.includeHeavy!==false)await this.ensureHeavyData(profileId,{reason:opts.reason||'hydrate',force:true});
+    return {ok:true,mudou:1,profile:d.profile,heavyReady:this.isHeavyReady(profileId)};
   },
 
   _queue(label, task) {
@@ -484,11 +647,36 @@ const RelationalStore = {
     return { ok:true, secoes:Object.keys(data).length, planos:plans.length };
   },
 
+  async _refreshDomains(profileId, tables, reason, truncated) {
+    const set=new Set((tables||[]).filter(Boolean));
+    const heavyNames=new Set(['study_tec_snapshots','study_tec_snapshot_rows','study_incidence']);
+    let heavy=!!truncated, core=!!truncated;
+    set.forEach(t=>{if(heavyNames.has(t))heavy=true;else core=true;});
+    if(core)await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+    if(heavy){
+      this._heavyDirty.add(profileId);
+      if(this._heavyReady.has(profileId))await this.ensureHeavyData(profileId,{reason:reason||'catch-up-heavy',force:true});
+    }
+    return {core,heavy};
+  },
+
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
     try{await this.flush();}catch(e){_quiet(e,'rel-catchup-flush');}
-    return this.hydrateProfile(id,{reason:reason||'catch-up'});
+    if(!this._lastChangeId.has(id)){
+      return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false});
+    }
+    const after=Number(this._lastChangeId.get(id))||0;
+    const summary=await this._changeSummary(id,after);
+    if(!summary.count&&!summary.truncated){
+      this._lastSyncAt=Date.now();
+      return {ok:true,mudou:0,changeId:after};
+    }
+    await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
+    this._lastChangeId.set(id,Math.max(after,Number(summary.maxChangeId)||after));
+    this._lastSyncAt=Date.now();this._lastError=null;
+    return {ok:true,mudou:summary.count||1,changeId:this._lastChangeId.get(id),tables:summary.tables};
   },
 
   subscribeProfile(profileId) {
@@ -500,15 +688,14 @@ const RelationalStore = {
     const ch=CloudStore.client.channel('study-relational-'+profileId+'-'+Date.now())
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'study_change_log',filter:'profile_id=eq.'+profileId},()=>{
         clearTimeout(this._rtTimer);
-        this._rtTimer=setTimeout(()=>this.catchUp(profileId,'realtime'),180);
+        this._rtTimer=setTimeout(()=>this.catchUp(profileId,'realtime').catch(e=>{this._lastError=e;}),180);
       })
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
-          /* Fecha a janela SELECT→WebSocket: qualquer commit ocorrido entre a
-             hidratação e a assinatura é recuperado por uma consulta canônica. */
-          clearTimeout(this._resubTimer);
-          this._resubTimer=null;
-          this.catchUp(profileId,'realtime-subscribed').catch(e=>{ this._lastError=e; });
+          clearTimeout(this._resubTimer);this._resubTimer=null;
+          /* A assinatura não rebaixa o perfil inteiro. O change-log responde
+             se algo mudou na pequena janela entre o watermark e o WebSocket. */
+          this.catchUp(profileId,'realtime-subscribed').catch(e=>{this._lastError=e;});
           return;
         }
         if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
@@ -521,8 +708,10 @@ const RelationalStore = {
   },
   unsubscribe() {
     clearTimeout(this._rtTimer);clearTimeout(this._resubTimer);
+    this._heavyTimers.forEach(t=>clearTimeout(t));this._heavyTimers.clear();
     try{if(this._channel&&window.CloudStore&&CloudStore.client)CloudStore.client.removeChannel(this._channel);}catch(e){_quiet(e,'rel-unsubscribe-remove-channel');}
     this._channel=null;this._channelProfile=null;
   }
+
 };
 window.RelationalStore=RelationalStore;
