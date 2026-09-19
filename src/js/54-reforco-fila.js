@@ -191,7 +191,7 @@ const ReforcoFila = {
       if (!Array.isArray(list) || !list.length) return { mudou: false };
       /* ── A REFERÊNCIA DO TEC SÓ É PAGA QUANDO ALGUÉM A USA ────────────────
          `ref` serve exclusivamente às atividades vindas do Plano, no laço
-         abaixo. Quem nunca usou o "Puxar do Plano" não tem nenhuma — e mesmo
+         abaixo. Quem nunca usou o "Puxar do Motor" não tem nenhuma — e mesmo
          assim pagava o motor inteiro a cada repintura de Extras, para o
          resultado ser descartado sem uma única leitura. Agora a conta é
          adiada até a primeira atividade que realmente precise dela. */
