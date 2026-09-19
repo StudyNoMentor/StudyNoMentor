@@ -1464,7 +1464,8 @@ try {
     : erro('a soma de duas bancas saiu errada: ' + JSON.stringify(sel.duas));
   (Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2
       && Array.isArray(sel.noPlano.motorBanca) && sel.noPlano.motorBanca.length === 2
-      && sel.noPlano.filtro.map(ReforcoEngine.norm).sort().join('|') === sel.noPlano.motorBanca.map(ReforcoEngine.norm).sort().join('|'))
+      && sel.noPlano.filtro.map(x => String(x).trim().toLowerCase()).sort().join('|')
+        === sel.noPlano.motorBanca.map(x => String(x).trim().toLowerCase()).sort().join('|'))
     ? ok('a mesma selecao de duas bancas chega ao calculo do Motor, sem seletor duplicado')
     : erro('a selecao nao atravessou para o Motor: ' + JSON.stringify(sel.noPlano));
   (sel.voltou.incid === 166 && /Todas/.test(sel.voltou.rotulo))
