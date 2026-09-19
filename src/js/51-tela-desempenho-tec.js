@@ -2932,8 +2932,8 @@ const TecAjustes = {
         p.push([/ e /.test(b) ? 'bancas' : 'banca', b.replace(/^todas as bancas$/, 'todas')]);
       }
       p.push(['margem', '±' + m.margemMax + 'pp']);
-      p.push(['caderno', m.alvoQuestoes + ' questões']);
-      p.push(['disciplinas', String(m.maxFrentes)]);
+      p.push(['base/reforço', m.alvoQuestoes + ' questões']);
+      p.push(['disciplinas agora', String(m.maxFrentes)]);
       p.push(['meta', m.metaAcerto + '%']);
     }
     return p.filter(x => x[1]);
@@ -4149,8 +4149,8 @@ const DesempenhoTecScreen = {
     const p = MotorSugestao.prefs();
     if (fase) {
       const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
-      fase.innerHTML = b('pre', 'Pré-edital', 'Peso = o seu volume no TEC')
-        + b('pos', 'Pós-edital', 'Peso = incidência da banca');
+      fase.innerHTML = b('pre', 'Pré-edital', 'Pior recorte mensurável primeiro')
+        + b('pos', 'Pós-edital', 'Fraqueza ponderada pela incidência');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
 
@@ -4166,97 +4166,125 @@ const DesempenhoTecScreen = {
       return;
     }
     if (!r.itens.length) {
-      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Há dados de desempenho, mas nenhum <b>tópico</b> tem amostra suficiente para virar reforço com a margem atual de ±${r.prefs.margemMax}pp. O motor não vai substituir isso por uma disciplina inteira. Ajuste a margem ou acumule mais questões.</p>`;
+      host.innerHTML = `<div class="ms-empty-honesto"><span>🧭</span><div><b>Nenhum recorte confiável para atacar agora</b><p>O motor não vai transformar uma disciplina inteira em tarefa. Com a margem atual de ±${r.prefs.margemMax}pp, nenhum tópico abaixo da meta de ${r.prefs.metaAcerto}% tem amostra suficiente. Acumule mais questões ou revise a régua em ⚙ Ajustes.</p></div></div>`;
       return;
     }
 
     const fmt1 = v => Math.round(Number(v || 0) * 10) / 10;
-    const discTop = (r.disciplinas || []).slice(0, Math.min(3, r.prefs.maxFrentes || 3));
+    const tom = x => {
+      const e = Number(x && x.taxaErro || 0);
+      return e >= 50 ? 'critico' : e >= 35 ? 'alto' : e >= 20 ? 'medio' : 'leve';
+    };
+    const emoji = x => ({ critico: '🚨', alto: '🔥', medio: '⚠️', leve: '📌' }[tom(x)]);
+    const discTop = (r.disciplinas || []).slice(0, Math.min(r.prefs.maxFrentes || 3, 3));
+
     const disciplinasHtml = discTop.map((d, i) => {
       const top = d.melhorTopico;
+      const ac = d.taxa == null ? '—' : fmt1(d.taxa) + '%';
       return `
-        <article class="ms-disc-card">
-          <span class="ms-rank">${i + 1}</span>
-          <div class="ms-disc-main">
-            <b>${escapeHtml(d.nome)}</b>
-            <small>melhor recorte: ${escapeHtml(top ? top.nome : '—')}</small>
-          </div>
-          <div class="ms-disc-kpis">
-            <span><i>erro</i>${fmt1(d.taxaErro)}%</span>
-            <span><i>resolvidas</i>${d.questoes.toLocaleString('pt-BR')}</span>
-            <span><i>lacuna</i>${Math.round(d.score)}</span>
+        <article class="ms-priority-card tone-${tom(top)}">
+          <div class="ms-priority-icon">${emoji(top)}</div>
+          <div class="ms-priority-body">
+            <div class="ms-priority-eyebrow">Prioridade ${i + 1} · ${escapeHtml(r.criterioDisciplinas || '')}</div>
+            <h3>${escapeHtml(d.nome)}</h3>
+            <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
+            <div class="ms-priority-meta">
+              <span><i>disciplina</i><b>${ac}</b></span>
+              <span><i>resolvidas</i><b>${d.questoes.toLocaleString('pt-BR')}</b></span>
+              <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
+            </div>
           </div>
         </article>`;
     }).join('');
 
-    const totalDose = r.itens.reduce((a, x) => a + x.dose, 0);
     const linhas = r.itens.map((x, i) => {
       const erroPct = fmt1(x.taxaErro);
       const margem = x.margem == null ? '—' : '±' + fmt1(x.margem) + 'pp';
-      const bloco = x.agregado ? (() => {
-        const partes = [];
-        if (x.membros && x.membros.length) partes.push(x.membros.length + ' ramo' + (x.membros.length > 1 ? 's' : '') + ' miúdo' + (x.membros.length > 1 ? 's' : ''));
-        if (x.residuo > 0) partes.push(x.residuo + ' questões sem subtópico detalhado');
-        const dica = 'O motor subiu para "' + x.nome + '" porque os níveis abaixo, isolados, não têm amostra suficiente. A disciplina inteira nunca é usada como filtro.';
-        return `<span class="ms-selo" title="${escapeHtml(dica)}">nível agregado · ${escapeHtml(partes.join(' + '))}</span>`;
-      })() : `<span class="ms-selo ms-selo-nivel">nível ${Math.max(1, x.nivel)}</span>`;
+      const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
+      const porQue = x.agregado
+        ? `Agrupamento local de ${x.membros.length} irmãos sob “${x.pai || 'o mesmo tópico'}”. Separados, eram pequenos demais; juntos sustentam a medida.`
+        : x.motivoNivel === 'subnivel-insuficiente'
+          ? 'O nível abaixo ficou pequeno demais para medir com segurança. O motor subiu somente até este tópico.'
+          : 'A amostra deste nível já sustenta o percentual; não há motivo estatístico para subir a árvore.';
+      const membros = x.agregado
+        ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
+        : '';
       const peso = r.fase === 'pos'
-        ? `<i>incidência</i>${x.peso}`
-        : `<i>volume</i>${x.questoes}`;
+        ? `<span><i>incidência</i><b>${x.peso}</b></span>`
+        : `<span><i>amostra</i><b>${x.questoes}</b></span>`;
       return `
-        <div class="ms-item" data-i="${i}">
-          <div class="ms-item-top">
-            <span class="ms-rank">${i + 1}</span>
-            <div class="ms-id">
-              <small>${escapeHtml(x.disciplina)} · tópico recomendado</small>
-              <b>${escapeHtml(x.nome)}</b>${bloco}
+        <article class="ms-suggestion-card tone-${tom(x)}" data-i="${i}">
+          <div class="ms-suggestion-head">
+            <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
+            <div class="ms-suggestion-title">
+              <small>${trilha.map(escapeHtml).join(' › ')}</small>
+              <h3>${escapeHtml(x.nome)}</h3>
+              <div class="ms-level-badges">
+                <span>Nível ${x.nivel}</span>
+                ${x.agregado ? '<span class="is-group">bloco de irmãos</span>' : '<span>recorte direto</span>'}
+              </div>
             </div>
-            <span class="ms-dose" title="Questões desta frente no caderno da rodada">${x.dose}<small>questões</small></span>
+            <div class="ms-dose"><b>${x.dose}</b><small>questões</small></div>
           </div>
-          <div class="ms-nums">
-            <span class="ms-pill"><i>erro</i>${erroPct}%</span>
-            <span class="ms-pill"><i>resolvidas</i>${x.questoes}</span>
-            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança."><i>margem</i>${margem}</span>
-            <span class="ms-pill">${peso}</span>
-            <span class="ms-pill ms-score"><i>lacuna</i>${Math.round(x.score)}</span>
+          ${membros}
+          <div class="ms-suggestion-metrics">
+            <span><i>acerto</i><b>${fmt1(x.taxa)}%</b></span>
+            <span><i>erro</i><b>${erroPct}%</b></span>
+            <span><i>histórico</i><b>${x.questoes} q</b></span>
+            <span><i>margem</i><b>${margem}</b></span>
+            ${peso}
           </div>
-          <div class="ms-acoes">
-            <button type="button" class="btn-secondary" data-motor-extra="${i}">+ Criar atividade de ${x.dose} questões</button>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)}</p></div>
+          <div class="ms-suggestion-action">
+            <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
-        </div>`;
+        </article>`;
     }).join('');
 
-    const discRank = (r.disciplinas || []).slice(0, 30).map((d, i) =>
-      `<li><span>${i + 1}</span><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxaErro)}% erro · lacuna ${Math.round(d.score)} · melhor tópico: ${escapeHtml((d.melhorTopico || {}).nome || 'sem tópico confiável')}</small></li>`
-    ).join('');
-    const topRank = (r.todos || []).slice(0, 30).map((x, i) =>
-      `<li class="${x.legivel ? '' : 'is-incerto'}"><span>${i + 1}</span><b>${escapeHtml(x.nome)}</b><small>${escapeHtml(x.disciplina)} · ${fmt1(x.taxaErro)}% erro · ${x.questoes} questões · ${x.legivel ? 'amostra utilizável' : 'amostra ainda fraca'}</small></li>`
-    ).join('');
+    const discRank = (r.disciplinas || []).map((d, i) => {
+      const t = d.melhorTopico;
+      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.taxa) + '% no pior recorte · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
+    }).join('');
 
+    const filas = (r.disciplinas || []).map(d => {
+      const itens = (d.fila || []).slice(0, 15).map((x, i) =>
+        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
+      ).join('');
+      return `<section class="ms-queue-group"><h4>${escapeHtml(d.nome)}</h4><ol>${itens}</ol></section>`;
+    }).join('');
+
+    const somaDose = r.itens.reduce((s, x) => s + Number(x.dose || 0), 0);
     host.innerHTML = `
-      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno · margem tolerada de ±${r.prefs.margemMax}pp · peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
+      <div class="ms-rule-summary">
+        <span>🧭 ${r.itens.length} disciplinas agora</span>
+        <span>🧩 1 frente de cada</span>
+        <span>📚 ${r.prefs.doseMin}+ questões por atividade</span>
+        <span>📏 margem ±${r.prefs.margemMax}pp</span>
+        <span>🎯 meta ${r.prefs.metaAcerto}%</span>
+      </div>
 
       <section class="ms-stage">
-        <header><span>1</span><div><b>Disciplinas prioritárias</b><small>Primeiro o motor escolhe as matérias; disciplina não vira atividade.</small></div></header>
-        <div class="ms-disc-list">${disciplinasHtml}</div>
+        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Disciplinas ordenadas pela regra do motor. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
+        <div class="ms-priority-list">${disciplinasHtml}</div>
       </section>
 
       <section class="ms-stage">
-        <header><span>2</span><div><b>Tópicos para atacar agora</b><small>Um tópico de cada disciplina acima, no nível mais específico que a amostra sustenta.</small></div></header>
-        <div class="ms-lista">${linhas}</div>
+        <header><span>2</span><div><b>Atacar agora</b><small>O primeiro recorte da fila hierárquica de cada disciplina, sempre do pior para o melhor.</small></div></header>
+        <div class="ms-suggestion-list">${linhas}</div>
+        <p class="ms-round-total">Se executar as ${r.itens.length} sugestões: <b>${somaDose} questões</b>. Nenhuma atividade pode nascer com menos de ${r.prefs.doseMin}.</p>
       </section>
 
       <div class="ms-rankings">
         <details>
-          <summary>Ranking de disciplinas <small>${(r.disciplinas || []).length} com tópico mensurável</small><i>⌄</i></summary>
-          <ol>${discRank}</ol>
+          <summary><span>📊 Ranking de disciplinas</span><small>${(r.disciplinas || []).length} com frente acionável</small><i>⌄</i></summary>
+          <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details>
-          <summary>Ranking de tópicos <small>${(r.todos || []).length} candidatos</small><i>⌄</i></summary>
-          <ol>${topRank}</ol>
+          <summary><span>🧬 Filas hierárquicas por disciplina</span><small>pior → melhor, sem misturar árvores</small><i>⌄</i></summary>
+          <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">A poda nunca ultrapassa a fronteira da disciplina. Se um subtópico tem poucas questões, o motor sobe para o tópico-pai; se nem o tópico for confiável, ele fica fora da rodada em vez de recomendar a matéria inteira.</p>`;
+      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com irmãos do mesmo pai. Se esse bloco ainda não for confiável, o motor sobe um nível dentro da matéria. A fronteira da disciplina nunca é atravessada.</p>`;
 
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
