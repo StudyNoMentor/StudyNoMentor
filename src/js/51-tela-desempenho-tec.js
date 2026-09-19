@@ -2708,8 +2708,8 @@ window.PlanoCiclo = PlanoCiclo;
 
    Agora cada aba mostra UMA linha: o que está valendo, escrito por extenso, e
    um botão que abre esta folha. Dentro dela os mesmos campos, com os MESMOS
-   ids — nada foi duplicado nem reescrito, as telas seguem lendo `plano-meta`,
-   `reforco-minq`, `tec-weak-minq` de onde sempre leram.
+   ids — nada foi duplicado nem reescrito; cada tela segue lendo os campos
+   que realmente usa.
 
    O que a folha acrescenta, e que uma pilha de acordeões não dá:
 
@@ -2727,15 +2727,13 @@ const TecAjustes = {
     return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + (aba || this.aba) + '"]')];
   },
   TITULOS: {
-    motor: { t: '🧭 Ajustes do Motor', s: 'A margem que decide até onde descer na árvore e o tamanho do caderno que o motor reparte.' },
-    analise: { t: '📊 Ajustes da lista', s: 'O corte que define quem entra na lista de assuntos abaixo da régua.' }
+    motor: { t: '🧭 Ajustes do Motor', s: 'A margem que decide até onde descer na árvore e o tamanho do caderno que o motor reparte.' }
   },
   /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
      você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
      o ponto de mentir quando um padrão mudar. */
   PADROES: {
-    motor: () => Object.assign({}, MotorSugestao.DEFAULTS),
-    analise: () => ({ weakOrdenar: 'taxa', weakDisc: '__todas__', weakLimiar: null, weakMinQ: 10, weakLeaves: true })
+    motor: () => Object.assign({}, MotorSugestao.DEFAULTS)
   },
   abrir(aba) {
     const modal = document.getElementById('tec-cfg-modal');
@@ -2925,10 +2923,6 @@ const TecAjustes = {
      obriga a ler tudo para achar um; a etiqueta responde de relance qual é o
      campo e o que ele está valendo. */
   resumo(aba) {
-    const sel = (id) => { const e = document.getElementById(id); return (e && e.options && e.options[e.selectedIndex]) ? e.options[e.selectedIndex].text : ''; };
-    const val = (id) => { const e = document.getElementById(id); return e ? e.value : ''; };
-    const semEmoji = (t) => String(t || '').replace(/^[^\p{L}\d]+/u, '').split(' — ')[0].trim();
-    const disc = (id) => { const d = semEmoji(sel(id)); return (!d || /^todas/i.test(d)) ? 'todas' : d; };
     const p = [];
     if (aba === 'motor') {
       const m = MotorSugestao.prefs();
@@ -2941,17 +2935,12 @@ const TecAjustes = {
       p.push(['caderno', m.alvoQuestoes + ' questões']);
       p.push(['disciplinas', String(m.maxFrentes)]);
       p.push(['meta', m.metaAcerto + '%']);
-    } else if (aba === 'analise') {
-      if (val('tec-weak-threshold')) p.push(['fraco abaixo de', val('tec-weak-threshold') + '%']);
-      p.push(['ordem', semEmoji(sel('tec-weak-ordenar'))]);
-      p.push(['disciplina', disc('tec-weak-disc')]);
-      if (val('tec-weak-minq')) p.push(['mín. questões', val('tec-weak-minq')]);
     }
     return p.filter(x => x[1]);
   },
   // chamado pelas telas a cada repintura: o resumo nunca pode ficar velho
   sincronizar(aba) {
-    const alvos = aba ? [aba] : ['motor', 'analise'];
+    const alvos = aba ? [aba] : ['motor'];
     alvos.forEach(a => {
       const el = document.getElementById(a + '-cfg-resumo');
       if (!el) return;
@@ -2968,7 +2957,7 @@ const DesempenhoTecScreen = {
   /* ═══ TODA ABA PESADA MERECE O MESMO TRATAMENTO ═════════════════════════
      O adiamento com esqueleto existia só para o Plano. As outras três abas
      chamavam o render direto do `click`, e cada uma faz trabalho pesado sobre
-     o mesmo conjunto de retratos: Análise soma totais, pontos fracos e o
+     o mesmo conjunto de retratos: Análise soma totais e monta o
      quadro por disciplina; Incidência monta uma floresta por banca;
      Reforço cruza incidência com erro em toda a árvore. Num perfil com dez
      retratos e centenas de assuntos, o clique no chip simplesmente não
@@ -3939,34 +3928,12 @@ const DesempenhoTecScreen = {
     const snap = this.scopedSnapshot();
     const wrap = document.getElementById('tec-panel-analise');
     if (!snap) {
-      if (wrap) wrap.querySelectorAll('#tec-totais, #tec-weak-list, #tec-disc-list').forEach(el => { if (el) el.innerHTML = ''; });
+      if (wrap) wrap.querySelectorAll('#tec-totais, #tec-disc-list').forEach(el => { if (el) el.innerHTML = ''; });
       const t = document.getElementById('tec-totais'); if (t) t.innerHTML = '<div class="evo-empty-mini" style="grid-column:1/-1;">Nenhum retrato no escopo atual. Ajuste a seleção ou o intervalo de datas acima.</div>';
       return;
     }
-    this.aplicarPrefsAnalise();
     this.renderTotais(snap);
-    this.renderWeak(snap);
     this.renderDisciplinas(snap);
-  },
-  /* ── UMA RÉGUA SÓ ─────────────────────────────────────────────────────────
-     O limiar de "ponto fraco" desta aba nascia com 70%, enquanto o Plano
-     trabalha com meta de 80% e teto realista de 90%. O mesmo tópico podia ser
-     "ponto fraco" aqui e "em desenvolvimento" lá, e nada na tela ligava um
-     número ao outro. Agora o limiar NASCE da meta do Plano — e continua seu
-     para mudar quando quiser, porque a partir daí a escolha fica salva.
-
-     O mínimo de questões também sobe de 3 para 10: com três questões, uma taxa
-     de acerto não é diagnóstico (ver a margem de erro que agora aparece em
-     cada linha). */
-  aplicarPrefsAnalise() {
-    const p = this._loadPrefs();
-    const metaPlano = (typeof PlanoEngine !== 'undefined') ? PlanoEngine.prefs().metaDominio : 70;
-    const set = (id, v) => { const e = document.getElementById(id); if (e && v != null) e.value = v; };
-    set('tec-weak-threshold', p.weakLimiar != null ? p.weakLimiar : metaPlano);
-    set('tec-weak-minq', p.weakMinQ != null ? p.weakMinQ : 10);
-    set('tec-weak-ordenar', p.weakOrdenar || 'taxa');
-    const lv = document.getElementById('tec-weak-leaves');
-    if (lv && p.weakLeaves != null) lv.checked = !!p.weakLeaves;
   },
   // ---- Abas (Análise / Incidência / Reforço) ----
   tecTab: 'analise',
@@ -4702,110 +4669,6 @@ const DesempenhoTecScreen = {
       </p>
     `;
   },
-  weakDisc: '__todas__', // '__todas__' = todas (agrupadas) | nome = só aquela disciplina
-  weakRowHtml(f, showDisc) {
-    const tone = this.toneOf(f.pctAcerto);
-    /* MARGEM DE ERRO na linha. Sem ela, "33%" em três questões e "33%" em
-       trezentas tinham exatamente a mesma cara — e a lista, ordenada por
-       percentual, colocava a primeira acima da segunda. A margem é a diferença
-       entre um diagnóstico e um palpite, e agora está escrita ao lado do
-       número que a pessoa vai usar para decidir o que estudar. */
-    const m = (typeof PlanoEngine !== 'undefined') ? PlanoEngine.margemErro(f.pctAcerto, f.questoes) : null;
-    const erros = Math.max(0, (f.questoes || 0) - (f.acertos || 0));
-    const frouxa = m != null && m >= 15;
-    return `
-      <div class="weak-row">
-        <div class="weak-info">
-          <div class="wname">${escapeHtml(f.nome)}</div>
-          ${showDisc ? `<div class="wdisc">${escapeHtml(f.disciplina)}</div>` : ''}
-          <div class="wmeta">${erros} ${erros === 1 ? 'erro' : 'erros'}${m != null ? ` · ±${m.toFixed(0)}pp` : ''}${frouxa ? ' <b title="Com esta amostra a taxa real pode estar dezenas de pontos acima ou abaixo — resolva mais questões antes de tratar isto como fraqueza.">amostra curta</b>' : ''}</div>
-        </div>
-        <div class="weak-track"><div class="weak-fill tone-${tone}" style="width:${f.pctAcerto}%;"></div></div>
-        <div class="weak-pct tone-${tone}">${f.pctAcerto}%<span class="q">${f.acertos}/${f.questoes}</span></div>
-      </div>`;
-  },
-  renderWeak(snap) {
-    const limiar = parseInt($id('tec-weak-threshold').value, 10) || 70;
-    const minQ = parseInt($id('tec-weak-minq').value, 10) || 1;
-    const leaves = $id('tec-weak-leaves').checked;
-    const ordEl = document.getElementById('tec-weak-ordenar');
-    const modo = ordEl ? ordEl.value : 'taxa';
-    /* Repintar NÃO é escolher. Salvar aqui gravava, no primeiro render, o
-       limiar que a tela acabara de herdar da meta do Plano — e a partir daí a
-       "régua única" deixava de acompanhar o Plano em silêncio, porque um valor
-       salvo sempre vence o herdado. Quem grava é o toque na tela (ver os
-       listeners no fim do arquivo). */
-    const container = document.getElementById('tec-weak-list');
-    const sel = document.getElementById('tec-weak-disc');
-
-    // todos os pontos fracos do retrato (já ordenados do pior para o melhor)
-    const todos = TecEngine.pontosFracos(snap, { minQuestoes: minQ, limiar, apenasFolhas: leaves });
-    /* DOIS MODOS DE LEITURA, porque são duas perguntas diferentes:
-         taxa    — "onde eu erro mais por questão?" (a pior taxa primeiro)
-         impacto — "onde eu perco mais questões?"   (o maior número de erros)
-       A lista só existia no primeiro modo, e com ele um tópico de 3 questões a
-       33% ficava acima de um de 300 a 45%: o topo de "onde focar" era, na
-       prática, uma lista de amostras pequenas. */
-    const erroDe = (f) => Math.max(0, (f.questoes || 0) - (f.acertos || 0));
-    const ordenar = (lista) => lista.slice().sort((a, b) => modo === 'impacto'
-      ? (erroDe(b) - erroDe(a) || a.pctAcerto - b.pctAcerto)
-      : (a.pctAcerto - b.pctAcerto || b.questoes - a.questoes));
-
-    // popula o seletor: disciplinas que possuem ao menos um ponto fraco, ordenadas pela mais fraca
-    const discPct = Object.fromEntries(TecEngine.disciplinas(snap).map(d => [d.nome, this.nodePct(d)]));
-    const discsComFraco = [...new Set(todos.map(f => f.disciplina))]
-      .sort((a, b) => (discPct[a] ?? 100) - (discPct[b] ?? 100));
-    if (this.weakDisc !== '__todas__' && !discsComFraco.includes(this.weakDisc)) this.weakDisc = '__todas__';
-    sel.innerHTML = `<option value="__todas__">Todas as disciplinas (agrupado)</option>` +
-      discsComFraco.map(n => {
-        const c = todos.filter(f => f.disciplina === n).length;
-        return `<option value="${escapeHtml(n)}" ${n === this.weakDisc ? 'selected' : ''}>${escapeHtml(n)} — ${c} ponto(s) fraco(s)</option>`;
-      }).join('');
-
-    if (todos.length === 0) {
-      container.innerHTML = `<div class="empty-state" style="padding:24px;"><div class="big">🎉</div>Nenhum tópico abaixo de ${limiar}% com ao menos ${minQ} questão(ões). Mandou bem!</div>`;
-      return;
-    }
-
-    // legenda: o que a lista está respondendo agora, e com que régua
-    const legenda = `<p class="weak-legenda">${modo === 'impacto'
-      ? 'Ordenado por <b>erros absolutos</b>: onde você perde mais questões, mesmo que a taxa não seja a pior.'
-      : 'Ordenado pela <b>pior taxa de acerto</b>: onde você mais erra por questão resolvida.'}
-      Entram os tópicos abaixo de <b>${limiar}%</b> com pelo menos <b>${minQ}</b> ${minQ === 1 ? 'questão' : 'questões'} — o limiar vem da meta do 🏁 Plano e pode ser mudado aqui.</p>`;
-
-    // FILTRO: uma disciplina específica → lista plana, só dela
-    if (this.weakDisc !== '__todas__') {
-      const lista = ordenar(todos.filter(f => f.disciplina === this.weakDisc));
-      container.innerHTML = legenda + lista.map(f => this.weakRowHtml(f, false)).join('');
-      return;
-    }
-
-    // AGRUPADO: todas as disciplinas, cada uma como um grupo (mais fraca no topo),
-    // e dentro dela os tópicos do pior para o melhor
-    const grupos = {};
-    todos.forEach(f => { (grupos[f.disciplina] = grupos[f.disciplina] || []).push(f); });
-    const errosDisc = {};
-    Object.keys(grupos).forEach(d => { errosDisc[d] = grupos[d].reduce((a, f) => a + erroDe(f), 0); });
-    const ordemDisc = Object.keys(grupos).sort((a, b) => modo === 'impacto'
-      ? (errosDisc[b] - errosDisc[a])
-      : ((discPct[a] ?? 100) - (discPct[b] ?? 100)));
-    container.innerHTML = legenda + ordemDisc.map(disc => {
-      const itens = ordenar(grupos[disc]);
-      const dp = discPct[disc];
-      const tone = dp !== undefined ? this.toneOf(dp) : 'bad';
-      return `
-        <div class="weak-group">
-          <div class="weak-group-head">
-            <span class="weak-group-name">${escapeHtml(disc)}</span>
-            <span class="weak-group-meta">
-              ${dp !== undefined ? `<span class="weak-group-pct tone-${tone}">${dp}%</span>` : ''}
-              <span class="weak-group-count">${itens.length} ponto(s) fraco(s)</span>
-            </span>
-          </div>
-          ${itens.map(f => this.weakRowHtml(f, false)).join('')}
-        </div>`;
-    }).join('');
-  },
   // Usa o % reportado pelo TecConcursos (fiel ao que o usuário vê no TEC);
   // só recalcula por acertos/questões quando o TEC não informou o percentual.
   nodePct(n) {
@@ -5117,32 +4980,6 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
   }
   DesempenhoTecScreen.aplicarMudancaEscopo();
 }));
-/* `input` cobre número e caixa de seleção; `change` é o que um <select>
-   dispara. Sem os dois, o seletor de ordem nasceria decorativo. */
-['tec-weak-threshold', 'tec-weak-minq', 'tec-weak-leaves', 'tec-weak-ordenar'].forEach(id => {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const repintar = () => {
-    // a preferência nasce AQUI, do toque de quem usa — e é isto que faz o
-    // limiar seguir a meta do Plano até você decidir o contrário
-    const num = (i, d) => { const e = document.getElementById(i); const n = parseInt(e && e.value, 10); return isNaN(n) ? d : n; };
-    const sel = document.getElementById('tec-weak-ordenar');
-    const lv = document.getElementById('tec-weak-leaves');
-    DesempenhoTecScreen.savePrefs({
-      weakLimiar: num('tec-weak-threshold', 85), weakMinQ: num('tec-weak-minq', 10),
-      weakLeaves: !!(lv && lv.checked), weakOrdenar: (sel && sel.value) || 'taxa'
-    });
-    const snap = DesempenhoTecScreen.scopedSnapshot();
-    if (snap) DesempenhoTecScreen.renderWeak(snap);
-  };
-  el.addEventListener('input', repintar);
-  el.addEventListener('change', repintar);
-});
-$id('tec-weak-disc').addEventListener('change', (e) => {
-  DesempenhoTecScreen.weakDisc = e.target.value;
-  const snap = DesempenhoTecScreen.scopedSnapshot();
-  if (snap) DesempenhoTecScreen.renderWeak(snap);
-});
 // --- Listeners das abas Incidência / Reforço ---
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
@@ -5252,24 +5089,14 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
   window.addEventListener('resize', () => {
     if (TecAjustes.aba) { try { TecAjustes.estabilizarAltura(); } catch (e) { _quiet(e, 'cfg-resize'); } }
   });
-  /* RESTAURAR PADRÕES vale para a aba aberta, e só para ela. Um botão que
-     zerasse as três de uma vez seria uma armadilha: ninguém espera que mexer
-     no Reforço apague a régua do Plano. */
+  /* RESTAURAR PADRÕES vale somente para os ajustes do Motor. */
   const reset = document.getElementById('tec-cfg-reset');
   if (reset) reset.addEventListener('click', async () => {
-    const aba = TecAjustes.aba;
-    if (!aba) return;
-    const nome = { motor: 'do Motor de sugestão', analise: 'da lista' }[aba] || '';
-    if (!await UI.confirm('Voltar todos os ajustes ' + nome + ' aos valores padrão?', { title: 'Restaurar padrões' })) return;
-    if (aba === 'motor') {
-      MotorSugestao.restaurar();
-      TecAjustes.restaurarCampos('motor');
-      DT.renderMotor();
-    } else {
-      DT.savePrefs({ weakOrdenar: null, weakDisc: null, weakLimiar: null, weakMinQ: null, weakLeaves: null });
-      TecAjustes.restaurarCampos('analise');
-      DT.render();
-    }
+    if (TecAjustes.aba !== 'motor') return;
+    if (!await UI.confirm('Voltar todos os ajustes do Motor de sugestão aos valores padrão?', { title: 'Restaurar padrões' })) return;
+    MotorSugestao.restaurar();
+    TecAjustes.restaurarCampos('motor');
+    DT.renderMotor();
     TecAjustes.aplicarCondicionais();
     TecAjustes.sincronizar();
     TecAjustes.marcarPersonalizadas();
