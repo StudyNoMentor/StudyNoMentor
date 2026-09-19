@@ -155,6 +155,7 @@ const SectionSync = {
     const out = new Set();
     if (mesmo) this._dirty.forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
+    this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     const revs = this._getRevs(id), pfx = this._prefixFor(id);
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -181,6 +182,7 @@ const SectionSync = {
     const out = new Set();
     if (mesmo) this._dirty.forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
+    this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     return [...out];
   },
   hasLocalPending(id) { return this.pendingSections(id).length > 0; },
@@ -191,6 +193,7 @@ const SectionSync = {
   pendingQuick() {
     const out = new Set(this._dirty);
     this._loadPend().forEach(s => out.add(s));
+    this._loadDel().forEach(x => { if (x && x.section) out.add(x.section); });
     return out.size;
   },
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
