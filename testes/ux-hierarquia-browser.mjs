@@ -129,7 +129,7 @@ try{
     };
   });
   ok(cfg.semDuplicata,'Configuracoes deve ter UM agrupador, nao um <details> dentro da secao que ja agrupa');
-  ok(cfg.secoes>=5,'as cinco secoes de Configuracoes devem existir');
+  ok(cfg.secoes===4,'Configuracoes deve manter quatro secoes uteis, sem a tela de Diagnostico');
   ok(cfg.backup&&cfg.versoes,'backup e histórico de versões devem continuar acessíveis, agrupados uma vez só');
   ok(cfg.semStorage&&cfg.semRecovery,'o medidor de espaço e o painel de recuperação não devem mais existir na tela');
 
