@@ -627,11 +627,9 @@
 
     const fields = { subject, lesson, method, date, pageStart: pStart, pageEnd: pEnd, videoStart: vStart, videoEnd: vEnd, durationMin, correct, total, comment };
 
-    /* ── GRAVACAO COM PROVA ──────────────────────────────────────────────────
-       Esta e a tela que sustenta o diario inteiro. Enquanto o registro nao
-       estiver comprovadamente no armazenamento (e a caminho da nuvem), o botao
-       fica girando e travado. Se a gravacao falhar, o formulario NAO e limpo —
-       o que foi digitado continua na tela para ser reenviado. */
+    /* ── GRAVAÇÃO COM CONFIRMAÇÃO DO BANCO ───────────────────────────────────
+       O formulário só é liberado depois que o Supabase confirma o INSERT/UPDATE.
+       A projeção em memória nunca é tratada como persistência. */
     const submitBtn = document.getElementById('submit-btn');
     form.dataset.saving = '1';
     const soltarBotao = SaveGuard.ocupar(submitBtn, 'Salvando…');
@@ -641,7 +639,7 @@
         const alvo = editingId;
         const res = await SaveGuard.run({
           escrever: () => DB.updateEntry(alvo, fields),
-          // prova: rele do armazenamento e confere que o patch esta la
+          // confere a projeção em memória; a persistência é provada pelo SaveGuard no SQL
           verificar: () => {
             const e2 = DB.getEntry(alvo);
             return !!e2 && e2.date === date && e2.subject === subject && (e2.durationMin || 0) === durationMin;
@@ -660,23 +658,14 @@
         // duas vezes) recebiam o mesmo id — e a partir daí editar ou apagar um deles
         // atingia o outro. DB._uid() já é usado pelos cards e não colide.
         const entry = { id: DB._uid(), ...fields, createdAt: new Date().toISOString() };
-        /* ── O FORMULÁRIO NÃO ESPERA A NUVEM PARA SER LIBERADO ───────────────
-           Registrar um estudo é a ação mais repetida do app, e com conta
-           conectada ela ficava travada até o envio terminar. O que essa espera
-           acrescenta é só a palavra do aviso ("sincronizado" em vez de "envio
-           em andamento"): o dado está provado no aparelho um passo antes, e
-           falha de rede nunca preserva o formulário nem impede o registro.
-           Com `nuvem: 'depois'`, o campo já está pronto para a próxima sessão
-           e o aviso se corrige sozinho quando a fila confirma — a promessa de
-           nunca dizer "sincronizado" sem prova continua valendo. */
+        /* INSERT relacional: só limpa o formulário quando o banco confirmou. */
         const res = await SaveGuard.run({
           escrever: () => DB.saveEntry(entry),
-          verificar: () => !!DB.getEntry(entry.id),    // prova: esta no disco
-          nuvem: 'depois',
-          aoSincronizar: (r) => { if (r.cloud) showToast('Estudo registrado — salvo e sincronizado ✓'); }
+          verificar: () => !!DB.getEntry(entry.id)
         });
-        if (!res.ok) { SaveGuard.toast(res, ''); return; }   // formulario preservado de proposito
+        if (!res.ok) { SaveGuard.toast(res, ''); renderRecent(); return; }
         DB.upsertSubjectName(subject);
+        try { if (window.RelationalStore) await RelationalStore.flush(); } catch (e) { _quiet(e, 'subject-after-entry'); }
         SaveGuard.toast(res, 'Estudo registrado');
         form.reset();
         dateInput.value = todayLocal();
