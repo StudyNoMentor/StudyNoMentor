@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v108e3d58db">
+<meta name="diario-versao" content="v1c652af97e">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -31475,7 +31475,7 @@ const AutoTeste = {
       this._ok('Ciclo: a atividade guarda o contador do assunto na criação',
         e1.origemPlano.qBase === 200, e1.origemPlano.qBase);
       this._ok('Ciclo: e a taxa inicial e a META DO DIA, não a de depois',
-        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 85, e1.origemPlano);
+        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 90, e1.origemPlano);
       const comNovo = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 80, 48), L('01', 'Licitacoes', 'Dir Adm', 80, 48)])]);
       let v = comBanco(comNovo, () => C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs())));
       this._ok('Ciclo: o retrato novo conta as questões sozinho', v.feito === 80 && v.medido === 80, { feito: v.feito, medido: v.medido });
@@ -31622,7 +31622,7 @@ const AutoTeste = {
       this._ok('Lente: as 200 do detalhe contam como progresso (eram 0)',
         v8.medido === 200 && v8.feito === 200 && v8.cumpriu, { medido: v8.medido, feito: v8.feito });
       this._ok('Lente: e a taxa é a do ramo, 88% — não os 30% do retrato em que era folha',
-        Math.round(v8.taxa) === 88 && v8.estado === 'funcionou', { taxa: v8.taxa, estado: v8.estado });
+        Math.round(v8.taxa) === 88 && v8.estado === 'subiu', { taxa: v8.taxa, estado: v8.estado });
       lente(false);
       const v8b = leia();
       lente(true);
@@ -39945,8 +39945,9 @@ const DesempenhoTecScreen = {
             <h3>${escapeHtml(d.nome)}</h3>
             <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
             <div class="ms-priority-meta">
+              <span><i>lacuna segura</i><b>${top ? fmt1(top.gapConfiavel) + 'pp' : '—'}</b></span>
+              <span><i>déficit p/ meta</i><b>${top ? '~' + top.lacunaMeta + ' q' : '—'}</b></span>
               <span><i>disciplina</i><b>${ac}</b></span>
-              <span><i>resolvidas</i><b>${d.questoes.toLocaleString('pt-BR')}</b></span>
               <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
             </div>
           </div>
@@ -39988,9 +39989,10 @@ const DesempenhoTecScreen = {
             <span><i>erro</i><b>${erroPct}%</b></span>
             <span><i>histórico</i><b>${x.questoes} q</b></span>
             <span><i>margem</i><b>${margem}</b></span>
+            <span><i>lacuna segura</i><b>${fmt1(x.gapConfiavel)}pp</b></span>
             ${peso}
           </div>
-          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)}</p></div>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna segura:</b> ${fmt1(x.gapConfiavel)}pp abaixo da meta mesmo no extremo otimista da margem.</p></div>
           <div class="ms-suggestion-action">
             <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
@@ -39999,7 +40001,7 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.taxa) + '% no pior recorte · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
+      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.gapConfiavel) + 'pp de lacuna segura · ' + fmt1(t.taxa) + '% · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
@@ -40017,10 +40019,11 @@ const DesempenhoTecScreen = {
         <span>📚 ${r.prefs.doseMin}+ questões por atividade</span>
         <span>📏 margem ±${r.prefs.margemMax}pp</span>
         <span>🎯 meta ${r.prefs.metaAcerto}%</span>
+        <span>🛡️ ranking pela lacuna após a margem</span>
       </div>
 
       <section class="ms-stage">
-        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Disciplinas ordenadas pela regra do motor. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
+        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Até 3 disciplinas, ordenadas pela lacuna que continua comprovada após considerar a margem. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
         <div class="ms-priority-list">${disciplinasHtml}</div>
       </section>
 
@@ -40040,7 +40043,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com irmãos do mesmo pai. Se esse bloco ainda não for confiável, o motor sobe um nível dentro da matéria. A fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com outros irmãos pequenos do mesmo pai, do pior para o melhor, até a amostra ficar suficiente. Se sobrar uma cauda pequena demais para medir sozinha, ela entra no último bloco local em vez de forçar a subida de toda a árvore. A fronteira da disciplina nunca é atravessada.</p>`;
 
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
@@ -51240,6 +51243,23 @@ else CloudStore.init();
           qg += num(cand.questoes); ag += num(cand.acertos);
         }
         if (grupo.length >= 2 && this.legivel(qg, ag, margemMax)) {
+          /* Evita deixar uma "cauda" minúscula sem destino. Se os irmãos
+             pequenos que sobraram, SOMADOS entre si, ainda não sustentam a
+             margem, eles entram neste mesmo bloco local. Assim a granularidade
+             não sobe para o pai só porque sobrou um último ramo de 3–6 questões. */
+          const resto = [];
+          for (let k = i + 1; k < kids.length; k++) {
+            if (usados.has(k) || idxs.includes(k)) continue;
+            const cand = kids[k];
+            if (!this.legivel(num(cand.questoes), num(cand.acertos), margemMax)) resto.push({ k, cand });
+          }
+          if (resto.length) {
+            const qr = resto.reduce((s, o) => s + num(o.cand.questoes), 0);
+            const ar = resto.reduce((s, o) => s + num(o.cand.acertos), 0);
+            if (!this.legivel(qr, ar, margemMax)) {
+              resto.forEach(o => { grupo.push(o.cand); idxs.push(o.k); });
+            }
+          }
           idxs.slice(1).forEach(k => usados.add(k));
           plano.push(this._grupo(node, grupo, caminho));
           continue;
