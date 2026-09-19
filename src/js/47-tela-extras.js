@@ -340,6 +340,7 @@ const ExtrasScreen = {
         || !!PlanoEngine.atividadeSobreposta(x.nome, x.disciplina, x.membros);
       this._planoPrefs = r.prefs;
       this._planoFase = r.fase;
+      this._planoDiscOrder = (r.disciplinas || []).map(d => d.nome);
       this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 200);
       this._planoFila = (r.itens || []).map(x => x.disciplina + '\u0001' + x.nome);
       this._planoErr = null;
@@ -502,7 +503,12 @@ const ExtrasScreen = {
     // disciplinas com contagem
     const cont = {};
     cand.forEach(x => { const d = x.disciplina || '—'; cont[d] = (cont[d] || 0) + 1; });
-    const discs = Object.keys(cont).sort((a, b) => cont[b] - cont[a] || a.localeCompare(b, 'pt-BR'));
+    const rank = new Map((this._planoDiscOrder || []).map((d, i) => [String(d).trim().toLowerCase(), i]));
+    const discs = Object.keys(cont).sort((a, b) => {
+      const ra = rank.has(a.trim().toLowerCase()) ? rank.get(a.trim().toLowerCase()) : 9999;
+      const rb = rank.has(b.trim().toLowerCase()) ? rank.get(b.trim().toLowerCase()) : 9999;
+      return ra - rb || a.localeCompare(b, 'pt-BR');
+    });
     const panel = document.getElementById('pl-disc-panel');
     const toggle = document.getElementById('pl-disc-toggle');
     const setToggleLabel = () => {
