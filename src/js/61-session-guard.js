@@ -278,52 +278,64 @@ const SessionGuard = {
   },
 
   // Outro aparelho assumiu: bloqueia NOVAS ações aqui, mas entrega primeiro
-  // a caixa de saída que já estava comprovadamente gravada neste aparelho.
+  // a fila SQL que já estava comprovadamente gravada neste aparelho.
   _takenBy(row) {
     if (!this.singleDeviceMode) {
       this._accessState = 'allowed';
-      try { if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock(); } catch (_) { _quiet(_); }
+      try {
+        if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+          SessionLock.unblock();
+        }
+      } catch (e) { _quiet(e, 'session-unblock'); }
       return;
     }
+
     try {
       const CS = window.CloudStore;
       const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
       if (uid) this._accessUid = uid;
       this._accessState = 'blocked';
-    } catch (_) { _quiet(_); }
+    } catch (e) { _quiet(e, 'session-mark-blocked'); }
 
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
 
+    /* Não existe mais fila SQL local durável. Se uma operação SQL já estava em
+       voo, apenas aguardamos a fila relacional terminar e refletimos o resultado.
+       O bloqueio continua imediato: nenhuma nova edição é autorizada. */
     try {
-      const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
-      const SS = window.SectionSync;
-      const snap = pid && SS && SS.captureExplicitSnapshot ? SS.captureExplicitSnapshot(pid) : [];
-      if (pid && snap && snap.length && SS && SS.drainExplicitSnapshot) {
+      const RS = window.RelationalStore;
+      const pendentes = RS && RS.pendingCount ? RS.pendingCount() : 0;
+      if (RS && pendentes > 0) {
         this._handoffDraining = true;
-        this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: 'enviando' };
-        if (window.CloudUI) CloudUI.refreshSyncBtn('syncing', 'Entregando alteração pendente antes de pausar…');
-        Promise.resolve(SS.drainExplicitSnapshot(pid, snap)).then((r) => {
+        this._handoffLast = {
+          em: Date.now(), perfil: ProfileManager.getActiveProfileId(),
+          total: pendentes, status: 'enviando'
+        };
+        if (window.CloudUI) {
+          CloudUI.refreshSyncBtn('syncing', 'Finalizando gravação no banco antes de pausar…');
+        }
+        Promise.resolve(RS.flush()).then(() => {
           this._handoffDraining = false;
-          this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: r && r.ok ? 'ok' : 'pendente', resultado: r || null };
-          try {
-            const CS2 = window.CloudStore;
-            const resta = SS.pendingQuick ? SS.pendingQuick(pid) : 0;
-            if (CS2 && !resta) {
-              CS2._pending = false;
-              clearTimeout(CS2._debounce);
-              CS2._debounce = null;
-            }
-          } catch (_) { _quiet(_); }
+          const resta = RS.pendingCount ? RS.pendingCount() : 0;
+          this._handoffLast = {
+            em: Date.now(), perfil: ProfileManager.getActiveProfileId(),
+            total: pendentes, status: resta ? 'pendente' : 'ok'
+          };
           if (window.CloudUI) CloudUI.refreshSyncBtn();
         }).catch((e) => {
           this._handoffDraining = false;
-          this._handoffLast = { em: Date.now(), perfil: pid, total: snap.length, status: 'erro', erro: String(e && (e.message || e) || 'erro') };
-          if (window.CloudUI) CloudUI.refreshSyncBtn('error', 'Alteração preservada neste aparelho · envio pendente');
+          this._handoffLast = {
+            em: Date.now(), perfil: ProfileManager.getActiveProfileId(),
+            total: pendentes, status: 'erro',
+            erro: String(e && (e.message || e) || 'erro')
+          };
+          if (window.CloudUI) {
+            CloudUI.refreshSyncBtn('error', 'Banco não confirmou uma operação antes da pausa');
+          }
         });
-      } else {
-        try { const CS = window.CloudStore; if (CS) { clearTimeout(CS._debounce); CS._debounce = null; } } catch (_) { _quiet(_); }
       }
-    } catch (_) { _quiet(_); }
+    } catch (e) { _quiet(e, 'session-drain-relational'); }
+
     if (window.CloudUI) CloudUI.refreshSyncBtn();
   },
 
