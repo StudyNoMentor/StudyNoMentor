@@ -1453,15 +1453,30 @@ const DesempenhoTecScreen = {
        matéria vira seu próprio <details> — fecha por padrão, ocupando uma
        linha só — e quando o que estiver aberto passa da tela, é a PÁGINA que
        rola, do jeito que qualquer rolagem no celular deveria se comportar. */
+    /* NENHUMA MATÉRIA FICA COM UM "—" MUDO ───────────────────────────────────
+       Lacuna real (a matéria está no ranking) e recorte executável (existe um
+       tópico ou grupo de irmãos que vira atividade) são coisas diferentes, e
+       há dois motivos distintos para o segundo faltar mesmo quando a matéria
+       aparece com lacuna: (1) a matéria inteira ainda tem pouca amostra — já
+       avisado abaixo — ou (2) a amostra é suficiente, mas está pulverizada
+       entre subtópicos: o agrupamento só junta IRMÃOS do mesmo pai, então uma
+       fraqueza espalhada por ramos diferentes nunca fecha o piso de questões,
+       por maior que seja a soma. Sem esta linha, as duas situações pareciam
+       o mesmo "—" indistinto — e a segunda, em especial, parece um bug. */
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
       const statusAmostra = d.amostraMinima
         ? d.questoes + ' q'
         : d.questoes + ' q na matéria — ainda sem recorte executável';
+      const entrada = t
+        ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)'
+        : d.amostraMinima
+          ? '⚠️ ' + d.questoes + ' q na matéria, mas espalhadas: nenhum tópico ou grupo de irmãos do mesmo pai reúne as ' + r.prefs.minAmostra + ' q exigidas'
+          : '—';
       return `<li><span>${emoji({ taxaErro: d.taxaErro })}</span><div>
         <b>${i + 1}. ${escapeHtml(d.nome)}</b>
         <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''}</small>
-        <small>entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s) na fila</small>
+        <small>entrada: ${entrada} · ${(d.fila || []).length} frente(s) na fila</small>
       </div></li>`;
     }).join('');
 
