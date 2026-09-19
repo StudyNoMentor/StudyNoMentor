@@ -360,11 +360,14 @@ const CloudStore = {
   _forceBlob: false,
   _blobDue(id) {
     id = id || ProfileManager.getActiveProfileId();
+    /* Com leitura por seção ativa, o blob NÃO participa da arbitragem do estado.
+       Ele pode estar baseado em outra revisão de payload/metadados e não existe
+       prova suficiente para sobrescrevê-lo com segurança. Nesta etapa ele vira
+       checkpoint legado somente-leitura; a autoridade operacional é a tabela
+       profile_sections. */
+    if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) return false;
     if (this._forceBlob) return true;
-    if (!this._lastBlobAt) return true;                       // nada subiu ainda nesta sessão
-    if (!window.SectionSync || !SectionSync.enabled || !SectionSync.readEnabled) return true;
-    if (SectionSync._lastError) return true;                  // seções com problema: blob assume
-    if (SectionSync._seededProfile !== id) return true;
+    if (!this._lastBlobAt) return true;
     return (Date.now() - this._lastBlobAt) >= this.BLOB_MIN_INTERVAL_MS;
   },
   // Empurra as seções e diz se ficou tudo entregue. É isto que substitui o blob
@@ -502,10 +505,10 @@ const CloudStore = {
   async flushPending() {
     if (!this.isReady() || !this.isLoggedIn()) return;
     clearTimeout(this._debounce);
-    // flushPending é chamado nos momentos críticos (app indo para segundo plano,
-    // "Sincronizar agora", troca de perfil). Aqui o blob SOBE, custe o que custar:
-    // é a hora em que a rede de segurança precisa estar em dia.
-    this._forceBlob = true;
+    // Em modo legado o blob ainda pode ser forçado. Com sync por seção ativo,
+    // _blobDue() deliberadamente ignora esta flag: conflito de checkpoint nunca
+    // pode virar atalho para sobrescrever o estado canônico.
+    this._forceBlob = !(window.SectionSync && SectionSync.enabled && SectionSync.readEnabled);
     // Alteração que sobreviveu a um recarregamento (caixa de saída gravada) também
     // conta como pendente: sem isto, "Sincronizar agora" não a enviava.
     try { if (window.SectionSync && SectionSync.pendingQuick() > 0) this._pending = true; } catch (e) { _quiet(e, 'flush-pendencia'); }
@@ -519,6 +522,11 @@ const CloudStore = {
   _beaconSave() {
     try {
       if (!this.isReady() || !this.isLoggedIn()) return;
+      /* PATCH keepalive só sabe escrever o blob inteiro. Em modo por seção isso
+         seria uma rota paralela sem CAS por seção e poderia reintroduzir uma
+         sobrescrita que todo o protocolo novo acabou de impedir. A durabilidade
+         de fechamento fica no IndexedDB/outbox e o próximo boot retoma o envio. */
+      if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) return;
       if (!this._pending && !this._syncing) return; // nada a garantir
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
       const id = ProfileManager.getActiveProfileId(); if (!id) return;
@@ -661,13 +669,20 @@ const CloudStore = {
     clearTimeout(this._debounce); // cancela qualquer autoSave pendente (vamos salvar já)
     if (this.isReady() && this.isLoggedIn()) {
       try {
-        // retentativa: garante que a ação do usuário chegue à nuvem antes de recarregar
-        const r = await this.saveActiveWithRetry();
-        try { if (window.SectionSync) await SectionSync.afterBlobSave(); } catch (_) { _quiet(_); } // sync por seção
-        if (r && r.conflict) {
-          showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
-        } else if (r && r.recusado) {
-          showToast('Envio suspenso para proteger a cópia da nuvem. Nada foi perdido — seus dados estão neste dispositivo.');
+        const id = ProfileManager.getActiveProfileId();
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          /* Antes de recarregar, envia somente a fonte canônica. Se a rede não
+             confirmar, a outbox continua durável e a barreira de disco abaixo
+             garante que a recarga não mate a única cópia local. */
+          const ok = await this._pushSectionsNow(id);
+          if (!ok) showToast('Aviso: a nuvem ainda não confirmou tudo. A fila continuará salva neste aparelho.');
+        } else {
+          const r = await this.saveActiveWithRetry(id);
+          if (r && r.conflict) {
+            showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
+          } else if (r && r.recusado) {
+            showToast('Envio suspenso para proteger a cópia da nuvem. Nada foi perdido — seus dados estão neste dispositivo.');
+          }
         }
       } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
     }
