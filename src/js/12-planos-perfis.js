@@ -302,7 +302,7 @@ const ProfileManager = {
       const sub = k.slice(prefix.length);
       // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
       // no backup faria o aparelho que importa herdar a fila de envio de outro.
-      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
       if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
       data[sub] = localStorage.getItem(k);
     }
@@ -438,7 +438,7 @@ const ProfileManager = {
         const m = RE.exec(k);
         if (!m) continue;
         const sub = m[2];
-        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
         if (sub.indexOf('vhist') === 0) continue;
         if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
         const v = localStorage.getItem(k) || '';
@@ -718,7 +718,7 @@ const ProfileManager = {
     const manter = new Set(preservar || []);
     // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
     // que falta): vinda no backup de outro, faria este achar que está em dia.
-    const local = ['__secrev', '__secpend', '__secdel'];
+    const local = ['__secrev', '__secpend', '__secdel', '__entryops'];
     const toRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
