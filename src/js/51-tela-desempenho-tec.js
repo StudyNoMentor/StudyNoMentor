@@ -1477,10 +1477,21 @@ const DesempenhoTecScreen = {
       </div></li>`;
     }).join('');
 
+    /* A TRILHA MOSTRA A FRONTEIRA ENTRE RAMOS ────────────────────────────────
+       A fila NUNCA ordena as folhas todas juntas pelo próprio percentual — ela
+       mantém cada ramo (mesmo tópico-pai) contíguo, e só decide a ordem ENTRE
+       ramos pelo ramo inteiro, não pela folha isolada. Sem mostrar de qual pai
+       cada item vem, essa regra é invisível: um 44% aparecendo antes de um
+       42% parece erro de ordenação quando na verdade são famílias diferentes.
+       O caminho (curto, só até o pai imediato) é o que deixa essa fronteira
+       visível sem enfeite. */
     const filas = (r.disciplinas || []).map(d => {
-      const itens = (d.fila || []).slice(0, 15).map((x, i) =>
-        `<li><span>${emoji(x)}</span><div><b>${i + 1}. ${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
-      ).join('');
+      const itens = (d.fila || []).slice(0, 15).map((x, i) => {
+        const trilha = (x.caminho || []).filter(Boolean);
+        return `<li><span>${emoji(x)}</span><div><b>${i + 1}. ${escapeHtml(x.nome)}</b>`
+          + (trilha.length ? `<small class="ms-item-trilha">${trilha.map(escapeHtml).join(' › ')}</small>` : '')
+          + `<small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.motivoNivel === 'pior-do-grupo' ? ' · pior de ' + x.grupoTamanho : ''}</small></div></li>`;
+      }).join('');
       return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i>⌄</i></summary><ol>${itens}</ol></details>`;
     }).join('');
 

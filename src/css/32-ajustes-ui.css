@@ -1318,6 +1318,11 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 }
 .pl-linha.is-recommended .pl-linha-dose{background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent)}
 .pl-linha-title{font-weight:700;color:var(--text);font-size:var(--fs-sm);line-height:1.28;overflow-wrap:anywhere}
+/* A trilha (caminho até o pai imediato) deixa visível a fronteira entre
+   ramos: por que um item com % maior pode aparecer antes de outro com %
+   menor — são famílias diferentes, não uma ordenação quebrada. Compartilhada
+   entre o Puxar do Motor e a fila "O que vem depois" da aba Motor. */
+.ms-item-trilha{display:block;margin-top:2px;color:var(--text-faint);font-size:var(--fs-3xs);line-height:1.4;overflow-wrap:anywhere}
 .pl-linha-stats{display:flex;flex-wrap:wrap;gap:5px}
 .pl-linha-stats span{
   display:flex;align-items:baseline;gap:4px;padding:3px 7px;border-radius:7px;
