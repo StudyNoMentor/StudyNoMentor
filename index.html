@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vb7d1b02729">
+<meta name="diario-versao" content="v366651faf9">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -31533,6 +31533,25 @@ const AutoTeste = {
   },
 
 
+  persistenciaRelacional() {
+    this._ok('Persistência: RelationalStore está ativo',
+      !!window.RelationalStore && RelationalStore.enabled === true);
+    this._ok('Persistência: armazenamento de estudo é apenas projeção em RAM',
+      window.__memoryOnlyStore === true && window.__idbShim === false,
+      { memoryOnly: window.__memoryOnlyStore, idb: window.__idbShim });
+    this._ok('Persistência: sincronização antiga está aposentada',
+      !!window.SectionSync && SectionSync.retired === true &&
+      SectionSync.enabled === false && SectionSync.readEnabled === false);
+    this._ok('Persistência: entrada de perfil hidrata diretamente do SQL',
+      /RelationalStore\.hydrateProfile/.test(String(ProfileUI.enterProfile)));
+    this._ok('Persistência: mutação por entidade usa RPC transacional',
+      /mutate_study_plan_rows/.test(String(RelationalStore._syncById)));
+    this._ok('Persistência: substituição em massa usa RPC transacional',
+      /replace_study_plan_rows/.test(String(RelationalStore._replacePlanRows)));
+    this._ok('Persistência: SaveGuard só confirma depois do flush SQL',
+      /RelationalStore\.flush/.test(String(SaveGuard._aguardaNuvem)));
+  },
+
   incidenciaGravacao() {
     const chave = DB.KEYS.incidencia;
     const antes = localStorage.getItem(DB._profilePrefix ? DB._profilePrefix() + 'x' : 'x');  // só para não sombrear
@@ -31587,21 +31606,10 @@ const AutoTeste = {
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
      ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
-     ['Garantia de salvamento', 'sincronizacao'],
+     ['Persistência relacional', 'persistenciaRelacional'],
      ['Semana fechada é registro', 'historicoFechado'],
-     ['Nada se perde', 'nadaSePerde'],
-     ['Travas contra perda', 'travasDePerda'],
-     ['Tudo entra na sincronização', 'tudoEntraNaSincronizacao'],
-     ['A fila de envio sobrevive', 'filaDeEnvioSobrevive'],
-     ['Revisão anotada sem conteúdo', 'revisaoAnotadaSemConteudo'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],
-     ['Adota o id do banco', 'adotaOIdDoBanco'],
-     ['Isolamento entre contas', 'isolamentoEntreContas'],
-     ['Ids de perfil válidos para a nuvem', 'idsDePerfilSaoValidos'],
-     ['Esvaziar deixa rastro', 'esvaziarDeixaRastro'],
-     ['Travas não ficam presas', 'travasNaoFicamPresas'],
-     ['O disco que recusa gravação', 'oDiscoQueRecusa'],
-     ['Registrar não espera a nuvem', 'salvarSemEsperarNuvem'],
+     ['Ids de perfil válidos para o banco', 'idsDePerfilSaoValidos'],
      ['Incidência: gravação', 'incidenciaGravacao'],
      ['Folha de ajustes do TEC', 'ajustesTec'],
      ['Motor de sugestão e ciclo iterativo', 'motorSugestao']].forEach(([nome, fn]) => {

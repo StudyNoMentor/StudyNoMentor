@@ -227,181 +227,181 @@
  {
   "arquivo": "js/45-autoteste.js",
   "de": 29846,
-  "ate": 31925
+  "ate": 31933
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 31927,
-  "ate": 32404
+  "de": 31935,
+  "ate": 32412
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 32406,
-  "ate": 33658
+  "de": 32414,
+  "ate": 33666
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 33660,
-  "ate": 33853
+  "de": 33668,
+  "ate": 33861
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 33855,
-  "ate": 34267
+  "de": 33863,
+  "ate": 34275
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 34269,
-  "ate": 34500
+  "de": 34277,
+  "ate": 34508
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 34502,
-  "ate": 37097
+  "de": 34510,
+  "ate": 37105
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 37099,
-  "ate": 37272
+  "de": 37107,
+  "ate": 37280
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 37274,
-  "ate": 37914
+  "de": 37282,
+  "ate": 37922
  },
  {
   "arquivo": "js/54-reforco-fila.js",
-  "de": 37916,
-  "ate": 38546
+  "de": 37924,
+  "ate": 38554
  },
  {
   "arquivo": "js/55-extras-ui-moderna.js",
-  "de": 38548,
-  "ate": 38933
+  "de": 38556,
+  "ate": 38941
  },
  {
   "arquivo": "js/56-leis-rodizio.js",
-  "de": 38935,
-  "ate": 39389
+  "de": 38943,
+  "ate": 39397
  },
  {
   "arquivo": "js/57-extras-lei-fonte.js",
-  "de": 39391,
-  "ate": 39468
+  "de": 39399,
+  "ate": 39476
  },
  {
   "arquivo": "js/58-extras-governanca.js",
-  "de": 39470,
-  "ate": 39620
+  "de": 39478,
+  "ate": 39628
  },
  {
   "arquivo": "js/59-tec-premium.js",
-  "de": 39622,
-  "ate": 39725
+  "de": 39630,
+  "ate": 39733
  },
  {
   "arquivo": "js/59-extras-central-ui.js",
-  "de": 39727,
-  "ate": 39997
+  "de": 39735,
+  "ate": 40005
  },
  {
   "arquivo": "js/59-extras-stability.js",
-  "de": 39999,
-  "ate": 40132
+  "de": 40007,
+  "ate": 40140
  },
  {
   "arquivo": "js/59-interaction-feedback.js",
-  "de": 40134,
-  "ate": 40300
+  "de": 40142,
+  "ate": 40308
  },
  {
   "arquivo": "js/59-extras-ux100.js",
-  "de": 40302,
-  "ate": 40539
+  "de": 40310,
+  "ate": 40547
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 40541,
-  "ate": 41551
+  "de": 40549,
+  "ate": 41559
  },
  {
   "arquivo": "js/60-relational-store.js",
-  "de": 41553,
-  "ate": 42075
+  "de": 41561,
+  "ate": 42083
  },
  {
   "arquivo": "js/61-session-guard.js",
-  "de": 42077,
-  "ate": 42473
+  "de": 42085,
+  "ate": 42481
  },
  {
   "arquivo": "js/62-section-sync.js",
-  "de": 42475,
-  "ate": 42546
+  "de": 42483,
+  "ate": 42554
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 42548,
-  "ate": 43210
+  "de": 42556,
+  "ate": 43218
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 43212,
-  "ate": 43524
+  "de": 43220,
+  "ate": 43532
  },
  {
   "arquivo": "js/65-recuperacao.js",
-  "de": 43526,
-  "ate": 43785
+  "de": 43534,
+  "ate": 43793
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 43787,
-  "ate": 44688
+  "de": 43795,
+  "ate": 44696
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 44690,
-  "ate": 44959
+  "de": 44698,
+  "ate": 44967
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 44961,
-  "ate": 45496
+  "de": 44969,
+  "ate": 45504
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 45498,
-  "ate": 46584
+  "de": 45506,
+  "ate": 46592
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 46586,
-  "ate": 46879
+  "de": 46594,
+  "ate": 46887
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 46880,
-  "ate": 47110
+  "de": 46888,
+  "ate": 47118
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 47112,
-  "ate": 47775
+  "de": 47120,
+  "ate": 47783
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 47777,
-  "ate": 48080
+  "de": 47785,
+  "ate": 48088
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 48082,
-  "ate": 48425
+  "de": 48090,
+  "ate": 48433
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 48427,
-  "ate": 48627
+  "de": 48435,
+  "ate": 48635
  }
 ]
