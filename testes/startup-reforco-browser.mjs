@@ -345,37 +345,35 @@ try {
   const deletionCas=await page.evaluate(async()=>{
     const keep={
       client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
-      saveDel:SectionSync._saveDel,last:SectionSync._lastConflict
+      saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS,last:SectionSync._lastConflict
     };
-    let deleteCalls=0,salvas=null;
+    let deleteCalls=0,salvas=null,manifestSections=null;
     CloudStore.client={from(){return {
       select(){return {eq(){return Promise.resolve({data:[
         {section:'entries',rev:6},{section:'__manifest',rev:1}
       ],error:null});}};},
       delete(){deleteCalls++;return this;},
-      eq(){return this;},select(){return Promise.resolve({data:[],error:null});}
+      eq(){return this;}
     };}};
-    /* O objeto acima precisa só do SELECT inicial neste cenário: a rev remota 6
-       já diverge da base 5, então DELETE não deve sequer ser tentado. */
-    CloudStore.client={from(){return {select(){return {eq(){return Promise.resolve({data:[
-      {section:'entries',rev:6},{section:'__manifest',rev:1}
-    ],error:null});}};},delete(){deleteCalls++;return this;},eq(){return this;}};}};
     SectionSync.localSections=()=>[];
     SectionSync._loadDel=()=>[{section:'entries',rev:5}];
     SectionSync._saveDel=(x)=>{salvas=x;};
+    SectionSync._writeSectionCAS=async(row)=>{manifestSections=(row.data&&row.data.sections)||null;return {ok:true,rev:2};};
     SectionSync._lastConflict=null;
     const revs={__manifest:{rev:1,hash:SectionSync._hash('')}};
     let falhou=false;
     try{await SectionSync._syncManifest('p-del',revs);}catch(_){falhou=true;}
     const conflito=SectionSync._lastConflict;
     CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
-    SectionSync._saveDel=keep.saveDel;SectionSync._lastConflict=keep.last;
-    return {deleteCalls,falhou,conflito,salvas};
+    SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;SectionSync._lastConflict=keep.last;
+    return {deleteCalls,falhou,conflito,salvas,manifestSections};
   });
   eq(deletionCas.deleteCalls,0,'exclusão velha não pode executar DELETE contra rev nova');
   ok(deletionCas.falhou,'conflito de exclusão deve manter a sincronização pendente');
   ok(deletionCas.conflito&&deletionCas.conflito.tipo==='exclusão','conflito de exclusão deve ficar diagnosticado');
   ok(Array.isArray(deletionCas.salvas)&&deletionCas.salvas.length===1,'tombstone em conflito deve permanecer durável');
+  ok(Array.isArray(deletionCas.manifestSections)&&deletionCas.manifestSections.includes('entries'),
+    'manifesto deve continuar expondo a seção remota mais nova quando a exclusão perde o CAS');
 
   /* 2l. Restaurar sessão com outro device ativo deve bloquear, não reivindicar. */
   const sessionNoTakeover=await page.evaluate(async()=>{
