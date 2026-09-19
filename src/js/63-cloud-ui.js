@@ -298,21 +298,20 @@ window.CloudUI = CloudUI;
     if (!id) return;
     const meta = (ProfileManager.getProfiles().find(p => p.id === id) || {});
     const btn = document.getElementById('pf-export');
-    // Se este dispositivo nunca "entrou" neste perfil, os dados dele podem existir
-    // só na nuvem — o formulário de editar (nome/avatar/cor) nunca os baixa.
-    // Sem este resgate, o backup saía vazio (data: {}) mesmo com tudo salvo online.
-    const temDadosLocais = () => {
+    /* Backup é montado a partir de SELECTs relacionais. A projeção em memória
+       existe só durante esta aba e nunca é usada como fonte persistente. */
+    const temProjecao = () => {
       const prefix = 'diario-estudos:u:' + id + ':';
       for (let i = 0; i < localStorage.length; i++) { if ((localStorage.key(i) || '').startsWith(prefix)) return true; }
       return false;
     };
-    if (!temDadosLocais() && window.CloudStore && CloudStore.isLoggedIn()) {
-      if (btn) { btn.disabled = true; btn.textContent = 'Buscando dados na nuvem...'; }
+    if (!temProjecao()) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Buscando dados no banco...'; }
       try {
-        const res = await CloudStore.fetchPayload(id);
-        ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+        if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+        await RelationalStore.hydrateProfile(id, { reason: 'export-backup' });
       } catch (err) {
-        showToast('Não encontrei dados locais nem na nuvem para este perfil: ' + (err.message || ''));
+        showToast('Não foi possível consultar este perfil no banco: ' + (err.message || ''));
         if (btn) { btn.disabled = false; btn.textContent = '↓ Exportar backup deste perfil (.json)'; }
         return;
       }
@@ -400,26 +399,17 @@ window.CloudUI = CloudUI;
           const sufixo = obj.exportedAt ? formatDateShort(obj.exportedAt.slice(0, 10)) : todayLocal();
           nomeFinal = nomeFinal + ' (importado ' + sufixo + ')';
         }
-        const novoId = ProfileManager.importProfile(obj, nomeFinal);
-        showToast('Perfil importado ✓');
-        // Envia para a nuvem se estiver logado, para não ficar só neste aparelho.
-        // Falha aqui não invalida a importação: os dados já estão salvos localmente.
-        if (window.CloudStore && CloudStore.isLoggedIn()) {
-          try {
-            const meta = ProfileManager.getProfiles().find(p => p.id === novoId) || {};
-            const row = await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
-              payload: ProfileManager.exportProfile(novoId) });
-            /* O id de `createRow` vem do BANCO (a coluna é uuid com default) e
-               PRECISA ser adotado. Descartá-lo — o que este trecho fazia —
-               deixava o perfil partido em dois: o local, com o id antigo, que
-               nunca mais sincronizava; e o da nuvem, com outro id, congelado no
-               instante da importação e aparecendo como um SEGUNDO perfil, com o
-               nome de antes, na lista de todos os aparelhos. */
-            await ProfileManager.adotarIdDaNuvem(novoId, row);
-          } catch (err) {
-            showToast('Importado neste aparelho. Não subiu para a nuvem: ' + (err.message || ''));
-          }
+        if (!(window.CloudStore && CloudStore.isLoggedIn()) || !window.RelationalStore) {
+          throw new Error('Entre na conta para importar o backup no banco.');
         }
+        /* Cloud-first: o UUID real nasce no banco ANTES de qualquer dado do
+           arquivo. Nunca existe um perfil temporário "só neste aparelho". */
+        const avatar = (obj.profile && obj.profile.avatar) || '📘';
+        const cor = (obj.profile && obj.profile.cor) || '#4f46e5';
+        const row = await CloudStore.createRow({ name: nomeFinal, avatar, color: cor, payload: {} });
+        ProfileManager.addMirror({ id: row.id, nome: nomeFinal, avatar, cor });
+        await RelationalStore.replaceProfileFromPayload(row.id, obj.data || {}, { reason: 'json-import' });
+        showToast('Perfil importado no banco ✓');
         ProfileUI.refreshStage();
       } catch (err) {
         showToast('Erro ao importar: ' + (err.message || ''));
