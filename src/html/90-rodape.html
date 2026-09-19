@@ -335,6 +335,30 @@
     } catch (e) { _quiet(e); }
     return adotadas;
   }
+
+  /* Depois de ADOTAR o armazenamento antigo, ele não pode continuar como uma
+     segunda fonte de verdade. A limpeza só acontece após confirmação estrita do
+     IndexedDB; se o commit falhar ou estourar o teto, deixamos as cópias antigas
+     intactas para recuperação. O tema é a única exceção porque é lido antes do
+     shim para evitar flash visual. */
+  function limparEspelhoNativoAposCommit() {
+    if (!nativeLS || !window.__idbFlushStrict) return Promise.resolve(false);
+    return window.__idbFlushStrict(10000).then(function (r) {
+      if (!r || r.ok === false) return false;
+      var apagar = [];
+      try {
+        for (var i = 0; i < nativeLS.length; i++) {
+          var k = nativeLS.key(i);
+          if (k && k !== 'diario-estudos:theme') apagar.push(k);
+        }
+        for (var j = 0; j < apagar.length; j++) nativeLS.removeItem(apagar[j]);
+        if (apagar.length) {
+          try { console.info('[armazenamento] espelho legado limpo após confirmação do IndexedDB:', apagar.length, 'chave(s)'); } catch (_) {}
+        }
+        return true;
+      } catch (e) { _quiet(e); return false; }
+    }).catch(function () { return false; });
+  }
   /* O armazenamento antigo continua acessível para a tela de Recuperação: sem
      isto, depois da fachada instalada não há mais como olhar lá dentro. */
   try { window.__nativeLS = nativeLS; } catch (e) { _quiet(e); }
@@ -490,7 +514,14 @@
 
   openIDB()
     .then(function (database) { db = database; return hydrate(); })
-    .then(function () { migrateFromNative(); installShim(); applyTheme(); })
+    .then(function () {
+      migrateFromNative();
+      installShim();
+      applyTheme();
+      /* Não bloqueia o arranque na faxina, mas a própria faxina só apaga o
+         legado depois de o IndexedDB confirmar tudo. */
+      setTimeout(function () { limparEspelhoNativoAposCommit(); }, 0);
+    })
     .catch(function (err) {
       // IndexedDB indisponível (modo privado antigo, navegador sem suporte, etc.):
       // o app continua funcionando sobre o localStorage nativo, sem a fachada.
