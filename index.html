@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vaf155d0174">
+<meta name="diario-versao" content="v9b7e54f477">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -31155,6 +31155,30 @@ const AutoTeste = {
     this._ok('Motor simples: agrupa quantos irmãos pequenos forem necessários para alcançar a amostra',
       !!(blocoMuitos && blocoMuitos.membros.length === 6 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
 
+    const doisBlocos = no('Tópico C', 40, 20, 1, [
+      no('C.1', 10, 5, 2), no('C.2', 10, 5, 2),
+      no('C.3', 10, 5, 2), no('C.4', 10, 5, 2)
+    ]);
+    const planoDois = M._planejarNo(doisBlocos, 20, [], 90);
+    this._ok('Motor simples: continua nos irmãos restantes e cria mais de um bloco executável',
+      planoDois.length === 2 && planoDois.every(x => x.agregado && x.questoes === 20), planoDois);
+
+    const semEnchimento = no('Tópico D', 30, 15, 1, [
+      no('D.1', 10, 2, 2), no('D.2', 10, 3, 2), no('D forte', 10, 10, 2)
+    ]);
+    const planoFraco = M._planejarNo(semEnchimento, 20, [], 90);
+    this._ok('Motor simples: irmão forte não serve para completar bloco fraco',
+      planoFraco.length === 1 && planoFraco[0].agregado
+        && planoFraco[0].membros.length === 2 && !planoFraco[0].membros.includes('D forte'), planoFraco);
+
+    const porRamo = no('X', 80, 42, 0, [
+      no('Pai mais fraco', 40, 16, 1, [no('P.1', 20, 6, 2), no('P.2', 20, 10, 2)]),
+      no('Outro pai', 40, 18, 1, [no('O.1', 40, 4, 2)])
+    ]);
+    const filaRamos = M._filaDisciplina(porRamo, Object.assign(M.prefs(), { minAmostra: 20, metaAcerto: 90 }));
+    this._ok('Motor simples: esgota o ramo-pai mais fraco antes de entrar em outro ramo',
+      filaRamos.map(x => x.nome).join('|') === 'P.1|P.2|O.1', filaRamos);
+
     const raiz = no('X', 400, 180, 0, [miudos]);
     this._ok('Motor simples: depth 0 é fronteira absoluta e nunca vira atividade',
       M._planejarNo(raiz, 20, []).length === 0);
@@ -35689,9 +35713,9 @@ const DesempenhoTecScreen = {
 
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
       const porQue = x.agregado
-        ? `Agrupamento local de ${x.membros.length} irmãos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam o piso de ${r.prefs.minAmostra} questões; juntos alcançam.`
+        ? `Bloco local com ${x.membros.length} dos irmãos mais fracos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam ${r.prefs.minAmostra} questões; juntos formam uma atividade executável. Os demais continuam na fila.`
         : x.motivoNivel === 'subnivel-insuficiente'
-          ? `O nível abaixo não alcançou ${r.prefs.minAmostra} questões. O motor subiu somente até este tópico.`
+          ? `Mesmo reunindo os subtópicos fracos, o nível abaixo não alcançou ${r.prefs.minAmostra} questões. Só então o motor subiu até este tópico.`
           : `Este nível tem pelo menos ${r.prefs.minAmostra} questões e pode ser usado diretamente.`;
       const membros = x.agregado
         ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
@@ -35738,7 +35762,9 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      const statusAmostra = d.amostraValida ? d.questoes + ' q' : 'amostra geral < ' + r.prefs.minAmostra + ' q';
+      const statusAmostra = d.amostraMinima
+        ? d.questoes + ' q'
+        : d.questoes + ' q na matéria; continua no ranking percentual, mas ainda sem recorte executável';
       return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
     }).join('');
 
@@ -35776,7 +35802,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: percentual simples + piso de amostra. O histórico é consolidado por identidade semântica do assunto, subtópicos pequenos só agrupam com irmãos do mesmo pai e a fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
@@ -46654,11 +46680,13 @@ else CloudStore.init();
    ----------------------------------------------------------------------------
    Regra deliberadamente simples e auditável:
 
-     1) disciplina: maior distância percentual até a meta vem primeiro;
-     2) amostra: só decide se um nível da árvore tem questões suficientes;
+     1) disciplina: maior distância percentual até a meta vem primeiro, sem
+        excluir matéria por volume;
+     2) amostra: só decide se um tópico/subtópico é executável;
      3) tópico: dentro da matéria, pior percentual válido vem primeiro;
-     4) subtópico pequeno: agrupa apenas irmãos do mesmo pai; se ainda faltar
-        amostra, sobe um nível;
+     4) subtópico pequeno: forma quantos grupos locais forem necessários,
+        sempre dos piores para os melhores e sem misturar ramos já fortes;
+        só sobe um nível quando não existir mais frente granular executável;
      5) pós-edital: a incidência da banca apenas desempata matérias com a mesma
         lacuna; ela não multiplica nem cria um score escondido.
 
@@ -46778,7 +46806,6 @@ else CloudStore.init();
     _ordenarFracos(arr) {
       return (arr || []).slice().sort((a, b) =>
         this._pct(a) - this._pct(b) ||
-        num(b.questoes) - num(a.questoes) ||
         String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true })
       );
     },
@@ -46872,17 +46899,28 @@ else CloudStore.init();
       return String((s && (s.endDate || s.date || s.startDate)) || '');
     },
     retratoAtual() {
-      let snaps = [];
+      /* A decisão precisa reproduzir o percentual que o aluno está vendo no
+         recorte selecionado. Usar apenas o último arquivo fazia um filtro de
+         janeiro a setembro decidir somente pela última semana de setembro. */
       try {
-        snaps = (DesempenhoTecScreen.activeSnapshots ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-atual'); }
-      if (!snaps.length) return null;
-      const ordenados = snaps.slice().sort((a, b) =>
-        this._dataRetrato(a).localeCompare(this._dataRetrato(b))
-        || String(a.importedAt || '').localeCompare(String(b.importedAt || ''))
-        || String(a.id || '').localeCompare(String(b.id || ''), 'pt-BR', { numeric: true })
-      );
-      return ordenados[ordenados.length - 1] || null;
+        if (DesempenhoTecScreen.scopedSnapshot) {
+          const scoped = DesempenhoTecScreen.scopedSnapshot();
+          if (scoped) return scoped;
+        }
+        const snaps = (DesempenhoTecScreen.activeSnapshots
+          ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
+        if (!snaps.length) return null;
+        if (DesempenhoTecScreen.aggregate) return DesempenhoTecScreen.aggregate(snaps);
+        return snaps.length === 1 ? snaps[0] : {
+          id: '__motor_scope__', aggregated: true,
+          startDate: snaps.map(s => s.startDate || s.date || '').sort()[0],
+          endDate: snaps.map(s => s.endDate || s.date || '').sort().slice(-1)[0],
+          rows: snaps.flatMap(s => s.rows || []), _fontes: snaps.slice()
+        };
+      } catch (e) {
+        if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-atual');
+        return null;
+      }
     },
 
     disciplinasDisponiveis() {
@@ -46939,44 +46977,77 @@ else CloudStore.init();
     },
 
     /* Planeja um ramo usando apenas um piso de questões.
-       Filhos com amostra suficiente seguem sozinhos. Filhos pequenos do mesmo
-       pai formam um único bloco local. Se nem juntos alcançam o piso, o motor
-       sobe para o pai — sem fórmula estatística e sem cruzar disciplinas. */
-    _planejarNo(node, minAmostra, caminho) {
+       - desce primeiro até a menor granularidade executável;
+       - um filho suficiente segue sozinho (ou aprofunda nos próprios filhos);
+       - irmãos pequenos e fracos formam vários blocos locais, dos piores para
+         os melhores; uma sobra pequena é absorvida pelo último bloco para não
+         criar uma frente inviável;
+       - irmãos que já atingiram a meta não entram para "encher" amostra;
+       - o pai só aparece quando TODO o nível inferior fraco, somado, continua
+         insuficiente e não existe outra frente granular naquele ramo. */
+    _planejarNo(node, minAmostra, caminho, metaAcerto) {
       if (!node || num(node.depth) <= 0) return [];
       const piso = Math.max(1, num(minAmostra, this.DEFAULTS.minAmostra));
+      const meta = clamp(metaAcerto == null ? this.DEFAULTS.metaAcerto : metaAcerto, 0, 100);
       const proprioSuficiente = this.suficiente(node.questoes, piso);
       const kids = this._ordenarFracos((node.children || []).filter(x => num(x.questoes) > 0));
       const aqui = (caminho || []).concat([node.nome]).filter(Boolean);
 
       if (!kids.length) {
-        return proprioSuficiente ? [this._item(node, { caminho: aqui.slice(0, -1) })] : [];
+        return proprioSuficiente && this._pct(node) < meta
+          ? [this._item(node, { caminho: aqui.slice(0, -1) })] : [];
       }
 
-      const pequenos = kids.filter(x => !this.suficiente(x.questoes, piso));
-      if (pequenos.length) {
-        const qPequenos = pequenos.reduce((sum, x) => sum + num(x.questoes), 0);
-        if (qPequenos < piso) {
-          return proprioSuficiente
-            ? [this._item(node, { caminho: (caminho || []).slice(), motivoNivel: 'subnivel-insuficiente' })]
-            : [];
+      /* Cada filho direto abre um ramo. As sugestões de um ramo permanecem
+         contíguas: não reordenamos folhas de pais diferentes pelo percentual
+         individual, pois isso faria o caderno saltar pela árvore do TEC. */
+      const ordemKid = new Map(kids.map((x, i) => [x, i]));
+      const unidades = [];
+      kids.filter(x => this.suficiente(x.questoes, piso)).forEach(filho => {
+        const fundo = this._planejarNo(filho, piso, aqui, meta);
+        if (fundo.length) unidades.push({ ordem: ordemKid.get(filho), itens: fundo });
+        else if (this._pct(filho) < meta) {
+          unidades.push({ ordem: ordemKid.get(filho), itens: [
+            this._item(filho, { caminho: aqui, motivoNivel: 'subnivel-sem-frente-fraca' })
+          ] });
+        }
+      });
+
+      const pequenos = kids.filter(x => !this.suficiente(x.questoes, piso) && this._pct(x) < meta);
+      const qPequenos = pequenos.reduce((sum, x) => sum + num(x.questoes), 0);
+      if (qPequenos >= piso) {
+        let grupo = [], qGrupo = 0, restante = qPequenos;
+        pequenos.forEach(filho => {
+          grupo.push(filho);
+          qGrupo += num(filho.questoes);
+          restante -= num(filho.questoes);
+          /* Só fecha o bloco se a sobra também conseguir formar outro. Caso
+             contrário, absorve a cauda e evita uma sugestão órfã < piso. */
+          if (qGrupo >= piso && (restante === 0 || restante >= piso)) {
+            unidades.push({ ordem: ordemKid.get(grupo[0]), itens: [this._grupo(node, grupo, caminho)] });
+            grupo = []; qGrupo = 0;
+          }
+        });
+        if (grupo.length && qGrupo >= piso) {
+          unidades.push({ ordem: ordemKid.get(grupo[0]), itens: [this._grupo(node, grupo, caminho)] });
         }
       }
 
-      const plano = [];
-      kids.filter(x => this.suficiente(x.questoes, piso)).forEach(filho => {
-        const fundo = this._planejarNo(filho, piso, aqui);
-        plano.push(...(fundo.length ? fundo : [this._item(filho, { caminho: aqui })]));
-      });
-      if (pequenos.length) plano.push(this._grupo(node, pequenos, caminho));
-      return this._ordenarFracos(plano);
+      const plano = unidades.sort((a, b) => num(a.ordem) - num(b.ordem)).flatMap(x => x.itens);
+      if (!plano.length && proprioSuficiente && this._pct(node) < meta) {
+        return [this._item(node, {
+          caminho: (caminho || []).slice(),
+          motivoNivel: 'subnivel-insuficiente'
+        })];
+      }
+      return plano;
     },
 
     _filaDisciplina(disc, p) {
       const tops = this._ordenarFracos((disc.children || []).filter(x => num(x.questoes) > 0));
       const fila = [];
       tops.forEach(top => {
-        const plano = this._planejarNo(top, p.minAmostra, []);
+        const plano = this._planejarNo(top, p.minAmostra, [], p.metaAcerto);
         plano.forEach(x => {
           if (!x || x.taxa == null || x.taxa >= p.metaAcerto || x.nivel <= 0) return;
           Object.assign(x, this._lacuna(x, p));
@@ -46986,9 +47057,8 @@ else CloudStore.init();
           fila.push(x);
         });
       });
-      fila.sort((a, b) => num(a.taxa, 100) - num(b.taxa, 100)
-        || num(b.questoes) - num(a.questoes)
-        || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+      /* `tops` já está do pior pai para o melhor e cada plano veio em travessia
+         hierárquica. Uma ordenação global aqui misturaria ramos distintos. */
       fila.forEach((x, i) => { x.ordemNaDisciplina = i + 1; });
       return fila;
     },
@@ -47062,7 +47132,6 @@ else CloudStore.init();
         if (porIncidencia) return porIncidencia;
       }
       return num(A.taxa, 100) - num(B.taxa, 100)
-        || num(B.questoes) - num(A.questoes)
         || String(A.nome || '').localeCompare(String(B.nome || ''), 'pt-BR');
     },
 
@@ -47186,7 +47255,11 @@ else CloudStore.init();
 
         const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
         const taxa = q > 0 ? ac / q * 100 : null;
-        const amostraValida = this.suficiente(q, p.minAmostra);
+        /* A amostra mínima governa somente a granularidade da frente. Uma
+           matéria com poucas questões continua no ranking pelo percentual do
+           TEC; quantidade não pesa nem exclui a disciplina. */
+        const amostraValida = q > 0;
+        const amostraMinima = this.suficiente(q, p.minAmostra);
         const lacunaDisc = (amostraValida && taxa != null)
           ? Math.max(0, num(p.metaAcerto) - taxa)
           : 0;
@@ -47195,7 +47268,7 @@ else CloudStore.init();
         return {
           nome: d.nome, questoes: q, acertos: ac, taxa,
           taxaErro: taxa == null ? null : 100 - taxa,
-          amostraValida,
+          amostraValida, amostraMinima,
           lacunaDisc,
           incidenciaDisc,
           fila,
@@ -47205,7 +47278,7 @@ else CloudStore.init();
       });
 
       const disciplinas = disciplinasTodas.filter(d =>
-        d.lacunaDisc > 0 && d.melhorTopico && (p.fase !== 'pos' || d.incidenciaDisc > 0)
+        d.lacunaDisc > 0 && (p.fase !== 'pos' || d.incidenciaDisc > 0)
       ).sort((a, b) => this._compararDisciplinas(a, b, p));
 
       disciplinas.forEach((d, i) => {
@@ -47213,7 +47286,12 @@ else CloudStore.init();
         d.fila.forEach((x, j) => { x.disciplinaRank = i + 1; x.ordemNaDisciplina = j + 1; });
       });
 
-      const escolhidas = disciplinas.slice(0, p.maxFrentes);
+      const disciplinasAcionaveis = disciplinas.filter(d => d.melhorTopico);
+      disciplinasAcionaveis.forEach((d, i) => {
+        d.rankAcionavel = i + 1;
+        d.fila.forEach(x => { x.disciplinaRankAcionavel = i + 1; });
+      });
+      const escolhidas = disciplinasAcionaveis.slice(0, p.maxFrentes);
       const itens = escolhidas.map(d => Object.assign({}, d.melhorTopico, {
         disciplinaTaxa: d.taxa,
         disciplinaLacuna: d.lacunaDisc,
@@ -47231,7 +47309,7 @@ else CloudStore.init();
         criterioDisciplinas: p.fase === 'pos'
           ? 'maior lacuna para a meta; incidência desempata'
           : 'maior lacuna para a meta',
-        itens, disciplinas, disciplinasTodas, todos, disciplinasDisponiveis,
+        itens, disciplinas, disciplinasAcionaveis, disciplinasTodas, todos, disciplinasDisponiveis,
         filtroDisciplinas: p.disciplinasSel.slice()
       };
 
@@ -47240,6 +47318,7 @@ else CloudStore.init();
 
   window.MotorSugestao = M;
 })();
+
 /* ============================================================================
    CICLO DO MOTOR DE SUGESTÃO
    ----------------------------------------------------------------------------
@@ -47277,7 +47356,22 @@ else CloudStore.init();
           : null;
         if (!s) return null;
         const data = s.endDate || s.date || s.startDate || '';
-        return { id: String(s.id || ''), data, assinatura: String(s.id || '') + '|' + String(data) };
+        const fontes = (Array.isArray(s._fontes) && s._fontes.length) ? s._fontes : [s];
+        const assinarFonte = f => {
+          let h = 2166136261 >>> 0;
+          const mix = v => {
+            const t = String(v == null ? '' : v);
+            for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+            h = Math.imul(h ^ 31, 16777619) >>> 0;
+          };
+          mix(f.id); mix(f.startDate || f.date); mix(f.endDate || f.date); mix(f.importedAt);
+          (f.rows || []).forEach(r => {
+            mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth); mix(r.questoes); mix(r.acertos);
+          });
+          return [f.id || '', f.startDate || f.date || '', f.endDate || f.date || '', h.toString(36)].join(':');
+        };
+        const assinatura = fontes.map(assinarFonte).sort().join('|');
+        return { id: String(s.id || ''), data, assinatura };
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-retrato'); return null; }
     },
 
@@ -47342,7 +47436,9 @@ else CloudStore.init();
         escopo: membros && membros.length > 1 ? { tipo: 'bloco', membros: membros.slice() } : { tipo: 'no', membros: [topico || (item && item.nome) || ''] },
         fase: p.fase,
         minAmostra: p.minAmostra,
-        rankInicial: item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
+        rankInicial: item && item.disciplinaRankAcionavel != null
+          ? num(item.disciplinaRankAcionavel)
+          : item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
         lacunaDiscInicial: item && item.disciplinaLacuna != null ? num(item.disciplinaLacuna) : null,
         retratoBase: retrato ? retrato.assinatura : null,
         retratoDataBase: retrato ? retrato.data : null
@@ -47379,8 +47475,8 @@ else CloudStore.init();
 
     _rankAtual(r, nome) {
       const k = norm(nome);
-      const d = (r && r.disciplinas || []).find(x => norm(x.nome) === k);
-      return d ? num(d.rank) : null;
+      const d = (r && r.disciplinasAcionaveis || r && r.disciplinas || []).find(x => norm(x.nome) === k);
+      return d ? num(d.rankAcionavel, d.rank) : null;
     },
 
     avaliar(extra, resultado) {
@@ -47406,9 +47502,15 @@ else CloudStore.init();
       const noGrupo = rank != null && rank <= num(p.maxFrentes, 3);
       const retrato = this._ultimoRetrato();
       const baseData = String(o.retratoDataBase || '');
-      const novoRetrato = !!(retrato && (baseData
-        ? String(retrato.data || '') > baseData
-        : (!o.retratoBase || retrato.assinatura !== o.retratoBase)));
+      const baseAssinatura = String(o.retratoBase || '');
+      const dataAtual = String(retrato && retrato.data || '');
+      const mudouBase = !!(retrato && (!baseAssinatura || retrato.assinatura !== baseAssinatura));
+      const assinaturaDeEscopo = baseAssinatura.includes(':');
+      const avancouData = !!baseData && dataAtual > baseData;
+      const revisouMesmoPeriodo = !!baseData && dataAtual === baseData && assinaturaDeEscopo && mudouBase;
+      /* Assinaturas antigas eram "id|data". Não fechamos atividades abertas
+         só porque a atualização passou a assinar todas as fontes do escopo. */
+      const novoRetrato = mudouBase && (!baseData || avancouData || revisouMesmoPeriodo);
 
       let estado = 'andamento';
       if (!atual && !d) estado = 'orfa';
@@ -47503,6 +47605,7 @@ else CloudStore.init();
 
   window.MotorCiclo = C;
 })();
+
 /* ============================================================================
    HIERARQUIA DE UX — mesma capacidade, menos ruído
    ----------------------------------------------------------------------------
