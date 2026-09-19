@@ -401,13 +401,12 @@
       const piso = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
       const base = Math.max(piso, num(p.alvoQuestoes, this.DEFAULTS.alvoQuestoes));
       const l = this._lacuna(item, p);
-      /* Dose contínua, não quatro degraus arbitrários:
-         - lacuna confiável 0pp => ~45% da base, limitado pelo piso;
-         - +10pp => ~67% da base;
-         - +20pp => ~89% da base;
-         - +25pp ou mais => base inteira.
-         O tamanho responde à necessidade de treino, mas nunca vira 1–5 questões. */
-      const fator = clamp(0.45 + l.gapConfiavel / 45, 0.45, 1);
+      /* Dose contínua, não quatro degraus arbitrários. No fluxo real do Motor a
+         margem sempre existe e usamos a lacuna segura. A API auxiliar dosar()
+         também atende Extras/testes; se receber item sem margem, usa a distância
+         bruta à meta só para dimensionar a tarefa — nunca para decidir prioridade. */
+      const gapDose = l.margem == null ? l.gapMeta : l.gapConfiavel;
+      const fator = clamp(0.45 + gapDose / 45, 0.45, 1);
       return Math.max(piso, Math.min(base, Math.round(base * fator)));
     },
     dosar(itens, alvo, doseMin) {
