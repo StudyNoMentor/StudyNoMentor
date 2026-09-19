@@ -43,7 +43,7 @@
       try {
         if (typeof ReforcoFila !== 'undefined' && ReforcoFila.eGerenciado && ReforcoFila.eGerenciado(x)) return 'reforco';
       } catch (_) { _quiet(_); }
-      if (x && x.origemPlano && x.origemPlano.topico) return 'plano';
+      if (x && typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(x) && MotorCiclo.origemDe(x).topico) return 'motor';
       return 'manual';
     },
 
@@ -96,7 +96,7 @@
       const ativos = extras.filter(x => x && x.status !== 'concluida');
       const fontes = {
         reforco: ativos.filter(x => this.fonte(x) === 'reforco').length,
-        plano: ativos.filter(x => this.fonte(x) === 'plano').length,
+        motor: ativos.filter(x => this.fonte(x) === 'plano').length,
         manual: ativos.filter(x => this.fonte(x) === 'manual').length
       };
 
