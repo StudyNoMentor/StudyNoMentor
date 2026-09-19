@@ -157,6 +157,15 @@ try{
       escopo:{tipo:'no',membros:['Curvas de Phillips']},fase:'pre',minAmostra:20,
       filtroTec:{versao:1,disciplina:'Economia e Finanças Públicas',nivel:1,tipo:'no',agregado:false,
         caminho:[],selecoes:['Curvas de Phillips'],trilha:['Economia e Finanças Públicas','Curvas de Phillips'],quantidade:10}}});
+    /* Este caso mede somente layout. O Motor real exige retrato TEC atual para
+       calcular emCurso(); a suíte visual não importa retratos. Mantemos uma
+       atividade real do Motor e isolamos apenas a leitura dinâmica do retrato. */
+    const emCursoReal=MotorCiclo.emCurso;
+    MotorCiclo.emCurso=()=>[{
+      extra:DB.getExtra(e.id),origem:DB.getExtra(e.id).origemMotor,atual:null,disciplinaAtual:null,
+      rank:1,lacunaDisc:46,noGrupo:true,novoRetrato:false,alvo:10,feito:0,falta:10,pct:0,
+      taxa:44,meta:90,delta:0,estado:'andamento'
+    }];
     switchScreen('extras');ExtrasScreen.render();
     try{UXStability.decorateCourse();}catch(_){}
     const card=document.getElementById('extras-curso');
@@ -166,11 +175,13 @@ try{
     const chev=head&&head.querySelector('.chev');
     const cruza=(a,b)=>{if(!a||!b)return false;const x=a.getBoundingClientRect(),y=b.getBoundingClientRect();
       return !(x.right<=y.left+.5||y.right<=x.left+.5||x.bottom<=y.top+.5||y.bottom<=x.top+.5);};
-    return {temCabecalho:!!head,
+    const out={temCabecalho:!!head,
       transbordaCartao:card?Math.max(0,card.scrollWidth-card.clientWidth):null,
       transbordaCabecalho:head?Math.max(0,head.scrollWidth-head.clientWidth):null,
       tituloForaDaTela:tit?tit.getBoundingClientRect().x< -0.5:null,
       tituloXresumo:cruza(tit,res),tituloXchev:cruza(tit,chev),resumoXchev:cruza(res,chev)};
+    MotorCiclo.emCurso=emCursoReal;
+    return out;
   });
   ok(curso.temCabecalho,'o cartao de reforcos em curso deve existir');
   eq(curso.transbordaCartao,0,'o cartao de reforcos nao pode transbordar na horizontal');
