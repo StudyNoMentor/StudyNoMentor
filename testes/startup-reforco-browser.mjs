@@ -852,9 +852,11 @@ try {
     const keep={
       active:ProfileManager.getActiveProfileId,syncing:CloudStore._syncing,pending:CloudStore._pending,
       debounce:CloudStore._debounce,applying:CloudStore._applying,remotePending:CloudStore._secRemotePending,
-      remote:SectionSync.hasRemoteUpdates,pull:SectionSync.pullAndReload,pushing:SectionSync._pushing
+      remote:SectionSync.hasRemoteUpdates,pull:SectionSync.pullAndReload,pushing:SectionSync._pushing,
+      guardEnabled:SessionGuard.enabled,guardCan:SessionGuard.canEnterNow
     };
     ProfileManager.getActiveProfileId=()=>id;
+    SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>true;
     SectionSync._dirtyFor(id).clear();
     SectionSync._pushing=false;
     CloudStore._pending=false;CloudStore._debounce=null;CloudStore._applying=false;
@@ -873,6 +875,7 @@ try {
     ProfileManager.getActiveProfileId=keep.active;CloudStore._syncing=keep.syncing;CloudStore._pending=keep.pending;
     CloudStore._debounce=keep.debounce;CloudStore._applying=keep.applying;CloudStore._secRemotePending=keep.remotePending;
     SectionSync.hasRemoteUpdates=keep.remote;SectionSync.pullAndReload=keep.pull;SectionSync._pushing=keep.pushing;
+    SessionGuard.enabled=keep.guardEnabled;SessionGuard.canEnterNow=keep.guardCan;
     SectionSync._dirtyFor(id).clear();
     return {ficouPendente,drenou,remoteCalls,pullCalls,readOnly};
   });
