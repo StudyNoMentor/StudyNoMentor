@@ -82,6 +82,8 @@ jobs:
         run: node testes/extras-estabilidade.mjs
       - name: Validar contratos premium de governanca
         run: node testes/governanca-premium.mjs
+      - name: Validar regra hierarquica do Motor
+        run: node testes/motor-sugestao-regra.mjs
       - name: Validar rebalanceamento seletivo de reforcos
         run: node testes/governanca-rebalanceamento.mjs
       - name: Validar rodizio e cache de lei seca

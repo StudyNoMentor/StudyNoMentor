@@ -63,7 +63,7 @@ tem(motorTec, 'maxFrentes: [1, 3]', 'rodada acionável deve ter no máximo 3 dis
 tem(motorTec, '_lacuna(item, p)', 'Motor precisa calcular a distância simples até a meta');
 tem(motorTec, 'minAmostra: 20', 'amostra mínima deve ser o único freio de granularidade');
 tem(motorTec, 'retratoAtual()', 'Motor precisa escolher explicitamente o retrato atual do escopo');
-assert.ok(!motorTec.includes('DesempenhoTecScreen.scopedSnapshot()'), 'Motor não pode consolidar histórico implicitamente para decidir prioridade');
+tem(motorTec, 'DesempenhoTecScreen.scopedSnapshot()', 'Motor deve decidir pelo mesmo período/retratos selecionados na tela');
 tem(motorTec, '_forestEstavel(snap)', 'Motor precisa reconstruir de forma estável a árvore do retrato atual');
 tem(motorTec, 'disciplinasSel: []', 'Motor precisa de filtro persistente de disciplinas, vazio = todas');
 tem(motorTec, 'lacunaDisc', 'escolha da matéria precisa usar a distância percentual até a meta');
@@ -72,6 +72,8 @@ assert.ok(!motorTec.includes('PlanoEngine.margemErro'), 'Motor simples não pode
 assert.ok(!motorTec.includes('gapConfiavel'), 'lacuna segura não pode voltar ao Motor simples');
 assert.ok(!motorTec.includes('deficitSeguro'), 'volume histórico não pode multiplicar a prioridade da matéria');
 assert.ok(!motorTec.includes('MAX_IRMAOS_GRUPO'), 'agrupamento não pode voltar a um teto arbitrário de irmãos');
+tem(motorTec, 'disciplinasAcionaveis', 'ranking geral e fila executável precisam permanecer separados');
+tem(motorTec, 'restante >= piso', 'agrupador deve continuar criando blocos enquanto houver amostra para outra sugestão');
 tem(telaTec, 'ms-disc-filter-all', 'filtro do Motor deve expor Todas as disciplinas como primeira opção');
 tem(telaTec, 'lacuna p/ meta', 'cards precisam explicar a lacuna simples ao aluno');
 tem(extrasMotor, 'Rodada recomendada agora', 'Puxar do Motor deve juntar as recomendações no topo');

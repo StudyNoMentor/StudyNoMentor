@@ -1468,6 +1468,30 @@ const AutoTeste = {
     this._ok('Motor simples: agrupa quantos irmãos pequenos forem necessários para alcançar a amostra',
       !!(blocoMuitos && blocoMuitos.membros.length === 6 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
 
+    const doisBlocos = no('Tópico C', 40, 20, 1, [
+      no('C.1', 10, 5, 2), no('C.2', 10, 5, 2),
+      no('C.3', 10, 5, 2), no('C.4', 10, 5, 2)
+    ]);
+    const planoDois = M._planejarNo(doisBlocos, 20, [], 90);
+    this._ok('Motor simples: continua nos irmãos restantes e cria mais de um bloco executável',
+      planoDois.length === 2 && planoDois.every(x => x.agregado && x.questoes === 20), planoDois);
+
+    const semEnchimento = no('Tópico D', 30, 15, 1, [
+      no('D.1', 10, 2, 2), no('D.2', 10, 3, 2), no('D forte', 10, 10, 2)
+    ]);
+    const planoFraco = M._planejarNo(semEnchimento, 20, [], 90);
+    this._ok('Motor simples: irmão forte não serve para completar bloco fraco',
+      planoFraco.length === 1 && planoFraco[0].agregado
+        && planoFraco[0].membros.length === 2 && !planoFraco[0].membros.includes('D forte'), planoFraco);
+
+    const porRamo = no('X', 80, 42, 0, [
+      no('Pai mais fraco', 40, 16, 1, [no('P.1', 20, 6, 2), no('P.2', 20, 10, 2)]),
+      no('Outro pai', 40, 18, 1, [no('O.1', 40, 4, 2)])
+    ]);
+    const filaRamos = M._filaDisciplina(porRamo, Object.assign(M.prefs(), { minAmostra: 20, metaAcerto: 90 }));
+    this._ok('Motor simples: esgota o ramo-pai mais fraco antes de entrar em outro ramo',
+      filaRamos.map(x => x.nome).join('|') === 'P.1|P.2|O.1', filaRamos);
+
     const raiz = no('X', 400, 180, 0, [miudos]);
     this._ok('Motor simples: depth 0 é fronteira absoluta e nunca vira atividade',
       M._planejarNo(raiz, 20, []).length === 0);

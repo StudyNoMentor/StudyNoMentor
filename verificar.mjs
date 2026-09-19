@@ -1099,6 +1099,17 @@ try {
       n('B.4', 6, 2, 2), n('B.5', 6, 2, 2), n('B.6', 6, 2, 2)
     ]);
     const blocoGrande = MotorSugestao._planejarNo(muitos, 20, []).find(x => x.agregado);
+    const doisBlocos = n('Topico C', 40, 20, 1, [
+      n('C.1', 10, 5, 2), n('C.2', 10, 5, 2), n('C.3', 10, 5, 2), n('C.4', 10, 5, 2)
+    ]);
+    const planoDois = MotorSugestao._planejarNo(doisBlocos, 20, [], 90);
+    const semForte = n('Topico D', 30, 15, 1, [n('D.1', 10, 2, 2), n('D.2', 10, 3, 2), n('D forte', 10, 10, 2)]);
+    const planoSemForte = MotorSugestao._planejarNo(semForte, 20, [], 90);
+    const porRamo = n('Teste', 80, 42, 0, [
+      n('Pai mais fraco', 40, 16, 1, [n('P.1', 20, 6, 2), n('P.2', 20, 10, 2)]),
+      n('Outro pai', 40, 18, 1, [n('O.1', 40, 4, 2)])
+    ]);
+    const filaRamos = MotorSugestao._filaDisciplina(porRamo, Object.assign(MotorSugestao.prefs(), { minAmostra: 20, metaAcerto: 90 }));
     const raiz = MotorSugestao._planejarNo(n('Teste', 40, 11, 0, [top]), 20, []);
     const p = Object.assign(MotorSugestao.prefs(), { fase: 'pre', metaAcerto: 90 });
     const muitoPraticada = { nome: 'Muito praticada', taxa: 80, questoes: 5000, lacunaDisc: 10, incidenciaDisc: 100 };
@@ -1115,6 +1126,9 @@ try {
     return {
       bloco: bloco ? { pai: bloco.pai, membros: bloco.membros, nivel: bloco.nivel } : null,
       blocoGrande: blocoGrande ? { pai: blocoGrande.pai, membros: blocoGrande.membros } : null,
+      doisBlocos: planoDois.map(x => ({ q: x.questoes, membros: x.membros })),
+      semForte: planoSemForte.map(x => ({ q: x.questoes, membros: x.membros })),
+      filaRamos: filaRamos.map(x => x.nome),
       raiz: raiz.length,
       lacunaVenceVolume: MotorSugestao._compararDisciplinas(poucoPraticada, muitoPraticada, p) < 0,
       incidenciaDesempata: MotorSugestao._compararDisciplinas(empateB, empateA, Object.assign({}, p, { fase: 'pos' })) < 0,
@@ -1129,6 +1143,15 @@ try {
   (hier.blocoGrande && hier.blocoGrande.pai === 'Topico B' && hier.blocoGrande.membros.length > 4)
     ? ok('o agrupamento simples usa todos os irmaos pequenos necessários')
     : erro('o agrupamento simples perdeu ramos pequenos: ' + JSON.stringify(hier.blocoGrande));
+  (hier.doisBlocos.length === 2 && hier.doisBlocos.every(x => x.q === 20 && x.membros.length === 2))
+    ? ok('o agrupamento continua nos subtópicos restantes e cria várias sugestões executáveis')
+    : erro('o agrupamento parou depois do primeiro bloco: ' + JSON.stringify(hier.doisBlocos));
+  (hier.semForte.length === 1 && hier.semForte[0].membros.length === 2 && !hier.semForte[0].membros.includes('D forte'))
+    ? ok('subtópico forte não é usado para completar bloco fraco')
+    : erro('o agrupamento diluiu a lacuna com subtópico forte: ' + JSON.stringify(hier.semForte));
+  hier.filaRamos.join('|') === 'P.1|P.2|O.1'
+    ? ok('o ramo-pai mais fraco é esgotado antes de entrar em outro ramo')
+    : erro('a fila misturou descendentes de pais diferentes: ' + JSON.stringify(hier.filaRamos));
   hier.lacunaVenceVolume
     ? ok('lacuna percentual vence volume historico na prioridade da materia')
     : erro('volume historico voltou a dominar o ranking: ' + JSON.stringify(hier));
@@ -1638,8 +1661,8 @@ try {
       && /Princ[ií]pios/.test(x.nome)).length;
     return { erro: r.erro || null, assuntos, dominio: disc ? disc.taxa : null };
   });
-  (!filtro.erro && filtro.assuntos === 1 && Math.round(filtro.dominio) === 10)
-    ? ok('filtrar por disciplina acha o homonimo daquela disciplina (10% de dominio)')
+  (!filtro.erro && filtro.assuntos === 1 && Math.abs(filtro.dominio - 12.5) < 0.01)
+    ? ok('filtrar por disciplina acha o homonimo e consolida o período selecionado (12,5% de domínio)')
     : erro('o filtro por disciplina perdeu o homonimo: ' + JSON.stringify(filtro));
   const ativ = await pag.evaluate(() => {
     const T = DesempenhoTecScreen;
@@ -1663,7 +1686,7 @@ try {
     ? ok('cada linha do Plano se liga a atividade da sua propria disciplina')
     : erro('as linhas do Plano se ligaram a atividade errada: ' + JSON.stringify(ativ.casados));
   (ativ.taxas.indexOf('Direito Constitucional:30') >= 0 && ativ.taxas.indexOf('Direito Administrativo:10') >= 0)
-    ? ok('e cada atividade guarda a taxa inicial do SEU assunto (30% e 10%)')
+    ? ok('e cada atividade guarda a taxa inicial do retrato mais recente do SEU assunto (30% e 10%)')
     : erro('a taxa inicial veio do assunto errado: ' + JSON.stringify(ativ.taxas));
 } catch (e) { erro('o caso dos homonimos falhou: ' + e.message); }
 

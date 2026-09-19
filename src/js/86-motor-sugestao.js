@@ -3,11 +3,13 @@
    ----------------------------------------------------------------------------
    Regra deliberadamente simples e auditável:
 
-     1) disciplina: maior distância percentual até a meta vem primeiro;
-     2) amostra: só decide se um nível da árvore tem questões suficientes;
+     1) disciplina: maior distância percentual até a meta vem primeiro, sem
+        excluir matéria por volume;
+     2) amostra: só decide se um tópico/subtópico é executável;
      3) tópico: dentro da matéria, pior percentual válido vem primeiro;
-     4) subtópico pequeno: agrupa apenas irmãos do mesmo pai; se ainda faltar
-        amostra, sobe um nível;
+     4) subtópico pequeno: forma quantos grupos locais forem necessários,
+        sempre dos piores para os melhores e sem misturar ramos já fortes;
+        só sobe um nível quando não existir mais frente granular executável;
      5) pós-edital: a incidência da banca apenas desempata matérias com a mesma
         lacuna; ela não multiplica nem cria um score escondido.
 
@@ -127,7 +129,6 @@
     _ordenarFracos(arr) {
       return (arr || []).slice().sort((a, b) =>
         this._pct(a) - this._pct(b) ||
-        num(b.questoes) - num(a.questoes) ||
         String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true })
       );
     },
@@ -221,17 +222,43 @@
       return String((s && (s.endDate || s.date || s.startDate)) || '');
     },
     retratoAtual() {
-      let snaps = [];
+      /* A decisão precisa reproduzir o percentual que o aluno está vendo no
+         recorte selecionado. Usar apenas o último arquivo fazia um filtro de
+         janeiro a setembro decidir somente pela última semana de setembro. */
       try {
-        snaps = (DesempenhoTecScreen.activeSnapshots ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-atual'); }
-      if (!snaps.length) return null;
-      const ordenados = snaps.slice().sort((a, b) =>
-        this._dataRetrato(a).localeCompare(this._dataRetrato(b))
-        || String(a.importedAt || '').localeCompare(String(b.importedAt || ''))
-        || String(a.id || '').localeCompare(String(b.id || ''), 'pt-BR', { numeric: true })
-      );
-      return ordenados[ordenados.length - 1] || null;
+        if (DesempenhoTecScreen.scopedSnapshot) {
+          const scoped = DesempenhoTecScreen.scopedSnapshot();
+          if (scoped) return scoped;
+        }
+        const snaps = (DesempenhoTecScreen.activeSnapshots
+          ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
+        if (!snaps.length) return null;
+        if (DesempenhoTecScreen.aggregate) return DesempenhoTecScreen.aggregate(snaps);
+        return snaps.length === 1 ? snaps[0] : {
+          id: '__motor_scope__', aggregated: true,
+          startDate: snaps.map(s => s.startDate || s.date || '').sort()[0],
+          endDate: snaps.map(s => s.endDate || s.date || '').sort().slice(-1)[0],
+          rows: snaps.flatMap(s => s.rows || []), _fontes: snaps.slice()
+        };
+      } catch (e) {
+        if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-atual');
+        return null;
+      }
+    },
+
+    /* O ranking usa o recorte consolidado acima. Já o ciclo precisa de uma
+       fotografia comparável: o retrato mais recente dentro desse mesmo
+       recorte. Somar históricos faria qBase crescer a cada importação e
+       transformaria volume antigo em "questões feitas" na rodada atual. */
+    retratoDeCiclo() {
+      try {
+        const snaps = (DesempenhoTecScreen.activeSnapshots
+          ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
+        return snaps.slice().sort((a, b) => this._dataRetrato(a).localeCompare(this._dataRetrato(b))).slice(-1)[0] || null;
+      } catch (e) {
+        if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-ciclo');
+        return null;
+      }
     },
 
     disciplinasDisponiveis() {
@@ -288,44 +315,77 @@
     },
 
     /* Planeja um ramo usando apenas um piso de questões.
-       Filhos com amostra suficiente seguem sozinhos. Filhos pequenos do mesmo
-       pai formam um único bloco local. Se nem juntos alcançam o piso, o motor
-       sobe para o pai — sem fórmula estatística e sem cruzar disciplinas. */
-    _planejarNo(node, minAmostra, caminho) {
+       - desce primeiro até a menor granularidade executável;
+       - um filho suficiente segue sozinho (ou aprofunda nos próprios filhos);
+       - irmãos pequenos e fracos formam vários blocos locais, dos piores para
+         os melhores; uma sobra pequena é absorvida pelo último bloco para não
+         criar uma frente inviável;
+       - irmãos que já atingiram a meta não entram para "encher" amostra;
+       - o pai só aparece quando TODO o nível inferior fraco, somado, continua
+         insuficiente e não existe outra frente granular naquele ramo. */
+    _planejarNo(node, minAmostra, caminho, metaAcerto) {
       if (!node || num(node.depth) <= 0) return [];
       const piso = Math.max(1, num(minAmostra, this.DEFAULTS.minAmostra));
+      const meta = clamp(metaAcerto == null ? this.DEFAULTS.metaAcerto : metaAcerto, 0, 100);
       const proprioSuficiente = this.suficiente(node.questoes, piso);
       const kids = this._ordenarFracos((node.children || []).filter(x => num(x.questoes) > 0));
       const aqui = (caminho || []).concat([node.nome]).filter(Boolean);
 
       if (!kids.length) {
-        return proprioSuficiente ? [this._item(node, { caminho: aqui.slice(0, -1) })] : [];
+        return proprioSuficiente && this._pct(node) < meta
+          ? [this._item(node, { caminho: aqui.slice(0, -1) })] : [];
       }
 
-      const pequenos = kids.filter(x => !this.suficiente(x.questoes, piso));
-      if (pequenos.length) {
-        const qPequenos = pequenos.reduce((sum, x) => sum + num(x.questoes), 0);
-        if (qPequenos < piso) {
-          return proprioSuficiente
-            ? [this._item(node, { caminho: (caminho || []).slice(), motivoNivel: 'subnivel-insuficiente' })]
-            : [];
+      /* Cada filho direto abre um ramo. As sugestões de um ramo permanecem
+         contíguas: não reordenamos folhas de pais diferentes pelo percentual
+         individual, pois isso faria o caderno saltar pela árvore do TEC. */
+      const ordemKid = new Map(kids.map((x, i) => [x, i]));
+      const unidades = [];
+      kids.filter(x => this.suficiente(x.questoes, piso)).forEach(filho => {
+        const fundo = this._planejarNo(filho, piso, aqui, meta);
+        if (fundo.length) unidades.push({ ordem: ordemKid.get(filho), itens: fundo });
+        else if (this._pct(filho) < meta) {
+          unidades.push({ ordem: ordemKid.get(filho), itens: [
+            this._item(filho, { caminho: aqui, motivoNivel: 'subnivel-sem-frente-fraca' })
+          ] });
+        }
+      });
+
+      const pequenos = kids.filter(x => !this.suficiente(x.questoes, piso) && this._pct(x) < meta);
+      const qPequenos = pequenos.reduce((sum, x) => sum + num(x.questoes), 0);
+      if (qPequenos >= piso) {
+        let grupo = [], qGrupo = 0, restante = qPequenos;
+        pequenos.forEach(filho => {
+          grupo.push(filho);
+          qGrupo += num(filho.questoes);
+          restante -= num(filho.questoes);
+          /* Só fecha o bloco se a sobra também conseguir formar outro. Caso
+             contrário, absorve a cauda e evita uma sugestão órfã < piso. */
+          if (qGrupo >= piso && (restante === 0 || restante >= piso)) {
+            unidades.push({ ordem: ordemKid.get(grupo[0]), itens: [this._grupo(node, grupo, caminho)] });
+            grupo = []; qGrupo = 0;
+          }
+        });
+        if (grupo.length && qGrupo >= piso) {
+          unidades.push({ ordem: ordemKid.get(grupo[0]), itens: [this._grupo(node, grupo, caminho)] });
         }
       }
 
-      const plano = [];
-      kids.filter(x => this.suficiente(x.questoes, piso)).forEach(filho => {
-        const fundo = this._planejarNo(filho, piso, aqui);
-        plano.push(...(fundo.length ? fundo : [this._item(filho, { caminho: aqui })]));
-      });
-      if (pequenos.length) plano.push(this._grupo(node, pequenos, caminho));
-      return this._ordenarFracos(plano);
+      const plano = unidades.sort((a, b) => num(a.ordem) - num(b.ordem)).flatMap(x => x.itens);
+      if (!plano.length && proprioSuficiente && this._pct(node) < meta) {
+        return [this._item(node, {
+          caminho: (caminho || []).slice(),
+          motivoNivel: 'subnivel-insuficiente'
+        })];
+      }
+      return plano;
     },
 
     _filaDisciplina(disc, p) {
       const tops = this._ordenarFracos((disc.children || []).filter(x => num(x.questoes) > 0));
       const fila = [];
       tops.forEach(top => {
-        const plano = this._planejarNo(top, p.minAmostra, []);
+        const plano = this._planejarNo(top, p.minAmostra, [], p.metaAcerto);
         plano.forEach(x => {
           if (!x || x.taxa == null || x.taxa >= p.metaAcerto || x.nivel <= 0) return;
           Object.assign(x, this._lacuna(x, p));
@@ -335,9 +395,8 @@
           fila.push(x);
         });
       });
-      fila.sort((a, b) => num(a.taxa, 100) - num(b.taxa, 100)
-        || num(b.questoes) - num(a.questoes)
-        || String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR'));
+      /* `tops` já está do pior pai para o melhor e cada plano veio em travessia
+         hierárquica. Uma ordenação global aqui misturaria ramos distintos. */
       fila.forEach((x, i) => { x.ordemNaDisciplina = i + 1; });
       return fila;
     },
@@ -411,14 +470,13 @@
         if (porIncidencia) return porIncidencia;
       }
       return num(A.taxa, 100) - num(B.taxa, 100)
-        || num(B.questoes) - num(A.questoes)
         || String(A.nome || '').localeCompare(String(B.nome || ''), 'pt-BR');
     },
 
     estadoAtual(origem, opts) {
       const o = origem || {};
       let snap = null;
-      try { snap = this.retratoAtual(); }
+      try { snap = opts && opts.retrato ? opts.retrato : this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-estado-snap'); }
       if (!snap || !(snap.rows || []).length) return null;
       const forest = this._forestEstavel(snap);
@@ -488,13 +546,15 @@
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
+      const retratoOverride = opts && opts.retrato ? opts.retrato : null;
+      delete p.retrato;
       p.disciplinasSel = Array.isArray(p.disciplinasSel) ? p.disciplinasSel.slice() : [];
       p.doseMin = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
       p.alvoQuestoes = Math.max(p.doseMin, num(p.alvoQuestoes, this.DEFAULTS.alvoQuestoes));
       p.maxFrentes = Math.min(3, Math.max(1, num(p.maxFrentes, 3)));
 
       let snap = null;
-      try { snap = this.retratoAtual(); }
+      try { snap = retratoOverride || this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-snap'); }
       if (!snap || !(snap.rows || []).length) return {
         erro: 'sem-retrato', fase: p.fase, prefs: p, itens: [], todos: [],
@@ -535,7 +595,11 @@
 
         const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
         const taxa = q > 0 ? ac / q * 100 : null;
-        const amostraValida = this.suficiente(q, p.minAmostra);
+        /* A amostra mínima governa somente a granularidade da frente. Uma
+           matéria com poucas questões continua no ranking pelo percentual do
+           TEC; quantidade não pesa nem exclui a disciplina. */
+        const amostraValida = q > 0;
+        const amostraMinima = this.suficiente(q, p.minAmostra);
         const lacunaDisc = (amostraValida && taxa != null)
           ? Math.max(0, num(p.metaAcerto) - taxa)
           : 0;
@@ -544,7 +608,7 @@
         return {
           nome: d.nome, questoes: q, acertos: ac, taxa,
           taxaErro: taxa == null ? null : 100 - taxa,
-          amostraValida,
+          amostraValida, amostraMinima,
           lacunaDisc,
           incidenciaDisc,
           fila,
@@ -554,7 +618,7 @@
       });
 
       const disciplinas = disciplinasTodas.filter(d =>
-        d.lacunaDisc > 0 && d.melhorTopico && (p.fase !== 'pos' || d.incidenciaDisc > 0)
+        d.lacunaDisc > 0 && (p.fase !== 'pos' || d.incidenciaDisc > 0)
       ).sort((a, b) => this._compararDisciplinas(a, b, p));
 
       disciplinas.forEach((d, i) => {
@@ -562,7 +626,12 @@
         d.fila.forEach((x, j) => { x.disciplinaRank = i + 1; x.ordemNaDisciplina = j + 1; });
       });
 
-      const escolhidas = disciplinas.slice(0, p.maxFrentes);
+      const disciplinasAcionaveis = disciplinas.filter(d => d.melhorTopico);
+      disciplinasAcionaveis.forEach((d, i) => {
+        d.rankAcionavel = i + 1;
+        d.fila.forEach(x => { x.disciplinaRankAcionavel = i + 1; });
+      });
+      const escolhidas = disciplinasAcionaveis.slice(0, p.maxFrentes);
       const itens = escolhidas.map(d => Object.assign({}, d.melhorTopico, {
         disciplinaTaxa: d.taxa,
         disciplinaLacuna: d.lacunaDisc,
@@ -580,7 +649,7 @@
         criterioDisciplinas: p.fase === 'pos'
           ? 'maior lacuna para a meta; incidência desempata'
           : 'maior lacuna para a meta',
-        itens, disciplinas, disciplinasTodas, todos, disciplinasDisponiveis,
+        itens, disciplinas, disciplinasAcionaveis, disciplinasTodas, todos, disciplinasDisponiveis,
         filtroDisciplinas: p.disciplinasSel.slice()
       };
 

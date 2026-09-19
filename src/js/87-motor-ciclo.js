@@ -30,12 +30,29 @@
 
     _ultimoRetrato() {
       try {
-        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
+        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoDeCiclo)
+          ? MotorSugestao.retratoDeCiclo()
+          : (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
           ? MotorSugestao.retratoAtual()
           : null;
         if (!s) return null;
         const data = s.endDate || s.date || s.startDate || '';
-        return { id: String(s.id || ''), data, assinatura: String(s.id || '') + '|' + String(data) };
+        const fontes = (Array.isArray(s._fontes) && s._fontes.length) ? s._fontes : [s];
+        const assinarFonte = f => {
+          let h = 2166136261 >>> 0;
+          const mix = v => {
+            const t = String(v == null ? '' : v);
+            for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+            h = Math.imul(h ^ 31, 16777619) >>> 0;
+          };
+          mix(f.id); mix(f.startDate || f.date); mix(f.endDate || f.date); mix(f.importedAt);
+          (f.rows || []).forEach(r => {
+            mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth); mix(r.questoes); mix(r.acertos);
+          });
+          return [f.id || '', f.startDate || f.date || '', f.endDate || f.date || '', h.toString(36)].join(':');
+        };
+        const assinatura = fontes.map(assinarFonte).sort().join('|');
+        return { id: String(s.id || ''), data, assinatura };
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-retrato'); return null; }
     },
 
@@ -83,14 +100,26 @@
       const disciplinaFinal = disciplina || (item && item.disciplina) || '';
       const alvoQuestoes = item && item.dose != null ? Math.max(1, Math.round(num(item.dose))) : p.alvoQuestoes;
       const filtroTec = this.filtroTec(Object.assign({}, item || {}, { dose: alvoQuestoes }), disciplinaFinal);
+      const origemConsulta = {
+        topico: topico || (item && item.nome) || '',
+        disciplina: disciplinaFinal,
+        caminho: item && Array.isArray(item.caminho) ? item.caminho.slice() : [],
+        membros,
+        escopo: membros && membros.length > 1 ? { membros: membros.slice() } : null
+      };
+      const retratoCiclo = (typeof MotorSugestao.retratoDeCiclo === 'function')
+        ? MotorSugestao.retratoDeCiclo() : null;
+      const baseCiclo = MotorSugestao.estadoAtual(origemConsulta, { retrato: retratoCiclo });
       return {
         motor: 'sugestao',
         versao: 3,
         topico: topico || (item && item.nome) || '',
         disciplina: disciplinaFinal,
         criadoEm: typeof todayLocal === 'function' ? todayLocal() : new Date().toISOString().slice(0, 10),
-        taxaInicial: item && item.taxa != null ? num(item.taxa) : null,
-        qBase: item && item.questoes != null ? num(item.questoes) : 0,
+        taxaInicial: baseCiclo && baseCiclo.taxa != null
+          ? num(baseCiclo.taxa) : item && item.taxa != null ? num(item.taxa) : null,
+        qBase: baseCiclo && baseCiclo.questoes != null
+          ? num(baseCiclo.questoes) : item && item.questoes != null ? num(item.questoes) : 0,
         metaAlvo: p.metaAcerto,
         alvoQuestoes,
         nivel: item && item.nivel != null ? Math.max(1, num(item.nivel)) : null,
@@ -100,7 +129,9 @@
         escopo: membros && membros.length > 1 ? { tipo: 'bloco', membros: membros.slice() } : { tipo: 'no', membros: [topico || (item && item.nome) || ''] },
         fase: p.fase,
         minAmostra: p.minAmostra,
-        rankInicial: item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
+        rankInicial: item && item.disciplinaRankAcionavel != null
+          ? num(item.disciplinaRankAcionavel)
+          : item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
         lacunaDiscInicial: item && item.disciplinaLacuna != null ? num(item.disciplinaLacuna) : null,
         retratoBase: retrato ? retrato.assinatura : null,
         retratoDataBase: retrato ? retrato.data : null
@@ -137,19 +168,23 @@
 
     _rankAtual(r, nome) {
       const k = norm(nome);
-      const d = (r && r.disciplinas || []).find(x => norm(x.nome) === k);
-      return d ? num(d.rank) : null;
+      const d = (r && r.disciplinasAcionaveis || r && r.disciplinas || []).find(x => norm(x.nome) === k);
+      return d ? num(d.rankAcionavel, d.rank) : null;
     },
 
     avaliar(extra, resultado) {
       const o = this.origemDe(extra);
       if (!o || !o.topico) return null;
       let r = resultado;
-      try { if (!r) r = MotorSugestao.calcular(); }
+      try {
+        if (!r) r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() });
+      }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-calcular'); }
       if (!r || r.erro) return null;
 
-      const atual = MotorSugestao.estadoAtual(o) || null;
+      const retratoCiclo = (typeof MotorSugestao.retratoDeCiclo === 'function')
+        ? MotorSugestao.retratoDeCiclo() : null;
+      const atual = MotorSugestao.estadoAtual(o, { retrato: retratoCiclo }) || null;
       const d = this._disciplinaAtual(r, o.disciplina);
       const rank = this._rankAtual(r, o.disciplina);
       const p = r.prefs || MotorSugestao.prefs();
@@ -164,9 +199,15 @@
       const noGrupo = rank != null && rank <= num(p.maxFrentes, 3);
       const retrato = this._ultimoRetrato();
       const baseData = String(o.retratoDataBase || '');
-      const novoRetrato = !!(retrato && (baseData
-        ? String(retrato.data || '') > baseData
-        : (!o.retratoBase || retrato.assinatura !== o.retratoBase)));
+      const baseAssinatura = String(o.retratoBase || '');
+      const dataAtual = String(retrato && retrato.data || '');
+      const mudouBase = !!(retrato && (!baseAssinatura || retrato.assinatura !== baseAssinatura));
+      const assinaturaDeEscopo = baseAssinatura.includes(':');
+      const avancouData = !!baseData && dataAtual > baseData;
+      const revisouMesmoPeriodo = !!baseData && dataAtual === baseData && assinaturaDeEscopo && mudouBase;
+      /* Assinaturas antigas eram "id|data". Não fechamos atividades abertas
+         só porque a atualização passou a assinar todas as fontes do escopo. */
+      const novoRetrato = mudouBase && (!baseData || avancouData || revisouMesmoPeriodo);
 
       let estado = 'andamento';
       if (!atual && !d) estado = 'orfa';
@@ -187,7 +228,7 @@
 
     conciliar() {
       let r = null;
-      try { r = MotorSugestao.calcular(); }
+      try { r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() }); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-conciliar-calculo'); }
       if (!r || r.erro) return { fechadas: [], rotacionadas: [], resolvidas: [], rodadas: [] };
 
@@ -220,7 +261,7 @@
 
     emCurso() {
       let r = null;
-      try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
+      try { r = MotorSugestao.calcular({ retrato: MotorSugestao.retratoDeCiclo() }); } catch (e) { _quiet(e, 'motor-ciclo-em-curso'); }
       return (DB.getExtras() || [])
         .filter(e => e.status !== 'concluida' && this.origemDe(e) && this.origemDe(e).topico)
         .map(e => this.avaliar(e, r))
