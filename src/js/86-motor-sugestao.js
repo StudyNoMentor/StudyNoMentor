@@ -361,11 +361,14 @@
       tops.forEach(top => {
         const plano = this._planejarNo(top, p.margemMax, []);
         plano.forEach(x => {
-          if (x && x.taxa != null && x.taxa < p.metaAcerto && x.nivel > 0) fila.push(x);
+          if (!x || x.taxa == null || x.taxa >= p.metaAcerto || x.nivel <= 0) return;
+          const l = this._lacuna(x, p);
+          Object.assign(x, l);
+          // Estar abaixo de 90% no ponto estimado não basta: o extremo otimista
+          // do intervalo também precisa continuar abaixo da meta.
+          if (x.gapConfiavel > 0) fila.push(x);
         });
       });
-      // A travessia já é depth-first e pior→melhor. O índice explícito deixa a
-      // tela e os testes auditarem essa ordem sem reordenar por score.
       fila.forEach((x, i) => { x.ordemNaDisciplina = i + 1; });
       return fila;
     },
@@ -391,7 +394,8 @@
       // produzido um percentual assustador.
       const gapConfiavel = Math.max(0, gapMeta - margem);
       const lacunaMeta = Math.max(0, Math.round(num(item && item.questoes) * gapMeta / 100));
-      return { taxa, margem, gapMeta, gapConfiavel, lacunaMeta };
+      const deficitSeguro = Math.max(0, num(item && item.questoes) * gapConfiavel / 100);
+      return { taxa, margem, gapMeta, gapConfiavel, lacunaMeta, deficitSeguro };
     },
     _dose(item, p) {
       const piso = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
@@ -413,114 +417,156 @@
       });
       return (itens || []).map(x => Object.assign(x, { dose: this._dose(x, p) }));
     },
+    _incidenciaDisciplina(nome, mapa) {
+      if (!mapa) return 0;
+      const porNorm = Object.create(null);
+      Object.keys(mapa).forEach(k => {
+        const nk = norm(k);
+        porNorm[nk] = (porNorm[nk] || 0) + num(mapa[k]);
+      });
+      const alvo = norm(nome);
+      if (porNorm[alvo] != null) return porNorm[alvo];
+      try {
+        if (typeof PlanoPontos !== 'undefined' && PlanoPontos._casarNomes) {
+          const casado = PlanoPontos._casarNomes([alvo], Object.keys(porNorm));
+          const k = casado && casado[alvo];
+          if (k && porNorm[k] != null) return porNorm[k];
+        }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-inc-disc'); }
+      return 0;
+    },
+
+    /* MATÉRIA e TÓPICO respondem perguntas diferentes.
+       A matéria entra pela lacuna sistêmica da raiz. Só depois o primeiro item
+       da fila diz onde entrar dentro dela. Isso impede um bolsão ruim em uma
+       matéria de 88% de atropelar outra inteira em 60%. */
     _compararDisciplinas(a, b, p) {
-      const A = a && a.melhorTopico || {}, B = b && b.melhorTopico || {};
+      const A = a || {}, B = b || {};
+      if (num(A.faixaPrioridade) !== num(B.faixaPrioridade)) return num(A.faixaPrioridade) - num(B.faixaPrioridade);
       if ((p && p.fase) === 'pos') {
-        return (num(B.gapConfiavel) * num(B.peso)) - (num(A.gapConfiavel) * num(A.peso))
-          || (num(B.gapMeta) * num(B.peso)) - (num(A.gapMeta) * num(A.peso))
-          || num(B.gapConfiavel) - num(A.gapConfiavel)
-          || num(B.gapMeta) - num(A.gapMeta)
-          || num(B.lacunaMeta) - num(A.lacunaMeta)
+        return num(B.prioridadeDisc) - num(A.prioridadeDisc)
+          || num(B.deficitSeguro) - num(A.deficitSeguro)
+          || num(B.gapConfiavelDisc) - num(A.gapConfiavelDisc)
           || num(B.questoes) - num(A.questoes);
       }
-      return num(B.gapConfiavel) - num(A.gapConfiavel)
-        || num(B.gapMeta) - num(A.gapMeta)
-        || num(B.lacunaMeta) - num(A.lacunaMeta)
+      return num(B.deficitSeguro) - num(A.deficitSeguro)
+        || num(B.gapConfiavelDisc) - num(A.gapConfiavelDisc)
+        || num(B.melhorTopico && B.melhorTopico.gapConfiavel) - num(A.melhorTopico && A.melhorTopico.gapConfiavel)
         || num(B.questoes) - num(A.questoes);
     },
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
+      p.disciplinasSel = Array.isArray(p.disciplinasSel) ? p.disciplinasSel.slice() : [];
       p.doseMin = Math.max(this.DEFAULTS.doseMin, num(p.doseMin, this.DEFAULTS.doseMin));
       p.alvoQuestoes = Math.max(p.doseMin, num(p.alvoQuestoes, this.DEFAULTS.alvoQuestoes));
+      p.maxFrentes = Math.min(3, Math.max(1, num(p.maxFrentes, 3)));
 
       let snap = null;
       try { snap = DesempenhoTecScreen.scopedSnapshot(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-snap'); }
-      if (!snap || !(snap.rows || []).length) return { erro: 'sem-retrato', fase: p.fase, prefs: p, itens: [], todos: [], disciplinas: [] };
+      if (!snap || !(snap.rows || []).length) return {
+        erro: 'sem-retrato', fase: p.fase, prefs: p, itens: [], todos: [],
+        disciplinas: [], disciplinasTodas: [], disciplinasDisponiveis: []
+      };
 
-      let forest = [];
-      try { forest = TecEngine.buildTree(snap) || []; }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-arvore'); }
-      if (!forest.length) return { erro: 'sem-arvore', fase: p.fase, prefs: p, itens: [], todos: [], disciplinas: [] };
+      let forest = this._forestEstavel(snap);
+      if (!forest.length) return {
+        erro: 'sem-arvore', fase: p.fase, prefs: p, itens: [], todos: [],
+        disciplinas: [], disciplinasTodas: [], disciplinasDisponiveis: []
+      };
+      const disciplinasDisponiveis = forest.map(d => d.nome).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
+      const filtroDisc = new Set(p.disciplinasSel.map(norm).filter(Boolean));
+      if (filtroDisc.size) forest = forest.filter(d => filtroDisc.has(norm(d.nome)));
 
       let banca = '__todas__';
       try { banca = DesempenhoTecScreen.bancaFiltro(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-banca'); }
-      let incMap = null;
+      let incMap = null, incDisc = null;
       if (p.fase === 'pos') {
-        try { incMap = ReforcoEngine.incidenceMap(banca); }
-        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-mapa'); }
+        try {
+          incMap = ReforcoEngine.incidenceMap(banca);
+          incDisc = ReforcoEngine.incidPorDisciplina(banca);
+        } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-mapa'); }
         if (!incMap || !Object.keys(incMap).length) {
-          return { erro: 'sem-incidencia', fase: p.fase, prefs: p, itens: [], todos: [], disciplinas: [] };
+          return {
+            erro: 'sem-incidencia', fase: p.fase, prefs: p, itens: [], todos: [],
+            disciplinas: [], disciplinasTodas: [], disciplinasDisponiveis
+          };
         }
       }
 
       const disciplinasTodas = forest.map(d => {
         const fila = this._filaDisciplina(d, p);
         fila.forEach(x => {
-          const l = this._lacuna(x, p);
-          x.gapMeta = l.gapMeta;
-          x.gapConfiavel = l.gapConfiavel;
-          x.lacunaMeta = l.lacunaMeta;
+          // A incidência de tópico aparece como explicação, mas NÃO reordena a
+          // fila interna: pior→melhor da árvore continua mandando.
           x.peso = this._peso(x, p.fase, incMap);
-          // score fica como número de compatibilidade para telas auxiliares.
-          // A ordem interna NÃO lê esse score: continua sendo a árvore do TEC.
-          x.score = p.fase === 'pos' ? x.gapMeta * x.peso : x.gapMeta;
-          x.prioridade = p.fase === 'pos' ? x.gapConfiavel * x.peso : x.gapConfiavel;
+          x.score = x.gapMeta;
+          x.prioridade = x.gapConfiavel;
           x.legivel = x.margem != null && x.margem <= p.margemMax;
         });
-        const acionaveis = fila.filter(x => x.legivel && (p.fase !== 'pos' || x.peso > 0));
+
         const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
         const taxa = q > 0 ? ac / q * 100 : null;
-        const melhor = acionaveis[0] || null;
+        const margemDisc = this.margem(q, ac);
+        const dl = this._lacuna({ taxa, margem: margemDisc, questoes: q }, p);
+        const incidenciaDisc = p.fase === 'pos' ? this._incidenciaDisciplina(d.nome, incDisc) : null;
+        const melhor = fila[0] || null;
+        const deficitSeguro = dl.deficitSeguro;
+        // correção sistêmica sempre vem antes de manutenção localizada
+        const faixaPrioridade = deficitSeguro > 0 ? 0 : 1;
+        const basePrioridade = deficitSeguro > 0 ? deficitSeguro : num(melhor && melhor.gapConfiavel);
+        const prioridadeDisc = p.fase === 'pos' ? basePrioridade * num(incidenciaDisc) : basePrioridade;
         return {
-          nome: d.nome,
-          questoes: q,
-          acertos: ac,
-          taxa,
+          nome: d.nome, questoes: q, acertos: ac, taxa,
           taxaErro: taxa == null ? null : 100 - taxa,
-          margem: this.margem(q, ac),
-          fila: acionaveis,
+          margem: margemDisc,
+          gapMetaDisc: dl.gapMeta,
+          gapConfiavelDisc: dl.gapConfiavel,
+          deficitSeguro,
+          incidenciaDisc,
+          faixaPrioridade,
+          prioridadeDisc,
+          fila,
           melhorTopico: melhor,
-          prioridade: melhor ? melhor.prioridade : -1,
-          score: acionaveis.reduce((s, x) => s + num(x.score), 0)
+          score: prioridadeDisc
         };
       });
 
-      /* ENTRE disciplinas, não usamos o percentual cru:
-         1) maior lacuna que continua existindo mesmo no extremo otimista da margem;
-         2) maior distância observada para a meta;
-         3) maior volume estimado de déficit naquele recorte.
-         No pós-edital, a incidência pesa as duas primeiras chaves. Dentro de cada
-         disciplina nada disso reordena a fila: a travessia hierárquica manda. */
-      const disciplinas = disciplinasTodas.filter(d => d.melhorTopico)
-        .sort((a, b) => this._compararDisciplinas(a, b, p));
+      const disciplinas = disciplinasTodas.filter(d =>
+        d.melhorTopico && (p.fase !== 'pos' || d.incidenciaDisc > 0)
+      ).sort((a, b) => this._compararDisciplinas(a, b, p));
+
       disciplinas.forEach((d, i) => {
         d.rank = i + 1;
         d.fila.forEach((x, j) => { x.disciplinaRank = i + 1; x.ordemNaDisciplina = j + 1; });
       });
 
       const escolhidas = disciplinas.slice(0, p.maxFrentes);
-      const itens = escolhidas.map(d => Object.assign({}, d.melhorTopico));
+      const itens = escolhidas.map(d => Object.assign({}, d.melhorTopico, {
+        disciplinaTaxa: d.taxa,
+        disciplinaMargem: d.margem,
+        disciplinaGapSeguro: d.gapConfiavelDisc,
+        disciplinaDeficitSeguro: d.deficitSeguro,
+        disciplinaIncidencia: d.incidenciaDisc,
+        categoriaPrioridade: d.faixaPrioridade === 0 ? 'correcao' : 'manutencao'
+      }));
       itens.forEach(x => { x.dose = this._dose(x, p); });
 
-      // Ranking de tópicos NÃO é uma sopa global de score: segue a disciplina
-      // ordenada e, dentro dela, a travessia hierárquica pior→melhor.
       const todos = [];
       disciplinas.forEach(d => d.fila.forEach(x => todos.push(x)));
 
       return {
-        fase: p.fase,
-        prefs: p,
-        erro: null,
+        fase: p.fase, prefs: p, erro: null,
         banca: p.fase === 'pos' ? banca : null,
-        criterioDisciplinas: p.fase === 'pos' ? 'lacuna confiável × incidência' : 'lacuna confiável do pior recorte',
-        itens,
-        disciplinas,
-        disciplinasTodas,
-        todos
+        criterioDisciplinas: p.fase === 'pos'
+          ? 'déficit seguro da matéria × incidência'
+          : 'déficit seguro da matéria',
+        itens, disciplinas, disciplinasTodas, todos, disciplinasDisponiveis,
+        filtroDisciplinas: p.disciplinasSel.slice()
       };
+
     }
   };
 
