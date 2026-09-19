@@ -884,6 +884,29 @@ try {
   eq(takenByWiresDrain.drains,1,'takeover remoto deve tentar entregar o snapshot congelado');
   eq(takenByWiresDrain.blocked,1,'takeover remoto deve continuar bloqueando novas ações na interface');
 
+  /* 2l.19. O journal de entries precisa sobreviver a reload: a geração em
+     memória reinicia, mas a operação persistida não pode ficar fora do merge. */
+  const entryJournalReload=await page.evaluate(()=>{
+    const id='syncv2-entryops-reload',sec='p:pl_inicial:entries',pfx='diario-estudos:u:'+id+':';
+    const keep={active:ProfileManager.getActiveProfileId,seq:SectionSync._genSeq};
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();SectionSync._genSeq=0;
+    localStorage.setItem(pfx+sec,'[{"id":"a"},{"id":"b"}]');
+    localStorage.setItem(pfx+'__secpend',JSON.stringify([sec]));
+    localStorage.setItem(pfx+'__entryops',JSON.stringify({[sec]:[{type:'delete',id:'b',gen:37}]}));
+    SectionSync.restorePending(id);
+    const gen=SectionSync._dirtyGenFor(id).get(sec)||0;
+    const ops=SectionSync._entryOpsFor(id,sec,gen);
+    const proxima=SectionSync._touchDirty(sec,id);
+    ProfileManager.getActiveProfileId=keep.active;SectionSync._genSeq=keep.seq;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.removeItem(pfx+sec);localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__entryops');
+    return {gen,ops:ops.length,proxima};
+  });
+  eq(entryJournalReload.gen,37,'reload deve restaurar a geração persistida do journal');
+  eq(entryJournalReload.ops,1,'operação pendente deve continuar elegível ao merge após reload');
+  ok(entryJournalReload.proxima>37,'nova mutação após reload deve usar geração posterior ao journal restaurado');
+
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
     const id='syncv2-pending-delete',sec='entries';
