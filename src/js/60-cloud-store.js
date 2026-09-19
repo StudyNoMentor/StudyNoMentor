@@ -513,18 +513,36 @@ const CloudStore = {
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
-    if (this._pending || this._debounce) { await this.flushPending(); return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
-    // Pendência que sobreviveu a um recarregamento (caixa de saída gravada):
-    // ENVIA antes de qualquer coisa; baixar primeiro sobrescreveria o que falta subir.
+
+    /* PUSH → CONFIRMA → PULL, numa única rodada.
+       Antes havia dois `return` logo depois do envio. O efeito era sutil: ao
+       voltar ao app com UMA alteração local pendente, a rodada só enviava.
+       Mesmo que a nuvem também tivesse dados mais novos, eles só seriam vistos
+       em outro foco/visibilitychange — ou nunca, se a aba já ficasse aberta.
+       É exatamente o tipo de atraso de "um ou dois dias" que parece demora da
+       nuvem. */
     try {
-      if (window.SectionSync && SectionSync.pendingQuick() > 0) {
+      let haviaPendencia = !!(this._pending || this._debounce);
+      try { if (window.SectionSync && SectionSync.pendingQuick() > 0) haviaPendencia = true; } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
+      if (haviaPendencia) {
         this._pending = true;
         await this.flushPending();
-        return;
+
+        /* Só continua para o download se a entrega realmente terminou. Se a
+           rede falhou, mantemos a cópia local como autoridade e tentamos de
+           novo no próximo pulso — nunca baixamos por cima de algo pendente. */
+        let resta = !!(this._pending || this._debounce || this._syncing);
+        try {
+          if (window.SectionSync) {
+            resta = resta || (SectionSync.explicitPendingSections
+              ? SectionSync.explicitPendingSections(id).length > 0
+              : SectionSync.pendingQuick() > 0);
+          }
+        } catch (e) { _quiet(e, 'syncOnFocus-resta'); }
+        if (resta) return;
       }
-    } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
-    try {
+
       // FASE 2: a novidade é detectada pelas revisões DAS SEÇÕES. Vantagem sobre a
       // rev do blob: só baixa quando o conteúdo em si mudou, e sabemos o que mudou.
       let novidade;

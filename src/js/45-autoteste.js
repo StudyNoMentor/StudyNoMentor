@@ -1078,6 +1078,13 @@ const AutoTeste = {
       const pendentes = SectionSync.pendingSections(PID);
       this._ok('conteúdo diferente do último envio é detectado como pendente',
         pendentes.indexOf('p:pl:entries') !== -1, pendentes);
+      /* A mesma divergência NÃO é uma pendência explícita. Esta distinção é a
+         barreira contra cache regressado após atualização: sem __secpend/_dirty,
+         o app não pode concluir automaticamente que "o local foi editado" e
+         publicar o conteúdo velho por cima da nuvem. */
+      const explicitas = SectionSync.explicitPendingSections(PID);
+      this._ok('divergência só por hash não vira upload explícito após atualização',
+        explicitas.indexOf('p:pl:entries') === -1, explicitas);
 
       // 5. e o inverso: conteúdo idêntico ao último envio NÃO vira pendência
       localStorage.setItem(pfx + '__secrev', JSON.stringify({

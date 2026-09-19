@@ -131,6 +131,23 @@ const SectionSync = {
     } catch (_) { _quiet(_); }
     return [...out];
   },
+  /* Pendência EXPLÍCITA = alteração que passou pelo canal normal de escrita e
+     ficou registrada na caixa de saída. Diferente de pendingSections(), este
+     método NÃO infere "mudou localmente" só porque o hash do conteúdo divergiu
+     da última revisão anotada.
+
+     Essa distinção é crítica logo depois de uma ATUALIZAÇÃO DO APP: o IndexedDB
+     pode ter restaurado um valor antigo enquanto __secrev já contém a revisão
+     mais nova. Tratar essa divergência de cache como edição do usuário faria o
+     aparelho subir o valor velho por cima da cópia correta da nuvem. */
+  explicitPendingSections(id) {
+    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
+    const mesmo = !id || id === ativo;
+    const out = new Set();
+    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._loadPend(id).forEach(s => out.add(s));
+    return [...out];
+  },
   hasLocalPending(id) { return this.pendingSections(id).length > 0; },
   /* Contagem BARATA, sem varrer nem re-hashear o conteúdo: é a que alimenta o
      indicador na tela, chamado a cada foco e a cada 30 s. A checagem completa
@@ -144,15 +161,23 @@ const SectionSync = {
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
      local. Devolve o que CONTINUA pendente depois da tentativa — quem chamou usa
      essa lista para preservar essas seções em vez de apagá-las. */
-  async flushBeforeRead(id) {
-    const pend = this.pendingSections(id);
+  async flushBeforeRead(id, opts) {
+    opts = opts || {};
+    /* No fluxo normal, a comparação por hash é uma segunda rede de segurança:
+       se a lista __secpend se perder, uma edição local ainda é reencontrada.
+       Já na PRIMEIRA RECONCILIAÇÃO DE UMA NOVA VERSÃO usamos explicitOnly:
+       divergência de hash sem fila explícita pode ser cache local regressado,
+       não uma edição. Nesse caso a cópia local é fotografada antes da aplicação
+       e a nuvem confirmada vence, em vez de o cache velho ser publicado. */
+    const listar = () => opts.explicitOnly ? this.explicitPendingSections(id) : this.pendingSections(id);
+    const pend = listar();
     if (!pend.length) return [];
     const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
     if (id && id !== ativo) return pend;   // outro perfil: não há como enviar daqui agora
     pend.forEach(s => this._dirty.add(s));
     this._savePend();
     try { await this.pushDirty(); } catch (e) { console.warn('[SectionSync] envio antes da leitura falhou', e); }
-    const resta = this.pendingSections(id);
+    const resta = listar();
     if (resta.length) console.warn('[SectionSync] preservando ' + resta.length + ' seção(ões) não enviada(s):', resta.join(', '));
     return resta;
   },
@@ -588,7 +613,7 @@ const SectionSync = {
          conseguir subir volta como `preservar` e sai ileso do download — é o que
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
-      const preservar = await this.flushBeforeRead(id);
+      const preservar = await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
@@ -608,6 +633,18 @@ const SectionSync = {
       return res;
     }
   },
+  /* Barreira de consistência após trocar a versão do aplicativo.
+     Faz UMA hidratação completa usando somente a fila explícita como autoridade
+     local. Isso corrige o caso em que o cache/IndexedDB volta com conteúdo de
+     ontem mas a contabilidade __secrev já diz que a revisão de hoje foi vista.
+
+     A hidratação já fotografa BackupHistory antes de aplicar qualquer coisa e
+     _applyMap preserva seções locais que nunca existiram na nuvem. Portanto a
+     barreira corrige cache regressado sem transformar ausência remota em perda. */
+  async hydrateAfterAppUpdate(id) {
+    return this.hydrate(id, { force: true, explicitOnly: true });
+  },
+
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
   // que este aparelho já conhece. Substitui a comparação de rev do blob.
   /* ── A CONTABILIDADE DE REVISÕES NÃO PROVA QUE O DADO ESTÁ AQUI ───────────
