@@ -797,7 +797,7 @@ const SectionSync = {
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
       const preservar = opts.skipPush
-        ? this.pendingSections(id)
+        ? this.explicitPendingSections(id)
         : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
       res.linhasRemotas = rows.length;
