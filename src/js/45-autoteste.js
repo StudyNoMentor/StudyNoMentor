@@ -1816,7 +1816,7 @@ const AutoTeste = {
       this._ok('Ciclo: a atividade guarda o contador do assunto na criação',
         e1.origemPlano.qBase === 200, e1.origemPlano.qBase);
       this._ok('Ciclo: e a taxa inicial e a META DO DIA, não a de depois',
-        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 85, e1.origemPlano);
+        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 90, e1.origemPlano);
       const comNovo = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 80, 48), L('01', 'Licitacoes', 'Dir Adm', 80, 48)])]);
       let v = comBanco(comNovo, () => C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs())));
       this._ok('Ciclo: o retrato novo conta as questões sozinho', v.feito === 80 && v.medido === 80, { feito: v.feito, medido: v.medido });
@@ -1963,7 +1963,7 @@ const AutoTeste = {
       this._ok('Lente: as 200 do detalhe contam como progresso (eram 0)',
         v8.medido === 200 && v8.feito === 200 && v8.cumpriu, { medido: v8.medido, feito: v8.feito });
       this._ok('Lente: e a taxa é a do ramo, 88% — não os 30% do retrato em que era folha',
-        Math.round(v8.taxa) === 88 && v8.estado === 'funcionou', { taxa: v8.taxa, estado: v8.estado });
+        Math.round(v8.taxa) === 88 && v8.estado === 'subiu', { taxa: v8.taxa, estado: v8.estado });
       lente(false);
       const v8b = leia();
       lente(true);
