@@ -238,16 +238,23 @@ const ConquistasEngine = {
     const melhorDiaBateria = vals.filter(d => d.q >= 50).reduce((m, d) => Math.max(m, d.ac / d.q * 100), 0);
     // meses com 15+ dias ativos
     const mesesFirmes = Object.values(meses).filter(n => n >= 15).length;
-    // Plano
+    // Métricas do único Motor de Sugestão.
     let solidos = 0, virada = null, dominio = 0, semCegos = false;
     try {
-      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
+      const r = MotorSugestao.calcular();
       if (r && !r.erro) {
-        solidos = r.consolidados || 0; dominio = r.dominioPct || 0;
-        semCegos = (r.ignorados === 0 && r.assuntos > 0);
-        const v = (r.itens || []).find(x => x.pctHist != null && x.pctHist < 50 && x.taxa >= 80);
-        if (v) virada = v.nome;
+        const ds = r.disciplinasTodas || [];
+        solidos = ds.filter(d => d.amostraValida && d.taxa != null && d.taxa >= r.prefs.metaAcerto).length;
+        const q = ds.reduce((a, d) => a + (d.questoes || 0), 0);
+        const ac = ds.reduce((a, d) => a + (d.acertos || 0), 0);
+        dominio = q ? ac / q * 100 : 0;
+        semCegos = ds.length > 0 && ds.every(d => d.amostraValida);
       }
+      const fechadosMotor = (extras || []).map(e => ({ e, o: (typeof MotorCiclo !== 'undefined' ? MotorCiclo.origemDe(e) : null) }))
+        .filter(x => x.o && x.o.veredito);
+      const v = fechadosMotor.find(x => x.o.taxaInicial != null && x.o.taxaInicial < 50
+        && x.o.veredito.taxaFinal != null && x.o.veredito.taxaFinal >= 80);
+      if (v) virada = v.o.topico;
     } catch (_) { _quiet(_); }
     const totQ = vals.reduce((a, d) => a + d.q, 0), totAc = vals.reduce((a, d) => a + d.ac, 0);
     return {
@@ -277,8 +284,11 @@ const ConquistasEngine = {
       temGrade: g(() => Object.keys((DB.getGradeTemplate() || {}).grade || {}).length > 0, false),
       extrasCriadas: extras.length,
       extrasConcluidas: extras.reduce((n, x) => n + (DB.extraRecorrente(x) ? (x.concluidasEm || []).length : (x.status === 'concluida' ? 1 : 0)), 0),
-      extrasDoPlano: extras.filter(x => x.origemPlano).length,
-      reforcoQueFuncionou: extras.some(x => x.origemPlano && x.origemPlano.taxaInicial != null && (x.status === 'concluida' || (x.concluidasEm || []).length > 0)),
+      extrasDoMotor: extras.filter(x => typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(x)).length,
+      reforcoQueFuncionou: extras.some(x => {
+        const o = typeof MotorCiclo !== 'undefined' ? MotorCiclo.origemDe(x) : null;
+        return !!(o && o.veredito && o.veredito.tipo === 'resolvida');
+      }),
       diasEstudo: vals.filter(d => d.temAlgo).length,
       diasFimDeSemana: Object.keys(dias).filter(k => { if (!dias[k].temAlgo) return false; const w = new Date(k + 'T00:00:00').getDay(); return w === 0 || w === 6; }).length,
       semanasAtivas: Object.keys(semanas).length,
@@ -344,7 +354,7 @@ const ConquistasEngine = {
     { c: 'metodo', i: '▦', n: 'Grade montada', u: 'temGrade', d: 'você montou sua grade semanal', dOff: 'montar a Grade Semanal' },
     { c: 'metodo', i: '📥', n: 'Retratos do TEC', k: 'retratos', ns: [[1, 'Primeiro retrato'], [3, 'Acompanhando'], [6, 'Série histórica'], [12, 'Um ano de dados']] },
     { c: 'metodo', i: '🏛️', n: 'Incidência importada', u: 'temIncidencia', d: 'você mapeou o que a banca cobra', dOff: 'importar o Índice do Caderno na aba Incidência' },
-    { c: 'metodo', i: '🎯', n: 'Atividades do Plano', k: 'extrasDoPlano', ns: [[1, 'Primeiro reforço'], [5, 'Plano em uso'], [15, 'Ciclo fechado']] },
+    { c: 'metodo', i: '🎯', n: 'Atividades do Motor', k: 'extrasDoMotor', ns: [[1, 'Primeiro reforço'], [5, 'Motor em uso'], [15, 'Ciclo iterativo']] },
     { c: 'metodo', i: '📌', n: 'Marcador de leitura', k: 'leisComMarcador', ns: [[1, 'Onde parei'], [3, 'Leitura organizada'], [8, 'Sempre no lugar']] },
     { c: 'metodo', i: '➕', n: 'Atividades extras criadas', k: 'extrasCriadas', ns: [[1, 'Primeira meta'], [5, 'Metas paralelas'], [15, 'Multitarefa']] },
     { c: 'metodo', i: '🗺️', n: 'Planejamentos', k: 'planejamentos', ns: [[1, 'Primeiro plano'], [2, 'Duas frentes'], [3, 'Estrategista']] },
