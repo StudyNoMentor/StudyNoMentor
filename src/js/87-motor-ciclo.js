@@ -47,22 +47,57 @@
       return 'Reforçar: ' + base;
     },
 
+    /* Receita operacional do caderno no TEC. O Motor trabalha com nomes
+       semânticos porque os códigos 01/02/03 são posicionais e podem mudar entre
+       retratos. Assim, a atividade guarda exatamente a trilha que a pessoa deve
+       abrir e o(s) tópico(s)/subtópico(s) que precisa marcar no TEC. */
+    filtroTec(item, disciplina) {
+      item = item || {};
+      const disc = String(disciplina || item.disciplina || '').trim();
+      const caminho = (Array.isArray(item.caminho) ? item.caminho : [])
+        .map(x => String(x == null ? '' : x).trim()).filter(Boolean);
+      const membros = (Array.isArray(item.membros) ? item.membros : [])
+        .map(x => String(x == null ? '' : x).trim()).filter(Boolean);
+      const nome = String(item.nome || '').replace(/\s*·\s*bloco\s*$/i, '').trim();
+      const selecoes = membros.length > 1 ? membros : (nome ? [nome] : []);
+      if (!disc || !selecoes.length) return null;
+      const nivel = Math.max(1, num(item.nivel, caminho.length + 1));
+      const agregado = membros.length > 1;
+      const trilha = [disc].concat(caminho).concat(agregado ? [] : selecoes).filter(Boolean);
+      return {
+        versao: 1,
+        disciplina: disc,
+        nivel,
+        tipo: agregado ? 'grupo' : 'no',
+        agregado,
+        caminho,
+        selecoes,
+        trilha,
+        quantidade: item.dose != null ? Math.max(1, Math.round(num(item.dose))) : null
+      };
+    },
+
     origem(topico, disciplina, item) {
       const p = MotorSugestao.prefs();
       const retrato = this._ultimoRetrato();
       const membros = item && Array.isArray(item.membros) ? item.membros.slice() : null;
+      const disciplinaFinal = disciplina || (item && item.disciplina) || '';
+      const alvoQuestoes = item && item.dose != null ? Math.max(1, Math.round(num(item.dose))) : p.alvoQuestoes;
+      const filtroTec = this.filtroTec(Object.assign({}, item || {}, { dose: alvoQuestoes }), disciplinaFinal);
       return {
         motor: 'sugestao',
-        versao: 2,
+        versao: 3,
         topico: topico || (item && item.nome) || '',
-        disciplina: disciplina || (item && item.disciplina) || '',
+        disciplina: disciplinaFinal,
         criadoEm: typeof todayLocal === 'function' ? todayLocal() : new Date().toISOString().slice(0, 10),
         taxaInicial: item && item.taxa != null ? num(item.taxa) : null,
         qBase: item && item.questoes != null ? num(item.questoes) : 0,
         metaAlvo: p.metaAcerto,
-        alvoQuestoes: item && item.dose != null ? num(item.dose) : p.alvoQuestoes,
+        alvoQuestoes,
+        nivel: item && item.nivel != null ? Math.max(1, num(item.nivel)) : null,
         caminho: item && Array.isArray(item.caminho) ? item.caminho.slice() : [],
         membros,
+        filtroTec,
         escopo: membros && membros.length > 1 ? { tipo: 'bloco', membros: membros.slice() } : { tipo: 'no', membros: [topico || (item && item.nome) || ''] },
         fase: p.fase,
         minAmostra: p.minAmostra,
@@ -71,6 +106,29 @@
         retratoBase: retrato ? retrato.assinatura : null,
         retratoDataBase: retrato ? retrato.data : null
       };
+    },
+
+    filtroTecDe(extra) {
+      const o = this.origemDe(extra);
+      if (!o || !o.topico || !o.disciplina) return null;
+      if (o.filtroTec && Array.isArray(o.filtroTec.selecoes) && o.filtroTec.selecoes.length) {
+        const f = Object.assign({}, o.filtroTec);
+        f.caminho = Array.isArray(f.caminho) ? f.caminho.slice() : [];
+        f.selecoes = f.selecoes.slice();
+        f.trilha = Array.isArray(f.trilha) ? f.trilha.slice() : [f.disciplina].concat(f.caminho).concat(f.agregado ? [] : f.selecoes);
+        f.quantidade = Math.max(1, Math.round(num(f.quantidade, o.alvoQuestoes || (extra && extra.alvo) || 1)));
+        return f;
+      }
+      const membros = (o.escopo && Array.isArray(o.escopo.membros) && o.escopo.membros.length > 1)
+        ? o.escopo.membros : (Array.isArray(o.membros) ? o.membros : null);
+      return this.filtroTec({
+        nome: o.topico,
+        disciplina: o.disciplina,
+        caminho: Array.isArray(o.caminho) ? o.caminho : [],
+        membros,
+        nivel: o.nivel != null ? o.nivel : ((o.caminho || []).length + 1),
+        dose: o.alvoQuestoes || (extra && extra.alvo)
+      }, o.disciplina);
     },
 
     _disciplinaAtual(r, nome) {
