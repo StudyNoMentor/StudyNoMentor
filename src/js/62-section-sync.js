@@ -12,7 +12,7 @@
    ============================================================ */
 const SectionSync = {
   TABLE: 'profile_sections',
-  enabled: true,            // escrita por seção ligada
+  enabled: false,           // legado aposentado: sem escrita em profile_sections
   // ── FASE 2: LEITURA POR SEÇÃO ───────────────────────────────────────────
   // Quando ligada, ENTRAR num perfil e BAIXAR atualizações passa a ler a tabela
   // profile_sections (uma linha por seção) em vez do blob de study_profiles.
@@ -36,14 +36,10 @@ const SectionSync = {
     if (this._lastHydrate) return this._lastHydrate;
     try { return JSON.parse(localStorage.getItem(this.LAST_READ_KEY)) || null; } catch (_) { return null; }
   },
-  get readEnabled() {
-    try { const v = localStorage.getItem(this.READ_FLAG_KEY); return v === null ? true : v === '1'; }
-    catch (_) { return true; }
-  },
-  setReadMode(on) {
-    try { localStorage.setItem(this.READ_FLAG_KEY, on ? '1' : '0'); } catch (_) { _quiet(_); }
-    console.info('[SectionSync] leitura por seção', on ? 'LIGADA (Fase 2)' : 'DESLIGADA (volta ao blob)');
-    return this.readEnabled;
+  get readEnabled() { return false; },
+  setReadMode() {
+    /* Compatibilidade temporária: a leitura por profile_sections foi aposentada. */
+    return false;
   },
   /* Outbox EM MEMÓRIA também é isolada por perfil. Antes "_dirty" era um Set
      global de nomes como "entries"/"tracks": se o perfil mudasse enquanto um
