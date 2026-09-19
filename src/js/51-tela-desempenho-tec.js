@@ -3074,6 +3074,12 @@ const DesempenhoTecScreen = {
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
     if (['fracos', 'fortes', 'indice'].includes(_p.treeOrdem)) this.treeOrdem = _p.treeOrdem;
+    if (this.discFilters === null) {
+      const salvas = Array.isArray(_p.discFilters) ? _p.discFilters : [];
+      this.discFilters = [...new Set(salvas.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim()))];
+      // compatibilidade com chamadas antigas que ainda leem discFilter
+      this.discFilter = this.discFilters.length === 1 ? this.discFilters[0] : '__todas__';
+    }
     // Na primeira abertura, restaura inclusive []: "Limpar" é um estado válido.
     if (this.selectedSnapIds === null) {
       const salvos = Array.isArray(_p.selectedSnapIds) ? _p.selectedSnapIds : null;
@@ -4075,11 +4081,12 @@ const DesempenhoTecScreen = {
     return false;
   },
   /* ── A ABA DO MOTOR ──────────────────────────────────────────────────────
-     Ela mostra três coisas, nesta ordem: em que fase o motor está pensando,
-     o que ele escolheu, e POR QUE cada linha ficou no nível em que ficou. A
-     última é a que faz a tela ser auditável em vez de um oráculo — uma linha
-     que diz "23 questões, ±14pp, bloco de 4 subtópicos" pode ser conferida
-     contra a árvore da Análise em dez segundos. */
+     A leitura agora é deliberadamente em DOIS PASSOS:
+       1) quais matérias concentram a maior lacuna mensurável;
+       2) dentro de cada uma, qual tópico é o melhor filtro executável.
+     Disciplina é contexto de prioridade; atividade sempre nasce em tópico ou
+     subtópico. Isso evita transformar "matéria fraca" em caderno da matéria
+     inteira e deixa a decisão auditável contra a árvore da Análise. */
   renderMotor() {
     const host = document.getElementById('motor-lista');
     const fase = document.getElementById('motor-fase');
@@ -4104,22 +4111,40 @@ const DesempenhoTecScreen = {
       return;
     }
     if (!r.itens.length) {
-      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Nenhuma frente alcança o mínimo de ${r.prefs.doseMin} questões por rodada. Aumente o caderno ou baixe o mínimo por frente em ⚙ Ajustes.</p>`;
+      host.innerHTML = `<p class="wd-empty" style="padding:18px 0;">Há dados de desempenho, mas nenhum <b>tópico</b> tem amostra suficiente para virar reforço com a margem atual de ±${r.prefs.margemMax}pp. O motor não vai substituir isso por uma disciplina inteira. Ajuste a margem ou acumule mais questões.</p>`;
       return;
     }
+
+    const fmt1 = v => Math.round(Number(v || 0) * 10) / 10;
+    const discTop = (r.disciplinas || []).slice(0, Math.min(3, r.prefs.maxFrentes || 3));
+    const disciplinasHtml = discTop.map((d, i) => {
+      const top = d.melhorTopico;
+      return `
+        <article class="ms-disc-card">
+          <span class="ms-rank">${i + 1}</span>
+          <div class="ms-disc-main">
+            <b>${escapeHtml(d.nome)}</b>
+            <small>melhor recorte: ${escapeHtml(top ? top.nome : '—')}</small>
+          </div>
+          <div class="ms-disc-kpis">
+            <span><i>erro</i>${fmt1(d.taxaErro)}%</span>
+            <span><i>resolvidas</i>${d.questoes.toLocaleString('pt-BR')}</span>
+            <span><i>lacuna</i>${Math.round(d.score)}</span>
+          </div>
+        </article>`;
+    }).join('');
+
     const totalDose = r.itens.reduce((a, x) => a + x.dose, 0);
     const linhas = r.itens.map((x, i) => {
-      const erroPct = Math.round(x.taxaErro * 10) / 10;
-      const margem = x.margem == null ? '—' : '±' + (Math.round(x.margem * 10) / 10) + 'pp';
+      const erroPct = fmt1(x.taxaErro);
+      const margem = x.margem == null ? '—' : '±' + fmt1(x.margem) + 'pp';
       const bloco = x.agregado ? (() => {
         const partes = [];
         if (x.membros && x.membros.length) partes.push(x.membros.length + ' ramo' + (x.membros.length > 1 ? 's' : '') + ' miúdo' + (x.membros.length > 1 ? 's' : ''));
         if (x.residuo > 0) partes.push(x.residuo + ' questões sem subtópico detalhado');
-        const dica = 'Filtre por "' + x.nome + '" no TecConcursos: este bloco é ' + partes.join(' + ')
-          + (x.membros && x.membros.length ? ' — ' + x.membros.join(' · ') : '')
-          + '. Sozinhos, nenhum deles tem questões suficientes para o percentual significar algo.';
-        return `<span class="ms-selo" title="${escapeHtml(dica)}">bloco · ${escapeHtml(partes.join(' + '))}</span>`;
-      })() : '';
+        const dica = 'O motor subiu para "' + x.nome + '" porque os níveis abaixo, isolados, não têm amostra suficiente. A disciplina inteira nunca é usada como filtro.';
+        return `<span class="ms-selo" title="${escapeHtml(dica)}">nível agregado · ${escapeHtml(partes.join(' + '))}</span>`;
+      })() : `<span class="ms-selo ms-selo-nivel">nível ${Math.max(1, x.nivel)}</span>`;
       const peso = r.fase === 'pos'
         ? `<i>incidência</i>${x.peso}`
         : `<i>volume</i>${x.questoes}`;
@@ -4128,7 +4153,7 @@ const DesempenhoTecScreen = {
           <div class="ms-item-top">
             <span class="ms-rank">${i + 1}</span>
             <div class="ms-id">
-              <small>${escapeHtml(x.disciplina)}</small>
+              <small>${escapeHtml(x.disciplina)} · tópico recomendado</small>
               <b>${escapeHtml(x.nome)}</b>${bloco}
             </div>
             <span class="ms-dose" title="Questões desta frente no caderno da rodada">${x.dose}<small>questões</small></span>
@@ -4136,21 +4161,48 @@ const DesempenhoTecScreen = {
           <div class="ms-nums">
             <span class="ms-pill"><i>erro</i>${erroPct}%</span>
             <span class="ms-pill"><i>resolvidas</i>${x.questoes}</span>
-            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança. É ela que decidiu parar neste nível da árvore."><i>margem</i>${margem}</span>
+            <span class="ms-pill" title="Margem de erro do percentual, a 95% de confiança."><i>margem</i>${margem}</span>
             <span class="ms-pill">${peso}</span>
-            <span class="ms-pill ms-score" title="${escapeHtml(r.fase === 'pos' ? 'Incidência da banca × taxa de erro: o erro esperado na prova.' : 'Volume × taxa de erro: literalmente o número de questões que você erra aqui.')}"><i>lacuna</i>${Math.round(x.score)}</span>
+            <span class="ms-pill ms-score"><i>lacuna</i>${Math.round(x.score)}</span>
           </div>
           <div class="ms-acoes">
             <button type="button" class="btn-secondary" data-motor-extra="${i}">+ Criar atividade de ${x.dose} questões</button>
           </div>
         </div>`;
     }).join('');
+
+    const discRank = (r.disciplinas || []).slice(0, 30).map((d, i) =>
+      `<li><span>${i + 1}</span><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxaErro)}% erro · lacuna ${Math.round(d.score)} · melhor tópico: ${escapeHtml((d.melhorTopico || {}).nome || 'sem tópico confiável')}</small></li>`
+    ).join('');
+    const topRank = (r.todos || []).slice(0, 30).map((x, i) =>
+      `<li class="${x.legivel ? '' : 'is-incerto'}"><span>${i + 1}</span><b>${escapeHtml(x.nome)}</b><small>${escapeHtml(x.disciplina)} · ${fmt1(x.taxaErro)}% erro · ${x.questoes} questões · ${x.legivel ? 'amostra utilizável' : 'amostra ainda fraca'}</small></li>`
+    ).join('');
+
     host.innerHTML = `
-      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno ·
-        margem tolerada de ±${r.prefs.margemMax}pp ·
-        peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
-      <div class="ms-lista">${linhas}</div>
-      <p class="hint ms-nota">Cada linha parou no nível em que a margem ainda sustenta o percentual: descer mais devolveria nós pequenos demais para medir. “Bloco” é um agrupamento dos ramos miúdos do mesmo pai — filtre por eles juntos no TecConcursos.</p>`;
+      <p class="ms-resumo">${r.itens.length} frente(s) · ${totalDose} questões no caderno · margem tolerada de ±${r.prefs.margemMax}pp · peso ${r.fase === 'pos' ? 'pela incidência de ' + escapeHtml(ReforcoEngine.rotuloBancas(r.banca)) : 'pelo seu volume no TEC'}</p>
+
+      <section class="ms-stage">
+        <header><span>1</span><div><b>Disciplinas prioritárias</b><small>Primeiro o motor escolhe as matérias; disciplina não vira atividade.</small></div></header>
+        <div class="ms-disc-list">${disciplinasHtml}</div>
+      </section>
+
+      <section class="ms-stage">
+        <header><span>2</span><div><b>Tópicos para atacar agora</b><small>Um tópico de cada disciplina acima, no nível mais específico que a amostra sustenta.</small></div></header>
+        <div class="ms-lista">${linhas}</div>
+      </section>
+
+      <div class="ms-rankings">
+        <details>
+          <summary>Ranking de disciplinas <small>${(r.disciplinas || []).length} com tópico mensurável</small><i>⌄</i></summary>
+          <ol>${discRank}</ol>
+        </details>
+        <details>
+          <summary>Ranking de tópicos <small>${(r.todos || []).length} candidatos</small><i>⌄</i></summary>
+          <ol>${topRank}</ol>
+        </details>
+      </div>
+      <p class="hint ms-nota">A poda nunca ultrapassa a fronteira da disciplina. Se um subtópico tem poucas questões, o motor sobe para o tópico-pai; se nem o tópico for confiável, ele fica fora da rodada em vez de recomendar a matéria inteira.</p>`;
+
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
       if (!x) return;
@@ -4769,15 +4821,14 @@ const DesempenhoTecScreen = {
       pend = root.querySelectorAll('.tnode-children[data-lazy]');
     }
   },
-  discFilter: '__todas__', // '__todas__' = todas as disciplinas | nome = focar numa
+  discFilter: '__todas__', // compatibilidade: uma seleção = nome; várias/nenhuma = __todas__
+  discFilters: null,           // [] = todas; [a,b,...] = recorte múltiplo persistido
   /* ── A ORDEM VALE PARA A ÁRVORE INTEIRA ─────────────────────────────────
      Ordenar só o primeiro nível responde "qual disciplina vai mal" e para aí:
      para saber O QUE nela vai mal é preciso abrir e ler tópico por tópico.
      Aplicando a mesma ordem em cada nível, abrir a disciplina mais fraca leva
-     direto ao tópico mais fraco dela, e dali ao subtópico — que é o caminho
-     que se percorre de verdade. Índice devolve a ordem do próprio TecConcursos
-     (pelo código), para conferir contra a planilha. */
-  treeOrdem: 'fracos',   // 'fracos' | 'fortes' | 'indice'
+     direto ao tópico mais fraco dela, e dali ao subtópico. */
+  treeOrdem: 'fracos',
   _ordenarNos(arr) {
     const lista = (arr || []).slice();
     if (this.treeOrdem === 'indice') {
@@ -4786,34 +4837,141 @@ const DesempenhoTecScreen = {
     const dir = this.treeOrdem === 'fortes' ? -1 : 1;
     return lista.sort((a, b) => dir * (this.nodePct(a) - this.nodePct(b)) || b.questoes - a.questoes);
   },
-  renderDisciplinas(snap) {
+  _discSelecionadas(forest) {
+    const nomes = new Map((forest || []).map(d => [ReforcoEngine.norm(d.nome), d.nome]));
+    const base = Array.isArray(this.discFilters) ? this.discFilters : [];
+    const limpas = [];
+    const vistos = new Set();
+    base.forEach(n => {
+      const real = nomes.get(ReforcoEngine.norm(n));
+      const k = real && ReforcoEngine.norm(real);
+      if (!real || vistos.has(k)) return;
+      vistos.add(k); limpas.push(real);
+    });
+    this.discFilters = limpas;
+    this.discFilter = limpas.length === 1 ? limpas[0] : '__todas__';
+    return limpas;
+  },
+  _sincronizarDiscPicker(host, selecionadas) {
+    if (!host) return false;
+    const btn = host.querySelector('.tec-disc-pick-btn');
+    const panel = host.querySelector('.tec-disc-pick-panel');
+    if (!btn || !panel) return false;
+    const selNorm = new Set((selecionadas || []).map(ReforcoEngine.norm));
+    panel.querySelectorAll('input[type="checkbox"]').forEach(ch => {
+      ch.checked = selNorm.has(ReforcoEngine.norm(ch.value));
+    });
+    const rot = !selecionadas.length ? 'Todas as disciplinas'
+      : selecionadas.length === 1 ? selecionadas[0]
+      : selecionadas.length + ' disciplinas selecionadas';
+    const label = btn.querySelector('.tec-disc-pick-label');
+    if (label) label.textContent = rot;
+    const count = btn.querySelector('.tec-disc-pick-count');
+    if (count) {
+      count.textContent = selecionadas.length ? String(selecionadas.length) : 'Todas';
+      count.classList.toggle('is-all', !selecionadas.length);
+    }
+    const foot = panel.querySelector('.tec-disc-pick-foot');
+    if (foot) {
+      foot.innerHTML = selecionadas.length
+        ? '<button type="button" data-disc-acao="todas">↺ Mostrar todas</button>'
+        : '<span>Nenhum filtro: todas as disciplinas estão visíveis.</span>';
+      const b = foot.querySelector('[data-disc-acao="todas"]');
+      if (b) b.onclick = () => this._setDiscFilters([], panel);
+    }
+    return true;
+  },
+  _setDiscFilters(lista, panel) {
+    const limpa = [...new Set((lista || []).filter(Boolean))];
+    this.discFilters = limpa;
+    this.discFilter = limpa.length === 1 ? limpa[0] : '__todas__';
+    this.savePrefs({ discFilters: limpa });
+    const host = document.getElementById('tec-disc-pick');
+    const y = panel ? panel.scrollTop : 0;
+    this._sincronizarDiscPicker(host, limpa);
+    const snap = this.scopedSnapshot();
+    if (snap) this.renderDisciplinas(snap, { preservarPicker: true });
+    if (panel) {
+      panel.removeAttribute('hidden');
+      const btn = host && host.querySelector('.tec-disc-pick-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+      panel.scrollTop = y;
+    }
+  },
+  renderDiscPicker(alpha, selecionadas) {
+    const host = document.getElementById('tec-disc-pick');
+    if (!host) return;
+    const marcada = n => (selecionadas || []).some(x => ReforcoEngine.norm(x) === ReforcoEngine.norm(n));
+    host.innerHTML = `
+      <button type="button" class="tec-disc-pick-btn" aria-expanded="false">
+        <span class="tec-disc-pick-main"><span class="tec-disc-pick-label"></span><small>combine várias matérias sem sair da lista</small></span>
+        <span class="tec-disc-pick-count"></span><span class="chev">▾</span>
+      </button>
+      <div class="tec-disc-pick-panel" hidden>
+        <div class="tec-disc-pick-search-wrap">
+          <span>⌕</span><input type="search" class="tec-disc-pick-search" placeholder="Buscar disciplina" autocomplete="off">
+        </div>
+        <div class="tec-disc-pick-list">
+          ${alpha.map(d => `<label class="tec-disc-pick-item" data-s="${escapeHtml(ReforcoEngine.norm(d.nome))}">
+            <input type="checkbox" value="${escapeHtml(d.nome)}" ${marcada(d.nome) ? 'checked' : ''}>
+            <span><b>${escapeHtml(d.nome)}</b><small>${d.questoes.toLocaleString('pt-BR')} questões · ${this.nodePct(d)}% de acerto</small></span>
+          </label>`).join('')}
+        </div>
+        <div class="tec-disc-pick-foot"></div>
+      </div>`;
+    const btn = host.querySelector('.tec-disc-pick-btn');
+    const panel = host.querySelector('.tec-disc-pick-panel');
+    const search = host.querySelector('.tec-disc-pick-search');
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const abrir = panel.hasAttribute('hidden');
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => {
+        if (p !== panel) p.setAttribute('hidden', '');
+      });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => {
+        if (b !== btn) b.setAttribute('aria-expanded', 'false');
+      });
+      if (abrir) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); if (search) search.focus({ preventScroll: true }); }
+      else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+    };
+    panel.onclick = e => e.stopPropagation();
+    panel.onchange = e => {
+      if (!e.target.matches('input[type="checkbox"]')) return;
+      const lista = [...panel.querySelectorAll('input[type="checkbox"]:checked')].map(x => x.value);
+      this._setDiscFilters(lista, panel);
+    };
+    if (search) search.oninput = () => {
+      const q = ReforcoEngine.norm(search.value);
+      panel.querySelectorAll('.tec-disc-pick-item').forEach(item => {
+        item.style.display = !q || (item.dataset.s || '').includes(q) ? '' : 'none';
+      });
+    };
+    this._sincronizarDiscPicker(host, selecionadas || []);
+  },
+  renderDisciplinas(snap, opcoes) {
+    const preservarPicker = !!(opcoes && opcoes.preservarPicker);
     const container = document.getElementById('tec-disc-list');
     const focusEl = document.getElementById('tec-disc-focus');
-    const filterSel = document.getElementById('tec-disc-filter');
-    // árvore completa, ordenada do pior para o melhor aproveitamento
-    // (desempate: quem tem mais questões aparece antes)
+    const pickerHost = document.getElementById('tec-disc-pick');
     let forest = this._ordenarNos(TecEngine.buildTree(snap));
     const prevIdx = this.parIndices();
     if (forest.length === 0) {
       focusEl.innerHTML = '';
       container.innerHTML = `<p class="wd-empty" style="padding:12px 0;">Sem dados neste retrato.</p>`;
-      filterSel.innerHTML = `<option>—</option>`;
+      if (pickerHost) pickerHost.innerHTML = '<button class="tec-disc-pick-btn" disabled><span class="tec-disc-pick-main"><span class="tec-disc-pick-label">Sem disciplinas</span></span></button>';
       return;
     }
-    // popula o seletor (ordem alfabética, mais natural para procurar)
-    const alpha = forest.slice().sort((a, b) => a.nome.localeCompare(b.nome));
-    // se a disciplina filtrada não existe neste retrato, volta para "todas"
-    if (this.discFilter !== '__todas__' && !forest.find(d => d.nome === this.discFilter)) {
-      this.discFilter = '__todas__';
-    }
-    filterSel.innerHTML = `<option value="__todas__">Todas as disciplinas (${forest.length})</option>` +
-      alpha.map(d => `<option value="${escapeHtml(d.nome)}" ${d.nome === this.discFilter ? 'selected' : ''}>${escapeHtml(d.nome)} — ${this.nodePct(d)}%</option>`).join('');
 
-    const focused = this.discFilter !== '__todas__';
-    const shown = focused ? forest.filter(d => d.nome === this.discFilter) : forest;
+    const alpha = forest.slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+    const selecionadas = this._discSelecionadas(forest);
+    if (!preservarPicker || !pickerHost || !pickerHost.querySelector('.tec-disc-pick-panel')) this.renderDiscPicker(alpha, selecionadas);
+    else this._sincronizarDiscPicker(pickerHost, selecionadas);
 
-    // resumo em destaque quando uma disciplina está em foco
-    if (focused && shown.length) {
+    const selNorm = new Set(selecionadas.map(ReforcoEngine.norm));
+    const focused = selecionadas.length > 0;
+    const shown = focused ? forest.filter(d => selNorm.has(ReforcoEngine.norm(d.nome))) : forest;
+
+    if (selecionadas.length === 1 && shown.length) {
       const d = shown[0];
       const pct = this.nodePct(d);
       const tone = this.toneOf(pct);
@@ -4829,51 +4987,53 @@ const DesempenhoTecScreen = {
             <div class="tfs"><span class="tfs-val" style="color:var(--good)">${d.acertos}</span><span class="tfs-lbl">acertos</span></div>
           </div>
         </div>`;
+    } else if (selecionadas.length > 1) {
+      focusEl.innerHTML = `<div class="tec-focus-multi"><b>${selecionadas.length} disciplinas no recorte</b><span>${selecionadas.map(escapeHtml).join(' · ')}</span></div>`;
     } else {
       focusEl.innerHTML = '';
     }
 
     const toolbar = `
       <div class="tec-tree-toolbar">
-        <span class="tec-tree-hint">${focused ? 'Detalhamento por tópico · ' : 'Clique para abrir/fechar cada nível · '}</span>
+        <span class="tec-tree-hint">${selecionadas.length === 1 ? 'Detalhamento por tópico · ' : selecionadas.length > 1 ? selecionadas.length + ' disciplinas combinadas · ' : 'Clique para abrir/fechar cada nível · '}</span>
         <button type="button" class="tec-tree-btn" id="tec-expand-all">⊞ Expandir tudo</button>
         <button type="button" class="tec-tree-btn" id="tec-collapse-all">⊟ Recolher tudo</button>
       </div>`;
-    // ao focar numa disciplina, já abre o primeiro nível para leitura imediata
-    this._lazyReg.clear();   // render novo: descarta promessas do render anterior
+    this._lazyReg.clear();
     container.innerHTML = toolbar + `<div class="tec-tree">${shown.map(d => this.treeNodeHtml(d, prevIdx, 0)).join('')}</div>`;
-    // ao focar numa disciplina o primeiro nível já abre — então precisa nascer agora
-    if (focused) container.querySelectorAll('.tnode.lvl0[data-haskids="1"]').forEach(n => {
+    if (selecionadas.length === 1) container.querySelectorAll('.tnode.lvl0[data-haskids="1"]').forEach(n => {
       n.classList.add('open');
       this._hydrate(n.querySelector(':scope > .tnode-children'));
     });
 
-    // Toggle por DELEGAÇÃO: um único listener no contêiner, em vez de um por linha.
-    // Necessário porque as linhas passam a ser criadas depois (sob demanda) — e de
-    // quebra elimina milhares de listeners que antes eram registrados de uma vez.
-    container.addEventListener('click', (e) => {
+    // O contêiner é persistente; atribuir o handler evita acumular listeners a cada filtro.
+    container.onclick = (e) => {
+      const exp = e.target.closest('#tec-expand-all');
+      if (exp) {
+        this._hydrateAll(container);
+        container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.add('open'));
+        return;
+      }
+      const col = e.target.closest('#tec-collapse-all');
+      if (col) {
+        container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.remove('open'));
+        return;
+      }
       const row = e.target.closest('.tnode-row.has-kids');
       if (!row || !container.contains(row)) return;
       e.stopPropagation();
       const nodeEl = row.closest('.tnode');
       const box = nodeEl.querySelector(':scope > .tnode-children');
-      if (!nodeEl.classList.contains('open')) this._hydrate(box);  // abrindo: materializa
+      if (!nodeEl.classList.contains('open')) this._hydrate(box);
       nodeEl.classList.toggle('open');
-    });
-    const setAll = (open) => {
-      if (open) this._hydrateAll(container);   // só ao expandir é que vale pagar a árvore toda
-      container.querySelectorAll('.tnode[data-haskids="1"]').forEach(n => n.classList.toggle('open', open));
     };
-    container.querySelector('#tec-expand-all').addEventListener('click', () => setAll(true));
-    container.querySelector('#tec-collapse-all').addEventListener('click', () => setAll(false));
   }
 };
 
-// Um toque fora fecha o seletor de bancas (ele é o único painel flutuante desta
-// tela; sem isto, ficaria aberto por cima da lista que a pessoa quer ler).
+// Um toque fora fecha os seletores flutuantes sem reconstruí-los.
 document.addEventListener('click', () => {
-  document.querySelectorAll('.banca-pick-panel').forEach(p => p.setAttribute('hidden', ''));
-  document.querySelectorAll('.banca-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => p.setAttribute('hidden', ''));
+  document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
 });
 
 // Listeners da tela Desempenho TEC
@@ -4895,12 +5055,6 @@ $id('tec-import-text').addEventListener('input', () => DesempenhoTecScreen.updat
 // validação do intervalo de datas (sem sobreposição)
 $id('tec-import-start').addEventListener('change', () => DesempenhoTecScreen.validateRange());
 $id('tec-import-end').addEventListener('change', () => DesempenhoTecScreen.validateRange());
-// filtro por disciplina na árvore
-$id('tec-disc-filter').addEventListener('change', (e) => {
-  DesempenhoTecScreen.discFilter = e.target.value;
-  const snap = DesempenhoTecScreen.scopedSnapshot();
-  if (snap) DesempenhoTecScreen.renderDisciplinas(snap);
-});
 // upload de arquivo (clique + arrastar-e-soltar)
 (function () {
   const dz = document.getElementById('tec-dropzone');

@@ -988,14 +988,20 @@ try {
   await pag.waitForTimeout(500);
   const est = await pag.evaluate(() => {
     const q = (s) => document.querySelector(s);
+    const motor = MotorSugestao.calcular();
     return {
       fases: document.querySelectorAll('#motor-fase button[data-fase]').length,
       faseAtiva: document.querySelectorAll('#motor-fase button.active').length,
       itens: document.querySelectorAll('#motor-lista .ms-item').length,
+      disciplinas: document.querySelectorAll('#motor-lista .ms-disc-card').length,
+      etapas: document.querySelectorAll('#motor-lista .ms-stage').length,
       comMargem: [...document.querySelectorAll('#motor-lista .ms-item')]
         .filter((it) => /margem/.test(it.innerText)).length,
       comDose: [...document.querySelectorAll('#motor-lista .ms-dose')]
         .filter((d) => parseInt(d.textContent, 10) > 0).length,
+      nenhumaDiscInteira: (motor.itens || []).every((x) => x.nivel > 0 && ReforcoEngine.norm(x.nome) !== ReforcoEngine.norm(x.disciplina)),
+      umaPorDisc: new Set((motor.itens || []).map((x) => ReforcoEngine.norm(x.disciplina))).size === (motor.itens || []).length,
+      rankingDisc: (motor.disciplinas || []).length,
       resumo: (q('.ms-resumo') || {}).innerText || '',
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="motor"] .rfc-field > label')]
@@ -1006,6 +1012,12 @@ try {
   est.fases === 2 && est.faseAtiva === 1
     ? ok('o par pre/pos aparece com exatamente uma fase valendo')
     : erro('o seletor de fase nao renderizou: ' + JSON.stringify(est));
+  (est.etapas === 2 && est.disciplinas >= 2 && est.rankingDisc >= est.disciplinas)
+    ? ok(`o Motor mostra primeiro ${est.disciplinas} disciplina(s) prioritarias e depois os topicos`)
+    : erro('a hierarquia disciplina -> topico nao apareceu: ' + JSON.stringify(est));
+  (est.nenhumaDiscInteira && est.umaPorDisc)
+    ? ok('nenhuma disciplina inteira vira reforco e ha no maximo um topico por disciplina')
+    : erro('o Motor voltou a usar disciplina como unidade executavel: ' + JSON.stringify(est));
   est.itens >= 2 ? ok(`${est.itens} frente(s) na fila do motor`) : erro('a fila do motor veio vazia');
   est.comMargem === est.itens && est.itens > 0
     ? ok('toda linha declara a margem que a manteve naquele nivel da arvore')
@@ -1021,18 +1033,17 @@ try {
     ? ok(`todos os ${est.camposNaFolha} campos de ajuste do Motor tem dica explicativa`)
     : erro(`${est.semDica} campo(s) sem o "i" (de ${est.camposNaFolha} encontrados — se veio zero, o seletor perdeu os campos)`);
 
-  /* A poda e a promessa central: nenhuma frente pode chegar a tela com uma
-     margem MAIOR que a tolerada sem estar marcada como bloco — se isso
-     acontece, a tela esta recomendando ruido com cara de diagnostico. */
+  /* A poda nao pode maquiar ruido como "bloco": toda frente executavel,
+     agregada ou nao, precisa caber na margem e precisa estar abaixo da raiz. */
   const poda = await pag.evaluate(() => {
     const r = MotorSugestao.calcular();
     const p = MotorSugestao.prefs();
-    const foraDaRegua = (r.itens || []).filter((x) => !x.agregado && (x.margem == null || x.margem > p.margemMax));
+    const foraDaRegua = (r.itens || []).filter((x) => x.nivel <= 0 || x.margem == null || x.margem > p.margemMax);
     return { margemMax: p.margemMax, fora: foraDaRegua.length, total: (r.itens || []).length };
   });
   poda.fora === 0 && poda.total > 0
-    ? ok(`as ${poda.total} frentes oferecidas cabem na margem de ±${poda.margemMax}pp (ou sao blocos declarados)`)
-    : erro('a poda deixou passar frente fora da regua: ' + JSON.stringify(poda));
+    ? ok(`as ${poda.total} frentes oferecidas sao topicos e cabem na margem de ±${poda.margemMax}pp`)
+    : erro('a poda deixou passar raiz ou frente fora da regua: ' + JSON.stringify(poda));
 
   /* Trocar a fase troca a FONTE DO PESO, e sem incidencia importada o pos tem
      de dizer isso em vez de inventar um ranking. */
@@ -1077,12 +1088,37 @@ try {
     DesempenhoTecScreen.renderAnalysis();
     await new Promise((r) => setTimeout(r, 150));
     const txt = (s) => { const e = document.querySelector(s); return e ? e.textContent : ''; };
+    const host = document.getElementById('tec-disc-pick');
+    const btn = host && host.querySelector('.tec-disc-pick-btn');
+    if (btn) btn.click();
+    const panel = host && host.querySelector('.tec-disc-pick-panel');
+    let multi = { existe: !!panel, mesmoPainel: false, abertas: false, marcadas: 0, raizes: 0 };
+    if (panel) {
+      panel.dataset.guard = 'mesmo';
+      const boxes = [...panel.querySelectorAll('input[type="checkbox"]')].slice(0, 2);
+      for (const b of boxes) {
+        b.checked = true;
+        b.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 60));
+      }
+      const atual = document.querySelector('#tec-disc-pick .tec-disc-pick-panel');
+      multi = {
+        existe: true,
+        mesmoPainel: atual === panel && atual.dataset.guard === 'mesmo',
+        abertas: !atual.hasAttribute('hidden'),
+        marcadas: atual.querySelectorAll('input[type="checkbox"]:checked').length,
+        raizes: document.querySelectorAll('#tec-disc-list > .tec-tree > .tnode').length
+      };
+      DesempenhoTecScreen._setDiscFilters([], atual);
+      await new Promise((r) => setTimeout(r, 80));
+    }
     return {
       semListaParalela: !document.getElementById('tec-weak-list'),
       semAjusteParalelo: !document.querySelector('[data-cfg="analise"], #tec-cfg-body [data-tab="analise"]'),
       delta: !!document.querySelector('#tec-totais .tec-delta'),
       legendaTotais: /compara o último retrato/i.test(txt('#tec-totais')),
-      linhas: document.querySelectorAll('#tec-disc-list .tnode-row').length
+      linhas: document.querySelectorAll('#tec-disc-list .tnode-row').length,
+      multi
     };
   });
   (an.semListaParalela && an.semAjusteParalelo)
@@ -1094,8 +1130,19 @@ try {
   an.linhas > 0
     ? ok(`a arvore hierarquica da Analise continua renderizando com dado real (${an.linhas} linha(s))`)
     : erro('a arvore hierarquica da Analise ficou vazia');
+  (an.multi.existe && an.multi.mesmoPainel && an.multi.abertas && an.multi.marcadas === 2 && an.multi.raizes === 2)
+    ? ok('o seletor aceita varias disciplinas sem reconstruir, fechar ou voltar a lista ao inicio')
+    : erro('o multifiltro de disciplinas perdeu estabilidade: ' + JSON.stringify(an.multi));
 
   // ── INCIDENCIA: importar duas vezes nao pode dobrar ──────────────────────
+  const incidenciaFechada = await pag.evaluate(() => {
+    DesempenhoTecScreen.switchTecTab('incidencia');
+    const d = document.getElementById('incid-import-details');
+    return !!d && !d.open;
+  });
+  incidenciaFechada
+    ? ok('a area de importar/colar Incidencia nasce recolhida e pode ser expandida sob demanda')
+    : erro('a area de importacao da Incidencia nao nasceu recolhida');
   const inc = await pag.evaluate(async () => {
     const linhas = [
       { disciplina: 'Direito Administrativo', topico: 'Licitacoes', incidencia: 40, codigo: '01', depth: 1 },
