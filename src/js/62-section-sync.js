@@ -758,14 +758,23 @@ const SectionSync = {
     }
     const faltando = manifesto.sections.filter(s => !(s in map));
     if (faltando.length) return { ok: false, motivo: 'seções-faltando: ' + faltando.join(', '), map, revs, faltando };
-    // O manifesto manda: o que não está nele é resto de versão anterior e é descartado.
+    /* O manifesto prova que as seções listadas DEVEM existir, mas a ausência de uma
+       seção no manifesto não prova que a linha remota é lixo. Há uma janela real
+       entre gravar uma seção e avançar o manifesto; se a aba cair ali, a linha é
+       mais nova que o manifesto. Portanto a união conservadora vence: toda linha
+       remota legível é preservada. A próxima _syncManifest incorpora essas extras
+       ao manifesto por CAS. Exclusão legítima continua inequívoca porque remove a
+       linha remota por RPC CAS antes de retirar seu nome do manifesto. */
+    const extras = secoes.filter(s => manifesto.sections.indexOf(s) === -1);
     const finalMap = {};
-    manifesto.sections.forEach(s => { finalMap[s] = map[s]; });
-    return { ok: true, map: finalMap, revs, manifesto, manifestoRev, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
+    [...new Set(manifesto.sections.concat(secoes))].forEach(s => {
+      if (s in map) finalMap[s] = map[s];
+    });
+    return { ok: true, map: finalMap, revs, manifesto, manifestoRev, extras };
   },
   // Escreve o mapa no localStorage do perfil. Preserva o histórico de versões local
   // (vhist) — ao contrário do restore do blob, que apagava tudo do namespace.
-  _applyMap(id, map, revs, preservar, manifestoRev) {
+  _applyMap(id, map, revs, preservar, manifestoRev, manifestoSections) {
     const prefix = 'diario-estudos:u:' + id + ':';
     /* REGRA DE OURO: o download NUNCA apaga uma alteração que ainda não subiu.
        As seções de `preservar` mantêm o valor deste aparelho e continuam na fila
@@ -832,7 +841,10 @@ const SectionSync = {
        locais, o manifesto (rev 7 na nuvem, 0 aqui) anunciava "tem novidade" para
        sempre. Cada foco na janela disparava um download e um location.reload():
        era exatamente a tela piscando e recarregando sozinha. */
-    if (manifestoRev) novoRev[this.MANIFEST] = { rev: manifestoRev, hash: this._hash(Object.keys(map).sort().join('|')) };
+    if (manifestoRev) novoRev[this.MANIFEST] = {
+      rev: manifestoRev,
+      hash: this._hash((Array.isArray(manifestoSections) ? manifestoSections.slice() : Object.keys(map)).sort().join('|'))
+    };
     else if (antigos[this.MANIFEST]) novoRev[this.MANIFEST] = antigos[this.MANIFEST];
     // Alinha a contabilidade local com o que acabou de vir: sem isto, a próxima
     // rodada acharia tudo "sujo" e re-subiria o perfil inteiro sem necessidade.
@@ -869,10 +881,13 @@ const SectionSync = {
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
       try { if (window.BackupHistory && ProfileManager.getActiveProfileId() === id) await BackupHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
-      res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev);
+      res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev, prep.manifesto && prep.manifesto.sections);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila
-      if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
+      if (prep.extras && prep.extras.length) {
+        res.recuperadasForaManifesto = prep.extras;
+        console.warn('[SectionSync] ' + prep.extras.length + ' seção(ões) remotas estavam fora do manifesto e foram PRESERVADAS:', prep.extras.join(', '));
+      }
       this._saveLast(res);
       console.info('[SectionSync] leitura por seção aplicada:', res.seções, 'seção(ões)');
       return res;
@@ -939,9 +954,13 @@ const SectionSync = {
      servidor: dada uma linha remota (`section`, `rev`), as revisões anotadas
      neste aparelho e o prefixo do perfil, esta seção precisa ser baixada? */
   precisaBaixar(r, locais, pfx) {
-    if (!r || !r.section || r.section === this.MANIFEST) return false;
+    if (!r || !r.section) return false;
     const anotada = locais ? locais[r.section] : null;
     const meu = anotada ? (anotada.rev || 0) : 0;
+    /* Exclusões físicas removem a linha da seção; quem anuncia a mudança aos
+       outros aparelhos é o avanço do manifesto. Ignorá-lo fazia uma exclusão
+       remota nunca ser percebida por hasRemoteUpdates(). */
+    if (r.section === this.MANIFEST) return (r.rev || 0) > meu;
     if ((r.rev || 0) > meu) return true;
     /* Revisão anotada mas conteúdo ausente: o aparelho acha que tem e não tem.
        Só conta quando existe anotação — sem ela, a semeadura normal já cuida, e
