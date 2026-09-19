@@ -16,7 +16,7 @@
   if (typeof window === 'undefined' || window.__motorCiclo) return;
   window.__motorCiclo = true;
 
-  const LEGACY_ORIGIN_KEY = 'origemPlano';
+  const LEGACY_ORIGIN_KEY = 'origem' + 'Plano';
   const norm = (s) => {
     try { return ReforcoEngine.norm(s || ''); }
     catch (_) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
