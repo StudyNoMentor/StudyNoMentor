@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve2f9c6b003">
+<meta name="diario-versao" content="v57de7e3571">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16554,7 +16554,20 @@ const DB = {
   deleteLink(id) { this.saveLinks(this.getLinks().filter(l => l.id !== id)); },
 
   // ---- Incidência da banca: [{ id, banca, disciplina, topico, incidencia }] ----
-  getIncidencia() { return this._get(this.KEYS.incidencia, []); },
+  _kickRelationalHeavy(reason) {
+    try {
+      const id = window.ProfileManager && ProfileManager.getActiveProfileId
+        ? ProfileManager.getActiveProfileId() : null;
+      if (window.RelationalStore && id && !RelationalStore.isHeavyReady(id)) {
+        RelationalStore.ensureHeavyData(id, { reason: reason || 'db-heavy-read' })
+          .catch(e => _quiet(e, 'db-heavy-read'));
+      }
+    } catch (e) { _quiet(e, 'db-heavy-read-start'); }
+  },
+  getIncidencia() {
+    this._kickRelationalHeavy('db-incidencia');
+    return this._get(this.KEYS.incidencia, []);
+  },
   saveIncidencia(list) { this._set(this.KEYS.incidencia, list); },
   getBancas() { return [...new Set(this.getIncidencia().map(r => r.banca).filter(Boolean))].sort(); },
   // adiciona/substitui em lote as linhas de uma banca (replace = troca todo o histórico daquela banca)
@@ -17201,6 +17214,7 @@ const DB = {
   // Cada snapshot: { id, startDate, endDate, label, rows:[...], importedAt }
   // (retratos antigos tinham só `date` — migrados para startDate=endDate=date)
   getTecSnapshots() {
+    this._kickRelationalHeavy('db-tec');
     if (Array.isArray(this._tecReadSnapshot)) return this._tecReadSnapshot;
     const list = this._get(this.KEYS.tec, []);
     let migrated = false;
@@ -17669,9 +17683,9 @@ const ProfileManager = {
      era daí que saíam os "🛟 Perfil recuperado" aparecendo sozinhos, sem que
      ninguém tivesse feito nada.
 
-     Abrir um perfil UMA vez já grava ajuste: a tela do Plano salva
-     `plano-prefs` a cada repintura, o tamanho da fonte grava `fs-scale`, a
-     última aba grava `recent-view`. Se depois esse perfil for apagado noutro
+     Abrir um perfil UMA vez já grava ajustes de interface: o tamanho da
+     fonte grava `fs-scale`, a última aba grava `recent-view` e painéis
+     lembram se estavam recolhidos. Se depois esse perfil for apagado noutro
      aparelho, a nuvem para de trazê-lo, este aparelho encontra as preferências
      órfãs, conclui "tem dado aqui" e o devolve à lista — em TODA sincronização,
      para sempre. Um perfil sem uma única anotação ressuscitando por causa do
@@ -17683,7 +17697,7 @@ const ProfileManager = {
      verdade, que é exatamente o problema que esta varredura veio resolver.
      Os ajustes seguem contados à parte (`ajustes`), para quem precise saber
      que o namespace existe mesmo sem nada dentro. */
-  AJUSTES_SEM_ESTUDO: ['plano-prefs', 'tec-prefs', 'plano-auditoria-ledger', 'plano-corte',
+  AJUSTES_SEM_ESTUDO: ['tec-prefs',
     'fs-scale', 'recent-view', 'active-plan', 'planejamentos', 'evo-scope-collapsed',
     'grade-budget-open', 'extras-in-metrics', 'ferramentas', 'onboarded'],
   _soAjuste(sub) {
@@ -32343,8 +32357,15 @@ window.addEventListener('screen:activated', (e) => {
     if (!host || !temAberto || typeof pintarDepois !== 'function') { ExtrasScreen.render(); return; }
     ExtrasScreen._pularEmCurso = true;
     try { ExtrasScreen.render(); } finally { ExtrasScreen._pularEmCurso = false; }
-    pintarDepois(host, 'Conferindo o que está em curso…', () => {
-      try { ExtrasScreen.renderEmCurso(); } catch (err) { _quiet(err, 'extras-em-curso'); }
+    pintarDepois(host, 'Conferindo o que está em curso…', async () => {
+      try {
+        const id = window.ProfileManager && ProfileManager.getActiveProfileId
+          ? ProfileManager.getActiveProfileId() : null;
+        if (window.RelationalStore && id && !RelationalStore.isHeavyReady(id)) {
+          await RelationalStore.ensureHeavyData(id, { reason: 'extras-motor' });
+        }
+        ExtrasScreen.renderEmCurso();
+      } catch (err) { _quiet(err, 'extras-em-curso'); }
     });
   }
 });
@@ -35783,9 +35804,35 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
     showToast('Ajustes restaurados ✓');
   });
 })();
+let _tecRelationalLoadToken = 0;
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen !== 'desempenhotec') return;
-  DesempenhoTecScreen.render();
+  const id = window.ProfileManager && ProfileManager.getActiveProfileId
+    ? ProfileManager.getActiveProfileId() : null;
+  if (!window.RelationalStore || !id || RelationalStore.isHeavyReady(id)) {
+    DesempenhoTecScreen.render();
+    return;
+  }
+
+  const token = ++_tecRelationalLoadToken;
+  const tela = document.getElementById('screen-desempenhotec');
+  if (tela) tela.setAttribute('aria-busy', 'true');
+  try { if (typeof showToast === 'function') showToast('Carregando dados do TEC…'); } catch (e) { _quiet(e, 'tec-heavy-toast'); }
+
+  RelationalStore.ensureHeavyData(id, { reason: 'screen-desempenhotec' })
+    .then(() => {
+      if (token !== _tecRelationalLoadToken) return;
+      const atual = document.getElementById('screen-desempenhotec');
+      if (atual && atual.classList.contains('active')) DesempenhoTecScreen.render();
+    })
+    .catch((err) => {
+      _quiet(err, 'tec-relational-heavy');
+      if (typeof showToast === 'function') showToast('Não foi possível carregar os dados do TEC agora.');
+    })
+    .finally(() => {
+      if (token !== _tecRelationalLoadToken) return;
+      if (tela) tela.removeAttribute('aria-busy');
+    });
 });
 
 /* ============================================================
@@ -36263,7 +36310,9 @@ const ProfileUI = {
          navegador: hydrateProfile faz SELECT nas tabelas relacionais e monta
          uma projeção exclusivamente em memória para as telas síncronas. */
       ProfileManager.setActiveProfile(id);
-      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile' });
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-inicio'); }
+      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-pronto'); }
       PlanManager.init();
       CloudStore._applying = false;
 
@@ -36283,6 +36332,9 @@ const ProfileUI = {
         switchScreen('registrar');
       }
       try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id } })); } catch (_) { _quiet(_); }
+      /* TEC/incidência não bloqueiam o portão. Em rede normal, pré-carrega no
+         tempo ocioso; em economia de dados, só baixa quando alguma tela pedir. */
+      try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (e) { _quiet(e, 'perfil-heavy-prefetch'); }
     } catch (err) {
       CloudStore._applying = false;
       this._entering = false;
@@ -39653,6 +39705,12 @@ const RelationalStore = {
   _channelProfile: null,
   _rtTimer: null,
   _resubTimer: null,
+  _heavyReady: new Set(),
+  _heavyDirty: new Set(),
+  _heavyLoads: new Map(),
+  _heavyTimers: new Map(),
+  _lastChangeId: new Map(),
+  _lastHydratedAt: new Map(),
 
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
@@ -39703,12 +39761,32 @@ const RelationalStore = {
     try { localStorage.removeItem(k); }
     finally { this._applying = false; }
   },
-  _clearProfileMemory(profileId) {
+  _isHeavyMemoryKey(profileId, key) {
+    const p=this._pfx(profileId);
+    if(!key || key.indexOf(p)!==0) return false;
+    return /^p:[^:]+:(tec|incidencia)$/.test(key.slice(p.length));
+  },
+  _clearProfileMemory(profileId, opts) {
+    opts=opts||{};
     const p = this._pfx(profileId), keys=[];
     this._applying = true;
     try {
       for (let i=0;i<localStorage.length;i++) {
-        const k=localStorage.key(i); if(k && k.indexOf(p)===0) keys.push(k);
+        const k=localStorage.key(i);
+        if(!k || k.indexOf(p)!==0) continue;
+        if(opts.preserveHeavy && this._isHeavyMemoryKey(profileId,k)) continue;
+        keys.push(k);
+      }
+      keys.forEach(k=>localStorage.removeItem(k));
+    } finally { this._applying=false; }
+  },
+  _clearHeavyMemory(profileId) {
+    const keys=[];
+    this._applying=true;
+    try {
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(this._isHeavyMemoryKey(profileId,k)) keys.push(k);
       }
       keys.forEach(k=>localStorage.removeItem(k));
     } finally { this._applying=false; }
@@ -39719,26 +39797,9 @@ const RelationalStore = {
     return m;
   },
 
-  async hydrateUserPreferences() {
-    if (!this.isReady()) return false;
-    const uid = CloudStore.session && CloudStore.session.user && CloudStore.session.user.id;
-    if (!uid) return false;
-    const { data, error } = await CloudStore.client.from('user_preferences').select('key,value').eq('user_id', uid);
-    if (error) throw error;
-    this._applying=true;
-    try {
-      (data||[]).forEach(r => localStorage.setItem('diario-estudos:' + r.key, this._raw(r.value)));
-    } finally { this._applying=false; }
-    return true;
-  },
 
-  async hydrateProfile(profileId, opts) {
-    if (!this.isReady()) throw new Error('Banco indisponível');
-    const profileQ = CloudStore.client.from('study_profiles')
-      .select('id,profile_name,avatar,color,pin_hash,active_plan_id,created_at,updated_at')
-      .eq('id', profileId).maybeSingle();
-
-    const specs = [
+  _coreSpecs() {
+    return [
       ['plans','study_plans',[{col:'position'}]],
       ['profileSettings','study_profile_settings',[{col:'key'}]],
       ['planState','study_plan_state',[{col:'plan_id'},{col:'key'}]],
@@ -39758,28 +39819,115 @@ const RelationalStore = {
       ['siglas','study_custom_siglas',[{col:'plan_id'},{col:'position'}]],
       ['cycles','study_cycle_history',[{col:'plan_id'},{col:'position'}]],
       ['savedGrades','study_saved_grades',[{col:'plan_id'},{col:'position'}]],
-      ['tracks','study_track_items',[{col:'plan_id'},{col:'subject_name'},{col:'position'}]],
+      ['tracks','study_track_items',[{col:'plan_id'},{col:'subject_name'},{col:'position'}]]
+    ];
+  },
+  _heavySpecs() {
+    return [
       ['tecSnapshots','study_tec_snapshots',[{col:'plan_id'},{col:'position'}]],
       ['tecRows','study_tec_snapshot_rows',[{col:'plan_id'},{col:'snapshot_id'},{col:'row_no'}]],
       ['incidence','study_incidence',[{col:'plan_id'},{col:'row_no'}]]
     ];
-    const [profileRes, ...loaded] = await Promise.all([
-      profileQ,
-      ...specs.map(s=>this._all(s[1],profileId,s[2]))
-    ]);
-    if (profileRes.error) throw profileRes.error;
-    if (!profileRes.data) { const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
-    const d={}; specs.forEach((s,i)=>d[s[0]]=loaded[i]);
+  },
+  _rpcMissing(error) {
+    const code=String(error&&error.code||'');
+    const msg=String(error&&error.message||'').toLowerCase();
+    return code==='PGRST202'||code==='42883'||msg.includes('could not find the function')||msg.includes('does not exist');
+  },
+  async _rpcBundle(name, args) {
+    const {data,error}=await CloudStore.client.rpc(name,args||{});
+    if(error){
+      if(this._rpcMissing(error)) return {missing:true,data:null};
+      throw error;
+    }
+    return {missing:false,data};
+  },
+  async _loadCoreBundle(profileId) {
+    const rpc=await this._rpcBundle('read_study_profile_core',{p_profile_id:profileId});
+    if(!rpc.missing){
+      if(!rpc.data||!rpc.data.profile){ const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
+      return rpc.data;
+    }
+    const profileQ=CloudStore.client.from('study_profiles')
+      .select('id,profile_name,avatar,color,pin_hash,active_plan_id,created_at,updated_at')
+      .eq('id',profileId).maybeSingle();
+    const specs=this._coreSpecs();
+    const [profileRes,...loaded]=await Promise.all([profileQ,...specs.map(x=>this._all(x[1],profileId,x[2]))]);
+    if(profileRes.error) throw profileRes.error;
+    if(!profileRes.data){ const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
+    const d={profile:profileRes.data}; specs.forEach((x,i)=>d[x[0]]=loaded[i]);
+    return d;
+  },
+  async _loadHeavyBundle(profileId) {
+    const rpc=await this._rpcBundle('read_study_profile_heavy',{p_profile_id:profileId});
+    if(!rpc.missing) return rpc.data||{tecSnapshots:[],tecRows:[],incidence:[]};
+    const specs=this._heavySpecs();
+    const loaded=await Promise.all(specs.map(x=>this._all(x[1],profileId,x[2])));
+    const d={}; specs.forEach((x,i)=>d[x[0]]=loaded[i]);
+    return d;
+  },
+  _trace(etapa,extra) {
+    try { if(window.StartupTrace&&StartupTrace.mark) StartupTrace.mark(etapa,extra||{}); } catch(e){ _quiet(e,'rel-trace'); }
+  },
+  async _latestChangeId(profileId) {
+    const {data,error}=await CloudStore.client.from('study_change_log')
+      .select('change_id').eq('profile_id',profileId)
+      .order('change_id',{ascending:false}).limit(1);
+    if(error) throw error;
+    return data&&data[0] ? Number(data[0].change_id)||0 : 0;
+  },
+  async _changeSummary(profileId, after) {
+    const base=Number(after)||0;
+    const rpc=await this._rpcBundle('read_study_change_summary',{
+      p_profile_id:profileId,p_after_change_id:base
+    });
+    if(!rpc.missing){
+      const d=rpc.data||{};
+      return {
+        count:Number(d.count)||0,
+        maxChangeId:Number(d.max_change_id)||base,
+        tables:Array.isArray(d.tables)?d.tables.filter(Boolean):[],
+        truncated:false
+      };
+    }
+    const {data,error}=await CloudStore.client.from('study_change_log')
+      .select('change_id,table_name').eq('profile_id',profileId)
+      .gt('change_id',base).order('change_id',{ascending:true}).limit(1000);
+    if(error) throw error;
+    const rows=data||[];
+    return {
+      count:rows.length,
+      maxChangeId:rows.length?Number(rows[rows.length-1].change_id)||base:base,
+      tables:[...new Set(rows.map(x=>x.table_name).filter(Boolean))],
+      truncated:rows.length>=1000
+    };
+  },
 
-    this._clearProfileMemory(profileId);
+  async hydrateUserPreferences() {
+    if (!this.isReady()) return false;
+    const uid = CloudStore.session && CloudStore.session.user && CloudStore.session.user.id;
+    if (!uid) return false;
+    const { data, error } = await CloudStore.client.from('user_preferences').select('key,value').eq('user_id', uid);
+    if (error) throw error;
+    this._applying=true;
+    try {
+      (data||[]).forEach(r => localStorage.setItem('diario-estudos:' + r.key, this._raw(r.value)));
+    } finally { this._applying=false; }
+    return true;
+  },
+
+  _applyCoreBundle(profileId, d, opts) {
+    opts=opts||{};
+    this._clearProfileMemory(profileId,{preserveHeavy:!!opts.preserveHeavy});
     const pfx=this._pfx(profileId);
+    const profile=d.profile||{};
     const visiblePlans=(d.plans||[]).filter(p=>!p.hidden);
     this._memSet(pfx+'planejamentos', JSON.stringify(visiblePlans.map(p=>({
       id:p.plan_id,nome:p.name,tipo:p.plan_type||'',createdAt:p.created_at
     }))));
-    let active=profileRes.data.active_plan_id;
-    if (!active || !visiblePlans.some(p=>p.plan_id===active)) active=visiblePlans[0] && visiblePlans[0].plan_id;
-    if (active) this._memSet(pfx+'active-plan', active);
+    let active=profile.active_plan_id;
+    if(!active||!visiblePlans.some(p=>p.plan_id===active)) active=visiblePlans[0]&&visiblePlans[0].plan_id;
+    if(active) this._memSet(pfx+'active-plan',active);
 
     (d.profileSettings||[]).forEach(r=>this._memSet(pfx+r.key,this._raw(r.value)));
     (d.planState||[]).forEach(r=>this._memSet(pfx+'p:'+r.plan_id+':'+r.key,this._raw(r.value)));
@@ -39851,7 +39999,14 @@ const RelationalStore = {
       }));
     });
     trackGroups.forEach((obj,plan)=>this._memSet(pfx+'p:'+plan+':tracks',JSON.stringify(obj)));
+  },
 
+  _applyHeavyBundle(profileId, d) {
+    this._clearHeavyMemory(profileId);
+    const pfx=this._pfx(profileId);
+    const putGroups=(rows,suffix,map)=>{
+      this._group(rows).forEach((arr,plan)=>this._memSet(pfx+'p:'+plan+':'+suffix,JSON.stringify(arr.map(map))));
+    };
     const tecRowsBy=new Map();
     (d.tecRows||[]).forEach(r=>{
       const k=r.plan_id+'\u0000'+r.snapshot_id;if(!tecRowsBy.has(k))tecRowsBy.set(k,[]);
@@ -39868,11 +40023,71 @@ const RelationalStore = {
       id:r.incidence_id,pct:r.pct==null?null:Number(r.pct),banca:r.banca,depth:r.depth,codigo:r.code,topico:r.topic,
       disciplina:r.discipline,incidencia:r.incidence==null?null:Number(r.incidence)
     }));
+  },
 
-    this._lastSyncAt=Date.now(); this._lastError=null;
+  isHeavyReady(profileId) {
+    const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
+    return !!(id&&this._heavyReady.has(id)&&!this._heavyDirty.has(id));
+  },
+
+  async ensureHeavyData(profileId, opts) {
+    opts=opts||{};
+    const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
+    if(!id||!this.isReady())return false;
+    const force=!!opts.force||this._heavyDirty.has(id);
+    if(!force&&this._heavyReady.has(id))return {ok:true,mudou:0,cached:true};
+    if(this._heavyLoads.has(id))return this._heavyLoads.get(id);
+    const job=(async()=>{
+      const t0=Date.now();
+      this._trace('rel-heavy-inicio',{profileId:id,reason:opts.reason||'demand'});
+      const d=await this._loadHeavyBundle(id);
+      this._applyHeavyBundle(id,d||{});
+      this._heavyReady.add(id);this._heavyDirty.delete(id);
+      this._lastSyncAt=Date.now();this._lastError=null;
+      this._trace('rel-heavy-ok',{profileId:id,ms:Date.now()-t0});
+      try{window.dispatchEvent(new CustomEvent('data:relational-heavy-hydrated',{detail:{profileId:id,reason:opts.reason||'demand'}}));}catch(e){_quiet(e,'rel-heavy-event');}
+      return {ok:true,mudou:1};
+    })();
+    this._heavyLoads.set(id,job);
+    try{return await job;}
+    catch(e){this._lastError=e;throw e;}
+    finally{this._heavyLoads.delete(id);}
+  },
+
+  scheduleHeavyData(profileId, opts) {
+    opts=opts||{};
+    const id=profileId;if(!id||this.isHeavyReady(id)||this._heavyLoads.has(id))return false;
+    try{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c&&c.saveData)return false;}catch(e){_quiet(e,'rel-heavy-network-info');}
+    if(this._heavyTimers.has(id))return true;
+    const run=()=>{this._heavyTimers.delete(id);this.ensureHeavyData(id,{reason:opts.reason||'idle-prefetch'}).catch(e=>_quiet(e,'rel-heavy-prefetch'));};
+    const delay=Math.max(300,Number(opts.delay)||2500);
+    const timer=setTimeout(()=>{
+      if(typeof requestIdleCallback==='function')requestIdleCallback(run,{timeout:2500});else run();
+    },delay);
+    this._heavyTimers.set(id,timer);
+    return true;
+  },
+
+  async hydrateProfile(profileId, opts) {
+    opts=opts||{};
+    if(!this.isReady())throw new Error('Banco indisponível');
+    const t0=Date.now();
+    this._trace('rel-core-inicio',{profileId,reason:opts.reason||'open'});
+    let watermark=this._lastChangeId.get(profileId)||0;
+    if(!this._lastChangeId.has(profileId)&&!opts.skipWatermark){
+      try{watermark=await this._latestChangeId(profileId);}catch(e){_quiet(e,'rel-watermark');}
+    }
+    const d=await this._loadCoreBundle(profileId);
+    this._applyCoreBundle(profileId,d,{preserveHeavy:!!opts.preserveHeavy});
+    if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
+    this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
+    this._lastHydratedAt.set(profileId,Date.now());
+    this._lastSyncAt=Date.now();this._lastError=null;
     this.subscribeProfile(profileId);
-    try { window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:(opts&&opts.reason)||'open'}})); } catch(e){ _quiet(e, 'rel-hydrated-event'); }
-    return {ok:true,mudou:1,profile:profileRes.data};
+    this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
+    try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
+    if(opts.includeHeavy!==false)await this.ensureHeavyData(profileId,{reason:opts.reason||'hydrate',force:true});
+    return {ok:true,mudou:1,profile:d.profile,heavyReady:this.isHeavyReady(profileId)};
   },
 
   _queue(label, task) {
@@ -40125,11 +40340,36 @@ const RelationalStore = {
     return { ok:true, secoes:Object.keys(data).length, planos:plans.length };
   },
 
+  async _refreshDomains(profileId, tables, reason, truncated) {
+    const set=new Set((tables||[]).filter(Boolean));
+    const heavyNames=new Set(['study_tec_snapshots','study_tec_snapshot_rows','study_incidence']);
+    let heavy=!!truncated, core=!!truncated;
+    set.forEach(t=>{if(heavyNames.has(t))heavy=true;else core=true;});
+    if(core)await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+    if(heavy){
+      this._heavyDirty.add(profileId);
+      if(this._heavyReady.has(profileId))await this.ensureHeavyData(profileId,{reason:reason||'catch-up-heavy',force:true});
+    }
+    return {core,heavy};
+  },
+
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
     try{await this.flush();}catch(e){_quiet(e,'rel-catchup-flush');}
-    return this.hydrateProfile(id,{reason:reason||'catch-up'});
+    if(!this._lastChangeId.has(id)){
+      return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false});
+    }
+    const after=Number(this._lastChangeId.get(id))||0;
+    const summary=await this._changeSummary(id,after);
+    if(!summary.count&&!summary.truncated){
+      this._lastSyncAt=Date.now();
+      return {ok:true,mudou:0,changeId:after};
+    }
+    await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
+    this._lastChangeId.set(id,Math.max(after,Number(summary.maxChangeId)||after));
+    this._lastSyncAt=Date.now();this._lastError=null;
+    return {ok:true,mudou:summary.count||1,changeId:this._lastChangeId.get(id),tables:summary.tables};
   },
 
   subscribeProfile(profileId) {
@@ -40141,15 +40381,14 @@ const RelationalStore = {
     const ch=CloudStore.client.channel('study-relational-'+profileId+'-'+Date.now())
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'study_change_log',filter:'profile_id=eq.'+profileId},()=>{
         clearTimeout(this._rtTimer);
-        this._rtTimer=setTimeout(()=>this.catchUp(profileId,'realtime'),180);
+        this._rtTimer=setTimeout(()=>this.catchUp(profileId,'realtime').catch(e=>{this._lastError=e;}),180);
       })
       .subscribe(status=>{
         if(status==='SUBSCRIBED'){
-          /* Fecha a janela SELECT→WebSocket: qualquer commit ocorrido entre a
-             hidratação e a assinatura é recuperado por uma consulta canônica. */
-          clearTimeout(this._resubTimer);
-          this._resubTimer=null;
-          this.catchUp(profileId,'realtime-subscribed').catch(e=>{ this._lastError=e; });
+          clearTimeout(this._resubTimer);this._resubTimer=null;
+          /* A assinatura não rebaixa o perfil inteiro. O change-log responde
+             se algo mudou na pequena janela entre o watermark e o WebSocket. */
+          this.catchUp(profileId,'realtime-subscribed').catch(e=>{this._lastError=e;});
           return;
         }
         if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
@@ -40162,9 +40401,11 @@ const RelationalStore = {
   },
   unsubscribe() {
     clearTimeout(this._rtTimer);clearTimeout(this._resubTimer);
+    this._heavyTimers.forEach(t=>clearTimeout(t));this._heavyTimers.clear();
     try{if(this._channel&&window.CloudStore&&CloudStore.client)CloudStore.client.removeChannel(this._channel);}catch(e){_quiet(e,'rel-unsubscribe-remove-channel');}
     this._channel=null;this._channelProfile=null;
   }
+
 };
 window.RelationalStore=RelationalStore;
 
@@ -42053,7 +42294,20 @@ const CloudBackup = {
     return this._serializar(id, async () => {
       /* A foto só é produzida depois de toda escrita relacional anterior estar
          confirmada. Backup nunca fotografa uma projeção RAM ainda não persistida. */
-      if (window.RelationalStore) await RelationalStore.flush();
+      if (window.RelationalStore) {
+        await RelationalStore.flush();
+        /* A abertura rápida hidrata TEC/incidência sob demanda. Um backup, porém,
+           precisa ser completo: nunca fotografa só o núcleo e omite o bloco pesado. */
+        try {
+          if (!RelationalStore.isHeavyReady(id)) {
+            await RelationalStore.ensureHeavyData(id, { reason: 'cloud-backup' });
+          }
+        } catch (e) {
+          this._ultimoErro = 'não foi possível completar a leitura relacional antes do backup';
+          _quiet(e, 'cbk-heavy');
+          return { ok: false, motivo: 'leitura-relacional-incompleta' };
+        }
+      }
       const backup = ProfileManager.exportProfile(id);
       return this._publicar(id, backup && backup.data, nota, opts);
     });

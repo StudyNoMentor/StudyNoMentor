@@ -2590,7 +2590,33 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
     showToast('Ajustes restaurados ✓');
   });
 })();
+let _tecRelationalLoadToken = 0;
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen !== 'desempenhotec') return;
-  DesempenhoTecScreen.render();
+  const id = window.ProfileManager && ProfileManager.getActiveProfileId
+    ? ProfileManager.getActiveProfileId() : null;
+  if (!window.RelationalStore || !id || RelationalStore.isHeavyReady(id)) {
+    DesempenhoTecScreen.render();
+    return;
+  }
+
+  const token = ++_tecRelationalLoadToken;
+  const tela = document.getElementById('screen-desempenhotec');
+  if (tela) tela.setAttribute('aria-busy', 'true');
+  try { if (typeof showToast === 'function') showToast('Carregando dados do TEC…'); } catch (e) { _quiet(e, 'tec-heavy-toast'); }
+
+  RelationalStore.ensureHeavyData(id, { reason: 'screen-desempenhotec' })
+    .then(() => {
+      if (token !== _tecRelationalLoadToken) return;
+      const atual = document.getElementById('screen-desempenhotec');
+      if (atual && atual.classList.contains('active')) DesempenhoTecScreen.render();
+    })
+    .catch((err) => {
+      _quiet(err, 'tec-relational-heavy');
+      if (typeof showToast === 'function') showToast('Não foi possível carregar os dados do TEC agora.');
+    })
+    .finally(() => {
+      if (token !== _tecRelationalLoadToken) return;
+      if (tela) tela.removeAttribute('aria-busy');
+    });
 });

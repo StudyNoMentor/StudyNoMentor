@@ -1066,7 +1066,20 @@ const DB = {
   deleteLink(id) { this.saveLinks(this.getLinks().filter(l => l.id !== id)); },
 
   // ---- Incidência da banca: [{ id, banca, disciplina, topico, incidencia }] ----
-  getIncidencia() { return this._get(this.KEYS.incidencia, []); },
+  _kickRelationalHeavy(reason) {
+    try {
+      const id = window.ProfileManager && ProfileManager.getActiveProfileId
+        ? ProfileManager.getActiveProfileId() : null;
+      if (window.RelationalStore && id && !RelationalStore.isHeavyReady(id)) {
+        RelationalStore.ensureHeavyData(id, { reason: reason || 'db-heavy-read' })
+          .catch(e => _quiet(e, 'db-heavy-read'));
+      }
+    } catch (e) { _quiet(e, 'db-heavy-read-start'); }
+  },
+  getIncidencia() {
+    this._kickRelationalHeavy('db-incidencia');
+    return this._get(this.KEYS.incidencia, []);
+  },
   saveIncidencia(list) { this._set(this.KEYS.incidencia, list); },
   getBancas() { return [...new Set(this.getIncidencia().map(r => r.banca).filter(Boolean))].sort(); },
   // adiciona/substitui em lote as linhas de uma banca (replace = troca todo o histórico daquela banca)
@@ -1713,6 +1726,7 @@ const DB = {
   // Cada snapshot: { id, startDate, endDate, label, rows:[...], importedAt }
   // (retratos antigos tinham só `date` — migrados para startDate=endDate=date)
   getTecSnapshots() {
+    this._kickRelationalHeavy('db-tec');
     if (Array.isArray(this._tecReadSnapshot)) return this._tecReadSnapshot;
     const list = this._get(this.KEYS.tec, []);
     let migrated = false;

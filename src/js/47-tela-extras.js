@@ -1246,8 +1246,15 @@ window.addEventListener('screen:activated', (e) => {
     if (!host || !temAberto || typeof pintarDepois !== 'function') { ExtrasScreen.render(); return; }
     ExtrasScreen._pularEmCurso = true;
     try { ExtrasScreen.render(); } finally { ExtrasScreen._pularEmCurso = false; }
-    pintarDepois(host, 'Conferindo o que está em curso…', () => {
-      try { ExtrasScreen.renderEmCurso(); } catch (err) { _quiet(err, 'extras-em-curso'); }
+    pintarDepois(host, 'Conferindo o que está em curso…', async () => {
+      try {
+        const id = window.ProfileManager && ProfileManager.getActiveProfileId
+          ? ProfileManager.getActiveProfileId() : null;
+        if (window.RelationalStore && id && !RelationalStore.isHeavyReady(id)) {
+          await RelationalStore.ensureHeavyData(id, { reason: 'extras-motor' });
+        }
+        ExtrasScreen.renderEmCurso();
+      } catch (err) { _quiet(err, 'extras-em-curso'); }
     });
   }
 });

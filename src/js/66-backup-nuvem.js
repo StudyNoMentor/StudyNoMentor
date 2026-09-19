@@ -221,7 +221,20 @@ const CloudBackup = {
     return this._serializar(id, async () => {
       /* A foto só é produzida depois de toda escrita relacional anterior estar
          confirmada. Backup nunca fotografa uma projeção RAM ainda não persistida. */
-      if (window.RelationalStore) await RelationalStore.flush();
+      if (window.RelationalStore) {
+        await RelationalStore.flush();
+        /* A abertura rápida hidrata TEC/incidência sob demanda. Um backup, porém,
+           precisa ser completo: nunca fotografa só o núcleo e omite o bloco pesado. */
+        try {
+          if (!RelationalStore.isHeavyReady(id)) {
+            await RelationalStore.ensureHeavyData(id, { reason: 'cloud-backup' });
+          }
+        } catch (e) {
+          this._ultimoErro = 'não foi possível completar a leitura relacional antes do backup';
+          _quiet(e, 'cbk-heavy');
+          return { ok: false, motivo: 'leitura-relacional-incompleta' };
+        }
+      }
       const backup = ProfileManager.exportProfile(id);
       return this._publicar(id, backup && backup.data, nota, opts);
     });
