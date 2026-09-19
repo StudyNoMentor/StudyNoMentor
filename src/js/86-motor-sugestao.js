@@ -61,9 +61,25 @@
         const [lo, hi] = this.LIMITES[k];
         d[k] = Math.round(clamp(z[k], lo, hi));
       });
-      // Uma preferência antiga podia deixar o piso em 1–5. Migração silenciosa:
-      // daqui para frente nenhum reforço nasce abaixo do piso novo.
+      /* Migrações de contrato, uma vez por perfil.
+         - o piso antigo aceitava 1–5 questões;
+         - a meta antiga de fábrica era 85%, embora o estudo esteja configurado
+           para perseguir 90%. Quem ainda carrega EXATAMENTE o antigo default
+           recebe 90 uma vez; depois disso qualquer escolha manual é preservada. */
+      const metaMigKey = this._key() + ':meta90-migrado';
+      try {
+        if (!localStorage.getItem(metaMigKey)) {
+          if (num(z.metaAcerto, 85) === 85) {
+            d.metaAcerto = this.DEFAULTS.metaAcerto;
+            z.metaAcerto = d.metaAcerto;
+            if (DB.setRaw) DB.setRaw(this._key(), JSON.stringify(z));
+            else localStorage.setItem(this._key(), JSON.stringify(z));
+          }
+          localStorage.setItem(metaMigKey, '1');
+        }
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-mig-meta'); }
       d.doseMin = Math.max(this.DEFAULTS.doseMin, d.doseMin);
+      d.maxFrentes = Math.min(this.LIMITES.maxFrentes[1], d.maxFrentes);
       d.alvoQuestoes = Math.max(d.doseMin, d.alvoQuestoes);
       return d;
     },
