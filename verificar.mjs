@@ -992,6 +992,10 @@ try {
     CloudStore.SUPABASE_URL = origem;
     CloudStore.SUPABASE_KEY = 'chave-publicavel-de-teste';
     CloudStore.init();
+    /* Este contexto simula o aparelho, não a navegação do portão. Impede o
+       auto-enter de disparar reload no meio do page.evaluate; o teste controla
+       explicitamente perfil + hydrate logo abaixo. */
+    if (window.ProfileUI) ProfileUI._autoEnterTried = true;
     await CloudStore.signIn('estudante@teste.local', 'senha-de-teste-123');
     await new Promise(r => setTimeout(r, 250));
     const rows = await CloudStore.listProfiles();
