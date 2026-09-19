@@ -48,7 +48,7 @@ else CloudStore.init();
   // PREFERÊNCIAS DE UI (abas visíveis, blocos, linhas de meta, etc.)
   // Antes ficavam num prefixo GLOBAL (não sincronizava entre aparelhos). Agora são
   // gravadas DENTRO do namespace do perfil ativo (diario-estudos:u:<id>:ux47:*),
-  // então entram no blob sincronizado e aparecem iguais em qualquer dispositivo.
+  // então o RelationalStore as persiste no PostgreSQL e elas acompanham o perfil.
   const OLD_PFX = 'diario-estudos:ux47:';
   function _activePfx() {
     try {
