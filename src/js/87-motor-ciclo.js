@@ -72,7 +72,8 @@
         minAmostra: p.minAmostra,
         rankInicial: item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
         lacunaDiscInicial: item && item.disciplinaLacuna != null ? num(item.disciplinaLacuna) : null,
-        retratoBase: retrato ? retrato.assinatura : null
+        retratoBase: retrato ? retrato.assinatura : null,
+        retratoDataBase: retrato ? retrato.data : null
       };
     },
 
@@ -109,7 +110,10 @@
       const lacunaDisc = d ? num(d.lacunaDisc) : 0;
       const noGrupo = rank != null && rank <= num(p.maxFrentes, 3);
       const retrato = this._ultimoRetrato();
-      const novoRetrato = !!(retrato && (!o.retratoBase || retrato.assinatura !== o.retratoBase));
+      const baseData = String(o.retratoDataBase || '');
+      const novoRetrato = !!(retrato && (baseData
+        ? String(retrato.data || '') > baseData
+        : (!o.retratoBase || retrato.assinatura !== o.retratoBase)));
 
       let estado = 'andamento';
       if (!atual && !d) estado = 'orfa';
