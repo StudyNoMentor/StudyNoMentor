@@ -271,8 +271,8 @@ const CloudStore = {
   _tamanhoPayload(backup) {
     try { return JSON.stringify((backup && backup.data) || {}).length; } catch (_) { return 0; }
   },
-  async saveActive() {
-    const id = ProfileManager.getActiveProfileId();
+  async saveActive(id) {
+    id = id || ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
     const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
     const backup = ProfileManager.exportProfile(id);
@@ -307,10 +307,10 @@ const CloudStore = {
      tentava de novo — isso convertia um conflito legítimo em autorização para
      sobrescrever a versão vencedora. Agora o conflito é apenas diagnosticado.
      Os dados operacionais continuam pela camada por seção, que usa CAS. */
-  async saveActiveWithRetry() {
-    const id = ProfileManager.getActiveProfileId();
+  async saveActiveWithRetry(id) {
+    id = id || ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
-    const r = await this.saveActive();
+    const r = await this.saveActive(id);
     if (!r || !r.conflict) return r;
     let currentRev = null;
     try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
@@ -358,23 +358,29 @@ const CloudStore = {
   BLOB_MIN_INTERVAL_MS: 180000,   // 3 min
   _lastBlobAt: 0,
   _forceBlob: false,
-  _blobDue() {
+  _blobDue(id) {
+    id = id || ProfileManager.getActiveProfileId();
     if (this._forceBlob) return true;
     if (!this._lastBlobAt) return true;                       // nada subiu ainda nesta sessão
     if (!window.SectionSync || !SectionSync.enabled || !SectionSync.readEnabled) return true;
     if (SectionSync._lastError) return true;                  // seções com problema: blob assume
-    if (SectionSync._seededProfile !== ProfileManager.getActiveProfileId()) return true;
+    if (SectionSync._seededProfile !== id) return true;
     return (Date.now() - this._lastBlobAt) >= this.BLOB_MIN_INTERVAL_MS;
   },
   // Empurra as seções e diz se ficou tudo entregue. É isto que substitui o blob
   // nas rodadas leves — se sobrar seção suja ou houver erro, a rodada não conta
   // como sincronizada e a pendência é mantida para nova tentativa.
-  async _pushSectionsNow() {
+  async _pushSectionsNow(id) {
     if (!window.SectionSync || !SectionSync.enabled) return false;
+    id = id || ProfileManager.getActiveProfileId();
+    if (!id) return false;
     try {
-      SectionSync.seedOnce();
-      await SectionSync.pushDirty();
-      return SectionSync._dirty.size === 0 && !SectionSync._lastError;
+      if (SectionSync._seededProfile !== id) {
+        SectionSync._seededProfile = id;
+        SectionSync.markAllDirty(id);
+      }
+      await SectionSync.pushDirty(id);
+      return SectionSync._dirtyFor(id).size === 0 && !SectionSync._lastError;
     } catch (_) { return false; }
   },
   async autoSave() {
@@ -395,6 +401,8 @@ const CloudStore = {
     if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
+    const syncId = ProfileManager.getActiveProfileId();
+    if (!syncId) return;
     clearTimeout(this._debounce);
     this._syncing = true; this._syncingDesde = Date.now(); this._pending = false;
     /* `finally` e não uma linha no fim: se QUALQUER coisa aqui dentro lançar —
@@ -404,14 +412,14 @@ const CloudStore = {
        corpo continuam, inofensivas: apenas antecipam o que o `finally` garante. */
     try {
       if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
-      if (!this._blobDue()) {
+      if (!this._blobDue(syncId)) {
         // ── ROTA LEVE: só as seções alteradas ──────────────────────────────
         // Se o envio periódico de seções já está em curso, esperamos a vez: forçar
         // o blob aqui seria tratar concorrência normal como se fosse falha.
         if (SectionSync._pushing) {
           this._syncing = false; this._pending = true; this._rearm(800); return;
         }
-        const ok = await this._pushSectionsNow();
+        const ok = await this._pushSectionsNow(syncId);
         this._syncing = false;
         if (!ok) {
           this._pending = true;
@@ -436,7 +444,7 @@ const CloudStore = {
       }
       // ── ROTA COMPLETA: seções CANÔNICAS primeiro; blob é checkpoint ───────
       if (window.SectionSync && SectionSync.enabled) {
-        const secOk = await this._pushSectionsNow();
+        const secOk = await this._pushSectionsNow(syncId);
         if (!secOk) {
           this._syncing = false; this._pending = true;
           if (SectionSync._lastConflict) {
@@ -451,7 +459,7 @@ const CloudStore = {
           return;
         }
       }
-      const r = await this.saveActiveWithRetry();
+      const r = await this.saveActiveWithRetry(syncId);
       this._syncing = false;
       if (r && r.conflict) {
         /* As seções já foram confirmadas antes de chegar aqui. O blob é apenas
