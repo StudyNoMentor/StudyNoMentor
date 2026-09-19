@@ -2603,7 +2603,7 @@ window.addEventListener('screen:activated', (e) => {
   const token = ++_tecRelationalLoadToken;
   const tela = document.getElementById('screen-desempenhotec');
   if (tela) tela.setAttribute('aria-busy', 'true');
-  try { if (typeof showToast === 'function') showToast('Carregando dados do TEC…'); } catch (_) {}
+  try { if (typeof showToast === 'function') showToast('Carregando dados do TEC…'); } catch (e) { _quiet(e, 'tec-heavy-toast'); }
 
   RelationalStore.ensureHeavyData(id, { reason: 'screen-desempenhotec' })
     .then(() => {
