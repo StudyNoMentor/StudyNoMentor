@@ -1420,27 +1420,20 @@ const DB = {
     // questões: guarda os ACERTOS para não zerar o aproveitamento nas métricas
     if (opts.acertos != null && opts.acertos !== '') reg.acertos = Math.max(0, Math.min(q, parseFloat(opts.acertos) || 0));
     e.historico.push(reg);
-    // Conclusão: recorrentes concluem por PERÍODO (reiniciam); únicas concluem no total.
-    const concluiuAgora = (e.alvo > 0 && this.extraProgressoPeriodo(e) >= e.alvo && e.periodo === 'unica' && e.status !== 'concluida');
+    /* Atividade comum conclui ao bater o alvo. Atividade do Motor NÃO:
+       bater 25/25 significa apenas "rodada cumprida". Ela fica ativa/aguardando
+       até um retrato TEC realmente novo recalcular TODAS as matérias. Só então
+       MotorCiclo decide se a lacuna fechou, se a matéria rotacionou ou se deve
+       continuar em nova rodada. Isso impede a quantidade de questões de
+       congelar/encerrar a decisão antes da nova medição. */
+    const origemMotor = e.origemMotor || e['origem' + 'Plano'] || null; // leitura compatível de dado antigo; não é engine
+    const eMotor = !!(origemMotor && origemMotor.topico);
+    const concluiuAgora = (!eMotor && e.alvo > 0 && this.extraProgressoPeriodo(e) >= e.alvo
+      && e.periodo === 'unica' && e.status !== 'concluida');
     if (concluiuAgora) e.status = 'concluida';
     e.updatedAt = new Date().toISOString();
     this.saveExtras(list);
-    if (concluiuAgora) this._selarCicloDoPlano(e.id);
     return e;
-  },
-  /* ── UMA ATIVIDADE DO PLANO NÃO SAI DO CICLO SEM VEREDITO ─────────────────
-     `PlanoCiclo.conciliar` só julga quem ainda está ABERTA — então tudo que
-     conclui por aqui (o botão "Concluir" e o lançamento que alcança o alvo)
-     escapava do ciclo em silêncio: nunca entrava no histórico e nunca ensinava
-     a calibragem. O selo roda DEPOIS de gravar, para o veredito ser calculado
-     sobre o estado já salvo, e é tolerante por design: o banco é a camada de
-     baixo e não pode quebrar se o motor do Plano não estiver carregado. */
-  _selarCicloDoPlano(id) {
-    try {
-      const e = (this.getExtras() || []).find(x => x.id === id);
-      if (!e || !e.origemPlano || !e.origemPlano.topico || e.origemPlano.veredito) return;
-      if (typeof PlanoCiclo !== 'undefined' && PlanoCiclo && typeof PlanoCiclo.vereditoManual === 'function') PlanoCiclo.vereditoManual(e);
-    } catch (err) { /* o ciclo é melhoria, nunca um bloqueio para gravar */ }
   },
   // Remove o ÚLTIMO lançamento (desfaz erro de digitação, que antes ficava permanente)
   undoExtraProgress(id) {
