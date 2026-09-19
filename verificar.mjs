@@ -1037,7 +1037,7 @@ try {
   est.comAmostra === est.itens && est.itens > 0
     ? ok('toda linha declara o piso/amostra que sustenta o nível da árvore')
     : erro(`${est.itens - est.comAmostra} linha(s) sem amostra declarada`);
-  (est.comDose === est.itens && est.itens > 0 && est.minDose === MotorSugestao.DEFAULTS.alvoQuestoes)
+  (est.comDose === est.itens && est.itens > 0 && est.minDose === 25)
     ? ok(`toda frente saiu com a dose fixa de ${est.minDose} questoes`)
     : erro('o Motor deixou de usar dose fixa por atividade: ' + JSON.stringify(est));
   (/25 questões por atividade/.test(est.resumo) || /questões por atividade/.test(est.resumo))
