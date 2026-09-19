@@ -130,13 +130,18 @@ try {
   const rt=await page.evaluate(()=>({
     subscribe:String(RelationalStore.subscribeProfile),
     hydrate:String(RelationalStore.hydrateProfile),
+    coreSpecs:String(RelationalStore._coreSpecs),
+    loadCore:String(RelationalStore._loadCoreBundle),
+    catchUp:String(RelationalStore.catchUp),
     cloudSync:String(CloudStore.syncNow)
   }));
   ok(/study_change_log/.test(rt.subscribe),'Realtime deve assinar study_change_log');
   ok(/postgres_changes/.test(rt.subscribe),'Realtime deve usar eventos do Postgres');
   ok(/catchUp/.test(rt.subscribe),'assinatura deve fazer catch-up canônico após conectar/receber evento');
-  ok(/study_entries/.test(rt.hydrate),'hidratação deve consultar study_entries');
-  ok(!/profile_sections/.test(rt.hydrate),'hidratação não pode consultar profile_sections');
+  ok(/study_entries/.test(rt.coreSpecs),'núcleo relacional deve incluir study_entries');
+  ok(/read_study_profile_core/.test(rt.loadCore),'núcleo deve preferir pacote SQL em uma chamada');
+  ok(/_changeSummary/.test(rt.catchUp),'catch-up deve consultar resumo incremental antes de reidratar');
+  ok(!/profile_sections/.test(rt.hydrate+rt.coreSpecs+rt.loadCore),'hidratação não pode consultar profile_sections');
   ok(/RelationalStore/.test(rt.cloudSync),'spinner manual deve delegar ao RelationalStore');
 
   /* 2g. Indicador visual não pode afirmar "salvo no aparelho". */
