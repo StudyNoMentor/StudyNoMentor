@@ -1358,6 +1358,17 @@ const DesempenhoTecScreen = {
     const fase = document.getElementById('motor-fase');
     if (!host) return;
     const p = MotorSugestao.prefs();
+    /* Os campos da folha de Ajustes (piso, alvo, frentes, meta) nascem com o
+       valor de fábrica gravado no HTML. Sem isto, reabrir o app (ou só trocar
+       de aba e voltar) mostrava sempre 20/25/3/90 mesmo com outro valor salvo
+       — o ajuste continuava valendo por baixo, mas a tela mentia que "voltou
+       ao padrão". O campo focado não é tocado: o usuário pode estar digitando. */
+    ['motor-amostra', 'motor-alvo', 'motor-frentes', 'motor-meta'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el || document.activeElement === el) return;
+      const val = String(p[el.dataset.cfgKey]);
+      if (el.value !== val) el.value = val;
+    });
     if (fase) {
       const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
       fase.innerHTML = b('pre', 'Pré-edital', 'Maior lacuna até a meta primeiro')
