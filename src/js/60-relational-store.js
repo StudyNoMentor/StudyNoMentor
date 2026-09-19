@@ -230,7 +230,7 @@ const RelationalStore = {
 
     this._lastSyncAt=Date.now(); this._lastError=null;
     this.subscribeProfile(profileId);
-    try { window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:(opts&&opts.reason)||'open'}})); } catch(_){}
+    try { window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:(opts&&opts.reason)||'open'}})); } catch(e){ _quiet(e, 'rel-hydrated-event'); }
     return {ok:true,mudou:1,profile:profileRes.data};
   },
 
@@ -247,9 +247,9 @@ const RelationalStore = {
     const p=this._tail.then(run,run);
     this._tail=p.catch(e=>{ console.error('[RelationalStore]',label,e); }).finally(()=>{
       this._pending=Math.max(0,this._pending-1);
-      try { if(window.CloudUI)CloudUI.refreshSyncBtn(); } catch(_){}
+      try { if(window.CloudUI)CloudUI.refreshSyncBtn(); } catch(e){ _quiet(e, 'rel-sync-btn-idle'); }
     });
-    try { if(window.CloudUI)CloudUI.refreshSyncBtn('syncing','Salvando no banco…'); } catch(_){}
+    try { if(window.CloudUI)CloudUI.refreshSyncBtn('syncing','Salvando no banco…'); } catch(e){ _quiet(e, 'rel-sync-btn-saving'); }
     return p;
   },
   async flush() {
@@ -487,14 +487,14 @@ const RelationalStore = {
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
-    try{await this.flush();}catch(_){}
+    try{await this.flush();}catch(e){_quiet(e,'rel-catchup-flush');}
     return this.hydrateProfile(id,{reason:reason||'catch-up'});
   },
 
   subscribeProfile(profileId) {
     if(!this.isReady()||!profileId)return;
     if(this._channelProfile===profileId&&this._channel)return;
-    try{if(this._channel)CloudStore.client.removeChannel(this._channel);}catch(_){}
+    try{if(this._channel)CloudStore.client.removeChannel(this._channel);}catch(e){_quiet(e,'rel-subscribe-remove-channel');}
     clearTimeout(this._resubTimer);
     this._channelProfile=profileId;
     const ch=CloudStore.client.channel('study-relational-'+profileId+'-'+Date.now())
@@ -521,7 +521,7 @@ const RelationalStore = {
   },
   unsubscribe() {
     clearTimeout(this._rtTimer);clearTimeout(this._resubTimer);
-    try{if(this._channel&&window.CloudStore&&CloudStore.client)CloudStore.client.removeChannel(this._channel);}catch(_){}
+    try{if(this._channel&&window.CloudStore&&CloudStore.client)CloudStore.client.removeChannel(this._channel);}catch(e){_quiet(e,'rel-unsubscribe-remove-channel');}
     this._channel=null;this._channelProfile=null;
   }
 };
