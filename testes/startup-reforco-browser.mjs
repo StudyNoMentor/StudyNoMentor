@@ -424,10 +424,13 @@ try {
     const keep={
       client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
       subscribe:SessionGuard.subscribe,claim:SessionGuard.claim,taken:SessionGuard._takenBy,
-      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled
+      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled,
+      accessUid:SessionGuard._accessUid,accessState:SessionGuard._accessState,
+      loginPromise:SessionGuard._loginPromise,loginPromiseUid:SessionGuard._loginPromiseUid
     };
     let claims=0,blocked=0;
     SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    SessionGuard._accessUid=null;SessionGuard._accessState='unknown';SessionGuard._loginPromise=null;SessionGuard._loginPromiseUid=null;
     CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-1'}};
     SessionGuard.subscribe=()=>{};
     SessionGuard.claim=async()=>{claims++;return true;};
@@ -437,10 +440,122 @@ try {
     CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
     SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
     SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    SessionGuard._accessUid=keep.accessUid;SessionGuard._accessState=keep.accessState;
+    SessionGuard._loginPromise=keep.loginPromise;SessionGuard._loginPromiseUid=keep.loginPromiseUid;
     return {claims,blocked};
   });
   eq(sessionNoTakeover.claims,0,'sessão restaurada não pode tomar posse automaticamente de outro aparelho');
   eq(sessionNoTakeover.blocked,1,'sessão restaurada deve reconhecer e bloquear diante de outro aparelho');
+
+
+  /* 2l.1. Duas notificações de auth simultâneas compartilham a MESMA checagem:
+     uma não pode bloquear enquanto outra reivindica a conta por fora. */
+  const sessionCheckSerialized=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
+      subscribe:SessionGuard.subscribe,claim:SessionGuard.claim,taken:SessionGuard._takenBy,
+      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled,
+      accessUid:SessionGuard._accessUid,accessState:SessionGuard._accessState,
+      loginPromise:SessionGuard._loginPromise,loginPromiseUid:SessionGuard._loginPromiseUid
+    };
+    let selects=0,claims=0,blocked=0;
+    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    SessionGuard._accessUid=null;SessionGuard._accessState='unknown';SessionGuard._loginPromise=null;SessionGuard._loginPromiseUid=null;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-serial'}};
+    SessionGuard.subscribe=()=>{};
+    SessionGuard.claim=async()=>{claims++;return true;};
+    SessionGuard._takenBy=()=>{blocked++;};
+    CloudStore.client={from(){return {select(){return {eq(){return {maybeSingle(){selects++;return new Promise(r=>setTimeout(()=>r({data:{device_id:'device-remoto',device_label:'Outro'},error:null}),25));}};}};}};}};
+    const [a,b]=await Promise.all([SessionGuard.onLogin(),SessionGuard.onLogin()]);
+    CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
+    SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    SessionGuard._accessUid=keep.accessUid;SessionGuard._accessState=keep.accessState;
+    SessionGuard._loginPromise=keep.loginPromise;SessionGuard._loginPromiseUid=keep.loginPromiseUid;
+    return {selects,claims,blocked,a,b};
+  });
+  eq(sessionCheckSerialized.selects,1,'eventos de auth concorrentes devem compartilhar uma única consulta de posse');
+  eq(sessionCheckSerialized.claims,0,'checagem concorrente bloqueada não pode reivindicar a conta');
+  eq(sessionCheckSerialized.blocked,1,'bloqueio remoto concorrente deve ser emitido uma única vez');
+  ok(sessionCheckSerialized.a&&sessionCheckSerialized.a.blocked&&sessionCheckSerialized.b&&sessionCheckSerialized.b.blocked,
+    'todos os chamadores devem receber o mesmo resultado bloqueado');
+
+  /* 2l.2. O perfil não pode hidratar enquanto outro aparelho é o dono. */
+  const entryWaitsSession=await page.evaluate(async()=>{
+    const keep={
+      logged:CloudStore.isLoggedIn,onLogin:SessionGuard.onLogin,enabled:SessionGuard.enabled,
+      hydrate:SectionSync.hydrate,pending:ProfileUI._pendingSessionProfile,entering:ProfileUI._entering
+    };
+    let hydrates=0;
+    CloudStore.isLoggedIn=()=>true;SessionGuard.enabled=true;
+    SessionGuard.onLogin=async()=>({ok:false,blocked:true,status:'blocked'});
+    SectionSync.hydrate=async()=>{hydrates++;return {ok:true,mudou:0};};
+    ProfileUI._pendingSessionProfile=null;ProfileUI._entering=true;
+    await ProfileUI.enterProfile('perfil-bloqueado');
+    const pending=ProfileUI._pendingSessionProfile;
+    CloudStore.isLoggedIn=keep.logged;SessionGuard.onLogin=keep.onLogin;SessionGuard.enabled=keep.enabled;
+    SectionSync.hydrate=keep.hydrate;ProfileUI._pendingSessionProfile=keep.pending;ProfileUI._entering=keep.entering;
+    return {hydrates,pending};
+  });
+  eq(entryWaitsSession.hydrates,0,'entrada bloqueada não pode começar hydrate nem aplicar cache/nuvem');
+  eq(entryWaitsSession.pending,'perfil-bloqueado','perfil deve ficar pendente para retomar só depois do takeover confirmado');
+
+  /* 2l.3. O fast path local não pode esconder o gate antes do SessionGuard. */
+  const noLocalFlashBeforeSession=await page.evaluate(()=>{
+    const keep={
+      ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,can:SessionGuard.canEnterNow,enabled:SessionGuard.enabled,
+      def:ProfileUI.getDefaultProfile,last:ProfileUI.getLastProfile,has:ProfileUI._hasLocalData,
+      active:ProfileManager.getActiveProfileId,pode:ProfileManager._podeVerLocal,
+      hide:ProfileUI.hideGate,load:ProfileUI.loadCloudProfiles,
+      entering:ProfileUI._entering,tried:ProfileUI._autoEnterTried,offline:ProfileUI._offline
+    };
+    let hides=0,loads=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>false;
+    ProfileUI.getDefaultProfile=()=> 'perfil-local';ProfileUI.getLastProfile=()=> 'perfil-local';
+    ProfileUI._hasLocalData=()=>true;ProfileManager.getActiveProfileId=()=> 'perfil-local';ProfileManager._podeVerLocal=()=>true;
+    ProfileUI.hideGate=()=>{hides++;};ProfileUI.loadCloudProfiles=()=>{loads++;};
+    ProfileUI._entering=false;ProfileUI._autoEnterTried=false;ProfileUI._offline=false;
+    ProfileUI.refreshStage();
+    CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;SessionGuard.canEnterNow=keep.can;SessionGuard.enabled=keep.enabled;
+    ProfileUI.getDefaultProfile=keep.def;ProfileUI.getLastProfile=keep.last;ProfileUI._hasLocalData=keep.has;
+    ProfileManager.getActiveProfileId=keep.active;ProfileManager._podeVerLocal=keep.pode;
+    ProfileUI.hideGate=keep.hide;ProfileUI.loadCloudProfiles=keep.load;
+    ProfileUI._entering=keep.entering;ProfileUI._autoEnterTried=keep.tried;ProfileUI._offline=keep.offline;
+    return {hides,loads};
+  });
+  eq(noLocalFlashBeforeSession.hides,0,'cache local não pode aparecer antes da confirmação da sessão');
+  ok(noLocalFlashBeforeSession.loads>=1,'entrada deve permanecer no fluxo protegido enquanto a sessão é verificada');
+
+  /* 2l.4. Pull/Realtime bloqueados não podem aplicar dados por trás do overlay. */
+  const blockedPull=await page.evaluate(async()=>{
+    const keep={blocked:SessionGuard.isBlockedByRemote,pull:SectionSync.pullAndReload};
+    let pulls=0;
+    SessionGuard.isBlockedByRemote=()=>true;
+    SectionSync.pullAndReload=async()=>{pulls++;return true;};
+    const r=await CloudStore.pullActiveAndReload({readOnly:true});
+    SessionGuard.isBlockedByRemote=keep.blocked;SectionSync.pullAndReload=keep.pull;
+    return {pulls,r};
+  });
+  eq(blockedPull.pulls,0,'sessão remota bloqueada não pode iniciar pull/hydrate em segundo plano');
+  eq(blockedPull.r,false,'pull bloqueado deve retornar sem fingir aplicação');
+
+  /* 2l.5. No bloqueio REMOTO, o botão não fecha o overlay antes da confirmação. */
+  const remoteOverlayWaitsClaim=await page.evaluate(async()=>{
+    const keep=SessionLock._takeoverFns;
+    SessionLock._takeoverFns=[()=>{}];
+    SessionLock.block('remote',{label:'Outro'});
+    const btn=document.getElementById('single-session-takeover');
+    if(btn)btn.click();
+    await new Promise(r=>setTimeout(r,20));
+    const o=document.getElementById('single-session-overlay');
+    const out={blocked:SessionLock.isBlocked(),origin:SessionLock._origin,display:o&&o.style.display,disabled:btn&&btn.disabled,text:btn&&btn.textContent};
+    SessionLock._takeoverFns=keep;SessionLock.unblock();
+    return out;
+  });
+  ok(remoteOverlayWaitsClaim.blocked&&remoteOverlayWaitsClaim.origin==='remote','overlay remoto deve continuar bloqueando até confirmação');
+  eq(remoteOverlayWaitsClaim.display,'flex','overlay remoto não pode sumir no clique');
+  ok(remoteOverlayWaitsClaim.disabled,'botão deve travar enquanto takeover é confirmado');
+  ok(/Confirmando/.test(remoteOverlayWaitsClaim.text||''),'botão deve informar que está confirmando a posse');
 
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
