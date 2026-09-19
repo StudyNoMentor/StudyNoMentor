@@ -931,7 +931,7 @@ else CloudStore.init();
         del.forEach(k => { try { localStorage.removeItem(k); } catch (_) { _quiet(_); } });
         ProfileManager.setRev(id, 0);
         toast('Baixando da nuvem…');
-        await CS.pullActiveAndReload();
+        await CS.pullActiveAndReload({ readOnly: true });
       } catch (e) { toast('Não foi possível concluir a limpeza.'); }
     },
 
@@ -1038,7 +1038,7 @@ else CloudStore.init();
           this.closeMenu();
           if (a === 'sync') { try { await CS.syncNow(); } catch (_) { _quiet(_); } }
           else if (a === 'push') { try { CS._forceBlob = true; CS._pending = true; await CS.flushPending(); toast('Enviado ✓'); } catch (_) { toast('Não foi possível enviar agora.'); } }
-          else if (a === 'pull') { try { await CS.pullActiveAndReload(); } catch (_) { _quiet(_); } }
+          else if (a === 'pull') { try { await CS.pullActiveAndReload({ readOnly: true }); } catch (_) { _quiet(_); } }
           else if (a === 'recon') { await this.reconnect(true); }
           else if (a === 'cache') { await this.repararCache(); }
           else if (a === 'cfg') { try { switchScreen('config'); } catch (_) { _quiet(_); } setTimeout(() => ConfigUX.show('conta'), 60); }
