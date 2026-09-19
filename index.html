@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v6ee925b60a">
+<meta name="diario-versao" content="v0bc4c47945">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -15291,6 +15291,9 @@ var _cloudNotifyHook = null;
 // alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
 // var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
 var _sectionMarkHook = null;
+// Hook de mutações individuais do Diário. Permite resolver conflitos de `entries`
+// por ID (adicionar/editar/excluir) sem sobrescrever a seção inteira de outro aparelho.
+var _entryMutationHook = null;
 /* ── RECARGA SEGURA E EDUCADA ──────────────────────────────────────────────
    Havia `location.reload()` espalhado por nove pontos do app. Dois problemas:
 
@@ -15835,7 +15838,9 @@ const DB = {
   saveEntry(entry) {
     const entries = this.getEntries();
     entries.push(entry);
-    if (this._set(this.KEYS.entries, entries) === false) return null;
+    const key = this.KEYS.entries;
+    if (this._set(key, entries) === false) return null;
+    try { if (_entryMutationHook) _entryMutationHook(key, { type: 'upsert', id: entry && entry.id, entry: entry }); } catch (e) { _quiet(e, 'entry-op-save'); }
     return entry;
   },
   /* Comparação por TEXTO, de propósito. Registros antigos têm id NUMÉRICO
@@ -15845,14 +15850,25 @@ const DB = {
      silêncio. String() dos dois lados atende os dois formatos. */
   _mesmoId(a, b) { return String(a) === String(b); },
   deleteEntry(id) {
-    const entries = this.getEntries().filter(e => !this._mesmoId(e.id, id));
-    return this._set(this.KEYS.entries, entries) !== false;
+    const key = this.KEYS.entries;
+    const antes = this.getEntries();
+    const removido = antes.find(e => this._mesmoId(e.id, id)) || null;
+    const entries = antes.filter(e => !this._mesmoId(e.id, id));
+    if (this._set(key, entries) === false) return false;
+    try { if (_entryMutationHook && removido) _entryMutationHook(key, { type: 'delete', id: removido.id, before: removido }); } catch (e) { _quiet(e, 'entry-op-delete'); }
+    return true;
   },
   updateEntry(id, patch) {
+    const key = this.KEYS.entries;
     const entries = this.getEntries();
     const e = entries.find(x => this._mesmoId(x.id, id));
-    if (e) Object.assign(e, patch);
-    if (this._set(this.KEYS.entries, entries) === false) return null;
+    let before = null;
+    if (e) {
+      try { before = JSON.parse(JSON.stringify(e)); } catch (_) { before = Object.assign({}, e); }
+      Object.assign(e, patch);
+    }
+    if (this._set(key, entries) === false) return null;
+    try { if (_entryMutationHook && e) _entryMutationHook(key, { type: 'upsert', id: e.id, entry: e, before: before }); } catch (err) { _quiet(err, 'entry-op-update'); }
     return e;
   },
   getEntry(id) { return this.getEntries().find(e => this._mesmoId(e.id, id)); },
@@ -17410,16 +17426,28 @@ const PlanManager = {
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
   // para que todas as telas já funcionem "de fábrica".
-  _seedDefaults(planId) {
+  _seedDefaults(planId, opts) {
     const k = DB.keysForPlan(planId);
+    const silent = !!(opts && opts.silent);
+    /* No bootstrap de um aparelho novo estes valores são apenas andaimes para a
+       UI abrir. Eles NÃO são uma edição do usuário e não podem entrar na outbox
+       antes da primeira hidratação; caso contrário colidem com os mesmos
+       cadastros já existentes na nuvem e deixam o spinner preso em erro.
+       Se o perfil for realmente novo, seedUntrackedOnly os publica depois. */
+    const put = (key, value) => {
+      if (silent) {
+        try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { _quiet(e, 'plan-bootstrap'); return false; }
+      }
+      return DB._set(key, value);
+    };
     if (localStorage.getItem(k.methods) === null)
-      DB._set(k.methods, DB.DEFAULT_METHODS.map(nome => ({ id: DB._uid(), nome, ativo: true })));
+      put(k.methods, DB.DEFAULT_METHODS.map(nome => ({ id: DB._uid(), nome, ativo: true })));
     if (localStorage.getItem(k.phases) === null)
-      DB._set(k.phases, DB.DEFAULT_PHASES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
+      put(k.phases, DB.DEFAULT_PHASES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
     if (localStorage.getItem(k.statuses) === null)
-      DB._set(k.statuses, DB.DEFAULT_STATUSES.map(s => ({ id: DB._uid(), ...s, ativo: true })));
+      put(k.statuses, DB.DEFAULT_STATUSES.map(s => ({ id: DB._uid(), ...s, ativo: true })));
     if (localStorage.getItem(k.modes) === null)
-      DB._set(k.modes, DB.DEFAULT_MODES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
+      put(k.modes, DB.DEFAULT_MODES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
   },
 
   createPlan({ nome, tipo }) {
@@ -17498,16 +17526,27 @@ const PlanManager = {
 
   init() {
     let plans = this.getPlans();
+    let bootstrap = false;
     if (plans.length === 0) {
+      bootstrap = true;
       const id = 'pl_inicial';
       plans = [{ id, nome: 'Planejamento inicial', tipo: 'Pré-edital', createdAt: new Date().toISOString() }];
-      this.savePlans(plans);
+      /* Inicialização física do namespace, sem declarar "o usuário mudou".
+         Em aparelho já existente a hidratação remota substitui estes andaimes;
+         em perfil realmente novo a semeadura de seções os envia normalmente. */
+      try { localStorage.setItem(this.GK.plans, JSON.stringify(plans)); } catch (e) { _quiet(e, 'plan-bootstrap-plans'); }
       this._migrateLegacy(id);
-      this._seedDefaults(id);
-      this.setActivePlan(id);
+      this._seedDefaults(id, { silent: true });
+      try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active'); }
     }
     // garante um planejamento ativo válido
-    if (!this.getActivePlan()) this.setActivePlan(this.getPlans()[0].id);
+    if (!this.getActivePlan()) {
+      const id = this.getPlans()[0] && this.getPlans()[0].id;
+      if (id) {
+        if (bootstrap) { try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active2'); } }
+        else this.setActivePlan(id);
+      }
+    }
   }
 };
 
@@ -17693,7 +17732,7 @@ const ProfileManager = {
       const sub = k.slice(prefix.length);
       // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
       // no backup faria o aparelho que importa herdar a fila de envio de outro.
-      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
       if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
       data[sub] = localStorage.getItem(k);
     }
@@ -17829,7 +17868,7 @@ const ProfileManager = {
         const m = RE.exec(k);
         if (!m) continue;
         const sub = m[2];
-        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel') continue;
+        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
         if (sub.indexOf('vhist') === 0) continue;
         if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
         const v = localStorage.getItem(k) || '';
@@ -18109,7 +18148,7 @@ const ProfileManager = {
     const manter = new Set(preservar || []);
     // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
     // que falta): vinda no backup de outro, faria este achar que está em dia.
-    const local = ['__secrev', '__secpend', '__secdel'];
+    const local = ['__secrev', '__secpend', '__secdel', '__entryops'];
     const toRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
@@ -41496,7 +41535,8 @@ window.CloudStore = CloudStore;
 const SessionGuard = {
   TABLE: 'active_sessions',
   DEVICE_KEY: 'diario-estudos:device-id',
-  enabled: true,        // vira false se a tabela não existir
+  enabled: true,        // infraestrutura disponível; pode cair para false se a tabela não existir
+  singleDeviceMode: false, // multiaparelho é o padrão: CAS + merge protegem os dados sem expulsar PC/celular
   channel: null,
   _deviceId: null,
   _claimedUid: null,    // uid cuja posse foi confirmada neste aparelho
@@ -41516,11 +41556,13 @@ const SessionGuard = {
     return this._accessState || 'unknown';
   },
   canEnterNow() {
+    if (!this.singleDeviceMode) return true;
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return false;
     const s = this.accessState();
     return s === 'allowed' || s === 'disabled';
   },
   isBlockedByRemote() {
+    if (!this.singleDeviceMode) return false;
     return this.accessState() === 'blocked' ||
       !!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote');
   },
@@ -41582,6 +41624,19 @@ const SessionGuard = {
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { ok: false, status: 'offline' };
     const uid = CS.session.user.id;
+    /* Multiaparelho: não existe "dono exclusivo" da conta. O controle de
+       concorrência fica onde deve ficar — nas revisões/merges dos dados. Isso
+       evita PC e celular ficarem se expulsando e transformando uma simples
+       exclusão em envio bloqueado + spinner vermelho. */
+    if (!this.singleDeviceMode) {
+      this._accessUid = uid;
+      this._accessState = 'allowed';
+      this._claimedUid = uid;
+      try {
+        if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+      } catch (_) { _quiet(_); }
+      return { ok: true, status: 'allowed', multiDevice: true };
+    }
     this.subscribe(uid);
 
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
@@ -41682,7 +41737,7 @@ const SessionGuard = {
 
   // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
   async check(uid) {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.singleDeviceMode) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
     uid = uid || CS.session.user.id;
@@ -41703,7 +41758,7 @@ const SessionGuard = {
   },
 
   subscribe(uid) {
-    if (!this.enabled || this.channel) return;
+    if (!this.enabled || !this.singleDeviceMode || this.channel) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady()) return;
     try {
@@ -41737,6 +41792,11 @@ const SessionGuard = {
   // Outro aparelho assumiu: bloqueia NOVAS ações aqui, mas entrega primeiro
   // a caixa de saída que já estava comprovadamente gravada neste aparelho.
   _takenBy(row) {
+    if (!this.singleDeviceMode) {
+      this._accessState = 'allowed';
+      try { if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock(); } catch (_) { _quiet(_); }
+      return;
+    }
     try {
       const CS = window.CloudStore;
       const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
@@ -41784,6 +41844,7 @@ const SessionGuard = {
   // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
   async fetchActive() {
     if (!this.enabled) return { status: 'disabled' };
+    if (!this.singleDeviceMode) return { status: 'multi', thisDeviceId: this.deviceId(), thisLabel: this.deviceLabel() };
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { status: 'offline' };
     try {
@@ -41803,6 +41864,12 @@ const SessionGuard = {
   // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
   // O outro aparelho recebe o evento em tempo real e é bloqueado.
   async endRemoteAndClaimHere() {
+    if (!this.singleDeviceMode) {
+      this._accessState = 'allowed';
+      try { if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock(); } catch (_) { _quiet(_); }
+      if (window.CloudUI) CloudUI.refreshSyncBtn();
+      return true;
+    }
     const ok = await this.claim();
     if (ok) {
       if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
@@ -41947,7 +42014,6 @@ const SectionSync = {
     } catch (_) { return {}; }
   },
   _saveRevs(r, id) { try { localStorage.setItem(this._revKey(id), JSON.stringify(r)); } catch (_) { _quiet(_); } },
-
   /* ── CAIXA DE SAÍDA DURÁVEL ───────────────────────────────────────────────
      _dirty morava só na memória. Um recarregamento, o fechamento do app, uma
      queda de rede ou uma sessão assumida por outro aparelho levavam a lista
@@ -42008,9 +42074,29 @@ const SectionSync = {
   },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
   restorePending(id) {
-    const dirty = this._dirtyFor(id);
+    const alvo = id || this._activeProfileId();
+    const dirty = this._dirtyFor(alvo), gens = this._dirtyGenFor(alvo);
     const antes = dirty.size;
-    this._loadPend(id).forEach(s => this._ensureDirty(s, id));
+    this._loadPend(alvo).forEach(s => this._ensureDirty(s, alvo));
+
+    /* O journal sobrevive ao reload, mas _genSeq é memória e volta a zero.
+       Reancoramos a geração da seção no maior gen persistido; sem isso uma
+       operação gravada como gen 37 poderia reaparecer com a seção em gen 1 e
+       ficar de fora do merge justamente após reabrir o celular. */
+    const ops = this._loadEntryOps(alvo);
+    Object.keys(ops || {}).forEach(sec => {
+      const lista = Array.isArray(ops[sec]) ? ops[sec] : [];
+      if (!lista.length || !this._isEntriesSection(sec)) return;
+      let maxGen = 0;
+      lista.forEach(x => { maxGen = Math.max(maxGen, Number(x && x.gen) || 0); });
+      if (!dirty.has(sec)) dirty.add(sec);
+      const atual = gens.get(sec) || 0;
+      const g = Math.max(atual, maxGen, 1);
+      gens.set(sec, g);
+      if (g > this._genSeq) this._genSeq = g;
+    });
+    this._savePend(alvo);
+
     const novas = dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
@@ -42076,6 +42162,172 @@ const SectionSync = {
     this._loadPend(alvo).forEach(s => out.add(s));
     this._loadDel(alvo).forEach(x => { if (x && x.section) out.add(x.section); });
     return out.size;
+  },
+
+  /* ── JOURNAL DE MUTAÇÕES DO DIÁRIO ───────────────────────────────────────
+     A seção `entries` é um array inteiro. CAS protege contra sobrescrita cega,
+     mas dois aparelhos que editam o array em revisões diferentes precisam de uma
+     forma de combinar intenções. Guardamos as mutações por ID neste aparelho:
+     add/update = upsert do registro; delete = remoção daquele ID. Em conflito,
+     baixamos a versão remota mais nova, reaplicamos SOMENTE essas operações e
+     tentamos CAS outra vez. Assim uma exclusão no celular não apaga um registro
+     novo criado no PC — e também não fica eternamente presa no spinner vermelho. */
+  ENTRY_OPS: '__entryops',
+  _entryOpsKey(id) { return this._prefixFor(id) + this.ENTRY_OPS; },
+  _isEntriesSection(sec) { return !!sec && /(^|:)entries$/.test(String(sec)); },
+  _loadEntryOps(id) {
+    try {
+      const v = JSON.parse(localStorage.getItem(this._entryOpsKey(id))) || {};
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch (_) { return {}; }
+  },
+  _saveEntryOps(v, id) {
+    try {
+      const limpo = {};
+      Object.keys(v || {}).forEach(sec => {
+        const a = Array.isArray(v[sec]) ? v[sec].filter(x => x && x.id != null && (x.type === 'delete' || x.type === 'upsert')) : [];
+        if (a.length) limpo[sec] = a;
+      });
+      if (Object.keys(limpo).length) localStorage.setItem(this._entryOpsKey(id), JSON.stringify(limpo));
+      else localStorage.removeItem(this._entryOpsKey(id));
+    } catch (e) { _quiet(e, 'entryops-gravar'); }
+  },
+  recordEntryMutation(fullKey, op) {
+    if (!this.enabled || !op || op.id == null) return;
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
+    if (!id || !this._isEntriesSection(sec)) return;
+    const all = this._loadEntryOps(id);
+    const list = Array.isArray(all[sec]) ? all[sec] : [];
+    const sid = String(op.id);
+    const gen = this._dirtyGenFor(id).get(sec) || this._ensureDirty(sec, id);
+    const anterior = list.find(x => String(x.id) === sid) || null;
+    const next = list.filter(x => String(x.id) !== sid);
+    const clone = (v) => {
+      if (v == null) return null;
+      try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
+    };
+    if (op.type === 'delete') {
+      /* Criou e apagou antes de qualquer envio = nenhuma intenção remota.
+         Edição seguida de exclusão mantém como base a imagem ANTES da primeira
+         edição, não a intermediária. */
+      if (anterior && anterior.type === 'upsert' && anterior.before == null) {
+        if (next.length) all[sec] = next; else delete all[sec];
+        this._saveEntryOps(all, id);
+        return;
+      }
+      const before = clone(anterior && anterior.before != null ? anterior.before : op.before);
+      next.push({ type: 'delete', id: sid, before, gen });
+    } else if (op.type === 'upsert' && op.entry) {
+      const entry = clone(op.entry);
+      /* Várias edições antes do envio continuam ancoradas na primeira imagem
+         conhecida. Delete+restauração do mesmo ID também preserva essa base. */
+      const before = clone(anterior ? anterior.before : op.before);
+      next.push({ type: 'upsert', id: sid, entry, before, gen });
+    } else return;
+    all[sec] = next;
+    this._saveEntryOps(all, id);
+  },
+  _entryOpsFor(id, sec, maxGen) {
+    const all = this._loadEntryOps(id);
+    const a = Array.isArray(all[sec]) ? all[sec] : [];
+    return a.filter(x => maxGen == null || (Number(x.gen) || 0) <= Number(maxGen));
+  },
+  _ackEntryOps(id, sec, maxGen) {
+    const all = this._loadEntryOps(id);
+    const a = Array.isArray(all[sec]) ? all[sec] : [];
+    if (!a.length) return [];
+    const restantes = a.filter(x => (Number(x.gen) || 0) > Number(maxGen || 0));
+    if (restantes.length) all[sec] = restantes;
+    else delete all[sec];
+    this._saveEntryOps(all, id);
+    return restantes;
+  },
+  _entrySame(a, b) {
+    try { return this._stable(a) === this._stable(b); } catch (_) { return JSON.stringify(a) === JSON.stringify(b); }
+  },
+  _applyEntryOps(raw, ops) {
+    let out;
+    try { out = JSON.parse(raw); } catch (_) { return null; }
+    if (!Array.isArray(out)) return null;
+    out = out.slice();
+    /* Regra de conflito por ID:
+       - IDs que este aparelho NÃO tocou ficam exatamente como vieram da nuvem;
+       - DELETE explícito remove somente aquele ID;
+       - UPSERT explícito substitui/cria somente aquele ID.
+       Portanto uma operação local nunca regride registros independentes do PC.
+       Se ambos mexerem no MESMO ID, a operação explícita que está sendo
+       reconciliada agora vence naquele ID — determinístico e sem conflito eterno. */
+    for (const op of (ops || [])) {
+      const sid = String(op.id);
+      const idx = out.findIndex(e => e && String(e.id) === sid);
+      if (op.type === 'delete') {
+        if (idx >= 0) out.splice(idx, 1);
+      } else if (op.type === 'upsert' && op.entry) {
+        if (idx >= 0) out[idx] = op.entry;
+        else out.push(op.entry);
+      }
+    }
+    try { return JSON.stringify(out); } catch (_) { return null; }
+  },
+  async _resolveEntriesConflict(id, sec, remotoInicial, gen) {
+    const ops = this._entryOpsFor(id, sec, gen);
+    if (!ops.length) return null; // conflito legado/sem intenção registrada: não adivinha
+    let remoto = remotoInicial;
+    for (let tentativa = 0; tentativa < 5; tentativa++) {
+      if (!remoto) return null;
+      const remotoRaw = this._decode(remoto.data);
+      if (remotoRaw == null) return null;
+      const mergedRaw = this._applyEntryOps(remotoRaw, ops);
+      if (mergedRaw == null) return null;
+      const mergedHash = this._hash(mergedRaw);
+      const remoteHash = remoto.content_hash == null ? this._hash(remotoRaw) : String(remoto.content_hash);
+      if (mergedHash === remoteHash) {
+        const restantes = this._ackEntryOps(id, sec, gen);
+        const atualGen = this._dirtyGenFor(id).get(sec) || 0;
+        if (restantes.length) {
+          const finalRaw = this._applyEntryOps(mergedRaw, restantes);
+          if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
+          this._ensureDirty(sec, id);
+        } else if (atualGen === gen) {
+          localStorage.setItem(this._prefixFor(id) + sec, mergedRaw);
+          this._clearDirtyIfGeneration(sec, gen, id);
+        } // geração nova sem journal: preserva o valor físico e mantém a seção suja
+        this._savePend(id);
+        return { ok: true, rev: remoto.rev || 1, hash: mergedHash, raw: mergedRaw, len: mergedRaw.length, already: true };
+      }
+      const wr = await this._writeSectionCAS(
+        {
+          profile_id: id, section: sec, data: this._encode(mergedRaw),
+          rev: (Number(remoto.rev) || 0) + 1, updated_at: new Date().toISOString(),
+          _contentHash: mergedHash
+        },
+        Number(remoto.rev) || 0,
+        remoto.content_hash == null ? null : String(remoto.content_hash),
+        this._mutationId(sec, mergedHash)
+      );
+      if (wr.ok) {
+        const restantes = this._ackEntryOps(id, sec, gen);
+        /* Rebase local: primeiro a versão remota+operações confirmadas; depois
+           reaplica alterações que aconteceram neste aparelho enquanto o request
+           estava em voo. Se surgiu uma escrita nova fora do journal, não a
+           sobrescrevemos: ela fica suja para a rodada seguinte. */
+        const atualGen = this._dirtyGenFor(id).get(sec) || 0;
+        if (restantes.length) {
+          const finalRaw = this._applyEntryOps(mergedRaw, restantes);
+          if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
+          this._ensureDirty(sec, id);
+        } else if (atualGen === gen) {
+          localStorage.setItem(this._prefixFor(id) + sec, mergedRaw);
+          this._clearDirtyIfGeneration(sec, gen, id);
+        }
+        this._savePend(id);
+        return { ok: true, rev: wr.rev || ((Number(remoto.rev) || 0) + 1), hash: mergedHash, raw: mergedRaw, len: mergedRaw.length };
+      }
+      if (!wr.conflict) return null;
+      remoto = await this._remoteSection(id, sec); // outro aparelho avançou de novo: rebaseia e tenta novamente
+    }
+    return null;
   },
 
   /* PROVA PARA O FAST PATH LOCAL.
@@ -42183,6 +42435,7 @@ const SectionSync = {
     if (sub.indexOf('vhist') === 0) return null;     // histórico de versões é local
     if (sub.indexOf(Lixeira.PREFIXO) === 0) return null; // lixeira: rede local, não é dado do perfil
     if (sub.indexOf(this.DEL) === 0) return null;    // registro de exclusões: contabilidade local
+    if (sub.indexOf(this.ENTRY_OPS) === 0) return null; // journal de mutações do diário: somente local
     return sub;
   },
   _profileIdFromKey(fullKey) {
@@ -42414,7 +42667,11 @@ const SectionSync = {
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
       if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen, id); sumidas.push(sec); return; }
-      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen, id); return; }
+      if (d.acao === 'idêntico') {
+        this._clearDirtyIfGeneration(sec, gen, id);
+        if (this._isEntriesSection(sec)) this._ackEntryOps(id, sec, gen);
+        return;
+      }
       if (d.esvaziando) esvaziando.push(sec);
       rows.push({
         _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen,
@@ -42470,11 +42727,23 @@ const SectionSync = {
           const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
           if (remoto && remotoHash === _hash) {
             revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
-            this._ackSent(_sec, _gen, _hash, pfx, id);
+            const ack = this._ackSent(_sec, _gen, _hash, pfx, id);
+            if (this._isEntriesSection(_sec)) this._ackEntryOps(id, _sec, _gen);
             /* Se houve edição nova durante o voo, a geração mudou e a seção fica
                suja; agora ela já parte da revisão remota confirmada. */
             okCount++;
             continue;
+          }
+          /* Para o Diário, conflito não é sentença final: temos um journal por ID.
+             Rebaseamos delete/upsert sobre a cópia remota atual e repetimos CAS.
+             Outras seções continuam com a política conservadora de preservar ambos. */
+          if (remoto && this._isEntriesSection(_sec)) {
+            const merged = await this._resolveEntriesConflict(id, _sec, remoto, _gen);
+            if (merged && merged.ok) {
+              revs[_sec] = { rev: merged.rev || row.rev, hash: merged.hash, len: merged.len };
+              okCount++;
+              continue;
+            }
           }
           conflitos.push(_sec);
           falhas.push(_sec + ' (conflito de revisão protegido)');
@@ -42483,6 +42752,7 @@ const SectionSync = {
         // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
         revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
         this._ackSent(_sec, _gen, _hash, pfx, id);
+        if (this._isEntriesSection(_sec)) this._ackEntryOps(id, _sec, _gen);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
@@ -43163,6 +43433,8 @@ const SectionSync = {
 window.SectionSync = SectionSync;
 // liga o hook do DB._set a esta camada (var definida lá no topo, sem zona morta)
 _sectionMarkHook = function (key) { try { SectionSync.markDirty(key); } catch (_) { _quiet(_); } };
+// Journal por registro: só o Diário usa esta trilha fina de conflito.
+_entryMutationHook = function (key, op) { try { SectionSync.recordEntryMutation(key, op); } catch (_) { _quiet(_); } };
 // e o hook do DB.delRaw: apagar sai da fila e viaja pelo manifesto
 _sectionDropHook = function (key) { try { SectionSync.dropSection(key); } catch (_) { _quiet(_); } };
 // Recupera na abertura o que ficou por enviar (antes de qualquer leitura da nuvem).
@@ -43255,10 +43527,18 @@ const CloudUI = {
     const box = document.getElementById('cloud-sessions-list');
     if (!box) return;
     if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
+    if (SessionGuard.enabled === false) {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem permanecer conectados.</strong> A sincronização usa controle de revisão para conciliar alterações sem expulsar o outro aparelho.</div>';
+      return;
+    }
     box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
     const r = await SessionGuard.fetchActive();
+    if (r.status === 'multi') {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem ficar conectados ao mesmo tempo.</strong> A sincronização usa revisão protegida e reconciliação de registros; apenas duas abas do mesmo navegador continuam evitando edição simultânea.</div>';
+      return;
+    }
     if (r.status === 'disabled') {
-      box.innerHTML = '<div class="cloud-sessions-off">🔒 O <strong>login único entre dispositivos</strong> ainda não está ativado. Rode o script SQL (tabela <code>active_sessions</code>) no Supabase para habilitar. O bloqueio entre abas do mesmo navegador já funciona.</div>';
+      box.innerHTML = '<div class="cloud-sessions-off">Controle remoto de sessão indisponível. A sincronização multiaparelho continua protegida pelas revisões dos dados; o bloqueio entre abas do mesmo navegador segue ativo.</div>';
       return;
     }
     if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
@@ -43585,7 +43865,12 @@ window.CloudUI = CloudUI;
       if (ss) ss.checked = g('single-session', '0') === '1';
       if (im) im.value = g('idle-mins', '0');
     };
-    if (ss) ss.addEventListener('change', () => { s('single-session', ss.checked ? '1' : '0'); showToast(ss.checked ? 'Sessão única ligada' : 'Sessão única desligada'); });
+    if (ss) {
+      ss.checked = false;
+      ss.disabled = true;
+      const row = ss.closest('label') || ss.parentElement;
+      if (row) row.style.display = 'none';
+    }
     if (im) im.addEventListener('change', () => { s('idle-mins', im.value); showToast(im.value === '0' ? 'Saída automática desligada' : 'Saída automática em ' + im.value + ' min'); });
     sync();
     window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') sync(); });
@@ -43713,10 +43998,11 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
    O overlay é compartilhado; a mensagem muda conforme a origem do bloqueio.
    ============================================================================ */
 window.SessionLock = {
+  enabled: false,       // sem bloqueio entre abas/janelas/aparelhos; concorrência é resolvida nos dados
   _blocked: false,
   _origin: null,          // 'local' | 'remote'
   _takeoverFns: [],       // callbacks de "Usar aqui" (uma por camada)
-  isBlocked() { return this._blocked; },
+  isBlocked() { return this.enabled ? this._blocked : false; },
   _els() {
     return {
       o: document.getElementById('single-session-overlay'),
@@ -43729,6 +44015,7 @@ window.SessionLock = {
   },
   // Exibe o bloqueio. kind: 'local' (outra aba) | 'remote' (outro aparelho).
   block(kind, info) {
+    if (!this.enabled) { this._blocked = false; this._origin = null; const z = this._els(); if (z.o) z.o.style.display = 'none'; return; }
     this._blocked = true; this._origin = kind;
     const e = this._els(); if (!e.o) return;
     if (kind === 'remote') {
@@ -43756,6 +44043,7 @@ window.SessionLock = {
   _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) { _quiet(_); } }); },
   init() {
     const e = this._els();
+    if (!this.enabled) { if (e.o) e.o.style.display = 'none'; return; }
     if (e.take) e.take.addEventListener('click', () => {
       const origin = this._origin;
       /* Local: podemos liberar imediatamente porque o BroadcastChannel é deste
@@ -43781,6 +44069,7 @@ try { if (window.SessionGuard && SessionGuard.bindSessionLock) SessionGuard.bind
 
 /* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
 (function () {
+  if (!SessionLock.enabled) return;
   let bc = null;
   try { bc = ('BroadcastChannel' in window) ? new BroadcastChannel('diario-estudos-single') : null; } catch (_) { bc = null; }
   if (!bc) return;
@@ -44184,7 +44473,7 @@ const Recuperacao = {
           if (item) p.lixo.push(item);
           continue;
         }
-        if (sub === '__secrev' || sub === '__secpend') continue;
+        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
         p.secoes.push({ chave: k, sec: sub, bytes });
       }
     } catch (e) { _quiet(e, 'rec-varrer'); }
@@ -44330,7 +44619,7 @@ const Recuperacao = {
       let data = null;
       try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
       if (!data) continue;
-      const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s.indexOf('vhist') !== 0);
+      const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s !== '__secdel' && s !== '__entryops' && s.indexOf('vhist') !== 0);
       out.push({ ts: rec.ts, nota: rec.note || '', secoes, total: secoes.length,
         bytes: secoes.reduce((a, s) => a + String(data[s] || '').length, 0) });
     }
@@ -44350,7 +44639,7 @@ const Recuperacao = {
     const prefix = 'diario-estudos:u:' + alvo + ':';
     const trazidas = [];
     Object.keys(data).forEach(sub => {
-      if (sub === '__secrev' || sub === '__secpend' || sub.indexOf('vhist') === 0) return;
+      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops' || sub.indexOf('vhist') === 0) return;
       const atual = localStorage.getItem(prefix + sub);
       if (atual !== null && atual !== '' && atual !== '[]' && atual !== '{}' && atual !== 'null') return; // já há algo vivo aqui
       const valor = data[sub];

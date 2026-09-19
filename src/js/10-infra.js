@@ -134,6 +134,9 @@ var _cloudNotifyHook = null;
 // alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
 // var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
 var _sectionMarkHook = null;
+// Hook de mutações individuais do Diário. Permite resolver conflitos de `entries`
+// por ID (adicionar/editar/excluir) sem sobrescrever a seção inteira de outro aparelho.
+var _entryMutationHook = null;
 /* ── RECARGA SEGURA E EDUCADA ──────────────────────────────────────────────
    Havia `location.reload()` espalhado por nove pontos do app. Dois problemas:
 

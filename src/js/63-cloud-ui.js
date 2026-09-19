@@ -85,10 +85,18 @@ const CloudUI = {
     const box = document.getElementById('cloud-sessions-list');
     if (!box) return;
     if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
+    if (SessionGuard.enabled === false) {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem permanecer conectados.</strong> A sincronização usa controle de revisão para conciliar alterações sem expulsar o outro aparelho.</div>';
+      return;
+    }
     box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
     const r = await SessionGuard.fetchActive();
+    if (r.status === 'multi') {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem ficar conectados ao mesmo tempo.</strong> A sincronização usa revisão protegida e reconciliação de registros; apenas duas abas do mesmo navegador continuam evitando edição simultânea.</div>';
+      return;
+    }
     if (r.status === 'disabled') {
-      box.innerHTML = '<div class="cloud-sessions-off">🔒 O <strong>login único entre dispositivos</strong> ainda não está ativado. Rode o script SQL (tabela <code>active_sessions</code>) no Supabase para habilitar. O bloqueio entre abas do mesmo navegador já funciona.</div>';
+      box.innerHTML = '<div class="cloud-sessions-off">Controle remoto de sessão indisponível. A sincronização multiaparelho continua protegida pelas revisões dos dados; o bloqueio entre abas do mesmo navegador segue ativo.</div>';
       return;
     }
     if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
@@ -415,7 +423,12 @@ window.CloudUI = CloudUI;
       if (ss) ss.checked = g('single-session', '0') === '1';
       if (im) im.value = g('idle-mins', '0');
     };
-    if (ss) ss.addEventListener('change', () => { s('single-session', ss.checked ? '1' : '0'); showToast(ss.checked ? 'Sessão única ligada' : 'Sessão única desligada'); });
+    if (ss) {
+      ss.checked = false;
+      ss.disabled = true;
+      const row = ss.closest('label') || ss.parentElement;
+      if (row) row.style.display = 'none';
+    }
     if (im) im.addEventListener('change', () => { s('idle-mins', im.value); showToast(im.value === '0' ? 'Saída automática desligada' : 'Saída automática em ' + im.value + ' min'); });
     sync();
     window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') sync(); });
@@ -543,10 +556,11 @@ _cloudNotifyHook = () => CloudStore.notifyChange();
    O overlay é compartilhado; a mensagem muda conforme a origem do bloqueio.
    ============================================================================ */
 window.SessionLock = {
+  enabled: false,       // sem bloqueio entre abas/janelas/aparelhos; concorrência é resolvida nos dados
   _blocked: false,
   _origin: null,          // 'local' | 'remote'
   _takeoverFns: [],       // callbacks de "Usar aqui" (uma por camada)
-  isBlocked() { return this._blocked; },
+  isBlocked() { return this.enabled ? this._blocked : false; },
   _els() {
     return {
       o: document.getElementById('single-session-overlay'),
@@ -559,6 +573,7 @@ window.SessionLock = {
   },
   // Exibe o bloqueio. kind: 'local' (outra aba) | 'remote' (outro aparelho).
   block(kind, info) {
+    if (!this.enabled) { this._blocked = false; this._origin = null; const z = this._els(); if (z.o) z.o.style.display = 'none'; return; }
     this._blocked = true; this._origin = kind;
     const e = this._els(); if (!e.o) return;
     if (kind === 'remote') {
@@ -586,6 +601,7 @@ window.SessionLock = {
   _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) { _quiet(_); } }); },
   init() {
     const e = this._els();
+    if (!this.enabled) { if (e.o) e.o.style.display = 'none'; return; }
     if (e.take) e.take.addEventListener('click', () => {
       const origin = this._origin;
       /* Local: podemos liberar imediatamente porque o BroadcastChannel é deste
@@ -611,6 +627,7 @@ try { if (window.SessionGuard && SessionGuard.bindSessionLock) SessionGuard.bind
 
 /* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
 (function () {
+  if (!SessionLock.enabled) return;
   let bc = null;
   try { bc = ('BroadcastChannel' in window) ? new BroadcastChannel('diario-estudos-single') : null; } catch (_) { bc = null; }
   if (!bc) return;

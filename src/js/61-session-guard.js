@@ -23,7 +23,8 @@
 const SessionGuard = {
   TABLE: 'active_sessions',
   DEVICE_KEY: 'diario-estudos:device-id',
-  enabled: true,        // vira false se a tabela não existir
+  enabled: true,        // infraestrutura disponível; pode cair para false se a tabela não existir
+  singleDeviceMode: false, // multiaparelho é o padrão: CAS + merge protegem os dados sem expulsar PC/celular
   channel: null,
   _deviceId: null,
   _claimedUid: null,    // uid cuja posse foi confirmada neste aparelho
@@ -43,11 +44,13 @@ const SessionGuard = {
     return this._accessState || 'unknown';
   },
   canEnterNow() {
+    if (!this.singleDeviceMode) return true;
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return false;
     const s = this.accessState();
     return s === 'allowed' || s === 'disabled';
   },
   isBlockedByRemote() {
+    if (!this.singleDeviceMode) return false;
     return this.accessState() === 'blocked' ||
       !!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote');
   },
@@ -109,6 +112,19 @@ const SessionGuard = {
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { ok: false, status: 'offline' };
     const uid = CS.session.user.id;
+    /* Multiaparelho: não existe "dono exclusivo" da conta. O controle de
+       concorrência fica onde deve ficar — nas revisões/merges dos dados. Isso
+       evita PC e celular ficarem se expulsando e transformando uma simples
+       exclusão em envio bloqueado + spinner vermelho. */
+    if (!this.singleDeviceMode) {
+      this._accessUid = uid;
+      this._accessState = 'allowed';
+      this._claimedUid = uid;
+      try {
+        if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+      } catch (_) { _quiet(_); }
+      return { ok: true, status: 'allowed', multiDevice: true };
+    }
     this.subscribe(uid);
 
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
@@ -209,7 +225,7 @@ const SessionGuard = {
 
   // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
   async check(uid) {
-    if (!this.enabled) return;
+    if (!this.enabled || !this.singleDeviceMode) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
     uid = uid || CS.session.user.id;
@@ -230,7 +246,7 @@ const SessionGuard = {
   },
 
   subscribe(uid) {
-    if (!this.enabled || this.channel) return;
+    if (!this.enabled || !this.singleDeviceMode || this.channel) return;
     const CS = window.CloudStore;
     if (!CS || !CS.isReady()) return;
     try {
@@ -264,6 +280,11 @@ const SessionGuard = {
   // Outro aparelho assumiu: bloqueia NOVAS ações aqui, mas entrega primeiro
   // a caixa de saída que já estava comprovadamente gravada neste aparelho.
   _takenBy(row) {
+    if (!this.singleDeviceMode) {
+      this._accessState = 'allowed';
+      try { if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock(); } catch (_) { _quiet(_); }
+      return;
+    }
     try {
       const CS = window.CloudStore;
       const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
@@ -311,6 +332,7 @@ const SessionGuard = {
   // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
   async fetchActive() {
     if (!this.enabled) return { status: 'disabled' };
+    if (!this.singleDeviceMode) return { status: 'multi', thisDeviceId: this.deviceId(), thisLabel: this.deviceLabel() };
     const CS = window.CloudStore;
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { status: 'offline' };
     try {
@@ -330,6 +352,12 @@ const SessionGuard = {
   // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
   // O outro aparelho recebe o evento em tempo real e é bloqueado.
   async endRemoteAndClaimHere() {
+    if (!this.singleDeviceMode) {
+      this._accessState = 'allowed';
+      try { if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock(); } catch (_) { _quiet(_); }
+      if (window.CloudUI) CloudUI.refreshSyncBtn();
+      return true;
+    }
     const ok = await this.claim();
     if (ok) {
       if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();

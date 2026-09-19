@@ -427,12 +427,12 @@ try {
     const keep={
       client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
       subscribe:SessionGuard.subscribe,claim:SessionGuard.claim,taken:SessionGuard._takenBy,
-      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled,
+      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled,mode:SessionGuard.singleDeviceMode,
       accessUid:SessionGuard._accessUid,accessState:SessionGuard._accessState,
       loginPromise:SessionGuard._loginPromise,loginPromiseUid:SessionGuard._loginPromiseUid
     };
     let claims=0,blocked=0;
-    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    SessionGuard.enabled=true;SessionGuard.singleDeviceMode=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
     SessionGuard._accessUid=null;SessionGuard._accessState='unknown';SessionGuard._loginPromise=null;SessionGuard._loginPromiseUid=null;
     CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-1'}};
     SessionGuard.subscribe=()=>{};
@@ -442,13 +442,35 @@ try {
     await SessionGuard.onLogin();
     CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
     SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
-    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;SessionGuard.singleDeviceMode=keep.mode;
     SessionGuard._accessUid=keep.accessUid;SessionGuard._accessState=keep.accessState;
     SessionGuard._loginPromise=keep.loginPromise;SessionGuard._loginPromiseUid=keep.loginPromiseUid;
     return {claims,blocked};
   });
   eq(sessionNoTakeover.claims,0,'sessão restaurada não pode tomar posse automaticamente de outro aparelho');
   eq(sessionNoTakeover.blocked,1,'sessão restaurada deve reconhecer e bloquear diante de outro aparelho');
+
+  const multiDeviceAllowsBoth=await page.evaluate(async()=>{
+    const keep={
+      ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
+      mode:SessionGuard.singleDeviceMode,enabled:SessionGuard.enabled,
+      uid:SessionGuard._accessUid,state:SessionGuard._accessState,
+      block:SessionLock.block,unblock:SessionLock.unblock
+    };
+    let blocks=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-multi'}};
+    SessionGuard.enabled=true;SessionGuard.singleDeviceMode=false;SessionGuard._accessUid=null;SessionGuard._accessState='unknown';
+    SessionLock.block=()=>{blocks++;};SessionLock.unblock=()=>{};
+    const r=await SessionGuard.onLogin();
+    CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
+    SessionGuard.singleDeviceMode=keep.mode;SessionGuard.enabled=keep.enabled;
+    SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;
+    SessionLock.block=keep.block;SessionLock.unblock=keep.unblock;
+    return {r,blocks};
+  });
+  ok(multiDeviceAllowsBoth.r&&multiDeviceAllowsBoth.r.ok&&multiDeviceAllowsBoth.r.multiDevice,
+    'modo padrão deve liberar PC e celular simultaneamente');
+  eq(multiDeviceAllowsBoth.blocks,0,'modo multiaparelho não pode abrir overlay remoto');
 
 
   /* 2l.1. Duas notificações de auth simultâneas compartilham a MESMA checagem:
@@ -462,7 +484,7 @@ try {
       loginPromise:SessionGuard._loginPromise,loginPromiseUid:SessionGuard._loginPromiseUid
     };
     let selects=0,claims=0,blocked=0;
-    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    SessionGuard.enabled=true;SessionGuard.singleDeviceMode=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
     SessionGuard._accessUid=null;SessionGuard._accessState='unknown';SessionGuard._loginPromise=null;SessionGuard._loginPromiseUid=null;
     CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-serial'}};
     SessionGuard.subscribe=()=>{};
@@ -472,7 +494,7 @@ try {
     const [a,b]=await Promise.all([SessionGuard.onLogin(),SessionGuard.onLogin()]);
     CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
     SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
-    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;SessionGuard.singleDeviceMode=keep.mode;
     SessionGuard._accessUid=keep.accessUid;SessionGuard._accessState=keep.accessState;
     SessionGuard._loginPromise=keep.loginPromise;SessionGuard._loginPromiseUid=keep.loginPromiseUid;
     return {selects,claims,blocked,a,b};
@@ -542,38 +564,30 @@ try {
   eq(blockedPull.pulls,0,'sessão remota bloqueada não pode iniciar pull/hydrate em segundo plano');
   eq(blockedPull.r,false,'pull bloqueado deve retornar sem fingir aplicação');
 
-  /* 2l.5. No bloqueio REMOTO, o botão não fecha o overlay antes da confirmação. */
-  const remoteOverlayWaitsClaim=await page.evaluate(async()=>{
-    const keep=SessionLock._takeoverFns;
-    SessionLock._takeoverFns=[()=>{}];
-    SessionLock.block('remote',{label:'Outro'});
-    const btn=document.getElementById('single-session-takeover');
-    if(btn)btn.click();
-    await new Promise(r=>setTimeout(r,20));
-    const o=document.getElementById('single-session-overlay');
-    const out={blocked:SessionLock.isBlocked(),origin:SessionLock._origin,display:o&&o.style.display,disabled:btn&&btn.disabled,text:btn&&btn.textContent};
-    SessionLock._takeoverFns=keep;SessionLock.unblock();
-    return out;
-  });
-  ok(remoteOverlayWaitsClaim.blocked&&remoteOverlayWaitsClaim.origin==='remote','overlay remoto deve continuar bloqueando até confirmação');
-  eq(remoteOverlayWaitsClaim.display,'flex','overlay remoto não pode sumir no clique');
-  ok(remoteOverlayWaitsClaim.disabled,'botão deve travar enquanto takeover é confirmado');
-  ok(/Confirmando/.test(remoteOverlayWaitsClaim.text||''),'botão deve informar que está confirmando a posse');
-
-
-  /* 2l.6. O overlay remoto é autoridade final: nem um estado interno "allowed"
-     vindo de evento atrasado pode liberar o perfil antes da ação explícita. */
-  const overlayBeatsLateAllowed=await page.evaluate(()=>{
-    const keep={uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session};
+  /* 2l.5-2l.6. Barreiras de sessão foram aposentadas. Nem dispositivo remoto
+     nem outra aba/janela podem bloquear a UI ou a sincronização. */
+  const sessionBarriersOff=await page.evaluate(()=>{
+    const keep={mode:SessionGuard.singleDeviceMode,uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session};
+    SessionGuard.singleDeviceMode=true;
     CloudStore.session={user:{id:'user-overlay'}};
     SessionGuard._accessUid='user-overlay';SessionGuard._accessState='allowed';
     SessionLock.block('remote',{label:'Outro'});
-    const can=SessionGuard.canEnterNow();
+    const remoteBlocked=SessionLock.isBlocked();
+    const remoteDisplay=(document.getElementById('single-session-overlay')||{}).style?.display||'';
+    const canRemote=SessionGuard.canEnterNow();
+    SessionLock.block('local',{});
+    const localBlocked=SessionLock.isBlocked();
+    const localDisplay=(document.getElementById('single-session-overlay')||{}).style?.display||'';
     SessionLock.unblock();
-    SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;CloudStore.session=keep.session;
-    return can;
+    SessionGuard.singleDeviceMode=keep.mode;SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;CloudStore.session=keep.session;
+    return {remoteBlocked,remoteDisplay,canRemote,localBlocked,localDisplay,enabled:SessionLock.enabled};
   });
-  eq(overlayBeatsLateAllowed,false,'overlay remoto deve impedir entrada mesmo diante de allowed atrasado');
+  eq(sessionBarriersOff.enabled,false,'trava de sessão deve permanecer desativada');
+  eq(sessionBarriersOff.remoteBlocked,false,'outro aparelho não pode bloquear este');
+  ok(sessionBarriersOff.remoteDisplay!=='flex','overlay remoto não pode aparecer');
+  ok(sessionBarriersOff.canRemote,'estado permitido deve continuar liberado sem takeover');
+  eq(sessionBarriersOff.localBlocked,false,'outra aba/janela não pode bloquear esta');
+  ok(sessionBarriersOff.localDisplay!=='flex','overlay local não pode aparecer');
 
   /* 2l.7. O binding remoto precisa existir na ORDEM REAL do bundle
      (61-session-guard antes de 63-cloud-ui). Foi exatamente o que deixou o
@@ -839,11 +853,12 @@ try {
       active:ProfileManager.getActiveProfileId,
       capture:SectionSync.captureExplicitSnapshot,drain:SectionSync.drainExplicitSnapshot,
       block:SessionLock.block,refresh:CloudUI.refreshSyncBtn,
-      state:SessionGuard._accessState,uid:SessionGuard._accessUid,
+      state:SessionGuard._accessState,uid:SessionGuard._accessUid,mode:SessionGuard.singleDeviceMode,
       handoff:SessionGuard._handoffDraining,last:SessionGuard._handoffLast
     };
     let captures=0,drains=0,blocked=0;
     ProfileManager.getActiveProfileId=()=>id;
+    SessionGuard.singleDeviceMode=true;
     SectionSync.captureExplicitSnapshot=()=>{captures++;return [{section:'entries',gen:7}];};
     SectionSync.drainExplicitSnapshot=async(pid,snap)=>{if(pid===id&&snap&&snap.length===1)drains++;return {ok:true,sent:1,remaining:0};};
     SessionLock.block=()=>{blocked++;};
@@ -852,13 +867,36 @@ try {
     await new Promise(r=>setTimeout(r,30));
     ProfileManager.getActiveProfileId=keep.active;SectionSync.captureExplicitSnapshot=keep.capture;SectionSync.drainExplicitSnapshot=keep.drain;
     SessionLock.block=keep.block;CloudUI.refreshSyncBtn=keep.refresh;
-    SessionGuard._accessState=keep.state;SessionGuard._accessUid=keep.uid;
+    SessionGuard._accessState=keep.state;SessionGuard._accessUid=keep.uid;SessionGuard.singleDeviceMode=keep.mode;
     SessionGuard._handoffDraining=keep.handoff;SessionGuard._handoffLast=keep.last;
     return {captures,drains,blocked};
   });
   eq(takenByWiresDrain.captures,1,'takeover remoto deve congelar a outbox existente');
   eq(takenByWiresDrain.drains,1,'takeover remoto deve tentar entregar o snapshot congelado');
   eq(takenByWiresDrain.blocked,1,'takeover remoto deve continuar bloqueando novas ações na interface');
+
+  /* 2l.19. O journal de entries precisa sobreviver a reload: a geração em
+     memória reinicia, mas a operação persistida não pode ficar fora do merge. */
+  const entryJournalReload=await page.evaluate(()=>{
+    const id='syncv2-entryops-reload',sec='p:pl_inicial:entries',pfx='diario-estudos:u:'+id+':';
+    const keep={active:ProfileManager.getActiveProfileId,seq:SectionSync._genSeq};
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();SectionSync._genSeq=0;
+    localStorage.setItem(pfx+sec,'[{"id":"a"},{"id":"b"}]');
+    localStorage.setItem(pfx+'__secpend',JSON.stringify([sec]));
+    localStorage.setItem(pfx+'__entryops',JSON.stringify({[sec]:[{type:'delete',id:'b',gen:37}]}));
+    SectionSync.restorePending(id);
+    const gen=SectionSync._dirtyGenFor(id).get(sec)||0;
+    const ops=SectionSync._entryOpsFor(id,sec,gen);
+    const proxima=SectionSync._touchDirty(sec,id);
+    ProfileManager.getActiveProfileId=keep.active;SectionSync._genSeq=keep.seq;
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.removeItem(pfx+sec);localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__entryops');
+    return {gen,ops:ops.length,proxima};
+  });
+  eq(entryJournalReload.gen,37,'reload deve restaurar a geração persistida do journal');
+  eq(entryJournalReload.ops,1,'operação pendente deve continuar elegível ao merge após reload');
+  ok(entryJournalReload.proxima>37,'nova mutação após reload deve usar geração posterior ao journal restaurado');
 
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
