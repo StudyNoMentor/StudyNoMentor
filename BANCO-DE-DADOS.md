@@ -283,11 +283,20 @@ create table if not exists public.profile_sections (
   profile_id uuid not null,
   section    text not null,
   data       jsonb,
-  rev        integer not null default 1,
-  updated_at timestamptz not null default now(),
+  rev          integer not null default 1,
+  updated_at   timestamptz not null default now(),
+  content_hash text,
+  mutation_id  text,
+  device_id    text,
   primary key (profile_id, section)
 );
 
+alter table public.profile_sections
+  add column if not exists content_hash text,
+  add column if not exists mutation_id text,
+  add column if not exists device_id text;
+
+alter table public.profile_sections alter column rev set default 1;
 alter table public.profile_sections enable row level security;
 ```
 
@@ -363,11 +372,16 @@ end $$;
 
 ### Protocolo de concorrência
 
-Uma seção existente **nunca** é atualizada por `upsert` cego. O cliente envia
-`UPDATE ... WHERE profile_id = ? AND section = ? AND rev = <rev conhecida>`
-e grava `rev + 1`. Se nenhuma linha for atualizada, há conflito: a cópia remota
-é preservada e a alteração local continua na outbox. Inserção só é usada quando
-a revisão-base é zero.
+Uma seção existente **nunca** é atualizada por `upsert` cego. No protocolo V2
+o cliente chama `write_profile_section_cas(...)` informando a revisão-base, o
+hash-base e o hash do novo conteúdo. O PostgreSQL verifica tudo e incrementa a
+revisão atomicamente. Se a base não corresponder ao estado remoto, há conflito:
+a cópia remota é preservada e a alteração local continua na outbox.
+
+Linhas legadas começam com `content_hash = null`. A primeira escrita V2 faz
+bootstrap usando a revisão; depois disso a linha fica **selada V2** e todas as
+escritas seguintes precisam provar também o hash-base e trazer um novo
+`mutation_id`. Isso permite migração gradual sem reescrever os dados existentes.
 
 A mesma regra vale para `__manifest` e para exclusões. Um tombstone guarda a
 revisão em que a exclusão foi pedida. **DELETE direto é proibido para o cliente**:
@@ -410,6 +424,15 @@ begin
       raise exception 'profile_sections revision conflict'
         using errcode = '40001';
     end if;
+
+    if old.content_hash is not null then
+      if new.content_hash is null
+         or new.mutation_id is null
+         or new.mutation_id is not distinct from old.mutation_id then
+        raise exception 'profile_sections v2 mutation proof required'
+          using errcode = '40001';
+      end if;
+    end if;
   end if;
   return new;
 end;
@@ -422,6 +445,126 @@ drop trigger if exists profile_sections_revision_guard on public.profile_section
 create trigger profile_sections_revision_guard
 before insert or update on public.profile_sections
 for each row execute function private.enforce_profile_section_revision();
+```
+
+### Escrita CAS autoritativa no servidor
+
+```sql
+create or replace function private.write_profile_section_cas_impl(
+  p_profile_id uuid,
+  p_section text,
+  p_data jsonb,
+  p_expected_rev integer,
+  p_expected_hash text,
+  p_new_hash text,
+  p_mutation_id text,
+  p_device_id text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_rev integer;
+  v_hash text;
+begin
+  if v_uid is null then
+    raise exception 'authentication required' using errcode='42501';
+  end if;
+
+  if p_profile_id is null or p_section is null
+     or p_expected_rev is null or p_expected_rev < 0
+     or p_new_hash is null or btrim(p_new_hash) = ''
+     or p_mutation_id is null or btrim(p_mutation_id) = '' then
+    return jsonb_build_object('ok',false,'reason','invalid-arguments');
+  end if;
+
+  if not exists (
+    select 1 from public.study_profiles p
+    where p.id=p_profile_id and p.user_id=v_uid
+  ) then
+    raise exception 'profile not owned by current user' using errcode='42501';
+  end if;
+
+  if p_expected_rev = 0 then
+    insert into public.profile_sections(
+      profile_id,section,data,rev,updated_at,content_hash,mutation_id,device_id
+    )
+    values(
+      p_profile_id,p_section,p_data,1,now(),p_new_hash,p_mutation_id,p_device_id
+    )
+    on conflict(profile_id,section) do nothing
+    returning rev,content_hash into v_rev,v_hash;
+
+    if v_rev is null then
+      return jsonb_build_object('ok',false,'conflict',true,'reason','exists');
+    end if;
+    return jsonb_build_object('ok',true,'rev',v_rev,'content_hash',v_hash);
+  end if;
+
+  update public.profile_sections s
+  set data=p_data,
+      rev=s.rev+1,
+      updated_at=now(),
+      content_hash=p_new_hash,
+      mutation_id=p_mutation_id,
+      device_id=p_device_id
+  where s.profile_id=p_profile_id
+    and s.section=p_section
+    and s.rev=p_expected_rev
+    and (s.content_hash is null or s.content_hash is not distinct from p_expected_hash)
+  returning s.rev,s.content_hash into v_rev,v_hash;
+
+  if v_rev is null then
+    select s.rev,s.content_hash into v_rev,v_hash
+    from public.profile_sections s
+    where s.profile_id=p_profile_id and s.section=p_section;
+    return jsonb_build_object(
+      'ok',false,'conflict',true,'reason','base-mismatch',
+      'remote_rev',v_rev,'remote_hash',v_hash
+    );
+  end if;
+
+  return jsonb_build_object('ok',true,'rev',v_rev,'content_hash',v_hash);
+end;
+$$;
+
+revoke all on function private.write_profile_section_cas_impl(
+  uuid,text,jsonb,integer,text,text,text,text
+) from public, anon;
+grant execute on function private.write_profile_section_cas_impl(
+  uuid,text,jsonb,integer,text,text,text,text
+) to authenticated;
+
+create or replace function public.write_profile_section_cas(
+  p_profile_id uuid,
+  p_section text,
+  p_data jsonb,
+  p_expected_rev integer,
+  p_expected_hash text,
+  p_new_hash text,
+  p_mutation_id text,
+  p_device_id text
+)
+returns jsonb
+language sql
+security invoker
+set search_path=''
+as $$
+  select private.write_profile_section_cas_impl(
+    p_profile_id,p_section,p_data,p_expected_rev,p_expected_hash,
+    p_new_hash,p_mutation_id,p_device_id
+  );
+$$;
+
+revoke all on function public.write_profile_section_cas(
+  uuid,text,jsonb,integer,text,text,text,text
+) from public, anon;
+grant execute on function public.write_profile_section_cas(
+  uuid,text,jsonb,integer,text,text,text,text
+) to authenticated;
 ```
 
 ### Exclusão protegida também no servidor

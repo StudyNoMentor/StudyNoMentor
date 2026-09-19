@@ -254,25 +254,31 @@ try {
   ok(generationRace.aindaSuja,'upload antigo não pode limpar edição nova da memória');
   ok(generationRace.persistida,'upload antigo não pode limpar edição nova da outbox durável');
 
-  /* 2f. O caminho CAS existente deve usar UPDATE condicionado por rev, nunca
-     upsert incondicional sobre uma linha já conhecida. */
+  /* 2f. O CAS V2 precisa ser decidido pelo servidor e receber revisão + hash
+     da base, hash novo, mutation id e device id. */
   const casUpdate=await page.evaluate(async()=>{
-    const keep=CloudStore.client;const calls=[];
-    const q={
-      update(){calls.push('update');return this;},
-      eq(k,v){calls.push('eq:'+k+'='+v);return this;},
-      select(){calls.push('select');return Promise.resolve({data:[{rev:8}],error:null});}
-    };
-    CloudStore.client={from(){calls.push('from');return q;}};
+    const keepClient=CloudStore.client;
+    const keepDevice=window.SessionGuard&&SessionGuard.deviceId;
+    let rpc=null;
+    if(window.SessionGuard)SessionGuard.deviceId=()=> 'device-test';
+    CloudStore.client={rpc(name,args){
+      rpc={name,args};
+      return Promise.resolve({data:{ok:true,rev:8,content_hash:'hash-novo'},error:null});
+    }};
     const r=await SectionSync._writeSectionCAS(
-      {profile_id:'p',section:'entries',data:[],rev:8,updated_at:new Date().toISOString()},7);
-    CloudStore.client=keep;
-    return {calls,r};
+      {profile_id:'p',section:'entries',data:[],rev:8,updated_at:new Date().toISOString(),_hash:'hash-novo'},
+      7,'hash-base');
+    CloudStore.client=keepClient;
+    if(window.SessionGuard)SessionGuard.deviceId=keepDevice;
+    return {rpc,r};
   });
-  ok(casUpdate.calls.includes('update'),'CAS de seção existente deve usar UPDATE');
-  ok(casUpdate.calls.includes('eq:rev=7'),'CAS deve condicionar a escrita à revisão conhecida');
-  ok(!casUpdate.calls.includes('upsert'),'CAS não pode fazer upsert cego');
-  ok(casUpdate.r&&casUpdate.r.ok,'CAS condicionado deve aceitar confirmação válida');
+  ok(casUpdate.rpc&&casUpdate.rpc.name==='write_profile_section_cas','CAS deve usar RPC autoritativa');
+  eq(casUpdate.rpc.args.p_expected_rev,7,'RPC deve receber a revisão-base');
+  eq(casUpdate.rpc.args.p_expected_hash,'hash-base','RPC deve receber o hash-base');
+  eq(casUpdate.rpc.args.p_new_hash,'hash-novo','RPC deve receber o hash novo');
+  eq(casUpdate.rpc.args.p_device_id,'device-test','RPC deve identificar o aparelho');
+  ok(!!casUpdate.rpc.args.p_mutation_id,'RPC deve receber mutation id');
+  ok(casUpdate.r&&casUpdate.r.ok&&casUpdate.r.rev===8,'CAS do servidor deve devolver revisão confirmada');
 
   /* 2g. Conflito do blob não pode copiar a rev remota para o local e tentar
      novamente com autorização artificial. */
@@ -549,6 +555,45 @@ try {
   });
   ok(remoteDeleteDetection.nova,'manifesto remoto mais novo deve disparar pull para propagar exclusões');
   ok(!remoteDeleteDetection.igual,'manifesto na mesma revisão não deve gerar falso download');
+
+
+  /* 2o.3. Linha V2 selada precisa validar o próprio conteúdo contra content_hash. */
+  const remoteHashIntegrity=await page.evaluate(()=>{
+    const raw=JSON.stringify([{id:7}]);
+    const h=SectionSync._hash(raw);
+    const okRows=[
+      {section:'entries',data:[{id:7}],rev:4,content_hash:h},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:3,content_hash:SectionSync._hash('entries')}
+    ];
+    const badRows=[
+      {section:'entries',data:[{id:7}],rev:4,content_hash:'hash-incorreto'},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:3,content_hash:SectionSync._hash('entries')}
+    ];
+    const manifestBad=[
+      {section:'entries',data:[{id:7}],rev:4,content_hash:h},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:3,content_hash:'manifest-incorreto'}
+    ];
+    return {
+      ok:SectionSync._prepare(okRows),
+      bad:SectionSync._prepare(badRows),
+      manifestBad:SectionSync._prepare(manifestBad)
+    };
+  });
+  ok(remoteHashIntegrity.ok&&remoteHashIntegrity.ok.ok,'linha V2 com hash coerente deve ser aceita');
+  eq(remoteHashIntegrity.bad&&remoteHashIntegrity.bad.motivo,'hash-remoto-invalido','conteúdo remoto adulterado/incoerente deve ser recusado');
+  eq(remoteHashIntegrity.manifestBad&&remoteHashIntegrity.manifestBad.motivo,'hash-manifesto-invalido','manifesto V2 com hash incoerente deve ser recusado');
+
+  /* 2o.4. Mesmo rev não basta no V2: hash diferente precisa disparar leitura. */
+  const sameRevHashMismatch=await page.evaluate(()=>{
+    const pfx='diario-estudos:u:p-hash-mismatch:';
+    const locais={entries:{rev:12,hash:'local-h'}};
+    return {
+      diferente:SectionSync.precisaBaixar({section:'entries',rev:12,content_hash:'remote-h'},locais,pfx),
+      igual:SectionSync.precisaBaixar({section:'entries',rev:12,content_hash:'local-h'},locais,pfx)
+    };
+  });
+  ok(sameRevHashMismatch.diferente,'mesma revisão com hash diferente deve disparar validação remota');
+  ok(!sameRevHashMismatch.igual,'mesma revisão e mesmo hash não deve gerar download');
 
   /* 2p. Manifesto com revisão remota mais nova deve se realinhar e avançar
      sem apagar a união remota/local. */
