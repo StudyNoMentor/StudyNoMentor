@@ -210,6 +210,117 @@ try {
   eq(pushPull.remoteCalls,1,'syncOnFocus deve conferir a nuvem logo após o envio');
   eq(pushPull.pullCalls,1,'syncOnFocus deve baixar novidade na mesma rodada');
 
+  /* 2e. Edição nova durante upload antigo: a confirmação velha NÃO pode limpar
+     a geração mais nova da fila. */
+  const generationRace=await page.evaluate(async()=>{
+    const id='syncv2-generation-race',sec='tracks',key='diario-estudos:u:'+id+':'+sec;
+    const keep={
+      active:ProfileManager.getActiveProfileId,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      write:SectionSync._writeSectionCAS,manifest:SectionSync._syncManifest
+    };
+    ProfileManager.getActiveProfileId=()=>id;CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();SectionSync._lastConflict=null;
+    localStorage.removeItem('diario-estudos:u:'+id+':__secrev');
+    localStorage.removeItem('diario-estudos:u:'+id+':__secpend');
+    localStorage.setItem(key,JSON.stringify({v:1}));
+    SectionSync.markDirty(key);
+    const genAntes=SectionSync._dirtyGen.get(sec)||0;
+    let writes=0;
+    SectionSync._syncManifest=async()=>{};
+    SectionSync._writeSectionCAS=async()=>{
+      writes++;
+      if(writes===1){
+        localStorage.setItem(key,JSON.stringify({v:2}));
+        SectionSync.markDirty(key);
+      }
+      return {ok:true,rev:1};
+    };
+    await SectionSync._enviarSujas(id);
+    const out={
+      writes,genAntes,genDepois:SectionSync._dirtyGen.get(sec)||0,
+      aindaSuja:SectionSync._dirty.has(sec),
+      persistida:SectionSync._loadPend(id).includes(sec)
+    };
+    SectionSync._writeSectionCAS=keep.write;SectionSync._syncManifest=keep.manifest;
+    ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
+    localStorage.removeItem(key);localStorage.removeItem('diario-estudos:u:'+id+':__secrev');
+    localStorage.removeItem('diario-estudos:u:'+id+':__secpend');
+    return out;
+  });
+  eq(generationRace.writes,1,'corrida deve concluir o upload antigo uma vez');
+  ok(generationRace.genDepois>generationRace.genAntes,'nova edição deve receber geração maior');
+  ok(generationRace.aindaSuja,'upload antigo não pode limpar edição nova da memória');
+  ok(generationRace.persistida,'upload antigo não pode limpar edição nova da outbox durável');
+
+  /* 2f. O caminho CAS existente deve usar UPDATE condicionado por rev, nunca
+     upsert incondicional sobre uma linha já conhecida. */
+  const casUpdate=await page.evaluate(async()=>{
+    const keep=CloudStore.client;const calls=[];
+    const q={
+      update(){calls.push('update');return this;},
+      eq(k,v){calls.push('eq:'+k+'='+v);return this;},
+      select(){calls.push('select');return Promise.resolve({data:[{rev:8}],error:null});}
+    };
+    CloudStore.client={from(){calls.push('from');return q;}};
+    const r=await SectionSync._writeSectionCAS(
+      {profile_id:'p',section:'entries',data:[],rev:8,updated_at:new Date().toISOString()},7);
+    CloudStore.client=keep;
+    return {calls,r};
+  });
+  ok(casUpdate.calls.includes('update'),'CAS de seção existente deve usar UPDATE');
+  ok(casUpdate.calls.includes('eq:rev=7'),'CAS deve condicionar a escrita à revisão conhecida');
+  ok(!casUpdate.calls.includes('upsert'),'CAS não pode fazer upsert cego');
+  ok(casUpdate.r&&casUpdate.r.ok,'CAS condicionado deve aceitar confirmação válida');
+
+  /* 2g. Conflito do blob não pode copiar a rev remota para o local e tentar
+     novamente com autorização artificial. */
+  const blobConflict=await page.evaluate(async()=>{
+    const keep={save:CloudStore.saveActive,fetch:CloudStore._fetchRev,setRev:ProfileManager.setRev,active:ProfileManager.getActiveProfileId,logged:CloudStore.isLoggedIn};
+    let setRevCalls=0,saveCalls=0;
+    ProfileManager.getActiveProfileId=()=> 'syncv2-blob';
+    CloudStore.isLoggedIn=()=>true;
+    CloudStore.saveActive=async()=>{saveCalls++;return {conflict:true};};
+    CloudStore._fetchRev=async()=>99;
+    ProfileManager.setRev=()=>{setRevCalls++;};
+    const r=await CloudStore.saveActiveWithRetry();
+    CloudStore.saveActive=keep.save;CloudStore._fetchRev=keep.fetch;ProfileManager.setRev=keep.setRev;
+    ProfileManager.getActiveProfileId=keep.active;CloudStore.isLoggedIn=keep.logged;
+    return {setRevCalls,saveCalls,r};
+  });
+  eq(blobConflict.saveCalls,1,'conflito de blob não deve reenviar repetidamente');
+  eq(blobConflict.setRevCalls,0,'conflito de blob não pode adulterar a revisão local');
+  eq(blobConflict.r.remoteRev,99,'conflito deve apenas diagnosticar a revisão remota');
+
+  /* 2h. O pull manual chama o caminho somente-leitura. */
+  const readOnlyPull=await page.evaluate(async()=>{
+    const btn=document.getElementById('cloud-pull-now');
+    if(!btn)return {temBotao:false};
+    const keep=CloudStore.pullActiveAndReload;let recebido=null;
+    CloudStore.pullActiveAndReload=async(opts)=>{recebido=opts||{};};
+    btn.click();await new Promise(r=>setTimeout(r,30));
+    CloudStore.pullActiveAndReload=keep;
+    return {temBotao:true,readOnly:!!(recebido&&recebido.readOnly)};
+  });
+  ok(readOnlyPull.temBotao,'botão baixar da nuvem deve existir');
+  ok(readOnlyPull.readOnly,'baixar da nuvem deve chamar pull somente-leitura');
+
+  /* 2i. A nova barreira do IndexedDB deve existir e só devolver sucesso depois
+     de drenar a fila real da fachada. */
+  const strictDisk=await page.evaluate(async()=>{
+    const key='diario-estudos:test-strict-flush';
+    localStorage.setItem(key,String(Date.now()));
+    const before=window.__idbPendingCount?window.__idbPendingCount():-1;
+    const r=window.__idbFlushStrict?await window.__idbFlushStrict(5000):null;
+    localStorage.removeItem(key);
+    const r2=window.__idbFlushStrict?await window.__idbFlushStrict(5000):null;
+    return {tem:typeof window.__idbFlushStrict==='function',before,r,r2};
+  });
+  ok(strictDisk.tem,'barreira estrita de IndexedDB deve existir');
+  ok(strictDisk.r&&strictDisk.r.ok,'barreira estrita deve confirmar gravação');
+  eq(strictDisk.r.pending,0,'confirmação estrita só pode ocorrer com fila vazia');
+  ok(strictDisk.r2&&strictDisk.r2.ok,'remoção também deve ser confirmada no disco');
+
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);
 } finally {
