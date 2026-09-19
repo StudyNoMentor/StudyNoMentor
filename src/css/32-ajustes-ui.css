@@ -1222,3 +1222,12 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   .ms-rule-summary { gap: 4px; }
   .ms-rule-summary > span { padding: 5px 7px; }
 }
+
+
+/* Contraste AA: a gravidade continua codificada pela faixa, emoji e fundo do
+   card; texto pequeno/numeral usa a cor forte do tema para não ficar abaixo de
+   4,5:1 no tema claro. */
+.ms-priority-eyebrow { color: var(--text); }
+.ms-suggestion-rank > span { background: var(--text); color: var(--surface); }
+.ms-suggestion-card .ms-dose b { color: var(--text); }
+#tec-disc-list .tnode-stat.is-good b { color: var(--text); }
