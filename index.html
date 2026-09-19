@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v5a7a35af7a">
+<meta name="diario-versao" content="vea015c4947">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -42158,24 +42158,28 @@ const SectionSync = {
         continue;
       }
       try {
-        const { data, error } = await CloudStore.client.from(this.TABLE)
-          .delete()
-          .eq('profile_id', id)
-          .eq('section', del.section)
-          .eq('rev', del.rev)
-          .select('section');
+        /* DELETE direto foi desabilitado no banco. A exclusão passa por uma RPC
+           CAS que valida propriedade + revisão no servidor. Isso protege inclusive
+           contra navegadores antigos ainda executando uma versão anterior do app:
+           eles podem atualizar o manifesto, mas não conseguem apagar uma linha
+           cuja revisão não foi explicitamente confirmada por este protocolo. */
+        const { data, error } = await CloudStore.client.rpc('delete_profile_section_cas', {
+          p_profile_id: id,
+          p_section: del.section,
+          p_expected_rev: del.rev
+        });
         if (error) throw error;
-        if (!data || !data.length) {
+        if (data !== true) {
           restantes.push(del);
           this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
           continue;
         }
         apagadasComSucesso.add(del.section);
         delete revs[del.section];
-        console.info('[SectionSync] removida da nuvem seção excluída de propósito:', del.section);
+        console.info('[SectionSync] removida da nuvem por CAS seção excluída de propósito:', del.section);
       } catch (e) {
         restantes.push(del);
-        console.warn('[SectionSync] exclusão remota falhou:', del.section, e);
+        console.warn('[SectionSync] exclusão remota CAS falhou:', del.section, e);
       }
     }
     this._saveDel(restantes, id);
