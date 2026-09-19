@@ -37,34 +37,9 @@ const ProfileUI = {
   _autoEnterTried: false,   // não repete o auto-enter na mesma sessão de gate
   boot() {
     this.renderChip();
-    let entered = null;
-    try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) { _quiet(e); }
-    const active = ProfileManager.getActiveProfileId();
-    // Mesmo com SESSION_KEY, um reload não pode exibir cache local antes de o
-    // SessionGuard confirmar que ESTE aparelho pode usar a conta. O marcador da
-    // aba prova apenas que o perfil já foi aberto aqui; não prova posse remota.
-    const sessaoLiberada = this._offline ||
-      !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
-    if (entered && entered === active && this._hasLocalData(active)) {
-      if (!sessaoLiberada) {
-        /* F5 com sessão já conhecida: não mostra o seletor nem o cache parcial.
-           Mantém um gate neutro "Entrando…" até CloudStore+SessionGuard decidirem
-           se este aparelho pode usar a conta; depois retoma ESTE mesmo perfil. */
-        this._showEnteringGate(active);
-        return;
-      }
-      this.hideGate();
-      // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
-      try { DB.checarEspaco(); } catch (_) { _quiet(_); }
-      try {
-        const nOrf = DB.limparOrfaos();
-        if (nOrf > 0) {
-          console.warn('[faxina] registros órfãos removidos:', nOrf);
-          setTimeout(() => { try { showToast('🧹 ' + nOrf + ' registro(s) órfão(s) de cards excluídos foram limpos'); } catch (_) { _quiet(_); } }, 3500);
-        }
-      } catch (_) { _quiet(_); }
-      return;
-    }
+    /* Nenhum F5/reload é liberado por conteúdo da aba. O gate abre e, quando a
+       sessão Supabase estiver pronta, refreshStage/listagem escolhe o perfil e
+       enterProfile() faz SELECTs relacionais antes de mostrar o app. */
     this.showGate();
   },
   _hasLocalData(id) {
@@ -482,7 +457,7 @@ const ProfileUI = {
     const show = (t, kind) => { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; };
     msg.style.display = 'none';
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady()) { show('Servidor da nuvem indisponível. Verifique a internet ou use "Usar offline".', 'warn'); return; }
+    if (!CS || !CS.isReady()) { show('Banco indisponível. Verifique sua internet e tente novamente.', 'warn'); return; }
     if (!email) { show('Informe seu e-mail.', 'bad'); return; }
     if (password.length < 6) { show('A senha precisa ter ao menos 6 caracteres.', 'bad'); return; }
     const btn = document.getElementById('gate-auth-submit');
@@ -548,13 +523,12 @@ const ProfileUI = {
     try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
     catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   },
-  useOffline() { this._offline = true; this.refreshStage(); showToast('Modo offline — os dados ficam só neste dispositivo'); },
+  useOffline() { showToast('Este modo foi removido: os dados de estudo são consultados diretamente no banco.'); },
   async gateLogout() {
     const CS = window.CloudStore;
     const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
-    // Envia pendências antes de sair (nada se perde) — mas com TIMEOUT: se a rede
-    // estiver ruim, o logout NÃO pode travar esperando o envio. Segue mesmo assim
-    // (os dados continuam salvos no aparelho e sobem no próximo login).
+    // Antes de sair, tenta concluir qualquer operação SQL em andamento. O banco
+    // é a única persistência; não existe fila durável escondida no navegador.
     if (logged && CS.flushPending) {
       try {
         await Promise.race([
@@ -568,9 +542,7 @@ const ProfileUI = {
     this._autoEnterTried = true;   // ao voltar, não auto-entra: mostra o login
     try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) { _quiet(e); }
     if (typeof showToast === 'function') showToast('Sessão encerrada ✓');
-    // Recarrega para um estado 100% limpo. Sem isto o app continuava na tela
-    // atual (logado por baixo), só com "Offline" no indicador — o reload faz o
-    // boot() reabrir a tela de login corretamente.
+    // Recarrega para um estado 100% limpo e volta ao login.
     setTimeout(() => recarregarApp('saída da conta pelo portão', { imediato: true }), 200);
   },
 
