@@ -21,10 +21,10 @@ window.RODAR_JORNADA = function () {
     ['A',100,40], ['B',100,50], ['C',100,60], ['D',100,70]
   ]);
   const s2 = snap('r2', '2026-02-28', [
-    ['A',125,105], ['B',125,70], ['C',125,80], ['D',125,88]
+    ['A',125,120], ['B',125,70], ['C',125,80], ['D',125,88]
   ]);
   const s3 = snap('r3', '2026-03-31', [
-    ['A',150,129], ['B',150,132], ['C',150,114], ['D',150,108]
+    ['A',150,105], ['B',150,150], ['C',150,110], ['D',150,90]
   ]);
 
   const orig = {
@@ -39,8 +39,7 @@ window.RODAR_JORNADA = function () {
     DB.getTecSnapshots = () => snaps;
     DB.getExtras = () => banco;
     DB.saveExtras = (l) => { banco = l; };
-    // A Análise continua consolidando o histórico. O Motor precisa ignorar esse agregado
-    // e escolher explicitamente o retrato mais recente do escopo ativo.
+    // Análise e Motor compartilham exatamente o mesmo período consolidado.
     T.scopedSnapshot = () => T.aggregate(snaps);
     T.activeSnapshots = () => snaps.slice();
     M.salvar({ fase: 'pre', minAmostra: 20, alvoQuestoes: 25, maxFrentes: 3, metaAcerto: 90, disciplinasSel: [] });
@@ -80,7 +79,9 @@ window.RODAR_JORNADA = function () {
     // Novo retrato: A melhora muito. B/C continuam piores; D entra no lugar de A.
     snaps = [s1, s2];
     const atual2 = M.retratoAtual();
-    if (!atual2 || atual2.id !== 'r2') F('rodada-2', 'Motor nao escolheu o retrato mais recente', { atual: atual2 && atual2.id });
+    if (!atual2 || atual2.id !== '__agg__' || atual2.count !== 2) {
+      F('rodada-2', 'Motor nao usou todo o periodo selecionado', { atual: atual2 && atual2.id, count: atual2 && atual2.count });
+    }
     r = ranking();
     const ordem2 = r.disciplinas.slice(0, 4).map(d => d.nome);
     if (ordem2.slice(0, 3).join(',') !== 'B,C,D') F('rodada-2', 'materia melhorada nao liberou a vaga', { ordem2 });
