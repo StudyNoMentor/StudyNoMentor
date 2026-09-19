@@ -607,7 +607,18 @@ const CloudStore = {
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
     // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
-      try { if (await SectionSync.pullAndReload(opts)) return; } catch (e) { console.warn('pull por seção', e); }
+      try {
+        if (await SectionSync.pullAndReload(opts)) return;
+        const lr = SectionSync.lastRead ? SectionSync.lastRead() : null;
+        /* Se JÁ existem linhas por seção, uma falha de manifesto/conjunto não
+           autoriza aplicar o blob antigo por cima. O blob só é plano B para
+           perfis legados que ainda não possuem nenhuma linha por seção. */
+        if (lr && (lr.linhasRemotas || 0) > 0) {
+          console.warn('[CloudStore] fallback para blob BLOQUEADO: há seções remotas, mas o conjunto não passou na validação', lr.motivo);
+          try { showToast('⚠ A nuvem respondeu com um conjunto de seções incompleto. Mantive seus dados sem voltar para uma cópia antiga.'); } catch (_) { _quiet(_); }
+          return false;
+        }
+      } catch (e) { console.warn('pull por seção', e); }
     }
     try {
       // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
