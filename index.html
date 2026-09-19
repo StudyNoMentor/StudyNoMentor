@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v90ac25c5ed">
+<meta name="diario-versao" content="vef77b4536e">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -37713,7 +37713,7 @@ window.ProfileUI = ProfileUI;
 /* ============================================================
    FILA DIÁRIA DO REFORÇO — parcelas executáveis, meta global intacta
    ------------------------------------------------------------
-   Uma atividade criada pelo Plano tem DUAS escalas diferentes:
+   Uma atividade criada pelo Motor de Sugestão tem DUAS escalas diferentes:
 
      1) a META GLOBAL do ciclo (ex.: 100 questões de um assunto);
      2) a PARCELA DO DIA (ex.: 25 questões hoje).
@@ -37902,7 +37902,7 @@ const ReforcoFila = {
       const list = DB.getExtras();
       if (!Array.isArray(list) || !list.length) return { mudou: false };
       /* ── A REFERÊNCIA DO TEC SÓ É PAGA QUANDO ALGUÉM A USA ────────────────
-         `ref` serve exclusivamente às atividades vindas do Plano, no laço
+         `ref` serve exclusivamente às atividades vindas do Motor, no laço
          abaixo. Quem nunca usou o "Puxar do Motor" não tem nenhuma — e mesmo
          assim pagava o motor inteiro a cada repintura de Extras, para o
          resultado ser descartado sem uma única leitura. Agora a conta é
@@ -37912,7 +37912,7 @@ const ReforcoFila = {
       const obterRef = () => { if (!refLido) { refLido = true; ref = this._motorRef(); } return ref; };
 
       // Primeiro, recupera fechamentos prematuros identificáveis e adota todos
-      // os reforços abertos do Plano na fila nova.
+      // os reforços abertos do Motor na fila diária.
       doMotor.forEach(e => {
         if (this._recuperarParcialFechado(e, obterRef())) mudou = true;
         if (e.status !== 'concluida' && !e.reforcoFila) { this._meta(e); mudou = true; }
@@ -47244,7 +47244,7 @@ else CloudStore.init();
    CICLO DO MOTOR DE SUGESTÃO
    ----------------------------------------------------------------------------
    O Motor decide prioridade; este módulo só acompanha a execução entre dois
-   retratos do TEC. Não existe segundo modelo, score paralelo ou plano legado.
+   retratos do TEC. Não existe segundo modelo nem score paralelo.
 
    Ciclo:
      medir -> ordenar -> escolher até 3 matérias -> executar uma frente de cada
@@ -47258,7 +47258,6 @@ else CloudStore.init();
   if (typeof window === 'undefined' || window.__motorCiclo) return;
   window.__motorCiclo = true;
 
-  const LEGACY_ORIGIN_KEY = 'origem' + 'Plano';
   const norm = (s) => {
     try { return ReforcoEngine.norm(s || ''); }
     catch (_) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
@@ -47268,7 +47267,7 @@ else CloudStore.init();
   const C = {
     origemDe(extra) {
       if (!extra) return null;
-      return extra.origemMotor || extra[LEGACY_ORIGIN_KEY] || null;
+      return extra.origemMotor || null;
     },
 
     _ultimoRetrato() {
@@ -47428,14 +47427,6 @@ else CloudStore.init();
       };
     },
 
-    _migrarOrigem(extra, origem) {
-      if (!extra || !origem || extra.origemMotor) return origem;
-      const nova = Object.assign({}, origem, { motor: 'sugestao', versao: 2 });
-      try { DB.updateExtra(extra.id, { origemMotor: nova, [LEGACY_ORIGIN_KEY]: null }); }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-migrar-origem'); }
-      return nova;
-    },
-
     conciliar() {
       let r = null;
       try { r = MotorSugestao.calcular(); }
@@ -47444,10 +47435,9 @@ else CloudStore.init();
 
       const fechadas = [], rotacionadas = [], resolvidas = [], rodadas = [];
       (DB.getExtras() || []).forEach(extra => {
-        let origem = this.origemDe(extra);
+        const origem = this.origemDe(extra);
         if (!origem || !origem.topico || extra.status === 'concluida') return;
-        origem = this._migrarOrigem(extra, origem);
-        const v = this.avaliar(Object.assign({}, extra, { origemMotor: origem }), r);
+        const v = this.avaliar(extra, r);
         if (!v || !['resolvida','rotacionada','rodada'].includes(v.estado)) return;
 
         const veredito = {
@@ -47461,7 +47451,7 @@ else CloudStore.init();
           lacunaDiscFinal: v.lacunaDisc
         };
         const novaOrigem = Object.assign({}, origem, { veredito });
-        DB.updateExtra(extra.id, { status: 'concluida', origemMotor: novaOrigem, [LEGACY_ORIGIN_KEY]: null });
+        DB.updateExtra(extra.id, { status: 'concluida', origemMotor: novaOrigem });
         fechadas.push(extra.id);
         if (v.estado === 'rotacionada') rotacionadas.push(extra.id);
         if (v.estado === 'resolvida') resolvidas.push(extra.id);
