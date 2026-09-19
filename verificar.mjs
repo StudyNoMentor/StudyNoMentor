@@ -1330,8 +1330,8 @@ try {
       tonsProfundos: (() => {
         const fake = (nivel) => ({ nome: 'N' + nivel, depth: nivel, disciplina: 'D', questoes: 100, acertos: 50, children: [] });
         const host = document.createElement('div');
-        host.innerHTML = DesempenhoTecScreen.treeNodeHtml(fake(6), new Map(), 6)
-          + DesempenhoTecScreen.treeNodeHtml(fake(7), new Map(), 7);
+        host.innerHTML = DesempenhoTecScreen.treeNodeHtml(fake(6), null, 6)
+          + DesempenhoTecScreen.treeNodeHtml(fake(7), null, 7);
         const ns = host.querySelectorAll('.tnode');
         return ns.length === 2
           && ns[0].style.getPropertyValue('--tec-level-hue') !== ns[1].style.getPropertyValue('--tec-level-hue')
