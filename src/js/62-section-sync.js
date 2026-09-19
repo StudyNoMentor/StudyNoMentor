@@ -125,6 +125,16 @@ const SectionSync = {
     this._dirtyGen.delete(sec);
     return true;
   },
+  _ackSent(sec, gen, sentHash, prefix) {
+    const atual = localStorage.getItem((prefix || this._prefix()) + sec);
+    /* Mesmo que algum código tenha escrito direto no armazenamento e esquecido
+       de chamar markDirty(), o hash impede a confirmação antiga de limpar a fila. */
+    if (atual !== null && this._hash(atual) !== sentHash) {
+      if ((this._dirtyGen.get(sec) || 0) === (gen || 0)) this._touchDirty(sec);
+      return false;
+    }
+    return this._clearDirtyIfGeneration(sec, gen);
+  },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
   restorePending() {
     const antes = this._dirty.size;
@@ -452,8 +462,7 @@ const SectionSync = {
           const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
           if (remoto && remotoHash === _hash) {
             revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
-            const atual = localStorage.getItem(pfx + _sec);
-            if (atual !== null && this._hash(atual) === _hash) this._clearDirtyIfGeneration(_sec, _gen);
+            this._ackSent(_sec, _gen, _hash, pfx);
             /* Se houve edição nova durante o voo, a geração mudou e a seção fica
                suja; agora ela já parte da revisão remota confirmada. */
             okCount++;
@@ -465,7 +474,7 @@ const SectionSync = {
         }
         // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
         revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
-        this._clearDirtyIfGeneration(_sec, _gen);
+        this._ackSent(_sec, _gen, _hash, pfx);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
