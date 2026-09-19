@@ -800,6 +800,7 @@ const SectionSync = {
         ? this.pendingSections(id)
         : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
+      res.linhasRemotas = rows.length;
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
