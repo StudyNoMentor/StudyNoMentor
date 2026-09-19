@@ -30,7 +30,9 @@
 
     _ultimoRetrato() {
       try {
-        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
+        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoDeCiclo)
+          ? MotorSugestao.retratoDeCiclo()
+          : (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
           ? MotorSugestao.retratoAtual()
           : null;
         if (!s) return null;
@@ -98,14 +100,26 @@
       const disciplinaFinal = disciplina || (item && item.disciplina) || '';
       const alvoQuestoes = item && item.dose != null ? Math.max(1, Math.round(num(item.dose))) : p.alvoQuestoes;
       const filtroTec = this.filtroTec(Object.assign({}, item || {}, { dose: alvoQuestoes }), disciplinaFinal);
+      const origemConsulta = {
+        topico: topico || (item && item.nome) || '',
+        disciplina: disciplinaFinal,
+        caminho: item && Array.isArray(item.caminho) ? item.caminho.slice() : [],
+        membros,
+        escopo: membros && membros.length > 1 ? { membros: membros.slice() } : null
+      };
+      const retratoCiclo = (typeof MotorSugestao.retratoDeCiclo === 'function')
+        ? MotorSugestao.retratoDeCiclo() : null;
+      const baseCiclo = MotorSugestao.estadoAtual(origemConsulta, { retrato: retratoCiclo });
       return {
         motor: 'sugestao',
         versao: 3,
         topico: topico || (item && item.nome) || '',
         disciplina: disciplinaFinal,
         criadoEm: typeof todayLocal === 'function' ? todayLocal() : new Date().toISOString().slice(0, 10),
-        taxaInicial: item && item.taxa != null ? num(item.taxa) : null,
-        qBase: item && item.questoes != null ? num(item.questoes) : 0,
+        taxaInicial: baseCiclo && baseCiclo.taxa != null
+          ? num(baseCiclo.taxa) : item && item.taxa != null ? num(item.taxa) : null,
+        qBase: baseCiclo && baseCiclo.questoes != null
+          ? num(baseCiclo.questoes) : item && item.questoes != null ? num(item.questoes) : 0,
         metaAlvo: p.metaAcerto,
         alvoQuestoes,
         nivel: item && item.nivel != null ? Math.max(1, num(item.nivel)) : null,
@@ -166,7 +180,9 @@
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-calcular'); }
       if (!r || r.erro) return null;
 
-      const atual = MotorSugestao.estadoAtual(o) || null;
+      const retratoCiclo = (typeof MotorSugestao.retratoDeCiclo === 'function')
+        ? MotorSugestao.retratoDeCiclo() : null;
+      const atual = MotorSugestao.estadoAtual(o, { retrato: retratoCiclo }) || null;
       const d = this._disciplinaAtual(r, o.disciplina);
       const rank = this._rankAtual(r, o.disciplina);
       const p = r.prefs || MotorSugestao.prefs();

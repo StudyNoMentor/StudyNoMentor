@@ -246,6 +246,21 @@
       }
     },
 
+    /* O ranking usa o recorte consolidado acima. Já o ciclo precisa de uma
+       fotografia comparável: o retrato mais recente dentro desse mesmo
+       recorte. Somar históricos faria qBase crescer a cada importação e
+       transformaria volume antigo em "questões feitas" na rodada atual. */
+    retratoDeCiclo() {
+      try {
+        const snaps = (DesempenhoTecScreen.activeSnapshots
+          ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
+        return snaps.slice().sort((a, b) => this._dataRetrato(a).localeCompare(this._dataRetrato(b))).slice(-1)[0] || null;
+      } catch (e) {
+        if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-ciclo');
+        return null;
+      }
+    },
+
     disciplinasDisponiveis() {
       let snap = null;
       try { snap = this.retratoAtual(); }
@@ -461,7 +476,7 @@
     estadoAtual(origem, opts) {
       const o = origem || {};
       let snap = null;
-      try { snap = this.retratoAtual(); }
+      try { snap = opts && opts.retrato ? opts.retrato : this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-estado-snap'); }
       if (!snap || !(snap.rows || []).length) return null;
       const forest = this._forestEstavel(snap);
