@@ -3101,46 +3101,18 @@ const DesempenhoTecScreen = {
     this.applyEnxuto();
     DB._tecReadSnapshot = null;
   },
-  /* ═══ UM CONTROLE DE DENSIDADE, NÃO DOIS QUE NINGUÉM ENTENDE ════════════
-     O menu ⚙ Exibição tinha dois itens, e o primeiro — "Filtros soltos nos
-     cartões" — prometia mostrar ou esconder os filtros da tela. Só que a
-     classe que ele liga (`.tec-cfg`) existe em UM elemento da tela inteira: o
-     campo de banca da aba Incidência. Nas abas Análise e Plano ele não
-     escondia filtro nenhum; o único efeito visível era `hide-heads`, que
-     enxuga os subtítulos dos cartões — coisa que o item não menciona, e que o
-     "Modo enxuto" logo abaixo já faz junto com o resto dos textos de ajuda.
-
-     Ou seja: um comando cujo rótulo descrevia algo que ele não fazia, e cujo
-     efeito real era um subconjunto do comando vizinho. Não dá para saber "para
-     que serve ou se funciona" porque as duas respostas eram "quase nada" e
-     "não como está escrito".
-
-     Fica UM controle. `hide-heads` passa a ser parte do Modo enxuto (que é
-     exatamente o que ele é: menos texto explicativo), e o filtro da Incidência
-     deixa de ser escondível — filtro que a pessoa precisa usar não é ruído.
-     `applyCfgHidden` continua existindo, agora só para garantir que nenhum
-     perfil fique com o estado antigo preso na tela. */
+  /* A Análise não tem mais um painel de ajuste de exibição. Estes métodos
+     ficam apenas como compatibilidade com perfis antigos e sempre limpam os
+     estados que escondiam conteúdo. */
   applyCfgHidden() {
     const wrap = document.getElementById('tec-analysis');
-    if (wrap) { wrap.classList.remove('hide-cfg'); wrap.classList.toggle('hide-heads', !!this._loadPrefs().enxuto); }
+    if (wrap) wrap.classList.remove('hide-cfg', 'hide-heads');
   },
-  /* MODO ENXUTO — depois que você entende a tela, textos de ajuda, legendas e
-     dicas viram ruído. Este modo esconde tudo isso e deixa só o que muda de
-     valor: números, barras e listas. Fica salvo por perfil. */
   applyEnxuto() {
-    const on = !!this._loadPrefs().enxuto;
     const tela = document.getElementById('screen-desempenhotec');
-    if (tela) tela.classList.toggle('tec-enxuto', on);
     const wrap = document.getElementById('tec-analysis');
-    if (wrap) wrap.classList.toggle('hide-heads', on);
-    const b = document.getElementById('tec-enxuto-btn');
-    if (b) {
-      b.classList.toggle('is-active', on);
-      b.innerHTML = `<span class="gg-ic">🔎</span>${on ? 'Mostrar os textos de ajuda' : 'Esconder os textos de ajuda'}`;
-      b.title = on
-        ? 'Voltar a exibir subtítulos, legendas e explicações dos cartões'
-        : 'Deixar só números, barras e listas — esconde subtítulos, legendas e explicações';
-    }
+    if (tela) tela.classList.remove('tec-enxuto');
+    if (wrap) wrap.classList.remove('hide-heads');
   },
   /* ── QUAIS BANCAS SÃO AS MINHAS ───────────────────────────────────────────
      A escolha da banca existia em DOIS lugares (uma preferência no Reforço,
@@ -3171,19 +3143,49 @@ const DesempenhoTecScreen = {
     const sel = this.bancasSelecionadas();
     return sel.length ? sel : '__todas__';
   },
-  setBancas(lista) {
+  setBancas(lista, opcoes) {
     this.savePrefs({ bancasSel: Array.isArray(lista) ? lista : [] });
     try { if (typeof PlanoEngine !== 'undefined') PlanoEngine.salvarPrefs({ banca: '__todas__' }); } catch (e) { _quiet(e, 'banca-plano'); }
-    this.renderBancaPickers();
+    ['motor-banca-pick', 'incid-banca-pick'].forEach(id => this._sincronizarBancaPicker(document.getElementById(id)));
+    const painel = opcoes && opcoes.painel;
+    const y = painel ? painel.scrollTop : 0;
     if (this.tecTab === 'motor') this.renderMotor();
-    else if (this.tecTab === 'incidencia') this.renderIncidencia();
+    else if (this.tecTab === 'incidencia') this.renderIncidencia({ preservarBancaPicker: true });
+    if (painel && document.body.contains(painel)) {
+      painel.removeAttribute('hidden'); painel.scrollTop = y;
+      const btn = painel.parentElement && painel.parentElement.querySelector('.banca-pick-btn');
+      if (btn) btn.setAttribute('aria-expanded', 'true');
+    }
   },
   renderBancaPickers() {
     ['motor-banca-pick', 'incid-banca-pick'].forEach(id => this.renderBancaPicker(id));
   },
-  /* O seletor: um botão que diz o que está valendo e um painel de caixas. Não é
-     uma lista suspensa porque a resposta certa costuma ser MAIS DE UMA — e numa
-     lista suspensa a segunda escolha desfaz a primeira. */
+  _sincronizarBancaPicker(host) {
+    if (!host) return false;
+    const bancas = DB.getBancas();
+    const sel = this.bancasSelecionadas();
+    const painel = host.querySelector('.banca-pick-panel');
+    const btn = host.querySelector('.banca-pick-btn');
+    if (!painel || !btn) return false;
+    const set = new Set(sel.map(ReforcoEngine.norm));
+    painel.querySelectorAll('input[data-banca]').forEach(ch => {
+      ch.checked = set.has(ReforcoEngine.norm(ch.value));
+    });
+    const todas = painel.querySelector('[data-acao="todas"]');
+    if (todas) {
+      todas.classList.toggle('is-active', sel.length === 0);
+      todas.setAttribute('aria-pressed', sel.length === 0 ? 'true' : 'false');
+    }
+    const rot = !bancas.length ? 'Nenhuma banca importada'
+      : !sel.length ? '🏛️ Todas as bancas'
+      : sel.length === 1 ? '🏛️ ' + sel[0]
+      : '🏛️ ' + sel.length + ' bancas';
+    const alvo = btn.querySelector('span:not(.chev)');
+    if (alvo) alvo.textContent = rot;
+    const nota = painel.querySelector('.banca-pick-nota');
+    if (nota) nota.textContent = sel.length ? sel.length + ' banca(s) selecionada(s).' : 'Todas as bancas estão na conta.';
+    return true;
+  },
   renderBancaPicker(hostId) {
     const host = document.getElementById(hostId);
     if (!host) return;
@@ -3206,30 +3208,34 @@ const DesempenhoTecScreen = {
         <span>${escapeHtml(rot)}</span><span class="chev">▾</span>
       </button>
       <div class="banca-pick-panel" hidden>
-        <p class="banca-pick-topo">Marque as bancas do seu concurso. Sem nenhuma marcada, o app soma o histórico de todas.</p>
-        ${bancas.map(b => `<label class="banca-pick-item">
-          <input type="checkbox" value="${escapeHtml(b)}" ${marcada(b) ? 'checked' : ''}>
-          <span><b>${escapeHtml(b)}</b><small>${escapeHtml(resumo(b))}</small></span>
-        </label>`).join('')}
-        <div class="banca-pick-acoes">
-          ${sel.length ? '<button type="button" data-acao="todas">↺ Voltar a todas as bancas</button>' : '<span class="banca-pick-nota">Somando todas as bancas importadas.</span>'}
+        <button type="button" class="banca-pick-all ${sel.length ? '' : 'is-active'}" data-acao="todas" aria-pressed="${sel.length ? 'false' : 'true'}">
+          <span class="banca-pick-all-mark">✓</span><span><b>Todas as bancas</b><small>Somar todo o histórico importado</small></span>
+        </button>
+        <p class="banca-pick-topo">Ou marque somente as bancas do seu concurso.</p>
+        <div class="banca-pick-list">
+          ${bancas.map(b => `<label class="banca-pick-item">
+            <input type="checkbox" data-banca value="${escapeHtml(b)}" ${marcada(b) ? 'checked' : ''}>
+            <span><b>${escapeHtml(b)}</b><small>${escapeHtml(resumo(b))}</small></span>
+          </label>`).join('')}
         </div>
+        <div class="banca-pick-acoes"><span class="banca-pick-nota">${sel.length ? sel.length + ' banca(s) selecionada(s).' : 'Todas as bancas estão na conta.'}</span></div>
       </div>`;
     const btn = host.querySelector('.banca-pick-btn');
     const painel = host.querySelector('.banca-pick-panel');
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const abrir = painel.hasAttribute('hidden');
-      // um painel por vez em toda a tela
-      document.querySelectorAll('.banca-pick-panel').forEach(p2 => p2.setAttribute('hidden', ''));
-      document.querySelectorAll('.banca-pick-btn').forEach(b2 => b2.setAttribute('aria-expanded', 'false'));
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b2 => { if (b2 !== btn) b2.setAttribute('aria-expanded', 'false'); });
       if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+      else { painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
     });
     painel.addEventListener('click', (e) => e.stopPropagation());
-    painel.querySelectorAll('input[type="checkbox"]').forEach(c => c.addEventListener('change', () => {
-      this.setBancas([...painel.querySelectorAll('input:checked')].map(x => x.value));
+    painel.querySelectorAll('input[data-banca]').forEach(ch => ch.addEventListener('change', () => {
+      this.setBancas([...painel.querySelectorAll('input[data-banca]:checked')].map(x => x.value), { painel });
     }));
-    painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setBancas([])));
+    const all = painel.querySelector('[data-acao="todas"]');
+    if (all) all.addEventListener('click', () => this.setBancas([], { painel }));
   },
   /* ── A CAIXA DO QUE FICA DE FORA ──────────────────────────────────────────
      Mesma mecânica da caixa de bancas, e pelo mesmo motivo: a resposta certa é
@@ -3521,10 +3527,9 @@ const DesempenhoTecScreen = {
       rangeEnd: this.rangeEnd || null
     };
   },
-  /* Contrato único de mudança de escopo: invalida caches e repinta o mesmo
-     recorte em Análise, Plano e Reforço. Evita a antiga divergência em que o
-     checkbox mudava a Análise enquanto o Plano permanecia com o retrato anterior. */
-  aplicarMudancaEscopo() {
+  /* Mudança de escopo: em cliques de retrato, o painel permanece no DOM e
+     na mesma posição. O mini-spinner pinta antes do cálculo pesado. */
+  _invalidarEscopo() {
     this.savePrefs(this._scopePrefsPatch());
     this._scopedC = null;
     this._planoRefC = null;
@@ -3533,10 +3538,66 @@ const DesempenhoTecScreen = {
       PlanoEngine._tecScopeSignature = null;
       PlanoEngine._indiceC = new WeakMap();
     }
-    this.renderScopeControls(DB.getTecSnapshots());
-    this.renderAnalysis();
-    if (this.tecTab === 'motor') this.renderMotor();
-    else if (this.tecTab === 'incidencia') this.renderIncidencia();
+  },
+  _escopoBusy(on) {
+    const box = document.getElementById('tec-scope-select');
+    if (!box) return;
+    box.classList.toggle('is-busy', !!on);
+    box.setAttribute('aria-busy', on ? 'true' : 'false');
+    const el = box.querySelector('.tec-scope-busy');
+    if (el) el.hidden = !on;
+  },
+  _sincronizarScopeSelectState(snaps) {
+    const box = document.getElementById('tec-scope-select');
+    if (!box) return;
+    const todos = (snaps || []).length > 0 && this.selectedSnapIds.size === (snaps || []).length;
+    box.querySelectorAll('input[data-snap]').forEach(cb => {
+      const raw = cb.dataset.snap;
+      const id = Number.isFinite(Number(raw)) ? Number(raw) : raw;
+      cb.checked = this.selectedSnapIds.has(id);
+    });
+    const all = box.querySelector('input[data-snap-all]');
+    if (all) all.checked = todos;
+    const count = box.querySelector('[data-scope-count]');
+    if (count) count.textContent = `${this.selectedSnapIds.size} de ${(snaps || []).length} selecionado(s)`;
+  },
+  _syncScopeMeta() {
+    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('tec-escopo'); }
+    catch (e) { _quiet(e, 'resumo-escopo-tec'); }
+    const active = this.activeSnapshots();
+    const meta = document.getElementById('tec-snap-meta');
+    if (!meta) return;
+    if (active.length === 0) meta.textContent = 'Nenhum retrato no escopo atual — ajuste a seleção ou o intervalo.';
+    else if (active.length === 1) {
+      const s = active[0];
+      meta.textContent = `1 retrato · período ${this.rangeLabel(s)}` + (s.label ? ` · ${s.label}` : '');
+    } else {
+      const starts = active.map(s => s.startDate).sort();
+      const ends = active.map(s => s.endDate).sort();
+      meta.textContent = `${active.length} retratos consolidados · de ${formatDateShort(starts[0])} a ${formatDateShort(ends[ends.length - 1])} · questões e acertos somados, % recalculado`;
+    }
+  },
+  aplicarMudancaEscopo(opcoes) {
+    const opts = opcoes || {};
+    this._invalidarEscopo();
+    const snaps = DB.getTecSnapshots();
+    const pintar = () => {
+      if (opts.preservarLista && this.scopeMode === 'select') {
+        this._sincronizarScopeSelectState(snaps);
+        this._syncScopeMeta();
+      } else this.renderScopeControls(snaps);
+      this.renderAnalysis();
+      if (this.tecTab === 'motor') this.renderMotor();
+      else if (this.tecTab === 'incidencia') this.renderIncidencia();
+    };
+    if (!opts.suave) { pintar(); return; }
+    const token = (this._scopeRenderToken || 0) + 1;
+    this._scopeRenderToken = token;
+    this._escopoBusy(true);
+    requestAnimationFrame(() => setTimeout(() => {
+      if (token !== this._scopeRenderToken) return;
+      try { pintar(); } finally { this._escopoBusy(false); }
+    }, 0));
   },
   openImport() {
     $id('tec-empty').style.display = 'none';
@@ -3812,7 +3873,6 @@ const DesempenhoTecScreen = {
   },
   // Sincroniza os controles de escopo (botões, painéis, meta) com o estado atual
   renderScopeControls(snaps) {
-    // destaca o modo ativo
     document.querySelectorAll('#tec-scope-toggle button').forEach(b =>
       b.classList.toggle('active', b.dataset.scope === this.scopeMode));
     const selPanel = document.getElementById('tec-scope-select');
@@ -3821,24 +3881,8 @@ const DesempenhoTecScreen = {
     rangePanel.style.display = this.scopeMode === 'range' ? 'block' : 'none';
     if (this.scopeMode === 'select') this.renderScopeSelectPanel(snaps);
     if (this.scopeMode === 'range') this.syncRangeInputs(snaps);
-    // com os filtros recolhidos, o cabecalho precisa dizer o que esta valendo
-    try { if (window.PainelRecolhivel) PainelRecolhivel.sincronizar('tec-escopo'); }
-    catch (e) { _quiet(e, 'resumo-escopo-tec'); }
-    // meta (resumo do que está sendo analisado)
-    const active = this.activeSnapshots();
-    const meta = document.getElementById('tec-snap-meta');
-    if (active.length === 0) {
-      meta.textContent = 'Nenhum retrato no escopo atual — ajuste a seleção ou o intervalo.';
-    } else if (active.length === 1) {
-      const s = active[0];
-      meta.textContent = `1 retrato · período ${this.rangeLabel(s)}` + (s.label ? ` · ${s.label}` : '');
-    } else {
-      const starts = active.map(s => s.startDate).sort();
-      const ends = active.map(s => s.endDate).sort();
-      meta.textContent = `${active.length} retratos consolidados · de ${formatDateShort(starts[0])} a ${formatDateShort(ends[ends.length - 1])} · questões e acertos somados, % recalculado`;
-    }
+    this._syncScopeMeta();
   },
-  // Lista de retratos com checkbox (marcar/desmarcar) + exclusão individual
   renderScopeSelectPanel(snaps) {
     const box = document.getElementById('tec-scope-select');
     const rows = snaps.slice().reverse().map(s => {
@@ -3852,18 +3896,35 @@ const DesempenhoTecScreen = {
         <button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>
       </label>`;
     }).join('');
+    const todos = snaps.length > 0 && this.selectedSnapIds.size === snaps.length;
     box.innerHTML = `
       <div class="tec-scope-actions">
-        <button type="button" class="tec-tree-btn" id="tec-scope-all">Marcar todos</button>
-        <button type="button" class="tec-tree-btn" id="tec-scope-none">Limpar</button>
-        <span class="hint" style="margin:0 0 0 auto;">${this.selectedSnapIds.size} de ${snaps.length} selecionado(s)</span>
+        <span class="tec-scope-busy" hidden><i></i> Atualizando análise…</span>
+        <span class="hint" data-scope-count style="margin:0 0 0 auto;">${this.selectedSnapIds.size} de ${snaps.length} selecionado(s)</span>
       </div>
-      <div class="tec-scope-list">${rows}</div>`;
+      <div class="tec-scope-list">
+        <label class="tec-snap-pick tec-snap-all">
+          <input type="checkbox" data-snap-all ${todos ? 'checked' : ''}>
+          <span class="tsp-main"><b>Todos os retratos</b><small>Usar todo o histórico importado</small></span>
+          <span class="tsp-stats">${snaps.length} retrato(s)</span>
+        </label>
+        ${rows}
+      </div>`;
+    const list = box.querySelector('.tec-scope-list');
     box.querySelectorAll('input[data-snap]').forEach(cb => cb.addEventListener('change', () => {
-      const id = parseInt(cb.dataset.snap, 10);
+      const raw = cb.dataset.snap;
+      const id = Number.isFinite(Number(raw)) ? Number(raw) : raw;
       if (cb.checked) this.selectedSnapIds.add(id); else this.selectedSnapIds.delete(id);
-      this.aplicarMudancaEscopo();
+      this._sincronizarScopeSelectState(snaps);
+      this.aplicarMudancaEscopo({ preservarLista: true, suave: true });
     }));
+    const all = box.querySelector('input[data-snap-all]');
+    if (all) all.addEventListener('change', () => {
+      if (all.checked) snaps.forEach(s => this.selectedSnapIds.add(s.id)); else this.selectedSnapIds.clear();
+      this._sincronizarScopeSelectState(snaps);
+      this.aplicarMudancaEscopo({ preservarLista: true, suave: true });
+      if (list) list.scrollTop = 0;
+    });
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
       const id = parseInt(btn.closest('.tec-snap-pick').dataset.id, 10);
@@ -3871,8 +3932,6 @@ const DesempenhoTecScreen = {
       if (!s) return;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
-        /* A FOTO VEM ANTES DO APAGAR. Sem ela, o progresso medido de toda
-           atividade viva cairia para zero (ver `repinarProgresso`). */
         const foto = PlanoCiclo.fotoDoProgresso();
         DB.deleteTecSnapshot(id);
         this.selectedSnapIds.delete(id);
@@ -3882,10 +3941,6 @@ const DesempenhoTecScreen = {
         this.render();
       });
     }));
-    const allBtn = box.querySelector('#tec-scope-all');
-    const noneBtn = box.querySelector('#tec-scope-none');
-    if (allBtn) allBtn.addEventListener('click', () => { snaps.forEach(s => this.selectedSnapIds.add(s.id)); this.aplicarMudancaEscopo(); });
-    if (noneBtn) noneBtn.addEventListener('click', () => { this.selectedSnapIds.clear(); this.aplicarMudancaEscopo(); });
   },
   syncRangeInputs(snaps) {
     const startEl = document.getElementById('tec-range-start');
@@ -4210,7 +4265,7 @@ const DesempenhoTecScreen = {
     }));
   },
   _incidParsed: null,
-  renderIncidencia() {
+  renderIncidencia(opcoes) {
     // Render novo = árvores novas. Sem limpar, uma banca excluída (ou renomeada)
     // deixaria a floresta antiga guardada e o bloco poderia nascer com dado velho.
     this._incidForests = {};
@@ -4222,7 +4277,10 @@ const DesempenhoTecScreen = {
     const list = document.getElementById('incid-bancas-list');
     if (todasBancas.length === 0) { card.style.display = 'none'; return; }
     card.style.display = 'block';
-    this.renderBancaPicker('incid-banca-pick');
+    const preservarBancaPicker = !!(opcoes && opcoes.preservarBancaPicker);
+    const bancaHost = document.getElementById('incid-banca-pick');
+    if (!preservarBancaPicker || !bancaHost || !bancaHost.querySelector('.banca-pick-panel')) this.renderBancaPicker('incid-banca-pick');
+    else this._sincronizarBancaPicker(bancaHost);
     /* A lista mostra as bancas ESCOLHIDAS. Com mais de uma marcada, o resumo do
        topo soma as duas — é o número que o Reforço e o Plano vão usar, e vê-lo
        aqui é a única forma de conferir se a soma faz sentido. */
@@ -4780,14 +4838,18 @@ const DesempenhoTecScreen = {
     }
     const erros = Math.max(0, (node.questoes || 0) - (node.acertos || 0));
     const pctErro = Math.round((100 - pct) * 10) / 10;
+    const lvl = Math.min(5, Math.max(0, level));
     return `
-      <div class="tnode ${level === 0 ? 'lvl0' : ''}" data-haskids="${hasKids ? '1' : '0'}">
+      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}">
         <div class="tnode-row ${hasKids ? 'has-kids' : ''}" style="padding-left:${indent}px;">
           ${caret}
-          <span class="${nameCls}" title="${escapeHtml(node.nome)}">${escapeHtml(node.nome)}${delta}</span>
-          <span class="tnode-q" title="Questões resolvidas">${node.questoes}</span>
+          <span class="${nameCls}" title="${escapeHtml(node.nome)}"><span class="tnode-label">${escapeHtml(node.nome)}</span>${delta}</span>
+          <span class="tnode-q" title="Questões resolvidas"><b>${node.questoes}</b><small>questões</small></span>
           <div class="tnode-track" title="${pct}% de acerto · ${pctErro}% de erro"><div class="tnode-fill" style="width:${pct}%;"></div></div>
-          <span class="tnode-pct"><b class="tone-good">${pct}%</b> <i>(${node.acertos})</i> <b class="tone-bad">${pctErro}%</b> <i>(${erros})</i></span>
+          <span class="tnode-pct">
+            <span class="tnode-stat is-good"><b>${pct}%</b><i>${node.acertos} ac.</i></span>
+            <span class="tnode-stat is-bad"><b>${pctErro}%</b><i>${erros} er.</i></span>
+          </span>
         </div>
         ${kidsHtml}
       </div>`;
@@ -4871,14 +4933,15 @@ const DesempenhoTecScreen = {
       count.textContent = selecionadas.length ? String(selecionadas.length) : 'Todas';
       count.classList.toggle('is-all', !selecionadas.length);
     }
-    const foot = panel.querySelector('.tec-disc-pick-foot');
-    if (foot) {
-      foot.innerHTML = selecionadas.length
-        ? '<button type="button" data-disc-acao="todas">↺ Mostrar todas</button>'
-        : '<span>Nenhum filtro: todas as disciplinas estão visíveis.</span>';
-      const b = foot.querySelector('[data-disc-acao="todas"]');
-      if (b) b.onclick = () => this._setDiscFilters([], panel);
+    const todas = panel.querySelector('[data-disc-acao="todas"]');
+    if (todas) {
+      todas.classList.toggle('is-active', !selecionadas.length);
+      todas.setAttribute('aria-pressed', !selecionadas.length ? 'true' : 'false');
     }
+    const foot = panel.querySelector('.tec-disc-pick-foot');
+    if (foot) foot.innerHTML = '<span>' + (selecionadas.length
+      ? selecionadas.length + ' disciplina(s) no recorte.'
+      : 'Todas as disciplinas estão visíveis.') + '</span>';
     return true;
   },
   _setDiscFilters(lista, panel) {
@@ -4912,6 +4975,9 @@ const DesempenhoTecScreen = {
           <span>⌕</span><input type="search" class="tec-disc-pick-search" placeholder="Buscar disciplina" autocomplete="off">
         </div>
         <div class="tec-disc-pick-list">
+          <button type="button" class="tec-disc-pick-all ${selecionadas.length ? '' : 'is-active'}" data-disc-acao="todas" aria-pressed="${selecionadas.length ? 'false' : 'true'}">
+            <span class="tec-disc-all-mark">✓</span><span><b>Todas as disciplinas</b><small>Exibir a árvore completa</small></span>
+          </button>
           ${alpha.map(d => `<label class="tec-disc-pick-item" data-s="${escapeHtml(ReforcoEngine.norm(d.nome))}">
             <input type="checkbox" value="${escapeHtml(d.nome)}" ${marcada(d.nome) ? 'checked' : ''}>
             <span><b>${escapeHtml(d.nome)}</b><small>${d.questoes.toLocaleString('pt-BR')} questões · ${this.nodePct(d)}% de acerto</small></span>
@@ -4937,9 +5003,11 @@ const DesempenhoTecScreen = {
     panel.onclick = e => e.stopPropagation();
     panel.onchange = e => {
       if (!e.target.matches('input[type="checkbox"]')) return;
-      const lista = [...panel.querySelectorAll('input[type="checkbox"]:checked')].map(x => x.value);
+      const lista = [...panel.querySelectorAll('.tec-disc-pick-item input[type="checkbox"]:checked')].map(x => x.value);
       this._setDiscFilters(lista, panel);
     };
+    const todas = panel.querySelector('[data-disc-acao="todas"]');
+    if (todas) todas.onclick = () => this._setDiscFilters([], panel);
     if (search) search.oninput = () => {
       const q = ReforcoEngine.norm(search.value);
       panel.querySelectorAll('.tec-disc-pick-item').forEach(item => {
@@ -5039,16 +5107,6 @@ document.addEventListener('click', () => {
 // Listeners da tela Desempenho TEC
 $id('tec-btn-first-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
 $id('tec-btn-new-import').addEventListener('click', () => DesempenhoTecScreen.openImport());
-/* O item "Filtros soltos nos cartões" saiu do menu ⚙ Exibição (o botão é
-   removido do DOM em `applyEnxuto`'s vizinho, abaixo): ele prometia mexer nos
-   filtros e mexia só nos subtítulos, que agora fazem parte do Modo enxuto.
-   O ouvinte sai com ele; sem isso, um perfil antigo com `hideCfg` salvo
-   continuaria alternando uma classe que nenhum item da tela anuncia. */
-$id('tec-enxuto-btn').addEventListener('click', () => {
-  const p = DesempenhoTecScreen._loadPrefs();
-  DesempenhoTecScreen.savePrefs({ enxuto: !p.enxuto });
-  DesempenhoTecScreen.applyEnxuto();
-});
 $id('tec-import-cancel').addEventListener('click', () => DesempenhoTecScreen.render());
 $id('tec-import-save').addEventListener('click', () => DesempenhoTecScreen.saveImport());
 $id('tec-import-text').addEventListener('input', () => DesempenhoTecScreen.updateImportPreview());
