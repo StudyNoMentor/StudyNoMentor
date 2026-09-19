@@ -832,6 +832,70 @@ try {
     ? ok('o checkpoint em conflito permaneceu intocado, sem clobber')
     : erro('o blob em conflito foi alterado indevidamente: ' + JSON.stringify(blobDepois && blobDepois.rev));
 
+  // ── 4b. DOIS APARELHOS: exclusao sobre base velha converge por ID ────────
+  /* Reproduz o caso real do celular: ele conhecia a revisão atual, outro
+     aparelho avançou a mesma seção, e então o celular excluiu UM registro.
+     O resultado correto não é conflito eterno nem clobber: reaplica-se somente
+     a operação delete sobre a versão remota mais nova. */
+  const baseDoCelular = await pg.evaluate(() => {
+    const sec = Object.keys(SectionSync._getRevs(ProfileManager.getActiveProfileId()))
+      .find((s) => /entries$/.test(s));
+    const rev = SectionSync._getRevs(ProfileManager.getActiveProfileId())[sec];
+    return { sec, rev: rev && rev.rev, local: DB.getEntries() };
+  });
+  const linhaConcorrente = api.estado.tabelas.profile_sections
+    .find((l) => l.profile_id === criacao.id && l.section === baseDoCelular.sec);
+  if (!linhaConcorrente) {
+    erro('cenario multiaparelho: secao entries nao encontrada');
+  } else {
+    const remotoAntes = Array.isArray(linhaConcorrente.data)
+      ? JSON.parse(JSON.stringify(linhaConcorrente.data))
+      : [];
+    remotoAntes.push({ id: 'e-remoto-3', subject: 'Contabilidade', method: 'Questões',
+                       date: '2026-03-03', durationMin: 30 });
+    const hashRemotoNovo = await pg.evaluate((raw) => SectionSync._hash(raw), JSON.stringify(remotoAntes));
+    linhaConcorrente.data = remotoAntes;
+    linhaConcorrente.rev = Number(linhaConcorrente.rev || 0) + 1;
+    linhaConcorrente.content_hash = hashRemotoNovo;
+    linhaConcorrente.updated_at = new Date().toISOString();
+
+    const convergiu = await pg.evaluate(async () => {
+      const idExcluir = (DB.getEntries() || [])[0] && DB.getEntries()[0].id;
+      const antes = (DB.getEntries() || []).map((e) => String(e.id));
+      const apagou = DB.deleteEntry(idExcluir);
+      CloudStore._pending = true;
+      await CloudStore.autoSave();
+      for (let i = 0; i < 80; i++) {
+        const pid = ProfileManager.getActiveProfileId();
+        if (!SectionSync._pushing && SectionSync.pendingQuick(pid) === 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      return {
+        idExcluir: String(idExcluir),
+        apagou,
+        antes,
+        depois: (DB.getEntries() || []).map((e) => String(e.id)),
+        pendentes: SectionSync.pendingQuick(ProfileManager.getActiveProfileId()),
+        erro: SectionSync._lastError,
+        conflito: SectionSync._lastConflict
+      };
+    });
+
+    const remotoDepois = api.estado.tabelas.profile_sections
+      .find((l) => l.profile_id === criacao.id && l.section === baseDoCelular.sec);
+    const idsRemotos = (Array.isArray(remotoDepois && remotoDepois.data) ? remotoDepois.data : [])
+      .map((e) => String(e && e.id));
+    convergiu.apagou && !idsRemotos.includes(convergiu.idExcluir)
+      ? ok('exclusao feita no aparelho atrasado chegou a nuvem sem ressuscitar o registro')
+      : erro('exclusao concorrente nao convergiu: ' + JSON.stringify({ convergiu, idsRemotos }));
+    idsRemotos.includes('e-remoto-3')
+      ? ok('merge por ID preservou o registro criado no outro aparelho')
+      : erro('merge por ID apagou dado do outro aparelho: ' + JSON.stringify(idsRemotos));
+    convergiu.pendentes === 0 && !convergiu.erro
+      ? ok('fila do celular zerou apos reconciliar conflito; spinner pode voltar a verde')
+      : erro('fila continuou presa apos reconciliacao: ' + JSON.stringify(convergiu));
+  }
+
   // ── 5. BACKUP NO BANCO: a primeira foto vira ancora ─────────────────────
   const bkp1 = await pg.evaluate(async () => {
     CloudBackup.enabled = true;
