@@ -218,7 +218,10 @@ const CloudBackup = {
     const id = ProfileManager.getActiveProfileId();
     if (!id) return Promise.resolve({ ok: false, motivo: 'sem-perfil' });
     if (!this._pronto()) return Promise.resolve({ ok: false, motivo: 'sem-conexão' });
-    return this._serializar(id, () => {
+    return this._serializar(id, async () => {
+      /* A foto só é produzida depois de toda escrita relacional anterior estar
+         confirmada. Backup nunca fotografa uma projeção RAM ainda não persistida. */
+      if (window.RelationalStore) await RelationalStore.flush();
       const backup = ProfileManager.exportProfile(id);
       return this._publicar(id, backup && backup.data, nota, opts);
     });
