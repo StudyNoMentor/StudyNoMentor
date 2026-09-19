@@ -992,17 +992,19 @@ try {
     return {
       fases: document.querySelectorAll('#motor-fase button[data-fase]').length,
       faseAtiva: document.querySelectorAll('#motor-fase button.active').length,
-      itens: document.querySelectorAll('#motor-lista .ms-item').length,
-      disciplinas: document.querySelectorAll('#motor-lista .ms-disc-card').length,
+      itens: document.querySelectorAll('#motor-lista .ms-suggestion-card').length,
+      disciplinas: document.querySelectorAll('#motor-lista .ms-priority-card').length,
       etapas: document.querySelectorAll('#motor-lista .ms-stage').length,
-      comMargem: [...document.querySelectorAll('#motor-lista .ms-item')]
-        .filter((it) => /margem/.test(it.innerText)).length,
-      comDose: [...document.querySelectorAll('#motor-lista .ms-dose')]
-        .filter((d) => parseInt(d.textContent, 10) > 0).length,
+      comMargem: [...document.querySelectorAll('#motor-lista .ms-suggestion-card')]
+        .filter((it) => /margem/i.test(it.innerText)).length,
+      comDose: [...document.querySelectorAll('#motor-lista .ms-dose b')]
+        .filter((d) => parseInt(d.textContent, 10) >= MotorSugestao.DEFAULTS.doseMin).length,
+      minDose: Math.min(...(motor.itens || []).map(x => x.dose || 0)),
       nenhumaDiscInteira: (motor.itens || []).every((x) => x.nivel > 0 && ReforcoEngine.norm(x.nome) !== ReforcoEngine.norm(x.disciplina)),
       umaPorDisc: new Set((motor.itens || []).map((x) => ReforcoEngine.norm(x.disciplina))).size === (motor.itens || []).length,
       rankingDisc: (motor.disciplinas || []).length,
-      resumo: (q('.ms-resumo') || {}).innerText || '',
+      temFilas: document.querySelectorAll('#motor-lista .ms-queue-group').length,
+      resumo: (q('.ms-rule-summary') || {}).innerText || '',
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="motor"] .rfc-field > label')]
         .filter((l) => !l.querySelector('.info-dot')).length,
@@ -1012,9 +1014,9 @@ try {
   est.fases === 2 && est.faseAtiva === 1
     ? ok('o par pre/pos aparece com exatamente uma fase valendo')
     : erro('o seletor de fase nao renderizou: ' + JSON.stringify(est));
-  (est.etapas === 2 && est.disciplinas >= 2 && est.rankingDisc >= est.disciplinas)
-    ? ok(`o Motor mostra primeiro ${est.disciplinas} disciplina(s) prioritarias e depois os topicos`)
-    : erro('a hierarquia disciplina -> topico nao apareceu: ' + JSON.stringify(est));
+  (est.etapas === 2 && est.disciplinas >= 2 && est.rankingDisc >= est.disciplinas && est.temFilas >= est.disciplinas)
+    ? ok(`o Motor mostra ${est.disciplinas} disciplina(s) prioritarias, as frentes e as filas hierarquicas`)
+    : erro('a hierarquia disciplina -> fila -> topico nao apareceu: ' + JSON.stringify(est));
   (est.nenhumaDiscInteira && est.umaPorDisc)
     ? ok('nenhuma disciplina inteira vira reforco e ha no maximo um topico por disciplina')
     : erro('o Motor voltou a usar disciplina como unidade executavel: ' + JSON.stringify(est));
@@ -1022,12 +1024,12 @@ try {
   est.comMargem === est.itens && est.itens > 0
     ? ok('toda linha declara a margem que a manteve naquele nivel da arvore')
     : erro(`${est.itens - est.comMargem} linha(s) sem a margem declarada`);
-  est.comDose === est.itens && est.itens > 0
-    ? ok('toda frente saiu com dose maior que zero')
-    : erro('ha frente com dose zero na fila: ' + JSON.stringify(est));
-  /questões no caderno/.test(est.resumo)
-    ? ok('o resumo diz de quantas questoes e o caderno repartido')
-    : erro('o resumo do motor nao diz o tamanho do caderno: ' + est.resumo);
+  (est.comDose === est.itens && est.itens > 0 && est.minDose >= 12)
+    ? ok(`toda frente saiu com dose util (minimo observado: ${est.minDose} questoes)`)
+    : erro('o Motor voltou a sugerir atividade simbolica: ' + JSON.stringify(est));
+  (/12\+ questões por atividade/.test(est.resumo) || /questões por atividade/.test(est.resumo))
+    ? ok('o resumo deixa claro que a dose e por atividade, nao um caderno espremido')
+    : erro('o resumo do Motor nao explica a dose por atividade: ' + est.resumo);
   est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o motor vaza ${est.overflow}px na horizontal a 360px`);
   (est.semDica === 0 && est.camposNaFolha >= 4)
     ? ok(`todos os ${est.camposNaFolha} campos de ajuste do Motor tem dica explicativa`)
@@ -1044,6 +1046,21 @@ try {
   poda.fora === 0 && poda.total > 0
     ? ok(`as ${poda.total} frentes oferecidas sao topicos e cabem na margem de ±${poda.margemMax}pp`)
     : erro('a poda deixou passar raiz ou frente fora da regua: ' + JSON.stringify(poda));
+
+  const hier = await pag.evaluate(() => {
+    const n = (nome, q, ac, depth, kids) => ({ nome, codigo: null, depth, disciplina: 'Teste', questoes: q, acertos: ac, children: kids || [] });
+    const top = n('Topico', 40, 11, 1, [n('A.1', 10, 2, 2), n('A.2', 12, 3, 2), n('A.3', 18, 6, 2)]);
+    const plano = MotorSugestao._planejarNo(top, 15, []);
+    const bloco = plano.find(x => x.agregado);
+    const raiz = MotorSugestao._planejarNo(n('Teste', 40, 11, 0, [top]), 15, []);
+    return {
+      bloco: bloco ? { pai: bloco.pai, membros: bloco.membros, nivel: bloco.nivel } : null,
+      raiz: raiz.length
+    };
+  });
+  (hier.bloco && hier.bloco.pai === 'Topico' && hier.bloco.membros.length === 3 && hier.raiz === 0)
+    ? ok('ramos pequenos so agrupam entre irmaos do mesmo pai e nunca sobem para a disciplina')
+    : erro('o agrupamento atravessou a hierarquia: ' + JSON.stringify(hier));
 
   /* Trocar a fase troca a FONTE DO PESO, e sem incidencia importada o pos tem
      de dizer isso em vez de inventar um ranking. */
@@ -1134,6 +1151,47 @@ try {
     ? ok('o seletor aceita varias disciplinas sem reconstruir, fechar ou voltar a lista ao inicio')
     : erro('o multifiltro de disciplinas perdeu estabilidade: ' + JSON.stringify(an.multi));
 
+  const limpezaTec = await pag.evaluate(() => ({
+    semAjusteAnalise: !document.querySelector('[data-cfg="analise"], #tec-gear-btn, #tec-enxuto-btn'),
+    semBotaoAbas: !document.getElementById('tec-tabs-gear'),
+    abasVisiveis: [...document.querySelectorAll('#tec-subtabs .tec-subtab')].filter(b => getComputedStyle(b).display !== 'none').length
+  }));
+  (limpezaTec.semAjusteAnalise && limpezaTec.semBotaoAbas && limpezaTec.abasVisiveis >= 3)
+    ? ok('controles legados da Analise/Abas sairam e as tres abas centrais ficam sempre acessiveis')
+    : erro('sobrou controle legado no TEC: ' + JSON.stringify(limpezaTec));
+
+  const retratos = await pag.evaluate(async () => {
+    DesempenhoTecScreen.scopeMode = 'select';
+    DesempenhoTecScreen.renderScopeControls(DB.getTecSnapshots());
+    const box = document.getElementById('tec-scope-select');
+    const lista = box.querySelector('.tec-scope-list');
+    lista.style.maxHeight = '58px';
+    lista.scrollTop = 999;
+    const antes = lista.scrollTop;
+    lista.dataset.guard = 'mesma-lista';
+    const primeiro = lista.querySelector('input[data-snap]');
+    if (primeiro) {
+      primeiro.checked = !primeiro.checked;
+      primeiro.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    const spinnerImediato = !box.querySelector('.tec-scope-busy').hidden;
+    await new Promise(r => setTimeout(r, 220));
+    const atual = box.querySelector('.tec-scope-list');
+    const depois = atual.scrollTop;
+    const allPrimeiro = !!atual.querySelector(':scope > .tec-snap-all:first-child');
+    // restaura o escopo para os testes seguintes
+    DesempenhoTecScreen.selectedSnapIds = new Set(DB.getTecSnapshots().map(s => s.id));
+    DesempenhoTecScreen.scopeMode = 'consolidado';
+    DesempenhoTecScreen.aplicarMudancaEscopo();
+    return {
+      mesmaLista: atual === lista && atual.dataset.guard === 'mesma-lista',
+      antes, depois, spinnerImediato, allPrimeiro
+    };
+  });
+  (retratos.mesmaLista && retratos.spinnerImediato && retratos.allPrimeiro && retratos.depois === retratos.antes)
+    ? ok('selecionar retratos preserva a lista/scroll e mostra feedback visual em vez de parecer travado')
+    : erro('o seletor de retratos ainda reinicia ou fica sem feedback: ' + JSON.stringify(retratos));
+
   // ── INCIDENCIA: importar duas vezes nao pode dobrar ──────────────────────
   const incidenciaFechada = await pag.evaluate(() => {
     DesempenhoTecScreen.switchTecTab('incidencia');
@@ -1198,10 +1256,14 @@ try {
       filhos = [...pai.querySelectorAll(':scope > .tnode-children > .tnode > .tnode-row')].map(pct);
     }
     const linha = document.querySelector('#tec-disc-list .tnode-row');
+    const rows = [...document.querySelectorAll('#tec-disc-list .tnode-row')];
     return {
       fracos, fortes, filhos,
       temQuestoes: !!(linha && linha.querySelector('.tnode-q')),
-      temErro: !!(linha && linha.querySelectorAll('.tnode-pct b').length === 2)
+      temErro: !!(linha && linha.querySelectorAll('.tnode-pct b').length === 2),
+      vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      cortadas: rows.filter(r => r.getBoundingClientRect().right > document.documentElement.clientWidth + 2).length,
+      niveis: new Set([...document.querySelectorAll('#tec-disc-list .tnode[data-level]')].map(n => n.dataset.level)).size
     };
   });
   const crescente = (a) => a.every((v, i) => i === 0 || a[i - 1] <= v);
@@ -1214,9 +1276,9 @@ try {
   (arv.filhos.length > 1 ? crescente(arv.filhos) : arv.filhos.length >= 0)
     ? ok('e a ordem vale dentro do ramo aberto, nao so na raiz')
     : erro('os filhos nao seguiram a ordem do pai: ' + JSON.stringify(arv.filhos));
-  (arv.temQuestoes && arv.temErro)
-    ? ok('cada linha traz questoes resolvidas, acerto e erro — como na tela do TecConcursos')
-    : erro('a linha da arvore nao tem as colunas do TEC: ' + JSON.stringify(arv));
+  (arv.temQuestoes && arv.temErro && arv.vaza === 0 && arv.cortadas === 0)
+    ? ok('a arvore mobile exibe questoes, acerto e erro sem cortar a tabela')
+    : erro('a arvore mobile perdeu coluna ou vazou horizontalmente: ' + JSON.stringify(arv));
 
   // ── "i" em todos os controles das tres abas ─────────────────────────────
   const dicas = await pag.evaluate(() => {
@@ -1339,12 +1401,20 @@ try {
     await esperar(300);
 
     const host = document.getElementById('incid-banca-pick');
-    const abrir = () => { host.querySelector('.banca-pick-btn').click(); };
+    const abrir = () => {
+      const p = host.querySelector('.banca-pick-panel');
+      if (p && p.hasAttribute('hidden')) host.querySelector('.banca-pick-btn').click();
+    };
     const marcar = async (nome) => {
       abrir(); await esperar(80);
-      const c = [...host.querySelectorAll('.banca-pick-panel input[type=checkbox]')].find((x) => x.value === nome);
-      c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true }));
+      const painel = host.querySelector('.banca-pick-panel');
+      const y = painel.scrollTop;
+      painel.dataset.guard = 'mesmo';
+      const ch = [...painel.querySelectorAll('input[data-banca]')].find((x) => x.value === nome);
+      ch.checked = !ch.checked; ch.dispatchEvent(new Event('change', { bubbles: true }));
       await esperar(250);
+      const atual = host.querySelector('.banca-pick-panel');
+      if (atual !== painel || atual.dataset.guard !== 'mesmo' || atual.scrollTop !== y) throw new Error('painel de bancas foi reconstruido');
     };
     /* A conta da incidência é lida direto do mapa que o Motor usa no
        pós-edital: é ele que a seleção de bancas tem de mover. */
@@ -1365,16 +1435,19 @@ try {
     // a mesma selecao tem de valer nas outras abas
     DesempenhoTecScreen.switchTecTab('motor');
     await esperar(350);
+    const motorCalc = MotorSugestao.calcular({ fase: 'pos' });
     const noPlano = {
-      rotulo: (document.querySelector('#motor-banca-pick .banca-pick-btn span') || {}).textContent || '',
-      filtro: DesempenhoTecScreen.bancaFiltro()
+      filtro: DesempenhoTecScreen.bancaFiltro(),
+      motorBanca: motorCalc && !motorCalc.erro ? motorCalc.banca : null
     };
     DesempenhoTecScreen.switchTecTab('incidencia');
     await esperar(250);
-    // volta para todas
-    document.querySelector('#incid-banca-pick .banca-pick-btn').click();
+    // volta para todas — a opção deve ser a primeira da lista
+    const hp = document.getElementById('incid-banca-pick');
+    const pp = hp.querySelector('.banca-pick-panel');
+    if (pp.hasAttribute('hidden')) hp.querySelector('.banca-pick-btn').click();
     await esperar(80);
-    const btnTodas = document.querySelector('#incid-banca-pick .banca-pick-panel [data-acao="todas"]');
+    const btnTodas = pp.querySelector(':scope > [data-acao="todas"]:first-child');
     if (btnTodas) btnTodas.click();
     await esperar(300);
     const voltou = estado();
@@ -1389,8 +1462,11 @@ try {
   (sel.duas.incid === 66 && /2 bancas/.test(sel.duas.rotulo) && sel.duas.blocos === 2 && /FGV e Cebraspe|Cebraspe e FGV/.test(sel.duas.resumo))
     ? ok('duas bancas somam so as duas (40+26 = 66) e o resumo nomeia as duas')
     : erro('a soma de duas bancas saiu errada: ' + JSON.stringify(sel.duas));
-  (/2 bancas/.test(sel.noPlano.rotulo) && Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2)
-    ? ok('a mesma selecao vale no Motor, sem precisar escolher de novo')
+  (Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2
+      && Array.isArray(sel.noPlano.motorBanca) && sel.noPlano.motorBanca.length === 2
+      && sel.noPlano.filtro.map(x => String(x).trim().toLowerCase()).sort().join('|')
+        === sel.noPlano.motorBanca.map(x => String(x).trim().toLowerCase()).sort().join('|'))
+    ? ok('a mesma selecao de duas bancas chega ao calculo do Motor, sem seletor duplicado')
     : erro('a selecao nao atravessou para o Motor: ' + JSON.stringify(sel.noPlano));
   (sel.voltou.incid === 166 && /Todas/.test(sel.voltou.rotulo))
     ? ok('voltar a todas as bancas devolve a soma completa')
@@ -1425,7 +1501,7 @@ try {
   });
   await pag.waitForTimeout(400);
   const hom = await pag.evaluate(() => {
-    const texto = [...document.querySelectorAll('#motor-lista .ms-item')].map((e) => e.textContent.replace(/\s+/g, ' '));
+    const texto = [...document.querySelectorAll('#motor-lista .ms-suggestion-card')].map((e) => e.textContent.replace(/\s+/g, ' '));
     const r = MotorSugestao.calcular({ maxFrentes: 12 });
     const p = (r.todos || []).filter((x) => /Princ[ií]pios/.test(x.nome));
     return { comPrincipios: texto.filter((t) => /Princ[ií]pios/.test(t)).length,
@@ -1549,7 +1625,7 @@ try {
       ponto: !!document.querySelector('#tec-cfg-nav button[data-sec="caderno"] .dot') };
   });
   (vivo.gravado === 40 && /40/.test(vivo.etiqueta))
-    ? ok('mexer num campo aplica na hora e a etiqueta acompanha (caderno de 40 questoes)')
+    ? ok('mexer num campo aplica na hora e a etiqueta acompanha (base de 40 questoes por reforco)')
     : erro('o ajuste nao foi aplicado ao vivo: ' + JSON.stringify(vivo));
   vivo.ponto ? ok('e a secao ganha o ponto de "voce mexeu aqui"')
     : erro('a secao personalizada nao ficou marcada');
@@ -1593,7 +1669,7 @@ try {
     return { alvo: MotorSugestao.prefs().alvoQuestoes, padrao: MotorSugestao.DEFAULTS.alvoQuestoes };
   });
   (rest.alvo === rest.padrao)
-    ? ok(`restaurar padroes devolve o Motor ao caderno padrao de ${rest.padrao} questoes`)
+    ? ok(`restaurar padroes devolve o Motor a base padrao de ${rest.padrao} questoes por reforco`)
     : erro('restaurar padroes do Motor falhou: ' + JSON.stringify(rest));
 
   /* 10) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:

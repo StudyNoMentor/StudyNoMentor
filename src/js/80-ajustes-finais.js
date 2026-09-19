@@ -547,123 +547,33 @@ else CloudStore.init();
      6) DESEMPENHO TEC — abas escolhidas pelo usuário + Plano didático
      ═════════════════════════════════════════════════════════════════════════ */
   const TEC_TABS = [
-    { id: 'analise', label: '📊 Análise', desc: 'Totais, pontos fracos e aproveitamento por disciplina.' },
-    { id: 'incidencia', label: '🏛️ Incidência', desc: 'Cadastro de quantas vezes cada tópico caiu na banca.' },
-    { id: 'motor', label: '🧭 Motor de sugestão', desc: 'A fila do dia: onde atacar, em que nível da árvore e com quantas questões.' }
+    { id: 'analise', label: '📊 Análise' },
+    { id: 'incidencia', label: '🏛️ Incidência' },
+    { id: 'motor', label: '🧭 Motor de sugestão' }
   ];
+  /* As três abas são parte fixa do fluxo TEC. O antigo "⚙ Abas" permitia
+     esconder peças centrais do percurso e adicionava uma configuração para
+     algo que não precisava ser configurável. Em atualização de sessão, também
+     desmontamos a moldura que uma versão antiga possa ter deixado no DOM. */
   const TecUX = {
-    visible() {
-      const v = jget('tec-tabs', null);
-      if (!Array.isArray(v) || !v.length) return TEC_TABS.map(t => t.id);
-      const ok = v.filter(id => TEC_TABS.some(t => t.id === id));
-      return ok.length ? ok : TEC_TABS.map(t => t.id);
-    },
+    visible() { return TEC_TABS.map(t => t.id); },
     init() {
-      /* Engrenagem "Exibição" no topo do TEC (agrupa Filtros + Modo enxuto).
-         Ela mora DENTRO de um `.card`, e todo `.card` do app tem
-         `overflow: hidden` para que o conteúdo respeite o canto arredondado. Um
-         menu `position: absolute` ali é recortado pela borda do cartão: era
-         isso que se via — a lista aparecia atrás dos cartões de baixo, sem
-         como ler nem clicar nos itens. Na Grade o mesmo menu funciona porque
-         lá o botão fica no cabeçalho da tela, fora de qualquer cartão.
-
-         A correção é ancorar o menu em coordenadas de TELA (`position: fixed`,
-         medidas a partir do botão): fora do fluxo do cartão, nada o recorta.
-         O reposicionamento acompanha rolagem e giro do aparelho enquanto ele
-         está aberto, senão o menu ficaria plantado onde o botão estava. */
-      (function () {
-        const gbtn = $('#tec-gear-btn'), gmenu = $('#tec-gear-menu');
-        if (!gbtn || !gmenu || gbtn._ux) return;
-        gbtn._ux = true;
-        const posicionar = () => {
-          const r = gbtn.getBoundingClientRect();
-          const w = gmenu.offsetWidth, h = gmenu.offsetHeight;
-          let left = Math.min(r.right - w, window.innerWidth - w - 10);
-          gmenu.style.left = Math.max(10, left) + 'px';
-          let top = r.bottom + 8;
-          if (top + h > window.innerHeight - 10) top = Math.max(10, r.top - h - 8);
-          gmenu.style.top = top + 'px';
-        };
-        const close = () => {
-          gmenu.classList.remove('open'); gbtn.classList.remove('open');
-          gbtn.setAttribute('aria-expanded', 'false'); gmenu.setAttribute('aria-hidden', 'true');
-          document.removeEventListener('click', onDoc, true);
-          window.removeEventListener('scroll', posicionar, true);
-          window.removeEventListener('resize', posicionar);
-        };
-        const onDoc = (e) => { if (!gmenu.contains(e.target) && e.target !== gbtn && !gbtn.contains(e.target)) close(); };
-        gbtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const open = gmenu.classList.toggle('open');
-          gbtn.classList.toggle('open', open);
-          gbtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-          gmenu.setAttribute('aria-hidden', open ? 'false' : 'true');
-          if (open) {
-            posicionar();
-            window.addEventListener('scroll', posicionar, true);
-            window.addEventListener('resize', posicionar);
-            setTimeout(() => document.addEventListener('click', onDoc, true), 0);
-          } else {
-            document.removeEventListener('click', onDoc, true);
-            window.removeEventListener('scroll', posicionar, true);
-            window.removeEventListener('resize', posicionar);
-          }
-        });
-        document.addEventListener('keydown', (e) => {
-          if (e.key === 'Escape' && gmenu.classList.contains('open')) close();
-        });
-        gmenu.querySelectorAll('.grade-gear-item').forEach(it => it.addEventListener('click', () => setTimeout(close, 0)));
-      })();
       const tabs = $('#tec-subtabs');
       if (!tabs) return;
-      if (!$('#tec-tabs-gear')) {
-        const wrap = document.createElement('div');
-        wrap.className = 'tec-subtabs-wrap';
-        tabs.parentNode.insertBefore(wrap, tabs);
-        wrap.appendChild(tabs);
-        const gear = document.createElement('button');
-        gear.type = 'button';
-        gear.className = 'ux-gear';
-        gear.id = 'tec-tabs-gear';
-        gear.title = 'Escolher quais abas aparecem';
-        gear.innerHTML = '⚙ Abas';
-        wrap.appendChild(gear);
-        gear.addEventListener('click', (e) => this.pop(e.currentTarget));
+      const gear = $('#tec-tabs-gear');
+      if (gear) gear.remove();
+      const wrap = tabs.parentElement;
+      if (wrap && wrap.classList.contains('tec-subtabs-wrap')) {
+        wrap.parentNode.insertBefore(tabs, wrap);
+        wrap.remove();
       }
+      try { localStorage.removeItem(PREF + 'tec-tabs'); } catch (_) { _quiet(_); }
       this.apply();
     },
-    pop(btn) {
-      const vis = this.visible();
-      openPop(btn, `
-        <div class="ux-pop-head">Abas do Desempenho TEC</div>
-        <div class="ux-pop-body">
-          ${TEC_TABS.map(t => checkRow('t:' + t.id, t.label, t.desc, vis.indexOf(t.id) !== -1)).join('')}
-          <div class="ux-pop-note">Pelo menos uma aba fica sempre visível.</div>
-        </div>
-        <div class="ux-pop-foot"><button type="button" class="btn-secondary" data-act="all">Mostrar todas</button></div>`,
-        (pop) => {
-          pop.querySelectorAll('[data-ux^="t:"]').forEach(cb => cb.addEventListener('change', () => {
-            let v = this.visible();
-            const id = cb.dataset.ux.slice(2);
-            if (cb.checked) { if (v.indexOf(id) === -1) v.push(id); }
-            else { const n = v.filter(x => x !== id); if (!n.length) { cb.checked = true; toast('Mantenha ao menos uma aba visível.'); return; } v = n; }
-            jset('tec-tabs', TEC_TABS.map(t => t.id).filter(x => v.indexOf(x) !== -1));
-            this.apply();
-          }));
-          pop.querySelector('[data-act="all"]').addEventListener('click', () => {
-            jset('tec-tabs', TEC_TABS.map(t => t.id)); this.apply(); closePop();
-          });
-        }, { alignRight: true });
-    },
+    pop() {},
     apply() {
-      const vis = this.visible();
-      $$('#tec-subtabs .tec-subtab').forEach(b => b.classList.toggle('ux-off', vis.indexOf(b.dataset.tectab) === -1));
-      const g = $('#tec-tabs-gear');
-      if (g) { const n = TEC_TABS.length - vis.length; g.innerHTML = n ? `⚙ Abas (${n} oculta${n === 1 ? '' : 's'})` : '⚙ Abas'; g.classList.toggle('on', n > 0); }
-      try {
-        if (typeof DT !== 'undefined' && vis.indexOf(DT.tecTab) === -1) DT.switchTecTab(vis[0]);
-      } catch (_) { _quiet(_); }
-    },
+      $$('#tec-subtabs .tec-subtab').forEach(b => b.classList.remove('ux-off'));
+    }
   };
 
   /* ═════════════════════════════════════════════════════════════════════════
@@ -673,8 +583,7 @@ else CloudStore.init();
     { id: 'estudo', ic: '📚', label: 'Estudo', title: 'Estrutura do seu estudo', desc: 'Matérias, fases, formas e modos. É daqui que saem as opções de todas as outras telas.' },
     { id: 'prefs', ic: '🎛️', label: 'Preferências', title: 'Aparência e comportamento', desc: 'Ajustes deste dispositivo. Não afetam seus dados nem são enviados para a nuvem.' },
     { id: 'conta', ic: '☁️', label: 'Conta e nuvem', title: 'Conta, sessão e sincronização', desc: 'Acesso em vários aparelhos, controle da sessão e envio manual quando você quiser.' },
-    { id: 'dados', ic: '💾', label: 'Dados e backup', title: 'Seus dados', desc: 'As cópias de segurança em ordem de força: no servidor, neste aparelho e em arquivo — mais a ferramenta de resgate.' },
-    { id: 'diag', ic: '🩺', label: 'Diagnóstico', title: 'Diagnóstico e manutenção', desc: 'O estado real do app agora — útil quando algo parece fora do lugar.' }
+    { id: 'dados', ic: '💾', label: 'Dados e backup', title: 'Seus dados', desc: 'As cópias de segurança em ordem de força: no servidor, neste aparelho e em arquivo — mais a ferramenta de resgate.' }
   ];
   const ConfigUX = {
     init() {
@@ -719,11 +628,12 @@ else CloudStore.init();
       to('#cfg-vhist-body', 'dados');     // neste aparelho, automático
       this.buildDados();                  // em arquivo, manual
       this.buildPrefs();
-      this.buildDiag();
+      /* A antiga tela "Diagnóstico" saiu da navegação: era uma superfície de
+         manutenção técnica sem papel no fluxo de estudo. Os helpers internos
+         ficam disponíveis para suporte, mas não criam botão nem tela. */
       this.show(pget('cfg-group', 'estudo'));
       window.addEventListener('screen:activated', (e) => {
         if (!e.detail || e.detail.screen !== 'config') return;
-        this.refreshDiag();
         const t = $('#cfgp-tema');
         if (t) { try { t.value = localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'light'; } catch (_) { _quiet(_); } }
       });
@@ -733,7 +643,6 @@ else CloudStore.init();
       pset('cfg-group', id);
       $$('#cfg-nav button').forEach(b => b.classList.toggle('active', b.dataset.g === id));
       $$('.cfg-group').forEach(p => p.classList.toggle('active', p.id === 'cfg-g-' + id));
-      if (id === 'diag') this.refreshDiag();
     },
     card(gid, title, sub, bodyHtml, headExtra) {
       const s = document.createElement('section');
