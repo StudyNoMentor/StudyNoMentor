@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v586c9e877c">
+<meta name="diario-versao" content="v6bcc1609c2">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -32808,33 +32808,33 @@ const AutoTeste = {
       nome, codigo: null, depth, disciplina: 'X', questoes: q, acertos: ac, children: filhos || []
     });
 
-    /* Três filhos pequenos do MESMO tópico só podem virar bloco local. Eles
-       não podem escapar para a raiz/disciplinar para "comprar" amostra. */
+    /* O único freio de granularidade é o piso de amostra. Três filhos do
+       mesmo pai que, sozinhos, não alcançam 20 questões viram um bloco local. */
     const miudos = no('Tópico A', 40, 11, 1, [
       no('A.1', 10, 2, 2), no('A.2', 12, 3, 2), no('A.3', 18, 6, 2)
     ]);
-    const local = M._planejarNo(miudos, 15, []);
+    const local = M._planejarNo(miudos, 20, []);
     const bloco = local.find(x => x.agregado);
-    this._ok('Motor: ramos pequenos viram bloco somente entre irmãos do mesmo pai',
+    this._ok('Motor simples: ramos pequenos viram bloco somente entre irmãos do mesmo pai',
       !!(bloco && bloco.pai === 'Tópico A' && bloco.membros.length === 3
         && bloco.membros.every(n => /^A\./.test(n))), bloco);
-    this._ok('Motor: o bloco continua abaixo da disciplina',
+    this._ok('Motor simples: o bloco continua abaixo da disciplina',
       local.length > 0 && local.every(x => x.nivel > 0 && x.disciplina === 'X'), local);
 
-    /* O agrupamento não pode parar num número mágico. Se cinco irmãos ainda
-       forem pouco, o sexto entra; quem encerra é a margem, não "até 4". */
+    /* Não existe teto mágico de irmãos: todos os ramos pequenos locais entram
+       se forem necessários para alcançar o piso. */
     const muitos = no('Tópico B', 36, 9, 1, [
       no('B.1', 6, 1, 2), no('B.2', 6, 1, 2), no('B.3', 6, 1, 2),
       no('B.4', 6, 2, 2), no('B.5', 6, 2, 2), no('B.6', 6, 2, 2)
     ]);
-    const planoMuitos = M._planejarNo(muitos, 15, []);
+    const planoMuitos = M._planejarNo(muitos, 20, []);
     const blocoMuitos = planoMuitos.find(x => x.agregado);
-    this._ok('Motor: agrupa quantos irmãos pequenos forem necessários até a margem fechar',
-      !!(blocoMuitos && blocoMuitos.membros.length > 4 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
+    this._ok('Motor simples: agrupa quantos irmãos pequenos forem necessários para alcançar a amostra',
+      !!(blocoMuitos && blocoMuitos.membros.length === 6 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
 
     const raiz = no('X', 400, 180, 0, [miudos]);
-    this._ok('Motor: depth 0 é fronteira absoluta e nunca vira atividade',
-      M._planejarNo(raiz, 15, []).length === 0);
+    this._ok('Motor simples: depth 0 é fronteira absoluta e nunca vira atividade',
+      M._planejarNo(raiz, 20, []).length === 0);
 
     /* Códigos do TEC podem mudar entre retratos. 01=A num mês e 01=B no outro
        não pode trocar os filhos de pai no histórico consolidado. */
@@ -32861,9 +32861,8 @@ const AutoTeste = {
       { A: ta && { q: ta.questoes, filhos: ta.children.map(x => x.nome) },
         B: tb && { q: tb.questoes, filhos: tb.children.map(x => x.nome) } });
 
-    /* A fila é depth-first, sempre pior→melhor em CADA nível: primeiro entra
-       no pior tópico, resolve seus filhos do pior ao melhor, só depois segue
-       para o próximo tópico da disciplina. */
+    /* Dentro da disciplina, a fila é simplesmente pior percentual válido
+       primeiro. A amostra decide se o recorte pode existir, não dá score. */
     const disc = no('X', 320, 164, 0, [
       no('Tópico pior', 200, 80, 1, [
         no('Sub pior', 100, 20, 2),
@@ -32871,66 +32870,56 @@ const AutoTeste = {
       ]),
       no('Tópico seguinte', 120, 84, 1, [])
     ]);
-    const fila = M._filaDisciplina(disc, Object.assign(M.prefs(), { margemMax: 15, metaAcerto: 90 }));
+    const fila = M._filaDisciplina(disc, Object.assign(M.prefs(), { minAmostra: 20, metaAcerto: 90 }));
     const nomes = fila.map(x => x.nome);
-    this._ok('Motor: percorre pior tópico e seus subtópicos antes do tópico seguinte',
+    this._ok('Motor simples: fila interna é pior percentual válido primeiro',
       nomes[0] === 'Sub pior' && nomes[1] === 'Sub melhor' && nomes[2] === 'Tópico seguinte', nomes);
-    this._ok('Motor: ordem interna não é reembaralhada por score global',
+    this._ok('Motor simples: a ordem interna permanece auditável',
       fila.every((x, i) => x.ordemNaDisciplina === i + 1), fila.map(x => x.ordemNaDisciplina));
 
-    /* A margem continua sendo a trava estatística, não o percentual cru. */
-    this._ok('Motor: 2 questões nunca passam na régua de ±15pp', !M.legivel(2, 0, 15));
-    this._ok('Motor: 200 questões passam na mesma régua', M.legivel(200, 100, 15));
-    const semIntervalo = M._lacuna({ taxa: 0, margem: null, questoes: 1 }, Object.assign(M.prefs(), { metaAcerto: 90 }));
-    this._ok('Motor: uma questão isolada nunca vira "lacuna segura" de matéria',
-      semIntervalo.gapConfiavel === 0 && semIntervalo.deficitSeguro === 0, semIntervalo);
-    this._ok('Motor: a meta padrão é 90% e a rodada padrão tem no máximo 3 disciplinas',
-      M.DEFAULTS.metaAcerto === 90 && M.LIMITES.maxFrentes[1] === 3,
-      { meta: M.DEFAULTS.metaAcerto, max: M.LIMITES.maxFrentes });
+    this._ok('Motor simples: 2 questões não alcançam o piso 20', !M.suficiente(2, 20));
+    this._ok('Motor simples: 20 questões alcançam o piso 20', M.suficiente(20, 20));
+    const lacunaCrua = M._lacuna({ taxa: 61, questoes: 20 }, Object.assign(M.prefs(), { metaAcerto: 90 }));
+    this._ok('Motor simples: lacuna é apenas meta menos aproveitamento',
+      Math.abs(lacunaCrua.gapMeta - 29) < 0.001, lacunaCrua);
+    this._ok('Motor simples: a meta padrão é 90% e a rodada padrão tem no máximo 3 disciplinas',
+      M.DEFAULTS.metaAcerto === 90 && M.DEFAULTS.minAmostra === 20 && M.LIMITES.maxFrentes[1] === 3,
+      { meta: M.DEFAULTS.metaAcerto, amostra: M.DEFAULTS.minAmostra, max: M.LIMITES.maxFrentes });
 
-    /* O ranking ENTRE matérias usa a raiz. Uma matéria forte com um bolsão
-       ruim é manutenção; ela não atropela outra matéria sistemicamente fraca. */
+    /* O volume histórico nunca multiplica a prioridade. Uma matéria a 60% com
+       80 questões deve vir antes de uma a 80% com 5.000 questões. */
     const pa = Object.assign(M.prefs(), { metaAcerto: 90, fase: 'pre' });
-    const forte = {
-      nome: 'Forte', faixaPrioridade: 1, questoes: 900, taxa: 88,
-      gapConfiavelDisc: 0, deficitSeguro: 0,
-      melhorTopico: { gapConfiavel: 28, taxa: 55, questoes: 50 }
-    };
-    const fraca = {
-      nome: 'Fraca', faixaPrioridade: 0, questoes: 900, taxa: 62,
-      gapConfiavelDisc: 25, deficitSeguro: 225,
-      melhorTopico: { gapConfiavel: 18, taxa: 60, questoes: 120 }
-    };
-    this._ok('Motor: matéria 88% com bolsão ruim não passa na frente de matéria 62% sistêmica',
-      M._compararDisciplinas(fraca, forte, pa) < 0, { forte, fraca });
+    const muitoPraticada = { nome: 'Muito praticada', taxa: 80, questoes: 5000, lacunaDisc: 10, incidenciaDisc: 100 };
+    const poucoPraticada = { nome: 'Pouco praticada', taxa: 60, questoes: 80, lacunaDisc: 30, incidenciaDisc: 1 };
+    this._ok('Motor simples: lacuna percentual vence volume histórico',
+      M._compararDisciplinas(poucoPraticada, muitoPraticada, pa) < 0,
+      { muitoPraticada, poucoPraticada });
 
-    /* Stress determinístico: em mil cenários adversariais, nenhuma manutenção
-       localizada pode vencer uma correção sistêmica só porque tem um tópico
-       mais feio. */
+    /* No pós-edital a incidência é somente desempate: não multiplica a lacuna. */
+    const empateA = { nome: 'A', taxa: 70, questoes: 100, lacunaDisc: 20, incidenciaDisc: 10 };
+    const empateB = { nome: 'B', taxa: 70, questoes: 100, lacunaDisc: 20, incidenciaDisc: 50 };
+    const pp = Object.assign({}, pa, { fase: 'pos' });
+    this._ok('Motor simples: incidência só desempata lacunas iguais no pós-edital',
+      M._compararDisciplinas(empateB, empateA, pp) < 0, { empateA, empateB });
+
     let seed = 7331, falhasStress = 0;
     const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     for (let z = 0; z < 1000; z++) {
-      const a = { faixaPrioridade: 1, questoes: 300 + Math.floor(rnd() * 1200),
-        deficitSeguro: 0, gapConfiavelDisc: 0,
-        melhorTopico: { gapConfiavel: 20 + rnd() * 30 } };
-      const b = { faixaPrioridade: 0, questoes: 300 + Math.floor(rnd() * 1200),
-        deficitSeguro: 20 + rnd() * 300, gapConfiavelDisc: 5 + rnd() * 30,
-        melhorTopico: { gapConfiavel: 5 + rnd() * 25 } };
+      const gapA = 1 + rnd() * 20, gapB = gapA + 0.1 + rnd() * 30;
+      const a = { nome: 'A', taxa: 90 - gapA, questoes: 20 + Math.floor(rnd() * 10000), lacunaDisc: gapA };
+      const b = { nome: 'B', taxa: 90 - gapB, questoes: 20 + Math.floor(rnd() * 100), lacunaDisc: gapB };
       if (M._compararDisciplinas(b, a, pa) >= 0) falhasStress++;
     }
-    this._ok('Motor: stress 1.000× preserva matéria sistêmica antes de manutenção localizada',
+    this._ok('Motor simples: stress 1.000× mantém a maior lacuna acima do maior volume',
       falhasStress === 0, falhasStress);
 
-    /* Dose é POR ATIVIDADE. O base de 25 não é um bolo para repartir em 1, 2,
-       3 questões; cada reforço recebe pelo menos o piso útil. */
+    /* A dose também é simples: o tamanho configurado é o tamanho da atividade. */
     const doses = M.dosar([
       { taxaErro: 60, score: 30, questoes: 100 },
       { taxaErro: 25, score: 10, questoes: 100 }
     ], 25, 1);
-    this._ok('Motor: nenhuma atividade nasce abaixo do piso útil',
-      doses.length === 2 && doses.every(x => x.dose >= M.DEFAULTS.doseMin), doses.map(x => x.dose));
-    this._ok('Motor: lacuna mais grave recebe dose igual ou maior sem esmagar a outra',
-      doses[0].dose >= doses[1].dose && doses.reduce((s, x) => s + x.dose, 0) > 25, doses.map(x => x.dose));
+    this._ok('Motor simples: toda atividade recebe a dose fixa configurada',
+      doses.length === 2 && doses.every(x => x.dose === 25), doses.map(x => x.dose));
 
     /* ── CONTRATO DA RODADA: 3 DISCIPLINAS, 1 FRENTE CADA ────────────────────
        A fila completa permanece disponível para trocar o item de uma matéria,
