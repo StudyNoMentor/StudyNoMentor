@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfd9ebfb379">
+<meta name="diario-versao" content="v8a7a2d6f28">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -43588,6 +43588,10 @@ const CloudUI = {
     const box = document.getElementById('cloud-sessions-list');
     if (!box) return;
     if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
+    if (SessionGuard.enabled === false) {
+      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem permanecer conectados.</strong> A sincronização usa controle de revisão para conciliar alterações sem expulsar o outro aparelho.</div>';
+      return;
+    }
     box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
     const r = await SessionGuard.fetchActive();
     if (r.status === 'multi') {
