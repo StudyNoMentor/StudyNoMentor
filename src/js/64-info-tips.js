@@ -156,12 +156,10 @@
   }
 })();
 
-/* O medidor de espaço ("Espaço usado") saiu de Ajustes ▸ Dados e backup. Ele
-   respondia a uma pergunta que o navegador hoje não faz mais: a cota do
-   IndexedDB é da ordem de gigabytes, e um perfil grande ocupa poucos MB. Era
-   um cartão permanente, com barra por módulo e recálculo, para um número que
-   nunca se aproxima do limite. Quem precisar do número tem o tamanho de cada
-   foto no Histórico de versões, logo abaixo, e o total no Diagnóstico. */
+/* O medidor de espaço ("Espaço usado") saiu de Ajustes ▸ Dados e backup.
+   Dados de estudo não são persistidos no navegador: a projeção local vive em
+   RAM e a fonte durável é o PostgreSQL. Medir quota local deixou de representar
+   o tamanho real do perfil. */
 
 /* ---- UI do Histórico de versões (Configurações) ---- */
 const BackupHistoryUI = {

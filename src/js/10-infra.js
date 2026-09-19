@@ -20,10 +20,10 @@
      Registrar · Ciclo · Grade · Cards · Leis · Extras · Links · Histórico
      Evolução · Conquistas · Desempenho TEC · Ferramentas · Config
 
-   NUVEM (opcional)
-     CloudStore .................. blob + sync por seção (Supabase)
-     SessionGuard ................ uma sessão por vez
-     SectionSync ................. escrita/leitura por seção
+   BANCO
+     CloudStore .................. autenticação e fachada Supabase
+     RelationalStore ............. leitura/escrita SQL relacional
+     SessionGuard ................ coordenação entre dispositivos
 
    QUALIDADE
      AutoTeste.rodar() ........... suíte de testes no console
@@ -67,7 +67,7 @@ window.$id = $id;
 
 /* ── _quiet(): erros engolidos passam a deixar rastro ─────────────────────
    Havia 169 blocos `catch (_) { _quiet(_); }`. Cada um transformava uma falha real —
-   cota estourada, IndexedDB bloqueado, JSON corrompido — em silêncio: o
+   falha de rede, JSON corrompido ou exceção de integração — em silêncio: o
    usuário achava que salvou. Remover os catch seria pior (quebraria fluxos
    que dependem da tolerância). Então eles continuam engolindo, mas agora
    REGISTRAM: contador, buffer circular dos últimos 50 e console.debug.
@@ -90,7 +90,7 @@ window.__diag = function () {
     porTipo: Object.assign({}, _engolidos.porTipo),
     ultimos: _engolidos.ultimos.slice(-15),
     idsAusentes: Array.from(_idsAusentes),
-    armazenamento: (window.__idbShim ? 'IndexedDB' : 'localStorage nativo'),
+    armazenamento: (window.__memoryOnlyStore ? 'projeção em RAM + PostgreSQL' : 'modo inesperado'),
     cards: (function () { try { return DB.getCards().length; } catch (_) { return '?'; } })(),
     revisoes: (function () { try { return (DB.getRevlog() || []).length; } catch (_) { return '?'; } })()
   };
@@ -126,17 +126,6 @@ function jsonSeguro(texto) {
 }
 window.jsonSeguro = jsonSeguro;
 
-// Hook seguro para a sincronização na nuvem (CloudStore é definido bem mais abaixo no script).
-// Usar `var` evita o erro de "temporal dead zone" que aconteceria com `typeof CloudStore`
-// caso DB._set seja chamado durante a inicialização, antes do CloudStore existir.
-var _cloudNotifyHook = null;
-// Hook da SINCRONIZAÇÃO POR SEÇÃO (Opção B, Fase 1 = escrita dupla). Marca a seção
-// alterada como "suja" para ser enviada à tabela profile_sections em paralelo ao blob.
-// var (não const) evita erro de zona morta se DB._set rodar antes do SectionSync existir.
-var _sectionMarkHook = null;
-// Hook de mutações individuais do Diário. Permite resolver conflitos de `entries`
-// por ID (adicionar/editar/excluir) sem sobrescrever a seção inteira de outro aparelho.
-var _entryMutationHook = null;
 /* ── RECARGA SEGURA E EDUCADA ──────────────────────────────────────────────
    Havia `location.reload()` espalhado por nove pontos do app. Dois problemas:
 
@@ -145,13 +134,9 @@ var _entryMutationHook = null;
       Aqui a recarga ESPERA você terminar: se há um diálogo aberto ou o cursor
       está dentro de um campo, ela fica agendada e acontece quando a mão sai.
 
-   2. RECARREGAR ANTES DO DISCO TERMINAR DE GRAVAR. O armazenamento do app é uma
-      fachada síncrona sobre o IndexedDB: `setItem` volta na hora, mas a gravação
-      real acontece logo depois, de forma assíncrona. Um reload imediato podia
-      abortar essa transação — e era assim que a sessão recém-gravada do login
-      às vezes não estava lá na abertura seguinte ("tive que entrar de novo").
-      Agora a recarga espera o disco confirmar (com teto de 2 s, para nunca
-      travar a interface). */
+   2. RECARREGAR COM SQL PENDENTE. A projeção do app vive em RAM; portanto um
+      reload só é seguro depois que as mutações relevantes foram confirmadas no
+      PostgreSQL pelos fluxos que solicitaram a recarga. */
 function _appOcupado() {
   try {
     const a = document.activeElement;
@@ -169,44 +154,39 @@ function _appOcupado() {
   return false;
 }
 var _recargaAgendada = null;
-/* opts.imediato = a recarga foi PEDIDA pela pessoa (entrar num perfil, sair da
-   conta, restaurar uma versão). Aí ela não espera nada: só a confirmação do
-   disco. A espera educada é para as recargas que vêm de FORA — uma atualização
-   chegando de outro aparelho no meio do seu trabalho. */
+/* opts.imediato = a recarga foi PEDIDA pela pessoa. A diferença continua
+   sendo apenas de UX: a durabilidade sempre depende do PostgreSQL quando há
+   uma sessão autenticada. */
 function recarregarApp(motivo, opts) {
-  const ir = () => {
+  const ir = async () => {
     try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
-    const disco = window.__idbFlushStrict
-      ? window.__idbFlushStrict(10000)
-      : (window.__idbFlush ? window.__idbFlush().then(() => ({ ok: true })) : Promise.resolve({ ok: true }));
-    Promise.resolve(disco).then((r) => {
-      if (r && r.ok === false) {
-        try { console.error('[recarga] cancelada: armazenamento local não confirmou o commit', r); } catch (e) { _quiet(e, 'recarga-disco'); }
-        try { showToast('⚠ Não recarreguei: ainda há dados sendo gravados neste aparelho. Tente novamente em instantes.'); } catch (e) { _quiet(e, 'recarga-aviso-disco'); }
-        return;
+    try {
+      const conectado = window.CloudStore && CloudStore.isReady && CloudStore.isReady() &&
+        CloudStore.isLoggedIn && CloudStore.isLoggedIn();
+      if (conectado) {
+        if (!window.RelationalStore) throw new Error('camada relacional indisponível');
+        await RelationalStore.flush();
+        if (RelationalStore.pendingCount() !== 0 || RelationalStore._lastError) {
+          throw RelationalStore._lastError || new Error('operações SQL pendentes');
+        }
       }
       location.reload();
-    }).catch((e) => {
-      try { console.error('[recarga] cancelada por falha ao confirmar o armazenamento', e); } catch (_) { _quiet(_); }
-      try { showToast('⚠ Não recarreguei porque o armazenamento local não pôde ser confirmado.'); } catch (_) { _quiet(_); }
-    });
+    } catch (e) {
+      try { console.error('[recarga] cancelada: banco não confirmou as alterações', e); } catch (_) { _quiet(_); }
+      try { showToast('⚠ Não recarreguei: o banco ainda não confirmou todas as alterações.'); } catch (_) { _quiet(_); }
+    }
   };
-  if ((opts && opts.imediato) || !_appOcupado()) { ir(); return; }
-  if (_recargaAgendada) return;                 // já há uma esperando a sua vez
+  if ((opts && opts.imediato) || !_appOcupado()) { void ir(); return; }
+  if (_recargaAgendada) return;
   try { showToast('Há dados novos — a tela será atualizada quando você terminar aqui'); } catch (e) { _quiet(e, 'recarga-aviso'); }
   _recargaAgendada = setInterval(() => {
     if (_appOcupado()) return;
     clearInterval(_recargaAgendada); _recargaAgendada = null;
-    ir();
+    void ir();
   }, 1500);
 }
 window.recarregarApp = recarregarApp;
 
-// Hook do APAGAMENTO de uma chave do perfil. Apagar também é uma alteração que
-// precisa chegar aos outros aparelhos — mas pelo MANIFESTO (a lista de seções que
-// o perfil tem), não como conteúdo. Marcar a seção como "suja" aqui faria subir
-// uma linha vazia em vez de removê-la; por isso o apagamento tem hook próprio.
-var _sectionDropHook = null;
 
 /* ═══════════════════ LIXEIRA — apagar deixou de ser definitivo ═════════════
    O episódio que originou este código: um download tratou "esta seção não está
@@ -217,16 +197,15 @@ var _sectionDropHook = null;
 
    Então a remoção deixa de ser destrutiva. Toda seção do perfil apagada pelo
    app passa por aqui: o valor é guardado em `__trash:<seção>` com a data e o
-   motivo, e continua no aparelho por RETENCAO_DIAS. A tela de Recuperação
-   lista e devolve com um clique.
+   motivo. Como a chave pertence ao perfil, o RelationalStore a persiste no
+   PostgreSQL; a tela de Recuperação lista e devolve com um clique.
 
    Regras que mantêm a lixeira barata:
      · só entra o que tem conteúdo (apagar chave vazia não gera lixo);
      · uma entrada por seção — reapagar substitui, não empilha;
      · expira em 30 dias e nunca passa de ORCAMENTO_BYTES (as mais antigas saem
-       primeiro), então ela não come o espaço do navegador;
-     · fica FORA da sincronização (sectionForKey a ignora): é uma rede local,
-       não um dado do perfil.
+       primeiro), limitando o custo no banco;
+     · usa o mesmo canal SQL do perfil, sem fila paralela, blob ou seção legada.
    ═══════════════════════════════════════════════════════════════════════════ */
 const Lixeira = {
   PREFIXO: '__trash:',

@@ -233,7 +233,7 @@ const ProfileManager = {
        profile_sections, profile_backups) tem a coluna id/profile_id como `uuid`.
        Um id fora desse formato faz TODA operação de nuvem para este perfil
        falhar com "invalid input syntax for type uuid" — na maioria dos
-       caminhos, silenciosamente (SectionSync engole erro por seção e só loga
+       caminhos, silenciosamente (a sincronização antiga engolia erro e só registrava
        no console). O sintoma: o perfil parece normal aqui (o nome muda na
        hora, é local), mas nunca sincroniza — nunca aparece em outro aparelho,
        nunca tem backup no banco, e a lista pode "piscar" porque a nuvem nunca
@@ -409,9 +409,6 @@ const ProfileManager = {
     if (!Array.isArray(this.getProfiles())) this.saveProfiles([]);
   },
   // revisão conhecida (localmente) do perfil na nuvem — base do optimistic locking
-  _revKey(id) { return 'diario-estudos:rev:' + id; },
-  getRev(id) { try { return parseInt(localStorage.getItem(this._revKey(id)), 10) || 1; } catch (e) { return 1; } },
-  setRev(id, r) { try { localStorage.setItem(this._revKey(id), String(r || 1)); } catch (e) { _quiet(e); } },
   // adiciona/atualiza uma entrada no espelho local (sem tocar nos dados do perfil)
   addMirror({ id, nome, avatar, cor }) {
     const list = this.getProfiles();
@@ -510,7 +507,7 @@ const ProfileManager = {
      exige formato de chave nenhum). Mas TODA tabela da nuvem tem a coluna
      id/profile_id como `uuid`, e um id fora desse formato faz cada operação
      de nuvem para aquele perfil falhar — na maioria dos caminhos, em
-     silêncio (SectionSync engole erro por seção e só loga no console). Quem
+     silêncio (a sincronização antiga engolia erro e só registrava no console). Quem
      usa só vê: o nome muda na hora aqui, mas nunca sincroniza — nunca
      aparece em outro aparelho, nunca tem backup no banco, e a lista pode
      "piscar" porque a nuvem nunca tem nada de verdade para esse perfil.
@@ -645,29 +642,19 @@ const ProfileManager = {
     const entrada = lista.find(p => p.id === idAntigo);
     if (entrada) entrada.id = idNovo;
     this.saveProfiles(lista);
-    this.setRev(idNovo, row.rev || 1);
     try {
       const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
       if (uid) this._setOwner(idNovo, uid);
     } catch (e) { _quiet(e, 'adotar-dono'); }
-    /* Só empurra o conteúdo agora se este for o perfil ABERTO: o SectionSync
-       enxerga apenas o namespace do perfil ativo, e trocar o perfil aberto por
-       baixo de quem está usando seria pior que esperar. Os demais sobem
-       naturalmente quando forem abertos. */
+    /* A cópia do namespace passa pela fachada em RAM, que já enfileira cada
+       mutação no RelationalStore. Antes de concluir a troca de id, esperamos
+       essa fila SQL terminar — não existe segunda fila por seção ou blob. */
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
-    if (eraAtivo) {
-      this.setActiveProfile(idNovo);
-      try {
-        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
-          SectionSync._seededProfile = null;
-          SectionSync.markAllDirty(idNovo);
-          await CloudStore._pushSectionsNow(idNovo);
-        } else {
-          await CloudStore.saveActiveWithRetry(idNovo); // compatibilidade do modo legado
-        }
-      } catch (e) { _quiet(e, 'adotar-envio'); }
-    }
-    console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
+    if (eraAtivo) this.setActiveProfile(idNovo);
+    try {
+      if (window.RelationalStore) await RelationalStore.flush();
+    } catch (e) { _quiet(e, 'adotar-envio-relacional'); }
+    console.info('[perfis] id adotado do banco: ' + idAntigo + ' → ' + idNovo);
     return idNovo;
   },
 
@@ -730,71 +717,13 @@ const ProfileManager = {
       try { console.info('[perfis] ' + deOutraConta.length + ' perfil(is) locais pertencem a OUTRA conta — ocultados desta sessão (dado preservado, não apagado): ' + deOutraConta.join(', ')); } catch (e) { _quiet(e, 'perfis-log2'); }
     }
     this.saveProfiles(daNuvem.concat(sobreviventes));
-    (rows || []).forEach(r => { if (r.rev) this.setRev(r.id, r.rev); });
   },
-  /* Apaga o namespace local de um perfil e aplica um payload baixado (data map).
-     `preservar` lista as seções que este aparelho ainda NÃO conseguiu enviar: elas
-     ficam intactas, com o valor local, e continuam na fila. Sem isso, baixar da
-     nuvem apagava do próprio aparelho a alteração que ainda não tinha subido. */
-  restorePayloadInto(id, dataObj, preservar) {
-    const prefix = 'diario-estudos:u:' + id + ':';
-    const manter = new Set(preservar || []);
-    // A contabilidade da sincronização é DESTE aparelho (o que ele já enviou e o
-    // que falta): vinda no backup de outro, faria este achar que está em dia.
-    const local = ['__secrev', '__secpend', '__secdel', '__entryops'];
-    const toRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k || !k.startsWith(prefix)) continue;
-      const sub = k.slice(prefix.length);
-      if (manter.has(sub) || local.indexOf(sub) !== -1) continue;
-      toRemove.push(k);
-    }
-    // Conta o que REALMENTE mudou: é o que permite a quem chamou decidir se vale
-    // recarregar a tela. Recarregar "por precaução" era o que fazia o app piscar.
-    let mudou = 0;
-    const vindas = dataObj || {};
-    /* MESMA REGRA DO CAMINHO POR SEÇÃO: não estar no que veio da nuvem não prova
-       que a pessoa apagou — prova, no mínimo das vezes, que o dado nunca chegou
-       lá (blob antigo, envio que falhou, uso offline). Só apagamos daqui o que
-       TEM revisão gravada, isto é, o que comprovadamente já esteve na nuvem.
-       O resto é o único exemplar existente e fica. */
-    let jaSincronizadas = {};
-    try { jaSincronizadas = (window.SectionSync ? SectionSync._getRevs(id) : {}) || {}; } catch (e) { _quiet(e, 'revs-blob'); }
-    const preservadas = [];
-    toRemove.forEach(k => {
-      const sub = k.slice(prefix.length);
-      if (sub in vindas) return;                       // vem logo abaixo, atualizada
-      if (!jaSincronizadas[sub]) { preservadas.push(sub); return; }   // nunca subiu: fica
-      Lixeira.guardar(k, 'ausente no download da nuvem');
-      localStorage.removeItem(k); mudou++;
-    });
-    if (preservadas.length) {
-      try { console.warn('[perfil] ' + preservadas.length + ' seção(ões) existem só neste aparelho e foram PRESERVADAS: ' + preservadas.join(', ')); } catch (e) { _quiet(e, 'preservadas-log'); }
-      try { if (window.SectionSync) preservadas.forEach(sec => SectionSync.markDirty(prefix + sec)); } catch (e) { _quiet(e, 'preservadas-fila'); }
-    }
-    Object.keys(vindas).forEach(sub => {
-      if (sub.startsWith('u:')) return;
-      if (manter.has(sub) || local.indexOf(sub) !== -1) return;
-      const atual = localStorage.getItem(prefix + sub);
-      if (atual === vindas[sub]) return;
-      // vazio vindo por cima de conteúdo: o local vai para a Lixeira antes (30 dias)
-      if (valorVazio(vindas[sub]) && !valorVazio(atual)) {
-        try { Lixeira.guardar(prefix + sub, 'esvaziada pelo download da nuvem'); } catch (e) { _quiet(e, 'restore-lixeira'); }
-      }
-      localStorage.setItem(prefix + sub, vindas[sub]);
-      mudou++;
-    });
-    return mudou;
-  }
+
 };
 
 // Perfis PRIMEIRO (define o namespace), depois os planejamentos do perfil ativo.
 // Modelo cloud-first: os perfis vêm do banco (study_profiles). No load só garantimos
 // que o "espelho" local exista; o plano padrão é semeado ao ENTRAR num perfil.
 ProfileManager.initMirror();
-// Expõe o ProfileManager no window. Sem isto, checagens como
-// "(window.ProfileManager && ...)" davam SEMPRE falso — foi o que fazia o
-// diagnóstico SectionSync.status() reportar "perfilAtivo: null" mesmo com um
-// perfil aberto (falso alarme). O perfil ativo real vem de getActiveProfileId().
+// Expõe o ProfileManager no window para os módulos carregados depois dele.
 window.ProfileManager = ProfileManager;

@@ -1,167 +1,23 @@
 /* ============================================================
-   SAVEGUARD — gravar com PROVA de que gravou
-   ────────────────────────────────────────────────────────────
-   O pilar do diário são os registros de estudo. Antes, salvar era otimista:
-   escrevia no localStorage, mostrava "Estudo registrado ✓" e seguia a vida. Se
-   a escrita falhasse (cota estourada, aba anônima, storage bloqueado) ou se o
-   envio para a nuvem nunca acontecesse, o usuário só descobria depois — abrindo
-   o app em outro aparelho e não encontrando o registro.
-
-   SaveGuard.run() faz três coisas, nesta ordem:
-     1. GRAVA           — executa a operação de escrita pedida.
-     2. RELÊ do disco   — abre o localStorage de novo e confere que o registro
-                          está lá. É a prova real de que persistiu; sem isso
-                          "salvo" era só uma suposição.
-     3. ENVIA à nuvem   — força o flush e espera o resultado, com timeout. Se a
-                          rede falhar, o dado JÁ está no aparelho e continua na
-                          fila de envio: a mensagem diz exatamente isso em vez
-                          de mentir "sincronizado".
-   Devolve { ok, local, cloud, motivo } para a tela decidir o que exibir.
+   SAVEGUARD — só confirma depois do PostgreSQL
+   ------------------------------------------------------------
+   A projeção síncrona em RAM existe para manter as telas rápidas, mas não é
+   persistência. SaveGuard executa a mutação, valida a projeção e espera a fila
+   relacional terminar. Se o banco não confirmar, reidrata o perfil canônico.
    ============================================================ */
 const SaveGuard = {
   CLOUD_TIMEOUT_MS: 12000,
-  /* Piso de tempo do estado "Salvando…". Sem conta na nuvem a gravação local
-     termina em poucos milissegundos e o spinner aparecia e sumia no mesmo
-     quadro — ninguém via nada, e "será que salvou?" continuava sem resposta.
-     Uns 400 ms bastam para o retorno ser LIDO, sem virar espera artificial. */
   MIN_BUSY_MS: 400,
 
-  // Espera o CloudStore ficar sem nada pendente (ou estourar o tempo).
-  async _aguardaNuvem(ms) {
-    const CS = window.CloudStore;
-    if (!CS || !CS.isReady || !CS.isReady() || !CS.isLoggedIn || !CS.isLoggedIn()) {
-      return { enviado: false, motivo: 'offline' };   // sem conta: local basta
-    }
-    if (window.SessionLock && SessionLock.isBlocked && SessionLock.isBlocked()) {
-      return { enviado: false, motivo: 'sessao-em-outro-aparelho' };
-    }
-    const limite = Date.now() + (ms || this.CLOUD_TIMEOUT_MS);
-    try { await CS.flushPending(); } catch (_) { _quiet(_); }
-    /* flushPending pode reprogramar novas tentativas (rede instável). Esperamos
-       a fila esvaziar de verdade em vez de confiar no retorno da primeira. */
-    while (Date.now() < limite) {
-      let secPendente = false;
-      try {
-        if (window.SectionSync) {
-          const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
-          secPendente = !!SectionSync._pushing ||
-            !!(pid && SectionSync.explicitPendingSections && SectionSync.explicitPendingSections(pid).length);
-        }
-      } catch (_) { secPendente = true; }
-      if (!CS._pending && !CS._syncing && !secPendente) return { enviado: true, motivo: '' };
-      await new Promise(r => setTimeout(r, 250));
-    }
-    return { enviado: false, motivo: 'tempo-esgotado' };
-  },
-
-  /* opts:
-       escrever()  -> executa a gravação; devolve algo "falsy" se falhou
-       verificar() -> relê do armazenamento e devolve true se o dado está lá
-       nuvem       -> false para não esperar a nuvem (ex.: rascunhos)          */
-  async run(opts) {
-    const t0 = Date.now();
-    const escrever = opts.escrever;
-    const verificar = opts.verificar;
-    // garante que o estado "Salvando…" fique visível tempo suficiente para ser lido
-    const comPiso = async (r) => {
-      const falta = this.MIN_BUSY_MS - (Date.now() - t0);
-      if (falta > 0) await new Promise(res => setTimeout(res, falta));
-      return r;
-    };
-    /* Falha = a gravacao devolveu explicitamente false ou null (foi o que DB._set
-       passou a sinalizar). undefined conta como sucesso: e o retorno natural de
-       uma funcao de escrita que nao devolve nada. */
-    let retorno;
-    try { retorno = escrever(); } catch (e) { console.error('SaveGuard.escrever', e); retorno = false; }
-    if (retorno === false || retorno === null) return comPiso({ ok: false, local: false, cloud: false, motivo: 'escrita-recusada' });
-
-    // Prova de persistência: relê do armazenamento, não da memória.
-    if (typeof verificar === 'function') {
-      let confere = false;
-      try { confere = !!verificar(); } catch (e) { console.error('SaveGuard.verificar', e); }
-      if (!confere) return comPiso({ ok: false, local: false, cloud: false, motivo: 'nao-persistiu' });
-    }
-
-    if (opts.nuvem === false) return comPiso({ ok: true, local: true, cloud: false, motivo: 'sem-nuvem' });
-
-    /* ═══ ESPERAR A NUVEM NÃO MUDA A DECISÃO, SÓ A FRASE ═══════════════════
-       Com conta conectada, esta espera é o que faz "Registrar estudo" demorar:
-       o formulário fica travado até o `flushPending` terminar (teto de 12 s,
-       conferido de 250 em 250 ms). E o que se ganha esperando é APENAS a
-       precisão do aviso — "salvo e sincronizado ✓" em vez de "salvo no
-       aparelho · envio em andamento". O veredito não muda: falha de rede
-       continua devolvendo `ok: true`, porque o dado já está no aparelho e na
-       fila de envio, e o formulário é limpo do mesmo jeito. Ou seja, a pessoa
-       esperava por uma palavra, com o dado já seguro desde o passo anterior.
-
-       `nuvem: 'depois'` devolve o controle assim que a persistência local está
-       PROVADA (o passo que importa) e continua acompanhando a nuvem em
-       segundo plano, avisando pelo `aoSincronizar`. A garantia que existe aqui
-       desde o começo fica intacta: "sincronizado" só é dito depois de a fila
-       confirmar — o que muda é que o formulário não fica parado esperando
-       para ouvir isso.
-
-       Quem não passa a opção continua com a espera síncrona, byte por byte
-       como antes: nenhum outro salvamento do app muda de comportamento. */
-    if (opts.nuvem === 'depois') {
-      const res = await comPiso({ ok: true, local: true, cloud: false, motivo: 'enviando' });
-      this._aguardaNuvem(opts.timeout).then((r) => {
-        if (typeof opts.aoSincronizar === 'function') {
-          try { opts.aoSincronizar({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo }); }
-          catch (e) { _quiet(e, 'saveguard-ao-sincronizar'); }
-        }
-      }, (e) => _quiet(e, 'saveguard-nuvem-depois'));
-      return res;
-    }
-    const r = await this._aguardaNuvem(opts.timeout);
-    return comPiso({ ok: true, local: true, cloud: r.enviado, motivo: r.motivo });
-  },
-
-  /* Botão em estado "salvando": trava contra duplo toque e mostra o giro.
-     Devolve uma função que restaura o botão exatamente como estava. */
-  ocupar(btn, texto) {
-    if (!btn) return () => {};
-    const rotuloOriginal = btn.innerHTML;
-    const larguraOriginal = btn.style.minWidth;
-    // trava a largura para o botão não "pular" ao trocar o texto
-    try { btn.style.minWidth = btn.getBoundingClientRect().width + 'px'; } catch (_) { _quiet(_); }
-    btn.disabled = true;
-    btn.classList.add('is-saving');
-    btn.innerHTML = '<span class="sg-spin" aria-hidden="true"></span><span>' + escapeHtml(texto || 'Salvando…') + '</span>';
-    return () => {
-      btn.disabled = false;
-      btn.classList.remove('is-saving');
-      btn.innerHTML = rotuloOriginal;
-      btn.style.minWidth = larguraOriginal;
-    };
-  },
-
-  // Mensagem honesta sobre onde o dado ficou.
-  toast(res, okTexto) {
-    if (!res.ok) {
-      showToast(res.motivo === 'nao-persistiu'
-        ? '⚠ O navegador recusou a gravação. NADA foi salvo — libere espaço e tente de novo.'
-        : '⚠ Não foi possível salvar. Verifique o espaço do navegador ou o modo privado.');
-      return;
-    }
-    if (res.cloud) { showToast(okTexto + ' — salvo e sincronizado ✓'); return; }
-    if (res.motivo === 'offline') { showToast(okTexto + ' — salvo neste aparelho ✓'); return; }
-    /* `enviando` é o retorno imediato de `nuvem: 'depois'`: o dado está provado
-       no aparelho e a fila está subindo. Dizer "em andamento" aqui é a mesma
-       verdade do caminho síncrono quando o tempo estoura — e o
-       `aoSincronizar` corrige para "sincronizado" quando a fila confirmar. */
-    showToast(okTexto + ' ✓ salvo no aparelho · envio para a nuvem em andamento');
-  }
-};
-
-/* SQL relacional é a única persistência. O estado em memória é apenas uma
-   projeção para manter as telas síncronas; nunca conta como "salvo". */
-Object.assign(SaveGuard, {
   async _aguardaNuvem(ms) {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn() ||
         !window.RelationalStore) {
       return { enviado: false, motivo: 'sem-banco' };
     }
+    if (window.SessionLock && SessionLock.isBlocked && SessionLock.isBlocked()) {
+      return { enviado: false, motivo: 'sessao-em-outro-aparelho' };
+    }
+
     const limite = Math.max(1000, Number(ms) || this.CLOUD_TIMEOUT_MS);
     let timer = null;
     try {
@@ -176,13 +32,18 @@ Object.assign(SaveGuard, {
       }
       return { enviado: false, motivo: 'pendente' };
     } catch (e) {
-      return { enviado: false, motivo: (e && e.message === 'timeout-sql') ? 'tempo-esgotado' : 'erro-banco', erro: e };
+      return {
+        enviado: false,
+        motivo: (e && e.message === 'timeout-sql') ? 'tempo-esgotado' : 'erro-banco',
+        erro: e
+      };
     } finally {
       if (timer) clearTimeout(timer);
     }
   },
 
   async run(opts) {
+    opts = opts || {};
     const t0 = Date.now();
     const comPiso = async (r) => {
       const falta = this.MIN_BUSY_MS - (Date.now() - t0);
@@ -192,17 +53,23 @@ Object.assign(SaveGuard, {
 
     let retorno;
     try { retorno = await opts.escrever(); }
-    catch (e) { console.error('SaveGuard.escrever', e); retorno = false; }
+    catch (e) {
+      console.error('SaveGuard.escrever', e);
+      retorno = false;
+    }
     if (retorno === false || retorno === null) {
       return comPiso({ ok: false, local: false, cloud: false, motivo: 'escrita-recusada' });
     }
 
-    /* A verificação aqui serve apenas para detectar bug de projeção em memória.
-       Ela NÃO é prova de persistência. */
+    /* A releitura abaixo detecta bug da projeção. Não é prova de persistência:
+       essa prova vem exclusivamente do flush SQL. */
     if (typeof opts.verificar === 'function') {
       let confere = false;
-      try { confere = !!opts.verificar(); } catch (e) { console.error('SaveGuard.verificar', e); }
-      if (!confere) return comPiso({ ok: false, local: false, cloud: false, motivo: 'projecao-invalida' });
+      try { confere = !!opts.verificar(); }
+      catch (e) { console.error('SaveGuard.verificar', e); }
+      if (!confere) {
+        return comPiso({ ok: false, local: false, cloud: false, motivo: 'projecao-invalida' });
+      }
     }
 
     if (opts.nuvem === false) {
@@ -211,50 +78,65 @@ Object.assign(SaveGuard, {
 
     const r = await this._aguardaNuvem(opts.timeout);
     if (!r.enviado) {
-      /* A UI já refletiu a alteração em RAM. Como o banco recusou, o único
-         comportamento honesto é restaurar imediatamente a cópia canônica. */
       try {
         const pid = window.ProfileManager && ProfileManager.getActiveProfileId
           ? ProfileManager.getActiveProfileId() : null;
-        if (pid && window.RelationalStore) await RelationalStore.hydrateProfile(pid, { reason: 'rollback-after-write-failure' });
+        if (pid && window.RelationalStore) {
+          await RelationalStore.hydrateProfile(pid, { reason: 'rollback-after-write-failure' });
+        }
       } catch (e) { _quiet(e, 'saveguard-rollback'); }
-      return comPiso({ ok: false, local: false, cloud: false, motivo: r.motivo || 'erro-banco' });
+      return comPiso({
+        ok: false, local: false, cloud: false,
+        motivo: r.motivo || 'erro-banco'
+      });
     }
 
     return comPiso({ ok: true, local: false, cloud: true, motivo: '' });
   },
 
+  ocupar(btn, texto) {
+    if (!btn) return () => {};
+    const rotuloOriginal = btn.innerHTML;
+    const larguraOriginal = btn.style.minWidth;
+    try { btn.style.minWidth = btn.getBoundingClientRect().width + 'px'; }
+    catch (e) { _quiet(e, 'saveguard-largura'); }
+    btn.disabled = true;
+    btn.classList.add('is-saving');
+    btn.innerHTML = '<span class="sg-spin" aria-hidden="true"></span><span>' +
+      escapeHtml(texto || 'Salvando…') + '</span>';
+    return () => {
+      btn.disabled = false;
+      btn.classList.remove('is-saving');
+      btn.innerHTML = rotuloOriginal;
+      btn.style.minWidth = larguraOriginal;
+    };
+  },
+
   toast(res, okTexto) {
-    if (!res.ok) {
-      const msg = res.motivo === 'tempo-esgotado'
-        ? '⚠ O banco não confirmou a operação a tempo. A tela foi restaurada para o estado confirmado.'
+    if (!res || !res.ok) {
+      const msg = res && res.motivo === 'tempo-esgotado'
+        ? '⚠ O banco não confirmou a operação a tempo. A tela voltou ao último estado confirmado.'
         : '⚠ O banco não confirmou a operação. Nada foi considerado salvo.';
       showToast(msg);
       return;
     }
-    if (res.cloud) { showToast((okTexto || 'Salvo') + ' — confirmado no banco ✓'); return; }
+    if (res.cloud) {
+      showToast((okTexto || 'Salvo') + ' — confirmado no banco ✓');
+      return;
+    }
     showToast(okTexto || 'Alteração temporária');
   }
-});
+};
 window.SaveGuard = SaveGuard;
 
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----
 // good = verde a partir de METAS.bom; warn entre METAS.atencao e METAS.bom; bad abaixo.
 // METAS.linhas = linhas de referência exibidas nos gráficos (ex.: 70/80/85).
-/* ── METAS: eram a única configuração do usuário fora da sincronização ──────
-   Esta chave era GLOBAL (`diario-estudos:metas`), e não namespaced pelo perfil.
-   Toda chave fora de `diario-estudos:u:<perfil>:` é invisível para o
-   SectionSync — logo, estas metas nunca entravam em `profile_sections`, nunca
-   iam para o blob e nunca apareciam em backup nenhum. Quem definia "bom = 75%"
-   e as linhas de referência dos gráficos perdia isso ao abrir em outro
-   aparelho, e nem o backup no banco trazia de volta. Como elas alimentam
-   `toneFor()` (a cor de aproveitamento em TODAS as telas) e `metaRefs()` (as
-   linhas dos gráficos), o app inteiro voltava a julgar o desempenho por uma
-   régua diferente da que a pessoa escolheu.
-
-   Além disso gravava com `localStorage.setItem` direto — sem avisar a nuvem e
-   sem marcar a seção — e o cache em memória nunca era invalidado: depois de um
-   download da nuvem, a tela continuava com o valor velho até recarregar.
+/* ── METAS: configuração do usuário precisa pertencer ao perfil ────────────
+   Esta chave já foi global e, por isso, não acompanhava o usuário entre
+   aparelhos. Hoje ela fica no namespace do perfil e segue pelo RelationalStore
+   para o PostgreSQL. A memória local é apenas projeção; o banco é a fonte de
+   verdade.
 
    As três coisas corrigidas, no mesmo padrão de CardsConfig: chave namespaced,
    escrita por DB._set (que avisa a nuvem e marca a seção) e cache amarrado à

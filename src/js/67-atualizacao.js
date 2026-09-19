@@ -93,135 +93,107 @@ const Atualizacao = {
     if (this._barra) { this._barra.remove(); this._barra = null; }
   },
 
-  /* Espera a fila de envio esvaziar, com teto de tempo. Devolve true se tudo
-     foi entregue. Não é decoração: recarregar com alteração pendente é o
-     jeito mais fácil de perder o trabalho de alguém. */
+  /* Antes de qualquer reload, a única barreira de durabilidade é o SQL.
+     Se o PostgreSQL não confirmar, a atualização é cancelada. */
   async _entregarPendencias(limiteMs) {
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady || !CS.isReady() || !CS.isLoggedIn || !CS.isLoggedIn()) return true;
-    const fim = Date.now() + (limiteMs || 8000);
-    try { await CS.flushPending(); } catch (e) { _quiet(e, 'upd-flush'); }
-    while (Date.now() < fim) {
-      let fila = 0;
-      try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'upd-fila'); }
-      if (!CS._pending && !CS._syncing && !fila) return true;
-      await new Promise(r => setTimeout(r, 250));
+    const RS = window.RelationalStore;
+    if (!CS || !CS.isReady || !CS.isReady() || !CS.isLoggedIn || !CS.isLoggedIn() || !RS) {
+      return false;
     }
-    return false;
+    const limite = Math.max(1000, Number(limiteMs) || 8000);
+    let timer = null;
+    try {
+      await Promise.race([
+        RS.flush(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timeout-sql-update')), limite);
+        })
+      ]);
+      return RS.pendingCount() === 0 && !RS._lastError;
+    } catch (e) {
+      _quiet(e, 'upd-flush-sql');
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   },
 
   async aplicar() {
     if (this._trocando) return;
     this._trocando = true;
     const btn = this._barra && this._barra.querySelector('.upd-agora');
-    const restaurar = (window.SaveGuard && SaveGuard.ocupar) ? SaveGuard.ocupar(btn, 'Salvando…') : () => {};
-    const entregue = await this._entregarPendencias(8000);
+    const restaurar = (window.SaveGuard && SaveGuard.ocupar)
+      ? SaveGuard.ocupar(btn, 'Confirmando no banco…')
+      : () => {};
+
+    const entregue = await this._entregarPendencias(10000);
     restaurar();
     if (!entregue) {
-      const seguir = await UI.confirm(
-        'Ainda há alterações subindo para a nuvem.\n\nElas continuam preservadas neste aparelho e na fila durável. Você pode atualizar offline, desde que a gravação local seja confirmada.',
-        { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
-      if (!seguir) { this._trocando = false; return; }
-    }
-
-    /* A nuvem pode estar indisponível e isso NÃO deve impedir uma atualização.
-       O que é inegociável é a durabilidade local: antes de trocar o worker,
-       exigimos confirmação real do IndexedDB. Timeout não conta como sucesso. */
-    let disco = { ok: true };
-    try {
-      if (window.__idbFlushStrict) disco = await window.__idbFlushStrict(10000);
-      else if (window.__idbFlush) { await window.__idbFlush(); disco = { ok: true, compat: true }; }
-    } catch (e) { disco = { ok: false, motivo: (e && e.message) || 'falha' }; }
-    if (!disco || disco.ok === false) {
       this._trocando = false;
-      try { if (btn) { btn.disabled = false; btn.textContent = 'Atualizar agora'; } } catch (_) { _quiet(_); }
       await UI.alert(
-        'A atualização foi cancelada porque o navegador ainda não confirmou a gravação dos dados neste aparelho. Nada foi apagado. Aguarde alguns instantes e tente novamente.',
-        { title: 'Dados ainda sendo gravados' });
+        'A atualização foi cancelada porque o banco ainda não confirmou todas as alterações. Nada será descartado da memória. Tente novamente quando a conexão estiver normal.',
+        { title: 'Banco ainda não confirmou' });
       return;
     }
 
-    /* A troca pode levar alguns segundos (o worker antigo precisa ficar livre).
-       Sem dizer isso, a barra fica parada e a pessoa aperta de novo. */
     if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
     this._recarregarComWorkerNovo();
   },
 
-  /* A troca em si: manda o worker que está esperando assumir e recarrega UMA
-     vez, quando ele assumir de fato. O `controllerchange` é o sinal certo —
-     recarregar antes dele traria a versão velha de novo.
-
-     O pedido é REPETIDO, e essa é a parte que só aparece quando se mede: o
-     worker antigo pode ter uma requisição em aberto, e enquanto ela não termina
-     o navegador não o encerra — a troca fica esperando. Num teste com a rede
-     ruim, o primeiro pedido levou 24 SEGUNDOS para surtir efeito. Uma tentativa
-     só, com recarga cega em 4 s, dava no pior resultado possível: a página
-     recarregava com o worker ANTIGO ainda no comando, a mesma versão voltava, e
-     o aviso reaparecia — "atualizei e não mudou nada".
-
-     Repetindo a cada 600 ms, a troca acontece no instante em que o worker antigo
-     fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
-     a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false, tentativas = 0, bater = null, tentativasDisco = 0;
+    let recarregou = false, tentativas = 0, bater = null;
+
     const recarregar = async () => {
       if (recarregou) return;
-      recarregou = true; clearInterval(bater);
-      /* Segunda barreira: cobre qualquer gravação que tenha ocorrido entre o
-         clique em atualizar e o controllerchange. Enquanto houver fila local,
-         não matamos a página antiga. A retentativa é limitada: falha persistente
-         devolve o controle ao usuário em vez de criar um loop eterno. */
-      try {
-        const r = window.__idbFlushStrict ? await window.__idbFlushStrict(10000) : { ok: true };
-        if (r && r.ok === false) {
-          recarregou = false;
-          tentativasDisco++;
-          if (tentativasDisco <= 6) {
-            try { showToast('⚠ Atualização pronta, aguardando a gravação local terminar…'); } catch (_) { _quiet(_); }
-            setTimeout(recarregar, 1000);
-            return;
-          }
-          this._trocando = false;
-          try { showToast('⚠ A nova versão está pronta, mas não recarreguei porque o armazenamento local não confirmou os dados.'); } catch (_) { _quiet(_); }
-          return;
-        }
-      } catch (_) {
+      recarregou = true;
+      clearInterval(bater);
+
+      /* Cobre mutações ocorridas entre o clique e o controllerchange. */
+      const ok = await this._entregarPendencias(10000);
+      if (!ok) {
         recarregou = false;
-        tentativasDisco++;
-        if (tentativasDisco <= 6) { setTimeout(recarregar, 1000); return; }
         this._trocando = false;
-        try { showToast('⚠ A nova versão está pronta, mas a gravação local não pôde ser confirmada.'); } catch (_) { _quiet(_); }
+        try {
+          showToast('⚠ A nova versão está pronta, mas o banco ainda não confirmou tudo. A página não foi recarregada.');
+        } catch (e) { _quiet(e, 'upd-reload-cancel'); }
         return;
       }
       location.reload();
     };
+
     try {
       navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
     } catch (e) { _quiet(e, 'upd-controller'); }
+
     const pedir = () => {
       try {
         const esperando = this._reg && this._reg.waiting;
-        if (esperando) { esperando.postMessage('skipWaiting'); return true; }
+        if (esperando) {
+          esperando.postMessage('skipWaiting');
+          return true;
+        }
       } catch (e) { _quiet(e, 'upd-skip'); }
       return false;
     };
-    if (!pedir()) { recarregar(); return; }     // sem worker esperando: recarregar já resolve
+
+    if (!pedir()) { recarregar(); return; }
     bater = setInterval(() => {
       tentativas++;
-      if (recarregou || tentativas > 20 || !pedir()) { clearInterval(bater); }
+      if (recarregou || tentativas > 20 || !pedir()) clearInterval(bater);
     }, 600);
-    setTimeout(recarregar, 12000);             // rede de segurança, depois de insistir
+    setTimeout(recarregar, 12000);
   },
 
   /* ── LIMPEZA MANUAL ───────────────────────────────────────────────────────
      Para quando algo continua estranho depois de atualizar. Apaga APENAS os
      caches de arquivos do app (o que o service worker guardou) — nunca os seus
-     dados, que vivem no IndexedDB e na nuvem, e não são tocados aqui. */
+     dados, cuja fonte durável é o PostgreSQL e não é tocada aqui. */
   async limparCacheERecarregar() {
     const ok = await UI.confirm(
       'Apagar os arquivos do app guardados neste navegador e recarregar?\n\n' +
       'Serve para quando o app fica estranho depois de uma atualização. ' +
-      'Seus dados de estudo NÃO são afetados: eles ficam no armazenamento do perfil e na nuvem, não neste cache.',
+      'Seus dados de estudo NÃO são afetados: eles ficam no PostgreSQL, não neste cache.',
       { title: '🧹 Limpar cache do app', okText: 'Limpar e recarregar' });
     if (!ok) return;
     showToast('Salvando o que falta antes de limpar…');

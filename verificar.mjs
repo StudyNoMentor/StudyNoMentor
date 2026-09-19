@@ -497,12 +497,11 @@ try {
   await p2.waitForFunction(() => window.AutoTeste && window.RelationalStore, { timeout: 30000 });
   const antigo = await p2.evaluate(() => ({
     memoriaSomente: window.__memoryOnlyStore === true && window.__idbShim === false,
-    syncLegadoAposentado: !!window.SectionSync && SectionSync.retired === true &&
-      SectionSync.enabled === false && SectionSync.readEnabled === false,
+    syncLegadoRemovido: typeof window.SectionSync === 'undefined',
     recuperavel: window.Recuperacao ? Recuperacao.varrerAntigo().length : -1
   }));
-  antigo.memoriaSomente && antigo.syncLegadoAposentado && antigo.recuperavel >= 1
-    ? ok('copia antiga continua detectavel, mas a fonte operacional e somente SQL')
+  antigo.memoriaSomente && antigo.syncLegadoRemovido && antigo.recuperavel >= 1
+    ? ok('copia antiga continua detectavel para recuperacao, sem reativar sincronizacao legada')
     : erro('legado local voltou ao caminho operacional: ' + JSON.stringify(antigo));
   await ctx.close();
 } catch (e) { erro('teste de isolamento do armazenamento antigo falhou: ' + e.message); }

@@ -71,15 +71,11 @@ try {
 
   /* 2b. O mecanismo legado profile_sections deve estar operacionalmente aposentado. */
   const retired=await page.evaluate(()=>({
-    enabled:window.SectionSync&&SectionSync.enabled,
-    read:window.SectionSync&&SectionSync.readEnabled,
-    pending:window.SectionSync&&SectionSync.pendingQuick?SectionSync.pendingQuick():-1,
+    sectionSync:typeof window.SectionSync,
     lock:window.SessionLock&&SessionLock.enabled,
     single:window.SessionGuard&&SessionGuard.singleDeviceMode
   }));
-  eq(retired.enabled,false,'SectionSync não pode escrever profile_sections');
-  eq(retired.read,false,'SectionSync não pode ler profile_sections');
-  eq(retired.pending,0,'fila CAS legada não pode participar do estado');
+  eq(retired.sectionSync,'undefined','SectionSync deve ter sido removido do bundle');
   eq(retired.lock,false,'abas/janelas não podem bloquear umas às outras');
   eq(retired.single,false,'PC e celular não podem disputar uma sessão exclusiva');
 
