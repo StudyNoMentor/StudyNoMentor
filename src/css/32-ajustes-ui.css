@@ -1260,30 +1260,79 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 }
 
 
-/* Puxar do Motor — recomendação e alternativas deixam de ser uma lista plana. */
+/* Puxar do Motor — mesma régua visual do cartão da aba Motor (eyebrow, dose,
+   quatro estatísticas em grade), só que compacta o bastante para caber dezenas
+   de frentes numa lista com checkbox. */
+/* .pl-conta ocupa a linha inteira sempre (flex-basis:100%): se ficasse lado a
+   lado com os botões e precisasse quebrar em duas linhas por dentro, o
+   align-items:center da barra centralizava os botões NO MEIO da caixa de
+   chips — o texto da segunda linha ("marcada(s)") ficava atrás do botão. */
+.pl-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.pl-conta{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%;min-width:0}
+.pl-conta span{
+  padding:5px 9px;border:1px solid var(--border);border-radius:999px;
+  background:var(--surface-sunken);color:var(--text-soft);
+  font-size:var(--fs-3xs);font-weight:750;white-space:nowrap;
+}
+.pl-conta .pl-conta-marcadas{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));font-weight:850}
+.pl-toolbar .btn-secondary{white-space:nowrap;padding:5px 10px}
+.pl-lista-wrap{max-height:48vh;overflow-y:auto;overscroll-behavior:contain}
+
 .pl-rec-block,.pl-alt-block{display:grid;gap:8px;margin:8px 0 12px}
 .pl-rec-title{display:grid;gap:2px;padding:2px 2px 4px}
 .pl-rec-title b{font-size:var(--fs-xs);color:var(--text)}
 .pl-rec-title small{font-size:var(--fs-3xs);color:var(--text-faint);line-height:1.4}
+
+/* Cada frente: checkbox + corpo. O corpo sozinho define sua grade interna, então
+   este mesmo .pl-linha serve tanto à recomendação (destacada) quanto à
+   alternativa dentro do <details> por matéria — sem herdar de .sug-row. */
+.pl-linha{
+  display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;
+  align-items:start;padding:9px 10px;border:1px solid var(--border);
+  border-radius:11px;cursor:pointer;background:var(--surface);
+  transition:border-color .13s ease,background .13s ease;
+}
+.pl-linha:hover{border-color:var(--accent);background:var(--surface-sunken)}
+.pl-linha input[type="checkbox"]{margin-top:2px;width:17px;height:17px;accent-color:var(--accent)}
 .pl-linha.is-recommended{
   border:1px solid color-mix(in srgb,var(--accent) 36%,var(--border));
-  border-radius:11px;background:color-mix(in srgb,var(--accent) 5%,var(--surface));
-  padding:10px;
+  background:color-mix(in srgb,var(--accent) 5%,var(--surface));
 }
-.pl-rec-eyebrow{font-size:var(--fs-3xs);font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
+.pl-linha-body{min-width:0;display:grid;gap:5px}
+.pl-linha-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pl-linha-eyebrow{
+  font-size:var(--fs-3xs);font-weight:850;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--accent);overflow-wrap:anywhere;
+}
+.pl-linha-eyebrow-muted{color:var(--text-faint);font-weight:750}
+.pl-linha-dose{
+  margin-left:auto;flex:0 0 auto;padding:3px 8px;border-radius:999px;
+  background:var(--surface-sunken);color:var(--text);font-size:var(--fs-3xs);
+  font-weight:850;white-space:nowrap;
+}
+.pl-linha.is-recommended .pl-linha-dose{background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent)}
+.pl-linha-title{font-weight:700;color:var(--text);font-size:var(--fs-sm);line-height:1.28;overflow-wrap:anywhere}
+.pl-linha-stats{display:flex;flex-wrap:wrap;gap:5px}
+.pl-linha-stats span{
+  display:flex;align-items:baseline;gap:4px;padding:3px 7px;border-radius:7px;
+  background:var(--surface-sunken);font-size:var(--fs-3xs);
+}
+.pl-linha-stats b{color:var(--text);font-size:var(--fs-2xs)}
+.pl-linha-stats i{font-style:normal;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+
 .pl-alt-group{border:1px solid var(--border);border-radius:11px;background:var(--surface);overflow:hidden}
 .pl-alt-group>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 11px}
 .pl-alt-group>summary::-webkit-details-marker{display:none}
 .pl-alt-group>summary span{font-size:var(--fs-xs);font-weight:800;color:var(--text);overflow-wrap:anywhere}
-.pl-alt-group>summary small{font-size:var(--fs-3xs);color:var(--text-faint)}
+.pl-alt-group>summary small{font-size:var(--fs-3xs);color:var(--text-faint);text-transform:uppercase;letter-spacing:.02em}
 .pl-alt-group>summary i{font-style:normal;color:var(--text-faint);transition:transform .15s}
 .pl-alt-group[open]>summary i{transform:rotate(180deg)}
-.pl-alt-list{border-top:1px solid var(--border);padding:5px}
-.pl-alt-list .pl-linha{border-radius:8px;padding:8px}
-.pl-alt-list .pl-linha:hover{background:var(--surface-sunken)}
+.pl-alt-list{border-top:1px solid var(--border);padding:6px;display:grid;gap:6px}
+.pl-alt-list .pl-linha{padding:8px 9px}
 .pl-disc-search{display:flex;align-items:center;gap:7px;min-height:36px;margin:6px;padding:0 8px;border:1px solid var(--border);border-radius:8px}
 .pl-disc-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text)}
 @media(max-width:560px){
   .pl-alt-group>summary{grid-template-columns:minmax(0,1fr) auto}
   .pl-alt-group>summary small{grid-column:1/-1}
+  .pl-linha-dose{margin-left:0}
 }
