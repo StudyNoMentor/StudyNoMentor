@@ -553,25 +553,39 @@ window.SessionLock = {
       if (e.t) e.t.textContent = 'Sessão aberta em outro aparelho';
       if (e.d) e.d.innerHTML = 'Sua conta foi aberta em <strong>outro dispositivo</strong>' + (info && info.label ? ' (' + escapeHtml(info.label) + ')' : '') + '. Para proteger seus dados, o Diário mantém <strong>um aparelho ativo por vez</strong> — a sincronização foi <strong>pausada aqui</strong>.';
       if (e.s) e.s.textContent = 'Se foi você, pode continuar neste aparelho: isso vai encerrar a sessão no outro.';
-      if (e.take) e.take.textContent = 'Continuar neste aparelho';
+      if (e.take) { e.take.disabled = false; e.take.textContent = 'Continuar neste aparelho'; }
     } else {
       if (e.ico) e.ico.textContent = '🔒';
       if (e.t) e.t.textContent = 'Diário já aberto em outra janela';
       if (e.d) e.d.innerHTML = 'Para proteger seus dados, o Diário funciona em <strong>uma aba/janela por vez</strong> neste navegador.';
       if (e.s) e.s.textContent = 'Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever a sincronização.';
-      if (e.take) e.take.textContent = 'Usar aqui (encerrar as outras)';
+      if (e.take) { e.take.disabled = false; e.take.textContent = 'Usar aqui (encerrar as outras)'; }
     }
     e.o.style.display = 'flex';
   },
   unblock() {
     this._blocked = false; this._origin = null;
-    const e = this._els(); if (e.o) e.o.style.display = 'none';
+    const e = this._els();
+    if (e.take) e.take.disabled = false;
+    if (e.o) e.o.style.display = 'none';
   },
   onTakeover(fn) { if (typeof fn === 'function') this._takeoverFns.push(fn); },
   _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) { _quiet(_); } }); },
   init() {
     const e = this._els();
-    if (e.take) e.take.addEventListener('click', () => { const origin = this._origin; this.unblock(); this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } }); });
+    if (e.take) e.take.addEventListener('click', () => {
+      const origin = this._origin;
+      /* Local: podemos liberar imediatamente porque o BroadcastChannel é deste
+         próprio navegador. Remoto: o overlay só fecha DEPOIS de o Supabase
+         confirmar o takeover. Assim um toque não cria uma janela em que o app
+         parece liberado antes de a posse existir no servidor. */
+      if (origin === 'local') this.unblock();
+      else if (origin === 'remote') {
+        e.take.disabled = true;
+        e.take.textContent = 'Confirmando…';
+      }
+      this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } });
+    });
     const r = document.getElementById('single-session-reload');
     if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
   }

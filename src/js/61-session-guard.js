@@ -26,8 +26,29 @@ const SessionGuard = {
   enabled: true,        // vira false se a tabela não existir
   channel: null,
   _deviceId: null,
-  _claimedUid: null,    // uid para o qual já reivindicamos nesta carga de página
+  _claimedUid: null,    // uid cuja posse foi confirmada neste aparelho
+  _accessUid: null,
+  _accessState: 'unknown', // unknown | checking | allowed | blocked | error | disabled
+  _loginPromise: null,
+  _loginPromiseUid: null,
   _avisouSemTabela: false,
+
+  accessState() {
+    const CS = window.CloudStore;
+    const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
+    if (!this.enabled) return 'disabled';
+    if (!uid || this._accessUid !== uid) return 'unknown';
+    return this._accessState || 'unknown';
+  },
+  canEnterNow() {
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return false;
+    const s = this.accessState();
+    return s === 'allowed' || s === 'disabled';
+  },
+  isBlockedByRemote() {
+    return this.accessState() === 'blocked' ||
+      !!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote');
+  },
 
   deviceId() {
     if (this._deviceId) return this._deviceId;
@@ -68,6 +89,9 @@ const SessionGuard = {
   },
   _disable(err) {
     this.enabled = false;
+    this._accessState = 'disabled';
+    this._loginPromise = null;
+    this._loginPromiseUid = null;
     this._unsub();
     if (!this._avisouSemTabela) {
       this._avisouSemTabela = true;
@@ -76,38 +100,81 @@ const SessionGuard = {
   },
 
   // Chamado pelo CloudStore quando há sessão (login ou sessão restaurada).
+  // Esta PROMISE é também a barreira de entrada: perfil nenhum deve ser exibido
+  // ou hidratado enquanto a posse da sessão ainda estiver indefinida.
   async onLogin() {
-    if (!this.enabled) return;
+    if (!this.enabled) return { ok: true, status: 'disabled' };
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { ok: false, status: 'offline' };
     const uid = CS.session.user.id;
     this.subscribe(uid);
-    if (this._claimedUid === uid) return;
 
-    /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
-       conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
-       Só uma conta livre ou já pertencente a este device é renovada. */
-    try {
-      const { data, error } = await CS.client.from(this.TABLE)
-        .select('device_id,device_label').eq('user_id', uid).maybeSingle();
-      if (error) {
-        if (this._isMissingTable(error)) this._disable(error);
-        else console.warn('[SessionGuard] verificação inicial falhou', error);
-        return; // não carimba _claimedUid: uma chamada futura pode tentar de novo
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+      this._accessUid = uid;
+      this._accessState = 'blocked';
+      return { ok: false, blocked: true, status: 'blocked' };
+    }
+    if (this._accessUid === uid && this._accessState === 'allowed') {
+      return { ok: true, status: 'allowed' };
+    }
+    if (this._accessUid === uid && this._accessState === 'blocked') {
+      return { ok: false, blocked: true, status: 'blocked' };
+    }
+    if (this._loginPromise && this._loginPromiseUid === uid) return this._loginPromise;
+
+    this._accessUid = uid;
+    this._accessState = 'checking';
+    this._loginPromiseUid = uid;
+    const p = (async () => {
+      /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
+         conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
+         Só uma conta livre ou já pertencente a este device é renovada. */
+      try {
+        const { data, error } = await CS.client.from(this.TABLE)
+          .select('device_id,device_label').eq('user_id', uid).maybeSingle();
+        if (error) {
+          if (this._isMissingTable(error)) {
+            this._disable(error);
+            return { ok: true, status: 'disabled' };
+          }
+          this._accessState = 'error';
+          console.warn('[SessionGuard] verificação inicial falhou', error);
+          return { ok: false, status: 'error', error };
+        }
+        if (data && data.device_id && data.device_id !== this.deviceId()) {
+          this._accessState = 'blocked';
+          this._takenBy(data);
+          return { ok: false, blocked: true, status: 'blocked', row: data };
+        }
+        const ok = await this.claim(uid);
+        if (ok) return { ok: true, status: 'allowed' };
+        this._accessState = 'error';
+        return { ok: false, status: 'error' };
+      } catch (err) {
+        if (this._isMissingTable(err)) {
+          this._disable(err);
+          return { ok: true, status: 'disabled' };
+        }
+        this._accessState = 'error';
+        console.warn('[SessionGuard] verificação inicial erro', err);
+        return { ok: false, status: 'error', error: err };
       }
-      if (data && data.device_id && data.device_id !== this.deviceId()) {
-        this._claimedUid = uid;
-        this._takenBy(data);
-        return;
+    })();
+    this._loginPromise = p;
+    try { return await p; }
+    finally {
+      if (this._loginPromise === p) {
+        this._loginPromise = null;
+        this._loginPromiseUid = null;
       }
-      if (await this.claim(uid)) this._claimedUid = uid;
-    } catch (err) {
-      if (this._isMissingTable(err)) this._disable(err);
-      else console.warn('[SessionGuard] verificação inicial erro', err);
     }
   },
   onLogout() {
     this._claimedUid = null;
+    this._accessUid = null;
+    this._accessState = 'unknown';
+    this._loginPromise = null;
+    this._loginPromiseUid = null;
     this._unsub();
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
   },
@@ -122,9 +189,20 @@ const SessionGuard = {
       const { error } = await CS.client.from(this.TABLE)
         .upsert({ user_id: uid, device_id: this.deviceId(), device_label: this.deviceLabel(), updated_at: new Date().toISOString() },
                 { onConflict: 'user_id' });
-      if (error) { if (this._isMissingTable(error)) this._disable(error); else console.warn('[SessionGuard] claim falhou', error); return false; }
+      if (error) {
+        if (this._isMissingTable(error)) this._disable(error);
+        else { this._accessState = 'error'; console.warn('[SessionGuard] claim falhou', error); }
+        return false;
+      }
+      this._claimedUid = uid;
+      this._accessUid = uid;
+      this._accessState = 'allowed';
       return true;
-    } catch (err) { if (this._isMissingTable(err)) this._disable(err); else console.warn('[SessionGuard] claim erro', err); return false; }
+    } catch (err) {
+      if (this._isMissingTable(err)) this._disable(err);
+      else { this._accessState = 'error'; console.warn('[SessionGuard] claim erro', err); }
+      return false;
+    }
   },
 
   // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
@@ -137,7 +215,14 @@ const SessionGuard = {
       const { data, error } = await CS.client.from(this.TABLE).select('device_id,device_label').eq('user_id', uid).maybeSingle();
       if (error) { if (this._isMissingTable(error)) this._disable(error); return; }
       if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._accessUid = uid;
+        this._accessState = 'blocked';
         this._takenBy({ device_id: data.device_id, device_label: data.device_label });
+      } else if (data && data.device_id === this.deviceId() &&
+                 !(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+        this._accessUid = uid;
+        this._accessState = 'allowed';
+        this._claimedUid = uid;
       }
     } catch (err) { if (this._isMissingTable(err)) this._disable(err); }
   },
@@ -151,8 +236,19 @@ const SessionGuard = {
         .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + uid }, (p) => {
           const row = p.new || p.old || {};
           if (!row.device_id) return;
-          if (row.device_id !== this.deviceId()) this._takenBy(row);
-          else if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+          if (row.device_id !== this.deviceId()) {
+            this._accessUid = uid;
+            this._accessState = 'blocked';
+            this._takenBy(row);
+          } else if (!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+            this._accessUid = uid;
+            this._accessState = 'allowed';
+            this._claimedUid = uid;
+            /* Não fechamos automaticamente um bloqueio REMOTO só porque chegou
+               um evento com nosso device_id. O overlay só some após takeover
+               explícito confirmado; assim nenhum claim concorrente ou evento
+               tardio decide sozinho que a pessoa "continuou neste aparelho". */
+          }
           // se a tela de Configurações estiver aberta, reflete a mudança na hora
           try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) { _quiet(_); }
         })
@@ -165,6 +261,12 @@ const SessionGuard = {
 
   // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
   _takenBy(row) {
+    try {
+      const CS = window.CloudStore;
+      const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
+      if (uid) this._accessUid = uid;
+      this._accessState = 'blocked';
+    } catch (_) { _quiet(_); }
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
     /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
        pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
@@ -200,7 +302,13 @@ const SessionGuard = {
   // O outro aparelho recebe o evento em tempo real e é bloqueado.
   async endRemoteAndClaimHere() {
     const ok = await this.claim();
-    if (ok && window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+    if (ok) {
+      if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+      try {
+        const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+        if (pid && window.CloudStore && CloudStore._drainSectionRealtimeHint) CloudStore._drainSectionRealtimeHint(pid);
+      } catch (_) { _quiet(_); }
+    }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     return ok;
   }
@@ -209,7 +317,12 @@ window.SessionGuard = SessionGuard;
 // "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
 if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
   if (origin !== 'remote') return;
-  const ok = await SessionGuard.claim();
-  if (ok) { showToast('Sessão retomada neste aparelho ✓'); if (window.CloudUI) CloudUI.refreshSyncBtn(); }
-  else { showToast('Não foi possível retomar agora — verifique a internet'); SessionLock.block('remote', {}); }
+  const ok = await SessionGuard.endRemoteAndClaimHere();
+  if (ok) {
+    showToast('Sessão retomada neste aparelho ✓');
+    try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
+  } else {
+    showToast('Não foi possível retomar agora — verifique a internet');
+    SessionLock.block('remote', {});
+  }
 });

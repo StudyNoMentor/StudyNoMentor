@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2e78d18f8e">
+<meta name="diario-versao" content="vfee1b743f3">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -37190,6 +37190,8 @@ const ProfileUI = {
   _editingId: null,
   _draftAvatar: null,
   _draftColor: null,
+  _pendingSessionProfile: null,
+  _sessionRetryTimer: null,
 
   AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
   autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
@@ -37211,11 +37213,12 @@ const ProfileUI = {
     let entered = null;
     try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) { _quiet(e); }
     const active = ProfileManager.getActiveProfileId();
-    // Só entramos direto quando há o marcador de sessão desta aba (SESSION_KEY).
-    // NÃO entramos apenas por existir dado local — senão, após deslogar + F5, o
-    // app abriria sem sessão. O "entrar direto" acontece após o login confirmado
-    // (loadCloudProfiles → auto-enter do último perfil).
-    if (entered && entered === active && this._hasLocalData(active)) {
+    // Mesmo com SESSION_KEY, um reload não pode exibir cache local antes de o
+    // SessionGuard confirmar que ESTE aparelho pode usar a conta. O marcador da
+    // aba prova apenas que o perfil já foi aberto aqui; não prova posse remota.
+    const sessaoLiberada = this._offline ||
+      !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
+    if (entered && entered === active && this._hasLocalData(active) && sessaoLiberada) {
       this.hideGate();
       // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
       try { DB.checarEspaco(); } catch (_) { _quiet(_); }
@@ -37242,6 +37245,20 @@ const ProfileUI = {
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { $id('profile-gate').style.display = 'none'; },
+  resumeAfterSessionClaim() {
+    clearTimeout(this._sessionRetryTimer);
+    this._sessionRetryTimer = null;
+    const id = this._pendingSessionProfile;
+    this._pendingSessionProfile = null;
+    if (id) {
+      this._entering = true;
+      this.enterProfile(id);
+      return;
+    }
+    this._entering = false;
+    this._autoEnterTried = false;
+    this.refreshStage();
+  },
   // O Supabase dispara vários eventos de auth (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED...).
   // Sem este guarda, cada evento re-renderizava o gate e causava a "piscada" nos perfis.
   onAuthChanged() {
@@ -37301,7 +37318,9 @@ const ProfileUI = {
         let localAlvo = this.getDefaultProfile() || this.getLastProfile();
         const ativoLocal = ProfileManager.getActiveProfileId();
         const uidAtual = this._uid();
-        const podeAbrirLocal = localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
+        const guardLiberou = this._offline ||
+          !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
+        const podeAbrirLocal = guardLiberou && localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
           (!ProfileManager._podeVerLocal || ProfileManager._podeVerLocal(localAlvo, uidAtual));
         if (podeAbrirLocal) {
           this._autoEnterTried = true;
@@ -37444,6 +37463,29 @@ const ProfileUI = {
   },
 
   async enterProfile(id) {
+    // A posse da sessão é uma BARREIRA, não um aviso cosmético. Em especial num
+    // aparelho com cache velho, nada pode hidratar, aplicar ou esconder o gate
+    // enquanto a consulta a active_sessions ainda não terminou.
+    if (window.CloudStore && CloudStore.isLoggedIn() && window.SessionGuard && SessionGuard.enabled) {
+      this._pendingSessionProfile = id;
+      const acesso = await SessionGuard.onLogin();
+      if (!acesso || !acesso.ok) {
+        if (acesso && acesso.blocked) {
+          this._entering = true; // mantém "Entrando…" atrás do overlay; nenhum dado é exibido
+          return;
+        }
+        this._entering = true;
+        clearTimeout(this._sessionRetryTimer);
+        this._sessionRetryTimer = setTimeout(() => {
+          if (this._pendingSessionProfile === id && this.isGateOpen()) this.enterProfile(id);
+        }, 2500);
+        return;
+      }
+      this._pendingSessionProfile = null;
+      clearTimeout(this._sessionRetryTimer);
+      this._sessionRetryTimer = null;
+    }
+
     // Entrar no MESMO perfil que já está aberto neste aparelho e não haver
     // nenhuma novidade na nuvem é o caso mais comum de todos — e era justamente
     // o que provocava o recarregamento visível ("a tela pisca e carrega de
@@ -40692,8 +40734,15 @@ const CloudStore = {
   onAuth() {
     if (window.ProfileUI) ProfileUI.onAuthChanged();
     if (window.CloudUI) CloudUI.refreshSyncBtn();
-    if (this.isLoggedIn()) { this.subscribeRealtime(); this.subscribeSections(); if (window.SessionGuard) SessionGuard.onLogin(); }
-    else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
+    if (this.isLoggedIn()) {
+      this.subscribeRealtime();
+      this.subscribeSections();
+      if (window.SessionGuard) {
+        Promise.resolve(SessionGuard.onLogin()).then(() => {
+          try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); } catch (_) { _quiet(_); }
+        }).catch(e => _quiet(e, 'session-guard-login'));
+      }
+    } else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
     // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
     // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
     try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
@@ -41073,6 +41122,8 @@ const CloudStore = {
   // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
   async syncOnFocus() {
     if (!this.isReady() || !this.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) return;
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return;
     try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
 
@@ -41122,6 +41173,11 @@ const CloudStore = {
   // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
   async syncNow() {
     if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+      showToast('Sincronização pausada: esta conta está ativa em outro aparelho.');
+      return;
+    }
     if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
     let fila = 0;
     try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'syncNow-fila'); }
@@ -41140,6 +41196,11 @@ const CloudStore = {
   },
   async pullActiveAndReload(opts) {
     opts = opts || {};
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+      console.info('[CloudStore] pull adiado: sessão pertencente a outro aparelho');
+      return false;
+    }
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
     // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
@@ -41261,6 +41322,11 @@ const CloudStore = {
       this._secRemotePending = false;
       return;
     }
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+      this._secRemotePending = true;
+      return;
+    }
     if (!window.SectionSync || !SectionSync.readEnabled) {
       this._secRemotePending = false;
       return;
@@ -41337,8 +41403,29 @@ const SessionGuard = {
   enabled: true,        // vira false se a tabela não existir
   channel: null,
   _deviceId: null,
-  _claimedUid: null,    // uid para o qual já reivindicamos nesta carga de página
+  _claimedUid: null,    // uid cuja posse foi confirmada neste aparelho
+  _accessUid: null,
+  _accessState: 'unknown', // unknown | checking | allowed | blocked | error | disabled
+  _loginPromise: null,
+  _loginPromiseUid: null,
   _avisouSemTabela: false,
+
+  accessState() {
+    const CS = window.CloudStore;
+    const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
+    if (!this.enabled) return 'disabled';
+    if (!uid || this._accessUid !== uid) return 'unknown';
+    return this._accessState || 'unknown';
+  },
+  canEnterNow() {
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return false;
+    const s = this.accessState();
+    return s === 'allowed' || s === 'disabled';
+  },
+  isBlockedByRemote() {
+    return this.accessState() === 'blocked' ||
+      !!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote');
+  },
 
   deviceId() {
     if (this._deviceId) return this._deviceId;
@@ -41379,6 +41466,9 @@ const SessionGuard = {
   },
   _disable(err) {
     this.enabled = false;
+    this._accessState = 'disabled';
+    this._loginPromise = null;
+    this._loginPromiseUid = null;
     this._unsub();
     if (!this._avisouSemTabela) {
       this._avisouSemTabela = true;
@@ -41387,38 +41477,81 @@ const SessionGuard = {
   },
 
   // Chamado pelo CloudStore quando há sessão (login ou sessão restaurada).
+  // Esta PROMISE é também a barreira de entrada: perfil nenhum deve ser exibido
+  // ou hidratado enquanto a posse da sessão ainda estiver indefinida.
   async onLogin() {
-    if (!this.enabled) return;
+    if (!this.enabled) return { ok: true, status: 'disabled' };
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { ok: false, status: 'offline' };
     const uid = CS.session.user.id;
     this.subscribe(uid);
-    if (this._claimedUid === uid) return;
 
-    /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
-       conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
-       Só uma conta livre ou já pertencente a este device é renovada. */
-    try {
-      const { data, error } = await CS.client.from(this.TABLE)
-        .select('device_id,device_label').eq('user_id', uid).maybeSingle();
-      if (error) {
-        if (this._isMissingTable(error)) this._disable(error);
-        else console.warn('[SessionGuard] verificação inicial falhou', error);
-        return; // não carimba _claimedUid: uma chamada futura pode tentar de novo
+    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
+      this._accessUid = uid;
+      this._accessState = 'blocked';
+      return { ok: false, blocked: true, status: 'blocked' };
+    }
+    if (this._accessUid === uid && this._accessState === 'allowed') {
+      return { ok: true, status: 'allowed' };
+    }
+    if (this._accessUid === uid && this._accessState === 'blocked') {
+      return { ok: false, blocked: true, status: 'blocked' };
+    }
+    if (this._loginPromise && this._loginPromiseUid === uid) return this._loginPromise;
+
+    this._accessUid = uid;
+    this._accessState = 'checking';
+    this._loginPromiseUid = uid;
+    const p = (async () => {
+      /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
+         conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
+         Só uma conta livre ou já pertencente a este device é renovada. */
+      try {
+        const { data, error } = await CS.client.from(this.TABLE)
+          .select('device_id,device_label').eq('user_id', uid).maybeSingle();
+        if (error) {
+          if (this._isMissingTable(error)) {
+            this._disable(error);
+            return { ok: true, status: 'disabled' };
+          }
+          this._accessState = 'error';
+          console.warn('[SessionGuard] verificação inicial falhou', error);
+          return { ok: false, status: 'error', error };
+        }
+        if (data && data.device_id && data.device_id !== this.deviceId()) {
+          this._accessState = 'blocked';
+          this._takenBy(data);
+          return { ok: false, blocked: true, status: 'blocked', row: data };
+        }
+        const ok = await this.claim(uid);
+        if (ok) return { ok: true, status: 'allowed' };
+        this._accessState = 'error';
+        return { ok: false, status: 'error' };
+      } catch (err) {
+        if (this._isMissingTable(err)) {
+          this._disable(err);
+          return { ok: true, status: 'disabled' };
+        }
+        this._accessState = 'error';
+        console.warn('[SessionGuard] verificação inicial erro', err);
+        return { ok: false, status: 'error', error: err };
       }
-      if (data && data.device_id && data.device_id !== this.deviceId()) {
-        this._claimedUid = uid;
-        this._takenBy(data);
-        return;
+    })();
+    this._loginPromise = p;
+    try { return await p; }
+    finally {
+      if (this._loginPromise === p) {
+        this._loginPromise = null;
+        this._loginPromiseUid = null;
       }
-      if (await this.claim(uid)) this._claimedUid = uid;
-    } catch (err) {
-      if (this._isMissingTable(err)) this._disable(err);
-      else console.warn('[SessionGuard] verificação inicial erro', err);
     }
   },
   onLogout() {
     this._claimedUid = null;
+    this._accessUid = null;
+    this._accessState = 'unknown';
+    this._loginPromise = null;
+    this._loginPromiseUid = null;
     this._unsub();
     if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
   },
@@ -41433,9 +41566,20 @@ const SessionGuard = {
       const { error } = await CS.client.from(this.TABLE)
         .upsert({ user_id: uid, device_id: this.deviceId(), device_label: this.deviceLabel(), updated_at: new Date().toISOString() },
                 { onConflict: 'user_id' });
-      if (error) { if (this._isMissingTable(error)) this._disable(error); else console.warn('[SessionGuard] claim falhou', error); return false; }
+      if (error) {
+        if (this._isMissingTable(error)) this._disable(error);
+        else { this._accessState = 'error'; console.warn('[SessionGuard] claim falhou', error); }
+        return false;
+      }
+      this._claimedUid = uid;
+      this._accessUid = uid;
+      this._accessState = 'allowed';
       return true;
-    } catch (err) { if (this._isMissingTable(err)) this._disable(err); else console.warn('[SessionGuard] claim erro', err); return false; }
+    } catch (err) {
+      if (this._isMissingTable(err)) this._disable(err);
+      else { this._accessState = 'error'; console.warn('[SessionGuard] claim erro', err); }
+      return false;
+    }
   },
 
   // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
@@ -41448,7 +41592,14 @@ const SessionGuard = {
       const { data, error } = await CS.client.from(this.TABLE).select('device_id,device_label').eq('user_id', uid).maybeSingle();
       if (error) { if (this._isMissingTable(error)) this._disable(error); return; }
       if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._accessUid = uid;
+        this._accessState = 'blocked';
         this._takenBy({ device_id: data.device_id, device_label: data.device_label });
+      } else if (data && data.device_id === this.deviceId() &&
+                 !(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+        this._accessUid = uid;
+        this._accessState = 'allowed';
+        this._claimedUid = uid;
       }
     } catch (err) { if (this._isMissingTable(err)) this._disable(err); }
   },
@@ -41462,8 +41613,19 @@ const SessionGuard = {
         .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + uid }, (p) => {
           const row = p.new || p.old || {};
           if (!row.device_id) return;
-          if (row.device_id !== this.deviceId()) this._takenBy(row);
-          else if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+          if (row.device_id !== this.deviceId()) {
+            this._accessUid = uid;
+            this._accessState = 'blocked';
+            this._takenBy(row);
+          } else if (!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+            this._accessUid = uid;
+            this._accessState = 'allowed';
+            this._claimedUid = uid;
+            /* Não fechamos automaticamente um bloqueio REMOTO só porque chegou
+               um evento com nosso device_id. O overlay só some após takeover
+               explícito confirmado; assim nenhum claim concorrente ou evento
+               tardio decide sozinho que a pessoa "continuou neste aparelho". */
+          }
           // se a tela de Configurações estiver aberta, reflete a mudança na hora
           try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) { _quiet(_); }
         })
@@ -41476,6 +41638,12 @@ const SessionGuard = {
 
   // Outro aparelho assumiu: bloqueia e pausa a sincronização aqui.
   _takenBy(row) {
+    try {
+      const CS = window.CloudStore;
+      const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
+      if (uid) this._accessUid = uid;
+      this._accessState = 'blocked';
+    } catch (_) { _quiet(_); }
     if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
     /* Interrompe o ENVIO para não sobrescrever o outro aparelho — mas mantém a
        pendência. Zerar _pending aqui apagava a alteração da fila: ela nunca mais
@@ -41511,7 +41679,13 @@ const SessionGuard = {
   // O outro aparelho recebe o evento em tempo real e é bloqueado.
   async endRemoteAndClaimHere() {
     const ok = await this.claim();
-    if (ok && window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+    if (ok) {
+      if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
+      try {
+        const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+        if (pid && window.CloudStore && CloudStore._drainSectionRealtimeHint) CloudStore._drainSectionRealtimeHint(pid);
+      } catch (_) { _quiet(_); }
+    }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     return ok;
   }
@@ -41520,9 +41694,14 @@ window.SessionGuard = SessionGuard;
 // "Continuar neste aparelho" (no overlay remoto) → reivindica de volta a posse.
 if (window.SessionLock) SessionLock.onTakeover(async (origin) => {
   if (origin !== 'remote') return;
-  const ok = await SessionGuard.claim();
-  if (ok) { showToast('Sessão retomada neste aparelho ✓'); if (window.CloudUI) CloudUI.refreshSyncBtn(); }
-  else { showToast('Não foi possível retomar agora — verifique a internet'); SessionLock.block('remote', {}); }
+  const ok = await SessionGuard.endRemoteAndClaimHere();
+  if (ok) {
+    showToast('Sessão retomada neste aparelho ✓');
+    try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
+  } else {
+    showToast('Não foi possível retomar agora — verifique a internet');
+    SessionLock.block('remote', {});
+  }
 });
 
 /* ============================================================
@@ -41999,6 +42178,8 @@ const SectionSync = {
   async pushDirty(id) {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
     id = id || this._activeProfileId();
     if (!id) return;
     /* A marca de "envio em curso" é global para serializar os requests, mas o
@@ -42271,6 +42452,8 @@ const SectionSync = {
     if (!this.enabled) return;
     try {
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+      if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+          (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
       if (!ProfileManager.getActiveProfileId()) return;
       // Recupera, uma vez por perfil, o que ficou por enviar na sessão anterior.
@@ -42423,6 +42606,11 @@ const SectionSync = {
     const res = { ok: false, motivo: null, seções: 0, em: new Date().toISOString() };
     try {
       res.origem = 'seções';
+      if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+          (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+        res.motivo = 'sessão-bloqueada-em-outro-aparelho';
+        return this._saveLast(res);
+      }
       if (!this.readEnabled && !opts.force) { res.motivo = 'leitura-por-seção-desligada'; return this._saveLast(res); }
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) { res.motivo = 'sem-conexão'; return this._saveLast(res); }
       /* ANTES de ler: entrega o que este aparelho ainda não enviou. O que não
@@ -43296,25 +43484,39 @@ window.SessionLock = {
       if (e.t) e.t.textContent = 'Sessão aberta em outro aparelho';
       if (e.d) e.d.innerHTML = 'Sua conta foi aberta em <strong>outro dispositivo</strong>' + (info && info.label ? ' (' + escapeHtml(info.label) + ')' : '') + '. Para proteger seus dados, o Diário mantém <strong>um aparelho ativo por vez</strong> — a sincronização foi <strong>pausada aqui</strong>.';
       if (e.s) e.s.textContent = 'Se foi você, pode continuar neste aparelho: isso vai encerrar a sessão no outro.';
-      if (e.take) e.take.textContent = 'Continuar neste aparelho';
+      if (e.take) { e.take.disabled = false; e.take.textContent = 'Continuar neste aparelho'; }
     } else {
       if (e.ico) e.ico.textContent = '🔒';
       if (e.t) e.t.textContent = 'Diário já aberto em outra janela';
       if (e.d) e.d.innerHTML = 'Para proteger seus dados, o Diário funciona em <strong>uma aba/janela por vez</strong> neste navegador.';
       if (e.s) e.s.textContent = 'Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever a sincronização.';
-      if (e.take) e.take.textContent = 'Usar aqui (encerrar as outras)';
+      if (e.take) { e.take.disabled = false; e.take.textContent = 'Usar aqui (encerrar as outras)'; }
     }
     e.o.style.display = 'flex';
   },
   unblock() {
     this._blocked = false; this._origin = null;
-    const e = this._els(); if (e.o) e.o.style.display = 'none';
+    const e = this._els();
+    if (e.take) e.take.disabled = false;
+    if (e.o) e.o.style.display = 'none';
   },
   onTakeover(fn) { if (typeof fn === 'function') this._takeoverFns.push(fn); },
   _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) { _quiet(_); } }); },
   init() {
     const e = this._els();
-    if (e.take) e.take.addEventListener('click', () => { const origin = this._origin; this.unblock(); this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } }); });
+    if (e.take) e.take.addEventListener('click', () => {
+      const origin = this._origin;
+      /* Local: podemos liberar imediatamente porque o BroadcastChannel é deste
+         próprio navegador. Remoto: o overlay só fecha DEPOIS de o Supabase
+         confirmar o takeover. Assim um toque não cria uma janela em que o app
+         parece liberado antes de a posse existir no servidor. */
+      if (origin === 'local') this.unblock();
+      else if (origin === 'remote') {
+        e.take.disabled = true;
+        e.take.textContent = 'Confirmando…';
+      }
+      this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } });
+    });
     const r = document.getElementById('single-session-reload');
     if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
   }
