@@ -302,22 +302,19 @@ const CloudStore = {
     if (error) throw error;
     return data ? data.rev : null;
   },
-  // Salva com RETENTATIVA: em caso de conflito, re-sincroniza a versão e REENVIA o estado
-  // local (a ação do usuário nunca é descartada). Evita a perda de dados por conflito de versão.
-  async saveActiveWithRetry(maxTries) {
-    maxTries = maxTries || 4;
+  /* Conflito de blob NÃO dá permissão para reenviar o estado local inteiro.
+     Antes, o código buscava a rev remota, copiava esse número para o aparelho e
+     tentava de novo — isso convertia um conflito legítimo em autorização para
+     sobrescrever a versão vencedora. Agora o conflito é apenas diagnosticado.
+     Os dados operacionais continuam pela camada por seção, que usa CAS. */
+  async saveActiveWithRetry() {
     const id = ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
-    for (let attempt = 0; attempt < maxTries; attempt++) {
-      const r = await this.saveActive();
-      if (!r || !r.conflict) return r; // sucesso, skipped ou RECUSADO pela trava
-      // conflito → busca a rev real da nuvem, alinha localmente e tenta de novo (empurra o local)
-      let currentRev = null;
-      try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
-      if (currentRev == null) return { conflict: true };
-      ProfileManager.setRev(id, currentRev);
-    }
-    return { conflict: true };
+    const r = await this.saveActive();
+    if (!r || !r.conflict) return r;
+    let currentRev = null;
+    try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
+    return { conflict: true, remoteRev: currentRev };
   },
   async deleteRow(id) { const { error } = await this.client.from(this.TABLE).delete().eq('id', id); if (error) throw error; },
 
@@ -417,8 +414,17 @@ const CloudStore = {
         const ok = await this._pushSectionsNow();
         this._syncing = false;
         if (!ok) {
-          // alguma seção não subiu: promove esta rodada a envio de blob e repete
-          this._pending = true; this._forceBlob = true;
+          this._pending = true;
+          if (window.SectionSync && SectionSync._lastConflict) {
+            /* Conflito protegido: JAMAIS contorna pelo blob. A cópia local
+               continua na outbox e a remota permanece intacta. */
+            this._forceBlob = false;
+            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
+            this._rearm(5000);
+            return;
+          }
+          // erro de transporte/infra: o blob continua sendo rede de segurança
+          this._forceBlob = true;
           if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
           this._rearm(3000);
           return;
@@ -428,14 +434,33 @@ const CloudStore = {
         if (this._pending) this._rearm(300);
         return;
       }
-      // ── ROTA COMPLETA: blob + seções ─────────────────────────────────────
+      // ── ROTA COMPLETA: seções CANÔNICAS primeiro; blob é checkpoint ───────
+      if (window.SectionSync && SectionSync.enabled) {
+        const secOk = await this._pushSectionsNow();
+        if (!secOk) {
+          this._syncing = false; this._pending = true;
+          if (SectionSync._lastConflict) {
+            this._forceBlob = false;
+            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
+            this._rearm(5000);
+            return;
+          }
+          this._forceBlob = true;
+          if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando seções…');
+          this._rearm(3000);
+          return;
+        }
+      }
       const r = await this.saveActiveWithRetry();
       this._syncing = false;
       if (r && r.conflict) {
-        // conflito persistente: mantém pendente e tenta de novo (não perde a alteração)
-        this._pending = true;
-        if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
-        this._rearm(5000);
+        /* As seções já foram confirmadas antes de chegar aqui. O blob é apenas
+           checkpoint; não rebaixamos a segurança dos dados para fazê-lo vencer. */
+        this._pending = false;
+        this._forceBlob = false;
+        this._lastSyncAt = Date.now();
+        if (window.CloudUI) CloudUI.setStatus('ok', 'Dados sincronizados · checkpoint será reconciliado depois');
+        console.warn('[CloudStore] checkpoint do blob em conflito; preservado sem sobrescrever', r.remoteRev);
         return;
       }
       /* Envio RECUSADO pela trava anti-apagamento: a nuvem continua com a cópia
@@ -577,17 +602,22 @@ const CloudStore = {
       showToast('Sincronizado ✓');
     } catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar'); showToast('Não foi possível sincronizar agora'); }
   },
-  async pullActiveAndReload() {
+  async pullActiveAndReload(opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
-    // FASE 2: tenta primeiro por seção; só usa o blob se a leitura por seção falhar.
+    // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
-      try { if (await SectionSync.pullAndReload()) return; } catch (e) { console.warn('pull por seção', e); }
+      try { if (await SectionSync.pullAndReload(opts)) return; } catch (e) { console.warn('pull por seção', e); }
     }
     try {
       // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
       // ainda não enviou; o que não subir é preservado e não é sobrescrito.
       let preservar = [];
-      try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'pull-pendencia'); }
+      try {
+        if (window.SectionSync) preservar = opts.readOnly
+          ? SectionSync.pendingSections(id)
+          : await SectionSync.flushBeforeRead(id);
+      } catch (e) { _quiet(e, 'pull-pendencia'); }
       const res = await this.fetchPayload(id);
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
