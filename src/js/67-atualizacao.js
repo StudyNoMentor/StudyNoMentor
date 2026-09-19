@@ -163,7 +163,7 @@ const Atualizacao = {
      fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
      a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false, tentativas = 0;
+    let recarregou = false, tentativas = 0, bater = null;
     const recarregar = async () => {
       if (recarregou) return;
       recarregou = true; clearInterval(bater);
@@ -195,7 +195,7 @@ const Atualizacao = {
       return false;
     };
     if (!pedir()) { recarregar(); return; }     // sem worker esperando: recarregar já resolve
-    const bater = setInterval(() => {
+    bater = setInterval(() => {
       tentativas++;
       if (recarregou || tentativas > 20 || !pedir()) { clearInterval(bater); }
     }, 600);
