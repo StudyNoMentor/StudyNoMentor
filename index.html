@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v77940ab07d">
+<meta name="diario-versao" content="v1e6be31be7">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -13029,84 +13029,6 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
   font-size: var(--fs-2xs); color: var(--text-soft);
 }
 
-/* A janela de um modelo. Mesma linguagem da folha de Ajustes do TEC: cabeçalho
-   fixo, corpo rolável, pé com a saída — para o "Concluir" não fugir do polegar
-   quando o corpo cresce. */
-.pmc-overlay {
-  position: fixed; inset: 0; z-index: 100120;
-  display: grid; place-items: center; padding: 18px;
-  background: rgba(11, 18, 32, .52); backdrop-filter: blur(6px);
-}
-
-/* ══ 7. PUXAR DO PLANO — A COMPARAÇÃO COM OS DOIS LADOS ════════════════════
-   A linha de comparação passou a ter sempre duas colunas: a leitura de cada
-   motor, ou a declaração de que aquele motor não tem leitura. Os estilos
-   abaixo dão a essas duas situações desenhos distintos, porque "o Robusto põe
-   isso em #7" e "o Robusto não vê isso" levam a decisões diferentes. */
-.ps-compare-row { border-radius: 14px; padding: 12px; }
-.ps-compare-row > header { align-items: baseline; flex-wrap: wrap; }
-.ps-compare-row > header b { font-size: var(--fs-sm); }
-.ps-compare-row > header span { font-size: var(--fs-2xs); color: var(--text-soft); }
-.ps-compare-grid { gap: 9px; }
-.ps-compare-option { border-radius: 12px; padding: 11px; gap: 9px; }
-.ps-compare-option span { font-size: var(--fs-3xs); letter-spacing: .04em; }
-.ps-compare-option b { font-size: var(--fs-xs); line-height: 1.35; }
-.ps-compare-option small { font-size: var(--fs-2xs); line-height: 1.45; }
-.ps-compare-option small b { font-size: inherit; color: var(--text); }
-
-/* Recuperado da fila completa: é uma leitura válida, só não é a aposta
-   principal daquele motor. Borda tracejada diz isso sem apagar o cartão. */
-.ps-compare-option.is-fora { border-style: dashed; background: color-mix(in srgb, var(--surface-sunken) 45%, var(--surface)); }
-.ps-fora-tag {
-  font-style: normal; align-self: flex-start;
-  margin: 1px 0 2px; padding: 2px 7px; border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--border));
-  background: var(--warn-soft); color: var(--warn-text);
-  font-size: var(--fs-3xs); font-weight: 800;
-}
-/* Sem leitura: não é opção, então não tem rádio nem cursor de clique. */
-.ps-compare-option.is-sem {
-  grid-template-columns: minmax(0, 1fr);
-  border-style: dashed; cursor: default;
-  background: color-mix(in srgb, var(--surface-sunken) 65%, var(--surface));
-}
-.ps-compare-option.is-sem b { color: var(--text-soft); }
-.ps-compare-option.is-sem small { color: var(--text-faint); }
-.ps-so-um {
-  padding: 2px 8px; border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--border));
-  background: var(--warn-soft); color: var(--warn-text) !important;
-  font-size: var(--fs-3xs); font-weight: 800;
-}
-.ps-consensus { color: var(--good-text) !important; font-weight: 800; }
-
-/* ══ 8. A ETIQUETA DE ORIGEM EM EXTRAS ═════════════════════════════════════
-   Toda atividade vinda do TEC usava a mesma etiqueta "🏁 do Plano", sem
-   distinguir a leitura analítica legada do Simplificado e do Robusto. Com os
-   três coexistindo, a fila não permitia conferir se o que está em execução
-   saiu do modelo escolhido. Agora cada motor tem a sua, com a mesma cor que
-   ele usa no resto do app — o texto vem do JS, a cor daqui. */
-#extras-list .extra-tag.plano.motor-robusto,
-#extras-agenda .extra-tag.plano.motor-robusto {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-text);
-  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-}
-#extras-list .extra-tag.plano.motor-simples,
-#extras-agenda .extra-tag.plano.motor-simples {
-  background: var(--warn-soft);
-  color: var(--warn-text);
-  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
-}
-/* Sem motor identificado = criada pela leitura analítica. Fica neutra, porque
-   é a fonte que NÃO está mais decidindo quando há motor ativo. */
-#extras-list .extra-tag.plano:not(.motor-robusto):not(.motor-simples),
-#extras-agenda .extra-tag.plano:not(.motor-robusto):not(.motor-simples) {
-  background: var(--surface-sunken);
-  color: var(--text-soft);
-  border: 1px solid var(--border);
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════
    A FILA COMPLETA DO MOTOR — DISCIPLINAS E ASSUNTOS
    ---------------------------------------------------------------------------
@@ -13115,8 +13037,7 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
    1. AS MÉTRICAS DE CADA LINHA eram chips em `flex-wrap`: cada um com a
       largura do próprio texto, então as bordas não coincidiam de uma linha
       para a outra e a fila parecia desalinhada mesmo estando correta — e o
-      Robusto mostra cinco métricas onde o Simplificado mostra três ou quatro,
-      o que deixava cada motor com uma fileira de formato diferente. Agora é
+      quantidades diferentes de métricas deixavam cada linha com uma fileira de formato diferente. Agora é
       uma faixa de colunas iguais, quantas forem: `grid-auto-flow: column` com
       `grid-auto-columns: 1fr` não precisa saber o número de antemão, então o
       mesmo bloco serve aos dois motores sem uma regra por motor.
@@ -13178,7 +13099,7 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
    A MOLDURA QUE FICAVA DEPOIS DO TOQUE
    ---------------------------------------------------------------------------
    Marcar uma caixa deixava um retângulo em volta dela que não saía mais — mais
-   visível na tela "Puxar do Plano", onde se marcam várias seguidas. São dois
+   visível na tela "Puxar do Motor", onde se marcam várias seguidas. São dois
    efeitos do navegador somados: o anel de foco, que o `:focus` mostra também
    para o clique (e o clique não precisa dele — a pessoa sabe onde tocou), e o
    realce de toque do Android, um retângulo cinza que sobra sobre o rótulo.
