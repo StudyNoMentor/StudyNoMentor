@@ -64,20 +64,26 @@ const CloudUI = {
   renderQueue() {
     const box = document.getElementById('cloud-queue-box');
     if (!box) return;
-    let fila = [];
-    try { if (window.SectionSync) fila = SectionSync.pendingSections(); } catch (_) { _quiet(_); }
+    const rs = window.RelationalStore;
+    const n = rs ? rs.pendingCount() : 0;
     const acoes = document.getElementById('cloud-push-now');
-    if (!fila.length) {
-      box.innerHTML = '<p class="cloud-queue-ok">✓ <strong>Nada pendente.</strong> Tudo o que você registrou já está na nuvem e aparece ao entrar em outro aparelho.</p>';
+    if (!rs) {
+      box.innerHTML = '<p class="cloud-queue-ok">⚠ Camada relacional indisponível.</p>';
+      if (acoes) acoes.disabled = true;
+      return;
+    }
+    if (!n && !rs._lastError) {
+      box.innerHTML = '<p class="cloud-queue-ok">✓ <strong>Nada pendente.</strong> O estado exibido foi confirmado no banco.</p>';
       if (acoes) acoes.disabled = false;
       return;
     }
-    const nomes = [...new Set(fila.map(s => this._nomeSecao(s)))];
-    box.innerHTML = '<p><strong>' + fila.length +
-      (fila.length === 1 ? ' alteração ainda não enviada' : ' alterações ainda não enviadas') +
-      '.</strong> Está salvo neste aparelho e sobe sozinho assim que houver conexão — nada é perdido, e nenhum download apaga o que está aqui.</p>' +
-      '<div class="cloud-queue-secoes" aria-label="Seções aguardando envio">' +
-      nomes.map(n => '<span>' + escapeHtml(n) + '</span>').join('') + '</div>';
+    if (rs._lastError) {
+      box.innerHTML = '<p><strong>Falha ao confirmar no banco.</strong> A tela não considera a alteração persistida até o PostgreSQL responder.</p>';
+      if (acoes) acoes.disabled = false;
+      return;
+    }
+    box.innerHTML = '<p><strong>' + n + (n === 1 ? ' operação SQL em andamento' : ' operações SQL em andamento') +
+      '.</strong> O indicador volta a verde somente após a confirmação do banco.</p>';
     if (acoes) acoes.disabled = false;
   },
   // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
@@ -236,6 +242,39 @@ const CloudUI = {
     catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   }
 };
+
+/* Estado do indicador = estado REAL das operações SQL. Sem "salvo localmente". */
+CloudUI.refreshSyncBtn = function (forceTone, forceText) {
+  const btn = document.getElementById('cloud-sync-btn');
+  if (!btn) return;
+  const CS = window.CloudStore;
+  const RS = window.RelationalStore;
+  let tone = forceTone, text = forceText;
+
+  if (!tone) {
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) {
+      tone = 'off'; text = 'Banco desconectado';
+    } else if (!RS) {
+      tone = 'error'; text = 'Camada de dados indisponível';
+    } else if (RS._lastError) {
+      tone = 'error'; text = 'Falha ao salvar no banco';
+    } else if (RS.pendingCount() > 0) {
+      tone = 'syncing'; text = 'Salvando no banco…';
+    } else if (RS._lastSyncAt) {
+      tone = 'ok'; text = 'Banco sincronizado ' + this._timeAgo(RS._lastSyncAt);
+    } else {
+      tone = 'ok'; text = 'Banco conectado';
+    }
+  }
+
+  btn.className = 'cloud-sync-btn st-' + tone;
+  btn.title = text || 'Estado do banco';
+  const el = document.getElementById('cloud-sync-status');
+  if (el) {
+    el.className = 'cloud-status-sub ' + (tone === 'ok' ? '' : tone);
+    el.innerHTML = '<span class="dot"></span>' + escapeHtml(text || '');
+  }
+};
 window.CloudUI = CloudUI;
 
 /* ---- Listeners: portão de acesso ---- */
@@ -265,21 +304,20 @@ window.CloudUI = CloudUI;
     if (!id) return;
     const meta = (ProfileManager.getProfiles().find(p => p.id === id) || {});
     const btn = document.getElementById('pf-export');
-    // Se este dispositivo nunca "entrou" neste perfil, os dados dele podem existir
-    // só na nuvem — o formulário de editar (nome/avatar/cor) nunca os baixa.
-    // Sem este resgate, o backup saía vazio (data: {}) mesmo com tudo salvo online.
-    const temDadosLocais = () => {
+    /* Backup é montado a partir de SELECTs relacionais. A projeção em memória
+       existe só durante esta aba e nunca é usada como fonte persistente. */
+    const temProjecao = () => {
       const prefix = 'diario-estudos:u:' + id + ':';
       for (let i = 0; i < localStorage.length; i++) { if ((localStorage.key(i) || '').startsWith(prefix)) return true; }
       return false;
     };
-    if (!temDadosLocais() && window.CloudStore && CloudStore.isLoggedIn()) {
-      if (btn) { btn.disabled = true; btn.textContent = 'Buscando dados na nuvem...'; }
+    if (!temProjecao()) {
+      if (btn) { btn.disabled = true; btn.textContent = 'Buscando dados no banco...'; }
       try {
-        const res = await CloudStore.fetchPayload(id);
-        ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {});
+        if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+        await RelationalStore.hydrateProfile(id, { reason: 'export-backup' });
       } catch (err) {
-        showToast('Não encontrei dados locais nem na nuvem para este perfil: ' + (err.message || ''));
+        showToast('Não foi possível consultar este perfil no banco: ' + (err.message || ''));
         if (btn) { btn.disabled = false; btn.textContent = '↓ Exportar backup deste perfil (.json)'; }
         return;
       }
@@ -367,26 +405,17 @@ window.CloudUI = CloudUI;
           const sufixo = obj.exportedAt ? formatDateShort(obj.exportedAt.slice(0, 10)) : todayLocal();
           nomeFinal = nomeFinal + ' (importado ' + sufixo + ')';
         }
-        const novoId = ProfileManager.importProfile(obj, nomeFinal);
-        showToast('Perfil importado ✓');
-        // Envia para a nuvem se estiver logado, para não ficar só neste aparelho.
-        // Falha aqui não invalida a importação: os dados já estão salvos localmente.
-        if (window.CloudStore && CloudStore.isLoggedIn()) {
-          try {
-            const meta = ProfileManager.getProfiles().find(p => p.id === novoId) || {};
-            const row = await CloudStore.createRow({ name: meta.nome, avatar: meta.avatar, color: meta.cor,
-              payload: ProfileManager.exportProfile(novoId) });
-            /* O id de `createRow` vem do BANCO (a coluna é uuid com default) e
-               PRECISA ser adotado. Descartá-lo — o que este trecho fazia —
-               deixava o perfil partido em dois: o local, com o id antigo, que
-               nunca mais sincronizava; e o da nuvem, com outro id, congelado no
-               instante da importação e aparecendo como um SEGUNDO perfil, com o
-               nome de antes, na lista de todos os aparelhos. */
-            await ProfileManager.adotarIdDaNuvem(novoId, row);
-          } catch (err) {
-            showToast('Importado neste aparelho. Não subiu para a nuvem: ' + (err.message || ''));
-          }
+        if (!(window.CloudStore && CloudStore.isLoggedIn()) || !window.RelationalStore) {
+          throw new Error('Entre na conta para importar o backup no banco.');
         }
+        /* Cloud-first: o UUID real nasce no banco ANTES de qualquer dado do
+           arquivo. Nunca existe um perfil temporário "só neste aparelho". */
+        const avatar = (obj.profile && obj.profile.avatar) || '📘';
+        const cor = (obj.profile && obj.profile.cor) || '#4f46e5';
+        const row = await CloudStore.createRow({ name: nomeFinal, avatar, color: cor, payload: {} });
+        ProfileManager.addMirror({ id: row.id, nome: nomeFinal, avatar, cor });
+        await RelationalStore.replaceProfileFromPayload(row.id, obj.data || {}, { reason: 'json-import' });
+        showToast('Perfil importado no banco ✓');
         ProfileUI.refreshStage();
       } catch (err) {
         showToast('Erro ao importar: ' + (err.message || ''));
@@ -466,53 +495,38 @@ window.CloudUI = CloudUI;
 })();
 window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'config' && window.CloudUI) CloudUI.render(); });
 
-/* ---- Inicialização (ordem importa) ---- */
+/* ---- Integração SQL relacional ---- */
 _cloudNotifyHook = () => CloudStore.notifyChange();
 
-/* ---- Sincronização automática sem botão obrigatório + botão visível no topo ----
-   • Ao VOLTAR o foco/rede: puxa a versão mais nova da nuvem (se você não tem alterações
-     pendentes) ou envia as suas (se tem). Isso evita o conflito celular↔PC no uso normal.
-   • Ao SAIR/ocultar a aba: envia na hora o que estava pendente (não espera o debounce).
-   • O botão ☁ no topo mostra o estado e, se quiser, força a sincronização na hora. */
 (function () {
   const btn = document.getElementById('cloud-sync-btn');
   if (btn) btn.addEventListener('click', () => CloudStore.syncNow());
-  // voltar o foco à aba / janela → sincroniza de forma inteligente
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') CloudStore.syncOnFocus();
-    else {
-      // ao ocultar (trocar de app/aba): dispara o envio async E o salvamento de emergência
-      // (keepalive). No celular, "ocultar" é o sinal mais confiável de que o app pode ser
-      // encerrado a qualquer momento — o beacon garante que o pendente chegue à nuvem.
-      CloudStore.flushPending();
-      CloudStore._beaconSave();
-    }
   });
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
-  window.addEventListener('online', () => { if (window.CloudUI) CloudUI.refreshSyncBtn(); CloudStore.syncOnFocus(); });
-  window.addEventListener('offline', () => { if (window.CloudUI) CloudUI.setStatus('error', 'Sem internet'); });
-  // fechamento real da página: pagehide é confiável no celular (beforeunload não é).
-  // Ambos usam o salvamento por keepalive, que sobrevive ao descarregamento da aba.
-  window.addEventListener('pagehide', () => { try { CloudStore._beaconSave(); } catch (e) { _quiet(e); } });
-  window.addEventListener('beforeunload', () => { try { CloudStore._beaconSave(); } catch (e) { _quiet(e); } });
-  // REDE DE SEGURANÇA: a cada 8s, se houver algo pendente e nenhum envio em curso,
-  // garante o salvamento — cobre qualquer alteração que tenha ficado para trás.
-  setInterval(() => { if (CloudStore._pending && !CloudStore._syncing) CloudStore.autoSave(); }, 8000);
-  // Sync por seção (Opção B): garante o preenchimento da tabela nova mesmo sem edições.
-  setInterval(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) { _quiet(_); } }, 12000);
-  setTimeout(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) { _quiet(_); } }, 4000);
-  // atualiza o rótulo "há X min" periodicamente
-  setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
-  // com a tela de Configurações aberta, a fila se atualiza sozinha (o envio é assíncrono)
+  window.addEventListener('online', () => {
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
+    CloudStore.syncOnFocus();
+  });
+  window.addEventListener('offline', () => {
+    if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão com o banco');
+  });
+
+  /* Realtime acelera. Este pulso é a rede de segurança contra qualquer evento
+     WebSocket perdido: consulta a cópia canônica no SQL enquanto a aba está ativa. */
   setInterval(() => {
     try {
-      const cfg = document.getElementById('screen-config');
-      if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderQueue();
+      if (document.visibilityState === 'visible' && window.CloudStore) CloudStore.syncOnFocus();
     } catch (_) { _quiet(_); }
-  }, 5000);
-  // estado inicial do botão
-  setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
+  }, 30000);
 
+  setInterval(() => {
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
+  }, 10000);
+
+  setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
 })();
 
 /* ---- Tamanho do texto (A− / A+): escala global, salva por perfil ---- */

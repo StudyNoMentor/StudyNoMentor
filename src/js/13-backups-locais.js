@@ -162,11 +162,10 @@ const BackupHistory = {
     let data; try { data = JSON.parse(json); } catch (_) { return false; }
     await this.snapshot('antes de restaurar uma versão');
     try {
-      if (window.CloudStore) CloudStore._applying = true;
-      ProfileManager.restorePayloadInto(id, data);
-      if (window.CloudStore) { CloudStore._applying = false; CloudStore._pending = true; }
-    } catch (_) { if (window.CloudStore) CloudStore._applying = false; return false; }
-    return true;
+      if (!window.RelationalStore) return false;
+      await RelationalStore.replaceProfileFromPayload(id, data, { reason: 'session-backup-restore' });
+      return true;
+    } catch (e) { _quiet(e, 'backup-session-restore'); return false; }
   }
 };
 window.BackupHistory = BackupHistory;

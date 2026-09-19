@@ -852,4 +852,160 @@ const CloudStore = {
     }
   }
 };
+
+/* ── ARQUITETURA RELACIONAL ────────────────────────────────────────────────
+   A partir desta versão, profile_sections/blob/IndexedDB NÃO participam da
+   persistência. Estes overrides mantêm a API pública do CloudStore para as
+   telas existentes, mas toda sincronização de estudo delega ao RelationalStore. */
+Object.assign(CloudStore, {
+  onAuth() {
+    try { if (window.ProfileUI) ProfileUI.onAuthChanged(); } catch (_) { _quiet(_); }
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
+    if (this.isLoggedIn()) {
+      /* Preferências de usuário também vêm do SQL. A lista de perfis continua
+         em study_profiles e é buscada pelo gate. */
+      try {
+        if (window.RelationalStore) RelationalStore.hydrateUserPreferences()
+          .catch(e => _quiet(e, 'rel-user-prefs'));
+      } catch (_) { _quiet(_); }
+      try {
+        if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+      } catch (_) { _quiet(_); }
+    } else {
+      try { if (window.RelationalStore) RelationalStore.unsubscribe(); } catch (_) { _quiet(_); }
+      try {
+        if (this.channel) this.client.removeChannel(this.channel);
+        if (this.secChannel) this.client.removeChannel(this.secChannel);
+      } catch (_) { _quiet(_); }
+      this.channel = null; this.secChannel = null;
+    }
+  },
+
+  async createRow({ name, avatar, color }) {
+    const { data, error } = await this.client.from(this.TABLE)
+      .insert({
+        user_id: this.session.user.id,
+        profile_name: name,
+        avatar: avatar || '📘',
+        color: color || '#4f46e5',
+        payload: {},
+        rev: 1
+      })
+      .select('id,rev,created_at').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async updateMeta(id, { nome, avatar, cor }) {
+    const { data, error } = await this.client.from(this.TABLE)
+      .update({
+        profile_name: nome,
+        avatar: avatar,
+        color: cor,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select('id,rev').maybeSingle();
+    if (error) throw error;
+    return data;
+  },
+
+  async saveActive(id) {
+    /* Blob integral aposentado. Mantido só como assinatura de compatibilidade. */
+    if (window.RelationalStore) await RelationalStore.flush();
+    return { relational: true };
+  },
+
+  async saveActiveWithRetry(id) {
+    return this.saveActive(id);
+  },
+
+  notifyChange() {
+    /* A fachada de memória já chamou RelationalStore.onStorageMutation.
+       Não existe segunda fila/blob para agendar. */
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
+  },
+
+  async autoSave() {
+    if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
+    try {
+      await RelationalStore.flush();
+      this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
+      return true;
+    } catch (e) {
+      try { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao salvar no banco'); } catch (_) { _quiet(_); }
+      throw e;
+    }
+  },
+
+  async flushPending() {
+    return this.autoSave();
+  },
+
+  _beaconSave() {
+    /* Não existe dado local persistente a descarregar no fechamento.
+       Operações críticas aguardam confirmação SQL antes de concluir na UI. */
+  },
+
+  async syncOnFocus() {
+    if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
+    const id = window.ProfileManager && ProfileManager.getActiveProfileId
+      ? ProfileManager.getActiveProfileId() : null;
+    if (!id) return false;
+    try {
+      await RelationalStore.flush();
+      await RelationalStore.catchUp(id, 'focus');
+      this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
+      return true;
+    } catch (e) {
+      _quiet(e, 'rel-sync-focus');
+      return false;
+    }
+  },
+
+  async syncNow() {
+    if (!this.isReady() || !this.isLoggedIn()) {
+      showToast('Entre na sua conta para consultar o banco.');
+      return false;
+    }
+    if (!window.RelationalStore) return false;
+    const id = window.ProfileManager && ProfileManager.getActiveProfileId
+      ? ProfileManager.getActiveProfileId() : null;
+    try {
+      if (window.CloudUI) CloudUI.setStatus('syncing', 'Consultando banco…');
+      await RelationalStore.flush();
+      if (id) await RelationalStore.catchUp(id, 'manual');
+      this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
+      if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado com o banco');
+      showToast('Banco atualizado ✓');
+      return true;
+    } catch (e) {
+      if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao consultar o banco');
+      showToast('Não foi possível consultar o banco agora');
+      return false;
+    }
+  },
+
+  async pullActiveAndReload(opts) {
+    const id = window.ProfileManager && ProfileManager.getActiveProfileId
+      ? ProfileManager.getActiveProfileId() : null;
+    if (!id || !window.RelationalStore) return false;
+    return RelationalStore.catchUp(id, (opts && opts.reason) || 'pull');
+  },
+
+  onActiveProfileChanged(pid) {
+    try {
+      if (window.RelationalStore && pid && this.isLoggedIn()) RelationalStore.subscribeProfile(pid);
+    } catch (_) { _quiet(_); }
+  },
+
+  _unsub() {
+    try { if (window.RelationalStore) RelationalStore.unsubscribe(); } catch (_) { _quiet(_); }
+    if (this.channel) { try { this.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
+    if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (_) { _quiet(_); } this.secChannel = null; }
+    this._secChannelProfile = null;
+    this._secRemotePending = false;
+    clearTimeout(this._secRtTimer);
+  }
+});
 window.CloudStore = CloudStore;

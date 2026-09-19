@@ -479,35 +479,33 @@ try {
 
    Emoji sao ignorados de proposito: a cor renderizada deles nao vem de `color`,
    entao medi-los so gera alarme falso. */
-/* ── 6.5 NADA FICA INVISÍVEL NO ARMAZENAMENTO ANTIGO ────────────────────────
-   O app guarda tudo no IndexedDB por tras de uma fachada chamada `localStorage`.
-   Dado escrito por versoes anteriores mora no localStorage NATIVO — e a adocao
-   dele so rodava quando o IndexedDB estava COMPLETAMENTE vazio. Bastava o tema
-   existir la para o resto nunca mais ser lido: os dados continuavam no
-   navegador, integros, sem nenhuma porta. Este teste prova que a adocao e uma
-   FUSAO e acontece mesmo com o IndexedDB ja povoado. */
-console.log('\n6.5) dados do armazenamento antigo nao ficam invisiveis');
+/* ── 6.5) O ARMAZENAMENTO ANTIGO NÃO VOLTA A SER AUTORIDADE ─────────────
+   A migração relacional eliminou a adoção automática de IndexedDB/localStorage.
+   Uma cópia antiga pode continuar detectável para recuperação manual, mas nunca
+   pode povoar silenciosamente a projeção viva nem concorrer com PostgreSQL. */
+console.log('\n6.5) armazenamento antigo fica fora da fonte operacional');
 try {
   const ctx = await nav.newContext();
   const p2 = await ctx.newPage();
   await p2.addInitScript(() => {
     try {
-      window.localStorage.setItem('diario-estudos:theme', 'light');   // IndexedDB nasce NAO-vazio
-      window.localStorage.setItem('diario-estudos:u:antigo:p:pl1:entries', JSON.stringify([{ id: 'e1', subject: 'X', date: '2026-01-01', durationMin: 60 }]));
-    } catch (e) { /* sem storage: o teste abaixo acusa */ }
+      window.localStorage.setItem('diario-estudos:u:antigo:p:pl1:entries',
+        JSON.stringify([{ id:'e1', subject:'X', date:'2026-01-01', durationMin:60 }]));
+    } catch (e) { /* o resultado abaixo acusa se o navegador não expuser storage */ }
   });
   await p2.goto(base, { waitUntil: 'domcontentloaded' });
-  await p2.waitForFunction(() => window.AutoTeste && window.switchScreen, { timeout: 30000 });
-  await p2.waitForTimeout(500);
-  const r = await p2.evaluate(() => ({
-    adotado: (JSON.parse(localStorage.getItem('diario-estudos:u:antigo:p:pl1:entries') || '[]')).length,
-    sobrouNoNativo: window.Recuperacao ? Recuperacao.varrerAntigo().length : -1
+  await p2.waitForFunction(() => window.AutoTeste && window.RelationalStore, { timeout: 30000 });
+  const antigo = await p2.evaluate(() => ({
+    memoriaSomente: window.__memoryOnlyStore === true && window.__idbShim === false,
+    syncLegadoAposentado: !!window.SectionSync && SectionSync.retired === true &&
+      SectionSync.enabled === false && SectionSync.readEnabled === false,
+    recuperavel: window.Recuperacao ? Recuperacao.varrerAntigo().length : -1
   }));
-  r.adotado === 1 && r.sobrouNoNativo === 0
-    ? ok('armazenamento antigo adotado mesmo com o IndexedDB povoado')
-    : erro(`dado do armazenamento antigo ficou invisivel (adotado=${r.adotado}, sobrou=${r.sobrouNoNativo})`);
+  antigo.memoriaSomente && antigo.syncLegadoAposentado && antigo.recuperavel >= 1
+    ? ok('copia antiga continua detectavel, mas a fonte operacional e somente SQL')
+    : erro('legado local voltou ao caminho operacional: ' + JSON.stringify(antigo));
   await ctx.close();
-} catch (e) { erro('teste do armazenamento antigo falhou: ' + e.message); }
+} catch (e) { erro('teste de isolamento do armazenamento antigo falhou: ' + e.message); }
 
 /* ── 6.6) o service worker, exercitado de verdade ───────────────────────────
    Ate aqui o sw.js so era LIDO. Mas ele e o unico arquivo cujo defeito nao
@@ -677,446 +675,127 @@ try {
   await ctx.close();
 } catch (e) { erro('teste do service worker falhou: ' + e.message); }
 
-/* ── 6.7) o caminho da nuvem, de ponta a ponta ──────────────────────────────
-   Ate aqui, tudo que toca o Supabase era verificado por LEITURA e por testes
-   com dubles. Aqui o app conversa com um PostgREST de mentira que aplica as
-   regras de verdade (trava otimista por `rev`, indice unico parcial da ancora,
-   unicidade de secao, isolamento por dono) — e o CLIENTE nao e falso: o
-   supabase-js do npm bate byte a byte com o do CDN (mesmo hash de integridade),
-   entao a biblioteca que roda aqui e a mesma que roda em producao. */
-console.log('\n6.7) o caminho da nuvem, de ponta a ponta, contra um banco com as regras de verdade');
+/* ── 6.7) O CAMINHO SQL RELACIONAL, DE PONTA A PONTA ────────────────────
+   O cliente continua sendo o supabase-js real; o servidor falso agora modela
+   as tabelas normalizadas e as RPCs transacionais usadas em produção. A prova
+   importante é CRUD + reidratação sem tocar profile_sections. */
+console.log('\n6.7) persistencia relacional, de ponta a ponta, contra o banco falso');
 try {
   let libSupabase = null;
   try { libSupabase = readFileSync(join(RAIZ, 'node_modules/@supabase/supabase-js/dist/umd/supabase.js'), 'utf8'); }
   catch { console.log('  PULADA: supabase-js nao instalado (npm ci).'); }
   if (libSupabase) {
-  /* O pacote do npm tem de ser O MESMO BUILD que o index.html fixa por hash de
-     integridade. Se divergir, o navegador recusaria o script e o teste falharia
-     por um motivo que nao tem nada a ver com o que ele quer provar — e, pior, o
-     que rodaria aqui nao seria a biblioteca de producao. */
-  {
     const esperado = (html.match(/supabase-js@[^"]*"\s+integrity="sha256-([^"]+)"/) || [])[1];
     const real = createHash('sha256').update(libSupabase).digest('base64');
     esperado === real
-      ? ok('o supabase-js instalado e o MESMO build que a pagina fixa por integridade')
-      : erro(`o supabase-js instalado nao bate com o hash fixado na pagina (${real} x ${esperado})`);
+      ? ok('o supabase-js instalado e o MESMO build fixado na pagina')
+      : erro('o supabase-js instalado nao bate com o hash da pagina');
+
+    const ctx = await nav.newContext({ serviceWorkers:'block' });
+    await ctx.route('https://cdn.jsdelivr.net/**', (rota) => rota.fulfill({
+      status:200, contentType:'text/javascript; charset=utf-8',
+      headers:{'access-control-allow-origin':'*'}, body:libSupabase
+    }));
+    await ctx.route('https://fonts.googleapis.com/**',
+      (rota) => rota.fulfill({status:200,contentType:'text/css',body:''}));
+    const pg = await ctx.newPage();
+    const erros = [];
+    pg.on('pageerror',(e)=>erros.push(e.message));
+    await pg.goto(base,{waitUntil:'domcontentloaded'});
+    await pg.waitForFunction(() => window.CloudStore && window.RelationalStore && window.ProfileManager,
+      {timeout:30000});
+
+    const iniciou = await pg.evaluate((origem) => {
+      CloudStore.SUPABASE_URL=origem;
+      CloudStore.SUPABASE_KEY='chave-publicavel-de-teste';
+      CloudStore.init();
+      return CloudStore.libStatus;
+    },new URL(base).origin);
+    iniciou === 'ready' ? ok('cliente Supabase real iniciou') : erro('cliente Supabase nao iniciou: '+iniciou);
+
+    const criacao = await pg.evaluate(async () => {
+      await CloudStore.signUp('estudante@teste.local','senha-de-teste-123');
+      await new Promise((r)=>setTimeout(r,250));
+      const row=await CloudStore.createRow({name:'Perfil SQL',avatar:'📘',color:'#4f46e5',payload:{}});
+      ProfileManager.addMirror({id:row.id,nome:'Perfil SQL',avatar:'📘',cor:'#4f46e5'});
+      ProfileManager.setActiveProfile(row.id);
+      sessionStorage.setItem('diario-estudos:entered',row.id);
+      PlanManager.init();
+      await RelationalStore.flush();
+      return {id:row.id,uid:CloudStore.session.user.id,plan:PlanManager.getActivePlanId()};
+    });
+    const perfil=api.estado.tabelas.study_profiles.find((x)=>x.id===criacao.id);
+    perfil && perfil.user_id===criacao.uid && criacao.plan
+      ? ok('conta, perfil e planejamento relacional foram criados')
+      : erro('perfil/plano relacional nao nasceu corretamente: '+JSON.stringify(criacao));
+
+    const gravou = await pg.evaluate(async () => {
+      DB.saveEntry({id:'e-sql-1',subject:'Direito Constitucional',method:'Questões',
+        date:'2026-03-01',durationMin:90,correct:8,total:10});
+      await RelationalStore.flush();
+      return {pend:RelationalStore.pendingCount(),err:RelationalStore._lastError};
+    });
+    const row1=api.estado.tabelas.study_entries.find((x)=>x.profile_id===criacao.id&&x.entry_id==='e-sql-1');
+    gravou.pend===0 && !gravou.err && row1 && row1.subject==='Direito Constitucional'
+      ? ok('INSERT relacional do registro chegou ao banco')
+      : erro('INSERT relacional falhou: '+JSON.stringify({gravou,row1}));
+    api.estado.tabelas.profile_sections.filter((x)=>x.profile_id===criacao.id).length===0
+      ? ok('nenhuma escrita operacional voltou para profile_sections')
+      : erro('profile_sections recebeu escrita depois da aposentadoria');
+
+    await pg.evaluate(async () => {
+      DB.updateEntry('e-sql-1',{correct:9,total:10,comment:'editado'});
+      await RelationalStore.flush();
+    });
+    const editados=api.estado.tabelas.study_entries.filter((x)=>x.profile_id===criacao.id&&x.entry_id==='e-sql-1');
+    editados.length===1 && Number(editados[0].correct)===9 && editados[0].comment==='editado'
+      ? ok('UPDATE relacional alterou uma unica linha')
+      : erro('UPDATE relacional duplicou/perdeu o registro: '+JSON.stringify(editados));
+
+    await pg.evaluate(async () => {
+      DB.saveEntry({id:'e-sql-2',subject:'AFO',method:'Questões',date:'2026-03-02',
+        durationMin:60,correct:10,total:16});
+      await RelationalStore.flush();
+      DB.deleteEntry('e-sql-1');
+      await RelationalStore.flush();
+    });
+    const idsBanco=api.estado.tabelas.study_entries.filter((x)=>x.profile_id===criacao.id).map((x)=>x.entry_id).sort();
+    idsBanco.length===1 && idsBanco[0]==='e-sql-2'
+      ? ok('DELETE relacional removeu so o ID solicitado')
+      : erro('DELETE relacional atingiu linhas erradas: '+JSON.stringify(idsBanco));
+
+    const hidratou=await pg.evaluate(async (pid) => {
+      const pfx='diario-estudos:u:'+pid+':';
+      RelationalStore._applying=true;
+      try {
+        const ks=[]; for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith(pfx))ks.push(k);}
+        ks.forEach((k)=>localStorage.removeItem(k));
+      } finally { RelationalStore._applying=false; }
+      const r=await RelationalStore.hydrateProfile(pid,{motivo:'e2e'});
+      return {ok:!!r,ids:(DB.getEntries()||[]).map((e)=>String(e.id)).sort()};
+    },criacao.id);
+    hidratou.ok && hidratou.ids.length===1 && hidratou.ids[0]==='e-sql-2'
+      ? ok('SELECT relacional reconstruiu a memoria do zero')
+      : erro('hidratacao relacional divergiu: '+JSON.stringify(hidratou));
+
+    const isolamento=await pg.evaluate(async (pid) => {
+      await CloudStore.signOut();
+      await CloudStore.signUp('outra@teste.local','senha-de-teste-456');
+      await new Promise((r)=>setTimeout(r,250));
+      const perfis=await CloudStore.listProfiles();
+      const q=await CloudStore.client.from('study_entries').select('*').eq('profile_id',pid);
+      return {perfis:perfis.length,linhas:(q.data||[]).length,erro:q.error&&q.error.message};
+    },criacao.id);
+    isolamento.perfis===0 && isolamento.linhas===0 && !isolamento.erro
+      ? ok('RLS simulada isola perfil e linhas relacionais entre contas')
+      : erro('isolamento entre contas falhou: '+JSON.stringify(isolamento));
+
+    erros.length===0
+      ? ok('nenhuma excecao nao tratada no percurso relacional')
+      : erro('excecoes no percurso relacional: '+erros.slice(0,3).join(' | '));
+    await ctx.close();
   }
-  // service worker fora deste teste: aqui o assunto e a nuvem, nao o cache
-  const ctx = await nav.newContext({ serviceWorkers: 'block' });
-  await ctx.route('https://cdn.jsdelivr.net/**', (rota) => rota.fulfill({
-    status: 200, contentType: 'text/javascript; charset=utf-8',
-    headers: { 'access-control-allow-origin': '*' }, body: libSupabase
-  }));
-  await ctx.route('https://fonts.googleapis.com/**', (rota) => rota.fulfill({ status: 200, contentType: 'text/css', body: '' }));
-  const pg = await ctx.newPage();
-  const erros = [];
-  pg.on('pageerror', (e) => erros.push(e.message));
-  await pg.goto(base, { waitUntil: 'domcontentloaded' });
-  await pg.waitForFunction(() => window.CloudStore && window.ProfileManager && window.SectionSync, { timeout: 30000 });
-
-  // aponta o cliente para a API local (mesma origem: a CSP so libera 'self')
-  const iniciou = await pg.evaluate((origem) => {
-    CloudStore.SUPABASE_URL = origem;
-    CloudStore.SUPABASE_KEY = 'chave-publicavel-de-teste';
-    CloudStore.init();
-    return CloudStore.libStatus;
-  }, new URL(base).origin);
-  iniciou === 'ready' ? ok('a biblioteca real do Supabase carregou e o cliente subiu')
-    : erro('o cliente do Supabase nao iniciou: ' + iniciou);
-
-  // ── 1. conta, perfil e a primeira linha no banco ────────────────────────
-  const criacao = await pg.evaluate(async () => {
-    await CloudStore.signUp('estudante@teste.local', 'senha-de-teste-123');
-    await new Promise((r) => setTimeout(r, 300));            // deixa o onAuth correr
-    const row = await CloudStore.createRow({ name: 'Perfil de teste', avatar: '📘', color: '#4f46e5', payload: {} });
-    ProfileManager.addMirror({ id: row.id, nome: 'Perfil de teste', avatar: '📘', cor: '#4f46e5' });
-    ProfileManager.setRev(row.id, row.rev || 1);
-    ProfileManager.setActiveProfile(row.id);
-    PlanManager.init();
-    /* O mesmo carimbo que o portao de acesso grava ao ENTRAR num perfil. Varias
-       rotas de envio o exigem, de proposito: sem ele, o app estaria na tela de
-       selecao de perfil e nao teria o que sincronizar. */
-    sessionStorage.setItem('diario-estudos:entered', row.id);
-    return { id: row.id, rev: row.rev, logado: CloudStore.isLoggedIn(), uid: CloudStore.session.user.id };
-  });
-  criacao.logado && criacao.id ? ok(`entrou na conta e criou o perfil (${criacao.id.slice(0, 8)}…)`)
-    : erro('nao deu para criar conta/perfil: ' + JSON.stringify(criacao));
-  const perfilNoBanco = api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id);
-  perfilNoBanco && perfilNoBanco.user_id === criacao.uid
-    ? ok('a linha do perfil existe no banco, com o dono certo')
-    : erro('a linha do perfil nao chegou ao banco com o dono certo');
-
-  // ── 2. um registro de estudo sobe COMO SECAO ────────────────────────────
-  const envio = await pg.evaluate(async () => {
-    DB.saveEntry({ id: 'e-teste-1', subject: 'Direito Constitucional', method: 'Questões', date: '2026-03-01', durationMin: 90, correct: 8, total: 10 });
-    SectionSync.seedOnce();
-    await SectionSync.pushDirty();
-    return { sujas: SectionSync._dirty.size, erro: SectionSync._lastError };
-  });
-  envio.sujas === 0 && !envio.erro ? ok('o registro saiu da fila sem erro')
-    : erro('a fila nao esvaziou: ' + JSON.stringify(envio));
-  const secoes = api.estado.tabelas.profile_sections.filter((l) => l.profile_id === criacao.id);
-  const secaoEntries = secoes.find((l) => /entries$/.test(l.section));
-  secaoEntries && /Direito Constitucional/.test(JSON.stringify(secaoEntries.data))
-    ? ok(`o registro esta no banco, na secao "${secaoEntries.section}"`)
-    : erro('o registro NAO chegou a tabela de secoes: ' + JSON.stringify(secoes.map((l) => l.section)));
-  secoes.some((l) => l.section === '__manifest')
-    ? ok('o manifesto de secoes foi publicado')
-    : erro('o manifesto nao foi publicado (exclusoes nunca chegariam a nuvem)');
-
-  // ── 3. o blob de seguranca tambem sobe ──────────────────────────────────
-  const blob = await pg.evaluate(async () => {
-    const r = await CloudStore.saveActive();
-    return { rev: r && r.rev, conflito: !!(r && r.conflict), recusado: !!(r && r.recusado) };
-  });
-  const linhaPerfil = api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id);
-  !blob.conflito && !blob.recusado && linhaPerfil && JSON.stringify(linhaPerfil.payload).includes('Direito Constitucional')
-    ? ok(`o blob de seguranca subiu (rev ${linhaPerfil.rev})`)
-    : erro('o blob de seguranca nao subiu: ' + JSON.stringify(blob));
-
-
-  // ── 4. CONFLITO DE REVISAO: conflito PROTEGE, nunca autoriza clobber ─────
-  /* Outro aparelho avançou o blob. A cópia local não pode "resolver" isso
-     copiando a rev remota e reenviando o perfil inteiro. A alteração local
-     continua existindo e deve chegar pela fonte operacional: profile_sections. */
-  api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id).rev = 99;
-  const conflito = await pg.evaluate(async () => {
-    DB.saveEntry({ id: 'e-teste-2', subject: 'Português', method: 'Teoria', date: '2026-03-02', durationMin: 45 });
-    const direto = await CloudStore.saveActive();          // deve bater no conflito
-    const protegido = await CloudStore.saveActiveWithRetry();
-    const localAindaExiste = (DB.getEntries() || []).some((e) => e.subject === 'Português');
-
-    /* O caminho normal agora publica a seção com CAS. */
-    await SectionSync.pushDirty();
-    return {
-      conflitou: !!(direto && direto.conflict),
-      continuouConflito: !!(protegido && protegido.conflict),
-      remoteRev: protegido && protegido.remoteRev,
-      localAindaExiste
-    };
-  });
-  conflito.conflitou && conflito.continuouConflito && conflito.remoteRev === 99
-    ? ok('conflito de blob foi preservado sem ganhar autorização artificial para sobrescrever')
-    : erro('conflito de blob não ficou protegido: ' + JSON.stringify(conflito));
-  conflito.localAindaExiste
-    ? ok('a alteração local continua intacta depois do conflito do blob')
-    : erro('a alteração local sumiu depois do conflito do blob');
-
-  const secaoAposConflito = api.estado.tabelas.profile_sections
-    .find((l) => l.profile_id === criacao.id && /entries$/.test(l.section));
-  JSON.stringify(secaoAposConflito && secaoAposConflito.data).includes('Português')
-    ? ok('a alteração conflitante chegou pela seção canônica com CAS')
-    : erro('a alteração local não chegou à fonte canônica depois do conflito');
-
-  /* Em modo por seção o blob é checkpoint legado, não uma segunda autoridade.
-     Portanto divergência temporária entre checkpoint e seção é permitida e,
-     sobretudo, NÃO pode provocar regressão da seção canônica. */
-  const drenou = await pg.evaluate(async () => {
-    CloudStore._pending = true;
-    await CloudStore.autoSave();
-    for (let i = 0; i < 100; i++) {
-      if (!SectionSync._pushing && SectionSync._dirty.size === 0) return true;
-      await new Promise((r) => setTimeout(r, 100));
-    }
-    return false;
-  });
-  drenou || erro('a fila de secoes nao esvaziou depois do ciclo de sincronizacao');
-  const secaoDepois = api.estado.tabelas.profile_sections
-    .find((l) => l.profile_id === criacao.id && /entries$/.test(l.section));
-  const blobDepois = api.estado.tabelas.study_profiles.find((p) => p.id === criacao.id);
-  const secaoTem = (t) => JSON.stringify(secaoDepois && secaoDepois.data).includes(t);
-  secaoTem('Direito Constitucional') && secaoTem('Português')
-    ? ok('a fonte canônica por seção preservou a história completa após o conflito')
-    : erro('a seção canônica perdeu conteúdo após o conflito');
-  blobDepois && blobDepois.rev === 99
-    ? ok('o checkpoint em conflito permaneceu intocado, sem clobber')
-    : erro('o blob em conflito foi alterado indevidamente: ' + JSON.stringify(blobDepois && blobDepois.rev));
-
-  // ── 5. BACKUP NO BANCO: a primeira foto vira ancora ─────────────────────
-  const bkp1 = await pg.evaluate(async () => {
-    CloudBackup.enabled = true;
-    const r = await CloudBackup.criar('teste de ponta a ponta', { forcar: true });
-    return { ok: !!(r && r.ok), motivo: r && r.motivo, ancora: !!(r && r.ancora) };
-  });
-  const fotos = () => api.estado.tabelas.profile_backups.filter((l) => l.profile_id === criacao.id);
-  bkp1.ok && fotos().length === 1 && fotos()[0].ancora === true
-    ? ok('a primeira foto foi gravada no banco e virou ancora')
-    : erro('backup no banco falhou: ' + JSON.stringify(bkp1) + ' — linhas: ' + fotos().length);
-
-  // ── 6. ANCORA UNICA: a corrida perdida nao vira falha ───────────────────
-  /* Duas fotos tentando ser ancora ao mesmo tempo: a segunda leva 23505 do
-     indice unico parcial. O app tem de tratar isso como sucesso normal (grava
-     como foto rolante), nunca como erro — e no fim tem de sobrar UMA ancora. */
-  const bkp2 = await pg.evaluate(async () => {
-    const antes = CloudBackup._temAncora;
-    CloudBackup._temAncora = async () => false;            // finge que ainda nao ha ancora
-    try { return await CloudBackup.criar('segunda foto disputando a ancora', { forcar: true }); }
-    finally { CloudBackup._temAncora = antes; }
-  });
-  const ancoras = fotos().filter((l) => l.ancora === true).length;
-  bkp2 && bkp2.ok && fotos().length === 2 && ancoras === 1
-    ? ok('a disputa pela ancora e resolvida pelo banco: 2 fotos, exatamente 1 ancora')
-    : erro(`disputa pela ancora deu errado: ${fotos().length} fotos, ${ancoras} ancora(s), r=${JSON.stringify(bkp2)}`);
-
-  // ── 7. RESTAURAR: o dado volta do banco ─────────────────────────────────
-  const idDaFoto = fotos()[0].id;
-  const restauro = await pg.evaluate(async (rowId) => {
-    DB._set(DB.KEYS.entries, []);                          // "perdi tudo neste aparelho"
-    const antes = (DB.getEntries() || []).length;
-    const r = await CloudBackup.restaurar(rowId);
-    const depois = DB.getEntries() || [];
-    return { antes, r, assuntos: depois.map((e) => e.subject).sort() };
-  }, idDaFoto);
-  restauro.antes === 0 && restauro.r && restauro.r.ok && restauro.assuntos.includes('Direito Constitucional')
-    ? ok(`restaurar trouxe os registros de volta (${restauro.assuntos.length})`)
-    : erro('a restauracao NAO trouxe os dados de volta: ' + JSON.stringify(restauro));
-
-  // ── 8. RETENCAO: a faxina nunca apaga a ancora ──────────────────────────
-  const faxina = await pg.evaluate(async () => {
-    const linhas = await CloudBackup.listar();
-    const alvo = CloudBackup.selecionarParaFaxina(linhas, Date.now());
-    return { total: linhas.length, apagar: alvo.map((l) => l.id), ancoras: linhas.filter((l) => l.ancora).map((l) => l.id) };
-  });
-  faxina.ancoras.length === 1 && !faxina.apagar.includes(faxina.ancoras[0])
-    ? ok('a faxina de retencao nunca escolhe a ancora')
-    : erro('a faxina escolheu a ancora para apagar: ' + JSON.stringify(faxina));
-
-  // ── 9. HIDRATACAO: apagar o local e reconstruir a partir das secoes ─────
-  const hidratou = await pg.evaluate(async (pid) => {
-    const pfx = 'diario-estudos:u:' + pid + ':';
-    const apagar = [];
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pfx)) apagar.push(k); }
-    apagar.forEach((k) => localStorage.removeItem(k));
-    SectionSync._dirty.clear();
-    const r = await SectionSync.hydrate(pid);
-    return { ok: !!(r && r.ok), motivo: r && r.motivo, assuntos: (DB.getEntries() || []).map((e) => e.subject).sort() };
-  }, criacao.id);
-  hidratou.ok && hidratou.assuntos.includes('Direito Constitucional') && hidratou.assuntos.includes('Português')
-    ? ok(`a leitura por secao reconstruiu o perfil do zero (${hidratou.assuntos.length} registros)`)
-    : erro('a hidratacao por secao falhou: ' + JSON.stringify(hidratou));
-
-  // ── 10. MULTIAPARELHO REAL: PC + celular, delete/add/edit concorrentes ───
-  /* Reproduz o defeito observado em produção com DOIS contextos de navegador
-     independentes apontando para o MESMO banco falso (mesmas regras CAS do
-     PostgreSQL). A meta não é só "não perder": o ciclo normal precisa terminar
-     sem pendência/conflito e o indicador deve ficar verde. */
-  const quatroNoPc = await pg.evaluate(async () => {
-    const ids = new Set((DB.getEntries() || []).map(e => String(e.id)));
-    if (!ids.has('e-teste-3')) DB.saveEntry({ id:'e-teste-3', subject:'Matemática', method:'Questões', date:'2026-03-03', durationMin:30 });
-    if (!ids.has('e-teste-4')) DB.saveEntry({ id:'e-teste-4', subject:'AFO', method:'Teoria', date:'2026-03-04', durationMin:35 });
-    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
-    await CloudStore.flushPending();
-    return { n:(DB.getEntries()||[]).length, pend:SectionSync.pendingQuick(), err:SectionSync._lastError };
-  });
-  quatroNoPc.n === 4 && quatroNoPc.pend === 0 && !quatroNoPc.err
-    ? ok('PC publicou quatro registros e ficou sem pendência')
-    : erro('preparo multiaparelho falhou: ' + JSON.stringify(quatroNoPc));
-
-  const ctxMobile = await nav.newContext({ serviceWorkers: 'block' });
-  await ctxMobile.route('https://cdn.jsdelivr.net/**', (rota) => rota.fulfill({
-    status: 200, contentType: 'text/javascript; charset=utf-8',
-    headers: { 'access-control-allow-origin': '*' }, body: libSupabase
-  }));
-  await ctxMobile.route('https://fonts.googleapis.com/**', (rota) => rota.fulfill({ status: 200, contentType: 'text/css', body: '' }));
-  const mobile = await ctxMobile.newPage();
-  const errosMobile = [];
-  mobile.on('pageerror', (e) => errosMobile.push(e.message));
-  await mobile.goto(base, { waitUntil: 'domcontentloaded' });
-  await mobile.waitForFunction(() => window.CloudStore && window.ProfileManager && window.SectionSync && window.SessionGuard, { timeout: 30000 });
-
-  const mobileEntrou = await mobile.evaluate(async ({ origem, pid }) => {
-    CloudStore.SUPABASE_URL = origem;
-    CloudStore.SUPABASE_KEY = 'chave-publicavel-de-teste';
-    CloudStore.init();
-    /* Este contexto simula o aparelho, não a navegação do portão. Impede o
-       auto-enter de disparar reload no meio do page.evaluate; o teste controla
-       explicitamente perfil + hydrate logo abaixo. */
-    if (window.ProfileUI) ProfileUI._autoEnterTried = true;
-    await CloudStore.signIn('estudante@teste.local', 'senha-de-teste-123');
-    await new Promise(r => setTimeout(r, 250));
-    const rows = await CloudStore.listProfiles();
-    const row = rows.find(x => x.id === pid);
-    if (row) {
-      ProfileManager.addMirror({ id:row.id, nome:row.profile_name || 'Perfil de teste', avatar:row.avatar || '📘', cor:row.color || '#4f46e5' });
-      ProfileManager.setRev(row.id, row.rev || 1);
-    }
-    ProfileManager.setActiveProfile(pid);
-    PlanManager.init();
-    sessionStorage.setItem('diario-estudos:entered', pid);
-    const h = await SectionSync.hydrateReadOnly(pid);
-    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
-    return {
-      ok: !!(h && h.ok),
-      n:(DB.getEntries()||[]).length,
-      multi: SessionGuard.singleDeviceMode === false,
-      blocked: SessionLock.isBlocked(),
-      overlay: (document.getElementById('single-session-overlay') || {}).style?.display || ''
-    };
-  }, { origem:new URL(base).origin, pid:criacao.id });
-  mobileEntrou.ok && mobileEntrou.n === 4 && mobileEntrou.multi && !mobileEntrou.blocked
-    ? ok('celular abriu os mesmos 4 registros sem expulsar o PC')
-    : erro('celular nao entrou limpo em modo multiaparelho: ' + JSON.stringify(mobileEntrou));
-
-  // Caso exato relatado: base limpa com 4, excluir 1 no celular, sincronizar.
-  const deleteLimpo = await mobile.evaluate(async () => {
-    const okDel = DB.deleteEntry('e-teste-4');
-    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
-    await CloudStore.flushPending();
-    CloudUI.refreshSyncBtn();
-    return {
-      okDel, n:(DB.getEntries()||[]).length, pend:SectionSync.pendingQuick(),
-      err:SectionSync._lastError, conflito:SectionSync._lastConflict,
-      cls:(document.getElementById('cloud-sync-btn')||{}).className || ''
-    };
-  });
-  const secAposDeleteLimpo = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
-  const idsAposDeleteLimpo = Array.isArray(secAposDeleteLimpo && secAposDeleteLimpo.data)
-    ? secAposDeleteLimpo.data.map(e => String(e.id)) : [];
-  deleteLimpo.okDel && deleteLimpo.n === 3 && deleteLimpo.pend === 0 && !deleteLimpo.err &&
-      !idsAposDeleteLimpo.includes('e-teste-4') && /st-ok/.test(deleteLimpo.cls)
-    ? ok('celular: 4 → excluir 1 → nuvem com 3 e spinner verde')
-    : erro('o cenário real 4→3 ainda falhou: ' + JSON.stringify({ deleteLimpo, idsAposDeleteLimpo }));
-
-  // Alinha PC aos 3. Depois PC cria um registro; celular fica propositalmente
-  // uma revisão atrás e exclui outro. O merge deve preservar a criação do PC.
-  await pg.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
-  const pcNovo = await pg.evaluate(async () => {
-    DB.saveEntry({ id:'e-teste-5', subject:'Contabilidade', method:'Questões', date:'2026-03-05', durationMin:40 });
-    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
-    await CloudStore.flushPending();
-    return { pend:SectionSync.pendingQuick(), err:SectionSync._lastError };
-  });
-  const mobileConflitoDelete = await mobile.evaluate(async () => {
-    DB.deleteEntry('e-teste-3');
-    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
-    await CloudStore.flushPending();
-    CloudUI.refreshSyncBtn();
-    return {
-      ids:(DB.getEntries()||[]).map(e=>String(e.id)).sort(),
-      pend:SectionSync.pendingQuick(), err:SectionSync._lastError,
-      conflito:SectionSync._lastConflict,
-      ops:localStorage.getItem('diario-estudos:u:' + ProfileManager.getActiveProfileId() + ':__entryops'),
-      cls:(document.getElementById('cloud-sync-btn')||{}).className || ''
-    };
-  });
-  const secConflitoDelete = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
-  const idsConflitoDelete = Array.isArray(secConflitoDelete && secConflitoDelete.data)
-    ? secConflitoDelete.data.map(e => String(e.id)).sort() : [];
-  pcNovo.pend === 0 && !pcNovo.err &&
-      idsConflitoDelete.includes('e-teste-5') && !idsConflitoDelete.includes('e-teste-3') &&
-      mobileConflitoDelete.pend === 0 && !mobileConflitoDelete.err && !mobileConflitoDelete.ops &&
-      /st-ok/.test(mobileConflitoDelete.cls)
-    ? ok('conflito PC adiciona + celular exclui: merge por ID preserva ambos os intentos e termina verde')
-    : erro('merge delete concorrente falhou: ' + JSON.stringify({ pcNovo, mobileConflitoDelete, idsConflitoDelete }));
-
-  // Dois aparelhos criam IDs diferentes partindo da mesma revisão.
-  await pg.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
-  await mobile.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
-  await pg.evaluate(async () => {
-    DB.saveEntry({ id:'e-teste-6', subject:'Direito Tributário', method:'Questões', date:'2026-03-06', durationMin:25 });
-    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
-  });
-  const addConcorrente = await mobile.evaluate(async () => {
-    DB.saveEntry({ id:'e-teste-7', subject:'Auditoria', method:'Teoria', date:'2026-03-07', durationMin:20 });
-    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
-    CloudUI.refreshSyncBtn();
-    return { pend:SectionSync.pendingQuick(), err:SectionSync._lastError, cls:(document.getElementById('cloud-sync-btn')||{}).className||'' };
-  });
-  const secAdds = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
-  const idsAdds = Array.isArray(secAdds && secAdds.data) ? secAdds.data.map(e=>String(e.id)) : [];
-  idsAdds.includes('e-teste-6') && idsAdds.includes('e-teste-7') && addConcorrente.pend === 0 && !addConcorrente.err && /st-ok/.test(addConcorrente.cls)
-    ? ok('duas inclusões concorrentes em aparelhos diferentes são unidas sem perda')
-    : erro('inclusões concorrentes perderam dado: ' + JSON.stringify({ addConcorrente, idsAdds }));
-
-  // Mesmo ID: a operação explícita mais recente em reconciliação vence só nele;
-  // os demais registros permanecem intocados.
-  await pg.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
-  await mobile.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
-  await pg.evaluate(async () => {
-    DB.updateEntry('e-teste-1', { subject:'Direito Constitucional (PC)' });
-    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
-  });
-  const sameId = await mobile.evaluate(async () => {
-    DB.deleteEntry('e-teste-1');
-    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
-    return { pend:SectionSync.pendingQuick(), err:SectionSync._lastError };
-  });
-  const secSame = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
-  const arrSame = Array.isArray(secSame && secSame.data) ? secSame.data : [];
-  sameId.pend === 0 && !sameId.err && !arrSame.some(e => String(e.id) === 'e-teste-1') &&
-      arrSame.some(e => String(e.id) === 'e-teste-5') && arrSame.some(e => String(e.id) === 'e-teste-6') && arrSame.some(e => String(e.id) === 'e-teste-7')
-    ? ok('conflito no mesmo registro é determinístico e não afeta os outros IDs')
-    : erro('conflito no mesmo ID ficou preso ou atingiu outros registros: ' + JSON.stringify({ sameId, ids:arrSame.map(e=>e.id) }));
-
-  errosMobile.length === 0 ? ok('simulação do celular não gerou exceções não tratadas')
-    : erro('exceções no celular simulado: ' + errosMobile.slice(0,3).join(' | '));
-  await ctxMobile.close();
-
-  // ── 10. ISOLAMENTO: outra conta nao ve nada do perfil alheio ────────────
-  const outra = await pg.evaluate(async () => {
-    await CloudStore.signOut();
-    await CloudStore.signUp('outra@teste.local', 'senha-de-teste-456');
-    await new Promise((r) => setTimeout(r, 300));
-    const lista = await CloudStore.listProfiles();
-    return { perfis: lista.length, uid: CloudStore.session.user.id };
-  });
-  outra.perfis === 0 ? ok('a outra conta nao enxerga o perfil alheio (isolamento por dono)')
-    : erro(`a outra conta viu ${outra.perfis} perfil(is) que nao sao dela`);
-  const vazamento = await pg.evaluate(async (pid) => {
-    try { await CloudStore.fetchPayload(pid); return 'baixou os dados alheios'; }
-    catch (e) { return (e && e.code) || 'erro sem codigo'; }
-  }, criacao.id);
-  vazamento === 'perfil-inexistente'
-    ? ok('baixar o perfil de outra conta e recusado pelo banco')
-    : erro('o perfil de outra conta ficou acessivel: ' + vazamento);
-
-  // ── 11. TOKEN "EMITIDO NO FUTURO": a falha intermitente do portao ───────
-  /* O PostgREST compara o `iat` do token com o relogio DELE, e recusa um token
-     que diz ter nascido depois de agora. Entre o servidor que carimba o `iat` e
-     o no que valida ha uma deriva de um ou dois segundos — invisivel, menos no
-     instante em que o app usa um token recem emitido, que e exatamente o que o
-     portao de acesso faz. Era esse 401 que aparecia no lugar dos perfis.
-     A cura e ESPERAR, nao renovar: um token novo nasceria com `iat` ainda mais
-     adiante e seria recusado de novo. As duas metades sao verificadas aqui. */
-  const tokensAntes = api.estado.pedidos.filter((p) => /\/auth\/v1\/token/.test(p.caminho)).length;
-  let recusasRestantes = 2;                       // o app tem direito a 2 retentativas
-  const recusarPorRelogio = (req, url) => {
-    if (req.method !== 'GET' || !url.pathname.endsWith('/rest/v1/study_profiles')) return null;
-    return { status: 401, corpo: { code: 'PGRST301', message: 'JWT issued at future' } };
-  };
-  api.estado.falhaForcada = (req, url) =>
-    (recusasRestantes-- > 0 ? recusarPorRelogio(req, url) : null);
-  const tolerou = await pg.evaluate(async () => {
-    CloudStore.TOKEN_ESPERA_MS = 60;              // o teste nao espera 1,5 s de verdade
-    try { const l = await CloudStore.listProfiles(); return { ok: true, n: l.length }; }
-    catch (e) { return { ok: false, msg: e.message, code: e.code }; }
-  });
-  api.estado.falhaForcada = null;
-  tolerou.ok ? ok('token recusado por "issued at future": a lista de perfis se recupera sozinha')
-    : erro('o portao ainda quebra com token emitido no futuro: ' + JSON.stringify(tolerou));
-  const tokensDepois = api.estado.pedidos.filter((p) => /\/auth\/v1\/token/.test(p.caminho)).length;
-  tokensDepois === tokensAntes
-    ? ok('e a recuperacao ESPERA, sem renovar o token (renovar traria um `iat` ainda mais adiante)')
-    : erro(`a recuperacao renovou o token ${tokensDepois - tokensAntes}x — o token novo nasce com iat ainda mais no futuro`);
-
-  // Limitada de proposito: o que NAO passa nunca vira tela parada em silencio.
-  api.estado.falhaForcada = recusarPorRelogio;
-  const desistiu = await pg.evaluate(async () => {
-    try { await CloudStore.listProfiles(); return 'passou sem o servidor aceitar'; }
-    catch (e) { return (e && e.code) || 'erro sem codigo'; }
-  });
-  api.estado.falhaForcada = null;
-  desistiu === 'token-fora-de-hora'
-    ? ok('falha persistente ainda vira erro proprio, com codigo (a retentativa e limitada)')
-    : erro('a falha persistente nao virou erro proprio: ' + desistiu);
-
-  erros.length === 0 ? ok('nenhuma excecao nao tratada em todo o percurso')
-    : erro('excecoes durante o percurso da nuvem: ' + erros.slice(0, 3).join(' | '));
-
-  await ctx.close();
-  }
-} catch (e) { erro('teste do caminho da nuvem falhou: ' + e.message); }
-
+} catch (e) { erro('teste do caminho relacional falhou: '+e.message); }
 
 /* ── 6.8) O MOTOR DE SUGESTAO COM DADO DE VERDADE ──────────────────────────
    A tela que decide era invisivel para a verificacao: sem retratos importados

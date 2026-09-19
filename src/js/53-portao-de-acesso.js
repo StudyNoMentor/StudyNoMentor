@@ -37,34 +37,9 @@ const ProfileUI = {
   _autoEnterTried: false,   // não repete o auto-enter na mesma sessão de gate
   boot() {
     this.renderChip();
-    let entered = null;
-    try { entered = sessionStorage.getItem(this.SESSION_KEY); } catch (e) { _quiet(e); }
-    const active = ProfileManager.getActiveProfileId();
-    // Mesmo com SESSION_KEY, um reload não pode exibir cache local antes de o
-    // SessionGuard confirmar que ESTE aparelho pode usar a conta. O marcador da
-    // aba prova apenas que o perfil já foi aberto aqui; não prova posse remota.
-    const sessaoLiberada = this._offline ||
-      !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
-    if (entered && entered === active && this._hasLocalData(active)) {
-      if (!sessaoLiberada) {
-        /* F5 com sessão já conhecida: não mostra o seletor nem o cache parcial.
-           Mantém um gate neutro "Entrando…" até CloudStore+SessionGuard decidirem
-           se este aparelho pode usar a conta; depois retoma ESTE mesmo perfil. */
-        this._showEnteringGate(active);
-        return;
-      }
-      this.hideGate();
-      // Só depois de entrar de fato: no gate o aviso não teria o que fazer.
-      try { DB.checarEspaco(); } catch (_) { _quiet(_); }
-      try {
-        const nOrf = DB.limparOrfaos();
-        if (nOrf > 0) {
-          console.warn('[faxina] registros órfãos removidos:', nOrf);
-          setTimeout(() => { try { showToast('🧹 ' + nOrf + ' registro(s) órfão(s) de cards excluídos foram limpos'); } catch (_) { _quiet(_); } }, 3500);
-        }
-      } catch (_) { _quiet(_); }
-      return;
-    }
+    /* Nenhum F5/reload é liberado por conteúdo da aba. O gate abre e, quando a
+       sessão Supabase estiver pronta, refreshStage/listagem escolhe o perfil e
+       enterProfile() faz SELECTs relacionais antes de mostrar o app. */
     this.showGate();
   },
   _hasLocalData(id) {
@@ -163,55 +138,13 @@ const ProfileUI = {
       const willAutoEnter = logged && this.autoEnterOn() && !this._autoEnterTried && !this._offline;
       if (loginEl) loginEl.style.display = 'none';
       if (willAutoEnter) {
-        /* FAST PATH OFFLINE-FIRST: se o alvo desta conta já é exatamente o
-           perfil ativo e os dados dele estão neste aparelho, não há motivo para
-           deixar a pessoa olhando "Carregando seu perfil" enquanto uma consulta
-           de rede confirma algo que já podemos mostrar com segurança. A nuvem é
-           conferida logo depois, em segundo plano; novidade real continua usando
-           o fluxo normal de pull protegido. */
-        let localAlvo = this.getDefaultProfile() || this.getLastProfile();
-        const ativoLocal = ProfileManager.getActiveProfileId();
-        const uidAtual = this._uid();
-        const guardLiberou = this._offline ||
-          !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
-        const baseLocalValida = guardLiberou && localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
-          (!ProfileManager._podeVerLocal || ProfileManager._podeVerLocal(localAlvo, uidAtual));
-        let integridade = { ok: false, reason: 'sem-verificador' };
-        if (this._offline) integridade = { ok: true, reason: 'offline' };
-        else {
-          try {
-            if (window.SectionSync && SectionSync.fastPathIntegrity) integridade = SectionSync.fastPathIntegrity(localAlvo);
-          } catch (e) { _quiet(e, 'fast-path-integridade'); }
-        }
-        const podeAbrirLocal = baseLocalValida && integridade.ok;
-        if (podeAbrirLocal) {
-          this._autoEnterTried = true;
-          this._entering = false;
-          try { sessionStorage.setItem(this.SESSION_KEY, localAlvo); } catch (e) { _quiet(e); }
-          this.setLastProfile(localAlvo);
-          if (enteringEl) enteringEl.style.display = 'none';
-          if (profilesEl) profilesEl.style.display = 'none';
-          this.hideGate();
-          this.renderChip();
-          try { DB.checarEspaco(); } catch (_) { _quiet(_); }
-          setTimeout(() => { try { if (window.CloudStore) CloudStore.syncOnFocus(); } catch (_) { _quiet(_); } }, 120);
-          return;
-        }
-        /* Há perfil/local válidos, mas NÃO há prova de integridade física.
-           Não mostre o cache e não espere uma checagem leve de revisão:
-           entre pelo caminho completo, que usa hydrate({explicitOnly:true}) e
-           corrige "rev novo + conteúdo velho" antes da UI ficar disponível. */
-        if (baseLocalValida && !integridade.ok) {
-          try { console.warn('[perfil] fast path recusado:', integridade.reason || 'integridade local não comprovada', integridade.mismatches || []); } catch (_) { _quiet(_); }
-          this._showEnteringGate(localAlvo);
-          this.enterProfile(localAlvo);
-          return;
-        }
+        /* Cloud-authoritative: não existe fast path por cache local. O seletor
+           só decide QUAL perfil abrir; os dados sempre vêm do PostgreSQL. */
         this._stage = 'entering';
         if (enteringEl) enteringEl.style.display = 'block';
         if (profilesEl) profilesEl.style.display = 'none';
-        if (head) head.style.display = 'none';   // esconde "Quem vai estudar?"
-        this.loadCloudProfiles();                 // vai auto-entrar (ou cair no picker)
+        if (head) head.style.display = 'none';
+        this.loadCloudProfiles();
       } else {
         this._stage = 'profiles';
         if (enteringEl) enteringEl.style.display = 'none';
@@ -335,149 +268,56 @@ const ProfileUI = {
   },
 
   async enterProfile(id) {
-    // A posse da sessão é uma BARREIRA, não um aviso cosmético. Em especial num
-    // aparelho com cache velho, nada pode hidratar, aplicar ou esconder o gate
-    // enquanto a consulta a active_sessions ainda não terminou.
-    if (window.CloudStore && CloudStore.isLoggedIn() && window.SessionGuard && SessionGuard.enabled) {
-      this._pendingSessionProfile = id;
-      const acesso = await SessionGuard.onLogin();
-      if (!acesso || !acesso.ok) {
-        if (acesso && acesso.blocked) {
-          this._entering = true; // mantém "Entrando…" atrás do overlay; nenhum dado é exibido
-          return;
-        }
-        this._entering = true;
-        clearTimeout(this._sessionRetryTimer);
-        this._sessionRetryTimer = setTimeout(() => {
-          if (this._pendingSessionProfile === id && this.isGateOpen()) this.enterProfile(id);
-        }, 2500);
-        return;
-      }
-      this._pendingSessionProfile = null;
-      clearTimeout(this._sessionRetryTimer);
-      this._sessionRetryTimer = null;
+    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) {
+      this._entering = false;
+      showToast('Entre na conta para carregar seus dados do banco.');
+      this.showGate();
+      return;
+    }
+    if (!window.RelationalStore || !RelationalStore.enabled) {
+      this._entering = false;
+      showToast('Camada relacional indisponível. Nenhum dado local foi usado.');
+      this._showProfilePicker();
+      return;
     }
 
-    // Entrar no MESMO perfil que já está aberto neste aparelho e não haver
-    // nenhuma novidade na nuvem é o caso mais comum de todos — e era justamente
-    // o que provocava o recarregamento visível ("a tela pisca e carrega de
-    // novo") logo depois do login. Guardamos o estado de partida para saber, no
-    // fim, se a recarga é mesmo necessária.
-    const jaEraOAtivo = (ProfileManager.getActiveProfileId() === id);
-    let mudou = 1;   // pessimista: sem informação, recarrega (comportamento antigo)
-    if (window.CloudStore && CloudStore.isLoggedIn()) {
-      showToast('Carregando perfil...');
-      try {
-        CloudStore._applying = true;
-        // FASE 2 — a leitura vem de profile_sections. Se o conjunto de seções não
-        // passar na verificação (manifesto ausente, seção faltando, rede), caímos
-        // automaticamente no blob de study_profiles, que continua
-        // sendo escrito. Nenhum caminho fica sem plano B.
-        let porSecao = null;
-        if (window.SectionSync && SectionSync.readEnabled) {
-          /* Entrada/reabertura nunca promove divergência de hash a edição.
-             Só a outbox explícita pode subir antes da leitura; cache regressado
-             é corrigido pela cópia canônica da nuvem. */
-          porSecao = await SectionSync.hydrate(id, { explicitOnly: true });
-          if (porSecao.ok) {
-            mudou = porSecao.mudou || 0;
-            try { ProfileManager.setRev(id, await CloudStore._fetchRev(id) || ProfileManager.getRev(id)); } catch (_) { _quiet(_); }
-          } else {
-            console.warn('[SectionSync] entrando pelo blob (motivo:', porSecao.motivo + ')');
-          }
-        }
-        if (!porSecao || !porSecao.ok) {
-          const temSecoesRemotas = !!(porSecao && (porSecao.linhasRemotas || 0) > 0);
-          if (temSecoesRemotas) {
-            /* profile_sections já existe: blob não pode virar máquina do tempo.
-               Se houver cópia local, abrimos a cópia preservada e deixamos a
-               reconciliação tentar novamente. Em aparelho novo, recusamos uma
-               restauração potencialmente obsoleta em vez de fingir sucesso. */
-            if (!ProfileManager.temDadosLocais(id)) {
-              const er = new Error('As seções da nuvem estão incompletas. A cópia antiga de segurança não foi aplicada para evitar regressão de dados.');
-              er.code = 'secoes-incompletas';
-              throw er;
-            }
-            console.warn('[perfil] conjunto remoto por seção inválido; blob antigo NÃO aplicado. Abrindo cópia local preservada:', porSecao.motivo);
-            mudou = 1;
-          } else {
-            try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
-            /* Perfil legado sem linhas por seção: aqui o blob ainda é o plano B
-               compatível, preservando qualquer alteração local pendente. */
-            let preservar = [];
-            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id, { explicitOnly: true }); } catch (e) { _quiet(e, 'entrar-pendencia'); }
-            const res = await CloudStore.fetchPayload(id);
-            mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
-            ProfileManager.setRev(id, res.rev);
-          }
-        }
-        ProfileManager.setActiveProfile(id);
-        PlanManager.init();
-        CloudStore._applying = false;
-      } catch (err) {
-        CloudStore._applying = false;
-        /* A NUVEM NÃO TER O PERFIL NÃO É MOTIVO PARA NÃO ABRIR O QUE ESTÁ AQUI.
-           Antes, qualquer erro devolvia a pessoa ao seletor — e um perfil cujo
-           registro sumiu da nuvem virava uma porta trancada com os dados dela
-           do lado de dentro. Só vale para a resposta DEFINITIVA ('não existe'):
-           erro de rede continua voltando ao seletor, porque aí a nuvem pode ter
-           dado mais novo e entrar às cegas arriscaria subir o local por cima. */
-        const inexistente = err && (err.code === 'perfil-inexistente' || /não encontrado na nuvem/i.test(err.message || ''));
-        /* A checagem de dono é a que falta aqui — sem ela, "a nuvem não achou,
-           mas há dado no aparelho" abria os dados de QUALQUER perfil físico no
-           navegador, mesmo que fossem de OUTRA CONTA que usou este mesmo
-           aparelho antes. Num navegador compartilhado, isso expunha o estudo
-           inteiro de uma pessoa (registros, cards, tudo) na tela de outra.
-           `_podeVerLocal` só barra quando o dono é COMPROVADAMENTE outra conta;
-           dado sem dono conhecido (de antes desta correção) continua abrindo
-           como sempre abriu — nenhuma regressão para o caso de uma conta só. */
-        const uidAtual = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-        const podeAbrir = inexistente && ProfileManager.temDadosLocais(id) && ProfileManager._podeVerLocal(id, uidAtual);
-        if (podeAbrir) {
-          console.warn('[perfil] a nuvem não tem este perfil, mas há dados aqui — abrindo localmente e enfileirando para envio');
-          ProfileManager.setActiveProfile(id);
-          ProfileManager._setOwner(id, uidAtual);   // fica marcado desta conta a partir de agora
-          PlanManager.init();
-          try { if (window.SectionSync) { SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'perfil-local-envio'); }
-          showToast('Perfil aberto deste aparelho — enviando para a nuvem');
-        } else if (inexistente && ProfileManager.temDadosLocais(id)) {
-          // dado existe, mas comprovadamente pertence a OUTRA conta: recusa
-          // abrir (o dado não é tocado, só não é exibido para quem não é dono)
-          this._entering = false;
-          this._autoEnterTried = true;
-          console.warn('[perfil] dados locais para ' + id + ' pertencem a outra conta — abertura recusada');
-          showToast('Este perfil pertence a outra conta. Ele não foi apagado — entre com a conta correta para acessá-lo.');
-          this._showProfilePicker();
-          return;
-        } else {
-          this._entering = false;   // libera o gate para mostrar o seletor de novo
-          this._autoEnterTried = true;
-          showToast('Erro ao carregar o perfil: ' + (err.message || ''));
-          this._showProfilePicker();
-          return;
-        }
-      }
-    } else {
+    this._entering = true;
+    this._showEnteringGate(id);
+    try {
+      CloudStore._applying = true;
+      /* O perfil ativo é apenas estado da aba. Nenhum dado de estudo é lido do
+         navegador: hydrateProfile faz SELECT nas tabelas relacionais e monta
+         uma projeção exclusivamente em memória para as telas síncronas. */
       ProfileManager.setActiveProfile(id);
+      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile' });
       PlanManager.init();
-    }
-    try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) { _quiet(e); }
-    this.setLastProfile(id);   // lembra este perfil para esta conta (entra direto no próximo login)
-    /* SEM RECARGA quando não há o que recarregar. As telas já foram montadas na
-       abertura a partir DESTE mesmo perfil; se a nuvem não trouxe uma linha
-       sequer diferente, o conteúdo em tela já é o correto e um location.reload()
-       só serviria para piscar. Qualquer outra situação (perfil diferente, dado
-       novo, plano B) continua recarregando, que é o caminho seguro. */
-    if (jaEraOAtivo && mudou === 0) {
+      CloudStore._applying = false;
+
+      try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) { _quiet(e); }
+      this.setLastProfile(id);
+      this._pendingSessionProfile = null;
       this._entering = false;
       this.hideGate();
       this.renderChip();
-      try { DB.checarEspaco(); } catch (_) { _quiet(_); }
-      return;
-    }
-    recarregarApp('entrada no perfil com dados novos', { imediato: true });
-  },
 
+      /* Sem location.reload(): a RAM seria descartada. Reativa a tela atual,
+         que já possui hooks de screen:activated para reler DB.* em memória. */
+      const atual = document.querySelector('.screen.active');
+      if (atual && atual.id && typeof switchScreen === 'function') {
+        switchScreen(atual.id.replace(/^screen-/, ''));
+      } else if (typeof switchScreen === 'function') {
+        switchScreen('registrar');
+      }
+      try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id } })); } catch (_) { _quiet(_); }
+    } catch (err) {
+      CloudStore._applying = false;
+      this._entering = false;
+      this._autoEnterTried = true;
+      console.error('[perfil] falha ao carregar banco relacional', err);
+      showToast('Não foi possível carregar o perfil do banco. Nada local foi usado.');
+      this._showProfilePicker();
+    }
+  },
   openModal(id) {
     this._editingId = id;
     const isNew = !id;
@@ -570,20 +410,14 @@ const ProfileUI = {
         ProfileManager.addMirror({ id: row.id, nome, avatar: this._draftAvatar, cor: this._draftColor });
         ProfileManager.setRev(row.id, row.rev || 1);
         ProfileManager.setActiveProfile(row.id);
+        /* O perfil nasce diretamente no modelo relacional. PlanManager.init()
+           apenas monta a projeção em memória; cada escrita é capturada pelo
+           RelationalStore e confirmada no PostgreSQL antes de entrarmos nele. */
         PlanManager.init();
-        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
-          const okSec = await CloudStore._pushSectionsNow(row.id);
-          if (!okSec) {
-            /* O perfil já existe e os dados continuam locais/outbox; não usamos
-               blob para contornar uma falha de CAS. A próxima rodada retoma. */
-            console.warn('[perfil] perfil novo criado; seções aguardam confirmação da nuvem');
-          }
-        } else {
-          await CloudStore.saveActive(row.id); // compatibilidade do modo legado
-        }
+        if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+        await RelationalStore.flush();
         $id('profile-modal').style.display = 'none';
-        try { sessionStorage.setItem(this.SESSION_KEY, row.id); } catch (e) { _quiet(e); }
-        recarregarApp('perfil novo criado', { imediato: true });
+        await this.enterProfile(row.id);
       }
     } catch (err) {
       showToast('Erro: ' + (err.message || ''));
@@ -623,7 +457,7 @@ const ProfileUI = {
     const show = (t, kind) => { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; };
     msg.style.display = 'none';
     const CS = window.CloudStore;
-    if (!CS || !CS.isReady()) { show('Servidor da nuvem indisponível. Verifique a internet ou use "Usar offline".', 'warn'); return; }
+    if (!CS || !CS.isReady()) { show('Banco indisponível. Verifique sua internet e tente novamente.', 'warn'); return; }
     if (!email) { show('Informe seu e-mail.', 'bad'); return; }
     if (password.length < 6) { show('A senha precisa ter ao menos 6 caracteres.', 'bad'); return; }
     const btn = document.getElementById('gate-auth-submit');
@@ -689,13 +523,12 @@ const ProfileUI = {
     try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
     catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   },
-  useOffline() { this._offline = true; this.refreshStage(); showToast('Modo offline — os dados ficam só neste dispositivo'); },
+  useOffline() { showToast('Este modo foi removido: os dados de estudo são consultados diretamente no banco.'); },
   async gateLogout() {
     const CS = window.CloudStore;
     const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
-    // Envia pendências antes de sair (nada se perde) — mas com TIMEOUT: se a rede
-    // estiver ruim, o logout NÃO pode travar esperando o envio. Segue mesmo assim
-    // (os dados continuam salvos no aparelho e sobem no próximo login).
+    // Antes de sair, tenta concluir qualquer operação SQL em andamento. O banco
+    // é a única persistência; não existe fila durável escondida no navegador.
     if (logged && CS.flushPending) {
       try {
         await Promise.race([
@@ -709,9 +542,7 @@ const ProfileUI = {
     this._autoEnterTried = true;   // ao voltar, não auto-entra: mostra o login
     try { sessionStorage.removeItem(this.SESSION_KEY); } catch (e) { _quiet(e); }
     if (typeof showToast === 'function') showToast('Sessão encerrada ✓');
-    // Recarrega para um estado 100% limpo. Sem isto o app continuava na tela
-    // atual (logado por baixo), só com "Offline" no indicador — o reload faz o
-    // boot() reabrir a tela de login corretamente.
+    // Recarrega para um estado 100% limpo e volta ao login.
     setTimeout(() => recarregarApp('saída da conta pelo portão', { imediato: true }), 200);
   },
 

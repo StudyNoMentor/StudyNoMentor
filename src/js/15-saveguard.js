@@ -153,6 +153,89 @@ const SaveGuard = {
     showToast(okTexto + ' ✓ salvo no aparelho · envio para a nuvem em andamento');
   }
 };
+
+/* SQL relacional é a única persistência. O estado em memória é apenas uma
+   projeção para manter as telas síncronas; nunca conta como "salvo". */
+Object.assign(SaveGuard, {
+  async _aguardaNuvem(ms) {
+    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn() ||
+        !window.RelationalStore) {
+      return { enviado: false, motivo: 'sem-banco' };
+    }
+    const limite = Math.max(1000, Number(ms) || this.CLOUD_TIMEOUT_MS);
+    let timer = null;
+    try {
+      await Promise.race([
+        RelationalStore.flush(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timeout-sql')), limite);
+        })
+      ]);
+      if (RelationalStore.pendingCount() === 0 && !RelationalStore._lastError) {
+        return { enviado: true, motivo: '' };
+      }
+      return { enviado: false, motivo: 'pendente' };
+    } catch (e) {
+      return { enviado: false, motivo: (e && e.message === 'timeout-sql') ? 'tempo-esgotado' : 'erro-banco', erro: e };
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  },
+
+  async run(opts) {
+    const t0 = Date.now();
+    const comPiso = async (r) => {
+      const falta = this.MIN_BUSY_MS - (Date.now() - t0);
+      if (falta > 0) await new Promise(res => setTimeout(res, falta));
+      return r;
+    };
+
+    let retorno;
+    try { retorno = await opts.escrever(); }
+    catch (e) { console.error('SaveGuard.escrever', e); retorno = false; }
+    if (retorno === false || retorno === null) {
+      return comPiso({ ok: false, local: false, cloud: false, motivo: 'escrita-recusada' });
+    }
+
+    /* A verificação aqui serve apenas para detectar bug de projeção em memória.
+       Ela NÃO é prova de persistência. */
+    if (typeof opts.verificar === 'function') {
+      let confere = false;
+      try { confere = !!opts.verificar(); } catch (e) { console.error('SaveGuard.verificar', e); }
+      if (!confere) return comPiso({ ok: false, local: false, cloud: false, motivo: 'projecao-invalida' });
+    }
+
+    if (opts.nuvem === false) {
+      return comPiso({ ok: true, local: true, cloud: false, motivo: 'memoria-apenas' });
+    }
+
+    const r = await this._aguardaNuvem(opts.timeout);
+    if (!r.enviado) {
+      /* A UI já refletiu a alteração em RAM. Como o banco recusou, o único
+         comportamento honesto é restaurar imediatamente a cópia canônica. */
+      try {
+        const pid = window.ProfileManager && ProfileManager.getActiveProfileId
+          ? ProfileManager.getActiveProfileId() : null;
+        if (pid && window.RelationalStore) await RelationalStore.hydrateProfile(pid, { reason: 'rollback-after-write-failure' });
+      } catch (e) { _quiet(e, 'saveguard-rollback'); }
+      return comPiso({ ok: false, local: false, cloud: false, motivo: r.motivo || 'erro-banco' });
+    }
+
+    return comPiso({ ok: true, local: false, cloud: true, motivo: '' });
+  },
+
+  toast(res, okTexto) {
+    if (!res.ok) {
+      const msg = res.motivo === 'tempo-esgotado'
+        ? '⚠ O banco não confirmou a operação a tempo. A tela foi restaurada para o estado confirmado.'
+        : '⚠ O banco não confirmou a operação. Nada foi considerado salvo.';
+      showToast(msg);
+      return;
+    }
+    if (res.cloud) { showToast((okTexto || 'Salvo') + ' — confirmado no banco ✓'); return; }
+    showToast(okTexto || 'Alteração temporária');
+  }
+});
 window.SaveGuard = SaveGuard;
 
 // ---- Metas/limiares de aproveitamento (editáveis pelo usuário) ----

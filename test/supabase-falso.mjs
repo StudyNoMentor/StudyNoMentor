@@ -93,9 +93,34 @@ export function montarApiFalsa() {
   const tokens = new Map();      // access_token -> user_id
   const tabelas = {
     study_profiles: [],
-    profile_sections: [],
+    profile_sections: [],             // legado: mantido só para provar que não recebe novas escritas
     profile_backups: [],
-    active_sessions: []
+    active_sessions: [],
+    user_preferences: [],
+    study_plans: [],
+    study_profile_settings: [],
+    study_plan_state: [],
+    study_subjects: [],
+    study_methods: [],
+    study_phases: [],
+    study_statuses: [],
+    study_modes: [],
+    study_entries: [],
+    study_decks: [],
+    study_cards: [],
+    study_review_log: [],
+    study_laws: [],
+    study_law_keywords: [],
+    study_links: [],
+    study_extras: [],
+    study_custom_siglas: [],
+    study_cycle_history: [],
+    study_saved_grades: [],
+    study_track_items: [],
+    study_tec_snapshots: [],
+    study_tec_snapshot_rows: [],
+    study_incidence: [],
+    study_change_log: []
   };
   const tombstones = new Map(); // profile_id\0section -> { deleted_rev, deleted_at }
   const estado = { tabelas, contas, tombstones, falhaForcada: null, pedidos: [] };
@@ -124,7 +149,11 @@ export function montarApiFalsa() {
      entre contas estaria testando o nada. */
   function visivel(tabela, linha, uid) {
     if (!uid) return false;
-    if (tabela === 'profile_sections') {
+    if (tabela === 'study_profiles' || tabela === 'profile_backups' ||
+        tabela === 'active_sessions' || tabela === 'user_preferences') {
+      return linha.user_id === uid;
+    }
+    if (tabela === 'profile_sections' || tabela.startsWith('study_')) {
       const perfil = tabelas.study_profiles.find((p) => p.id === linha.profile_id);
       return !!perfil && perfil.user_id === uid;
     }
@@ -244,6 +273,72 @@ export function montarApiFalsa() {
       return { status: 200, corpo: true };
     }
 
+
+    const chavePorTabela = {
+      study_subjects:'subject_id', study_methods:'method_id', study_phases:'phase_id',
+      study_statuses:'status_id', study_modes:'mode_id', study_entries:'entry_id',
+      study_decks:'deck_id', study_cards:'card_id', study_laws:'law_id',
+      study_links:'link_id', study_custom_siglas:'sigla_id',
+      study_cycle_history:'cycle_id', study_saved_grades:'grade_id'
+    };
+    const perfilEhDoUsuario = (pid) => {
+      const p = tabelas.study_profiles.find((x) => x.id === pid);
+      return !!p && p.user_id === uid;
+    };
+    const substituirPlano = (tabela, pid, planId, rows) => {
+      if (!tabelas[tabela]) throw new Error('tabela relacional desconhecida: ' + tabela);
+      tabelas[tabela] = tabelas[tabela].filter((x) => !(x.profile_id === pid && x.plan_id === planId));
+      estado.tabelas[tabela] = tabelas[tabela];
+      for (const row of (Array.isArray(rows) ? rows : [])) tabelas[tabela].push({ ...row });
+      return Array.isArray(rows) ? rows.length : 0;
+    };
+
+    if (nome === 'mutate_study_plan_rows') {
+      const tabela = a.p_table, pid = a.p_profile_id, planId = a.p_plan_id;
+      const keyCol = chavePorTabela[tabela];
+      if (!keyCol || !perfilEhDoUsuario(pid)) return erro(403, { code:'42501', message:'profile not owned by current user' });
+      const removidos = new Set((a.p_delete_ids || []).map(String));
+      tabelas[tabela] = tabelas[tabela].filter((x) =>
+        !(x.profile_id === pid && x.plan_id === planId && removidos.has(String(x[keyCol]))));
+      estado.tabelas[tabela] = tabelas[tabela];
+      let n = 0;
+      for (const row of (a.p_rows || [])) {
+        if (row.profile_id !== pid || row.plan_id !== planId) return erro(400,{code:'22000',message:'row_scope_mismatch'});
+        const atual = tabelas[tabela].find((x) =>
+          x.profile_id === pid && x.plan_id === planId && String(x[keyCol]) === String(row[keyCol]));
+        if (atual) Object.assign(atual,row); else tabelas[tabela].push({ ...row });
+        n++;
+      }
+      return { status:200, corpo:n };
+    }
+
+    if (nome === 'replace_study_plan_rows') {
+      if (!perfilEhDoUsuario(a.p_profile_id)) return erro(403,{code:'42501',message:'profile not owned by current user'});
+      return { status:200, corpo:substituirPlano(a.p_table,a.p_profile_id,a.p_plan_id,a.p_rows || []) };
+    }
+
+    if (nome === 'replace_study_tec') {
+      if (!perfilEhDoUsuario(a.p_profile_id)) return erro(403,{code:'42501',message:'profile not owned by current user'});
+      const ns = substituirPlano('study_tec_snapshots',a.p_profile_id,a.p_plan_id,a.p_snapshots || []);
+      const nr = substituirPlano('study_tec_snapshot_rows',a.p_profile_id,a.p_plan_id,a.p_rows || []);
+      return { status:200, corpo:{snapshots:ns,rows:nr} };
+    }
+
+    if (nome === 'mutate_study_plans') {
+      const pid = a.p_profile_id;
+      if (!perfilEhDoUsuario(pid)) return erro(403,{code:'42501',message:'profile not owned by current user'});
+      const rows = Array.isArray(a.p_rows) ? a.p_rows : [];
+      const ids = new Set(rows.map((x)=>String(x.plan_id)));
+      tabelas.study_plans = tabelas.study_plans.filter((x) =>
+        x.profile_id !== pid || x.legacy_orphan === true || ids.has(String(x.plan_id)));
+      estado.tabelas.study_plans = tabelas.study_plans;
+      for (const row of rows) {
+        const atual=tabelas.study_plans.find((x)=>x.profile_id===pid&&String(x.plan_id)===String(row.plan_id));
+        if (atual) Object.assign(atual,row); else tabelas.study_plans.push({ ...row });
+      }
+      return { status:200, corpo:rows.length };
+    }
+
     return erro(404, { code: 'PGRST202', message: 'Could not find the function public.' + nome });
   }
 
@@ -297,11 +392,14 @@ export function montarApiFalsa() {
       const gravadas = [];
       for (const bruta of entradas) {
         const nova = { ...bruta };
-        if (tabela !== 'profile_sections' && nova.user_id && nova.user_id !== uid) {
-          return erro(403, { code: '42501', message: 'new row violates row-level security policy' });
-        }
-        if (tabela !== 'profile_sections' && !nova.user_id) nova.user_id = uid;
-        if (tabela === 'profile_sections') {
+        const diretoPorUsuario = tabela === 'study_profiles' || tabela === 'profile_backups' ||
+          tabela === 'active_sessions' || tabela === 'user_preferences';
+        if (diretoPorUsuario) {
+          if (nova.user_id && nova.user_id !== uid) {
+            return erro(403, { code: '42501', message: 'new row violates row-level security policy' });
+          }
+          if (!nova.user_id) nova.user_id = uid;
+        } else if (tabela === 'profile_sections' || tabela.startsWith('study_')) {
           const perfil = tabelas.study_profiles.find((p) => p.id === nova.profile_id);
           if (!perfil || perfil.user_id !== uid) {
             return erro(403, { code: '42501', message: 'new row violates row-level security policy' });
