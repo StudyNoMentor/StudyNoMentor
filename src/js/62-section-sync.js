@@ -582,7 +582,8 @@ const SectionSync = {
     } catch (_) { _quiet(_); }
     return out.sort();
   },
-  async _syncManifest(id, revs) {
+  async _syncManifest(id, revs, tentativa) {
+    tentativa = Number(tentativa) || 0;
     const locais = this.localSections(id);
     const delEntries = this._loadDel(id);
 
@@ -595,6 +596,21 @@ const SectionSync = {
     } catch (e) {
       console.warn('[SectionSync] não deu para ler a lista remota; manifesto não será publicado às cegas', e);
       throw e;
+    }
+
+    /* O manifesto remoto lido AGORA é a base correta do próximo CAS. Usar a
+       revisão anotada de uma sessão anterior pode deixar o manifesto preso para
+       sempre após qualquer alteração feita por outro aparelho. Atualizar esta
+       contabilidade não aplica dados no perfil; apenas registra a base que acabou
+       de ser observada no servidor. */
+    const manifestoRemotoLido = remoteRows.find(r => r.section === this.MANIFEST) || null;
+    if (manifestoRemotoLido) {
+      const secs = manifestoRemotoLido.data && Array.isArray(manifestoRemotoLido.data.sections)
+        ? manifestoRemotoLido.data.sections.slice().sort() : null;
+      revs[this.MANIFEST] = {
+        rev: manifestoRemotoLido.rev || 0,
+        hash: secs ? this._hash(secs.join('|')) : null
+      };
     }
 
     /* Primeiro resolvemos as exclusões. O manifesto só é publicado DEPOIS e
@@ -667,6 +683,13 @@ const SectionSync = {
         if (remoto && rh === h) {
           revs[this.MANIFEST] = { rev: remoto.rev || rev, hash: h };
         } else {
+          /* Outro aparelho avançou o manifesto entre nosso SELECT e UPDATE.
+             Registramos a nova base e refazemos a união a partir do estado
+             remoto fresco. O CAS continua impedindo qualquer sobrescrita cega. */
+          if (remoto) revs[this.MANIFEST] = { rev: remoto.rev || 0, hash: rh };
+          if (!restantes.length && tentativa < 2) {
+            return this._syncManifest(id, revs, tentativa + 1);
+          }
           this._lastConflict = { em: Date.now(), seções: [this.MANIFEST], tipo: 'manifesto' };
           throw new Error('conflito de revisão protegido no manifesto');
         }
