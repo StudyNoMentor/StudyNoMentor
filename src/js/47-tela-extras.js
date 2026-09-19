@@ -329,9 +329,10 @@ const ExtrasScreen = {
          porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
          bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
          uso normal do app, não uma duplicata. */
-      const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
-      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x))
-        || !!PlanoEngine.atividadeSobreposta(x.nome, x.disciplina, x.membros);
+      const abertas = DB.getExtras().filter(e => typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(e) && e.status !== 'concluida');
+      const disciplinasEmCurso = new Set(abertas.map(e => ReforcoEngine.norm((MotorCiclo.origemDe(e) || {}).disciplina || '')).filter(Boolean));
+      const jaTem = (x) => disciplinasEmCurso.has(ReforcoEngine.norm(x.disciplina || ''))
+        || !!MotorCiclo.atividadeSobreposta(x.nome, x.disciplina, x.membros);
       this._planoPrefs = r.prefs;
       this._planoFase = r.fase;
       this._planoDiscOrder = (r.disciplinas || []).map(d => d.nome);
@@ -396,14 +397,14 @@ const ExtrasScreen = {
           if (!this._planoSel || !this._planoSel.has(i)) return;
           const e = DB.addExtra({
             // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
-            titulo: PlanoCiclo.titulo(x.nome, 'reforco', x.membros),
+            titulo: MotorCiclo.titulo(x.nome, x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
             alvo: Math.max(1, doses[i] || this._planoPrefs.alvoQuestoes), periodo: 'unica', contaMetricas: false,
             obs: 'Gerado pelo Motor de sugestão — dose própria do reforço hierárquico.'
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: 'reforco' }) }); n++; }  // `x` é a frente do Motor: amostra, bloco e membros vão junto
+          if (e) { DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, x) }); n++; }
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -615,19 +616,13 @@ const ExtrasScreen = {
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
     const diaria = x.periodo === 'diaria';
     let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
-    /* ── ATIVIDADE DO PLANO: O RETRATO CONTA POR VOCÊ ────────────────────────
-       Resolver 150 questões no TEC e importar o retrato deixava esta barra em
-       0/120: a mesma pessoa lançando o mesmo fato duas vezes, e esquecendo a
-       segunda. Agora o progresso de uma atividade do Plano vale
-       `max(digitado, medido no retrato)` — importar só empurra para cima, e
-       quem resolve questão fora do TEC continua podendo lançar na mão. */
+    /* Atividade do Motor: o progresso medido no TEC conta automaticamente. */
     let ciclo = null;
-    if (x.origemPlano && x.origemPlano.topico && typeof PlanoCiclo !== 'undefined') {
+    if (typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(x)) {
       try {
-        ciclo = PlanoCiclo.avaliar(x, this._planoRefCard || (this._planoRefCard =
-          PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs())));
+        ciclo = MotorCiclo.avaliar(x);
         if (ciclo && ciclo.feito > feito) feito = ciclo.feito;
-      } catch (e) { _quiet(e, 'card-ciclo'); }
+      } catch (e) { _quiet(e, 'card-ciclo-motor'); }
     }
     // rotulo do que a barra esta medindo, para nao restar duvida
     const PER_LABEL = { semanal: 'na semana', quinzenal: 'na quinzena', mensal: 'no mês' };
