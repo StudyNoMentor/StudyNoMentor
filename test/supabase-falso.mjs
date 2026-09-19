@@ -97,7 +97,8 @@ export function montarApiFalsa() {
     profile_backups: [],
     active_sessions: []
   };
-  const estado = { tabelas, contas, falhaForcada: null, pedidos: [] };
+  const tombstones = new Map(); // profile_id\0section -> { deleted_rev, deleted_at }
+  const estado = { tabelas, contas, tombstones, falhaForcada: null, pedidos: [] };
 
   function criarSessao(user) {
     const at = jwt(user.id, user.email);
@@ -152,6 +153,98 @@ export function montarApiFalsa() {
   function violacao(constraint) {
     return erro(409, { code: '23505', message: 'duplicate key value violates unique constraint "' + constraint + '"',
                        details: null, hint: null });
+  }
+
+  // ── RPC ──────────────────────────────────────────────────────────────────
+  /* Em produção, a concorrência de profile_sections é decidida por funções SQL
+     atômicas. O banco falso precisa reproduzir essa semântica; caso contrário
+     um teste de ponta a ponta estaria validando um protocolo diferente do real. */
+  function rpc(metodo, url, headers, corpo) {
+    if (metodo !== 'POST') return erro(405, { code: '405', message: 'RPC exige POST' });
+    const uid = donoDoPedido(headers);
+    if (!uid) return erro(401, { code: '401', message: 'sem sessão' });
+    const nome = url.pathname.replace(/^\/rest\/v1\/rpc\//, '').split('/')[0];
+    const a = corpo || {};
+    const perfil = tabelas.study_profiles.find((p) => p.id === a.p_profile_id);
+    if (!perfil || perfil.user_id !== uid) {
+      return erro(403, { code: '42501', message: 'profile not owned by current user' });
+    }
+
+    const key = String(a.p_profile_id) + '\0' + String(a.p_section);
+    const achar = () => tabelas.profile_sections.find((l) =>
+      l.profile_id === a.p_profile_id && l.section === a.p_section);
+
+    if (nome === 'write_profile_section_cas') {
+      const expected = Number(a.p_expected_rev) || 0;
+      const ts = tombstones.get(key) || null;
+      let atual = achar();
+
+      if (expected === 0) {
+        if (ts) {
+          return { status: 200, corpo: {
+            ok: false, conflict: true, reason: 'deleted', remote_rev: ts.deleted_rev
+          }};
+        }
+        if (atual) return { status: 200, corpo: { ok: false, conflict: true, reason: 'exists' } };
+        atual = {
+          profile_id: a.p_profile_id,
+          section: a.p_section,
+          data: a.p_data,
+          rev: 1,
+          updated_at: AGORA(),
+          content_hash: a.p_new_hash,
+          mutation_id: a.p_mutation_id,
+          device_id: a.p_device_id
+        };
+        tabelas.profile_sections.push(atual);
+        return { status: 200, corpo: { ok: true, rev: 1, content_hash: atual.content_hash } };
+      }
+
+      if (!atual) {
+        if (ts) {
+          return { status: 200, corpo: {
+            ok: false, conflict: true, reason: 'deleted', remote_rev: ts.deleted_rev
+          }};
+        }
+        return { status: 200, corpo: {
+          ok: false, conflict: true, reason: 'base-mismatch', remote_rev: null, remote_hash: null
+        }};
+      }
+      const hashBaseOk = atual.content_hash == null || atual.content_hash === a.p_expected_hash;
+      if (Number(atual.rev) !== expected || !hashBaseOk) {
+        return { status: 200, corpo: {
+          ok: false, conflict: true, reason: 'base-mismatch',
+          remote_rev: atual.rev, remote_hash: atual.content_hash ?? null
+        }};
+      }
+
+      atual.data = a.p_data;
+      atual.rev = Number(atual.rev) + 1;
+      atual.updated_at = AGORA();
+      atual.content_hash = a.p_new_hash;
+      atual.mutation_id = a.p_mutation_id;
+      atual.device_id = a.p_device_id;
+      return { status: 200, corpo: {
+        ok: true, rev: atual.rev, content_hash: atual.content_hash
+      }};
+    }
+
+    if (nome === 'delete_profile_section_cas') {
+      const expected = Number(a.p_expected_rev) || 0;
+      const atual = achar();
+      if (!atual || expected < 1 || Number(atual.rev) !== expected) {
+        return { status: 200, corpo: false };
+      }
+      tombstones.set(key, {
+        deleted_rev: expected + 1,
+        deleted_at: AGORA()
+      });
+      tabelas.profile_sections = tabelas.profile_sections.filter((l) => l !== atual);
+      estado.tabelas.profile_sections = tabelas.profile_sections;
+      return { status: 200, corpo: true };
+    }
+
+    return erro(404, { code: 'PGRST202', message: 'Could not find the function public.' + nome });
   }
 
   // ── REST ─────────────────────────────────────────────────────────────────
@@ -327,9 +420,11 @@ export function montarApiFalsa() {
           ? erro(forcada.status || 500, forcada.corpo || { code: 'XX000', message: 'falha forçada pelo teste' })
           : erro(500, { code: 'XX000', message: 'falha forçada pelo teste' });
       } else {
-        r = url.pathname.startsWith('/rest/v1/')
-          ? rest(req.method, url, req.headers, corpo)
-          : auth(req.method, url, req.headers, corpo);
+        r = url.pathname.startsWith('/rest/v1/rpc/')
+          ? rpc(req.method, url, req.headers, corpo)
+          : (url.pathname.startsWith('/rest/v1/')
+            ? rest(req.method, url, req.headers, corpo)
+            : auth(req.method, url, req.headers, corpo));
       }
     } catch (e) {
       r = erro(500, { code: 'XX000', message: 'erro no servidor falso: ' + e.message });
