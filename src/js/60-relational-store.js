@@ -403,6 +403,80 @@ const RelationalStore = {
     return this._persistPlanState(profileId,planId,sub,newRaw);
   },
 
+
+  /* Aplica um backup JSON ao modelo relacional. O arquivo continua no formato
+     histórico do app, mas a persistência final é linha-a-linha no PostgreSQL.
+     Em restore=true, a projeção atual do perfil é substituída; a operação é
+     segura porque CloudBackup cria uma foto anterior antes de chamar este fluxo. */
+  async replaceProfileFromPayload(profileId, dataObj, opts) {
+    opts = opts || {};
+    if (!this.isReady()) throw new Error('Banco indisponível');
+    if (!profileId) throw new Error('Perfil ausente');
+    const data = (dataObj && typeof dataObj === 'object') ? dataObj : {};
+    const pfx = this._pfx(profileId);
+
+    /* O backup pode ser antigo e não conter "planejamentos". Inferimos os ids
+       das chaves p:<id>:... para nunca perder conteúdo importável. */
+    let plans = [];
+    try { plans = JSON.parse(data.planejamentos || '[]') || []; } catch (_) { plans = []; }
+    const vistos = new Set(plans.map(p => String(p && p.id)).filter(Boolean));
+    Object.keys(data).forEach(k => {
+      const m = /^p:([^:]+):/.exec(k);
+      if (!m || vistos.has(m[1])) return;
+      vistos.add(m[1]);
+      plans.push({ id: m[1], nome: m[1], tipo: 'Importado', createdAt: new Date().toISOString() });
+    });
+    if (!plans.length) plans = [{ id:'pl_inicial', nome:'Planejamento inicial', tipo:'Importado', createdAt:new Date().toISOString() }];
+
+    /* Primeiro limpa SOMENTE a nova base relacional do perfil. O snapshot legado
+       e os backups ficam intocados. FK CASCADE remove entidades dependentes. */
+    const delPlans = await CloudStore.client.from('study_plans').delete().eq('profile_id', profileId);
+    if (delPlans.error) throw delPlans.error;
+    const delSettings = await CloudStore.client.from('study_profile_settings').delete().eq('profile_id', profileId);
+    if (delSettings.error) throw delSettings.error;
+
+    this._clearProfileMemory(profileId);
+    this._applying = true;
+    try {
+      localStorage.setItem(pfx+'planejamentos', JSON.stringify(plans));
+      const activeRaw = data['active-plan'];
+      const active = activeRaw == null
+        ? String(plans[0].id)
+        : String(this._parse(activeRaw, activeRaw)).replace(/^"|"$/g,'');
+      localStorage.setItem(pfx+'active-plan', active || String(plans[0].id));
+      Object.keys(data).forEach(sub => {
+        if (sub === 'planejamentos' || sub === 'active-plan') return;
+        if (sub.startsWith('u:') || this._ignoreSub(sub)) return;
+        localStorage.setItem(pfx+sub, String(data[sub]));
+      });
+    } finally { this._applying = false; }
+
+    /* Ordem deliberada: planos -> ponteiro ativo -> settings -> conteúdo de
+       cada plano. Assim as FKs sempre encontram o pai antes dos filhos. */
+    await this._persistPlans(profileId, null, JSON.stringify(plans));
+    await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan'));
+
+    const planKeys = [], profileKeys = [];
+    for (let i=0;i<localStorage.length;i++) {
+      const k=localStorage.key(i);
+      if (!k || !k.startsWith(pfx)) continue;
+      const rel=k.slice(pfx.length);
+      if (rel==='planejamentos'||rel==='active-plan'||this._ignoreSub(rel)) continue;
+      const m=/^p:([^:]+):(.+)$/.exec(rel);
+      if (m) planKeys.push({key:k,planId:m[1],sub:m[2]});
+      else profileKeys.push({key:k,sub:rel});
+    }
+    for (const x of profileKeys) await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key));
+    for (const x of planKeys) await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key));
+
+    const row = await this._profileRow(profileId).catch(()=>null);
+    if (row && row.active_plan_id !== localStorage.getItem(pfx+'active-plan')) {
+      await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan'));
+    }
+    await this.hydrateProfile(profileId,{reason:opts.reason||'backup-restore'});
+    return { ok:true, secoes:Object.keys(data).length, planos:plans.length };
+  },
+
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
