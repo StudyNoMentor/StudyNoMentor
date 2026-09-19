@@ -425,6 +425,7 @@ const SectionSync = {
   async _enviarSujas(id) {
     const pfx = this._prefix();
     const revs = this._getRevs();
+    this._lastConflict = null;
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
     const secs = [...this._dirty];
@@ -450,10 +451,15 @@ const SectionSync = {
       try { if (window.GuardaNuvem) await GuardaNuvem.antesDeEsvaziar(id, esvaziando); } catch (e) { _quiet(e, 'guarda-esvaziar'); }
     }
     if (rows.length === 0) {
-      // Nada de conteúdo novo, mas o MANIFESTO ainda pode estar desatualizado
-      // (ex.: uma seção foi APAGADA localmente). Sem isto, exclusões nunca chegariam
-      // à nuvem e a leitura por seção "ressuscitaria" dados apagados.
-      try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); }
+      // Nada de conteúdo novo, mas manifesto/exclusões ainda podem estar pendentes.
+      try {
+        await this._syncManifest(id, revs);
+        this._lastError = null;
+      } catch (e) {
+        const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+        this._lastError = this.MANIFEST + ' (' + msg + ')';
+        console.warn('[SectionSync] manifesto/exclusões continuam pendentes:', this._lastError);
+      }
       this._saveRevs(revs);
       this._savePend();
       return;
@@ -463,7 +469,6 @@ const SectionSync = {
     // registrado individualmente, e ela reenvia sozinha na próxima rodada. Mais lento,
     // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
     let okCount = 0; const falhas = []; const conflitos = [];
-    this._lastConflict = null;
     for (const r of rows) {
       const { _sec, _hash, _len, _gen, _expectedRev, ...row } = r;
       try {
@@ -540,9 +545,7 @@ const SectionSync = {
   async _syncManifest(id, revs) {
     const locais = this.localSections();
     const delEntries = this._loadDel(id);
-    const apagadas = delEntries.map(x => x.section);
-    /* Lemos também a rev remota: exclusão e manifesto precisam da mesma regra
-       CAS das seções de conteúdo. */
+
     let remoteRows = [];
     try {
       const { data, error } = await CloudStore.client.from(this.TABLE)
@@ -553,43 +556,18 @@ const SectionSync = {
       console.warn('[SectionSync] não deu para ler a lista remota; manifesto não será publicado às cegas', e);
       throw e;
     }
-    const remotas = remoteRows.map(r => r.section).filter(sec => sec !== this.MANIFEST);
-    const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1 && apagadas.indexOf(sec) === -1);
-    if (sobreviventes.length) {
-      console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui, sem ordem de exclusão — MANTIDAS: ' + sobreviventes.join(', '));
-    }
-    const list = [...new Set(locais.concat(sobreviventes))].sort();
-    const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
-    const h = this._hash(list.join('|'));
-    const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
-    if (prev.hash !== h) {
-      const rev = (prev.rev || 0) + 1;
-      const wr = await this._writeSectionCAS(
-        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at },
-        prev.rev || 0
-      );
-      if (!wr.ok && wr.conflict) {
-        const remoto = await this._remoteSection(id, this.MANIFEST);
-        const secs = remoto && remoto.data && Array.isArray(remoto.data.sections)
-          ? remoto.data.sections.slice().sort() : null;
-        const rh = secs ? this._hash(secs.join('|')) : null;
-        if (remoto && rh === h) {
-          revs[this.MANIFEST] = { rev: remoto.rev || rev, hash: h };
-        } else {
-          this._lastConflict = { em: Date.now(), seções: [this.MANIFEST] };
-          throw new Error('conflito de revisão protegido no manifesto');
-        }
-      } else {
-        revs[this.MANIFEST] = { rev: wr.rev || rev, hash: h };
-      }
-    }
 
-    /* Exclusão também é CAS. Uma ordem baseada na rev 12 não pode apagar uma
-       edição remota que já chegou à rev 13. */
+    /* Primeiro resolvemos as exclusões. O manifesto só é publicado DEPOIS e
+       descreve o resultado realmente confirmado no banco. Se a exclusão perdeu
+       uma corrida para uma edição mais nova, a linha continua no manifesto. */
     const restantes = [];
+    const apagadasComSucesso = new Set();
     for (const del of delEntries) {
       const rr = remoteRows.find(r => r.section === del.section);
-      if (!rr) { delete revs[del.section]; continue; } // já não existe: tombstone cumprido
+      if (!rr) {
+        delete revs[del.section];
+        continue; // já não existe: tombstone cumprido
+      }
       if (!del.rev || rr.rev !== del.rev) {
         restantes.push(del);
         this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
@@ -609,6 +587,7 @@ const SectionSync = {
           this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
           continue;
         }
+        apagadasComSucesso.add(del.section);
         delete revs[del.section];
         console.info('[SectionSync] removida da nuvem seção excluída de propósito:', del.section);
       } catch (e) {
@@ -617,6 +596,48 @@ const SectionSync = {
       }
     }
     this._saveDel(restantes, id);
+
+    const remotas = remoteRows
+      .map(r => r.section)
+      .filter(sec => sec !== this.MANIFEST && !apagadasComSucesso.has(sec));
+
+    /* Toda seção que ainda EXISTE remotamente e não existe aqui permanece no
+       manifesto. Isso inclui, deliberadamente, exclusões em conflito. */
+    const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1);
+    if (sobreviventes.length) {
+      console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui — MANTIDAS no manifesto: ' + sobreviventes.join(', '));
+    }
+
+    const list = [...new Set(locais.concat(sobreviventes))].sort();
+    const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
+    const h = this._hash(list.join('|'));
+    const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
+
+    if (prev.hash !== h) {
+      const rev = (prev.rev || 0) + 1;
+      const wr = await this._writeSectionCAS(
+        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at },
+        prev.rev || 0
+      );
+      if (!wr.ok && wr.conflict) {
+        const remoto = await this._remoteSection(id, this.MANIFEST);
+        const secs = remoto && remoto.data && Array.isArray(remoto.data.sections)
+          ? remoto.data.sections.slice().sort() : null;
+        const rh = secs ? this._hash(secs.join('|')) : null;
+        if (remoto && rh === h) {
+          revs[this.MANIFEST] = { rev: remoto.rev || rev, hash: h };
+        } else {
+          this._lastConflict = { em: Date.now(), seções: [this.MANIFEST], tipo: 'manifesto' };
+          throw new Error('conflito de revisão protegido no manifesto');
+        }
+      } else {
+        revs[this.MANIFEST] = { rev: wr.rev || rev, hash: h };
+      }
+    }
+
+    /* Mantemos o tombstone em conflito, mas o manifesto já preserva a linha
+       remota vencedora. Assim o conflito pode ser tratado depois sem esconder
+       nem apagar o dado mais novo. */
     if (restantes.length) throw new Error('há exclusões com conflito ou falha pendentes');
     return true;
   },
