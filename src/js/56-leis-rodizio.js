@@ -444,7 +444,7 @@
     const renderAnterior = ExtrasScreen.render;
     ExtrasScreen.render = function () {
       try { LeiRodizio.sincronizarHoje(); } catch (e) { _quiet(e, 'lei-rodizio-sync'); }
-      const r = PlanFastCache.withCache(() => renderAnterior.apply(this, arguments));
+      const r = renderAnterior.apply(this, arguments);
       try { LeiRodizio.decorarExtras(); } catch (e) { _quiet(e, 'lei-rodizio-ui'); }
       return r;
     };
