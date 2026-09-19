@@ -672,6 +672,84 @@ try {
   eq(reloadKeepsEntering.entering,1,'F5 deve aguardar sessão no estado Entrando');
   eq(reloadKeepsEntering.picker,0,'F5 não deve cair no seletor de perfis enquanto valida sessão');
 
+  /* 2l.12. Metadata nova + conteúdo físico velho NÃO pode liberar fast path. */
+  const fastPathHashProof=await page.evaluate(()=>{
+    const id='syncv2-fast-hash',pfx='diario-estudos:u:'+id+':',sec='entries';
+    const velho='[{"v":1}]',novo='[{"v":2}]';
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.setItem(pfx+sec,velho);
+    localStorage.setItem(pfx+'__secrev',JSON.stringify({entries:{rev:12,hash:SectionSync._hash(novo),len:novo.length}}));
+    localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    const ruim=SectionSync.fastPathIntegrity(id);
+    localStorage.setItem(pfx+sec,novo);
+    const boa=SectionSync.fastPathIntegrity(id);
+    SectionSync._dirtyFor(id).clear();SectionSync._dirtyGenFor(id).clear();
+    localStorage.removeItem(pfx+sec);localStorage.removeItem(pfx+'__secrev');
+    localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    return {ruim,boa};
+  });
+  eq(fastPathHashProof.ruim.ok,false,'hash físico divergente deve bloquear fast path');
+  eq(fastPathHashProof.ruim.reason,'hash-divergente','bloqueio deve identificar cache físico divergente');
+  ok(fastPathHashProof.ruim.mismatches.includes('entries'),'seção divergente deve ser identificada');
+  ok(fastPathHashProof.boa.ok,'conteúdo físico que bate com __secrev pode usar fast path');
+
+  /* 2l.13. Takeover sem perfil pendente explícito deve reabrir o perfil ativo
+     pelo caminho canônico, em vez de apenas liberar o cache antigo. */
+  const takeoverRehydrates=await page.evaluate(()=>{
+    const id='syncv2-takeover-rehydrate';
+    const keep={
+      active:ProfileManager.getActiveProfileId,enter:ProfileUI.enterProfile,
+      show:ProfileUI._showEnteringGate,pending:ProfileUI._pendingSessionProfile,
+      entering:ProfileUI._entering,tried:ProfileUI._autoEnterTried
+    };
+    let entered=null,shown=null;
+    ProfileManager.getActiveProfileId=()=>id;
+    ProfileUI.enterProfile=(x)=>{entered=x;};
+    ProfileUI._showEnteringGate=(x)=>{shown=x;ProfileUI._entering=true;};
+    ProfileUI._pendingSessionProfile=null;ProfileUI._entering=false;ProfileUI._autoEnterTried=false;
+    ProfileUI.resumeAfterSessionClaim();
+    ProfileManager.getActiveProfileId=keep.active;ProfileUI.enterProfile=keep.enter;ProfileUI._showEnteringGate=keep.show;
+    ProfileUI._pendingSessionProfile=keep.pending;ProfileUI._entering=keep.entering;ProfileUI._autoEnterTried=keep.tried;
+    return {entered,shown};
+  });
+  eq(takeoverRehydrates.entered,'syncv2-takeover-rehydrate','takeover deve chamar enterProfile no perfil ativo');
+  eq(takeoverRehydrates.shown,'syncv2-takeover-rehydrate','takeover deve permanecer em Entrando até hidratar');
+
+  /* 2l.14. Auto-enter com cache sem prova deve recusar fast path e hidratar. */
+  const fastPathRejected=await page.evaluate(()=>{
+    const id='syncv2-fast-reject';
+    const keep={
+      ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      enabled:SessionGuard.enabled,can:SessionGuard.canEnterNow,
+      auto:ProfileUI.autoEnterOn,def:ProfileUI.getDefaultProfile,last:ProfileUI.getLastProfile,
+      has:ProfileUI._hasLocalData,active:ProfileManager.getActiveProfileId,pode:ProfileManager._podeVerLocal,
+      integ:SectionSync.fastPathIntegrity,show:ProfileUI._showEnteringGate,enter:ProfileUI.enterProfile,
+      hide:ProfileUI.hideGate,load:ProfileUI.loadCloudProfiles,
+      entering:ProfileUI._entering,tried:ProfileUI._autoEnterTried,offline:ProfileUI._offline
+    };
+    let enters=0,hides=0,loads=0;
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>true;
+    ProfileUI.autoEnterOn=()=>true;ProfileUI.getDefaultProfile=()=>id;ProfileUI.getLastProfile=()=>id;
+    ProfileUI._hasLocalData=()=>true;ProfileManager.getActiveProfileId=()=>id;ProfileManager._podeVerLocal=()=>true;
+    SectionSync.fastPathIntegrity=()=>({ok:false,reason:'hash-divergente',mismatches:['entries']});
+    ProfileUI._showEnteringGate=()=>{ProfileUI._entering=true;};
+    ProfileUI.enterProfile=()=>{enters++;};
+    ProfileUI.hideGate=()=>{hides++;};ProfileUI.loadCloudProfiles=()=>{loads++;};
+    ProfileUI._entering=false;ProfileUI._autoEnterTried=false;ProfileUI._offline=false;
+    ProfileUI.refreshStage();
+    CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;SessionGuard.enabled=keep.enabled;SessionGuard.canEnterNow=keep.can;
+    ProfileUI.autoEnterOn=keep.auto;ProfileUI.getDefaultProfile=keep.def;ProfileUI.getLastProfile=keep.last;
+    ProfileUI._hasLocalData=keep.has;ProfileManager.getActiveProfileId=keep.active;ProfileManager._podeVerLocal=keep.pode;
+    SectionSync.fastPathIntegrity=keep.integ;ProfileUI._showEnteringGate=keep.show;ProfileUI.enterProfile=keep.enter;
+    ProfileUI.hideGate=keep.hide;ProfileUI.loadCloudProfiles=keep.load;
+    ProfileUI._entering=keep.entering;ProfileUI._autoEnterTried=keep.tried;ProfileUI._offline=keep.offline;
+    return {enters,hides,loads};
+  });
+  eq(fastPathRejected.enters,1,'cache sem prova deve entrar pelo hydrate completo');
+  eq(fastPathRejected.hides,0,'cache divergente não pode ser exibido antes do hydrate');
+  eq(fastPathRejected.loads,0,'perfil local conhecido pode hidratar direto sem voltar ao seletor');
+
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
     const id='syncv2-pending-delete',sec='entries';
