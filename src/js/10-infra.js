@@ -14,7 +14,7 @@
      FSRS ........................ FSRS-6 fiel ao fsrs-rs do Anki + otimizador
      CardEngine .................. agendador: passos, fuzz, leech, load balance
      TecEngine ................... parser hierárquico do relatório TecConcursos
-     ReforcoEngine / CycleEngine / LawEngine / PlanoEngine
+     ReforcoEngine / CycleEngine / LawEngine / MotorSugestao / MotorCiclo
 
    TELAS (uma por aba)
      Registrar · Ciclo · Grade · Cards · Leis · Extras · Links · Histórico

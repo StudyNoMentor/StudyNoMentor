@@ -1,7 +1,7 @@
 /* ============================================================
    FILA DIÁRIA DO REFORÇO — parcelas executáveis, meta global intacta
    ------------------------------------------------------------
-   Uma atividade criada pelo Plano tem DUAS escalas diferentes:
+   Uma atividade criada pelo Motor de Sugestão tem DUAS escalas diferentes:
 
      1) a META GLOBAL do ciclo (ex.: 100 questões de um assunto);
      2) a PARCELA DO DIA (ex.: 25 questões hoje).
@@ -113,8 +113,10 @@ const ReforcoFila = {
     d.setDate(d.getDate() + n);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   },
-  ePlano(e) { return !!(e && e.origemPlano && e.origemPlano.topico && e.periodo === 'unica'); },
-  eGerenciado(e) { return this.ePlano(e) && !!(e.reforcoFila && e.reforcoFila.auto !== false); },
+  eMotor(e) {
+    return !!(e && typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).topico && e.periodo === 'unica');
+  },
+  eGerenciado(e) { return this.eMotor(e) && !!(e.reforcoFila && e.reforcoFila.auto !== false); },
   _meta(e) {
     if (!e.reforcoFila || typeof e.reforcoFila !== 'object') {
       e.reforcoFila = { versao: this.VERSAO, auto: true, alvosPorDia: {}, criadoEm: new Date().toISOString() };
@@ -153,57 +155,19 @@ const ReforcoFila = {
     const dias = Object.keys(m).filter(d => (!ate || d <= ate) && parseFloat(m[d]) > 0).sort();
     return dias.length ? dias[dias.length - 1] : '';
   },
-  /* ── A MESMA CONTA, EM DOIS CACHES DIFERENTES (OU EM NENHUM) ─────────────
-     Esta função era `PlanoEngine.calcular(scopedSnapshot(), prefs())` — byte
-     por byte o que `DesempenhoTecScreen._planoRef()` faz, com a diferença de
-     que aquela guarda o resultado por 3 segundos e esta não guardava nada. E
-     ela é chamada de `sincronizar()`, que envolve `ExtrasScreen.render()`:
-     TODA repintura de Extras rodava o motor do Plano inteiro sobre todos os
-     retratos, de novo. Com 8 retratos e ~960 assuntos são ~200 ms por render,
-     e um render acontece a cada clique em caixinha, a cada conclusão, a cada
-     mudança de dia no calendário.
-
-     Delegar para o cache que já existe resolve as duas coisas: a conta passa a
-     ser feita uma vez por janela de 3 s, e deixa de haver duas fontes para o
-     mesmo número (que é como elas divergem na primeira correção que alguém
-     faz só de um lado). O caminho próprio fica como reserva, para o caso de a
-     tela do TEC não estar carregada. */
-  /* ── ESTA FILA NÃO PRECISA DO RANKING, SÓ DOS RETRATOS ───────────────────
-     Isto era `PlanoEngine.calcular(scopedSnapshot(), prefs())`: o motor do
-     Plano inteiro — índice por assunto, janela adaptativa, sequências, série
-     histórica, quadro de matérias, ranking — sem cache nenhum. E é chamado de
-     `sincronizar()`, que envolve `ExtrasScreen.render()`: cada repintura de
-     Extras rodava tudo de novo. Com 8 retratos e ~960 assuntos são ~200 ms,
-     por clique em caixinha, por conclusão, por troca de dia no calendário. Era
-     a tela mais lenta do app.
-
-     O que esta fila realmente lê do resultado, por `saldo()` e
-     `_recuperarParcialFechado()`, é `alvo`, `feito`, `bateu` e `mediu`. Em
-     `PlanoCiclo.avaliar` esses quatro saem do VOLUME e do histórico do
-     assunto (`volumeDoEscopo`, `qHistDe`, `taxaDoNo`), que dependem de
-     `_snapshots`. O único campo que vem do ranking é `custoHoje` — usado
-     somente pelo painel do Plano no TEC, nunca aqui.
-
-     Então a referência que esta fila monta é a barata: os mesmos retratos que
-     o motor usaria (`_fontes` do escopo, ou o histórico do perfil), sem rodar
-     o ranking para jogá-lo fora. Quem precisa do resultado completo continua
-     chamando `DesempenhoTecScreen._planoRef()`, que tem o seu próprio cache. */
-  _planoRef() {
-    try {
-      if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') return null;
-      const snap = DesempenhoTecScreen.scopedSnapshot();
-      if (!snap) return null;
-      const fontes = (snap._fontes && snap._fontes.length) ? snap._fontes : (DB.getTecSnapshots() || []);
-      return { _snapshots: (fontes.length ? fontes : [snap]).slice(), _fila: true };
-    } catch (e) { _quiet(e, 'fila-plano-ref'); return null; }
+  /* A fila diária não decide prioridade. Ela apenas distribui, ao longo dos
+     dias, as atividades que o único Motor de Sugestão já abriu. */
+  _motorRef() {
+    try { return (typeof MotorSugestao !== 'undefined') ? MotorSugestao.calcular() : null; }
+    catch (e) { _quiet(e, 'fila-motor-ref'); return null; }
   },
   avaliarGlobal(e, ref) {
     try {
-      if (typeof PlanoCiclo !== 'undefined' && PlanoCiclo.avaliar) {
-        const v = PlanoCiclo.avaliar(e, ref || this._planoRef(), null);
+      if (typeof MotorCiclo !== 'undefined' && MotorCiclo.avaliar) {
+        const v = MotorCiclo.avaliar(e, ref || this._motorRef());
         if (v) return v;
       }
-    } catch (err) { _quiet(err, 'fila-avaliar'); }
+    } catch (err) { _quiet(err, 'fila-avaliar-motor'); }
     const alvo = Math.max(1, parseFloat(e && e.alvo) || 1);
     const feito = Math.max(0, parseFloat(e && e.progresso) || 0);
     return { extra: e, alvo, feito, pct: Math.min(100, Math.round(feito / alvo * 100)), estado: 'andamento' };
@@ -212,34 +176,7 @@ const ReforcoFila = {
     const v = this.avaliarGlobal(e, ref);
     return { restante: Math.max(0, Math.ceil((v.alvo || 0) - (v.feito || 0))), avaliacao: v };
   },
-
-  /* Versões anteriores gravavam `status=concluida` ao tocar no checkbox do dia.
-     Quando é possível PROVAR que o trabalho global ainda não tinha acabado,
-     reabrimos a atividade e removemos apenas o veredito criado por aquele
-     fechamento prematuro. Não tocamos em ciclos encerrados pelo motor. */
-  _recuperarParcialFechado(e, ref) {
-    if (!this.ePlano(e) || e.status !== 'concluida' || !e.origemPlano || !e.origemPlano.veredito) return false;
-    const ver = e.origemPlano.veredito;
-    const dia = ver.em || '';
-    const teveParcialNoDia = (e.historico || []).some(h => h.data === dia && (parseFloat(h.quantidade) || 0) > 0);
-    // Só corrige automaticamente o padrão inequívoco do bug atual. Fechamentos
-    // históricos ou vereditos com medição/calibração permanecem intocados.
-    if (!ver.porMao || ver.tipo !== 'encerradaPorVoce' || dia !== todayLocal() || !teveParcialNoDia) return false;
-    let v = null;
-    try { v = this.avaliarGlobal(e, ref); } catch (_) { _quiet(_); }
-    if (!v || !(v.feito < v.alvo) || v.bateu || v.mediu) return false;
-    const origem = Object.assign({}, e.origemPlano);
-    delete origem.veredito;
-    e.origemPlano = origem;
-    e.status = 'ativa';
-    e.concluidasEm = Array.isArray(e.concluidasEm) ? e.concluidasEm : [];
-    if (!e.concluidasEm.includes(dia)) e.concluidasEm.push(dia);
-    const m = this._meta(e);
-    m.recuperadaDeParcial = true;
-    m.recuperadaEm = new Date().toISOString();
-    m.ultimoDiaConcluido = dia;
-    return true;
-  },
+  _recuperarParcialFechado() { return false; },
 
   /* Recalcula SOMENTE o futuro. Hoje e o passado ficam congelados porque já são
      execução/histórico; é essa separação que impede uma importação ou um F5 de
@@ -253,18 +190,18 @@ const ReforcoFila = {
       const list = DB.getExtras();
       if (!Array.isArray(list) || !list.length) return { mudou: false };
       /* ── A REFERÊNCIA DO TEC SÓ É PAGA QUANDO ALGUÉM A USA ────────────────
-         `ref` serve exclusivamente às atividades vindas do Plano, no laço
-         abaixo. Quem nunca usou o "Puxar do Plano" não tem nenhuma — e mesmo
+         `ref` serve exclusivamente às atividades vindas do Motor, no laço
+         abaixo. Quem nunca usou o "Puxar do Motor" não tem nenhuma — e mesmo
          assim pagava o motor inteiro a cada repintura de Extras, para o
          resultado ser descartado sem uma única leitura. Agora a conta é
          adiada até a primeira atividade que realmente precise dela. */
-      const doPlano = list.filter(e => this.ePlano(e));
+      const doMotor = list.filter(e => this.eMotor(e));
       let ref = null, refLido = false;
-      const obterRef = () => { if (!refLido) { refLido = true; ref = this._planoRef(); } return ref; };
+      const obterRef = () => { if (!refLido) { refLido = true; ref = this._motorRef(); } return ref; };
 
       // Primeiro, recupera fechamentos prematuros identificáveis e adota todos
-      // os reforços abertos do Plano na fila nova.
-      doPlano.forEach(e => {
+      // os reforços abertos do Motor na fila diária.
+      doMotor.forEach(e => {
         if (this._recuperarParcialFechado(e, obterRef())) mudou = true;
         if (e.status !== 'concluida' && !e.reforcoFila) { this._meta(e); mudou = true; }
         if (e.reforcoFila) this._meta(e);
@@ -314,7 +251,7 @@ const ReforcoFila = {
         const s = this.saldo(e, obterRef());
         let restante = s.restante;
         const qHoje = this.alvoNoDia(e, hoje);
-        const disc = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');
+        const disc = this._norm(e.disciplina || (MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).disciplina) || 'sem disciplina');
         if (qHoje != null) {
           nHoje++;
           ocupadasHoje.add(disc);
@@ -327,7 +264,7 @@ const ReforcoFila = {
           e, m, restante, disc,
           taxa: (s.avaliacao && isFinite(parseFloat(s.avaliacao.taxa)))
             ? parseFloat(s.avaliacao.taxa)
-            : ((e.origemPlano && e.origemPlano.taxaInicial != null) ? e.origemPlano.taxaInicial : 999),
+            : ((MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).taxaInicial != null) ? MotorCiclo.origemDe(e).taxaInicial : 999),
           ultimo: this._ultimoDia(e, hoje),
           jaHoje: qHoje != null
         });
@@ -391,7 +328,7 @@ const ReforcoFila = {
         e.id, e.status, (e.datas || []).slice().sort(), (e.concluidasEm || []).slice().sort(),
         e.reforcoFila && e.reforcoFila.alvosPorDia || {},
         e.reforcoFila && !!e.reforcoFila.recuperadaDeParcial,
-        e.origemPlano && e.origemPlano.veredito || null
+        MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).veredito || null
       ]);
       const antesKey = this._assinaturaAnterior || '';
       const agoraKey = todos.map(assinatura).join('|');
@@ -424,8 +361,8 @@ const ReforcoFila = {
     const hoje = todayLocal();
     if (this.alvoNoDia(e, hoje)) return { ok: true, ja: true };
     const outras = list.filter(x => x.id !== id && this.eGerenciado(x) && this.alvoNoDia(x, hoje));
-    const disc = this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina) || 'sem disciplina');
-    if (outras.length >= this.limiteDisciplinasDia() || outras.some(x => this._norm(x.disciplina || (x.origemPlano && x.origemPlano.disciplina) || 'sem disciplina') === disc)) {
+    const disc = this._norm(e.disciplina || (MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).disciplina) || 'sem disciplina');
+    if (outras.length >= this.limiteDisciplinasDia() || outras.some(x => this._norm(x.disciplina || (MotorCiclo.origemDe(x) && MotorCiclo.origemDe(x).disciplina) || 'sem disciplina') === disc)) {
       return { ok: false, motivo: 'lotado' };
     }
     const s = this.saldo(e).restante;
@@ -453,7 +390,7 @@ const ReforcoFila = {
     return {
       itens,
       total: itens.reduce((a, e) => a + (this.alvoNoDia(e, dia) || 0), 0),
-      disciplinas: new Set(itens.map(e => this._norm(e.disciplina || (e.origemPlano && e.origemPlano.disciplina)))).size
+      disciplinas: new Set(itens.map(e => this._norm(e.disciplina || (MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).disciplina)))).size
     };
   }
 };
@@ -515,7 +452,7 @@ DB.addExtraProgress = function () {
 ReforcoFila._orig.updateExtra = DB.updateExtra;
 DB.updateExtra = function (id, patch) {
   const r = ReforcoFila._orig.updateExtra.call(this, id, patch);
-  if (ReforcoFila.ePlano(r) || (patch && patch.origemPlano)) {
+  if (ReforcoFila.eMotor(r) || (patch && patch.origemMotor)) {
     ReforcoFila._assinaturaAnterior = '';
     ReforcoFila.sinalizar();
   }
@@ -551,12 +488,12 @@ ExtrasScreen.cardHtml = function (x, day) {
   const q = ReforcoFila.alvoNoDia(x, day);
   if (q == null) return ReforcoFila._orig.cardHtml.call(this, x, day);
   let html = ReforcoFila._orig.cardHtml.call(this, x, day);
-  const geral = ReforcoFila.avaliarGlobal(x, this._planoRefCard);
+  const geral = ReforcoFila.avaliarGlobal(x, this._motorRefCard);
   const saldo = Math.max(0, Math.ceil((geral.alvo || 0) - (geral.feito || 0)));
   const feitoDia = ReforcoFila.feitoNoDia(x, day);
   const selo = `<span class="extra-tag rec" title="Meta executável desta data.">Missão diária · <b>${Math.min(q, feitoDia)}</b>/${q} q</span>` +
     `<span class="extra-tag" title="Progresso acumulado do ciclo de reforço.">Missão geral · <b>${geral.feito || 0}</b>/${geral.alvo || 0} q · saldo ${saldo}</span>`;
-  if (html.includes('🏁 do Plano</span>')) html = html.replace('🏁 do Plano</span>', '🏁 do Plano</span>' + selo);
+  if (html.includes('🧭 Motor')) html = html.replace(/(<span class="extra-tag plano"[^>]*>🧭 Motor[^<]*<\/span>)/, '$1' + selo);
   return html;
 };
 
@@ -616,6 +553,35 @@ ExtrasScreen.renderEmCurso = function () {
     const q = ReforcoFila.alvoNoDia(e, todayLocal());
     if (q == null) return;
     const feitoHoje = ReforcoFila.feitoNoDia(e, todayLocal());
+
+    /* O reforço precisa ser executável sem adivinhação: quantidade do caderno
+       + trilha/filtros que devem ser marcados no TEC ficam visíveis também no
+       painel "Reforços em curso", não só no cartão do dia. */
+    const guiaTec = (typeof MotorCiclo !== 'undefined' && MotorCiclo.filtroTecDe)
+      ? MotorCiclo.filtroTecDe(e) : null;
+    if (guiaTec && !li.querySelector('.exc-tec-guide')) {
+      const qtdCaderno = Math.max(1, Math.round(Number(guiaTec.quantidade || (MotorCiclo.origemDe(e) || {}).alvoQuestoes || e.alvo) || 1));
+      const base = [guiaTec.disciplina].concat(Array.isArray(guiaTec.caminho) ? guiaTec.caminho : []).filter(Boolean);
+      const rota = (guiaTec.agregado ? base : base.concat(guiaTec.selecoes || [])).filter(Boolean).join(' → ');
+      const nivel = Math.max(1, Number(guiaTec.nivel) || 1);
+      const rotulo = nivel <= 1 ? 'tópico' : (nivel === 2 ? 'subtópico' : 'subtópico nível ' + nivel);
+      const box = document.createElement('div');
+      box.className = 'exc-tec-guide';
+      box.style.cssText = 'margin-top:8px;padding:9px 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-sunken);font-size:var(--fs-sm);';
+      box.innerHTML = '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;"><b>🎯 Caderno no TEC</b><strong>'
+        + qtdCaderno + ' questões</strong></div>'
+        + '<div class="hint" style="margin-top:4px;"><b>Filtro:</b> ' + escapeHtml(rota) + '</div>'
+        + (guiaTec.agregado
+          ? '<div class="hint" style="margin-top:3px;"><b>Marque juntos:</b> '
+            + (guiaTec.selecoes || []).map(escapeHtml).join(' + ')
+            + ' <span class="opt">(' + (guiaTec.selecoes || []).length + ' itens no mesmo nível)</span></div>'
+          : '<div class="hint" style="margin-top:3px;"><b>Selecionar:</b> '
+            + escapeHtml((guiaTec.selecoes || [])[0] || '') + ' <span class="opt">(' + escapeHtml(rotulo) + ')</span></div>');
+      const acoesHost = li.querySelector('.exc-acoes');
+      if (acoesHost) li.insertBefore(box, acoesHost);
+      else li.appendChild(box);
+    }
+
     const nums = li.querySelector('.pl-ciclo-nums');
     if (nums && !nums.querySelector('.exc-hoje')) {
       nums.insertAdjacentHTML('afterbegin', `<span class="exc-hoje" title="Parcela executável desta data."><small>Hoje</small><b>${Math.min(q, feitoHoje)}</b>/${q} q</span>`);

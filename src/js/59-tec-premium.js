@@ -35,10 +35,10 @@
       if(tab==='motor') {
         try {
           const p=window.MotorSugestao?MotorSugestao.prefs():null;
-          if(p&&p.fase==='pos') return {ic:'🧭',rot:'Motor · pós-edital',txt:'Prioriza lacunas confiáveis ponderadas pela incidência das bancas selecionadas, sem quebrar a hierarquia interna da matéria.'};
-          if(p&&p.fase==='pre') return {ic:'🧭',rot:'Motor · pré-edital',txt:'Prioriza a lacuna confiável do pior recorte acionável de cada matéria e percorre a árvore do pior para o melhor.'};
+          if(p&&p.fase==='pos') return {ic:'🧭',rot:'Motor · pós-edital',txt:'Prioriza as matérias pela lacuna simples até a meta; a incidência da banca apenas desempata lacunas iguais.'};
+          if(p&&p.fase==='pre') return {ic:'🧭',rot:'Motor · pré-edital',txt:'Prioriza as matérias pela distância simples até a meta e entra no pior tópico com amostra suficiente.'};
         } catch(e){if(typeof _quiet==='function')_quiet(e,'tp-fonte');}
-        return {ic:'🧭',rot:'Motor de sugestão',txt:'Transforma os fatos do TEC em uma fila de reforço por matéria, tópico e subtópico.'};
+        return {ic:'🧭',rot:'Motor de sugestão',txt:'Transforma os fatos do TEC em uma fila de reforço e prioriza por matéria, tópico e subtópico.'};
       }
       return {ic:'📚',rot:this.tabNome(tab),txt:'Dados do Desempenho TEC.'};
     },
@@ -54,8 +54,16 @@
       try { if (s.ultimo && /^\d{4}-\d{2}-\d{2}/.test(String(s.ultimo))) idade=Math.floor((new Date(todayLocal()+'T00:00:00')-new Date(String(s.ultimo).slice(0,10)+'T00:00:00'))/86400000); }
       catch(e){ if(typeof _quiet==='function')_quiet(e,'tp-idade-retrato'); }
       let cadencia=30;
-      try { cadencia=Number((PlanoEngine.prefs()||{}).cadenciaDias)||30; }
-      catch(e){ if(typeof _quiet==='function')_quiet(e,'tp-cadencia'); }
+      try {
+        const snaps=(DB.getTecSnapshots&&DB.getTecSnapshots())||[], gaps=[];
+        const fim=x=>x&&(x.endDate||x.date||x.startDate);
+        for(let i=1;i<snaps.length;i++){
+          const a=fim(snaps[i-1]),b=fim(snaps[i]); if(!a||!b)continue;
+          const d=Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
+          if(d>0)gaps.push(d);
+        }
+        gaps.sort((a,b)=>a-b); if(gaps.length)cadencia=gaps[gaps.length>>1];
+      } catch(e){ if(typeof _quiet==='function')_quiet(e,'tp-cadencia'); }
       const velho=idade!=null&&idade>cadencia;
       const esc=(v)=>typeof escapeHtml==='function'?escapeHtml(String(v==null?'':v)):String(v==null?'':v);
       box.innerHTML=`<div class="tp-main"><div class="tp-eyebrow">${esc(msg.ic)} DESEMPENHO TEC · ${esc(msg.rot)}</div>

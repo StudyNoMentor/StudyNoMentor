@@ -575,7 +575,7 @@
             <div>
               <small class="tec-escopo-lista">O ÚNICO LUGAR DO APP QUE DECIDE PRIORIDADE</small>
               <h2>🧭 Motor de sugestão</h2>
-              <p class="sub">O motor percorre a mesma árvore que você abriria no TEC: pior tópico primeiro, depois os subtópicos do pior para o melhor. A estatística só decide até onde vale descer; agrupamentos ficam presos ao mesmo pai e disciplina nunca vira atividade.</p>
+              <p class="sub">A cada novo retrato, o Motor recalcula todas as disciplinas pela distância simples até a meta. As maiores lacunas entram na rodada; dentro de cada matéria, ele escolhe o pior tópico com amostra suficiente. Quando uma matéria melhora e perde prioridade, outra assume naturalmente.</p>
             </div>
           </div>
           <div style="padding: 4px 24px 24px;">
@@ -642,7 +642,7 @@
           </div>
         </div>
         <div class="tec-cfg-sec" data-tab="motor" data-sec="caderno" data-ic="📚" data-rot="Caderno" hidden>
-          <p class="tec-cfg-sec-sub">Cada frente vira uma atividade própria. O motor usa um tamanho-base e nunca deixa uma tarefa cair abaixo do piso mínimo.</p>
+          <p class="tec-cfg-sec-sub">Cada frente vira uma atividade própria com quantidade fixa de questões. O próximo retrato decide se a matéria continua na rodada ou libera a vaga.</p>
           <div class="tec-cfg-grid">
             <div class="rfc-field">
               <label for="motor-alvo" data-info="Quantidade fixa de questões de CADA atividade sugerida. O Motor escolhe onde atacar; este campo só define o tamanho do reforço.">Questões por atividade</label>
@@ -693,7 +693,7 @@
       </div>
       <div class="extras-actions">
         <button type="button" class="btn-secondary" id="extras-manage-btn" title="Gerenciar todas as atividades recorrentes e avulsas num só lugar">🔁 Gerenciar</button>
-        <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar as frentes que o Motor de sugestão escolheu, cada uma com uma dose de reforço útil">🧭 Puxar do Motor</button>
+        <button type="button" class="btn-secondary" id="extras-motor-btn" title="Puxar as frentes que o Motor de sugestão escolheu, cada uma com uma dose de reforço útil">🧭 Puxar do Motor</button>
         <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
       </div>
     </div>
@@ -701,10 +701,9 @@
     <div id="extras-summary" class="extras-summary" style="display:none;"></div>
     <div id="extras-agenda"></div>
     <!-- ══════════ REFORÇOS EM CURSO ══════════════════════════════════════════
-         O Plano decide; esta tela executa. Faltava o meio-termo: com vários
+         O Motor de Sugestão decide; esta tela executa. Com vários
          assuntos abertos em disciplinas diferentes, o único lugar com o
-         progresso de todos era o bloco dentro da aba Plano — tela de decisão,
-         pesada, e o lugar errado para perguntar "o que eu tenho em andamento?".
+         reforços abertos, este painel responde o que está em andamento sem criar outro modelo de decisão.
          A agenda responde HOJE; este painel responde TUDO EM ABERTO. Uma tela,
          duas leituras. -->
     <div id="extras-curso"></div>

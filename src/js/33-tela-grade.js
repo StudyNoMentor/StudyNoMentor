@@ -68,21 +68,10 @@ function planCycleMode() {
     </select>`;
   }
 
-  /* ── A DIFICULDADE DECLARADA CONTRA A MEDIDA ────────────────────────────
-     Este 1 a 5 distribui as suas horas da semana, e é um chute. O TEC sabe a
-     resposta: 48% de acerto é difícil, 85% não é. Mostramos a nota medida ao
-     lado da declarada — quem discorda continua discordando, mas de um número,
-     não do vazio. Sem amostra suficiente não aparece nada: um palpite do app
-     em cima de doze questões seria pior que o palpite da pessoa. */
-  function medidaHtml(nome, dif) {
-    if (!nome || typeof PlanoPontos === 'undefined') return '';
-    let m = null;
-    try { m = PlanoPontos.dificuldadeMedida(nome); } catch (e) { return ''; }
-    if (!m) return '';
-    if (m.nota === dif) return `<span class="cs-medida ok" title="Você acerta ${m.taxa.toFixed(0)}% nesta matéria, em ${m.q} questões do TEC">✓ bate com o TEC</span>`;
-    return `<button type="button" class="cs-medida" data-adotar="${m.nota}"
-      title="Pelo TEC você acerta ${m.taxa.toFixed(0)}% nesta matéria, em ${m.q} questões — isso equivale a ${m.nota}. Clique para adotar.">TEC diz ${m.nota} (${m.taxa.toFixed(0)}%)</button>`;
-  }
+  /* A dificuldade 1–5 da Grade continua sendo uma escolha manual de carga
+     horária. O TEC não a converte em uma segunda régua de decisão: prioridade
+     de lacunas pertence exclusivamente ao Motor de Sugestão. */
+  function medidaHtml() { return ''; }
   function subjectRowTemplate(s) {
     const nome = s ? s.nome : '';
     const dif = s ? s.dificuldade : 3;

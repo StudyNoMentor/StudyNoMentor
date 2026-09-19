@@ -25,7 +25,7 @@ tem(gov, 'if(m.disciplinasDia==null)m.disciplinasDia=pAntes.disciplinasDia', 'tr
 tem(gov, 'configHistorico', 'mudanças de política precisam ficar auditáveis');
 
 // Histórico: concluído sai do operacional e permanece consultável por completo.
-tem(gov, "e.status === 'concluida' || e.origemPlano.veredito", 'fechamento precisa ser reconhecido');
+tem(gov, "e.status === 'concluida' || o.veredito", 'fechamento precisa ser reconhecido');
 tem(gov, "filter(e=>!self.eFechado(e))", 'Gerenciar deve esconder reforços fechados');
 tem(gov, 'Execução dia a dia', 'histórico deve detalhar execução diária');
 tem(gov, 'Dados de auditoria completos', 'histórico deve permitir auditoria integral');
@@ -62,7 +62,9 @@ tem(motorTec, 'metaAcerto: 90', 'meta de fábrica do Motor deve ser 90%');
 tem(motorTec, 'maxFrentes: [1, 3]', 'rodada acionável deve ter no máximo 3 disciplinas');
 tem(motorTec, '_lacuna(item, p)', 'Motor precisa calcular a distância simples até a meta');
 tem(motorTec, 'minAmostra: 20', 'amostra mínima deve ser o único freio de granularidade');
-tem(motorTec, '_forestEstavel(snap)', 'histórico do Motor deve reconstruir cada retrato antes de consolidar semanticamente');
+tem(motorTec, 'retratoAtual()', 'Motor precisa escolher explicitamente o retrato atual do escopo');
+assert.ok(!motorTec.includes('DesempenhoTecScreen.scopedSnapshot()'), 'Motor não pode consolidar histórico implicitamente para decidir prioridade');
+tem(motorTec, '_forestEstavel(snap)', 'Motor precisa reconstruir de forma estável a árvore do retrato atual');
 tem(motorTec, 'disciplinasSel: []', 'Motor precisa de filtro persistente de disciplinas, vazio = todas');
 tem(motorTec, 'lacunaDisc', 'escolha da matéria precisa usar a distância percentual até a meta');
 tem(motorTec, '_incidenciaDisciplina(nome, mapa)', 'pós-edital deve usar incidência apenas como desempate');

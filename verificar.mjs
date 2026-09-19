@@ -1159,7 +1159,7 @@ try {
     if (!b) return { faltando: true };
     b.click();
     const depois = DB.getExtras();
-    return { criadas: depois.length - antes, comOrigem: depois.filter((e) => e.origemPlano && e.origemPlano.topico).length };
+    return { criadas: depois.length - antes, comOrigem: depois.filter((e) => e.origemMotor && e.origemMotor.topico).length };
   });
   (!criar.faltando && criar.criadas === 1 && criar.comOrigem >= 1)
     ? ok('virar uma frente em atividade grava a origem que fecha o ciclo')
@@ -1443,14 +1443,14 @@ try {
     MotorSugestao.salvar({ metaAcerto: 88 });
     DesempenhoTecScreen.switchTecTab('motor');
     await esperar(300);
-    const alvo = (PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).itens[0] || {});
-    DB.getExtras().filter((e) => e.origemPlano).forEach((e) => DB.deleteExtra && DB.deleteExtra(e.id));
-    DesempenhoTecScreen.criarExtraDoPlano(alvo.nome, alvo.disciplina, alvo.custoQ, 'reforco');
+    const alvo = (MotorSugestao.calcular().itens[0] || {});
+    DB.getExtras().filter((e) => e.origemMotor).forEach((e) => DB.deleteExtra && DB.deleteExtra(e.id));
+    DesempenhoTecScreen.criarExtraDoMotor(alvo.nome, alvo.disciplina, alvo.dose, 'reforco');
     await esperar(250);
-    const extra = DB.getExtras().find((e) => e.origemPlano && e.origemPlano.topico === alvo.nome);
+    const extra = DB.getExtras().find((e) => e.origemMotor && e.origemMotor.topico === alvo.nome);
     const antes = {
-      taxa: alvo.taxa, dominio: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).dominioPct,
-      taxaInicial: extra && extra.origemPlano.taxaInicial, modo: MotorSugestao.prefs().metaAcerto,
+      taxa: alvo.taxa,
+      taxaInicial: extra && extra.origemMotor.taxaInicial, modo: MotorSugestao.prefs().metaAcerto,
       retratos: DB.getTecSnapshots().length
     };
 
@@ -1465,15 +1465,14 @@ try {
     DesempenhoTecScreen.render();
     DesempenhoTecScreen.switchTecTab('motor');
     await esperar(400);
-    const r2 = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-    const depoisAlvo = [].concat(r2.itens, r2.pequenas || []).find((x) => x.nome === alvo.nome);
-    const extra2 = DB.getExtras().find((e) => e.origemPlano && e.origemPlano.topico === alvo.nome);
+    const r2 = MotorSugestao.calcular();
+    const depoisAlvo = [].concat(r2.itens, r2.todos || []).find((x) => x.nome === alvo.nome);
+    const extra2 = DB.getExtras().find((e) => e.origemMotor && e.origemMotor.topico === alvo.nome);
     return {
       antes,
       depois: {
         taxa: depoisAlvo ? depoisAlvo.taxa : null,
-        dominio: r2.dominioPct,
-        taxaInicial: extra2 && extra2.origemPlano.taxaInicial,
+        taxaInicial: extra2 && extra2.origemMotor.taxaInicial,
         modo: MotorSugestao.prefs().metaAcerto,
         retratos: DB.getTecSnapshots().length,
         temExtra: !!extra2,
@@ -1616,7 +1615,7 @@ try {
     DB._set(DB.KEYS.tec, [
       { id: 'g1', nome: 'g1', date: dia(40), startDate: dia(60), endDate: dia(40), rows: linhas(35, 15) },
       { id: 'g2', nome: 'g2', date: dia(3), startDate: dia(30), endDate: dia(3), rows: linhas(30, 10) }]);
-    PlanoEngine.salvarPrefs({ minAmostra: 1, tetoDominio: 100, limite: 50, disciplina: '__todas__', ordenar: 'pior' });
+    MotorSugestao.salvar({ minAmostra: 1, disciplinasSel: [] });
     DesempenhoTecScreen._planoRefC = null;
     DesempenhoTecScreen.render();
     DesempenhoTecScreen.switchTecTab('motor');
@@ -1633,26 +1632,28 @@ try {
     ? ok(`os dois "Principios" continuam separados, com a taxa de cada um (${hom.taxas.join('% e ')}%)`)
     : erro('os homonimos se fundiram no motor: ' + JSON.stringify(hom));
   const filtro = await pag.evaluate(() => {
-    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
-      Object.assign({}, PlanoEngine.prefs(), { disciplina: 'Direito Administrativo' }));
-    return { erro: r.erro || null, assuntos: r.assuntos, dominio: r.dominioPct };
+    const r = MotorSugestao.calcular({ disciplinasSel: ['Direito Administrativo'] });
+    const disc = (r.disciplinasTodas || []).find((d) => d.nome === 'Direito Administrativo');
+    const assuntos = (r.todos || []).filter((x) => x.disciplina === 'Direito Administrativo'
+      && /Princ[ií]pios/.test(x.nome)).length;
+    return { erro: r.erro || null, assuntos, dominio: disc ? disc.taxa : null };
   });
   (!filtro.erro && filtro.assuntos === 1 && Math.round(filtro.dominio) === 10)
     ? ok('filtrar por disciplina acha o homonimo daquela disciplina (10% de dominio)')
     : erro('o filtro por disciplina perdeu o homonimo: ' + JSON.stringify(filtro));
   const ativ = await pag.evaluate(() => {
     const T = DesempenhoTecScreen;
-    const a = T.criarExtraDoPlano('Principios', 'Direito Constitucional', 30, 'reforco', true);
-    const b = T.criarExtraDoPlano('Principios', 'Direito Administrativo', 30, 'reforco', true);
-    const c = T.criarExtraDoPlano('Principios', 'Direito Administrativo', 30, 'reforco', true);
+    const a = T.criarExtraDoMotor('Principios', 'Direito Constitucional', 30, 'reforco', true);
+    const b = T.criarExtraDoMotor('Principios', 'Direito Administrativo', 30, 'reforco', true);
+    const c = T.criarExtraDoMotor('Principios', 'Direito Administrativo', 30, 'reforco', true);
     const extras = DB.getExtras();
-    const r = PlanoEngine.calcular(T.scopedSnapshot(), PlanoEngine.prefs());
+    const r = MotorSugestao.calcular();
     const casados = r.itens.map((x) => {
-      const e = extras.find((e2) => T._casaTopico(e2.origemPlano, x.nome, x.disciplina));
-      return e ? e.origemPlano.disciplina : null;
+      const e = extras.find((e2) => T._casaTopico(e2.origemMotor, x.nome, x.disciplina));
+      return e ? e.origemMotor.disciplina : null;
     });
     return { criou: [a, b], recusouRepetida: c === false, total: extras.length,
-      taxas: extras.map((e) => e.origemPlano.disciplina + ':' + Math.round(e.origemPlano.taxaInicial)),
+      taxas: extras.map((e) => e.origemMotor.disciplina + ':' + Math.round(e.origemMotor.taxaInicial)),
       casados, distintos: new Set(casados).size };
   });
   (ativ.criou[0] && ativ.criou[1] && ativ.recusouRepetida && ativ.total === 2)
@@ -1837,67 +1838,74 @@ try {
 console.log('\n6.15) o ciclo de uma atividade do Motor, ponta a ponta');
 try {
   await pag.setViewportSize({ width: 390, height: 844 });
+  /* O Motor mantem uma frente ativa por disciplina, entao cada assunto deste
+     percurso vive em sua propria disciplina. O retrato mais recente e a unica
+     fonte lida pelo Motor (nao ha mais consolidado historico): o contador do
+     assunto na origem reflete somente o ultimo retrato antes da atividade. */
   const cria = await pag.evaluate(() => {
     const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
     const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
     const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
-    const base = (a, b, c) => [D('Dir Adm', 300, a + b + c), L('01', 'Licitacoes', 'Dir Adm', 100, a),
-      L('02', 'Atos', 'Dir Adm', 100, b), L('03', 'Contratos', 'Dir Adm', 100, c)];
+    const base = (a, b, c) => [D('Licitacoes', 100, a), L('01', 'Licitacoes', 'Licitacoes', 100, a),
+      D('Atos', 100, b), L('01', 'Atos', 'Atos', 100, b),
+      D('Contratos', 100, c), L('01', 'Contratos', 'Contratos', 100, c)];
     DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
     DB._set(DB.KEYS.tec, [R('c1', dia(90), dia(70), base(40, 40, 45)), R('c2', dia(60), dia(35), base(40, 40, 45))]);
-    MotorSugestao.salvar({ metaAcerto: 85 });
-    PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, disciplina: '__todas__' });
+    MotorSugestao.salvar({ metaAcerto: 85, minAmostra: 1, disciplinasSel: [] });
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
     switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
-    ['Licitacoes', 'Atos', 'Contratos'].forEach((t) => DesempenhoTecScreen.criarExtraDoPlano(t, 'Dir Adm', 120, 'reforco', true));
-    return DB.getExtras().map((e) => ({ t: e.origemPlano.topico, qBase: e.origemPlano.qBase,
-      taxa: e.origemPlano.taxaInicial, meta: e.origemPlano.metaAlvo }));
+    [['Licitacoes', 'Licitacoes'], ['Atos', 'Atos'], ['Contratos', 'Contratos']]
+      .forEach(([t, d]) => DesempenhoTecScreen.criarExtraDoMotor(t, d, 120, 'reforco', true));
+    return DB.getExtras().map((e) => ({ t: e.origemMotor.topico, qBase: e.origemMotor.qBase,
+      taxa: e.origemMotor.taxaInicial, meta: e.origemMotor.metaAlvo }));
   });
-  (cria.length === 3 && cria.every((x) => x.qBase === 200 && x.taxa != null && x.meta === 85))
-    ? ok('criar pelo Plano grava o contador do assunto, a taxa inicial e a meta do dia')
+  (cria.length === 3 && cria.every((x) => x.qBase === 100 && x.taxa != null && x.meta === 85))
+    ? ok('criar pelo Motor grava o contador do assunto (no ultimo retrato), a taxa inicial e a meta do dia')
     : erro('a origem da atividade veio incompleta: ' + JSON.stringify(cria));
 
-  // o retrato novo: um resolveu, um piorou, um esta a meio caminho
+  // o retrato novo: um resolveu, os outros seguem abertos (o Motor nunca fecha por piora)
   const dep = await pag.evaluate(() => {
     const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
     const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
     const s = DB.getTecSnapshots();
     s.push({ id: 'c3', nome: 'c3', date: dia(1), startDate: dia(20), endDate: dia(1), rows: [
-      D('Dir Adm', 350, 195), L('01', 'Licitacoes', 'Dir Adm', 150, 138),
-      L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)] });
+      D('Licitacoes', 150, 138), L('01', 'Licitacoes', 'Licitacoes', 150, 138),
+      D('Atos', 150, 42), L('01', 'Atos', 'Atos', 150, 42),
+      D('Contratos', 50, 15), L('01', 'Contratos', 'Contratos', 50, 15)] });
     DB._set(DB.KEYS.tec, s);
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
     DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
     const por = {};
-    DB.getExtras().forEach((e) => { por[e.origemPlano.topico] = { st: e.status,
-      v: e.origemPlano.veredito ? e.origemPlano.veredito.tipo : null,
-      pp: e.origemPlano.veredito ? e.origemPlano.veredito.ganhoPP : null }; });
+    DB.getExtras().forEach((e) => { const v = e.origemMotor && e.origemMotor.veredito;
+      por[e.origemMotor.topico] = { st: e.status,
+      v: v ? v.tipo : null,
+      pp: v ? (v.taxaFinal - v.taxaInicial) : null }; });
     /* O progresso medido pelo retrato e a lista de ciclos fechados vivem no
        modelo, nao mais numa tela: e o mesmo dado que a tela de Atividades le. */
-    const emCurso = PlanoCiclo.emCurso(PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))
+    const emCurso = MotorCiclo.emCurso()
       .map((x) => x.origem.topico + ' ' + x.feito + '/' + x.alvo);
     const motor = document.getElementById('motor-lista');
     return { por, emCurso,
-      hist: PlanoCiclo.fechados().length,
+      hist: MotorCiclo.fechados().length,
       podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test((motor || {}).textContent || ''),
       vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth };
   });
-  (dep.por.Licitacoes.st === 'concluida' && dep.por.Licitacoes.v === 'funcionou' && dep.por.Licitacoes.pp > 50)
+  (dep.por.Licitacoes.st === 'concluida' && dep.por.Licitacoes.v === 'resolvida' && dep.por.Licitacoes.pp > 0)
     ? ok(`o assunto que atingiu a meta encerra sozinho, com o ganho registrado (+${dep.por.Licitacoes.pp}pp)`)
     : erro('o veredito de sucesso nao saiu: ' + JSON.stringify(dep.por.Licitacoes));
-  (dep.por.Atos.st === 'concluida' && dep.por.Atos.v === 'naoFuncionou' && dep.por.Atos.pp < 0)
-    ? ok(`cumpriu as questoes e a taxa caiu → veredito "nao funcionou" (${dep.por.Atos.pp}pp), que e o diagnostico`)
-    : erro('o veredito negativo nao saiu: ' + JSON.stringify(dep.por.Atos));
+  (dep.por.Atos.st === 'ativa' && dep.por.Atos.v === null)
+    ? ok('a taxa caiu mas o assunto continua na frente prioritaria; o Motor nunca fecha uma atividade so por piorar')
+    : erro('o assunto que piorou foi encerrado indevidamente: ' + JSON.stringify(dep.por.Atos));
   (dep.por.Contratos.st === 'ativa' && dep.por.Contratos.v === null)
     ? ok('e o que ainda esta a meio caminho continua aberto')
     : erro('atividade em andamento foi encerrada por engano: ' + JSON.stringify(dep.por.Contratos));
-  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]))
-    ? ok('o ciclo conta as questoes a partir do retrato, sem lancamento manual (50/120)')
+  (dep.emCurso.length === 2 && dep.emCurso.some((x) => /Atos 50\/120/.test(x)))
+    ? ok('o ciclo conta as questoes a partir do retrato, sem lancamento manual (Atos 50/120)')
     : erro('o progresso automatico nao apareceu: ' + JSON.stringify(dep.emCurso));
-  dep.hist === 2 ? ok('e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"')
-    : erro(`historico com ${dep.hist} ciclo(s), esperado 2`);
+  dep.hist === 1 ? ok('e o unico ciclo fechado entra no historico "o que os retratos ja julgaram"')
+    : erro(`historico com ${dep.hist} ciclo(s), esperado 1`);
   (!dep.podre && dep.vaza === 0) ? ok('nenhum numero podre e nenhum vazamento a 390px')
     : erro(`ciclo na tela: podre=${dep.podre} vazamento=${dep.vaza}px`);
 
@@ -1911,34 +1919,17 @@ try {
        leitura analitica legada, Simplificado e Robusto, as tres iguais. Com os
        tres coexistindo isso impede a conferencia que mais importa: o que esta
        na fila saiu do modelo que eu escolhi? Agora a etiqueta nomeia a fonte
-       (o dado ja estava em `origemPlano.sugestao.motor`, so nao chegava a
+       (o dado ja estava em `origemMotor.sugestao.motor`, so nao chegava a
        tela). O que este teste garante continua sendo o mesmo — o cartao diz de
        ONDE veio —, e passa a aceitar qualquer uma das tres fontes em vez de
        exigir a frase generica que existia quando havia so uma. */
     return { doPlano: /Motor · (pré|pós)-edital|do TEC/.test(t),
-      evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
       barra: /50 \/ 120/.test(t) };
   });
-  (card.doPlano && card.evo && card.barra)
-    ? ok('o cartao da atividade nomeia a fase em que foi escolhida, mostra 45% → 30% e a barra em 50/120')
+  (card.doPlano && card.barra)
+    ? ok('o cartao da atividade nomeia a fase em que foi escolhida e mostra a barra em 50/120')
     : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
 
-  // a calibragem so aparece com historico, e propoe o SEU numero
-  const cal = await pag.evaluate(() => {
-    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-    const fake = (t, q, ini, fim) => {
-      const e = DB.addExtra({ titulo: t, tipo: 'questoes', alvo: q, periodo: 'unica', contaMetricas: false });
-      DB.updateExtra(e.id, { status: 'concluida', origemPlano: { topico: t, disciplina: 'Dir Adm', criadoEm: dia(30),
-        veredito: { tipo: 'funcionou', em: todayLocal(), taxaInicial: ini, taxaFinal: fim, ganhoPP: fim - ini, questoes: q, alvo: q } } });
-    };
-    const antes = PlanoCiclo.calibragem().pronta;
-    fake('K1', 100, 40, 58); fake('K2', 200, 50, 86);
-    const c = PlanoCiclo.calibragem();
-    return { antes, pronta: c.pronta, n: c.n, qPorPonto: c.qPorPonto, atual: c.atual };
-  });
-  (cal.antes === false && cal.pronta && cal.n >= 3)
-    ? ok(`a calibragem so liga com historico: ${cal.n} ciclos → ${cal.qPorPonto} questoes por ponto (o padrao era ${cal.atual})`)
-    : erro('a calibragem nao ficou pronta como devia: ' + JSON.stringify(cal));
   await pag.evaluate(() => { DB._set(DB.KEYS.extras, []); });
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('o ciclo da atividade falhou: ' + e.message); }
@@ -1960,11 +1951,21 @@ try {
       D('Portugues', 100, 45), L('01', 'Crase', 'Portugues', 100, 45)];
     DB.saveIncidencia([]); DB._set(DB.KEYS.extras, []);
     DB._set(DB.KEYS.tec, [R('g1', dia(60), dia(40), linhas()), R('g2', dia(30), dia(2), linhas())]);
-    PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, cadenciaDias: 30, disciplina: '__todas__' });
+    MotorSugestao.salvar({ minAmostra: 1, disciplinasSel: [] });
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
     switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
-    [['Licitacoes', 'Dir Adm'], ['Atos', 'Dir Adm'], ['Crase', 'Portugues']]
-      .forEach(([t, d]) => DesempenhoTecScreen.criarExtraDoPlano(t, d, 120, 'reforco', true));
+    /* Duas frentes na mesma disciplina simultaneamente: o Motor so permite uma
+       frente ativa por disciplina pelo botao (regra deliberada), entao aqui a
+       segunda atividade de "Dir Adm" e gravada direto, como se ja existisse
+       antes da regra — o que este bloco testa e o agrupamento na tela de
+       Atividades, nao a regra de uma frente por vez. */
+    const r0 = MotorSugestao.calcular();
+    [['Licitacoes', 'Dir Adm'], ['Atos', 'Dir Adm'], ['Crase', 'Portugues']].forEach(([t, d]) => {
+      const item = [].concat(r0.itens || [], r0.todos || []).find((x) => x.nome === t && x.disciplina === d) || { nome: t, disciplina: d };
+      const e = DB.addExtra({ titulo: MotorCiclo.titulo(t, item.membros), tipo: 'questoes', disciplina: d,
+        unidade: 'questoes', alvo: 120, periodo: 'unica', contaMetricas: false });
+      DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(t, d, item) });
+    });
     switchScreen('extras'); ExtrasScreen.render();
     const painel = document.getElementById('extras-curso');
     return {
@@ -2020,12 +2021,6 @@ try {
     : erro(`a jornada violou ${j.totalFalhas} invariante(s):\n    `
       + [...new Set(j.falhas.map((f) => f.passo + ' :: ' + f.o))].slice(0, 10).join('\n    ')
       + '\n    exemplo: ' + JSON.stringify(j.falhas[0]));
-  (s.pisoOferecido && s.assuntos1 > 0)
-    ? ok(`no 1o retrato de uma arvore funda a tela oferece a lente (piso ${s.pisoOferecido}) e o Plano passa a existir (${s.assuntos1} unidades onde havia zero)`)
-    : erro('a lente nao salvou o primeiro retrato: ' + JSON.stringify(s));
-  (s.progressoPreservado > 0 && s.repinadas > 0)
-    ? ok(`e apagar um retrato preservou o progresso medido de ${s.progressoPreservado} atividade(s) (${s.repinadas} re-pinadas), em vez de zerar`)
-    : erro('o progresso nao foi preservado ao apagar retrato: ' + JSON.stringify(s));
 } catch (e) {
   erro('a jornada simulada nao rodou: ' + e.message);
 }

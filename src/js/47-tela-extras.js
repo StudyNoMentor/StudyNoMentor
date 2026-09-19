@@ -21,7 +21,7 @@ const ExtrasScreen = {
   _CHECK: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>',
   render() {
     // caches estritamente de uma pintura: nenhuma informação atravessa um render.
-    this._planoRefCard = null;
+    this._motorRefCard = null;
     this._occCache = new Map();
     const extras = DB.getExtras();
     DB._extrasReadSnapshot = extras;
@@ -121,20 +121,11 @@ const ExtrasScreen = {
        duas vezes — e sem apagar o host, senão o esqueleto que acabou de ser
        pintado sumiria antes de o cálculo começar. */
     if (this._pularEmCurso) return;
-    const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
-    if (!extrasPlano.length) { host.innerHTML = ''; return; }
+    const extrasMotor = DB.getExtras().filter(e => typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).topico && e.status !== 'concluida');
+    if (!extrasMotor.length) { host.innerHTML = ''; return; }
     let itens = [];
-    try {
-      /* Repinturas encadeadas (registrar → concluir → reabrir) não precisam
-         recalcular a mesma fotografia do TEC a cada clique. O cache curto do
-         próprio Desempenho TEC já é a régua usada pela criação em lote e é
-         invalidado quando o escopo muda. */
-      const refPlano = (typeof DesempenhoTecScreen !== 'undefined' && typeof DesempenhoTecScreen._planoRef === 'function')
-        ? DesempenhoTecScreen._planoRef()
-        : PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard = refPlano));
-    }
-    catch (e) { _quiet(e, 'curso'); }
+    try { itens = MotorCiclo.emCurso(); }
+    catch (e) { _quiet(e, 'curso-motor'); }
     if (!itens.length) { host.innerHTML = ''; return; }
     const aberto = this._cursoAberto !== false;
     const totalFalta = itens.reduce((a, v) => a + Math.max(0, v.alvo - v.feito), 0);
@@ -163,16 +154,18 @@ const ExtrasScreen = {
       gaps.sort((x, y) => x - y);
       const cadencia = gaps.length ? gaps[gaps.length >> 1] : 30;
       const ult = snaps[snaps.length - 1];
-      const idade = ult ? PlanoEngine._diasDesde(fim(ult)) : 0;
+      const idade = ult && fim(ult) ? Math.max(0, Math.floor((new Date(todayLocal() + 'T00:00:00') - new Date(fim(ult) + 'T00:00:00')) / 86400000)) : 0;
       dias = Math.max(1, cadencia - idade);
     } catch (e) { _quiet(e, 'curso-dias'); }
     const porDia = Math.max(1, Math.ceil(totalFalta / dias));
-    /* `mediu` é o desfecho do DIAGNÓSTICO: ele foi buscar amostra, não acerto.
-       Chamá-lo de "volume não resolveu" era julgar pela régua do reforço uma
-       atividade que cumpriu exatamente o que prometeu. */
-    const SELO = { funcionou: ['✅', 'tone-good', 'resolvido'], naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
-      subiu: ['📈', 'tone-good', 'subindo'], mediu: ['🔬', 'incid', 'já dá para medir'],
-      andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
+    const SELO = {
+      resolvida: ['✅', 'tone-good', 'lacuna fechada'],
+      rotacionada: ['🔄', 'tone-good', 'saiu do grupo prioritário'],
+      rodada: ['✓', 'incid', 'rodada cumprida'],
+      aguardando: ['⏳', 'incid', 'aguardando novo retrato'],
+      andamento: ['▶', 'incid', 'em andamento'],
+      orfa: ['❓', '', 'sem correspondência no TEC']
+    };
     const linha = (v) => {
       const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
       const falta = Math.max(0, v.alvo - v.feito);
@@ -321,62 +314,63 @@ const ExtrasScreen = {
      hierárquica, mesma régua e mesma fase. O diálogo só deixa escolher quais
      frentes executar hoje. Cada frente mantém sua própria dose útil; marcar
      mais uma não espreme as anteriores até virar atividade simbólica. */
-  puxarDoPlano() {
+  puxarDoMotor() {
     if (typeof MotorSugestao === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Motor indisponível'); return; }
     const motorPrefsIni = MotorSugestao.prefs();
-    this._planoDiscSel = new Set(Array.isArray(motorPrefsIni.disciplinasSel) ? motorPrefsIni.disciplinasSel : []); // vazio = todas
-    this._planoDiscOpen = false;
-    this._planoSel = new Set();
-    this._planoRecalc = () => {
+    this._motorDiscSel = new Set(Array.isArray(motorPrefsIni.disciplinasSel) ? motorPrefsIni.disciplinasSel : []); // vazio = todas
+    this._motorDiscOpen = false;
+    this._motorSel = new Set();
+    this._motorRecalc = () => {
       const r = MotorSugestao.calcular();
-      if (!r || r.erro) { this._planoCand = null; this._planoErr = (r && r.erro) || 'erro'; return; }
+      if (!r || r.erro) { this._motorCand = null; this._motorErr = (r && r.erro) || 'erro'; return; }
       /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do app. Comparar
          só o nome fazia criar "Atos" de Administrativo esconder o "Atos" de
          Constitucional deste diálogo: dois assuntos de verdade, um deles sem
          porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
          bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
          uso normal do app, não uma duplicata. */
-      const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
-      const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x))
-        || !!PlanoEngine.atividadeSobreposta(x.nome, x.disciplina, x.membros);
-      this._planoPrefs = r.prefs;
-      this._planoFase = r.fase;
-      this._planoDiscOrder = (r.disciplinas || []).map(d => d.nome);
-      this._planoDiscsDisponiveis = (r.disciplinasDisponiveis || []).slice();
-      this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 240);
+      const abertas = DB.getExtras().filter(e => typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(e) && e.status !== 'concluida');
+      const disciplinasEmCurso = new Set(abertas.map(e => ReforcoEngine.norm((MotorCiclo.origemDe(e) || {}).disciplina || '')).filter(Boolean));
+      const jaTem = (x) => disciplinasEmCurso.has(ReforcoEngine.norm(x.disciplina || ''))
+        || !!MotorCiclo.atividadeSobreposta(x.nome, x.disciplina, x.membros);
+      this._motorPrefs = r.prefs;
+      this._motorFase = r.fase;
+      this._motorDiscOrder = (r.disciplinas || []).map(d => d.nome);
+      this._motorDiscsDisponiveis = (r.disciplinasDisponiveis || []).slice();
+      this._motorCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 240);
       /* A recomendação da aba Motor pode já ter atividade aberta. Nesse caso,
          não deixamos um "buraco" entre recomendação 1 e 3: dentro da mesma
          disciplina pegamos a primeira frente seguinte que ainda está livre.
          A ordem das MATÉRIAS continua a mesma; só avançamos a fila interna. */
       const disponivel = new Map();
-      this._planoCand.forEach(x => {
+      this._motorCand.forEach(x => {
         const d = ReforcoEngine.norm(x.disciplina || '');
         if (d && !disponivel.has(d)) disponivel.set(d, x);
       });
-      this._planoFila = [];
+      this._motorFila = [];
       (r.disciplinas || []).slice(0, r.prefs.maxFrentes || 3).forEach(d => {
         const x = disponivel.get(ReforcoEngine.norm(d.nome || ''));
-        if (x) this._planoFila.push(x.disciplina + '\u0001' + x.nome);
+        if (x) this._motorFila.push(x.disciplina + '\u0001' + x.nome);
       });
-      this._planoErr = null;
+      this._motorErr = null;
     };
-    this._planoRecalc();
-    if (this._planoErr) {
-      showToast(this._planoErr === 'sem-incidencia'
+    this._motorRecalc();
+    if (this._motorErr) {
+      showToast(this._motorErr === 'sem-incidencia'
         ? 'O pós-edital precisa da incidência da banca. Importe-a em Desempenho TEC → Incidência.'
-        : this._planoErr === 'sem-retrato'
+        : this._motorErr === 'sem-retrato'
           ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
           : 'Sem dados suficientes para o motor ainda');
       return;
     }
-    if (!this._planoCand.length) { showToast('Todas as frentes prioritárias já têm atividade'); return; }
+    if (!this._motorCand.length) { showToast('Todas as frentes prioritárias já têm atividade'); return; }
     /* Nascem marcadas exatamente as frentes que o Motor colocaria na rodada de
        hoje — a tela de Extras não pode discordar da aba do Motor. */
-    this._planoSelecionarRecomendadas();
+    this._motorSelecionarRecomendadas();
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
     const body = `
-      <p class="hint" style="margin:0 0 10px;">Este diálogo usa exatamente o mesmo 🧭 Motor e o mesmo filtro de disciplinas da tela TEC. Primeiro ele escolhe até <b>${this._planoPrefs.maxFrentes} matéria(s)</b> pela maior distância simples até a meta${this._planoFase === 'pos' ? '; a incidência da banca só desempata' : ''}; depois pega <b>uma frente de cada</b>, seguindo a fila hierárquica da matéria. As recomendadas ficam juntas no topo; alternativas ficam agrupadas logo abaixo.</p>
+      <p class="hint" style="margin:0 0 10px;">Este diálogo usa exatamente o mesmo 🧭 Motor e o mesmo filtro de disciplinas da tela TEC. Primeiro ele escolhe até <b>${this._motorPrefs.maxFrentes} matéria(s)</b> pela maior distância simples até a meta${this._motorFase === 'pos' ? '; a incidência da banca só desempata' : ''}; depois pega <b>uma frente de cada</b>, seguindo a fila hierárquica da matéria. As recomendadas ficam juntas no topo; alternativas ficam agrupadas logo abaixo.</p>
       <div class="pl-modal-tools">
         <div class="pl-modal-field" style="position:relative;">
           <span>Disciplinas</span>
@@ -398,19 +392,22 @@ const ExtrasScreen = {
       if (!ok) return;
       const criar = () => {
         let n = 0;
-        const doses = this._planoDoses();
-        (this._planoCand || []).forEach((x, i) => {
-          if (!this._planoSel || !this._planoSel.has(i)) return;
+        const doses = this._motorDoses();
+        (this._motorCand || []).forEach((x, i) => {
+          if (!this._motorSel || !this._motorSel.has(i)) return;
           const e = DB.addExtra({
-            // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
-            titulo: PlanoCiclo.titulo(x.nome, 'reforco', x.membros),
+            titulo: MotorCiclo.titulo(x.nome, x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-            alvo: Math.max(1, doses[i] || this._planoPrefs.alvoQuestoes), periodo: 'unica', contaMetricas: false,
+            alvo: Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes), periodo: 'unica', contaMetricas: false,
             obs: 'Gerado pelo Motor de sugestão — dose própria do reforço hierárquico.'
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: 'reforco' }) }); n++; }  // `x` é a frente do Motor: amostra, bloco e membros vão junto
+          if (e) {
+            const doseCriada = Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes);
+            DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, Object.assign({}, x, { dose: doseCriada })) });
+            n++;
+          }
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -421,7 +418,7 @@ const ExtrasScreen = {
     });
 
     // liga a interface do diálogo depois de renderizado
-    setTimeout(() => this._planoBind(), 40);
+    setTimeout(() => this._motorBind(), 40);
   },
   /* ── TRÊS DISCIPLINAS, UM TÓPICO CADA ─────────────────────────────────────
      O contrato de execução do motor vale aqui também, e vale como REGRA, não
@@ -429,37 +426,37 @@ const ExtrasScreen = {
      frente. Marcar um segundo tópico da mesma disciplina TROCA o que já estava
      marcado nela — é o gesto que a pessoa quis fazer. O que não passa é abrir
      uma quarta disciplina: aí a escolha é dela, e a tela diz o que fazer. */
-  _planoSelecionarRecomendadas() {
-    this._planoSel = new Set();
-    const naFila = new Set(this._planoFila || []);
-    (this._planoCand || []).forEach((x, i) => {
-      if (naFila.has(x.disciplina + '\u0001' + x.nome)) this._planoSel.add(i);
+  _motorSelecionarRecomendadas() {
+    this._motorSel = new Set();
+    const naFila = new Set(this._motorFila || []);
+    (this._motorCand || []).forEach((x, i) => {
+      if (naFila.has(x.disciplina + '\u0001' + x.nome)) this._motorSel.add(i);
     });
-    if (!this._planoSel.size && (this._planoCand || []).length) this._planoSel.add(0);
+    if (!this._motorSel.size && (this._motorCand || []).length) this._motorSel.add(0);
   },
-  _planoMarcar(i, silencioso) {
-    const cand = this._planoCand || [];
+  _motorMarcar(i, silencioso) {
+    const cand = this._motorCand || [];
     const x = cand[i];
     if (!x) return false;
     const chave = (y) => String((y && y.disciplina) || '').trim().toLowerCase();
-    const marcados = [...this._planoSel].map(k => ({ k, x: cand[k] })).filter(o => o.x);
+    const marcados = [...this._motorSel].map(k => ({ k, x: cand[k] })).filter(o => o.x);
     const mesma = marcados.find(o => chave(o.x) === chave(x));
-    if (mesma) this._planoSel.delete(mesma.k);
+    if (mesma) this._motorSel.delete(mesma.k);
     const discs = new Set(marcados.filter(o => o !== mesma).map(o => chave(o.x)));
-    const teto = (this._planoPrefs || MotorSugestao.prefs()).maxFrentes;
+    const teto = (this._motorPrefs || MotorSugestao.prefs()).maxFrentes;
     if (!mesma && discs.size >= teto) {
       if (!silencioso) showToast(`A rodada abre ${teto} disciplina(s), uma frente em cada. Desmarque uma para trocar.`);
       return false;
     }
-    this._planoSel.add(i);
+    this._motorSel.add(i);
     return true;
   },
   /* Cada frente conserva uma dose independente. O seletor muda O QUE será
      estudado, não comprime todas as atividades dentro de um orçamento único. */
-  _planoDoses() {
-    const cand = this._planoCand || [];
-    const p = this._planoPrefs || MotorSugestao.prefs();
-    const escolhidos = [...(this._planoSel || [])].sort((a, b) => a - b)
+  _motorDoses() {
+    const cand = this._motorCand || [];
+    const p = this._motorPrefs || MotorSugestao.prefs();
+    const escolhidos = [...(this._motorSel || [])].sort((a, b) => a - b)
       .map(i => ({ i, x: cand[i] })).filter(o => o.x);
     if (!escolhidos.length) return {};
     const copia = escolhidos.map(o => ({
@@ -474,13 +471,13 @@ const ExtrasScreen = {
     return out;
   },
   // Preenche a lista de assuntos do diálogo conforme o filtro de disciplinas atual.
-  _planoRenderLista() {
+  _motorRenderLista() {
     const host = document.getElementById('pl-lista');
     if (!host) return;
-    const cand = this._planoCand || [];
-    const doses = this._planoDoses();
-    const pos = this._planoFase === 'pos';
-    const recomendadas = new Set(this._planoFila || []);
+    const cand = this._motorCand || [];
+    const doses = this._motorDoses();
+    const pos = this._motorFase === 'pos';
+    const recomendadas = new Set(this._motorFila || []);
     const porDisc = new Map();
     cand.forEach((x, i) => {
       const d = x.disciplina || '—';
@@ -490,7 +487,7 @@ const ExtrasScreen = {
     const linha = ({ x, i }, destaque, ordem) => {
       const dose = doses[i];
       return '<label class="sug-row pl-linha ' + (destaque ? 'is-recommended' : '') + '" style="align-items:flex-start;">'
-        + '<input type="checkbox" class="pl-pick" data-i="' + i + '" ' + (this._planoSel.has(i) ? 'checked' : '') + '>'
+        + '<input type="checkbox" class="pl-pick" data-i="' + i + '" ' + (this._motorSel.has(i) ? 'checked' : '') + '>'
         + '<div style="min-width:0;">'
         + (destaque ? '<div class="pl-rec-eyebrow">Recomendação ' + ordem + ' · ' + escapeHtml(x.disciplina || '') + '</div>' : '')
         + '<div style="font-weight:700;">' + escapeHtml(x.nome)
@@ -513,7 +510,7 @@ const ExtrasScreen = {
       top.push(linha({ x, i }, true, ++ordem));
     });
     const grupos = [];
-    (this._planoDiscOrder || [...porDisc.keys()]).forEach(d => {
+    (this._motorDiscOrder || [...porDisc.keys()]).forEach(d => {
       const itens = porDisc.get(d) || [];
       if (!itens.length) return;
       const alternativas = itens.filter(({ x }) => !recomendadas.has(x.disciplina + '\u0001' + x.nome));
@@ -533,46 +530,46 @@ const ExtrasScreen = {
 
     host.querySelectorAll('.pl-pick').forEach(cb => cb.addEventListener('change', () => {
       const i = parseInt(cb.dataset.i, 10);
-      if (!cb.checked) { this._planoSel.delete(i); this._planoRenderLista(); return; }
-      if (this._planoMarcar(i)) this._planoRenderLista();
+      if (!cb.checked) { this._motorSel.delete(i); this._motorRenderLista(); return; }
+      if (this._motorMarcar(i)) this._motorRenderLista();
       else cb.checked = false;
     }));
-    this._planoUpdConta();
+    this._motorUpdConta();
   },
-  _planoUpdConta() {
+  _motorUpdConta() {
     const conta = document.getElementById('pl-conta');
     if (!conta) return;
-    const cand = this._planoCand || [];
+    const cand = this._motorCand || [];
     const vis = cand.length;
     const nDisc = new Set(cand.map(x => x.disciplina || '')).size;
-    const marcados = this._planoSel ? this._planoSel.size : 0;
-    const p = this._planoPrefs || MotorSugestao.prefs();
+    const marcados = this._motorSel ? this._motorSel.size : 0;
+    const p = this._motorPrefs || MotorSugestao.prefs();
     conta.innerHTML = `${vis} frente(s) em ${nDisc} matéria(s)`
       + ` · <strong>${marcados} marcada(s)</strong>`
       + (marcados ? ` · ${p.alvoQuestoes} questões por atividade` : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
-  _planoBind() {
-    const discs = (this._planoDiscsDisponiveis || []).slice().sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  _motorBind() {
+    const discs = (this._motorDiscsDisponiveis || []).slice().sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const panel = document.getElementById('pl-disc-panel');
     const toggle = document.getElementById('pl-disc-toggle');
     const setToggleLabel = () => {
-      const n = this._planoDiscSel.size;
+      const n = this._motorDiscSel.size;
       if (toggle) toggle.firstChild.textContent = (n === 0 ? 'Todas ' : n + ' selecionada' + (n > 1 ? 's ' : ' '));
     };
     const recalcular = () => {
-      MotorSugestao.salvar({ disciplinasSel: [...this._planoDiscSel] });
-      this._planoRecalc();
-      if (this._planoErr) { showToast('Sem dados suficientes neste recorte'); return; }
-      this._planoSelecionarRecomendadas();
-      this._planoRenderLista();
+      MotorSugestao.salvar({ disciplinasSel: [...this._motorDiscSel] });
+      this._motorRecalc();
+      if (this._motorErr) { showToast('Sem dados suficientes neste recorte'); return; }
+      this._motorSelecionarRecomendadas();
+      this._motorRenderLista();
     };
     if (panel) {
       panel.innerHTML = '<div class="pl-disc-actions is-first"><button type="button" data-act="all" class="'
-        + (this._planoDiscSel.size ? '' : 'active') + '">✓ Todas as disciplinas</button></div>'
+        + (this._motorDiscSel.size ? '' : 'active') + '">✓ Todas as disciplinas</button></div>'
         + '<label class="pl-disc-search"><span>⌕</span><input type="search" placeholder="Buscar disciplina" autocomplete="off"></label>'
         + discs.map(d => '<label class="pl-disc-check" data-s="' + escapeHtml(ReforcoEngine.norm(d)) + '">'
-          + '<input type="checkbox" data-disc="' + escapeHtml(d) + '" ' + (this._planoDiscSel.has(d) ? 'checked' : '') + '>'
+          + '<input type="checkbox" data-disc="' + escapeHtml(d) + '" ' + (this._motorDiscSel.has(d) ? 'checked' : '') + '>'
           + '<span class="pl-disc-name">' + escapeHtml(d) + '</span></label>').join('');
       const busca = panel.querySelector('input[type="search"]');
       if (busca) busca.oninput = () => {
@@ -581,27 +578,27 @@ const ExtrasScreen = {
       };
       panel.querySelectorAll('input[data-disc]').forEach(chk => chk.addEventListener('change', () => {
         const d = chk.dataset.disc;
-        if (chk.checked) this._planoDiscSel.add(d); else this._planoDiscSel.delete(d);
+        if (chk.checked) this._motorDiscSel.add(d); else this._motorDiscSel.delete(d);
         setToggleLabel(); recalcular();
       }));
       const allBtn = panel.querySelector('[data-act="all"]');
       if (allBtn) allBtn.addEventListener('click', () => {
-        this._planoDiscSel.clear();
+        this._motorDiscSel.clear();
         panel.querySelectorAll('input[data-disc]').forEach(x => x.checked = false);
         setToggleLabel(); recalcular();
       });
     }
     if (toggle) toggle.addEventListener('click', () => {
-      this._planoDiscOpen = !this._planoDiscOpen;
-      if (panel) panel.style.display = this._planoDiscOpen ? 'block' : 'none';
-      toggle.classList.toggle('open', this._planoDiscOpen);
+      this._motorDiscOpen = !this._motorDiscOpen;
+      if (panel) panel.style.display = this._motorDiscOpen ? 'block' : 'none';
+      toggle.classList.toggle('open', this._motorDiscOpen);
     });
     setToggleLabel();
     const marcar = document.getElementById('pl-marcar');
-    if (marcar) marcar.addEventListener('click', () => { this._planoSelecionarRecomendadas(); this._planoRenderLista(); });
+    if (marcar) marcar.addEventListener('click', () => { this._motorSelecionarRecomendadas(); this._motorRenderLista(); });
     const limpar = document.getElementById('pl-limpar');
-    if (limpar) limpar.addEventListener('click', () => { this._planoSel.clear(); this._planoRenderLista(); });
-    this._planoRenderLista();
+    if (limpar) limpar.addEventListener('click', () => { this._motorSel.clear(); this._motorRenderLista(); });
+    this._motorRenderLista();
   },
   // Cartão de TAREFA DO DIA: controle individual por dia (concluir/registrar valem só neste dia)
   cardHtml(x, day) {
@@ -622,19 +619,13 @@ const ExtrasScreen = {
     const feitoDia = (x.historico || []).filter(h => h.data === day).reduce((a, h) => a + (h.quantidade || 0), 0);
     const diaria = x.periodo === 'diaria';
     let feito = !rec ? (x.progresso || 0) : (diaria ? feitoDia : DB.extraProgressoPeriodo(x));
-    /* ── ATIVIDADE DO PLANO: O RETRATO CONTA POR VOCÊ ────────────────────────
-       Resolver 150 questões no TEC e importar o retrato deixava esta barra em
-       0/120: a mesma pessoa lançando o mesmo fato duas vezes, e esquecendo a
-       segunda. Agora o progresso de uma atividade do Plano vale
-       `max(digitado, medido no retrato)` — importar só empurra para cima, e
-       quem resolve questão fora do TEC continua podendo lançar na mão. */
+    /* Atividade do Motor: o progresso medido no TEC conta automaticamente. */
     let ciclo = null;
-    if (x.origemPlano && x.origemPlano.topico && typeof PlanoCiclo !== 'undefined') {
+    if (typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(x)) {
       try {
-        ciclo = PlanoCiclo.avaliar(x, this._planoRefCard || (this._planoRefCard =
-          PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs())));
+        ciclo = MotorCiclo.avaliar(x);
         if (ciclo && ciclo.feito > feito) feito = ciclo.feito;
-      } catch (e) { _quiet(e, 'card-ciclo'); }
+      } catch (e) { _quiet(e, 'card-ciclo-motor'); }
     }
     // rotulo do que a barra esta medindo, para nao restar duvida
     const PER_LABEL = { semanal: 'na semana', quinzenal: 'na quinzena', mensal: 'no mês' };
@@ -655,23 +646,42 @@ const ExtrasScreen = {
        valendo é a FASE: pré-edital ordena pela lacuna simples até a meta;
        pós-edital usa a incidência somente como desempate. Atividades anteriores
        ao motor não têm a assinatura e continuam legíveis pelo que são. */
-    const planoTag = (() => {
-      const o = x.origemPlano;
+    const motorTag = (() => {
+      const o = (typeof MotorCiclo !== 'undefined') ? MotorCiclo.origemDe(x) : null;
       if (!o || !o.topico) return '';
-      const sug = o.sugestao || null;
-      const quando = escapeHtml(formatDateShort((sug && sug.criadoEm) || o.criadoEm || ''));
-      const fase = sug && sug.fase === 'pos' ? 'pós-edital' : (sug && sug.fase === 'pre' ? 'pré-edital' : '');
-      const rot = fase ? 'Motor · ' + fase : 'do TEC';
-      const det = fase
-        ? `Escolhida pelo Motor de sugestão em ${quando}, na fase ${fase}`
-          + (sug.minAmostra != null ? ` · piso de ${sug.minAmostra} questões por nível` : '')
-          + (sug.amostra != null ? ` · amostra usada: ${sug.amostra} questões` : '')
-          + (sug.bloco ? ' · bloco de ramos pequenos' : '') + '.'
-        : `Criada a partir do seu desempenho no TEC em ${quando}, antes do Motor de sugestão.`;
-      return `<span class="extra-tag plano" title="${escapeHtml(det)}">🧭 ${escapeHtml(rot)}</span>`;
+      const quando = escapeHtml(formatDateShort(o.criadoEm || ''));
+      const fase = o.fase === 'pos' ? 'pós-edital' : (o.fase === 'pre' ? 'pré-edital' : '');
+      const rank = o.rankInicial != null ? ' · posição inicial #' + o.rankInicial : '';
+      const lacuna = o.lacunaDiscInicial != null ? ' · lacuna inicial ' + (Math.round(o.lacunaDiscInicial * 10) / 10) + 'pp' : '';
+      const det = 'Escolhida pelo Motor de sugestão em ' + quando
+        + (fase ? ', na fase ' + fase : '') + rank + lacuna
+        + (o.minAmostra != null ? ' · piso de ' + o.minAmostra + ' questões por nível' : '') + '.';
+      return '<span class="extra-tag plano" title="' + escapeHtml(det) + '">🧭 Motor' + (fase ? ' · ' + escapeHtml(fase) : '') + '</span>';
     })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
+    const tecGuide = (() => {
+      if (typeof MotorCiclo === 'undefined' || !MotorCiclo.filtroTecDe) return '';
+      const f = MotorCiclo.filtroTecDe(x);
+      if (!f || !Array.isArray(f.selecoes) || !f.selecoes.length) return '';
+      const o = MotorCiclo.origemDe(x) || {};
+      const qtd = Math.max(1, Math.round(Number(f.quantidade || o.alvoQuestoes || x.alvo) || 1));
+      const nivel = Math.max(1, Number(f.nivel) || 1);
+      const unidade = nivel <= 1 ? 'tópico' : (nivel === 2 ? 'subtópico' : 'subtópico nível ' + nivel);
+      const base = [f.disciplina].concat(Array.isArray(f.caminho) ? f.caminho : []).filter(Boolean);
+      const rota = (f.agregado ? base : base.concat(f.selecoes)).filter(Boolean).join(' → ');
+      const selecoes = f.selecoes.map(v => escapeHtml(v)).join(' <span aria-hidden="true">+</span> ');
+      return `<div class="exd-tec-guide" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-sunken);">
+        <div style="display:flex;gap:8px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;">
+          <strong style="font-size:var(--fs-sm);">🎯 Caderno no TEC</strong>
+          <span style="font-size:var(--fs-sm);font-weight:800;">${qtd} questões</span>
+        </div>
+        <div class="hint" style="margin:5px 0 0;"><b>Filtro:</b> ${escapeHtml(rota)}</div>
+        ${f.agregado
+          ? `<div class="hint" style="margin:4px 0 0;"><b>Marque juntos:</b> ${selecoes} <span class="opt">(${f.selecoes.length} ${unidade}s)</span></div>`
+          : `<div class="hint" style="margin:4px 0 0;"><b>Selecionar:</b> ${escapeHtml(f.selecoes[0])} <span class="opt">(${unidade})</span></div>`}
+      </div>`;
+    })();
     const progBlock = (alvo > 0)
       ? `<div class="exd-prog">
            <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
@@ -737,7 +747,7 @@ const ExtrasScreen = {
             <div class="exd-title">${escapeHtml(x.titulo)}</div>
             <div class="exd-tags">
               <span class="extra-tag">${t.nome}</span>
-              ${discTag}${recTag}${planoTag}${evoTag}${metaTag}
+              ${discTag}${recTag}${motorTag}${evoTag}${metaTag}
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 ${escapeHtml(x.marcador)}</span>` : ''}
             </div>
           </div>
@@ -747,6 +757,7 @@ const ExtrasScreen = {
           </div>
         </div>
                 ${progBlock}
+        ${tecGuide}
         ${marcador}
         ${regRow}
       </div>`;
@@ -1143,9 +1154,9 @@ window.ExtrasScreen = ExtrasScreen;
 (function () {
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('extras-new-btn', 'click', () => { ExtrasScreen.openModal(null); });
-  on('extras-plano-btn', 'click', (ev) => {
-    if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando Plano…', () => ExtrasScreen.puxarDoPlano(), { overlay: true, region: '#screen-extras', context: 'extras-puxar-plano' });
-    else ExtrasScreen.puxarDoPlano();
+  on('extras-motor-btn', 'click', (ev) => {
+    if (window.WorkFeedback) WorkFeedback.run(ev.currentTarget, 'Analisando Motor…', () => ExtrasScreen.puxarDoMotor(), { overlay: true, region: '#screen-extras', context: 'extras-puxar-motor' });
+    else ExtrasScreen.puxarDoMotor();
   });
   // Gerenciador de atividades (recorrentes + avulsas), separado da missão do dia
   on('extras-manage-btn', 'click', () => ExtrasScreen.manageOpen());
@@ -1176,7 +1187,7 @@ window.ExtrasScreen = ExtrasScreen;
 })();
 window.addEventListener('screen:activated', (e) => {
   /* ═══ ABRIR EXTRAS NÃO PODE ESPERAR O MOTOR DO TEC ═════════════════════
-     `renderEmCurso` chama `DesempenhoTecScreen._planoRef()` para saber, de
+     `renderEmCurso` chama `DesempenhoTecScreen._motorRef()` para saber, de
      cada reforço aberto, em que nível o assunto está hoje. Isso é o motor do
      Plano inteiro rodando sobre todos os retratos — num perfil com 8 retratos
      e ~960 assuntos, ~200 ms de trabalho síncrono ANTES da primeira pintura
@@ -1194,7 +1205,7 @@ window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'extras') {
     const host = document.getElementById('extras-curso');
     const temAberto = (() => {
-      try { return DB.getExtras().some(x => x && x.origemPlano && x.origemPlano.topico && x.status !== 'concluida'); }
+      try { return DB.getExtras().some(x => x && typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(x) && MotorCiclo.origemDe(x).topico && x.status !== 'concluida'); }
       catch (err) { _quiet(err, 'extras-abertura'); return false; }
     })();
     if (!host || !temAberto || typeof pintarDepois !== 'function') { ExtrasScreen.render(); return; }

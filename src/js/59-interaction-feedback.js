@@ -110,30 +110,30 @@
   };
   window.WorkFeedback = WorkFeedback;
 
-  /* Reabrir uma atividade do Plano precisa reabrir também o CICLO. O status
-     sozinho não basta: `origemPlano.veredito` é o que alimenta histórico,
-     calibragem e a governança de ciclo fechado. Mantemos o último veredito em
-     campo de auditoria, mas ele deixa de valer enquanto a atividade está aberta. */
-  if (typeof DB !== 'undefined' && typeof DB.setConcluidaDia === 'function' && !DB.setConcluidaDia._reopenPlanAware) {
+  /* Reabrir uma atividade encerrada pelo Motor reabre também seu ciclo.
+     O último veredito fica como auditoria, mas deixa de valer enquanto a
+     atividade estiver novamente ativa. */
+  if (typeof DB !== 'undefined' && typeof DB.setConcluidaDia === 'function' && !DB.setConcluidaDia._reopenMotorAware) {
     const anterior = DB.setConcluidaDia;
     const envolvida = function(id, dia, on) {
       const r = anterior.apply(this, arguments);
       if (on) return r;
       try {
         const e = this.getExtra(id);
-        if (!e || !e.origemPlano || !e.origemPlano.veredito || this.extraRecorrente(e)) return r;
-        const origem = Object.assign({}, e.origemPlano, {
-          ultimoVereditoReaberto: e.origemPlano.veredito,
+        const origemAtual = (typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe) ? MotorCiclo.origemDe(e) : null;
+        if (!e || !origemAtual || !origemAtual.veredito || this.extraRecorrente(e)) return r;
+        const origem = Object.assign({}, origemAtual, {
+          ultimoVereditoReaberto: origemAtual.veredito,
           reabertoEm: new Date().toISOString()
         });
         delete origem.veredito;
-        return this.updateExtra(id, { status: 'ativa', origemPlano: origem });
+        return this.updateExtra(id, { status: 'ativa', origemMotor: origem });
       } catch (err) {
-        if (typeof _quiet === 'function') _quiet(err, 'reabrir-ciclo-plano');
+        if (typeof _quiet === 'function') _quiet(err, 'reabrir-ciclo-motor');
         return r;
       }
     };
-    envolvida._reopenPlanAware = true;
+    envolvida._reopenMotorAware = true;
     DB.setConcluidaDia = envolvida;
   }
 
