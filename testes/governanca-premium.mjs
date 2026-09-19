@@ -37,28 +37,19 @@ tem(gov, 'adiadaPorLimite', 'overflow de leis deve ser reagendado, não perdido'
 tem(gov, 'Registrar leitura', 'registro dedicado de leitura precisa existir');
 tem(gov, 'DB.addExtraProgress(atual.id,q,m', 'registro de lei deve armazenar linhas e minutos');
 
-// TEC: parâmetros órfãos e carga sob demanda.
+// TEC: carga sob demanda sem transformar instrumentação interna em interface.
 tem(tec, "this._tpAnalysisDirty=true", 'análise oculta deve virar lazy/dirty em vez de render imediato');
-tem(tec, "medir('motor'", 'o tempo do Motor precisa ser instrumentado como o das demais abas');
-tem(tec, 'auditoriaParametros()', 'TEC precisa auditar cobertura dos parâmetros');
-tem(tec, 'MotorSugestao.DEFAULTS', 'a auditoria de parâmetros tem de sair dos padrões do próprio motor');
-/* ── O MARCADOR DO SHELL NAO PODE SER O TEXTO QUE ELE EXIBE ────────────────
-   Esta linha procurava a string 'CENTRAL DE DESEMPENHO' — o rotulo maiusculo
-   que a faixa mostrava. O que ela quer garantir e que o shell operacional do
-   TEC EXISTE, e para isso o rotulo era so um marcador conveniente: qualquer
-   ajuste de copy derrubava a checagem sem que nada estrutural mudasse.
-
-   E o rotulo mudou por um motivo: a faixa repetia "retratos no escopo" e
-   "retratos salvos", que o cartao "Escopo da analise" logo abaixo ja mostra,
-   e trazia auditoria de parametros e um cronometro em milissegundos como se
-   fossem metrica de estudo. Ela passou a responder o que so ela pode — em que
-   aba voce esta, QUAL MODELO decide a fila agora, e se o retrato esta vencido.
-
-   Agora o teste olha a estrutura (a faixa e a funcao que a garante) e, de
-   quebra, exige a informacao nova: e mais forte do que era, nao menos. */
 tem(tec, "box.className='tp-command'", 'TEC precisa do shell operacional (faixa tp-command)');
 tem(tec, 'garantirComando()', 'o shell precisa ser garantido em um lugar so');
-tem(tec, 'fonteAtual()', 'o shell precisa dizer qual modelo decide a fila agora');
+tem(tec, 'mensagemAba(tab)', 'o cabeçalho precisa mudar a mensagem conforme a natureza da aba');
+tem(tec, 'Nenhum modelo opina aqui', 'Análise precisa se declarar como fato, não decisão do Motor');
+tem(tec, 'Fatos da banca', 'Incidência precisa se declarar como dado factual da banca');
+tem(tec, "if(tab==='motor')", 'somente a aba Motor deve explicar a lógica de prioridade');
+assert.ok(!tec.includes('auditoriaParametros()'), 'auditoria de desenvolvedor não deve voltar ao cabeçalho do aluno');
+assert.ok(!tec.includes("medir('motor'"), 'cronômetro interno não deve voltar a ser requisito de UX');
+assert.ok(!tec.includes('data-tp-settings') || tec.includes("querySelectorAll('.tp-overlay,[data-tp-settings],[data-tp-audit]"),
+  'seletor legado pode existir apenas como limpeza de DOM antigo, nunca como botão novo');
+assert.ok(!tec.includes('abrirDiagnostico()'), 'modal Diagnóstico do TEC não deve ser recriado');
 
 // UX responsiva e janela modal independente.
 tem(css, '.rg-overlay', 'histórico/configuração precisam de modal independente');
