@@ -997,10 +997,10 @@ try {
       filtro: !!document.querySelector('#motor-lista .ms-disc-filter'),
       todasPrimeiro: !!document.querySelector('#motor-lista .ms-disc-filter-panel > [data-ms-disc-all]:first-child'),
       etapas: document.querySelectorAll('#motor-lista .ms-stage').length,
-      comMargem: [...document.querySelectorAll('#motor-lista .ms-suggestion-card')]
-        .filter((it) => /margem/i.test(it.innerText)).length,
+      comAmostra: [...document.querySelectorAll('#motor-lista .ms-suggestion-card')]
+        .filter((it) => /piso válido|amostra/i.test(it.innerText)).length,
       comDose: [...document.querySelectorAll('#motor-lista .ms-dose b')]
-        .filter((d) => parseInt(d.textContent, 10) >= MotorSugestao.DEFAULTS.doseMin).length,
+        .filter((d) => parseInt(d.textContent, 10) === MotorSugestao.prefs().alvoQuestoes).length,
       minDose: Math.min(...(motor.itens || []).map(x => x.dose || 0)),
       nenhumaDiscInteira: (motor.itens || []).every((x) => x.nivel > 0 && ReforcoEngine.norm(x.nome) !== ReforcoEngine.norm(x.disciplina)),
       umaPorDisc: new Set((motor.itens || []).map((x) => ReforcoEngine.norm(x.disciplina))).size === (motor.itens || []).length,
@@ -1008,9 +1008,9 @@ try {
       temFilas: document.querySelectorAll('#motor-lista .ms-queue-group').length,
       meta: motor.prefs.metaAcerto,
       maxFrentes: motor.prefs.maxFrentes,
-      lacunasValidas: (motor.itens || []).every(x => Number.isFinite(x.gapConfiavel) && x.gapConfiavel >= 0),
+      lacunasValidas: (motor.itens || []).every(x => Number.isFinite(x.gapMeta) && x.gapMeta > 0),
       cardsComLacuna: [...document.querySelectorAll('#motor-lista .ms-suggestion-card')]
-        .filter(el => /lacuna segura/i.test(el.innerText)).length,
+        .filter(el => /lacuna p\/ meta/i.test(el.innerText)).length,
       resumo: (q('.ms-rule-summary') || {}).innerText || '',
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="motor"] .rfc-field > label')]
@@ -1025,8 +1025,8 @@ try {
     ? ok('o Motor nasce com meta 90% e uma rodada curta de no maximo 3 disciplinas')
     : erro('meta/quantidade da rodada saiu do contrato: ' + JSON.stringify(est));
   (est.lacunasValidas && est.cardsComLacuna === est.itens && est.itens > 0)
-    ? ok('cada sugestao expõe a lacuna confiavel que sustenta sua prioridade')
-    : erro('a prioridade voltou a ser percentual cru ou ficou opaca: ' + JSON.stringify(est));
+    ? ok('cada sugestao expõe a lacuna simples até a meta')
+    : erro('a lacuna simples ficou ausente ou opaca: ' + JSON.stringify(est));
   (est.etapas === 1 && est.filtro && est.todasPrimeiro && est.rankingDisc >= est.itens && est.temFilas >= est.rankingDisc)
     ? ok('o Motor mostra uma rodada unica, filtro com Todas primeiro e filas completas por materia')
     : erro('a rodada/filtro/filas do Motor nao apareceram como contrato: ' + JSON.stringify(est));
@@ -1034,14 +1034,14 @@ try {
     ? ok('nenhuma disciplina inteira vira reforco e ha no maximo um topico por disciplina')
     : erro('o Motor voltou a usar disciplina como unidade executavel: ' + JSON.stringify(est));
   est.itens >= 2 ? ok(`${est.itens} frente(s) na fila do motor`) : erro('a fila do motor veio vazia');
-  est.comMargem === est.itens && est.itens > 0
-    ? ok('toda linha declara a margem que a manteve naquele nivel da arvore')
-    : erro(`${est.itens - est.comMargem} linha(s) sem a margem declarada`);
-  (est.comDose === est.itens && est.itens > 0 && est.minDose >= 12)
-    ? ok(`toda frente saiu com dose util (minimo observado: ${est.minDose} questoes)`)
-    : erro('o Motor voltou a sugerir atividade simbolica: ' + JSON.stringify(est));
-  (/12\+ questões por atividade/.test(est.resumo) || /questões por atividade/.test(est.resumo))
-    ? ok('o resumo deixa claro que a dose e por atividade, nao um caderno espremido')
+  est.comAmostra === est.itens && est.itens > 0
+    ? ok('toda linha declara o piso/amostra que sustenta o nível da árvore')
+    : erro(`${est.itens - est.comAmostra} linha(s) sem amostra declarada`);
+  (est.comDose === est.itens && est.itens > 0 && est.minDose === MotorSugestao.DEFAULTS.alvoQuestoes)
+    ? ok(`toda frente saiu com a dose fixa de ${est.minDose} questoes`)
+    : erro('o Motor deixou de usar dose fixa por atividade: ' + JSON.stringify(est));
+  (/25 questões por atividade/.test(est.resumo) || /questões por atividade/.test(est.resumo))
+    ? ok('o resumo deixa claro que a dose é fixa por atividade')
     : erro('o resumo do Motor nao explica a dose por atividade: ' + est.resumo);
   est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o motor vaza ${est.overflow}px na horizontal a 360px`);
   (est.semDica === 0 && est.camposNaFolha >= 4)
@@ -1078,34 +1078,33 @@ try {
     ? ok('filtro do Motor aceita varias disciplinas, permanece aberto e muda o calculo de verdade')
     : erro('filtro do Motor virou apenas filtro visual ou fechou entre cliques: ' + JSON.stringify(filtroMotor));
 
-  /* A poda nao pode maquiar ruido como "bloco": toda frente executavel,
-     agregada ou nao, precisa caber na margem e precisa estar abaixo da raiz. */
+  /* Toda frente executável precisa respeitar o piso simples de amostra. */
   const poda = await pag.evaluate(() => {
     const r = MotorSugestao.calcular();
     const p = MotorSugestao.prefs();
-    const foraDaRegua = (r.itens || []).filter((x) => x.nivel <= 0 || x.margem == null || x.margem > p.margemMax);
-    return { margemMax: p.margemMax, fora: foraDaRegua.length, total: (r.itens || []).length };
+    const foraDaRegua = (r.itens || []).filter((x) => x.nivel <= 0 || x.questoes < p.minAmostra);
+    return { minAmostra: p.minAmostra, fora: foraDaRegua.length, total: (r.itens || []).length };
   });
   poda.fora === 0 && poda.total > 0
-    ? ok(`as ${poda.total} frentes oferecidas sao topicos e cabem na margem de ±${poda.margemMax}pp`)
-    : erro('a poda deixou passar raiz ou frente fora da regua: ' + JSON.stringify(poda));
+    ? ok(`as ${poda.total} frentes oferecidas sao topicos com pelo menos ${poda.minAmostra} questoes`)
+    : erro('a poda deixou passar raiz ou frente abaixo da amostra mínima: ' + JSON.stringify(poda));
 
   const hier = await pag.evaluate(() => {
     const n = (nome, q, ac, depth, kids) => ({ nome, codigo: null, depth, disciplina: 'Teste', questoes: q, acertos: ac, children: kids || [] });
     const top = n('Topico', 40, 11, 1, [n('A.1', 10, 2, 2), n('A.2', 12, 3, 2), n('A.3', 18, 6, 2)]);
-    const plano = MotorSugestao._planejarNo(top, 15, []);
+    const plano = MotorSugestao._planejarNo(top, 20, []);
     const bloco = plano.find(x => x.agregado);
     const muitos = n('Topico B', 36, 9, 1, [
       n('B.1', 6, 1, 2), n('B.2', 6, 1, 2), n('B.3', 6, 1, 2),
       n('B.4', 6, 2, 2), n('B.5', 6, 2, 2), n('B.6', 6, 2, 2)
     ]);
-    const blocoGrande = MotorSugestao._planejarNo(muitos, 15, []).find(x => x.agregado);
-    const raiz = MotorSugestao._planejarNo(n('Teste', 40, 11, 0, [top]), 15, []);
+    const blocoGrande = MotorSugestao._planejarNo(muitos, 20, []).find(x => x.agregado);
+    const raiz = MotorSugestao._planejarNo(n('Teste', 40, 11, 0, [top]), 20, []);
     const p = Object.assign(MotorSugestao.prefs(), { fase: 'pre', metaAcerto: 90 });
-    const forte = { faixaPrioridade: 1, questoes: 900, deficitSeguro: 0, gapConfiavelDisc: 0,
-      melhorTopico: { gapConfiavel: 30 } };
-    const fraca = { faixaPrioridade: 0, questoes: 900, deficitSeguro: 225, gapConfiavelDisc: 25,
-      melhorTopico: { gapConfiavel: 18 } };
+    const muitoPraticada = { nome: 'Muito praticada', taxa: 80, questoes: 5000, lacunaDisc: 10, incidenciaDisc: 100 };
+    const poucoPraticada = { nome: 'Pouco praticada', taxa: 60, questoes: 80, lacunaDisc: 30, incidenciaDisc: 1 };
+    const empateA = { nome: 'A', taxa: 70, questoes: 100, lacunaDisc: 20, incidenciaDisc: 10 };
+    const empateB = { nome: 'B', taxa: 70, questoes: 100, lacunaDisc: 20, incidenciaDisc: 50 };
 
     const R = (id, rows) => ({ id, startDate: '2026-0' + id + '-01', endDate: '2026-0' + id + '-28', rows });
     const row = (nome, depth, codigo, q, ac) => ({ nome, depth, codigo, questoes: q, acertos: ac, disciplina: 'Disc X' });
@@ -1117,7 +1116,8 @@ try {
       bloco: bloco ? { pai: bloco.pai, membros: bloco.membros, nivel: bloco.nivel } : null,
       blocoGrande: blocoGrande ? { pai: blocoGrande.pai, membros: blocoGrande.membros } : null,
       raiz: raiz.length,
-      fracaAntes: MotorSugestao._compararDisciplinas(fraca, forte, p) < 0,
+      lacunaVenceVolume: MotorSugestao._compararDisciplinas(poucoPraticada, muitoPraticada, p) < 0,
+      incidenciaDesempata: MotorSugestao._compararDisciplinas(empateB, empateA, Object.assign({}, p, { fase: 'pos' })) < 0,
       codigoEstavel: !!(na && nb && na.questoes === 90 && nb.questoes === 90
         && na.children[0] && na.children[0].nome === 'A-filho'
         && nb.children[0] && nb.children[0].nome === 'B-filho')
@@ -1127,11 +1127,14 @@ try {
     ? ok('ramos pequenos so agrupam entre irmaos do mesmo pai e nunca sobem para a disciplina')
     : erro('o agrupamento atravessou a hierarquia: ' + JSON.stringify(hier));
   (hier.blocoGrande && hier.blocoGrande.pai === 'Topico B' && hier.blocoGrande.membros.length > 4)
-    ? ok('o agrupamento usa quantos irmaos pequenos forem necessarios; nao existe mais teto magico de 4')
-    : erro('o agrupamento ainda parou num limite arbitrario: ' + JSON.stringify(hier.blocoGrande));
-  hier.fracaAntes
-    ? ok('materia sistemicamente fraca vem antes de materia forte com bolsao local ruim')
-    : erro('o ranking voltou a deixar um topico isolado dominar a escolha da materia: ' + JSON.stringify(hier));
+    ? ok('o agrupamento simples usa todos os irmaos pequenos necessários')
+    : erro('o agrupamento simples perdeu ramos pequenos: ' + JSON.stringify(hier.blocoGrande));
+  hier.lacunaVenceVolume
+    ? ok('lacuna percentual vence volume historico na prioridade da materia')
+    : erro('volume historico voltou a dominar o ranking: ' + JSON.stringify(hier));
+  hier.incidenciaDesempata
+    ? ok('no pos-edital, incidencia apenas desempata lacunas iguais')
+    : erro('incidencia nao funcionou como desempate simples: ' + JSON.stringify(hier));
   hier.codigoEstavel
     ? ok('mudanca/reuso de codigo TEC entre retratos nao troca filhos de pai no consolidado')
     : erro('o Motor ainda usa codigo posicional como identidade historica: ' + JSON.stringify(hier));
