@@ -214,6 +214,23 @@
           qg += num(cand.questoes); ag += num(cand.acertos);
         }
         if (grupo.length >= 2 && this.legivel(qg, ag, margemMax)) {
+          /* Evita deixar uma "cauda" minúscula sem destino. Se os irmãos
+             pequenos que sobraram, SOMADOS entre si, ainda não sustentam a
+             margem, eles entram neste mesmo bloco local. Assim a granularidade
+             não sobe para o pai só porque sobrou um último ramo de 3–6 questões. */
+          const resto = [];
+          for (let k = i + 1; k < kids.length; k++) {
+            if (usados.has(k) || idxs.includes(k)) continue;
+            const cand = kids[k];
+            if (!this.legivel(num(cand.questoes), num(cand.acertos), margemMax)) resto.push({ k, cand });
+          }
+          if (resto.length) {
+            const qr = resto.reduce((s, o) => s + num(o.cand.questoes), 0);
+            const ar = resto.reduce((s, o) => s + num(o.cand.acertos), 0);
+            if (!this.legivel(qr, ar, margemMax)) {
+              resto.forEach(o => { grupo.push(o.cand); idxs.push(o.k); });
+            }
+          }
           idxs.slice(1).forEach(k => usados.add(k));
           plano.push(this._grupo(node, grupo, caminho));
           continue;
