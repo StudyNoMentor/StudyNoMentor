@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v58f77d9b10">
+<meta name="diario-versao" content="v2170c3ef58">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -42229,7 +42229,7 @@ const SectionSync = {
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
       const preservar = opts.skipPush
-        ? this.pendingSections(id)
+        ? this.explicitPendingSections(id)
         : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
       res.linhasRemotas = rows.length;
