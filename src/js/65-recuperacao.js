@@ -127,11 +127,10 @@ const Recuperacao = {
       .filter(g => !this._soTemSemente(g))
       .sort((a, b) => b.bytes - a.bytes);
   },
-  /* ── ARMAZENAMENTO ANTIGO (localStorage nativo) ───────────────────────────
-     O app guarda tudo no IndexedDB, através de uma fachada que se chama
-     `localStorage`. Dado escrito por versões anteriores pode ter ficado no
-     localStorage NATIVO — e, depois que a fachada assume o nome, olhar lá vira
-     impossível para o resto do código. Esta função olha. */
+  /* ── CÓPIAS ANTIGAS DO NAVEGADOR ─────────────────────────────────────────
+     O app atual usa RAM + PostgreSQL. Esta rotina existe apenas para recuperação
+     manual de cópias deixadas por versões anteriores no localStorage nativo;
+     esses dados nunca voltam a ser fonte operacional automaticamente. */
   varrerAntigo() {
     const nativo = window.__nativeLS;
     const out = [];
