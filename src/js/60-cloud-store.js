@@ -608,7 +608,7 @@ const CloudStore = {
     // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
       try {
-        if (await SectionSync.pullAndReload(opts)) return;
+        if (await SectionSync.pullAndReload(opts)) return true;
         const lr = SectionSync.lastRead ? SectionSync.lastRead() : null;
         /* Se JÁ existem linhas por seção, uma falha de manifesto/conjunto não
            autoriza aplicar o blob antigo por cima. O blob só é plano B para
@@ -638,10 +638,14 @@ const CloudStore = {
       const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
-      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return; }
+      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return true; }
       showToast('Sincronizado da nuvem ✓');
       recarregarApp('dados novos da nuvem (blob)');
-    } catch (e) { this._applying = false; console.error('pullActiveAndReload', e); }
+      return true;
+    } catch (e) {
+      this._applying = false; console.error('pullActiveAndReload', e);
+      return false;
+    }
   },
   // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
   // o location.reload() cancela o salvamento automático e a alteração se perde na nuvem.
