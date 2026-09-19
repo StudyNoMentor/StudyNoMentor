@@ -49,10 +49,16 @@
       margemMax: 15,          // pp de margem tolerada para abrir um nível
       alvoQuestoes: 25,       // tamanho do caderno que o motor distribui
       doseMin: 5,             // piso por frente: caderno de 2 questões não mede nada
-      maxFrentes: 5           // quantas frentes distintas o caderno abre
+      /* TRÊS DISCIPLINAS, UM TÓPICO CADA. O número não é estético: é o que
+         cabe numa semana de execução real, e o motor abre no máximo uma frente
+         por disciplina justamente para que a rodada não vire três recortes da
+         mesma matéria. */
+      maxFrentes: 3,
+      metaAcerto: 85          // acima disso a atividade é dada por resolvida
     }),
     LIMITES: Object.freeze({
-      margemMax: [5, 40], alvoQuestoes: [5, 300], doseMin: [1, 50], maxFrentes: [1, 12]
+      margemMax: [5, 40], alvoQuestoes: [5, 300], doseMin: [1, 50],
+      maxFrentes: [1, 12], metaAcerto: [50, 100]
     }),
     _key() { return DB._profilePrefix() + this.KEY; },
     prefs() {
@@ -239,7 +245,8 @@
       /* Uma frente por disciplina na fila executável: o caderno existe para
          concentrar esforço, e três tópicos da mesma matéria no mesmo dia é o
          contrário disso. O ranking completo continua inteiro em `todos`. */
-      /* A FILA SÓ ACEITA O QUE A RÉGUA SUSTENTA. Um ramo miúdo sem irmãos para
+      /* UMA FRENTE POR DISCIPLINA, ATÉ `maxFrentes`. A FILA SÓ ACEITA O QUE A
+         RÉGUA SUSTENTA. Um ramo miúdo sem irmãos para
          juntar (o último tópico de uma disciplina pouco praticada) não vira
          bloco nem alcança a margem: ele continua no ranking, marcado, mas não
          é oferecido como frente — recomendar 3 questões erradas de 3 é a

@@ -108,7 +108,7 @@
       if (document.documentElement.dataset.uxInstantFeedback === '1') return;
       document.documentElement.dataset.uxInstantFeedback = '1';
       const sel = [
-        '[data-tpm-source]', '.tec-subtab', '#extras-plano-btn', '#extras-suggest-btn',
+        '.tec-subtab', '#extras-plano-btn',
         '#btn-calc-cycle', '#btn-confirm-cycle', '#study-report-generate', '#cards-foco-btn',
         '#tec-cfg-done', '[data-tpm-rank-more]', '[data-tpm-rank-all]'
       ].join(',');

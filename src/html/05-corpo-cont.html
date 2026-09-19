@@ -683,8 +683,17 @@
               <input type="number" inputmode="numeric" id="motor-dosemin" data-cfg-key="doseMin" min="1" max="50" step="1" value="5">
             </div>
             <div class="rfc-field">
-              <label for="motor-frentes" data-info="Quantas frentes distintas entram na mesma rodada. O motor abre no máximo uma por disciplina: concentrar esforço é o ponto do caderno.">Frentes por rodada</label>
-              <input type="number" inputmode="numeric" id="motor-frentes" data-cfg-key="maxFrentes" min="1" max="12" step="1" value="5">
+              <label for="motor-frentes" data-info="Quantas disciplinas distintas entram na mesma rodada. O motor abre no máximo UM tópico por disciplina: três recortes da mesma matéria no mesmo caderno é o contrário de concentrar esforço. O padrão — 3 disciplinas, 1 tópico cada — é o que cabe numa semana de execução real.">Disciplinas por rodada</label>
+              <input type="number" inputmode="numeric" id="motor-frentes" data-cfg-key="maxFrentes" min="1" max="12" step="1" value="3">
+            </div>
+          </div>
+        </div>
+        <div class="tec-cfg-sec" data-tab="motor" data-sec="meta" data-ic="🎯" data-rot="Meta" hidden>
+          <p class="tec-cfg-sec-sub">O acerto a partir do qual um assunto é dado por resolvido. É a régua que julga a atividade quando o próximo retrato chega — e é a única além da margem.</p>
+          <div class="tec-cfg-grid">
+            <div class="rfc-field">
+              <label for="motor-meta" data-info="Quando o próximo retrato do TecConcursos chega, a atividade criada aqui é julgada: se o acerto do assunto alcançou esta meta, ela encerra como resolvida. A meta fica gravada na atividade no dia em que ela nasce — mudar aqui não reescreve o veredito de quem já está correndo.">Meta de acerto</label>
+              <div class="time-input"><input type="number" inputmode="numeric" id="motor-meta" data-cfg-key="metaAcerto" min="50" max="100" step="1" value="85" style="width:70px; text-align:center;"><span>%</span></div>
             </div>
           </div>
         </div>
@@ -743,8 +752,7 @@
       </div>
       <div class="extras-actions">
         <button type="button" class="btn-secondary" id="extras-manage-btn" title="Gerenciar todas as atividades recorrentes e avulsas num só lugar">🔁 Gerenciar</button>
-        <button type="button" class="btn-secondary" id="extras-suggest-btn" title="Sugerir atividades com base nos seus pontos fracos do TEC">💡 Sugerir</button>
-        <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar os assuntos prioritários do Plano de pontos fracos, com meta já calculada">🏁 Puxar do Plano</button>
+        <button type="button" class="btn-secondary" id="extras-plano-btn" title="Puxar as frentes que o Motor de sugestão escolheu, com a dose já repartida">🧭 Puxar do Motor</button>
         <button type="button" class="btn-primary" id="extras-new-btn">＋ Nova atividade</button>
       </div>
     </div>
@@ -775,57 +783,6 @@
         <span style="flex:1"></span>
         <button type="button" class="btn-secondary" id="extras-manage-done">Fechar</button>
         <button type="button" class="btn-primary" id="extras-manage-new">＋ Nova atividade</button>
-      </div>
-    </div>
-  </div>
-  <!-- Modal: sugestões a partir dos pontos fracos do TEC -->
-  <div id="extra-suggest-modal" class="cards-modal" style="display:none; z-index:610;">
-    <div class="cards-modal-box cards-modal-lg">
-      <div class="cards-modal-head">
-        <div><h2>💡 Sugestões de atividades</h2><p class="sub">Baseadas nos seus pontos fracos do TEC. Use <strong>⚙ Configurar</strong> para ajustar a meta de cada uma, ou marque várias e adicione em lote.</p></div>
-        <button type="button" class="icon-btn" id="extra-suggest-close" aria-label="Fechar">✕</button>
-      </div>
-      <div class="cards-modal-body">
-        <div class="sug-filters">
-          <div class="sug-tool-field">
-            <label for="extra-suggest-banca">Banca</label>
-            <select id="extra-suggest-banca"></select>
-          </div>
-          <div class="sug-tool-field">
-            <label for="extra-suggest-disc">Disciplina</label>
-            <select id="extra-suggest-disc"><option value="__todas__">📚 Todas</option></select>
-          </div>
-          <div class="sug-tool-field">
-            <label for="extra-suggest-ordenar">Ordenar por</label>
-            <select id="extra-suggest-ordenar">
-              <option value="oportunidade" selected>🎯 Oportunidade</option>
-              <option value="erro">🔴 Maior erro</option>
-              <option value="incidencia">🏛️ Maior incidência</option>
-            </select>
-          </div>
-          <div class="sug-tool-field">
-            <label for="extra-suggest-minq">Mín. questões</label>
-            <input type="number" inputmode="numeric" id="extra-suggest-minq" min="1" value="8">
-          </div>
-        </div>
-        <div class="sug-toolbar">
-          <div class="sug-tool-field">
-            <label for="extra-suggest-tipo">Gerar cada uma como</label>
-            <select id="extra-suggest-tipo">
-              <option value="revisao" selected>🔁 Revisão do ponto fraco</option>
-              <option value="questoes">❓ Questões do assunto</option>
-              <option value="video">🎬 Vídeo do assunto</option>
-              <option value="anki">🃏 Flashcards do assunto</option>
-            </select>
-          </div>
-          <button type="button" class="btn-secondary" id="extra-suggest-all">☑ Marcar todos</button>
-        </div>
-        <div id="extra-suggest-list"></div>
-      </div>
-      <div class="cards-modal-foot">
-        <span class="hint" id="extra-suggest-count" style="flex:1; margin:0;"></span>
-        <button type="button" class="btn-secondary" id="extra-suggest-cancel">Cancelar</button>
-        <button type="button" class="btn-primary" id="extra-suggest-add">Adicionar selecionadas</button>
       </div>
     </div>
   </div>

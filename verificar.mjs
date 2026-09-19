@@ -1222,9 +1222,8 @@ try {
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac, pctAcerto: Math.round(ac / q * 1000) / 10 });
     const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac, pctAcerto: Math.round(ac / q * 1000) / 10 });
 
-    // estado ANTES: preferencias proprias, um modo ajustado e uma atividade em curso
-    PlanoEngine.salvarModo('base', { metaDominio: 88 });
-    PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('base'));
+    // estado ANTES: preferencias proprias e uma atividade em curso
+    MotorSugestao.salvar({ metaAcerto: 88 });
     DesempenhoTecScreen.savePrefs({ weakLimiar: 62 });
     DesempenhoTecScreen.switchTecTab('motor');
     await esperar(300);
@@ -1235,7 +1234,7 @@ try {
     const extra = DB.getExtras().find((e) => e.origemPlano && e.origemPlano.topico === alvo.nome);
     const antes = {
       taxa: alvo.taxa, dominio: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).dominioPct,
-      taxaInicial: extra && extra.origemPlano.taxaInicial, modo: PlanoEngine.modoPatch('base').metaDominio,
+      taxaInicial: extra && extra.origemPlano.taxaInicial, modo: MotorSugestao.prefs().metaAcerto,
       limiar: DesempenhoTecScreen._loadPrefs().weakLimiar, retratos: DB.getTecSnapshots().length
     };
 
@@ -1259,7 +1258,7 @@ try {
         taxa: depoisAlvo ? depoisAlvo.taxa : null,
         dominio: r2.dominioPct,
         taxaInicial: extra2 && extra2.origemPlano.taxaInicial,
-        modo: PlanoEngine.modoPatch('base').metaDominio,
+        modo: MotorSugestao.prefs().metaAcerto,
         limiar: DesempenhoTecScreen._loadPrefs().weakLimiar,
         retratos: DB.getTecSnapshots().length,
         temExtra: !!extra2,
@@ -1316,16 +1315,15 @@ try {
       c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true }));
       await esperar(250);
     };
+    /* A conta da incidência é lida direto do mapa que o Motor usa no
+       pós-edital: é ele que a seleção de bancas tem de mover. */
     const estado = () => {
-      const r = ReforcoEngine.suggestFrontier(DesempenhoTecScreen.scopedSnapshot(),
-        { banca: DesempenhoTecScreen.bancaFiltro(), minQuestoes: 10, granularidade: 1, limite: 20 });
-      const lic = r.items.find((i) => /Licita/.test(i.nome));
+      const mapa = ReforcoEngine.incidenceMap(DesempenhoTecScreen.bancaFiltro());
       return {
         rotulo: document.querySelector('#incid-banca-pick .banca-pick-btn span').textContent.trim(),
         blocos: document.querySelectorAll('#incid-bancas-list .incid-banca-block').length,
         resumo: (document.getElementById('incid-selecao-resumo') || {}).textContent || '',
-        incid: lic ? lic.incidencia : null,
-        vezes: r.items.filter((i) => /Licita/.test(i.nome)).length
+        incid: ReforcoEngine.incidenciaDe(mapa, 'Licitacoes', 'Direito Administrativo').valor
       };
     };
     const todas = estado();
@@ -1351,7 +1349,7 @@ try {
     const voltou = estado();
     return { todas, uma, duas, noPlano, voltou };
   });
-  (sel.todas.incid === 166 && sel.todas.vezes === 1)
+  (sel.todas.incid === 166)
     ? ok('todas as bancas somam num assunto so (40+26+100 = 166)')
     : erro('a soma de todas as bancas saiu errada: ' + JSON.stringify(sel.todas));
   (sel.uma.incid === 40 && /FGV/.test(sel.uma.rotulo) && sel.uma.blocos === 1)
@@ -1361,8 +1359,8 @@ try {
     ? ok('duas bancas somam so as duas (40+26 = 66) e o resumo nomeia as duas')
     : erro('a soma de duas bancas saiu errada: ' + JSON.stringify(sel.duas));
   (/2 bancas/.test(sel.noPlano.rotulo) && Array.isArray(sel.noPlano.filtro) && sel.noPlano.filtro.length === 2)
-    ? ok('a mesma selecao vale no Plano, sem precisar escolher de novo')
-    : erro('a selecao nao atravessou para o Plano: ' + JSON.stringify(sel.noPlano));
+    ? ok('a mesma selecao vale no Motor, sem precisar escolher de novo')
+    : erro('a selecao nao atravessou para o Motor: ' + JSON.stringify(sel.noPlano));
   (sel.voltou.incid === 166 && /Todas/.test(sel.voltou.rotulo))
     ? ok('voltar a todas as bancas devolve a soma completa')
     : erro('nao voltou para todas: ' + JSON.stringify(sel.voltou));
@@ -1500,7 +1498,7 @@ try {
     const depois = visiveis().map((s) => s.dataset.tab + '/' + s.dataset.sec);
     return { chips, inicio, depois };
   });
-  (abre.chips.length === 3 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'motor/caderno')
+  (abre.chips.length === 4 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'motor/caderno')
     ? ok(`a folha do Motor tem ${abre.chips.length} secoes e mostra UMA por vez (${abre.inicio[0]} → ${abre.depois[0]})`)
     : erro('a folha nao esta mostrando uma secao por vez: ' + JSON.stringify(abre));
 
@@ -1725,12 +1723,12 @@ try {
        tela). O que este teste garante continua sendo o mesmo — o cartao diz de
        ONDE veio —, e passa a aceitar qualquer uma das tres fontes em vez de
        exigir a frase generica que existia quando havia so uma. */
-    return { doPlano: /do Plano|leitura anal[íi]tica|Robusto|Simplificado/.test(t),
+    return { doPlano: /Motor · (pré|pós)-edital|do TEC/.test(t),
       evo: /45% → 30%/.test(t), retrato: /pelo retrato/.test(t),
       barra: /50 \/ 120/.test(t) };
   });
   (card.doPlano && card.evo && card.barra)
-    ? ok('o cartao da atividade nomeia a fonte que a gerou, mostra 45% → 30% e a barra em 50/120')
+    ? ok('o cartao da atividade nomeia a fase em que foi escolhida, mostra 45% → 30% e a barra em 50/120')
     : erro('o cartao nao trouxe o ciclo: ' + JSON.stringify(card));
 
   // a calibragem so aparece com historico, e propoe o SEU numero

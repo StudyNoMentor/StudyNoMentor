@@ -92,64 +92,6 @@ const PlanoEngine = {
        antigo já nascer "migrado" e a migração nunca aconteceria. */
     migracao: 1
   },
-  /* ── MODOS DE ATAQUE ──────────────────────────────────────────────────────
-     A tela oferecia sete ordenações e dezenove parâmetros, e nenhuma frase
-     dizendo QUANDO usar cada coisa. Escolher entre sete ordens sem saber o que
-     elas respondem não é liberdade, é sorteio.
-
-     Cada modo é um conjunto COERENTE de ajustes com uma pergunta única. Mexer
-     em qualquer campo depois devolve o rótulo "Modo livre" — o preset é um
-     ponto de partida, nunca uma trava. */
-  MODOS: {
-    base: {
-      rot: '🧱 Base ampla', fase: 'pré-edital',
-      quando: 'Sem edital publicado, construindo repertório. A pergunta é "o que ainda não sei?".',
-      /* A FRASE ANTIGA BRIGAVA COM O QUADRO LOGO ABAIXO. Ela prometia que
-         "nenhuma banca decide por você antes da hora" enquanto "Onde atacar
-         primeiro" ordenava as matérias pela incidência das bancas, na mesma
-         tela. Não eram duas opiniões: são dois níveis. O preset governa a
-         ordem DENTRO da matéria — ali todo assunto pesa igual, para nada se
-         esconder atrás de pouco volume. Entre matérias, quem decide é o peso
-         da prova, porque é a única régua que existe antes do edital. */
-      porque: 'Dentro de cada matéria, todo assunto pesa igual e o pior acerto vem primeiro — nada se esconde atrás de pouco volume. Qual matéria atacar primeiro é o quadro "Onde atacar primeiro" que responde, pela incidência das bancas.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false }
-    },
-    edital: {
-      rot: '🎯 Edital publicado', fase: 'pós-edital',
-      quando: 'Edital na mão, banca definida. A pergunta muda para "o que me dá ponto NESTA prova?".',
-      porque: 'Ordena por fraqueza × incidência na banca e pesa por volume: assunto que cai muito e que você erra sobe ao topo, mesmo que não seja o seu pior acerto absoluto.',
-      patch: { ponderacao: 'volume', ordenar: 'banca', metaDominio: 85, tetoDominio: 90, custoModo: 'lacuna', incluirPequenas: false },
-      exige: 'incidencia'
-    },
-    curto: {
-      rot: '⏱️ Tempo curto', fase: 'qualquer fase',
-      quando: 'Poucas semanas até a prova e muito a fazer. A pergunta é "o que rende mais por questão resolvida?".',
-      porque: 'Ordena por ganho ÷ custo com o custo medido pela lacuna: assunto muito distante da meta perde para outro que fecha rápido — em tempo curto, dois assuntos resolvidos valem mais que um começado.',
-      patch: { ponderacao: 'igual', ordenar: 'rendimento', custoModo: 'lacuna', incluirPequenas: false }
-    },
-    manutencao: {
-      rot: '🛡️ Manutenção', fase: 'véspera / nível bom',
-      quando: 'Você já está no nível e o risco agora é PERDER o que ganhou.',
-      porque: 'Ordena pela maior queda recente e destaca o que está sem medição nova: aqui o inimigo é o esquecimento, não a ignorância.',
-      patch: { ponderacao: 'igual', ordenar: 'queda', custoModo: 'lacuna', incluirPequenas: false }
-    },
-    diagnostico: {
-      rot: '🔍 Diagnóstico', fase: 'plano novo / poucos dados',
-      quando: 'Poucas importações, muita coisa sem amostra. A pergunta é "onde eu estou, afinal?".',
-      porque: 'Traz para o cálculo os assuntos de amostra pequena e ordena pelo pior acerto: aqui o objetivo não é atacar fraqueza, é produzir dado para saber qual fraqueza é real.',
-      patch: { ponderacao: 'igual', ordenar: 'pior', incluirPequenas: true, minAmostra: 5, custoModo: 'lacuna' }
-    }
-  },
-  /* ── O PRESET NÃO MEXE NO PASSO DE LEITURA ───────────────────────────────
-     Os cinco modos gravavam `limite` (30, 20, 10, 15 e 40). Fazia sentido
-     quando `limite` era "mostrar até N" — um recorte de estratégia. Deixou de
-     fazer no instante em que ele virou o PASSO com que sete listas abrem:
-     escolher "Diagnóstico" passaria a despejar 40 itens de cada lista de uma
-     vez, que é exatamente o que o passo de 10 veio resolver, e "Tempo curto"
-     encolheria a fila de todo mundo sem ter sido pedido.
-
-     Modo de ataque é sobre O QUE a fila otimiza. Quanto cabe na sua tela é
-     decisão de leitura, e é sua — não muda quando você troca de fase. */
   /* ── AS CINCO ORDENS QUE DECIDEM ALGO ────────────────────────────────────
      Eram sete. Duas foram embora porque não eram escolha nenhuma:
 
@@ -208,157 +150,6 @@ const PlanoEngine = {
       armadilha: 'Um assunto ótimo que caiu de 95% para 88% aparece acima de um crônico de 30% que nunca melhorou.'
     }
   },
-  /* ── O QUE UM MODO DE ATAQUE CONTROLA ─────────────────────────────────────
-     Esta lista é a ÚNICA fonte: o diálogo de editar um modo nasce dela, o
-     `modoPatch` só devolve campos dela e o resumo dos chips lê os mesmos
-     campos. O diálogo tinha uma lista escrita à mão, e ela já havia divergido
-     nos DOIS sentidos:
-
-       · oferecia "Assuntos por vez" (`limite`), que deixou de ser estratégia
-         no instante em que virou o PASSO com que sete listas abrem. Os presets
-         tinham sido limpos desse campo de propósito, e editar um modo o
-         reintroduzia pela porta de trás — escolher "Diagnóstico" voltava a
-         despejar 40 itens de cada lista de uma vez;
-       · e NÃO oferecia justamente os parâmetros que dão nome a três dos cinco
-         modos: `minAmostra` (o Diagnóstico existe para baixá-lo), `pesoBanca`
-         (o Edital publicado existe para ele — a própria explicação da ordem
-         manda ajustar "quanto a banca pesa") e a régua de custo
-         (`custoPiso`/`custoPorPonto`, sem a qual a divisão ganho ÷ custo do
-         Tempo curto não significa nada).
-
-     Regra para entrar aqui: o campo muda O QUE A FILA OTIMIZA ou EM QUEM ela
-     confia. Fica fora o que é preferência de leitura (quantos itens por vez),
-     de escopo (disciplina, matérias fora do Plano) ou régua de medição
-     partilhada pela tela inteira (validade, consolidação, sensibilidade,
-     janela, piso da série). */
-  MODO_CAMPOS: [
-    { key: 'ordenar', label: 'Ordem de ataque', tipo: 'ordens',
-      hint: 'A pergunta que a fila responde.' },
-    { key: 'ponderacao', label: 'Como pesar cada assunto', tipo: 'select', op: [
-      ['igual', '⚖️ Todo assunto pesa igual'], ['volume', '📊 Pelo volume de questões'], ['ambas', '🔀 Mostrar as duas'] ] },
-    { key: 'metaDominio', label: 'Meta de domínio (%)', tipo: 'num', min: 30, max: 100,
-      hint: 'A nota que você considera suficiente em cada assunto.' },
-    { key: 'tetoDominio', label: 'Acerto máximo realista (%)', tipo: 'num', min: 50, max: 100,
-      hint: 'Onde a lacuna de cada assunto termina — é ele que dimensiona o custo e o prêmio.' },
-    // `numerico` porque as opções são números escritos como texto: sem isso o
-    // modo guardaria a string "100" e a comparação com o valor em vigor (100)
-    // marcaria o modo como personalizado sem ninguém ter mexido nele.
-    { key: 'amostraAlvo', label: 'Amostra desejada por assunto', tipo: 'select', numerico: true, op: [
-      ['30', '30 questões (±18pp)'], ['50', '50 questões (±14pp)'], ['100', '100 questões (±10pp)'], ['200', '200 questões (±7pp)'] ] },
-    { key: 'minAmostra', label: 'Amostra mínima para entrar na conta', tipo: 'num', min: 1, max: 200,
-      hint: 'Abaixo disso o assunto vai para o segundo plano — é este número que o modo Diagnóstico baixa.' },
-    { key: 'incluirPequenas', label: 'Incluir amostra pequena no cálculo', tipo: 'bool', op: [
-      ['0', 'Não — vai para o segundo plano'], ['1', 'Sim — entra no cálculo (diagnóstico)'] ] },
-    { key: 'custoModo', label: 'Como estimar o custo', tipo: 'select', op: [
-      ['lacuna', '📐 Pela lacuna até o máximo realista'], ['fixo', 'Número fixo de questões'], ['proporcional', 'Proporcional ao praticado'] ] },
-    { key: 'custoPiso', label: 'Custo: piso para remedir (questões)', tipo: 'num', min: 0, max: 500,
-      hint: 'Só com custo por lacuna: o bloco que mede o assunto de novo.' },
-    { key: 'custoPorPonto', label: 'Custo: questões por ponto de lacuna', tipo: 'num', min: 0, max: 50,
-      hint: 'Só com custo por lacuna. É o que a calibragem pelo seu histórico ajusta.' },
-    { key: 'pesoBanca', label: 'Quanto a banca pesa na ordem', tipo: 'num', min: 0, max: 20,
-      hint: 'Só na ordem "fraqueza × incidência". 0 ignora a banca.' }
-  ],
-  MODO_CAMPO_CHAVES: null,   // preenchido na 1ª leitura (ver `_chavesDeModo`)
-  _chavesDeModo() {
-    if (!this.MODO_CAMPO_CHAVES) this.MODO_CAMPO_CHAVES = this.MODO_CAMPOS.map(c => c.key);
-    return this.MODO_CAMPO_CHAVES;
-  },
-  /* ── MODOS EDITÁVEIS ──────────────────────────────────────────────────────
-     Os cinco modos são um ponto de partida, não um dogma: a meta que serve para
-     um concurso não serve para outro, e quem estuda é quem sabe. Cada modo pode
-     ser ajustado e guarda o SEU ajuste no perfil; `MODOS` continua sendo o
-     padrão de fábrica, e cada modo pode voltar a ele sozinho, sem levar os
-     outros junto.
-
-     Os ajustes ficam no perfil, não no retrato: reimportar o TEC todo mês
-     recalcula os números, nunca as suas preferências. */
-  modoPatch(k) {
-    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
-    const custom = (this.prefs().modosCustom || {})[k] || {};
-    const junto = Object.assign({}, base, custom);
-    /* Filtra pelos campos declarados: um perfil que já gravou `limite` dentro
-       de um modo (o diálogo antigo permitia) para de ter o passo de leitura
-       trocado ao aplicar o preset, sem precisar migrar dado nenhum. */
-    const ok = this._chavesDeModo();
-    const out = {};
-    Object.keys(junto).forEach(c => { if (ok.indexOf(c) >= 0) out[c] = junto[c]; });
-    return out;
-  },
-  modoEditado(k) {
-    const custom = (this.prefs().modosCustom || {})[k];
-    if (!custom) return false;
-    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
-    return Object.keys(custom).some(c => String(custom[c]) !== String(base[c]));
-  },
-  /* Guarda só o que DIFERE do padrão de fábrica, somando ao que já estava
-     ajustado. Gravar o patch inteiro fazia um "salvar" sem mexer em nada
-     marcar o modo como editado — e enfiava no modo campos que ele nunca quis
-     definir (um modo que não fixa a meta passava a fixá-la, mudando o que
-     "aplicar" significa). Campo que volta ao valor de fábrica sai do registro;
-     modo sem nenhuma diferença deixa de existir como personalizado. */
-  salvarModo(k, patch) {
-    const base = (this.MODOS[k] && this.MODOS[k].patch) || {};
-    const m = Object.assign({}, this.prefs().modosCustom || {});
-    const atual = Object.assign({}, m[k] || {}, patch || {});
-    const permitidos = this._chavesDeModo();
-    Object.keys(atual).forEach(c => {
-      // campo que não é do modo (o passo de leitura, por exemplo) não entra:
-      // guardado, ele apareceria como "modo personalizado" sem efeito nenhum
-      if (permitidos.indexOf(c) < 0) { delete atual[c]; return; }
-      if (base[c] !== undefined && String(atual[c]) === String(base[c])) delete atual[c];
-      if (atual[c] === undefined || (typeof atual[c] === 'number' && isNaN(atual[c]))) delete atual[c];
-    });
-    if (Object.keys(atual).length) m[k] = atual; else delete m[k];
-    this.salvarPrefs({ modosCustom: m });
-  },
-  restaurarModo(k) {
-    const p = this.prefs();
-    const m = Object.assign({}, p.modosCustom || {});
-    delete m[k];
-    this.salvarPrefs({ modosCustom: m });
-  },
-  // Um preset está "em vigor" quando TODOS os campos que ele define batem com o
-  // que está valendo. Basta mexer num deles para a tela voltar a dizer livre.
-  modoAtivo(p) {
-    p = p || this.prefs();
-    const chaves = Object.keys(this.MODOS);
-    for (const k of chaves) {
-      const patch = this.modoPatch(k);
-      if (Object.keys(patch).every(c => String(p[c]) === String(patch[c]))) return k;
-    }
-    return 'livre';
-  },
-  // Resumo legível do que um modo aplica — é o que a tela mostra sob os chips.
-  resumoModo(k) {
-    /* O que vale DEPOIS de aplicar: um modo que não define a meta mantém a que
-       está valendo. Lendo só o patch, o resumo escrevia "meta undefined%" nos
-       três modos que não a fixam. */
-    const patch = Object.assign({}, this.prefs(), this.modoPatch(k));
-    const rot = (this.ORDENS[patch.ordenar] || {}).rot || patch.ordenar;
-    const pond = patch.ponderacao === 'volume' ? 'peso por volume' : patch.ponderacao === 'ambas' ? 'as duas métricas' : 'peso igual';
-    const custo = patch.custoModo === 'fixo' ? 'custo fixo' : patch.custoModo === 'proporcional' ? 'custo proporcional' : 'custo por lacuna';
-    const partes = [rot, 'meta ' + patch.metaDominio + '%'];
-    if (patch.tetoDominio != null) partes.push('teto ' + patch.tetoDominio + '%');
-    partes.push(pond, custo);
-    if (patch.incluirPequenas) partes.push('inclui amostra pequena');
-    /* Os campos que ESTE modo define por conta própria (o patch, não o que ele
-       herda): é o que distingue "Diagnóstico" de "Base ampla" quando os dois
-       ordenam pelo pior acerto. `limite` saiu — passo de leitura não é modo. */
-    const proprio = this.modoPatch(k);
-    if (proprio.minAmostra != null) partes.push('amostra mínima ' + proprio.minAmostra);
-    if (proprio.amostraAlvo != null) partes.push('alvo ' + proprio.amostraAlvo + 'q');
-    if (proprio.pesoBanca != null) partes.push('banca pesa ' + proprio.pesoBanca);
-    if (proprio.custoPiso != null || proprio.custoPorPonto != null) {
-      partes.push('custo ' + (proprio.custoPiso != null ? proprio.custoPiso : patch.custoPiso)
-        + '+' + (proprio.custoPorPonto != null ? proprio.custoPorPonto : patch.custoPorPonto) + '/pt');
-    }
-    return partes.join(' · ');
-  },
-  /* Preferências podem chegar do localStorage, de backup ou da nuvem. A tela
-     limita os campos, mas esses caminhos não passam pelos inputs HTML. Um único
-     "abc", infinito ou número negativo propagava NaN pelo domínio e pelo custo.
-     A fronteira de leitura agora aceita somente chaves conhecidas e aplica os
-     mesmos limites visíveis na interface. */
   sanearPrefs(raw) {
     const src = raw && typeof raw === 'object' ? raw : {};
     const out = Object.assign({}, this.DEFAULTS);
@@ -398,22 +189,6 @@ const PlanoEngine = {
     else {
       const ritmo = Number(src.ritmoSemanal);
       out.ritmoSemanal = Number.isFinite(ritmo) ? Math.max(1, Math.min(2000, ritmo)) : null;
-    }
-    const permitidosModo = this._chavesDeModo ? this._chavesDeModo() : [];
-    out.modosCustom = {};
-    if (src.modosCustom && typeof src.modosCustom === 'object' && !Array.isArray(src.modosCustom)) {
-      Object.keys(this.MODOS).forEach(modo => {
-        const recebido = src.modosCustom[modo];
-        if (!recebido || typeof recebido !== 'object' || Array.isArray(recebido)) return;
-        const limpo = {};
-        permitidosModo.forEach(k => {
-          if (!Object.prototype.hasOwnProperty.call(recebido, k)) return;
-          if (specs[k]) limpo[k] = limpaNum(k, recebido[k], out[k]);
-          else if (enums[k] && enums[k].includes(recebido[k])) limpo[k] = recebido[k];
-          else if (k === 'incluirPequenas' && typeof recebido[k] === 'boolean') limpo[k] = recebido[k];
-        });
-        if (Object.keys(limpo).length) out.modosCustom[modo] = limpo;
-      });
     }
     // Opções internas não são persistidas, mas precisam atravessar chamadas do motor.
     if (Array.isArray(src._snapshots)) out._snapshots = src._snapshots;
@@ -1976,7 +1751,7 @@ const PlanoEngine = {
       idxMeta, qAteMeta: idxMeta >= 0 ? qAteMeta : null, caminho, equivalentes,
       equivalentesConfiaveis: plano.length >= 5,
       custoModo: opts.custoModo, custoPiso: opts.custoPiso, custoPorPonto: opts.custoPorPonto,
-      pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra, modo: this.modoAtivo(opts),
+      pesoBanca: opts.pesoBanca, minAmostra: opts.minAmostra,
       ritmo, ritmoMedido: this.ritmoRecente(snapsDesc, 120, fora),
       /* Divergente quando o número travado erra a medição por mais de 50% —
          abaixo disso a previsão ainda é da mesma ordem de grandeza e o aviso
@@ -2614,10 +2389,30 @@ const PlanoCiclo = {
       escopo,
       // a MESMA régua, lida nas linhas cruas — a que o progresso usa de fato
       qBaseNo: PlanoEngine.volumeDoEscopo(escopo, disciplina, p).q,
-      metaAlvo: p.metaDominio,
-      custoEstimado: (item && item.custoQ) || null,
-      tetoAlvo: p.tetoDominio
+      /* A META É A DO MOTOR NO DIA DA CRIAÇÃO, gravada aqui: mudar a régua
+         depois não pode reescrever o veredito de quem já está correndo. */
+      metaAlvo: this._metaDoMotor(),
+      custoEstimado: (item && item.dose) || (item && item.custoQ) || null,
+      /* Quem decidiu, e pensando em quê. Com um motor só, o que a etiqueta da
+         atividade precisa dizer é a FASE — pré e pós escolhem por razões
+         diferentes, e seis meses depois isso é o que explica a escolha. */
+      sugestao: this._assinaturaDoMotor(item)
     };
+  },
+  _metaDoMotor() {
+    try { return MotorSugestao.prefs().metaAcerto; }
+    catch (e) { _quiet(e, 'ciclo-meta'); return 85; }
+  },
+  _assinaturaDoMotor(item) {
+    try {
+      const p = MotorSugestao.prefs();
+      return {
+        motor: 'motor', fase: p.fase, criadoEm: todayLocal(),
+        margemMax: p.margemMax,
+        margem: (item && item.margem != null) ? Math.round(item.margem * 10) / 10 : null,
+        bloco: !!(item && item.agregado)
+      };
+    } catch (e) { _quiet(e, 'ciclo-assinatura'); return null; }
   },
   /* ── A LENTE LEGADA, PINADA ───────────────────────────────────────────────
      Atividade criada antes do escopo não tem `qBaseNo`, e o `qBase` dela foi
@@ -3144,7 +2939,8 @@ const TecAjustes = {
       }
       p.push(['margem', '±' + m.margemMax + 'pp']);
       p.push(['caderno', m.alvoQuestoes + ' questões']);
-      p.push(['frentes', String(m.maxFrentes)]);
+      p.push(['disciplinas', String(m.maxFrentes)]);
+      p.push(['meta', m.metaAcerto + '%']);
     } else if (aba === 'analise') {
       if (val('tec-weak-threshold')) p.push(['fraco abaixo de', val('tec-weak-threshold') + '%']);
       p.push(['ordem', semEmoji(sel('tec-weak-ordenar'))]);
@@ -4267,7 +4063,10 @@ const DesempenhoTecScreen = {
   },
   // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
   // Devolve true quando a atividade nasceu, para o chamador contar.
-  criarExtraDoPlano(topico, disciplina, alvo, motivo, lote) {
+  /* `sugerido` é a frente como o Motor a devolveu (margem, bloco, membros).
+     Ela é opcional: o portão continua servindo a quem cria uma atividade
+     direto de um nó da árvore, sem passar pela fila. */
+  criarExtraDoPlano(topico, disciplina, alvo, motivo, lote, sugerido) {
     /* Só uma atividade ABERTA bloqueia. Uma já encerrada é história: o assunto
        pode ter voltado a cair — e no caso do veredito "não funcionou" ele
        PRECISA de um ataque novo, de outro tipo. Recusar por causa dela
@@ -4275,7 +4074,7 @@ const DesempenhoTecScreen = {
     /* A unidade do Plano vem ANTES da trava: é dela que sai a lista de tópicos
        que um bloco cobre, e sem ela a trava não veria a atividade aberta em um
        membro. Ela também é o item que a origem lê para gravar o escopo. */
-    const alvoTop = this._unidadeDoPlano(topico, disciplina);
+    const alvoTop = sugerido || this._unidadeDoPlano(topico, disciplina);
     const unidade = alvoTop || { nome: topico, disciplina: disciplina || '' };
     const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaUnidade(e.origemPlano, unidade));
     if (jaTem) { if (!lote) showToast('Já existe uma atividade em aberto para "' + topico + '"'); return false; }
@@ -4294,8 +4093,8 @@ const DesempenhoTecScreen = {
       periodo: 'unica',
       contaMetricas: false,
       obs: diag
-        ? 'Gerado pelo Plano: amostra insuficiente. Resolva estas questões para saber se é fraqueza real.'
-        : 'Gerado pelo Plano de pontos fracos. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da lista.'
+        ? 'Gerado pelo Motor: amostra insuficiente. Resolva estas questões para saber se é fraqueza real.'
+        : 'Gerado pelo Motor de sugestão. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da fila.'
     });
     if (e) {
       // um só lugar monta a origem: os dois portões gravam exatamente o mesmo
@@ -4388,7 +4187,7 @@ const DesempenhoTecScreen = {
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
       if (!x) return;
-      this.criarExtraDoPlano(x.nome, x.disciplina, x.dose, 'reforco');
+      this.criarExtraDoPlano(x.nome, x.disciplina, x.dose, 'reforco', false, x);
     }));
   },
   _incidParsed: null,
@@ -4414,7 +4213,7 @@ const DesempenhoTecScreen = {
     const resumoEl = document.getElementById('incid-selecao-resumo');
     if (resumoEl) {
       if (!sel.length) {
-        resumoEl.innerHTML = `<p class="incid-selecao">Somando <b>todas as ${todasBancas.length} bancas</b> importadas. Marque as suas no seletor acima para o Reforço e o Plano priorizarem só o que elas cobram.</p>`;
+        resumoEl.innerHTML = `<p class="incid-selecao">Somando <b>todas as ${todasBancas.length} bancas</b> importadas. Marque as suas no seletor acima para o 🧭 Motor, no pós-edital, priorizar só o que elas cobram.</p>`;
       } else {
         const rs = DB.getIncidencia().filter(r => ReforcoEngine._daBanca(filtro, r.banca));
         const raiz = rs.filter(r => r.depth === 0);
@@ -5404,7 +5203,7 @@ $id('tec-weak-disc').addEventListener('change', (e) => {
     MotorSugestao.salvar({ fase: b.dataset.fase });
     DT.renderMotor();
   });
-  ['motor-margem', 'motor-alvo', 'motor-dosemin', 'motor-frentes'].forEach(id => {
+  ['motor-margem', 'motor-alvo', 'motor-dosemin', 'motor-frentes', 'motor-meta'].forEach(id => {
     on(id, 'change', (e) => {
       const el = e.target;
       MotorSugestao.salvar({ [el.dataset.cfgKey]: el.value });
