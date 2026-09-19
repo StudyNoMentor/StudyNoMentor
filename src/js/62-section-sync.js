@@ -445,20 +445,18 @@ const SectionSync = {
     return { ok: true, rev: data && data[0] ? data[0].rev : row.rev };
   },
   // Envia as seções sujas para profile_sections com controle otimista por revisão.
-  async pushDirty() {
+  async pushDirty(id) {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
-    const id = ProfileManager.getActiveProfileId();
+    id = id || this._activeProfileId();
     if (!id) return;
-    /* A marca de "envio em curso" é ligada aqui e desligada em `finally`, e é
-       por isso que o corpo virou um método à parte. Entre um ponto e outro há
-       gravações no armazenamento (`_savePend`, `_saveRevs`) que podem lançar com
-       o disco cheio; antes, a linha que desligava a marca vinha depois e era
-       pulada pela exceção. Presa em true, ela fazia `pushDirty` devolver na
-       primeira linha PARA SEMPRE: a fila seguia crescendo, nada mais subia, e
-       nenhum erro aparecia na tela. */
+    /* A marca de "envio em curso" é global para serializar os requests, mas o
+       ALVO fica congelado neste id até o fim. Trocar o perfil na interface não
+       redireciona uma confirmação em voo. */
     this._pushing = true;
-    try { await this._enviarSujas(id); } finally { this._pushing = false; }
+    this._pushingProfile = id;
+    try { await this._enviarSujas(id); }
+    finally { this._pushing = false; this._pushingProfile = null; }
   },
   async _enviarSujas(id) {
     /* A operação inteira fica vinculada ao perfil capturado em pushDirty().
