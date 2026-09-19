@@ -413,6 +413,28 @@ try {
   ok(pendingDelete.explicit.includes('entries'),'exclusão durável deve aparecer como pendência explícita');
   ok(pendingDelete.quick>=1,'exclusão durável deve bloquear reconciliação rápida até ser resolvida');
 
+  /* 2n. Se já existem linhas por seção e a validação falha, o blob antigo não
+     pode ser aplicado como fallback. */
+  const noStaleBlobFallback=await page.evaluate(async()=>{
+    const id='syncv2-no-blob-fallback';
+    const keep={
+      active:ProfileManager.getActiveProfileId,pull:SectionSync.pullAndReload,last:SectionSync.lastRead,
+      fetch:CloudStore.fetchPayload,readFlag:localStorage.getItem(SectionSync.READ_FLAG_KEY)
+    };
+    let blobFetches=0;
+    ProfileManager.getActiveProfileId=()=>id;
+    localStorage.setItem(SectionSync.READ_FLAG_KEY,'1');
+    SectionSync.pullAndReload=async()=>false;
+    SectionSync.lastRead=()=>({ok:false,motivo:'seções-faltando',linhasRemotas:7});
+    CloudStore.fetchPayload=async()=>{blobFetches++;return {payload:{data:{}},rev:1};};
+    const r=await CloudStore.pullActiveAndReload({readOnly:true});
+    ProfileManager.getActiveProfileId=keep.active;SectionSync.pullAndReload=keep.pull;SectionSync.lastRead=keep.last;CloudStore.fetchPayload=keep.fetch;
+    if(keep.readFlag===null)localStorage.removeItem(SectionSync.READ_FLAG_KEY);else localStorage.setItem(SectionSync.READ_FLAG_KEY,keep.readFlag);
+    return {r,blobFetches};
+  });
+  eq(noStaleBlobFallback.blobFetches,0,'conjunto por seção inválido não pode cair para blob antigo');
+  eq(noStaleBlobFallback.r,false,'pull deve sinalizar validação protegida sem fingir sucesso');
+
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);
 } finally {
