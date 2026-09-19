@@ -1,5 +1,12 @@
 # Auditoria — Diário de Estudos
 
+> **Registro histórico.** Este relatório documenta uma rodada anterior de
+> auditoria e as decisões técnicas tomadas naquele estado do projeto. Ele não é
+> o manual da interface atual: telas, nomes e caminhos citados aqui podem ter
+> sido consolidados ou removidos depois. Para manutenção corrente, use
+> `CONTRIBUINDO.md`, `BANCO-DE-DADOS.md`, `build.mjs` e as barreiras em
+> `testes/`.
+
 Auditoria completa do `index.html`, com a fidelidade ao Anki
 ([ankitects/anki](https://github.com/ankitects/anki) +
 [fsrs-rs](https://github.com/open-spaced-repetition/fsrs-rs)) como referência
