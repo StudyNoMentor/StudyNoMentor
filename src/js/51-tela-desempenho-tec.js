@@ -1364,6 +1364,12 @@ const DesempenhoTecScreen = {
         + b('pos', 'Pós-edital', 'Mesma lacuna; incidência desempata');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
+    /* A folha de Ajustes do Motor existe no DOM o tempo todo, só escondida — mas
+       o seletor de bancas dentro dela (seção 🏛️ Banca) só nasce quando algo
+       manda desenhá-lo. Nada mandava: a seção ficava eternamente vazia, mesmo
+       com bancas importadas, porque só o seletor da aba Incidência era pintado.
+       Aqui, sempre que o Motor repinta, o seletor da sua própria folha também. */
+    try { this.renderBancaPicker('motor-banca-pick'); } catch (e) { _quiet(e, 'motor-banca-pick'); }
 
     let r = null;
     try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-calcular'); }
@@ -1389,31 +1395,15 @@ const DesempenhoTecScreen = {
       return e >= 50 ? 'critico' : e >= 35 ? 'alto' : e >= 20 ? 'medio' : 'leve';
     };
     const emoji = x => ({ critico: '🚨', alto: '🔥', medio: '⚠️', leve: '📌' }[tom(x)]);
-    const discTop = (r.disciplinas || []).slice(0, r.itens.length);
 
-    const disciplinasHtml = discTop.map((d, i) => {
-      const top = d.melhorTopico;
-      const ac = d.taxa == null ? '—' : fmt1(d.taxa) + '%';
-      return `
-        <article class="ms-priority-card tone-${tom(top)}">
-          <div class="ms-priority-icon">${emoji(top)}</div>
-          <div class="ms-priority-body">
-            <div class="ms-priority-eyebrow">Prioridade ${i + 1} · ${escapeHtml(r.criterioDisciplinas || '')}</div>
-            <h3>${escapeHtml(d.nome)}</h3>
-            <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
-            <div class="ms-priority-meta">
-              <span><i>lacuna do tópico</i><b>${top ? fmt1(top.gapMeta) + 'pp' : '—'}</b></span>
-              <span><i>amostra</i><b>${top ? top.questoes + ' q' : '—'}</b></span>
-              <span><i>disciplina</i><b>${ac}</b></span>
-              <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
-            </div>
-          </div>
-        </article>`;
-    }).join('');
-
+    /* CADA CARTÃO MOSTRA QUATRO NÚMEROS, NUNCA SEIS ─────────────────────────
+       A versão anterior repetia a mesma questão sob dois nomes (histórico e
+       amostra) e mostrava o piso da régua — igual em toda a rodada — dentro de
+       cada cartão. Erro também não é dado novo: é 100 − acerto. O que sobra
+       depois de tirar as três repetições é exatamente o que muda de cartão
+       para cartão: acerto, lacuna, amostra e — conforme a fase — nível ou
+       incidência. Um quarto estável em vez de seis desalinhados. */
     const linhas = r.itens.map((x, i) => {
-      const erroPct = fmt1(x.taxaErro);
-
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
       const porQue = x.agregado
         ? `Bloco local com ${x.membros.length} dos irmãos mais fracos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam ${r.prefs.minAmostra} questões; juntos formam uma atividade executável. Os demais continuam na fila.`
@@ -1423,89 +1413,93 @@ const DesempenhoTecScreen = {
       const membros = x.agregado
         ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
         : '';
-      const peso = r.fase === 'pos'
-        ? `<span><i>incidência</i><b>${x.peso}</b></span>`
-        : `<span><i>amostra</i><b>${x.questoes}</b></span>`;
+      const quarto = r.fase === 'pos'
+        ? `<span><b>${x.peso}</b><i>Incidência</i></span>`
+        : `<span><b>Nível ${x.nivel}</b><i>Profundidade</i></span>`;
       return `
         <article class="ms-suggestion-card tone-${tom(x)}" data-i="${i}">
-          <div class="ms-action-context">
-            <b>${escapeHtml(x.disciplina)}</b>
-            <span>${fmt1(x.disciplinaTaxa)}% geral</span>
-            <span>lacuna ${fmt1(x.disciplinaLacuna)}pp até a meta</span>
-            <span>amostra mínima ${r.prefs.minAmostra} q</span>
-            ${r.fase === 'pos' ? '<span>incidência da matéria ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
-          </div>
           <div class="ms-suggestion-head">
             <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
             <div class="ms-suggestion-title">
               <small>${trilha.map(escapeHtml).join(' › ')}</small>
-              <h3>${escapeHtml(x.nome)}</h3>
-              <div class="ms-level-badges">
-                <span>Nível ${x.nivel}</span>
-                ${x.agregado ? '<span class="is-group">bloco de irmãos</span>' : '<span>recorte direto</span>'}
-              </div>
+              <h3>${escapeHtml(x.nome)}${x.agregado ? ' <span class="ms-selo">bloco · ' + x.membros.length + ' irmãos</span>' : ''}</h3>
             </div>
             <div class="ms-dose"><b>${x.dose}</b><small>questões</small></div>
           </div>
+          <div class="ms-action-context">
+            <b>${escapeHtml(x.disciplina)}</b>
+            <span>${fmt1(x.disciplinaTaxa)}% geral</span>
+            <span>lacuna ${fmt1(x.disciplinaLacuna)}pp</span>
+            ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
+          </div>
           ${membros}
           <div class="ms-suggestion-metrics">
-            <span><i>acerto</i><b>${fmt1(x.taxa)}%</b></span>
-            <span><i>erro</i><b>${erroPct}%</b></span>
-            <span><i>histórico</i><b>${x.questoes} q</b></span>
-            <span><i>lacuna p/ meta</i><b>${fmt1(x.gapMeta)}pp</b></span>
-            <span><i>piso válido</i><b>${r.prefs.minAmostra} q</b></span>
-            ${peso}
+            <span><b>${fmt1(x.taxa)}%</b><i>Acerto</i></span>
+            <span><b>${fmt1(x.gapMeta)}pp</b><i>lacuna p/ meta</i></span>
+            <span><b>${x.questoes} q</b><i>Amostra</i></span>
+            ${quarto}
           </div>
-          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna:</b> ${fmt1(x.gapMeta)}pp até a meta de ${r.prefs.metaAcerto}%.</p></div>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)}</p></div>
           <div class="ms-suggestion-action">
             <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
         </article>`;
     }).join('');
 
+    /* RANKING E FILA VIRAM SANFONA, NÃO CAIXA COM SCROLL PRÓPRIO ─────────────
+       Uma caixa de altura fixa com barra de rolagem própria, dentro de uma
+       página que já rola, é a receita clássica do "scroll preso": o dedo
+       entra na caixa pequena e a página grande para de responder. Aqui cada
+       matéria vira seu próprio <details> — fecha por padrão, ocupando uma
+       linha só — e quando o que estiver aberto passa da tela, é a PÁGINA que
+       rola, do jeito que qualquer rolagem no celular deveria se comportar. */
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
       const statusAmostra = d.amostraMinima
         ? d.questoes + ' q'
-        : d.questoes + ' q na matéria; continua no ranking percentual, mas ainda sem recorte executável';
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
+        : d.questoes + ' q na matéria — ainda sem recorte executável';
+      return `<li><span>${emoji({ taxaErro: d.taxaErro })}</span><div>
+        <b>${i + 1}. ${escapeHtml(d.nome)}</b>
+        <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''}</small>
+        <small>entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s) na fila</small>
+      </div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
       const itens = (d.fila || []).slice(0, 15).map((x, i) =>
-        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
+        `<li><span>${emoji(x)}</span><div><b>${i + 1}. ${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
       ).join('');
-      return `<section class="ms-queue-group"><h4>${escapeHtml(d.nome)}</h4><ol>${itens}</ol></section>`;
+      return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i>⌄</i></summary><ol>${itens}</ol></details>`;
     }).join('');
 
     const somaDose = r.itens.reduce((s, x) => s + Number(x.dose || 0), 0);
     host.innerHTML = filterHtml + `
       <div class="ms-rule-summary">
-        <span>🧭 ${r.itens.length} matérias na rodada</span>
-        <span>🧩 1 frente de cada</span>
-        <span>📚 ${r.prefs.alvoQuestoes} questões por atividade</span>
-        <span>🧪 piso ${r.prefs.minAmostra} q por nível</span>
-        <span>🎯 meta ${r.prefs.metaAcerto}%</span>
-        <span>🛡️ primeiro matéria, depois tópico</span>
+        <span>🧭 ${r.itens.length} MATÉRIAS NA RODADA</span>
+        <span>🧩 1 FRENTE DE CADA</span>
+        <span>📚 ${r.prefs.alvoQuestoes} QUESTÕES POR ATIVIDADE</span>
+        <span>🧪 PISO ${r.prefs.minAmostra} Q/NÍVEL</span>
+        <span>🎯 META ${r.prefs.metaAcerto}%</span>
+        <span>🛡️ MATÉRIA, DEPOIS TÓPICO</span>
       </div>
 
       <section class="ms-stage ms-stage-action">
         <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor ordena as matérias pela distância simples até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente. Não há score oculto nem mistura global de tópicos.</small></div></header>
         <div class="ms-suggestion-list">${linhas}</div>
-        <p class="ms-round-total">Se executar a rodada: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s). Cada atividade recebe ${r.prefs.alvoQuestoes} questões.</p>
+        <p class="ms-round-total">🏁 Se executar a rodada inteira: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s), ${r.prefs.alvoQuestoes} por atividade.</p>
       </section>
 
       <div class="ms-rankings">
-        <details>
+        <details class="ms-rank-panel">
           <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i>⌄</i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
-        <details>
-          <summary><span>🧬 O que vem depois em cada matéria?</span><small>fila interna pior → melhor, sem pular de ramo</small><i>⌄</i></summary>
+        <details class="ms-rank-panel">
+          <summary><span>🧬 O que vem depois em cada matéria?</span><small>toque numa matéria para abrir a fila</small><i>⌄</i></summary>
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
+      <p class="hint ms-nota">📐 Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {

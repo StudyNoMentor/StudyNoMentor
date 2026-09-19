@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9a2498a4c4">
+<meta name="diario-versao" content="vdc3cbce2dc">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -12599,42 +12599,16 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 }
 .ms-fase button.active b { color: var(--accent, #5e81f4); }
 
-.ms-resumo { font-size: 12.5px; color: var(--text-dim); margin: 10px 0 12px; }
-.ms-lista { display: flex; flex-direction: column; gap: 10px; }
-.ms-item { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
-.ms-item-top { display: flex; align-items: center; gap: 12px; }
-.ms-rank {
-  width: 26px; height: 26px; flex: 0 0 26px; border-radius: 50%;
-  display: grid; place-items: center; font-size: 12px; font-weight: 700;
-  background: var(--accent-soft, rgba(94,129,244,.14)); color: var(--accent, #5e81f4);
-}
-.ms-id { flex: 1; min-width: 0; }
-.ms-id small {
-  display: block; font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--text-faint);
-}
-.ms-id b { font-size: 14.5px; color: var(--text); }
+/* .ms-selo é o único selo compartilhado entre o Motor de sugestão e o Puxar
+   do Motor — "bloco · N irmãos"/"ramos" ao lado do nome do tópico. */
 .ms-selo {
   margin-left: 8px; font-size: 10.5px; padding: 2px 7px; border-radius: 999px;
   background: var(--warn-soft, rgba(224,164,57,.16)); color: var(--warn, #c98a1e);
   white-space: nowrap;
 }
-.ms-dose { text-align: right; font-size: 19px; font-weight: 700; color: var(--text); line-height: 1; }
-.ms-dose small { display: block; font-size: 10px; font-weight: 400; color: var(--text-faint); margin-top: 3px; }
-.ms-nums { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0 38px; }
-.ms-pill {
-  font-size: 11.5px; padding: 3px 9px; border-radius: 999px;
-  background: var(--surface-2, rgba(127,127,127,.10)); color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-.ms-pill i { font-style: normal; color: var(--text-faint); margin-right: 5px; }
-.ms-score { font-weight: 700; color: var(--text); }
-.ms-acoes { margin: 10px 0 0 38px; }
 .ms-nota { margin-top: 14px; }
 
 @media (max-width: 560px) {
-  .ms-nums, .ms-acoes { margin-left: 0; }
-  .ms-dose { font-size: 16px; }
   .tec-ordem { padding-left: 16px; padding-right: 16px; }
 }
 
@@ -14500,36 +14474,6 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .ms-stage > header b { font-size: var(--fs-sm); color: var(--text); }
 .ms-stage > header small { font-size: var(--fs-3xs); color: var(--text-faint); line-height: 1.4; }
 
-.ms-disc-list { display: grid; gap: 8px; }
-.ms-disc-card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 11px;
-  padding: 11px 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-}
-.ms-disc-main { min-width: 0; display: grid; gap: 2px; }
-.ms-disc-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); }
-.ms-disc-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-3xs); color: var(--text-faint); }
-.ms-disc-kpis { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
-.ms-disc-kpis span {
-  display: grid;
-  gap: 1px;
-  min-width: 62px;
-  padding: 5px 7px;
-  border-radius: 8px;
-  background: var(--surface-sunken);
-  font-size: var(--fs-2xs);
-  font-weight: 800;
-  text-align: right;
-}
-.ms-disc-kpis i { font-style: normal; font-size: var(--fs-3xs); font-weight: 700; color: var(--text-faint); }
-
-.ms-selo-nivel { background: var(--surface-sunken); color: var(--text-soft); border-color: var(--border); }
-
 .ms-rankings {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -14558,28 +14502,6 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .ms-rankings summary i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
 .ms-rankings details[open] summary { border-bottom: 1px solid var(--border); background: var(--surface-sunken); }
 .ms-rankings details[open] summary i { transform: rotate(180deg); }
-.ms-rankings ol { list-style: none; margin: 0; padding: 6px; max-height: 360px; overflow-y: auto; }
-.ms-rankings li {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  gap: 2px 8px;
-  padding: 7px 6px;
-  border-radius: 8px;
-}
-.ms-rankings li:hover { background: var(--surface-sunken); }
-.ms-rankings li > span {
-  grid-row: 1 / 3;
-  width: 22px; height: 22px;
-  display: grid; place-items: center;
-  border-radius: 999px;
-  background: var(--surface-sunken);
-  color: var(--text-soft);
-  font-size: var(--fs-3xs);
-  font-weight: 800;
-}
-.ms-rankings li b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-2xs); }
-.ms-rankings li small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-3xs); color: var(--text-faint); }
-.ms-rankings li.is-incerto { opacity: .72; }
 
 @media (max-width: 760px) {
   #tec-panel-analise .tec-analysis-head {
@@ -14590,9 +14512,6 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   #tec-panel-analise .tec-ordem { margin: 12px 16px 4px; }
   .tec-focus-card, .tec-focus-multi { margin-left: 16px; margin-right: 16px; }
   .tec-disc-pick-panel { left: 0; right: auto; width: min(430px, calc(100vw - 36px)); }
-  .ms-disc-card { grid-template-columns: auto minmax(0, 1fr); }
-  .ms-disc-kpis { grid-column: 2; justify-content: flex-start; }
-  .ms-disc-kpis span { text-align: left; }
   .ms-rankings { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
@@ -14600,7 +14519,6 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   .incid-import-body { padding: 12px; }
   .tec-disc-pick-main small { display: none; }
   .tec-disc-pick-btn { min-height: 44px; }
-  .ms-disc-kpis span { min-width: 0; }
 }
 
 
@@ -14752,19 +14670,21 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 #tec-disc-list .tnode-stat.is-bad b { color: var(--bad-text); }
 
 /* MOTOR V2 — cartões de decisão mais próximos do Histórico: hierarquia visual,
-   faixa de estado, ícone e explicação antes da ação. */
+   faixa de estado, ícone e explicação antes da ação.
+   A fita de regras vira GRADE, não fileira solta: cada chip com a mesma
+   largura mínima faz as linhas fecharem retas, em vez de uma fileira de 5
+   seguida de 1 sozinho sobrando — o efeito "torto" da versão anterior. */
 .ms-rule-summary {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  margin: 10px 0 16px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 7px; margin: 10px 0 16px;
 }
 .ms-rule-summary > span {
-  padding: 6px 9px; border: 1px solid var(--border); border-radius: 999px;
-  background: var(--surface-sunken); color: var(--text-soft);
-  font-size: var(--fs-3xs); font-weight: 750;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 9px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-sunken); color: var(--text-soft); text-align: center;
+  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em;
 }
-.ms-priority-list,
 .ms-suggestion-list { display: grid; gap: 10px; }
-.ms-priority-card,
 .ms-suggestion-card {
   --ms-tone: var(--accent);
   position: relative;
@@ -14774,54 +14694,20 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   background: linear-gradient(135deg, color-mix(in srgb, var(--ms-tone) 7%, var(--surface)) 0%, var(--surface) 54%);
   box-shadow: var(--shadow-sm);
 }
-.ms-priority-card::before,
 .ms-suggestion-card::before {
   content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--ms-tone);
 }
-.ms-priority-card.tone-critico,
 .ms-suggestion-card.tone-critico { --ms-tone: var(--bad); }
-.ms-priority-card.tone-alto,
 .ms-suggestion-card.tone-alto { --ms-tone: #f97316; }
-.ms-priority-card.tone-medio,
 .ms-suggestion-card.tone-medio { --ms-tone: var(--warn); }
-.ms-priority-card.tone-leve,
 .ms-suggestion-card.tone-leve { --ms-tone: var(--accent); }
-
-.ms-priority-card {
-  display: grid; grid-template-columns: 42px minmax(0,1fr);
-  gap: 11px; padding: 13px 14px 13px 16px;
-}
-.ms-priority-icon {
-  width: 40px; height: 40px; display: grid; place-items: center;
-  border-radius: 12px; font-size: 20px;
-  background: color-mix(in srgb, var(--ms-tone) 12%, var(--surface));
-}
-.ms-priority-body { min-width: 0; }
-.ms-priority-eyebrow {
-  color: var(--ms-tone); font-size: var(--fs-3xs); font-weight: 850;
-  letter-spacing: .045em; text-transform: uppercase; margin-bottom: 2px;
-}
-.ms-priority-body h3 {
-  margin: 0; color: var(--text); font-size: var(--fs-sm);
-  line-height: 1.25; overflow-wrap: anywhere;
-}
-.ms-priority-body p {
-  margin: 4px 0 9px; color: var(--text-soft); font-size: var(--fs-2xs); line-height: 1.4;
-}
-.ms-priority-meta { display: flex; flex-wrap: wrap; gap: 6px; }
-.ms-priority-meta span {
-  display: grid; gap: 1px; padding: 5px 7px;
-  border-radius: 8px; background: color-mix(in srgb, var(--ms-tone) 5%, var(--surface-sunken));
-}
-.ms-priority-meta i { font-style: normal; color: var(--text-faint); font-size: var(--fs-3xs); }
-.ms-priority-meta b { color: var(--text); font-size: var(--fs-2xs); }
 
 .ms-suggestion-card { padding: 14px 14px 13px 17px; }
 .ms-suggestion-head {
   display: grid; grid-template-columns: 42px minmax(0,1fr) auto;
   align-items: start; gap: 11px;
 }
-.ms-suggestion-rank { position: relative; width: 40px; height: 40px; }
+.ms-suggestion-rank { position: relative; width: 40px; height: 40px; flex: 0 0 40px; }
 .ms-suggestion-rank > i {
   width: 40px; height: 40px; display: grid; place-items: center;
   border-radius: 12px; background: color-mix(in srgb, var(--ms-tone) 12%, var(--surface));
@@ -14837,48 +14723,62 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .ms-suggestion-title > small {
   display: block; color: var(--text-faint); font-size: var(--fs-3xs);
   line-height: 1.35; overflow-wrap: anywhere; margin-bottom: 3px;
+  text-transform: uppercase; letter-spacing: .03em; font-weight: 700;
 }
 .ms-suggestion-title h3 {
-  margin: 0; font-size: var(--fs-md); color: var(--text); line-height: 1.23;
+  margin: 0; font-size: var(--fs-md); color: var(--text); line-height: 1.28;
   overflow-wrap: anywhere;
 }
-.ms-level-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
-.ms-level-badges span {
-  padding: 3px 6px; border-radius: 999px;
-  background: var(--surface-sunken); color: var(--text-soft);
-  font-size: var(--fs-3xs); font-weight: 750;
-}
-.ms-level-badges .is-group {
-  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
-  color: var(--warn-text);
-}
+/* Rótulo "bloco · N irmãos" mora junto do título (reaproveita .ms-selo já
+   usado no Puxar do Motor) — um único selo, não uma segunda fileira de tags
+   repetindo "nível" e "recorte direto", que quase nunca é notícia. */
+.ms-suggestion-title h3 .ms-selo { vertical-align: middle; }
 .ms-suggestion-card .ms-dose {
-  min-width: 58px; padding: 7px 8px;
+  flex: 0 0 auto; min-width: 64px; padding: 7px 9px;
   border-radius: 11px; background: color-mix(in srgb, var(--ms-tone) 9%, var(--surface));
   text-align: center;
 }
 .ms-suggestion-card .ms-dose b {
   display: block; color: var(--ms-tone); font-size: var(--fs-xl);
-  font-family: 'Space Mono', ui-monospace, monospace; line-height: 1;
+  font-family: 'Space Mono', ui-monospace, monospace; line-height: 1; white-space: nowrap;
 }
-.ms-suggestion-card .ms-dose small { display: block; margin-top: 3px; color: var(--text-faint); font-size: var(--fs-3xs); }
+.ms-suggestion-card .ms-dose small {
+  display: block; margin-top: 3px; color: var(--text-faint); font-size: var(--fs-3xs);
+  white-space: nowrap; text-transform: uppercase; letter-spacing: .03em;
+}
 
-.ms-members { display: flex; flex-wrap: wrap; gap: 5px; margin: 10px 0 0 53px; }
+/* Contexto da disciplina: uma linha de texto, não uma segunda régua de pills
+   competindo visualmente com as métricas do tópico logo abaixo. */
+.ms-action-context {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px;
+  margin: 9px 0 0 53px; color: var(--text-faint); font-size: var(--fs-3xs); line-height: 1.5;
+}
+.ms-action-context b { color: var(--text-soft); font-weight: 800; overflow-wrap: anywhere; }
+.ms-action-context span::before { content: '· '; }
+.ms-action-context span { text-transform: uppercase; letter-spacing: .01em; }
+
+.ms-members { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0 0 53px; }
 .ms-members span {
   padding: 4px 7px; border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--border));
   border-radius: 8px; background: var(--warn-soft); color: var(--text-soft);
   font-size: var(--fs-3xs);
 }
+/* Quatro números, sempre quatro: acerto, lacuna, amostra e — conforme a fase —
+   nível ou incidência. Nunca mais, nunca menos, para a grade fechar simétrica
+   em qualquer largura de tela. */
 .ms-suggestion-metrics {
-  display: grid; grid-template-columns: repeat(5, minmax(0,1fr));
+  display: grid; grid-template-columns: repeat(4, minmax(0,1fr));
   gap: 6px; margin: 11px 0 0 53px;
 }
 .ms-suggestion-metrics > span {
   min-width: 0; display: grid; gap: 2px; padding: 7px 8px;
-  border-radius: 9px; background: var(--surface-sunken);
+  border-radius: 9px; background: var(--surface-sunken); text-align: center;
 }
-.ms-suggestion-metrics i { font-style: normal; color: var(--text-faint); font-size: var(--fs-3xs); }
 .ms-suggestion-metrics b { color: var(--text); font-size: var(--fs-2xs); overflow: hidden; text-overflow: ellipsis; }
+.ms-suggestion-metrics i {
+  font-style: normal; color: var(--text-faint); font-size: var(--fs-3xs);
+  text-transform: uppercase; letter-spacing: .03em; font-weight: 700;
+}
 .ms-why {
   display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 7px;
   margin: 10px 0 0 53px; padding: 8px 9px;
@@ -14905,29 +14805,48 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .ms-empty-honesto p { margin: 4px 0 0; color: var(--text-soft); font-size: var(--fs-xs); line-height: 1.5; }
 
 .ms-rankings summary > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ms-rank-list, .ms-queue-group ol { list-style: none; margin: 0; padding: 6px; }
-.ms-rank-list li,
-.ms-queue-group li {
-  display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 8px;
+/* SANFONA, NÃO CAIXA COM SCROLL PRÓPRIO — nada aqui tem max-height/overflow-y:
+   a lista inteira participa da rolagem normal da página. Cada matéria da fila
+   é seu próprio <details>, fechado por padrão: abrir uma não empurra scroll
+   de dentro de uma caixinha, o dedo continua rolando a tela como sempre. */
+.ms-rank-list { list-style: none; margin: 0; padding: 6px; }
+.ms-rank-list li {
+  display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 3px 8px;
+  padding: 8px 7px; border-radius: 9px;
+}
+.ms-rank-list li:hover { background: var(--surface-sunken); }
+.ms-rank-list li > span { font-size: 15px; line-height: 1; padding-top: 2px; text-align: center; }
+.ms-rank-list li div { min-width: 0; display: grid; gap: 2px; }
+.ms-rank-list li b { min-width: 0; color: var(--text); font-size: var(--fs-2xs); overflow-wrap: anywhere; }
+.ms-rank-list li small { color: var(--text-faint); font-size: var(--fs-3xs); line-height: 1.4; }
+
+.ms-queue-wrap { display: grid; gap: 8px; padding: 8px; }
+.ms-queue-item {
+  border: 1px solid var(--border); border-radius: 12px;
+  background: var(--surface); overflow: hidden;
+}
+.ms-queue-item > summary {
+  list-style: none; cursor: pointer;
+  display: grid; grid-template-columns: 20px minmax(0,1fr) auto auto;
+  align-items: center; gap: 8px; padding: 10px 11px;
+}
+.ms-queue-item > summary::-webkit-details-marker { display: none; }
+.ms-queue-item > summary > span:first-child { font-size: 15px; }
+.ms-queue-item > summary b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: var(--fs-xs); }
+.ms-queue-item > summary small { color: var(--text-faint); font-size: var(--fs-3xs); font-weight: 700; white-space: nowrap; text-transform: uppercase; }
+.ms-queue-item > summary i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
+.ms-queue-item[open] > summary { border-bottom: 1px solid var(--border); background: var(--surface-sunken); }
+.ms-queue-item[open] > summary i { transform: rotate(180deg); }
+.ms-queue-item > ol { list-style: none; margin: 0; padding: 6px; }
+.ms-queue-item li {
+  display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 3px 8px;
   padding: 7px; border-radius: 9px;
 }
-.ms-rank-list li:hover,
-.ms-queue-group li:hover { background: var(--surface-sunken); }
-.ms-rank-list li > span,
-.ms-queue-group li > span {
-  width: 23px; height: 23px; display: grid; place-items: center;
-  border-radius: 50%; background: var(--surface-sunken); color: var(--text-soft);
-  font-size: var(--fs-3xs); font-weight: 850;
-}
-.ms-rank-list li div,
-.ms-queue-group li div { min-width: 0; display: grid; gap: 2px; }
-.ms-rank-list li b,
-.ms-queue-group li b { min-width: 0; color: var(--text); font-size: var(--fs-2xs); overflow-wrap: anywhere; }
-.ms-rank-list li small,
-.ms-queue-group li small { color: var(--text-faint); font-size: var(--fs-3xs); line-height: 1.35; }
-.ms-queue-wrap { max-height: 520px; overflow-y: auto; padding: 8px; }
-.ms-queue-group + .ms-queue-group { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 8px; }
-.ms-queue-group h4 { margin: 0 6px 4px; color: var(--text); font-size: var(--fs-xs); }
+.ms-queue-item li:hover { background: var(--surface-sunken); }
+.ms-queue-item li > span { font-size: 15px; line-height: 1; padding-top: 2px; text-align: center; }
+.ms-queue-item li div { min-width: 0; display: grid; gap: 2px; }
+.ms-queue-item li b { min-width: 0; color: var(--text); font-size: var(--fs-2xs); overflow-wrap: anywhere; }
+.ms-queue-item li small { color: var(--text-faint); font-size: var(--fs-3xs); line-height: 1.35; }
 
 @media (max-width: 760px) {
   #incid-bancas-card .incid-bancas-head { grid-template-columns: minmax(0,1fr); }
@@ -14972,32 +14891,36 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   #tec-disc-list .tnode > .tnode-row { margin-left: var(--tec-indent,0) !important; }
   #tec-disc-list .tec-delta { max-width: 100%; }
 
-  .ms-suggestion-head { grid-template-columns: 40px minmax(0,1fr) 58px; gap: 9px; }
+  /* A terceira coluna precisa caber "N QUESTÕES" inteiro. Travada em 58px, o
+     texto não tinha onde ir e o navegador quebrava a própria palavra ao meio
+     ("QUESTÕE" + "S") — daí a coluna agora nasce mais larga, e o rótulo do
+     selo nunca quebra linha (nowrap), só encolhe de fonte se precisar. */
+  .ms-suggestion-head { grid-template-columns: 38px minmax(0,1fr) 74px; gap: 8px; }
   .ms-members,
+  .ms-action-context,
   .ms-suggestion-metrics,
   .ms-why,
   .ms-suggestion-action { margin-left: 0; }
-  .ms-suggestion-metrics { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .ms-suggestion-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .ms-suggestion-action .btn-primary { width: 100%; }
 }
 @media (max-width: 420px) {
-  .ms-priority-card { grid-template-columns: 36px minmax(0,1fr); padding-left: 13px; }
-  .ms-priority-icon { width: 34px; height: 34px; font-size: 17px; }
   .ms-suggestion-card { padding: 12px 10px 11px 14px; }
-  .ms-suggestion-head { grid-template-columns: 34px minmax(0,1fr) 54px; gap: 7px; }
+  .ms-suggestion-head { grid-template-columns: 32px minmax(0,1fr) 68px; gap: 6px; }
   .ms-suggestion-rank,
-  .ms-suggestion-rank > i { width: 34px; height: 34px; }
+  .ms-suggestion-rank > i { width: 32px; height: 32px; }
+  .ms-suggestion-card .ms-dose { min-width: 0; padding: 6px 4px; }
+  .ms-suggestion-card .ms-dose b { font-size: var(--fs-lg); }
+  .ms-suggestion-card .ms-dose small { font-size: 9px; letter-spacing: 0; }
   .ms-suggestion-title h3 { font-size: var(--fs-sm); }
-  .ms-suggestion-metrics { grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .ms-rule-summary { gap: 4px; }
-  .ms-rule-summary > span { padding: 5px 7px; }
+  .ms-rule-summary { grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5px; }
+  .ms-rule-summary > span { padding: 6px 7px; }
 }
 
 
 /* Contraste AA: a gravidade continua codificada pela faixa, emoji e fundo do
    card; texto pequeno/numeral usa a cor forte do tema para não ficar abaixo de
    4,5:1 no tema claro. */
-.ms-priority-eyebrow { color: var(--text); }
 .ms-suggestion-rank > span { background: var(--text); color: var(--surface); }
 .ms-suggestion-card .ms-dose b { color: var(--text); }
 #tec-disc-list .tnode-stat.is-good b { color: var(--text); }
@@ -15094,32 +15017,81 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 }
 
 
-/* Puxar do Motor — recomendação e alternativas deixam de ser uma lista plana. */
+/* Puxar do Motor — mesma régua visual do cartão da aba Motor (eyebrow, dose,
+   quatro estatísticas em grade), só que compacta o bastante para caber dezenas
+   de frentes numa lista com checkbox. */
+/* .pl-conta ocupa a linha inteira sempre (flex-basis:100%): se ficasse lado a
+   lado com os botões e precisasse quebrar em duas linhas por dentro, o
+   align-items:center da barra centralizava os botões NO MEIO da caixa de
+   chips — o texto da segunda linha ("marcada(s)") ficava atrás do botão. */
+.pl-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px}
+.pl-conta{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 100%;min-width:0}
+.pl-conta span{
+  padding:5px 9px;border:1px solid var(--border);border-radius:999px;
+  background:var(--surface-sunken);color:var(--text-soft);
+  font-size:var(--fs-3xs);font-weight:750;white-space:nowrap;
+}
+.pl-conta .pl-conta-marcadas{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 40%,var(--border));font-weight:850}
+.pl-toolbar .btn-secondary{white-space:nowrap;padding:5px 10px}
+.pl-lista-wrap{max-height:48vh;overflow-y:auto;overscroll-behavior:contain}
+
 .pl-rec-block,.pl-alt-block{display:grid;gap:8px;margin:8px 0 12px}
 .pl-rec-title{display:grid;gap:2px;padding:2px 2px 4px}
 .pl-rec-title b{font-size:var(--fs-xs);color:var(--text)}
 .pl-rec-title small{font-size:var(--fs-3xs);color:var(--text-faint);line-height:1.4}
+
+/* Cada frente: checkbox + corpo. O corpo sozinho define sua grade interna, então
+   este mesmo .pl-linha serve tanto à recomendação (destacada) quanto à
+   alternativa dentro do <details> por matéria — sem herdar de .sug-row. */
+.pl-linha{
+  display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;
+  align-items:start;padding:9px 10px;border:1px solid var(--border);
+  border-radius:11px;cursor:pointer;background:var(--surface);
+  transition:border-color .13s ease,background .13s ease;
+}
+.pl-linha:hover{border-color:var(--accent);background:var(--surface-sunken)}
+.pl-linha input[type="checkbox"]{margin-top:2px;width:17px;height:17px;accent-color:var(--accent)}
 .pl-linha.is-recommended{
   border:1px solid color-mix(in srgb,var(--accent) 36%,var(--border));
-  border-radius:11px;background:color-mix(in srgb,var(--accent) 5%,var(--surface));
-  padding:10px;
+  background:color-mix(in srgb,var(--accent) 5%,var(--surface));
 }
-.pl-rec-eyebrow{font-size:var(--fs-3xs);font-weight:850;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-bottom:3px}
+.pl-linha-body{min-width:0;display:grid;gap:5px}
+.pl-linha-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pl-linha-eyebrow{
+  font-size:var(--fs-3xs);font-weight:850;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--accent);overflow-wrap:anywhere;
+}
+.pl-linha-eyebrow-muted{color:var(--text-faint);font-weight:750}
+.pl-linha-dose{
+  margin-left:auto;flex:0 0 auto;padding:3px 8px;border-radius:999px;
+  background:var(--surface-sunken);color:var(--text);font-size:var(--fs-3xs);
+  font-weight:850;white-space:nowrap;
+}
+.pl-linha.is-recommended .pl-linha-dose{background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent)}
+.pl-linha-title{font-weight:700;color:var(--text);font-size:var(--fs-sm);line-height:1.28;overflow-wrap:anywhere}
+.pl-linha-stats{display:flex;flex-wrap:wrap;gap:5px}
+.pl-linha-stats span{
+  display:flex;align-items:baseline;gap:4px;padding:3px 7px;border-radius:7px;
+  background:var(--surface-sunken);font-size:var(--fs-3xs);
+}
+.pl-linha-stats b{color:var(--text);font-size:var(--fs-2xs)}
+.pl-linha-stats i{font-style:normal;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;font-weight:700}
+
 .pl-alt-group{border:1px solid var(--border);border-radius:11px;background:var(--surface);overflow:hidden}
 .pl-alt-group>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 11px}
 .pl-alt-group>summary::-webkit-details-marker{display:none}
 .pl-alt-group>summary span{font-size:var(--fs-xs);font-weight:800;color:var(--text);overflow-wrap:anywhere}
-.pl-alt-group>summary small{font-size:var(--fs-3xs);color:var(--text-faint)}
+.pl-alt-group>summary small{font-size:var(--fs-3xs);color:var(--text-faint);text-transform:uppercase;letter-spacing:.02em}
 .pl-alt-group>summary i{font-style:normal;color:var(--text-faint);transition:transform .15s}
 .pl-alt-group[open]>summary i{transform:rotate(180deg)}
-.pl-alt-list{border-top:1px solid var(--border);padding:5px}
-.pl-alt-list .pl-linha{border-radius:8px;padding:8px}
-.pl-alt-list .pl-linha:hover{background:var(--surface-sunken)}
+.pl-alt-list{border-top:1px solid var(--border);padding:6px;display:grid;gap:6px}
+.pl-alt-list .pl-linha{padding:8px 9px}
 .pl-disc-search{display:flex;align-items:center;gap:7px;min-height:36px;margin:6px;padding:0 8px;border:1px solid var(--border);border-radius:8px}
 .pl-disc-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--text)}
 @media(max-width:560px){
   .pl-alt-group>summary{grid-template-columns:minmax(0,1fr) auto}
   .pl-alt-group>summary small{grid-column:1/-1}
+  .pl-linha-dose{margin-left:0}
 }
 
 </style>
@@ -32614,12 +32586,12 @@ const ExtrasScreen = {
           <div class="pl-disc-panel" id="pl-disc-panel" style="display:none;"></div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px;">
-        <span class="hint" id="pl-conta" style="margin:0;flex:1;min-width:0;"></span>
-        <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;padding:5px 10px;">Usar recomendadas</button>
-        <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;padding:5px 10px;">Limpar</button>
+      <div class="pl-toolbar">
+        <span class="pl-conta" id="pl-conta"></span>
+        <button type="button" class="btn-secondary" id="pl-marcar">Usar recomendadas</button>
+        <button type="button" class="btn-secondary" id="pl-limpar">Limpar</button>
       </div>
-      <div style="max-height:42vh;overflow:auto;" id="pl-lista"></div>`;
+      <div class="pl-lista-wrap" id="pl-lista"></div>`;
 
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
@@ -32706,6 +32678,11 @@ const ExtrasScreen = {
     escolhidos.forEach((o, k) => { out[o.i] = copia[k].dose; });
     return out;
   },
+  // Mesma régua de severidade das telas Motor — um selo rápido de 🚨/🔥/⚠️/📌.
+  _motorEmoji(x) {
+    const e = Number((x && x.taxaErro) || 0);
+    return e >= 50 ? '🚨' : e >= 35 ? '🔥' : e >= 20 ? '⚠️' : '📌';
+  },
   // Preenche a lista de assuntos do diálogo conforme o filtro de disciplinas atual.
   _motorRenderLista() {
     const host = document.getElementById('pl-lista');
@@ -32720,21 +32697,29 @@ const ExtrasScreen = {
       if (!porDisc.has(d)) porDisc.set(d, []);
       porDisc.get(d).push({ x, i });
     });
+    /* CADA FRENTE, QUATRO NÚMEROS — a mesma régua do cartão da aba Motor:
+       acerto, lacuna, amostra e (no pós-edital) incidência. A disciplina só
+       aparece uma vez por frente: como eyebrow na recomendação, ou uma única
+       vez no cabeçalho do grupo nas alternativas — nunca as duas. */
     const linha = ({ x, i }, destaque, ordem) => {
       const dose = doses[i];
-      return '<label class="sug-row pl-linha ' + (destaque ? 'is-recommended' : '') + '" style="align-items:flex-start;">'
+      const eyebrow = destaque
+        ? 'Recomendação ' + ordem + ' · ' + escapeHtml(x.disciplina || '')
+        : '';
+      return '<label class="pl-linha ' + (destaque ? 'is-recommended' : '') + '">'
         + '<input type="checkbox" class="pl-pick" data-i="' + i + '" ' + (this._motorSel.has(i) ? 'checked' : '') + '>'
-        + '<div style="min-width:0;">'
-        + (destaque ? '<div class="pl-rec-eyebrow">Recomendação ' + ordem + ' · ' + escapeHtml(x.disciplina || '') + '</div>' : '')
-        + '<div style="font-weight:700;">' + escapeHtml(x.nome)
+        + '<div class="pl-linha-body">'
+        + '<div class="pl-linha-head">'
+        + (eyebrow ? '<span class="pl-linha-eyebrow">' + this._motorEmoji(x) + ' ' + eyebrow + '</span>' : '<span class="pl-linha-eyebrow pl-linha-eyebrow-muted">' + this._motorEmoji(x) + ' Alternativa</span>')
+        + (dose ? '<span class="pl-linha-dose">' + dose + ' questões</span>' : '')
+        + '</div>'
+        + '<div class="pl-linha-title">' + escapeHtml(x.nome)
         + (x.agregado ? ' <span class="ms-selo">bloco' + (x.membros ? ' · ' + x.membros.length + ' ramos' : '') + '</span>' : '') + '</div>'
-        + '<div class="hint" style="margin:2px 0 0;">'
-        + (!destaque && x.disciplina ? escapeHtml(x.disciplina) + ' · ' : '')
-        + Math.round(x.taxaErro) + '% de erro em ' + x.questoes + ' questões'
-        + (x.gapMeta != null ? ' · lacuna ' + (Math.round(x.gapMeta * 10) / 10) + 'pp até a meta' : '')
-        + ' · amostra ' + x.questoes + ' q'
-        + (pos && x.peso ? ' · incidência do tópico ' + x.peso : '')
-        + (dose ? ' · <strong>' + dose + ' questões</strong>' : '')
+        + '<div class="pl-linha-stats">'
+        + '<span><b>' + Math.round(x.taxa) + '%</b><i>Acerto</i></span>'
+        + (x.gapMeta != null ? '<span><b>' + (Math.round(x.gapMeta * 10) / 10) + 'pp</b><i>Lacuna</i></span>' : '')
+        + '<span><b>' + x.questoes + ' q</b><i>Amostra</i></span>'
+        + (pos && x.peso ? '<span><b>' + x.peso + '</b><i>Incidência</i></span>' : '')
         + '</div></div></label>';
     };
 
@@ -32750,8 +32735,9 @@ const ExtrasScreen = {
       const itens = porDisc.get(d) || [];
       if (!itens.length) return;
       const alternativas = itens.filter(({ x }) => !recomendadas.has(x.disciplina + '\u0001' + x.nome));
-      grupos.push('<details class="pl-alt-group"><summary><span>' + escapeHtml(d) + '</span><small>'
-        + itens.length + ' frente(s) na fila · pior → melhor</small><i>⌄</i></summary>'
+      const pior = itens.map(o => o.x).sort((a, b) => (b.taxaErro || 0) - (a.taxaErro || 0))[0];
+      grupos.push('<details class="pl-alt-group"><summary><span>' + this._motorEmoji(pior || {}) + ' ' + escapeHtml(d) + '</span><small>'
+        + itens.length + ' frente(s) · pior → melhor</small><i>⌄</i></summary>'
         + '<div class="pl-alt-list">' + (alternativas.length
           ? alternativas.map(o => linha(o, false, 0)).join('')
           : '<p class="hint" style="padding:8px;">A recomendação acima já é a única frente acionável desta matéria.</p>')
@@ -32780,9 +32766,9 @@ const ExtrasScreen = {
     const nDisc = new Set(cand.map(x => x.disciplina || '')).size;
     const marcados = this._motorSel ? this._motorSel.size : 0;
     const p = this._motorPrefs || MotorSugestao.prefs();
-    conta.innerHTML = `${vis} frente(s) em ${nDisc} matéria(s)`
-      + ` · <strong>${marcados} marcada(s)</strong>`
-      + (marcados ? ` · ${p.alvoQuestoes} questões por atividade` : '');
+    conta.innerHTML = '<span>' + vis + ' frente(s) · ' + nDisc + ' matéria(s)</span>'
+      + '<span class="pl-conta-marcadas">' + marcados + ' marcada(s)</span>'
+      + (marcados ? '<span>' + p.alvoQuestoes + ' questões/atividade</span>' : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _motorBind() {
@@ -35661,6 +35647,12 @@ const DesempenhoTecScreen = {
         + b('pos', 'Pós-edital', 'Mesma lacuna; incidência desempata');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
+    /* A folha de Ajustes do Motor existe no DOM o tempo todo, só escondida — mas
+       o seletor de bancas dentro dela (seção 🏛️ Banca) só nasce quando algo
+       manda desenhá-lo. Nada mandava: a seção ficava eternamente vazia, mesmo
+       com bancas importadas, porque só o seletor da aba Incidência era pintado.
+       Aqui, sempre que o Motor repinta, o seletor da sua própria folha também. */
+    try { this.renderBancaPicker('motor-banca-pick'); } catch (e) { _quiet(e, 'motor-banca-pick'); }
 
     let r = null;
     try { r = MotorSugestao.calcular(); } catch (e) { _quiet(e, 'motor-calcular'); }
@@ -35686,31 +35678,15 @@ const DesempenhoTecScreen = {
       return e >= 50 ? 'critico' : e >= 35 ? 'alto' : e >= 20 ? 'medio' : 'leve';
     };
     const emoji = x => ({ critico: '🚨', alto: '🔥', medio: '⚠️', leve: '📌' }[tom(x)]);
-    const discTop = (r.disciplinas || []).slice(0, r.itens.length);
 
-    const disciplinasHtml = discTop.map((d, i) => {
-      const top = d.melhorTopico;
-      const ac = d.taxa == null ? '—' : fmt1(d.taxa) + '%';
-      return `
-        <article class="ms-priority-card tone-${tom(top)}">
-          <div class="ms-priority-icon">${emoji(top)}</div>
-          <div class="ms-priority-body">
-            <div class="ms-priority-eyebrow">Prioridade ${i + 1} · ${escapeHtml(r.criterioDisciplinas || '')}</div>
-            <h3>${escapeHtml(d.nome)}</h3>
-            <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
-            <div class="ms-priority-meta">
-              <span><i>lacuna do tópico</i><b>${top ? fmt1(top.gapMeta) + 'pp' : '—'}</b></span>
-              <span><i>amostra</i><b>${top ? top.questoes + ' q' : '—'}</b></span>
-              <span><i>disciplina</i><b>${ac}</b></span>
-              <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
-            </div>
-          </div>
-        </article>`;
-    }).join('');
-
+    /* CADA CARTÃO MOSTRA QUATRO NÚMEROS, NUNCA SEIS ─────────────────────────
+       A versão anterior repetia a mesma questão sob dois nomes (histórico e
+       amostra) e mostrava o piso da régua — igual em toda a rodada — dentro de
+       cada cartão. Erro também não é dado novo: é 100 − acerto. O que sobra
+       depois de tirar as três repetições é exatamente o que muda de cartão
+       para cartão: acerto, lacuna, amostra e — conforme a fase — nível ou
+       incidência. Um quarto estável em vez de seis desalinhados. */
     const linhas = r.itens.map((x, i) => {
-      const erroPct = fmt1(x.taxaErro);
-
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
       const porQue = x.agregado
         ? `Bloco local com ${x.membros.length} dos irmãos mais fracos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam ${r.prefs.minAmostra} questões; juntos formam uma atividade executável. Os demais continuam na fila.`
@@ -35720,89 +35696,93 @@ const DesempenhoTecScreen = {
       const membros = x.agregado
         ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
         : '';
-      const peso = r.fase === 'pos'
-        ? `<span><i>incidência</i><b>${x.peso}</b></span>`
-        : `<span><i>amostra</i><b>${x.questoes}</b></span>`;
+      const quarto = r.fase === 'pos'
+        ? `<span><b>${x.peso}</b><i>Incidência</i></span>`
+        : `<span><b>Nível ${x.nivel}</b><i>Profundidade</i></span>`;
       return `
         <article class="ms-suggestion-card tone-${tom(x)}" data-i="${i}">
-          <div class="ms-action-context">
-            <b>${escapeHtml(x.disciplina)}</b>
-            <span>${fmt1(x.disciplinaTaxa)}% geral</span>
-            <span>lacuna ${fmt1(x.disciplinaLacuna)}pp até a meta</span>
-            <span>amostra mínima ${r.prefs.minAmostra} q</span>
-            ${r.fase === 'pos' ? '<span>incidência da matéria ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
-          </div>
           <div class="ms-suggestion-head">
             <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
             <div class="ms-suggestion-title">
               <small>${trilha.map(escapeHtml).join(' › ')}</small>
-              <h3>${escapeHtml(x.nome)}</h3>
-              <div class="ms-level-badges">
-                <span>Nível ${x.nivel}</span>
-                ${x.agregado ? '<span class="is-group">bloco de irmãos</span>' : '<span>recorte direto</span>'}
-              </div>
+              <h3>${escapeHtml(x.nome)}${x.agregado ? ' <span class="ms-selo">bloco · ' + x.membros.length + ' irmãos</span>' : ''}</h3>
             </div>
             <div class="ms-dose"><b>${x.dose}</b><small>questões</small></div>
           </div>
+          <div class="ms-action-context">
+            <b>${escapeHtml(x.disciplina)}</b>
+            <span>${fmt1(x.disciplinaTaxa)}% geral</span>
+            <span>lacuna ${fmt1(x.disciplinaLacuna)}pp</span>
+            ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
+          </div>
           ${membros}
           <div class="ms-suggestion-metrics">
-            <span><i>acerto</i><b>${fmt1(x.taxa)}%</b></span>
-            <span><i>erro</i><b>${erroPct}%</b></span>
-            <span><i>histórico</i><b>${x.questoes} q</b></span>
-            <span><i>lacuna p/ meta</i><b>${fmt1(x.gapMeta)}pp</b></span>
-            <span><i>piso válido</i><b>${r.prefs.minAmostra} q</b></span>
-            ${peso}
+            <span><b>${fmt1(x.taxa)}%</b><i>Acerto</i></span>
+            <span><b>${fmt1(x.gapMeta)}pp</b><i>lacuna p/ meta</i></span>
+            <span><b>${x.questoes} q</b><i>Amostra</i></span>
+            ${quarto}
           </div>
-          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna:</b> ${fmt1(x.gapMeta)}pp até a meta de ${r.prefs.metaAcerto}%.</p></div>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)}</p></div>
           <div class="ms-suggestion-action">
             <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
         </article>`;
     }).join('');
 
+    /* RANKING E FILA VIRAM SANFONA, NÃO CAIXA COM SCROLL PRÓPRIO ─────────────
+       Uma caixa de altura fixa com barra de rolagem própria, dentro de uma
+       página que já rola, é a receita clássica do "scroll preso": o dedo
+       entra na caixa pequena e a página grande para de responder. Aqui cada
+       matéria vira seu próprio <details> — fecha por padrão, ocupando uma
+       linha só — e quando o que estiver aberto passa da tela, é a PÁGINA que
+       rola, do jeito que qualquer rolagem no celular deveria se comportar. */
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
       const statusAmostra = d.amostraMinima
         ? d.questoes + ' q'
-        : d.questoes + ' q na matéria; continua no ranking percentual, mas ainda sem recorte executável';
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
+        : d.questoes + ' q na matéria — ainda sem recorte executável';
+      return `<li><span>${emoji({ taxaErro: d.taxaErro })}</span><div>
+        <b>${i + 1}. ${escapeHtml(d.nome)}</b>
+        <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''}</small>
+        <small>entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s) na fila</small>
+      </div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
       const itens = (d.fila || []).slice(0, 15).map((x, i) =>
-        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
+        `<li><span>${emoji(x)}</span><div><b>${i + 1}. ${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
       ).join('');
-      return `<section class="ms-queue-group"><h4>${escapeHtml(d.nome)}</h4><ol>${itens}</ol></section>`;
+      return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i>⌄</i></summary><ol>${itens}</ol></details>`;
     }).join('');
 
     const somaDose = r.itens.reduce((s, x) => s + Number(x.dose || 0), 0);
     host.innerHTML = filterHtml + `
       <div class="ms-rule-summary">
-        <span>🧭 ${r.itens.length} matérias na rodada</span>
-        <span>🧩 1 frente de cada</span>
-        <span>📚 ${r.prefs.alvoQuestoes} questões por atividade</span>
-        <span>🧪 piso ${r.prefs.minAmostra} q por nível</span>
-        <span>🎯 meta ${r.prefs.metaAcerto}%</span>
-        <span>🛡️ primeiro matéria, depois tópico</span>
+        <span>🧭 ${r.itens.length} MATÉRIAS NA RODADA</span>
+        <span>🧩 1 FRENTE DE CADA</span>
+        <span>📚 ${r.prefs.alvoQuestoes} QUESTÕES POR ATIVIDADE</span>
+        <span>🧪 PISO ${r.prefs.minAmostra} Q/NÍVEL</span>
+        <span>🎯 META ${r.prefs.metaAcerto}%</span>
+        <span>🛡️ MATÉRIA, DEPOIS TÓPICO</span>
       </div>
 
       <section class="ms-stage ms-stage-action">
         <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor ordena as matérias pela distância simples até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente. Não há score oculto nem mistura global de tópicos.</small></div></header>
         <div class="ms-suggestion-list">${linhas}</div>
-        <p class="ms-round-total">Se executar a rodada: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s). Cada atividade recebe ${r.prefs.alvoQuestoes} questões.</p>
+        <p class="ms-round-total">🏁 Se executar a rodada inteira: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s), ${r.prefs.alvoQuestoes} por atividade.</p>
       </section>
 
       <div class="ms-rankings">
-        <details>
+        <details class="ms-rank-panel">
           <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i>⌄</i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
-        <details>
-          <summary><span>🧬 O que vem depois em cada matéria?</span><small>fila interna pior → melhor, sem pular de ramo</small><i>⌄</i></summary>
+        <details class="ms-rank-panel">
+          <summary><span>🧬 O que vem depois em cada matéria?</span><small>toque numa matéria para abrir a fila</small><i>⌄</i></summary>
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
+      <p class="hint ms-nota">📐 Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {

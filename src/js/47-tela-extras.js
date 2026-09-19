@@ -378,12 +378,12 @@ const ExtrasScreen = {
           <div class="pl-disc-panel" id="pl-disc-panel" style="display:none;"></div>
         </div>
       </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 8px;">
-        <span class="hint" id="pl-conta" style="margin:0;flex:1;min-width:0;"></span>
-        <button type="button" class="btn-secondary" id="pl-marcar" style="white-space:nowrap;padding:5px 10px;">Usar recomendadas</button>
-        <button type="button" class="btn-secondary" id="pl-limpar" style="white-space:nowrap;padding:5px 10px;">Limpar</button>
+      <div class="pl-toolbar">
+        <span class="pl-conta" id="pl-conta"></span>
+        <button type="button" class="btn-secondary" id="pl-marcar">Usar recomendadas</button>
+        <button type="button" class="btn-secondary" id="pl-limpar">Limpar</button>
       </div>
-      <div style="max-height:42vh;overflow:auto;" id="pl-lista"></div>`;
+      <div class="pl-lista-wrap" id="pl-lista"></div>`;
 
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
@@ -470,6 +470,11 @@ const ExtrasScreen = {
     escolhidos.forEach((o, k) => { out[o.i] = copia[k].dose; });
     return out;
   },
+  // Mesma régua de severidade das telas Motor — um selo rápido de 🚨/🔥/⚠️/📌.
+  _motorEmoji(x) {
+    const e = Number((x && x.taxaErro) || 0);
+    return e >= 50 ? '🚨' : e >= 35 ? '🔥' : e >= 20 ? '⚠️' : '📌';
+  },
   // Preenche a lista de assuntos do diálogo conforme o filtro de disciplinas atual.
   _motorRenderLista() {
     const host = document.getElementById('pl-lista');
@@ -484,21 +489,29 @@ const ExtrasScreen = {
       if (!porDisc.has(d)) porDisc.set(d, []);
       porDisc.get(d).push({ x, i });
     });
+    /* CADA FRENTE, QUATRO NÚMEROS — a mesma régua do cartão da aba Motor:
+       acerto, lacuna, amostra e (no pós-edital) incidência. A disciplina só
+       aparece uma vez por frente: como eyebrow na recomendação, ou uma única
+       vez no cabeçalho do grupo nas alternativas — nunca as duas. */
     const linha = ({ x, i }, destaque, ordem) => {
       const dose = doses[i];
-      return '<label class="sug-row pl-linha ' + (destaque ? 'is-recommended' : '') + '" style="align-items:flex-start;">'
+      const eyebrow = destaque
+        ? 'Recomendação ' + ordem + ' · ' + escapeHtml(x.disciplina || '')
+        : '';
+      return '<label class="pl-linha ' + (destaque ? 'is-recommended' : '') + '">'
         + '<input type="checkbox" class="pl-pick" data-i="' + i + '" ' + (this._motorSel.has(i) ? 'checked' : '') + '>'
-        + '<div style="min-width:0;">'
-        + (destaque ? '<div class="pl-rec-eyebrow">Recomendação ' + ordem + ' · ' + escapeHtml(x.disciplina || '') + '</div>' : '')
-        + '<div style="font-weight:700;">' + escapeHtml(x.nome)
+        + '<div class="pl-linha-body">'
+        + '<div class="pl-linha-head">'
+        + (eyebrow ? '<span class="pl-linha-eyebrow">' + this._motorEmoji(x) + ' ' + eyebrow + '</span>' : '<span class="pl-linha-eyebrow pl-linha-eyebrow-muted">' + this._motorEmoji(x) + ' Alternativa</span>')
+        + (dose ? '<span class="pl-linha-dose">' + dose + ' questões</span>' : '')
+        + '</div>'
+        + '<div class="pl-linha-title">' + escapeHtml(x.nome)
         + (x.agregado ? ' <span class="ms-selo">bloco' + (x.membros ? ' · ' + x.membros.length + ' ramos' : '') + '</span>' : '') + '</div>'
-        + '<div class="hint" style="margin:2px 0 0;">'
-        + (!destaque && x.disciplina ? escapeHtml(x.disciplina) + ' · ' : '')
-        + Math.round(x.taxaErro) + '% de erro em ' + x.questoes + ' questões'
-        + (x.gapMeta != null ? ' · lacuna ' + (Math.round(x.gapMeta * 10) / 10) + 'pp até a meta' : '')
-        + ' · amostra ' + x.questoes + ' q'
-        + (pos && x.peso ? ' · incidência do tópico ' + x.peso : '')
-        + (dose ? ' · <strong>' + dose + ' questões</strong>' : '')
+        + '<div class="pl-linha-stats">'
+        + '<span><b>' + Math.round(x.taxa) + '%</b><i>Acerto</i></span>'
+        + (x.gapMeta != null ? '<span><b>' + (Math.round(x.gapMeta * 10) / 10) + 'pp</b><i>Lacuna</i></span>' : '')
+        + '<span><b>' + x.questoes + ' q</b><i>Amostra</i></span>'
+        + (pos && x.peso ? '<span><b>' + x.peso + '</b><i>Incidência</i></span>' : '')
         + '</div></div></label>';
     };
 
@@ -514,8 +527,9 @@ const ExtrasScreen = {
       const itens = porDisc.get(d) || [];
       if (!itens.length) return;
       const alternativas = itens.filter(({ x }) => !recomendadas.has(x.disciplina + '\u0001' + x.nome));
-      grupos.push('<details class="pl-alt-group"><summary><span>' + escapeHtml(d) + '</span><small>'
-        + itens.length + ' frente(s) na fila · pior → melhor</small><i>⌄</i></summary>'
+      const pior = itens.map(o => o.x).sort((a, b) => (b.taxaErro || 0) - (a.taxaErro || 0))[0];
+      grupos.push('<details class="pl-alt-group"><summary><span>' + this._motorEmoji(pior || {}) + ' ' + escapeHtml(d) + '</span><small>'
+        + itens.length + ' frente(s) · pior → melhor</small><i>⌄</i></summary>'
         + '<div class="pl-alt-list">' + (alternativas.length
           ? alternativas.map(o => linha(o, false, 0)).join('')
           : '<p class="hint" style="padding:8px;">A recomendação acima já é a única frente acionável desta matéria.</p>')
@@ -544,9 +558,9 @@ const ExtrasScreen = {
     const nDisc = new Set(cand.map(x => x.disciplina || '')).size;
     const marcados = this._motorSel ? this._motorSel.size : 0;
     const p = this._motorPrefs || MotorSugestao.prefs();
-    conta.innerHTML = `${vis} frente(s) em ${nDisc} matéria(s)`
-      + ` · <strong>${marcados} marcada(s)</strong>`
-      + (marcados ? ` · ${p.alvoQuestoes} questões por atividade` : '');
+    conta.innerHTML = '<span>' + vis + ' frente(s) · ' + nDisc + ' matéria(s)</span>'
+      + '<span class="pl-conta-marcadas">' + marcados + ' marcada(s)</span>'
+      + (marcados ? '<span>' + p.alvoQuestoes + ' questões/atividade</span>' : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _motorBind() {
