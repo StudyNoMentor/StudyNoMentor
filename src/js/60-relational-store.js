@@ -492,6 +492,14 @@ const RelationalStore = {
         this._rtTimer=setTimeout(()=>this.catchUp(profileId,'realtime'),180);
       })
       .subscribe(status=>{
+        if(status==='SUBSCRIBED'){
+          /* Fecha a janela SELECT→WebSocket: qualquer commit ocorrido entre a
+             hidratação e a assinatura é recuperado por uma consulta canônica. */
+          clearTimeout(this._resubTimer);
+          this._resubTimer=null;
+          this.catchUp(profileId,'realtime-subscribed').catch(e=>{ this._lastError=e; });
+          return;
+        }
         if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
           if(this._channel===ch)this._channel=null;
           clearTimeout(this._resubTimer);
