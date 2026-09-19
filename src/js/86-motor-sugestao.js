@@ -354,23 +354,32 @@
       });
       return (itens || []).map(x => Object.assign(x, { dose: this._dose(x, p) }));
     },
+    _casarNome(alvoBruto, candidatosBrutos) {
+      const alvo = norm(alvoBruto);
+      const candidatos = (candidatosBrutos || []).map(x => ({ bruto: x, n: norm(x) })).filter(x => x.n);
+      const exato = candidatos.find(x => x.n === alvo);
+      if (exato) return exato.bruto;
+      const tokens = alvo.split(' ').filter(t => t.length >= 3);
+      if (!tokens.length) return null;
+      const compativeis = candidatos.filter(x => {
+        const ts = x.n.split(' ').filter(t => t.length >= 3);
+        return tokens.every(t => ts.some(u => u === t || (t.length >= 4 && u.startsWith(t)) || (u.length >= 4 && t.startsWith(u))));
+      });
+      return compativeis.length === 1 ? compativeis[0].bruto : null;
+    },
     _incidenciaDisciplina(nome, mapa) {
       if (!mapa) return 0;
       const porNorm = Object.create(null);
+      const brutoPorNorm = Object.create(null);
       Object.keys(mapa).forEach(k => {
         const nk = norm(k);
         porNorm[nk] = (porNorm[nk] || 0) + num(mapa[k]);
+        if (!brutoPorNorm[nk]) brutoPorNorm[nk] = k;
       });
       const alvo = norm(nome);
       if (porNorm[alvo] != null) return porNorm[alvo];
-      try {
-        if (typeof PlanoPontos !== 'undefined' && PlanoPontos._casarNomes) {
-          const casado = PlanoPontos._casarNomes([alvo], Object.keys(porNorm));
-          const k = casado && casado[alvo];
-          if (k && porNorm[k] != null) return porNorm[k];
-        }
-      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-inc-disc'); }
-      return 0;
+      const casado = this._casarNome(nome, Object.keys(mapa));
+      return casado ? num(mapa[casado]) : 0;
     },
 
     /* A ordem da matéria é a conta que o aluno faria de cabeça:
@@ -387,6 +396,77 @@
       return num(A.taxa, 100) - num(B.taxa, 100)
         || num(B.questoes) - num(A.questoes)
         || String(A.nome || '').localeCompare(String(B.nome || ''), 'pt-BR');
+    },
+
+    estadoAtual(origem, opts) {
+      const o = origem || {};
+      let snap = null;
+      try { snap = DesempenhoTecScreen.scopedSnapshot(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-estado-snap'); }
+      if (!snap || !(snap.rows || []).length) return null;
+      const forest = this._forestEstavel(snap);
+      const kd = norm(o.disciplina || '');
+      const disc = forest.find(d => norm(d.nome) === kd) || null;
+      if (!disc) return null;
+
+      const nodes = [];
+      const walk = (n, caminho) => {
+        const atual = (caminho || []).concat([n.nome]).filter(Boolean);
+        if (num(n.depth) > 0) nodes.push({ n, caminho: atual });
+        (n.children || []).forEach(ch => walk(ch, atual));
+      };
+      (disc.children || []).forEach(ch => walk(ch, []));
+
+      const membros = (o.escopo && Array.isArray(o.escopo.membros) && o.escopo.membros.length)
+        ? o.escopo.membros : (Array.isArray(o.membros) ? o.membros : null);
+      if (membros && membros.length > 1) {
+        const set = new Set(membros.map(norm));
+        const encontrados = nodes.filter(x => set.has(norm(x.n.nome)));
+        if (!encontrados.length) return null;
+        const q = encontrados.reduce((a, x) => a + num(x.n.questoes), 0);
+        const ac = encontrados.reduce((a, x) => a + num(x.n.acertos), 0);
+        return {
+          disciplina: disc.nome,
+          nome: o.topico || o.nome || encontrados.map(x => x.n.nome).join(' + '),
+          questoes: q, acertos: ac, taxa: q > 0 ? ac / q * 100 : null,
+          nivel: Math.max(...encontrados.map(x => num(x.n.depth))),
+          membros: encontrados.map(x => x.n.nome),
+          agregado: true
+        };
+      }
+
+      const alvo = norm(o.topico || o.nome || '');
+      let candidatos = nodes.filter(x => norm(x.n.nome) === alvo);
+      const caminhoOrig = Array.isArray(o.caminho) ? o.caminho.map(norm).filter(Boolean) : [];
+      if (candidatos.length > 1 && caminhoOrig.length) {
+        const porCaminho = candidatos.filter(x => {
+          const c = x.caminho.slice(0, -1).map(norm);
+          return caminhoOrig.every((k, i) => c[i] === k);
+        });
+        if (porCaminho.length) candidatos = porCaminho;
+      }
+      const achou = candidatos.sort((a, b) => num(b.n.questoes) - num(a.n.questoes))[0];
+      if (!achou) return null;
+      const q = num(achou.n.questoes), ac = num(achou.n.acertos);
+      return {
+        disciplina: disc.nome, nome: achou.n.nome, questoes: q, acertos: ac,
+        taxa: q > 0 ? ac / q * 100 : null, nivel: num(achou.n.depth),
+        caminho: achou.caminho.slice(0, -1), membros: null, agregado: false
+      };
+    },
+    mesmaUnidade(origem, item) {
+      if (!origem || !item) return false;
+      if (norm(origem.disciplina || '') && norm(item.disciplina || '')
+          && norm(origem.disciplina) !== norm(item.disciplina)) return false;
+      const ko = norm(origem.topico || origem.nome || '');
+      if (ko && ko === norm(item.nome || '')) return true;
+      const a = (origem.escopo && origem.escopo.membros) || origem.membros || [];
+      const b = item.membros || [];
+      const sa = new Set(a.map(norm)), sb = new Set(b.map(norm));
+      if (sa.size && sb.size) return [...sa].some(x => sb.has(x));
+      if (sa.size && sa.has(norm(item.nome || ''))) return true;
+      if (sb.size && sb.has(ko)) return true;
+      return false;
     },
 
     calcular(opts) {
@@ -457,7 +537,7 @@
       });
 
       const disciplinas = disciplinasTodas.filter(d =>
-        d.melhorTopico && (p.fase !== 'pos' || d.incidenciaDisc > 0)
+        d.lacunaDisc > 0 && d.melhorTopico && (p.fase !== 'pos' || d.incidenciaDisc > 0)
       ).sort((a, b) => this._compararDisciplinas(a, b, p));
 
       disciplinas.forEach((d, i) => {
