@@ -824,6 +824,13 @@ const SectionSync = {
     const alvo = id || this._activeProfileId();
     const snap = Array.isArray(snapshot) ? snapshot : this.captureExplicitSnapshot(alvo);
     if (!alvo || !snap.length) return { ok: true, sent: 0, remaining: 0 };
+    /* Se o takeover chegou no meio de um envio, não declaramos o handoff
+       fracassado só porque _pushing estava ocupado. Esperamos a rodada em voo
+       encerrar e então reenviamos apenas o que do snapshot ainda sobrou. */
+    const limite = Date.now() + 8000;
+    while (this._pushing && Date.now() < limite) {
+      await new Promise(r => setTimeout(r, 80));
+    }
     await this.pushDirty(alvo, { allowBlocked: true, snapshot: snap, skipManifest: true });
     const dirty = this._dirtyFor(alvo), gens = this._dirtyGenFor(alvo);
     const remaining = snap.filter(x => dirty.has(x.section) && (gens.get(x.section) || 0) === (x.gen || 0));
