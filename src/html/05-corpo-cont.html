@@ -636,7 +636,7 @@
           <p class="tec-cfg-sec-sub">Até que ponto da árvore o motor pode descer. A conta é a margem de erro do percentual: quanto menor a margem que você aceita, mais grossos (e mais confiáveis) os blocos que ele sugere.</p>
           <div class="tec-cfg-grid">
             <div class="rfc-field">
-              <label for="motor-margem" data-info="Um percentual tirado de poucas questões não mede nada: 0 de 2 é 100% de erro e não diz nada. Este campo é o quanto de incerteza você aceita em cada nó — a margem de erro a 95% de confiança. O motor só abre um nível se os filhos couberem nela; quem não couber é juntado aos irmãos miúdos num bloco do nível de cima. Margem menor = blocos maiores e mais sólidos; maior = blocos mais específicos e mais ruidosos.">Margem tolerada (±pp)</label>
+              <label for="motor-margem" data-info="Um percentual tirado de poucas questões não mede nada: 0 de 2 é 100% de erro e não diz nada. Este campo é o quanto de incerteza você aceita em cada nó — a margem de erro a 95% de confiança. O motor desce enquanto o recorte sustenta essa margem. Ramos pequenos só podem se juntar a outros irmãos pequenos do mesmo pai, em ordem de fraqueza, até a soma ficar mensurável; não existe limite artificial de quantidade de irmãos. Margem menor = blocos maiores e mais sólidos; maior = recortes mais específicos e mais ruidosos.">Margem tolerada (±pp)</label>
               <div class="time-input"><input type="number" inputmode="numeric" id="motor-margem" data-cfg-key="margemMax" min="5" max="40" step="1" value="15" style="width:70px; text-align:center;"><span>pp</span></div>
             </div>
           </div>
@@ -645,7 +645,7 @@
           <p class="tec-cfg-sec-sub">Cada frente vira uma atividade própria. O motor usa um tamanho-base e nunca deixa uma tarefa cair abaixo do piso mínimo.</p>
           <div class="tec-cfg-grid">
             <div class="rfc-field">
-              <label for="motor-alvo" data-info="Tamanho-base de CADA atividade sugerida. A dose final varia com a gravidade da lacuna, sem dividir um total até sobrar 1 ou 2 questões.">Base por atividade</label>
+              <label for="motor-alvo" data-info="Tamanho-base de CADA atividade sugerida. A dose final é contínua e cresce com a lacuna que continua existindo mesmo no extremo otimista da margem de erro. Não existe um bolo total a ser repartido entre as frentes.">Base por atividade</label>
               <input type="number" inputmode="numeric" id="motor-alvo" data-cfg-key="alvoQuestoes" min="10" max="100" step="1" value="25">
             </div>
             <div class="rfc-field">
@@ -663,7 +663,7 @@
           <div class="tec-cfg-grid">
             <div class="rfc-field">
               <label for="motor-meta" data-info="Quando o próximo retrato do TecConcursos chega, a atividade criada aqui é julgada: se o acerto do assunto alcançou esta meta, ela encerra como resolvida. A meta fica gravada na atividade no dia em que ela nasce — mudar aqui não reescreve o veredito de quem já está correndo.">Meta de acerto</label>
-              <div class="time-input"><input type="number" inputmode="numeric" id="motor-meta" data-cfg-key="metaAcerto" min="50" max="100" step="1" value="85" style="width:70px; text-align:center;"><span>%</span></div>
+              <div class="time-input"><input type="number" inputmode="numeric" id="motor-meta" data-cfg-key="metaAcerto" min="50" max="100" step="1" value="90" style="width:70px; text-align:center;"><span>%</span></div>
             </div>
           </div>
         </div>
