@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2170c3ef58">
+<meta name="diario-versao" content="v91ab810648">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41531,11 +41531,11 @@ const SectionSync = {
     catch (_) { return []; }
   },
   // Espelha _dirty no armazenamento. Chamado a cada marcação e a cada envio.
-  _savePend() {
+  _savePend(id, listaOverride) {
     try {
-      const lista = [...this._dirty];
-      if (lista.length) localStorage.setItem(this._pendKey(), JSON.stringify(lista));
-      else localStorage.removeItem(this._pendKey());
+      const lista = listaOverride ? [...new Set(listaOverride)] : [...this._dirty];
+      if (lista.length) localStorage.setItem(this._pendKey(id), JSON.stringify(lista));
+      else localStorage.removeItem(this._pendKey(id));
     } catch (_) { _quiet(_); }
   },
   _touchDirty(sec) {
@@ -41568,9 +41568,9 @@ const SectionSync = {
     return this._clearDirtyIfGeneration(sec, gen);
   },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
-  restorePending() {
+  restorePending(id) {
     const antes = this._dirty.size;
-    this._loadPend().forEach(s => this._ensureDirty(s));
+    this._loadPend(id).forEach(s => this._ensureDirty(s));
     const novas = this._dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
@@ -41644,8 +41644,8 @@ const SectionSync = {
     if (!pend.length) return [];
     const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
     if (id && id !== ativo) return pend;   // outro perfil: não há como enviar daqui agora
-    pend.forEach(s => this._dirty.add(s));
-    this._savePend();
+    pend.forEach(s => this._ensureDirty(s));
+    this._savePend(id);
     try { await this.pushDirty(); } catch (e) { console.warn('[SectionSync] envio antes da leitura falhou', e); }
     const resta = listar();
     if (resta.length) console.warn('[SectionSync] preservando ' + resta.length + ' seção(ões) não enviada(s):', resta.join(', '));
@@ -41858,8 +41858,10 @@ const SectionSync = {
     try { await this._enviarSujas(id); } finally { this._pushing = false; }
   },
   async _enviarSujas(id) {
-    const pfx = this._prefix();
-    const revs = this._getRevs();
+    /* A operação inteira fica vinculada ao perfil capturado em pushDirty().
+       Nunca voltamos a consultar "perfil ativo" no meio de uma requisição. */
+    const pfx = this._prefixFor(id);
+    const revs = this._getRevs(id);
     this._lastConflict = null;
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
@@ -41879,7 +41881,7 @@ const SectionSync = {
       });
     });
     if (sumidas.length) {
-      this._savePend();
+      this._savePend(id);
       console.warn('[SectionSync] ' + sumidas.length + ' seção(ões) sumiram deste aparelho sem ordem de exclusão — NADA foi publicado por cima da nuvem: ' + sumidas.join(', '));
     }
     if (esvaziando.length) {
@@ -41895,8 +41897,8 @@ const SectionSync = {
         this._lastError = this.MANIFEST + ' (' + msg + ')';
         console.warn('[SectionSync] manifesto/exclusões continuam pendentes:', this._lastError);
       }
-      this._saveRevs(revs);
-      this._savePend();
+      this._saveRevs(revs, id);
+      this._savePend(id);
       return;
     }
     // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
@@ -41951,8 +41953,8 @@ const SectionSync = {
         falhas.push(this.MANIFEST + ' (' + msg + ')');
       }
     }
-    this._saveRevs(revs);
-    this._savePend();   // o que sobrou na fila continua gravado: sobrevive ao fechamento
+    this._saveRevs(revs, id);
+    this._savePend(id);   // o que sobrou na fila continua gravado: sobrevive ao fechamento
     if (okCount) { this._lastPushAt = Date.now(); this._pushedCount += okCount; }
     if (falhas.length) {
       this._lastError = falhas.join(' | ');
@@ -41967,18 +41969,19 @@ const SectionSync = {
   // É o que torna a leitura por seção segura: sem ele, um upsert nunca apaga nada
   // e uma seção excluída aqui voltaria à vida no próximo download. Com ele, a
   // hidratação usa a lista como verdade e ignora/limpa o que sobrou.
-  localSections() {
+  localSections(id) {
     const out = [];
+    const pfx = this._prefixFor(id);
     try {
       for (let i = 0; i < localStorage.length; i++) {
-        const sec = this.sectionForKey(localStorage.key(i));
+        const sec = this.sectionForKey(localStorage.key(i), pfx);
         if (sec) out.push(sec);
       }
     } catch (_) { _quiet(_); }
     return out.sort();
   },
   async _syncManifest(id, revs) {
-    const locais = this.localSections();
+    const locais = this.localSections(id);
     const delEntries = this._loadDel(id);
 
     let remoteRows = [];
@@ -42087,7 +42090,7 @@ const SectionSync = {
       // Recupera, uma vez por perfil, o que ficou por enviar na sessão anterior.
       if (this._restoredFor !== ProfileManager.getActiveProfileId()) {
         this._restoredFor = ProfileManager.getActiveProfileId();
-        this.restorePending();
+        this.restorePending(this._restoredFor);
       }
       this.seedOnce();
       await this.pushDirty();
