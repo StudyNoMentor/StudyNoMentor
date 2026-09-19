@@ -270,6 +270,21 @@
       });
       return (itens || []).map(x => Object.assign(x, { dose: this._dose(x, p) }));
     },
+    _compararDisciplinas(a, b, p) {
+      const A = a && a.melhorTopico || {}, B = b && b.melhorTopico || {};
+      if ((p && p.fase) === 'pos') {
+        return (num(B.gapConfiavel) * num(B.peso)) - (num(A.gapConfiavel) * num(A.peso))
+          || (num(B.gapMeta) * num(B.peso)) - (num(A.gapMeta) * num(A.peso))
+          || num(B.gapConfiavel) - num(A.gapConfiavel)
+          || num(B.gapMeta) - num(A.gapMeta)
+          || num(B.lacunaMeta) - num(A.lacunaMeta)
+          || num(B.questoes) - num(A.questoes);
+      }
+      return num(B.gapConfiavel) - num(A.gapConfiavel)
+        || num(B.gapMeta) - num(A.gapMeta)
+        || num(B.lacunaMeta) - num(A.lacunaMeta)
+        || num(B.questoes) - num(A.questoes);
+    },
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
@@ -336,21 +351,8 @@
          3) maior volume estimado de déficit naquele recorte.
          No pós-edital, a incidência pesa as duas primeiras chaves. Dentro de cada
          disciplina nada disso reordena a fila: a travessia hierárquica manda. */
-      const disciplinas = disciplinasTodas.filter(d => d.melhorTopico).sort((a, b) => {
-        const A = a.melhorTopico, B = b.melhorTopico;
-        if (p.fase === 'pos') {
-          return (B.gapConfiavel * B.peso) - (A.gapConfiavel * A.peso)
-            || (B.gapMeta * B.peso) - (A.gapMeta * A.peso)
-            || B.gapConfiavel - A.gapConfiavel
-            || B.gapMeta - A.gapMeta
-            || B.lacunaMeta - A.lacunaMeta
-            || B.questoes - A.questoes;
-        }
-        return B.gapConfiavel - A.gapConfiavel
-          || B.gapMeta - A.gapMeta
-          || B.lacunaMeta - A.lacunaMeta
-          || B.questoes - A.questoes;
-      });
+      const disciplinas = disciplinasTodas.filter(d => d.melhorTopico)
+        .sort((a, b) => this._compararDisciplinas(a, b, p));
       disciplinas.forEach((d, i) => {
         d.rank = i + 1;
         d.fila.forEach((x, j) => { x.disciplinaRank = i + 1; x.ordemNaDisciplina = j + 1; });
