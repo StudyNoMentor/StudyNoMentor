@@ -2,7 +2,7 @@
    CICLO DO MOTOR DE SUGESTÃO
    ----------------------------------------------------------------------------
    O Motor decide prioridade; este módulo só acompanha a execução entre dois
-   retratos do TEC. Não existe segundo modelo, score paralelo ou plano legado.
+   retratos do TEC. Não existe segundo modelo nem score paralelo.
 
    Ciclo:
      medir -> ordenar -> escolher até 3 matérias -> executar uma frente de cada
@@ -16,7 +16,6 @@
   if (typeof window === 'undefined' || window.__motorCiclo) return;
   window.__motorCiclo = true;
 
-  const LEGACY_ORIGIN_KEY = 'origem' + 'Plano';
   const norm = (s) => {
     try { return ReforcoEngine.norm(s || ''); }
     catch (_) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
@@ -26,7 +25,7 @@
   const C = {
     origemDe(extra) {
       if (!extra) return null;
-      return extra.origemMotor || extra[LEGACY_ORIGIN_KEY] || null;
+      return extra.origemMotor || null;
     },
 
     _ultimoRetrato() {
@@ -186,14 +185,6 @@
       };
     },
 
-    _migrarOrigem(extra, origem) {
-      if (!extra || !origem || extra.origemMotor) return origem;
-      const nova = Object.assign({}, origem, { motor: 'sugestao', versao: 2 });
-      try { DB.updateExtra(extra.id, { origemMotor: nova, [LEGACY_ORIGIN_KEY]: null }); }
-      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-migrar-origem'); }
-      return nova;
-    },
-
     conciliar() {
       let r = null;
       try { r = MotorSugestao.calcular(); }
@@ -202,10 +193,9 @@
 
       const fechadas = [], rotacionadas = [], resolvidas = [], rodadas = [];
       (DB.getExtras() || []).forEach(extra => {
-        let origem = this.origemDe(extra);
+        const origem = this.origemDe(extra);
         if (!origem || !origem.topico || extra.status === 'concluida') return;
-        origem = this._migrarOrigem(extra, origem);
-        const v = this.avaliar(Object.assign({}, extra, { origemMotor: origem }), r);
+        const v = this.avaliar(extra, r);
         if (!v || !['resolvida','rotacionada','rodada'].includes(v.estado)) return;
 
         const veredito = {
@@ -219,7 +209,7 @@
           lacunaDiscFinal: v.lacunaDisc
         };
         const novaOrigem = Object.assign({}, origem, { veredito });
-        DB.updateExtra(extra.id, { status: 'concluida', origemMotor: novaOrigem, [LEGACY_ORIGIN_KEY]: null });
+        DB.updateExtra(extra.id, { status: 'concluida', origemMotor: novaOrigem });
         fechadas.push(extra.id);
         if (v.estado === 'rotacionada') rotacionadas.push(extra.id);
         if (v.estado === 'resolvida') resolvidas.push(extra.id);
