@@ -270,8 +270,8 @@
       }
       if (novidade) {
         syncNote('Há novidades de outro aparelho. Atualizando com segurança…', true);
-        if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload();
-        else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload();
+        if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload({ readOnly: true });
+        else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload({ readOnly: true });
       } else {
         try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick'); }
         StartupTrace.mark('reconciliacao-sem-novidade');

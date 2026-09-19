@@ -5,7 +5,7 @@ const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
   SUPABASE_KEY: 'sb_publishable_5t8P8QpVF4tLoWNjQVWsSQ_3dpbxG94',
   TABLE: 'study_profiles',
-  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secRtTimer: null,
+  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secChannelProfile: null, _secRtTimer: null, _secRemotePending: false,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
   _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null, _syncingDesde: 0,
   SYNC_TRAVADO_MS: 60000,   // teto para um envio "em curso" antes de ser considerado preso
@@ -271,8 +271,8 @@ const CloudStore = {
   _tamanhoPayload(backup) {
     try { return JSON.stringify((backup && backup.data) || {}).length; } catch (_) { return 0; }
   },
-  async saveActive() {
-    const id = ProfileManager.getActiveProfileId();
+  async saveActive(id) {
+    id = id || ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
     const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
     const backup = ProfileManager.exportProfile(id);
@@ -302,22 +302,19 @@ const CloudStore = {
     if (error) throw error;
     return data ? data.rev : null;
   },
-  // Salva com RETENTATIVA: em caso de conflito, re-sincroniza a versão e REENVIA o estado
-  // local (a ação do usuário nunca é descartada). Evita a perda de dados por conflito de versão.
-  async saveActiveWithRetry(maxTries) {
-    maxTries = maxTries || 4;
-    const id = ProfileManager.getActiveProfileId();
+  /* Conflito de blob NÃO dá permissão para reenviar o estado local inteiro.
+     Antes, o código buscava a rev remota, copiava esse número para o aparelho e
+     tentava de novo — isso convertia um conflito legítimo em autorização para
+     sobrescrever a versão vencedora. Agora o conflito é apenas diagnosticado.
+     Os dados operacionais continuam pela camada por seção, que usa CAS. */
+  async saveActiveWithRetry(id) {
+    id = id || ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
-    for (let attempt = 0; attempt < maxTries; attempt++) {
-      const r = await this.saveActive();
-      if (!r || !r.conflict) return r; // sucesso, skipped ou RECUSADO pela trava
-      // conflito → busca a rev real da nuvem, alinha localmente e tenta de novo (empurra o local)
-      let currentRev = null;
-      try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
-      if (currentRev == null) return { conflict: true };
-      ProfileManager.setRev(id, currentRev);
-    }
-    return { conflict: true };
+    const r = await this.saveActive(id);
+    if (!r || !r.conflict) return r;
+    let currentRev = null;
+    try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
+    return { conflict: true, remoteRev: currentRev };
   },
   async deleteRow(id) { const { error } = await this.client.from(this.TABLE).delete().eq('id', id); if (error) throw error; },
 
@@ -361,23 +358,32 @@ const CloudStore = {
   BLOB_MIN_INTERVAL_MS: 180000,   // 3 min
   _lastBlobAt: 0,
   _forceBlob: false,
-  _blobDue() {
+  _blobDue(id) {
+    id = id || ProfileManager.getActiveProfileId();
+    /* Com leitura por seção ativa, o blob NÃO participa da arbitragem do estado.
+       Ele pode estar baseado em outra revisão de payload/metadados e não existe
+       prova suficiente para sobrescrevê-lo com segurança. Nesta etapa ele vira
+       checkpoint legado somente-leitura; a autoridade operacional é a tabela
+       profile_sections. */
+    if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) return false;
     if (this._forceBlob) return true;
-    if (!this._lastBlobAt) return true;                       // nada subiu ainda nesta sessão
-    if (!window.SectionSync || !SectionSync.enabled || !SectionSync.readEnabled) return true;
-    if (SectionSync._lastError) return true;                  // seções com problema: blob assume
-    if (SectionSync._seededProfile !== ProfileManager.getActiveProfileId()) return true;
+    if (!this._lastBlobAt) return true;
     return (Date.now() - this._lastBlobAt) >= this.BLOB_MIN_INTERVAL_MS;
   },
   // Empurra as seções e diz se ficou tudo entregue. É isto que substitui o blob
   // nas rodadas leves — se sobrar seção suja ou houver erro, a rodada não conta
   // como sincronizada e a pendência é mantida para nova tentativa.
-  async _pushSectionsNow() {
+  async _pushSectionsNow(id) {
     if (!window.SectionSync || !SectionSync.enabled) return false;
+    id = id || ProfileManager.getActiveProfileId();
+    if (!id) return false;
     try {
-      SectionSync.seedOnce();
-      await SectionSync.pushDirty();
-      return SectionSync._dirty.size === 0 && !SectionSync._lastError;
+      if (SectionSync._seededProfile !== id) {
+        SectionSync._seededProfile = id;
+        SectionSync.markAllDirty(id);
+      }
+      await SectionSync.pushDirty(id);
+      return SectionSync._dirtyFor(id).size === 0 && !SectionSync._lastError;
     } catch (_) { return false; }
   },
   async autoSave() {
@@ -398,6 +404,8 @@ const CloudStore = {
     if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
     if (!this.isReady() || !this.isLoggedIn()) return;
     if (!this._pending) return;                // nada novo a enviar
+    const syncId = ProfileManager.getActiveProfileId();
+    if (!syncId) return;
     clearTimeout(this._debounce);
     this._syncing = true; this._syncingDesde = Date.now(); this._pending = false;
     /* `finally` e não uma linha no fim: se QUALQUER coisa aqui dentro lançar —
@@ -407,18 +415,27 @@ const CloudStore = {
        corpo continuam, inofensivas: apenas antecipam o que o `finally` garante. */
     try {
       if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
-      if (!this._blobDue()) {
+      if (!this._blobDue(syncId)) {
         // ── ROTA LEVE: só as seções alteradas ──────────────────────────────
         // Se o envio periódico de seções já está em curso, esperamos a vez: forçar
         // o blob aqui seria tratar concorrência normal como se fosse falha.
         if (SectionSync._pushing) {
           this._syncing = false; this._pending = true; this._rearm(800); return;
         }
-        const ok = await this._pushSectionsNow();
+        const ok = await this._pushSectionsNow(syncId);
         this._syncing = false;
         if (!ok) {
-          // alguma seção não subiu: promove esta rodada a envio de blob e repete
-          this._pending = true; this._forceBlob = true;
+          this._pending = true;
+          if (window.SectionSync && SectionSync._lastConflict) {
+            /* Conflito protegido: JAMAIS contorna pelo blob. A cópia local
+               continua na outbox e a remota permanece intacta. */
+            this._forceBlob = false;
+            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
+            this._rearm(5000);
+            return;
+          }
+          // erro de transporte/infra: o blob continua sendo rede de segurança
+          this._forceBlob = true;
           if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
           this._rearm(3000);
           return;
@@ -428,14 +445,33 @@ const CloudStore = {
         if (this._pending) this._rearm(300);
         return;
       }
-      // ── ROTA COMPLETA: blob + seções ─────────────────────────────────────
-      const r = await this.saveActiveWithRetry();
+      // ── ROTA COMPLETA: seções CANÔNICAS primeiro; blob é checkpoint ───────
+      if (window.SectionSync && SectionSync.enabled) {
+        const secOk = await this._pushSectionsNow(syncId);
+        if (!secOk) {
+          this._syncing = false; this._pending = true;
+          if (SectionSync._lastConflict) {
+            this._forceBlob = false;
+            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
+            this._rearm(5000);
+            return;
+          }
+          this._forceBlob = true;
+          if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando seções…');
+          this._rearm(3000);
+          return;
+        }
+      }
+      const r = await this.saveActiveWithRetry(syncId);
       this._syncing = false;
       if (r && r.conflict) {
-        // conflito persistente: mantém pendente e tenta de novo (não perde a alteração)
-        this._pending = true;
-        if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
-        this._rearm(5000);
+        /* As seções já foram confirmadas antes de chegar aqui. O blob é apenas
+           checkpoint; não rebaixamos a segurança dos dados para fazê-lo vencer. */
+        this._pending = false;
+        this._forceBlob = false;
+        this._lastSyncAt = Date.now();
+        if (window.CloudUI) CloudUI.setStatus('ok', 'Dados sincronizados · checkpoint será reconciliado depois');
+        console.warn('[CloudStore] checkpoint do blob em conflito; preservado sem sobrescrever', r.remoteRev);
         return;
       }
       /* Envio RECUSADO pela trava anti-apagamento: a nuvem continua com a cópia
@@ -461,6 +497,7 @@ const CloudStore = {
       return;
     } finally {
       this._syncing = false;
+      try { this._drainSectionRealtimeHint(syncId); } catch (e) { _quiet(e, 'sec-rt-drain'); }
     }
     // se surgiram NOVAS mudanças durante o envio (notifyChange remarcou _pending), dispara outro ciclo já
     if (this._pending) this._rearm(300);
@@ -469,10 +506,10 @@ const CloudStore = {
   async flushPending() {
     if (!this.isReady() || !this.isLoggedIn()) return;
     clearTimeout(this._debounce);
-    // flushPending é chamado nos momentos críticos (app indo para segundo plano,
-    // "Sincronizar agora", troca de perfil). Aqui o blob SOBE, custe o que custar:
-    // é a hora em que a rede de segurança precisa estar em dia.
-    this._forceBlob = true;
+    // Em modo legado o blob ainda pode ser forçado. Com sync por seção ativo,
+    // _blobDue() deliberadamente ignora esta flag: conflito de checkpoint nunca
+    // pode virar atalho para sobrescrever o estado canônico.
+    this._forceBlob = !(window.SectionSync && SectionSync.enabled && SectionSync.readEnabled);
     // Alteração que sobreviveu a um recarregamento (caixa de saída gravada) também
     // conta como pendente: sem isto, "Sincronizar agora" não a enviava.
     try { if (window.SectionSync && SectionSync.pendingQuick() > 0) this._pending = true; } catch (e) { _quiet(e, 'flush-pendencia'); }
@@ -486,6 +523,11 @@ const CloudStore = {
   _beaconSave() {
     try {
       if (!this.isReady() || !this.isLoggedIn()) return;
+      /* PATCH keepalive só sabe escrever o blob inteiro. Em modo por seção isso
+         seria uma rota paralela sem CAS por seção e poderia reintroduzir uma
+         sobrescrita que todo o protocolo novo acabou de impedir. A durabilidade
+         de fechamento fica no IndexedDB/outbox e o próximo boot retoma o envio. */
+      if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) return;
       if (!this._pending && !this._syncing) return; // nada a garantir
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
       const id = ProfileManager.getActiveProfileId(); if (!id) return;
@@ -554,7 +596,7 @@ const CloudStore = {
       }
       if (novidade) {
         if (window.CloudUI) CloudUI.setStatus('syncing', 'Baixando atualizações...');
-        await this.pullActiveAndReload();
+        await this.pullActiveAndReload({ readOnly: true });
       }
     } catch (e) { /* silencioso: tenta de novo no próximo foco */ }
   },
@@ -571,23 +613,39 @@ const CloudStore = {
         let novidade = false;
         if (id && window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
         else if (id) { const rr = await this._fetchRev(id); novidade = (rr != null && rr > ProfileManager.getRev(id)); }
-        if (novidade) { await this.pullActiveAndReload(); return; }
+        if (novidade) { await this.pullActiveAndReload({ readOnly: true }); return; }
         else { await this.autoSave(); } // reenvia o estado atual como confirmação
       }
       showToast('Sincronizado ✓');
     } catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar'); showToast('Não foi possível sincronizar agora'); }
   },
-  async pullActiveAndReload() {
+  async pullActiveAndReload(opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
-    // FASE 2: tenta primeiro por seção; só usa o blob se a leitura por seção falhar.
+    // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
-      try { if (await SectionSync.pullAndReload()) return; } catch (e) { console.warn('pull por seção', e); }
+      try {
+        if (await SectionSync.pullAndReload(opts)) return true;
+        const lr = SectionSync.lastRead ? SectionSync.lastRead() : null;
+        /* Se JÁ existem linhas por seção, uma falha de manifesto/conjunto não
+           autoriza aplicar o blob antigo por cima. O blob só é plano B para
+           perfis legados que ainda não possuem nenhuma linha por seção. */
+        if (lr && (lr.linhasRemotas || 0) > 0) {
+          console.warn('[CloudStore] fallback para blob BLOQUEADO: há seções remotas, mas o conjunto não passou na validação', lr.motivo);
+          try { showToast('⚠ A nuvem respondeu com um conjunto de seções incompleto. Mantive seus dados sem voltar para uma cópia antiga.'); } catch (_) { _quiet(_); }
+          return false;
+        }
+      } catch (e) { console.warn('pull por seção', e); }
     }
     try {
       // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
       // ainda não enviou; o que não subir é preservado e não é sobrescrito.
       let preservar = [];
-      try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'pull-pendencia'); }
+      try {
+        if (window.SectionSync) preservar = opts.readOnly
+          ? SectionSync.pendingSections(id)
+          : await SectionSync.flushBeforeRead(id);
+      } catch (e) { _quiet(e, 'pull-pendencia'); }
       const res = await this.fetchPayload(id);
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
@@ -597,10 +655,14 @@ const CloudStore = {
       const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
-      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return; }
+      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return true; }
       showToast('Sincronizado da nuvem ✓');
       recarregarApp('dados novos da nuvem (blob)');
-    } catch (e) { this._applying = false; console.error('pullActiveAndReload', e); }
+      return true;
+    } catch (e) {
+      this._applying = false; console.error('pullActiveAndReload', e);
+      return false;
+    }
   },
   // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
   // o location.reload() cancela o salvamento automático e a alteração se perde na nuvem.
@@ -608,13 +670,20 @@ const CloudStore = {
     clearTimeout(this._debounce); // cancela qualquer autoSave pendente (vamos salvar já)
     if (this.isReady() && this.isLoggedIn()) {
       try {
-        // retentativa: garante que a ação do usuário chegue à nuvem antes de recarregar
-        const r = await this.saveActiveWithRetry();
-        try { if (window.SectionSync) await SectionSync.afterBlobSave(); } catch (_) { _quiet(_); } // sync por seção
-        if (r && r.conflict) {
-          showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
-        } else if (r && r.recusado) {
-          showToast('Envio suspenso para proteger a cópia da nuvem. Nada foi perdido — seus dados estão neste dispositivo.');
+        const id = ProfileManager.getActiveProfileId();
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          /* Antes de recarregar, envia somente a fonte canônica. Se a rede não
+             confirmar, a outbox continua durável e a barreira de disco abaixo
+             garante que a recarga não mate a única cópia local. */
+          const ok = await this._pushSectionsNow(id);
+          if (!ok) showToast('Aviso: a nuvem ainda não confirmou tudo. A fila continuará salva neste aparelho.');
+        } else {
+          const r = await this.saveActiveWithRetry(id);
+          if (r && r.conflict) {
+            showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
+          } else if (r && r.recusado) {
+            showToast('Envio suspenso para proteger a cópia da nuvem. Nada foi perdido — seus dados estão neste dispositivo.');
+          }
         }
       } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
     }
@@ -632,32 +701,78 @@ const CloudStore = {
   // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
   // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
   // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
-  subscribeSections() {
-    if (!this.isReady() || !this.isLoggedIn() || this.secChannel) return;
-    const pid = ProfileManager.getActiveProfileId(); if (!pid) return;
+  subscribeSections(pid) {
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    pid = pid || ProfileManager.getActiveProfileId(); if (!pid) return;
+    if (this.secChannel && this._secChannelProfile === pid) return;
+    if (this.secChannel) {
+      try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); }
+      this.secChannel = null;
+      this._secChannelProfile = null;
+      this._secRemotePending = false;
+    }
     try {
-      this.secChannel = this.client.channel('sec_rt')
+      this._secChannelProfile = pid;
+      this.secChannel = this.client.channel('sec_rt_' + pid)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
+          this._secRemotePending = true;
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
         })
-        .subscribe();
-    } catch (e) { console.warn('realtime de seções indisponível', e); }
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            if (this._secChannelProfile === pid) {
+              this.secChannel = null;
+              this._secChannelProfile = null;
+            }
+          }
+        });
+    } catch (e) {
+      this.secChannel = null;
+      this._secChannelProfile = null;
+      console.warn('realtime de seções indisponível', e);
+    }
+  },
+  onActiveProfileChanged(pid) {
+    if (!this.isReady() || !this.isLoggedIn()) return;
+    this.subscribeSections(pid);
   },
   async _onSectionRealtime(pid) {
-    if (this._applying || this._pending || this._syncing || this._debounce) return; // edição local em curso: não atropela
-    if (!window.SectionSync || !SectionSync.readEnabled) return;
-    if (SectionSync._pushing || SectionSync._dirty.size) return;
+    if (pid !== ProfileManager.getActiveProfileId()) {
+      this._secRemotePending = false;
+      return;
+    }
+    if (!window.SectionSync || !SectionSync.readEnabled) {
+      this._secRemotePending = false;
+      return;
+    }
+    /* Evento remoto durante edição/upload não é descartado. Ele fica marcado e
+       será drenado assim que o estado local estiver estável. */
+    if (this._applying || this._pending || this._syncing || this._debounce ||
+        SectionSync._pushing || SectionSync._dirtyFor(pid).size) {
+      this._secRemotePending = true;
+      return;
+    }
+    this._secRemotePending = false;
     try {
-      // O aviso e a recarga saíam ANTES de saber se havia mudança de verdade —
-      // era o "Atualizado em tempo real ✓" seguido de um reload à toa. Agora
-      // quem avisa é o pullAndReload, e só quando alguma seção realmente mudou.
-      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload();
-    } catch (_) { _quiet(_); }
+      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload({ readOnly: true });
+    } catch (e) {
+      _quiet(e);
+      this._secRemotePending = true;
+      clearTimeout(this._secRtTimer);
+      this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 5000);
+    }
+  },
+  _drainSectionRealtimeHint(pid) {
+    if (!this._secRemotePending || !pid || pid !== ProfileManager.getActiveProfileId()) return;
+    clearTimeout(this._secRtTimer);
+    this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 250);
   },
   _unsub() {
     if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) { _quiet(e); } this.channel = null; }
     if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); } this.secChannel = null; }
+    this._secChannelProfile = null;
+    this._secRemotePending = false;
     clearTimeout(this._secRtTimer);
   },
   _onRealtime(evt) {

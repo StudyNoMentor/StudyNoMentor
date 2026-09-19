@@ -189,11 +189,11 @@ try {
       quick:SectionSync.pendingQuick,explicit:SectionSync.explicitPendingSections,
       remote:SectionSync.hasRemoteUpdates,read:SectionSync.readEnabled
     };
-    let flushCalls=0,pullCalls=0,remoteCalls=0;
+    let flushCalls=0,pullCalls=0,remoteCalls=0,pullReadOnly=false;
     CloudStore.isLoggedIn=()=>true;CloudStore.isReady=()=>true;ProfileManager.getActiveProfileId=()=>id;
     CloudStore._pending=true;CloudStore._debounce=null;CloudStore._syncing=false;
     CloudStore.flushPending=async()=>{flushCalls++;CloudStore._pending=false;};
-    CloudStore.pullActiveAndReload=async()=>{pullCalls++;return true;};
+    CloudStore.pullActiveAndReload=async(opts)=>{pullCalls++;pullReadOnly=!!(opts&&opts.readOnly);return true;};
     SectionSync.readEnabled=true;SectionSync.pendingQuick=()=>0;SectionSync.explicitPendingSections=()=>[];
     SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return true;};
     sessionStorage.setItem('diario-estudos:entered',id);
@@ -204,11 +204,499 @@ try {
     CloudStore._pending=keep.pending;CloudStore._debounce=keep.debounce;CloudStore._syncing=keep.syncing;
     SectionSync.pendingQuick=keep.quick;SectionSync.explicitPendingSections=keep.explicit;
     SectionSync.hasRemoteUpdates=keep.remote;SectionSync.readEnabled=keep.read;
-    return {flushCalls,pullCalls,remoteCalls};
+    return {flushCalls,pullCalls,remoteCalls,pullReadOnly};
   });
   eq(pushPull.flushCalls,1,'syncOnFocus deve concluir o envio pendente');
   eq(pushPull.remoteCalls,1,'syncOnFocus deve conferir a nuvem logo após o envio');
   eq(pushPull.pullCalls,1,'syncOnFocus deve baixar novidade na mesma rodada');
+  ok(pushPull.pullReadOnly,'pull automático após o push deve ser somente-leitura');
+
+  /* 2e. Edição nova durante upload antigo: a confirmação velha NÃO pode limpar
+     a geração mais nova da fila. */
+  const generationRace=await page.evaluate(async()=>{
+    const id='syncv2-generation-race',sec='tracks',key='diario-estudos:u:'+id+':'+sec;
+    const keep={
+      active:ProfileManager.getActiveProfileId,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      write:SectionSync._writeSectionCAS,manifest:SectionSync._syncManifest
+    };
+    ProfileManager.getActiveProfileId=()=>id;CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();SectionSync._lastConflict=null;
+    localStorage.removeItem('diario-estudos:u:'+id+':__secrev');
+    localStorage.removeItem('diario-estudos:u:'+id+':__secpend');
+    localStorage.setItem(key,JSON.stringify({v:1}));
+    SectionSync.markDirty(key);
+    const genAntes=SectionSync._dirtyGen.get(sec)||0;
+    let writes=0;
+    SectionSync._syncManifest=async()=>{};
+    SectionSync._writeSectionCAS=async()=>{
+      writes++;
+      if(writes===1){
+        localStorage.setItem(key,JSON.stringify({v:2}));
+        SectionSync.markDirty(key);
+      }
+      return {ok:true,rev:1};
+    };
+    await SectionSync._enviarSujas(id);
+    const out={
+      writes,genAntes,genDepois:SectionSync._dirtyGen.get(sec)||0,
+      aindaSuja:SectionSync._dirty.has(sec),
+      persistida:SectionSync._loadPend(id).includes(sec)
+    };
+    SectionSync._writeSectionCAS=keep.write;SectionSync._syncManifest=keep.manifest;
+    ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
+    localStorage.removeItem(key);localStorage.removeItem('diario-estudos:u:'+id+':__secrev');
+    localStorage.removeItem('diario-estudos:u:'+id+':__secpend');
+    return out;
+  });
+  eq(generationRace.writes,1,'corrida deve concluir o upload antigo uma vez');
+  ok(generationRace.genDepois>generationRace.genAntes,'nova edição deve receber geração maior');
+  ok(generationRace.aindaSuja,'upload antigo não pode limpar edição nova da memória');
+  ok(generationRace.persistida,'upload antigo não pode limpar edição nova da outbox durável');
+
+  /* 2f. O caminho CAS existente deve usar UPDATE condicionado por rev, nunca
+     upsert incondicional sobre uma linha já conhecida. */
+  const casUpdate=await page.evaluate(async()=>{
+    const keep=CloudStore.client;const calls=[];
+    const q={
+      update(){calls.push('update');return this;},
+      eq(k,v){calls.push('eq:'+k+'='+v);return this;},
+      select(){calls.push('select');return Promise.resolve({data:[{rev:8}],error:null});}
+    };
+    CloudStore.client={from(){calls.push('from');return q;}};
+    const r=await SectionSync._writeSectionCAS(
+      {profile_id:'p',section:'entries',data:[],rev:8,updated_at:new Date().toISOString()},7);
+    CloudStore.client=keep;
+    return {calls,r};
+  });
+  ok(casUpdate.calls.includes('update'),'CAS de seção existente deve usar UPDATE');
+  ok(casUpdate.calls.includes('eq:rev=7'),'CAS deve condicionar a escrita à revisão conhecida');
+  ok(!casUpdate.calls.includes('upsert'),'CAS não pode fazer upsert cego');
+  ok(casUpdate.r&&casUpdate.r.ok,'CAS condicionado deve aceitar confirmação válida');
+
+  /* 2g. Conflito do blob não pode copiar a rev remota para o local e tentar
+     novamente com autorização artificial. */
+  const blobConflict=await page.evaluate(async()=>{
+    const keep={save:CloudStore.saveActive,fetch:CloudStore._fetchRev,setRev:ProfileManager.setRev,active:ProfileManager.getActiveProfileId,logged:CloudStore.isLoggedIn};
+    let setRevCalls=0,saveCalls=0;
+    ProfileManager.getActiveProfileId=()=> 'syncv2-blob';
+    CloudStore.isLoggedIn=()=>true;
+    CloudStore.saveActive=async()=>{saveCalls++;return {conflict:true};};
+    CloudStore._fetchRev=async()=>99;
+    ProfileManager.setRev=()=>{setRevCalls++;};
+    const r=await CloudStore.saveActiveWithRetry();
+    CloudStore.saveActive=keep.save;CloudStore._fetchRev=keep.fetch;ProfileManager.setRev=keep.setRev;
+    ProfileManager.getActiveProfileId=keep.active;CloudStore.isLoggedIn=keep.logged;
+    return {setRevCalls,saveCalls,r};
+  });
+  eq(blobConflict.saveCalls,1,'conflito de blob não deve reenviar repetidamente');
+  eq(blobConflict.setRevCalls,0,'conflito de blob não pode adulterar a revisão local');
+  eq(blobConflict.r.remoteRev,99,'conflito deve apenas diagnosticar a revisão remota');
+
+  /* 2h. O pull manual chama o caminho somente-leitura. */
+  const readOnlyPull=await page.evaluate(async()=>{
+    const btn=document.getElementById('cloud-pull-now');
+    if(!btn)return {temBotao:false};
+    const keep=CloudStore.pullActiveAndReload;let recebido=null;
+    CloudStore.pullActiveAndReload=async(opts)=>{recebido=opts||{};};
+    btn.click();await new Promise(r=>setTimeout(r,30));
+    CloudStore.pullActiveAndReload=keep;
+    return {temBotao:true,readOnly:!!(recebido&&recebido.readOnly)};
+  });
+  ok(readOnlyPull.temBotao,'botão baixar da nuvem deve existir');
+  ok(readOnlyPull.readOnly,'baixar da nuvem deve chamar pull somente-leitura');
+
+  /* 2i. A nova barreira do IndexedDB deve existir e só devolver sucesso depois
+     de drenar a fila real da fachada. */
+  const strictDisk=await page.evaluate(async()=>{
+    const key='diario-estudos:test-strict-flush';
+    localStorage.setItem(key,String(Date.now()));
+    const before=window.__idbPendingCount?window.__idbPendingCount():-1;
+    const r=window.__idbFlushStrict?await window.__idbFlushStrict(5000):null;
+    localStorage.removeItem(key);
+    const r2=window.__idbFlushStrict?await window.__idbFlushStrict(5000):null;
+    return {tem:typeof window.__idbFlushStrict==='function',before,r,r2};
+  });
+  ok(strictDisk.tem,'barreira estrita de IndexedDB deve existir');
+  ok(strictDisk.r&&strictDisk.r.ok,'barreira estrita deve confirmar gravação');
+  eq(strictDisk.r.pending,0,'confirmação estrita só pode ocorrer com fila vazia');
+  ok(strictDisk.r2&&strictDisk.r2.ok,'remoção também deve ser confirmada no disco');
+
+  /* 2j. Manifesto também precisa de CAS; não pode voltar ao upsert cego. */
+  const manifestCas=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      write:SectionSync._writeSectionCAS
+    };
+    let expected=null,writes=0;
+    CloudStore.client={from(){return {select(){return {eq(){return Promise.resolve({data:[{section:'__manifest',rev:3}],error:null});}};}};}};
+    SectionSync.localSections=()=>['entries'];
+    SectionSync._loadDel=()=>[];
+    SectionSync._writeSectionCAS=async(row,exp)=>{writes++;expected=exp;return {ok:true,rev:4};};
+    const revs={__manifest:{rev:3,hash:'antigo'}};
+    await SectionSync._syncManifest('p-manifest',revs);
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;SectionSync._writeSectionCAS=keep.write;
+    return {writes,expected,rev:revs.__manifest&&revs.__manifest.rev};
+  });
+  eq(manifestCas.writes,1,'manifesto alterado deve passar pelo CAS');
+  eq(manifestCas.expected,3,'manifesto deve escrever a partir da revisão-base conhecida');
+  eq(manifestCas.rev,4,'manifesto deve registrar apenas a revisão confirmada');
+
+  /* 2k. Exclusão baseada em rev antiga não pode apagar uma edição remota mais nova. */
+  const deletionCas=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS,last:SectionSync._lastConflict
+    };
+    let deleteCalls=0,rpcCalls=0,salvas=null,manifestSections=null;
+    CloudStore.client={
+      from(){return {
+        select(){return {eq(){return Promise.resolve({data:[
+          {section:'entries',rev:6},{section:'__manifest',rev:1}
+        ],error:null});}};},
+        delete(){deleteCalls++;return this;},
+        eq(){return this;}
+      };},
+      rpc(){rpcCalls++;return Promise.resolve({data:true,error:null});}
+    };
+    SectionSync.localSections=()=>[];
+    SectionSync._loadDel=()=>[{section:'entries',rev:5}];
+    SectionSync._saveDel=(x)=>{salvas=x;};
+    SectionSync._writeSectionCAS=async(row)=>{manifestSections=(row.data&&row.data.sections)||null;return {ok:true,rev:2};};
+    SectionSync._lastConflict=null;
+    const revs={__manifest:{rev:1,hash:SectionSync._hash('')}};
+    let falhou=false;
+    try{await SectionSync._syncManifest('p-del',revs);}catch(_){falhou=true;}
+    const conflito=SectionSync._lastConflict;
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
+    SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;SectionSync._lastConflict=keep.last;
+    return {deleteCalls,rpcCalls,falhou,conflito,salvas,manifestSections};
+  });
+  eq(deletionCas.deleteCalls,0,'exclusão velha não pode executar DELETE direto contra rev nova');
+  eq(deletionCas.rpcCalls,0,'exclusão velha não pode chamar a RPC CAS com base já vencida');
+  ok(deletionCas.falhou,'conflito de exclusão deve manter a sincronização pendente');
+  ok(deletionCas.conflito&&deletionCas.conflito.tipo==='exclusão','conflito de exclusão deve ficar diagnosticado');
+  ok(Array.isArray(deletionCas.salvas)&&deletionCas.salvas.length===1,'tombstone em conflito deve permanecer durável');
+  ok(Array.isArray(deletionCas.manifestSections)&&deletionCas.manifestSections.includes('entries'),
+    'manifesto deve continuar expondo a seção remota mais nova quando a exclusão perde o CAS');
+
+
+  /* 2k.1. Exclusão válida usa exclusivamente a RPC CAS; DELETE direto fica fora
+     do protocolo mesmo quando a revisão-base é a atual. */
+  const deletionRpc=await page.evaluate(async()=>{
+    const id='p-del-rpc';
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS
+    };
+    let directDeletes=0,rpcArgs=null,manifestSections=null;
+    CloudStore.client={
+      from(){return {
+        select(){return {eq(){return Promise.resolve({data:[
+          {section:'entries',rev:5},{section:'__manifest',rev:1,data:{v:2,sections:['entries']}}
+        ],error:null});}};},
+        delete(){directDeletes++;return this;}
+      };},
+      rpc(name,args){rpcArgs={name,args};return Promise.resolve({data:true,error:null});}
+    };
+    SectionSync.localSections=()=>[];
+    SectionSync._loadDel=()=>[{section:'entries',rev:5}];
+    SectionSync._saveDel=()=>{};
+    SectionSync._writeSectionCAS=async(row)=>{manifestSections=row.data&&row.data.sections;return {ok:true,rev:2};};
+    const revs={entries:{rev:5,hash:'x'},__manifest:{rev:1,hash:SectionSync._hash('entries')}};
+    await SectionSync._syncManifest(id,revs);
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
+    SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;
+    return {directDeletes,rpcArgs,manifestSections,temRev:!!revs.entries};
+  });
+  eq(deletionRpc.directDeletes,0,'exclusão válida também não pode usar DELETE direto');
+  ok(deletionRpc.rpcArgs&&deletionRpc.rpcArgs.name==='delete_profile_section_cas','exclusão válida deve usar RPC CAS');
+  eq(deletionRpc.rpcArgs&&deletionRpc.rpcArgs.args&&deletionRpc.rpcArgs.args.p_expected_rev,5,'RPC de exclusão deve receber a revisão-base');
+  ok(Array.isArray(deletionRpc.manifestSections)&&!deletionRpc.manifestSections.includes('entries'),'manifesto deve remover apenas a seção cuja exclusão CAS foi confirmada');
+  ok(!deletionRpc.temRev,'revisão local da seção apagada só sai após confirmação CAS');
+
+  /* 2l. Restaurar sessão com outro device ativo deve bloquear, não reivindicar. */
+  const sessionNoTakeover=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
+      subscribe:SessionGuard.subscribe,claim:SessionGuard.claim,taken:SessionGuard._takenBy,
+      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled
+    };
+    let claims=0,blocked=0;
+    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-1'}};
+    SessionGuard.subscribe=()=>{};
+    SessionGuard.claim=async()=>{claims++;return true;};
+    SessionGuard._takenBy=()=>{blocked++;};
+    CloudStore.client={from(){return {select(){return {eq(){return {maybeSingle(){return Promise.resolve({data:{device_id:'device-remoto',device_label:'Outro'},error:null});}};}};}};}};
+    await SessionGuard.onLogin();
+    CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
+    SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    return {claims,blocked};
+  });
+  eq(sessionNoTakeover.claims,0,'sessão restaurada não pode tomar posse automaticamente de outro aparelho');
+  eq(sessionNoTakeover.blocked,1,'sessão restaurada deve reconhecer e bloquear diante de outro aparelho');
+
+  /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
+  const pendingDelete=await page.evaluate(()=>{
+    const id='syncv2-pending-delete',sec='entries';
+    const keep=ProfileManager.getActiveProfileId;
+    ProfileManager.getActiveProfileId=()=>id;
+    localStorage.setItem('diario-estudos:u:'+id+':__secdel',JSON.stringify([{section:sec,rev:5}]));
+    const explicit=SectionSync.explicitPendingSections(id);
+    const quick=SectionSync.pendingQuick();
+    localStorage.removeItem('diario-estudos:u:'+id+':__secdel');
+    ProfileManager.getActiveProfileId=keep;
+    return {explicit,quick};
+  });
+  ok(pendingDelete.explicit.includes('entries'),'exclusão durável deve aparecer como pendência explícita');
+  ok(pendingDelete.quick>=1,'exclusão durável deve bloquear reconciliação rápida até ser resolvida');
+
+  /* 2n. Se já existem linhas por seção e a validação falha, o blob antigo não
+     pode ser aplicado como fallback. */
+  const noStaleBlobFallback=await page.evaluate(async()=>{
+    const id='syncv2-no-blob-fallback';
+    const keep={
+      active:ProfileManager.getActiveProfileId,pull:SectionSync.pullAndReload,last:SectionSync.lastRead,
+      fetch:CloudStore.fetchPayload,readFlag:localStorage.getItem(SectionSync.READ_FLAG_KEY)
+    };
+    let blobFetches=0;
+    ProfileManager.getActiveProfileId=()=>id;
+    localStorage.setItem(SectionSync.READ_FLAG_KEY,'1');
+    SectionSync.pullAndReload=async()=>false;
+    SectionSync.lastRead=()=>({ok:false,motivo:'seções-faltando',linhasRemotas:7});
+    CloudStore.fetchPayload=async()=>{blobFetches++;return {payload:{data:{}},rev:1};};
+    const r=await CloudStore.pullActiveAndReload({readOnly:true});
+    ProfileManager.getActiveProfileId=keep.active;SectionSync.pullAndReload=keep.pull;SectionSync.lastRead=keep.last;CloudStore.fetchPayload=keep.fetch;
+    if(keep.readFlag===null)localStorage.removeItem(SectionSync.READ_FLAG_KEY);else localStorage.setItem(SectionSync.READ_FLAG_KEY,keep.readFlag);
+    return {r,blobFetches};
+  });
+  eq(noStaleBlobFallback.blobFetches,0,'conjunto por seção inválido não pode cair para blob antigo');
+  eq(noStaleBlobFallback.r,false,'pull deve sinalizar validação protegida sem fingir sucesso');
+
+  /* 2o. Cache regressado: rev/hash anotados dizem "novo", conteúdo físico está
+     velho e não há outbox explícita. O pull read-only deve trazer a nuvem e não
+     tentar publicar o valor velho. */
+  const readOnlyRepairsStaleCache=await page.evaluate(async()=>{
+    const id='syncv2-stale-cache',sec='entries',pfx='diario-estudos:u:'+id+':',key=pfx+sec;
+    const remoto=JSON.stringify([{v:2}]),local=JSON.stringify([{v:1}]);
+    const keep={
+      active:ProfileManager.getActiveProfileId,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      fetch:SectionSync.fetchAllSections,push:SectionSync.pushDirty,snapshot:window.BackupHistory&&BackupHistory.snapshot
+    };
+    let pushCalls=0;
+    ProfileManager.getActiveProfileId=()=>id;CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
+    localStorage.setItem(key,local);
+    localStorage.setItem(pfx+'__secrev',JSON.stringify({entries:{rev:2,hash:SectionSync._hash(remoto),len:remoto.length}}));
+    localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    SectionSync.fetchAllSections=async()=>[
+      {section:sec,data:[{v:2}],rev:2,updated_at:new Date().toISOString()},
+      {section:'__manifest',data:{v:2,sections:[sec]},rev:2,updated_at:new Date().toISOString()}
+    ];
+    SectionSync.pushDirty=async()=>{pushCalls++;};
+    if(window.BackupHistory)BackupHistory.snapshot=async()=>true;
+    const beforePending=SectionSync.pendingSections(id);
+    const beforeExplicit=SectionSync.explicitPendingSections(id);
+    const r=await SectionSync.hydrateReadOnly(id);
+    const depois=localStorage.getItem(key);
+    SectionSync.fetchAllSections=keep.fetch;SectionSync.pushDirty=keep.push;
+    if(window.BackupHistory)BackupHistory.snapshot=keep.snapshot;
+    ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
+    localStorage.removeItem(key);localStorage.removeItem(pfx+'__secrev');localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    return {beforePending,beforeExplicit,pushCalls,r,depois,remoto};
+  });
+  ok(readOnlyRepairsStaleCache.beforePending.includes('entries'),'hash divergente deve ser detectável como possível pendência');
+  eq(readOnlyRepairsStaleCache.beforeExplicit.length,0,'cache regressado sem outbox não deve virar edição explícita');
+  eq(readOnlyRepairsStaleCache.pushCalls,0,'pull read-only não pode publicar nada antes de baixar');
+  ok(readOnlyRepairsStaleCache.r&&readOnlyRepairsStaleCache.r.ok,'pull read-only deve validar e aplicar seções');
+  eq(readOnlyRepairsStaleCache.depois,readOnlyRepairsStaleCache.remoto,'conteúdo remoto deve corrigir cache físico regressado');
+
+
+  /* 2o.1. Linha remota mais nova que o manifesto não pode ser descartada. Isso
+     simula queda exatamente entre gravar a seção e atualizar __manifest. */
+  const manifestLagPreservesRemote=await page.evaluate(()=>{
+    const rows=[
+      {section:'entries',data:[{id:1}],rev:4},
+      {section:'cards',data:[{id:9}],rev:2},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:7}
+    ];
+    const p=SectionSync._prepare(rows);
+    return {
+      ok:p.ok,
+      keys:Object.keys(p.map||{}).sort(),
+      extras:(p.extras||[]).slice().sort(),
+      cards:p.map&&p.map.cards
+    };
+  });
+  ok(manifestLagPreservesRemote.ok,'manifesto atrasado com linhas completas ainda deve ser legível');
+  ok(manifestLagPreservesRemote.keys.includes('entries')&&manifestLagPreservesRemote.keys.includes('cards'),
+    'linha remota fora do manifesto deve ser preservada na união');
+  ok(manifestLagPreservesRemote.extras.includes('cards'),'seção fora do manifesto deve ficar diagnosticada como extra');
+  ok(!!manifestLagPreservesRemote.cards,'conteúdo da seção extra não pode ser descartado');
+
+  /* 2o.2. Exclusão remota é anunciada pelo manifesto: a linha apagada já não
+     existe para ter rev maior. Logo o manifesto precisa participar da detecção. */
+  const remoteDeleteDetection=await page.evaluate(()=>{
+    const pfx='diario-estudos:u:p-delete-detect:';
+    const locais={__manifest:{rev:8,hash:'x'}};
+    return {
+      nova:SectionSync.precisaBaixar({section:'__manifest',rev:9},locais,pfx),
+      igual:SectionSync.precisaBaixar({section:'__manifest',rev:8},locais,pfx)
+    };
+  });
+  ok(remoteDeleteDetection.nova,'manifesto remoto mais novo deve disparar pull para propagar exclusões');
+  ok(!remoteDeleteDetection.igual,'manifesto na mesma revisão não deve gerar falso download');
+
+  /* 2p. Manifesto com revisão remota mais nova deve se realinhar e avançar
+     sem apagar a união remota/local. */
+  const manifestRebase=await page.evaluate(async()=>{
+    const id='syncv2-manifest-rebase';
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS,remote:SectionSync._remoteSection
+    };
+    let expectedSeen=[],writeCalls=0;
+    CloudStore.client={from(){return {
+      select(){return {eq(){return Promise.resolve({data:[
+        {section:'entries',rev:4},
+        {section:'__manifest',rev:7,data:{v:2,sections:['entries']}}
+      ],error:null});}};}
+    };}};
+    SectionSync.localSections=()=>['entries','cards'];
+    SectionSync._loadDel=()=>[];
+    SectionSync._saveDel=()=>{};
+    SectionSync._writeSectionCAS=async(row,exp)=>{
+      writeCalls++;expectedSeen.push(exp);
+      return {ok:true,rev:exp+1};
+    };
+    SectionSync._remoteSection=keep.remote;
+    const revs={__manifest:{rev:3,hash:'velho'}};
+    const okRun=await SectionSync._syncManifest(id,revs);
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
+    SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;SectionSync._remoteSection=keep.remote;
+    return {okRun,writeCalls,expectedSeen,rev:revs.__manifest&&revs.__manifest.rev};
+  });
+  ok(manifestRebase.okRun,'manifesto deve sincronizar a partir da revisão remota observada');
+  eq(manifestRebase.expectedSeen[0],7,'manifesto não pode usar revisão local obsoleta quando acabou de ler rev 7');
+  eq(manifestRebase.rev,8,'manifesto deve avançar monotonicamente da rev remota atual');
+
+  /* 2q. Trocar de perfil deve trocar a assinatura Realtime da tabela de seções. */
+  const realtimeProfileSwitch=await page.evaluate(()=>{
+    const keep={
+      client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      channel:CloudStore.secChannel,profile:CloudStore._secChannelProfile
+    };
+    const removed=[],created=[];
+    function fakeChannel(name){
+      const ch={name,on(){return ch;},subscribe(){return ch;}};
+      created.push(name);return ch;
+    }
+    CloudStore.client={channel:fakeChannel,removeChannel(ch){removed.push(ch&&ch.name);}};
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    CloudStore.secChannel=null;CloudStore._secChannelProfile=null;
+    CloudStore.subscribeSections('perfil-a');
+    const first=CloudStore._secChannelProfile;
+    CloudStore.subscribeSections('perfil-b');
+    const second=CloudStore._secChannelProfile;
+    CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    CloudStore.secChannel=keep.channel;CloudStore._secChannelProfile=keep.profile;
+    return {first,second,removed,created};
+  });
+  eq(realtimeProfileSwitch.first,'perfil-a','primeira assinatura realtime deve pertencer ao perfil A');
+  eq(realtimeProfileSwitch.second,'perfil-b','troca de perfil deve religar realtime no perfil B');
+  ok(realtimeProfileSwitch.removed.some(x=>String(x).includes('perfil-a')),'canal do perfil anterior deve ser removido');
+
+  /* 2r. Evento realtime recebido durante upload não pode desaparecer. */
+  const realtimeDuringUpload=await page.evaluate(async()=>{
+    const id='syncv2-rt-busy';
+    const keep={
+      active:ProfileManager.getActiveProfileId,syncing:CloudStore._syncing,pending:CloudStore._pending,
+      debounce:CloudStore._debounce,applying:CloudStore._applying,remotePending:CloudStore._secRemotePending,
+      remote:SectionSync.hasRemoteUpdates,pull:SectionSync.pullAndReload,pushing:SectionSync._pushing
+    };
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync._dirtyFor(id).clear();
+    SectionSync._pushing=false;
+    CloudStore._pending=false;CloudStore._debounce=null;CloudStore._applying=false;
+    CloudStore._secRemotePending=true;CloudStore._syncing=true;
+    let remoteCalls=0,pullCalls=0,readOnly=false;
+    SectionSync.hasRemoteUpdates=async()=>{remoteCalls++;return true;};
+    SectionSync.pullAndReload=async(opts)=>{pullCalls++;readOnly=!!(opts&&opts.readOnly);return true;};
+
+    await CloudStore._onSectionRealtime(id);
+    const ficouPendente=CloudStore._secRemotePending;
+
+    CloudStore._syncing=false;
+    await CloudStore._onSectionRealtime(id);
+    const drenou=!CloudStore._secRemotePending;
+
+    ProfileManager.getActiveProfileId=keep.active;CloudStore._syncing=keep.syncing;CloudStore._pending=keep.pending;
+    CloudStore._debounce=keep.debounce;CloudStore._applying=keep.applying;CloudStore._secRemotePending=keep.remotePending;
+    SectionSync.hasRemoteUpdates=keep.remote;SectionSync.pullAndReload=keep.pull;SectionSync._pushing=keep.pushing;
+    SectionSync._dirtyFor(id).clear();
+    return {ficouPendente,drenou,remoteCalls,pullCalls,readOnly};
+  });
+  ok(realtimeDuringUpload.ficouPendente,'evento remoto durante upload deve permanecer pendente');
+  ok(realtimeDuringUpload.drenou,'hint remoto deve ser drenado quando o upload termina');
+  eq(realtimeDuringUpload.remoteCalls,1,'hint drenado deve conferir a revisão remota uma vez');
+  eq(realtimeDuringUpload.pullCalls,1,'novidade remota deve ser aplicada após estabilizar');
+  ok(realtimeDuringUpload.readOnly,'realtime nunca pode iniciar upload implícito');
+
+  /* 2r. O espelho nativo não pode continuar guardando bookkeeping/perfil.
+     A escrita pela fachada deve remover uma cópia legada pequena do nativeLS. */
+  const nativeMirrorIsolation=await page.evaluate(async()=>{
+    if(!window.__nativeLS)return {tem:false};
+    const k='diario-estudos:syncv2-native-split';
+    window.__nativeLS.setItem(k,'antigo');
+    localStorage.setItem(k,'novo');
+    await (window.__idbFlushStrict?window.__idbFlushStrict(5000):Promise.resolve({ok:true}));
+    const native=window.__nativeLS.getItem(k);
+    const facade=localStorage.getItem(k);
+    localStorage.removeItem(k);
+    await (window.__idbFlushStrict?window.__idbFlushStrict(5000):Promise.resolve({ok:true}));
+    return {tem:true,native,facade};
+  });
+  ok(nativeMirrorIsolation.tem,'teste precisa acessar o armazenamento nativo preservado');
+  eq(nativeMirrorIsolation.native,null,'chaves de dados/bookkeeping não podem permanecer espelhadas no localStorage nativo');
+  eq(nativeMirrorIsolation.facade,'novo','fachada IndexedDB deve manter o valor canônico');
+
+  /* 2p. Duas filas homônimas de perfis diferentes não podem compartilhar estado. */
+  const profileIsolation=await page.evaluate(()=>{
+    const a='syncv2-profile-a',b='syncv2-profile-b',sec='entries';
+    const ka='diario-estudos:u:'+a+':'+sec,kb='diario-estudos:u:'+b+':'+sec;
+    SectionSync._dirtyFor(a).clear();SectionSync._dirtyGenFor(a).clear();
+    SectionSync._dirtyFor(b).clear();SectionSync._dirtyGenFor(b).clear();
+    localStorage.setItem(ka,'[1]');localStorage.setItem(kb,'[2]');
+    SectionSync.markDirty(ka);SectionSync.markDirty(kb);
+    const antes={
+      a:SectionSync._dirtyFor(a).has(sec),
+      b:SectionSync._dirtyFor(b).has(sec),
+      ga:SectionSync._dirtyGenFor(a).get(sec)||0,
+      gb:SectionSync._dirtyGenFor(b).get(sec)||0,
+      pa:SectionSync._loadPend(a).includes(sec),
+      pb:SectionSync._loadPend(b).includes(sec)
+    };
+    SectionSync._clearDirtyIfGeneration(sec,antes.ga,a);
+    SectionSync._savePend(a);
+    const depois={
+      a:SectionSync._dirtyFor(a).has(sec),
+      b:SectionSync._dirtyFor(b).has(sec),
+      pb:SectionSync._loadPend(b).includes(sec)
+    };
+    SectionSync._dirtySets.delete(a);SectionSync._dirtySets.delete(b);
+    SectionSync._dirtyGenMaps.delete(a);SectionSync._dirtyGenMaps.delete(b);
+    localStorage.removeItem(ka);localStorage.removeItem(kb);
+    localStorage.removeItem('diario-estudos:u:'+a+':__secpend');
+    localStorage.removeItem('diario-estudos:u:'+b+':__secpend');
+    return {antes,depois};
+  });
+  ok(profileIsolation.antes.a&&profileIsolation.antes.b,'mesma seção deve poder ficar pendente em dois perfis');
+  ok(profileIsolation.antes.pa&&profileIsolation.antes.pb,'outbox durável deve permanecer separada por perfil');
+  ok(!profileIsolation.depois.a,'confirmação do perfil A deve limpar apenas A');
+  ok(profileIsolation.depois.b&&profileIsolation.depois.pb,'confirmação do perfil A não pode tocar na fila do perfil B');
 
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);

@@ -119,10 +119,28 @@ const Atualizacao = {
     restaurar();
     if (!entregue) {
       const seguir = await UI.confirm(
-        'Ainda há alterações subindo para a nuvem.\n\nElas estão salvas neste aparelho e continuam na fila depois de atualizar — mas, se preferir, espere alguns segundos e tente de novo.',
+        'Ainda há alterações subindo para a nuvem.\n\nElas continuam preservadas neste aparelho e na fila durável. Você pode atualizar offline, desde que a gravação local seja confirmada.',
         { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
       if (!seguir) { this._trocando = false; return; }
     }
+
+    /* A nuvem pode estar indisponível e isso NÃO deve impedir uma atualização.
+       O que é inegociável é a durabilidade local: antes de trocar o worker,
+       exigimos confirmação real do IndexedDB. Timeout não conta como sucesso. */
+    let disco = { ok: true };
+    try {
+      if (window.__idbFlushStrict) disco = await window.__idbFlushStrict(10000);
+      else if (window.__idbFlush) { await window.__idbFlush(); disco = { ok: true, compat: true }; }
+    } catch (e) { disco = { ok: false, motivo: (e && e.message) || 'falha' }; }
+    if (!disco || disco.ok === false) {
+      this._trocando = false;
+      try { if (btn) { btn.disabled = false; btn.textContent = 'Atualizar agora'; } } catch (_) { _quiet(_); }
+      await UI.alert(
+        'A atualização foi cancelada porque o navegador ainda não confirmou a gravação dos dados neste aparelho. Nada foi apagado. Aguarde alguns instantes e tente novamente.',
+        { title: 'Dados ainda sendo gravados' });
+      return;
+    }
+
     /* A troca pode levar alguns segundos (o worker antigo precisa ficar livre).
        Sem dizer isso, a barra fica parada e a pessoa aperta de novo. */
     if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
@@ -145,8 +163,38 @@ const Atualizacao = {
      fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
      a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false, tentativas = 0;
-    const recarregar = () => { if (recarregou) return; recarregou = true; clearInterval(bater); location.reload(); };
+    let recarregou = false, tentativas = 0, bater = null, tentativasDisco = 0;
+    const recarregar = async () => {
+      if (recarregou) return;
+      recarregou = true; clearInterval(bater);
+      /* Segunda barreira: cobre qualquer gravação que tenha ocorrido entre o
+         clique em atualizar e o controllerchange. Enquanto houver fila local,
+         não matamos a página antiga. A retentativa é limitada: falha persistente
+         devolve o controle ao usuário em vez de criar um loop eterno. */
+      try {
+        const r = window.__idbFlushStrict ? await window.__idbFlushStrict(10000) : { ok: true };
+        if (r && r.ok === false) {
+          recarregou = false;
+          tentativasDisco++;
+          if (tentativasDisco <= 6) {
+            try { showToast('⚠ Atualização pronta, aguardando a gravação local terminar…'); } catch (_) { _quiet(_); }
+            setTimeout(recarregar, 1000);
+            return;
+          }
+          this._trocando = false;
+          try { showToast('⚠ A nova versão está pronta, mas não recarreguei porque o armazenamento local não confirmou os dados.'); } catch (_) { _quiet(_); }
+          return;
+        }
+      } catch (_) {
+        recarregou = false;
+        tentativasDisco++;
+        if (tentativasDisco <= 6) { setTimeout(recarregar, 1000); return; }
+        this._trocando = false;
+        try { showToast('⚠ A nova versão está pronta, mas a gravação local não pôde ser confirmada.'); } catch (_) { _quiet(_); }
+        return;
+      }
+      location.reload();
+    };
     try {
       navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
     } catch (e) { _quiet(e, 'upd-controller'); }
@@ -158,7 +206,7 @@ const Atualizacao = {
       return false;
     };
     if (!pedir()) { recarregar(); return; }     // sem worker esperando: recarregar já resolve
-    const bater = setInterval(() => {
+    bater = setInterval(() => {
       tentativas++;
       if (recarregou || tentativas > 20 || !pedir()) { clearInterval(bater); }
     }, 600);
@@ -200,7 +248,7 @@ const Atualizacao = {
       }
     } catch (e) { _quiet(e, 'upd-desregistrar'); }
     showToast('Cache limpo ✓ recarregando…');
-    setTimeout(() => location.reload(), 500);
+    setTimeout(() => recarregarApp('limpeza manual do cache', { imediato: true }), 500);
   },
 
   // Procura atualização agora (usado pelo botão em Diagnóstico).

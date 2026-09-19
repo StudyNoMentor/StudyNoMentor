@@ -175,7 +175,16 @@ const ProfileManager = {
   },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
-  setActiveProfile(id) { localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id); },
+  setActiveProfile(id) {
+    localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id);
+    /* A assinatura Realtime de seções depende do perfil ativo. Centralizar o
+       aviso aqui evita deixar um canal antigo ouvindo o perfil anterior. */
+    try {
+      if (window.CloudStore && CloudStore.onActiveProfileChanged) {
+        CloudStore.onActiveProfileChanged(id);
+      }
+    } catch (e) { _quiet(e, 'perfil-canal-secoes'); }
+  },
 
   // hash simples (NÃO é segurança forte — apenas evita guardar o PIN em texto puro)
   _hash(str) {
@@ -625,8 +634,15 @@ const ProfileManager = {
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
     if (eraAtivo) {
       this.setActiveProfile(idNovo);
-      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'adotar-envio'); }
-      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'adotar-blob'); }
+      try {
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          SectionSync._seededProfile = null;
+          SectionSync.markAllDirty(idNovo);
+          await CloudStore._pushSectionsNow(idNovo);
+        } else {
+          await CloudStore.saveActiveWithRetry(idNovo); // compatibilidade do modo legado
+        }
+      } catch (e) { _quiet(e, 'adotar-envio'); }
     }
     console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
     return idNovo;

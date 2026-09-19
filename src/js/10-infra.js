@@ -173,8 +173,20 @@ var _recargaAgendada = null;
 function recarregarApp(motivo, opts) {
   const ir = () => {
     try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
-    const disco = (window.__idbFlush ? window.__idbFlush() : Promise.resolve());
-    Promise.resolve(disco).catch(() => {}).then(() => location.reload());
+    const disco = window.__idbFlushStrict
+      ? window.__idbFlushStrict(10000)
+      : (window.__idbFlush ? window.__idbFlush().then(() => ({ ok: true })) : Promise.resolve({ ok: true }));
+    Promise.resolve(disco).then((r) => {
+      if (r && r.ok === false) {
+        try { console.error('[recarga] cancelada: armazenamento local não confirmou o commit', r); } catch (e) { _quiet(e, 'recarga-disco'); }
+        try { showToast('⚠ Não recarreguei: ainda há dados sendo gravados neste aparelho. Tente novamente em instantes.'); } catch (e) { _quiet(e, 'recarga-aviso-disco'); }
+        return;
+      }
+      location.reload();
+    }).catch((e) => {
+      try { console.error('[recarga] cancelada por falha ao confirmar o armazenamento', e); } catch (_) { _quiet(_); }
+      try { showToast('⚠ Não recarreguei porque o armazenamento local não pôde ser confirmado.'); } catch (_) { _quiet(_); }
+    });
   };
   if ((opts && opts.imediato) || !_appOcupado()) { ir(); return; }
   if (_recargaAgendada) return;                 // já há uma esperando a sua vez

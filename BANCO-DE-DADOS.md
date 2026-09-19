@@ -268,9 +268,11 @@ create policy "perfis_proprios_delete" on public.study_profiles
   for delete using (auth.uid() = user_id);
 ```
 
-`rev` é o **cadeado otimista**: todo envio exige `rev = <valor conhecido>` e
-grava `rev + 1`. Dois aparelhos salvando ao mesmo tempo não se sobrescrevem —
-o segundo recebe "conflito", recarrega a revisão real e reenvia.
+`rev` é o **cadeado otimista** do blob, mas o blob não é mais a autoridade
+operacional do dia a dia. Se houver conflito, o cliente **não** copia a revisão
+remota para si e não reenvia o payload inteiro por cima: o conflito é preservado.
+A autoridade corrente fica em `profile_sections`; o blob funciona como checkpoint
+de recuperação compatível com versões antigas.
 
 ---
 
@@ -294,31 +296,208 @@ tem `user_id` próprio: o dono é o dono do perfil. As políticas precisam
 verificar isso por consulta — nunca `using (true)`.
 
 ```sql
-drop policy if exists "secoes_do_meu_perfil_select" on public.profile_sections;
-create policy "secoes_do_meu_perfil_select" on public.profile_sections
-  for select using (exists (
-    select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+drop policy if exists ps_select on public.profile_sections;
+drop policy if exists ps_insert on public.profile_sections;
+drop policy if exists ps_update on public.profile_sections;
+drop policy if exists ps_delete on public.profile_sections;
 
-drop policy if exists "secoes_do_meu_perfil_insert" on public.profile_sections;
-create policy "secoes_do_meu_perfil_insert" on public.profile_sections
-  for insert with check (exists (
+create policy ps_select on public.profile_sections
+for select to authenticated
+using (
+  exists (
     select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+);
 
-drop policy if exists "secoes_do_meu_perfil_update" on public.profile_sections;
-create policy "secoes_do_meu_perfil_update" on public.profile_sections
-  for update using (exists (
+create policy ps_insert on public.profile_sections
+for insert to authenticated
+with check (
+  exists (
     select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+);
 
-drop policy if exists "secoes_do_meu_perfil_delete" on public.profile_sections;
-create policy "secoes_do_meu_perfil_delete" on public.profile_sections
-  for delete using (exists (
+create policy ps_update on public.profile_sections
+for update to authenticated
+using (
+  exists (
     select 1 from public.study_profiles p
-    where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+)
+with check (
+  exists (
+    select 1 from public.study_profiles p
+    where p.id = profile_sections.profile_id
+      and p.user_id = (select auth.uid())
+  )
+);
 
-alter publication supabase_realtime add table public.profile_sections;
+revoke all on table public.profile_sections from anon;
+grant select, insert, update on table public.profile_sections to authenticated;
+revoke delete, truncate, trigger, references on table public.profile_sections from authenticated;
+
+/* Realtime é acelerador, não requisito de consistência. As duas tabelas que
+   o frontend assina precisam estar na publicação. Bloco idempotente. */
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='study_profiles'
+  ) then
+    execute 'alter publication supabase_realtime add table public.study_profiles';
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='profile_sections'
+  ) then
+    execute 'alter publication supabase_realtime add table public.profile_sections';
+  end if;
+end $$;
+```
+
+### Protocolo de concorrência
+
+Uma seção existente **nunca** é atualizada por `upsert` cego. O cliente envia
+`UPDATE ... WHERE profile_id = ? AND section = ? AND rev = <rev conhecida>`
+e grava `rev + 1`. Se nenhuma linha for atualizada, há conflito: a cópia remota
+é preservada e a alteração local continua na outbox. Inserção só é usada quando
+a revisão-base é zero.
+
+A mesma regra vale para `__manifest` e para exclusões. Um tombstone guarda a
+revisão em que a exclusão foi pedida. **DELETE direto é proibido para o cliente**:
+a remoção física passa por `delete_profile_section_cas(...)`, que valida no
+servidor o dono do perfil e a revisão esperada. Se outro aparelho já editou a
+seção, a exclusão é recusada e a linha remota continua no manifesto. Isso também
+protege contra abas antigas do app que ainda tentem o DELETE legado.
+
+### Trava monotônica no próprio PostgreSQL
+
+O CAS do cliente não é a última linha de defesa: uma aba antiga ainda pode estar
+executando uma versão anterior do JavaScript. Por isso o banco rejeita qualquer
+`UPDATE` de `profile_sections` que não grave **exatamente** `OLD.rev + 1`.
+Assim, nem `upsert` legado consegue fazer a revisão regredir ou saltar por cima
+de uma versão que ele não leu.
+
+```sql
+create schema if not exists private;
+
+create or replace function private.enforce_profile_section_revision()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if tg_op = 'INSERT' then
+    if new.rev is null or new.rev < 1 then
+      raise exception 'profile_sections revision must start at 1'
+        using errcode = '40001';
+    end if;
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if new.profile_id is distinct from old.profile_id
+       or new.section is distinct from old.section
+       or new.rev is null
+       or new.rev <> old.rev + 1 then
+      raise exception 'profile_sections revision conflict'
+        using errcode = '40001';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function private.enforce_profile_section_revision()
+  from public, anon, authenticated;
+
+drop trigger if exists profile_sections_revision_guard on public.profile_sections;
+create trigger profile_sections_revision_guard
+before insert or update on public.profile_sections
+for each row execute function private.enforce_profile_section_revision();
+```
+
+### Exclusão protegida também no servidor
+
+Versões antigas faziam `DELETE` diretamente na tabela. Para que uma aba atrasada
+não possa apagar uma edição mais nova, o papel `authenticated` não possui mais
+`DELETE` direto em `profile_sections`. O único caminho de exclusão física é a
+RPC abaixo, que exige autenticação, confirma o dono do perfil e compara a revisão.
+
+```sql
+create schema if not exists private;
+
+create or replace function private.delete_profile_section_cas_impl(
+  p_profile_id uuid,
+  p_section text,
+  p_expected_rev integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_uid uuid := auth.uid();
+  v_deleted integer := 0;
+begin
+  if v_uid is null then
+    raise exception 'authentication required' using errcode = '42501';
+  end if;
+
+  if p_profile_id is null or p_section is null
+     or p_expected_rev is null or p_expected_rev < 1 then
+    return false;
+  end if;
+
+  if not exists (
+    select 1 from public.study_profiles p
+    where p.id = p_profile_id and p.user_id = v_uid
+  ) then
+    raise exception 'profile not owned by current user' using errcode = '42501';
+  end if;
+
+  delete from public.profile_sections
+  where profile_id = p_profile_id
+    and section = p_section
+    and rev = p_expected_rev;
+
+  get diagnostics v_deleted = row_count;
+  return v_deleted = 1;
+end;
+$$;
+
+revoke all on function private.delete_profile_section_cas_impl(uuid,text,integer) from public;
+revoke all on function private.delete_profile_section_cas_impl(uuid,text,integer) from anon;
+grant usage on schema private to authenticated;
+grant execute on function private.delete_profile_section_cas_impl(uuid,text,integer) to authenticated;
+
+create or replace function public.delete_profile_section_cas(
+  p_profile_id uuid,
+  p_section text,
+  p_expected_rev integer
+)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.delete_profile_section_cas_impl(p_profile_id, p_section, p_expected_rev);
+$$;
+
+revoke all on function public.delete_profile_section_cas(uuid,text,integer) from public;
+revoke all on function public.delete_profile_section_cas(uuid,text,integer) from anon;
+grant execute on function public.delete_profile_section_cas(uuid,text,integer) to authenticated;
+
+revoke delete on table public.profile_sections from anon;
+revoke delete on table public.profile_sections from authenticated;
 ```
 
 A linha `section = '__manifest'` é especial: lista quais seções o perfil tem.

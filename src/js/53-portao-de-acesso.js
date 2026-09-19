@@ -297,14 +297,29 @@ const ProfileUI = {
           }
         }
         if (!porSecao || !porSecao.ok) {
-          try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
-          /* Também aqui o download não pode apagar o que este aparelho ainda não
-             enviou: tenta entregar primeiro e preserva o que não subir. */
-          let preservar = [];
-          try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
-          const res = await CloudStore.fetchPayload(id);
-          mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
-          ProfileManager.setRev(id, res.rev);
+          const temSecoesRemotas = !!(porSecao && (porSecao.linhasRemotas || 0) > 0);
+          if (temSecoesRemotas) {
+            /* profile_sections já existe: blob não pode virar máquina do tempo.
+               Se houver cópia local, abrimos a cópia preservada e deixamos a
+               reconciliação tentar novamente. Em aparelho novo, recusamos uma
+               restauração potencialmente obsoleta em vez de fingir sucesso. */
+            if (!ProfileManager.temDadosLocais(id)) {
+              const er = new Error('As seções da nuvem estão incompletas. A cópia antiga de segurança não foi aplicada para evitar regressão de dados.');
+              er.code = 'secoes-incompletas';
+              throw er;
+            }
+            console.warn('[perfil] conjunto remoto por seção inválido; blob antigo NÃO aplicado. Abrindo cópia local preservada:', porSecao.motivo);
+            mudou = 1;
+          } else {
+            try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
+            /* Perfil legado sem linhas por seção: aqui o blob ainda é o plano B
+               compatível, preservando qualquer alteração local pendente. */
+            let preservar = [];
+            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
+            const res = await CloudStore.fetchPayload(id);
+            mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+            ProfileManager.setRev(id, res.rev);
+          }
         }
         ProfileManager.setActiveProfile(id);
         PlanManager.init();
@@ -466,7 +481,16 @@ const ProfileUI = {
         ProfileManager.setRev(row.id, row.rev || 1);
         ProfileManager.setActiveProfile(row.id);
         PlanManager.init();
-        await CloudStore.saveActive();
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          const okSec = await CloudStore._pushSectionsNow(row.id);
+          if (!okSec) {
+            /* O perfil já existe e os dados continuam locais/outbox; não usamos
+               blob para contornar uma falha de CAS. A próxima rodada retoma. */
+            console.warn('[perfil] perfil novo criado; seções aguardam confirmação da nuvem');
+          }
+        } else {
+          await CloudStore.saveActive(row.id); // compatibilidade do modo legado
+        }
         $id('profile-modal').style.display = 'none';
         try { sessionStorage.setItem(this.SESSION_KEY, row.id); } catch (e) { _quiet(e); }
         recarregarApp('perfil novo criado', { imediato: true });

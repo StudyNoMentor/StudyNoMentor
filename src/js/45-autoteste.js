@@ -569,7 +569,7 @@ const AutoTeste = {
         SectionSync._loadDel(PID).length === 0, SectionSync._loadDel(PID));
       SectionSync._saveDel(['p:pl:tec'], PID);
       this._ok('exclusão deliberada fica registrada e é durável',
-        SectionSync._loadDel(PID).indexOf('p:pl:tec') !== -1, SectionSync._loadDel(PID));
+        SectionSync._loadDel(PID).some(x => x && x.section === 'p:pl:tec'), SectionSync._loadDel(PID));
 
       // 5. dado debaixo de planejamento fora da lista é ENCONTRÁVEL
       const orfaos = Recuperacao.planosOrfaos(PID);

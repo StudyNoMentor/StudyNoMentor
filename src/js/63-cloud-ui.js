@@ -386,7 +386,8 @@ window.CloudUI = CloudUI;
   on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-queue-refresh', 'click', () => CloudUI.renderQueue());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
-  on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
+  // "Baixar da nuvem" é semanticamente somente leitura: nunca publica o local antes.
+  on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload({ readOnly: true }));
   // Segurança da sessão em Configurações (mesmas chaves ux47 → persistem e ficam
   // em sincronia com onde quer que o app leia essas preferências).
   (function () {

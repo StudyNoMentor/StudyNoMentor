@@ -45,7 +45,37 @@ const SectionSync = {
     console.info('[SectionSync] leitura por seção', on ? 'LIGADA (Fase 2)' : 'DESLIGADA (volta ao blob)');
     return this.readEnabled;
   },
-  _dirty: new Set(),        // seções alteradas aguardando envio
+  /* Outbox EM MEMÓRIA também é isolada por perfil. Antes "_dirty" era um Set
+     global de nomes como "entries"/"tracks": se o perfil mudasse enquanto um
+     request estava em voo, duas seções homônimas podiam compartilhar a mesma
+     marca. Os getters _dirty/_dirtyGen preservam a API antiga para o perfil
+     ativo, enquanto as rotinas assíncronas recebem o id capturado explicitamente. */
+  _dirtySets: new Map(),
+  _dirtyGenMaps: new Map(),
+  _orphanDirty: new Set(),
+  _orphanDirtyGen: new Map(),
+  _activeProfileId() {
+    try {
+      if (window.ProfileManager && ProfileManager.getActiveProfileId) return ProfileManager.getActiveProfileId() || null;
+      return localStorage.getItem('diario-estudos:active-profile') || null;
+    } catch (_) { return null; }
+  },
+  _dirtyFor(id) {
+    const pid = id || this._activeProfileId();
+    if (!pid) return this._orphanDirty;
+    if (!this._dirtySets.has(pid)) this._dirtySets.set(pid, new Set());
+    return this._dirtySets.get(pid);
+  },
+  _dirtyGenFor(id) {
+    const pid = id || this._activeProfileId();
+    if (!pid) return this._orphanDirtyGen;
+    if (!this._dirtyGenMaps.has(pid)) this._dirtyGenMaps.set(pid, new Map());
+    return this._dirtyGenMaps.get(pid);
+  },
+  get _dirty() { return this._dirtyFor(); },
+  get _dirtyGen() { return this._dirtyGenFor(); },
+  _genSeq: 0,
+  _lastConflict: null,
   _pushing: false,
   _seededProfile: null,     // id do perfil já "semeado" nesta sessão (envio inicial completo)
   _lastError: null,         // último erro de envio (para diagnóstico)
@@ -93,18 +123,52 @@ const SectionSync = {
     catch (_) { return []; }
   },
   // Espelha _dirty no armazenamento. Chamado a cada marcação e a cada envio.
-  _savePend() {
+  _savePend(id, listaOverride) {
     try {
-      const lista = [...this._dirty];
-      if (lista.length) localStorage.setItem(this._pendKey(), JSON.stringify(lista));
-      else localStorage.removeItem(this._pendKey());
+      const lista = listaOverride ? [...new Set(listaOverride)] : [...this._dirtyFor(id)];
+      if (lista.length) localStorage.setItem(this._pendKey(id), JSON.stringify(lista));
+      else localStorage.removeItem(this._pendKey(id));
     } catch (_) { _quiet(_); }
   },
+  _touchDirty(sec, id) {
+    if (!sec) return 0;
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    const g = ++this._genSeq;
+    dirty.add(sec);
+    gens.set(sec, g);
+    return g;
+  },
+  _ensureDirty(sec, id) {
+    if (!sec) return 0;
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    if (!dirty.has(sec)) dirty.add(sec);
+    if (!gens.has(sec)) gens.set(sec, ++this._genSeq);
+    return gens.get(sec) || 0;
+  },
+  _clearDirtyIfGeneration(sec, gen, id) {
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    if ((gens.get(sec) || 0) !== (gen || 0)) return false;
+    dirty.delete(sec);
+    gens.delete(sec);
+    return true;
+  },
+  _ackSent(sec, gen, sentHash, prefix, id) {
+    const atual = localStorage.getItem((prefix || this._prefixFor(id)) + sec);
+    const gens = this._dirtyGenFor(id);
+    /* Mesmo que algum código tenha escrito direto no armazenamento e esquecido
+       de chamar markDirty(), o hash impede a confirmação antiga de limpar a fila. */
+    if (atual !== null && this._hash(atual) !== sentHash) {
+      if ((gens.get(sec) || 0) === (gen || 0)) this._touchDirty(sec, id);
+      return false;
+    }
+    return this._clearDirtyIfGeneration(sec, gen, id);
+  },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
-  restorePending() {
-    const antes = this._dirty.size;
-    this._loadPend().forEach(s => this._dirty.add(s));
-    const novas = this._dirty.size - antes;
+  restorePending(id) {
+    const dirty = this._dirtyFor(id);
+    const antes = dirty.size;
+    this._loadPend(id).forEach(s => this._ensureDirty(s, id));
+    const novas = dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
   },
@@ -115,11 +179,11 @@ const SectionSync = {
      Seções sem envio anterior registrado ficam de fora: não dá para saber se são
      novidade local ou sobra de uma versão antiga, e a semeadura normal cuida delas. */
   pendingSections(id) {
-    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
-    const mesmo = !id || id === ativo;
+    const alvo = id || this._activeProfileId();
     const out = new Set();
-    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._dirtyFor(alvo).forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
+    this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     const revs = this._getRevs(id), pfx = this._prefixFor(id);
     try {
       for (let i = 0; i < localStorage.length; i++) {
@@ -141,11 +205,11 @@ const SectionSync = {
      mais nova. Tratar essa divergência de cache como edição do usuário faria o
      aparelho subir o valor velho por cima da cópia correta da nuvem. */
   explicitPendingSections(id) {
-    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
-    const mesmo = !id || id === ativo;
+    const alvo = id || this._activeProfileId();
     const out = new Set();
-    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._dirtyFor(alvo).forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
+    this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     return [...out];
   },
   hasLocalPending(id) { return this.pendingSections(id).length > 0; },
@@ -153,9 +217,11 @@ const SectionSync = {
      indicador na tela, chamado a cada foco e a cada 30 s. A checagem completa
      (pendingSections) fica para os momentos em que ela é decisiva — antes de um
      download sobrescrever o local. */
-  pendingQuick() {
-    const out = new Set(this._dirty);
-    this._loadPend().forEach(s => out.add(s));
+  pendingQuick(id) {
+    const alvo = id || this._activeProfileId();
+    const out = new Set(this._dirtyFor(alvo));
+    this._loadPend(alvo).forEach(s => out.add(s));
+    this._loadDel(alvo).forEach(x => { if (x && x.section) out.add(x.section); });
     return out.size;
   },
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
@@ -174,8 +240,8 @@ const SectionSync = {
     if (!pend.length) return [];
     const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
     if (id && id !== ativo) return pend;   // outro perfil: não há como enviar daqui agora
-    pend.forEach(s => this._dirty.add(s));
-    this._savePend();
+    pend.forEach(s => this._ensureDirty(s, id));
+    this._savePend(id);
     try { await this.pushDirty(); } catch (e) { console.warn('[SectionSync] envio antes da leitura falhou', e); }
     const resta = listar();
     if (resta.length) console.warn('[SectionSync] preservando ' + resta.length + ' seção(ões) não enviada(s):', resta.join(', '));
@@ -215,10 +281,15 @@ const SectionSync = {
     if (sub.indexOf(this.DEL) === 0) return null;    // registro de exclusões: contabilidade local
     return sub;
   },
+  _profileIdFromKey(fullKey) {
+    const m = /^diario-estudos:u:([^:]+):/.exec(String(fullKey || ''));
+    return m ? m[1] : this._activeProfileId();
+  },
   markDirty(fullKey) {
     if (!this.enabled) return;
-    const sec = this.sectionForKey(fullKey);
-    if (sec) { this._dirty.add(sec); this._savePend(); }
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
+    if (sec) { this._touchDirty(sec, id); this._savePend(id); }
   },
   /* ── EXCLUSÕES DELIBERADAS ────────────────────────────────────────────────
      A nuvem só pode esquecer o que VOCÊ mandou esquecer. Antes, o manifesto era
@@ -239,12 +310,26 @@ const SectionSync = {
   DEL: '__secdel',
   _delKey(id) { return this._prefixFor(id) + this.DEL; },
   _loadDel(id) {
-    try { const a = JSON.parse(localStorage.getItem(this._delKey(id))); return Array.isArray(a) ? a : []; }
-    catch (_) { return []; }
+    try {
+      const a = JSON.parse(localStorage.getItem(this._delKey(id)));
+      if (!Array.isArray(a)) return [];
+      /* Compatibilidade com o formato antigo ["sec"]. O formato novo preserva
+         a revisão-base da exclusão para que DELETE também seja CAS. */
+      return a.map(x => typeof x === 'string'
+        ? { section: x, rev: null }
+        : (x && x.section ? { section: x.section, rev: Number(x.rev) || null } : null)
+      ).filter(Boolean);
+    } catch (_) { return []; }
   },
   _saveDel(lista, id) {
     try {
-      if (lista.length) localStorage.setItem(this._delKey(id), JSON.stringify([...new Set(lista)]));
+      const porSec = new Map();
+      (lista || []).forEach(x => {
+        const it = typeof x === 'string' ? { section: x, rev: null } : x;
+        if (it && it.section) porSec.set(it.section, { section: it.section, rev: Number(it.rev) || null });
+      });
+      const out = [...porSec.values()];
+      if (out.length) localStorage.setItem(this._delKey(id), JSON.stringify(out));
       else localStorage.removeItem(this._delKey(id));
     } catch (e) { _quiet(e, 'secdel-gravar'); }
   },
@@ -252,38 +337,42 @@ const SectionSync = {
      fila, entra no registro de exclusões e some da nuvem no próximo envio. */
   dropSection(fullKey) {
     if (!this.enabled) return;
-    const sec = this.sectionForKey(fullKey);
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
     if (!sec) return;
-    this._dirty.delete(sec);
-    this._savePend();
-    const revs = this._getRevs();
-    if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
-    const del = this._loadDel();
-    del.push(sec);
-    this._saveDel(del);
+    this._dirtyFor(id).delete(sec);
+    this._dirtyGenFor(id).delete(sec);
+    this._savePend(id);
+    const revs = this._getRevs(id);
+    const baseRev = revs[sec] ? (revs[sec].rev || 0) : 0;
+    if (revs[sec]) { delete revs[sec]; this._saveRevs(revs, id); }
+    const del = this._loadDel(id);
+    del.push({ section: sec, rev: baseRev || null });
+    this._saveDel(del, id);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
   // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
-  markAllDirty() {
-    const pfx = this._prefix();
-    const revs = this._getRevs();
+  markAllDirty(id) {
+    const alvo = id || this._activeProfileId();
+    const pfx = this._prefixFor(alvo);
+    const revs = this._getRevs(alvo);
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const full = localStorage.key(i);
-        const sec = this.sectionForKey(full);
+        const sec = this.sectionForKey(full, pfx);
         if (!sec) continue;
         const raw = localStorage.getItem(full) || '';
         const h = this._hash(raw);
-        if (!revs[sec] || revs[sec].hash !== h) this._dirty.add(sec); // só o que mudou
+        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec, alvo); // só o que mudou
       }
     } catch (_) { _quiet(_); }
-    this._savePend();
+    this._savePend(alvo);
   },
   seedOnce() {
     const id = ProfileManager.getActiveProfileId();
     if (!id || this._seededProfile === id) return;
     this._seededProfile = id;
-    this.markAllDirty();
+    this.markAllDirty(id);
   },
   /* ── O QUE FAZER COM UMA SEÇÃO SUJA (decisão pura, testável) ──────────────
      Recebe o texto local e o que sabemos do último envio; devolve a ação. Está
@@ -320,71 +409,131 @@ const SectionSync = {
     };
   },
 
-  // Envia as seções sujas para profile_sections (upsert por profile_id+section).
-  // Best-effort: qualquer falha mantém a seção suja para a próxima rodada, e NUNCA
-  // interfere no salvamento do blob (que é a fonte de verdade nesta fase).
-  async pushDirty() {
+  _uniqueViolation(err) {
+    const c = ((err && (err.code || err.message || err.details)) || '').toString().toLowerCase();
+    return c.indexOf('23505') >= 0 || c.indexOf('duplicate key') >= 0;
+  },
+  async _remoteSection(profileId, section) {
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .select('section,data,rev,updated_at')
+      .eq('profile_id', profileId).eq('section', section).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+  /* Compare-and-swap: a linha só avança se a revisão remota ainda for EXATAMENTE
+     a revisão em que esta edição se baseou. Nunca fazemos upsert cego sobre uma
+     linha existente. Isso torna impossível uma rev antiga substituir uma nova. */
+  async _writeSectionCAS(row, expectedRev) {
+    if ((expectedRev || 0) > 0) {
+      const payload = { data: row.data, rev: row.rev, updated_at: row.updated_at };
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .update(payload)
+        .eq('profile_id', row.profile_id)
+        .eq('section', row.section)
+        .eq('rev', expectedRev)
+        .select('rev');
+      if (error) throw error;
+      if (!data || !data.length) return { ok: false, conflict: true };
+      return { ok: true, rev: data[0].rev };
+    }
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .insert(row).select('rev');
+    if (error) {
+      if (this._uniqueViolation(error)) return { ok: false, conflict: true };
+      throw error;
+    }
+    return { ok: true, rev: data && data[0] ? data[0].rev : row.rev };
+  },
+  // Envia as seções sujas para profile_sections com controle otimista por revisão.
+  async pushDirty(id) {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
-    const id = ProfileManager.getActiveProfileId();
+    id = id || this._activeProfileId();
     if (!id) return;
-    /* A marca de "envio em curso" é ligada aqui e desligada em `finally`, e é
-       por isso que o corpo virou um método à parte. Entre um ponto e outro há
-       gravações no armazenamento (`_savePend`, `_saveRevs`) que podem lançar com
-       o disco cheio; antes, a linha que desligava a marca vinha depois e era
-       pulada pela exceção. Presa em true, ela fazia `pushDirty` devolver na
-       primeira linha PARA SEMPRE: a fila seguia crescendo, nada mais subia, e
-       nenhum erro aparecia na tela. */
+    /* A marca de "envio em curso" é global para serializar os requests, mas o
+       ALVO fica congelado neste id até o fim. Trocar o perfil na interface não
+       redireciona uma confirmação em voo. */
     this._pushing = true;
-    try { await this._enviarSujas(id); } finally { this._pushing = false; }
+    this._pushingProfile = id;
+    try { await this._enviarSujas(id); }
+    finally { this._pushing = false; this._pushingProfile = null; }
   },
   async _enviarSujas(id) {
-    const pfx = this._prefix();
-    const revs = this._getRevs();
+    /* A operação inteira fica vinculada ao perfil capturado em pushDirty().
+       Nunca voltamos a consultar "perfil ativo" no meio de uma requisição. */
+    const pfx = this._prefixFor(id);
+    const revs = this._getRevs(id);
+    this._lastConflict = null;
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
-    const secs = [...this._dirty];
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    const secs = [...dirty];
     const rows = [];
     const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
+      const gen = gens.get(sec) || this._ensureDirty(sec, id);
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
-      if (d.acao === 'sumida') { this._dirty.delete(sec); sumidas.push(sec); return; }
-      if (d.acao === 'idêntico') { this._dirty.delete(sec); return; }
+      if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen, id); sumidas.push(sec); return; }
+      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen, id); return; }
       if (d.esvaziando) esvaziando.push(sec);
-      rows.push({ _sec: sec, _hash: d.hash, _len: raw.length, profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString() });
+      rows.push({
+        _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen, _expectedRev: (revs[sec] && revs[sec].rev) || 0,
+        profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString()
+      });
     });
     if (sumidas.length) {
-      this._savePend();
+      this._savePend(id);
       console.warn('[SectionSync] ' + sumidas.length + ' seção(ões) sumiram deste aparelho sem ordem de exclusão — NADA foi publicado por cima da nuvem: ' + sumidas.join(', '));
     }
     if (esvaziando.length) {
       try { if (window.GuardaNuvem) await GuardaNuvem.antesDeEsvaziar(id, esvaziando); } catch (e) { _quiet(e, 'guarda-esvaziar'); }
     }
     if (rows.length === 0) {
-      // Nada de conteúdo novo, mas o MANIFESTO ainda pode estar desatualizado
-      // (ex.: uma seção foi APAGADA localmente). Sem isto, exclusões nunca chegariam
-      // à nuvem e a leitura por seção "ressuscitaria" dados apagados.
-      try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); }
-      this._saveRevs(revs);
-      this._savePend();
+      // Nada de conteúdo novo, mas manifesto/exclusões ainda podem estar pendentes.
+      try {
+        await this._syncManifest(id, revs);
+        this._lastError = null;
+      } catch (e) {
+        const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+        this._lastError = this.MANIFEST + ' (' + msg + ')';
+        console.warn('[SectionSync] manifesto/exclusões continuam pendentes:', this._lastError);
+      }
+      this._saveRevs(revs, id);
+      this._savePend(id);
       return;
     }
     // Envio UMA SEÇÃO POR VEZ: assim uma seção grande (ex.: incidência, ~300 KB) fica
     // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
     // registrado individualmente, e ela reenvia sozinha na próxima rodada. Mais lento,
     // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
-    let okCount = 0; const falhas = [];
+    let okCount = 0; const falhas = []; const conflitos = [];
     for (const r of rows) {
-      const { _sec, _hash, _len, ...row } = r;
+      const { _sec, _hash, _len, _gen, _expectedRev, ...row } = r;
       try {
-        const { error } = await CloudStore.client.from(this.TABLE).upsert(row, { onConflict: 'profile_id,section' });
-        if (error) throw error;
-        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem: é o que
-        // permite distinguir, no próximo envio, um esvaziamento de um dado que
-        // sempre foi vazio (ver a trava logo acima).
-        revs[_sec] = { rev: row.rev, hash: _hash, len: _len };
-        this._dirty.delete(_sec);
+        const wr = await this._writeSectionCAS(row, _expectedRev);
+        if (!wr.ok && wr.conflict) {
+          /* Pode ser um conflito real OU a mesma gravação já confirmada por outra
+             tentativa. Só adotamos a revisão remota automaticamente quando o
+             CONTEÚDO remoto é exatamente o snapshot que tentávamos enviar. */
+          const remoto = await this._remoteSection(id, _sec);
+          const remotoRaw = remoto ? this._decode(remoto.data) : null;
+          const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
+          if (remoto && remotoHash === _hash) {
+            revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
+            this._ackSent(_sec, _gen, _hash, pfx, id);
+            /* Se houve edição nova durante o voo, a geração mudou e a seção fica
+               suja; agora ela já parte da revisão remota confirmada. */
+            okCount++;
+            continue;
+          }
+          conflitos.push(_sec);
+          falhas.push(_sec + ' (conflito de revisão protegido)');
+          continue;
+        }
+        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
+        revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
+        this._ackSent(_sec, _gen, _hash, pfx, id);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
@@ -392,12 +541,22 @@ const SectionSync = {
         // mantém a seção suja para o próximo retry
       }
     }
+    if (conflitos.length) {
+      this._lastConflict = { em: Date.now(), seções: conflitos.slice() };
+      console.warn('[SectionSync] conflito protegido em', conflitos.length, 'seção(ões):', conflitos.join(', '));
+    }
     // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
     // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
     // leitura por seção esperar uma linha que não existe (e cair no plano B à toa).
-    if (!falhas.length) { try { await this._syncManifest(id, revs); } catch (_) { _quiet(_); } }
-    this._saveRevs(revs);
-    this._savePend();   // o que sobrou na fila continua gravado: sobrevive ao fechamento
+    if (!falhas.length) {
+      try { await this._syncManifest(id, revs); }
+      catch (e) {
+        const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
+        falhas.push(this.MANIFEST + ' (' + msg + ')');
+      }
+    }
+    this._saveRevs(revs, id);
+    this._savePend(id);   // o que sobrou na fila continua gravado: sobrevive ao fechamento
     if (okCount) { this._lastPushAt = Date.now(); this._pushedCount += okCount; }
     if (falhas.length) {
       this._lastError = falhas.join(' | ');
@@ -412,56 +571,143 @@ const SectionSync = {
   // É o que torna a leitura por seção segura: sem ele, um upsert nunca apaga nada
   // e uma seção excluída aqui voltaria à vida no próximo download. Com ele, a
   // hidratação usa a lista como verdade e ignora/limpa o que sobrou.
-  localSections() {
+  localSections(id) {
     const out = [];
+    const pfx = this._prefixFor(id);
     try {
       for (let i = 0; i < localStorage.length; i++) {
-        const sec = this.sectionForKey(localStorage.key(i));
+        const sec = this.sectionForKey(localStorage.key(i), pfx);
         if (sec) out.push(sec);
       }
     } catch (_) { _quiet(_); }
     return out.sort();
   },
-  async _syncManifest(id, revs) {
-    const locais = this.localSections();
-    const apagadas = this._loadDel(id);
-    /* O manifesto NÃO é mais "o que existe aqui agora". É "o que existe aqui" MAIS
-       "o que existe na nuvem e ninguém mandou apagar". Assim um sumiço local
-       nunca se converte em exclusão remota — e a seção volta para cá na próxima
-       leitura, em vez de deixar de existir no mundo. */
-    let remotas = [];
+  async _syncManifest(id, revs, tentativa) {
+    tentativa = Number(tentativa) || 0;
+    const locais = this.localSections(id);
+    const delEntries = this._loadDel(id);
+
+    let remoteRows = [];
     try {
-      const { data } = await CloudStore.client.from(this.TABLE).select('section').eq('profile_id', id);
-      remotas = (data || []).map(r => r.section).filter(sec => sec !== this.MANIFEST);
-    } catch (e) { console.warn('[SectionSync] não deu para ler a lista remota; manifesto sai só com o local', e); }
-    const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1 && apagadas.indexOf(sec) === -1);
-    if (sobreviventes.length) {
-      console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui, sem ordem de exclusão — MANTIDAS: ' + sobreviventes.join(', '));
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .select('section,rev').eq('profile_id', id);
+      if (error) throw error;
+      remoteRows = data || [];
+    } catch (e) {
+      console.warn('[SectionSync] não deu para ler a lista remota; manifesto não será publicado às cegas', e);
+      throw e;
     }
+
+    /* O manifesto remoto lido AGORA é a base correta do próximo CAS. Usar a
+       revisão anotada de uma sessão anterior pode deixar o manifesto preso para
+       sempre após qualquer alteração feita por outro aparelho. Atualizar esta
+       contabilidade não aplica dados no perfil; apenas registra a base que acabou
+       de ser observada no servidor. */
+    const manifestoRemotoLido = remoteRows.find(r => r.section === this.MANIFEST) || null;
+    if (manifestoRemotoLido) {
+      const secs = manifestoRemotoLido.data && Array.isArray(manifestoRemotoLido.data.sections)
+        ? manifestoRemotoLido.data.sections.slice().sort() : null;
+      revs[this.MANIFEST] = {
+        rev: manifestoRemotoLido.rev || 0,
+        hash: secs ? this._hash(secs.join('|')) : null
+      };
+    }
+
+    /* Primeiro resolvemos as exclusões. O manifesto só é publicado DEPOIS e
+       descreve o resultado realmente confirmado no banco. Se a exclusão perdeu
+       uma corrida para uma edição mais nova, a linha continua no manifesto. */
+    const restantes = [];
+    const apagadasComSucesso = new Set();
+    for (const del of delEntries) {
+      const rr = remoteRows.find(r => r.section === del.section);
+      if (!rr) {
+        delete revs[del.section];
+        continue; // já não existe: tombstone cumprido
+      }
+      if (!del.rev || rr.rev !== del.rev) {
+        restantes.push(del);
+        this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
+        console.warn('[SectionSync] exclusão protegida por conflito:', del.section, 'base', del.rev, 'remota', rr.rev);
+        continue;
+      }
+      try {
+        /* DELETE direto foi desabilitado no banco. A exclusão passa por uma RPC
+           CAS que valida propriedade + revisão no servidor. Isso protege inclusive
+           contra navegadores antigos ainda executando uma versão anterior do app:
+           eles podem atualizar o manifesto, mas não conseguem apagar uma linha
+           cuja revisão não foi explicitamente confirmada por este protocolo. */
+        const { data, error } = await CloudStore.client.rpc('delete_profile_section_cas', {
+          p_profile_id: id,
+          p_section: del.section,
+          p_expected_rev: del.rev
+        });
+        if (error) throw error;
+        if (data !== true) {
+          restantes.push(del);
+          this._lastConflict = { em: Date.now(), seções: [del.section], tipo: 'exclusão' };
+          continue;
+        }
+        apagadasComSucesso.add(del.section);
+        delete revs[del.section];
+        console.info('[SectionSync] removida da nuvem por CAS seção excluída de propósito:', del.section);
+      } catch (e) {
+        restantes.push(del);
+        console.warn('[SectionSync] exclusão remota CAS falhou:', del.section, e);
+      }
+    }
+    this._saveDel(restantes, id);
+
+    const remotas = remoteRows
+      .map(r => r.section)
+      .filter(sec => sec !== this.MANIFEST && !apagadasComSucesso.has(sec));
+
+    /* Toda seção que ainda EXISTE remotamente e não existe aqui permanece no
+       manifesto. Isso inclui, deliberadamente, exclusões em conflito. */
+    const sobreviventes = remotas.filter(sec => locais.indexOf(sec) === -1);
+    if (sobreviventes.length) {
+      console.warn('[SectionSync] ' + sobreviventes.length + ' seção(ões) existem na nuvem e não aqui — MANTIDAS no manifesto: ' + sobreviventes.join(', '));
+    }
+
     const list = [...new Set(locais.concat(sobreviventes))].sort();
     const body = { v: this.FORMAT, sections: list, at: new Date().toISOString() };
     const h = this._hash(list.join('|'));
     const prev = revs[this.MANIFEST] || { rev: 0, hash: null };
-    if (prev.hash === h) return false;               // lista inalterada → nada a fazer
-    const rev = prev.rev + 1;
-    const { error } = await CloudStore.client.from(this.TABLE)
-      .upsert({ profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at }, { onConflict: 'profile_id,section' });
-    if (error) throw error;
-    revs[this.MANIFEST] = { rev, hash: h };
-    /* Só some da nuvem o que foi apagado DE PROPÓSITO (passou por dropSection).
-       Ausência local nunca apaga nada lá. */
-    const sobra = remotas.filter(sec => apagadas.indexOf(sec) !== -1);
-    if (sobra.length) {
-      try {
-        await CloudStore.client.from(this.TABLE).delete().eq('profile_id', id).in('section', sobra);
-        sobra.forEach(sec => { delete revs[sec]; });
-        this._saveDel(apagadas.filter(sec => sobra.indexOf(sec) === -1), id);
-        console.info('[SectionSync] removidas da nuvem', sobra.length, 'seção(ões) excluída(s) de propósito');
-      } catch (e) { console.warn('[SectionSync] limpeza de seções excluídas falhou', e); }
+
+    if (prev.hash !== h) {
+      const rev = (prev.rev || 0) + 1;
+      const wr = await this._writeSectionCAS(
+        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at },
+        prev.rev || 0
+      );
+      if (!wr.ok && wr.conflict) {
+        const remoto = await this._remoteSection(id, this.MANIFEST);
+        const secs = remoto && remoto.data && Array.isArray(remoto.data.sections)
+          ? remoto.data.sections.slice().sort() : null;
+        const rh = secs ? this._hash(secs.join('|')) : null;
+        if (remoto && rh === h) {
+          revs[this.MANIFEST] = { rev: remoto.rev || rev, hash: h };
+        } else {
+          /* Outro aparelho avançou o manifesto entre nosso SELECT e UPDATE.
+             Registramos a nova base e refazemos a união a partir do estado
+             remoto fresco. O CAS continua impedindo qualquer sobrescrita cega. */
+          if (remoto) revs[this.MANIFEST] = { rev: remoto.rev || 0, hash: rh };
+          if (!restantes.length && tentativa < 2) {
+            return this._syncManifest(id, revs, tentativa + 1);
+          }
+          this._lastConflict = { em: Date.now(), seções: [this.MANIFEST], tipo: 'manifesto' };
+          throw new Error('conflito de revisão protegido no manifesto');
+        }
+      } else {
+        revs[this.MANIFEST] = { rev: wr.rev || rev, hash: h };
+      }
     }
+
+    /* Mantemos o tombstone em conflito, mas o manifesto já preserva a linha
+       remota vencedora. Assim o conflito pode ser tratado depois sem esconder
+       nem apagar o dado mais novo. */
+    if (restantes.length) throw new Error('há exclusões com conflito ou falha pendentes');
     return true;
   },
-
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
   async kick() {
@@ -473,7 +719,7 @@ const SectionSync = {
       // Recupera, uma vez por perfil, o que ficou por enviar na sessão anterior.
       if (this._restoredFor !== ProfileManager.getActiveProfileId()) {
         this._restoredFor = ProfileManager.getActiveProfileId();
-        this.restorePending();
+        this.restorePending(this._restoredFor);
       }
       this.seedOnce();
       await this.pushDirty();
@@ -512,14 +758,23 @@ const SectionSync = {
     }
     const faltando = manifesto.sections.filter(s => !(s in map));
     if (faltando.length) return { ok: false, motivo: 'seções-faltando: ' + faltando.join(', '), map, revs, faltando };
-    // O manifesto manda: o que não está nele é resto de versão anterior e é descartado.
+    /* O manifesto prova que as seções listadas DEVEM existir, mas a ausência de uma
+       seção no manifesto não prova que a linha remota é lixo. Há uma janela real
+       entre gravar uma seção e avançar o manifesto; se a aba cair ali, a linha é
+       mais nova que o manifesto. Portanto a união conservadora vence: toda linha
+       remota legível é preservada. A próxima _syncManifest incorpora essas extras
+       ao manifesto por CAS. Exclusão legítima continua inequívoca porque remove a
+       linha remota por RPC CAS antes de retirar seu nome do manifesto. */
+    const extras = secoes.filter(s => manifesto.sections.indexOf(s) === -1);
     const finalMap = {};
-    manifesto.sections.forEach(s => { finalMap[s] = map[s]; });
-    return { ok: true, map: finalMap, revs, manifesto, manifestoRev, extras: secoes.filter(s => manifesto.sections.indexOf(s) === -1) };
+    [...new Set(manifesto.sections.concat(secoes))].forEach(s => {
+      if (s in map) finalMap[s] = map[s];
+    });
+    return { ok: true, map: finalMap, revs, manifesto, manifestoRev, extras };
   },
   // Escreve o mapa no localStorage do perfil. Preserva o histórico de versões local
   // (vhist) — ao contrário do restore do blob, que apagava tudo do namespace.
-  _applyMap(id, map, revs, preservar, manifestoRev) {
+  _applyMap(id, map, revs, preservar, manifestoRev, manifestoSections) {
     const prefix = 'diario-estudos:u:' + id + ':';
     /* REGRA DE OURO: o download NUNCA apaga uma alteração que ainda não subiu.
        As seções de `preservar` mantêm o valor deste aparelho e continuam na fila
@@ -586,14 +841,18 @@ const SectionSync = {
        locais, o manifesto (rev 7 na nuvem, 0 aqui) anunciava "tem novidade" para
        sempre. Cada foco na janela disparava um download e um location.reload():
        era exatamente a tela piscando e recarregando sozinha. */
-    if (manifestoRev) novoRev[this.MANIFEST] = { rev: manifestoRev, hash: this._hash(Object.keys(map).sort().join('|')) };
+    if (manifestoRev) novoRev[this.MANIFEST] = {
+      rev: manifestoRev,
+      hash: this._hash((Array.isArray(manifestoSections) ? manifestoSections.slice() : Object.keys(map)).sort().join('|'))
+    };
     else if (antigos[this.MANIFEST]) novoRev[this.MANIFEST] = antigos[this.MANIFEST];
     // Alinha a contabilidade local com o que acabou de vir: sem isto, a próxima
     // rodada acharia tudo "sujo" e re-subiria o perfil inteiro sem necessidade.
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
     this._seededProfile = id;
-    this._dirty.clear();
-    manter.forEach(s => this._dirty.add(s));
+    this._dirtyFor(id).clear();
+    this._dirtyGenFor(id).clear();
+    manter.forEach(s => this._ensureDirty(s, id));
     try {
       const pk = prefix + this.PEND;
       if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
@@ -613,16 +872,22 @@ const SectionSync = {
          conseguir subir volta como `preservar` e sai ileso do download — é o que
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
-      const preservar = await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
+      const preservar = opts.skipPush
+        ? this.explicitPendingSections(id)
+        : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
+      res.linhasRemotas = rows.length;
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
       try { if (window.BackupHistory && ProfileManager.getActiveProfileId() === id) await BackupHistory.snapshot('antes de baixar por seção'); } catch (_) { _quiet(_); }
-      res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev);
+      res.mudou = this._applyMap(id, prep.map, prep.revs, preservar, prep.manifestoRev, prep.manifesto && prep.manifesto.sections);
       res.ok = true; res.seções = Object.keys(prep.map).length;
       if (preservar.length) res.preservadas = preservar;   // ficaram com o valor local, ainda na fila
-      if (prep.extras && prep.extras.length) res.ignoradas = prep.extras;
+      if (prep.extras && prep.extras.length) {
+        res.recuperadasForaManifesto = prep.extras;
+        console.warn('[SectionSync] ' + prep.extras.length + ' seção(ões) remotas estavam fora do manifesto e foram PRESERVADAS:', prep.extras.join(', '));
+      }
       this._saveLast(res);
       console.info('[SectionSync] leitura por seção aplicada:', res.seções, 'seção(ões)');
       return res;
@@ -643,6 +908,12 @@ const SectionSync = {
      barreira corrige cache regressado sem transformar ausência remota em perda. */
   async hydrateAfterAppUpdate(id) {
     return this.hydrate(id, { force: true, explicitOnly: true });
+  },
+  /* Download manual realmente somente-leitura: nunca publica nada antes de ler.
+     Se houver divergência local conhecida, ela é preservada e permanece visível
+     na fila em vez de ser apagada. */
+  async hydrateReadOnly(id) {
+    return this.hydrate(id, { force: true, skipPush: true });
   },
 
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
@@ -683,9 +954,13 @@ const SectionSync = {
      servidor: dada uma linha remota (`section`, `rev`), as revisões anotadas
      neste aparelho e o prefixo do perfil, esta seção precisa ser baixada? */
   precisaBaixar(r, locais, pfx) {
-    if (!r || !r.section || r.section === this.MANIFEST) return false;
+    if (!r || !r.section) return false;
     const anotada = locais ? locais[r.section] : null;
     const meu = anotada ? (anotada.rev || 0) : 0;
+    /* Exclusões físicas removem a linha da seção; quem anuncia a mudança aos
+       outros aparelhos é o avanço do manifesto. Ignorá-lo fazia uma exclusão
+       remota nunca ser percebida por hasRemoteUpdates(). */
+    if (r.section === this.MANIFEST) return (r.rev || 0) > meu;
     if ((r.rev || 0) > meu) return true;
     /* Revisão anotada mas conteúdo ausente: o aparelho acha que tem e não tem.
        Só conta quando existe anotação — sem ela, a semeadura normal já cuida, e
@@ -700,12 +975,13 @@ const SectionSync = {
   /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.
      Antes recarregava sempre que a checagem dissesse "pode haver novidade", e
      bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
-  async pullAndReload() {
+  async pullAndReload(opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
     /* `aplicando` e não duas atribuições soltas: se `hydrate` lançar (rede,
        JSON malformado, armazenamento), a linha que desligava a marca era pulada
        e `notifyChange` passava a ignorar toda alteração seguinte. */
-    const r = await CloudStore.aplicando(() => this.hydrate(id));
+    const r = await CloudStore.aplicando(() => opts.readOnly ? this.hydrateReadOnly(id) : this.hydrate(id));
     if (!r.ok) return false;
     if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');
@@ -715,10 +991,12 @@ const SectionSync = {
   // Reenvia TUDO no formato atual (v2). Use uma vez ao migrar para a Fase 2, ou
   // se desconfiar de alguma linha antiga: SectionSync.reenviarTudo()
   async reenviarTudo() {
-    try { localStorage.removeItem(this._revKey()); } catch (_) { _quiet(_); }
+    const id = this._activeProfileId();
+    try { localStorage.removeItem(this._revKey(id)); } catch (_) { _quiet(_); }
     this._seededProfile = null;
-    this._dirty.clear();
-    this.markAllDirty();
+    this._dirtyFor(id).clear();
+    this._dirtyGenFor(id).clear();
+    this.markAllDirty(id);
     await this.pushDirty();
     return this.status();
   },
@@ -851,6 +1129,7 @@ const SectionSync = {
       enviadasNestaSessão: this._pushedCount,
       últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
       últimoErro: this._lastError,
+      últimoConflitoProtegido: this._lastConflict,
       sombraSomenteLeitura: true,
       sombraÚltimaExecução: this._shadowLastAt ? new Date(this._shadowLastAt).toLocaleString('pt-BR') : null,
       sombraÚltimoErro: this._shadowLastError,
