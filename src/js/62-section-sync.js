@@ -355,9 +355,16 @@ const SectionSync = {
       const remoteHash = remoto.content_hash == null ? this._hash(remotoRaw) : String(remoto.content_hash);
       if (mergedHash === remoteHash) {
         const restantes = this._ackEntryOps(id, sec, gen);
-        const finalRaw = restantes.length ? this._applyEntryOps(mergedRaw, restantes) : mergedRaw;
-        if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
-        if (!restantes.length) this._clearDirtyIfGeneration(sec, gen, id);
+        const atualGen = this._dirtyGenFor(id).get(sec) || 0;
+        if (restantes.length) {
+          const finalRaw = this._applyEntryOps(mergedRaw, restantes);
+          if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
+          this._ensureDirty(sec, id);
+        } else if (atualGen === gen) {
+          localStorage.setItem(this._prefixFor(id) + sec, mergedRaw);
+          this._clearDirtyIfGeneration(sec, gen, id);
+        } // geração nova sem journal: preserva o valor físico e mantém a seção suja
+        this._savePend(id);
         return { ok: true, rev: remoto.rev || 1, hash: mergedHash, raw: mergedRaw, len: mergedRaw.length, already: true };
       }
       const wr = await this._writeSectionCAS(
@@ -374,11 +381,17 @@ const SectionSync = {
         const restantes = this._ackEntryOps(id, sec, gen);
         /* Rebase local: primeiro a versão remota+operações confirmadas; depois
            reaplica alterações que aconteceram neste aparelho enquanto o request
-           estava em voo. Nenhuma edição nova some por causa da reconciliação. */
-        const finalRaw = restantes.length ? this._applyEntryOps(mergedRaw, restantes) : mergedRaw;
-        if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
-        if (!restantes.length) this._clearDirtyIfGeneration(sec, gen, id);
-        else this._ensureDirty(sec, id);
+           estava em voo. Se surgiu uma escrita nova fora do journal, não a
+           sobrescrevemos: ela fica suja para a rodada seguinte. */
+        const atualGen = this._dirtyGenFor(id).get(sec) || 0;
+        if (restantes.length) {
+          const finalRaw = this._applyEntryOps(mergedRaw, restantes);
+          if (finalRaw != null) localStorage.setItem(this._prefixFor(id) + sec, finalRaw);
+          this._ensureDirty(sec, id);
+        } else if (atualGen === gen) {
+          localStorage.setItem(this._prefixFor(id) + sec, mergedRaw);
+          this._clearDirtyIfGeneration(sec, gen, id);
+        }
         this._savePend(id);
         return { ok: true, rev: wr.rev || ((Number(remoto.rev) || 0) + 1), hash: mergedHash, raw: mergedRaw, len: mergedRaw.length };
       }
@@ -725,7 +738,11 @@ const SectionSync = {
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
       if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen, id); sumidas.push(sec); return; }
-      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen, id); return; }
+      if (d.acao === 'idêntico') {
+        this._clearDirtyIfGeneration(sec, gen, id);
+        if (this._isEntriesSection(sec)) this._ackEntryOps(id, sec, gen);
+        return;
+      }
       if (d.esvaziando) esvaziando.push(sec);
       rows.push({
         _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen,
