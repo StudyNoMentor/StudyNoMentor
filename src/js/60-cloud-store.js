@@ -1,18 +1,33 @@
 /* ============================================================
-   CLOUD STORE — camada de dados na nuvem (Supabase / study_profiles)
+   CLOUD STORE — autenticação + fachada da persistência relacional
+   ------------------------------------------------------------
+   O PostgreSQL relacional é a única fonte persistente dos dados de estudo.
+   CloudStore mantém apenas autenticação, metadados de perfis e a API pública
+   usada pelas telas. Leituras/escritas do estudo delegam ao RelationalStore.
    ============================================================ */
 const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
   SUPABASE_KEY: 'sb_publishable_5t8P8QpVF4tLoWNjQVWsSQ_3dpbxG94',
   TABLE: 'study_profiles',
-  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secChannelProfile: null, _secRtTimer: null, _secRemotePending: false,
-  _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
-  _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null, _syncingDesde: 0,
-  SYNC_TRAVADO_MS: 60000,   // teto para um envio "em curso" antes de ser considerado preso
+
+  client: null,
+  session: null,
+  libStatus: 'pending',
+  channel: null,
+  _applying: false,
+  _cfgMode: 'signin',
+  _lastSyncAt: null,
+  _syncing: false,
+
+  FETCH_TETO_MS: 25000,
+  TOKEN_RETENTATIVAS: 2,
+  TOKEN_ESPERA_MS: 1500,
 
   init() {
     try {
-      const lib = (typeof supabase !== 'undefined') ? supabase : (typeof window !== 'undefined' ? window.supabase : undefined);
+      const lib = (typeof supabase !== 'undefined')
+        ? supabase
+        : (typeof window !== 'undefined' ? window.supabase : undefined);
       if (!lib || !lib.createClient) {
         this.libStatus = 'missing';
         if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
@@ -20,49 +35,40 @@ const CloudStore = {
       }
       this.client = lib.createClient(this.SUPABASE_URL, this.SUPABASE_KEY, {
         auth: { persistSession: true, autoRefreshToken: true },
-        global: { fetch: (u, o) => this._buscarComTeto(u, o) },
+        global: { fetch: (u, o) => this._buscarComTeto(u, o) }
       });
       this.libStatus = 'ready';
-      this.client.auth.getSession().then(({ data }) => { this.session = (data && data.session) || null; this.onAuth(); }).catch(e => console.warn('getSession', e));
-      this.client.auth.onAuthStateChange((_e, session) => {
+
+      this.client.auth.getSession()
+        .then(({ data }) => {
+          this.session = (data && data.session) || null;
+          this.onAuth();
+        })
+        .catch(e => console.warn('getSession', e));
+
+      this.client.auth.onAuthStateChange((evento, session) => {
         this.session = session;
         this.onAuth();
-        // Usuário chegou pelo link de recuperação: pede a nova senha na hora.
-        if (_e === 'PASSWORD_RECOVERY' && window.ProfileUI && ProfileUI.promptNewPasswordAfterRecovery) {
+        if (evento === 'PASSWORD_RECOVERY' &&
+            window.ProfileUI && ProfileUI.promptNewPasswordAfterRecovery) {
           setTimeout(() => ProfileUI.promptNewPasswordAfterRecovery(), 300);
         }
       });
-    } catch (err) { this.libStatus = 'error'; console.error('CloudStore.init', err); }
+    } catch (err) {
+      this.libStatus = 'error';
+      console.error('CloudStore.init', err);
+    }
     if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
   },
+
   isReady() { return !!this.client; },
   isLoggedIn() { return !!this.session; },
   userEmail() { return this.session && this.session.user ? this.session.user.email : null; },
-  /* ── TETO DE TEMPO NO TRANSPORTE ──────────────────────────────────────────
-     Uma requisição que NÃO responde é pior que uma que falha. Falha entra no
-     `catch`, remarca a pendência e tenta de novo; a que fica pendurada — o caso
-     comum em rede móvel ruim e em portal de wi-fi público, onde a conexão abre
-     mas nada volta — deixava `_syncing` em true e a sincronização parada até
-     recarregar a página. A alteração não se perdia (fica no armazenamento e na
-     fila), mas parava de subir, e ninguém era avisado.
 
-     A trava fica no TRANSPORTE, não em cada chamada: toda requisição que a
-     biblioteca fizer — leitura, escrita, renovação de token, e as que ainda
-     forem escritas — nasce com um teto. Cobrir chamada por chamada é o tipo de
-     lista que sempre esquece a próxima.
-
-     São 25 s, folgados de propósito: os tetos por operação (15-20 s, no
-     `_withTimeout`) disparam antes, com mensagem melhor. Este aqui é a rede de
-     baixo, para o que não tem teto próprio.
-
-     `AbortController` de verdade, não só `Promise.race`: a corrida devolve o
-     controle mas deixa a requisição viva consumindo conexão; o abort encerra. */
-  FETCH_TETO_MS: 25000,
   _buscarComTeto(url, opcoes) {
     const o = opcoes || {};
     if (typeof AbortController === 'undefined') return fetch(url, o);
     const ac = new AbortController();
-    // respeita um sinal que a própria biblioteca tenha passado (.abortSignal())
     const externo = o.signal;
     const propagar = () => { try { ac.abort(); } catch (e) { _quiet(e, 'fetch-abort'); } };
     if (externo) {
@@ -72,56 +78,34 @@ const CloudStore = {
     const t = setTimeout(propagar, this.FETCH_TETO_MS);
     return fetch(url, { ...o, signal: ac.signal }).finally(() => clearTimeout(t));
   },
+
   _withTimeout(p, ms, label) {
-    return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'A operação') + ' demorou demais. Verifique sua internet.')), ms))]);
+    return Promise.race([
+      p,
+      new Promise((_, rej) => setTimeout(
+        () => rej(new Error((label || 'A operação') + ' demorou demais. Verifique sua internet.')),
+        ms
+      ))
+    ]);
   },
 
-  /* ── TOKEN FORA DE HORA: A FALHA QUE SÓ ACONTECE "ÀS VEZES" ───────────────
-     `JWT issued at future` é erro do PostgREST, não do app: ele compara o
-     claim `iat` do token com o relógio DELE e recusa um token que diz ter
-     nascido depois de agora. Quem carimba o `iat` é o servidor de
-     autenticação; quem valida é outro nó. Entre os dois há uma deriva de
-     um ou dois segundos — invisível o tempo todo, menos exatamente no
-     instante em que o app usa um token recém-emitido.
-
-     E é isso que o portão de acesso faz: pede a lista de perfis (e, com a
-     entrada direta ligada, o payload do perfil) no primeiro segundo depois
-     do login ou da renovação do token. Token velho nunca cai aqui; token
-     de dois segundos atrás, às vezes. A pessoa via o erro cru no lugar dos
-     perfis, recarregava, e funcionava — porque a janela já tinha passado.
-
-     A cura tem de distinguir DOIS casos que parecem o mesmo 401:
-
-       · emitido no futuro (`iat`/`nbf`): o token está certo, o relógio é que
-         ainda não chegou nele. Esperar resolve. Renovar seria PIOR — o token
-         novo nasce com `iat` ainda mais adiante e é recusado de novo pela
-         mesma deriva.
-       · expirado: aí o token é que não serve mais, e só renovar resolve.
-
-     Por isso não existe um "retry genérico" aqui: cada caso tem o seu
-     remédio, e trocá-los transforma uma espera de 1,5 s numa falha teimosa. */
-  TOKEN_RETENTATIVAS: 2,
-  TOKEN_ESPERA_MS: 1500,
   _textoDoErro(err) {
     if (!err) return '';
     return [err.message, err.code, err.details, err.hint, err.error_description]
       .filter(Boolean).join(' ').toLowerCase();
   },
-  // Token que o servidor ainda não considera nascido (deriva de relógio).
+
   _tokenNoFuturo(err) {
     const t = this._textoDoErro(err);
     return /issued at future|not yet valid|\bnbf\b|\biat\b/.test(t);
   },
-  // Token que o servidor não aceita mais — renovar é o caminho.
+
   _tokenVencido(err) {
     const t = this._textoDoErro(err);
     if (!/jwt|jws|token|pgrst301|pgrst302/.test(t)) return false;
     return /expired|expirou|invalid|inválid|malformed|pgrst301|pgrst302/.test(t);
   },
-  /* Executa `fn` tolerando os dois casos acima. Bounded de propósito: no
-     máximo duas retentativas (1,5 s e 3 s). Se depois disso ainda falhar, não
-     é deriva de relógio — é problema de verdade, e some-lo em silêncio seria
-     trocar um erro visível por uma tela parada. */
+
   async _comTokenTolerante(fn, label) {
     let ultimo = null, futuro = false;
     for (let tentativa = 0; tentativa <= this.TOKEN_RETENTATIVAS; tentativa++) {
@@ -130,15 +114,16 @@ const CloudStore = {
         ultimo = err;
         futuro = this._tokenNoFuturo(err);
         const vencido = !futuro && this._tokenVencido(err);
-        // não é problema de token, ou não há sessão para consertar: sobe como está
         if ((!futuro && !vencido) || !this.isLoggedIn()) throw err;
         if (tentativa === this.TOKEN_RETENTATIVAS) break;
         console.warn('[CloudStore] ' + (label || 'operação') + ': token recusado (' +
-          (futuro ? 'emitido no futuro' : 'vencido') + ') — tentativa ' + (tentativa + 1) +
-          ' de ' + this.TOKEN_RETENTATIVAS + '. Detalhe: ' + ((err && err.message) || err));
-        // só o token VENCIDO se cura renovando; o do futuro se cura esperando
-        if (vencido && typeof this.ensureSession === 'function') {
-          try { await this.ensureSession(true); } catch (e) { _quiet(e, 'token-renovar'); }
+          (futuro ? 'emitido no futuro' : 'vencido') + ') — tentativa ' +
+          (tentativa + 1) + ' de ' + this.TOKEN_RETENTATIVAS + '.');
+        if (vencido) {
+          try {
+            const r = await this.client.auth.refreshSession();
+            if (r && r.data && r.data.session) this.session = r.data.session;
+          } catch (e) { _quiet(e, 'token-renovar'); }
         }
         await new Promise(r => setTimeout(r, this.TOKEN_ESPERA_MS * (tentativa + 1)));
       }
@@ -151,747 +136,106 @@ const CloudStore = {
     throw e;
   },
 
-  /* ── APLICANDO DADO DA NUVEM ──────────────────────────────────────────────
-     `_applying` existe para que escrever o que VEIO da nuvem não seja
-     confundido com uma edição do usuário — sem ele, baixar dispararia um envio
-     de volta, em eco. O risco é o outro: se a marca ficar LIGADA por engano, o
-     `notifyChange` passa a devolver na primeira linha, e **toda alteração
-     seguinte deixa de virar pendência**. O aparelho continua gravando, a fila
-     por seção continua andando (ela é marcada por outro gancho), mas o blob de
-     segurança congela no que era antes — sem erro, sem aviso.
-
-     Era o que acontecia quando um `await` no meio da aplicação falhava: a linha
-     que desliga a marca vinha DEPOIS, e a exceção pulava por cima dela. Aqui a
-     marca desliga em `finally`, que roda mesmo com exceção; e o valor anterior
-     é restaurado, em vez de forçar `false`, para que uma aplicação aninhada não
-     desligue a de fora antes da hora. */
   async aplicando(fn) {
     const antes = this._applying;
     this._applying = true;
-    try { return await fn(); } finally { this._applying = antes; }
-  },
-  onAuth() {
-    if (window.ProfileUI) ProfileUI.onAuthChanged();
-    if (window.CloudUI) CloudUI.refreshSyncBtn();
-    if (this.isLoggedIn()) {
-      this.subscribeRealtime();
-      this.subscribeSections();
-      if (window.SessionGuard) {
-        Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
-          try {
-            if (!window.ProfileUI) return;
-            if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
-              ProfileUI.resumeAfterSessionClaim();
-              return;
-            }
-            if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
-          } catch (_) { _quiet(_); }
-        }).catch(e => _quiet(e, 'session-guard-login'));
-      }
-    } else { this._unsub(); if (window.SessionGuard) SessionGuard.onLogout(); }
-    // Sync por seção (Opção B): ao logar / restaurar sessão, popula a tabela nova
-    // proativamente — sem depender de uma edição. Pequeno atraso para o perfil ativar.
-    try { if (window.SectionSync) setTimeout(() => SectionSync.kick(), 1500); } catch (_) { _quiet(_); }
-    // faxina do historico de versoes (janela de 7 dias) logo na abertura
-    try { if (window.BackupHistory) setTimeout(() => BackupHistory.limpar(), 2500); } catch (_) { _quiet(_); }
-    /* Promove perfis com id antigo (não-UUID) assim que há conta — antes
-       disso, TODA operação de nuvem para esses perfis falhava (na maioria das
-       vezes em silêncio): nada sincronizava, nada tinha backup no banco, e o
-       nome podia "piscar" entre o valor local e o que a nuvem nunca tinha de
-       verdade. Atraso maior que os gatilhos acima: espera a sessão assentar. */
-    try { if (window.ProfileManager) setTimeout(() => ProfileManager.migrarIdsAntigos(), 3500); } catch (_) { _quiet(_); }
+    try { return await fn(); }
+    finally { this._applying = antes; }
   },
 
-  async signUp(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signUp({ email, password }), 20000, 'A criação de conta'); if (error) throw error; return data; },
-  async signIn(email, password) { const { data, error } = await this._withTimeout(this.client.auth.signInWithPassword({ email, password }), 20000, 'O login'); if (error) throw error; return data; },
-  async signOut() { clearTimeout(this._debounce); this._unsub(); try { await this.client.auth.signOut(); } catch (e) { _quiet(e); } this.session = null; },
-  // Envia e-mail de recuperação de senha (usuário não logado que esqueceu a senha).
+  onAuth() {
+    try { if (window.ProfileUI) ProfileUI.onAuthChanged(); } catch (e) { _quiet(e, 'auth-ui'); }
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (e) { _quiet(e, 'auth-sync-ui'); }
+
+    if (!this.isLoggedIn()) {
+      this._unsub();
+      try { if (window.SessionGuard) SessionGuard.onLogout(); } catch (e) { _quiet(e, 'session-logout'); }
+      return;
+    }
+
+    this.subscribeRealtime();
+
+    try {
+      if (window.RelationalStore) {
+        RelationalStore.hydrateUserPreferences().catch(e => _quiet(e, 'rel-user-prefs'));
+      }
+    } catch (e) { _quiet(e, 'rel-user-prefs-start'); }
+
+    if (window.SessionGuard) {
+      Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
+        try {
+          if (!window.ProfileUI) return;
+          if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
+            ProfileUI.resumeAfterSessionClaim();
+            return;
+          }
+          if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+        } catch (e) { _quiet(e, 'session-guard-login-ui'); }
+      }).catch(e => _quiet(e, 'session-guard-login'));
+    } else {
+      try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
+      catch (e) { _quiet(e, 'profile-stage-login'); }
+    }
+  },
+
+  async signUp(email, password) {
+    const { data, error } = await this._withTimeout(
+      this.client.auth.signUp({ email, password }), 20000, 'A criação de conta');
+    if (error) throw error;
+    return data;
+  },
+
+  async signIn(email, password) {
+    const { data, error } = await this._withTimeout(
+      this.client.auth.signInWithPassword({ email, password }), 20000, 'O login');
+    if (error) throw error;
+    return data;
+  },
+
+  async signOut() {
+    this._unsub();
+    try { await this.client.auth.signOut(); } catch (e) { _quiet(e, 'signout'); }
+    this.session = null;
+  },
+
   async resetPassword(email) {
     const redirectTo = (typeof location !== 'undefined') ? location.href.split('#')[0] : undefined;
     const { error } = await this._withTimeout(
       this.client.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined),
       20000, 'O envio do e-mail de recuperação');
-    if (error) throw error; return true;
-  },
-  // Altera a senha do usuário LOGADO (ou de quem chegou pelo link de recuperação).
-  async changePassword(newPassword) {
-    const { error } = await this._withTimeout(this.client.auth.updateUser({ password: newPassword }), 20000, 'A alteração de senha');
-    if (error) throw error; return true;
+    if (error) throw error;
+    return true;
   },
 
-  /* Primeira chamada de nuvem depois do login, e a que a pessoa vê falhar: é
-     dela que sai a lista do portão de acesso. Por isso vai embrulhada — aqui a
-     deriva de relógio custava a tela inteira de perfis. */
+  async changePassword(newPassword) {
+    const { error } = await this._withTimeout(
+      this.client.auth.updateUser({ password: newPassword }), 20000, 'A alteração de senha');
+    if (error) throw error;
+    return true;
+  },
+
   async listProfiles() {
     return this._comTokenTolerante(async () => {
       const { data, error } = await this._withTimeout(
-        this.client.from(this.TABLE).select('id,profile_name,avatar,color,rev,updated_at').order('updated_at', { ascending: true }),
+        this.client.from(this.TABLE)
+          .select('id,profile_name,avatar,color,created_at,updated_at')
+          .order('updated_at', { ascending: true }),
         15000, 'Carregar perfis');
-      if (error) throw error; return data || [];
+      if (error) throw error;
+      return data || [];
     }, 'Carregar perfis');
-  },
-  async createRow({ name, avatar, color, payload }) {
-    const { data, error } = await this.client.from(this.TABLE)
-      .insert({ user_id: this.session.user.id, profile_name: name, avatar, color, payload: payload || {}, rev: 1 })
-      .select('id,rev').maybeSingle();
-    if (error) throw error; return data;
-  },
-  async updateMeta(id, { nome, avatar, cor }) {
-    const rev = ProfileManager.getRev(id);
-    const { data, error } = await this.client.from(this.TABLE)
-      .update({ profile_name: nome, avatar, color: cor, rev: rev + 1, updated_at: new Date().toISOString() })
-      .eq('id', id).eq('rev', rev).select('rev');
-    if (error) throw error;
-    if (data && data.length) ProfileManager.setRev(id, rev + 1);
-  },
-  /* A SEGUNDA metade do mesmo caminho: com a entrada direta ligada, o portão
-     chama isto logo depois de listProfiles, ainda dentro da janela de deriva.
-     Proteger só a lista deixaria o erro migrar para a tela "Entrando…". */
-  async fetchPayload(id) {
-    /* O `throw` do erro do PostgREST tem de ficar DENTRO do embrulho: o
-       supabase-js não lança, devolve `{ data, error }`. Uma retentativa
-       pendurada por fora nunca veria a falha e nunca dispararia. */
-    const data = await this._comTokenTolerante(async () => {
-      const r = await this._withTimeout(
-        this.client.from(this.TABLE).select('payload,rev').eq('id', id).maybeSingle(), 15000, 'Baixar o perfil');
-      if (r.error) throw r.error;
-      return r.data;
-    }, 'Baixar o perfil');
-    /* Resposta DEFINITIVA (não é rede, não é timeout): esta conta não tem este
-       perfil. Marcada com código próprio porque quem chama precisa distinguir
-       "a nuvem não tem" de "não deu para perguntar" — no primeiro caso, um
-       perfil com dados locais tem de abrir mesmo assim. */
-    if (!data) { const e = new Error('Perfil não encontrado na nuvem.'); e.code = 'perfil-inexistente'; throw e; }
-    return data;
-  },
-  /* ── A TRAVA QUE FALTAVA ──────────────────────────────────────────────────
-     `exportProfile` devolve `null` quando o perfil não está na lista local — e
-     essa lista é um espelho da nuvem, que pode chegar incompleta (RLS negando,
-     resposta parcial, corrida entre o login e a montagem do espelho). Quando
-     isso acontecia, este método gravava `payload: null` na linha do perfil: a
-     ÚNICA cópia remota de tudo era substituída por nada, e a leitura seguinte
-     ainda propagava o vazio para os outros aparelhos.
-
-     Nunca mais. Um envio só sai daqui se levar conteúdo. Um perfil vazio na
-     memória não é uma ordem de apagamento — é sinal de que algo deu errado
-     ANTES, e a resposta certa é não publicar nada, manter a pendência e tentar
-     de novo. A alteração continua guardada neste aparelho o tempo todo. */
-  _payloadUtil(backup) {
-    if (!backup || !backup.data || typeof backup.data !== 'object') return 0;
-    let n = 0;
-    Object.keys(backup.data).forEach(k => { if (!valorVazio(backup.data[k])) n++; });
-    return n;
-  },
-  _tamanhoPayload(backup) {
-    try { return JSON.stringify((backup && backup.data) || {}).length; } catch (_) { return 0; }
-  },
-  async saveActive(id) {
-    id = id || ProfileManager.getActiveProfileId();
-    if (!id || !this.isLoggedIn()) return { skipped: true };
-    const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
-    const backup = ProfileManager.exportProfile(id);
-    if (this._payloadUtil(backup) === 0) {
-      console.error('[CloudStore] envio RECUSADO: o perfil ' + id + ' não tem nenhuma seção com conteúdo neste aparelho. A cópia da nuvem foi preservada.');
-      return { recusado: true, motivo: 'payload-vazio' };
-    }
-    /* Encolhimento grande: antes de publicar, o estado ANTERIOR vai para a
-       tabela de backups. Não bloqueia o usuário (apagar de verdade é um direito
-       dele), só garante que o que ele tinha continua resgatável no banco. */
-    try {
-      if (window.GuardaNuvem) await GuardaNuvem.antesDeEncolher(id, this._tamanhoPayload(backup));
-    } catch (e) { _quiet(e, 'guarda-encolhimento'); }
-    const rev = ProfileManager.getRev(id);
-    const { data, error } = await this.client.from(this.TABLE)
-      .update({ payload: backup, rev: rev + 1, updated_at: new Date().toISOString(), profile_name: meta.nome, avatar: meta.avatar, color: meta.cor })
-      .eq('id', id).eq('rev', rev).select('rev');
-    if (error) throw error;
-    if (!data || data.length === 0) return { conflict: true };
-    ProfileManager.setRev(id, rev + 1);
-    try { if (window.GuardaNuvem) GuardaNuvem.registrarEnvio(id, this._tamanhoPayload(backup)); } catch (e) { _quiet(e, 'guarda-registro'); }
-    return { rev: rev + 1 };
-  },
-  // Lê apenas a rev atual do perfil na nuvem (usado para reconciliar antes de reenviar)
-  async _fetchRev(id) {
-    const { data, error } = await this.client.from(this.TABLE).select('rev').eq('id', id).maybeSingle();
-    if (error) throw error;
-    return data ? data.rev : null;
-  },
-  /* Conflito de blob NÃO dá permissão para reenviar o estado local inteiro.
-     Antes, o código buscava a rev remota, copiava esse número para o aparelho e
-     tentava de novo — isso convertia um conflito legítimo em autorização para
-     sobrescrever a versão vencedora. Agora o conflito é apenas diagnosticado.
-     Os dados operacionais continuam pela camada por seção, que usa CAS. */
-  async saveActiveWithRetry(id) {
-    id = id || ProfileManager.getActiveProfileId();
-    if (!id || !this.isLoggedIn()) return { skipped: true };
-    const r = await this.saveActive(id);
-    if (!r || !r.conflict) return r;
-    let currentRev = null;
-    try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
-    return { conflict: true, remoteRev: currentRev };
-  },
-  async deleteRow(id) { const { error } = await this.client.from(this.TABLE).delete().eq('id', id); if (error) throw error; },
-
-  notifyChange() {
-    if (this._applying) return;
-    /* Sessão assumida por outro aparelho (ou outra aba): não ENVIA, para não
-       sobrescrever o que o outro está fazendo — mas a alteração continua marcada
-       como pendente. Antes ela era simplesmente esquecida: o dado ficava só neste
-       navegador e a abertura seguinte, ao baixar da nuvem, o apagava. A caixa de
-       saída da camada por seção já guardou a seção; aqui basta não perder o
-       estado "há algo por enviar" para quando a sessão voltar. */
-    if (window.SessionLock && SessionLock.isBlocked()) {
-      this._pending = true; this._dirtyAt = this._dirtyAt || Date.now();
-      if (window.CloudUI) CloudUI.refreshSyncBtn();
-      return;
-    }
-    if (!this.isReady() || !this.isLoggedIn()) return;
-    try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { _quiet(e); }
-    try { if (window.BackupHistory) BackupHistory.maybeDailySnapshot(); } catch (e) { _quiet(e); } // 1 backup/dia
-    this._pending = true;
-    this._dirtyAt = Date.now();          // desde quando há algo não sincronizado
-    if (window.CloudUI) CloudUI.refreshSyncBtn();
-    clearTimeout(this._debounce);
-    this._debounce = setTimeout(() => this.autoSave(), this.DEBOUNCE_MS);
-  },
-  // reprograma uma nova tentativa daqui a \`ms\` sem descartar o que está pendente
-  _rearm(ms) { clearTimeout(this._debounce); this._debounce = setTimeout(() => this.autoSave(), ms); },
-  /* ── ESCRITA DUPLA: quando o BLOB precisa mesmo subir ──────────────────────
-     O blob é o perfil INTEIRO (exportProfile varre todo o localStorage do perfil).
-     Enviá-lo a cada mudança significa subir megabytes para marcar um "Concluir"
-     numa atividade extra — caro no 4G e lento no 3G. Com a leitura por seção
-     ligada (Fase 2), quem carrega a verdade do dia a dia é profile_sections, que
-     envia só o que mudou. Então o blob passa a ser uma REDE DE SEGURANÇA
-     periódica, não o caminho principal.
-
-     O blob ainda sobe SEMPRE que: (a) o sync por seção está desligado ou falhou
-     — aí ele volta a ser a única fonte; (b) passou o intervalo mínimo; (c) o app
-     vai para segundo plano/fecha (flushPending, _beaconSave, saveThenReload);
-     (d) é o primeiro salvamento da sessão. Assim o plano B nunca fica velho
-     demais nem desatualizado num momento crítico. */
-  BLOB_MIN_INTERVAL_MS: 180000,   // 3 min
-  _lastBlobAt: 0,
-  _forceBlob: false,
-  _blobDue(id) {
-    id = id || ProfileManager.getActiveProfileId();
-    /* Com leitura por seção ativa, o blob NÃO participa da arbitragem do estado.
-       Ele pode estar baseado em outra revisão de payload/metadados e não existe
-       prova suficiente para sobrescrevê-lo com segurança. Nesta etapa ele vira
-       checkpoint legado somente-leitura; a autoridade operacional é a tabela
-       profile_sections. */
-    if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) return false;
-    if (this._forceBlob) return true;
-    if (!this._lastBlobAt) return true;
-    return (Date.now() - this._lastBlobAt) >= this.BLOB_MIN_INTERVAL_MS;
-  },
-  // Empurra as seções e diz se ficou tudo entregue. É isto que substitui o blob
-  // nas rodadas leves — se sobrar seção suja ou houver erro, a rodada não conta
-  // como sincronizada e a pendência é mantida para nova tentativa.
-  async _pushSectionsNow(id) {
-    if (!window.SectionSync || !SectionSync.enabled) return false;
-    id = id || ProfileManager.getActiveProfileId();
-    if (!id) return false;
-    try {
-      if (SectionSync._seededProfile !== id) {
-        SectionSync._seededProfile = id;
-        /* Startup/envio não transforma divergência de hash em edição. Só
-           seções nunca rastreadas entram automaticamente; mutações reais já
-           estão na outbox explícita pelo hook de DB._set. */
-        if (SectionSync.seedUntrackedOnly) SectionSync.seedUntrackedOnly(id);
-      }
-      await SectionSync.pushDirty(id);
-      const resta = SectionSync.explicitPendingSections
-        ? SectionSync.explicitPendingSections(id).length
-        : SectionSync._dirtyFor(id).size;
-      return resta === 0 && !SectionSync._lastError;
-    } catch (_) { return false; }
-  },
-  async autoSave() {
-    // BUG CORRIGIDO: se um salvamento já está em curso, NÃO descartamos a rodada —
-    // reprogramamos uma nova tentativa para logo após, senão a última alteração ficava
-    // presa como "pendente" até o próximo foco/edição (causa de "às vezes não salva").
-    /* Um envio em curso não descarta a rodada — reprograma. Mas "em curso" tem
-       prazo: se a marca ficar presa (uma promessa que nunca se resolve, um
-       travamento em outra camada), sem este teto a sincronização parava até
-       recarregar a página, reprogramando a cada 400 ms para sempre. */
-    if (this._syncing) {
-      if (Date.now() - this._syncingDesde < this.SYNC_TRAVADO_MS) { this._rearm(400); return; }
-      console.warn('[CloudStore] envio preso há mais de ' + Math.round(this.SYNC_TRAVADO_MS / 1000) + 's — destravando e tentando de novo');
-      this._syncing = false;
-    }
-    // Sessão assumida em outro aparelho: adia, NÃO descarta. Descartar era perder
-    // a alteração de vez — ela nunca mais era tentada nesta ou em outra sessão.
-    if (window.SessionLock && SessionLock.isBlocked()) { this._pending = true; return; }
-    if (!this.isReady() || !this.isLoggedIn()) return;
-    if (!this._pending) return;                // nada novo a enviar
-    const syncId = ProfileManager.getActiveProfileId();
-    if (!syncId) return;
-    clearTimeout(this._debounce);
-    this._syncing = true; this._syncingDesde = Date.now(); this._pending = false;
-    /* `finally` e não uma linha no fim: se QUALQUER coisa aqui dentro lançar —
-       inclusive a atualização do rótulo de status, que mexe no DOM —, a marca
-       precisa desligar assim mesmo. Presa em true, ela fazia a sincronização
-       parar de vez até recarregar. As atribuições `_syncing = false` no meio do
-       corpo continuam, inofensivas: apenas antecipam o que o `finally` garante. */
-    try {
-      if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
-      if (!this._blobDue(syncId)) {
-        // ── ROTA LEVE: só as seções alteradas ──────────────────────────────
-        // Se o envio periódico de seções já está em curso, esperamos a vez: forçar
-        // o blob aqui seria tratar concorrência normal como se fosse falha.
-        if (SectionSync._pushing) {
-          this._syncing = false; this._pending = true; this._rearm(800); return;
-        }
-        const ok = await this._pushSectionsNow(syncId);
-        this._syncing = false;
-        if (!ok) {
-          this._pending = true;
-          if (window.SectionSync && SectionSync._lastConflict) {
-            /* Conflito protegido: JAMAIS contorna pelo blob. A cópia local
-               continua na outbox e a remota permanece intacta. */
-            this._forceBlob = false;
-            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
-            this._rearm(5000);
-            return;
-          }
-          // erro de transporte/infra: o blob continua sendo rede de segurança
-          this._forceBlob = true;
-          if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
-          this._rearm(3000);
-          return;
-        }
-        this._lastSyncAt = Date.now();
-        if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
-        if (this._pending) this._rearm(300);
-        return;
-      }
-      // ── ROTA COMPLETA: seções CANÔNICAS primeiro; blob é checkpoint ───────
-      if (window.SectionSync && SectionSync.enabled) {
-        const secOk = await this._pushSectionsNow(syncId);
-        if (!secOk) {
-          this._syncing = false; this._pending = true;
-          if (SectionSync._lastConflict) {
-            this._forceBlob = false;
-            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
-            this._rearm(5000);
-            return;
-          }
-          this._forceBlob = true;
-          if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando seções…');
-          this._rearm(3000);
-          return;
-        }
-      }
-      const r = await this.saveActiveWithRetry(syncId);
-      this._syncing = false;
-      if (r && r.conflict) {
-        /* As seções já foram confirmadas antes de chegar aqui. O blob é apenas
-           checkpoint; não rebaixamos a segurança dos dados para fazê-lo vencer. */
-        this._pending = false;
-        this._forceBlob = false;
-        this._lastSyncAt = Date.now();
-        if (window.CloudUI) CloudUI.setStatus('ok', 'Dados sincronizados · checkpoint será reconciliado depois');
-        console.warn('[CloudStore] checkpoint do blob em conflito; preservado sem sobrescrever', r.remoteRev);
-        return;
-      }
-      /* Envio RECUSADO pela trava anti-apagamento: a nuvem continua com a cópia
-         boa, e é assim que tem de ficar. Não marcamos "Sincronizado" (seria
-         mentira), mantemos a pendência e reprogramamos com folga — quando o
-         perfil voltar a ter conteúdo em memória, o envio sai sozinho. */
-      if (r && r.recusado) {
-        this._pending = true;
-        if (window.CloudUI) CloudUI.setStatus('error', 'Envio suspenso — cópia da nuvem protegida');
-        this._rearm(30000);
-        return;
-      }
-      this._lastBlobAt = Date.now(); this._forceBlob = false;
-      this._lastSyncAt = Date.now();
-      if (window.CloudUI) CloudUI.setStatus('ok', 'Sincronizado');
-      try { if (window.SectionSync) SectionSync.afterBlobSave(); } catch (_) { _quiet(_); } // escrita dupla (Opção B, Fase 1)
-    } catch (err) {
-      // erro de rede: NÃO perde a alteração — remarca como pendente e reprograma (auto-recupera)
-      this._pending = true;
-      console.error('autoSave', err);
-      try { if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão — tentando de novo…'); } catch (e) { _quiet(e, 'status-erro'); }
-      this._rearm(5000);
-      return;
-    } finally {
-      this._syncing = false;
-      try { this._drainSectionRealtimeHint(syncId); } catch (e) { _quiet(e, 'sec-rt-drain'); }
-    }
-    // se surgiram NOVAS mudanças durante o envio (notifyChange remarcou _pending), dispara outro ciclo já
-    if (this._pending) this._rearm(300);
-  },
-  // Envia AGORA quaisquer alterações pendentes (cancela o debounce e salva já).
-  async flushPending() {
-    if (!this.isReady() || !this.isLoggedIn()) return;
-    clearTimeout(this._debounce);
-    // Em modo legado o blob ainda pode ser forçado. Com sync por seção ativo,
-    // _blobDue() deliberadamente ignora esta flag: conflito de checkpoint nunca
-    // pode virar atalho para sobrescrever o estado canônico.
-    this._forceBlob = !(window.SectionSync && SectionSync.enabled && SectionSync.readEnabled);
-    // Alteração que sobreviveu a um recarregamento (caixa de saída gravada) também
-    // conta como pendente: sem isto, "Sincronizar agora" não a enviava.
-    try { if (window.SectionSync && SectionSync.pendingQuick() > 0) this._pending = true; } catch (e) { _quiet(e, 'flush-pendencia'); }
-    if (this._pending || this._syncing) await this.autoSave();
-  },
-  // SALVAMENTO DE EMERGÊNCIA (keepalive): fetch com keepalive:true sobrevive ao fechamento
-  // da aba/app, coisa que uma chamada async normal em beforeunload NÃO faz — o navegador
-  // aborta a requisição ao descarregar a página. Sem isto, alterações feitas nos últimos
-  // segundos antes de fechar podiam se perder. Não bumpa a rev local de propósito: se der
-  // certo, o próximo acesso baixa; se falhar, o próximo autoSave reenvia.
-  _beaconSave() {
-    try {
-      if (!this.isReady() || !this.isLoggedIn()) return;
-      /* PATCH keepalive só sabe escrever o blob inteiro. Em modo por seção isso
-         seria uma rota paralela sem CAS por seção e poderia reintroduzir uma
-         sobrescrita que todo o protocolo novo acabou de impedir. A durabilidade
-         de fechamento fica no IndexedDB/outbox e o próximo boot retoma o envio. */
-      if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) return;
-      if (!this._pending && !this._syncing) return; // nada a garantir
-      try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
-      const id = ProfileManager.getActiveProfileId(); if (!id) return;
-      const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
-      const rev = ProfileManager.getRev(id);
-      const backup = ProfileManager.exportProfile(id);
-      // a mesma trava do saveActive: o salvamento de emergência também não pode
-      // publicar um perfil vazio por cima do que está na nuvem
-      if (this._payloadUtil(backup) === 0) return;
-      const body = JSON.stringify({ payload: backup, rev: rev + 1,
-        updated_at: new Date().toISOString(), profile_name: meta.nome, avatar: meta.avatar, color: meta.cor });
-      // keepalive tem teto de ~64KB no corpo; acima disso não é confiável — deixa para o autoSave normal.
-      if (body.length > 60000) return;
-      const token = (this.session && this.session.access_token) || this.SUPABASE_KEY;
-      fetch(this.SUPABASE_URL + '/rest/v1/' + this.TABLE + '?id=eq.' + encodeURIComponent(id) + '&rev=eq.' + rev, {
-        method: 'PATCH', keepalive: true,
-        headers: { apikey: this.SUPABASE_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-        body
-      }).catch(() => {});
-    } catch (_) { _quiet(_); }
-  },
-  // Sincronização inteligente ao voltar o foco/rede: se há mudanças locais, ENVIA;
-  // se não há nada pendente e a nuvem está mais nova (outro dispositivo salvou), BAIXA.
-  // Assim, editar no celular e no PC não sobrescreve um ao outro no uso normal.
-  async syncOnFocus() {
-    if (!this.isReady() || !this.isLoggedIn()) return;
-    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
-    if (window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) return;
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return;
-    try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (e) { return; }
-    const id = ProfileManager.getActiveProfileId(); if (!id) return;
-
-    /* PUSH → CONFIRMA → PULL, numa única rodada.
-       Antes havia dois `return` logo depois do envio. O efeito era sutil: ao
-       voltar ao app com UMA alteração local pendente, a rodada só enviava.
-       Mesmo que a nuvem também tivesse dados mais novos, eles só seriam vistos
-       em outro foco/visibilitychange — ou nunca, se a aba já ficasse aberta.
-       É exatamente o tipo de atraso de "um ou dois dias" que parece demora da
-       nuvem. */
-    try {
-      let haviaPendencia = !!(this._pending || this._debounce);
-      try { if (window.SectionSync && SectionSync.pendingQuick() > 0) haviaPendencia = true; } catch (e) { _quiet(e, 'syncOnFocus-pendencia'); }
-      if (haviaPendencia) {
-        this._pending = true;
-        await this.flushPending();
-
-        /* Só continua para o download se a entrega realmente terminou. Se a
-           rede falhou, mantemos a cópia local como autoridade e tentamos de
-           novo no próximo pulso — nunca baixamos por cima de algo pendente. */
-        let resta = !!(this._pending || this._debounce || this._syncing);
-        try {
-          if (window.SectionSync) {
-            resta = resta || (SectionSync.explicitPendingSections
-              ? SectionSync.explicitPendingSections(id).length > 0
-              : SectionSync.pendingQuick() > 0);
-          }
-        } catch (e) { _quiet(e, 'syncOnFocus-resta'); }
-        if (resta) return;
-      }
-
-      // FASE 2: a novidade é detectada pelas revisões DAS SEÇÕES. Vantagem sobre a
-      // rev do blob: só baixa quando o conteúdo em si mudou, e sabemos o que mudou.
-      let novidade;
-      if (window.SectionSync && SectionSync.readEnabled) {
-        novidade = await SectionSync.hasRemoteUpdates(id);
-      } else {
-        const remoteRev = await this._fetchRev(id);
-        novidade = (remoteRev != null && remoteRev > ProfileManager.getRev(id));
-      }
-      if (novidade) {
-        if (window.CloudUI) CloudUI.setStatus('syncing', 'Baixando atualizações...');
-        await this.pullActiveAndReload({ readOnly: true });
-      }
-    } catch (e) { /* silencioso: tenta de novo no próximo foco */ }
-  },
-  // Botão manual "Sincronizar agora": empurra pendências e puxa se a nuvem estiver mais nova.
-  async syncNow() {
-    if (!this.isReady() || !this.isLoggedIn()) { showToast('Entre na sua conta para sincronizar (Configurações → Nuvem).'); return; }
-    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
-      showToast('Aguardando confirmação da sessão deste aparelho.');
-      return;
-    }
-    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
-        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
-      showToast('Sincronização pausada: esta conta está ativa em outro aparelho.');
-      return;
-    }
-    if (window.CloudUI) CloudUI.setStatus('syncing', 'Sincronizando...');
-    let fila = 0;
-    try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (e) { _quiet(e, 'syncNow-fila'); }
-    try {
-      if (this._pending || this._debounce || fila) await this.flushPending();
-      else {
-        const id = ProfileManager.getActiveProfileId();
-        let novidade = false;
-        if (id && window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
-        else if (id) { const rr = await this._fetchRev(id); novidade = (rr != null && rr > ProfileManager.getRev(id)); }
-        if (novidade) { await this.pullActiveAndReload({ readOnly: true }); return; }
-        else { await this.autoSave(); } // reenvia o estado atual como confirmação
-      }
-      showToast('Sincronizado ✓');
-    } catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar'); showToast('Não foi possível sincronizar agora'); }
-  },
-  async pullActiveAndReload(opts) {
-    opts = opts || {};
-    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
-      console.info('[CloudStore] pull adiado: sessão deste aparelho ainda não confirmada');
-      return false;
-    }
-    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
-        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
-      console.info('[CloudStore] pull adiado: sessão pertencente a outro aparelho');
-      return false;
-    }
-    const id = ProfileManager.getActiveProfileId(); if (!id) return;
-    // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
-    if (window.SectionSync && SectionSync.readEnabled) {
-      try {
-        if (await SectionSync.pullAndReload(opts)) return true;
-        const lr = SectionSync.lastRead ? SectionSync.lastRead() : null;
-        /* Se JÁ existem linhas por seção, uma falha de manifesto/conjunto não
-           autoriza aplicar o blob antigo por cima. O blob só é plano B para
-           perfis legados que ainda não possuem nenhuma linha por seção. */
-        if (lr && (lr.linhasRemotas || 0) > 0) {
-          console.warn('[CloudStore] fallback para blob BLOQUEADO: há seções remotas, mas o conjunto não passou na validação', lr.motivo);
-          try { showToast('⚠ A nuvem respondeu com um conjunto de seções incompleto. Mantive seus dados sem voltar para uma cópia antiga.'); } catch (_) { _quiet(_); }
-          return false;
-        }
-      } catch (e) { console.warn('pull por seção', e); }
-    }
-    try {
-      // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
-      // ainda não enviou; o que não subir é preservado e não é sobrescrito.
-      let preservar = [];
-      try {
-        if (window.SectionSync) preservar = opts.readOnly
-          ? SectionSync.pendingSections(id)
-          : await SectionSync.flushBeforeRead(id);
-      } catch (e) { _quiet(e, 'pull-pendencia'); }
-      const res = await this.fetchPayload(id);
-      // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
-      // guarda uma versão do que está aqui — assim, se outro aparelho tiver
-      // enviado algo indesejado, você consegue restaurar em Configurações.
-      try { if (window.BackupHistory) await BackupHistory.snapshot('antes de baixar da nuvem'); } catch (e) { _quiet(e); }
-      this._applying = true;
-      const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
-      ProfileManager.setRev(id, res.rev);
-      this._applying = false;
-      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return true; }
-      showToast('Sincronizado da nuvem ✓');
-      recarregarApp('dados novos da nuvem (blob)');
-      return true;
-    } catch (e) {
-      this._applying = false; console.error('pullActiveAndReload', e);
-      return false;
-    }
-  },
-  // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
-  // o location.reload() cancela o salvamento automático e a alteração se perde na nuvem.
-  async saveThenReload() {
-    clearTimeout(this._debounce); // cancela qualquer autoSave pendente (vamos salvar já)
-    if (this.isReady() && this.isLoggedIn()) {
-      try {
-        const id = ProfileManager.getActiveProfileId();
-        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
-          /* Antes de recarregar, envia somente a fonte canônica. Se a rede não
-             confirmar, a outbox continua durável e a barreira de disco abaixo
-             garante que a recarga não mate a única cópia local. */
-          const ok = await this._pushSectionsNow(id);
-          if (!ok) showToast('Aviso: a nuvem ainda não confirmou tudo. A fila continuará salva neste aparelho.');
-        } else {
-          const r = await this.saveActiveWithRetry(id);
-          if (r && r.conflict) {
-            showToast('Aviso: não foi possível confirmar o salvamento na nuvem. Seus dados estão guardados neste dispositivo.');
-          } else if (r && r.recusado) {
-            showToast('Envio suspenso para proteger a cópia da nuvem. Nada foi perdido — seus dados estão neste dispositivo.');
-          }
-        }
-      } catch (e) { console.error('saveThenReload', e); showToast('Aviso: não foi possível salvar na nuvem agora. Verifique a internet.'); }
-    }
-    recarregarApp('troca que exige recarregar a tela', { imediato: true });
-  },
-
-  subscribeRealtime() {
-    if (!this.isReady() || !this.isLoggedIn() || this.channel) return;
-    try {
-      this.channel = this.client.channel('sp_rt')
-        .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + this.session.user.id }, (p) => this._onRealtime(p))
-        .subscribe();
-    } catch (e) { console.warn('realtime indisponível', e); }
-  },
-  // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
-  // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
-  // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
-  _isOwnSectionEvent(evt) {
-    try {
-      const row = (evt && (evt.new || evt.old)) || {};
-      const mine = window.SessionGuard && SessionGuard.deviceId ? SessionGuard.deviceId() : null;
-      return !!(mine && row.device_id && row.device_id === mine);
-    } catch (_) { return false; }
-  },
-  subscribeSections(pid) {
-    if (!this.isReady() || !this.isLoggedIn()) return;
-    pid = pid || ProfileManager.getActiveProfileId(); if (!pid) return;
-    if (this.secChannel && this._secChannelProfile === pid) return;
-    if (this.secChannel) {
-      try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); }
-      this.secChannel = null;
-      this._secChannelProfile = null;
-      this._secRemotePending = false;
-    }
-    try {
-      this._secChannelProfile = pid;
-      this.secChannel = this.client.channel('sec_rt_' + pid)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, (evt) => {
-          /* V2 grava device_id em cada mutação. Evento produzido por ESTE
-             aparelho não é "novidade remota": a revisão/hash locais já são
-             atualizados pelo retorno do CAS. Reagir ao próprio evento criava
-             um falso pull/reload logo depois de salvar um registro, exatamente
-             o fluxo "salvei e fui parar no seletor de perfil". Clientes antigos
-             não têm device_id; nesses casos continuamos com a checagem normal. */
-          if (this._isOwnSectionEvent(evt)) return;
-          this._secRemotePending = true;
-          clearTimeout(this._secRtTimer);
-          this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
-        })
-        .subscribe((status) => {
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            if (this._secChannelProfile === pid) {
-              this.secChannel = null;
-              this._secChannelProfile = null;
-            }
-          }
-        });
-    } catch (e) {
-      this.secChannel = null;
-      this._secChannelProfile = null;
-      console.warn('realtime de seções indisponível', e);
-    }
-  },
-  onActiveProfileChanged(pid) {
-    if (!this.isReady() || !this.isLoggedIn()) return;
-    this.subscribeSections(pid);
-  },
-  async _onSectionRealtime(pid) {
-    if (pid !== ProfileManager.getActiveProfileId()) {
-      this._secRemotePending = false;
-      return;
-    }
-    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
-      this._secRemotePending = true;
-      return;
-    }
-    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
-        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
-      this._secRemotePending = true;
-      return;
-    }
-    if (!window.SectionSync || !SectionSync.readEnabled) {
-      this._secRemotePending = false;
-      return;
-    }
-    /* Evento remoto durante edição/upload não é descartado. Ele fica marcado e
-       será drenado assim que o estado local estiver estável. */
-    if (this._applying || this._pending || this._syncing || this._debounce ||
-        SectionSync._pushing || SectionSync._dirtyFor(pid).size) {
-      this._secRemotePending = true;
-      return;
-    }
-    this._secRemotePending = false;
-    try {
-      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload({ readOnly: true });
-    } catch (e) {
-      _quiet(e);
-      this._secRemotePending = true;
-      clearTimeout(this._secRtTimer);
-      this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 5000);
-    }
-  },
-  _drainSectionRealtimeHint(pid) {
-    if (!this._secRemotePending || !pid || pid !== ProfileManager.getActiveProfileId()) return;
-    clearTimeout(this._secRtTimer);
-    this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 250);
-  },
-  _unsub() {
-    if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) { _quiet(e); } this.channel = null; }
-    if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); } this.secChannel = null; }
-    this._secChannelProfile = null;
-    this._secRemotePending = false;
-    clearTimeout(this._secRtTimer);
-  },
-  _onRealtime(evt) {
-    const row = evt.new || evt.old || {};
-    if (window.ProfileUI && ProfileUI.isGateOpen() && ProfileUI._stage === 'profiles') ProfileUI.loadCloudProfiles();
-    const activeId = ProfileManager.getActiveProfileId();
-    if (row.id && row.id === activeId && (row.rev || 0) > ProfileManager.getRev(activeId)) {
-      if (this._debounce) return;
-      // Na Fase 2 quem manda na leitura é o canal das seções — o blob chegar primeiro
-      // não deve provocar uma recarga com dados mais velhos que os das seções.
-      if (window.SectionSync && SectionSync.readEnabled) return;
-      this.pullActiveAndReload();   // ele mesmo avisa (e só recarrega) se algo mudou
-    }
-  }
-};
-
-/* ── ARQUITETURA RELACIONAL ────────────────────────────────────────────────
-   A partir desta versão, profile_sections/blob/IndexedDB NÃO participam da
-   persistência. Estes overrides mantêm a API pública do CloudStore para as
-   telas existentes, mas toda sincronização de estudo delega ao RelationalStore. */
-Object.assign(CloudStore, {
-  onAuth() {
-    try { if (window.ProfileUI) ProfileUI.onAuthChanged(); } catch (_) { _quiet(_); }
-    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
-    if (this.isLoggedIn()) {
-      /* Preferências de usuário também vêm do SQL. A lista de perfis continua
-         em study_profiles e é buscada pelo gate. */
-      try {
-        if (window.RelationalStore) RelationalStore.hydrateUserPreferences()
-          .catch(e => _quiet(e, 'rel-user-prefs'));
-      } catch (_) { _quiet(_); }
-      try {
-        if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
-      } catch (_) { _quiet(_); }
-    } else {
-      try { if (window.RelationalStore) RelationalStore.unsubscribe(); } catch (_) { _quiet(_); }
-      try {
-        if (this.channel) this.client.removeChannel(this.channel);
-        if (this.secChannel) this.client.removeChannel(this.secChannel);
-      } catch (_) { _quiet(_); }
-      this.channel = null; this.secChannel = null;
-    }
   },
 
   async createRow({ name, avatar, color }) {
+    if (!this.session || !this.session.user) throw new Error('Sessão ausente');
     const { data, error } = await this.client.from(this.TABLE)
       .insert({
         user_id: this.session.user.id,
         profile_name: name,
         avatar: avatar || '📘',
-        color: color || '#4f46e5',
-        payload: {},
-        rev: 1
+        color: color || '#4f46e5'
       })
-      .select('id,rev,created_at').maybeSingle();
+      .select('id,created_at').maybeSingle();
     if (error) throw error;
     return data;
   },
@@ -905,36 +249,47 @@ Object.assign(CloudStore, {
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
-      .select('id,rev').maybeSingle();
+      .select('id').maybeSingle();
     if (error) throw error;
     return data;
   },
 
-  async saveActive(id) {
-    /* Blob integral aposentado. Mantido só como assinatura de compatibilidade. */
-    if (window.RelationalStore) await RelationalStore.flush();
+  async deleteRow(id) {
+    const { error } = await this.client.from(this.TABLE).delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async saveActive() {
+    if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+    await RelationalStore.flush();
+    this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
     return { relational: true };
   },
 
-  async saveActiveWithRetry(id) {
-    return this.saveActive(id);
+  async saveActiveWithRetry() {
+    return this.saveActive();
   },
 
   notifyChange() {
-    /* A fachada de memória já chamou RelationalStore.onStorageMutation.
-       Não existe segunda fila/blob para agendar. */
-    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); }
+    catch (e) { _quiet(e, 'notify-sync-ui'); }
   },
 
   async autoSave() {
     if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
+    this._syncing = true;
     try {
       await RelationalStore.flush();
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
       return true;
     } catch (e) {
-      try { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao salvar no banco'); } catch (_) { _quiet(_); }
+      try { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao salvar no banco'); }
+      catch (uiErr) { _quiet(uiErr, 'status-save-error'); }
       throw e;
+    } finally {
+      this._syncing = false;
+      try { if (window.CloudUI) CloudUI.refreshSyncBtn(); }
+      catch (e) { _quiet(e, 'autosave-sync-ui'); }
     }
   },
 
@@ -943,8 +298,7 @@ Object.assign(CloudStore, {
   },
 
   _beaconSave() {
-    /* Não existe dado local persistente a descarregar no fechamento.
-       Operações críticas aguardam confirmação SQL antes de concluir na UI. */
+    /* Não existe dado de estudo persistente no navegador para descarregar. */
   },
 
   async syncOnFocus() {
@@ -993,19 +347,57 @@ Object.assign(CloudStore, {
     return RelationalStore.catchUp(id, (opts && opts.reason) || 'pull');
   },
 
+  async saveThenReload() {
+    try {
+      if (this.isReady() && this.isLoggedIn() && window.RelationalStore) {
+        await RelationalStore.flush();
+      }
+    } catch (e) {
+      console.error('saveThenReload', e);
+      showToast('Não foi possível confirmar a gravação no banco. A tela não foi recarregada.');
+      return false;
+    }
+    recarregarApp('troca que exige recarregar a tela', { imediato: true });
+    return true;
+  },
+
+  subscribeRealtime() {
+    if (!this.isReady() || !this.isLoggedIn() || this.channel) return;
+    try {
+      this.channel = this.client.channel('study_profiles_rt')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: this.TABLE,
+          filter: 'user_id=eq.' + this.session.user.id
+        }, () => {
+          try {
+            if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.loadCloudProfiles();
+          } catch (e) { _quiet(e, 'profiles-realtime'); }
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('realtime de perfis indisponível', e);
+    }
+  },
+
   onActiveProfileChanged(pid) {
     try {
-      if (window.RelationalStore && pid && this.isLoggedIn()) RelationalStore.subscribeProfile(pid);
-    } catch (_) { _quiet(_); }
+      if (window.RelationalStore && pid && this.isLoggedIn()) {
+        RelationalStore.subscribeProfile(pid);
+      }
+    } catch (e) { _quiet(e, 'profile-realtime'); }
   },
 
   _unsub() {
-    try { if (window.RelationalStore) RelationalStore.unsubscribe(); } catch (_) { _quiet(_); }
-    if (this.channel) { try { this.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
-    if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (_) { _quiet(_); } this.secChannel = null; }
-    this._secChannelProfile = null;
-    this._secRemotePending = false;
-    clearTimeout(this._secRtTimer);
+    try { if (window.RelationalStore) RelationalStore.unsubscribe(); }
+    catch (e) { _quiet(e, 'rel-unsubscribe'); }
+    if (this.channel) {
+      try { this.client.removeChannel(this.channel); }
+      catch (e) { _quiet(e, 'profiles-unsubscribe'); }
+      this.channel = null;
+    }
   }
-});
+};
+
 window.CloudStore = CloudStore;
