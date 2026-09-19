@@ -30,4 +30,14 @@ assert.match(build,/css\/22-motor-sugestao\.css/,'build deve incluir CSS do Moto
 assert.match(build,/js\/59-extras-central-ui\.js/,'build deve incluir JS da central');
 assert.match(build,/js\/86-motor-sugestao\.js/,'build deve incluir o Motor de sugestao');
 
-console.log('OK: organização de Extras e superfície do Motor cobertas.');
+const ciclo = fs.readFileSync('src/js/87-motor-ciclo.js','utf8');
+const telaExtras = fs.readFileSync('src/js/47-tela-extras.js','utf8');
+assert.match(ciclo,/filtroTec\(item, disciplina\)/,'Motor deve materializar a receita do filtro do TEC');
+assert.match(ciclo,/filtroTec,/,'origem da atividade deve persistir a receita do TEC');
+assert.match(ciclo,/quantidade: item\.dose/,'receita deve persistir a quantidade do caderno');
+assert.match(ciclo,/filtroTecDe\(extra\)/,'atividades antigas devem reconstruir o filtro de forma compatível');
+assert.match(telaExtras,/Caderno no TEC/,'card do reforço deve mostrar como montar o caderno');
+assert.match(telaExtras,/Marque juntos:/,'blocos devem dizer quais tópicos\/subtópicos marcar juntos');
+assert.match(telaExtras,/doseCriada/,'origem deve receber a dose exata usada na criação da atividade');
+
+console.log('OK: organização de Extras, superfície do Motor e receita do caderno TEC cobertas.');
