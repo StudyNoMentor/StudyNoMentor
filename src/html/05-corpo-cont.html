@@ -505,16 +505,16 @@
       <div id="tec-totais" style="display:grid; grid-template-columns: repeat(4,1fr); gap:14px; margin-top:16px;"></div>
 
       <!-- Desempenho por disciplina -->
-      <div class="card">
-        <div class="evo-card-head">
-          <div>
+      <div class="card tec-analysis-card">
+        <div class="evo-card-head tec-analysis-head">
+          <div class="tec-analysis-title">
             <small class="tec-escopo-lista">FATOS DO SEU TEC · NENHUM MODELO OPINA AQUI</small>
             <h2>📊 Aproveitamento por disciplina</h2>
-            <p class="sub">Toda a sua medição, disciplina por disciplina e assunto por assunto. Filtre por uma para analisá-la sozinha, ou veja todas em cascata.</p>
+            <p class="sub">Toda a sua medição, disciplina por disciplina e assunto por assunto. Você pode analisar todas ou combinar várias matérias no mesmo recorte.</p>
           </div>
-          <div class="field tec-cfg" style="margin-bottom:0; min-width:230px;">
-            <label for="tec-disc-filter" class="tec-inline-lbl" data-info="Todas: uma linha por disciplina, da mais fraca para a mais forte, abrindo em cascata. Uma disciplina: abre o primeiro nível dela e mostra um resumo em destaque. O ▲▼ de cada linha compara o último retrato do escopo com o anterior.">Disciplina</label>
-            <select id="tec-disc-filter"></select>
+          <div class="field tec-cfg tec-disc-picker-field">
+            <label class="tec-inline-lbl" data-info="Marque uma ou várias disciplinas. Nenhuma marcada significa todas. A lista permanece aberta e na mesma posição enquanto você seleciona, sem recalcular o restante da tela a cada clique.">Disciplinas</label>
+            <div class="tec-disc-pick" id="tec-disc-pick"></div>
           </div>
         </div>
         <!-- A ordem vale para a árvore INTEIRA: escolher "pontos fracos" reordena
@@ -537,38 +537,44 @@
           <div class="card-header">
             <div>
               <h2>🏛️ Incidência da banca</h2>
-              <p class="sub">Quantas vezes cada tópico já caiu no histórico da banca. Esta aba não olha o seu desempenho: ela descreve a PROVA. É o que a aba 🎯 Reforço cruza com os seus erros, e o que alimenta a ordem "fraqueza × incidência" do 🏁 Plano.</p>
+              <p class="sub">Quantas vezes cada tópico já caiu no histórico da banca. Esta aba não olha o seu desempenho: ela descreve a PROVA e alimenta o peso do Motor no pós-edital.</p>
             </div>
           </div>
-          <div style="padding: 14px 24px 22px;">
-            <div class="field-group">
-              <div class="field">
-                <label for="incid-banca" data-info="O nome que você digitar vira uma banca. Cuidado com variações: &quot;FGV&quot; e &quot;Fgv &quot; seriam duas bancas separadas — se acontecer, use ✎ na lista abaixo para renomear, em vez de apagar e reimportar.">Banca <span class="req">*</span></label>
-                <input type="text" id="incid-banca" list="incid-banca-list" placeholder="Ex.: FCC, Cebraspe, FGV">
-                <datalist id="incid-banca-list"></datalist>
+          <details class="incid-import-details" id="incid-import-details">
+            <summary>
+              <span><b>＋ Importar ou colar incidência</b><small>Envie a planilha Índice do Caderno ou cole os dados manualmente.</small></span>
+              <i aria-hidden="true">⌄</i>
+            </summary>
+            <div class="incid-import-body">
+              <div class="field-group">
+                <div class="field">
+                  <label for="incid-banca" data-info="O nome que você digitar vira uma banca. Cuidado com variações: &quot;FGV&quot; e &quot;Fgv &quot; seriam duas bancas separadas — se acontecer, use ✎ na lista abaixo para renomear, em vez de apagar e reimportar.">Banca <span class="req">*</span></label>
+                  <input type="text" id="incid-banca" list="incid-banca-list" placeholder="Ex.: FCC, Cebraspe, FGV">
+                  <datalist id="incid-banca-list"></datalist>
+                </div>
+                <div class="field" style="display:flex; align-items:flex-end;">
+                  <label class="co-check" style="margin:0;" data-info="Ligado: apaga tudo o que existe desta banca e grava só o que você está enviando agora — é o certo ao reimportar um caderno atualizado. Desligado: mistura com o que já existe; tópico repetido é ATUALIZADO (nunca somado), e o aviso ao salvar diz quantos eram repetição."><input type="checkbox" id="incid-replace" checked> Substituir o que já existe desta banca</label>
+                </div>
               </div>
-              <div class="field" style="display:flex; align-items:flex-end;">
-                <label class="co-check" style="margin:0;" data-info="Ligado: apaga tudo o que existe desta banca e grava só o que você está enviando agora — é o certo ao reimportar um caderno atualizado. Desligado: mistura com o que já existe; tópico repetido é ATUALIZADO (nunca somado), e o aviso ao salvar diz quantos eram repetição."><input type="checkbox" id="incid-replace" checked> Substituir o que já existe desta banca</label>
+              <div id="incid-dropzone" class="tec-dropzone">
+                <input type="file" id="incid-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none;">
+                <div class="tec-dropzone-icon">🏛️</div>
+                <div class="tec-dropzone-text"><strong>Clique para enviar</strong> ou arraste o arquivo</div>
+                <div class="tec-dropzone-hint">Ideal: a planilha <b>Índice do Caderno</b> do TecConcursos (Hierarquia · Índice · Quantidade encontrada) — o app entende a hierarquia inteira. Também aceita três colunas simples: Disciplina · Tópico · Incidência.</div>
+                <div id="incid-file-name" class="tec-file-name" style="display:none;"></div>
+              </div>
+              <div class="tec-or-divider"><span>ou cole manualmente</span></div>
+              <div class="field full">
+                <label for="incid-text" data-info="Dois formatos são aceitos. O melhor é o &quot;Índice do Caderno&quot; do TecConcursos colado inteiro: o app entende a hierarquia (disciplina → assunto → tópico) e usa a coluna &quot;Quantidade encontrada&quot; como incidência. O formato simples também funciona: Disciplina · Tópico · Incidência, separados por TAB, ponto e vírgula ou vírgula.">Dados colados <span class="opt">(Índice do Caderno do TEC, ou Disciplina · Tópico · Incidência)</span></label>
+                <textarea id="incid-text" style="min-height: 120px; font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;" placeholder="Contabilidade Geral&#9;Balanço Patrimonial&#9;12&#10;Direito Tributário&#9;Crédito Tributário&#9;30"></textarea>
+                <p class="hint" id="incid-preview">Aguardando dados...</p>
+              </div>
+              <div class="submit-row" style="margin-top:6px;">
+                <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza</span>
+                <button class="btn-primary" id="incid-save" type="button">Salvar incidência</button>
               </div>
             </div>
-            <div id="incid-dropzone" class="tec-dropzone">
-              <input type="file" id="incid-file" accept=".xlsx,.xls,.csv,.tsv,.txt" style="display:none;">
-              <div class="tec-dropzone-icon">🏛️</div>
-              <div class="tec-dropzone-text"><strong>Clique para enviar</strong> ou arraste o arquivo</div>
-              <div class="tec-dropzone-hint">Ideal: a planilha <b>Índice do Caderno</b> do TecConcursos (Hierarquia · Índice · Quantidade encontrada) — o app entende a hierarquia inteira. Também aceita três colunas simples: Disciplina · Tópico · Incidência.</div>
-              <div id="incid-file-name" class="tec-file-name" style="display:none;"></div>
-            </div>
-            <div class="tec-or-divider"><span>ou cole manualmente</span></div>
-            <div class="field full">
-              <label for="incid-text" data-info="Dois formatos são aceitos. O melhor é o &quot;Índice do Caderno&quot; do TecConcursos colado inteiro: o app entende a hierarquia (disciplina → assunto → tópico) e usa a coluna &quot;Quantidade encontrada&quot; como incidência. O formato simples também funciona: Disciplina · Tópico · Incidência, separados por TAB, ponto e vírgula ou vírgula.">Dados colados <span class="opt">(Índice do Caderno do TEC, ou Disciplina · Tópico · Incidência)</span></label>
-              <textarea id="incid-text" style="min-height: 120px; font-family:'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px;" placeholder="Contabilidade Geral&#9;Balanço Patrimonial&#9;12&#10;Direito Tributário&#9;Crédito Tributário&#9;30"></textarea>
-              <p class="hint" id="incid-preview">Aguardando dados...</p>
-            </div>
-            <div class="submit-row" style="margin-top:6px;">
-              <span class="save-note"><span class="dot"></span>fica salvo no seu perfil e sincroniza</span>
-              <button class="btn-primary" id="incid-save" type="button">Salvar incidência</button>
-            </div>
-          </div>
+          </details>
         </div>
         <div class="card" id="incid-bancas-card" style="display:none;">
           <div class="card-header">
