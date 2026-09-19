@@ -188,7 +188,7 @@ const Atualizacao = {
   /* ── LIMPEZA MANUAL ───────────────────────────────────────────────────────
      Para quando algo continua estranho depois de atualizar. Apaga APENAS os
      caches de arquivos do app (o que o service worker guardou) — nunca os seus
-     dados, que vivem no IndexedDB e na nuvem, e não são tocados aqui. */
+     dados, cuja fonte durável é o PostgreSQL e não é tocada aqui. */
   async limparCacheERecarregar() {
     const ok = await UI.confirm(
       'Apagar os arquivos do app guardados neste navegador e recarregar?\n\n' +
