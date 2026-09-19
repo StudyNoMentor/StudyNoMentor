@@ -420,29 +420,31 @@ const SectionSync = {
     if (error) throw error;
     return data || null;
   },
-  /* Compare-and-swap: a linha só avança se a revisão remota ainda for EXATAMENTE
-     a revisão em que esta edição se baseou. Nunca fazemos upsert cego sobre uma
-     linha existente. Isso torna impossível uma rev antiga substituir uma nova. */
-  async _writeSectionCAS(row, expectedRev) {
-    if ((expectedRev || 0) > 0) {
-      const payload = { data: row.data, rev: row.rev, updated_at: row.updated_at };
-      const { data, error } = await CloudStore.client.from(this.TABLE)
-        .update(payload)
-        .eq('profile_id', row.profile_id)
-        .eq('section', row.section)
-        .eq('rev', expectedRev)
-        .select('rev');
-      if (error) throw error;
-      if (!data || !data.length) return { ok: false, conflict: true };
-      return { ok: true, rev: data[0].rev };
-    }
-    const { data, error } = await CloudStore.client.from(this.TABLE)
-      .insert(row).select('rev');
-    if (error) {
-      if (this._uniqueViolation(error)) return { ok: false, conflict: true };
-      throw error;
-    }
-    return { ok: true, rev: data && data[0] ? data[0].rev : row.rev };
+  /* CAS autoritativo no servidor. O cliente envia revisão e hash da base em que
+     editou; o PostgreSQL decide atomicamente se a base ainda é válida e ele
+     próprio incrementa a revisão. Linhas legadas ainda sem content_hash fazem
+     bootstrap pela revisão uma vez; depois disso também passam a exigir hash. */
+  async _writeSectionCAS(row, expectedRev, expectedHash) {
+    const mutationId = (window.DB && DB._uid) ? DB._uid() :
+      (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    let deviceId = null;
+    try { if (window.SessionGuard && SessionGuard.deviceId) deviceId = SessionGuard.deviceId(); } catch (_) { _quiet(_); }
+    const { data, error } = await CloudStore.client.rpc('write_profile_section_cas', {
+      p_profile_id: row.profile_id,
+      p_section: row.section,
+      p_data: row.data,
+      p_expected_rev: expectedRev || 0,
+      p_expected_hash: expectedHash || null,
+      p_new_hash: row._hash || null,
+      p_mutation_id: mutationId,
+      p_device_id: deviceId
+    });
+    if (error) throw error;
+    if (!data || data.ok !== true) return {
+      ok: false, conflict: !!(data && data.conflict), reason: data && data.reason,
+      remoteRev: data && data.remote_rev, remoteHash: data && data.remote_hash
+    };
+    return { ok: true, rev: data.rev, hash: data.content_hash || row._hash || null, mutationId };
   },
   // Envia as seções sujas para profile_sections com controle otimista por revisão.
   async pushDirty(id) {
@@ -511,7 +513,7 @@ const SectionSync = {
     for (const r of rows) {
       const { _sec, _hash, _len, _gen, _expectedRev, ...row } = r;
       try {
-        const wr = await this._writeSectionCAS(row, _expectedRev);
+        const wr = await this._writeSectionCAS({ ...row, _hash }, _expectedRev, (revs[_sec] && revs[_sec].hash) || null);
         if (!wr.ok && wr.conflict) {
           /* Pode ser um conflito real OU a mesma gravação já confirmada por outra
              tentativa. Só adotamos a revisão remota automaticamente quando o
@@ -676,8 +678,9 @@ const SectionSync = {
     if (prev.hash !== h) {
       const rev = (prev.rev || 0) + 1;
       const wr = await this._writeSectionCAS(
-        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at },
-        prev.rev || 0
+        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at, _hash: h },
+        prev.rev || 0,
+        prev.hash || null
       );
       if (!wr.ok && wr.conflict) {
         const remoto = await this._remoteSection(id, this.MANIFEST);
