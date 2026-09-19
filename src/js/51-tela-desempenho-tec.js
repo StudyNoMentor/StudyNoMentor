@@ -1492,7 +1492,7 @@ const DesempenhoTecScreen = {
           + (trilha.length ? `<small class="ms-item-trilha">${trilha.map(escapeHtml).join(' › ')}</small>` : '')
           + `<small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.motivoNivel === 'pior-do-grupo' ? ' · pior de ' + x.grupoTamanho : ''}</small></div></li>`;
       }).join('');
-      return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i>⌄</i></summary><ol>${itens}</ol></details>`;
+      return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i class="ms-chevron"></i></summary><ol>${itens}</ol></details>`;
     }).join('');
 
     const somaDose = r.itens.reduce((s, x) => s + Number(x.dose || 0), 0);
@@ -1514,11 +1514,11 @@ const DesempenhoTecScreen = {
 
       <div class="ms-rankings">
         <details class="ms-rank-panel">
-          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i>⌄</i></summary>
+          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i class="ms-chevron"></i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details class="ms-rank-panel">
-          <summary><span>🧬 O que vem depois em cada matéria?</span><small>toque numa matéria para abrir a fila</small><i>⌄</i></summary>
+          <summary><span>🧬 O que vem depois em cada matéria?</span><small>toque numa matéria para abrir a fila</small><i class="ms-chevron"></i></summary>
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>

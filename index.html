@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v3ac666e6fd">
+<meta name="diario-versao" content="v2431372f19">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -9144,10 +9144,13 @@ window.__idbBoot = (function () {
      `wide` ocupa a linha inteira nos dois casos.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* a porta: uma linha só, com o que está valendo escrito ao lado */
+/* a porta: uma linha só, com o que está valendo escrito ao lado. O padding-top
+   é o que separa o botão da linha divisória (border-top) que o tema premium
+   desenha no topo desta barra — sem ele a régua ficava colada no botão. */
 .tec-cfg-bar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin: 12px 24px 8px;
+  margin: 20px 24px 8px;
+  padding-top: 12px;
 }
 .tec-cfg-open {
   display: inline-flex; align-items: center; gap: 7px;
@@ -14510,10 +14513,35 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   font-weight: 800;
 }
 .ms-rankings summary::-webkit-details-marker { display: none; }
+.ms-rankings summary:hover { background: var(--surface-sunken); }
 .ms-rankings summary small { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 600; }
-.ms-rankings summary i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
 .ms-rankings details[open] summary { border-bottom: 1px solid var(--border); background: var(--surface-sunken); }
-.ms-rankings details[open] summary i { transform: rotate(180deg); }
+.ms-rankings details[open] { border-color: var(--accent, #5e81f4); }
+
+/* ── SETA DE EXPANDIR, EM QUALQUER ACORDEÃO DO MOTOR ──────────────────────
+   O glifo Unicode "⌄" some, some torto, some com um peso diferente conforme
+   fonte/SO — em alguns celulares nem parece seta. Aqui é um círculo com uma
+   seta desenhada em CSS puro (duas bordas em 45°): sempre nítida, sempre do
+   mesmo tamanho, e o círculo dá uma affordance de botão que o glifo sozinho
+   não tinha. Um só estilo, reaproveitado pela fila de sugestões, pelos dois
+   rankings e pelas alternativas por matéria do Puxar do Motor. */
+.ms-chevron {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; flex: 0 0 auto; border-radius: 50%;
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  transition: transform .18s ease, background .15s, border-color .15s;
+}
+.ms-chevron::before {
+  content: ''; width: 7px; height: 7px; margin-top: -3px;
+  border-right: 2px solid var(--text-faint); border-bottom: 2px solid var(--text-faint);
+  transform: rotate(45deg);
+}
+details[open] > summary .ms-chevron {
+  transform: rotate(180deg);
+  background: var(--accent-soft, rgba(94,129,244,.14));
+  border-color: var(--accent, #5e81f4);
+}
+details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f4); }
 
 @media (max-width: 760px) {
   #tec-panel-analise .tec-analysis-head {
@@ -14719,22 +14747,24 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   display: grid; grid-template-columns: 42px minmax(0,1fr) auto;
   align-items: start; gap: 11px;
 }
-.ms-suggestion-rank { position: relative; width: 40px; height: 40px; flex: 0 0 40px; }
+/* O número da posição NUNCA fica sobre o ícone de severidade — um selo
+   flutuante em cima do emoji (sirene, sino, raios) esbarrava no título ao
+   lado sempre que a trilha empurrava o texto para uma altura diferente em
+   cada aparelho/fonte. Aqui os dois moram em linhas próprias, empilhados,
+   dentro da MESMA coluna: zero sobreposição possível, em qualquer largura. */
+.ms-suggestion-rank {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 40px; flex: 0 0 40px;
+}
+.ms-suggestion-rank > span {
+  width: 20px; height: 20px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--ms-tone); color: #fff;
+  font-size: 10px; font-weight: 900; flex: 0 0 auto;
+}
 .ms-suggestion-rank > i {
   width: 40px; height: 40px; display: grid; place-items: center;
   border-radius: 12px; background: color-mix(in srgb, var(--ms-tone) 12%, var(--surface));
   font-style: normal; font-size: 19px; line-height: 1;
-}
-/* O emblema de posição fica embaixo, não em cima do ícone: o emoji de
-   severidade costuma carregar a "tinta" dele para cima (um sino, uma sirene
-   com raios de luz) — no canto superior o círculo do número entrava direto
-   nessa área e o Android, com fonte de emoji mais cheia, deixava os dois se
-   tocando. Embaixo a sobra do quadrado está sempre livre. */
-.ms-suggestion-rank > span {
-  position: absolute; right: -6px; bottom: -6px; z-index: 2;
-  width: 18px; height: 18px; display: grid; place-items: center;
-  border-radius: 50%; background: var(--ms-tone); color: #fff;
-  font-size: 9px; font-weight: 900; box-shadow: 0 0 0 2.5px var(--surface);
 }
 .ms-suggestion-title { min-width: 0; }
 .ms-suggestion-title > small {
@@ -14848,12 +14878,12 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   align-items: center; gap: 8px; padding: 10px 11px;
 }
 .ms-queue-item > summary::-webkit-details-marker { display: none; }
+.ms-queue-item > summary:hover { background: var(--surface-sunken); }
 .ms-queue-item > summary > span:first-child { font-size: 15px; }
 .ms-queue-item > summary b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-size: var(--fs-xs); }
 .ms-queue-item > summary small { color: var(--text-faint); font-size: var(--fs-3xs); font-weight: 700; white-space: nowrap; text-transform: uppercase; }
-.ms-queue-item > summary i { font-style: normal; color: var(--text-faint); transition: transform .16s ease; }
 .ms-queue-item[open] > summary { border-bottom: 1px solid var(--border); background: var(--surface-sunken); }
-.ms-queue-item[open] > summary i { transform: rotate(180deg); }
+.ms-queue-item[open] { border-color: var(--accent, #5e81f4); }
 .ms-queue-item > ol { list-style: none; margin: 0; padding: 6px; }
 .ms-queue-item li {
   display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 3px 8px;
@@ -14912,7 +14942,7 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
      texto não tinha onde ir e o navegador quebrava a própria palavra ao meio
      ("QUESTÕE" + "S") — daí a coluna agora nasce mais larga, e o rótulo do
      selo nunca quebra linha (nowrap), só encolhe de fonte se precisar. */
-  .ms-suggestion-head { grid-template-columns: 38px minmax(0,1fr) 74px; gap: 8px; }
+  .ms-suggestion-head { grid-template-columns: 36px minmax(0,1fr) 74px; gap: 8px; }
   .ms-members,
   .ms-action-context,
   .ms-suggestion-metrics,
@@ -14924,9 +14954,9 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 @media (max-width: 420px) {
   .ms-suggestion-card { padding: 12px 10px 11px 14px; }
   .ms-suggestion-head { grid-template-columns: 32px minmax(0,1fr) 72px; gap: 6px; }
-  .ms-suggestion-rank,
-  .ms-suggestion-rank > i { width: 32px; height: 32px; }
-  .ms-suggestion-rank > span { right: -5px; bottom: -5px; width: 16px; height: 16px; font-size: 8px; }
+  .ms-suggestion-rank { width: 32px; flex: 0 0 32px; gap: 3px; }
+  .ms-suggestion-rank > i { width: 32px; height: 32px; font-size: 16px; }
+  .ms-suggestion-rank > span { width: 16px; height: 16px; font-size: 8px; }
   .ms-suggestion-card .ms-dose { min-width: 0; padding: 8px 6px; }
   .ms-suggestion-card .ms-dose b { font-size: var(--fs-lg); }
   .ms-suggestion-card .ms-dose small { font-size: 9px; letter-spacing: 0; }
@@ -15100,13 +15130,13 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .pl-linha-stats b{color:var(--text);font-size:var(--fs-2xs)}
 .pl-linha-stats i{font-style:normal;color:var(--text-faint);text-transform:uppercase;letter-spacing:.03em;font-weight:700}
 
-.pl-alt-group{border:1px solid var(--border);border-radius:11px;background:var(--surface);overflow:hidden}
-.pl-alt-group>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 11px}
+.pl-alt-group{border:1px solid var(--border);border-radius:11px;background:var(--surface);overflow:hidden;transition:border-color .15s}
+.pl-alt-group>summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px;align-items:center;padding:10px 11px;transition:background .15s}
 .pl-alt-group>summary::-webkit-details-marker{display:none}
+.pl-alt-group>summary:hover{background:var(--surface-sunken)}
 .pl-alt-group>summary span{font-size:var(--fs-xs);font-weight:800;color:var(--text);overflow-wrap:anywhere}
 .pl-alt-group>summary small{font-size:var(--fs-3xs);color:var(--text-faint);text-transform:uppercase;letter-spacing:.02em}
-.pl-alt-group>summary i{font-style:normal;color:var(--text-faint);transition:transform .15s}
-.pl-alt-group[open]>summary i{transform:rotate(180deg)}
+.pl-alt-group[open]{border-color:var(--accent, #5e81f4)}
 .pl-alt-list{border-top:1px solid var(--border);padding:6px;display:grid;gap:6px}
 .pl-alt-list .pl-linha{padding:8px 9px}
 .pl-disc-search{display:flex;align-items:center;gap:7px;min-height:36px;margin:6px;padding:0 8px;border:1px solid var(--border);border-radius:8px}
@@ -32581,14 +32611,23 @@ const ExtrasScreen = {
       /* A recomendação da aba Motor pode já ter atividade aberta. Nesse caso,
          não deixamos um "buraco" entre recomendação 1 e 3: dentro da mesma
          disciplina pegamos a primeira frente seguinte que ainda está livre.
-         A ordem das MATÉRIAS continua a mesma; só avançamos a fila interna. */
+         A ordem das MATÉRIAS continua a mesma; só avançamos a fila interna.
+         AS 3 MATÉRIAS TÊM DE SER AS MESMAS DA ABA MOTOR — por isso a base aqui
+         é `disciplinasAcionaveis` (as que TÊM um tópico executável, já na
+         ordem que virou `r.itens`), nunca `r.disciplinas` bruta. `r.disciplinas`
+         inclui toda matéria com lacuna, mesmo as que não têm nenhum tópico com
+         amostra suficiente (amostra pulverizada entre irmãos, por exemplo); ao
+         cortar `.slice(0, maxFrentes)` ali, uma matéria assim podia ocupar uma
+         das 3 vagas e não sobrar candidato pra ela — a rodada aparecia com 2 em
+         vez de 3, mesmo havendo uma 3ª matéria de verdade acionável mais abaixo
+         no ranking bruto. */
       const disponivel = new Map();
       this._motorCand.forEach(x => {
         const d = ReforcoEngine.norm(x.disciplina || '');
         if (d && !disponivel.has(d)) disponivel.set(d, x);
       });
       this._motorFila = [];
-      (r.disciplinas || []).slice(0, r.prefs.maxFrentes || 3).forEach(d => {
+      (r.disciplinasAcionaveis || []).slice(0, r.prefs.maxFrentes || 3).forEach(d => {
         const x = disponivel.get(ReforcoEngine.norm(d.nome || ''));
         if (x) this._motorFila.push(x.disciplina + '\u0001' + x.nome);
       });
@@ -32776,7 +32815,7 @@ const ExtrasScreen = {
       const alternativas = itens.filter(({ x }) => !recomendadas.has(x.disciplina + '\u0001' + x.nome));
       const pior = itens.map(o => o.x).sort((a, b) => (b.taxaErro || 0) - (a.taxaErro || 0))[0];
       grupos.push('<details class="pl-alt-group"><summary><span>' + this._motorEmoji(pior || {}) + ' ' + escapeHtml(d) + '</span><small>'
-        + itens.length + ' frente(s) · pior → melhor</small><i>⌄</i></summary>'
+        + itens.length + ' frente(s) · pior → melhor</small><i class="ms-chevron"></i></summary>'
         + '<div class="pl-alt-list">' + (alternativas.length
           ? alternativas.map(o => linha(o, false, 0)).join('')
           : '<p class="hint" style="padding:8px;">A recomendação acima já é a única frente acionável desta matéria.</p>')
@@ -35814,7 +35853,7 @@ const DesempenhoTecScreen = {
           + (trilha.length ? `<small class="ms-item-trilha">${trilha.map(escapeHtml).join(' › ')}</small>` : '')
           + `<small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.motivoNivel === 'pior-do-grupo' ? ' · pior de ' + x.grupoTamanho : ''}</small></div></li>`;
       }).join('');
-      return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i>⌄</i></summary><ol>${itens}</ol></details>`;
+      return `<details class="ms-queue-item"><summary><span>${emoji(d.melhorTopico || {})}</span><b>${escapeHtml(d.nome)}</b><small>${(d.fila || []).length} frente(s)</small><i class="ms-chevron"></i></summary><ol>${itens}</ol></details>`;
     }).join('');
 
     const somaDose = r.itens.reduce((s, x) => s + Number(x.dose || 0), 0);
@@ -35836,11 +35875,11 @@ const DesempenhoTecScreen = {
 
       <div class="ms-rankings">
         <details class="ms-rank-panel">
-          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i>⌄</i></summary>
+          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i class="ms-chevron"></i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details class="ms-rank-panel">
-          <summary><span>🧬 O que vem depois em cada matéria?</span><small>toque numa matéria para abrir a fila</small><i>⌄</i></summary>
+          <summary><span>🧬 O que vem depois em cada matéria?</span><small>toque numa matéria para abrir a fila</small><i class="ms-chevron"></i></summary>
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
