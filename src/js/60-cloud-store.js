@@ -400,7 +400,10 @@ const CloudStore = {
         if (SectionSync.seedUntrackedOnly) SectionSync.seedUntrackedOnly(id);
       }
       await SectionSync.pushDirty(id);
-      return SectionSync._dirtyFor(id).size === 0 && !SectionSync._lastError;
+      const resta = SectionSync.explicitPendingSections
+        ? SectionSync.explicitPendingSections(id).length
+        : SectionSync._dirtyFor(id).size;
+      return resta === 0 && !SectionSync._lastError;
     } catch (_) { return false; }
   },
   async autoSave() {
