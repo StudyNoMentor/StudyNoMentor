@@ -236,6 +236,39 @@ const CloudUI = {
     catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   }
 };
+
+/* Estado do indicador = estado REAL das operações SQL. Sem "salvo localmente". */
+CloudUI.refreshSyncBtn = function (forceTone, forceText) {
+  const btn = document.getElementById('cloud-sync-btn');
+  if (!btn) return;
+  const CS = window.CloudStore;
+  const RS = window.RelationalStore;
+  let tone = forceTone, text = forceText;
+
+  if (!tone) {
+    if (!CS || !CS.isReady() || !CS.isLoggedIn()) {
+      tone = 'off'; text = 'Banco desconectado';
+    } else if (!RS) {
+      tone = 'error'; text = 'Camada de dados indisponível';
+    } else if (RS._lastError) {
+      tone = 'error'; text = 'Falha ao salvar no banco';
+    } else if (RS.pendingCount() > 0) {
+      tone = 'syncing'; text = 'Salvando no banco…';
+    } else if (RS._lastSyncAt) {
+      tone = 'ok'; text = 'Banco sincronizado ' + this._timeAgo(RS._lastSyncAt);
+    } else {
+      tone = 'ok'; text = 'Banco conectado';
+    }
+  }
+
+  btn.className = 'cloud-sync-btn st-' + tone;
+  btn.title = text || 'Estado do banco';
+  const el = document.getElementById('cloud-sync-status');
+  if (el) {
+    el.className = 'cloud-status-sub ' + (tone === 'ok' ? '' : tone);
+    el.innerHTML = '<span class="dot"></span>' + escapeHtml(text || '');
+  }
+};
 window.CloudUI = CloudUI;
 
 /* ---- Listeners: portão de acesso ---- */
@@ -466,53 +499,38 @@ window.CloudUI = CloudUI;
 })();
 window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'config' && window.CloudUI) CloudUI.render(); });
 
-/* ---- Inicialização (ordem importa) ---- */
+/* ---- Integração SQL relacional ---- */
 _cloudNotifyHook = () => CloudStore.notifyChange();
 
-/* ---- Sincronização automática sem botão obrigatório + botão visível no topo ----
-   • Ao VOLTAR o foco/rede: puxa a versão mais nova da nuvem (se você não tem alterações
-     pendentes) ou envia as suas (se tem). Isso evita o conflito celular↔PC no uso normal.
-   • Ao SAIR/ocultar a aba: envia na hora o que estava pendente (não espera o debounce).
-   • O botão ☁ no topo mostra o estado e, se quiser, força a sincronização na hora. */
 (function () {
   const btn = document.getElementById('cloud-sync-btn');
   if (btn) btn.addEventListener('click', () => CloudStore.syncNow());
-  // voltar o foco à aba / janela → sincroniza de forma inteligente
+
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') CloudStore.syncOnFocus();
-    else {
-      // ao ocultar (trocar de app/aba): dispara o envio async E o salvamento de emergência
-      // (keepalive). No celular, "ocultar" é o sinal mais confiável de que o app pode ser
-      // encerrado a qualquer momento — o beacon garante que o pendente chegue à nuvem.
-      CloudStore.flushPending();
-      CloudStore._beaconSave();
-    }
   });
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
-  window.addEventListener('online', () => { if (window.CloudUI) CloudUI.refreshSyncBtn(); CloudStore.syncOnFocus(); });
-  window.addEventListener('offline', () => { if (window.CloudUI) CloudUI.setStatus('error', 'Sem internet'); });
-  // fechamento real da página: pagehide é confiável no celular (beforeunload não é).
-  // Ambos usam o salvamento por keepalive, que sobrevive ao descarregamento da aba.
-  window.addEventListener('pagehide', () => { try { CloudStore._beaconSave(); } catch (e) { _quiet(e); } });
-  window.addEventListener('beforeunload', () => { try { CloudStore._beaconSave(); } catch (e) { _quiet(e); } });
-  // REDE DE SEGURANÇA: a cada 8s, se houver algo pendente e nenhum envio em curso,
-  // garante o salvamento — cobre qualquer alteração que tenha ficado para trás.
-  setInterval(() => { if (CloudStore._pending && !CloudStore._syncing) CloudStore.autoSave(); }, 8000);
-  // Sync por seção (Opção B): garante o preenchimento da tabela nova mesmo sem edições.
-  setInterval(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) { _quiet(_); } }, 12000);
-  setTimeout(() => { try { if (window.SectionSync) SectionSync.kick(); } catch (_) { _quiet(_); } }, 4000);
-  // atualiza o rótulo "há X min" periodicamente
-  setInterval(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 30000);
-  // com a tela de Configurações aberta, a fila se atualiza sozinha (o envio é assíncrono)
+  window.addEventListener('online', () => {
+    if (window.CloudUI) CloudUI.refreshSyncBtn();
+    CloudStore.syncOnFocus();
+  });
+  window.addEventListener('offline', () => {
+    if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão com o banco');
+  });
+
+  /* Realtime acelera. Este pulso é a rede de segurança contra qualquer evento
+     WebSocket perdido: consulta a cópia canônica no SQL enquanto a aba está ativa. */
   setInterval(() => {
     try {
-      const cfg = document.getElementById('screen-config');
-      if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderQueue();
+      if (document.visibilityState === 'visible' && window.CloudStore) CloudStore.syncOnFocus();
     } catch (_) { _quiet(_); }
-  }, 5000);
-  // estado inicial do botão
-  setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
+  }, 30000);
 
+  setInterval(() => {
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
+  }, 10000);
+
+  setTimeout(() => { if (window.CloudUI) CloudUI.refreshSyncBtn(); }, 300);
 })();
 
 /* ---- Tamanho do texto (A− / A+): escala global, salva por perfil ---- */
