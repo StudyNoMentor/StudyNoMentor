@@ -450,8 +450,15 @@
       }
     } catch (e) {}
     return Promise.all(tarefas).catch(function () {}).then(function () {
-      return window.__idbFlush ? window.__idbFlush() : null;
-    }).then(function () { location.reload(); });
+      if (window.__idbFlushStrict) return window.__idbFlushStrict(10000);
+      return window.__idbFlush ? window.__idbFlush().then(function () { return { ok: true }; }) : { ok: true };
+    }).then(function (r) {
+      if (r && r.ok === false) {
+        try { console.error('[cache] recarga cancelada: commit local não confirmado', r); } catch (_) {}
+        return;
+      }
+      location.reload();
+    });
   };
 
   openIDB()
