@@ -272,17 +272,28 @@ const SectionSync = {
     const list = Array.isArray(all[sec]) ? all[sec] : [];
     const sid = String(op.id);
     const gen = this._dirtyGenFor(id).get(sec) || this._ensureDirty(sec, id);
-    // Uma intenção mais nova para o mesmo ID substitui a anterior. Se criou e
-    // apagou antes de sincronizar, o resultado final é delete — idempotente.
+    const anterior = list.find(x => String(x.id) === sid) || null;
     const next = list.filter(x => String(x.id) !== sid);
+    const clone = (v) => {
+      if (v == null) return null;
+      try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
+    };
     if (op.type === 'delete') {
-      let before = op.before || null;
-      try { before = before == null ? null : JSON.parse(JSON.stringify(before)); } catch (_) { _quiet(_); }
+      /* Criou e apagou antes de qualquer envio = nenhuma intenção remota.
+         Edição seguida de exclusão mantém como base a imagem ANTES da primeira
+         edição, não a intermediária. */
+      if (anterior && anterior.type === 'upsert' && anterior.before == null) {
+        if (next.length) all[sec] = next; else delete all[sec];
+        this._saveEntryOps(all, id);
+        return;
+      }
+      const before = clone(anterior && anterior.before != null ? anterior.before : op.before);
       next.push({ type: 'delete', id: sid, before, gen });
     } else if (op.type === 'upsert' && op.entry) {
-      let entry = op.entry, before = op.before || null;
-      try { entry = JSON.parse(JSON.stringify(op.entry)); } catch (_) { _quiet(_); }
-      try { before = before == null ? null : JSON.parse(JSON.stringify(before)); } catch (_) { _quiet(_); }
+      const entry = clone(op.entry);
+      /* Várias edições antes do envio continuam ancoradas na primeira imagem
+         conhecida. Delete+restauração do mesmo ID também preserva essa base. */
+      const before = clone(anterior ? anterior.before : op.before);
       next.push({ type: 'upsert', id: sid, entry, before, gen });
     } else return;
     all[sec] = next;
