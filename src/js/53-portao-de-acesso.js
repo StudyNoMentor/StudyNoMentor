@@ -95,10 +95,17 @@ const ProfileUI = {
   resumeAfterSessionClaim() {
     clearTimeout(this._sessionRetryTimer);
     this._sessionRetryTimer = null;
-    const id = this._pendingSessionProfile;
+    /* O takeover pode acontecer ANTES de enterProfile preencher
+       _pendingSessionProfile. Nesse caso o comportamento antigo voltava ao
+       refreshStage e podia cair no fast path sobre cache físico velho. Depois
+       de assumir a sessão, sempre reabrimos um alvo conhecido pelo caminho
+       canônico (hydrate explicitOnly), nunca apenas "liberamos" o cache. */
+    const id = this._pendingSessionProfile ||
+      (window.ProfileManager ? ProfileManager.getActiveProfileId() : null) ||
+      this.getDefaultProfile() || this.getLastProfile();
     this._pendingSessionProfile = null;
     if (id) {
-      this._entering = true;
+      this._showEnteringGate(id);
       this.enterProfile(id);
       return;
     }
@@ -167,8 +174,16 @@ const ProfileUI = {
         const uidAtual = this._uid();
         const guardLiberou = this._offline ||
           !!(window.SessionGuard && (!SessionGuard.enabled || SessionGuard.canEnterNow()));
-        const podeAbrirLocal = guardLiberou && localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
+        const baseLocalValida = guardLiberou && localAlvo && localAlvo === ativoLocal && this._hasLocalData(localAlvo) &&
           (!ProfileManager._podeVerLocal || ProfileManager._podeVerLocal(localAlvo, uidAtual));
+        let integridade = { ok: false, reason: 'sem-verificador' };
+        if (this._offline) integridade = { ok: true, reason: 'offline' };
+        else {
+          try {
+            if (window.SectionSync && SectionSync.fastPathIntegrity) integridade = SectionSync.fastPathIntegrity(localAlvo);
+          } catch (e) { _quiet(e, 'fast-path-integridade'); }
+        }
+        const podeAbrirLocal = baseLocalValida && integridade.ok;
         if (podeAbrirLocal) {
           this._autoEnterTried = true;
           this._entering = false;
@@ -180,6 +195,16 @@ const ProfileUI = {
           this.renderChip();
           try { DB.checarEspaco(); } catch (_) { _quiet(_); }
           setTimeout(() => { try { if (window.CloudStore) CloudStore.syncOnFocus(); } catch (_) { _quiet(_); } }, 120);
+          return;
+        }
+        /* Há perfil/local válidos, mas NÃO há prova de integridade física.
+           Não mostre o cache e não espere uma checagem leve de revisão:
+           entre pelo caminho completo, que usa hydrate({explicitOnly:true}) e
+           corrige "rev novo + conteúdo velho" antes da UI ficar disponível. */
+        if (baseLocalValida && !integridade.ok) {
+          try { console.warn('[perfil] fast path recusado:', integridade.reason || 'integridade local não comprovada', integridade.mismatches || []); } catch (_) { _quiet(_); }
+          this._showEnteringGate(localAlvo);
+          this.enterProfile(localAlvo);
           return;
         }
         this._stage = 'entering';
