@@ -832,6 +832,34 @@ try {
   eq(autoSaveSeedsOnlyUntracked.markCalls,0,'autosave não pode promover divergência de hash a edição');
   ok(autoSaveSeedsOnlyUntracked.okPush,'outbox vazia deve ser considerada entregue');
 
+  /* 2l.18. O evento real de takeover deve acionar a drenagem do snapshot. */
+  const takenByWiresDrain=await page.evaluate(async()=>{
+    const id='syncv2-takenby-drain';
+    const keep={
+      active:ProfileManager.getActiveProfileId,
+      capture:SectionSync.captureExplicitSnapshot,drain:SectionSync.drainExplicitSnapshot,
+      block:SessionLock.block,refresh:CloudUI.refreshSyncBtn,
+      state:SessionGuard._accessState,uid:SessionGuard._accessUid,
+      handoff:SessionGuard._handoffDraining,last:SessionGuard._handoffLast
+    };
+    let captures=0,drains=0,blocked=0;
+    ProfileManager.getActiveProfileId=()=>id;
+    SectionSync.captureExplicitSnapshot=()=>{captures++;return [{section:'entries',gen:7}];};
+    SectionSync.drainExplicitSnapshot=async(pid,snap)=>{if(pid===id&&snap&&snap.length===1)drains++;return {ok:true,sent:1,remaining:0};};
+    SessionLock.block=()=>{blocked++;};
+    CloudUI.refreshSyncBtn=()=>{};
+    SessionGuard._takenBy({device_id:'outro',device_label:'Outro'});
+    await new Promise(r=>setTimeout(r,30));
+    ProfileManager.getActiveProfileId=keep.active;SectionSync.captureExplicitSnapshot=keep.capture;SectionSync.drainExplicitSnapshot=keep.drain;
+    SessionLock.block=keep.block;CloudUI.refreshSyncBtn=keep.refresh;
+    SessionGuard._accessState=keep.state;SessionGuard._accessUid=keep.uid;
+    SessionGuard._handoffDraining=keep.handoff;SessionGuard._handoffLast=keep.last;
+    return {captures,drains,blocked};
+  });
+  eq(takenByWiresDrain.captures,1,'takeover remoto deve congelar a outbox existente');
+  eq(takenByWiresDrain.drains,1,'takeover remoto deve tentar entregar o snapshot congelado');
+  eq(takenByWiresDrain.blocked,1,'takeover remoto deve continuar bloqueando novas ações na interface');
+
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
     const id='syncv2-pending-delete',sec='entries';
