@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8c47a6e2a2">
+<meta name="diario-versao" content="v4a9f58bf4b">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41102,7 +41102,7 @@ const CloudStore = {
     // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
       try {
-        if (await SectionSync.pullAndReload(opts)) return;
+        if (await SectionSync.pullAndReload(opts)) return true;
         const lr = SectionSync.lastRead ? SectionSync.lastRead() : null;
         /* Se JÁ existem linhas por seção, uma falha de manifesto/conjunto não
            autoriza aplicar o blob antigo por cima. O blob só é plano B para
@@ -41132,10 +41132,14 @@ const CloudStore = {
       const mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
       ProfileManager.setRev(id, res.rev);
       this._applying = false;
-      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return; }
+      if (!mudou) { console.info('[CloudStore] nuvem conferida: nada mudou, sem recarregar'); return true; }
       showToast('Sincronizado da nuvem ✓');
       recarregarApp('dados novos da nuvem (blob)');
-    } catch (e) { this._applying = false; console.error('pullActiveAndReload', e); }
+      return true;
+    } catch (e) {
+      this._applying = false; console.error('pullActiveAndReload', e);
+      return false;
+    }
   },
   // Salva o estado atual na nuvem ANTES de recarregar a página. Essencial: sem isto,
   // o location.reload() cancela o salvamento automático e a alteração se perde na nuvem.
@@ -46336,14 +46340,12 @@ else CloudStore.init();
         /* Esta é a única ação do app que apaga dados de propósito. A foto local
            acima some junto se o navegador for limpo depois; a do banco, não. */
         if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar os dados locais');
-        const id = ProfileManager.getActiveProfileId();
-        const pfx = 'diario-estudos:u:' + id + ':';
-        const del = [];
-        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(pfx) === 0) del.push(k); }
-        del.forEach(k => { try { localStorage.removeItem(k); } catch (_) { _quiet(_); } });
-        ProfileManager.setRev(id, 0);
-        toast('Baixando da nuvem…');
-        await CS.pullActiveAndReload({ readOnly: true });
+        /* Não apagamos primeiro. O download por seção já valida o conjunto
+           inteiro ANTES de aplicar. Se a nuvem estiver incompleta ou offline,
+           esta cópia local permanece exatamente como estava. */
+        toast('Validando e baixando da nuvem…');
+        const okPull = await CS.pullActiveAndReload({ readOnly: true });
+        if (okPull === false) toast('A cópia local foi mantida porque a nuvem não pôde ser validada com segurança.');
       } catch (e) { toast('Não foi possível concluir a limpeza.'); }
     },
 
