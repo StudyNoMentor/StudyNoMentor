@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="veb743c36c5">
+<meta name="diario-versao" content="v9b7e54f477">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -46923,21 +46923,6 @@ else CloudStore.init();
       }
     },
 
-    /* O ranking usa o recorte consolidado acima. Já o ciclo precisa de uma
-       fotografia comparável: o retrato mais recente dentro desse mesmo
-       recorte. Somar históricos faria qBase crescer a cada importação e
-       transformaria volume antigo em "questões feitas" na rodada atual. */
-    retratoDeCiclo() {
-      try {
-        const snaps = (DesempenhoTecScreen.activeSnapshots
-          ? DesempenhoTecScreen.activeSnapshots() : DB.getTecSnapshots()) || [];
-        return snaps.slice().sort((a, b) => this._dataRetrato(a).localeCompare(this._dataRetrato(b))).slice(-1)[0] || null;
-      } catch (e) {
-        if (typeof _quiet === 'function') _quiet(e, 'motor-retrato-ciclo');
-        return null;
-      }
-    },
-
     disciplinasDisponiveis() {
       let snap = null;
       try { snap = this.retratoAtual(); }
@@ -47153,7 +47138,7 @@ else CloudStore.init();
     estadoAtual(origem, opts) {
       const o = origem || {};
       let snap = null;
-      try { snap = opts && opts.retrato ? opts.retrato : this.retratoAtual(); }
+      try { snap = this.retratoAtual(); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-estado-snap'); }
       if (!snap || !(snap.rows || []).length) return null;
       const forest = this._forestEstavel(snap);
@@ -47366,9 +47351,7 @@ else CloudStore.init();
 
     _ultimoRetrato() {
       try {
-        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoDeCiclo)
-          ? MotorSugestao.retratoDeCiclo()
-          : (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
+        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
           ? MotorSugestao.retratoAtual()
           : null;
         if (!s) return null;
@@ -47436,26 +47419,14 @@ else CloudStore.init();
       const disciplinaFinal = disciplina || (item && item.disciplina) || '';
       const alvoQuestoes = item && item.dose != null ? Math.max(1, Math.round(num(item.dose))) : p.alvoQuestoes;
       const filtroTec = this.filtroTec(Object.assign({}, item || {}, { dose: alvoQuestoes }), disciplinaFinal);
-      const origemConsulta = {
-        topico: topico || (item && item.nome) || '',
-        disciplina: disciplinaFinal,
-        caminho: item && Array.isArray(item.caminho) ? item.caminho.slice() : [],
-        membros,
-        escopo: membros && membros.length > 1 ? { membros: membros.slice() } : null
-      };
-      const retratoCiclo = (typeof MotorSugestao.retratoDeCiclo === 'function')
-        ? MotorSugestao.retratoDeCiclo() : null;
-      const baseCiclo = MotorSugestao.estadoAtual(origemConsulta, { retrato: retratoCiclo });
       return {
         motor: 'sugestao',
         versao: 3,
         topico: topico || (item && item.nome) || '',
         disciplina: disciplinaFinal,
         criadoEm: typeof todayLocal === 'function' ? todayLocal() : new Date().toISOString().slice(0, 10),
-        taxaInicial: baseCiclo && baseCiclo.taxa != null
-          ? num(baseCiclo.taxa) : item && item.taxa != null ? num(item.taxa) : null,
-        qBase: baseCiclo && baseCiclo.questoes != null
-          ? num(baseCiclo.questoes) : item && item.questoes != null ? num(item.questoes) : 0,
+        taxaInicial: item && item.taxa != null ? num(item.taxa) : null,
+        qBase: item && item.questoes != null ? num(item.questoes) : 0,
         metaAlvo: p.metaAcerto,
         alvoQuestoes,
         nivel: item && item.nivel != null ? Math.max(1, num(item.nivel)) : null,
@@ -47516,9 +47487,7 @@ else CloudStore.init();
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-calcular'); }
       if (!r || r.erro) return null;
 
-      const retratoCiclo = (typeof MotorSugestao.retratoDeCiclo === 'function')
-        ? MotorSugestao.retratoDeCiclo() : null;
-      const atual = MotorSugestao.estadoAtual(o, { retrato: retratoCiclo }) || null;
+      const atual = MotorSugestao.estadoAtual(o) || null;
       const d = this._disciplinaAtual(r, o.disciplina);
       const rank = this._rankAtual(r, o.disciplina);
       const p = r.prefs || MotorSugestao.prefs();
