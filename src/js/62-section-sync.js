@@ -46,6 +46,12 @@ const SectionSync = {
     return this.readEnabled;
   },
   _dirty: new Set(),        // seções alteradas aguardando envio
+  /* Geração local por seção. Um Set sozinho não distingue "a seção que começou
+     a subir" de "a mesma seção editada de novo enquanto o upload estava em voo".
+     A confirmação só pode limpar a fila se a geração ainda for a mesma. */
+  _dirtyGen: new Map(),
+  _genSeq: 0,
+  _lastConflict: null,
   _pushing: false,
   _seededProfile: null,     // id do perfil já "semeado" nesta sessão (envio inicial completo)
   _lastError: null,         // último erro de envio (para diagnóstico)
@@ -100,10 +106,29 @@ const SectionSync = {
       else localStorage.removeItem(this._pendKey());
     } catch (_) { _quiet(_); }
   },
+  _touchDirty(sec) {
+    if (!sec) return 0;
+    const g = ++this._genSeq;
+    this._dirty.add(sec);
+    this._dirtyGen.set(sec, g);
+    return g;
+  },
+  _ensureDirty(sec) {
+    if (!sec) return 0;
+    if (!this._dirty.has(sec)) this._dirty.add(sec);
+    if (!this._dirtyGen.has(sec)) this._dirtyGen.set(sec, ++this._genSeq);
+    return this._dirtyGen.get(sec) || 0;
+  },
+  _clearDirtyIfGeneration(sec, gen) {
+    if ((this._dirtyGen.get(sec) || 0) !== (gen || 0)) return false;
+    this._dirty.delete(sec);
+    this._dirtyGen.delete(sec);
+    return true;
+  },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
   restorePending() {
     const antes = this._dirty.size;
-    this._loadPend().forEach(s => this._dirty.add(s));
+    this._loadPend().forEach(s => this._ensureDirty(s));
     const novas = this._dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
@@ -218,7 +243,7 @@ const SectionSync = {
   markDirty(fullKey) {
     if (!this.enabled) return;
     const sec = this.sectionForKey(fullKey);
-    if (sec) { this._dirty.add(sec); this._savePend(); }
+    if (sec) { this._touchDirty(sec); this._savePend(); }
   },
   /* ── EXCLUSÕES DELIBERADAS ────────────────────────────────────────────────
      A nuvem só pode esquecer o que VOCÊ mandou esquecer. Antes, o manifesto era
@@ -255,6 +280,7 @@ const SectionSync = {
     const sec = this.sectionForKey(fullKey);
     if (!sec) return;
     this._dirty.delete(sec);
+    this._dirtyGen.delete(sec);
     this._savePend();
     const revs = this._getRevs();
     if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
@@ -274,7 +300,7 @@ const SectionSync = {
         if (!sec) continue;
         const raw = localStorage.getItem(full) || '';
         const h = this._hash(raw);
-        if (!revs[sec] || revs[sec].hash !== h) this._dirty.add(sec); // só o que mudou
+        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec); // só o que mudou
       }
     } catch (_) { _quiet(_); }
     this._savePend();
@@ -320,9 +346,42 @@ const SectionSync = {
     };
   },
 
-  // Envia as seções sujas para profile_sections (upsert por profile_id+section).
-  // Best-effort: qualquer falha mantém a seção suja para a próxima rodada, e NUNCA
-  // interfere no salvamento do blob (que é a fonte de verdade nesta fase).
+  _uniqueViolation(err) {
+    const c = ((err && (err.code || err.message || err.details)) || '').toString().toLowerCase();
+    return c.indexOf('23505') >= 0 || c.indexOf('duplicate key') >= 0;
+  },
+  async _remoteSection(profileId, section) {
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .select('section,data,rev,updated_at')
+      .eq('profile_id', profileId).eq('section', section).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+  /* Compare-and-swap: a linha só avança se a revisão remota ainda for EXATAMENTE
+     a revisão em que esta edição se baseou. Nunca fazemos upsert cego sobre uma
+     linha existente. Isso torna impossível uma rev antiga substituir uma nova. */
+  async _writeSectionCAS(row, expectedRev) {
+    if ((expectedRev || 0) > 0) {
+      const payload = { data: row.data, rev: row.rev, updated_at: row.updated_at };
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .update(payload)
+        .eq('profile_id', row.profile_id)
+        .eq('section', row.section)
+        .eq('rev', expectedRev)
+        .select('rev');
+      if (error) throw error;
+      if (!data || !data.length) return { ok: false, conflict: true };
+      return { ok: true, rev: data[0].rev };
+    }
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .insert(row).select('rev');
+    if (error) {
+      if (this._uniqueViolation(error)) return { ok: false, conflict: true };
+      throw error;
+    }
+    return { ok: true, rev: data && data[0] ? data[0].rev : row.rev };
+  },
+  // Envia as seções sujas para profile_sections com controle otimista por revisão.
   async pushDirty() {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
@@ -347,12 +406,16 @@ const SectionSync = {
     const rows = [];
     const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
+      const gen = this._dirtyGen.get(sec) || this._ensureDirty(sec);
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
-      if (d.acao === 'sumida') { this._dirty.delete(sec); sumidas.push(sec); return; }
-      if (d.acao === 'idêntico') { this._dirty.delete(sec); return; }
+      if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen); sumidas.push(sec); return; }
+      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen); return; }
       if (d.esvaziando) esvaziando.push(sec);
-      rows.push({ _sec: sec, _hash: d.hash, _len: raw.length, profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString() });
+      rows.push({
+        _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen, _expectedRev: (revs[sec] && revs[sec].rev) || 0,
+        profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString()
+      });
     });
     if (sumidas.length) {
       this._savePend();
@@ -374,23 +437,45 @@ const SectionSync = {
     // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
     // registrado individualmente, e ela reenvia sozinha na próxima rodada. Mais lento,
     // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
-    let okCount = 0; const falhas = [];
+    let okCount = 0; const falhas = []; const conflitos = [];
+    this._lastConflict = null;
     for (const r of rows) {
-      const { _sec, _hash, _len, ...row } = r;
+      const { _sec, _hash, _len, _gen, _expectedRev, ...row } = r;
       try {
-        const { error } = await CloudStore.client.from(this.TABLE).upsert(row, { onConflict: 'profile_id,section' });
-        if (error) throw error;
-        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem: é o que
-        // permite distinguir, no próximo envio, um esvaziamento de um dado que
-        // sempre foi vazio (ver a trava logo acima).
-        revs[_sec] = { rev: row.rev, hash: _hash, len: _len };
-        this._dirty.delete(_sec);
+        const wr = await this._writeSectionCAS(row, _expectedRev);
+        if (!wr.ok && wr.conflict) {
+          /* Pode ser um conflito real OU a mesma gravação já confirmada por outra
+             tentativa. Só adotamos a revisão remota automaticamente quando o
+             CONTEÚDO remoto é exatamente o snapshot que tentávamos enviar. */
+          const remoto = await this._remoteSection(id, _sec);
+          const remotoRaw = remoto ? this._decode(remoto.data) : null;
+          const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
+          if (remoto && remotoHash === _hash) {
+            revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
+            const atual = localStorage.getItem(pfx + _sec);
+            if (atual !== null && this._hash(atual) === _hash) this._clearDirtyIfGeneration(_sec, _gen);
+            /* Se houve edição nova durante o voo, a geração mudou e a seção fica
+               suja; agora ela já parte da revisão remota confirmada. */
+            okCount++;
+            continue;
+          }
+          conflitos.push(_sec);
+          falhas.push(_sec + ' (conflito de revisão protegido)');
+          continue;
+        }
+        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
+        revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
+        this._clearDirtyIfGeneration(_sec, _gen);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
         falhas.push(_sec + ' (' + (row.data ? JSON.stringify(row.data).length : 0) + ' bytes): ' + msg);
         // mantém a seção suja para o próximo retry
       }
+    }
+    if (conflitos.length) {
+      this._lastConflict = { em: Date.now(), seções: conflitos.slice() };
+      console.warn('[SectionSync] conflito protegido em', conflitos.length, 'seção(ões):', conflitos.join(', '));
     }
     // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
     // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
@@ -593,7 +678,8 @@ const SectionSync = {
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
     this._seededProfile = id;
     this._dirty.clear();
-    manter.forEach(s => this._dirty.add(s));
+    this._dirtyGen.clear();
+    manter.forEach(s => this._ensureDirty(s));
     try {
       const pk = prefix + this.PEND;
       if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
@@ -613,7 +699,9 @@ const SectionSync = {
          conseguir subir volta como `preservar` e sai ileso do download — é o que
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
-      const preservar = await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
+      const preservar = opts.skipPush
+        ? this.pendingSections(id)
+        : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
@@ -643,6 +731,12 @@ const SectionSync = {
      barreira corrige cache regressado sem transformar ausência remota em perda. */
   async hydrateAfterAppUpdate(id) {
     return this.hydrate(id, { force: true, explicitOnly: true });
+  },
+  /* Download manual realmente somente-leitura: nunca publica nada antes de ler.
+     Se houver divergência local conhecida, ela é preservada e permanece visível
+     na fila em vez de ser apagada. */
+  async hydrateReadOnly(id) {
+    return this.hydrate(id, { force: true, skipPush: true });
   },
 
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
@@ -700,12 +794,13 @@ const SectionSync = {
   /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.
      Antes recarregava sempre que a checagem dissesse "pode haver novidade", e
      bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
-  async pullAndReload() {
+  async pullAndReload(opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
     /* `aplicando` e não duas atribuições soltas: se `hydrate` lançar (rede,
        JSON malformado, armazenamento), a linha que desligava a marca era pulada
        e `notifyChange` passava a ignorar toda alteração seguinte. */
-    const r = await CloudStore.aplicando(() => this.hydrate(id));
+    const r = await CloudStore.aplicando(() => opts.readOnly ? this.hydrateReadOnly(id) : this.hydrate(id));
     if (!r.ok) return false;
     if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');
@@ -718,6 +813,7 @@ const SectionSync = {
     try { localStorage.removeItem(this._revKey()); } catch (_) { _quiet(_); }
     this._seededProfile = null;
     this._dirty.clear();
+    this._dirtyGen.clear();
     this.markAllDirty();
     await this.pushDirty();
     return this.status();
@@ -851,6 +947,7 @@ const SectionSync = {
       enviadasNestaSessão: this._pushedCount,
       últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
       últimoErro: this._lastError,
+      últimoConflitoProtegido: this._lastConflict,
       sombraSomenteLeitura: true,
       sombraÚltimaExecução: this._shadowLastAt ? new Date(this._shadowLastAt).toLocaleString('pt-BR') : null,
       sombraÚltimoErro: this._shadowLastError,
