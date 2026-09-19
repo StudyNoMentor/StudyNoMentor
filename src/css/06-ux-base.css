@@ -1100,10 +1100,13 @@
      `wide` ocupa a linha inteira nos dois casos.
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* a porta: uma linha só, com o que está valendo escrito ao lado */
+/* a porta: uma linha só, com o que está valendo escrito ao lado. O padding-top
+   é o que separa o botão da linha divisória (border-top) que o tema premium
+   desenha no topo desta barra — sem ele a régua ficava colada no botão. */
 .tec-cfg-bar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin: 12px 24px 8px;
+  margin: 20px 24px 8px;
+  padding-top: 12px;
 }
 .tec-cfg-open {
   display: inline-flex; align-items: center; gap: 7px;

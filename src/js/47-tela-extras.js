@@ -346,14 +346,23 @@ const ExtrasScreen = {
       /* A recomendação da aba Motor pode já ter atividade aberta. Nesse caso,
          não deixamos um "buraco" entre recomendação 1 e 3: dentro da mesma
          disciplina pegamos a primeira frente seguinte que ainda está livre.
-         A ordem das MATÉRIAS continua a mesma; só avançamos a fila interna. */
+         A ordem das MATÉRIAS continua a mesma; só avançamos a fila interna.
+         AS 3 MATÉRIAS TÊM DE SER AS MESMAS DA ABA MOTOR — por isso a base aqui
+         é `disciplinasAcionaveis` (as que TÊM um tópico executável, já na
+         ordem que virou `r.itens`), nunca `r.disciplinas` bruta. `r.disciplinas`
+         inclui toda matéria com lacuna, mesmo as que não têm nenhum tópico com
+         amostra suficiente (amostra pulverizada entre irmãos, por exemplo); ao
+         cortar `.slice(0, maxFrentes)` ali, uma matéria assim podia ocupar uma
+         das 3 vagas e não sobrar candidato pra ela — a rodada aparecia com 2 em
+         vez de 3, mesmo havendo uma 3ª matéria de verdade acionável mais abaixo
+         no ranking bruto. */
       const disponivel = new Map();
       this._motorCand.forEach(x => {
         const d = ReforcoEngine.norm(x.disciplina || '');
         if (d && !disponivel.has(d)) disponivel.set(d, x);
       });
       this._motorFila = [];
-      (r.disciplinas || []).slice(0, r.prefs.maxFrentes || 3).forEach(d => {
+      (r.disciplinasAcionaveis || []).slice(0, r.prefs.maxFrentes || 3).forEach(d => {
         const x = disponivel.get(ReforcoEngine.norm(d.nome || ''));
         if (x) this._motorFila.push(x.disciplina + '\u0001' + x.nome);
       });
@@ -541,7 +550,7 @@ const ExtrasScreen = {
       const alternativas = itens.filter(({ x }) => !recomendadas.has(x.disciplina + '\u0001' + x.nome));
       const pior = itens.map(o => o.x).sort((a, b) => (b.taxaErro || 0) - (a.taxaErro || 0))[0];
       grupos.push('<details class="pl-alt-group"><summary><span>' + this._motorEmoji(pior || {}) + ' ' + escapeHtml(d) + '</span><small>'
-        + itens.length + ' frente(s) · pior → melhor</small><i>⌄</i></summary>'
+        + itens.length + ' frente(s) · pior → melhor</small><i class="ms-chevron"></i></summary>'
         + '<div class="pl-alt-list">' + (alternativas.length
           ? alternativas.map(o => linha(o, false, 0)).join('')
           : '<p class="hint" style="padding:8px;">A recomendação acima já é a única frente acionável desta matéria.</p>')
