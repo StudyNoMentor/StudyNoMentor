@@ -595,7 +595,7 @@ const CloudStore = {
       }
       if (novidade) {
         if (window.CloudUI) CloudUI.setStatus('syncing', 'Baixando atualizações...');
-        await this.pullActiveAndReload();
+        await this.pullActiveAndReload({ readOnly: true });
       }
     } catch (e) { /* silencioso: tenta de novo no próximo foco */ }
   },
@@ -612,7 +612,7 @@ const CloudStore = {
         let novidade = false;
         if (id && window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
         else if (id) { const rr = await this._fetchRev(id); novidade = (rr != null && rr > ProfileManager.getRev(id)); }
-        if (novidade) { await this.pullActiveAndReload(); return; }
+        if (novidade) { await this.pullActiveAndReload({ readOnly: true }); return; }
         else { await this.autoSave(); } // reenvia o estado atual como confirmação
       }
       showToast('Sincronizado ✓');
@@ -742,7 +742,7 @@ const CloudStore = {
       // O aviso e a recarga saíam ANTES de saber se havia mudança de verdade —
       // era o "Atualizado em tempo real ✓" seguido de um reload à toa. Agora
       // quem avisa é o pullAndReload, e só quando alguma seção realmente mudou.
-      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload();
+      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload({ readOnly: true });
     } catch (_) { _quiet(_); }
   },
   _unsub() {
