@@ -733,7 +733,18 @@ const CloudStore = {
     try {
       this._secChannelProfile = pid;
       this.secChannel = this.client.channel('sec_rt_' + pid)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, (evt) => {
+          /* V2 grava device_id em cada mutação. Evento produzido por ESTE
+             aparelho não é "novidade remota": a revisão/hash locais já são
+             atualizados pelo retorno do CAS. Reagir ao próprio evento criava
+             um falso pull/reload logo depois de salvar um registro, exatamente
+             o fluxo "salvei e fui parar no seletor de perfil". Clientes antigos
+             não têm device_id; nesses casos continuamos com a checagem normal. */
+          try {
+            const row = (evt && (evt.new || evt.old)) || {};
+            const mine = window.SessionGuard && SessionGuard.deviceId ? SessionGuard.deviceId() : null;
+            if (mine && row.device_id && row.device_id === mine) return;
+          } catch (_) { _quiet(_); }
           this._secRemotePending = true;
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
