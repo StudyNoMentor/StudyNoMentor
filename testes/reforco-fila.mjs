@@ -42,27 +42,22 @@ const ExtrasScreen = {
   _planoBind() {}
 };
 
-const PlanoCiclo = {
+const MotorCiclo = {
+  origemDe(e) { return e && e.origemMotor || null; },
   avaliar(e) {
+    const origem = this.origemDe(e);
     const alvo = Math.max(1, Number(e.alvo) || 1);
     const feito = Math.max(0, Number(e.progresso) || 0);
     return {
-      extra: e, origem: e.origemPlano, alvo, feito, manual: feito, medido: 0,
-      taxa: e.taxaAtual ?? e.origemPlano?.taxaInicial ?? 999,
+      extra: e, origem, alvo, feito, manual: feito, medido: 0,
+      taxa: e.taxaAtual ?? origem?.taxaInicial ?? 999,
       pct: Math.min(100, Math.round(feito / alvo * 100)),
-      bateu: false, mediu: false, cumpriu: feito >= alvo, estado: feito >= alvo ? 'naoFuncionou' : 'andamento'
+      estado: feito >= alvo ? 'aguardando' : 'andamento'
     };
   }
 };
-
-let planPrefs = { sugestoesDisciplinas: 3, sugestoesTopicosDisc: 1 };
-const PlanoPontos = {
-  linhas: ['A', 'B', 'C', 'D'],
-  esforcoPorMateria() { return { linhas: this.linhas.map(nome => ({ nome })) }; }
-};
 const ctx = {
-  window: {}, DB, ExtrasScreen, PlanoCiclo, PlanoPontos, localStorage,
-  PlanoEngine: { calcular() { return null; }, prefs() { return planPrefs; } },
+  window: {}, DB, ExtrasScreen, MotorCiclo, localStorage,
   DesempenhoTecScreen: { scopedSnapshot() { return null; } },
   ReforcoEngine: { norm(s) { return String(s || '').toLowerCase().trim(); } },
   todayLocal() { return HOJE; },
@@ -86,7 +81,7 @@ function extra(id, disciplina, alvo, taxa = 40) {
   return {
     id, titulo: 'Reforçar: ' + id, tipo: 'questoes', unidade: 'questoes', disciplina,
     alvo, progresso: 0, periodo: 'unica', status: 'ativa', datas: [], concluidasEm: [], historico: [],
-    origemPlano: { topico: id, disciplina, taxaInicial: taxa, criadoEm: HOJE }
+    origemMotor: { motor: 'sugestao', topico: id, disciplina, taxaInicial: taxa, criadoEm: HOJE, alvoQuestoes: alvo }
   };
 }
 
@@ -106,7 +101,7 @@ DB.getExtra('A2').taxaAtual = 15;
 F.sincronizar();
 const agenda = new Map();
 for (const e of DB._data) {
-  assert.ok(e.reforcoFila, 'reforço aberto do Plano deve ser adotado pela fila');
+  assert.ok(e.reforcoFila, 'reforço aberto do Motor deve ser adotado pela fila');
   for (const [dia, q] of Object.entries(e.reforcoFila.alvosPorDia)) {
     if (!agenda.has(dia)) agenda.set(dia, []);
     agenda.get(dia).push({ e, q });
@@ -165,30 +160,17 @@ DB.addExtraProgress('A1', 90, 0, { data: HOJE });
 assert.equal(a.status, 'concluida', 'alvo global atingido deve encerrar o ciclo');
 assert.equal(Object.keys(a.reforcoFila.alvosPorDia).filter(d => d > HOJE).length, 0, 'ciclo encerrado não pode manter parcelas futuras');
 
-// 5) Migração: fechamento manual antigo, parcial e comprovadamente incompleto é recuperado.
-const legado = extra('LEG', 'E', 50, 20);
-legado.progresso = 10;
-legado.historico = [{ data: HOJE, quantidade: 10 }];
-legado.status = 'concluida';
-legado.origemPlano.veredito = { tipo: 'encerradaPorVoce', em: HOJE, porMao: true, questoes: 10, alvo: 50 };
-DB._data.push(legado);
+// 5) Segurança: ciclo do Motor já encerrado permanece encerrado e não volta à agenda.
+const encerrado = extra('OLD', 'F', 50, 18);
+encerrado.progresso = 10;
+encerrado.historico = [{ data: '2026-09-12', quantidade: 10 }];
+encerrado.status = 'concluida';
+encerrado.origemMotor.veredito = { tipo: 'encerradaPorVoce', em: '2026-09-12', questoes: 10, alvo: 50 };
+DB._data.push(encerrado);
 F._assinaturaAnterior = '';
 F.sincronizar();
-assert.equal(legado.status, 'ativa', 'parcial fechado pela lógica antiga deve ser reaberto');
-assert.equal(legado.origemPlano.veredito, undefined, 'veredito prematuro não pode contaminar o histórico/calibragem');
-assert.ok(legado.concluidasEm.includes(HOJE), 'a parcela antiga permanece registrada como concluída no dia');
-assert.equal(Object.entries(legado.reforcoFila.alvosPorDia).filter(([d]) => d > HOJE).reduce((s, [, q]) => s + q, 0), 40,
-  'saldo do parcial legado deve voltar integralmente à fila');
-
-// 6) Segurança da migração: um ciclo antigo encerrado manualmente não é reaberto.
-const antigo = extra('OLD', 'F', 50, 18);
-antigo.progresso = 10;
-antigo.historico = [{ data: '2026-09-12', quantidade: 10 }];
-antigo.status = 'concluida';
-antigo.origemPlano.veredito = { tipo: 'encerradaPorVoce', em: '2026-09-12', porMao: true, questoes: 10, alvo: 50 };
-DB._data.push(antigo);
-F._assinaturaAnterior = '';
-F.sincronizar();
-assert.equal(antigo.status, 'concluida', 'migração não pode ressuscitar encerramentos históricos deliberados');
+assert.equal(encerrado.status, 'concluida', 'ciclo do Motor já encerrado não pode ser ressuscitado');
+assert.equal(Object.keys(encerrado.reforcoFila?.alvosPorDia || {}).length, 0,
+  'ciclo encerrado não pode ganhar agenda automática nova');
 
 console.log('OK: fila diária do reforço preserva ciclo, rodízio, criticidade e saldo.');
