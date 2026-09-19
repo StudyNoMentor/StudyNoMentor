@@ -578,7 +578,8 @@ try {
   /* 2l.7. O binding remoto precisa existir na ORDEM REAL do bundle
      (61-session-guard antes de 63-cloud-ui). Foi exatamente o que deixou o
      botão preso em "Confirmando…" em produção. */
-  ok(!!SessionGuard._sessionLockBound,'handler remoto deve estar ligado depois que SessionLock nasce');
+  const remoteBindingLoaded=await page.evaluate(()=>!!(window.SessionGuard&&SessionGuard._sessionLockBound));
+  ok(remoteBindingLoaded,'handler remoto deve estar ligado depois que SessionLock nasce');
 
   /* 2l.8. Realtime originado neste aparelho não é novidade remota. */
   const ownRealtime=await page.evaluate(()=>{
