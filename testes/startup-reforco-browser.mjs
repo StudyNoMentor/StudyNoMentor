@@ -435,6 +435,45 @@ try {
   eq(noStaleBlobFallback.blobFetches,0,'conjunto por seção inválido não pode cair para blob antigo');
   eq(noStaleBlobFallback.r,false,'pull deve sinalizar validação protegida sem fingir sucesso');
 
+  /* 2o. Cache regressado: rev/hash anotados dizem "novo", conteúdo físico está
+     velho e não há outbox explícita. O pull read-only deve trazer a nuvem e não
+     tentar publicar o valor velho. */
+  const readOnlyRepairsStaleCache=await page.evaluate(async()=>{
+    const id='syncv2-stale-cache',sec='entries',pfx='diario-estudos:u:'+id+':',key=pfx+sec;
+    const remoto=JSON.stringify([{v:2}]),local=JSON.stringify([{v:1}]);
+    const keep={
+      active:ProfileManager.getActiveProfileId,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      fetch:SectionSync.fetchAllSections,push:SectionSync.pushDirty,snapshot:window.BackupHistory&&BackupHistory.snapshot
+    };
+    let pushCalls=0;
+    ProfileManager.getActiveProfileId=()=>id;CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
+    localStorage.setItem(key,local);
+    localStorage.setItem(pfx+'__secrev',JSON.stringify({entries:{rev:2,hash:SectionSync._hash(remoto),len:remoto.length}}));
+    localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    SectionSync.fetchAllSections=async()=>[
+      {section:sec,data:[{v:2}],rev:2,updated_at:new Date().toISOString()},
+      {section:'__manifest',data:{v:2,sections:[sec]},rev:2,updated_at:new Date().toISOString()}
+    ];
+    SectionSync.pushDirty=async()=>{pushCalls++;};
+    if(window.BackupHistory)BackupHistory.snapshot=async()=>true;
+    const beforePending=SectionSync.pendingSections(id);
+    const beforeExplicit=SectionSync.explicitPendingSections(id);
+    const r=await SectionSync.hydrateReadOnly(id);
+    const depois=localStorage.getItem(key);
+    SectionSync.fetchAllSections=keep.fetch;SectionSync.pushDirty=keep.push;
+    if(window.BackupHistory)BackupHistory.snapshot=keep.snapshot;
+    ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
+    localStorage.removeItem(key);localStorage.removeItem(pfx+'__secrev');localStorage.removeItem(pfx+'__secpend');localStorage.removeItem(pfx+'__secdel');
+    return {beforePending,beforeExplicit,pushCalls,r,depois,remoto};
+  });
+  ok(readOnlyRepairsStaleCache.beforePending.includes('entries'),'hash divergente deve ser detectável como possível pendência');
+  eq(readOnlyRepairsStaleCache.beforeExplicit.length,0,'cache regressado sem outbox não deve virar edição explícita');
+  eq(readOnlyRepairsStaleCache.pushCalls,0,'pull read-only não pode publicar nada antes de baixar');
+  ok(readOnlyRepairsStaleCache.r&&readOnlyRepairsStaleCache.r.ok,'pull read-only deve validar e aplicar seções');
+  eq(readOnlyRepairsStaleCache.depois,readOnlyRepairsStaleCache.remoto,'conteúdo remoto deve corrigir cache físico regressado');
+
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);
 } finally {
