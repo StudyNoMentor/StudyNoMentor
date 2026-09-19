@@ -19,16 +19,28 @@ const PlanManager = {
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
   // para que todas as telas já funcionem "de fábrica".
-  _seedDefaults(planId) {
+  _seedDefaults(planId, opts) {
     const k = DB.keysForPlan(planId);
+    const silent = !!(opts && opts.silent);
+    /* No bootstrap de um aparelho novo estes valores são apenas andaimes para a
+       UI abrir. Eles NÃO são uma edição do usuário e não podem entrar na outbox
+       antes da primeira hidratação; caso contrário colidem com os mesmos
+       cadastros já existentes na nuvem e deixam o spinner preso em erro.
+       Se o perfil for realmente novo, seedUntrackedOnly os publica depois. */
+    const put = (key, value) => {
+      if (silent) {
+        try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch (e) { _quiet(e, 'plan-bootstrap'); return false; }
+      }
+      return DB._set(key, value);
+    };
     if (localStorage.getItem(k.methods) === null)
-      DB._set(k.methods, DB.DEFAULT_METHODS.map(nome => ({ id: DB._uid(), nome, ativo: true })));
+      put(k.methods, DB.DEFAULT_METHODS.map(nome => ({ id: DB._uid(), nome, ativo: true })));
     if (localStorage.getItem(k.phases) === null)
-      DB._set(k.phases, DB.DEFAULT_PHASES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
+      put(k.phases, DB.DEFAULT_PHASES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
     if (localStorage.getItem(k.statuses) === null)
-      DB._set(k.statuses, DB.DEFAULT_STATUSES.map(s => ({ id: DB._uid(), ...s, ativo: true })));
+      put(k.statuses, DB.DEFAULT_STATUSES.map(s => ({ id: DB._uid(), ...s, ativo: true })));
     if (localStorage.getItem(k.modes) === null)
-      DB._set(k.modes, DB.DEFAULT_MODES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
+      put(k.modes, DB.DEFAULT_MODES.map(nome => ({ id: DB._uid(), nome, ativo: true })));
   },
 
   createPlan({ nome, tipo }) {
@@ -107,16 +119,27 @@ const PlanManager = {
 
   init() {
     let plans = this.getPlans();
+    let bootstrap = false;
     if (plans.length === 0) {
+      bootstrap = true;
       const id = 'pl_inicial';
       plans = [{ id, nome: 'Planejamento inicial', tipo: 'Pré-edital', createdAt: new Date().toISOString() }];
-      this.savePlans(plans);
+      /* Inicialização física do namespace, sem declarar "o usuário mudou".
+         Em aparelho já existente a hidratação remota substitui estes andaimes;
+         em perfil realmente novo a semeadura de seções os envia normalmente. */
+      try { localStorage.setItem(this.GK.plans, JSON.stringify(plans)); } catch (e) { _quiet(e, 'plan-bootstrap-plans'); }
       this._migrateLegacy(id);
-      this._seedDefaults(id);
-      this.setActivePlan(id);
+      this._seedDefaults(id, { silent: true });
+      try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active'); }
     }
     // garante um planejamento ativo válido
-    if (!this.getActivePlan()) this.setActivePlan(this.getPlans()[0].id);
+    if (!this.getActivePlan()) {
+      const id = this.getPlans()[0] && this.getPlans()[0].id;
+      if (id) {
+        if (bootstrap) { try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active2'); } }
+        else this.setActivePlan(id);
+      }
+    }
   }
 };
 
