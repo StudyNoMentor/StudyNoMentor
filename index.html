@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2a863590b7">
+<meta name="diario-versao" content="vaa9b270adc">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -18025,8 +18025,15 @@ const ProfileManager = {
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
     if (eraAtivo) {
       this.setActiveProfile(idNovo);
-      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'adotar-envio'); }
-      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'adotar-blob'); }
+      try {
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          SectionSync._seededProfile = null;
+          SectionSync.markAllDirty(idNovo);
+          await CloudStore._pushSectionsNow(idNovo);
+        } else {
+          await CloudStore.saveActiveWithRetry(idNovo); // compatibilidade do modo legado
+        }
+      } catch (e) { _quiet(e, 'adotar-envio'); }
     }
     console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
     return idNovo;
@@ -41107,7 +41114,7 @@ const CloudStore = {
       }
       if (novidade) {
         if (window.CloudUI) CloudUI.setStatus('syncing', 'Baixando atualizações...');
-        await this.pullActiveAndReload();
+        await this.pullActiveAndReload({ readOnly: true });
       }
     } catch (e) { /* silencioso: tenta de novo no próximo foco */ }
   },
@@ -41124,7 +41131,7 @@ const CloudStore = {
         let novidade = false;
         if (id && window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
         else if (id) { const rr = await this._fetchRev(id); novidade = (rr != null && rr > ProfileManager.getRev(id)); }
-        if (novidade) { await this.pullActiveAndReload(); return; }
+        if (novidade) { await this.pullActiveAndReload({ readOnly: true }); return; }
         else { await this.autoSave(); } // reenvia o estado atual como confirmação
       }
       showToast('Sincronizado ✓');
@@ -41254,7 +41261,7 @@ const CloudStore = {
       // O aviso e a recarga saíam ANTES de saber se havia mudança de verdade —
       // era o "Atualizado em tempo real ✓" seguido de um reload à toa. Agora
       // quem avisa é o pullAndReload, e só quando alguma seção realmente mudou.
-      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload();
+      if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload({ readOnly: true });
     } catch (_) { _quiet(_); }
   },
   _unsub() {
@@ -47230,8 +47237,8 @@ else CloudStore.init();
       }
       if (novidade) {
         syncNote('Há novidades de outro aparelho. Atualizando com segurança…', true);
-        if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload();
-        else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload();
+        if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload({ readOnly: true });
+        else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload({ readOnly: true });
       } else {
         try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick'); }
         StartupTrace.mark('reconciliacao-sem-novidade');
