@@ -913,12 +913,10 @@ else CloudStore.init();
       let fila = 0;
       try { if (window.SectionSync) fila = SectionSync.pendingQuick(); } catch (_) { _quiet(_); }
       if (CS._pending || CS._debounce || fila) { toast('Há alterações não enviadas. Sincronize antes de limpar.'); return; }
-      const ok1 = await UI.confirm('Apagar a cópia local deste perfil e baixar tudo da nuvem de novo?\n\nUse quando este aparelho parecer dessincronizado. Uma versão de segurança é guardada antes.',
-        { title: '🧹 Limpar dados locais', okText: 'Continuar', danger: true });
+      const ok1 = await UI.confirm(
+        'Revalidar este perfil com a nuvem?\n\nO app primeiro valida o conjunto remoto e guarda uma versão de segurança. A cópia local NÃO é apagada antes; se a nuvem estiver incompleta ou offline, nada daqui é substituído.',
+        { title: '🧹 Revalidar dados locais', okText: 'Validar e baixar' });
       if (!ok1) return;
-      const ok2 = await UI.confirmTyped('Confirmação final.\n\nTudo que existir SÓ neste navegador e ainda não tiver subido será perdido.',
-        { word: 'LIMPAR', title: '🧹 Tem certeza?', okText: 'Apagar e rebaixar' });
-      if (!ok2) return;
       try {
         if (window.BackupHistory) await BackupHistory.snapshot('antes de limpar dados locais');
         /* Esta é a única ação do app que apaga dados de propósito. A foto local
