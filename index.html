@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v984d0fa1f0">
+<meta name="diario-versao" content="vb80815aa88">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -44825,7 +44825,7 @@ const Atualizacao = {
       }
     } catch (e) { _quiet(e, 'upd-desregistrar'); }
     showToast('Cache limpo ✓ recarregando…');
-    setTimeout(() => location.reload(), 500);
+    setTimeout(() => recarregarApp('limpeza manual do cache', { imediato: true }), 500);
   },
 
   // Procura atualização agora (usado pelo botão em Diagnóstico).
@@ -46316,7 +46316,7 @@ else CloudStore.init();
         del.forEach(k => { try { localStorage.removeItem(k); } catch (_) { _quiet(_); } });
         ProfileManager.setRev(id, 0);
         toast('Baixando da nuvem…');
-        await CS.pullActiveAndReload();
+        await CS.pullActiveAndReload({ readOnly: true });
       } catch (e) { toast('Não foi possível concluir a limpeza.'); }
     },
 
@@ -46423,7 +46423,7 @@ else CloudStore.init();
           this.closeMenu();
           if (a === 'sync') { try { await CS.syncNow(); } catch (_) { _quiet(_); } }
           else if (a === 'push') { try { CS._forceBlob = true; CS._pending = true; await CS.flushPending(); toast('Enviado ✓'); } catch (_) { toast('Não foi possível enviar agora.'); } }
-          else if (a === 'pull') { try { await CS.pullActiveAndReload(); } catch (_) { _quiet(_); } }
+          else if (a === 'pull') { try { await CS.pullActiveAndReload({ readOnly: true }); } catch (_) { _quiet(_); } }
           else if (a === 'recon') { await this.reconnect(true); }
           else if (a === 'cache') { await this.repararCache(); }
           else if (a === 'cfg') { try { switchScreen('config'); } catch (_) { _quiet(_); } setTimeout(() => ConfigUX.show('conta'), 60); }
@@ -48965,8 +48965,15 @@ else CloudStore.init();
       }
     } catch (e) {}
     return Promise.all(tarefas).catch(function () {}).then(function () {
-      return window.__idbFlush ? window.__idbFlush() : null;
-    }).then(function () { location.reload(); });
+      if (window.__idbFlushStrict) return window.__idbFlushStrict(10000);
+      return window.__idbFlush ? window.__idbFlush().then(function () { return { ok: true }; }) : { ok: true };
+    }).then(function (r) {
+      if (r && r.ok === false) {
+        try { console.error('[cache] recarga cancelada: commit local não confirmado', r); } catch (_) {}
+        return;
+      }
+      location.reload();
+    });
   };
 
   openIDB()
