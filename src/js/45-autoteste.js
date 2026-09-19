@@ -3023,58 +3023,79 @@ const AutoTeste = {
      volume não some no caminho, e a dose cabe no caderno. */
   motorSugestao() {
     const M = window.MotorSugestao;
-    this._ok('Motor: existe e expõe calcular/prefs/dosar',
-      !!(M && typeof M.calcular === 'function' && typeof M.prefs === 'function' && typeof M.dosar === 'function'));
+    this._ok('Motor: existe e expõe calcular/prefs/dosar e percurso hierárquico',
+      !!(M && typeof M.calcular === 'function' && typeof M.prefs === 'function'
+        && typeof M.dosar === 'function' && typeof M._planejarNo === 'function'
+        && typeof M._filaDisciplina === 'function'));
     if (!M) return;
 
-    /* Árvore de teste: um ramo grosso que a margem sustenta (deve ABRIR) e
-       três ramos miúdos que ela não sustenta (devem virar UM bloco). */
-    const no = (nome, q, ac, filhos) => ({ nome, codigo: null, depth: 1, disciplina: 'X', questoes: q, acertos: ac, children: filhos || [] });
-    const raiz = no('X', 206, 103, [
-      no('Grosso', 200, 100, []),
-      no('Miudo A', 2, 0, []), no('Miudo B', 2, 0, []), no('Miudo C', 2, 1, [])
+    const no = (nome, q, ac, depth, filhos) => ({
+      nome, codigo: null, depth, disciplina: 'X', questoes: q, acertos: ac, children: filhos || []
+    });
+
+    /* Três filhos pequenos do MESMO tópico só podem virar bloco local. Eles
+       não podem escapar para a raiz/disciplinar para "comprar" amostra. */
+    const miudos = no('Tópico A', 40, 11, 1, [
+      no('A.1', 10, 2, 2), no('A.2', 12, 3, 2), no('A.3', 18, 6, 2)
     ]);
-    const saida = [];
-    M._folhasEfetivas(raiz, 15, saida);
-    const grosso = saida.find(x => x.nome === 'Grosso');
-    const bloco = saida.find(x => x.agregado);
-    this._ok('Motor: o ramo que cabe na margem sai sozinho', !!grosso && !grosso.agregado);
-    this._ok('Motor: os ramos miúdos viram um bloco só', !!bloco && bloco.membros.length === 3, bloco && bloco.membros);
-    const somaQ = saida.reduce((a, x) => a + x.questoes, 0);
-    this._ok('Motor: nenhuma questão some na poda', somaQ === 206, somaQ);
+    const local = M._planejarNo(miudos, 15, []);
+    const bloco = local.find(x => x.agregado);
+    this._ok('Motor: ramos pequenos viram bloco somente entre irmãos do mesmo pai',
+      !!(bloco && bloco.pai === 'Tópico A' && bloco.membros.length === 3
+        && bloco.membros.every(n => /^A\./.test(n))), bloco);
+    this._ok('Motor: o bloco continua abaixo da disciplina',
+      local.length > 0 && local.every(x => x.nivel > 0 && x.disciplina === 'X'), local);
 
-    /* Um nó com resíduo (o pai mede mais do que os filhos explicam) não pode
-       perder esse resíduo: ele é volume praticado e medido. */
-    const comResiduo = no('Y', 240, 120, [no('Filho', 200, 100, [])]);
-    const s2 = [];
-    M._folhasEfetivas(comResiduo, 15, s2);
-    this._ok('Motor: o resíduo do pai continua contado',
-      s2.reduce((a, x) => a + x.questoes, 0) === 240, s2.map(x => x.nome + ':' + x.questoes));
+    const raiz = no('X', 400, 180, 0, [miudos]);
+    this._ok('Motor: depth 0 é fronteira absoluta e nunca vira atividade',
+      M._planejarNo(raiz, 15, []).length === 0);
 
-    /* A margem é a régua, e ela é a mesma que a Análise usa. */
+    /* A fila é depth-first, sempre pior→melhor em CADA nível: primeiro entra
+       no pior tópico, resolve seus filhos do pior ao melhor, só depois segue
+       para o próximo tópico da disciplina. */
+    const disc = no('X', 320, 164, 0, [
+      no('Tópico pior', 200, 80, 1, [
+        no('Sub pior', 100, 20, 2),
+        no('Sub melhor', 100, 60, 2)
+      ]),
+      no('Tópico seguinte', 120, 84, 1, [])
+    ]);
+    const fila = M._filaDisciplina(disc, Object.assign(M.prefs(), { margemMax: 15, metaAcerto: 85 }));
+    const nomes = fila.map(x => x.nome);
+    this._ok('Motor: percorre pior tópico e seus subtópicos antes do tópico seguinte',
+      nomes[0] === 'Sub pior' && nomes[1] === 'Sub melhor' && nomes[2] === 'Tópico seguinte', nomes);
+    this._ok('Motor: ordem interna não é reembaralhada por score global',
+      fila.every((x, i) => x.ordemNaDisciplina === i + 1), fila.map(x => x.ordemNaDisciplina));
+
+    /* A margem continua sendo a trava estatística, não o percentual cru. */
     this._ok('Motor: 2 questões nunca passam na régua de ±15pp', !M.legivel(2, 0, 15));
-    this._ok('Motor: 200 questões passam', M.legivel(200, 100, 15));
+    this._ok('Motor: 200 questões passam na mesma régua', M.legivel(200, 100, 15));
 
-    const doses = M.dosar([{ score: 30 }, { score: 10 }], 40, 0);
-    this._ok('Motor: a dose reparte o caderno inteiro',
-      doses.reduce((a, x) => a + x.dose, 0) === 40, doses.map(x => x.dose));
-    this._ok('Motor: e reparte na proporção do score', doses[0].dose > doses[1].dose, doses.map(x => x.dose));
-    const comPiso = M.dosar([{ score: 100 }, { score: 1 }], 25, 5);
-    this._ok('Motor: frente abaixo do piso sai da rodada', comPiso.every(x => x.dose >= 5), comPiso.map(x => x.dose));
+    /* Dose é POR ATIVIDADE. O base de 25 não é um bolo para repartir em 1, 2,
+       3 questões; cada reforço recebe pelo menos o piso útil. */
+    const doses = M.dosar([
+      { taxaErro: 60, score: 30, questoes: 100 },
+      { taxaErro: 25, score: 10, questoes: 100 }
+    ], 25, 1);
+    this._ok('Motor: nenhuma atividade nasce abaixo do piso útil',
+      doses.length === 2 && doses.every(x => x.dose >= M.DEFAULTS.doseMin), doses.map(x => x.dose));
+    this._ok('Motor: lacuna mais grave recebe dose igual ou maior sem esmagar a outra',
+      doses[0].dose >= doses[1].dose && doses.reduce((s, x) => s + x.dose, 0) > 25, doses.map(x => x.dose));
 
-    /* ── O CONTRATO DA RODADA: 3 DISCIPLINAS, 1 TÓPICO CADA ─────────────────
-       Vale como REGRA e não como censura — o ranking inteiro fica à vista para
-       trocar. Marcar outro tópico da mesma disciplina troca o que estava nela;
-       abrir uma disciplina além do teto é recusado. */
+    /* ── CONTRATO DA RODADA: 3 DISCIPLINAS, 1 FRENTE CADA ────────────────────
+       A fila completa permanece disponível para trocar o item de uma matéria,
+       mas a rodada principal nunca abre quatro disciplinas por acidente. */
     const E = window.ExtrasScreen;
     if (E && typeof E._planoMarcar === 'function') {
       const guardaCand = E._planoCand, guardaSel = E._planoSel, guardaPrefs = E._planoPrefs;
       try {
-        E._planoPrefs = { maxFrentes: 3, alvoQuestoes: 25, doseMin: 5 };
+        E._planoPrefs = { maxFrentes: 3, alvoQuestoes: 25, doseMin: 12 };
         E._planoCand = [
-          { nome: 'A1', disciplina: 'Tributário', score: 10 }, { nome: 'A2', disciplina: 'Tributário', score: 9 },
-          { nome: 'B1', disciplina: 'Português', score: 8 }, { nome: 'C1', disciplina: 'Penal', score: 7 },
-          { nome: 'D1', disciplina: 'Civil', score: 6 }
+          { nome: 'A1', disciplina: 'Tributário', score: 10, taxaErro: 50 },
+          { nome: 'A2', disciplina: 'Tributário', score: 9, taxaErro: 40 },
+          { nome: 'B1', disciplina: 'Português', score: 8, taxaErro: 35 },
+          { nome: 'C1', disciplina: 'Penal', score: 7, taxaErro: 30 },
+          { nome: 'D1', disciplina: 'Civil', score: 6, taxaErro: 25 }
         ];
         E._planoSel = new Set();
         [0, 2, 3].forEach(i => E._planoMarcar(i));
@@ -3084,6 +3105,9 @@ const AutoTeste = {
         E._planoMarcar(1);
         this._ok('Rodada: outro tópico da mesma disciplina TROCA, não soma',
           E._planoSel.size === 3 && E._planoSel.has(1) && !E._planoSel.has(0), [...E._planoSel]);
+        const ds = E._planoDoses();
+        this._ok('Rodada: todas as atividades selecionadas respeitam o piso útil',
+          [...E._planoSel].every(i => ds[i] >= 12), ds);
       } finally { E._planoCand = guardaCand; E._planoSel = guardaSel; E._planoPrefs = guardaPrefs; }
     }
   },
