@@ -163,24 +163,35 @@ const Atualizacao = {
      fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
      a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false, tentativas = 0, bater = null;
+    let recarregou = false, tentativas = 0, bater = null, tentativasDisco = 0;
     const recarregar = async () => {
       if (recarregou) return;
       recarregou = true; clearInterval(bater);
       /* Segunda barreira: cobre qualquer gravação que tenha ocorrido entre o
          clique em atualizar e o controllerchange. Enquanto houver fila local,
-         não matamos a página antiga. */
+         não matamos a página antiga. A retentativa é limitada: falha persistente
+         devolve o controle ao usuário em vez de criar um loop eterno. */
       try {
         const r = window.__idbFlushStrict ? await window.__idbFlushStrict(10000) : { ok: true };
         if (r && r.ok === false) {
           recarregou = false;
+          tentativasDisco++;
+          if (tentativasDisco <= 6) {
+            try { showToast('⚠ Atualização pronta, aguardando a gravação local terminar…'); } catch (_) { _quiet(_); }
+            setTimeout(recarregar, 1000);
+            return;
+          }
           this._trocando = false;
-          try { showToast('⚠ Atualização pronta, mas a recarga aguardará seus dados terminarem de gravar.'); } catch (_) { _quiet(_); }
-          setTimeout(recarregar, 1000);
+          try { showToast('⚠ A nova versão está pronta, mas não recarreguei porque o armazenamento local não confirmou os dados.'); } catch (_) { _quiet(_); }
           return;
         }
       } catch (_) {
-        recarregou = false; this._trocando = false; setTimeout(recarregar, 1000); return;
+        recarregou = false;
+        tentativasDisco++;
+        if (tentativasDisco <= 6) { setTimeout(recarregar, 1000); return; }
+        this._trocando = false;
+        try { showToast('⚠ A nova versão está pronta, mas a gravação local não pôde ser confirmada.'); } catch (_) { _quiet(_); }
+        return;
       }
       location.reload();
     };
