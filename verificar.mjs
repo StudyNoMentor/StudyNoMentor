@@ -968,6 +968,7 @@ try {
     // os totais e é nela que a arvore pendura os topicos
     const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
     const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
+    MotorSugestao.restaurar();
     DB._set(DB.KEYS.tec, [
       R('r1', dia(120), dia(95), [
         D('Direito Constitucional', 100, 40), L('01', 'Controle de constitucionalidade', 'Direito Constitucional', 100, 40),
@@ -1004,6 +1005,11 @@ try {
       umaPorDisc: new Set((motor.itens || []).map((x) => ReforcoEngine.norm(x.disciplina))).size === (motor.itens || []).length,
       rankingDisc: (motor.disciplinas || []).length,
       temFilas: document.querySelectorAll('#motor-lista .ms-queue-group').length,
+      meta: motor.prefs.metaAcerto,
+      maxFrentes: motor.prefs.maxFrentes,
+      lacunasValidas: (motor.itens || []).every(x => Number.isFinite(x.gapConfiavel) && x.gapConfiavel >= 0),
+      cardsComLacuna: [...document.querySelectorAll('#motor-lista .ms-suggestion-card')]
+        .filter(el => /lacuna segura/i.test(el.innerText)).length,
       resumo: (q('.ms-rule-summary') || {}).innerText || '',
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="motor"] .rfc-field > label')]
@@ -1014,6 +1020,12 @@ try {
   est.fases === 2 && est.faseAtiva === 1
     ? ok('o par pre/pos aparece com exatamente uma fase valendo')
     : erro('o seletor de fase nao renderizou: ' + JSON.stringify(est));
+  (est.meta === 90 && est.maxFrentes === 3 && est.itens <= 3)
+    ? ok('o Motor nasce com meta 90% e uma rodada curta de no maximo 3 disciplinas')
+    : erro('meta/quantidade da rodada saiu do contrato: ' + JSON.stringify(est));
+  (est.lacunasValidas && est.cardsComLacuna === est.itens && est.itens > 0)
+    ? ok('cada sugestao expõe a lacuna confiavel que sustenta sua prioridade')
+    : erro('a prioridade voltou a ser percentual cru ou ficou opaca: ' + JSON.stringify(est));
   (est.etapas === 2 && est.disciplinas >= 2 && est.rankingDisc >= est.disciplinas && est.temFilas >= est.disciplinas)
     ? ok(`o Motor mostra ${est.disciplinas} disciplina(s) prioritarias, as frentes e as filas hierarquicas`)
     : erro('a hierarquia disciplina -> fila -> topico nao apareceu: ' + JSON.stringify(est));
@@ -1052,15 +1064,34 @@ try {
     const top = n('Topico', 40, 11, 1, [n('A.1', 10, 2, 2), n('A.2', 12, 3, 2), n('A.3', 18, 6, 2)]);
     const plano = MotorSugestao._planejarNo(top, 15, []);
     const bloco = plano.find(x => x.agregado);
+    const muitos = n('Topico B', 36, 9, 1, [
+      n('B.1', 6, 1, 2), n('B.2', 6, 1, 2), n('B.3', 6, 1, 2),
+      n('B.4', 6, 2, 2), n('B.5', 6, 2, 2), n('B.6', 6, 2, 2)
+    ]);
+    const blocoGrande = MotorSugestao._planejarNo(muitos, 15, []).find(x => x.agregado);
     const raiz = MotorSugestao._planejarNo(n('Teste', 40, 11, 0, [top]), 15, []);
+    const p = Object.assign(MotorSugestao.prefs(), { fase: 'pre', metaAcerto: 90 });
+    const la = MotorSugestao._lacuna({ taxa: 59, margem: 13, questoes: 60 }, p);
+    const lb = MotorSugestao._lacuna({ taxa: 61, margem: 3, questoes: 800 }, p);
+    const A = { melhorTopico: Object.assign({ peso: 60, questoes: 60 }, la) };
+    const B = { melhorTopico: Object.assign({ peso: 800, questoes: 800 }, lb) };
     return {
       bloco: bloco ? { pai: bloco.pai, membros: bloco.membros, nivel: bloco.nivel } : null,
-      raiz: raiz.length
+      blocoGrande: blocoGrande ? { pai: blocoGrande.pai, membros: blocoGrande.membros } : null,
+      raiz: raiz.length,
+      gapA: la.gapConfiavel, gapB: lb.gapConfiavel,
+      bVemAntes: MotorSugestao._compararDisciplinas(B, A, p) < 0
     };
   });
   (hier.bloco && hier.bloco.pai === 'Topico' && hier.bloco.membros.length === 3 && hier.raiz === 0)
     ? ok('ramos pequenos so agrupam entre irmaos do mesmo pai e nunca sobem para a disciplina')
     : erro('o agrupamento atravessou a hierarquia: ' + JSON.stringify(hier));
+  (hier.blocoGrande && hier.blocoGrande.pai === 'Topico B' && hier.blocoGrande.membros.length > 4)
+    ? ok('o agrupamento usa quantos irmaos pequenos forem necessarios; nao existe mais teto magico de 4')
+    : erro('o agrupamento ainda parou num limite arbitrario: ' + JSON.stringify(hier.blocoGrande));
+  (hier.bVemAntes && hier.gapB > hier.gapA)
+    ? ok('entre disciplinas, lacuna comprovada pela margem vence percentual cru ligeiramente pior')
+    : erro('o ranking de disciplinas voltou a privilegiar percentual cru: ' + JSON.stringify(hier));
 
   /* Trocar a fase troca a FONTE DO PESO, e sem incidencia importada o pos tem
      de dizer isso em vez de inventar um ranking. */
@@ -1151,14 +1182,32 @@ try {
     ? ok('o seletor aceita varias disciplinas sem reconstruir, fechar ou voltar a lista ao inicio')
     : erro('o multifiltro de disciplinas perdeu estabilidade: ' + JSON.stringify(an.multi));
 
-  const limpezaTec = await pag.evaluate(() => ({
-    semAjusteAnalise: !document.querySelector('[data-cfg="analise"], #tec-gear-btn, #tec-enxuto-btn'),
-    semBotaoAbas: !document.getElementById('tec-tabs-gear'),
-    abasVisiveis: [...document.querySelectorAll('#tec-subtabs .tec-subtab')].filter(b => getComputedStyle(b).display !== 'none').length
-  }));
-  (limpezaTec.semAjusteAnalise && limpezaTec.semBotaoAbas && limpezaTec.abasVisiveis >= 3)
-    ? ok('controles legados da Analise/Abas sairam e as tres abas centrais ficam sempre acessiveis')
+  const limpezaTec = await pag.evaluate(() => {
+    const texto = () => (document.querySelector('.tp-command') || {}).innerText || '';
+    DesempenhoTecScreen.switchTecTab('analise');
+    const analise = texto();
+    DesempenhoTecScreen.switchTecTab('incidencia');
+    const incidencia = texto();
+    DesempenhoTecScreen.switchTecTab('motor');
+    const motor = texto();
+    DesempenhoTecScreen.switchTecTab('analise');
+    return {
+      semAjusteAnalise: !document.querySelector('[data-cfg="analise"], #tec-gear-btn, #tec-enxuto-btn'),
+      semPremiumInutil: !document.querySelector('[data-tp-settings],[data-tp-audit],.tp-overlay'),
+      semBotaoAbas: !document.getElementById('tec-tabs-gear'),
+      abasVisiveis: [...document.querySelectorAll('#tec-subtabs .tec-subtab')].filter(b => getComputedStyle(b).display !== 'none').length,
+      analiseFactual: /fatos do seu tec/i.test(analise) && /nenhum modelo opina aqui/i.test(analise),
+      incidenciaFactual: /fatos da banca/i.test(incidencia) && /dados de incidência/i.test(incidencia),
+      motorDecideSoAqui: /motor/i.test(motor) && /prioriza/i.test(motor),
+      semRotulosMortos: !/ajustes de análise|ajustes de incidência|diagnóstico/i.test(analise + '\n' + incidencia + '\n' + motor)
+    };
+  });
+  (limpezaTec.semAjusteAnalise && limpezaTec.semPremiumInutil && limpezaTec.semBotaoAbas && limpezaTec.abasVisiveis >= 3)
+    ? ok('Ajustes de Analise/Incidencia, Diagnostico e botao Abas foram removidos de verdade, inclusive da camada Premium')
     : erro('sobrou controle legado no TEC: ' + JSON.stringify(limpezaTec));
+  (limpezaTec.analiseFactual && limpezaTec.incidenciaFactual && limpezaTec.motorDecideSoAqui && limpezaTec.semRotulosMortos)
+    ? ok('Analise e Incidencia se apresentam como fatos; somente o Motor fala em prioridade')
+    : erro('o cabecalho voltou a misturar fato com decisao do Motor: ' + JSON.stringify(limpezaTec));
 
   const retratos = await pag.evaluate(async () => {
     DesempenhoTecScreen.scopeMode = 'select';
@@ -1169,28 +1218,42 @@ try {
     lista.scrollTop = 999;
     const antes = lista.scrollTop;
     lista.dataset.guard = 'mesma-lista';
-    const primeiro = lista.querySelector('input[data-snap]');
-    if (primeiro) {
-      primeiro.checked = !primeiro.checked;
-      primeiro.dispatchEvent(new Event('change', { bubbles: true }));
-    }
+    const original = DesempenhoTecScreen.renderAnalysis;
+    let renders = 0;
+    DesempenhoTecScreen.renderAnalysis = function(){ renders++; return original.apply(this, arguments); };
+    const checks = [...lista.querySelectorAll('input[data-snap]')].slice(0, 2);
+    checks.forEach(ch => {
+      ch.checked = !ch.checked;
+      ch.dispatchEvent(new Event('change', { bubbles: true }));
+    });
     const spinnerImediato = !box.querySelector('.tec-scope-busy').hidden;
-    await new Promise(r => setTimeout(r, 220));
+    await new Promise(r => setTimeout(r, 340));
+    DesempenhoTecScreen.renderAnalysis = original;
     const atual = box.querySelector('.tec-scope-list');
     const depois = atual.scrollTop;
     const allPrimeiro = !!atual.querySelector(':scope > .tec-snap-all:first-child');
+    // "Todos" também não deve jogar a lista de volta ao topo.
+    const yAntesTodos = atual.scrollTop;
+    const all = atual.querySelector('input[data-snap-all]');
+    if (all) { all.checked = true; all.dispatchEvent(new Event('change', { bubbles: true })); }
+    const yLogoDepoisTodos = atual.scrollTop;
+    await new Promise(r => setTimeout(r, 340));
+    const yDepoisTodos = atual.scrollTop;
     // restaura o escopo para os testes seguintes
     DesempenhoTecScreen.selectedSnapIds = new Set(DB.getTecSnapshots().map(s => s.id));
     DesempenhoTecScreen.scopeMode = 'consolidado';
     DesempenhoTecScreen.aplicarMudancaEscopo();
     return {
       mesmaLista: atual === lista && atual.dataset.guard === 'mesma-lista',
-      antes, depois, spinnerImediato, allPrimeiro
+      antes, depois, spinnerImediato, allPrimeiro, renders,
+      yAntesTodos, yLogoDepoisTodos, yDepoisTodos
     };
   });
-  (retratos.mesmaLista && retratos.spinnerImediato && retratos.allPrimeiro && retratos.depois === retratos.antes)
-    ? ok('selecionar retratos preserva a lista/scroll e mostra feedback visual em vez de parecer travado')
-    : erro('o seletor de retratos ainda reinicia ou fica sem feedback: ' + JSON.stringify(retratos));
+  (retratos.mesmaLista && retratos.spinnerImediato && retratos.allPrimeiro
+      && retratos.depois === retratos.antes && retratos.renders === 1
+      && retratos.yLogoDepoisTodos === retratos.yAntesTodos && retratos.yDepoisTodos === retratos.yAntesTodos)
+    ? ok('retratos preservam DOM/scroll, mostram spinner e dois cliques rapidos viram um unico recalculo')
+    : erro('o seletor de retratos ainda reinicia, pula ou recalcula demais: ' + JSON.stringify(retratos));
 
   // ── INCIDENCIA: importar duas vezes nao pode dobrar ──────────────────────
   const incidenciaFechada = await pag.evaluate(() => {
@@ -1263,7 +1326,17 @@ try {
       temErro: !!(linha && linha.querySelectorAll('.tnode-pct b').length === 2),
       vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       cortadas: rows.filter(r => r.getBoundingClientRect().right > document.documentElement.clientWidth + 2).length,
-      niveis: new Set([...document.querySelectorAll('#tec-disc-list .tnode[data-level]')].map(n => n.dataset.level)).size
+      niveis: new Set([...document.querySelectorAll('#tec-disc-list .tnode[data-level]')].map(n => n.dataset.level)).size,
+      tonsProfundos: (() => {
+        const fake = (nivel) => ({ nome: 'N' + nivel, depth: nivel, disciplina: 'D', questoes: 100, acertos: 50, children: [] });
+        const host = document.createElement('div');
+        host.innerHTML = DesempenhoTecScreen.treeNodeHtml(fake(6), new Map(), 6)
+          + DesempenhoTecScreen.treeNodeHtml(fake(7), new Map(), 7);
+        const ns = host.querySelectorAll('.tnode');
+        return ns.length === 2
+          && ns[0].style.getPropertyValue('--tec-level-hue') !== ns[1].style.getPropertyValue('--tec-level-hue')
+          && ns[0].style.getPropertyValue('--tec-indent') !== '';
+      })()
     };
   });
   const crescente = (a) => a.every((v, i) => i === 0 || a[i - 1] <= v);
@@ -1279,6 +1352,9 @@ try {
   (arv.temQuestoes && arv.temErro && arv.vaza === 0 && arv.cortadas === 0)
     ? ok('a arvore mobile exibe questoes, acerto e erro sem cortar a tabela')
     : erro('a arvore mobile perdeu coluna ou vazou horizontalmente: ' + JSON.stringify(arv));
+  arv.tonsProfundos
+    ? ok('niveis 6+ continuam recebendo tons e recuos proprios, sem colapsar visualmente no nivel 5')
+    : erro('a granularidade profunda voltou a compartilhar a mesma codificacao visual');
 
   // ── "i" em todos os controles das tres abas ─────────────────────────────
   const dicas = await pag.evaluate(() => {
