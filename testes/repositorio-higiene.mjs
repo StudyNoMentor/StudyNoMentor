@@ -13,13 +13,15 @@ assert.deepEqual([...new Set(duplicados)],[],'build.mjs não pode carregar a mes
 
 const fontesAbs=walk(join(ROOT,'src')).filter(f=>/\.(?:js|css|html)$/.test(f));
 const fontes=fontesAbs.map(f=>relative(join(ROOT,'src'),f).replaceAll('\\','/')).sort();
+for(const f of fontesAbs) assert.notEqual(readFileSync(f,'utf8').trim(),'',`fonte vazia não deve ser versionada: ${relative(ROOT,f)}`);
 for(const f of fontes) assert.equal(/-v\d+\.(?:js|css)$/i.test(f),false,`fonte atual não deve carregar sufixo de versão: ${f}`);
 assert.deepEqual([...new Set(declarados)].sort(),fontes,'todo JS/CSS/HTML de src deve participar exatamente do build publicado');
 
 const proibidos=[
   'audit.html','audit-runner.cjs','audit-tests.js','audit-browser.js','audit-results.json','audit-browser-results.json',
   'testes/rodar-auditoria-browser.mjs','testes/stress-extras-tec.mjs','testes/resultado-stress-extras-tec.json',
-  'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs','testes/reforco-cenarios.mjs'
+  'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs','testes/reforco-cenarios.mjs',
+  'src/css/04-tec-inline.css','docs/robusto-auditoria-json.md'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');

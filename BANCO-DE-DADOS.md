@@ -184,10 +184,10 @@ pela limpeza automática, tenha a idade que tiver.
 > minuto em minuto, e também toda vez que o app volta ao primeiro plano — é
 > assim que a virada da meia-noite é vista num app que fica semanas aberto
 > (PWA no celular, aba fixa no computador). A verificação custa uma leitura de
-> chave local e desiste imediatamente se a foto de hoje já existe. O
-> diagnóstico em `Configurações → Diagnóstico` mostra a **data da última
-> cópia** — se ela parar de avançar, o problema aparece ali antes de alguém
-> precisar restaurar.
+> chave local e desiste imediatamente se a foto de hoje já existe. Em
+> `Configurações → Dados e backup`, a lista de cópias permite conferir se novas
+> fotos continuam sendo criadas; para inspeção técnica, `CloudBackup.status()`
+> no console informa o estado do histórico e o último erro de envio.
 
 ### Retenção em faixas (avô-pai-filho)
 

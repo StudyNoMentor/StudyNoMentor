@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8f2ed9be5f">
+<meta name="diario-versao" content="ve271cdffbc">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -7135,9 +7135,6 @@ window.__idbBoot = (function () {
       <p class="page-subtitle">Gerencie matérias, formas de estudo e fases usadas em todo o app.</p>
     </div>
 
-    <style>
-
-  </style>
     <section class="card" id="cfg-vhist-card">
       <div class="card-header">
         <div>
@@ -43404,9 +43401,9 @@ window.Recuperacao = Recuperacao;
        onde voltar. A faxina nunca desce de `MIN_KEEP`, nunca toca na âncora
        e nunca apaga nada com menos de 24 h: um bug nela não vira perda.
      · FALHA NUNCA É SILENCIOSA. Um perfil grande demais para uma foto, ou
-       qualquer erro de gravação, fica registrado e visível no diagnóstico e
-       na própria tela — "ativo" só aparece quando o último envio realmente
-       deu certo.
+       qualquer erro de gravação fica registrado, aparece na própria tela e
+       pode ser inspecionado por `CloudBackup.status()` — "ativo" só aparece
+       quando o último envio realmente deu certo.
 
    Se a tabela ainda não existir no Supabase, o módulo se desliga sozinho e
    avisa no console — o app inteiro continua funcionando como antes. O SQL para
@@ -43437,7 +43434,7 @@ const CloudBackup = {
   /* Quando a última foto REALMENTE entrou no banco. Persistido porque é o que
      permite responder "o backup automático está mesmo funcionando?" sem pedir
      nada à rede — um app que promete proteção precisa PROVAR isso na tela, não
-     só afirmar. Alimenta o diagnóstico e o cabeçalho da tela de backup. */
+     só afirmar. Serve à régua de frescor da proteção automática e à inspeção local. */
   _emKey(id) { return 'diario-estudos:cbk-em:' + id; },
   ultimoEnvioEm(id) {
     const alvo = id || (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
@@ -43550,7 +43547,7 @@ const CloudBackup = {
       const packed = await BackupHistory._gzip(json);
       if (String(packed.data).length > this.LIMITE_CHARS) {
         /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
-           diagnóstico e a tela continuavam dizendo "ativo" enquanto o backup
+           status técnico e a tela continuavam dizendo "ativo" enquanto o backup
            automático de um perfil grande falhava toda vez, silenciosamente. */
         this._ultimoErro = 'foto grande demais para o banco (' + String(packed.data).length + ' de ' + this.LIMITE_CHARS + ' caracteres). Backup em .json continua funcionando normalmente.';
         console.warn('[CloudBackup] ' + this._ultimoErro);
@@ -43952,7 +43949,7 @@ const CloudBackup = {
     return !!(r.ok || r.repetido);
   },
 
-  // Diagnóstico (console: CloudBackup.status())
+  // Status técnico (console: CloudBackup.status())
   async status() {
     const id = ProfileManager.getActiveProfileId();
     const linhas = await this.listar(id);
@@ -47975,23 +47972,6 @@ else CloudStore.init();
       });
     },
 
-    /* ── O PERÍODO DO GRÁFICO É ESCOLHA DE QUEM OLHA ────────────────────────
-       Esta camada envolvia `renderDayChart` e reescrevia `tempoStart`/`tempoEnd`
-       a CADA repintura, com o intervalo do filtro geral da tela. O efeito era
-       o seletor de período do gráfico não funcionar mais: qualquer escolha
-       ("última semana", "último mês", um intervalo digitado) era sobrescrita no
-       render seguinte, e o campo voltava sozinho para o intervalo inteiro. Duas
-       coisas diferentes com o mesmo nome — o filtro recorta QUAIS registros
-       entram na tela, o seletor escolhe a JANELA desenhada no gráfico — foram
-       forçadas a ser a mesma, e a que o usuário controlava foi a que morreu.
-
-       Nada substitui o método original: o gráfico volta a ler o seu próprio
-       estado, que é o único lugar onde a escolha dele existe. */
-    syncEvolutionPeriod() {
-      if (typeof EvolucaoScreen === 'undefined' || EvolucaoScreen.__uxHierarchyPeriod) return;
-      EvolucaoScreen.__uxHierarchyPeriod = true;
-    },
-
     decorateEvolution() {
       const s = screenEl('evolucao'); if (!s) return;
       const content = q('#evolucao-content', s); if (!content) return;
@@ -48031,27 +48011,8 @@ else CloudStore.init();
       qa('[data-tpm-entry][hidden]', s).forEach(x => { x.hidden = false; x.removeAttribute('aria-hidden'); });
     },
 
-    /* ── DOIS AGRUPADORES SOBRE A MESMA TELA ────────────────────────────────
-       `ConfigUX` (80-ajustes-finais) divide Configurações em quatro seções
-       navegáveis — Estudo, Preferências, Conta e nuvem e Dados e backup — e
-       MOVE cada cartão para o painel certo. Esta camada, sem
-       saber disso, criava um `<details>` "Dados, backup e diagnóstico" e movia
-       os mesmos quatro cartões para DENTRO dele, já dentro do painel "Dados".
-       Resultado: uma seção dentro da seção, títulos repetidos, e a escala
-       tipográfica do `<details>` (`--fs-sm`/`--fs-2xs`) brigando com a dos
-       cartões — era daí que vinha a sensação de fonte sem padrão na tela.
-
-       Um agrupador só. Esta camada passa a apenas marcar prioridade, e o
-       `<details>` legado que tenha sobrado de uma sessão anterior é desmontado
-       devolvendo os cartões ao painel onde `ConfigUX` os colocou. */
     decorateConfig() {
       const s = screenEl('config'); if (!s) return;
-      const legado = document.getElementById('ux-config-data');
-      if (legado) {
-        const destino = legado.parentElement;
-        qa('.ux-config-data-body > *', legado).forEach(card => destino && destino.insertBefore(card, legado));
-        legado.remove();
-      }
       q('#cfg-plano-motores-card', s)?.classList.add('ux-secondary-area');
       q('#cloud-connected-box', s)?.classList.add('ux-secondary-area');
     },
@@ -48072,7 +48033,6 @@ else CloudStore.init();
     },
 
     patchRenderers() {
-      this.syncEvolutionPeriod();
       this.preserveScroll(window.ExtrasScreen, 'render', 'extras');
       this.preserveScroll(window.HistoricoScreen, 'render', 'historico');
       this.preserveScroll(window.EvolucaoScreen, 'render', 'evolucao');

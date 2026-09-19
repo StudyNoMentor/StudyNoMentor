@@ -228,23 +228,6 @@
       });
     },
 
-    /* ── O PERÍODO DO GRÁFICO É ESCOLHA DE QUEM OLHA ────────────────────────
-       Esta camada envolvia `renderDayChart` e reescrevia `tempoStart`/`tempoEnd`
-       a CADA repintura, com o intervalo do filtro geral da tela. O efeito era
-       o seletor de período do gráfico não funcionar mais: qualquer escolha
-       ("última semana", "último mês", um intervalo digitado) era sobrescrita no
-       render seguinte, e o campo voltava sozinho para o intervalo inteiro. Duas
-       coisas diferentes com o mesmo nome — o filtro recorta QUAIS registros
-       entram na tela, o seletor escolhe a JANELA desenhada no gráfico — foram
-       forçadas a ser a mesma, e a que o usuário controlava foi a que morreu.
-
-       Nada substitui o método original: o gráfico volta a ler o seu próprio
-       estado, que é o único lugar onde a escolha dele existe. */
-    syncEvolutionPeriod() {
-      if (typeof EvolucaoScreen === 'undefined' || EvolucaoScreen.__uxHierarchyPeriod) return;
-      EvolucaoScreen.__uxHierarchyPeriod = true;
-    },
-
     decorateEvolution() {
       const s = screenEl('evolucao'); if (!s) return;
       const content = q('#evolucao-content', s); if (!content) return;
@@ -284,27 +267,8 @@
       qa('[data-tpm-entry][hidden]', s).forEach(x => { x.hidden = false; x.removeAttribute('aria-hidden'); });
     },
 
-    /* ── DOIS AGRUPADORES SOBRE A MESMA TELA ────────────────────────────────
-       `ConfigUX` (80-ajustes-finais) divide Configurações em quatro seções
-       navegáveis — Estudo, Preferências, Conta e nuvem e Dados e backup — e
-       MOVE cada cartão para o painel certo. Esta camada, sem
-       saber disso, criava um `<details>` "Dados, backup e diagnóstico" e movia
-       os mesmos quatro cartões para DENTRO dele, já dentro do painel "Dados".
-       Resultado: uma seção dentro da seção, títulos repetidos, e a escala
-       tipográfica do `<details>` (`--fs-sm`/`--fs-2xs`) brigando com a dos
-       cartões — era daí que vinha a sensação de fonte sem padrão na tela.
-
-       Um agrupador só. Esta camada passa a apenas marcar prioridade, e o
-       `<details>` legado que tenha sobrado de uma sessão anterior é desmontado
-       devolvendo os cartões ao painel onde `ConfigUX` os colocou. */
     decorateConfig() {
       const s = screenEl('config'); if (!s) return;
-      const legado = document.getElementById('ux-config-data');
-      if (legado) {
-        const destino = legado.parentElement;
-        qa('.ux-config-data-body > *', legado).forEach(card => destino && destino.insertBefore(card, legado));
-        legado.remove();
-      }
       q('#cfg-plano-motores-card', s)?.classList.add('ux-secondary-area');
       q('#cloud-connected-box', s)?.classList.add('ux-secondary-area');
     },
@@ -325,7 +289,6 @@
     },
 
     patchRenderers() {
-      this.syncEvolutionPeriod();
       this.preserveScroll(window.ExtrasScreen, 'render', 'extras');
       this.preserveScroll(window.HistoricoScreen, 'render', 'historico');
       this.preserveScroll(window.EvolucaoScreen, 'render', 'evolucao');

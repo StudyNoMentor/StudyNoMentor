@@ -2,9 +2,9 @@
 
 ## O que é publicado
 
-`index.html` — um arquivo, sem build step, sem dependência para rodar. É o que
-abre no navegador, o que o GitHub Pages serve e o que funciona por `file://`.
-**Isso não mudou e não deve mudar.**
+`index.html` — um único arquivo publicado, sem dependências de runtime. Ele é
+montado por `build.mjs` a partir de `src/`, abre no navegador, é o que o GitHub
+Pages serve e continua funcionando por `file://`.
 
 `manifest.webmanifest` e `sw.js` são opcionais: se estiverem ao lado do
 `index.html`, o app fica instalável e abre sem internet. Se não estiverem, o app
@@ -12,15 +12,20 @@ funciona igual — só sem offline.
 
 ## O que existe para quem MANTÉM o código
 
-`index.html` tem ~36.500 linhas. Editar isso direto é onde os erros nascem.
-Por isso o mesmo conteúdo vive também em `src/`, quebrado em 50 arquivos:
+`index.html` tem dezenas de milhares de linhas. Editar isso direto é onde os
+erros nascem. Por isso o conteúdo-fonte vive em `src/`, separado por função:
 
 ```
 src/
-  html/   4 pedaços do documento (cabeçalho, corpo, rodapé)
-  css/    6 folhas de estilo
-  js/    40 módulos do aplicativo
+  html/   pedaços estruturais do documento
+  css/    folhas de estilo por superfície/camada
+  js/     módulos do aplicativo
 ```
+
+Evite registrar contagens fixas aqui: elas mudam com a evolução do produto. A
+fonte de verdade sobre quais arquivos entram no publicado é o próprio
+`build.mjs`, e `testes/repositorio-higiene.mjs` garante que nenhuma fonte de
+`src/` fique órfã ou seja carregada duas vezes.
 
 `build.mjs` junta `src/` de volta em `index.html`. A montagem é uma
 **concatenação literal**: nada é minificado, transpilado, reordenado ou
@@ -67,7 +72,11 @@ correspondente (o `src/manifesto.json` diz qual faixa de linhas veio de onde —
 ele é **gerado pelo `build.mjs`** junto com o `index.html`, então nunca fica
 desatualizado; não edite na mão).
 
-**Commite `src/` e `index.html` juntos.** Se só um dos dois for, a CI reprova.
+Localmente, rode `node build.mjs` antes de commitar para manter `src/`,
+`index.html`, `sw.js` e `src/manifesto.json` sincronizados. Em PRs criados
+no próprio repositório, o job `sincronizar-gerados` da CI refaz esses artefatos
+e os commita na branch quando necessário; a verificação seguinte exige que não
+reste divergência.
 
 ## O que `verificar.mjs` checa
 
@@ -78,7 +87,7 @@ desatualizado; não edite na mão).
 | 3 | o agendador bate com o Anki — 21.080 pontos (`testes/paridade-anki.mjs`) e sobrevive a configuração corrompida (`testes/robustez-config.mjs`) | não |
 | 4 | id duplicado, tag estrutural desbalanceada, CSP íntegra, trava anti-moldura presente | não |
 | 5 | o app carrega no Chromium sem **um único** erro de console | sim |
-| 6 | as 14 telas navegam, `AutoTeste` passa 100%, o botão "Opções" da Grade não vaza do cabeçalho | sim |
+| 6 | as telas principais navegam, `AutoTeste` passa e invariantes críticas de interface continuam válidas | sim |
 | 7 | nenhum texto abaixo do contraste WCAG AA — nos temas claro **e** escuro | sim |
 
 `node verificar.mjs --rapido` roda só 1–4 (segundos, sem navegador).
