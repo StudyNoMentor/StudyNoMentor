@@ -474,6 +474,41 @@ try {
   ok(readOnlyRepairsStaleCache.r&&readOnlyRepairsStaleCache.r.ok,'pull read-only deve validar e aplicar seções');
   eq(readOnlyRepairsStaleCache.depois,readOnlyRepairsStaleCache.remoto,'conteúdo remoto deve corrigir cache físico regressado');
 
+  /* 2p. Duas filas homônimas de perfis diferentes não podem compartilhar estado. */
+  const profileIsolation=await page.evaluate(()=>{
+    const a='syncv2-profile-a',b='syncv2-profile-b',sec='entries';
+    const ka='diario-estudos:u:'+a+':'+sec,kb='diario-estudos:u:'+b+':'+sec;
+    SectionSync._dirtyFor(a).clear();SectionSync._dirtyGenFor(a).clear();
+    SectionSync._dirtyFor(b).clear();SectionSync._dirtyGenFor(b).clear();
+    localStorage.setItem(ka,'[1]');localStorage.setItem(kb,'[2]');
+    SectionSync.markDirty(ka);SectionSync.markDirty(kb);
+    const antes={
+      a:SectionSync._dirtyFor(a).has(sec),
+      b:SectionSync._dirtyFor(b).has(sec),
+      ga:SectionSync._dirtyGenFor(a).get(sec)||0,
+      gb:SectionSync._dirtyGenFor(b).get(sec)||0,
+      pa:SectionSync._loadPend(a).includes(sec),
+      pb:SectionSync._loadPend(b).includes(sec)
+    };
+    SectionSync._clearDirtyIfGeneration(sec,antes.ga,a);
+    SectionSync._savePend(a);
+    const depois={
+      a:SectionSync._dirtyFor(a).has(sec),
+      b:SectionSync._dirtyFor(b).has(sec),
+      pb:SectionSync._loadPend(b).includes(sec)
+    };
+    SectionSync._dirtySets.delete(a);SectionSync._dirtySets.delete(b);
+    SectionSync._dirtyGenMaps.delete(a);SectionSync._dirtyGenMaps.delete(b);
+    localStorage.removeItem(ka);localStorage.removeItem(kb);
+    localStorage.removeItem('diario-estudos:u:'+a+':__secpend');
+    localStorage.removeItem('diario-estudos:u:'+b+':__secpend');
+    return {antes,depois};
+  });
+  ok(profileIsolation.antes.a&&profileIsolation.antes.b,'mesma seção deve poder ficar pendente em dois perfis');
+  ok(profileIsolation.antes.pa&&profileIsolation.antes.pb,'outbox durável deve permanecer separada por perfil');
+  ok(!profileIsolation.depois.a,'confirmação do perfil A deve limpar apenas A');
+  ok(profileIsolation.depois.b&&profileIsolation.depois.pb,'confirmação do perfil A não pode tocar na fila do perfil B');
+
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);
 } finally {
