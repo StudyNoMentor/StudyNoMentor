@@ -182,18 +182,87 @@
 
   /* ── ABERTURA LOCAL-FIRST ──────────────────────────────────────────────── */
   const RECON_KEY = 'diario-estudos:uxv4-reconcile';
+  const BUILD_RECON_PREFIX = 'diario-estudos:uxv4-build-ok:';
+  function currentBuild() {
+    try {
+      const m = document.querySelector('meta[name="diario-versao"]');
+      return (m && m.content && m.content !== 'dev') ? m.content : null;
+    } catch (_) { return null; }
+  }
+  function buildReconcileKey(id) { return BUILD_RECON_PREFIX + String(id || ''); }
+
   async function reconcileProfile(id) {
     if (!id || !window.CloudStore || !CloudStore.isReady || !CloudStore.isReady() || !CloudStore.isLoggedIn || !CloudStore.isLoggedIn()) return false;
     if (window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId() !== id) return false;
     StartupTrace.mark('reconciliacao-inicio');
     syncNote('Conferindo novidades da nuvem em segundo plano…');
     try {
-      // Primeiro entrega o que este aparelho ainda não enviou. Só depois pergunta
-      // se a nuvem tem algo mais novo — evita download apagar uma edição local.
+      /* 1) ENTREGA PRIMEIRO o que está explicitamente na fila. A reconciliação
+         nunca pode baixar por cima de uma edição cuja entrega ainda está
+         comprovadamente pendente. */
       let pend = 0;
       try { if (window.SectionSync) pend = SectionSync.pendingQuick(); } catch (e) { quiet(e, 'reconcile-pend'); }
       if (pend && CloudStore.flushPending) await CloudStore.flushPending();
 
+      /* Se ainda existe fila EXPLÍCITA depois da tentativa, a rede não confirmou
+         o envio. Adiamos a leitura; tentar "resolver" isso com download seria
+         transformar uma falha de rede em conflito de dados. */
+      let pendRestante = 0;
+      try {
+        if (window.SectionSync) {
+          pendRestante = SectionSync.explicitPendingSections
+            ? SectionSync.explicitPendingSections(id).length
+            : SectionSync.pendingQuick();
+        }
+      } catch (e) { quiet(e, 'reconcile-pend-restante'); }
+      if (pendRestante) {
+        StartupTrace.mark('reconciliacao-adiada-pendencia', { pendencias: pendRestante });
+        try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick-pendente'); }
+        return false;
+      }
+
+      /* 2) BARREIRA POR VERSÃO.
+         O bug residual estava aqui: depois de uma atualização o conteúdo local
+         podia voltar um ou dois dias enquanto __secrev continuava parecendo
+         atual. Uma consulta só por revisão respondia "nada novo".
+
+         Na PRIMEIRA abertura de cada build fazemos uma hidratação completa. Ela
+         usa explicitOnly: só a caixa de saída comprovada pode ser enviada antes
+         da leitura. Uma mera divergência de hash sem fila não vira upload, pois
+         pode ser precisamente um cache local regressado. A cópia local é
+         fotografada pelo BackupHistory antes de qualquer aplicação. */
+      const build = currentBuild();
+      const precisaBarreira = !!(
+        build &&
+        window.SectionSync &&
+        SectionSync.readEnabled &&
+        SectionSync.hydrateAfterAppUpdate &&
+        localStorage.getItem(buildReconcileKey(id)) !== build
+      );
+      if (precisaBarreira) {
+        syncNote('Nova versão instalada. Validando seus dados com a nuvem…', true);
+        const r = await SectionSync.hydrateAfterAppUpdate(id);
+        if (!r || !r.ok) {
+          StartupTrace.mark('reconciliacao-build-adiada', { motivo: (r && r.motivo) || 'falha' });
+          return false;
+        }
+        /* Marca ANTES da eventual recarga. recarregarApp() chama __idbFlush,
+           então este carimbo entra na mesma confirmação de disco e a nova
+           versão não repete o download completo em loop. */
+        try { localStorage.setItem(buildReconcileKey(id), build); } catch (e) { quiet(e, 'reconcile-build-key'); }
+        StartupTrace.mark('reconciliacao-build-ok', { build, mudou: r.mudou || 0, secoes: r.seções || 0 });
+        if (r.mudou) {
+          syncNote('Dados mais recentes encontrados. Atualizando a tela…', true);
+          if (typeof recarregarApp === 'function') recarregarApp('reconciliação obrigatória após atualização');
+          else location.reload();
+        } else {
+          StartupTrace.mark('reconciliacao-sem-novidade');
+        }
+        return true;
+      }
+
+      /* 3) Nas aberturas normais permanece a checagem barata por revisão.
+         A barreira pesada é uma vez por build, não em todo foco da janela. */
       let novidade = false;
       if (window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
       else if (CloudStore._fetchRev) {
@@ -329,5 +398,5 @@
 
 
   // Exposto para auditoria automatizada e diagnóstico no console.
-  window.UX = { StartupTrace, LoaderUX, reconcileProfile, installLocalFirst };
+  window.UX = { StartupTrace, LoaderUX, reconcileProfile, installLocalFirst, currentBuild, buildReconcileKey };
 })();
