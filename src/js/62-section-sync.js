@@ -369,7 +369,9 @@ const SectionSync = {
     this._saveDel(del, id);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
-  // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
+  // Mantido para ações EXPLÍCITAS de recuperação/reenviar tudo. Não é seguro
+  // usar esta heurística automaticamente no startup: conteúdo físico antigo +
+  // __secrev novo é indistinguível de uma edição se olharmos apenas o hash.
   markAllDirty(id) {
     const alvo = id || this._activeProfileId();
     const pfx = this._prefixFor(alvo);
@@ -381,7 +383,26 @@ const SectionSync = {
         if (!sec) continue;
         const raw = localStorage.getItem(full) || '';
         const h = this._hash(raw);
-        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec, alvo); // só o que mudou
+        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec, alvo);
+      }
+    } catch (_) { _quiet(_); }
+    this._savePend(alvo);
+  },
+  /* Startup conservador: só semeia seção que NUNCA teve revisão conhecida.
+     Se já existe __secrev, divergência de hash NÃO vira edição automaticamente.
+     Alterações reais feitas pelo usuário passam por DB._set/setRaw/delRaw e
+     entram na outbox pelo hook no mesmo instante. Assim cache regressado nunca
+     ganha autoridade só porque o navegador foi reaberto. */
+  seedUntrackedOnly(id) {
+    const alvo = id || this._activeProfileId();
+    const pfx = this._prefixFor(alvo);
+    const revs = this._getRevs(alvo);
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const full = localStorage.key(i);
+        const sec = this.sectionForKey(full, pfx);
+        if (!sec || revs[sec]) continue;
+        this._ensureDirty(sec, alvo);
       }
     } catch (_) { _quiet(_); }
     this._savePend(alvo);
@@ -390,7 +411,7 @@ const SectionSync = {
     const id = ProfileManager.getActiveProfileId();
     if (!id || this._seededProfile === id) return;
     this._seededProfile = id;
-    this.markAllDirty(id);
+    this.seedUntrackedOnly(id);
   },
   /* ── O QUE FAZER COM UMA SEÇÃO SUJA (decisão pura, testável) ──────────────
      Recebe o texto local e o que sabemos do último envio; devolve a ação. Está
