@@ -254,25 +254,29 @@ try {
   ok(generationRace.aindaSuja,'upload antigo não pode limpar edição nova da memória');
   ok(generationRace.persistida,'upload antigo não pode limpar edição nova da outbox durável');
 
-  /* 2f. O caminho CAS existente deve usar UPDATE condicionado por rev, nunca
-     upsert incondicional sobre uma linha já conhecida. */
+  /* 2f. O CAS V2 precisa atravessar a RPC atômica com revisão-base + hash-base
+     + prova de mutação. Nenhum UPDATE/UPSERT direto pode decidir concorrência no cliente. */
   const casUpdate=await page.evaluate(async()=>{
-    const keep=CloudStore.client;const calls=[];
-    const q={
-      update(){calls.push('update');return this;},
-      eq(k,v){calls.push('eq:'+k+'='+v);return this;},
-      select(){calls.push('select');return Promise.resolve({data:[{rev:8}],error:null});}
+    const keep=CloudStore.client;let chamada=null;
+    CloudStore.client={
+      rpc(name,args){
+        chamada={name,args};
+        return Promise.resolve({data:{ok:true,rev:8,content_hash:'hash-novo'},error:null});
+      }
     };
-    CloudStore.client={from(){calls.push('from');return q;}};
     const r=await SectionSync._writeSectionCAS(
-      {profile_id:'p',section:'entries',data:[],rev:8,updated_at:new Date().toISOString()},7);
+      {profile_id:'p',section:'entries',data:[],rev:8,updated_at:new Date().toISOString(),_contentHash:'hash-novo'},
+      7,'hash-base','mutacao-teste');
     CloudStore.client=keep;
-    return {calls,r};
+    return {chamada,r};
   });
-  ok(casUpdate.calls.includes('update'),'CAS de seção existente deve usar UPDATE');
-  ok(casUpdate.calls.includes('eq:rev=7'),'CAS deve condicionar a escrita à revisão conhecida');
-  ok(!casUpdate.calls.includes('upsert'),'CAS não pode fazer upsert cego');
-  ok(casUpdate.r&&casUpdate.r.ok,'CAS condicionado deve aceitar confirmação válida');
+  ok(casUpdate.chamada&&casUpdate.chamada.name==='write_profile_section_cas','CAS V2 deve usar a RPC atômica do servidor');
+  eq(casUpdate.chamada.args.p_expected_rev,7,'RPC CAS deve receber a revisão-base conhecida');
+  eq(casUpdate.chamada.args.p_expected_hash,'hash-base','RPC CAS deve receber o hash-base conhecido');
+  eq(casUpdate.chamada.args.p_new_hash,'hash-novo','RPC CAS deve receber o hash do conteúdo novo');
+  eq(casUpdate.chamada.args.p_mutation_id,'mutacao-teste','RPC CAS deve receber identidade única da mutação');
+  ok(!!casUpdate.chamada.args.p_device_id,'RPC CAS deve identificar o dispositivo');
+  ok(casUpdate.r&&casUpdate.r.ok&&casUpdate.r.rev===8,'CAS V2 deve aceitar confirmação válida do servidor');
 
   /* 2g. Conflito do blob não pode copiar a rev remota para o local e tentar
      novamente com autorização artificial. */

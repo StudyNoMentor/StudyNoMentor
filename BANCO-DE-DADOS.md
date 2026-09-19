@@ -431,6 +431,19 @@ não possa apagar uma edição mais nova, o papel `authenticated` não possui ma
 `DELETE` direto em `profile_sections`. O único caminho de exclusão física é a
 RPC abaixo, que exige autenticação, confirma o dono do perfil e compara a revisão.
 
+Desde o estágio 2, a exclusão física também deixa uma **memória privada** em
+`private.profile_section_tombstones`. Ela não é exposta ao frontend e não aparece
+nas leituras de versões antigas, mas grava a revisão lógica da exclusão
+(`rev_anterior + 1`). O trigger de `profile_sections` consulta essa memória em
+todo `INSERT` e rejeita uma reinserção com revisão menor ou igual. Assim, mesmo
+uma aba antiga que ainda tente um `upsert` depois da exclusão não consegue
+ressuscitar silenciosamente uma seção apagada.
+
+O RPC V2 de escrita também consulta essa memória. Se uma chave já foi excluída e
+um cliente sem a revisão da exclusão tenta criá-la como se fosse nova
+(`expected_rev = 0`), recebe conflito `deleted`; a cópia local permanece na
+outbox para resolução explícita, em vez de desfazer a exclusão.
+
 ```sql
 create schema if not exists private;
 
