@@ -564,39 +564,30 @@ try {
   eq(blockedPull.pulls,0,'sessão remota bloqueada não pode iniciar pull/hydrate em segundo plano');
   eq(blockedPull.r,false,'pull bloqueado deve retornar sem fingir aplicação');
 
-  /* 2l.5. No bloqueio REMOTO, o botão não fecha o overlay antes da confirmação. */
-  const remoteOverlayWaitsClaim=await page.evaluate(async()=>{
-    const keep=SessionLock._takeoverFns;
-    SessionLock._takeoverFns=[()=>{}];
-    SessionLock.block('remote',{label:'Outro'});
-    const btn=document.getElementById('single-session-takeover');
-    if(btn)btn.click();
-    await new Promise(r=>setTimeout(r,20));
-    const o=document.getElementById('single-session-overlay');
-    const out={blocked:SessionLock.isBlocked(),origin:SessionLock._origin,display:o&&o.style.display,disabled:btn&&btn.disabled,text:btn&&btn.textContent};
-    SessionLock._takeoverFns=keep;SessionLock.unblock();
-    return out;
-  });
-  ok(remoteOverlayWaitsClaim.blocked&&remoteOverlayWaitsClaim.origin==='remote','overlay remoto deve continuar bloqueando até confirmação');
-  eq(remoteOverlayWaitsClaim.display,'flex','overlay remoto não pode sumir no clique');
-  ok(remoteOverlayWaitsClaim.disabled,'botão deve travar enquanto takeover é confirmado');
-  ok(/Confirmando/.test(remoteOverlayWaitsClaim.text||''),'botão deve informar que está confirmando a posse');
-
-
-  /* 2l.6. O overlay remoto é autoridade final: nem um estado interno "allowed"
-     vindo de evento atrasado pode liberar o perfil antes da ação explícita. */
-  const overlayBeatsLateAllowed=await page.evaluate(()=>{
-    const keep={uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session,mode:SessionGuard.singleDeviceMode};
-    CloudStore.session={user:{id:'user-overlay'}};
+  /* 2l.5-2l.6. Barreiras de sessão foram aposentadas. Nem dispositivo remoto
+     nem outra aba/janela podem bloquear a UI ou a sincronização. */
+  const sessionBarriersOff=await page.evaluate(()=>{
+    const keep={mode:SessionGuard.singleDeviceMode,uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session};
     SessionGuard.singleDeviceMode=true;
+    CloudStore.session={user:{id:'user-overlay'}};
     SessionGuard._accessUid='user-overlay';SessionGuard._accessState='allowed';
     SessionLock.block('remote',{label:'Outro'});
-    const can=SessionGuard.canEnterNow();
+    const remoteBlocked=SessionLock.isBlocked();
+    const remoteDisplay=(document.getElementById('single-session-overlay')||{}).style?.display||'';
+    const canRemote=SessionGuard.canEnterNow();
+    SessionLock.block('local',{});
+    const localBlocked=SessionLock.isBlocked();
+    const localDisplay=(document.getElementById('single-session-overlay')||{}).style?.display||'';
     SessionLock.unblock();
     SessionGuard.singleDeviceMode=keep.mode;SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;CloudStore.session=keep.session;
-    return can;
+    return {remoteBlocked,remoteDisplay,canRemote,localBlocked,localDisplay,enabled:SessionLock.enabled};
   });
-  eq(overlayBeatsLateAllowed,false,'overlay remoto deve impedir entrada mesmo diante de allowed atrasado');
+  eq(sessionBarriersOff.enabled,false,'trava de sessão deve permanecer desativada');
+  eq(sessionBarriersOff.remoteBlocked,false,'outro aparelho não pode bloquear este');
+  ok(sessionBarriersOff.remoteDisplay!=='flex','overlay remoto não pode aparecer');
+  ok(sessionBarriersOff.canRemote,'estado permitido deve continuar liberado sem takeover');
+  eq(sessionBarriersOff.localBlocked,false,'outra aba/janela não pode bloquear esta');
+  ok(sessionBarriersOff.localDisplay!=='flex','overlay local não pode aparecer');
 
   /* 2l.7. O binding remoto precisa existir na ORDEM REAL do bundle
      (61-session-guard antes de 63-cloud-ui). Foi exatamente o que deixou o
