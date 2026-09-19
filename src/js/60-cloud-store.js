@@ -266,9 +266,6 @@ const CloudStore = {
     return { relational: true };
   },
 
-  async saveActiveWithRetry() {
-    return this.saveActive();
-  },
 
   notifyChange() {
     try { if (window.CloudUI) CloudUI.refreshSyncBtn(); }
