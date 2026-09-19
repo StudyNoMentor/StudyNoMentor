@@ -357,46 +357,46 @@
  {
   "arquivo": "js/67-atualizacao.js",
   "de": 44736,
-  "ate": 44994
+  "ate": 45005
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 44996,
-  "ate": 45531
+  "de": 45007,
+  "ate": 45542
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 45533,
-  "ate": 46645
+  "de": 45544,
+  "ate": 46656
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 46647,
-  "ate": 46940
+  "de": 46658,
+  "ate": 46951
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 46941,
-  "ate": 47342
+  "de": 46952,
+  "ate": 47353
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 47344,
-  "ate": 48007
+  "de": 47355,
+  "ate": 48018
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 48009,
-  "ate": 48312
+  "de": 48020,
+  "ate": 48323
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 48314,
-  "ate": 48657
+  "de": 48325,
+  "ate": 48668
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 48659,
-  "ate": 49164
+  "de": 48670,
+  "ate": 49175
  }
 ]
