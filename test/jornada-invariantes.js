@@ -39,7 +39,9 @@ window.RODAR_JORNADA = function () {
     DB.getTecSnapshots = () => snaps;
     DB.getExtras = () => banco;
     DB.saveExtras = (l) => { banco = l; };
-    T.scopedSnapshot = () => snaps[snaps.length - 1] || null;
+    // A Análise continua consolidando o histórico. O Motor precisa ignorar esse agregado
+    // e escolher explicitamente o retrato mais recente do escopo ativo.
+    T.scopedSnapshot = () => T.aggregate(snaps);
     T.activeSnapshots = () => snaps.slice();
     M.salvar({ fase: 'pre', minAmostra: 20, alvoQuestoes: 25, maxFrentes: 3, metaAcerto: 90, disciplinasSel: [] });
 
@@ -77,6 +79,8 @@ window.RODAR_JORNADA = function () {
 
     // Novo retrato: A melhora muito. B/C continuam piores; D entra no lugar de A.
     snaps = [s1, s2];
+    const atual2 = M.retratoAtual();
+    if (!atual2 || atual2.id !== 'r2') F('rodada-2', 'Motor nao escolheu o retrato mais recente', { atual: atual2 && atual2.id });
     r = ranking();
     const ordem2 = r.disciplinas.slice(0, 4).map(d => d.nome);
     if (ordem2.slice(0, 3).join(',') !== 'B,C,D') F('rodada-2', 'materia melhorada nao liberou a vaga', { ordem2 });
