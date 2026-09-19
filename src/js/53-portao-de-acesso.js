@@ -297,14 +297,29 @@ const ProfileUI = {
           }
         }
         if (!porSecao || !porSecao.ok) {
-          try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
-          /* Também aqui o download não pode apagar o que este aparelho ainda não
-             enviou: tenta entregar primeiro e preserva o que não subir. */
-          let preservar = [];
-          try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
-          const res = await CloudStore.fetchPayload(id);
-          mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
-          ProfileManager.setRev(id, res.rev);
+          const temSecoesRemotas = !!(porSecao && (porSecao.linhasRemotas || 0) > 0);
+          if (temSecoesRemotas) {
+            /* profile_sections já existe: blob não pode virar máquina do tempo.
+               Se houver cópia local, abrimos a cópia preservada e deixamos a
+               reconciliação tentar novamente. Em aparelho novo, recusamos uma
+               restauração potencialmente obsoleta em vez de fingir sucesso. */
+            if (!ProfileManager.temDadosLocais(id)) {
+              const er = new Error('As seções da nuvem estão incompletas. A cópia antiga de segurança não foi aplicada para evitar regressão de dados.');
+              er.code = 'secoes-incompletas';
+              throw er;
+            }
+            console.warn('[perfil] conjunto remoto por seção inválido; blob antigo NÃO aplicado. Abrindo cópia local preservada:', porSecao.motivo);
+            mudou = 1;
+          } else {
+            try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
+            /* Perfil legado sem linhas por seção: aqui o blob ainda é o plano B
+               compatível, preservando qualquer alteração local pendente. */
+            let preservar = [];
+            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
+            const res = await CloudStore.fetchPayload(id);
+            mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+            ProfileManager.setRev(id, res.rev);
+          }
         }
         ProfileManager.setActiveProfile(id);
         PlanManager.init();
