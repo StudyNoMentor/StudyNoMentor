@@ -35,7 +35,22 @@
           : null;
         if (!s) return null;
         const data = s.endDate || s.date || s.startDate || '';
-        return { id: String(s.id || ''), data, assinatura: String(s.id || '') + '|' + String(data) };
+        const fontes = (Array.isArray(s._fontes) && s._fontes.length) ? s._fontes : [s];
+        const assinarFonte = f => {
+          let h = 2166136261 >>> 0;
+          const mix = v => {
+            const t = String(v == null ? '' : v);
+            for (let i = 0; i < t.length; i++) h = Math.imul(h ^ t.charCodeAt(i), 16777619) >>> 0;
+            h = Math.imul(h ^ 31, 16777619) >>> 0;
+          };
+          mix(f.id); mix(f.startDate || f.date); mix(f.endDate || f.date); mix(f.importedAt);
+          (f.rows || []).forEach(r => {
+            mix(r.codigo); mix(r.nome); mix(r.disciplina); mix(r.depth); mix(r.questoes); mix(r.acertos);
+          });
+          return [f.id || '', f.startDate || f.date || '', f.endDate || f.date || '', h.toString(36)].join(':');
+        };
+        const assinatura = fontes.map(assinarFonte).sort().join('|');
+        return { id: String(s.id || ''), data, assinatura };
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-retrato'); return null; }
     },
 
@@ -100,7 +115,9 @@
         escopo: membros && membros.length > 1 ? { tipo: 'bloco', membros: membros.slice() } : { tipo: 'no', membros: [topico || (item && item.nome) || ''] },
         fase: p.fase,
         minAmostra: p.minAmostra,
-        rankInicial: item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
+        rankInicial: item && item.disciplinaRankAcionavel != null
+          ? num(item.disciplinaRankAcionavel)
+          : item && item.disciplinaRank != null ? num(item.disciplinaRank) : null,
         lacunaDiscInicial: item && item.disciplinaLacuna != null ? num(item.disciplinaLacuna) : null,
         retratoBase: retrato ? retrato.assinatura : null,
         retratoDataBase: retrato ? retrato.data : null
@@ -137,8 +154,8 @@
 
     _rankAtual(r, nome) {
       const k = norm(nome);
-      const d = (r && r.disciplinas || []).find(x => norm(x.nome) === k);
-      return d ? num(d.rank) : null;
+      const d = (r && r.disciplinasAcionaveis || r && r.disciplinas || []).find(x => norm(x.nome) === k);
+      return d ? num(d.rankAcionavel, d.rank) : null;
     },
 
     avaliar(extra, resultado) {
@@ -164,9 +181,15 @@
       const noGrupo = rank != null && rank <= num(p.maxFrentes, 3);
       const retrato = this._ultimoRetrato();
       const baseData = String(o.retratoDataBase || '');
-      const novoRetrato = !!(retrato && (baseData
-        ? String(retrato.data || '') > baseData
-        : (!o.retratoBase || retrato.assinatura !== o.retratoBase)));
+      const baseAssinatura = String(o.retratoBase || '');
+      const dataAtual = String(retrato && retrato.data || '');
+      const mudouBase = !!(retrato && (!baseAssinatura || retrato.assinatura !== baseAssinatura));
+      const assinaturaDeEscopo = baseAssinatura.includes(':');
+      const avancouData = !!baseData && dataAtual > baseData;
+      const revisouMesmoPeriodo = !!baseData && dataAtual === baseData && assinaturaDeEscopo && mudouBase;
+      /* Assinaturas antigas eram "id|data". Não fechamos atividades abertas
+         só porque a atualização passou a assinar todas as fontes do escopo. */
+      const novoRetrato = mudouBase && (!baseData || avancouData || revisouMesmoPeriodo);
 
       let estado = 'andamento';
       if (!atual && !d) estado = 'orfa';

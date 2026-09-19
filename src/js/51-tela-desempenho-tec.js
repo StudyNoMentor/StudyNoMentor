@@ -1416,9 +1416,9 @@ const DesempenhoTecScreen = {
 
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
       const porQue = x.agregado
-        ? `Agrupamento local de ${x.membros.length} irmãos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam o piso de ${r.prefs.minAmostra} questões; juntos alcançam.`
+        ? `Bloco local com ${x.membros.length} dos irmãos mais fracos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam ${r.prefs.minAmostra} questões; juntos formam uma atividade executável. Os demais continuam na fila.`
         : x.motivoNivel === 'subnivel-insuficiente'
-          ? `O nível abaixo não alcançou ${r.prefs.minAmostra} questões. O motor subiu somente até este tópico.`
+          ? `Mesmo reunindo os subtópicos fracos, o nível abaixo não alcançou ${r.prefs.minAmostra} questões. Só então o motor subiu até este tópico.`
           : `Este nível tem pelo menos ${r.prefs.minAmostra} questões e pode ser usado diretamente.`;
       const membros = x.agregado
         ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
@@ -1465,7 +1465,9 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      const statusAmostra = d.amostraValida ? d.questoes + ' q' : 'amostra geral < ' + r.prefs.minAmostra + ' q';
+      const statusAmostra = d.amostraMinima
+        ? d.questoes + ' q'
+        : d.questoes + ' q na matéria; continua no ranking percentual, mas ainda sem recorte executável';
       return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
     }).join('');
 
@@ -1503,7 +1505,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: percentual simples + piso de amostra. O histórico é consolidado por identidade semântica do assunto, subtópicos pequenos só agrupam com irmãos do mesmo pai e a fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
