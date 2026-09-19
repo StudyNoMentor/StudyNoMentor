@@ -924,14 +924,12 @@ else CloudStore.init();
         /* Esta é a única ação do app que apaga dados de propósito. A foto local
            acima some junto se o navegador for limpo depois; a do banco, não. */
         if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar os dados locais');
-        const id = ProfileManager.getActiveProfileId();
-        const pfx = 'diario-estudos:u:' + id + ':';
-        const del = [];
-        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.indexOf(pfx) === 0) del.push(k); }
-        del.forEach(k => { try { localStorage.removeItem(k); } catch (_) { _quiet(_); } });
-        ProfileManager.setRev(id, 0);
-        toast('Baixando da nuvem…');
-        await CS.pullActiveAndReload({ readOnly: true });
+        /* Não apagamos primeiro. O download por seção já valida o conjunto
+           inteiro ANTES de aplicar. Se a nuvem estiver incompleta ou offline,
+           esta cópia local permanece exatamente como estava. */
+        toast('Validando e baixando da nuvem…');
+        const okPull = await CS.pullActiveAndReload({ readOnly: true });
+        if (okPull === false) toast('A cópia local foi mantida porque a nuvem não pôde ser validada com segurança.');
       } catch (e) { toast('Não foi possível concluir a limpeza.'); }
     },
 
