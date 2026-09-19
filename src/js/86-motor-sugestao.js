@@ -39,7 +39,8 @@
       alvoQuestoes: 25,       // tamanho-base DE CADA atividade
       doseMin: 12,            // piso real: atividade simbólica não entra
       maxFrentes: 3,          // disciplinas distintas na rodada
-      metaAcerto: 90
+      metaAcerto: 90,
+      disciplinasSel: []       // vazio = todas; filtro compartilhado com Extras
     }),
     LIMITES: Object.freeze({
       margemMax: [5, 40],
@@ -50,7 +51,7 @@
     }),
     _key() { return DB._profilePrefix() + this.KEY; },
     prefs() {
-      const d = Object.assign({}, this.DEFAULTS);
+      const d = Object.assign({}, this.DEFAULTS, { disciplinasSel: [] });
       let z = null;
       try { z = JSON.parse(localStorage.getItem(this._key()) || 'null'); }
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-prefs'); }
@@ -61,6 +62,15 @@
         const [lo, hi] = this.LIMITES[k];
         d[k] = Math.round(clamp(z[k], lo, hi));
       });
+      if (Array.isArray(z.disciplinasSel)) {
+        const vistos = new Set();
+        d.disciplinasSel = z.disciplinasSel.map(x => String(x == null ? '' : x).trim())
+          .filter(x => {
+            const k = norm(x);
+            if (!k || vistos.has(k) || vistos.size >= 120) return false;
+            vistos.add(k); return true;
+          }).map(x => x.slice(0, 300));
+      }
       /* Migrações de contrato, uma vez por perfil.
          - o piso antigo aceitava 1–5 questões;
          - a meta antiga de fábrica era 85%, embora o estudo esteja configurado
@@ -86,6 +96,14 @@
     salvar(patch) {
       const p = Object.assign(this.prefs(), patch || {});
       const limpo = { fase: p.fase === 'pos' ? 'pos' : 'pre' };
+      const vistosDisc = new Set();
+      limpo.disciplinasSel = (Array.isArray(p.disciplinasSel) ? p.disciplinasSel : [])
+        .map(x => String(x == null ? '' : x).trim())
+        .filter(x => {
+          const k = norm(x);
+          if (!k || vistosDisc.has(k) || vistosDisc.size >= 120) return false;
+          vistosDisc.add(k); return true;
+        }).map(x => x.slice(0, 300));
       Object.keys(this.LIMITES).forEach(k => {
         const [lo, hi] = this.LIMITES[k];
         limpo[k] = Math.round(clamp(p[k], lo, hi));
@@ -100,7 +118,7 @@
       catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-sug-event'); }
       return limpo;
     },
-    restaurar() { return this.salvar(Object.assign({}, this.DEFAULTS)); },
+    restaurar() { return this.salvar(Object.assign({}, this.DEFAULTS, { disciplinasSel: [] })); },
 
     margem(q, ac) {
       if (!(q > 0)) return null;
@@ -122,6 +140,98 @@
         num(b.questoes) - num(a.questoes) ||
         String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true })
       );
+    },
+
+    /* O código 01/02/03 do TEC é POSICIONAL e muda entre retratos.
+       O Motor, portanto, monta cada retrato isoladamente e só depois consolida
+       por identidade semântica. Nome único na matéria casa por nome; se um nome
+       aparece duas vezes no mesmo retrato, o caminho completo o desambigua. */
+    _forestEstavel(snap) {
+      if (!snap) return [];
+      const fontes = (Array.isArray(snap._fontes) && snap._fontes.length) ? snap._fontes.slice() : [snap];
+      fontes.sort((a, b) => String(a.endDate || a.date || a.startDate || '').localeCompare(String(b.endDate || b.date || b.startDate || '')));
+      const arvores = fontes.map(s => {
+        try { return TecEngine.buildTree(s) || []; }
+        catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-tree-fonte'); return []; }
+      });
+
+      const ambiguos = new Set();
+      arvores.forEach(forest => (forest || []).forEach(d => {
+        const cont = Object.create(null);
+        const walk = n => (n.children || []).forEach(ch => {
+          const k = norm(d.nome) + '\u0001' + norm(ch.nome);
+          cont[k] = (cont[k] || 0) + 1;
+          walk(ch);
+        });
+        walk(d);
+        Object.keys(cont).forEach(k => { if (cont[k] > 1) ambiguos.add(k); });
+      }));
+
+      const roots = new Map(), nodes = new Map();
+      const keyNode = (disc, nome, path) => {
+        const base = norm(disc) + '\u0001' + norm(nome);
+        if (!ambiguos.has(base)) return base + '\u0001N';
+        return norm(disc) + '\u0001P\u0001' + (path || []).map(norm).join('›');
+      };
+      const ensureRoot = d => {
+        const dk = norm(d.nome || d.disciplina);
+        let r = roots.get(dk);
+        if (!r) {
+          r = { codigo: null, nome: d.nome, depth: 0, disciplina: d.disciplina || d.nome,
+            questoes: 0, acertos: 0, pctAcerto: 0, children: [], _semKey: 'ROOT\u0001' + dk };
+          roots.set(dk, r);
+        }
+        r.questoes += num(d.questoes); r.acertos += num(d.acertos);
+        r.nome = d.nome || r.nome; r.disciplina = d.disciplina || d.nome || r.disciplina;
+        return r;
+      };
+
+      arvores.forEach((forest, fonteIdx) => (forest || []).forEach(d => {
+        const raiz = ensureRoot(d);
+        const walk = (n, parent, path) => (n.children || []).forEach(ch => {
+          const chPath = (path || []).concat([ch.nome]);
+          const key = keyNode(raiz.nome, ch.nome, chPath);
+          let a = nodes.get(key);
+          if (!a) {
+            a = { codigo: ch.codigo || null, nome: ch.nome, depth: Math.max(1, num(ch.depth, 1)),
+              disciplina: raiz.nome, questoes: 0, acertos: 0, pctAcerto: 0, children: [],
+              _semKey: key, _parentKey: null, _lastFonte: -1 };
+            nodes.set(key, a);
+          }
+          a.questoes += num(ch.questoes); a.acertos += num(ch.acertos);
+          if (fonteIdx >= a._lastFonte) {
+            a._lastFonte = fonteIdx;
+            a.nome = ch.nome; a.codigo = ch.codigo || null; a.depth = Math.max(1, num(ch.depth, 1));
+            a.disciplina = raiz.nome;
+            a._parentKey = parent && parent._semKey ? parent._semKey : raiz._semKey;
+          }
+          walk(ch, a, chPath);
+        });
+        walk(d, raiz, []);
+      }));
+
+      roots.forEach(r => { r.children = []; r.pctAcerto = r.questoes > 0 ? r.acertos / r.questoes * 100 : 0; });
+      nodes.forEach(n => { n.children = []; n.pctAcerto = n.questoes > 0 ? n.acertos / n.questoes * 100 : 0; });
+      const rootByKey = new Map([...roots.values()].map(r => [r._semKey, r]));
+      nodes.forEach(n => {
+        let p = nodes.get(n._parentKey) || rootByKey.get(n._parentKey);
+        if (!p || p === n) p = roots.get(norm(n.disciplina));
+        if (p) p.children.push(n);
+      });
+      const sortRec = n => {
+        n.children.sort((a, b) => String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true })
+          || a.nome.localeCompare(b.nome, 'pt-BR'));
+        n.children.forEach(sortRec);
+      };
+      roots.forEach(sortRec);
+      return [...roots.values()];
+    },
+
+    disciplinasDisponiveis() {
+      let snap = null;
+      try { snap = DesempenhoTecScreen.scopedSnapshot(); }
+      catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-disc-snap'); }
+      return this._forestEstavel(snap).map(d => d.nome).filter(Boolean).sort((a, b) => a.localeCompare(b, 'pt-BR'));
     },
 
     _item(node, meta) {
