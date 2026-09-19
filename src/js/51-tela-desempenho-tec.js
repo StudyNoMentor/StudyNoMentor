@@ -4865,7 +4865,7 @@ const DesempenhoTecScreen = {
   treeNodeHtml(node, prevIdx, level) {
     const pct = this.nodePct(node);
     const hasKids = node.children && node.children.length > 0;
-    const indent = 10 + level * 18;
+    const indent = 10 + Math.min(Math.max(0, level), 8) * 14;
     const delta = this.deltaHtml(node, prevIdx);
     const nameCls = level === 0 ? 'tnode-name lvl0' : 'tnode-name';
     const caret = hasKids ? `<span class="tnode-caret">▶</span>` : `<span class="tnode-dot"></span>`;
@@ -4880,7 +4880,7 @@ const DesempenhoTecScreen = {
     const lvl = Math.min(5, Math.max(0, level)); // classe só preserva compatibilidade de espaçamento
     const hue = (255 + Math.max(0, level) * 47) % 360; // 47 evita repetir tons nos níveis seguintes
     return `
-      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}" style="--tec-level-hue:${hue}">
+      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}" style="--tec-level-hue:${hue};--tec-indent:${Math.min(Math.max(0, level) * 5, 30)}px">
         <div class="tnode-row ${hasKids ? 'has-kids' : ''}" style="padding-left:${indent}px;">
           ${caret}
           <span class="${nameCls}" title="${escapeHtml(node.nome)}"><span class="tnode-label">${escapeHtml(node.nome)}</span>${delta}</span>
