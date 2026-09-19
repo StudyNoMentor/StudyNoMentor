@@ -35,10 +35,10 @@
       if(tab==='motor') {
         try {
           const p=window.MotorSugestao?MotorSugestao.prefs():null;
-          if(p&&p.fase==='pos') return {ic:'🧭',rot:'Motor · pós-edital',txt:'Ordena as matérias pela lacuna simples até a meta; a incidência da banca apenas desempata lacunas iguais.'};
-          if(p&&p.fase==='pre') return {ic:'🧭',rot:'Motor · pré-edital',txt:'Ordena as matérias pela distância simples até a meta e entra no pior tópico com amostra suficiente.'};
+          if(p&&p.fase==='pos') return {ic:'🧭',rot:'Motor · pós-edital',txt:'Prioriza as matérias pela lacuna simples até a meta; a incidência da banca apenas desempata lacunas iguais.'};
+          if(p&&p.fase==='pre') return {ic:'🧭',rot:'Motor · pré-edital',txt:'Prioriza as matérias pela distância simples até a meta e entra no pior tópico com amostra suficiente.'};
         } catch(e){if(typeof _quiet==='function')_quiet(e,'tp-fonte');}
-        return {ic:'🧭',rot:'Motor de sugestão',txt:'Transforma os fatos do TEC em uma fila de reforço por matéria, tópico e subtópico.'};
+        return {ic:'🧭',rot:'Motor de sugestão',txt:'Transforma os fatos do TEC em uma fila de reforço e prioriza por matéria, tópico e subtópico.'};
       }
       return {ic:'📚',rot:this.tabNome(tab),txt:'Dados do Desempenho TEC.'};
     },
