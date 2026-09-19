@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 
 const gov = fs.readFileSync('src/js/58-extras-governanca.js','utf8');
 const tec = fs.readFileSync('src/js/59-tec-premium.js','utf8');
+const telaTec = fs.readFileSync('src/js/51-tela-desempenho-tec.js','utf8');
+const motorTec = fs.readFileSync('src/js/86-motor-sugestao.js','utf8');
+const htmlTec = fs.readFileSync('src/html/05-corpo-cont.html','utf8');
 const css = fs.readFileSync('src/css/11-extras-governanca.css','utf8');
 
 const tem = (src, trecho, msg) => assert.ok(src.includes(trecho), msg || `faltou: ${trecho}`);
@@ -50,6 +53,21 @@ assert.ok(!tec.includes("medir('motor'"), 'cronômetro interno não deve voltar 
 assert.ok(!tec.includes('data-tp-settings') || tec.includes("querySelectorAll('.tp-overlay,[data-tp-settings],[data-tp-audit]"),
   'seletor legado pode existir apenas como limpeza de DOM antigo, nunca como botão novo');
 assert.ok(!tec.includes('abrirDiagnostico()'), 'modal Diagnóstico do TEC não deve ser recriado');
+
+/* Contrato final do Motor/TEC: esta bateria é propositalmente textual e roda
+   antes do navegador. Se alguém ressuscitar um legado ou trocar silenciosamente
+   uma das decisões estruturais, a PR para aqui antes da suíte longa. */
+tem(motorTec, 'metaAcerto: 90', 'meta de fábrica do Motor deve ser 90%');
+tem(motorTec, 'maxFrentes: [1, 3]', 'rodada acionável deve ter no máximo 3 disciplinas');
+tem(motorTec, '_lacuna(item, p)', 'ranking deve usar lacuna confiável, não percentual cru');
+tem(motorTec, 'gapConfiavel', 'lacuna após margem precisa existir no modelo');
+assert.ok(!motorTec.includes('MAX_IRMAOS_GRUPO'), 'agrupamento não pode voltar a um teto arbitrário de irmãos');
+tem(telaTec, 'lacuna segura', 'cards e ranking precisam explicar a lacuna confiável ao aluno');
+tem(telaTec, '_scopeRenderTimer', 'seleção de retratos deve coalescer cliques rápidos');
+tem(telaTec, 'Atualizando análise…', 'seleção de retratos precisa mostrar feedback visual');
+tem(telaTec, '--tec-level-hue', 'granularidades profundas precisam conservar tom próprio');
+assert.match(htmlTec, /id="motor-meta"[^>]*value="90"/, 'campo da meta deve nascer em 90%');
+assert.match(htmlTec, /id="motor-frentes"[^>]*max="3"/, 'campo de disciplinas por rodada deve limitar em 3');
 
 // UX responsiva e janela modal independente.
 tem(css, '.rg-overlay', 'histórico/configuração precisam de modal independente');
