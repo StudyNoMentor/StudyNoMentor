@@ -382,26 +382,26 @@
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
   "de": 48336,
-  "ate": 48737
+  "ate": 48566
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 48739,
-  "ate": 49402
+  "de": 48568,
+  "ate": 49231
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 49404,
-  "ate": 49707
+  "de": 49233,
+  "ate": 49536
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 49709,
-  "ate": 50052
+  "de": 49538,
+  "ate": 49881
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 50054,
-  "ate": 50254
+  "de": 49883,
+  "ate": 50083
  }
 ]

@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v66bb6ac089">
+<meta name="diario-versao" content="v9c21cd75a5">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -48515,7 +48515,9 @@ else CloudStore.init();
     } catch (e) { quiet(e, 'sync-note'); }
   }
 
-  /* ── ABERTURA LOCAL-FIRST ──────────────────────────────────────────────── */
+  /* ── RECONCILIAÇÃO RELACIONAL ───────────────────────────────────────────
+     A camada local-first foi aposentada. A UI continua podendo mostrar um aviso
+     discreto de sincronização, mas o dado canônico sempre vem do PostgreSQL. */
   const RECON_KEY = 'diario-estudos:uxv4-reconcile';
   const BUILD_RECON_PREFIX = 'diario-estudos:uxv4-build-ok:';
   function currentBuild() {
@@ -48527,94 +48529,20 @@ else CloudStore.init();
   function buildReconcileKey(id) { return BUILD_RECON_PREFIX + String(id || ''); }
 
   async function reconcileProfile(id) {
-    if (!id || !window.CloudStore || !CloudStore.isReady || !CloudStore.isReady() || !CloudStore.isLoggedIn || !CloudStore.isLoggedIn()) return false;
-    if (window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId() !== id) return false;
-    StartupTrace.mark('reconciliacao-inicio');
-    syncNote('Conferindo novidades da nuvem em segundo plano…');
+    if (!id || !window.CloudStore || !CloudStore.isReady || !CloudStore.isReady() ||
+        !CloudStore.isLoggedIn || !CloudStore.isLoggedIn() || !window.RelationalStore) return false;
+    if (window.ProfileManager && ProfileManager.getActiveProfileId &&
+        ProfileManager.getActiveProfileId() !== id) return false;
+    StartupTrace.mark('reconciliacao-relacional-inicio');
+    syncNote('Consultando o banco…');
     try {
-      /* 1) ENTREGA PRIMEIRO o que está explicitamente na fila. A reconciliação
-         nunca pode baixar por cima de uma edição cuja entrega ainda está
-         comprovadamente pendente. */
-      let pend = 0;
-      try { if (window.SectionSync) pend = SectionSync.pendingQuick(); } catch (e) { quiet(e, 'reconcile-pend'); }
-      if (pend && CloudStore.flushPending) await CloudStore.flushPending();
-
-      /* Se ainda existe fila EXPLÍCITA depois da tentativa, a rede não confirmou
-         o envio. Adiamos a leitura; tentar "resolver" isso com download seria
-         transformar uma falha de rede em conflito de dados. */
-      let pendRestante = 0;
-      try {
-        if (window.SectionSync) {
-          pendRestante = SectionSync.explicitPendingSections
-            ? SectionSync.explicitPendingSections(id).length
-            : SectionSync.pendingQuick();
-        }
-      } catch (e) { quiet(e, 'reconcile-pend-restante'); }
-      if (pendRestante) {
-        StartupTrace.mark('reconciliacao-adiada-pendencia', { pendencias: pendRestante });
-        try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick-pendente'); }
-        return false;
-      }
-
-      /* 2) BARREIRA POR VERSÃO.
-         O bug residual estava aqui: depois de uma atualização o conteúdo local
-         podia voltar um ou dois dias enquanto __secrev continuava parecendo
-         atual. Uma consulta só por revisão respondia "nada novo".
-
-         Na PRIMEIRA abertura de cada build fazemos uma hidratação completa. Ela
-         usa explicitOnly: só a caixa de saída comprovada pode ser enviada antes
-         da leitura. Uma mera divergência de hash sem fila não vira upload, pois
-         pode ser precisamente um cache local regressado. A cópia local é
-         fotografada pelo BackupHistory antes de qualquer aplicação. */
-      const build = currentBuild();
-      const precisaBarreira = !!(
-        build &&
-        window.SectionSync &&
-        SectionSync.readEnabled &&
-        SectionSync.hydrateAfterAppUpdate &&
-        localStorage.getItem(buildReconcileKey(id)) !== build
-      );
-      if (precisaBarreira) {
-        syncNote('Nova versão instalada. Validando seus dados com a nuvem…', true);
-        const r = await SectionSync.hydrateAfterAppUpdate(id);
-        if (!r || !r.ok) {
-          StartupTrace.mark('reconciliacao-build-adiada', { motivo: (r && r.motivo) || 'falha' });
-          return false;
-        }
-        /* Marca ANTES da eventual recarga. recarregarApp() chama __idbFlush,
-           então este carimbo entra na mesma confirmação de disco e a nova
-           versão não repete o download completo em loop. */
-        try { localStorage.setItem(buildReconcileKey(id), build); } catch (e) { quiet(e, 'reconcile-build-key'); }
-        StartupTrace.mark('reconciliacao-build-ok', { build, mudou: r.mudou || 0, secoes: r.seções || 0 });
-        if (r.mudou) {
-          syncNote('Dados mais recentes encontrados. Atualizando a tela…', true);
-          if (typeof recarregarApp === 'function') recarregarApp('reconciliação obrigatória após atualização');
-          else location.reload();
-        } else {
-          StartupTrace.mark('reconciliacao-sem-novidade');
-        }
-        return true;
-      }
-
-      /* 3) Nas aberturas normais permanece a checagem barata por revisão.
-         A barreira pesada é uma vez por build, não em todo foco da janela. */
-      let novidade = false;
-      if (window.SectionSync && SectionSync.readEnabled) novidade = await SectionSync.hasRemoteUpdates(id);
-      else if (CloudStore._fetchRev) {
-        const rr = await CloudStore._fetchRev(id); novidade = rr != null && rr > ProfileManager.getRev(id);
-      }
-      if (novidade) {
-        syncNote('Há novidades de outro aparelho. Atualizando com segurança…', true);
-        if (window.SectionSync && SectionSync.readEnabled) await SectionSync.pullAndReload({ readOnly: true });
-        else if (CloudStore.pullActiveAndReload) await CloudStore.pullActiveAndReload({ readOnly: true });
-      } else {
-        try { if (window.SectionSync) SectionSync.kick(); } catch (e) { quiet(e, 'reconcile-kick'); }
-        StartupTrace.mark('reconciliacao-sem-novidade');
-      }
+      await RelationalStore.flush();
+      await RelationalStore.catchUp(id, 'ux-reconcile');
+      StartupTrace.mark('reconciliacao-relacional-ok');
       return true;
     } catch (e) {
-      quiet(e, 'reconciliacao-v4');
-      StartupTrace.mark('reconciliacao-adiada', { erro: String(e && e.message || e || '') });
+      quiet(e, 'reconciliacao-relacional');
+      StartupTrace.mark('reconciliacao-relacional-adiada', { erro: String(e && e.message || e || '') });
       return false;
     } finally {
       setTimeout(() => syncNote(''), 650);
@@ -48622,114 +48550,15 @@ else CloudStore.init();
   }
 
   function scheduleReconcile(id) {
-    let tent = 0;
-    const run = () => {
-      tent++;
-      if (window.CloudStore && CloudStore.isReady && CloudStore.isReady() && CloudStore.isLoggedIn && CloudStore.isLoggedIn()) {
-        try { sessionStorage.removeItem(RECON_KEY); } catch (e) { quiet(e, 'reconcile-key'); }
-        setTimeout(() => reconcileProfile(id), 220);
-        return;
-      }
-      if (tent < 30) setTimeout(run, 250);
-      else StartupTrace.mark('reconciliacao-sem-sessao');
-    };
-    setTimeout(run, 80);
+    if (!id) return;
+    setTimeout(() => reconcileProfile(id), 120);
   }
 
   function installLocalFirst() {
-    if (!window.ProfileUI || ProfileUI._uxv4LocalFirst || typeof ProfileUI.enterProfile !== 'function') return;
-    ProfileUI._uxv4LocalFirst = true;
-    const original = ProfileUI.enterProfile.bind(ProfileUI);
-    ProfileUI.enterProfile = async function (id) {
-      const logged = !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
-      const uid = logged && CloudStore.session && CloudStore.session.user ? CloudStore.session.user.id : null;
-      let has = false, can = true;
-      try { has = !!((this._hasLocalData && this._hasLocalData(id)) || (window.ProfileManager && ProfileManager.temDadosLocais && ProfileManager.temDadosLocais(id))); } catch (e) { quiet(e, 'local-first-has'); }
-      try { if (ProfileManager._podeVerLocal) can = !!ProfileManager._podeVerLocal(id, uid); } catch (e) { can = false; quiet(e, 'local-first-owner'); }
-
-      // Sessão autenticada + dado local pertencente à conta: a rede não precisa
-      // ficar no caminho crítico. A lista de perfis já confirmou o alvo quando
-      // chegamos aqui pelo auto-enter; nos demais caminhos a marca de proprietário
-      // local impede abrir dado de outra conta.
-      if (logged && has && can) {
-        const ativoAntes = ProfileManager.getActiveProfileId();
-        StartupTrace.mark('perfil-local-encontrado', { mesmoPerfil: ativoAntes === id });
-        this._autoEnterTried = true; this._entering = true;
-        gateMessage('Abrindo seus estudos deste aparelho…', 'Você já pode entrar; a nuvem será conferida em segundo plano.', true);
-        try { ProfileManager.setActiveProfile(id); if (ProfileManager._setOwner && uid) ProfileManager._setOwner(id, uid); } catch (e) { quiet(e, 'local-first-active'); }
-        try { if (window.PlanManager) PlanManager.init(); } catch (e) { quiet(e, 'local-first-plan'); }
-        try { sessionStorage.setItem(this.SESSION_KEY, id); sessionStorage.setItem(RECON_KEY, id); } catch (e) { quiet(e, 'local-first-session'); }
-        try { this.setLastProfile(id); } catch (e) { quiet(e, 'local-first-last'); }
-
-        if (ativoAntes === id) {
-          this._entering = false;
-          try { this.hideGate(); this.renderChip(); } catch (e) { quiet(e, 'local-first-hide'); }
-          try { DB.checarEspaco(); } catch (e) { quiet(e, 'local-first-space'); }
-          StartupTrace.mark('perfil-local-visivel');
-          scheduleReconcile(id);
-          return true;
-        }
-
-        // Outro perfil local: troca o namespace e recarrega IMEDIATAMENTE a partir
-        // do armazenamento local. Não espera hydrate/fetchPayload antes do reload.
-        StartupTrace.mark('troca-perfil-local-reload');
-        if (typeof recarregarApp === 'function') recarregarApp('troca local-first de perfil', { imediato: true });
-        else location.reload();
-        return true;
-      }
-
-      gateMessage('Baixando seu perfil…', 'Este aparelho ainda precisa receber os dados necessários antes de abrir.', false);
-      StartupTrace.mark('perfil-remoto-necessario');
-      return original(id);
-    };
-
-    /* ═══ ABRIR O APP SEM CONFERIR A NUVEM ERA O CAMINHO MAIS COMUM ═════════
-       A reconciliação de abertura — "a nuvem tem algo mais novo que este
-       aparelho?" — só era agendada quando `RECON_KEY` estava no sessionStorage,
-       e esse marcador é posto em UM lugar: o `enterProfile` envolvido aqui, ou
-       seja, quando se passa pela lista de perfis. Ele é consumido (removido) na
-       primeira reconciliação.
-
-       Só que `ProfileUI.boot()` tem um atalho de ENTRADA DIRETA: se
-       `sessionStorage[SESSION_KEY]` aponta para o perfil ativo e existe dado
-       local, ele fecha o portão e retorna — sem ler nada da nuvem. E
-       `sessionStorage` SOBREVIVE a um recarregamento da mesma aba. Então a
-       sequência real do dia a dia era:
-
-         1. entrar no perfil     → RECON_KEY posto, reconcilia, RECON_KEY some;
-         2. sai uma versão nova  → `recarregarApp()` recarrega a MESMA aba;
-         3. `boot()` vê SESSION_KEY e entra direto, sem RECON_KEY;
-         4. nada reconcilia, e `syncOnFocus` não roda numa carga nova (não há
-            evento `focus` nem `visibilitychange` quando a aba já está em foco);
-         5. a tela abre com o que havia no localStorage — atrasado, e sem os
-            registros que vieram de outro aparelho.
-
-       Isso explica os três contornos que funcionavam: guia anônima e outro
-       navegador começam com sessionStorage e localStorage vazios (download
-       completo); entrar e sair da conta limpa SESSION_KEY e força o caminho do
-       `enterProfile`, que põe RECON_KEY.
-
-       A correção não é mexer no atalho — abrir rápido com o dado local é
-       proposital e bom. É deixar de depender de um marcador consumível: TODA
-       abertura que termina dentro de um perfil agenda a conferência em segundo
-       plano. `reconcileProfile` já entrega o que está pendente antes de baixar,
-       já checa se há novidade real e só recarrega quando alguma seção mudou,
-       então agendar sempre não custa download nem recarga desnecessária. */
-    try {
-      const pending = sessionStorage.getItem(RECON_KEY);
-      if (pending) { scheduleReconcile(pending); }
-      else {
-        const ativo = (window.ProfileManager && ProfileManager.getActiveProfileId)
-          ? ProfileManager.getActiveProfileId() : null;
-        const chave = (window.ProfileUI && ProfileUI.SESSION_KEY) || 'diario-estudos:entered';
-        if (ativo && sessionStorage.getItem(chave) === ativo) {
-          StartupTrace.mark('reconciliacao-entrada-direta', { perfil: ativo });
-          scheduleReconcile(ativo);
-        }
-      }
-    } catch (e) { quiet(e, 'reconcile-boot'); }
+    /* Compatibilidade nominal para diagnósticos antigos.
+       Não envolve nem substitui ProfileUI.enterProfile. */
+    return false;
   }
-  installLocalFirst();
 
 
   // Exposto para auditoria automatizada e diagnóstico no console.
