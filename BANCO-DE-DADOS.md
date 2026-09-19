@@ -410,7 +410,9 @@ não possa apagar uma edição mais nova, o papel `authenticated` não possui ma
 RPC abaixo, que exige autenticação, confirma o dono do perfil e compara a revisão.
 
 ```sql
-create or replace function public.delete_profile_section_cas(
+create schema if not exists private;
+
+create or replace function private.delete_profile_section_cas_impl(
   p_profile_id uuid,
   p_section text,
   p_expected_rev integer
@@ -419,7 +421,7 @@ returns boolean
 language plpgsql
 security definer
 set search_path = ''
-as $
+as $$
 declare
   v_uid uuid := auth.uid();
   v_deleted integer := 0;
@@ -448,7 +450,25 @@ begin
   get diagnostics v_deleted = row_count;
   return v_deleted = 1;
 end;
-$;
+$$;
+
+revoke all on function private.delete_profile_section_cas_impl(uuid,text,integer) from public;
+revoke all on function private.delete_profile_section_cas_impl(uuid,text,integer) from anon;
+grant usage on schema private to authenticated;
+grant execute on function private.delete_profile_section_cas_impl(uuid,text,integer) to authenticated;
+
+create or replace function public.delete_profile_section_cas(
+  p_profile_id uuid,
+  p_section text,
+  p_expected_rev integer
+)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$
+  select private.delete_profile_section_cas_impl(p_profile_id, p_section, p_expected_rev);
+$$;
 
 revoke all on function public.delete_profile_section_cas(uuid,text,integer) from public;
 revoke all on function public.delete_profile_section_cas(uuid,text,integer) from anon;
