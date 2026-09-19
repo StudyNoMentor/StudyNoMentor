@@ -396,7 +396,6 @@ const ExtrasScreen = {
         (this._planoCand || []).forEach((x, i) => {
           if (!this._planoSel || !this._planoSel.has(i)) return;
           const e = DB.addExtra({
-            // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
             titulo: MotorCiclo.titulo(x.nome, x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
             alvo: Math.max(1, doses[i] || this._planoPrefs.alvoQuestoes), periodo: 'unica', contaMetricas: false,
@@ -643,20 +642,17 @@ const ExtrasScreen = {
        valendo é a FASE: pré-edital ordena pela lacuna simples até a meta;
        pós-edital usa a incidência somente como desempate. Atividades anteriores
        ao motor não têm a assinatura e continuam legíveis pelo que são. */
-    const planoTag = (() => {
-      const o = x.origemPlano;
+    const motorTag = (() => {
+      const o = (typeof MotorCiclo !== 'undefined') ? MotorCiclo.origemDe(x) : null;
       if (!o || !o.topico) return '';
-      const sug = o.sugestao || null;
-      const quando = escapeHtml(formatDateShort((sug && sug.criadoEm) || o.criadoEm || ''));
-      const fase = sug && sug.fase === 'pos' ? 'pós-edital' : (sug && sug.fase === 'pre' ? 'pré-edital' : '');
-      const rot = fase ? 'Motor · ' + fase : 'do TEC';
-      const det = fase
-        ? `Escolhida pelo Motor de sugestão em ${quando}, na fase ${fase}`
-          + (sug.minAmostra != null ? ` · piso de ${sug.minAmostra} questões por nível` : '')
-          + (sug.amostra != null ? ` · amostra usada: ${sug.amostra} questões` : '')
-          + (sug.bloco ? ' · bloco de ramos pequenos' : '') + '.'
-        : `Criada a partir do seu desempenho no TEC em ${quando}, antes do Motor de sugestão.`;
-      return `<span class="extra-tag plano" title="${escapeHtml(det)}">🧭 ${escapeHtml(rot)}</span>`;
+      const quando = escapeHtml(formatDateShort(o.criadoEm || ''));
+      const fase = o.fase === 'pos' ? 'pós-edital' : (o.fase === 'pre' ? 'pré-edital' : '');
+      const rank = o.rankInicial != null ? ' · posição inicial #' + o.rankInicial : '';
+      const lacuna = o.lacunaDiscInicial != null ? ' · lacuna inicial ' + (Math.round(o.lacunaDiscInicial * 10) / 10) + 'pp' : '';
+      const det = 'Escolhida pelo Motor de sugestão em ' + quando
+        + (fase ? ', na fase ' + fase : '') + rank + lacuna
+        + (o.minAmostra != null ? ' · piso de ' + o.minAmostra + ' questões por nível' : '') + '.';
+      return '<span class="extra-tag plano" title="' + escapeHtml(det) + '">🧭 Motor' + (fase ? ' · ' + escapeHtml(fase) : '') + '</span>';
     })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
@@ -725,7 +721,7 @@ const ExtrasScreen = {
             <div class="exd-title">${escapeHtml(x.titulo)}</div>
             <div class="exd-tags">
               <span class="extra-tag">${t.nome}</span>
-              ${discTag}${recTag}${planoTag}${evoTag}${metaTag}
+              ${discTag}${recTag}${motorTag}${evoTag}${metaTag}
               ${x.tipo === 'leitura' && x.marcador ? `<span class="extra-tag pin">📌 ${escapeHtml(x.marcador)}</span>` : ''}
             </div>
           </div>
@@ -1182,7 +1178,7 @@ window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'extras') {
     const host = document.getElementById('extras-curso');
     const temAberto = (() => {
-      try { return DB.getExtras().some(x => x && x.origemPlano && x.origemPlano.topico && x.status !== 'concluida'); }
+      try { return DB.getExtras().some(x => x && typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(x) && MotorCiclo.origemDe(x).topico && x.status !== 'concluida'); }
       catch (err) { _quiet(err, 'extras-abertura'); return false; }
     })();
     if (!host || !temAberto || typeof pintarDepois !== 'function') { ExtrasScreen.render(); return; }
