@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va727658e20">
+<meta name="diario-versao" content="vfa31d1fb8e">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -32615,7 +32615,11 @@ const ExtrasScreen = {
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, x) }); n++; }
+          if (e) {
+            const doseCriada = Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes);
+            DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, Object.assign({}, x, { dose: doseCriada })) });
+            n++;
+          }
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -32868,6 +32872,28 @@ const ExtrasScreen = {
     })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
+    const tecGuide = (() => {
+      if (typeof MotorCiclo === 'undefined' || !MotorCiclo.filtroTecDe) return '';
+      const f = MotorCiclo.filtroTecDe(x);
+      if (!f || !Array.isArray(f.selecoes) || !f.selecoes.length) return '';
+      const o = MotorCiclo.origemDe(x) || {};
+      const qtd = Math.max(1, Math.round(Number(f.quantidade || o.alvoQuestoes || x.alvo) || 1));
+      const nivel = Math.max(1, Number(f.nivel) || 1);
+      const unidade = nivel <= 1 ? 'tópico' : (nivel === 2 ? 'subtópico' : 'subtópico nível ' + nivel);
+      const base = [f.disciplina].concat(Array.isArray(f.caminho) ? f.caminho : []).filter(Boolean);
+      const rota = (f.agregado ? base : base.concat(f.selecoes)).filter(Boolean).join(' → ');
+      const selecoes = f.selecoes.map(v => escapeHtml(v)).join(' <span aria-hidden="true">+</span> ');
+      return `<div class="exd-tec-guide" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-sunken);">
+        <div style="display:flex;gap:8px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;">
+          <strong style="font-size:var(--fs-sm);">🎯 Caderno no TEC</strong>
+          <span style="font-size:var(--fs-sm);font-weight:800;">${qtd} questões</span>
+        </div>
+        <div class="hint" style="margin:5px 0 0;"><b>Filtro:</b> ${escapeHtml(rota)}</div>
+        ${f.agregado
+          ? `<div class="hint" style="margin:4px 0 0;"><b>Marque juntos:</b> ${selecoes} <span class="opt">(${f.selecoes.length} ${unidade}s)</span></div>`
+          : `<div class="hint" style="margin:4px 0 0;"><b>Selecionar:</b> ${escapeHtml(f.selecoes[0])} <span class="opt">(${unidade})</span></div>`}
+      </div>`;
+    })();
     const progBlock = (alvo > 0)
       ? `<div class="exd-prog">
            <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
@@ -32943,6 +32969,7 @@ const ExtrasScreen = {
           </div>
         </div>
                 ${progBlock}
+        ${tecGuide}
         ${marcador}
         ${regRow}
       </div>`;
@@ -47233,22 +47260,57 @@ else CloudStore.init();
       return 'Reforçar: ' + base;
     },
 
+    /* Receita operacional do caderno no TEC. O Motor trabalha com nomes
+       semânticos porque os códigos 01/02/03 são posicionais e podem mudar entre
+       retratos. Assim, a atividade guarda exatamente a trilha que a pessoa deve
+       abrir e o(s) tópico(s)/subtópico(s) que precisa marcar no TEC. */
+    filtroTec(item, disciplina) {
+      item = item || {};
+      const disc = String(disciplina || item.disciplina || '').trim();
+      const caminho = (Array.isArray(item.caminho) ? item.caminho : [])
+        .map(x => String(x == null ? '' : x).trim()).filter(Boolean);
+      const membros = (Array.isArray(item.membros) ? item.membros : [])
+        .map(x => String(x == null ? '' : x).trim()).filter(Boolean);
+      const nome = String(item.nome || '').replace(/\s*·\s*bloco\s*$/i, '').trim();
+      const selecoes = membros.length > 1 ? membros : (nome ? [nome] : []);
+      if (!disc || !selecoes.length) return null;
+      const nivel = Math.max(1, num(item.nivel, caminho.length + 1));
+      const agregado = membros.length > 1;
+      const trilha = [disc].concat(caminho).concat(agregado ? [] : selecoes).filter(Boolean);
+      return {
+        versao: 1,
+        disciplina: disc,
+        nivel,
+        tipo: agregado ? 'grupo' : 'no',
+        agregado,
+        caminho,
+        selecoes,
+        trilha,
+        quantidade: item.dose != null ? Math.max(1, Math.round(num(item.dose))) : null
+      };
+    },
+
     origem(topico, disciplina, item) {
       const p = MotorSugestao.prefs();
       const retrato = this._ultimoRetrato();
       const membros = item && Array.isArray(item.membros) ? item.membros.slice() : null;
+      const disciplinaFinal = disciplina || (item && item.disciplina) || '';
+      const alvoQuestoes = item && item.dose != null ? Math.max(1, Math.round(num(item.dose))) : p.alvoQuestoes;
+      const filtroTec = this.filtroTec(Object.assign({}, item || {}, { dose: alvoQuestoes }), disciplinaFinal);
       return {
         motor: 'sugestao',
-        versao: 2,
+        versao: 3,
         topico: topico || (item && item.nome) || '',
-        disciplina: disciplina || (item && item.disciplina) || '',
+        disciplina: disciplinaFinal,
         criadoEm: typeof todayLocal === 'function' ? todayLocal() : new Date().toISOString().slice(0, 10),
         taxaInicial: item && item.taxa != null ? num(item.taxa) : null,
         qBase: item && item.questoes != null ? num(item.questoes) : 0,
         metaAlvo: p.metaAcerto,
-        alvoQuestoes: item && item.dose != null ? num(item.dose) : p.alvoQuestoes,
+        alvoQuestoes,
+        nivel: item && item.nivel != null ? Math.max(1, num(item.nivel)) : null,
         caminho: item && Array.isArray(item.caminho) ? item.caminho.slice() : [],
         membros,
+        filtroTec,
         escopo: membros && membros.length > 1 ? { tipo: 'bloco', membros: membros.slice() } : { tipo: 'no', membros: [topico || (item && item.nome) || ''] },
         fase: p.fase,
         minAmostra: p.minAmostra,
@@ -47257,6 +47319,29 @@ else CloudStore.init();
         retratoBase: retrato ? retrato.assinatura : null,
         retratoDataBase: retrato ? retrato.data : null
       };
+    },
+
+    filtroTecDe(extra) {
+      const o = this.origemDe(extra);
+      if (!o || !o.topico || !o.disciplina) return null;
+      if (o.filtroTec && Array.isArray(o.filtroTec.selecoes) && o.filtroTec.selecoes.length) {
+        const f = Object.assign({}, o.filtroTec);
+        f.caminho = Array.isArray(f.caminho) ? f.caminho.slice() : [];
+        f.selecoes = f.selecoes.slice();
+        f.trilha = Array.isArray(f.trilha) ? f.trilha.slice() : [f.disciplina].concat(f.caminho).concat(f.agregado ? [] : f.selecoes);
+        f.quantidade = Math.max(1, Math.round(num(f.quantidade, o.alvoQuestoes || (extra && extra.alvo) || 1)));
+        return f;
+      }
+      const membros = (o.escopo && Array.isArray(o.escopo.membros) && o.escopo.membros.length > 1)
+        ? o.escopo.membros : (Array.isArray(o.membros) ? o.membros : null);
+      return this.filtroTec({
+        nome: o.topico,
+        disciplina: o.disciplina,
+        caminho: Array.isArray(o.caminho) ? o.caminho : [],
+        membros,
+        nivel: o.nivel != null ? o.nivel : ((o.caminho || []).length + 1),
+        dose: o.alvoQuestoes || (extra && extra.alvo)
+      }, o.disciplina);
     },
 
     _disciplinaAtual(r, nome) {
