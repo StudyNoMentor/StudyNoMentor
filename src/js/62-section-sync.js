@@ -172,6 +172,16 @@ const SectionSync = {
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
   },
+  captureExplicitSnapshot(id) {
+    const alvo = id || this._activeProfileId();
+    if (!alvo) return [];
+    this.restorePending(alvo);
+    const dirty = this._dirtyFor(alvo), gens = this._dirtyGenFor(alvo);
+    return [...dirty].map(sec => {
+      const gen = gens.get(sec) || this._ensureDirty(sec, alvo);
+      return { section: sec, gen };
+    });
+  },
   /* Tudo que ainda não foi confirmado na nuvem para um perfil. Soma duas fontes:
        1. a caixa de saída gravada (o que sabemos que ficou por enviar);
        2. o CONTEÚDO real — se o texto de uma seção não bate com o hash do último
@@ -523,23 +533,24 @@ const SectionSync = {
     };
   },
   // Envia as seções sujas para profile_sections com controle otimista por revisão.
-  async pushDirty(id) {
+  async pushDirty(id, opts) {
+    opts = opts || {};
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
-    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
-    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
-        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
+    if (!opts.allowBlocked) {
+      if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
+      if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+          (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
+    }
     id = id || this._activeProfileId();
     if (!id) return;
-    /* A marca de "envio em curso" é global para serializar os requests, mas o
-       ALVO fica congelado neste id até o fim. Trocar o perfil na interface não
-       redireciona uma confirmação em voo. */
     this._pushing = true;
     this._pushingProfile = id;
-    try { await this._enviarSujas(id); }
+    try { await this._enviarSujas(id, opts); }
     finally { this._pushing = false; this._pushingProfile = null; }
   },
-  async _enviarSujas(id) {
+  async _enviarSujas(id, opts) {
+    opts = opts || {};
     /* A operação inteira fica vinculada ao perfil capturado em pushDirty().
        Nunca voltamos a consultar "perfil ativo" no meio de uma requisição. */
     const pfx = this._prefixFor(id);
@@ -548,11 +559,15 @@ const SectionSync = {
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
     const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
-    const secs = [...dirty];
+    const snap = Array.isArray(opts.snapshot) ? new Map(opts.snapshot.map(x => [x.section, x.gen])) : null;
+    const secs = snap
+      ? [...snap.keys()].filter(sec => dirty.has(sec) && (gens.get(sec) || 0) === (snap.get(sec) || 0))
+      : [...dirty];
     const rows = [];
     const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
-      const gen = gens.get(sec) || this._ensureDirty(sec, id);
+      const gen = snap ? (snap.get(sec) || 0) : (gens.get(sec) || this._ensureDirty(sec, id));
+      if (snap && (gens.get(sec) || 0) !== gen) return;
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
       if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen, id); sumidas.push(sec); return; }
@@ -575,7 +590,13 @@ const SectionSync = {
       try { if (window.GuardaNuvem) await GuardaNuvem.antesDeEsvaziar(id, esvaziando); } catch (e) { _quiet(e, 'guarda-esvaziar'); }
     }
     if (rows.length === 0) {
-      // Nada de conteúdo novo, mas manifesto/exclusões ainda podem estar pendentes.
+      // No handoff enviamos SOMENTE o snapshot capturado; manifesto/tombstones
+      // ficam para a sessão que detém a interface.
+      if (opts.skipManifest) {
+        this._saveRevs(revs, id);
+        this._savePend(id);
+        return;
+      }
       try {
         await this._syncManifest(id, revs);
         this._lastError = null;
@@ -633,7 +654,7 @@ const SectionSync = {
     // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
     // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
     // leitura por seção esperar uma linha que não existe (e cair no plano B à toa).
-    if (!falhas.length) {
+    if (!falhas.length && !opts.skipManifest) {
       try { await this._syncManifest(id, revs); }
       catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
@@ -795,6 +816,20 @@ const SectionSync = {
     if (restantes.length) throw new Error('há exclusões com conflito ou falha pendentes');
     return true;
   },
+  /* Entrega final antes/depois de outro aparelho assumir a interface.
+     O snapshot congela seção+geração; qualquer escrita posterior ao bloqueio
+     recebe outra geração e fica FORA deste lote. O CAS do servidor continua
+     sendo a autoridade: se a base já avançou, nada é sobrescrito. */
+  async drainExplicitSnapshot(id, snapshot) {
+    const alvo = id || this._activeProfileId();
+    const snap = Array.isArray(snapshot) ? snapshot : this.captureExplicitSnapshot(alvo);
+    if (!alvo || !snap.length) return { ok: true, sent: 0, remaining: 0 };
+    await this.pushDirty(alvo, { allowBlocked: true, snapshot: snap, skipManifest: true });
+    const dirty = this._dirtyFor(alvo), gens = this._dirtyGenFor(alvo);
+    const remaining = snap.filter(x => dirty.has(x.section) && (gens.get(x.section) || 0) === (x.gen || 0));
+    return { ok: remaining.length === 0 && !this._lastConflict, sent: snap.length - remaining.length, remaining: remaining.length };
+  },
+
   // Semeia (1x) e envia — dispara PROATIVAMENTE (não depende de uma edição/salvamento).
   // Chamado no login, ao entrar num perfil, periodicamente, e após cada salvamento.
   async kick() {
