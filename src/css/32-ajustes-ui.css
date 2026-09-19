@@ -916,20 +916,11 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 /* Árvore: as colunas têm larguras reais, textos podem respirar e cada
    profundidade recebe um tom próprio. Cores aqui codificam GRANULARIDADE, não
    desempenho — o verde/vermelho dos percentuais continua sendo desempenho. */
-#tec-disc-list .tec-tree {
-  --tec-l0: var(--accent);
-  --tec-l1: #3b82f6;
-  --tec-l2: #10b981;
-  --tec-l3: #f59e0b;
-  --tec-l4: #a855f7;
-  --tec-l5: #ec4899;
+#tec-disc-list .tnode {
+  /* O JS entrega um hue por profundidade (passo de 47°). Assim nível 6, 7, 8…
+     continuam visualmente distintos em vez de herdarem a cor do nível 5. */
+  --tec-level: hsl(var(--tec-level-hue, 255) 70% 52%);
 }
-#tec-disc-list .tnode.lvl0 { --tec-level: var(--tec-l0); }
-#tec-disc-list .tnode.lvl1 { --tec-level: var(--tec-l1); }
-#tec-disc-list .tnode.lvl2 { --tec-level: var(--tec-l2); }
-#tec-disc-list .tnode.lvl3 { --tec-level: var(--tec-l3); }
-#tec-disc-list .tnode.lvl4 { --tec-level: var(--tec-l4); }
-#tec-disc-list .tnode.lvl5 { --tec-level: var(--tec-l5); }
 #tec-disc-list .tnode-row {
   grid-template-columns: 18px minmax(190px,1fr) 68px minmax(96px,125px) minmax(174px,194px);
   min-width: 0;
@@ -1195,11 +1186,7 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   #tec-disc-list .tnode-track {
     grid-area: track; display: block !important; width: 100%; height: 5px;
   }
-  #tec-disc-list .tnode.lvl1 > .tnode-row { margin-left: 4px; }
-  #tec-disc-list .tnode.lvl2 > .tnode-row { margin-left: 9px; }
-  #tec-disc-list .tnode.lvl3 > .tnode-row { margin-left: 14px; }
-  #tec-disc-list .tnode.lvl4 > .tnode-row { margin-left: 19px; }
-  #tec-disc-list .tnode.lvl5 > .tnode-row { margin-left: 24px; }
+  #tec-disc-list .tnode > .tnode-row { margin-left: var(--tec-indent,0) !important; }
   #tec-disc-list .tec-delta { max-width: 100%; }
 
   .ms-suggestion-head { grid-template-columns: 40px minmax(0,1fr) 58px; gap: 9px; }
