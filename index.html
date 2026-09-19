@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd3079ab226">
+<meta name="diario-versao" content="vfe3503e2fa">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -15330,8 +15330,20 @@ var _recargaAgendada = null;
 function recarregarApp(motivo, opts) {
   const ir = () => {
     try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
-    const disco = (window.__idbFlush ? window.__idbFlush() : Promise.resolve());
-    Promise.resolve(disco).catch(() => {}).then(() => location.reload());
+    const disco = window.__idbFlushStrict
+      ? window.__idbFlushStrict(10000)
+      : (window.__idbFlush ? window.__idbFlush().then(() => ({ ok: true })) : Promise.resolve({ ok: true }));
+    Promise.resolve(disco).then((r) => {
+      if (r && r.ok === false) {
+        try { console.error('[recarga] cancelada: armazenamento local não confirmou o commit', r); } catch (e) { _quiet(e, 'recarga-disco'); }
+        try { showToast('⚠ Não recarreguei: ainda há dados sendo gravados neste aparelho. Tente novamente em instantes.'); } catch (e) { _quiet(e, 'recarga-aviso-disco'); }
+        return;
+      }
+      location.reload();
+    }).catch((e) => {
+      try { console.error('[recarga] cancelada por falha ao confirmar o armazenamento', e); } catch (_) { _quiet(_); }
+      try { showToast('⚠ Não recarreguei porque o armazenamento local não pôde ser confirmado.'); } catch (_) { _quiet(_); }
+    });
   };
   if ((opts && opts.imediato) || !_appOcupado()) { ir(); return; }
   if (_recargaAgendada) return;                 // já há uma esperando a sua vez
@@ -40769,22 +40781,19 @@ const CloudStore = {
     if (error) throw error;
     return data ? data.rev : null;
   },
-  // Salva com RETENTATIVA: em caso de conflito, re-sincroniza a versão e REENVIA o estado
-  // local (a ação do usuário nunca é descartada). Evita a perda de dados por conflito de versão.
-  async saveActiveWithRetry(maxTries) {
-    maxTries = maxTries || 4;
+  /* Conflito de blob NÃO dá permissão para reenviar o estado local inteiro.
+     Antes, o código buscava a rev remota, copiava esse número para o aparelho e
+     tentava de novo — isso convertia um conflito legítimo em autorização para
+     sobrescrever a versão vencedora. Agora o conflito é apenas diagnosticado.
+     Os dados operacionais continuam pela camada por seção, que usa CAS. */
+  async saveActiveWithRetry() {
     const id = ProfileManager.getActiveProfileId();
     if (!id || !this.isLoggedIn()) return { skipped: true };
-    for (let attempt = 0; attempt < maxTries; attempt++) {
-      const r = await this.saveActive();
-      if (!r || !r.conflict) return r; // sucesso, skipped ou RECUSADO pela trava
-      // conflito → busca a rev real da nuvem, alinha localmente e tenta de novo (empurra o local)
-      let currentRev = null;
-      try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
-      if (currentRev == null) return { conflict: true };
-      ProfileManager.setRev(id, currentRev);
-    }
-    return { conflict: true };
+    const r = await this.saveActive();
+    if (!r || !r.conflict) return r;
+    let currentRev = null;
+    try { currentRev = await this._fetchRev(id); } catch (e) { return { conflict: true, error: e }; }
+    return { conflict: true, remoteRev: currentRev };
   },
   async deleteRow(id) { const { error } = await this.client.from(this.TABLE).delete().eq('id', id); if (error) throw error; },
 
@@ -40884,8 +40893,17 @@ const CloudStore = {
         const ok = await this._pushSectionsNow();
         this._syncing = false;
         if (!ok) {
-          // alguma seção não subiu: promove esta rodada a envio de blob e repete
-          this._pending = true; this._forceBlob = true;
+          this._pending = true;
+          if (window.SectionSync && SectionSync._lastConflict) {
+            /* Conflito protegido: JAMAIS contorna pelo blob. A cópia local
+               continua na outbox e a remota permanece intacta. */
+            this._forceBlob = false;
+            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
+            this._rearm(5000);
+            return;
+          }
+          // erro de transporte/infra: o blob continua sendo rede de segurança
+          this._forceBlob = true;
           if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
           this._rearm(3000);
           return;
@@ -40895,14 +40913,33 @@ const CloudStore = {
         if (this._pending) this._rearm(300);
         return;
       }
-      // ── ROTA COMPLETA: blob + seções ─────────────────────────────────────
+      // ── ROTA COMPLETA: seções CANÔNICAS primeiro; blob é checkpoint ───────
+      if (window.SectionSync && SectionSync.enabled) {
+        const secOk = await this._pushSectionsNow();
+        if (!secOk) {
+          this._syncing = false; this._pending = true;
+          if (SectionSync._lastConflict) {
+            this._forceBlob = false;
+            if (window.CloudUI) CloudUI.setStatus('error', 'Conflito protegido — nenhuma versão foi sobrescrita');
+            this._rearm(5000);
+            return;
+          }
+          this._forceBlob = true;
+          if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando seções…');
+          this._rearm(3000);
+          return;
+        }
+      }
       const r = await this.saveActiveWithRetry();
       this._syncing = false;
       if (r && r.conflict) {
-        // conflito persistente: mantém pendente e tenta de novo (não perde a alteração)
-        this._pending = true;
-        if (window.CloudUI) CloudUI.setStatus('error', 'Reenviando…');
-        this._rearm(5000);
+        /* As seções já foram confirmadas antes de chegar aqui. O blob é apenas
+           checkpoint; não rebaixamos a segurança dos dados para fazê-lo vencer. */
+        this._pending = false;
+        this._forceBlob = false;
+        this._lastSyncAt = Date.now();
+        if (window.CloudUI) CloudUI.setStatus('ok', 'Dados sincronizados · checkpoint será reconciliado depois');
+        console.warn('[CloudStore] checkpoint do blob em conflito; preservado sem sobrescrever', r.remoteRev);
         return;
       }
       /* Envio RECUSADO pela trava anti-apagamento: a nuvem continua com a cópia
@@ -41044,17 +41081,22 @@ const CloudStore = {
       showToast('Sincronizado ✓');
     } catch (e) { if (window.CloudUI) CloudUI.setStatus('error', 'Falha ao sincronizar'); showToast('Não foi possível sincronizar agora'); }
   },
-  async pullActiveAndReload() {
+  async pullActiveAndReload(opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
-    // FASE 2: tenta primeiro por seção; só usa o blob se a leitura por seção falhar.
+    // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
-      try { if (await SectionSync.pullAndReload()) return; } catch (e) { console.warn('pull por seção', e); }
+      try { if (await SectionSync.pullAndReload(opts)) return; } catch (e) { console.warn('pull por seção', e); }
     }
     try {
       // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
       // ainda não enviou; o que não subir é preservado e não é sobrescrito.
       let preservar = [];
-      try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'pull-pendencia'); }
+      try {
+        if (window.SectionSync) preservar = opts.readOnly
+          ? SectionSync.pendingSections(id)
+          : await SectionSync.flushBeforeRead(id);
+      } catch (e) { _quiet(e, 'pull-pendencia'); }
       const res = await this.fetchPayload(id);
       // REDE DE SEGURANÇA: antes de sobrescrever o estado local com o da nuvem,
       // guarda uma versão do que está aqui — assim, se outro aparelho tiver
@@ -41226,8 +41268,29 @@ const SessionGuard = {
     if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
     const uid = CS.session.user.id;
     this.subscribe(uid);
-    // reivindica só uma vez por carga/uid (evita re-claim a cada evento de auth)
-    if (this._claimedUid !== uid) { this._claimedUid = uid; await this.claim(uid); }
+    if (this._claimedUid === uid) return;
+    this._claimedUid = uid;
+
+    /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
+       conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
+       Só uma conta livre ou já pertencente a este device é renovada. */
+    try {
+      const { data, error } = await CS.client.from(this.TABLE)
+        .select('device_id,device_label').eq('user_id', uid).maybeSingle();
+      if (error) {
+        if (this._isMissingTable(error)) this._disable(error);
+        else console.warn('[SessionGuard] verificação inicial falhou', error);
+        return;
+      }
+      if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._takenBy(data);
+        return;
+      }
+      await this.claim(uid);
+    } catch (err) {
+      if (this._isMissingTable(err)) this._disable(err);
+      else console.warn('[SessionGuard] verificação inicial erro', err);
+    }
   },
   onLogout() {
     this._claimedUid = null;
@@ -41385,6 +41448,12 @@ const SectionSync = {
     return this.readEnabled;
   },
   _dirty: new Set(),        // seções alteradas aguardando envio
+  /* Geração local por seção. Um Set sozinho não distingue "a seção que começou
+     a subir" de "a mesma seção editada de novo enquanto o upload estava em voo".
+     A confirmação só pode limpar a fila se a geração ainda for a mesma. */
+  _dirtyGen: new Map(),
+  _genSeq: 0,
+  _lastConflict: null,
   _pushing: false,
   _seededProfile: null,     // id do perfil já "semeado" nesta sessão (envio inicial completo)
   _lastError: null,         // último erro de envio (para diagnóstico)
@@ -41439,10 +41508,39 @@ const SectionSync = {
       else localStorage.removeItem(this._pendKey());
     } catch (_) { _quiet(_); }
   },
+  _touchDirty(sec) {
+    if (!sec) return 0;
+    const g = ++this._genSeq;
+    this._dirty.add(sec);
+    this._dirtyGen.set(sec, g);
+    return g;
+  },
+  _ensureDirty(sec) {
+    if (!sec) return 0;
+    if (!this._dirty.has(sec)) this._dirty.add(sec);
+    if (!this._dirtyGen.has(sec)) this._dirtyGen.set(sec, ++this._genSeq);
+    return this._dirtyGen.get(sec) || 0;
+  },
+  _clearDirtyIfGeneration(sec, gen) {
+    if ((this._dirtyGen.get(sec) || 0) !== (gen || 0)) return false;
+    this._dirty.delete(sec);
+    this._dirtyGen.delete(sec);
+    return true;
+  },
+  _ackSent(sec, gen, sentHash, prefix) {
+    const atual = localStorage.getItem((prefix || this._prefix()) + sec);
+    /* Mesmo que algum código tenha escrito direto no armazenamento e esquecido
+       de chamar markDirty(), o hash impede a confirmação antiga de limpar a fila. */
+    if (atual !== null && this._hash(atual) !== sentHash) {
+      if ((this._dirtyGen.get(sec) || 0) === (gen || 0)) this._touchDirty(sec);
+      return false;
+    }
+    return this._clearDirtyIfGeneration(sec, gen);
+  },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
   restorePending() {
     const antes = this._dirty.size;
-    this._loadPend().forEach(s => this._dirty.add(s));
+    this._loadPend().forEach(s => this._ensureDirty(s));
     const novas = this._dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
@@ -41557,7 +41655,7 @@ const SectionSync = {
   markDirty(fullKey) {
     if (!this.enabled) return;
     const sec = this.sectionForKey(fullKey);
-    if (sec) { this._dirty.add(sec); this._savePend(); }
+    if (sec) { this._touchDirty(sec); this._savePend(); }
   },
   /* ── EXCLUSÕES DELIBERADAS ────────────────────────────────────────────────
      A nuvem só pode esquecer o que VOCÊ mandou esquecer. Antes, o manifesto era
@@ -41594,6 +41692,7 @@ const SectionSync = {
     const sec = this.sectionForKey(fullKey);
     if (!sec) return;
     this._dirty.delete(sec);
+    this._dirtyGen.delete(sec);
     this._savePend();
     const revs = this._getRevs();
     if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
@@ -41613,7 +41712,7 @@ const SectionSync = {
         if (!sec) continue;
         const raw = localStorage.getItem(full) || '';
         const h = this._hash(raw);
-        if (!revs[sec] || revs[sec].hash !== h) this._dirty.add(sec); // só o que mudou
+        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec); // só o que mudou
       }
     } catch (_) { _quiet(_); }
     this._savePend();
@@ -41659,9 +41758,42 @@ const SectionSync = {
     };
   },
 
-  // Envia as seções sujas para profile_sections (upsert por profile_id+section).
-  // Best-effort: qualquer falha mantém a seção suja para a próxima rodada, e NUNCA
-  // interfere no salvamento do blob (que é a fonte de verdade nesta fase).
+  _uniqueViolation(err) {
+    const c = ((err && (err.code || err.message || err.details)) || '').toString().toLowerCase();
+    return c.indexOf('23505') >= 0 || c.indexOf('duplicate key') >= 0;
+  },
+  async _remoteSection(profileId, section) {
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .select('section,data,rev,updated_at')
+      .eq('profile_id', profileId).eq('section', section).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+  /* Compare-and-swap: a linha só avança se a revisão remota ainda for EXATAMENTE
+     a revisão em que esta edição se baseou. Nunca fazemos upsert cego sobre uma
+     linha existente. Isso torna impossível uma rev antiga substituir uma nova. */
+  async _writeSectionCAS(row, expectedRev) {
+    if ((expectedRev || 0) > 0) {
+      const payload = { data: row.data, rev: row.rev, updated_at: row.updated_at };
+      const { data, error } = await CloudStore.client.from(this.TABLE)
+        .update(payload)
+        .eq('profile_id', row.profile_id)
+        .eq('section', row.section)
+        .eq('rev', expectedRev)
+        .select('rev');
+      if (error) throw error;
+      if (!data || !data.length) return { ok: false, conflict: true };
+      return { ok: true, rev: data[0].rev };
+    }
+    const { data, error } = await CloudStore.client.from(this.TABLE)
+      .insert(row).select('rev');
+    if (error) {
+      if (this._uniqueViolation(error)) return { ok: false, conflict: true };
+      throw error;
+    }
+    return { ok: true, rev: data && data[0] ? data[0].rev : row.rev };
+  },
+  // Envia as seções sujas para profile_sections com controle otimista por revisão.
   async pushDirty() {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
@@ -41686,12 +41818,16 @@ const SectionSync = {
     const rows = [];
     const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
+      const gen = this._dirtyGen.get(sec) || this._ensureDirty(sec);
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
-      if (d.acao === 'sumida') { this._dirty.delete(sec); sumidas.push(sec); return; }
-      if (d.acao === 'idêntico') { this._dirty.delete(sec); return; }
+      if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen); sumidas.push(sec); return; }
+      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen); return; }
       if (d.esvaziando) esvaziando.push(sec);
-      rows.push({ _sec: sec, _hash: d.hash, _len: raw.length, profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString() });
+      rows.push({
+        _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen, _expectedRev: (revs[sec] && revs[sec].rev) || 0,
+        profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString()
+      });
     });
     if (sumidas.length) {
       this._savePend();
@@ -41713,23 +41849,44 @@ const SectionSync = {
     // ISOLADA — se ela falhar (tamanho/timeout), não derruba as outras, o erro dela é
     // registrado individualmente, e ela reenvia sozinha na próxima rodada. Mais lento,
     // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
-    let okCount = 0; const falhas = [];
+    let okCount = 0; const falhas = []; const conflitos = [];
+    this._lastConflict = null;
     for (const r of rows) {
-      const { _sec, _hash, _len, ...row } = r;
+      const { _sec, _hash, _len, _gen, _expectedRev, ...row } = r;
       try {
-        const { error } = await CloudStore.client.from(this.TABLE).upsert(row, { onConflict: 'profile_id,section' });
-        if (error) throw error;
-        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem: é o que
-        // permite distinguir, no próximo envio, um esvaziamento de um dado que
-        // sempre foi vazio (ver a trava logo acima).
-        revs[_sec] = { rev: row.rev, hash: _hash, len: _len };
-        this._dirty.delete(_sec);
+        const wr = await this._writeSectionCAS(row, _expectedRev);
+        if (!wr.ok && wr.conflict) {
+          /* Pode ser um conflito real OU a mesma gravação já confirmada por outra
+             tentativa. Só adotamos a revisão remota automaticamente quando o
+             CONTEÚDO remoto é exatamente o snapshot que tentávamos enviar. */
+          const remoto = await this._remoteSection(id, _sec);
+          const remotoRaw = remoto ? this._decode(remoto.data) : null;
+          const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
+          if (remoto && remotoHash === _hash) {
+            revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
+            this._ackSent(_sec, _gen, _hash, pfx);
+            /* Se houve edição nova durante o voo, a geração mudou e a seção fica
+               suja; agora ela já parte da revisão remota confirmada. */
+            okCount++;
+            continue;
+          }
+          conflitos.push(_sec);
+          falhas.push(_sec + ' (conflito de revisão protegido)');
+          continue;
+        }
+        // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
+        revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
+        this._ackSent(_sec, _gen, _hash, pfx);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
         falhas.push(_sec + ' (' + (row.data ? JSON.stringify(row.data).length : 0) + ' bytes): ' + msg);
         // mantém a seção suja para o próximo retry
       }
+    }
+    if (conflitos.length) {
+      this._lastConflict = { em: Date.now(), seções: conflitos.slice() };
+      console.warn('[SectionSync] conflito protegido em', conflitos.length, 'seção(ões):', conflitos.join(', '));
     }
     // O MANIFESTO só é atualizado quando TODAS as seções sujas subiram. Se alguma
     // falhou, a nuvem ainda está incompleta — publicar o manifesto agora faria a
@@ -41932,7 +42089,8 @@ const SectionSync = {
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
     this._seededProfile = id;
     this._dirty.clear();
-    manter.forEach(s => this._dirty.add(s));
+    this._dirtyGen.clear();
+    manter.forEach(s => this._ensureDirty(s));
     try {
       const pk = prefix + this.PEND;
       if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
@@ -41952,7 +42110,9 @@ const SectionSync = {
          conseguir subir volta como `preservar` e sai ileso do download — é o que
          garante que uma alteração feita offline (ou com a sessão em outro
          aparelho) não seja apagada pela cópia mais velha da nuvem. */
-      const preservar = await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
+      const preservar = opts.skipPush
+        ? this.pendingSections(id)
+        : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
@@ -41982,6 +42142,12 @@ const SectionSync = {
      barreira corrige cache regressado sem transformar ausência remota em perda. */
   async hydrateAfterAppUpdate(id) {
     return this.hydrate(id, { force: true, explicitOnly: true });
+  },
+  /* Download manual realmente somente-leitura: nunca publica nada antes de ler.
+     Se houver divergência local conhecida, ela é preservada e permanece visível
+     na fila em vez de ser apagada. */
+  async hydrateReadOnly(id) {
+    return this.hydrate(id, { force: true, skipPush: true });
   },
 
   // Checagem barata "tem novidade na nuvem?" — compara as revisões remotas com as
@@ -42039,12 +42205,13 @@ const SectionSync = {
   /* Baixa por seção e recarrega a tela — MAS SÓ SE ALGO MUDOU DE VERDADE.
      Antes recarregava sempre que a checagem dissesse "pode haver novidade", e
      bastava um falso positivo para a tela reiniciar do nada no meio do uso. */
-  async pullAndReload() {
+  async pullAndReload(opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId(); if (!id) return false;
     /* `aplicando` e não duas atribuições soltas: se `hydrate` lançar (rede,
        JSON malformado, armazenamento), a linha que desligava a marca era pulada
        e `notifyChange` passava a ignorar toda alteração seguinte. */
-    const r = await CloudStore.aplicando(() => this.hydrate(id));
+    const r = await CloudStore.aplicando(() => opts.readOnly ? this.hydrateReadOnly(id) : this.hydrate(id));
     if (!r.ok) return false;
     if (!r.mudou) { console.info('[SectionSync] nuvem conferida: nada mudou, sem recarregar'); return true; }
     showToast('Sincronizado da nuvem ✓');
@@ -42057,6 +42224,7 @@ const SectionSync = {
     try { localStorage.removeItem(this._revKey()); } catch (_) { _quiet(_); }
     this._seededProfile = null;
     this._dirty.clear();
+    this._dirtyGen.clear();
     this.markAllDirty();
     await this.pushDirty();
     return this.status();
@@ -42190,6 +42358,7 @@ const SectionSync = {
       enviadasNestaSessão: this._pushedCount,
       últimoEnvio: this._lastPushAt ? new Date(this._lastPushAt).toLocaleString('pt-BR') : null,
       últimoErro: this._lastError,
+      últimoConflitoProtegido: this._lastConflict,
       sombraSomenteLeitura: true,
       sombraÚltimaExecução: this._shadowLastAt ? new Date(this._shadowLastAt).toLocaleString('pt-BR') : null,
       sombraÚltimoErro: this._shadowLastError,
@@ -42632,7 +42801,8 @@ window.CloudUI = CloudUI;
   on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-queue-refresh', 'click', () => CloudUI.renderQueue());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
-  on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload());
+  // "Baixar da nuvem" é semanticamente somente leitura: nunca publica o local antes.
+  on('cloud-pull-now', 'click', () => CloudStore.pullActiveAndReload({ readOnly: true }));
   // Segurança da sessão em Configurações (mesmas chaves ux47 → persistem e ficam
   // em sincronia com onde quer que o app leia essas preferências).
   (function () {
@@ -44449,10 +44619,28 @@ const Atualizacao = {
     restaurar();
     if (!entregue) {
       const seguir = await UI.confirm(
-        'Ainda há alterações subindo para a nuvem.\n\nElas estão salvas neste aparelho e continuam na fila depois de atualizar — mas, se preferir, espere alguns segundos e tente de novo.',
+        'Ainda há alterações subindo para a nuvem.\n\nElas continuam preservadas neste aparelho e na fila durável. Você pode atualizar offline, desde que a gravação local seja confirmada.',
         { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
       if (!seguir) { this._trocando = false; return; }
     }
+
+    /* A nuvem pode estar indisponível e isso NÃO deve impedir uma atualização.
+       O que é inegociável é a durabilidade local: antes de trocar o worker,
+       exigimos confirmação real do IndexedDB. Timeout não conta como sucesso. */
+    let disco = { ok: true };
+    try {
+      if (window.__idbFlushStrict) disco = await window.__idbFlushStrict(10000);
+      else if (window.__idbFlush) { await window.__idbFlush(); disco = { ok: true, compat: true }; }
+    } catch (e) { disco = { ok: false, motivo: (e && e.message) || 'falha' }; }
+    if (!disco || disco.ok === false) {
+      this._trocando = false;
+      try { if (btn) { btn.disabled = false; btn.textContent = 'Atualizar agora'; } } catch (_) { _quiet(_); }
+      await UI.alert(
+        'A atualização foi cancelada porque o navegador ainda não confirmou a gravação dos dados neste aparelho. Nada foi apagado. Aguarde alguns instantes e tente novamente.',
+        { title: 'Dados ainda sendo gravados' });
+      return;
+    }
+
     /* A troca pode levar alguns segundos (o worker antigo precisa ficar livre).
        Sem dizer isso, a barra fica parada e a pessoa aperta de novo. */
     if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
@@ -44475,8 +44663,27 @@ const Atualizacao = {
      fica livre. E o teto agora é honesto: 12 s de espera de verdade, e só então
      a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
-    let recarregou = false, tentativas = 0;
-    const recarregar = () => { if (recarregou) return; recarregou = true; clearInterval(bater); location.reload(); };
+    let recarregou = false, tentativas = 0, bater = null;
+    const recarregar = async () => {
+      if (recarregou) return;
+      recarregou = true; clearInterval(bater);
+      /* Segunda barreira: cobre qualquer gravação que tenha ocorrido entre o
+         clique em atualizar e o controllerchange. Enquanto houver fila local,
+         não matamos a página antiga. */
+      try {
+        const r = window.__idbFlushStrict ? await window.__idbFlushStrict(10000) : { ok: true };
+        if (r && r.ok === false) {
+          recarregou = false;
+          this._trocando = false;
+          try { showToast('⚠ Atualização pronta, mas a recarga aguardará seus dados terminarem de gravar.'); } catch (_) { _quiet(_); }
+          setTimeout(recarregar, 1000);
+          return;
+        }
+      } catch (_) {
+        recarregou = false; this._trocando = false; setTimeout(recarregar, 1000); return;
+      }
+      location.reload();
+    };
     try {
       navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
     } catch (e) { _quiet(e, 'upd-controller'); }
@@ -44488,7 +44695,7 @@ const Atualizacao = {
       return false;
     };
     if (!pedir()) { recarregar(); return; }     // sem worker esperando: recarregar já resolve
-    const bater = setInterval(() => {
+    bater = setInterval(() => {
       tentativas++;
       if (recarregou || tentativas > 20 || !pedir()) { clearInterval(bater); }
     }, 600);
@@ -48298,6 +48505,32 @@ else CloudStore.init();
       esperandoDisco.push(resolve);
       scheduleFlush();
       setTimeout(resolve, 2000);   // teto: nunca travar a interface esperando o disco
+    });
+  };
+  /* Barreira ESTRITA de durabilidade. Ao contrário de __idbFlush(), não transforma
+     timeout em sucesso: só confirma quando a transação terminou (flushing=false)
+     E não restou nenhuma operação na fila. Usada antes de qualquer recarga que
+     poderia matar uma transação em voo. */
+  window.__idbPendingCount = function () { return queue.length + (flushing ? 1 : 0); };
+  window.__idbFlushStrict = function (limiteMs) {
+    var teto = Math.max(1000, Number(limiteMs) || 10000);
+    /* Sem IndexedDB ativo, o app está no localStorage nativo, cuja escrita é
+       síncrona. Não há transação assíncrona a esperar. */
+    if (!db) return Promise.resolve({ ok: true, fallback: true, pending: 0 });
+    var fim = Date.now() + teto;
+    return new Promise(function (resolve) {
+      var acabou = false;
+      function terminar(r) { if (acabou) return; acabou = true; resolve(r); }
+      function conferir() {
+        if (!queue.length && !flushing) { terminar({ ok: true, pending: 0 }); return; }
+        if (Date.now() >= fim) {
+          terminar({ ok: false, motivo: 'timeout', pending: queue.length + (flushing ? 1 : 0) });
+          return;
+        }
+        scheduleFlush();
+        setTimeout(conferir, 50);
+      }
+      conferir();
     });
   };
   // App indo para segundo plano/fechando: garante a descarga do que está na fila.
