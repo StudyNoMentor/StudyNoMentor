@@ -739,7 +739,7 @@ const SectionSync = {
      { ok:false, motivo } — e quem chamou cai no blob, sem perder nada. */
   async fetchAllSections(id) {
     const { data, error } = await CloudStore._withTimeout(
-      CloudStore.client.from(this.TABLE).select('section,data,rev,updated_at').eq('profile_id', id),
+      CloudStore.client.from(this.TABLE).select('section,data,rev,updated_at,content_hash,mutation_id,device_id').eq('profile_id', id),
       20000, 'Baixar as seções do perfil');
     if (error) throw error;
     return data || [];
@@ -749,15 +749,33 @@ const SectionSync = {
     const map = {}, revs = {};
     let manifesto = null, manifestoRev = 0;
     (rows || []).forEach(r => {
-      if (r.section === this.MANIFEST) { manifesto = r.data || null; manifestoRev = r.rev || 0; return; }
+      if (r.section === this.MANIFEST) {
+        manifesto = r.data || null;
+        manifestoRev = r.rev || 0;
+        revs[this.MANIFEST] = { rev: r.rev || 0, hash: r.content_hash || null };
+        return;
+      }
       const txt = this._decode(r.data);
       if (txt === null) return;                  // linha ilegível → tratada como ausente
+      const hashCalculado = this._hash(txt);
+      if (r.content_hash && r.content_hash !== hashCalculado) {
+        if (!revs.__hashInvalido) revs.__hashInvalido = [];
+        revs.__hashInvalido.push(r.section);
+        return;
+      }
       map[r.section] = txt;
-      revs[r.section] = r.rev || 1;
+      revs[r.section] = { rev: r.rev || 1, hash: hashCalculado, len: txt.length };
     });
     const secoes = Object.keys(map);
     if (!manifesto || !Array.isArray(manifesto.sections)) {
       return { ok: false, motivo: secoes.length ? 'sem-manifesto' : 'sem-seções', map, revs };
+    }
+    if (revs.__hashInvalido && revs.__hashInvalido.length) {
+      return { ok: false, motivo: 'hash-remoto-invalido', seções: revs.__hashInvalido.slice(), map, revs };
+    }
+    const manifestHash = revs[this.MANIFEST] && revs[this.MANIFEST].hash;
+    if (manifestHash && manifestHash !== this._hash(manifesto.sections.slice().sort().join('|'))) {
+      return { ok: false, motivo: 'hash-manifesto-invalido', map, revs };
     }
     const faltando = manifesto.sections.filter(s => !(s in map));
     if (faltando.length) return { ok: false, motivo: 'seções-faltando: ' + faltando.join(', '), map, revs, faltando };
@@ -837,7 +855,12 @@ const SectionSync = {
         try { Lixeira.guardar(prefix + sec, 'esvaziada pela nuvem'); } catch (e) { _quiet(e, 'hidratar-lixeira'); }
       }
       if (atual !== txt) { localStorage.setItem(prefix + sec, txt); mudou++; }
-      novoRev[sec] = { rev: (revs && revs[sec]) || 1, hash: this._hash(txt), len: txt.length };
+      const rr = revs && revs[sec];
+      novoRev[sec] = {
+        rev: rr && typeof rr === 'object' ? (rr.rev || 1) : (rr || 1),
+        hash: rr && typeof rr === 'object' && rr.hash ? rr.hash : this._hash(txt),
+        len: txt.length
+      };
     });
     /* A REVISÃO DO MANIFESTO precisa ser guardada como a de qualquer outra seção.
        Ela não era — e como hasRemoteUpdates compara TODAS as linhas remotas com as
@@ -947,7 +970,7 @@ const SectionSync = {
      pior caso é tráfego, não perda. */
   async hasRemoteUpdates(id) {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return false;
-    const { data, error } = await CloudStore.client.from(this.TABLE).select('section,rev').eq('profile_id', id);
+    const { data, error } = await CloudStore.client.from(this.TABLE).select('section,rev,content_hash').eq('profile_id', id);
     if (error) throw error;
     const locais = this._getRevs(id);
     const pfx = this._prefixFor(id);
@@ -963,8 +986,16 @@ const SectionSync = {
     /* Exclusões físicas removem a linha da seção; quem anuncia a mudança aos
        outros aparelhos é o avanço do manifesto. Ignorá-lo fazia uma exclusão
        remota nunca ser percebida por hasRemoteUpdates(). */
-    if (r.section === this.MANIFEST) return (r.rev || 0) > meu;
+    if (r.section === this.MANIFEST) {
+      if ((r.rev || 0) > meu) return true;
+      if ((r.rev || 0) === meu && r.content_hash && anotada && anotada.hash && r.content_hash !== anotada.hash) return true;
+      return false;
+    }
     if ((r.rev || 0) > meu) return true;
+    if ((r.rev || 0) === meu && r.content_hash && anotada && anotada.hash && r.content_hash !== anotada.hash) {
+      console.warn('[SectionSync] mesma revisão com hash remoto diferente:', r.section, '— vai baixar para validar');
+      return true;
+    }
     /* Revisão anotada mas conteúdo ausente: o aparelho acha que tem e não tem.
        Só conta quando existe anotação — sem ela, a semeadura normal já cuida, e
        tratar como novidade faria todo perfil novo baixar duas vezes. */
