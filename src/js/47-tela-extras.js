@@ -121,20 +121,11 @@ const ExtrasScreen = {
        duas vezes — e sem apagar o host, senão o esqueleto que acabou de ser
        pintado sumiria antes de o cálculo começar. */
     if (this._pularEmCurso) return;
-    const extrasPlano = DB.getExtras().filter(e => e.origemPlano && e.origemPlano.topico && e.status !== 'concluida');
-    if (!extrasPlano.length) { host.innerHTML = ''; return; }
+    const extrasMotor = DB.getExtras().filter(e => typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).topico && e.status !== 'concluida');
+    if (!extrasMotor.length) { host.innerHTML = ''; return; }
     let itens = [];
-    try {
-      /* Repinturas encadeadas (registrar → concluir → reabrir) não precisam
-         recalcular a mesma fotografia do TEC a cada clique. O cache curto do
-         próprio Desempenho TEC já é a régua usada pela criação em lote e é
-         invalidado quando o escopo muda. */
-      const refPlano = (typeof DesempenhoTecScreen !== 'undefined' && typeof DesempenhoTecScreen._planoRef === 'function')
-        ? DesempenhoTecScreen._planoRef()
-        : PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      itens = PlanoCiclo.emCurso(this._planoRefCard || (this._planoRefCard = refPlano));
-    }
-    catch (e) { _quiet(e, 'curso'); }
+    try { itens = MotorCiclo.emCurso(); }
+    catch (e) { _quiet(e, 'curso-motor'); }
     if (!itens.length) { host.innerHTML = ''; return; }
     const aberto = this._cursoAberto !== false;
     const totalFalta = itens.reduce((a, v) => a + Math.max(0, v.alvo - v.feito), 0);
@@ -163,16 +154,18 @@ const ExtrasScreen = {
       gaps.sort((x, y) => x - y);
       const cadencia = gaps.length ? gaps[gaps.length >> 1] : 30;
       const ult = snaps[snaps.length - 1];
-      const idade = ult ? PlanoEngine._diasDesde(fim(ult)) : 0;
+      const idade = ult && fim(ult) ? Math.max(0, Math.floor((new Date(todayLocal() + 'T00:00:00') - new Date(fim(ult) + 'T00:00:00')) / 86400000)) : 0;
       dias = Math.max(1, cadencia - idade);
     } catch (e) { _quiet(e, 'curso-dias'); }
     const porDia = Math.max(1, Math.ceil(totalFalta / dias));
-    /* `mediu` é o desfecho do DIAGNÓSTICO: ele foi buscar amostra, não acerto.
-       Chamá-lo de "volume não resolveu" era julgar pela régua do reforço uma
-       atividade que cumpriu exatamente o que prometeu. */
-    const SELO = { funcionou: ['✅', 'tone-good', 'resolvido'], naoFuncionou: ['⚠️', 'tone-bad', 'volume não resolveu'],
-      subiu: ['📈', 'tone-good', 'subindo'], mediu: ['🔬', 'incid', 'já dá para medir'],
-      andamento: ['▶', 'incid', 'em andamento'], orfa: ['❓', '', 'sem correspondência no TEC'] };
+    const SELO = {
+      resolvida: ['✅', 'tone-good', 'lacuna fechada'],
+      rotacionada: ['🔄', 'tone-good', 'saiu do grupo prioritário'],
+      rodada: ['✓', 'incid', 'rodada cumprida'],
+      aguardando: ['⏳', 'incid', 'aguardando novo retrato'],
+      andamento: ['▶', 'incid', 'em andamento'],
+      orfa: ['❓', '', 'sem correspondência no TEC']
+    };
     const linha = (v) => {
       const [ic, tom, rot] = SELO[v.estado] || SELO.andamento;
       const falta = Math.max(0, v.alvo - v.feito);
