@@ -60,15 +60,18 @@ assert.ok(!tec.includes('abrirDiagnostico()'), 'modal Diagnóstico do TEC não d
    uma das decisões estruturais, a PR para aqui antes da suíte longa. */
 tem(motorTec, 'metaAcerto: 90', 'meta de fábrica do Motor deve ser 90%');
 tem(motorTec, 'maxFrentes: [1, 3]', 'rodada acionável deve ter no máximo 3 disciplinas');
-tem(motorTec, '_lacuna(item, p)', 'ranking deve usar lacuna confiável, não percentual cru');
-tem(motorTec, 'gapConfiavel', 'lacuna após margem precisa existir no modelo');
+tem(motorTec, '_lacuna(item, p)', 'Motor precisa calcular a distância simples até a meta');
+tem(motorTec, 'minAmostra: 20', 'amostra mínima deve ser o único freio de granularidade');
 tem(motorTec, '_forestEstavel(snap)', 'histórico do Motor deve reconstruir cada retrato antes de consolidar semanticamente');
 tem(motorTec, 'disciplinasSel: []', 'Motor precisa de filtro persistente de disciplinas, vazio = todas');
-tem(motorTec, 'deficitSeguro', 'escolha da matéria precisa considerar materialidade da lacuna na raiz');
-tem(motorTec, '_incidenciaDisciplina(nome, mapa)', 'pós-edital deve ponderar a matéria pela incidência raiz');
+tem(motorTec, 'lacunaDisc', 'escolha da matéria precisa usar a distância percentual até a meta');
+tem(motorTec, '_incidenciaDisciplina(nome, mapa)', 'pós-edital deve usar incidência apenas como desempate');
+assert.ok(!motorTec.includes('PlanoEngine.margemErro'), 'Motor simples não pode depender de Wilson/margem estatística');
+assert.ok(!motorTec.includes('gapConfiavel'), 'lacuna segura não pode voltar ao Motor simples');
+assert.ok(!motorTec.includes('deficitSeguro'), 'volume histórico não pode multiplicar a prioridade da matéria');
 assert.ok(!motorTec.includes('MAX_IRMAOS_GRUPO'), 'agrupamento não pode voltar a um teto arbitrário de irmãos');
 tem(telaTec, 'ms-disc-filter-all', 'filtro do Motor deve expor Todas as disciplinas como primeira opção');
-tem(telaTec, 'lacuna segura', 'cards e ranking precisam explicar a lacuna confiável ao aluno');
+tem(telaTec, 'lacuna p/ meta', 'cards precisam explicar a lacuna simples ao aluno');
 tem(extrasMotor, 'Rodada recomendada agora', 'Puxar do Motor deve juntar as recomendações no topo');
 tem(extrasMotor, 'Alternativas por matéria', 'alternativas do Puxar do Motor devem ficar agrupadas por matéria');
 tem(extrasMotor, "MotorSugestao.salvar({ disciplinasSel:", 'filtro em Extras deve recalcular o Motor, não apenas esconder linhas');
@@ -76,6 +79,8 @@ tem(telaTec, '_scopeRenderTimer', 'seleção de retratos deve coalescer cliques 
 tem(telaTec, 'Atualizando análise…', 'seleção de retratos precisa mostrar feedback visual');
 tem(telaTec, '--tec-level-hue', 'granularidades profundas precisam conservar tom próprio');
 assert.match(htmlTec, /id="motor-meta"[^>]*value="90"/, 'campo da meta deve nascer em 90%');
+assert.match(htmlTec, /id="motor-amostra"[^>]*value="20"/, 'campo da amostra mínima deve nascer em 20 questões');
+assert.ok(!htmlTec.includes('id="motor-margem"'), 'ajuste de margem estatística não deve voltar ao Motor simples');
 assert.match(htmlTec, /id="motor-frentes"[^>]*max="3"/, 'campo de disciplinas por rodada deve limitar em 3');
 
 // UX responsiva e janela modal independente.
