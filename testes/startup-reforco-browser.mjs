@@ -514,6 +514,42 @@ try {
   ok(readOnlyRepairsStaleCache.r&&readOnlyRepairsStaleCache.r.ok,'pull read-only deve validar e aplicar seções');
   eq(readOnlyRepairsStaleCache.depois,readOnlyRepairsStaleCache.remoto,'conteúdo remoto deve corrigir cache físico regressado');
 
+
+  /* 2o.1. Linha remota mais nova que o manifesto não pode ser descartada. Isso
+     simula queda exatamente entre gravar a seção e atualizar __manifest. */
+  const manifestLagPreservesRemote=await page.evaluate(()=>{
+    const rows=[
+      {section:'entries',data:[{id:1}],rev:4},
+      {section:'cards',data:[{id:9}],rev:2},
+      {section:'__manifest',data:{v:2,sections:['entries']},rev:7}
+    ];
+    const p=SectionSync._prepare(rows);
+    return {
+      ok:p.ok,
+      keys:Object.keys(p.map||{}).sort(),
+      extras:(p.extras||[]).slice().sort(),
+      cards:p.map&&p.map.cards
+    };
+  });
+  ok(manifestLagPreservesRemote.ok,'manifesto atrasado com linhas completas ainda deve ser legível');
+  ok(manifestLagPreservesRemote.keys.includes('entries')&&manifestLagPreservesRemote.keys.includes('cards'),
+    'linha remota fora do manifesto deve ser preservada na união');
+  ok(manifestLagPreservesRemote.extras.includes('cards'),'seção fora do manifesto deve ficar diagnosticada como extra');
+  ok(!!manifestLagPreservesRemote.cards,'conteúdo da seção extra não pode ser descartado');
+
+  /* 2o.2. Exclusão remota é anunciada pelo manifesto: a linha apagada já não
+     existe para ter rev maior. Logo o manifesto precisa participar da detecção. */
+  const remoteDeleteDetection=await page.evaluate(()=>{
+    const pfx='diario-estudos:u:p-delete-detect:';
+    const locais={__manifest:{rev:8,hash:'x'}};
+    return {
+      nova:SectionSync.precisaBaixar({section:'__manifest',rev:9},locais,pfx),
+      igual:SectionSync.precisaBaixar({section:'__manifest',rev:8},locais,pfx)
+    };
+  });
+  ok(remoteDeleteDetection.nova,'manifesto remoto mais novo deve disparar pull para propagar exclusões');
+  ok(!remoteDeleteDetection.igual,'manifesto na mesma revisão não deve gerar falso download');
+
   /* 2p. Manifesto com revisão remota mais nova deve se realinhar e avançar
      sem apagar a união remota/local. */
   const manifestRebase=await page.evaluate(async()=>{
