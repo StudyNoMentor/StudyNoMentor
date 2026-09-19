@@ -2408,8 +2408,8 @@ const PlanoCiclo = {
       const p = MotorSugestao.prefs();
       return {
         motor: 'motor', fase: p.fase, criadoEm: todayLocal(),
-        margemMax: p.margemMax,
-        margem: (item && item.margem != null) ? Math.round(item.margem * 10) / 10 : null,
+        minAmostra: p.minAmostra,
+        amostra: (item && item.questoes != null) ? Number(item.questoes) : null,
         bloco: !!(item && item.agregado)
       };
     } catch (e) { _quiet(e, 'ciclo-assinatura'); return null; }
@@ -2727,7 +2727,7 @@ const TecAjustes = {
     return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + (aba || this.aba) + '"]')];
   },
   TITULOS: {
-    motor: { t: '🧭 Ajustes do Motor', s: 'A margem que decide até onde descer na árvore e o tamanho do caderno que o motor reparte.' }
+    motor: { t: '🧭 Ajustes do Motor', s: 'Uma régua simples: meta, amostra mínima e tamanho fixo do reforço.' }
   },
   /* Padrão de fábrica de cada seção: é com isto que o ponto no chip sabe se
      você mexeu ali. Ler os defaults do motor (e não uma cópia) é o que impede
@@ -2931,8 +2931,8 @@ const TecAjustes = {
         let b = ''; try { b = ReforcoEngine.rotuloBancas(m.banca); } catch (e) { _quiet(e, 'cfg-bancas'); }
         p.push([/ e /.test(b) ? 'bancas' : 'banca', b.replace(/^todas as bancas$/, 'todas')]);
       }
-      p.push(['margem', '±' + m.margemMax + 'pp']);
-      p.push(['base/reforço', m.alvoQuestoes + ' questões']);
+      p.push(['amostra mínima', m.minAmostra + ' questões']);
+      p.push(['reforço', m.alvoQuestoes + ' questões']);
       p.push(['disciplinas agora', String(m.maxFrentes)]);
       p.push(['meta', m.metaAcerto + '%']);
     }
@@ -4235,8 +4235,8 @@ const DesempenhoTecScreen = {
     const p = MotorSugestao.prefs();
     if (fase) {
       const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
-      fase.innerHTML = b('pre', 'Pré-edital', 'Lacuna sistêmica da matéria primeiro')
-        + b('pos', 'Pós-edital', 'Lacuna da matéria × incidência da banca');
+      fase.innerHTML = b('pre', 'Pré-edital', 'Maior lacuna até a meta primeiro')
+        + b('pos', 'Pós-edital', 'Mesma lacuna; incidência desempata');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
 
@@ -4253,7 +4253,7 @@ const DesempenhoTecScreen = {
     }
     const filterHtml = this._motorDiscFilterHtml(r.disciplinasDisponiveis || [], r.prefs || p);
     if (!r.itens.length) {
-      host.innerHTML = filterHtml + `<div class="ms-empty-honesto"><span>🧭</span><div><b>Nenhuma lacuna confiável neste recorte</b><p>O Motor não promove matéria por um percentual isolado. Com a margem atual de ±${r.prefs.margemMax}pp, as disciplinas selecionadas não têm tópico comprovadamente abaixo da meta de ${r.prefs.metaAcerto}%. Você pode ampliar o filtro acima ou acumular mais questões.</p></div></div>`;
+      host.innerHTML = filterHtml + `<div class="ms-empty-honesto"><span>🧭</span><div><b>Nenhuma lacuna válida neste recorte</b><p>O Motor usa uma regra simples: percentual abaixo da meta e pelo menos ${r.prefs.minAmostra} questões no nível analisado. Amplie o recorte ou acumule mais questões.</p></div></div>`;
       this._bindMotorDiscFilter(host);
       return;
     }
@@ -4277,8 +4277,8 @@ const DesempenhoTecScreen = {
             <h3>${escapeHtml(d.nome)}</h3>
             <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
             <div class="ms-priority-meta">
-              <span><i>lacuna segura</i><b>${top ? fmt1(top.gapConfiavel) + 'pp' : '—'}</b></span>
-              <span><i>déficit p/ meta</i><b>${top ? '~' + top.lacunaMeta + ' q' : '—'}</b></span>
+              <span><i>lacuna do tópico</i><b>${top ? fmt1(top.gapMeta) + 'pp' : '—'}</b></span>
+              <span><i>amostra</i><b>${top ? top.questoes + ' q' : '—'}</b></span>
               <span><i>disciplina</i><b>${ac}</b></span>
               <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
             </div>
@@ -4288,13 +4288,13 @@ const DesempenhoTecScreen = {
 
     const linhas = r.itens.map((x, i) => {
       const erroPct = fmt1(x.taxaErro);
-      const margem = x.margem == null ? '—' : '±' + fmt1(x.margem) + 'pp';
+
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
       const porQue = x.agregado
-        ? `Agrupamento local de ${x.membros.length} irmãos sob “${x.pai || 'o mesmo tópico'}”. Separados, eram pequenos demais; juntos sustentam a medida.`
+        ? `Agrupamento local de ${x.membros.length} irmãos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam o piso de ${r.prefs.minAmostra} questões; juntos alcançam.`
         : x.motivoNivel === 'subnivel-insuficiente'
-          ? 'O nível abaixo ficou pequeno demais para medir com segurança. O motor subiu somente até este tópico.'
-          : 'A amostra deste nível já sustenta o percentual; não há motivo estatístico para subir a árvore.';
+          ? `O nível abaixo não alcançou ${r.prefs.minAmostra} questões. O motor subiu somente até este tópico.`
+          : `Este nível tem pelo menos ${r.prefs.minAmostra} questões e pode ser usado diretamente.`;
       const membros = x.agregado
         ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
         : '';
@@ -4306,9 +4306,9 @@ const DesempenhoTecScreen = {
           <div class="ms-action-context">
             <b>${escapeHtml(x.disciplina)}</b>
             <span>${fmt1(x.disciplinaTaxa)}% geral</span>
-            <span>${x.categoriaPrioridade === 'correcao' ? 'correção sistêmica' : 'manutenção localizada'}</span>
-            <span>déficit seguro ~${fmt1(x.disciplinaDeficitSeguro)} q</span>
-            ${r.fase === 'pos' ? '<span>incidência da matéria ' + fmt1(x.disciplinaIncidencia) + '</span>' : ''}
+            <span>lacuna ${fmt1(x.disciplinaLacuna)}pp até a meta</span>
+            <span>amostra mínima ${r.prefs.minAmostra} q</span>
+            ${r.fase === 'pos' ? '<span>incidência da matéria ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
           </div>
           <div class="ms-suggestion-head">
             <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
@@ -4327,11 +4327,11 @@ const DesempenhoTecScreen = {
             <span><i>acerto</i><b>${fmt1(x.taxa)}%</b></span>
             <span><i>erro</i><b>${erroPct}%</b></span>
             <span><i>histórico</i><b>${x.questoes} q</b></span>
-            <span><i>margem</i><b>${margem}</b></span>
-            <span><i>lacuna segura</i><b>${fmt1(x.gapConfiavel)}pp</b></span>
+            <span><i>lacuna p/ meta</i><b>${fmt1(x.gapMeta)}pp</b></span>
+            <span><i>piso válido</i><b>${r.prefs.minAmostra} q</b></span>
             ${peso}
           </div>
-          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna segura:</b> ${fmt1(x.gapConfiavel)}pp abaixo da meta mesmo no extremo otimista da margem.</p></div>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna:</b> ${fmt1(x.gapMeta)}pp até a meta de ${r.prefs.metaAcerto}%.</p></div>
           <div class="ms-suggestion-action">
             <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
@@ -4340,12 +4340,13 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · déficit seguro ~${fmt1(d.deficitSeguro)} q${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
+      const statusAmostra = d.amostraValida ? d.questoes + ' q' : 'amostra geral < ' + r.prefs.minAmostra + ' q';
+      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''} · entrada: ${t ? escapeHtml(t.nome) + ' (' + fmt1(t.taxa) + '%)' : '—'} · ${(d.fila || []).length} frente(s)</small></div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
       const itens = (d.fila || []).slice(0, 15).map((x, i) =>
-        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna segura ${fmt1(x.gapConfiavel)}pp · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
+        `<li><span>${i + 1}</span><div><b>${escapeHtml(x.nome)}</b><small>${fmt1(x.taxa)}% acerto · lacuna ${fmt1(x.gapMeta)}pp · ${x.questoes} q · nível ${x.nivel}${x.agregado ? ' · bloco de ' + x.membros.length + ' irmãos' : ''}</small></div></li>`
       ).join('');
       return `<section class="ms-queue-group"><h4>${escapeHtml(d.nome)}</h4><ol>${itens}</ol></section>`;
     }).join('');
@@ -4355,21 +4356,21 @@ const DesempenhoTecScreen = {
       <div class="ms-rule-summary">
         <span>🧭 ${r.itens.length} matérias na rodada</span>
         <span>🧩 1 frente de cada</span>
-        <span>📚 ${r.prefs.doseMin}+ questões por atividade</span>
-        <span>📏 margem ±${r.prefs.margemMax}pp</span>
+        <span>📚 ${r.prefs.alvoQuestoes} questões por atividade</span>
+        <span>🧪 piso ${r.prefs.minAmostra} q por nível</span>
         <span>🎯 meta ${r.prefs.metaAcerto}%</span>
         <span>🛡️ primeiro matéria, depois tópico</span>
       </div>
 
       <section class="ms-stage ms-stage-action">
-        <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor escolhe a matéria pela lacuna geral comprovada; só então percorre essa matéria e pega o primeiro tópico/subtópico confiável da fila. Não há mistura global de tópicos.</small></div></header>
+        <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor ordena as matérias pela distância simples até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente. Não há score oculto nem mistura global de tópicos.</small></div></header>
         <div class="ms-suggestion-list">${linhas}</div>
-        <p class="ms-round-total">Se executar a rodada: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s). Nenhuma atividade nasce abaixo de ${r.prefs.doseMin} questões.</p>
+        <p class="ms-round-total">Se executar a rodada: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s). Cada atividade recebe ${r.prefs.alvoQuestoes} questões.</p>
       </section>
 
       <div class="ms-rankings">
         <details>
-          <summary><span>📊 Por que estas matérias?</span><small>ranking por déficit seguro${r.fase === 'pos' ? ' × incidência' : ''}</small><i>⌄</i></summary>
+          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i>⌄</i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details>
@@ -4377,7 +4378,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: o histórico é consolidado por identidade semântica do assunto, não pelo número do código do TEC. Dentro de uma matéria, subtópicos pequenos só agrupam com irmãos do mesmo pai. A fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: percentual simples + piso de amostra. O histórico é consolidado por identidade semântica do assunto, subtópicos pequenos só agrupam com irmãos do mesmo pai e a fronteira da disciplina nunca é atravessada.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
@@ -5371,7 +5372,7 @@ document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListene
     MotorSugestao.salvar({ fase: b.dataset.fase });
     DT.renderMotor();
   });
-  ['motor-margem', 'motor-alvo', 'motor-dosemin', 'motor-frentes', 'motor-meta'].forEach(id => {
+  ['motor-amostra', 'motor-alvo', 'motor-frentes', 'motor-meta'].forEach(id => {
     on(id, 'change', (e) => {
       const el = e.target;
       MotorSugestao.salvar({ [el.dataset.cfgKey]: el.value });

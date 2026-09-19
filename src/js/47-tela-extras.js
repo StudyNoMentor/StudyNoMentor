@@ -376,7 +376,7 @@ const ExtrasScreen = {
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
     const body = `
-      <p class="hint" style="margin:0 0 10px;">Este diálogo usa exatamente o mesmo 🧭 Motor e o mesmo filtro de disciplinas da tela TEC. Primeiro ele escolhe até <b>${this._planoPrefs.maxFrentes} matéria(s)</b> pela lacuna geral comprovada${this._planoFase === 'pos' ? ' × incidência da banca' : ''}; depois pega <b>uma frente de cada</b>, seguindo a fila hierárquica da matéria. As recomendadas ficam juntas no topo; alternativas ficam agrupadas logo abaixo.</p>
+      <p class="hint" style="margin:0 0 10px;">Este diálogo usa exatamente o mesmo 🧭 Motor e o mesmo filtro de disciplinas da tela TEC. Primeiro ele escolhe até <b>${this._planoPrefs.maxFrentes} matéria(s)</b> pela maior distância simples até a meta${this._planoFase === 'pos' ? '; a incidência da banca só desempata' : ''}; depois pega <b>uma frente de cada</b>, seguindo a fila hierárquica da matéria. As recomendadas ficam juntas no topo; alternativas ficam agrupadas logo abaixo.</p>
       <div class="pl-modal-tools">
         <div class="pl-modal-field" style="position:relative;">
           <span>Disciplinas</span>
@@ -405,12 +405,12 @@ const ExtrasScreen = {
             // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
             titulo: PlanoCiclo.titulo(x.nome, 'reforco', x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-            alvo: Math.max(1, doses[i] || this._planoPrefs.doseMin), periodo: 'unica', contaMetricas: false,
+            alvo: Math.max(1, doses[i] || this._planoPrefs.alvoQuestoes), periodo: 'unica', contaMetricas: false,
             obs: 'Gerado pelo Motor de sugestão — dose própria do reforço hierárquico.'
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: 'reforco' }) }); n++; }  // `x` é a frente do Motor: margem, bloco e membros vão junto
+          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: 'reforco' }) }); n++; }  // `x` é a frente do Motor: amostra, bloco e membros vão junto
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -466,7 +466,7 @@ const ExtrasScreen = {
       score: o.x.score,
       taxaErro: o.x.taxaErro,
       questoes: o.x.questoes,
-      margem: o.x.margem
+      gapMeta: o.x.gapMeta
     }));
     MotorSugestao.dosar(copia, p.alvoQuestoes, p.doseMin);
     const out = {};
@@ -498,8 +498,8 @@ const ExtrasScreen = {
         + '<div class="hint" style="margin:2px 0 0;">'
         + (!destaque && x.disciplina ? escapeHtml(x.disciplina) + ' · ' : '')
         + Math.round(x.taxaErro) + '% de erro em ' + x.questoes + ' questões'
-        + (x.gapConfiavel != null ? ' · lacuna segura ' + (Math.round(x.gapConfiavel * 10) / 10) + 'pp' : '')
-        + (x.margem != null ? ' · margem ±' + (Math.round(x.margem * 10) / 10) + 'pp' : '')
+        + (x.gapMeta != null ? ' · lacuna ' + (Math.round(x.gapMeta * 10) / 10) + 'pp até a meta' : '')
+        + ' · amostra ' + x.questoes + ' q'
         + (pos && x.peso ? ' · incidência do tópico ' + x.peso : '')
         + (dose ? ' · <strong>' + dose + ' questões</strong>' : '')
         + '</div></div></label>';
@@ -549,7 +549,7 @@ const ExtrasScreen = {
     const p = this._planoPrefs || MotorSugestao.prefs();
     conta.innerHTML = `${vis} frente(s) em ${nDisc} matéria(s)`
       + ` · <strong>${marcados} marcada(s)</strong>`
-      + (marcados ? ` · piso ${p.doseMin} questões por atividade` : '');
+      + (marcados ? ` · ${p.alvoQuestoes} questões por atividade` : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _planoBind() {
@@ -652,10 +652,9 @@ const ExtrasScreen = {
        fraqueza medida, nem se a fraqueza cedeu. */
     /* ── A ETIQUETA DIZ EM QUE FASE A ESCOLHA FOI FEITA ────────────────────
        Com um motor só, "quem decidiu" deixou de ser pergunta. O que continua
-       valendo é a FASE: pré-edital prioriza pelo seu volume, pós-edital pela
-       incidência da banca — e seis meses depois é isso que explica por que
-       aquela atividade nasceu. Atividades anteriores ao motor não têm a
-       assinatura e continuam legíveis pelo que são. */
+       valendo é a FASE: pré-edital ordena pela lacuna simples até a meta;
+       pós-edital usa a incidência somente como desempate. Atividades anteriores
+       ao motor não têm a assinatura e continuam legíveis pelo que são. */
     const planoTag = (() => {
       const o = x.origemPlano;
       if (!o || !o.topico) return '';
@@ -665,8 +664,9 @@ const ExtrasScreen = {
       const rot = fase ? 'Motor · ' + fase : 'do TEC';
       const det = fase
         ? `Escolhida pelo Motor de sugestão em ${quando}, na fase ${fase}`
-          + (sug.margem != null ? ` · margem de ±${sug.margem}pp no nível em que parou` : '')
-          + (sug.bloco ? ' · bloco de ramos miúdos' : '') + '.'
+          + (sug.minAmostra != null ? ` · piso de ${sug.minAmostra} questões por nível` : '')
+          + (sug.amostra != null ? ` · amostra usada: ${sug.amostra} questões` : '')
+          + (sug.bloco ? ' · bloco de ramos pequenos' : '') + '.'
         : `Criada a partir do seu desempenho no TEC em ${quando}, antes do Motor de sugestão.`;
       return `<span class="extra-tag plano" title="${escapeHtml(det)}">🧭 ${escapeHtml(rot)}</span>`;
     })();
