@@ -477,20 +477,14 @@ const ProfileUI = {
         ProfileManager.addMirror({ id: row.id, nome, avatar: this._draftAvatar, cor: this._draftColor });
         ProfileManager.setRev(row.id, row.rev || 1);
         ProfileManager.setActiveProfile(row.id);
+        /* O perfil nasce diretamente no modelo relacional. PlanManager.init()
+           apenas monta a projeção em memória; cada escrita é capturada pelo
+           RelationalStore e confirmada no PostgreSQL antes de entrarmos nele. */
         PlanManager.init();
-        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
-          const okSec = await CloudStore._pushSectionsNow(row.id);
-          if (!okSec) {
-            /* O perfil já existe e os dados continuam locais/outbox; não usamos
-               blob para contornar uma falha de CAS. A próxima rodada retoma. */
-            console.warn('[perfil] perfil novo criado; seções aguardam confirmação da nuvem');
-          }
-        } else {
-          await CloudStore.saveActive(row.id); // compatibilidade do modo legado
-        }
+        if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+        await RelationalStore.flush();
         $id('profile-modal').style.display = 'none';
-        try { sessionStorage.setItem(this.SESSION_KEY, row.id); } catch (e) { _quiet(e); }
-        recarregarApp('perfil novo criado', { imediato: true });
+        await this.enterProfile(row.id);
       }
     } catch (err) {
       showToast('Erro: ' + (err.message || ''));
