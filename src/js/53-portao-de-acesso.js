@@ -398,7 +398,7 @@ const ProfileUI = {
       const meta = { concurso: gv('pf-concurso'), cargo: gv('pf-cargo'), banca: gv('pf-banca'), provaDate: gv('pf-prova'), metaHoras: gv('pf-metah') };
       if (this._editingId) {
         ProfileManager.addMirror({ id: this._editingId, nome, avatar: this._draftAvatar, cor: this._draftColor });
-        ProfileManager.updateProfile(this._editingId, { meta });   // dados do estudante (local + sincroniza no blob)
+        ProfileManager.updateProfile(this._editingId, { meta });   // projeção em RAM; RelationalStore persiste no SQL
         if (window.CloudStore && CloudStore.isLoggedIn()) await CloudStore.updateMeta(this._editingId, { nome, avatar: this._draftAvatar, cor: this._draftColor });
         showToast('Perfil atualizado ✓');
         $id('profile-modal').style.display = 'none';
@@ -406,9 +406,8 @@ const ProfileUI = {
         this.refreshStage();
       } else {
         if (!(window.CloudStore && CloudStore.isLoggedIn())) { showToast('Faça login para criar um perfil.'); btn.disabled = false; btn.textContent = 'Salvar'; return; }
-        const row = await CloudStore.createRow({ name: nome, avatar: this._draftAvatar, color: this._draftColor, payload: {} });
+        const row = await CloudStore.createRow({ name: nome, avatar: this._draftAvatar, color: this._draftColor });
         ProfileManager.addMirror({ id: row.id, nome, avatar: this._draftAvatar, cor: this._draftColor });
-        ProfileManager.setRev(row.id, row.rev || 1);
         ProfileManager.setActiveProfile(row.id);
         /* O perfil nasce diretamente no modelo relacional. PlanManager.init()
            apenas monta a projeção em memória; cada escrita é capturada pelo
