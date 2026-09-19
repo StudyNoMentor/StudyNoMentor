@@ -184,19 +184,24 @@
     },
 
     /* ── A DOSE ─────────────────────────────────────────────────────────────
-       O caderno inteiro repartido na proporção do score, com piso para nenhuma
-       frente nascer pequena demais para medir. Quem não alcança o piso fica de
-       fora da rodada em vez de entrar com uma dose simbólica. */
+       Primeiro reserva o piso de TODA frente escolhida e só depois reparte o
+       restante pelo score. Assim um caderno de 25 com três frentes e piso 5
+       entrega três frentes de verdade; a conta antiga podia dar 3/9/13 e
+       eliminar justamente a terceira disciplina depois de tê-la escolhido. */
     dosar(itens, alvo, doseMin) {
-      const total = itens.reduce((a, x) => a + x.score, 0);
-      if (!(total > 0)) return itens.map(x => Object.assign(x, { dose: 0 }));
-      let restante = alvo;
-      itens.forEach((x, i) => {
-        const bruta = i === itens.length - 1 ? restante : Math.round(alvo * x.score / total);
-        x.dose = Math.max(0, Math.min(restante, bruta));
-        restante -= x.dose;
+      const maxCabem = Math.floor(alvo / Math.max(1, doseMin));
+      const ativos = (itens || []).slice(0, Math.max(0, maxCabem));
+      if (!ativos.length) return [];
+      const total = ativos.reduce((a, x) => a + Math.max(0, x.score), 0);
+      let restante = alvo - ativos.length * doseMin;
+      ativos.forEach((x, i) => {
+        const extra = i === ativos.length - 1
+          ? restante
+          : Math.max(0, Math.min(restante, Math.round((alvo - ativos.length * doseMin) * (total > 0 ? x.score / total : 1 / ativos.length))));
+        x.dose = doseMin + extra;
+        restante -= extra;
       });
-      return itens.filter(x => x.dose >= doseMin);
+      return ativos;
     },
 
     /* Resultado único do motor. `itens` é a fila executável (já dosada);
@@ -228,11 +233,22 @@
         }
       }
 
+      /* DISCIPLINA É CONTEXTO, NUNCA FILTRO EXECUTÁVEL.
+         A falha anterior nascia aqui: a poda começava na raiz (depth 0). Se os
+         tópicos fossem pequenos, eles eram agregados no pai e o pai se chamava
+         "Contabilidade Geral" — logo a disciplina inteira virava "tópico".
+         Agora a poda começa NOS FILHOS da disciplina. Ela pode subir de um
+         subtópico miúdo para o tópico-pai, mas jamais atravessa a fronteira da
+         matéria. É exatamente o comportamento do filtro do TEC: escolhemos o
+         nível mais alto necessário DENTRO da disciplina, não a disciplina. */
       const folhas = [];
-      forest.forEach(d => this._folhasEfetivas(d, p.margemMax, folhas));
+      forest.forEach(d => {
+        (d.children || []).filter(x => num(x.questoes) > 0)
+          .forEach(top => this._folhasEfetivas(top, p.margemMax, folhas));
+      });
 
       const todos = folhas
-        .filter(x => x.questoes > 0 && x.taxaErro > 0)
+        .filter(x => x.nivel > 0 && x.questoes > 0 && x.taxaErro > 0)
         .map(x => {
           x.peso = this._peso(x, p.fase, incMap);
           x.score = x.peso * (x.taxaErro / 100);
@@ -242,28 +258,53 @@
         .filter(x => x.score > 0)
         .sort((a, b) => b.score - a.score || b.questoes - a.questoes);
 
-      /* Uma frente por disciplina na fila executável: o caderno existe para
-         concentrar esforço, e três tópicos da mesma matéria no mesmo dia é o
-         contrário disso. O ranking completo continua inteiro em `todos`. */
-      /* UMA FRENTE POR DISCIPLINA, ATÉ `maxFrentes`. A FILA SÓ ACEITA O QUE A
-         RÉGUA SUSTENTA. Um ramo miúdo sem irmãos para
-         juntar (o último tópico de uma disciplina pouco praticada) não vira
-         bloco nem alcança a margem: ele continua no ranking, marcado, mas não
-         é oferecido como frente — recomendar 3 questões erradas de 3 é a
-         própria distorção que este motor existe para não repetir. */
-      const vistas = new Set(), fila = [];
+      /* PRIMEIRO RANQUEIA MATÉRIAS, DEPOIS ESCOLHE UM TÓPICO DE CADA.
+         O score da disciplina é a soma das lacunas MEDÍVEIS dos seus tópicos;
+         assim a prioridade da matéria e a prioridade do tópico falam a mesma
+         língua. Uma matéria sem nenhum tópico confiável aparece no ranking
+         completo, mas não vira atividade inventando precisão. */
+      const porDisc = new Map();
       todos.forEach(x => {
-        if (fila.length >= p.maxFrentes) return;
-        if (!x.legivel && !x.agregado) return;
         const k = norm(x.disciplina);
-        if (vistas.has(k)) return;
-        vistas.add(k); fila.push(Object.assign({}, x));
+        if (!porDisc.has(k)) porDisc.set(k, []);
+        porDisc.get(k).push(x);
+      });
+      const disciplinasTodas = forest.map(d => {
+        const cand = (porDisc.get(norm(d.nome)) || []).slice().sort((a, b) => b.score - a.score || b.questoes - a.questoes);
+        const mediveis = cand.filter(x => x.legivel);
+        const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
+        const taxa = q > 0 ? ac / q * 100 : null;
+        return {
+          nome: d.nome,
+          questoes: q,
+          acertos: ac,
+          taxa,
+          taxaErro: taxa == null ? null : 100 - taxa,
+          margem: this.margem(q, ac),
+          score: mediveis.reduce((s, x) => s + x.score, 0),
+          topicosMediveis: mediveis.length,
+          melhorTopico: mediveis[0] || null
+        };
+      }).sort((a, b) => {
+        const aOk = a.melhorTopico ? 1 : 0, bOk = b.melhorTopico ? 1 : 0;
+        return bOk - aOk || b.score - a.score || (b.taxaErro || 0) - (a.taxaErro || 0) || b.questoes - a.questoes;
+      });
+      const disciplinas = disciplinasTodas.filter(d => d.melhorTopico);
+      disciplinas.forEach((d, i) => { d.rank = i + 1; });
+
+      const fila = disciplinas.slice(0, p.maxFrentes).map((d, i) => {
+        const x = Object.assign({}, d.melhorTopico);
+        x.disciplinaRank = i + 1;
+        x.disciplinaScore = d.score;
+        return x;
       });
 
       return {
         fase: p.fase, prefs: p, erro: null,
         banca: p.fase === 'pos' ? banca : null,
         itens: this.dosar(fila, p.alvoQuestoes, p.doseMin),
+        disciplinas,
+        disciplinasTodas,
         todos
       };
     }
