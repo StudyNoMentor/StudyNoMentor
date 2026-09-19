@@ -352,6 +352,54 @@ revisão em que a exclusão foi pedida; `DELETE` só ocorre se essa revisão ain
 for a revisão remota. Se outro aparelho já editou a seção, a exclusão é recusada
 e a linha remota continua no manifesto.
 
+### Trava monotônica no próprio PostgreSQL
+
+O CAS do cliente não é a última linha de defesa: uma aba antiga ainda pode estar
+executando uma versão anterior do JavaScript. Por isso o banco rejeita qualquer
+`UPDATE` de `profile_sections` que não grave **exatamente** `OLD.rev + 1`.
+Assim, nem `upsert` legado consegue fazer a revisão regredir ou saltar por cima
+de uma versão que ele não leu.
+
+```sql
+create schema if not exists private;
+
+create or replace function private.enforce_profile_section_revision()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $
+begin
+  if tg_op = 'INSERT' then
+    if new.rev is null or new.rev < 1 then
+      raise exception 'profile_sections revision must start at 1'
+        using errcode = '40001';
+    end if;
+    return new;
+  end if;
+
+  if tg_op = 'UPDATE' then
+    if new.profile_id is distinct from old.profile_id
+       or new.section is distinct from old.section
+       or new.rev is null
+       or new.rev <> old.rev + 1 then
+      raise exception 'profile_sections revision conflict'
+        using errcode = '40001';
+    end if;
+  end if;
+  return new;
+end;
+$;
+
+revoke all on function private.enforce_profile_section_revision()
+  from public, anon, authenticated;
+
+drop trigger if exists profile_sections_revision_guard on public.profile_sections;
+create trigger profile_sections_revision_guard
+before insert or update on public.profile_sections
+for each row execute function private.enforce_profile_section_revision();
+```
+
 A linha `section = '__manifest'` é especial: lista quais seções o perfil tem.
 É o que permite que uma exclusão viaje entre aparelhos — e, desde a correção do
 episódio de perda, **só o que foi apagado de propósito** entra nela. Ausência
