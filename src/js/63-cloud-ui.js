@@ -513,7 +513,6 @@ window.CloudUI = CloudUI;
 window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'config' && window.CloudUI) CloudUI.render(); });
 
 /* ---- Integração SQL relacional ---- */
-_cloudNotifyHook = () => CloudStore.notifyChange();
 
 (function () {
   const btn = document.getElementById('cloud-sync-btn');
