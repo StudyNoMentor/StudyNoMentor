@@ -289,7 +289,9 @@ const ProfileUI = {
          navegador: hydrateProfile faz SELECT nas tabelas relacionais e monta
          uma projeção exclusivamente em memória para as telas síncronas. */
       ProfileManager.setActiveProfile(id);
-      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile' });
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id }); } catch (_) {}
+      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id }); } catch (_) {}
       PlanManager.init();
       CloudStore._applying = false;
 
@@ -309,6 +311,9 @@ const ProfileUI = {
         switchScreen('registrar');
       }
       try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id } })); } catch (_) { _quiet(_); }
+      /* TEC/incidência não bloqueiam o portão. Em rede normal, pré-carrega no
+         tempo ocioso; em economia de dados, só baixa quando alguma tela pedir. */
+      try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (_) {}
     } catch (err) {
       CloudStore._applying = false;
       this._entering = false;
