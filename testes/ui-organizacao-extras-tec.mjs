@@ -20,8 +20,11 @@ assert.match(cssExtras,/\.xsc-info/,'ajustes devem ter ajuda contextual');
    valendo para a tela de decisao esta na propria aba do Motor, e a folha de
    estilo dela tem de estar no build. */
 const cssMotor = fs.readFileSync('src/css/22-motor-sugestao.css','utf8');
+// O cartão por frente migrou para a folha "MOTOR V2/V3" (32-ajustes-ui.css) junto
+// com a fila-sanfona (.ms-queue-item); 22-motor-sugestao.css manteve fase/árvore.
+const cssMotorV2 = fs.readFileSync('src/css/32-ajustes-ui.css','utf8');
 assert.match(cssMotor,/\.ms-fase/,'a fase pre/pos precisa de estilo proprio');
-assert.match(cssMotor,/\.ms-item/,'cada frente da fila precisa de estilo proprio');
+assert.match(cssMotorV2,/\.ms-suggestion-card/,'cada frente da fila precisa de estilo proprio');
 assert.match(cssMotor,/\.tec-ordem/,'a ordem de exibicao da arvore precisa de estilo proprio');
 assert.match(cssMotor,/@media \(max-width: 560px\)/,'layout deve tratar mobile explicitamente');
 
