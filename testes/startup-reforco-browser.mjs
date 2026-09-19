@@ -247,6 +247,7 @@ try {
     };
     SectionSync._writeSectionCAS=keep.write;SectionSync._syncManifest=keep.manifest;
     ProfileManager.getActiveProfileId=keep.active;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    SessionGuard.enabled=keep.guardEnabled;SessionGuard.canEnterNow=keep.guardCan;
     SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
     localStorage.removeItem(key);localStorage.removeItem('diario-estudos:u:'+id+':__secrev');
     localStorage.removeItem('diario-estudos:u:'+id+':__secpend');
@@ -717,10 +718,12 @@ try {
     const remoto=JSON.stringify([{v:2}]),local=JSON.stringify([{v:1}]);
     const keep={
       active:ProfileManager.getActiveProfileId,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
-      fetch:SectionSync.fetchAllSections,push:SectionSync.pushDirty,snapshot:window.BackupHistory&&BackupHistory.snapshot
+      fetch:SectionSync.fetchAllSections,push:SectionSync.pushDirty,snapshot:window.BackupHistory&&BackupHistory.snapshot,
+      guardEnabled:SessionGuard.enabled,guardCan:SessionGuard.canEnterNow
     };
     let pushCalls=0;
     ProfileManager.getActiveProfileId=()=>id;CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    SessionGuard.enabled=true;SessionGuard.canEnterNow=()=>true;
     SectionSync._dirty.clear();SectionSync._dirtyGen.clear();
     localStorage.setItem(key,local);
     localStorage.setItem(pfx+'__secrev',JSON.stringify({entries:{rev:2,hash:SectionSync._hash(remoto),len:remoto.length}}));
