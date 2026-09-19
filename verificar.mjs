@@ -1721,8 +1721,12 @@ try {
   tudoLimpo
     ? ok(`o Motor abre em RESULTADO: 0 campos soltos, a porta ⚙ e ${solto.motor.etiquetas} etiquetas do que esta valendo`)
     : erro('ainda ha ajuste solto na tela: ' + JSON.stringify(solto));
+  // Teto de sanidade contra a regressão de 2.413px, não um orçamento de
+  // pixel exato: as etiquetas ganharam caixa alta e mais respiro de
+  // propósito (pedido explícito de revisão visual), então o teto sobe um
+  // pouco — continua uma fração ínfima do formulário antigo.
   const maisAlta = Math.max(...ABAS.map((t) => solto[t].alturaBarra));
-  maisAlta > 0 && maisAlta < 170
+  maisAlta > 0 && maisAlta < 220
     ? ok(`a linha de ajustes ocupa no maximo ${maisAlta}px a 390px (eram 2.413px de formulario)`)
     : erro(`a linha de ajustes voltou a crescer: ${maisAlta}px`);
 

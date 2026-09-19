@@ -1102,7 +1102,7 @@
 
 /* a porta: uma linha só, com o que está valendo escrito ao lado */
 .tec-cfg-bar {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   margin: 12px 24px 8px;
 }
 .tec-cfg-open {
@@ -1115,15 +1115,19 @@
 }
 .tec-cfg-open:hover, .tec-cfg-open:focus-visible { border-color: var(--accent); }
 .tec-cfg-resumo {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap;
   min-width: 0; flex: 1 1 180px;
 }
 .tec-cfg-resumo:empty { display: none; }
+/* A etiqueta inteira em caixa alta — rótulo E valor — lê como um selo de
+   régua, não como uma frase solta; o respiro extra (padding/gap maiores que
+   antes) é o que evita a sensação de número "colado" na borda do pílula. */
 .tec-cfg-pill {
-  display: inline-flex; align-items: baseline; gap: 5px;
+  display: inline-flex; align-items: baseline; gap: 6px;
   background: var(--surface-sunken); border: 1px solid var(--border);
-  border-radius: 999px; padding: 3px 11px;
+  border-radius: 999px; padding: 6px 13px;
   font-size: var(--fs-2xs); font-weight: 700; color: var(--text);
+  text-transform: uppercase; letter-spacing: .02em;
   max-width: 100%; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -1236,7 +1240,7 @@
    metade da largura e as etiquetas caem uma por fileira, empilhando quatro.
    Em coluna elas usam a largura inteira e cabem duas por fileira. */
 @media (max-width: 560px) {
-  .tec-cfg-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .tec-cfg-bar { flex-direction: column; align-items: stretch; gap: 10px; }
   .tec-cfg-open { align-self: flex-start; }
   .tec-cfg-resumo { flex: 1 1 auto; width: 100%; }
 }

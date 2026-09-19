@@ -323,16 +323,21 @@ const ExtrasScreen = {
     this._motorRecalc = () => {
       const r = MotorSugestao.calcular();
       if (!r || r.erro) { this._motorCand = null; this._motorErr = (r && r.erro) || 'erro'; return; }
-      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do app. Comparar
-         só o nome fazia criar "Atos" de Administrativo esconder o "Atos" de
-         Constitucional deste diálogo: dois assuntos de verdade, um deles sem
-         porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
-         bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
-         uso normal do app, não uma duplicata. */
-      const abertas = DB.getExtras().filter(e => typeof MotorCiclo !== 'undefined' && MotorCiclo.origemDe(e) && e.status !== 'concluida');
-      const disciplinasEmCurso = new Set(abertas.map(e => ReforcoEngine.norm((MotorCiclo.origemDe(e) || {}).disciplina || '')).filter(Boolean));
-      const jaTem = (x) => disciplinasEmCurso.has(ReforcoEngine.norm(x.disciplina || ''))
-        || !!MotorCiclo.atividadeSobreposta(x.nome, x.disciplina, x.membros);
+      /* A DEDUPLICAÇÃO É POR TÓPICO (disciplina + nome/membros), NUNCA POR
+         DISCIPLINA INTEIRA — esse era o bug que fazia esta lista mostrar 2
+         recomendações quando a aba Motor mostrava 3: uma disciplina com
+         QUALQUER atividade aberta (mesmo de um tópico totalmente diferente,
+         já resolvido ou não) sumia inteira da lista, e o comentário logo
+         abaixo — "pegamos a próxima frente livre na mesma disciplina" — nunca
+         tinha chance de rodar, porque não sobrava nenhum candidato daquela
+         disciplina para escolher. `atividadeSobreposta` já faz a checagem
+         certa: por disciplina + nome/membros, então só bloqueia o MESMO
+         assunto (ou um que se sobrepõe), não a disciplina toda. A trava de
+         "só uma frente aberta por disciplina" continua existindo — ela mora
+         em `criarExtraDoMotor`, no momento de CRIAR, que é onde uma colisão
+         de verdade precisa ser recusada, não aqui na hora de só mostrar o
+         que a aba Motor também mostraria. */
+      const jaTem = (x) => !!MotorCiclo.atividadeSobreposta(x.nome, x.disciplina, x.membros);
       this._motorPrefs = r.prefs;
       this._motorFase = r.fase;
       this._motorDiscOrder = (r.disciplinas || []).map(d => d.nome);
@@ -391,26 +396,30 @@ const ExtrasScreen = {
     }).then((ok) => {
       if (!ok) return;
       const criar = () => {
-        let n = 0;
+        let n = 0, bloqueadas = 0;
         const doses = this._motorDoses();
         (this._motorCand || []).forEach((x, i) => {
           if (!this._motorSel || !this._motorSel.has(i)) return;
-          const e = DB.addExtra({
-            titulo: MotorCiclo.titulo(x.nome, x.membros),
-            tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-            alvo: Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes), periodo: 'unica', contaMetricas: false,
-            obs: 'Gerado pelo Motor de sugestão — dose própria do reforço hierárquico.'
-          });
-          // mesma origem do outro portão: sem isto a atividade nascia sem
-          // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) {
-            const doseCriada = Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes);
-            DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, Object.assign({}, x, { dose: doseCriada })) });
-            n++;
-          }
+          const doseCriada = Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes);
+          /* Mesmo portão de criação que a aba Motor usa (`lote:true` só
+             suprime o toast/render individuais — as duas travas continuam
+             valendo: nada de duas frentes abertas na mesma disciplina, nada
+             de reabrir um assunto que já se sobrepõe a uma atividade ativa).
+             Uma disciplina que ganhou atividade em OUTRA aba entre abrir este
+             diálogo e clicar em "Criar atividades" é a única forma realista
+             de cair aqui — daí o contador de bloqueadas, não um erro.
+             O item passado como "sugerido" precisa carregar a dose REAL desta
+             rodada (rateada entre as recomendadas escolhidas), não a dose
+             "ideal" isolada de `x` — senão a receita do caderno persistida em
+             origemMotor mostra uma quantidade que não foi a criada. */
+          const item = Object.assign({}, x, { dose: doseCriada });
+          if (DesempenhoTecScreen.criarExtraDoMotor(x.nome, x.disciplina, doseCriada, 'reforco', true, item)) n++;
+          else bloqueadas++;
         });
         this.render();
-        showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
+        showToast(n
+          ? n + ' atividade(s) criada(s) ✓' + (bloqueadas ? ` · ${bloqueadas} disciplina(s) já tinha(m) frente em andamento` : '')
+          : (bloqueadas ? 'Disciplina(s) já com frente em andamento' : 'Nenhuma selecionada'));
         return n;
       };
       if (window.WorkFeedback) return WorkFeedback.run(null, 'Criando atividades…', criar, { overlay: true, region: '#screen-extras', context: 'extras-plano-criar' });
@@ -507,6 +516,9 @@ const ExtrasScreen = {
         + '</div>'
         + '<div class="pl-linha-title">' + escapeHtml(x.nome)
         + (x.motivoNivel === 'pior-do-grupo' ? ' <span class="ms-selo">pior de ' + x.grupoTamanho + '</span>' : '') + '</div>'
+        + ((x.caminho || []).filter(Boolean).length
+          ? '<small class="ms-item-trilha">' + (x.caminho || []).filter(Boolean).map(escapeHtml).join(' › ') + '</small>'
+          : '')
         + '<div class="pl-linha-stats">'
         + '<span><b>' + Math.round(x.taxa) + '%</b><i>Acerto</i></span>'
         + (x.gapMeta != null ? '<span><b>' + (Math.round(x.gapMeta * 10) / 10) + 'pp</b><i>Lacuna</i></span>' : '')
