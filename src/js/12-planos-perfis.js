@@ -175,7 +175,16 @@ const ProfileManager = {
   },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
-  setActiveProfile(id) { localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id); },
+  setActiveProfile(id) {
+    localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id);
+    /* A assinatura Realtime de seções depende do perfil ativo. Centralizar o
+       aviso aqui evita deixar um canal antigo ouvindo o perfil anterior. */
+    try {
+      if (window.CloudStore && CloudStore.onActiveProfileChanged) {
+        CloudStore.onActiveProfileChanged(id);
+      }
+    } catch (e) { _quiet(e, 'perfil-canal-secoes'); }
+  },
 
   // hash simples (NÃO é segurança forte — apenas evita guardar o PIN em texto puro)
   _hash(str) {
