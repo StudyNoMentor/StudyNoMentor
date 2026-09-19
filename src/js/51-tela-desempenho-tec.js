@@ -490,8 +490,7 @@ const DesempenhoTecScreen = {
     /* MIGRAÇÃO: quem tinha uma banca escolhida no Reforço (ou no Plano) começa
        com ela marcada, em vez de ver a seleção "voltar para todas" sozinha. */
     if (!sel) {
-      const antiga = p.banca && p.banca !== '__todas__' ? p.banca
-        : ((typeof PlanoEngine !== 'undefined' && PlanoEngine.prefs().banca !== '__todas__') ? PlanoEngine.prefs().banca : null);
+      const antiga = p.banca && p.banca !== '__todas__' ? p.banca : null;
       sel = antiga ? [antiga] : [];
     }
     return sel.filter(b => existentes.some(e => norm(e) === norm(b)));
@@ -503,7 +502,6 @@ const DesempenhoTecScreen = {
   },
   setBancas(lista, opcoes) {
     this.savePrefs({ bancasSel: Array.isArray(lista) ? lista : [] });
-    try { if (typeof PlanoEngine !== 'undefined') PlanoEngine.salvarPrefs({ banca: '__todas__' }); } catch (e) { _quiet(e, 'banca-plano'); }
     ['motor-banca-pick', 'incid-banca-pick'].forEach(id => this._sincronizarBancaPicker(document.getElementById(id)));
     const painel = opcoes && opcoes.painel;
     const y = painel ? painel.scrollTop : 0;
@@ -595,173 +593,9 @@ const DesempenhoTecScreen = {
     const all = painel.querySelector('[data-acao="todas"]');
     if (all) all.addEventListener('click', () => this.setBancas([], { painel }));
   },
-  /* ── A CAIXA DO QUE FICA DE FORA ──────────────────────────────────────────
-     Mesma mecânica da caixa de bancas, e pelo mesmo motivo: a resposta certa é
-     MAIS DE UMA, e numa lista suspensa a segunda escolha desfaz a primeira.
-     Cada linha mostra o tamanho do que sai da conta (assuntos e questões do
-     histórico), porque "excluir Legislação do RN" tem consequências muito
-     diferentes se ela vale 40 questões ou 2.400. */
-  /* ── O RÓTULO E O PÉ MUDAM; A LISTA NÃO ─────────────────────────────────
-     Marcar uma matéria muda exatamente duas coisas dentro desta caixa: o
-     texto do botão ("🚫 5 matérias fora") e a linha de ações no pé ("↺ Trazer
-     todas de volta" aparece a partir da primeira marcada). Os nomes, a ordem
-     e o volume de cada linha são os mesmos — eles vêm do histórico, não da
-     marcação.
-
-     Reconstruir o `innerHTML` inteiro para atualizar esses dois pedaços é o
-     que fazia a caixa "voltar para o início da lista": um painel novo nasce
-     com `scrollTop = 0`, e com trinta matérias você era devolvido ao topo a
-     cada clique — além de pagar `materiasExcluiveis()` (que varre todos os
-     retratos para contar assuntos e questões) de novo, o que é a travada que
-     se sentia junto. Agora só os dois pedaços são reescritos, no lugar. */
-  _sincronizarExcluidasPicker(host) {
-    if (!host) return false;
-    const btn = host.querySelector('.banca-pick-btn');
-    const painel = host.querySelector('.banca-pick-panel');
-    const acoes = painel && painel.querySelector('.banca-pick-acoes');
-    if (!btn || !painel || !acoes) return false;
-    const marcadas = [...painel.querySelectorAll('input[type="checkbox"]:checked')].length;
-    const total = painel.querySelectorAll('input[type="checkbox"]').length;
-    const rot = !total ? 'Nenhuma matéria conhecida'
-      : marcadas === 0 ? '✅ Todas as matérias no Plano'
-      : marcadas === 1 ? '🚫 1 matéria fora'
-      : `🚫 ${marcadas} matérias fora`;
-    const alvo = btn.querySelector('span:not(.chev)');
-    if (alvo && alvo.textContent !== rot) alvo.textContent = rot;
-    const acoesHtml = marcadas
-      ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>'
-      : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>';
-    if (acoes.innerHTML !== acoesHtml) {
-      acoes.innerHTML = acoesHtml;
-      const b = acoes.querySelector('[data-acao]');
-      if (b) b.addEventListener('click', () => this.setExcluidas([]));
-    }
-    return true;
-  },
-  renderExcluidasPicker(hostId) {
-    const host = document.getElementById(hostId || 'plano-excluidas-pick');
-    if (!host) return;
-    /* Marcar uma matéria repinta a tela inteira — e fechar a caixa a cada
-       clique obrigaria a reabri-la para excluir a segunda. Quem chega aqui
-       quase nunca vem tirar uma só. */
-    const jaAberto = !!host.querySelector('.banca-pick-panel:not([hidden])');
-    const mats = PlanoEngine.materiasExcluiveis();
-    const p = PlanoEngine.prefs();
-    const fora = PlanoEngine.excluidasSet(p);
-    const marcada = (m) => PlanoEngine.foraDoPlano(m.nome, fora);
-    const n = mats.filter(marcada).length;
-    const rot = !mats.length ? 'Nenhuma matéria conhecida'
-      : n === 0 ? '✅ Todas as matérias no Plano'
-      : n === 1 ? '🚫 1 matéria fora'
-      : `🚫 ${n} matérias fora`;
-    const origem = (m) => m.fontes.indexOf('tec') < 0 ? 'só no seu edital'
-      : (m.assuntos ? `${m.assuntos} ${m.assuntos === 1 ? 'assunto' : 'assuntos'} · ${m.q.toLocaleString('pt-BR')} questões no histórico` : 'sem questões resolvidas');
-    host.innerHTML = `
-      <button type="button" class="banca-pick-btn" aria-expanded="false" ${mats.length ? '' : 'disabled'}>
-        <span>${escapeHtml(rot)}</span><span class="chev">▾</span>
-      </button>
-      <div class="banca-pick-panel" hidden>
-        <p class="banca-pick-topo">Marque o que o Plano deve <b>ignorar</b> — a legislação de um concurso que já passou, uma matéria que saiu do edital. Sai do domínio, da fila, da trajetória e da nota projetada. Nada é apagado: desmarque e ela volta inteira.</p>
-        ${mats.map(m => `<label class="banca-pick-item">
-          <input type="checkbox" value="${escapeHtml(m.nome)}" ${marcada(m) ? 'checked' : ''}>
-          <span><b>${escapeHtml(m.nome)}</b><small>${escapeHtml(origem(m))}</small></span>
-        </label>`).join('')}
-        <div class="banca-pick-acoes">
-          ${n ? '<button type="button" data-acao="nenhuma">↺ Trazer todas de volta</button>' : '<span class="banca-pick-nota">Nenhuma matéria excluída — o Plano está vendo tudo.</span>'}
-        </div>
-      </div>`;
-    const btn = host.querySelector('.banca-pick-btn');
-    const painel = host.querySelector('.banca-pick-panel');
-    if (!btn || !painel) return;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const abrir = painel.hasAttribute('hidden');
-      document.querySelectorAll('.banca-pick-panel').forEach(p2 => p2.setAttribute('hidden', ''));
-      document.querySelectorAll('.banca-pick-btn').forEach(b2 => b2.setAttribute('aria-expanded', 'false'));
-      if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
-    });
-    painel.addEventListener('click', (e) => e.stopPropagation());
-    painel.querySelectorAll('input[type="checkbox"]').forEach(c => c.addEventListener('change', () => {
-      this.setExcluidas([...painel.querySelectorAll('input:checked')].map(x => x.value));
-    }));
-    painel.querySelectorAll('[data-acao]').forEach(b => b.addEventListener('click', () => this.setExcluidas([])));
-    if (jaAberto) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
-  },
-  /* Gravar a exclusão muda o RECORTE, e o recorte pode ter acabado de tirar da
-     tela a disciplina que o filtro apontava. Devolver o filtro para "Todas"
-     aqui evita o estado sem saída: filtro numa matéria que o motor não vê
-     mais, e a tela dizendo "sem retrato" com o retrato na mão. */
-  setExcluidas(lista) {
-    const limpa = [];
-    const vistos = Object.create(null);
-    (Array.isArray(lista) ? lista : []).forEach(n => {
-      const nome = String(n == null ? '' : n).trim();
-      const k = ReforcoEngine.norm(nome);
-      if (!nome || !k || vistos[k]) return;
-      vistos[k] = true; limpa.push(nome);
-    });
-    const patch = { excluidas: limpa.slice(0, PlanoEngine.MAX_EXCLUIDAS) };
-    const fora = PlanoEngine.excluidasSet(patch);
-    /* Uma matéria que acabou de sair do Plano não pode continuar no recorte:
-       o Plano ficaria filtrado por algo que ele não enxerga mais, e a lista
-       viria vazia sem dizer por quê. Vale para o foco inteiro, não só para o
-       filtro de uma. */
-    const pAtual = PlanoEngine.prefs();
-    const focoLimpo = (Array.isArray(pAtual.foco) ? pAtual.foco : []).filter(n => !PlanoEngine.foraDoPlano(n, fora));
-    patch.foco = focoLimpo;
-    patch.disciplina = (focoLimpo.length === 1) ? focoLimpo[0] : '__todas__';
-    PlanoEngine.salvarPrefs(patch);
-    this._planoRefC = null;
-    /* `renderPlano()` reconstrói TODOS os campos da folha, inclusive o select
-       de disciplina e a própria caixa que você acabou de tocar — e era isso
-       que fazia a caixa fechar e a página saltar a cada matéria marcada. Aqui
-       só duas coisas mudaram de verdade: a lista de disciplinas oferecidas no
-       filtro e o conteúdo do Plano. */
-    this._sincronizarFiltroDisc();
-    /* Atualização no lugar. Se por algum motivo a caixa não estiver montada
-       (primeira pintura, id trocado), cai na reconstrução completa — mas
-       guardando e devolvendo a rolagem do painel, que é o que se perdia. */
-    const host = document.getElementById('plano-excluidas-pick');
-    if (!this._sincronizarExcluidasPicker(host)) {
-      const painelAntes = host && host.querySelector('.banca-pick-panel');
-      const y = painelAntes ? painelAntes.scrollTop : 0;
-      this.renderExcluidasPicker('plano-excluidas-pick');
-      const painelDepois = host && host.querySelector('.banca-pick-panel');
-      if (painelDepois && y) painelDepois.scrollTop = y;
-    }
-    /* ── O RECÁLCULO ESPERA O ÚLTIMO CLIQUE ─────────────────────────────────
-       `agendarPlano(true)` roda o motor inteiro AGORA. Quem abre esta caixa
-       raramente tira uma matéria só: marcar cinco disparava cinco cálculos
-       completos em sequência, e cada um deles é o motor varrendo todos os
-       retratos. Era a travada de meio segundo a cada caixinha.
-
-       Uma caixa de seleção não é uma rajada de teclas, mas é uma rajada de
-       CLIQUES — e aqui o resultado só importa depois do último. O pedido passa
-       a ser agendado, como o dos campos numéricos: o sinal de "processando"
-       aparece na hora e o cálculo acontece uma vez. */
-    this.agendarPlano(false);
-  },
-  /* A lista do filtro de disciplina depende do que está excluído — é o único
-     campo da folha que a exclusão precisa mexer. Extraído de `renderPlano`
-     para que marcar uma matéria não obrigue a reconstruir os outros vinte. */
-  /* O select é a VISTA do foco, não um segundo estado: Todas, uma matéria, ou
-     "N em foco" quando o quadro carregou várias. Escolher `__varias__` de novo é
-     um no-op de propósito — ela existe para MOSTRAR, não para significar algo
-     que nenhuma outra opção já diga. */
-  _sincronizarFiltroDisc() {
-    const ds = document.getElementById('plano-disc');
-    if (!ds) return;
-    const p = PlanoEngine.prefs();
-    const fora = PlanoEngine.excluidasSet(p);
-    const discs = PlanoEngine.disciplinas(this.scopedSnapshot()).filter(d => !PlanoEngine.foraDoPlano(d, fora));
-    const foco = PlanoEngine.focoSet(p);
-    const uma = (foco && foco.n === 1) ? foco.nomes[0] : null;
-    ds.innerHTML = `<option value="__todas__">📚 Todas</option>`
-      + ((foco && foco.n > 1) ? `<option value="__varias__">🎯 ${foco.n} matérias em foco</option>` : '')
-      + discs.map(d => `<option value="${escapeHtml(d)}"${uma && ReforcoEngine.norm(d) === ReforcoEngine.norm(uma) ? ' selected' : ''}>${escapeHtml(d)}</option>`).join('');
-    if (foco && foco.n > 1) ds.value = '__varias__';
-    else if (!uma || ![...ds.options].some(o => ReforcoEngine.norm(o.value) === ReforcoEngine.norm(uma))) ds.value = '__todas__';
-  },
+  /* O antigo filtro "matérias fora do Plano" foi removido junto com o Plano
+     legado. O recorte do Motor é exclusivamente o seletor de disciplinas do
+     próprio Motor de Sugestão. */
   // normaliza texto p/ casar tópicos entre retratos (sem acento/caixa/espaços extras)
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
   // Retorna os retratos ativos conforme o escopo selecionado (ordenados por período)
@@ -890,12 +724,7 @@ const DesempenhoTecScreen = {
   _invalidarEscopo() {
     this.savePrefs(this._scopePrefsPatch());
     this._scopedC = null;
-    this._planoRefC = null;
-    if (typeof PlanoEngine !== 'undefined') {
-      PlanoEngine._agrC = null;
-      PlanoEngine._tecScopeSignature = null;
-      PlanoEngine._indiceC = new WeakMap();
-    }
+    this._motorRefC = null;
   },
   _escopoBusy(on) {
     const box = document.getElementById('tec-scope-select');
