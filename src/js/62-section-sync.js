@@ -493,6 +493,7 @@ const SectionSync = {
   async pushDirty(id) {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+    if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
     if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
         (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
     id = id || this._activeProfileId();
@@ -767,6 +768,7 @@ const SectionSync = {
     if (!this.enabled) return;
     try {
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+      if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) return;
       if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
           (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
@@ -921,6 +923,10 @@ const SectionSync = {
     const res = { ok: false, motivo: null, seções: 0, em: new Date().toISOString() };
     try {
       res.origem = 'seções';
+      if (window.SessionGuard && SessionGuard.enabled && SessionGuard.canEnterNow && !SessionGuard.canEnterNow()) {
+        res.motivo = 'sessão-ainda-não-confirmada';
+        return this._saveLast(res);
+      }
       if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
           (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
         res.motivo = 'sessão-bloqueada-em-outro-aparelho';
