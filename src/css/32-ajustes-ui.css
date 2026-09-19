@@ -954,13 +954,18 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 .ms-suggestion-rank > i {
   width: 40px; height: 40px; display: grid; place-items: center;
   border-radius: 12px; background: color-mix(in srgb, var(--ms-tone) 12%, var(--surface));
-  font-style: normal; font-size: 19px;
+  font-style: normal; font-size: 19px; line-height: 1;
 }
+/* O emblema de posição fica embaixo, não em cima do ícone: o emoji de
+   severidade costuma carregar a "tinta" dele para cima (um sino, uma sirene
+   com raios de luz) — no canto superior o círculo do número entrava direto
+   nessa área e o Android, com fonte de emoji mais cheia, deixava os dois se
+   tocando. Embaixo a sobra do quadrado está sempre livre. */
 .ms-suggestion-rank > span {
-  position: absolute; right: -5px; top: -5px; z-index: 2;
+  position: absolute; right: -6px; bottom: -6px; z-index: 2;
   width: 18px; height: 18px; display: grid; place-items: center;
   border-radius: 50%; background: var(--ms-tone); color: #fff;
-  font-size: 9px; font-weight: 900; box-shadow: 0 0 0 2px var(--surface);
+  font-size: 9px; font-weight: 900; box-shadow: 0 0 0 2.5px var(--surface);
 }
 .ms-suggestion-title { min-width: 0; }
 .ms-suggestion-title > small {
@@ -977,8 +982,8 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
    repetindo "nível" e "recorte direto", que quase nunca é notícia. */
 .ms-suggestion-title h3 .ms-selo { vertical-align: middle; }
 .ms-suggestion-card .ms-dose {
-  flex: 0 0 auto; min-width: 64px; padding: 7px 9px;
-  border-radius: 11px; background: color-mix(in srgb, var(--ms-tone) 9%, var(--surface));
+  flex: 0 0 auto; min-width: 70px; padding: 10px 13px;
+  border-radius: 12px; background: color-mix(in srgb, var(--ms-tone) 9%, var(--surface));
   text-align: center;
 }
 .ms-suggestion-card .ms-dose b {
@@ -1149,10 +1154,11 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
 }
 @media (max-width: 420px) {
   .ms-suggestion-card { padding: 12px 10px 11px 14px; }
-  .ms-suggestion-head { grid-template-columns: 32px minmax(0,1fr) 68px; gap: 6px; }
+  .ms-suggestion-head { grid-template-columns: 32px minmax(0,1fr) 72px; gap: 6px; }
   .ms-suggestion-rank,
   .ms-suggestion-rank > i { width: 32px; height: 32px; }
-  .ms-suggestion-card .ms-dose { min-width: 0; padding: 6px 4px; }
+  .ms-suggestion-rank > span { right: -5px; bottom: -5px; width: 16px; height: 16px; font-size: 8px; }
+  .ms-suggestion-card .ms-dose { min-width: 0; padding: 8px 6px; }
   .ms-suggestion-card .ms-dose b { font-size: var(--fs-lg); }
   .ms-suggestion-card .ms-dose small { font-size: 9px; letter-spacing: 0; }
   .ms-suggestion-title h3 { font-size: var(--fs-sm); }
