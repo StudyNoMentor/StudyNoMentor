@@ -332,71 +332,71 @@
  {
   "arquivo": "js/62-section-sync.js",
   "de": 41888,
-  "ate": 43419
+  "ate": 43502
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 43421,
-  "ate": 44056
+  "de": 43504,
+  "ate": 44139
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 44058,
-  "ate": 44370
+  "de": 44141,
+  "ate": 44453
  },
  {
   "arquivo": "js/65-recuperacao.js",
-  "de": 44372,
-  "ate": 44631
+  "de": 44455,
+  "ate": 44714
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 44633,
-  "ate": 45540
+  "de": 44716,
+  "ate": 45623
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 45542,
-  "ate": 45811
+  "de": 45625,
+  "ate": 45894
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 45813,
-  "ate": 46348
+  "de": 45896,
+  "ate": 46431
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 46350,
-  "ate": 47462
+  "de": 46433,
+  "ate": 47545
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 47464,
-  "ate": 47757
+  "de": 47547,
+  "ate": 47840
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 47758,
-  "ate": 48159
+  "de": 47841,
+  "ate": 48242
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 48161,
-  "ate": 48824
+  "de": 48244,
+  "ate": 48907
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 48826,
-  "ate": 49129
+  "de": 48909,
+  "ate": 49212
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 49131,
-  "ate": 49474
+  "de": 49214,
+  "ate": 49557
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 49476,
-  "ate": 50012
+  "de": 49559,
+  "ate": 50095
  }
 ]
