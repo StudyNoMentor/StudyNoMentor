@@ -266,6 +266,24 @@ const SectionSync = {
     try { const s = JSON.stringify(data); return (s === undefined) ? null : s; } catch (_) { return null; }
   },
   _hash(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
+  _deviceId() {
+    try {
+      if (window.SessionGuard && SessionGuard.deviceId) return SessionGuard.deviceId();
+      if (window.DB && DB._uid) return DB._uid();
+    } catch (_) { _quiet(_); }
+    return 'device-unknown';
+  },
+  _mutationId(section, hash) {
+    let rnd = '';
+    try {
+      if (window.crypto && crypto.randomUUID) rnd = crypto.randomUUID();
+      else if (window.crypto && crypto.getRandomValues) {
+        const a = new Uint32Array(3); crypto.getRandomValues(a); rnd = Array.from(a).map(x => x.toString(36)).join('');
+      }
+    } catch (_) { _quiet(_); }
+    if (!rnd) rnd = Date.now().toString(36) + Math.random().toString(36).slice(2);
+    return [this._deviceId(), String(section || ''), String(hash || ''), rnd].join(':');
+  },
 
   // Converte uma chave de localStorage na seção correspondente, ou null se não
   // pertence ao perfil ativo / não deve ser sincronizada.
@@ -415,34 +433,40 @@ const SectionSync = {
   },
   async _remoteSection(profileId, section) {
     const { data, error } = await CloudStore.client.from(this.TABLE)
-      .select('section,data,rev,updated_at')
+      .select('section,data,rev,updated_at,content_hash,mutation_id,device_id')
       .eq('profile_id', profileId).eq('section', section).maybeSingle();
     if (error) throw error;
     return data || null;
   },
-  /* Compare-and-swap: a linha só avança se a revisão remota ainda for EXATAMENTE
-     a revisão em que esta edição se baseou. Nunca fazemos upsert cego sobre uma
-     linha existente. Isso torna impossível uma rev antiga substituir uma nova. */
-  async _writeSectionCAS(row, expectedRev) {
-    if ((expectedRev || 0) > 0) {
-      const payload = { data: row.data, rev: row.rev, updated_at: row.updated_at };
-      const { data, error } = await CloudStore.client.from(this.TABLE)
-        .update(payload)
-        .eq('profile_id', row.profile_id)
-        .eq('section', row.section)
-        .eq('rev', expectedRev)
-        .select('rev');
-      if (error) throw error;
-      if (!data || !data.length) return { ok: false, conflict: true };
-      return { ok: true, rev: data[0].rev };
-    }
-    const { data, error } = await CloudStore.client.from(this.TABLE)
-      .insert(row).select('rev');
-    if (error) {
-      if (this._uniqueViolation(error)) return { ok: false, conflict: true };
-      throw error;
-    }
-    return { ok: true, rev: data && data[0] ? data[0].rev : row.rev };
+  /* Compare-and-swap V2: a decisão atômica mora no PostgreSQL. Além da revisão,
+     o servidor valida o hash-base (quando já conhecido) e grava uma prova única
+     da mutação. Clientes atrasados nunca recebem permissão para "alinhar a rev"
+     e sobrescrever o estado vencedor. */
+  async _writeSectionCAS(row, expectedRev, expectedHash, mutationId) {
+    const newHash = row && row._contentHash
+      ? row._contentHash
+      : this._hash(this._decode(row.data) || '');
+    const mid = mutationId || this._mutationId(row.section, newHash);
+    const { data, error } = await CloudStore.client.rpc('write_profile_section_cas', {
+      p_profile_id: row.profile_id,
+      p_section: row.section,
+      p_data: row.data,
+      p_expected_rev: Number(expectedRev) || 0,
+      p_expected_hash: expectedHash == null ? null : String(expectedHash),
+      p_new_hash: newHash,
+      p_mutation_id: mid,
+      p_device_id: this._deviceId()
+    });
+    if (error) throw error;
+    const r = (data && typeof data === 'object') ? data : {};
+    if (r.ok) return { ok: true, rev: Number(r.rev) || row.rev, content_hash: r.content_hash || newHash, mutation_id: mid };
+    return {
+      ok: false,
+      conflict: !!r.conflict,
+      reason: r.reason || 'cas-recusado',
+      remoteRev: r.remote_rev == null ? null : Number(r.remote_rev),
+      remoteHash: r.remote_hash == null ? null : String(r.remote_hash)
+    };
   },
   // Envia as seções sujas para profile_sections com controle otimista por revisão.
   async pushDirty(id) {
@@ -478,8 +502,12 @@ const SectionSync = {
       if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen, id); return; }
       if (d.esvaziando) esvaziando.push(sec);
       rows.push({
-        _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen, _expectedRev: (revs[sec] && revs[sec].rev) || 0,
-        profile_id: id, section: sec, data: this._encode(raw), rev: d.rev, updated_at: new Date().toISOString()
+        _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen,
+        _expectedRev: (revs[sec] && revs[sec].rev) || 0,
+        _expectedHash: (revs[sec] && revs[sec].hash) || null,
+        _mutationId: this._mutationId(sec, d.hash),
+        profile_id: id, section: sec, data: this._encode(raw), rev: d.rev,
+        updated_at: new Date().toISOString(), _contentHash: d.hash
       });
     });
     if (sumidas.length) {
@@ -509,9 +537,9 @@ const SectionSync = {
     // porém à prova de "seção presa" (era o caso da incidencia travada no rev 1).
     let okCount = 0; const falhas = []; const conflitos = [];
     for (const r of rows) {
-      const { _sec, _hash, _len, _gen, _expectedRev, ...row } = r;
+      const { _sec, _hash, _len, _gen, _expectedRev, _expectedHash, _mutationId, ...row } = r;
       try {
-        const wr = await this._writeSectionCAS(row, _expectedRev);
+        const wr = await this._writeSectionCAS(row, _expectedRev, _expectedHash, _mutationId);
         if (!wr.ok && wr.conflict) {
           /* Pode ser um conflito real OU a mesma gravação já confirmada por outra
              tentativa. Só adotamos a revisão remota automaticamente quando o
@@ -676,8 +704,10 @@ const SectionSync = {
     if (prev.hash !== h) {
       const rev = (prev.rev || 0) + 1;
       const wr = await this._writeSectionCAS(
-        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at },
-        prev.rev || 0
+        { profile_id: id, section: this.MANIFEST, data: body, rev, updated_at: body.at, _contentHash: h },
+        prev.rev || 0,
+        prev.hash || null,
+        this._mutationId(this.MANIFEST, h)
       );
       if (!wr.ok && wr.conflict) {
         const remoto = await this._remoteSection(id, this.MANIFEST);
@@ -736,7 +766,7 @@ const SectionSync = {
      { ok:false, motivo } — e quem chamou cai no blob, sem perder nada. */
   async fetchAllSections(id) {
     const { data, error } = await CloudStore._withTimeout(
-      CloudStore.client.from(this.TABLE).select('section,data,rev,updated_at').eq('profile_id', id),
+      CloudStore.client.from(this.TABLE).select('section,data,rev,updated_at,content_hash,mutation_id,device_id').eq('profile_id', id),
       20000, 'Baixar as seções do perfil');
     if (error) throw error;
     return data || [];
