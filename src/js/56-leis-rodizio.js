@@ -1,17 +1,11 @@
 /* ============================================================
-   EXTRAS — cache rápido do Plano + rodízio inteligente de lei seca
+   EXTRAS — rodízio inteligente de lei seca
    ============================================================ */
 (() => {
   if (typeof window !== 'undefined' && window.__leiRodizioExtras) return;
   if (typeof window !== 'undefined') window.__leiRodizioExtras = true;
 
-  /* ── CACHE DO PLANO NO CAMINHO QUENTE DE EXTRAS ──────────────────────────
-     A conclusão de uma Extra muda slots/progresso, mas NÃO muda o retrato TEC.
-     Antes cada conclusão + render + "Puxar do Motor" recalculava a mesma árvore
-     inteira várias vezes. O cache é por OBJETO do scopedSnapshot (que já possui
-     assinatura de conteúdo) + preferências efetivas. Alterou retrato/escopo ou
-     preferência? A chave muda naturalmente. */
-  /* Lei seca não consulta nem cacheia qualquer modelo de prioridade do TEC. */
+  /* Lei seca é independente do Motor de sugestão: agenda apenas leitura. */
   const LeiRodizio = {
     KEY_PREF: 'lei-rodizio-prefs-v1',
     DEFAULTS: {
