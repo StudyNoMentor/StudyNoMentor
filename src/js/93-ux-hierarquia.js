@@ -282,50 +282,6 @@
          porque vale para todas as abas. Um `hidden` que não se sustenta é
          pior que nenhum: ele pisca. */
       qa('[data-tpm-entry][hidden]', s).forEach(x => { x.hidden = false; x.removeAttribute('aria-hidden'); });
-      const modos = q('#plano-modos', s), nota = q('#plano-modo-nota', s);
-      if (modos) { modos.hidden = true; modos.setAttribute('aria-hidden', 'true'); }
-      if (nota) { nota.hidden = true; nota.setAttribute('aria-hidden', 'true'); }
-      const oldCfg = q('#tec-panel-plano .tec-cfg-bar', s);
-      if (oldCfg) {
-        // A folha ainda reúne ajustes analíticos válidos. Mantemos UMA porta compacta,
-        // sem devolver à superfície os modos/ordenadores legados de decisão.
-        oldCfg.hidden = false;
-        oldCfg.removeAttribute('aria-hidden');
-        oldCfg.classList.add('ux-analysis-settings');
-        const abrirAjustes = q('.tec-cfg-open', oldCfg);
-        if (abrirAjustes) {
-          abrirAjustes.innerHTML = '<span class="gg-ic">⚙</span>Ajustes da análise';
-          abrirAjustes.title = 'Ajustar métricas analíticas sem alterar o motor das sugestões';
-        }
-      }
-
-      const proj = q('#plano-proj', s);
-      if (proj && q('[data-tpm-selector]', proj)) {
-        Array.from(proj.children).forEach(ch => {
-          if (!ch.matches('[data-tpm-selector]')) ch.classList.add('ux-legacy-projection');
-        });
-      }
-      const out = q('[data-tpm-output]', s);
-      if (out) {
-        out.classList.add('ux-force-task');
-        const titulo = q(':scope > header strong', out);
-        if (titulo && /onde atacar agora/i.test(titulo.textContent || '')) titulo.textContent = 'Força-tarefa atual';
-        const rankTitle = q('.tpm-ranking > header strong', out);
-        if (rankTitle) rankTitle.textContent = 'Ranking completo';
-        const rankCopy = q('.tpm-ranking > header p', out);
-        if (rankCopy) rankCopy.textContent = 'O TOP 3 é a execução imediata; o restante continua disponível para diagnóstico.';
-      }
-      /* ── ABA É ABA ─────────────────────────────────────────────────────
-         "⚙ Modelos" e "🎯 Reforço" ganhavam borda tracejada para dizer
-         "apoio, não caminho principal". Numa fita onde as outras três têm
-         borda cheia, o tracejado não lê como "secundário": lê como
-         "indisponível", ou como um botão de outro tipo que caiu ali. A
-         hierarquia entre elas já está dita pela ORDEM e pelo fato de a aba
-         ativa ser a única preenchida. */
-      const motTab = q('.tec-subtab[data-tectab="motores"]', s);
-      if (motTab && motTab.textContent !== '⚙ Modelos') motTab.textContent = '⚙ Modelos';
-      qa('.tec-subtab.ux-secondary-tab', s).forEach(t => t.classList.remove('ux-secondary-tab'));
-      q('#tec-panel-motores', s)?.classList.add('ux-advanced-surface');
     },
 
     /* ── DOIS AGRUPADORES SOBRE A MESMA TELA ────────────────────────────────

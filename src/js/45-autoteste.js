@@ -2179,219 +2179,6 @@ const AutoTeste = {
      cortava em 15 fixos e escondia os outros 161 sem dizer, os ciclos
      fechados cortavam em 12. Quatro comportamentos para a mesma pergunta, e
      três deles mentindo por omissão. */
-  fatiaDasListas() {
-    const T = DesempenhoTecScreen;
-    this._ok('Fatia: a tela tem uma regra só, compartilhada',
-      typeof T.fatiar === 'function' && typeof T.rodapeFatia === 'function' && typeof T._ligarFatias === 'function');
-    if (typeof T.fatiar !== 'function') return;
-    const orig = T._fatias;
-    try {
-      T._fatias = null;
-      const dez = []; for (let i = 0; i < 47; i++) dez.push({ i });
-      let f = T.fatiar('teste', dez, 10);
-      this._ok('Fatia: abre no passo e declara o total', f.vis.length === 10 && f.total === 47 && f.faltam === 37, f);
-      /* O ESTADO É POR LISTA. Abrir o segundo plano não pode abrir a fila de
-         assuntos junto — foi o motivo de o registro ser um mapa, e não um
-         número só. */
-      T._fatias['teste'] = 20;
-      this._ok('Fatia: abrir uma lista não abre as outras',
-        T.fatiar('teste', dez, 10).vis.length === 30 && T.fatiar('outra', dez, 10).vis.length === 10);
-      T._fatias['teste'] = 100000;
-      f = T.fatiar('teste', dez, 10);
-      this._ok('Fatia: "ver todos" não estoura o fim da lista', f.vis.length === 47 && f.faltam === 0);
-      this._ok('Fatia: lista vazia não vira rodapé fantasma',
-        T.rodapeFatia(T.fatiar('vazia', [], 10), 'x', 'y') === '');
-      T._fatias = null;
-      /* O RODAPÉ TEM DE DIZER OS DOIS NÚMEROS. Um "mostrar mais" que não diz
-         de quantos é o mesmo corte mudo de antes, com um botão em cima. */
-      const html = T.rodapeFatia(T.fatiar('teste', dez, 10), 'item', 'itens');
-      this._ok('Fatia: o rodapé diz quantos aparecem E quantos existem',
-        html.indexOf('>10<') >= 0 && html.indexOf('>47<') >= 0 && html.indexOf('data-fatia-op="mais"') >= 0, html.slice(0, 160));
-      this._ok('Fatia: e oferece "ver todos" quando falta mais que um passo',
-        html.indexOf('data-fatia-op="tudo"') >= 0);
-      const curta = T.rodapeFatia(T.fatiar('teste2', dez.slice(0, 14), 10), 'item', 'itens');
-      this._ok('Fatia: com menos de um passo faltando, "ver todos" seria ruído',
-        curta.indexOf('data-fatia-op="mais"') >= 0 && curta.indexOf('data-fatia-op="tudo"') < 0);
-      /* Quem tem moeda melhor que "linha" passa a sua: a tabela de matérias
-         conta em pontos em jogo, porque é isso que decide se o que ficou
-         escondido importava. */
-      const comResumo = T.rodapeFatia(T.fatiar('teste3', dez, 10), 'item', 'itens', { tom: 'warn', txt: '9,9 pp em jogo' });
-      this._ok('Fatia: o rodapé aceita a moeda da lista, e o tom de alerta',
-        comResumo.indexOf('9,9 pp em jogo') >= 0 && comResumo.indexOf('pl-mais-nota warn') >= 0);
-      T._fatias = null;
-      this._ligacaoDasFatias(T);
-    } finally { T._fatias = orig; }
-  },
-  /* ── O HELPER CERTO, LIGADO NO LUGAR ERRADO, NÃO VALE NADA ────────────────
-     As asserções acima provam a REGRA. Elas não provam que cada lista a usa —
-     e foi exatamente isso que uma reversão mostrou: devolvendo o segundo plano
-     ao velho `.slice(0, 15)` mudo, a suíte inteira continuou verde. Um corte
-     silencioso de 161 assuntos passando por baixo de dez testes de fatia.
-
-     Aqui a tela é PINTADA de verdade, com um retrato que enche todas as
-     listas, e o que se cobra é a marca de cada uma no HTML. */
-  _ligacaoDasFatias(T) {
-    const lista = document.getElementById('plano-lista');
-    if (!lista) { this._ok('Fatia: a tela do Plano existe para pintar', false); return; }
-    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origInc = ReforcoEngine._incidByDisc, origModo = window.planCycleMode, origEsc = T.scopedSnapshot;
-    const chaveP = DB._profilePrefix() + PlanoEngine.KEY_PREF;
-    const antesP = localStorage.getItem(chaveP), antesHtml = lista.innerHTML;
-    try {
-      const nomes = []; for (let i = 0; i < 16; i++) nomes.push('Mat ' + String(i + 1).padStart(2, '0'));
-      const rows = [], inc = {};
-      nomes.forEach((d, di) => {
-        let dq = 0, da = 0;
-        for (let t = 0; t < 14; t++) {
-          // 1 em cada 4 nasce com amostra curta: é o que alimenta o segundo plano
-          const q = (t % 4 === 0) ? 4 : 30 + t, pct = 40 + ((t * 7 + di * 5) % 45);
-          const ac = Math.round(q * pct / 100); dq += q; da += ac;
-          rows.push({ depth: 1, codigo: String(t + 1), nome: 'M' + di + 't' + t, disciplina: d, questoes: q, acertos: ac });
-        }
-        rows.unshift({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: dq, acertos: da });
-        inc[d] = [{ codigo: null, depth: 0, nome: d, disciplina: d, incidencia: 40 - di }];
-      });
-      DB.getTecSnapshots = () => ([
-        { id: 'fa', nome: 'fa', date: dia(70), startDate: dia(100), endDate: dia(70), rows },
-        { id: 'fb', nome: 'fb', date: dia(6), startDate: dia(36), endDate: dia(6), rows }]);
-      T.scopedSnapshot = () => DB.getTecSnapshots()[1];
-      ReforcoEngine._incidByDisc = () => inc;
-      /* Disciplinas do edital que o TEC nunca viu: alimentam as lacunas. São
-         mais que um passo de propósito — o rodapé só existe quando há o que
-         esconder, então duas delas não provariam nada. */
-      const semPratica = [];
-      for (let i = 0; i < 14; i++) semPratica.push('Sem Pratica ' + String(i + 1).padStart(2, '0'));
-      DB.getActiveSubjects = () => nomes.concat(semPratica).map(n => ({ nome: n }));
-      window.planCycleMode = () => 'pre';
-      PlanoEngine.salvarPrefs({ excluidas: [], limite: 10, minAmostra: 20, disciplina: '__todas__' });
-      const campo = document.getElementById('plano-limite');
-      const antesCampo = campo ? campo.value : null;
-      if (campo) campo.value = '10';
-      try { T.renderPlanoConteudo(); } finally { if (campo && antesCampo != null) campo.value = antesCampo; }
-      const marcas = [...lista.querySelectorAll('[data-fatia]')].map(b => b.dataset.fatia);
-      const tem = (k) => marcas.indexOf(k) >= 0;
-      this._ok('Fatia: a lista de assuntos usa a regra', tem('assuntos'), marcas);
-      this._ok('Fatia: a fila do próximo bloco usa a regra (eram 8 fixos)', tem('proximos'), marcas);
-      this._ok('Fatia: o quadro de matérias usa a regra', tem('materias'), marcas);
-      this._ok('Fatia: o segundo plano usa a regra (era um corte mudo em 15)', tem('pequenas'), marcas);
-      this._ok('Fatia: as lacunas do edital usam a regra', tem('edital-sem'), marcas);
-      /* ── O RODAPÉ NÃO PODE SER DECORATIVO ──────────────────────────────
-         Só cobrar a marca `data-fatia` deixava passar o pior caso: o rodapé
-         anunciando "Mostrando 10 de 176" com as 176 linhas desenhadas logo
-         acima. Duas reversões provaram isso — devolvendo o corte mudo de 15 ao
-         segundo plano e a tabela de matérias ao `grandes` inteiro, a suíte
-         seguiu verde. O que fecha a porta é comparar o número ANUNCIADO com as
-         linhas que existem de fato no DOM. */
-      const anunciado = (chave) => {
-        const b2 = lista.querySelector('[data-fatia="' + chave + '"]');
-        const cx = b2 && b2.closest('.pl-mais');
-        const nota2 = cx && cx.querySelector('.pl-mais-nota');
-        const m = nota2 && nota2.textContent.replace(/\s+/g, ' ').match(/Mostrando (\d+) de (\d+)/);
-        return m ? { n: parseInt(m[1], 10), total: parseInt(m[2], 10) } : null;
-      };
-      const aMat = anunciado('materias');
-      // o quadro de matérias virou LISTA de linhas (antes era tabela): as
-      // somadas ("+ 3 matérias miúdas") não contam como linha de matéria.
-      const linhasMat = lista.querySelectorAll('.pl-tempo .pl-mat:not(.is-resumo)').length;
-      this._ok('Fatia: o quadro de matérias desenha o que o rodapé anuncia',
-        !!aMat && aMat.n === linhasMat && aMat.total > aMat.n, { anunciado: aMat, desenhadas: linhasMat });
-      const aPeq = anunciado('pequenas');
-      const linhasPeq = lista.querySelectorAll('.pl-segundo .pl-item').length;
-      this._ok('Fatia: o segundo plano desenha o que o rodapé anuncia',
-        !!aPeq && aPeq.n === linhasPeq && aPeq.total > aPeq.n, { anunciado: aPeq, desenhadas: linhasPeq });
-      const aSem = anunciado('edital-sem');
-      const chips = lista.querySelectorAll('.pl-edital-linha .pl-edital-chip').length;
-      this._ok('Fatia: e as lacunas do edital também',
-        !!aSem && aSem.n <= chips && aSem.total > aSem.n, { anunciado: aSem, fichas: chips });
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      ReforcoEngine._incidByDisc = origInc; window.planCycleMode = origModo;
-      T.scopedSnapshot = origEsc;
-      if (antesP == null) localStorage.removeItem(chaveP); else DB.setRaw(chaveP, antesP);
-      lista.innerHTML = antesHtml;
-    }
-  },
-  planoNaoTrava() {
-    const T = DesempenhoTecScreen;
-    this._ok('Ritmo: a tela tem agendador de repintura', typeof T.agendarPlano === 'function'
-      && typeof T._pintarPlano === 'function' && typeof T._comRolagemPreservada === 'function');
-    if (typeof T.agendarPlano !== 'function') return;
-    this._ok('Ritmo: a janela de espera é humana (entre 120ms e 600ms)',
-      T.PLANO_ESPERA >= 120 && T.PLANO_ESPERA <= 600, T.PLANO_ESPERA);
-    const orig = T._pintarPlano, origTimer = T._planoTimer;
-    let n = 0;
-    try {
-      T._planoTimer = null;
-      T._pintarPlano = function () { n++; };
-      /* RAJADA COLAPSA EM UMA SÓ. Quatro teclas seguidas não podem virar
-         quatro passadas do motor sobre todos os retratos. */
-      T.agendarPlano(false); T.agendarPlano(false); T.agendarPlano(false);
-      this._ok('Ritmo: teclas em rajada não repintam de imediato', n === 0, n);
-      this._ok('Ritmo: e deixam um pedido agendado no lugar', T._planoTimer != null);
-      /* O CLIQUE NÃO ESPERA. Um `change` (soltou o select, saiu do campo) não
-         tem rajada nenhuma, e esperar ali seria só lentidão. */
-      T.agendarPlano(true);
-      this._ok('Ritmo: o pedido imediato repinta na hora', n === 1, n);
-      this._ok('Ritmo: e cancela o agendado, em vez de repintar duas vezes', T._planoTimer == null);
-      /* A ROLAGEM É DEVOLVIDA. Sem isto a página "sobe" a cada matéria
-         marcada, porque a lista encurta e o navegador reajusta sozinho. */
-      let rodou = false;
-      T._comRolagemPreservada(() => { rodou = true; });
-      this._ok('Ritmo: a repintura acontece dentro da guarda de rolagem', rodou);
-      /* A GUARDA NÃO PODE ENGOLIR ERRO. Se a pintura falhar, a exceção sobe —
-         senão uma tela quebrada vira uma tela silenciosamente vazia. */
-      let subiu = false;
-      try { T._comRolagemPreservada(() => { throw new Error('x'); }); }
-      catch (e) { subiu = true; }
-      this._ok('Ritmo: e uma falha na pintura não fica presa dentro da guarda', subiu);
-      /* O esqueleto é um só, compartilhado — o Plano e as Conquistas sofriam
-         do mesmo mal. Alcançá-lo por `window.X` não funcionava: as telas são
-         `const` de módulo e nunca chegam ao window; o esqueleto simplesmente
-         não aparecia, e o adiamento virava custo sem benefício. */
-      this._ok('Ritmo: o esqueleto é global, anunciado a leitor de tela, e o Plano usa ele',
-        typeof esqueletoCarregando === 'function' && typeof pintarDepois === 'function'
-        && esqueletoCarregando('x').indexOf('aria-live') >= 0
-        && esqueletoCarregando('x').indexOf('pl-skel-giro') >= 0
-        && typeof T._depoisDePintar === 'function');
-      this._ok('Ritmo: e o texto do esqueleto é escapado, não concatenado cru',
-        esqueletoCarregando('<b>&"').indexOf('<b>') < 0);
-    } finally {
-      T._pintarPlano = orig;
-      if (T._planoTimer) { clearTimeout(T._planoTimer); }
-      T._planoTimer = origTimer || null;
-    }
-  },
-  /* ═══ A CONTAGEM DO RETRATO FECHA COM A DO PLANO ═══════════════════════════
-     A classe de erro mais cara deste módulo não produz número torto: produz
-     número PLAUSÍVEL. Uma importação que conta a mesma questão duas vezes, ou
-     um consolidado que perde questões, devolve domínio, custo e fila
-     perfeitamente críveis — e nada na tela denuncia.
-
-     Os dois casos aconteceram de verdade, e os dois estão cobrados aqui:
-
-       1. o balde "Sem Classificação" (linha sem código, no fim de cada
-          disciplina do export) era lido como disciplina NOVA: 409 questões no
-          lugar de 400 num arquivo real, com as 9 do balde contadas duas vezes;
-       2. no escopo CONSOLIDADO, os códigos do TEC são posicionais — o "01.01"
-          de um mês é outro assunto no mês seguinte. Decidir quem é folha pelo
-          prefixo do código sobre as linhas já somadas misturava duas árvores e
-          DESCARTAVA volume: 533 questões no consolidado, 493 chegando ao
-          Plano.
-
-     A invariante é uma só, e vale nos dois casos: Σ(disciplinas) do retrato =
-     Σ(o que o Plano indexa). */
-  /* ═══ A GRANULARIDADE DAS UNIDADES ════════════════════════════════════════
-     A árvore do TecConcursos é irregular por natureza: matéria que termina no
-     segundo nível convive com matéria que desce ao sexto. A lente de folha
-     transforma isso em centenas de unidades de duas ou três questões — e duas
-     questões não medem nada. O piso de granularidade soma os átomos finos ao
-     tópico-pai deles e mede o bloco.
-
-     Isto é um RECORTE, não uma conta nova, e a diferença entre as duas coisas é
-     o que esta suíte cobra: mesmo volume, mesmos acertos, cada questão em
-     exatamente uma unidade, mapa estável entre retratos — e, acima de tudo,
-     nada do que já estava medido ou criado se movendo por causa da escolha. */
   granularidadeDoPlano() {
     const P = PlanoEngine, C = PlanoCiclo, T = DesempenhoTecScreen;
     const origSnaps = DB.getTecSnapshots, origExtras = DB.getExtras, origSave = DB.saveExtras;
@@ -2922,72 +2709,6 @@ const AutoTeste = {
       if (antesP == null) localStorage.removeItem(chaveP); else DB.setRaw(chaveP, antesP);
     }
   },
-  auditoriaDoPlano() {
-    const A = window.PlanoAuditoria;
-    this._ok('Auditoria: o módulo existe', !!A);
-    if (!A) return;
-    /* O grupo monta o próprio retrato: sem isso ele roda num estado vazio,
-       sai por "sem-retrato" e as asserções que importam nunca acontecem —
-       um teste que não testa, com cara de teste que passou. */
-    this._ok('Auditoria: sem retrato nenhum, devolve erro declarado em vez de arquivo vazio',
-      (A.gerar({}) || {}).erro === 'sem-retrato');
-    const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-    const origSnaps = DB.getTecSnapshots, origInc = ReforcoEngine._incidByDisc,
-      origSubs = DB.getActiveSubjects, origModo = window.planCycleMode;
-    let a = null;
-    try {
-      const rs = [];
-      [['DirA', 6, 62], ['DirB', 5, 74]].forEach(([d, n, base]) => {
-        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
-          disciplina: d, questoes: 40 + t * 4, acertos: Math.round((40 + t * 4) * (base - 6 + t * 3) / 100) });
-      });
-      DB.getTecSnapshots = () => ([
-        { id: 'au1', nome: 'au1', date: dia(60), startDate: dia(90), endDate: dia(60), rows: rs },
-        { id: 'au2', nome: 'au2', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-      ReforcoEngine._incidByDisc = () => ({
-        DirA: [{ codigo: null, depth: 0, nome: 'DirA', disciplina: 'DirA', incidencia: 300 }],
-        DirB: [{ codigo: null, depth: 0, nome: 'DirB', disciplina: 'DirB', incidencia: 200 }] });
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      a = A.gerar({ cadencia: 'semanal' });
-      this._ok('Auditoria: com retrato, o arquivo sai', !a.erro, a.erro);
-      if (a.erro) return;
-      this._rodarAuditoria(A, a);
-    } finally {
-      DB.getTecSnapshots = origSnaps; ReforcoEngine._incidByDisc = origInc;
-      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
-    }
-  },
-  _rodarAuditoria(A, a) {
-    ['formato', 'versao', 'geradoEm', 'parametros', 'contexto', 'retrato', 'serie',
-     'materias', 'assuntos', 'atividades', 'qualidadeDoDado', 'invariantes',
-     'historicoDeAuditorias', 'resumo'].forEach(k => {
-      this._ok('Auditoria: o bloco "' + k + '" está no arquivo', a[k] !== undefined);
-    });
-    this._ok('Auditoria: os parâmetros vêm inteiros (sem eles nenhum número é reproduzível)',
-      a.parametros && a.parametros.metaDominio != null && a.parametros.tetoDominio != null
-      && a.parametros.minAmostra != null && a.parametros.amostraAlvo != null);
-    this._ok('Auditoria: as invariantes rodam de verdade, não saem vazias',
-      Array.isArray(a.invariantes) && a.invariantes.length >= 3
-      && a.invariantes.every(i => typeof i.ok === 'boolean'));
-    const txt = JSON.stringify(a);
-    this._ok('Auditoria: o arquivo não carrega credencial nem e-mail',
-      txt.indexOf('pinHash') < 0 && txt.indexOf('@') < 0 && txt.indexOf('password') < 0);
-    this._ok('Auditoria: o resumo em texto acompanha o arquivo',
-      typeof a.resumo === 'string' && a.resumo.length > 40);
-    const an = A.gerar({ anonimo: true });
-    this._ok('Auditoria: no modo anônimo os apelidos são estáveis entre exportações',
-      an.assuntos.length === a.assuntos.length
-      && (!an.assuntos.length || an.assuntos[0].nome === A.gerar({ anonimo: true }).assuntos[0].nome));
-    this._ok('Auditoria: o apelido não devolve o nome original',
-      !an.assuntos.length || an.assuntos[0].nome !== a.assuntos[0].nome);
-    /* Uma invariante sem pré-condição não é uma falha: sem incidência nem
-       edital não existe peso de prova, e reprovar aí ensinaria o auditor a
-       ignorar o bloco inteiro. O estado é três. */
-    this._ok('Auditoria: cada invariante declara se é aplicável',
-      a.invariantes.every(i => typeof i.aplicavel === 'boolean'));
-    this._ok('Auditoria: uma invariante inaplicável não conta como falha',
-      a.invariantes.filter(i => i.aplicavel === false).every(i => i.ok === true));
-  },
   reguaDePontos() {
     const P = PlanoEngine, PP = PlanoPontos;
     const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
@@ -3371,17 +3092,62 @@ const AutoTeste = {
      estrutura de que a folha depende: seção sem chip é campo que não aparece
      em lugar nenhum, e campo sem `data-cfg-key` é um ponto de "você mexeu
      aqui" que nunca acende. */
+  /* ── O MOTOR DE SUGESTÃO ──────────────────────────────────────────────────
+     Três invariantes, e só três, porque são elas que sustentam a promessa da
+     tela: a poda nunca devolve um nó mais incerto que a régua sem dizer, o
+     volume não some no caminho, e a dose cabe no caderno. */
+  motorSugestao() {
+    const M = window.MotorSugestao;
+    this._ok('Motor: existe e expõe calcular/prefs/dosar',
+      !!(M && typeof M.calcular === 'function' && typeof M.prefs === 'function' && typeof M.dosar === 'function'));
+    if (!M) return;
+
+    /* Árvore de teste: um ramo grosso que a margem sustenta (deve ABRIR) e
+       três ramos miúdos que ela não sustenta (devem virar UM bloco). */
+    const no = (nome, q, ac, filhos) => ({ nome, codigo: null, depth: 1, disciplina: 'X', questoes: q, acertos: ac, children: filhos || [] });
+    const raiz = no('X', 206, 103, [
+      no('Grosso', 200, 100, []),
+      no('Miudo A', 2, 0, []), no('Miudo B', 2, 0, []), no('Miudo C', 2, 1, [])
+    ]);
+    const saida = [];
+    M._folhasEfetivas(raiz, 15, saida);
+    const grosso = saida.find(x => x.nome === 'Grosso');
+    const bloco = saida.find(x => x.agregado);
+    this._ok('Motor: o ramo que cabe na margem sai sozinho', !!grosso && !grosso.agregado);
+    this._ok('Motor: os ramos miúdos viram um bloco só', !!bloco && bloco.membros.length === 3, bloco && bloco.membros);
+    const somaQ = saida.reduce((a, x) => a + x.questoes, 0);
+    this._ok('Motor: nenhuma questão some na poda', somaQ === 206, somaQ);
+
+    /* Um nó com resíduo (o pai mede mais do que os filhos explicam) não pode
+       perder esse resíduo: ele é volume praticado e medido. */
+    const comResiduo = no('Y', 240, 120, [no('Filho', 200, 100, [])]);
+    const s2 = [];
+    M._folhasEfetivas(comResiduo, 15, s2);
+    this._ok('Motor: o resíduo do pai continua contado',
+      s2.reduce((a, x) => a + x.questoes, 0) === 240, s2.map(x => x.nome + ':' + x.questoes));
+
+    /* A margem é a régua, e ela é a mesma que a Análise usa. */
+    this._ok('Motor: 2 questões nunca passam na régua de ±15pp', !M.legivel(2, 0, 15));
+    this._ok('Motor: 200 questões passam', M.legivel(200, 100, 15));
+
+    const doses = M.dosar([{ score: 30 }, { score: 10 }], 40, 0);
+    this._ok('Motor: a dose reparte o caderno inteiro',
+      doses.reduce((a, x) => a + x.dose, 0) === 40, doses.map(x => x.dose));
+    this._ok('Motor: e reparte na proporção do score', doses[0].dose > doses[1].dose, doses.map(x => x.dose));
+    const comPiso = M.dosar([{ score: 100 }, { score: 1 }], 25, 5);
+    this._ok('Motor: frente abaixo do piso sai da rodada', comPiso.every(x => x.dose >= 5), comPiso.map(x => x.dose));
+  },
   ajustesTec() {
     const T = TecAjustes;
     const secs = (aba) => [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
-    const abas = ['plano', 'reforco', 'analise'];
+    const abas = ['motor', 'analise'];
     abas.forEach(aba => {
       const lista = secs(aba);
       this._ok('Ajustes: a aba "' + aba + '" tem seção na folha', lista.length >= 1, lista.length);
       this._ok('Ajustes: toda seção de "' + aba + '" tem rótulo e ícone para o chip',
         lista.every(s => s.dataset.rot && s.dataset.ic), lista.map(s => s.dataset.sec));
       this._ok('Ajustes: toda seção de "' + aba + '" tem campo dentro',
-        lista.every(s => s.querySelectorAll('input, select').length > 0), lista.map(s => s.dataset.sec));
+        lista.every(s => s.querySelectorAll('input, select, .banca-pick').length > 0), lista.map(s => s.dataset.sec));
       this._ok('Ajustes: a aba "' + aba + '" tem a porta ⚙ na tela',
         !!document.querySelector('.tec-cfg-open[data-cfg="' + aba + '"]'));
       this._ok('Ajustes: e um lugar para as etiquetas do que está valendo',
@@ -3410,10 +3176,10 @@ const AutoTeste = {
     })));
     this._ok('Ajustes: todo campo declara a chave do seu padrão de fábrica',
       semChave.length === 0, semChave.slice(0, 6));
-    // e as chaves do Plano têm de existir mesmo em PlanoEngine.DEFAULTS
-    const desconhecidas = secs('plano').flatMap(sec => [...sec.querySelectorAll('[data-cfg-key]')])
-      .map(el => el.dataset.cfgKey).filter(k => !(k in PlanoEngine.DEFAULTS));
-    this._ok('Ajustes: as chaves do Plano existem no motor', desconhecidas.length === 0, desconhecidas);
+    // e as chaves do Motor têm de existir mesmo em MotorSugestao.DEFAULTS
+    const desconhecidas = secs('motor').flatMap(sec => [...sec.querySelectorAll('[data-cfg-key]')])
+      .map(el => el.dataset.cfgKey).filter(k => !(k in MotorSugestao.DEFAULTS));
+    this._ok('Ajustes: as chaves do Motor existem no próprio motor', desconhecidas.length === 0, desconhecidas);
     /* Campo condicional aponta para um campo REAL e para um valor que aquele
        campo oferece — senão ele some para sempre, sem erro nenhum. */
     const quebrados = [...document.querySelectorAll('#tec-cfg-body [data-cfg-se]')].filter(el => {
@@ -3426,31 +3192,11 @@ const AutoTeste = {
     this._ok('Ajustes: todo campo condicional aponta para uma opção que existe',
       quebrados.length === 0, quebrados.map(e => e.dataset.cfgSe));
     // o resumo devolve pares [rótulo, valor] preenchidos, nunca "undefined"
-    abas.concat(['rota']).forEach(aba => {
+    abas.forEach(aba => {
       const r = T.resumo(aba);
       this._ok('Ajustes: o resumo de "' + aba + '" tem etiquetas completas',
         Array.isArray(r) && r.length >= 2 && r.every(x => x[0] && x[1] && !/undefined|NaN/.test(String(x[1]))), r);
     });
-    /* ── CADA UM NO SEU QUADRADO ──────────────────────────────────────────
-       A folha do Plano tem duas portas: ⚙ Ajustes (o recorte dos dados, que
-       os motores também leem) e ⚙ Ajustes da rota (a régua da rota manual,
-       que nenhum motor lê). O que se cobra aqui é que a divisão seja REAL —
-       nenhum campo em duas portas, nenhum campo em porta nenhuma — porque
-       um campo órfão é exatamente o sintoma que a separação veio curar. */
-    const campos = [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field')];
-    const escopos = campos.map(box => T._escopoDoCampo(box));
-    this._ok('Ajustes: todo campo do Plano tem escopo declarado',
-      escopos.every(e => ['analise', 'motor', 'ambos'].indexOf(e) >= 0), [...new Set(escopos)]);
-    const naRota = campos.filter((_, i) => escopos[i] === 'analise').length;
-    const noRecorte = campos.filter((_, i) => escopos[i] === 'ambos').length;
-    this._ok('Ajustes: a rota manual e o recorte não ficam vazios',
-      naRota > 0 && noRecorte > 0, { naRota, noRecorte });
-    this._ok('Ajustes: nenhum campo cai nas duas portas',
-      naRota + noRecorte + campos.filter((_, i) => escopos[i] === 'motor').length === campos.length, campos.length);
-    this._ok('Ajustes: a rota manual tem título e subtítulo próprios',
-      !!(T.TITULOS.rota && T.TITULOS.rota.t && T.TITULOS.rota.s && T.TITULOS.plano_motor), T.TITULOS.rota);
-    this._ok('Ajustes: a rota reaproveita as seções do Plano, sem duplicar campo',
-      T._abaDom('rota') === 'plano', T._abaDom('rota'));
   },
 
 
@@ -3691,14 +3437,12 @@ const AutoTeste = {
      ['Motor do Reforço', 'reforcoMotor'],
      ['Incidência: gravação', 'incidenciaGravacao'],
      ['Folha de ajustes do TEC', 'ajustesTec'],
+     ['Motor de sugestão', 'motorSugestao'],
      ['Ciclo do Plano', 'cicloDoPlano'],
      ['Régua de pontos', 'reguaDePontos'],
-     ['Auditoria do Plano', 'auditoriaDoPlano'],
      ['Contagem fecha com o Plano', 'contagemFechaComOPlano'],
      ['Granularidade das unidades', 'granularidadeDoPlano'],
-     ['Matérias fora do Plano', 'materiasForaDoPlano'],
-     ['O Plano não trava sob o dedo', 'planoNaoTrava'],
-     ['Fatia das listas do Plano', 'fatiaDasListas']].forEach(([nome, fn]) => {
+     ['Matérias fora do Plano', 'materiasForaDoPlano']].forEach(([nome, fn]) => {
       try { this[fn](); }
       catch (e) { this._r.total++; this._r.falhou++; this._r.falhas.push({ nome: nome + ' — exceção', obtido: String(e && e.message || e) }); }
     });

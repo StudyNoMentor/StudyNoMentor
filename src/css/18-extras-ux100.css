@@ -192,37 +192,6 @@
 .xsc-law-footer{position:sticky;bottom:-1px;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0 0;background:linear-gradient(to bottom,transparent,var(--surface) 22%)}
 .xsc-law-footer .xsc-foot-actions{margin-left:auto}
 
-/* ── 8. Editor do Reforço Adaptativo: estratégia de verdade ──────────────── */
-.ra-modal.ra-ux100{width:min(900px,100%);border:1.5px solid color-mix(in srgb,var(--accent) 26%,var(--border))}
-.ra-ux100 .ra-body{padding:14px 16px 18px}
-.ra-ux100 .ra-body section{gap:11px}
-.ra-switch-hero{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;padding:13px 14px;border-width:1.5px}
-.ra-switch-hero>input{position:absolute;right:14px;top:50%;transform:translateY(-50%);width:44px;height:28px;margin:0;opacity:.001;pointer-events:auto;z-index:3;cursor:pointer}
-.ra-switch-copy{display:grid;gap:2px}.ra-switch-copy b{font-size:13px}.ra-switch-copy small{font-size:10px!important;line-height:1.35}
-.ra-toggle-ui{width:44px;height:24px;border-radius:999px;background:var(--surface-sunken);border:1px solid color-mix(in srgb,var(--text-faint) 35%,var(--border));position:relative;transition:.16s}
-.ra-toggle-ui:after{content:'';position:absolute;width:18px;height:18px;left:2px;top:2px;border-radius:50%;background:var(--text-faint);transition:.16s}
-.ra-switch-hero input:checked+.ra-toggle-ui{background:var(--accent);border-color:var(--accent)}
-.ra-switch-hero input:checked+.ra-toggle-ui:after{transform:translateX(20px);background:var(--on-accent)}
-.ra-block-head{display:grid;gap:2px}.ra-block-head>b{font-size:12px}.ra-block-head>small{font-size:9px;color:var(--text-faint);line-height:1.35}
-.ra-strategy-block{display:grid;gap:8px;padding:12px;border:1.5px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:15px;background:var(--surface)}
-.ra-strategies{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.ra-strategy{min-height:62px;padding:9px 10px;border:1.25px solid color-mix(in srgb,var(--text-faint) 32%,var(--border));border-radius:12px;background:var(--surface);color:var(--text);display:grid;gap:2px;align-content:center;text-align:center;cursor:pointer;transition:.14s}
-.ra-strategy b{font-size:11px}.ra-strategy span{font-size:9px;color:var(--text-faint);line-height:1.25}
-.ra-strategy:hover,.ra-strategy.active,.ra-strategy[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 7%,transparent)}
-.ra-strategy.active span,.ra-strategy[aria-pressed="true"] span{color:color-mix(in srgb,var(--accent) 72%,var(--text))}
-.ra-preset-status{min-height:14px;margin:0;font-size:9px;color:var(--accent);font-weight:750}
-.ra-phase{display:grid;grid-template-columns:minmax(0,1fr) minmax(210px,.7fr);gap:10px;align-items:center;padding:11px 12px;border:1.25px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:13px;background:var(--surface)}
-.ra-phase>span{display:grid;gap:1px}.ra-phase b{font-size:11px}.ra-phase small{font-size:9px;color:var(--text-faint)}.ra-phase select{min-height:40px;border:1px solid color-mix(in srgb,var(--text-faint) 34%,var(--border));border-radius:10px;background:var(--surface);color:var(--text);padding:7px 9px}
-.ra-metric-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.ra-metric{display:grid;gap:5px;padding:10px 11px;border:1.25px solid color-mix(in srgb,var(--text-faint) 30%,var(--border));border-radius:12px;background:var(--surface)}
-.ra-metric>span{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800}
-.ra-number input,.ra-metric input{width:100%;min-height:40px;border:1px solid color-mix(in srgb,var(--text-faint) 34%,var(--border));border-radius:9px;background:var(--surface);color:var(--text);padding:7px 9px;font:inherit}
-.ra-advanced{border:1px dashed color-mix(in srgb,var(--text-faint) 28%,var(--border));border-radius:12px;padding:9px 10px}.ra-advanced summary{cursor:pointer;font-size:10px;font-weight:800;color:var(--text-muted)}.ra-advanced[open] summary{margin-bottom:8px}
-.ra-ux100 .ra-grid label,.ra-ux100 .ra-dose-cols label,.ra-ux100 .ra-weights label{border-width:1.25px;border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border));padding:9px 10px}
-.ra-ux100 .ra-dose-cols>div{border-width:1.25px;border-color:color-mix(in srgb,var(--text-faint) 30%,var(--border));padding:10px}
-.ra-ux100 .ra-presets button.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
-.ra-ux100 .ra-foot{gap:8px}.ra-ux100 .ra-foot [data-save]{min-width:190px}
-
 /* ── 9. Mobile: compactar sem sacrificar alvos de toque ──────────────────── */
 @media(max-width:760px){
   #screen-extras .extras-toolbar.ux100-config-card{grid-template-columns:1fr;padding:13px}
@@ -281,17 +250,6 @@
   .xsc-compact-grid .xsc-label b{font-size:10px}
   .xsc-field input,.xsc-field select{min-height:38px;padding:7px 8px;font-size:12px}
   .xsc-days{gap:5px}.xsc-days span{width:31px;height:31px}
-
-  .ra-ux100 .ra-head p{display:block;font-size:9px}
-  .ra-ux100 .ra-tabs{padding:8px 9px;gap:5px}
-  .ra-ux100 .ra-tabs button{min-height:36px;padding:6px 9px}
-  .ra-ux100 .ra-strategy{min-height:58px;padding:7px 6px}
-  .ra-ux100 .ra-strategy b{font-size:10px}.ra-ux100 .ra-strategy span{font-size:8px}
-  .ra-ux100 .ra-metric{padding:8px}
-  .ra-ux100 .ra-metric>span{font-size:9px}
-  .ra-ux100 .ra-dose-cols,.ra-ux100 .ra-weights{gap:7px}
-  .ra-ux100 .ra-dose-cols>div{padding:8px}
-  .ra-ux100 .ra-grid label,.ra-ux100 .ra-dose-cols label,.ra-ux100 .ra-weights label{padding:8px}
 }
 
 @media(max-width:390px){
@@ -302,11 +260,7 @@
   #extras-list .lr-extra-card .lr-route{margin-left:0}
   .xsc-compact-grid{grid-template-columns:1fr 1fr!important;gap:6px}
   .xsc-field-wide{grid-column:1/-1}
-  .ra-ux100 .ra-metric-grid{grid-template-columns:1fr 1fr;gap:6px}
-  .ra-ux100 .ra-strategies{gap:6px}
-  .ra-ux100 .ra-dose-cols,.ra-ux100 .ra-weights{grid-template-columns:1fr 1fr;gap:6px}
 }
-
 
 /* Lei seca aberta: ações pertencem ao cabeçalho e nunca encostam no bloco de leitura. */
 @media(max-width:390px){

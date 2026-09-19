@@ -47,10 +47,11 @@ ctx.window=ctx;
 vm.createContext(ctx);
 vm.runInContext(readFileSync(new URL('../src/js/56-leis-rodizio.js', import.meta.url),'utf8'),ctx,{filename:'56-leis-rodizio.js'});
 
-// 1) O caminho quente usa o mesmo cálculo do Plano enquanto snapshot/prefs não mudam.
-ctx.ExtrasScreen.puxarDoPlano();
-ctx.ExtrasScreen._planoRecalc();
-ctx.ExtrasScreen._planoRecalc();
+/* 1) O caminho quente usa o mesmo cálculo do Plano enquanto snapshot/prefs não
+   mudam. O "Puxar do Motor" saiu deste caminho: ele lê o Motor de sugestão, que
+   percorre a árvore do retrato e não passa por `PlanoEngine.calcular`. O que
+   ainda compartilha o cálculo é a leitura de PROGRESSO — a tela de Atividades e
+   a fila diária —, e é ela que este teste protege. */
 ctx.ExtrasScreen.render();
 ctx.ExtrasScreen.render();
 ctx.ReforcoFila._planoRef();

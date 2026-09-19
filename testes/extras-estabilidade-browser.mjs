@@ -58,7 +58,7 @@ async function auditarCentral(width,height){
 
 try {
   await page.goto(url,{waitUntil:'domcontentloaded'});
-  await page.waitForFunction(()=>window.switchScreen&&window.ExtrasCentral&&window.ReforcoAdaptativo&&window.ExtrasOverlayStack,{timeout:30000});
+  await page.waitForFunction(()=>window.switchScreen&&window.ExtrasCentral&&window.ExtrasOverlayStack,{timeout:30000});
   await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){} switchScreen('extras'); if(window.ExtrasScreen?.render)ExtrasScreen.render();});
   await page.waitForTimeout(200);
 
@@ -66,34 +66,13 @@ try {
   await auditarCentral(1440,1000);
   await auditarCentral(390,844);
 
-  /* Fluxo real relatado: Central -> Reforços -> Adaptativo. A UX estabilizada
-     substitui a Central pelo editor e retorna à mesma aba ao sair. */
+  /* A Central continua sendo a porta unica das configuracoes de Extras: ela
+     abre, mostra as secoes e sai sem deixar overlay orfao. O editor do reforco
+     adaptativo saiu com o motor que o alimentava. */
   await page.locator('[data-xsc-tab="reforcos"]').click();
-  await page.locator('[data-ra-open]').waitFor({state:'visible'});
-  await page.locator('[data-ra-open]').click();
-  await page.locator('.ra-overlay').waitFor({state:'visible',timeout:3000});
-  assert.equal(await page.locator('.xsc-overlay').count(),0,'Central deve fechar antes do editor adaptativo');
-  await caixa('.ra-modal','Prescrição Adaptativa mobile');
-  const layer=await page.locator('.ra-overlay').evaluate(el=>({z:Number(getComputedStyle(el).zIndex||0),toast:Number(getComputedStyle(document.documentElement).getPropertyValue('--z-toast'))||3000,block:Number(getComputedStyle(document.documentElement).getPropertyValue('--z-bloqueio'))||9999}));
-  assert.ok(layer.z<layer.toast&&layer.z<layer.block,`modal de Extras não pode superar toast/bloqueio global: ${JSON.stringify(layer)}`);
-
-  /* Ativar/salvar não pode recalcular o TEC escondido nem travar. */
-  await page.evaluate(()=>{
-    window.__tecRenderCount=0;
-    const base=DesempenhoTecScreen.renderPlanoConteudo;
-    DesempenhoTecScreen.renderPlanoConteudo=function(){window.__tecRenderCount++;return base.apply(this,arguments);};
-  });
-  const active=page.locator('[data-ra="ativo"]');
-  if(!(await active.isChecked()))await active.check();
-  const t0=Date.now();
-  await page.locator('[data-save]').click();
-  await page.locator('.ra-overlay').waitFor({state:'detached',timeout:3000});
-  await page.locator('.xsc-overlay').waitFor({state:'visible',timeout:3000});
-  const elapsed=Date.now()-t0;
-  assert.ok(elapsed<3000,`salvar adaptativo demorou ${elapsed}ms`);
-  assert.equal(await page.evaluate(()=>window.__tecRenderCount),0,'salvar em Extras não pode renderizar TEC escondido');
-  const centralText=await page.locator('.xsc-overlay').innerText();
-  assert.match(centralText,/Prescrição adaptativa[\s\S]*Ativa/,'Central deve refletir ativação após salvar');
+  await page.locator('.xsc-overlay').waitFor({state:'visible'});
+  const camada=await page.locator('.xsc-overlay').evaluate(el=>({z:Number(getComputedStyle(el).zIndex||0),toast:Number(getComputedStyle(document.documentElement).getPropertyValue('--z-toast'))||3000,block:Number(getComputedStyle(document.documentElement).getPropertyValue('--z-bloqueio'))||9999}));
+  assert.ok(camada.z<camada.toast&&camada.z<camada.block,`modal de Extras não pode superar toast/bloqueio global: ${JSON.stringify(camada)}`);
 
   /* Histórico/gerenciamento também participa do mesmo contrato de viewport. */
   await fecharCentral();
@@ -134,7 +113,7 @@ try {
   assert.ok(drift.z<drift.toast,`z-index derivou após reaberturas: ${JSON.stringify(drift)}`);
 
   assert.deepEqual(errors,[],'não deve haver erro de página/console no fluxo');
-  console.log(`OK: Extras desktop/mobile — todas as abas sem overflow, histórico estável, foco/ESC/scroll protegidos, z-index sem deriva e adaptativo salvo em ${elapsed}ms.`);
+  console.log('OK: Extras desktop/mobile — todas as abas sem overflow, histórico estável, foco/ESC/scroll protegidos e z-index sem deriva.');
 } finally {
   await browser.close();
   await new Promise(r=>server.close(r));

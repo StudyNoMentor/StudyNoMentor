@@ -104,9 +104,6 @@
   font-size:11px;
   line-height:1.45;
 }
-.ra-continuity-note b { color:var(--text); }
-.ra-continuity-note .tone-warn { color:var(--warn-text); }
-.ra-continuity-note .tone-good { color:var(--good-text); }
 
 @media (prefers-reduced-motion: reduce) {
   .uxv4-spinner,

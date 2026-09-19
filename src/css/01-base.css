@@ -85,7 +85,6 @@
     --on-accent: #ffffff;
     --bad-soft: #fdecee;
 
-
     /* ── ESCALA DE EMPILHAMENTO (z-index) ─────────────────────────────────────
        Havia 35 valores distintos, de 1 a 10050, com saltos arbitrários
        (1399, 1400, 1500, 1650, 2100, 3000, 9999, 10050) — arqueologia de
@@ -2369,7 +2368,6 @@
     .en-subject-sidebar { position: relative; top: 0; max-height: 280px; }
   }
 
-
   .track-row {
     display: grid;
     grid-template-columns: 28px 40px 1fr 130px 90px 90px 90px 34px;
@@ -3208,17 +3206,6 @@
     .itree-bar { grid-column: 1 / -1; grid-row: 2; height: 6px; margin-top: 1px; }
     .itree-label { white-space: normal; }
   }
-  /* Reforço */
-  .reforco-controls { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
-  .reforco-slider { width: 100%; accent-color: var(--accent); cursor: pointer; margin-top: 4px; }
-  .reforco-slider-legend { display: flex; justify-content: space-between; font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; }
-  .reforco-row { display: grid; grid-template-columns: 30px 1fr auto; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--border); }
-  .reforco-row:last-child { border-bottom: none; }
-  .reforco-rank { width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-xs); display: flex; align-items: center; justify-content: center; }
-  .reforco-main { min-width: 0; }
-  .reforco-topico { font-size: var(--fs-md); font-weight: 700; color: var(--text); }
-  .reforco-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 5px; }
-  .reforco-disc { font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-faint); }
   .reforco-tag { font-size: var(--fs-3xs); font-weight: 700; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
   .reforco-tag.tone-good { color: var(--good-text); background: var(--good-soft); }
   .reforco-tag.tone-warn { color: var(--warn-text); background: var(--warn-soft); }
@@ -3245,77 +3232,19 @@
   .rfd-extra { margin-top: 8px; font-size: var(--fs-2xs); color: var(--text-soft); display: flex; flex-direction: column; gap: 4px; }
   .rfd-extra b { color: var(--text); }
   .rfd-badge-ok { font-size: var(--fs-3xs); font-weight: 700; padding: 2px 9px; border-radius: 20px; color: var(--good-text); background: var(--good-soft); }
-  /* ===== Reforço — interface redesenhada ===== */
-  .rfc-section { padding: 4px 24px 0; }
-  /* barra principal de controles */
-  .rfc-toolbar { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; padding: 14px 24px 6px; }
   .rfc-field { display: flex; flex-direction: column; gap: 5px; min-width: 150px; }
   .rfc-field.wide { flex: 1; min-width: 230px; }
   .rfc-field > label { font-size: var(--fs-2xs); font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
   .rfc-field .lbl-accent { color: var(--accent); text-transform: none; letter-spacing: 0; }
   .rfc-field select, .rfc-field input[type="number"] { padding: 8px 10px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface-sunken); color: var(--text); font-size: var(--fs-sm); }
   .rfc-field input[type="number"] { width: 100px; text-align: center; }
-  .rfc-adv-btn { margin-left: auto; align-self: flex-end; background: var(--surface-sunken); border: 1.5px solid var(--border); color: var(--text-soft); border-radius: 9px; padding: 8px 14px; font-size: var(--fs-xs); font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
-  .rfc-adv-btn:hover { border-color: var(--accent); color: var(--text); }
-  .rfc-adv-btn .chev { transition: transform 0.18s ease; display: inline-block; }
-  .rfc-adv-btn[aria-expanded="true"] .chev { transform: rotate(90deg); }
-  .rfc-advanced { padding: 6px 24px 10px; animation: rfcSlide 0.18s ease; }
   @keyframes rfcSlide { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-  .rfc-adv-grid { display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
-  /* rótulo explícito de ordenação */
-  .rfc-orderlabel { padding: 8px 24px 0; font-size: var(--fs-xs); color: var(--text-soft); display: flex; align-items: center; gap: 8px; }
-  .rfc-orderlabel .oi { font-size: var(--fs-sm); }
-  .rfc-orderlabel b { color: var(--text); }
-  .rfc-status { padding: 6px 24px 0; }
-  .rfc-list { padding: 8px 24px 24px; }
-  /* selo de MOTIVO (por que subiu no ranking) */
-  .reforco-motivo { font-size: var(--fs-3xs); font-weight: 800; padding: 2px 8px; border-radius: 20px; white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; }
-  .reforco-motivo.m-erro { color: var(--bad-text); background: var(--bad-soft); }
-  .reforco-motivo.m-incidencia { color: var(--accent); background: var(--accent-soft); }
-  .reforco-motivo.m-equilibrio { color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); }
-  .reforco-row.is-semclass { opacity: 0.62; }
   .reforco-tag.semclass { color: var(--text-faint); background: var(--surface-sunken); border: 1px dashed var(--border-strong); }
-  /* cards laterais mais limpos */
-  .rfc-side-body { padding: 8px 24px 20px; }
   .reforco-tag.semincid { color: var(--text-faint); background: var(--surface-sunken); border: 1px dashed var(--border-strong); }
   .reforco-tag.selo-fraco { color: var(--bad-text); background: var(--bad-soft); }
   .reforco-tag.selo-atencao { color: var(--warn-text); background: var(--warn-soft); }
   .reforco-tag.selo-ok { color: var(--good-text); background: var(--good-soft); }
   .reforco-tag.nivel { color: var(--text-soft); background: var(--surface-sunken); border: 1px solid var(--border); }
-  /* Banner de projeção da média */
-  .reforco-proj-banner { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; background: linear-gradient(180deg, var(--accent-soft), var(--surface) 92%); border: 1.5px solid var(--accent); border-radius: 14px; padding: 14px 18px; margin-bottom: 6px; }
-  .reforco-proj-item { display: flex; flex-direction: column; }
-  .reforco-proj-item .pv { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-2xl); color: var(--text); line-height: 1; }
-  .reforco-proj-item .pv.now { color: var(--good); }
-  .reforco-proj-item .pv.pot { color: var(--accent); }
-  .reforco-proj-item .pl { font-size: var(--fs-3xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-faint); margin-top: 4px; }
-  .reforco-proj-arrow { font-size: var(--fs-xl); color: var(--text-faint); align-self: center; }
-  .reforco-proj-note { font-size: var(--fs-2xs); color: var(--text-soft); margin-left: auto; max-width: 34ch; line-height: 1.4; }
-  .reforco-conf { font-size: var(--fs-3xs); font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 2px 8px; border-radius: 12px; margin-left: 6px; }
-  .reforco-conf.alta { color: var(--good-text); background: var(--good-soft); }
-  .reforco-conf.media { color: var(--warn-text); background: var(--warn-soft); }
-  .reforco-conf.baixa { color: var(--bad-text); background: var(--bad-soft); }
-  /* Cards secundários */
-  .reforco-side-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-  @media (max-width: 820px) { .reforco-side-grid { grid-template-columns: 1fr; } }
-  .reforco-mini { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 11px; border: 1px solid var(--border); background: var(--surface); margin-bottom: 7px; transition: border-color 0.13s ease, transform 0.13s ease; }
-  .reforco-mini:hover { border-color: var(--accent); transform: translateY(-1px); }
-  .reforco-mini .rm-ico { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: var(--fs-md); flex-shrink: 0; }
-  .reforco-mini.tone-blind .rm-ico { background: var(--accent-soft); }
-  .reforco-mini.tone-over .rm-ico { background: var(--warn-soft); }
-  .reforco-mini .rm-body { min-width: 0; }
-  .reforco-mini .rm-name { font-size: var(--fs-sm); font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .reforco-mini .rm-sub { font-size: var(--fs-3xs); color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; margin-top: 2px; }
-  .reforco-mini .rm-bar { height: 5px; background: var(--surface-sunken); border-radius: 20px; overflow: hidden; margin-top: 6px; }
-  .reforco-mini .rm-bar > span { display: block; height: 100%; border-radius: 20px; }
-  .reforco-mini.tone-blind .rm-bar > span { background: var(--accent); }
-  .reforco-mini.tone-over .rm-bar > span { background: var(--warn); }
-  .reforco-mini .rm-val { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-sm); font-weight: 800; color: var(--accent); text-align: right; white-space: nowrap; }
-  .reforco-mini.tone-over .rm-val { color: var(--warn); }
-  .reforco-mini .rm-val small { display: block; color: var(--text-faint); font-weight: 400; font-size: var(--fs-3xs); margin-top: 1px; }
-  .reforco-actions { display: flex; gap: 6px; }
-  .reforco-act { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: var(--fs-md); cursor: pointer; text-decoration: none; transition: all 0.13s ease; }
-  .reforco-act:hover { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-1px); }
   /* ═══ CONQUISTAS — calendário de presença, marcos e recordes ═══════════════
      Sem vermelho, sem sequência, sem cobrança. Dia sem estudo é neutro. */
   #conquistas-card summary::-webkit-details-marker { display: none; }
@@ -3388,16 +3317,6 @@
   .badge .bp i { display: block; height: 100%; background: var(--good); border-radius: 4px; }
   .badge-cat { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin: 16px 0 8px; }
   .badge-cat span { font-weight: 500; text-transform: none; letter-spacing: 0; }
-
-  /* chips de filtro por matéria (seleção múltipla) */
-  .pl-fchip {
-    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 700;
-    padding: 5px 11px; border-radius: 20px; cursor: pointer;
-    border: 1.5px solid var(--border); background: var(--surface); color: var(--text-soft);
-    transition: all 0.12s ease; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-  }
-  .pl-fchip:hover { border-color: var(--accent); color: var(--accent); }
-  .pl-fchip.ativo { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
   /* [MELHORIA] Diálogo "Puxar do Plano": prioridade + dropdown de disciplinas */
   .pl-modal-tools { display: flex; gap: 12px; flex-wrap: wrap; margin: 0 0 12px; }
   .pl-modal-field { display: flex; flex-direction: column; gap: 4px; min-width: 180px; flex: 1; }
@@ -3531,80 +3450,19 @@
      que é o que se lê rápido. Antes tudo herdava .hint (mono) e parágrafos
      inteiros ficavam pesados de ler. */
   #tec-panel-plano .pl-prosa { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); margin: 0; }
-  #tec-panel-plano .pl-num { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-variant-numeric: tabular-nums; }
-
-  /* Barra de controles: 2 colunas no celular em vez de 5 campos empilhados */
-  /* 150px não cabia em 2 colunas num container de ~300px: caía tudo para 1 */
-  #tec-panel-plano .rfc-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px 12px; align-items: end; padding: 14px 0 6px; }
-  #tec-panel-plano .rfc-field { min-width: 0; }
-  #tec-panel-plano .rfc-field label { font-size: var(--fs-3xs); }
-  #tec-panel-plano .rfc-field.wide { grid-column: 1 / -1; }
   /* ── Ajustes avançados do Plano: grade alinhada e legível ──────────────────
      Antes era um flex com flex-wrap: os campos tinham larguras diferentes, os
      rótulos quebravam em várias linhas e sobravam vãos enormes. Agora é uma grade
      regular; cada campo ocupa uma célula, o rótulo tem altura fixa e os checkboxes
      ficam lado a lado numa linha inteira. */
   #tec-panel-plano .rfc-advanced { padding: 8px 0 10px; }
-  #tec-panel-plano .rfc-adv-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-    gap: 14px 16px; align-items: start; padding: 16px; background: var(--surface-sunken);
-    border: 1px solid var(--border); border-radius: 12px;
-  }
-  #tec-panel-plano .rfc-adv-grid .rfc-field { min-width: 0; gap: 6px; }
-  #tec-panel-plano .rfc-adv-grid .rfc-field > label {
-    font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.3; min-height: calc(2.6em * var(--fs-scale,1));
-    display: flex; align-items: flex-end; text-transform: none; letter-spacing: 0; color: var(--text-soft);
-  }
-  #tec-panel-plano .rfc-adv-grid .rfc-field select,
-  #tec-panel-plano .rfc-adv-grid .rfc-field input[type="number"] { width: 100%; }
   /* linha dos dois interruptores: ocupa a grade inteira, um ao lado do outro */
   #tec-panel-plano .rfc-adv-grid .rfc-field.wide { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
-  #tec-panel-plano .rfc-check {
-    display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-    font-size: var(--fs-xs); font-weight: 600; color: var(--text); line-height: 1.35;
-    background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 9px 12px;
-    flex: 1 1 260px; min-width: 0;
-  }
-  #tec-panel-plano .rfc-check input { width: 16px; height: 16px; flex-shrink: 0; accent-color: var(--accent); margin: 0; }
-  #tec-panel-plano #plano-advanced > div:last-child { margin-top: 12px; }
-  @media (max-width: 560px) {
-    #tec-panel-plano .rfc-adv-grid { grid-template-columns: 1fr 1fr; padding: 12px; }
-    #tec-panel-plano .rfc-adv-grid .rfc-field > label { min-height: calc(3.4em * var(--fs-scale,1)); }
-    #tec-panel-plano .rfc-check { flex-basis: 100%; }
-  }
-
-  /* ── Painel de resumo ── */
-  .pl-hero { background: linear-gradient(180deg, var(--surface-sunken), var(--surface)); border: 1.5px solid var(--border); border-radius: 14px; padding: 18px; margin: 14px 0 18px; }
   .pl-hero-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
   .pl-hero-num { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-5xl); line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
   .pl-hero-uni { font-size: var(--fs-sm); font-weight: 700; color: var(--text-soft); }
-  .pl-hero-sub { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); color: var(--text-faint); margin: 6px 0 12px; line-height: 1.5; }
-  .pl-hero-call { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-md); font-weight: 700; margin: 14px 0 0; line-height: 1.45; }
   /* chips separados por natureza: RESULTADO em cima, configuração embaixo e apagada */
   .pl-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-  .pl-chip { font-size: var(--fs-3xs); font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; background: var(--surface); border: 1px solid var(--border); color: var(--text-soft); }
-  .pl-chip.res { border-width: 1.5px; }
-  .pl-chip.cfg { opacity: 0.72; font-weight: 600; }
-  .pl-aviso { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(11.5px * var(--fs-scale,1)); line-height: 1.5; margin: 12px 0 0; padding: 9px 12px; border-left: 3px solid; border-radius: 0 8px 8px 0; }
-
-  /* ── Linha de assunto ── */
-  .pl-item { display: grid; grid-template-columns: 26px 1fr auto; gap: 4px 11px; padding: 15px 2px; border-bottom: 1px solid var(--border); align-items: start; }
-  .pl-item:last-child { border-bottom: none; }
-  .pl-rank { grid-row: 1 / 2; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-2xs); display: flex; align-items: center; justify-content: center; }
-  .pl-nome { grid-column: 2; font-size: var(--fs-md); font-weight: 700; color: var(--text); line-height: 1.3; }
-  .pl-ganho { grid-column: 3; grid-row: 1; text-align: right; }
-  .pl-ganho b { display: block; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-lg); color: var(--good-text); font-variant-numeric: tabular-nums; }
-  .pl-ganho span { display: block; font-size: var(--fs-3xs); color: var(--text-faint); }
-  .pl-corpo { grid-column: 2 / -1; }
-  .pl-tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 5px; }
-  .pl-disc { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
-  .pl-acao { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); line-height: 1.5; color: var(--text-soft); margin: 8px 0 0; }
-  .pl-base { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.5; color: var(--text-faint); margin: 6px 0 0; }
-  .pl-base b { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text-soft); font-variant-numeric: tabular-nums; }
-  /* ── Plano: direção curta + caixinhas numéricas + guia expansível ── */
-  .pl-direcao { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); font-weight: 700; line-height: 1.45; margin: 8px 0 0; display: flex; align-items: flex-start; gap: 6px; }
-  .pl-direcao .seta { flex-shrink: 0; }
-  .pl-direcao.tone-bad { color: var(--bad-text); } .pl-direcao.tone-warn { color: var(--warn-text); } .pl-direcao.tone-good { color: var(--good-text); }
   /* ── QUATRO NÚMEROS, UMA FAIXA ────────────────────────────────────────────
      Eram quatro cartões de 7px de respiro cada, que a 390px viravam uma grade
      2×2 de ~200px por item — dez itens, dois mil pixels de moldura para
@@ -3616,39 +3474,11 @@
     background: var(--surface-sunken); border: 1px solid var(--border); border-radius: 10px;
     overflow: hidden;
   }
-  .pl-metrics .plm {
-    flex: 1 1 0; min-width: 78px; padding: 6px 6px; text-align: center;
-    border-left: 1px solid var(--border);
-  }
-  .pl-metrics .plm:first-child { border-left: none; }
-  .pl-metrics .plm b { display: block; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: calc(15px * var(--fs-scale,1)); color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.1; }
-  .pl-metrics .plm b.tone-bad { color: var(--bad-text); } .pl-metrics .plm b.tone-warn { color: var(--warn-text); } .pl-metrics .plm b.tone-good { color: var(--good-text); }
-  .pl-metrics .plm span { display: block; font-size: calc(9px * var(--fs-scale,1)); font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; line-height: 1.2; }
-  @media (max-width: 560px) { .pl-metrics { grid-template-columns: 1fr 1fr; } }
-  .pl-guia { margin: 10px 0 0; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-sunken); overflow: hidden; }
-  .pl-guia > summary { cursor: pointer; list-style: none; padding: 8px 12px; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 700; color: var(--text-soft); display: flex; align-items: center; gap: 7px; }
-  .pl-guia > summary::-webkit-details-marker { display: none; }
-  .pl-guia > summary .chev { margin-left: auto; transition: transform 0.18s ease; color: var(--text-faint); font-size: var(--fs-3xs); }
-  .pl-guia[open] > summary .chev { transform: rotate(180deg); }
-  .pl-guia > summary:hover { color: var(--accent); }
-  .pl-guia .pl-guia-body { padding: 2px 12px 12px; }
-  .pl-guia .pl-acao { margin-top: 4px; }
-  .pl-medidor { position: relative; height: 6px; background: var(--surface-sunken); border-radius: 20px; margin: 9px 0 0; overflow: visible; }
-  .pl-medidor i { position: absolute; inset: 0 auto 0 0; display: block; background: var(--accent); border-radius: 20px; }
-  .pl-medidor u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.4; }
-  .pl-rodape { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-  .pl-marco { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(11.5px * var(--fs-scale,1)); font-weight: 700; margin: 10px 0; padding: 9px 12px; border-left: 3px solid var(--good); background: var(--good-soft); color: var(--good-text); border-radius: 0 8px 8px 0; }
   @media (max-width: 560px) {
-    .pl-item { grid-template-columns: 24px 1fr; }
-    .pl-ganho { grid-column: 2; grid-row: auto; text-align: left; display: flex; align-items: baseline; gap: 8px; margin-top: 2px; }
-    .pl-ganho b, .pl-ganho span { display: inline; }
-    .pl-corpo { grid-column: 2; }
     .pl-hero-num { font-size: calc(34px * var(--fs-scale,1)); }
     /* Numa coluna estreita a faixa quebra em duas, e o filete de cima some
        para as duas metades não ficarem com borda dupla no meio. */
     .pl-metrics .plm { flex-basis: 50%; min-width: 0; }
-    .pl-metrics .plm:nth-child(odd) { border-left: none; }
-    .pl-metrics .plm:nth-child(n+3) { border-top: 1px solid var(--border); }
   }
 
   /* ── LEGENDAS DA ABA ANÁLISE ───────────────────────────────────────────── */
@@ -3683,10 +3513,6 @@
   .incid-selecao { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); line-height: 1.55; color: var(--text-soft); margin: 0 24px 4px; padding: 10px 12px; border-left: 3px solid var(--border-strong, var(--border)); background: var(--surface-sunken); border-radius: 0 8px 8px 0; text-align: justify; text-align-last: left; }
   .incid-selecao.on { border-left-color: var(--accent); }
 
-  /* ── AVISO DE CASAMENTO (Reforço) ──────────────────────────────────────── */
-  .rfc-casamento { margin: 8px 24px 0; padding: 10px 12px; border-left: 3px solid var(--warn); background: var(--warn-soft); color: var(--warn-text); border-radius: 0 8px 8px 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.55; }
-  .rfc-casamento-lista { display: block; margin-top: 6px; color: var(--text-soft); }
-
   /* ── TEXTO JUSTIFICADO ─────────────────────────────────────────────────────
      Só nos blocos de PROSA (parágrafos de duas linhas ou mais). A última linha
      fica à esquerda e a hifenização entra junto: justificar sem hífen, em
@@ -3707,75 +3533,28 @@
      suspensa, as outras quatro opções — e a existência delas — ficam
      escondidas atrás de um toque. */
   .pl-modos { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0 0; }
-  .pl-modos-rot { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); margin-right: 2px; }
-  .pl-modo { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 12px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text-soft); font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); font-weight: 700; cursor: pointer; line-height: 1.2; text-align: left; }
-  .pl-modo small { font-size: calc(9px * var(--fs-scale,1)); font-weight: 600; color: var(--text-faint); }
-  .pl-modo:hover { border-color: var(--accent); color: var(--accent); }
-  .pl-modo.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
-  .pl-modo.on small { color: var(--accent); }
   /* Sem opacidade para apagar texto: o medidor de contraste da verificação lê a
      cor declarada, não a composta, então texto apagado por opacity passa por
      ele e reprova no olho de quem lê. O modo indisponível fica marcado pela
      borda tracejada, que não mexe na legibilidade. */
   .pl-modo.off { border-style: dashed; }
-  .pl-modo.estado { cursor: default; }
-  .pl-modo-nota { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); line-height: 1.55; color: var(--text-soft); margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--surface-sunken); border-radius: 0 8px 8px 0; }
-  .pl-modo-nota span { color: var(--text-faint); }
-  .pl-modo-nota em { color: var(--bad-text); font-style: normal; font-weight: 700; }
 
   /* ── BLOCO DA SEMANA ── o diagnóstico virando tarefa, no tamanho do ritmo real */
   .pl-hoje { border: 2px solid var(--accent); border-radius: 14px; padding: 14px 16px; margin: 0 0 16px; background: var(--accent-soft); }
-  .pl-hoje-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .pl-hoje-top strong { font-size: var(--fs-sm); color: var(--accent); }
-  .pl-hoje-top span { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); color: var(--text-soft); }
-  .pl-hoje-lista { list-style: none; margin: 10px 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; counter-reset: plh; }
-  .pl-hoje-lista li { display: flex; align-items: center; gap: 8px; background: var(--surface); border-radius: 8px; padding: 7px 10px; }
-  .pl-hoje-nome { flex: 1; font-size: var(--fs-xs); font-weight: 700; color: var(--text); min-width: 0; overflow-wrap: anywhere; }
-  .pl-hoje-num { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-  .pl-hoje-num.tone-bad { color: var(--bad-text); } .pl-hoje-num.tone-warn { color: var(--warn-text); } .pl-hoje-num.tone-good { color: var(--good-text); }
-  .pl-hoje-q { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-3xs); color: var(--text-faint); }
-  .pl-hoje .btn-primary { width: 100%; }
-  .pl-hoje .btn-primary:disabled { opacity: 0.55; cursor: default; }
-  /* a fila continua depois do bloco: os próximos ficam visíveis e marcáveis */
-  .pl-hoje-check { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; cursor: pointer; }
   /* O app define `input { width: 100% }` para os campos de formulário. Dentro
      de um flex, `flex-basis:auto` lê essa largura — e a caixinha de marcar
      engolia a linha inteira, deixando o nome do assunto com zero pixel (uma
      letra por linha na tela). Largura explícita resolve na origem. */
   .pl-hoje-check input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; }
-  .pl-hoje-lista li.fora { background: transparent; border: 1px dashed var(--border); }
-  .pl-hoje-lista li.fora .pl-hoje-nome { color: var(--text-soft); font-weight: 600; }
-  .pl-hoje-sep { display: block; background: none; padding: 6px 2px 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); }
-  .pl-hoje-nota { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); color: var(--text-soft); margin: 8px 0 0; text-align: center; }
   /* ✎ ao lado de cada modo, para ajustar os parâmetros dele */
   .pl-modo-wrap { display: inline-flex; align-items: stretch; gap: 2px; flex: 0 0 auto; }
-  .pl-modo-edit { border: 1.5px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--text-faint); font-size: var(--fs-2xs); padding: 0 8px; cursor: pointer; }
-  .pl-modo-edit:hover { border-color: var(--accent); color: var(--accent); }
-  .pl-modo-edit-dot { color: var(--accent); font-style: normal; }
-  .pl-modo-param { display: block; margin-top: 4px; color: var(--text-soft); font-weight: 600; }
 
   /* ── A ORDEM ESCOLHIDA, POR EXTENSO ── */
   .pl-ordem { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; margin: 0 0 12px; background: var(--surface-sunken); }
-  .pl-ordem-tit { font-size: var(--fs-sm); font-weight: 800; color: var(--text); margin: 0 0 6px; }
-  .pl-ordem-txt { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); line-height: 1.55; color: var(--text-soft); margin: 4px 0 0; }
-  .pl-ordem-txt b { color: var(--text); }
-  .pl-ordem-txt.tone-warn { color: var(--warn-text); } .pl-ordem-txt.tone-warn b { color: var(--warn-text); }
-  .pl-ordem-txt.tone-bad { color: var(--bad-text); } .pl-ordem-txt.tone-bad b { color: var(--bad-text); }
-  .pl-porque { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); line-height: 1.55; color: var(--text-soft); margin: 0 0 12px; }
-  .pl-porque-item { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: calc(10.5px * var(--fs-scale,1)); line-height: 1.5; color: var(--accent); font-weight: 700; margin: 4px 0 0; }
-  .pl-hero-alerta { color: var(--warn-text); font-weight: 700; }
-
-  /* ── O QUE O TEC NÃO MEDIU ── */
-  .pl-edital { margin-top: 22px; padding-top: 16px; border-top: 2px solid var(--border); }
-  .pl-edital-linha { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-2xs); color: var(--text-soft); margin: 8px 0 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .pl-edital-chip { font-size: var(--fs-3xs); font-weight: 700; padding: 3px 9px; border-radius: 20px; background: var(--warn-soft); color: var(--warn-text); border: 1px solid var(--warn); white-space: nowrap; }
 
   /* ── GRUPOS DOS AJUSTES AVANÇADOS ──
      Dezenove campos numa grade única não é configuração, é formulário. */
   .pl-grupo { margin: 0 0 14px; }
-  .pl-grupo:last-of-type { margin-bottom: 0; }
-  .pl-grupo-tit { font-size: var(--fs-2xs); font-weight: 800; color: var(--text); margin: 0 0 6px; display: flex; align-items: center; gap: 6px; }
-  .pl-grupo-tit span { font-weight: 600; color: var(--text-faint); }
 
   /* MODO ENXUTO — a classe existia e não estilizava nada: o botão "Modo enxuto"
      do menu Exibição trocava um atributo e a tela ficava exatamente igual.
@@ -3793,31 +3572,9 @@
   .tec-enxuto .pl-steps-wrap { display: none !important; }
 
   @media (max-width: 560px) {
-    /* os modos viram uma faixa que rola: cinco chips empilhados comiam a tela
-       inteira antes do primeiro número aparecer */
-    .pl-modos { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
-    .pl-modos::-webkit-scrollbar { display: none; }
-    .pl-modos-rot { display: none; }
     /* o par chip+✎ é um item só da faixa: sem isto o lápis era o primeiro a
        ser espremido, e o modo virava não-editável justamente no celular */
     .pl-modo, .pl-modo-wrap { flex: 0 0 auto; }
-  }
-
-  .plano-acao { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; white-space: nowrap; }
-  .plano-ganho { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 800; font-size: var(--fs-lg); }
-  .plano-leva { font-size: var(--fs-3xs); color: var(--text-faint); }
-  .plano-acao .btn-secondary { padding: 6px 12px; font-size: var(--fs-2xs); white-space: nowrap; }
-  @media (max-width: 640px) {
-    .reforco-row { grid-template-columns: 26px 1fr; }
-    .reforco-actions { grid-column: 1 / -1; justify-content: flex-end; }
-    .reforco-controls { gap: 12px; }
-    /* sem isto a coluna direita caía na faixa de 26px do número */
-    .plano-acao {
-      grid-column: 2 / -1;
-      flex-direction: row; align-items: center; justify-content: flex-start;
-      gap: 10px; margin-top: 8px; flex-wrap: wrap;
-    }
-    .plano-acao .plano-leva::before { content: '· '; }
   }
   .tec-dropzone {
     border: 2px dashed var(--border-strong); border-radius: 12px; padding: 22px 18px;
@@ -3980,8 +3737,9 @@
   .tec-tree { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; }
   .tnode.lvl0 { border-top: 1px solid var(--border); }
   .tnode.lvl0:first-child { border-top: none; }
+  /* caret · nome · questões resolvidas · barra acerto/erro · percentuais */
   .tnode-row {
-    display: grid; grid-template-columns: 18px 1fr 130px 96px; align-items: center; gap: 10px;
+    display: grid; grid-template-columns: 18px 1fr 52px 120px 166px; align-items: center; gap: 10px;
     padding-top: 9px; padding-bottom: 9px; padding-right: 14px;
     transition: background 0.1s ease;
   }
@@ -3994,17 +3752,16 @@
   .tnode-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--border-strong); justify-self: center; }
   .tnode-name { font-size: var(--fs-xs); color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tnode-name.lvl0 { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
-  .tnode-track { height: 8px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
+  /* A barra é a do TecConcursos: a parte cheia é o acerto, o que sobra é o
+     erro. Por isso o fundo é vermelho e não neutro — a faixa restante não é
+     "espaço vazio", é a metade da informação. */
+  .tnode-track { height: 8px; background: var(--bad); border: 1px solid var(--border); border-radius: 20px; overflow: hidden; }
   .tnode.lvl0 > .tnode-row > .tnode-track { height: 9px; }
-  .tnode-fill { height: 100%; border-radius: 20px; }
-  .tnode-fill.tone-good { background: var(--good); }
-  .tnode-fill.tone-warn { background: var(--warn); }
-  .tnode-fill.tone-bad { background: var(--bad); }
-  .tnode-pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-xs); text-align: right; }
-  .tnode-pct .q { display: block; font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 400; }
-  .tnode-pct.tone-good { color: var(--good-text); }
-  .tnode-pct.tone-warn { color: var(--warn-text); }
-  .tnode-pct.tone-bad { color: var(--bad-text); }
+  .tnode-fill { height: 100%; border-radius: 20px 0 0 20px; background: var(--good); }
+  .tnode-pct {
+    font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: var(--fs-3xs); text-align: right; white-space: nowrap;
+  }
   .tnode-children { display: none; }
   .tnode.open > .tnode-children { display: block; }
   .tnode-children .tnode { border-top: 1px dashed var(--border); }
@@ -4014,8 +3771,8 @@
     .weak-track { display: none; }
     .tec-disc-head { grid-template-columns: 16px 1fr 70px; }
     .tec-disc-track { display: none; }
-    .tnode-row { grid-template-columns: 16px 1fr 64px; }
-    .tnode-track { display: none; }
+    .tnode-row { grid-template-columns: 16px 1fr 116px; }
+    .tnode-track, .tnode-q { display: none; }
   }
 
   /* ---------- Evolução: gráficos modernizados ---------- */
@@ -4573,7 +4330,6 @@
   .cloud-slot-info .name { font-size: var(--fs-sm); font-weight: 700; color: var(--text); }
   .cloud-slot-info .meta { font-size: var(--fs-3xs); color: var(--text-faint); margin-top: 2px; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
   .cloud-slot-actions { display: flex; gap: 6px; }
-
 
   /* ============================================================
      EDITAR SEMANA (Histórico) — agregados calculados (read-only)
@@ -5252,8 +5008,6 @@
   /* Bandeiras do Anki: 4 cores fixas, clique alterna, Ctrl+0 remove */
   /* Plano — duas métricas de ganho lado a lado (modo "🔀 Mostrar as duas") */
   .pl-g-dom { color: var(--accent); }
-  .pl-g-ger { color: var(--good-text); margin-top: 4px; }
-  .pl-ganho span { font-size: var(--fs-3xs); line-height: 1.3; }
   .cards-flagbar { display: inline-flex; gap: 5px; align-items: center; margin-left: auto; }
   .cards-flag { width: 19px; height: 19px; border-radius: 50%; cursor: pointer; padding: 0;
     border: 2px solid var(--border-strong); background: transparent; transition: all .12s ease; }
@@ -5629,7 +5383,6 @@
      a barra de rolagem pulava a cada bloco que entrava na tela. São divs
      simples, algumas centenas por lei — o ganho não pagava nada disso. */
 
-
   /* ── Estatísticas no estilo do Anki ─────────────────────────────────────── */
   .tr-wrap { overflow-x: auto; }
   .tr-table { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
@@ -5708,19 +5461,8 @@
   .tec-disc-body { padding: 4px 14px 10px; }
   .tnode-row { padding-top: 6px; padding-bottom: 6px; padding-right: 12px; }
   .tec-topic-row { padding: 5px 0; }
-  /* — Reforço e Plano: barras de controle e linhas — */
-  .rfc-toolbar { padding: 10px 20px 4px; gap: 12px; }
-  .rfc-section { padding: 2px 20px 0; }
-  .rfc-list { padding: 6px 20px 18px; }
-  .rfc-status { padding: 4px 20px 0; }
-  .rfc-orderlabel { padding: 6px 20px 0; }
-  .reforco-row { padding: 9px 4px; gap: 11px; }
-  .reforco-proj-banner { padding: 12px 16px; }
   .rfd-head { padding: 10px 12px; }
   .rfd-body { padding: 2px 12px 12px; }
-  .pl-item { padding: 11px 2px; }
-  .pl-hero { padding: 14px; margin: 12px 0 14px; }
-  .pl-guia .pl-guia-body { padding: 2px 12px 10px; }
   /* — Incidência: linhas e árvore — */
   .incid-banca-row { padding: 8px 12px; margin-bottom: 6px; }
   .itree-row { padding: 5px 10px; }
@@ -5754,9 +5496,7 @@
   #screen-historico .page-header { margin-bottom: 8px; }
   @media (max-width: 560px) {
     .tec-filterbar { margin: 10px 12px 6px !important; }
-    .rfc-toolbar, .rfc-list, .rfc-section, .rfc-status, .rfc-orderlabel { padding-left: 14px; padding-right: 14px; }
   }
-
 
   /* Correções finais de alinhamento e interação */
   .cards-bulk { display:flex !important; align-items:center !important; gap:10px !important; flex-wrap:wrap !important; }

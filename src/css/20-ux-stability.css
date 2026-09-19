@@ -173,11 +173,6 @@
 #screen-desempenhotec .uxv3-tec-command .tp-metrics small{font-size:9px!important;line-height:1.25!important;overflow-wrap:normal!important;word-break:normal!important}
 #screen-desempenhotec .uxv3-tec-command .tp-actions{grid-area:actions!important;display:flex!important;gap:7px!important;justify-content:flex-end!important;align-items:center!important;flex-wrap:wrap!important}
 #screen-desempenhotec .uxv3-tec-command .tp-actions button{min-height:36px!important;padding:7px 12px!important;font-size:11px!important}
-
-/* TEC: elimina fontes microscópicas sem transformar a tela em mural. */
-#screen-desempenhotec .tl2-guide-copy small,#screen-desempenhotec .tl2-summary-strip small,#screen-desempenhotec .tl2-steps button small{font-size:10px!important}
-#screen-desempenhotec #tec-panel-plano .pl-item .pl-disc{font-size:10px!important}
-#screen-desempenhotec #tec-panel-plano .pl-mat-sub{font-size:10px!important}
 #screen-desempenhotec .tec-scope-card,#screen-desempenhotec #tec-escopo{border-color:color-mix(in srgb,var(--text) 15%,var(--border))!important}
 
 /* ── 9. Responsividade ───────────────────────────────────────────────────── */

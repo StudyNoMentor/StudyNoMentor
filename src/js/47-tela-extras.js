@@ -304,70 +304,55 @@ const ExtrasScreen = {
     const m = document.getElementById('extras-manage-modal');
     if (m && m.style.display === 'flex') this.renderManageList();
   },
-  // Puxa os assuntos prioritários do Plano de pontos fracos, com a meta já calculada
+  /* ── PUXAR DO MOTOR ───────────────────────────────────────────────────────
+     A fila daqui é a MESMA do 🧭 Motor de sugestão: mesma poda por margem de
+     erro, mesmo score, mesma fase. O que este diálogo acrescenta é a escolha
+     de quais frentes entram hoje — e, escolhidas elas, o caderno é repartido
+     entre as selecionadas pela mesma regra de dose. Não há segunda ordenação
+     nem segundo critério: um motor, uma fila. */
   puxarDoPlano() {
-    if (typeof PlanoEngine === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Plano indisponível'); return; }
-    // guarda o estado do diálogo: prioridade (ordenação) e disciplinas marcadas
-    this._planoOrd = this._planoOrd || 'pior';
+    if (typeof MotorSugestao === 'undefined' || typeof DesempenhoTecScreen === 'undefined') { showToast('Motor indisponível'); return; }
     this._planoDiscSel = this._planoDiscSel || new Set(); // vazio = todas
     this._planoDiscOpen = false;
     this._planoSel = new Set();
-    // recomputa os candidatos com a ordenação escolhida (aproveita o motor do Plano)
     this._planoRecalc = () => {
-      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
-        Object.assign({}, PlanoEngine.prefs(), { disciplina: '__todas__', limite: 200, ordenar: this._planoOrd }));
+      const r = MotorSugestao.calcular();
       if (!r || r.erro) { this._planoCand = null; this._planoErr = (r && r.erro) || 'erro'; return; }
-      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do motor. Comparar
+      /* A DEDUPLICAÇÃO É POR DISCIPLINA + NOME, como no resto do app. Comparar
          só o nome fazia criar "Atos" de Administrativo esconder o "Atos" de
          Constitucional deste diálogo: dois assuntos de verdade, um deles sem
          porta nenhuma para virar atividade. E uma atividade JÁ CONCLUÍDA não
          bloqueia: o assunto pode ter voltado a cair, e atacá-lo de novo é o
          uso normal do app, não uma duplicata. */
       const abertas = DB.getExtras().filter(e => e.origemPlano && e.status !== 'concluida');
-      /* Além da mesma unidade, o candidato sai da lista quando já está DENTRO
-         (ou CONTÉM) o escopo de uma atividade aberta: desde que a atividade
-         mede o nó pelas linhas cruas, as duas contariam as mesmas questões, e o
-         volume dobrado rebaixa a calibragem. Aqui não há como perguntar item por
-         item — a lista é um lote — então o candidato simplesmente não é
-         oferecido. Quem quiser afunilar encerra a frente mais ampla primeiro. */
       const jaTem = (x) => abertas.some(e => DesempenhoTecScreen._casaUnidade(e.origemPlano, x))
         || !!PlanoEngine.atividadeSobreposta(x.nome, x.disciplina, x.membros);
-      this._planoCand = []
-        .concat((r.itens || []).map(x => ({ ...x, motivo: 'reforco', alvo: x.custoQ })))
-        .concat((r.pequenas || []).map(x => ({ ...x, motivo: 'diagnostico', alvo: x.faltaAmostra })))
-        .filter(x => !jaTem(x));
+      this._planoPrefs = r.prefs;
+      this._planoFase = r.fase;
+      this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 200);
+      this._planoFila = (r.itens || []).map(x => x.disciplina + '\u0001' + x.nome);
       this._planoErr = null;
     };
     this._planoRecalc();
     if (this._planoErr) {
-      showToast(this._planoErr === 'sem-retrato'
-        ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
-        : 'Sem dados suficientes no Plano ainda');
+      showToast(this._planoErr === 'sem-incidencia'
+        ? 'O pós-edital precisa da incidência da banca. Importe-a em Desempenho TEC → Incidência.'
+        : this._planoErr === 'sem-retrato'
+          ? 'Importe um retrato do TEC em Desempenho TEC → Análise'
+          : 'Sem dados suficientes para o motor ainda');
       return;
     }
-    if (!this._planoCand.length) { showToast('Todos os assuntos prioritários já têm atividade'); return; }
-    // marca os 3 primeiros por padrão
-    this._planoCand.forEach((_, i) => { if (i < 3) this._planoSel.add(i); });
-
-    /* Os rótulos vêm do MOTOR, não de uma cópia local: eram sete pares escritos
-       à mão aqui e outros sete na tela do Plano, já divergindo entre si
-       ("Prioridade na banca" x "Fraqueza × incidência"). Cada opção leva junto
-       o "quando usar" como dica — a mesma explicação dos dois lados. */
-    const ORDENS = (typeof PlanoEngine !== 'undefined' && PlanoEngine.ORDENS)
-      ? Object.keys(PlanoEngine.ORDENS).map(k => [k, PlanoEngine.ORDENS[k].rot, PlanoEngine.ORDENS[k].quando])
-      : [['pior', '🔴 Pior acerto primeiro', '']];
-    const temInc = (typeof ReforcoEngine !== 'undefined') && ReforcoEngine.hasIncidencia && ReforcoEngine.hasIncidencia();
+    if (!this._planoCand.length) { showToast('Todas as frentes prioritárias já têm atividade'); return; }
+    /* Nascem marcadas exatamente as frentes que o Motor colocaria na rodada de
+       hoje — a tela de Extras não pode discordar da aba do Motor. */
+    const naFila = new Set(this._planoFila || []);
+    this._planoCand.forEach((x, i) => { if (naFila.has(x.disciplina + '\u0001' + x.nome)) this._planoSel.add(i); });
+    if (!this._planoSel.size) this._planoSel.add(0);
 
     // HTML fixo do diálogo (a lista e o dropdown de disciplinas são preenchidos por JS)
     const body = `
-      <p class="hint" style="margin:0 0 10px;">Cada item vira uma atividade de questões com a meta já calculada. Ao importar o próximo retrato do TEC, o Plano avisa se o assunto saiu da lista.</p>
+      <p class="hint" style="margin:0 0 10px;">A fila é a do 🧭 Motor de sugestão, na fase ${this._planoFase === 'pos' ? '<b>pós-edital</b> (peso pela incidência da banca)' : '<b>pré-edital</b> (peso pelo seu volume no TEC)'}. As ${this._planoPrefs.alvoQuestoes} questões do caderno são repartidas entre as frentes que você marcar.</p>
       <div class="pl-modal-tools">
-        <label class="pl-modal-field">
-          <span>Prioridade</span>
-          <select id="pl-ordenar">
-            ${ORDENS.map(o => `<option value="${o[0]}" title="${escapeHtml(o[2] || '')}" ${o[0] === this._planoOrd ? 'selected' : ''} ${o[0] === 'banca' && !temInc ? 'disabled' : ''}>${escapeHtml(o[1])}${o[0] === 'banca' && !temInc ? ' (importe a incidência)' : ''}</option>`).join('')}
-          </select>
-        </label>
         <div class="pl-modal-field" style="position:relative;">
           <span>Disciplinas</span>
           <button type="button" class="pl-disc-toggle" id="pl-disc-toggle">Todas <span class="chev">▾</span></button>
@@ -383,23 +368,24 @@ const ExtrasScreen = {
 
     new Promise((resolve) => {
       UI._resolve = resolve; UI._mode = 'confirm';
-      UI._open('🏁 Puxar do Plano', 'Assuntos prioritários com meta pronta', body, { okText: 'Criar atividades' });
+      UI._open('🧭 Puxar do Motor', 'As frentes que o motor escolheu, com a dose já repartida', body, { okText: 'Criar atividades' });
     }).then((ok) => {
       if (!ok) return;
       const criar = () => {
         let n = 0;
+        const doses = this._planoDoses();
         (this._planoCand || []).forEach((x, i) => {
           if (!this._planoSel || !this._planoSel.has(i)) return;
           const e = DB.addExtra({
             // o mesmo título dos dois portões (ver `PlanoCiclo.titulo`)
-            titulo: PlanoCiclo.titulo(x.nome, x.motivo, x.membros),
+            titulo: PlanoCiclo.titulo(x.nome, 'reforco', x.membros),
             tipo: 'questoes', disciplina: x.disciplina || '', unidade: 'questoes',
-            alvo: Math.max(1, x.alvo), periodo: 'unica', contaMetricas: false,
-            obs: 'Gerado pelo Plano de pontos fracos.'
+            alvo: Math.max(1, doses[i] || this._planoPrefs.doseMin), periodo: 'unica', contaMetricas: false,
+            obs: 'Gerado pelo Motor de sugestão.'
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: x.motivo }) }); n++; }
+          if (e) { DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(x.nome, x.disciplina, x, { motivo: 'reforco' }) }); n++; }
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -412,12 +398,30 @@ const ExtrasScreen = {
     // liga a interface do diálogo depois de renderizado
     setTimeout(() => this._planoBind(), 40);
   },
+  /* A DOSE DEPENDE DE QUEM ESTÁ MARCADO. O caderno tem um tamanho só; marcar
+     mais frentes não o aumenta, reparte-o mais fino. Mostrar a dose mudando a
+     cada clique é o que torna esse limite visível antes de criar as atividades
+     — e é a mesma função de rateio que a aba do Motor usa. */
+  _planoDoses() {
+    const cand = this._planoCand || [];
+    const p = this._planoPrefs || MotorSugestao.prefs();
+    const escolhidos = [...(this._planoSel || [])].sort((a, b) => a - b)
+      .map(i => ({ i, x: cand[i] })).filter(o => o.x);
+    if (!escolhidos.length) return {};
+    const copia = escolhidos.map(o => ({ score: o.x.score }));
+    MotorSugestao.dosar(copia, p.alvoQuestoes, 0);
+    const out = {};
+    escolhidos.forEach((o, k) => { out[o.i] = copia[k].dose; });
+    return out;
+  },
   // Preenche a lista de assuntos do diálogo conforme o filtro de disciplinas atual.
   _planoRenderLista() {
     const host = document.getElementById('pl-lista');
     if (!host) return;
     const sel = this._planoDiscSel;
     const cand = this._planoCand || [];
+    const doses = this._planoDoses();
+    const pos = this._planoFase === 'pos';
     const visiveis = cand
       .map((x, i) => ({ x, i }))
       .filter(({ x }) => sel.size === 0 || sel.has(x.disciplina || ''));
@@ -425,21 +429,20 @@ const ExtrasScreen = {
       <label class="sug-row pl-linha" style="align-items:flex-start;">
         <input type="checkbox" class="pl-pick" data-i="${i}" ${this._planoSel.has(i) ? 'checked' : ''}>
         <div style="min-width:0;">
-          <div style="font-weight:700;">${escapeHtml(x.nome)}</div>
+          <div style="font-weight:700;">${escapeHtml(x.nome)}${x.agregado ? ` <span class="ms-selo">bloco${x.membros ? ' · ' + x.membros.length + ' ramos' : ''}${x.residuo > 0 ? ' · resto não detalhado' : ''}</span>` : ''}</div>
           <div class="hint" style="margin:2px 0 0;">
             ${x.disciplina ? escapeHtml(x.disciplina) + ' · ' : ''}
-            ${x.taxa != null ? x.taxa.toFixed(0) + '% de acerto' : 'sem taxa'} em ${x.qJanela} questões
-            ${(x.incid > 0) ? ' · 🎯 incidência ' + x.incid : ''} ·
-            ${x.motivo === 'diagnostico'
-              ? `<strong>diagnóstico</strong>: resolver ${x.alvo} para saber onde está`
-              : `<strong>reforço</strong>: ${x.alvo} questões · +${x.ganhoPP.toFixed(1)}pp de domínio`}
+            ${Math.round(x.taxaErro)}% de erro em ${x.questoes} questões
+            ${x.margem != null ? ' · margem ±' + (Math.round(x.margem * 10) / 10) + 'pp' : ''}
+            ${pos ? ' · 🎯 incidência ' + x.peso : ''}
+            ${doses[i] ? ' · <strong>' + doses[i] + ' questões nesta rodada</strong>' : ''}
           </div>
         </div>
-      </label>`).join('') : `<p class="hint" style="padding:16px 4px;">Nenhum assunto nas disciplinas selecionadas.</p>`;
+      </label>`).join('') : `<p class="hint" style="padding:16px 4px;">Nenhuma frente nas disciplinas selecionadas.</p>`;
     host.querySelectorAll('.pl-pick').forEach(cb => cb.addEventListener('change', () => {
       const i = parseInt(cb.dataset.i, 10);
       if (cb.checked) this._planoSel.add(i); else this._planoSel.delete(i);
-      this._planoUpdConta();
+      this._planoRenderLista();
     }));
     this._planoUpdConta();
   },
@@ -450,8 +453,10 @@ const ExtrasScreen = {
     const cand = this._planoCand || [];
     const vis = cand.filter(x => sel.size === 0 || sel.has(x.disciplina || '')).length;
     const marcados = this._planoSel ? this._planoSel.size : 0;
-    conta.innerHTML = (sel.size === 0 ? `${vis} assunto(s)` : `${vis} assunto(s) em ${sel.size} disciplina(s)`)
-      + ` · <strong>${marcados} marcado(s)</strong>`;
+    const p = this._planoPrefs || MotorSugestao.prefs();
+    conta.innerHTML = (sel.size === 0 ? `${vis} frente(s)` : `${vis} frente(s) em ${sel.size} disciplina(s)`)
+      + ` · <strong>${marcados} marcada(s)</strong>`
+      + (marcados ? ` · caderno de ${p.alvoQuestoes} questões repartido entre elas` : '');
   },
   // Monta o dropdown de disciplinas (com contagem de pontos fracos) e liga tudo.
   _planoBind() {
@@ -495,23 +500,6 @@ const ExtrasScreen = {
       toggle.classList.toggle('open', this._planoDiscOpen);
     });
     setToggleLabel();
-    // seletor de prioridade → recomputa e repinta
-    const ord = document.getElementById('pl-ordenar');
-    if (ord) ord.addEventListener('change', () => {
-      const executar = () => {
-        this._planoOrd = ord.value;
-        this._planoRecalc();
-        // mantém as marcações por NOME do assunto ao reordenar
-        const marcadosNomes = new Set([...this._planoSel].map(i => (cand[i] || {}).nome).filter(Boolean));
-        this._planoSel = new Set();
-        (this._planoCand || []).forEach((x, i) => { if (marcadosNomes.has(x.nome)) this._planoSel.add(i); });
-        // atualiza o dropdown de disciplinas (a contagem pode mudar) e a lista
-        this._planoBind();
-        this._planoRenderLista();
-      };
-      if (window.WorkFeedback) WorkFeedback.run(null, 'Reordenando sugestões…', executar, { overlay: true, region: '#ui-modal', context: 'extras-plano-ordem' });
-      else executar();
-    });
     // marcar visíveis / limpar
     const marcar = document.getElementById('pl-marcar');
     if (marcar) marcar.addEventListener('click', () => {

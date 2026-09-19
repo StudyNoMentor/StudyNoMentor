@@ -164,30 +164,4 @@
     };
   }
 
-  /* Defesa visual: o template já escreve “+ focar”/“✓ em foco”. Esta camada
-     transforma isso em invariante de UI; nenhuma decoração posterior pode
-     deixar um botão de foco sem rótulo, cor legível ou nome acessível. */
-  const garantirRotulosFoco = () => {
-    if (typeof PlanoEngine === 'undefined') return;
-    let foco = null;
-    try { foco = PlanoEngine.focoSet(PlanoEngine.prefs()); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'foco-rotulo'); }
-    document.querySelectorAll('#tec-panel-plano .pl-foco-bt').forEach(b => {
-      const nome = b.dataset.foco || '';
-      const ligado = !!(nome && foco && PlanoEngine.noFoco(nome, foco));
-      const txt = ligado ? '✓ em foco' : '+ focar';
-      if (!String(b.textContent || '').trim()) b.textContent = txt;
-      b.setAttribute('aria-pressed', ligado ? 'true' : 'false');
-      b.setAttribute('aria-label', (ligado ? 'Tirar do foco: ' : 'Adicionar ao foco: ') + nome);
-    });
-  };
-  window.garantirRotulosFocoPlano = garantirRotulosFoco;
-
-  if (typeof DesempenhoTecScreen !== 'undefined' && typeof DesempenhoTecScreen.renderPlanoConteudo === 'function') {
-    const renderConteudo = DesempenhoTecScreen.renderPlanoConteudo;
-    DesempenhoTecScreen.renderPlanoConteudo = function() {
-      const ret = renderConteudo.apply(this, arguments);
-      garantirRotulosFoco();
-      return ret;
-    };
-  }
 })();

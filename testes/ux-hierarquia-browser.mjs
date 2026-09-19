@@ -89,31 +89,15 @@ try{
     UXHierarchy.decorateTec();
     return {
       entryVisivel:fake.hidden===false,
-      seletorDuplicadoNoPlano:!!document.querySelector('#tec-panel-plano [data-tpm-selector]'),
-      modosHidden:document.getElementById('plano-modos')?.hidden!==false,
-      notaHidden:document.getElementById('plano-modo-nota')?.hidden!==false,
-      oldCfgVisible:document.querySelector('#tec-panel-plano .tec-cfg-bar')?.hidden===false,
-      motoresLabel:document.querySelector('.tec-subtab[data-tectab="motores"]')?.textContent||''
+      portaDoMotor:!!document.querySelector('#tec-panel-motor .tec-cfg-open'),
+      abaDoMotor:document.querySelector('.tec-subtab[data-tectab="motor"]')?.textContent||'',
+      abasLegadas:document.querySelectorAll('.tec-subtab[data-tectab="plano"],.tec-subtab[data-tectab="reforco"],.tec-subtab[data-tectab="motores"]').length
     };
   });
-  /* ── QUAL DOS DOIS SELETORES DESAPARECE ──────────────────────────────────
-     Havia duas caixas identicas para escolher o motor: `[data-tpm-entry]`
-     acima das abas e `[data-tpm-selector]` ("FONTE DA DECISAO") dentro do
-     Plano. Este teste exigia que a de cima ficasse oculta — mas
-     `TecPlanoFonteMotor.renderEntry()` a recria a cada render do TEC, DEPOIS
-     desta passada de decoracao, entao na tela real as duas reapareciam juntas
-     e a asserção so passava aqui porque o teste chama `decorateTec()` por
-     ultimo.
-
-     A duplicata removida foi a de dentro do Plano, que valia so ali; a de cima
-     vale para todas as abas e e onde a escolha naturalmente se faz. O teste
-     passa a garantir as duas metades disso: a de cima existe e esta visivel, e
-     a de dentro do Plano nao existe mais. */
-  ok(tec.entryVisivel,'o seletor de motor acima das abas e o unico e deve estar visivel');
-  ok(!tec.seletorDuplicadoNoPlano,'a segunda caixa de escolha de motor dentro do Plano nao deve existir');
-  ok(tec.modosHidden&&tec.notaHidden,'decisores legados do Plano não devem disputar com Simplificado/Robusto');
-  ok(tec.oldCfgVisible,'ajustes analíticos válidos devem manter uma porta compacta e focável');
-  ok(!tec.motoresLabel||tec.motoresLabel.includes('Modelos'),'nomenclatura técnica Motores deve virar Modelos na interface');
+  ok(tec.entryVisivel,'a faixa acima das abas deve estar visivel');
+  ok(tec.portaDoMotor,'a aba do Motor mantem uma porta compacta e focavel para os ajustes');
+  ok(tec.abaDoMotor.includes('Motor'),'a aba de decisao se chama Motor de sugestao');
+  ok(tec.abasLegadas===0,'as abas dos motores antigos nao existem mais');
 
   /* ── UM AGRUPADOR SO EM CONFIGURACOES ────────────────────────────────────
      Este teste exigia que quatro cartoes (espaco usado, recuperacao, versoes

@@ -38,11 +38,10 @@ tem(gov, 'Registrar leitura', 'registro dedicado de leitura precisa existir');
 tem(gov, 'DB.addExtraProgress(atual.id,q,m', 'registro de lei deve armazenar linhas e minutos');
 
 // TEC: parâmetros órfãos e carga sob demanda.
-tem(tec, "'plano-sug-disciplinas','plano-sug-topicos'", 'os dois parâmetros de sugestão precisam de listeners');
-tem(tec, 'DT.agendarPlano(false)', 'digitação deve continuar debounced');
 tem(tec, "this._tpAnalysisDirty=true", 'análise oculta deve virar lazy/dirty em vez de render imediato');
-tem(tec, "PlanFastCache.withCache", 'render do Plano deve compartilhar cache pesado');
+tem(tec, "medir('motor'", 'o tempo do Motor precisa ser instrumentado como o das demais abas');
 tem(tec, 'auditoriaParametros()', 'TEC precisa auditar cobertura dos parâmetros');
+tem(tec, 'MotorSugestao.DEFAULTS', 'a auditoria de parâmetros tem de sair dos padrões do próprio motor');
 /* ── O MARCADOR DO SHELL NAO PODE SER O TEXTO QUE ELE EXIBE ────────────────
    Esta linha procurava a string 'CENTRAL DE DESEMPENHO' — o rotulo maiusculo
    que a faixa mostrava. O que ela quer garantir e que o shell operacional do

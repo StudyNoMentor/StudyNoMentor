@@ -148,12 +148,6 @@
 #screen-desempenhotec #plano-modos[hidden],#screen-desempenhotec #plano-modo-nota[hidden]{display:none!important}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings{opacity:1;margin-bottom:10px}
 #screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:hover,#screen-desempenhotec .tec-cfg-bar.ux-analysis-settings:focus-within{opacity:1}
-html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:not([data-tpm-panorama]){display:none!important}
-#screen-desempenhotec .tpm-output.ux-force-task{border-color:color-mix(in srgb,var(--accent) 30%,var(--border));box-shadow:0 10px 28px color-mix(in srgb,var(--accent) 6%,transparent)}
-#screen-desempenhotec .tpm-output.ux-force-task>header strong{font-size:clamp(18px,2vw,23px)}
-#screen-desempenhotec .tpm-output.ux-force-task .tpm-recs{gap:12px}
-#screen-desempenhotec .tpm-output.ux-force-task .tpm-rec{border-color:color-mix(in srgb,var(--accent) 18%,var(--border))}
-#screen-desempenhotec .tpm-ranking{margin-top:20px;padding-top:16px}
 /* A distinção de "aba secundária" saiu por inteiro. Ela passou por dois
    tratamentos e nenhum funcionou: `opacity:.72` deixava "⚙ Modelos" mais
    pálida que as vizinhas (lê-se "desabilitada"), e a borda tracejada que a
@@ -194,7 +188,6 @@ html.tpm-motors-active #screen-desempenhotec #plano-proj>.ux-legacy-projection:n
   #ux-evo-more>summary,#ux-config-data>summary{padding:14px}
   #ux-evo-more .ux-more-analysis-body{padding:0 10px 10px;gap:10px}
   #ux-config-data .ux-config-data-body{padding:0 9px 9px}
-  #screen-desempenhotec .tpm-output.ux-force-task{padding:12px}
 }
 
 @media(max-width:430px){

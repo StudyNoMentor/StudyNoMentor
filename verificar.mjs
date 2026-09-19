@@ -948,21 +948,24 @@ try {
 } catch (e) { erro('teste do caminho da nuvem falhou: ' + e.message); }
 
 
-/* ── 6.8) O PLANO COM DADO DE VERDADE ──────────────────────────────────────
-   A maior tela do app era invisivel para a verificacao: sem retratos
-   importados, o painel do Plano nem existe no DOM, entao a navegacao da etapa 6
-   e o contraste da etapa 7 passavam por cima dele. Aqui os retratos sinteticos
-   entram ANTES da etapa 7 — assim o plano renderizado (modos, bloco da semana,
-   explicacao da ordem, lista, fonte explicita das sugestoes e lacunas do edital) tambem e
-   medido nos dois temas, sem nenhum checador novo. */
-console.log('\n6.8) o Plano de pontos fracos renderiza com dado real');
+/* ── 6.8) O MOTOR DE SUGESTAO COM DADO DE VERDADE ──────────────────────────
+   A tela que decide era invisivel para a verificacao: sem retratos importados
+   o painel nem existe no DOM, entao a navegacao da etapa 6 e o contraste da
+   etapa 8 passavam por cima dele. Os retratos sinteticos entram ANTES da etapa
+   7 — assim a fila renderizada tambem e medida nos dois temas.
+
+   O que se cobra aqui e o contrato da tela, nao a aritmetica (essa tem teste
+   proprio em AutoTeste.motorSugestao): a fila aparece, cada linha diz a margem
+   que a manteve naquele nivel, o par pre/pos troca a fonte do peso, e o botao
+   de virar atividade realmente cria a atividade ligada ao motor. */
+console.log('\n6.8) o Motor de sugestao renderiza com dado real');
 try {
   await pag.setViewportSize({ width: 360, height: 780 });
-  const plano = await pag.evaluate(() => {
+  await pag.evaluate(() => {
     const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
     const L = (c, n, disc, q, ac) => ({ depth: 1, codigo: c, nome: n, disciplina: disc, questoes: q, acertos: ac });
     // linha de DISCIPLINA (o export do TEC traz uma para cada): é dela que saem
-    // os totais e é nela que o Reforco procura o desempenho do ramo inteiro
+    // os totais e é nela que a arvore pendura os topicos
     const D = (n, q, ac) => ({ depth: 0, codigo: null, nome: n, disciplina: n, questoes: q, acertos: ac });
     const R = (id, i, f, rows) => ({ id, nome: id, date: f, startDate: i, endDate: f, rows });
     DB._set(DB.KEYS.tec, [
@@ -980,91 +983,92 @@ try {
       .forEach((n) => { if (!DB.getSubjects().some((s) => s.nome === n)) DB.addSubject({ nome: n }); });
     switchScreen('desempenhotec');
     DesempenhoTecScreen.render();
-    DesempenhoTecScreen.switchTecTab('plano');
-    return true;
+    DesempenhoTecScreen.switchTecTab('motor');
   });
   await pag.waitForTimeout(500);
   const est = await pag.evaluate(() => {
     const q = (s) => document.querySelector(s);
-    const txt = (s) => { const e = q(s); return e ? e.innerText : ''; };
     return {
-      modos: document.querySelectorAll('#plano-modos .pl-modo').length,
-      dominio: /\d+\.\d%/.test(txt('#plano-proj')) || /% de dom/i.test(txt('#plano-proj')),
-      bloco: !!q('.pl-hoje'), ordem: !!q('.pl-ordem'), porque: !!q('.pl-porque'),
-      edital: !!q('.pl-edital'), fonte: !!q('[data-tpm-output]') || !!q('[data-tpm-selector]'),
-      itens: document.querySelectorAll('#plano-lista .pl-item').length,
+      fases: document.querySelectorAll('#motor-fase button[data-fase]').length,
+      faseAtiva: document.querySelectorAll('#motor-fase button.active').length,
+      itens: document.querySelectorAll('#motor-lista .ms-item').length,
+      comMargem: [...document.querySelectorAll('#motor-lista .ms-item')]
+        .filter((it) => /margem/.test(it.innerText)).length,
+      comDose: [...document.querySelectorAll('#motor-lista .ms-dose')]
+        .filter((d) => parseInt(d.textContent, 10) > 0).length,
+      resumo: (q('.ms-resumo') || {}).innerText || '',
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      /* Os campos moram na folha de ajustes. Contar `#tec-panel-plano .rfc-field`
-         daria zero e o teste passaria sem olhar nada. */
-      semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field > label')]
+      semDica: [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="motor"] .rfc-field > label')]
         .filter((l) => !l.querySelector('.info-dot')).length,
-      camposNaFolha: document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="plano"] .rfc-field').length
+      camposNaFolha: document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="motor"] .rfc-field').length
     };
   });
-  est.modos >= 5 ? ok(`${est.modos} modos de ataque com explicacao propria`) : erro('os modos de ataque nao renderizaram: ' + est.modos);
-  (est.bloco && est.ordem && est.porque) ? ok('bloco da semana, explicacao da ordem e "por que o 1o" presentes')
-    : erro('faltam blocos do plano: ' + JSON.stringify(est));
-  est.itens >= 3 ? ok(`${est.itens} assuntos listados`) : erro('a lista do plano veio vazia');
-  est.fonte ? ok('fonte explicita das sugestoes presente') : erro('fonte explicita das sugestoes ausente');
-  est.edital ? ok('lacunas do planejamento sem medicao no TEC presentes') : erro('bloco de lacunas do edital ausente');
-  est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o plano vaza ${est.overflow}px na horizontal a 360px`);
-  /* Todo campo de ajuste tem de ter o seu "i". Um campo novo sem explicacao e
-     exatamente como esta tela ficou confusa da primeira vez. */
-  (est.semDica === 0 && est.camposNaFolha >= 20)
-    ? ok(`todos os ${est.camposNaFolha} campos de ajuste do Plano tem dica explicativa`)
+  est.fases === 2 && est.faseAtiva === 1
+    ? ok('o par pre/pos aparece com exatamente uma fase valendo')
+    : erro('o seletor de fase nao renderizou: ' + JSON.stringify(est));
+  est.itens >= 2 ? ok(`${est.itens} frente(s) na fila do motor`) : erro('a fila do motor veio vazia');
+  est.comMargem === est.itens && est.itens > 0
+    ? ok('toda linha declara a margem que a manteve naquele nivel da arvore')
+    : erro(`${est.itens - est.comMargem} linha(s) sem a margem declarada`);
+  est.comDose === est.itens && est.itens > 0
+    ? ok('toda frente saiu com dose maior que zero')
+    : erro('ha frente com dose zero na fila: ' + JSON.stringify(est));
+  /questões no caderno/.test(est.resumo)
+    ? ok('o resumo diz de quantas questoes e o caderno repartido')
+    : erro('o resumo do motor nao diz o tamanho do caderno: ' + est.resumo);
+  est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o motor vaza ${est.overflow}px na horizontal a 360px`);
+  (est.semDica === 0 && est.camposNaFolha >= 4)
+    ? ok(`todos os ${est.camposNaFolha} campos de ajuste do Motor tem dica explicativa`)
     : erro(`${est.semDica} campo(s) sem o "i" (de ${est.camposNaFolha} encontrados — se veio zero, o seletor perdeu os campos)`);
-  /* Os rotulos das ordens moram numa tabela so. Se o select voltar a ser uma
-     copia estatica, ele diverge do texto que explica a ordem escolhida — foi
-     exatamente o que aconteceu com o dialogo "Puxar do Plano". */
-  const ord = await pag.evaluate(() => {
-    const sel = document.getElementById('plano-ordenar');
-    // as ordens que só existem pós-edital não entram no seletor no pré
-    const chaves = Object.keys(PlanoEngine.ORDENS).filter((k) => !PlanoEngine.ORDENS[k].soPos);
-    return {
-      opcoes: sel ? [...sel.options].map((o) => o.value) : [],
-      semDica: sel ? [...sel.options].filter((o) => !o.title).length : -1,
-      chaves,
-      textoBate: sel ? [...sel.options].every((o) => o.text === PlanoEngine.ORDENS[o.value].rot) : false
-    };
+
+  /* A poda e a promessa central: nenhuma frente pode chegar a tela com uma
+     margem MAIOR que a tolerada sem estar marcada como bloco — se isso
+     acontece, a tela esta recomendando ruido com cara de diagnostico. */
+  const poda = await pag.evaluate(() => {
+    const r = MotorSugestao.calcular();
+    const p = MotorSugestao.prefs();
+    const foraDaRegua = (r.itens || []).filter((x) => !x.agregado && (x.margem == null || x.margem > p.margemMax));
+    return { margemMax: p.margemMax, fora: foraDaRegua.length, total: (r.itens || []).length };
   });
-  (ord.opcoes.length === ord.chaves.length && ord.semDica === 0 && ord.textoBate)
-    ? ok(`as ${ord.opcoes.length} ordens de ataque saem da mesma tabela, cada uma com "quando usar"`)
-    : erro('o select de ordem divergiu da tabela do motor: ' + JSON.stringify(ord));
-  /* O botao que vira o plano em TAREFA e o unico ponto da tela que muda dados.
-     Se ele quebra, a tela inteira volta a ser um relatorio bonito. */
-  const lote = await pag.evaluate(() => {
+  poda.fora === 0 && poda.total > 0
+    ? ok(`as ${poda.total} frentes oferecidas cabem na margem de ±${poda.margemMax}pp (ou sao blocos declarados)`)
+    : erro('a poda deixou passar frente fora da regua: ' + JSON.stringify(poda));
+
+  /* Trocar a fase troca a FONTE DO PESO, e sem incidencia importada o pos tem
+     de dizer isso em vez de inventar um ranking. */
+  const pos = await pag.evaluate(() => {
+    document.querySelector('#motor-fase button[data-fase="pos"]').click();
+    return { fase: MotorSugestao.prefs().fase, texto: (document.getElementById('motor-lista') || {}).innerText || '' };
+  });
+  (pos.fase === 'pos' && /incid/i.test(pos.texto))
+    ? ok('o pos-edital sem incidencia importada explica o que falta, em vez de chutar')
+    : erro('a troca para o pos-edital nao respondeu: ' + JSON.stringify(pos));
+  await pag.evaluate(() => { document.querySelector('#motor-fase button[data-fase="pre"]').click(); });
+  await pag.waitForTimeout(200);
+
+  /* O botao que vira sugestao em TAREFA e o unico ponto da tela que muda
+     dados. Se ele quebra, a tela inteira volta a ser um relatorio bonito. */
+  const criar = await pag.evaluate(() => {
     const antes = DB.getExtras().length;
-    const b = document.getElementById('plano-lote');
+    const b = document.querySelector('#motor-lista [data-motor-extra]');
     if (!b) return { faltando: true };
     b.click();
     const depois = DB.getExtras();
     return { criadas: depois.length - antes, comOrigem: depois.filter((e) => e.origemPlano && e.origemPlano.topico).length };
   });
-  (!lote.faltando && lote.criadas >= 1 && lote.comOrigem >= 1)
-    ? ok(`criar em lote gerou ${lote.criadas} atividade(s) ligada(s) ao Plano`)
-    : erro('o botao de criar atividades em lote nao funcionou: ' + JSON.stringify(lote));
-  // trocar de modo de ataque tem de reconfigurar o plano de verdade
-  const modo = await pag.evaluate(() => {
-    const b = document.querySelector('#plano-modos .pl-modo[data-modo="curto"]');
-    if (!b) return { faltando: true };
-    b.click();
-    const p = PlanoEngine.prefs();
-    return { ordenar: p.ordenar, limite: p.limite, ativo: PlanoEngine.modoAtivo(p) };
-  });
-  await pag.waitForTimeout(250);
-  (modo.ativo === 'curto' && modo.ordenar === 'rendimento')
-    ? ok('trocar de modo de ataque reconfigura o plano (⏱️ Tempo curto)')
-    : erro('o modo de ataque nao foi aplicado: ' + JSON.stringify(modo));
+  (!criar.faltando && criar.criadas === 1 && criar.comOrigem >= 1)
+    ? ok('virar uma frente em atividade grava a origem que fecha o ciclo')
+    : erro('o botao de criar atividade do motor nao funcionou: ' + JSON.stringify(criar));
   await pag.setViewportSize({ width: 1280, height: 900 });
-} catch (e) { erro('o Plano nao renderizou com dado real: ' + e.message); }
+} catch (e) { erro('o Motor nao renderizou com dado real: ' + e.message); }
 
 
 /* ── 6.9) AS OUTRAS TRES ABAS DO DESEMPENHO TEC ────────────────────────────
-   Analise, Incidencia e Reforco tinham a mesma sorte que o Plano tinha antes:
+   Analise e Incidencia tinham a mesma sorte que a tela de decisao tinha antes:
    nenhuma checagem chegava nelas com dado de verdade. As invariantes abaixo
    sao as que, quando quebram, quebram calado — um numero plausivel no lugar
    de um numero certo. */
-console.log('\n6.9) Analise, Incidencia e Reforco com dado real');
+console.log('\n6.9) Analise e Incidencia com dado real');
 try {
   await pag.setViewportSize({ width: 360, height: 780 });
   // ── ANALISE ──────────────────────────────────────────────────────────────
@@ -1128,55 +1132,66 @@ try {
     : erro('a incidencia duplicou ao reimportar: ' + JSON.stringify(inc));
   inc.renomeou ? ok('renomear uma banca preserva o que ja foi importado') : erro('renomear banca nao funcionou');
 
-  // ── REFORCO ──────────────────────────────────────────────────────────────
-  const rf = await pag.evaluate(async () => {
-    const ler = () => ({
-      itens: document.querySelectorAll('#reforco-list .reforco-row').length,
-      status: (document.getElementById('reforco-status') || {}).innerText || '',
-      casamento: (document.getElementById('reforco-casamento') || {}).innerText || ''
-    });
-    // 1) SEM incidencia: a aba tem de funcionar pelo erro puro
-    const guardado = DB.getIncidencia();
-    DB.saveIncidencia([]);
-    DesempenhoTecScreen.switchTecTab('reforco');
-    await new Promise((r) => setTimeout(r, 250));
-    const sem = ler();
-    // 2) COM incidencia
-    DB.saveIncidencia(guardado);
-    DesempenhoTecScreen.renderReforco();
-    await new Promise((r) => setTimeout(r, 250));
-    const com = ler();
-    // 3) granularidade em tres estados
-    const tog = document.getElementById('reforco-gran-toggle');
-    const antes = document.getElementById('reforco-gran').value;
-    tog.querySelector('button[data-gran="0"]').click();
+  // ── ORDEM DA ARVORE (a replica do TecConcursos) ──────────────────────────
+  /* A promessa da Analise e que a ordem escolhida vale em TODOS os niveis: e
+     por isso que se pode abrir a disciplina mais fraca e cair direto no
+     subtopico que a puxa. Ordenar so o primeiro nivel passaria neste teste se
+     ele olhasse apenas a raiz — entao ele abre um ramo e confere os filhos. */
+  const arv = await pag.evaluate(async () => {
+    switchScreen('desempenhotec');
+    DesempenhoTecScreen.switchTecTab('analise');
+    const pct = (el) => {
+      const m = (el.querySelector('.tnode-pct b') || {}).textContent || '';
+      return parseFloat(String(m).replace('%', '').replace(',', '.'));
+    };
+    const raizes = () => [...document.querySelectorAll('#tec-disc-list > .tec-tree > .tnode > .tnode-row')].map(pct);
+    const clicar = (ordem) => {
+      document.querySelector('#tec-ordem button[data-ordem="' + ordem + '"]').click();
+    };
+    clicar('fracos');
     await new Promise((r) => setTimeout(r, 200));
-    const gran = { valor: document.getElementById('reforco-gran').value, ativos: tog.querySelectorAll('button.active').length };
-    tog.querySelector('button[data-gran="' + antes + '"]').click();
+    const fracos = raizes();
+    clicar('fortes');
     await new Promise((r) => setTimeout(r, 200));
-    return { sem, com, gran };
+    const fortes = raizes();
+    clicar('fracos');
+    await new Promise((r) => setTimeout(r, 200));
+    // abre o primeiro ramo com filhos e le a ordem DENTRO dele
+    const pai = [...document.querySelectorAll('#tec-disc-list .tnode[data-haskids="1"]')][0];
+    let filhos = [];
+    if (pai) {
+      pai.querySelector('.tnode-row').click();
+      await new Promise((r) => setTimeout(r, 200));
+      filhos = [...pai.querySelectorAll(':scope > .tnode-children > .tnode > .tnode-row')].map(pct);
+    }
+    const linha = document.querySelector('#tec-disc-list .tnode-row');
+    return {
+      fracos, fortes, filhos,
+      temQuestoes: !!(linha && linha.querySelector('.tnode-q')),
+      temErro: !!(linha && linha.querySelectorAll('.tnode-pct b').length === 2)
+    };
   });
-  rf.sem.itens > 0 ? ok(`sem incidencia o Reforco ordena pelo seu erro (${rf.sem.itens} assuntos)`)
-    : erro('sem incidencia o Reforco continua vazio: ' + JSON.stringify(rf.sem));
-  /^(?!.*prioriza só pelo seu erro\.).*$/.test(rf.sem.status) && /só pelo seu erro/.test(rf.sem.status)
-    ? ok('e o status explica que a fila esta cega para a prova')
-    : erro('status do Reforco sem incidencia: ' + rf.sem.status.slice(0, 120));
-  rf.com.itens > 0 ? ok(`com incidencia o ranking cruza banca e erro (${rf.com.itens} unidades)`)
-    : erro('o Reforco com incidencia veio vazio');
-  /Improbidade/.test(rf.com.casamento)
-    ? ok('assunto da banca sem correspondencia vira aviso de casamento, nao ponto cego')
-    : erro('o aviso de casamento nao apareceu: ' + rf.com.casamento.slice(0, 120));
-  (rf.gran.valor === '0' && rf.gran.ativos === 1)
-    ? ok('granularidade e um seletor de tres estados, nao um cursor de 101')
-    : erro('o seletor de granularidade nao respondeu: ' + JSON.stringify(rf.gran));
+  const crescente = (a) => a.every((v, i) => i === 0 || a[i - 1] <= v);
+  (arv.fracos.length > 1 && crescente(arv.fracos))
+    ? ok(`"pontos fracos" ordena as ${arv.fracos.length} disciplinas do pior para o melhor`)
+    : erro('a ordem por pontos fracos nao ordenou: ' + JSON.stringify(arv.fracos));
+  (arv.fortes.length > 1 && crescente(arv.fortes.slice().reverse()))
+    ? ok('"pontos fortes" inverte a mesma lista')
+    : erro('a ordem por pontos fortes nao inverteu: ' + JSON.stringify(arv.fortes));
+  (arv.filhos.length > 1 ? crescente(arv.filhos) : arv.filhos.length >= 0)
+    ? ok('e a ordem vale dentro do ramo aberto, nao so na raiz')
+    : erro('os filhos nao seguiram a ordem do pai: ' + JSON.stringify(arv.filhos));
+  (arv.temQuestoes && arv.temErro)
+    ? ok('cada linha traz questoes resolvidas, acerto e erro — como na tela do TecConcursos')
+    : erro('a linha da arvore nao tem as colunas do TEC: ' + JSON.stringify(arv));
 
   // ── "i" em todos os controles das tres abas ─────────────────────────────
   const dicas = await pag.evaluate(() => {
     /* Inclui a FOLHA DE AJUSTES: e la que moram os campos das tres abas desde
        que a tela deixou de abrir em formulario. Sem esses dois seletores o
        teste conta zero campos e passa sem olhar nada. */
-    const alvos = ['#tec-panel-analise', '#tec-panel-incidencia', '#tec-panel-reforco',
-      '#tec-cfg-body .tec-cfg-sec[data-tab="analise"]', '#tec-cfg-body .tec-cfg-sec[data-tab="reforco"]'];
+    const alvos = ['#tec-panel-analise', '#tec-panel-incidencia', '#tec-panel-motor',
+      '#tec-cfg-body .tec-cfg-sec[data-tab="analise"]', '#tec-cfg-body .tec-cfg-sec[data-tab="motor"]'];
     let sem = [];
     alvos.forEach((a) => {
       document.querySelectorAll(a + ' .field > label, ' + a + ' .rfc-field > label').forEach((l) => {
@@ -1190,164 +1205,7 @@ try {
   dicas.length === 0 ? ok('todos os controles das tres abas tem dica explicativa')
     : erro(`${dicas.length} controle(s) sem "i": ` + dicas.slice(0, 6).join(' | '));
   await pag.setViewportSize({ width: 1280, height: 900 });
-} catch (e) { erro('as tres abas nao renderizaram com dado real: ' + e.message); }
-
-
-/* ── 6.10) OS CAMINHOS QUE SO EXISTEM NA TELA ──────────────────────────────
-   O motor tem teste proprio. O que so o navegador exerce — abrir o dialogo do
-   modo, marcar caixas, ver o botao mudar de rotulo — nao tinha nenhum. Sao
-   justamente os pontos onde um listener esquecido nao quebra nada: so deixa de
-   funcionar, calado (foi assim que o seletor de ordem dos pontos fracos nasceu
-   decorativo). */
-console.log('\n6.10) dialogos e escolhas do Plano, no navegador');
-try {
-  await pag.setViewportSize({ width: 390, height: 900 });
-  await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano'); });
-  await pag.waitForTimeout(400);
-
-  // ── ✎ EDITAR UM MODO ────────────────────────────────────────────────────
-  const edit = await pag.evaluate(async () => {
-    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    PlanoEngine.restaurarModo('curto');
-    document.querySelector('#plano-modos .pl-modo-edit[data-editar="curto"]').click();
-    await esperar(250);
-    const campo = document.getElementById('uip_metaDominio');
-    if (!campo) return { faltando: true };
-    const antes = campo.value;
-    campo.value = '92';
-    document.getElementById('ui-modal-ok').click();
-    await esperar(350);
-    return { antes, patch: PlanoEngine.modoPatch('curto'), editado: PlanoEngine.modoEditado('curto'),
-      ponto: !!document.querySelector('#plano-modos .pl-modo-edit-dot') };
-  });
-  (!edit.faltando && edit.patch.metaDominio === 92 && edit.editado && edit.ponto)
-    ? ok(`ajustar um modo pelo ✎ guarda o valor (meta ${edit.antes}% → 92%) e marca o chip`)
-    : erro('o dialogo de ajuste do modo nao funcionou: ' + JSON.stringify(edit));
-
-  // aplicar o modo ajustado tem de levar o valor ajustado para a tela
-  const aplicou = await pag.evaluate(async () => {
-    document.querySelector('#plano-modos .pl-modo[data-modo="curto"]').click();
-    await new Promise((r) => setTimeout(r, 350));
-    return { meta: PlanoEngine.prefs().metaDominio, campo: document.getElementById('plano-meta').value,
-      ativo: PlanoEngine.modoAtivo() };
-  });
-  (aplicou.meta === 92 && aplicou.campo === '92' && aplicou.ativo === 'curto')
-    ? ok('aplicar o modo ajustado leva o ajuste para o plano inteiro')
-    : erro('o modo ajustado nao foi aplicado: ' + JSON.stringify(aplicou));
-
-  // ── ↺ RESTAURAR SO AQUELE MODO ──────────────────────────────────────────
-  const rest = await pag.evaluate(async () => {
-    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    PlanoEngine.salvarModo('base', { custoPiso: 77 });      // outro modo tambem ajustado
-    DesempenhoTecScreen.renderPlano();
-    await esperar(150);
-    document.querySelector('#plano-modos .pl-modo-edit[data-editar="curto"]').click();
-    await esperar(250);
-    const sel = document.getElementById('uip_restaurar');
-    if (!sel) return { faltando: true };
-    sel.value = '1';
-    document.getElementById('ui-modal-ok').click();
-    await esperar(350);
-    return { curto: PlanoEngine.modoEditado('curto'), base: PlanoEngine.modoEditado('base'),
-      pisoBase: PlanoEngine.modoPatch('base').custoPiso,
-      /* O dialogo nasce de PlanoEngine.MODO_CAMPOS: cada campo declarado tem de
-         ter virado um campo na tela, e o passo de leitura NAO pode estar la. */
-      camposNoDialogo: PlanoEngine.MODO_CAMPOS.filter((c) => !document.getElementById('uip_' + c.key)).map((c) => c.key),
-      temLimite: !!document.getElementById('uip_limite') };
-  });
-  (!rest.faltando && rest.curto === false && rest.base === true && rest.pisoBase === 77)
-    ? ok('restaurar um modo devolve so ele ao padrao, sem tocar nos outros')
-    : erro('o restaurar por modo nao funcionou: ' + JSON.stringify(rest));
-  (rest.camposNoDialogo && rest.camposNoDialogo.length === 0 && rest.temLimite === false)
-    ? ok('o dialogo do modo mostra TODOS os parametros que o modo guarda — e so eles')
-    : erro('os campos do modo divergem do que ele guarda: ' + JSON.stringify(rest));
-  await pag.evaluate(() => { PlanoEngine.restaurarModo('base'); PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('base')); DesempenhoTecScreen.renderPlano(); });
-  await pag.waitForTimeout(300);
-
-  // ── ESCOLHER O QUE VIRA ATIVIDADE ───────────────────────────────────────
-  const escolha = await pag.evaluate(async () => {
-    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    let caixas = [...document.querySelectorAll('.pl-hoje-sel:not(:disabled)')];
-    /* O bloco multidisciplinar pode legitimamente abrir uma frente de CADA
-       disciplina elegível de uma vez. Neste fixture curto isso consome os três
-       assuntos medidos e não sobra checkbox livre para testar a troca manual.
-       A checagem da UI não deve depender desse saldo acidental: abrimos
-       temporariamente a régua de amostra para os dois assuntos curtos que já
-       existem no retrato, exercemos o listener e devolvemos a preferência ao
-       valor que o usuário tinha. O teste continua cobrando a interação real,
-       só deixa de pressupor que o algoritmo automático escolheu menos frentes. */
-    let minAmostraAntes = null;
-    if (caixas.length < 2) {
-      minAmostraAntes = PlanoEngine.prefs().minAmostra;
-      PlanoEngine.salvarPrefs({ minAmostra: 5 });
-      DesempenhoTecScreen.renderPlano();
-      await esperar(220);
-      caixas = [...document.querySelectorAll('.pl-hoje-sel:not(:disabled)')];
-    }
-    if (caixas.length < 2) {
-      if (minAmostraAntes != null) {
-        PlanoEngine.salvarPrefs({ minAmostra: minAmostraAntes });
-        DesempenhoTecScreen.renderPlano();
-      }
-      return { poucas: caixas.length };
-    }
-    const btn = document.getElementById('plano-lote');
-    // desmarca tudo: o botao tem de se desabilitar e dizer o que falta
-    caixas.forEach((c) => { if (c.checked) { c.checked = false; c.dispatchEvent(new Event('change', { bubbles: true })); } });
-    await esperar(120);
-    const vazio = { txt: btn.textContent.trim(), off: btn.disabled };
-    // marca SO um dos "proximos" (fora do bloco): tem de criar aquele, e so aquele
-    const alvo = caixas[caixas.length - 1];
-    const nome = alvo.dataset.topico;
-    alvo.checked = true; alvo.dispatchEvent(new Event('change', { bubbles: true }));
-    await esperar(120);
-    const um = { txt: btn.textContent.trim(), off: btn.disabled };
-    const antes = DB.getExtras().length;
-    btn.click();
-    await esperar(400);
-    const criadas = DB.getExtras().slice(antes);
-    const resultado = { vazio, um, nome, n: criadas.length,
-      casou: criadas.some((e) => e.origemPlano && e.origemPlano.topico === nome) };
-    if (minAmostraAntes != null) {
-      PlanoEngine.salvarPrefs({ minAmostra: minAmostraAntes });
-      DesempenhoTecScreen.renderPlano();
-      await esperar(160);
-    }
-    return resultado;
-  });
-  (escolha.vazio && escolha.vazio.off && /Marque ao menos/.test(escolha.vazio.txt))
-    ? ok('sem nada marcado, o botao se desabilita e pede a escolha')
-    : erro('o botao de criar nao reagiu a lista vazia: ' + JSON.stringify(escolha.vazio || escolha));
-  (escolha.n === 1 && escolha.casou && /Criar a atividade marcada/.test(escolha.um.txt))
-    ? ok('marcar um assunto da fila seguinte cria exatamente aquele')
-    : erro('a escolha do bloco nao criou o assunto certo: ' + JSON.stringify(escolha));
-
-  // ── A REGUA UNICA SEGUE O PLANO ATE VOCE MEXER ──────────────────────────
-  const regua = await pag.evaluate(async () => {
-    const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
-    const p = DesempenhoTecScreen._loadPrefs();
-    delete p.weakLimiar;
-    DB.setRaw(DesempenhoTecScreen._prefsKey(), JSON.stringify(p));
-    PlanoEngine.salvarPrefs({ metaDominio: 77 });
-    DesempenhoTecScreen.switchTecTab('analise');
-    DesempenhoTecScreen.renderAnalysis();
-    await esperar(200);
-    const herdado = document.getElementById('tec-weak-threshold').value;
-    // agora a pessoa escolhe outro corte: a partir daqui a escolha manda
-    const el = document.getElementById('tec-weak-threshold');
-    el.value = '60'; el.dispatchEvent(new Event('input', { bubbles: true }));
-    await esperar(200);
-    PlanoEngine.salvarPrefs({ metaDominio: 85 });
-    DesempenhoTecScreen.renderAnalysis();
-    await esperar(200);
-    const proprio = document.getElementById('tec-weak-threshold').value;
-    return { herdado, proprio };
-  });
-  (regua.herdado === '77' && regua.proprio === '60')
-    ? ok('o limiar herda a meta do Plano ate voce escolher o seu (77% → 60%)')
-    : erro('a regua unica nao se comportou: ' + JSON.stringify(regua));
-  await pag.setViewportSize({ width: 1280, height: 900 });
-} catch (e) { erro('os dialogos do Plano falharam: ' + e.message); }
+} catch (e) { erro('as abas de fatos nao renderizaram com dado real: ' + e.message); }
 
 
 /* ── 6.11) O CICLO MENSAL ──────────────────────────────────────────────────
@@ -1368,7 +1226,7 @@ try {
     PlanoEngine.salvarModo('base', { metaDominio: 88 });
     PlanoEngine.salvarPrefs(PlanoEngine.modoPatch('base'));
     DesempenhoTecScreen.savePrefs({ weakLimiar: 62 });
-    DesempenhoTecScreen.switchTecTab('plano');
+    DesempenhoTecScreen.switchTecTab('motor');
     await esperar(300);
     const alvo = (PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()).itens[0] || {});
     DB.getExtras().filter((e) => e.origemPlano).forEach((e) => DB.deleteExtra && DB.deleteExtra(e.id));
@@ -1390,7 +1248,7 @@ try {
     DB._set(DB.KEYS.tec, novos);
     DesempenhoTecScreen.selectedSnapIds = null;   // escopo recalcula do zero, como numa abertura
     DesempenhoTecScreen.render();
-    DesempenhoTecScreen.switchTecTab('plano');
+    DesempenhoTecScreen.switchTecTab('motor');
     await esperar(400);
     const r2 = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
     const depoisAlvo = [].concat(r2.itens, r2.pequenas || []).find((x) => x.nome === alvo.nome);
@@ -1476,10 +1334,10 @@ try {
     await marcar('Cebraspe');
     const duas = estado();
     // a mesma selecao tem de valer nas outras abas
-    DesempenhoTecScreen.switchTecTab('plano');
+    DesempenhoTecScreen.switchTecTab('motor');
     await esperar(350);
     const noPlano = {
-      rotulo: (document.querySelector('#plano-banca-pick .banca-pick-btn span') || {}).textContent || '',
+      rotulo: (document.querySelector('#motor-banca-pick .banca-pick-btn span') || {}).textContent || '',
       filtro: DesempenhoTecScreen.bancaFiltro()
     };
     DesempenhoTecScreen.switchTecTab('incidencia');
@@ -1534,20 +1392,19 @@ try {
     PlanoEngine.salvarPrefs({ minAmostra: 1, tetoDominio: 100, limite: 50, disciplina: '__todas__', ordenar: 'pior' });
     DesempenhoTecScreen._planoRefC = null;
     DesempenhoTecScreen.render();
-    DesempenhoTecScreen.switchTecTab('plano');
+    DesempenhoTecScreen.switchTecTab('motor');
   });
   await pag.waitForTimeout(400);
   const hom = await pag.evaluate(() => {
-    const texto = [...document.querySelectorAll('#plano-lista .pl-item')].map((e) => e.textContent.replace(/\s+/g, ' '));
-    const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-    const p = r.itens.filter((x) => /Princ[ií]pios/.test(x.nome));
+    const texto = [...document.querySelectorAll('#motor-lista .ms-item')].map((e) => e.textContent.replace(/\s+/g, ' '));
+    const r = MotorSugestao.calcular({ maxFrentes: 12 });
+    const p = (r.todos || []).filter((x) => /Princ[ií]pios/.test(x.nome));
     return { comPrincipios: texto.filter((t) => /Princ[ií]pios/.test(t)).length,
-      // a taxa vem do motor: no texto da linha ha varios "%" e o primeiro nao e este
       taxas: p.map((x) => Math.round(x.taxa)), discs: p.map((x) => x.disciplina) };
   });
-  (hom.comPrincipios === 2 && hom.taxas.length === 2 && new Set(hom.taxas).size === 2 && new Set(hom.discs).size === 2)
-    ? ok(`os dois "Principios" viram duas linhas, com a taxa de cada um (${hom.taxas.join('% e ')}%)`)
-    : erro('os homonimos nao viraram duas linhas: ' + JSON.stringify(hom));
+  (hom.taxas.length === 2 && new Set(hom.taxas).size === 2 && new Set(hom.discs).size === 2)
+    ? ok(`os dois "Principios" continuam separados, com a taxa de cada um (${hom.taxas.join('% e ')}%)`)
+    : erro('os homonimos se fundiram no motor: ' + JSON.stringify(hom));
   const filtro = await pag.evaluate(() => {
     const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
       Object.assign({}, PlanoEngine.prefs(), { disciplina: 'Direito Administrativo' }));
@@ -1590,16 +1447,13 @@ try {
 console.log('\n6.14) os ajustes numa folha suspensa, nao empilhados na tela');
 try {
   await pag.setViewportSize({ width: 390, height: 844 });
-  // Esta seção audita deliberadamente a folha do Plano legado. Com algum
-  // motor ativo, essa folha é ocultada e a configuração correta fica em
-  // Desempenho TEC › Motores; desligamos ambos apenas durante esta auditoria.
-  await pag.evaluate(() => { if (window.PlanoMotoresGovernanca) PlanoMotoresGovernanca.salvar({ simplificado: false, robusto: false }); });
-  await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano'); });
+  const ABAS = ['analise', 'motor'];
+  await pag.evaluate(() => { switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('motor'); });
   await pag.waitForTimeout(400);
   // 1) nenhuma aba abre com campo de ajuste solto na tela
-  const solto = await pag.evaluate(() => {
+  const solto = await pag.evaluate((abas) => {
     const out = {};
-    ['analise', 'reforco', 'plano'].forEach((t) => {
+    abas.forEach((t) => {
       DesempenhoTecScreen.switchTecTab(t);
       const p = document.getElementById('tec-panel-' + t);
       out[t] = {
@@ -1609,14 +1463,14 @@ try {
         alturaBarra: p && p.querySelector('.tec-cfg-bar') ? Math.round(p.querySelector('.tec-cfg-bar').getBoundingClientRect().height) : -1
       };
     });
-    DesempenhoTecScreen.switchTecTab('plano');
+    DesempenhoTecScreen.switchTecTab('motor');
     return out;
-  });
-  const tudoLimpo = ['analise', 'reforco', 'plano'].every((t) => solto[t].campos === 0 && solto[t].porta && solto[t].etiquetas >= 3);
+  }, ABAS);
+  const tudoLimpo = ABAS.every((t) => solto[t].campos === 0 && solto[t].porta && solto[t].etiquetas >= 3);
   tudoLimpo
-    ? ok(`as tres abas abrem em RESULTADO: 0 campos soltos, a porta ⚙ e ${['analise', 'reforco', 'plano'].map((t) => solto[t].etiquetas).join('/')} etiquetas do que esta valendo`)
+    ? ok(`as duas abas abrem em RESULTADO: 0 campos soltos, a porta ⚙ e ${ABAS.map((t) => solto[t].etiquetas).join('/')} etiquetas do que esta valendo`)
     : erro('ainda ha ajuste solto na tela: ' + JSON.stringify(solto));
-  const maisAlta = Math.max(...['analise', 'reforco', 'plano'].map((t) => solto[t].alturaBarra));
+  const maisAlta = Math.max(...ABAS.map((t) => solto[t].alturaBarra));
   maisAlta > 0 && maisAlta < 170
     ? ok(`a linha de ajustes ocupa no maximo ${maisAlta}px a 390px (eram 2.413px de formulario)`)
     : erro(`a linha de ajustes voltou a crescer: ${maisAlta}px`);
@@ -1638,71 +1492,52 @@ try {
 
   // 3) a folha abre com UMA secao e a fita troca de secao
   const abre = await pag.evaluate(() => {
-    document.querySelector('.tec-cfg-open[data-cfg="plano"]').click();
+    document.querySelector('.tec-cfg-open[data-cfg="motor"]').click();
     const chips = [...document.querySelectorAll('#tec-cfg-nav button')].map((b) => b.dataset.sec);
     const visiveis = () => [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec')].filter((s) => !s.hidden);
     const inicio = visiveis().map((s) => s.dataset.tab + '/' + s.dataset.sec);
-    TecAjustes.mostrar('esforco');
+    TecAjustes.mostrar('caderno');
     const depois = visiveis().map((s) => s.dataset.tab + '/' + s.dataset.sec);
     return { chips, inicio, depois };
   });
-  (abre.chips.length === 6 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'plano/esforco')
-    ? ok(`a folha do Plano tem ${abre.chips.length} secoes e mostra UMA por vez (${abre.inicio[0]} → ${abre.depois[0]})`)
+  (abre.chips.length === 3 && abre.inicio.length === 1 && abre.depois.length === 1 && abre.depois[0] === 'motor/caderno')
+    ? ok(`a folha do Motor tem ${abre.chips.length} secoes e mostra UMA por vez (${abre.inicio[0]} → ${abre.depois[0]})`)
     : erro('a folha nao esta mostrando uma secao por vez: ' + JSON.stringify(abre));
 
-  /* 4) As tres abas dividem o mesmo corpo. Esconder so as secoes irmas deixava
-     a secao da aba anterior aparecendo por baixo — a folha do Plano exibindo
-     os campos do Reforco. */
+  /* 4) As abas dividem o mesmo corpo. Esconder so as secoes irmas deixava a
+     secao da aba anterior aparecendo por baixo. */
   const vaza = await pag.evaluate(() => {
     TecAjustes.fechar();
-    DesempenhoTecScreen.switchTecTab('reforco');
-    document.querySelector('.tec-cfg-open[data-cfg="reforco"]').click();
+    DesempenhoTecScreen.switchTecTab('analise');
+    document.querySelector('.tec-cfg-open[data-cfg="analise"]').click();
     return [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec')].filter((s) => !s.hidden)
       .map((s) => s.dataset.tab + '/' + s.dataset.sec);
   });
-  (vaza.length === 1 && vaza[0].indexOf('reforco/') === 0)
+  (vaza.length === 1 && vaza[0].indexOf('analise/') === 0)
     ? ok('trocar de aba nao deixa a secao da outra aparecendo por baixo')
     : erro('secao de outra aba vazou na folha: ' + JSON.stringify(vaza));
 
-  /* 5) CAMPO QUE NAO VALE PARA A SUA CONFIGURACAO NAO E INFORMACAO, E RUIDO.
-     Os tres sub-campos de custo eram irmaos permanentes, dois deles sempre
-     inertes, com o rotulo pedindo desculpa ("· se fixo: questoes"). */
-  const cond = await pag.evaluate(() => {
+  // 5) mexer num campo aplica NA HORA e atualiza a etiqueta do que esta valendo
+  const vivo = await pag.evaluate(async () => {
     TecAjustes.fechar();
-    DesempenhoTecScreen.switchTecTab('plano');
-    document.querySelector('.tec-cfg-open[data-cfg="plano"]').click();
-    TecAjustes.mostrar('esforco');
-    const vis = () => [...document.querySelectorAll('#tec-cfg-body [data-cfg-se]')].filter((e) => !e.hidden).map((e) => e.dataset.cfgSe);
-    const trocar = (id, v) => { const s = document.getElementById(id); s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); };
-    trocar('plano-customodo', 'lacuna'); const lacuna = vis();
-    trocar('plano-customodo', 'fixo'); const fixo = vis();
-    trocar('plano-customodo', 'proporcional'); const prop = vis();
-    trocar('plano-customodo', 'lacuna');
-    return { lacuna, fixo, prop };
+    DesempenhoTecScreen.switchTecTab('motor');
+    await new Promise((r) => setTimeout(r, 200));
+    document.querySelector('.tec-cfg-open[data-cfg="motor"]').click();
+    TecAjustes.mostrar('caderno');
+    const el = document.getElementById('motor-alvo');
+    el.value = '40'; el.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    return { etiqueta: document.getElementById('motor-cfg-resumo').textContent,
+      gravado: MotorSugestao.prefs().alvoQuestoes,
+      ponto: !!document.querySelector('#tec-cfg-nav button[data-sec="caderno"] .dot') };
   });
-  (cond.lacuna.every((x) => /lacuna/.test(x)) && cond.fixo.length === 1 && /fixo/.test(cond.fixo[0])
-    && cond.prop.length === 1 && /proporcional/.test(cond.prop[0]))
-    ? ok('os sub-campos de custo so aparecem no modo a que pertencem')
-    : erro('campo condicional errado: ' + JSON.stringify(cond));
-
-  // 6) mexer num campo aplica NA HORA e atualiza a etiqueta do que esta valendo
-  const vivo = await pag.evaluate(() => {
-    TecAjustes.mostrar('essencial');
-    const el = document.getElementById('plano-meta');
-    el.value = '92'; el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    const etiqueta = document.getElementById('plano-cfg-resumo').textContent;
-    const gravado = PlanoEngine.prefs().metaDominio;
-    const ponto = !!document.querySelector('#tec-cfg-nav button[data-sec="essencial"] .dot');
-    return { etiqueta, gravado, ponto };
-  });
-  (vivo.gravado === 92 && /92/.test(vivo.etiqueta))
-    ? ok('mexer num campo aplica na hora e a etiqueta acompanha (meta 92%)')
+  (vivo.gravado === 40 && /40/.test(vivo.etiqueta))
+    ? ok('mexer num campo aplica na hora e a etiqueta acompanha (caderno de 40 questoes)')
     : erro('o ajuste nao foi aplicado ao vivo: ' + JSON.stringify(vivo));
   vivo.ponto ? ok('e a secao ganha o ponto de "voce mexeu aqui"')
     : erro('a secao personalizada nao ficou marcada');
 
-  // 7) o pe fica alcancavel: nada de rolar um formulario atras do "Concluir"
+  // 6) o pe fica alcancavel: nada de rolar um formulario atras do "Concluir"
   const pe = await pag.evaluate(() => {
     const box = document.querySelector('.tec-cfg-box').getBoundingClientRect();
     const foot = document.querySelector('.tec-cfg-foot').getBoundingClientRect();
@@ -1713,21 +1548,14 @@ try {
   });
   /* `dentro` e a distancia entre a base da caixa e a base do rodape: por
      construcao ela vale ZERO — o rodape e o ultimo filho e fica rente. O que
-     se mede, entao, e so o arredondamento sub-pixel de duas posicoes
-     fracionarias, e ele oscila com a metrica da fonte: a mesma caixa de 776px
-     dava +1 aqui e -1 no runner do CI, onde as fontes instaladas sao outras.
-     Exigir `>= 0` era exigir que a sorte do arredondamento caisse sempre para
-     o mesmo lado.
-
-     A falha que esta verificacao existe para pegar e o formulario rolando
-     ATRAS do "Concluir" — ali o rodape cai dezenas de pixels abaixo da caixa,
-     nao um. A tolerancia passa a ser simetrica, e continua apertada o
-     suficiente para isso. */
+     se mede e o arredondamento sub-pixel, que oscila com a metrica da fonte.
+     A falha que isto existe para pegar e o formulario rolando ATRAS do
+     "Concluir", e ali o rodape cai dezenas de pixels abaixo da caixa. */
   (Math.abs(pe.dentro) <= 2 && pe.altura <= 844 * 0.93 && pe.vazaH === 0)
     ? ok(`a folha cabe na tela (${pe.altura}px de 844) com o pe preso (${pe.dentro >= 0 ? '+' : ''}${pe.dentro}px) e sem vazamento horizontal`)
     : erro('a folha nao esta contida: ' + JSON.stringify(pe));
 
-  // 8) Esc fecha e o foco volta para a porta por onde se entrou
+  // 7) Esc fecha e o foco volta para a porta por onde se entrou
   const esc = await pag.evaluate(async () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     await new Promise((r) => setTimeout(r, 120));
@@ -1738,28 +1566,53 @@ try {
   /^tec-cfg-open/.test(esc.foco) ? ok('e o foco volta para o botao por onde se entrou')
     : erro('o foco nao voltou para a porta: ' + esc.foco);
 
-  // 9) restaurar padroes vale para a aba aberta, e so para ela
+  // 8) restaurar padroes vale para a aba aberta, e so para ela
   const rest = await pag.evaluate(async () => {
-    DesempenhoTecScreen.savePrefs({ minq: 44 });
-    document.querySelector('.tec-cfg-open[data-cfg="plano"]').click();
+    DesempenhoTecScreen.savePrefs({ weakMinQ: 44 });
+    document.querySelector('.tec-cfg-open[data-cfg="motor"]').click();
     document.getElementById('tec-cfg-reset').click();
     await new Promise((r) => setTimeout(r, 120));
     document.getElementById('ui-modal-ok').click();
-    await new Promise((r) => setTimeout(r, 250));
-    return { meta: PlanoEngine.prefs().metaDominio, padrao: PlanoEngine.DEFAULTS.metaDominio,
-      reforcoIntacto: DesempenhoTecScreen._loadPrefs().minq };
+    await new Promise((r) => setTimeout(r, 300));
+    return { alvo: MotorSugestao.prefs().alvoQuestoes, padrao: MotorSugestao.DEFAULTS.alvoQuestoes,
+      analiseIntacta: DesempenhoTecScreen._loadPrefs().weakMinQ };
   });
-  (rest.meta === rest.padrao && String(rest.reforcoIntacto) === '44')
-    ? ok('restaurar padroes zera SO a aba aberta (meta volta a 85%, o Reforco fica)')
+  (rest.alvo === rest.padrao && String(rest.analiseIntacta) === '44')
+    ? ok(`restaurar padroes zera SO a aba aberta (caderno volta a ${rest.padrao}, a Analise fica)`)
     : erro('restaurar padroes passou dos limites: ' + JSON.stringify(rest));
-  /* 9b) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:
+
+  /* 9) E na Analise o "Restaurar padroes" tem de mexer nos CAMPOS, nao so no
+     armazenamento: ela le os proprios campos a cada repintura, entao apagar a
+     preferencia salva deixava a tela igualzinha — um botao que dizia restaurar
+     e nao restaurava nada. */
+  const restAna = await pag.evaluate(async () => {
+    TecAjustes.fechar();
+    DesempenhoTecScreen.switchTecTab('analise');
+    await new Promise((r) => setTimeout(r, 200));
+    const minq = document.getElementById('tec-weak-minq');
+    const ord = document.getElementById('tec-weak-ordenar');
+    minq.value = '77'; minq.dispatchEvent(new Event('input', { bubbles: true }));
+    ord.value = 'impacto'; ord.dispatchEvent(new Event('change', { bubbles: true }));
+    const antes = { minq: minq.value, ord: ord.value };
+    document.querySelector('.tec-cfg-open[data-cfg="analise"]').click();
+    document.getElementById('tec-cfg-reset').click();
+    await new Promise((r) => setTimeout(r, 120));
+    document.getElementById('ui-modal-ok').click();
+    await new Promise((r) => setTimeout(r, 300));
+    return { antes, depois: { minq: minq.value, ord: ord.value },
+      padrao: { minq: minq.defaultValue, ord: ([...ord.options].find((o) => o.defaultSelected) || ord.options[0] || {}).value } };
+  });
+  (restAna.antes.minq === '77' && restAna.depois.minq === restAna.padrao.minq && restAna.depois.ord === restAna.padrao.ord)
+    ? ok(`restaurar padroes devolve os CAMPOS da Analise ao padrao (77 → ${restAna.depois.minq})`)
+    : erro('restaurar padroes da Analise nao mexeu nos campos: ' + JSON.stringify(restAna));
+
+  /* 10) A FITA NAO PODE FUGIR DO DEDO. No celular a folha e ancorada embaixo:
      a base fica presa na borda da tela e e o TOPO que se move quando o conteudo
      muda de tamanho. Trocar de secao mexia 219px no topo, e a fita de chips —
-     que e justamente o que se esta tocando — subia junto: voce mira em "Regua"
-     e o botao sai do lugar entre o toque e o dedo chegar. */
+     que e justamente o que se esta tocando — subia junto. */
   for (const [larg, alt, rot] of [[390, 844, '390x844'], [360, 640, '360x640'], [1280, 900, 'desktop']]) {
     await pag.setViewportSize({ width: larg, height: alt });
-    for (const aba of ['plano', 'reforco', 'analise']) {
+    for (const aba of ABAS) {
       await pag.evaluate((t) => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.switchTecTab(t); }, aba);
       await pag.waitForTimeout(220);
       await pag.evaluate((t) => document.querySelector('.tec-cfg-open[data-cfg="' + t + '"]').click(), aba);
@@ -1784,36 +1637,7 @@ try {
         : erro(`${rot} · ${aba}: a folha pula ao trocar de secao — topo ${osc('topo')}px, fita ${osc('fita')}px, pe ${osc('pe')}px`);
     }
   }
-  await pag.setViewportSize({ width: 390, height: 844 });
-  await pag.evaluate(() => { DesempenhoTecScreen.switchTecTab('plano'); });
-  await pag.waitForTimeout(250);
-  await pag.evaluate(() => { if (window.PlanoMotoresGovernanca) PlanoMotoresGovernanca.restaurar(); });
-
-  /* 10) E nas OUTRAS DUAS ABAS o "Restaurar padroes" tem de mexer nos CAMPOS,
-     nao so no armazenamento: o Reforco e a Analise leem os proprios campos a
-     cada repintura, entao apagar a preferencia salva deixava a tela igualzinha
-     — um botao que dizia restaurar e nao restaurava nada. */
-  const restRef = await pag.evaluate(async () => {
-    TecAjustes.fechar();
-    DesempenhoTecScreen.switchTecTab('reforco');
-    await new Promise((r) => setTimeout(r, 200));
-    const minq = document.getElementById('reforco-minq');
-    const ord = document.getElementById('reforco-ordenar');
-    minq.value = '77'; minq.dispatchEvent(new Event('input', { bubbles: true }));
-    ord.value = 'incidencia'; ord.dispatchEvent(new Event('change', { bubbles: true }));
-    const antes = { minq: minq.value, ord: ord.value };
-    document.querySelector('.tec-cfg-open[data-cfg="reforco"]').click();
-    document.getElementById('tec-cfg-reset').click();
-    await new Promise((r) => setTimeout(r, 120));
-    document.getElementById('ui-modal-ok').click();
-    await new Promise((r) => setTimeout(r, 300));
-    return { antes, depois: { minq: minq.value, ord: ord.value },
-      padrao: { minq: minq.defaultValue, ord: ([...ord.options].find((o) => o.defaultSelected) || {}).value } };
-  });
-  (restRef.antes.minq === '77' && restRef.depois.minq === restRef.padrao.minq && restRef.depois.ord === restRef.padrao.ord)
-    ? ok(`restaurar padroes devolve os CAMPOS do Reforco ao padrao (77 → ${restRef.depois.minq}, ${restRef.antes.ord} → ${restRef.depois.ord})`)
-    : erro('restaurar padroes do Reforco nao mexeu nos campos: ' + JSON.stringify(restRef));
-  await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.savePrefs({ minq: null }); });
+  await pag.evaluate(() => { try { TecAjustes.fechar(); } catch (e) {} DesempenhoTecScreen.savePrefs({ weakMinQ: null }); });
   await pag.setViewportSize({ width: 1280, height: 900 });
 } catch (e) { erro('a folha de ajustes falhou: ' + e.message); }
 
@@ -1821,7 +1645,7 @@ try {
    A tela media tudo e nao fechava nada. O percurso inteiro, no navegador: criar
    pelo Plano, importar o retrato, e conferir que o app conta as questoes
    sozinho, encerra o que acabou e diz a verdade sobre o que nao funcionou. */
-console.log('\n6.15) o ciclo de uma atividade do Plano, ponta a ponta');
+console.log('\n6.15) o ciclo de uma atividade do Motor, ponta a ponta');
 try {
   await pag.setViewportSize({ width: 390, height: 844 });
   const cria = await pag.evaluate(() => {
@@ -1835,7 +1659,7 @@ try {
     DB._set(DB.KEYS.tec, [R('c1', dia(90), dia(70), base(40, 40, 45)), R('c2', dia(60), dia(35), base(40, 40, 45))]);
     PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, disciplina: '__todas__' });
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
-    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
     ['Licitacoes', 'Atos', 'Contratos'].forEach((t) => DesempenhoTecScreen.criarExtraDoPlano(t, 'Dir Adm', 120, 'reforco', true));
     return DB.getExtras().map((e) => ({ t: e.origemPlano.topico, qBase: e.origemPlano.qBase,
       taxa: e.origemPlano.taxaInicial, meta: e.origemPlano.metaAlvo }));
@@ -1855,19 +1679,19 @@ try {
       L('02', 'Atos', 'Dir Adm', 150, 42), L('03', 'Contratos', 'Dir Adm', 50, 15)] });
     DB._set(DB.KEYS.tec, s);
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
-    DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
     const por = {};
     DB.getExtras().forEach((e) => { por[e.origemPlano.topico] = { st: e.status,
       v: e.origemPlano.veredito ? e.origemPlano.veredito.tipo : null,
       pp: e.origemPlano.veredito ? e.origemPlano.veredito.ganhoPP : null }; });
-    const cx = {};
-    document.querySelectorAll('#plano-lista .pl-hoje-sel').forEach((c) => { cx[c.dataset.topico] = { travada: c.disabled }; });
-    const emCurso = [...document.querySelectorAll('.pl-ciclo:not(.pl-ciclo-hist):not(.pl-calib) .pl-ciclo-lista > li')]
-      .map((li) => li.textContent.replace(/\s+/g, ' ').trim());
-    return { por, cx, emCurso,
-      hist: document.querySelectorAll('.pl-ciclo-hist .pl-ciclo-lista > li').length,
-      txt: document.getElementById('plano-lista').textContent,
-      podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(document.getElementById('plano-lista').textContent),
+    /* O progresso medido pelo retrato e a lista de ciclos fechados vivem no
+       modelo, nao mais numa tela: e o mesmo dado que a tela de Atividades le. */
+    const emCurso = PlanoCiclo.emCurso(PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()))
+      .map((x) => x.origem.topico + ' ' + x.feito + '/' + x.alvo);
+    const motor = document.getElementById('motor-lista');
+    return { por, emCurso,
+      hist: PlanoCiclo.fechados().length,
+      podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test((motor || {}).textContent || ''),
       vaza: document.documentElement.scrollWidth - document.documentElement.clientWidth };
   });
   (dep.por.Licitacoes.st === 'concluida' && dep.por.Licitacoes.v === 'funcionou' && dep.por.Licitacoes.pp > 50)
@@ -1879,19 +1703,11 @@ try {
   (dep.por.Contratos.st === 'ativa' && dep.por.Contratos.v === null)
     ? ok('e o que ainda esta a meio caminho continua aberto')
     : erro('atividade em andamento foi encerrada por engano: ' + JSON.stringify(dep.por.Contratos));
-  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]) && /pelo retrato/.test(dep.emCurso[0]))
-    ? ok('o bloco "Em curso" conta as questoes a partir do retrato, sem lancamento manual (50/120)')
+  (dep.emCurso.length === 1 && /50\/120/.test(dep.emCurso[0]))
+    ? ok('o ciclo conta as questoes a partir do retrato, sem lancamento manual (50/120)')
     : erro('o progresso automatico nao apareceu: ' + JSON.stringify(dep.emCurso));
   dep.hist === 2 ? ok('e os dois ciclos fechados entram no historico "o que os retratos ja julgaram"')
     : erro(`historico com ${dep.hist} ciclo(s), esperado 2`);
-  /* O SELO NAO PODE MENTIR. Uma atividade encerrada com "nao funcionou" exibia
-     um "✓" — o simbolo de sucesso no exato caso em que o volume falhou. */
-  (/não funcionou/.test(dep.txt) && dep.cx.Atos && dep.cx.Atos.travada === false)
-    ? ok('o assunto que nao funcionou aparece como tal, e volta a ser atacavel')
-    : erro('o selo do "nao funcionou" mentiu ou travou o assunto: ' + JSON.stringify(dep.cx));
-  (dep.cx.Contratos && dep.cx.Contratos.travada === true)
-    ? ok('e o que tem atividade ABERTA continua travado, para nao duplicar')
-    : erro('assunto com atividade aberta ficou marcavel: ' + JSON.stringify(dep.cx));
   (!dep.podre && dep.vaza === 0) ? ok('nenhum numero podre e nenhum vazamento a 390px')
     : erro(`ciclo na tela: podre=${dep.podre} vazamento=${dep.vaza}px`);
 
@@ -1927,37 +1743,22 @@ try {
     };
     const antes = PlanoCiclo.calibragem().pronta;
     fake('K1', 100, 40, 58); fake('K2', 200, 50, 86);
-    switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano');
     const c = PlanoCiclo.calibragem();
-    const btn = document.getElementById('plano-calibrar');
-    const houve = !!btn;
-    if (btn) btn.click();
-    return { antes, pronta: c.pronta, n: c.n, qPorPonto: c.qPorPonto, atual: c.atual, houve };
+    return { antes, pronta: c.pronta, n: c.n, qPorPonto: c.qPorPonto, atual: c.atual };
   });
-  (cal.antes === false && cal.pronta && cal.n >= 3 && cal.houve)
+  (cal.antes === false && cal.pronta && cal.n >= 3)
     ? ok(`a calibragem so liga com historico: ${cal.n} ciclos → ${cal.qPorPonto} questoes por ponto (o padrao era ${cal.atual})`)
-    : erro('a calibragem nao apareceu como devia: ' + JSON.stringify(cal));
-  await pag.waitForTimeout(200);
-  const aplicou = await pag.evaluate(async () => {
-    const ok = document.getElementById('ui-modal-ok');
-    if (ok) ok.click();
-    await new Promise((r) => setTimeout(r, 250));
-    return PlanoEngine.prefs().custoPorPonto;
-  });
-  (aplicou === cal.qPorPonto)
-    ? ok(`calibrar leva o numero para os ajustes do Plano (custo por ponto = ${aplicou})`)
-    : erro(`calibrar nao aplicou: custoPorPonto=${aplicou}, esperado ${cal.qPorPonto}`);
-  await pag.evaluate(() => { PlanoEngine.salvarPrefs({ custoPorPonto: PlanoEngine.DEFAULTS.custoPorPonto }); DB._set(DB.KEYS.extras, []); });
+    : erro('a calibragem nao ficou pronta como devia: ' + JSON.stringify(cal));
+  await pag.evaluate(() => { DB._set(DB.KEYS.extras, []); });
   await pag.setViewportSize({ width: 1280, height: 900 });
-} catch (e) { erro('o ciclo do Plano falhou: ' + e.message); }
+} catch (e) { erro('o ciclo da atividade falhou: ' + e.message); }
 
-/* ── 6.16) GESTÃO NUM LUGAR SÓ, E A RÉGUA QUE APROVA ───────────────────────
-   Duas dores diferentes, no navegador. A primeira: com vários assuntos abertos
-   em disciplinas diferentes, o unico lugar com o progresso de todos era o bloco
-   dentro da aba Plano — tela de decisao, e o lugar errado para perguntar "o que
-   eu tenho em andamento?". A segunda: o Plano mandava atacar a cratera de
-   dominio (4 questoes a 20%) em vez de onde os pontos estao. */
-console.log('\n6.16) a gestao na tela de Atividades e a regua de pontos');
+/* ── 6.16) GESTÃO NUM LUGAR SÓ ─────────────────────────────────────────────
+   Com varios assuntos abertos em disciplinas diferentes, o unico lugar com o
+   progresso de todos era um bloco dentro da tela de decisao — o lugar errado
+   para perguntar "o que eu tenho em andamento?". A gestao mora em Atividades,
+   e e la que este teste a procura. */
+console.log('\n6.16) a gestao das atividades em andamento, na tela de Atividades');
 try {
   await pag.setViewportSize({ width: 390, height: 844 });
   const g = await pag.evaluate(() => {
@@ -1971,7 +1772,7 @@ try {
     DB._set(DB.KEYS.tec, [R('g1', dia(60), dia(40), linhas()), R('g2', dia(30), dia(2), linhas())]);
     PlanoEngine.salvarPrefs({ minAmostra: 1, limite: 20, ordenar: 'pior', metaDominio: 85, tetoDominio: 90, cadenciaDias: 30, disciplina: '__todas__' });
     DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._cicloSel = null;
-    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('plano');
+    switchScreen('desempenhotec'); DesempenhoTecScreen.render(); DesempenhoTecScreen.switchTecTab('motor');
     [['Licitacoes', 'Dir Adm'], ['Atos', 'Dir Adm'], ['Crase', 'Portugues']]
       .forEach(([t, d]) => DesempenhoTecScreen.criarExtraDoPlano(t, d, 120, 'reforco', true));
     switchScreen('extras'); ExtrasScreen.render();
@@ -1998,1129 +1799,8 @@ try {
   (g.discsNoDia >= 2 && g.vaza === 0)
     ? ok('o dia tambem separa por disciplina, sem vazamento a 390px')
     : erro(`agrupamento do dia: ${g.discsNoDia} titulo(s), vazamento ${g.vaza}px`);
-  /* SIMPLICIDADE VEM DE MOVER, NÃO DE SOMAR: o Plano abre mao do painel e
-     fica com a linha que leva ate a gestao. */
-  const mini = await pag.evaluate(() => {
-    switchScreen('desempenhotec'); DesempenhoTecScreen.switchTecTab('plano');
-    const d = document.querySelector('.pl-ciclo-mini');
-    return { existe: !!d, recolhido: d ? !d.open : null,
-      texto: d ? d.querySelector('summary').textContent.replace(/\s+/g, ' ') : '',
-      link: !!document.getElementById('plano-ir-extras'),
-      painelInteiro: document.querySelectorAll('#plano-lista .pl-ciclo:not(.pl-ciclo-mini):not(.pl-ciclo-hist):not(.pl-calib):not(.pl-pontos):not(.pl-tempo):not(.pl-auditoria)').length };
-  });
-  (mini.existe && mini.recolhido && mini.link && mini.painelInteiro === 0)
-    ? ok('no Plano sobrou uma linha recolhida que leva para a gestao — nao um segundo painel')
-    : erro('o Plano nao encolheu: ' + JSON.stringify(mini));
-
-  // ── a regua de pontos ────────────────────────────────────────────────────
-  const pts = await pag.evaluate(() => {
-    const origSubs = DB.getActiveSubjects, origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
-    try {
-      DB.getActiveSubjects = () => ([
-        { nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
-        { nome: 'Portugues', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1, minimoPct: 60 }]);
-      DB.getCurrentCycle = () => ({ subjects: [
-        { nome: 'Portugues', definidoMin: 180, fase: 'Novo', dificuldade: 2 },
-        { nome: 'Dir Adm', definidoMin: 60, fase: 'Novo', dificuldade: 3 }] });
-      window.planCycleMode = () => 'pos';
-      PlanoPontos.setCorte(30);
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const t = document.getElementById('plano-lista').textContent.replace(/\s+/g, ' ');
-      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
-        Object.assign({}, PlanoEngine.prefs(), { ordenar: 'pontos' }));
-      const out = {
-        bloco: !!document.querySelector('.pl-pontos'),
-        composicao: !!document.querySelector('.pl-comp'),
-        temCorte: /corte que você informou/.test(t),
-        eliminatoria: /abaixo do mínimo/.test(t),
-        primeiroPorPontos: r.itens[0] ? r.itens[0].disciplina + '/' + r.itens[0].nome : null,
-        elim1: r.itens[0] ? !!r.itens[0].eliminatoria : null,
-        tempo: !!document.querySelector('.pl-tempo'),
-        podre: /\bNaN\b|\bundefined\b|\bInfinity\b/.test(t)
-      };
-      PlanoPontos.setCorte('');
-      return out;
-    } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
-  });
-  (pts.bloco && pts.composicao && pts.temCorte)
-    ? ok('a nota projetada aparece com o corte declarado como SEU e a composicao a vista')
-    : erro('o bloco de pontos nao saiu completo: ' + JSON.stringify(pts));
-  (pts.eliminatoria && pts.elim1 === true && /Portugues/.test(pts.primeiroPorPontos || ''))
-    ? ok(`materia abaixo do minimo eliminatorio vem antes de tudo (${pts.primeiroPorPontos})`)
-    : erro('a eliminatoria nao ganhou prioridade: ' + JSON.stringify(pts));
-  /* O QUADRO QUE RESPONDE "QUAIS MATERIAS EU PRIORIZO". 3h em Portugues, que
-     vale 5 das 45 questoes, contra 1h em Dir Adm, que vale 40: e o caso que
-     ninguem percebe sozinho, e que nenhuma tela mostrava. */
-  /* ── DA MATÉRIA PARA O ASSUNTO, EM UM TOQUE ────────────────────────────
-     A tabela fala de MATÉRIAS e a lista abaixo fala de ASSUNTOS. Sem a ponte o
-     caminho era manual e de cinco passos: ler o veredito, abrir os ajustes,
-     achar o campo Disciplina, escolher, fechar a folha, rolar. E o botão só
-     pode existir onde ha acao a tomar — numa linha ✅ ele convidaria a fazer
-     exatamente o que a tela acabou de dizer para nao fazer. */
-  const atk = await pag.evaluate(() => {
-    const origSubs = DB.getActiveSubjects, origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle;
-    try {
-      DB.getActiveSubjects = () => ([{ nome: 'Dir Adm', qtdQuestoes: 40, pontosPorQuestao: 1, peso: 1 },
-        { nome: 'Portugues', qtdQuestoes: 5, pontosPorQuestao: 1, peso: 1 }]);
-      DB.getCurrentCycle = () => ({ subjects: [{ nome: 'Portugues', definidoMin: 180 }, { nome: 'Dir Adm', definidoMin: 60 }] });
-      window.planCycleMode = () => 'pos';
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const linhas = [...document.querySelectorAll('.pl-mat-lista > .pl-mat')].map((li) => ({
-        ver: li.querySelector('.reforco-tag').textContent.trim(),
-        botao: !!li.querySelector('[data-atacar]'),
-        // cada linha carrega o "i" que abre a analise da materia
-        analise: !!li.querySelector('[data-mat-det]') }));
-      const b = document.querySelector('[data-atacar]');
-      const antes = document.querySelectorAll('#plano-lista .pl-item').length;
-      if (b) b.click();
-      const out = { linhas, alvo: b ? b.dataset.atacar : null, antes,
-        depois: document.querySelectorAll('#plano-lista .pl-item').length,
-        filtro: document.getElementById('plano-disc').value,
-        gravado: PlanoEngine.prefs().disciplina,
-        temBloco: !!document.querySelector('#plano-lista .pl-hoje'),
-        // com a lista JA FILTRADA, os botoes das OUTRAS materias tem de continuar la
-        botoesComFiltro: [...document.querySelectorAll('[data-atacar]')].map((x) => x.dataset.atacar) };
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      out.botoesSemFiltro = [...document.querySelectorAll('[data-atacar]')].map((x) => x.dataset.atacar);
-      return out;
-    } finally { DB.getActiveSubjects = origSubs; window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; }
-  });
-  const pedemAcao = (atk.linhas || []).filter((l) => /ataque aqui|comece/.test(l.ver));
-  const naoPedem = (atk.linhas || []).filter((l) => /mantenha|reduza|na fila|fica para depois/.test(l.ver));
-  (pedemAcao.length >= 1 && pedemAcao.every((l) => l.botao) && naoPedem.every((l) => !l.botao))
-    ? ok(`o botao "atacar esta materia" so aparece nas ${pedemAcao.length} linha(s) que pedem acao`)
-    : erro('o botao apareceu no lugar errado: ' + JSON.stringify(atk.linhas));
-  (atk.filtro === atk.alvo && atk.gravado === atk.alvo && atk.depois > 0 && atk.depois < atk.antes && atk.temBloco)
-    ? ok(`clicar filtra a lista pela materia (${atk.antes} → ${atk.depois} assuntos) e mantem o bloco de criar atividades`)
-    : erro('o botao nao filtrou a lista: ' + JSON.stringify(atk));
-  /* O ALVO DO BOTAO SAI DAS DISCIPLINAS DO RETRATO, NAO DA LISTA FILTRADA.
-     Saindo de `r.itens` — o resultado do Plano COM o filtro aplicado — bastava
-     filtrar por uma materia para TODAS as outras perderem o botao, e sobrava
-     exatamente uma linha com ele: a que ja estava filtrada. O botao de "va
-     para outra materia" so funcionava para a materia em que voce ja estava. */
-  (atk.botoesComFiltro.length === atk.botoesSemFiltro.length && atk.botoesComFiltro.length >= 1
-    && atk.botoesComFiltro.every((d) => atk.botoesSemFiltro.indexOf(d) >= 0))
-    ? ok(`e filtrar a lista nao apaga os botoes das outras materias (${atk.botoesComFiltro.length} antes e depois)`)
-    : erro('o filtro comeu os botoes: ' + JSON.stringify({ com: atk.botoesComFiltro, sem: atk.botoesSemFiltro }));
-
-  /* ── O QUADRO DE ESFORCO NAO DEPENDE DO NOME QUE VOCE DIGITOU ──────────
-     A primeira versao comparava os MINUTOS do ciclo com o peso da banca, e as
-     duas pontas falavam linguas diferentes: o ciclo voce digita ("Portugues"),
-     a banca manda "Lingua Portuguesa". O veredito so nascia com as duas pontas,
-     entao um nome diferente nao deixava a linha errada — deixava a linha
-     INEXISTENTE. O usuario via oito materias leves somando 23% do peso sem ter
-     como saber que os outros 77% da prova haviam sumido calados.
-
-     A moeda passou a ser a QUESTAO, a unica que os dois lados ja falam. Aqui o
-     ciclo esta escrito de proposito num idioma que nao existe em lugar nenhum
-     ("Port.", "Const"): o quadro tem de sair igual. */
-  const esf = await pag.evaluate(() => {
-    const origIncid = ReforcoEngine._incidByDisc, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origCiclo = DB.getCurrentCycle, origSnaps = DB.getTecSnapshots;
-    try {
-      const I = (d, n) => ({ codigo: '01', nome: 'Geral', disciplina: d, incidencia: n });
-      // a banca cobra Constitucional acima de tudo; Contabilidade quase nada
-      ReforcoEngine._incidByDisc = () => ({
-        'Direito Constitucional': [I('Direito Constitucional', 500)],
-        'Lingua Portuguesa': [I('Lingua Portuguesa', 300)],
-        'Contabilidade Geral': [I('Contabilidade Geral', 100)],
-        'Arquivologia': [I('Arquivologia', 6)], 'Ingles': [I('Ingles', 5)],
-        // tres materias pequenas e NUNCA tocadas: sozinhas nao decidem nada,
-        // somadas valem mais que a Contabilidade em que ele gasta 2/3 do esforco
-        'Direito Penal': [I('Direito Penal', 40)], 'Direito Civil': [I('Direito Civil', 40)],
-        'Estatistica': [I('Estatistica', 40)] });
-      DB.getActiveSubjects = () => [];
-      window.planCycleMode = () => 'pre';
-      // o ciclo fala outro idioma — e agora e irrelevante
-      DB.getCurrentCycle = () => ({ subjects: [{ nome: 'Port.', definidoMin: 999 }, { nome: 'Const', definidoMin: 999 }] });
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      // o esforco: muito em Contabilidade (leve), nada em Constitucional (pesadissima)
-      const linhas = [];
-      [['Lingua Portuguesa', 100, 90], ['Contabilidade Geral', 600, 300], ['Musica', 100, 90]]
-        .forEach(([d, q, ac]) => {
-          linhas.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: q, acertos: ac });
-          linhas.push({ depth: 1, codigo: '01', nome: 'Geral', disciplina: d, questoes: q, acertos: ac });
-        });
-      DB.getTecSnapshots = () => ([{ id: 'e1', nome: 'e1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: linhas }]);
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const tm = PlanoPontos.esforcoPorMateria();
-      const por = {}; tm.linhas.forEach((l) => { por[ReforcoEngine.norm(l.nome)] = l; });
-      const tela = document.querySelector('.pl-tempo');
-      return {
-        somaPeso: tm.linhas.reduce((a, l) => a + (l.sharePeso || 0), 0),
-        somaEsforco: tm.linhas.reduce((a, l) => a + l.shareEsforco, 0),
-        nLinhas: tm.linhas.length,
-        intocada: (por['direito constitucional'] || {}).veredito,
-        sobra: (por['contabilidade geral'] || {}).veredito,
-        sobraAnotada: (por['contabilidade geral'] || {}).sobra,
-        forte: (por['lingua portuguesa'] || {}).veredito,
-        foraDoPeso: (por['musica'] || {}).veredito,
-        emJogo: tm.emJogo, nCorte: tm.nCorte, acoes: tm.acoes,
-        ordemPorPremio: tm.linhas.filter((l) => l.ganho > 0).every((l, i, a) => i === 0 || a[i - 1].ganho >= l.ganho),
-        alvosDoBotao: [...document.querySelectorAll('[data-atacar]')].map((b) => b.dataset.atacar),
-        premioDoBotao: [...document.querySelectorAll('[data-atacar]')].map((b) => {
-          const l = por[ReforcoEngine.norm(b.dataset.atacar)]; return l ? l.ganho : null; }),
-        qPortugues: (por['lingua portuguesa'] || {}).q,
-        linhasTela: document.querySelectorAll('.pl-mat-lista > .pl-mat').length,
-        resumos: [...document.querySelectorAll('.pl-mat.is-resumo .pl-mat-nome')].map((el) => el.textContent.replace(/\s+/g, ' ')
-          + ' ' + (el.closest('.pl-mat').querySelector('.pl-mat-sub') || { textContent: '' }).textContent.replace(/\s+/g, ' ')),
-        /* A soma do resumo vai no `data-peso` da linha: ler a posicao de uma
-           celula de tabela era um contrato fragil, e a tabela nem existe mais. */
-        pesoResumido: [...document.querySelectorAll('.pl-mat.is-resumo')].map((li) => parseFloat(li.dataset.peso) || 0),
-        temMiudas: !!document.querySelector('.pl-mat.is-resumo'),
-        // e cada linha de materia tem o "i" da analise detalhada
-        comAnalise: document.querySelectorAll('.pl-mat-lista > .pl-mat:not(.is-resumo) [data-mat-det]').length,
-        texto: tela ? tela.textContent.replace(/\s+/g, ' ') : '',
-        // e o casamento de nomes segue conservador onde ainda e necessario
-        casaGenero: PlanoPontos._casarNomes(['portugues'], ['lingua portuguesa'])['portugues'],
-        naoCasaIrmas: PlanoPontos._casarNomes(['contabilidade geral'], ['contabilidade de custos'])['contabilidade geral'],
-        naoCasaAmbiguo: PlanoPontos._casarNomes(['direito'], ['direito penal', 'direito civil'])['direito']
-      };
-    } finally {
-      ReforcoEngine._incidByDisc = origIncid; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; DB.getCurrentCycle = origCiclo; DB.getTecSnapshots = origSnaps;
-    }
-  });
-  (Math.abs(esf.somaPeso - 100) < 0.01 && Math.abs(esf.somaEsforco - 100) < 0.01 && esf.nLinhas === 9)
-    ? ok(`nada some: ${esf.nLinhas} materias, peso somando ${esf.somaPeso.toFixed(0)}% e esforco ${esf.somaEsforco.toFixed(0)}%`)
-    : erro('a cobertura do quadro de esforco falhou: ' + JSON.stringify(esf));
-  /* CADA VEREDITO E UM VERBO, NAO UM DIAGNOSTICO. "Desalinhada" descrevia um
-     estado e deixava a traducao para o aluno — que foi onde ele se perdeu. */
-  (esf.intocada === 'comecar' && esf.forte === 'manter' && esf.foraDoPeso === 'foraDoPeso'
-    && /^(atacar|fila|reduzir)$/.test(esf.sobra) && esf.sobraAnotada === true)
-    ? ok(`cada linha diz um VERBO: comece / ${esf.sobra} / mantenha / fora do peso, e a desproporcao de esforco vira anotacao`)
-    : erro('os vereditos do quadro sairam errados: ' + JSON.stringify(esf));
-  /* A ORDEM E O PREMIO, E O BOTAO SEGUE A ORDEM. Antes o botao nascia em
-     "muito esforco para o peso que ela tem" — ou seja, convidava a investir
-     mais na materia que a linha acabava de acusar de consumir demais, e que
-     era a de MENOR premio da tela. */
-  (esf.ordemPorPremio && esf.emJogo > 0 && esf.nCorte >= 1)
-    ? ok(`a tabela e ordenada pelo premio: ${esf.emJogo.toFixed(0)}pp da prova em jogo, ${esf.nCorte} materia(s) concentram metade`)
-    : erro('a ordem por pontos em jogo falhou: ' + JSON.stringify({ ordem: esf.ordemPorPremio, emJogo: esf.emJogo, corte: esf.nCorte }));
-  /* ── O CASO EXATO DA TELA DO USUARIO ───────────────────────────────────
-     Dez materias, peso x nivel como ele viu. O quadro antigo punha o botao
-     "atacar esta materia" na linha de 5% de peso e 84% de acerto — 0,5pp em
-     jogo, o MENOR premio da tabela inteira — e nao punha botao nenhum nas de
-     13%/70% e 6%/58%, que valiam 4,5pp e 3,3pp. O veredito ali era
-     "equilibrada" (verde) porque a regra media ALOCACAO, e alocacao nao e a
-     pergunta que decide onde vai a proxima hora. */
-  const dez = await pag.evaluate(() => {
-    const origIncid = ReforcoEngine._incidByDisc, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origSnaps = DB.getTecSnapshots;
-    try {
-      const M = [['Dir Constitucional', 13, 70], ['Dir Tributario', 7, 58], ['Contabilidade', 6, 71],
-        ['Auditoria', 6, 58], ['Dir Administrativo', 5, 84], ['Portugues', 5, 81],
-        ['RLM', 5, 80], ['Economia', 5, 80], ['Dir Civil', 3, 75], ['Dir Penal', 3, 59]];
-      ReforcoEngine._incidByDisc = () => { const o = {};
-        M.forEach(([d, p]) => { o[d] = [{ codigo: '01', nome: 'Geral', disciplina: d, incidencia: p * 10 }]; }); return o; };
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const rows = [];
-      M.forEach(([d, , taxa]) => { const q = 400, ac = Math.round(q * taxa / 100);
-        rows.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: q, acertos: ac });
-        ['A', 'B'].forEach((suf, i) => rows.push({ depth: 1, codigo: '0' + (i + 1), nome: 'Topico ' + suf,
-          disciplina: d, questoes: q / 2, acertos: Math.round(ac / 2) })); });
-      DB.getTecSnapshots = () => ([{ id: 'd1', nome: 'd1', date: dia(2), startDate: dia(30), endDate: dia(2), rows }]);
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const tm = PlanoPontos.esforcoPorMateria();
-      const por = {}; tm.linhas.forEach((l) => { por[ReforcoEngine.norm(l.nome)] = l; });
-      const alvos = [...document.querySelectorAll('[data-atacar]')].map((b) => b.dataset.atacar);
-      // e agora com a lista JA FILTRADA por UMA das materias de ataque:
-      // as outras duas nao podem perder o botao
-      PlanoEngine.salvarPrefs({ disciplina: alvos[0] });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const alvosFiltrado = [...document.querySelectorAll('[data-atacar]')].map((b) => b.dataset.atacar);
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      return {
-        ordem: tm.linhas.slice(0, 4).map((l) => l.nome),
-        alvos, alvosFiltrado,
-        penal: por['dir penal'],
-        premios: alvos.map((a) => +por[ReforcoEngine.norm(a)].ganho.toFixed(2)),
-        piorPremio: +Math.min(...tm.linhas.filter((l) => l.ganho > 0).map((l) => l.ganho)).toFixed(2),
-        administrativo: por['dir administrativo'],
-        tributario: por['dir tributario'],
-        nCorte: tm.nCorte, emJogo: +tm.emJogo.toFixed(1)
-      };
-    } finally {
-      ReforcoEngine._incidByDisc = origIncid; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; DB.getTecSnapshots = origSnaps;
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-    }
-  });
-  (dez.ordem[0] === 'Dir Constitucional' && dez.ordem[1] === 'Dir Tributario' && dez.ordem[2] === 'Auditoria')
-    ? ok(`a fila vira o premio: ${dez.ordem.join(' > ')} (${dez.emJogo}pp em jogo, ${dez.nCorte} materias concentram metade)`)
-    : erro('a ordem das dez materias saiu errada: ' + JSON.stringify(dez.ordem));
-  (dez.alvos.length === dez.nCorte && dez.alvos.indexOf('Dir Administrativo') < 0
-    && Math.min(...dez.premios) > dez.piorPremio * 3)
-    ? ok(`e o botao vai para as ${dez.alvos.length} de maior premio (${dez.premios.join(', ')}pp), nunca para a de ${dez.piorPremio}pp`)
-    : erro('o botao nao seguiu o premio: ' + JSON.stringify({ alvos: dez.alvos, premios: dez.premios, pior: dez.piorPremio }));
-  (dez.administrativo.veredito === 'manter' && dez.tributario.veredito === 'atacar')
-    ? ok('a materia de 5%/84% deixou de pedir ataque e a de 7%/58% deixou de ser "equilibrada" verde')
-    : erro('os vereditos do caso real sairam errados: ' + JSON.stringify({ adm: dez.administrativo.veredito, trib: dez.tributario.veredito }));
-  /* FILTRAR A LISTA NAO PODE APAGAR OS BOTOES DAS OUTRAS MATERIAS. O alvo saia
-     de `r.itens`, o resultado do Plano COM o filtro aplicado: bastava filtrar
-     por uma materia para as demais perderem o botao, e sobrava exatamente uma
-     linha com ele — a que ja estava filtrada. */
-  (dez.alvosFiltrado.length === dez.alvos.length && dez.alvos.length >= 3
-    && dez.alvos.every((d) => dez.alvosFiltrado.indexOf(d) >= 0))
-    ? ok(`filtrar a lista por "${dez.alvos[0]}" mantem os ${dez.alvos.length} botoes de pe`)
-    : erro('o filtro comeu os botoes das outras materias: ' + JSON.stringify({ antes: dez.alvos, depois: dez.alvosFiltrado }));
-  /* O ESFORCO DESPROPORCIONAL E ANOTACAO, NAO VERBO — enquanto sobrar premio.
-     Competindo com o premio, ele mandava "reduza: sobrou pouco a ganhar" numa
-     materia que ainda tinha 1,6pp em jogo e acerto em 59%, que e o oposto da
-     verdade. Fora das duas bandas, ai sim gastar demais e o fato principal. */
-  (dez.penal.veredito === 'fila' && dez.penal.sobra === true && dez.penal.razao >= 1.6)
-    ? ok(`materia com ${dez.penal.ganho.toFixed(1)}pp em jogo e ${dez.penal.razao.toFixed(1)}x o peso em esforco fica "na fila" com a sobra anotada, nao "reduza"`)
-    : erro('a sobra voltou a competir com o premio: ' + JSON.stringify(dez.penal));
-  (esf.qPortugues === 100 && !/seu tempo/i.test(esf.texto) && /questões|questão/.test(esf.texto))
-    ? ok('o quadro sai igual com o ciclo escrito em outro idioma ("Port.", "Const") — a moeda e a questao')
-    : erro('o quadro ainda depende do ciclo: ' + JSON.stringify({ q: esf.qPortugues, t: esf.texto.slice(0, 160) }));
-  /* COBRIR TUDO E OBRIGACAO; VIRAR PAREDE NAO. Uma banca com trinta
-     disciplinas produzia vinte linhas de "0% · 0 questoes" que empurravam a
-     decisao de verdade para fora da tela. Os dois resumos existem por motivos
-     diferentes: a miuda e rodape e NAO conta na manchete; a nao-tocada pequena
-     CONTA — uma sozinha nao decide nada, tres somando 17% da prova decidem. */
-  const rIntoc = esf.resumos.find((t) => /ainda não começou/.test(t));
-  const rMiud = esf.resumos.find((t) => /miúda/.test(t));
-  (esf.resumos.length === 2 && /3 matérias/.test(rIntoc || '') && /2 matérias/.test(rMiud || ''))
-    ? ok(`as pequenas viram dois resumos, cada um com o seu motivo (${esf.resumos.map((t) => t.split('nenhuma')[0].split('abaixo')[0].trim()).join(' · ')})`)
-    : erro('o agrupamento das pequenas falhou: ' + JSON.stringify(esf.resumos));
-  (esf.pesoResumido[0] >= 11)
-    ? ok(`e o resumo mostra a SOMA (${esf.pesoResumido[0]}% da prova nunca comecada), em vez de somer com ela`)
-    : erro('a soma do resumo saiu errada: ' + JSON.stringify(esf.pesoResumido));
-  /* ── TODA LINHA EXPLICA A PROPRIA POSICAO ──────────────────────────────
-     A duvida que o quadro produzia era sempre a mesma: "tenho materia com
-     percentual menor que aparece muito depois — por que?". A resposta e peso x
-     lacuna, e ela nao cabia numa celula: cada linha tem o "i" que abre a conta
-     feita com os numeros dela, os vizinhos na fila e o contraexemplo. */
-  (esf.comAnalise === esf.linhasTela - esf.resumos.length && esf.comAnalise >= 1)
-    ? ok(`cada uma das ${esf.comAnalise} materias tem o "i" da analise detalhada`)
-    : erro('faltou o "i" de analise nas linhas: ' + JSON.stringify({ comAnalise: esf.comAnalise, linhas: esf.linhasTela, resumos: esf.resumos.length }));
-  /* ── DE ONDE VEM O PESO, E POR QUE ELE ESTAVA TORTO ────────────────────
-     Pela RAIZ de cada disciplina na incidencia, nao pela soma das linhas dela.
-     A incidencia e uma arvore ("Direito Civil 200" → "01 Parte Geral 100" →
-     "01.01 Principios 60"), e somar tudo conta a mesma questao em cada degrau.
-     O erro dependia de quao FUNDO cada tabela foi colada, nao do que a banca
-     cobra: duas disciplinas de 200 questoes viravam 55,6% e 44,4% da prova. */
-  const arv = await pag.evaluate(() => {
-    const origModo = window.planCycleMode, origSubs = DB.getActiveSubjects,
-      origSnaps = DB.getTecSnapshots, origInc = DB.getIncidencia();
-    try {
-      DB.saveIncidencia([]);
-      DB.addIncidenciaRows('FGV', [
-        { disciplina: 'Detalhada', topico: 'Detalhada', incidencia: 200, codigo: null, depth: 0 },
-        { disciplina: 'Detalhada', topico: 'Parte Geral', incidencia: 100, codigo: '01', depth: 1 },
-        { disciplina: 'Detalhada', topico: 'Principios', incidencia: 60, codigo: '01.01', depth: 2 },
-        { disciplina: 'Detalhada', topico: 'Fontes', incidencia: 40, codigo: '01.02', depth: 2 },
-        { disciplina: 'Detalhada', topico: 'Parte Especial', incidencia: 100, codigo: '02', depth: 1 },
-        { disciplina: 'Rasa', topico: 'Rasa', incidencia: 200, codigo: null, depth: 0 },
-        { disciplina: 'Rasa', topico: 'Tudo', incidencia: 200, codigo: '01', depth: 1 }], true);
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const rows = [];
-      ['Detalhada', 'Rasa'].forEach((d) => {
-        rows.push({ depth: 0, codigo: null, nome: d, disciplina: d, questoes: 400, acertos: 240 });
-        rows.push({ depth: 1, codigo: '01', nome: 'Geral', disciplina: d, questoes: 400, acertos: 240 }); });
-      DB.getTecSnapshots = () => ([{ id: 'v1', nome: 'v1', date: dia(2), startDate: dia(30), endDate: dia(2), rows }]);
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      const tm = PlanoPontos.esforcoPorMateria();
-      const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
-      const plana = ReforcoEngine._incidByDisc('__todas__');
-      return {
-        somaPlana: Object.keys(plana).map((d) => d + '=' + plana[d].reduce((a, r) => a + (r.incidencia || 0), 0)),
-        raiz: ReforcoEngine.incidPorDisciplina('__todas__'),
-        pesos: { det: +por['Detalhada'].sharePeso.toFixed(1), rasa: +por['Rasa'].sharePeso.toFixed(1) },
-        ganhos: { det: +por['Detalhada'].ganho.toFixed(2), rasa: +por['Rasa'].ganho.toFixed(2) }
-      };
-    } finally {
-      DB.saveIncidencia(origInc); DB.getTecSnapshots = origSnaps;
-      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
-    }
-  });
-  (arv.raiz.Detalhada === 200 && arv.raiz.Rasa === 200 && arv.pesos.det === 50 && arv.pesos.rasa === 50)
-    ? ok(`o peso vem da RAIZ da arvore (${arv.somaPlana.join(', ')} somados virariam 55,6%/44,4%; a raiz da 50%/50%)`)
-    : erro('o peso ainda conta pai e filho: ' + JSON.stringify(arv));
-  (Math.abs(arv.ganhos.det - arv.ganhos.rasa) < 0.01)
-    ? ok(`e o premio deixa de depender de quao fundo a tabela foi colada (${arv.ganhos.det}pp nas duas)`)
-    : erro('o premio herdou a distorcao: ' + JSON.stringify(arv.ganhos));
-
-  /* ── DOIS NUMEROS QUE A TELA DIZIA E QUE BRIGAVAM COM A REALIDADE ──────
-     1) "0% do seu esforço · nível 57%" e uma linha que se contradiz: se o
-        nivel foi medido, houve questao. O zero era arredondamento.
-     2) "-9,9pp em 8 importacoes" — a trajetoria compara a media sobre
-        conjuntos DIFERENTES de assuntos a cada retrato. Quem abre frente nova
-        entra com assunto fraco e a linha cai mesmo com TODO assunto subindo. */
-  const num = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origIncid = ReforcoEngine._incidByDisc,
-      origSubs = DB.getActiveSubjects, origModo = window.planCycleMode;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      // (1) uma materia com peso relevante e esforco abaixo de 0,5%
-      ReforcoEngine._incidByDisc = () => ({
-        'Grande': [{ codigo: null, depth: 0, nome: 'Grande', disciplina: 'Grande', incidencia: 600 }],
-        'Fina': [{ codigo: null, depth: 0, nome: 'Fina', disciplina: 'Fina', incidencia: 400 }] });
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      const rowsN = [
-        { depth: 0, codigo: null, nome: 'Grande', disciplina: 'Grande', questoes: 9000, acertos: 6300 },
-        { depth: 1, codigo: '01', nome: 'Geral', disciplina: 'Grande', questoes: 9000, acertos: 6300 },
-        { depth: 0, codigo: null, nome: 'Fina', disciplina: 'Fina', questoes: 25, acertos: 14 },
-        { depth: 1, codigo: '01', nome: 'Geral', disciplina: 'Fina', questoes: 25, acertos: 14 }];
-      DB.getTecSnapshots = () => ([{ id: 'n1', nome: 'n1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: rowsN }]);
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const linhaFina = [...document.querySelectorAll('.pl-mat-lista > .pl-mat')]
-        .map((li) => li.textContent.replace(/\s+/g, ' ')).find((t) => /Fina/.test(t)) || '';
-      const share = PlanoPontos.esforcoPorMateria().linhas.find((l) => l.nome === 'Fina');
-
-      // (2) todo assunto sobe 5pp por retrato; so a COBERTURA cresce
-      const snapsT = [];
-      for (let i = 0; i < 4; i++) {
-        const rs = [];
-        const n = 3 + i * 6;
-        for (let t = 0; t < n; t++) {
-          const nasc = t < 3 ? 0 : Math.ceil((t - 2) / 6);
-          const tx = (nasc === 0 ? 80 : 35) + (i - nasc) * 5;
-          rs.push({ depth: 1, codigo: '0' + t, nome: 'T' + t, disciplina: 'D', questoes: 40, acertos: Math.round(40 * tx / 100) });
-        }
-        snapsT.push({ id: 't' + i, nome: 't' + i, date: dia(170 - i * 30), startDate: dia(200 - i * 30), endDate: dia(170 - i * 30), rows: rs });
-      }
-      DB.getTecSnapshots = () => snapsT;
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const serie = PlanoEngine.serieHistorica(PlanoEngine.prefs());
-      const cracha = [...document.querySelectorAll('.reforco-tag')].map((e) => e.textContent.trim())
-        .find((t) => /importações/.test(t)) || '';
-      /* (3) o caso da tela: 52 assuntos, so 6 chegam ao alvo de 50, o maior
-         tem 72 — e o aviso mandava ligar 50, que ja estava ligado. */
-      const rsA = [];
-      for (let t = 0; t < 52; t++) rsA.push({ depth: 1, codigo: '0' + t, nome: 'A' + t, disciplina: 'D',
-        questoes: t < 6 ? 60 + t * 2 : 22 + (t % 7), acertos: Math.round((t < 6 ? 60 + t * 2 : 22 + (t % 7)) * 0.7) });
-      DB.getTecSnapshots = () => ([{ id: 'a1', nome: 'a1', date: dia(2), startDate: dia(30), endDate: dia(2), rows: rsA }]);
-      PlanoEngine.salvarPrefs({ amostraAlvo: 50, minAmostra: 20 });
-      DesempenhoTecScreen._planoRefC = null;
-      const rA = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(),
-        Object.assign({}, PlanoEngine.prefs(), { amostraAlvo: 50, minAmostra: 20, disciplina: '__todas__' }));
-      return {
-        alvo: { inviavel: rA.alvoInviavel, atual: 50, sugerido: rA.alvoSugerido,
-          comAlvo: rA.comAlvo, assuntos: rA.assuntos, maior: rA.maiorAmostra },
-        linhaFina, shareFina: share ? +share.shareEsforco.toFixed(3) : null, nivelFina: share ? share.taxa : null,
-        bruto: +(serie[serie.length - 1].dominio - serie[0].dominio).toFixed(1),
-        comparavel: +serie.filter((x) => x.deltaComp != null).reduce((a, x) => a + x.deltaComp, 0).toFixed(1),
-        cracha,
-        /* A NOTA CURTA FICA NA TELA, A LONGA VAI PARA O "i". Os dois
-           paragrafos que explicavam a linha ocupavam mais altura que o proprio
-           grafico e falavam de numeros que a tela nao mostrava: agora a tela
-           diz a conclusao em uma linha e a analise traz a explicacao com a
-           serie inteira em numeros. */
-        nota: [...document.querySelectorAll('.pl-ciclo-obs')].map((e) => e.textContent.replace(/\s+/g, ' '))
-          .some((t) => /A linha inclui os assuntos novos/.test(t)),
-        botaoTraj: !!document.querySelector('[data-traj-det]'),
-        analiseTraj: (() => {
-          const d = DesempenhoTecScreen._trajAnalise;
-          return !!(d && /O seu nível médio sobre/.test(d.html)
-            && /importação por importação/.test(d.html) && /pl-det-tab/.test(d.html));
-        })()
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; ReforcoEngine._incidByDisc = origIncid;
-      DB.getActiveSubjects = origSubs; window.planCycleMode = origModo;
-    }
-  });
-  (num.shareFina > 0 && num.shareFina < 0.5 && num.nivelFina != null
-    && /<1% do seu esforço/.test(num.linhaFina) && !/[^\d<]0% do seu esforço/.test(num.linhaFina))
-    ? ok(`materia com ${num.shareFina}% do esforco e nivel medido diz "<1%", nao "0%"`)
-    : erro('a linha ainda se contradiz: ' + JSON.stringify({ share: num.shareFina, nivel: num.nivelFina, linha: num.linhaFina.slice(0, 120) }));
-  /* ── UM RITMO MANUAL VELHO ESTRAGA TODA PREVISAO, E EM SILENCIO ───────
-     Visto numa auditoria real: ritmo digitado 30/sem contra 563/sem medidos
-     nos ultimos 120 dias, e o "caminho mais curto" anunciando 486 semanas
-     (nove anos) para um percurso que no ritmo de verdade leva 26. Um numero
-     assim desacredita a tela inteira, e o unico sinal era a AUSENCIA da
-     palavra "(medido)" ao lado do chip. Sinal por omissao nao e sinal. */
-  const rit = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const snaps = [];
-      for (let s = 0; s < 4; s++) {
-        const rows = [];
-        for (let t = 0; t < 20; t++) rows.push({ depth: 1, codigo: String(t + 1), nome: 'T' + t,
-          disciplina: 'D', questoes: 120, acertos: Math.round(120 * (55 + t + s) / 100) });
-        snaps.push({ id: 'rt' + s, nome: 'rt' + s, date: dia(90 - s * 28), startDate: dia(118 - s * 28), endDate: dia(90 - s * 28), rows });
-      }
-      DB.getTecSnapshots = () => snaps;
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({});
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, amostraAlvo: 50, ordenar: 'pior', limite: 30 });
-      const campo = document.getElementById('plano-ritmo');
-      if (campo) campo.value = 30;
-      PlanoEngine.salvarPrefs({ ritmoSemanal: 30 });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlanoConteudo();
-      const texto = () => (document.getElementById('plano-proj') || {}).textContent || '';
-      const antes = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      const avisoAntes = /O ritmo está fixo em/.test(texto());
-      const bt = document.getElementById('plano-ritmo-medido');
-      if (bt) bt.click();
-      const depois = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      return { travado: antes.ritmo, medido: antes.ritmoMedido, divAntes: antes.ritmoDivergente,
-        avisoAntes, temBotao: !!bt, ritmoDepois: depois.ritmo, divDepois: depois.ritmoDivergente,
-        avisoDepois: /O ritmo está fixo em/.test(texto()),
-        semanasAntes: antes.semanas != null ? Math.round(antes.semanas) : null,
-        semanasDepois: depois.semanas != null ? Math.round(depois.semanas) : null };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-      PlanoEngine.salvarPrefs({ ritmoSemanal: null });
-    }
-  });
-  (rit.divAntes === true && rit.avisoAntes && rit.temBotao)
-    ? ok(`ritmo travado em ${rit.travado}/sem contra ${rit.medido}/sem medidos: a tela acusa e oferece o conserto (previsao ia em ${rit.semanasAntes} semanas)`)
-    : erro('a divergencia de ritmo passou calada: ' + JSON.stringify(rit));
-  (rit.divDepois === false && rit.ritmoDepois === rit.medido && !rit.avisoDepois)
-    ? ok(`e um toque devolve o ritmo a medicao (${rit.ritmoDepois}/sem, previsao em ${rit.semanasDepois} semanas) e o aviso some`)
-    : erro('o conserto do ritmo nao pegou: ' + JSON.stringify(rit));
-
-  /* ── A PORTA DA AUDITORIA ─────────────────────────────────────────────
-     O arquivo existe para OUTRA pessoa julgar o modulo. Duas coisas o
-     inutilizam: faltar um bloco (um numero da tela que nao da para
-     reproduzir) e vazar identidade (ai ele deixa de poder ser enviado). */
-  const aud = await pag.evaluate(() => {
-    /* A porta mudou de lugar: era um <details> recolhido no FIM da lista do
-       Plano (depois de trinta assuntos, do segundo plano e das lacunas do
-       edital) e virou uma SECAO da folha de ajustes, junto dos parametros que o
-       arquivo carrega. */
-    const sec = document.querySelector('#tec-cfg-body .tec-cfg-sec[data-tab="plano"][data-sec="auditoria"]');
-    const chip = [...document.querySelectorAll('#tec-cfg-nav button')].some((b) => b.dataset.sec === 'auditoria');
-    const a = PlanoAuditoria.gerar({ cadencia: 'semanal' });
-    const txt = JSON.stringify(a);
-    return {
-      porta: !!sec, naFolha: !!sec && !!sec.closest('#tec-cfg-body'), chip,
-      foraDaLista: !document.querySelector('#plano-lista [data-aud]'),
-      botoes: [...document.querySelectorAll('#tec-cfg-body [data-aud]')].map((b) => b.dataset.aud),
-      anon: !!document.getElementById('plano-aud-anon'),
-      erro: a.erro || null,
-      blocos: a.erro ? [] : ['parametros', 'contexto', 'retrato', 'serie', 'materias',
-        'assuntos', 'atividades', 'qualidadeDoDado', 'invariantes', 'resumo',
-        'importacao', 'incidencia', 'modosDeAtaque'].filter((k) => a[k] === undefined),
-      versaoDoApp: a.erro ? null : (a.app && a.app.versao),
-      importacao: a.erro ? null : (a.importacao || []).map((i) => ({
-        linhas: i.linhas, disc: i.disciplinas, q: i.questoesNasDisciplinas,
-        folhas: i.questoesNasFolhas, fecha: i.fechaEntreDisciplinasEFolhas,
-        crua: i.somaCruaDeTodasAsLinhas, repetidas: i.disciplinasRepetidas,
-        naoRepro: i.linhasComTaxaNaoReproduzivel })),
-      invariantes: a.erro ? 0 : (a.invariantes || []).length,
-      invOk: a.erro ? null : (a.invariantes || []).every((i) => i.ok),
-      naoAplicaveis: a.erro ? 0 : (a.invariantes || []).filter((i) => i.aplicavel === false).length,
-      invFalhas: a.erro ? [] : (a.invariantes || []).filter((i) => !i.ok).map((i) => i.nome + ' :: ' + JSON.stringify(i.detalhe)),
-      vazou: txt.indexOf('pinHash') >= 0 || txt.indexOf('@') >= 0,
-      kb: Math.round(txt.length / 1024)
-    };
-  });
-  // o chip da fita e conferido no teste da folha (secao 9 acima), com ela aberta
-  (aud.porta && aud.naFolha && aud.foraDaLista && aud.botoes.join(',') === 'semanal,mensal' && aud.anon)
-    ? ok('a auditoria e uma secao da folha de ajustes (🧪), com exportacao semanal, mensal e modo anonimo — e saiu da lista')
-    : erro('a porta da auditoria nao saiu certa: ' + JSON.stringify(aud));
-  /* O ARQUIVO TEM DE CONFERIR A FONTE. Uma importacao que conta a mesma questao
-     duas vezes produz dominio, custo e fila plausiveis: sem a reconciliacao
-     entre o total das disciplinas e o das folhas, nada no arquivo denuncia. */
-  const im = (aud.importacao || [])[0];
-  (im && im.fecha === true && im.q === im.folhas && im.repetidas === 0 && im.naoRepro === 0 && im.crua >= im.q)
-    ? ok(`o arquivo reconcilia a importacao: ${im.disc} disciplinas, ${im.q} questoes, folhas fechando (soma crua seria ${im.crua})`)
-    : erro('a conferencia da importacao no arquivo falhou: ' + JSON.stringify(aud.importacao));
-  (aud.versaoDoApp && /^v[0-9a-f]+$/.test(aud.versaoDoApp))
-    ? ok(`o arquivo diz qual build o produziu (${aud.versaoDoApp})`)
-    : erro('o arquivo nao carimba a versao do app: ' + JSON.stringify(aud.versaoDoApp));
-  (!aud.erro && aud.blocos.length === 0 && aud.invariantes >= 3 && aud.invOk === true && !aud.vazou)
-    ? ok(`e o arquivo sai completo (${aud.kb} KB), com as ${aud.invariantes} invariantes conferidas na hora e sem credencial nem e-mail`)
-    : erro('o arquivo de auditoria saiu incompleto ou vazou dado: ' + JSON.stringify(aud));
-
-  /* ── O NUMERO GRANDE PRECISA DIZER DE QUEM ELE E ──────────────────────
-     Com o filtro numa disciplina, TUDO no cartao do topo passa a ser dela: o
-     dominio, os "faltam X pontos", o caminho curto, as semanas. Medido no mesmo
-     perfil, o numero saltava de 79,0% em 27 assuntos para 65,5% em 6 sem nada
-     na tela dizendo por que — e o filtro vive numa folha suspensa, longe dali. */
-  const escopo = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const rs = [];
-      [['Tributario', 10, 84], ['Contabilidade', 8, 58]].forEach(([d, n, base]) => {
-        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
-          disciplina: d, questoes: 40 + t * 3, acertos: Math.round((40 + t * 3) * (base - 8 + t * 3) / 100) });
-      });
-      DB.getTecSnapshots = () => ([{ id: 'E', nome: 'E', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({});
-      const sel = document.getElementById('plano-disc');
-      if (sel) sel.value = '__todas__';
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30 });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const geral = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      const semRotulo = !document.querySelector('.pl-hero-escopo');
-      if (sel) sel.value = 'Tributario';
-      PlanoEngine.salvarPrefs({ disciplina: 'Tributario' });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlanoConteudo();
-      const filtrado = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      const el = document.querySelector('.pl-hero-escopo');
-      const btn = document.getElementById('plano-todas-disc');
-      const rot = el ? el.textContent.replace(/\s+/g, ' ') : '';
-      if (btn) btn.click();
-      return { semRotulo, rot, temBotao: !!btn,
-        voltou: PlanoEngine.prefs().disciplina === '__todas__' && !document.querySelector('.pl-hero-escopo'),
-        domGeral: +geral.dominioPct.toFixed(1), nGeral: geral.assuntos,
-        domFiltro: +filtrado.dominioPct.toFixed(1), nFiltro: filtrado.assuntos };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__' });
-    }
-  });
-  (escopo.semRotulo && /Tributario/.test(escopo.rot) && escopo.temBotao && escopo.voltou
-    && Math.abs(escopo.domGeral - escopo.domFiltro) > 5)
-    ? ok(`o dominio nomeia a materia quando filtrado (${escopo.domGeral}% em ${escopo.nGeral} assuntos → ${escopo.domFiltro}% em ${escopo.nFiltro}) e o botao "ver o geral" desfaz`)
-    : erro('o numero grande nao diz de quem e: ' + JSON.stringify(escopo));
-
-  /* ── DUAS ATIVIDADES, AS MESMAS QUESTOES ──────────────────────────────
-     Medir o no pelas linhas cruas e o que torna a atividade imune a lente — e e
-     tambem o que faz uma atividade em "Atos" contar o que uma segunda, em "Atos
-     vinculados", tambem conta. Nas barras a dobra e defensavel; na calibragem o
-     mesmo volume entra duas vezes e o "questoes por ponto" sai subestimado,
-     rebaixando o custo de TODO assunto do Plano.
-
-     Bloquear seria errado (afunilar dentro de uma frente aberta e estudo
-     normal). Criar em silencio tambem. Entao a tela PERGUNTA — e o que este
-     teste cobra e que a pergunta chegue com os dois nomes e que o "nao" nao
-     crie nada. */
-  const dobra = await pag.evaluate(async () => {
-    const origSnaps = DB.getTecSnapshots, origConf = UI.confirm, origExtras = DB.getExtras,
-      origSave = DB.saveExtras, origEscopo = DesempenhoTecScreen.scopedSnapshot;
-    let banco = [];
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const rows = [
-        { depth: 0, codigo: null, nome: 'Dir Adm', disciplina: 'Dir Adm', questoes: 300, acertos: 150 },
-        { depth: 1, codigo: '01', nome: 'Atos', disciplina: 'Dir Adm', questoes: 200, acertos: 100 },
-        { depth: 2, codigo: '01.01', nome: 'Atos vinculados', disciplina: 'Dir Adm', questoes: 120, acertos: 60 },
-        { depth: 2, codigo: '01.02', nome: 'Atos discricionarios', disciplina: 'Dir Adm', questoes: 80, acertos: 40 },
-        { depth: 1, codigo: '02', nome: 'Licitacoes', disciplina: 'Dir Adm', questoes: 100, acertos: 50 }];
-      const snap = { id: 'D', nome: 'D', date: dia(5), startDate: dia(35), endDate: dia(5), rows };
-      DB.getTecSnapshots = () => ([snap]);
-      DB.getExtras = () => banco;
-      DB.saveExtras = (l) => { banco = l; };
-      DesempenhoTecScreen.scopedSnapshot = () => snap;
-      DesempenhoTecScreen._planoRefC = null;
-      let visto = null, vezes = 0;
-      UI.confirm = (msg) => { visto = String(msg); vezes++; return Promise.resolve(false); };
-      // sem atividade aberta, o portao nem abre dialogo
-      const livre = await DesempenhoTecScreen._confirmarSobreposicao('Atos vinculados', 'Dir Adm');
-      const semDialogo = vezes === 0;
-      // abre a frente ampla (o PAI) e tenta o filho
-      const e = DB.addExtra({ titulo: 'Reforçar: Atos', tipo: 'questoes', alvo: 50, periodo: 'unica', contaMetricas: false });
-      DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem('Atos', 'Dir Adm', null, {}) });
-      const antesN = DB.getExtras().length;
-      const recusado = await DesempenhoTecScreen._confirmarSobreposicao('Atos vinculados', 'Dir Adm');
-      const depoisN = DB.getExtras().length;
-      // e o irmao, que nao se sobrepoe, passa direto
-      const vezesAntes = vezes;
-      const irmao = await DesempenhoTecScreen._confirmarSobreposicao('Licitacoes', 'Dir Adm');
-      return {
-        livre, semDialogo, recusado, perguntou: vezes === vezesAntes,
-        naoCriou: antesN === depoisN, irmao, vezes,
-        citaAmbos: !!(visto && /Atos/.test(visto) && /Atos vinculados/.test(visto)),
-        citaCalibragem: !!(visto && /calibragem/i.test(visto)),
-        // a saida que a tela sugere tem de estar escrita nela
-        citaSaida: !!(visto && /encerrar/i.test(visto)),
-        titBloco: PlanoCiclo.titulo('Licitacoes · bloco', 'reforco', ['a', 'b', 'c']),
-        titComum: PlanoCiclo.titulo('Atos', 'diagnostico', null)
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; UI.confirm = origConf; DB.getExtras = origExtras;
-      DB.saveExtras = origSave; DesempenhoTecScreen.scopedSnapshot = origEscopo;
-      DesempenhoTecScreen._planoRefC = null;
-    }
-  });
-  (dobra.livre === true && dobra.semDialogo && dobra.irmao === true && dobra.vezes === 1)
-    ? ok('o aviso de dobra so aparece quando ha dobra: assunto livre e irmao passam sem dialogo')
-    : erro('o portao da sobreposicao abriu onde nao devia: ' + JSON.stringify(dobra));
-  (dobra.recusado === false && dobra.naoCriou && dobra.citaAmbos && dobra.citaCalibragem && dobra.citaSaida)
-    ? ok('com a frente ampla aberta, criar o subtopico pergunta antes — nomeia as duas, diz o custo na calibragem e a saida — e o "nao" nao cria nada')
-    : erro('o aviso de dobra nao chegou completo: ' + JSON.stringify(dobra));
-  (dobra.titBloco === 'Reforçar: Licitacoes (bloco de 3 tópicos)' && dobra.titComum === 'Diagnosticar: Atos')
-    ? ok(`e a atividade de um bloco se apresenta em portugues ("${dobra.titBloco}")`)
-    : erro('o titulo da atividade de bloco saiu errado: ' + JSON.stringify(dobra));
-
-  /* ── ESCOLHER A SEMANA, E NAO UMA MATERIA POR VEZ ─────────────────────
-     O quadro "Onde atacar primeiro" existe para dizer que tres ou quatro
-     materias concentram metade do que esta em jogo — e o unico caminho para a
-     lista de assuntos era um filtro de UMA disciplina. Montar a semana que o
-     proprio quadro propoe exigia desfazer e refazer o filtro materia por
-     materia.
-
-     O foco acumula, e o que este teste cobra e que ele seja UM estado: o
-     select, o rotulo do numero grande, a lista de baixo e o arquivo de
-     auditoria tem de contar a mesma historia. */
-  const foco = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    const antes = PlanoEngine.prefs();
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({
-        'Tributario': [{ codigo: null, depth: 0, nome: 'Tributario', disciplina: 'Tributario', incidencia: 300 }],
-        'Contabil': [{ codigo: null, depth: 0, nome: 'Contabil', disciplina: 'Contabil', incidencia: 200 }],
-        'Portugues': [{ codigo: null, depth: 0, nome: 'Portugues', disciplina: 'Portugues', incidencia: 100 }] });
-      const rs = [];
-      [['Tributario', 5, 62], ['Contabil', 4, 55], ['Portugues', 3, 78]].forEach(([d, n, base]) => {
-        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
-          disciplina: d, questoes: 40 + t * 5, acertos: Math.round((40 + t * 5) * (base + t * 2) / 100) });
-      });
-      DB.getTecSnapshots = () => ([{ id: 'F', nome: 'F', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-      const pintar = () => { DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._fatias = null;
-        DesempenhoTecScreen.renderPlano(); };
-      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
-        limite: 50, ordenar: 'pior', granPiso: 0, apenasFolhas: true });
-      pintar();
-      const assuntos = () => [...document.querySelectorAll('#plano-lista .pl-item .pl-disc')].map((e) => e.textContent.trim());
-      const chips = () => [...document.querySelectorAll('#plano-lista [data-foco]')];
-      const geral = { n: assuntos().length, discs: [...new Set(assuntos())].sort().join(',') };
-      const nChips = chips().length;
-      // toda linha do quadro que tem assunto medido oferece o chip
-      const clicar = (nome) => {
-        const b = chips().find((e) => e.dataset.foco === nome);
-        if (b) b.click();
-        return !!b;
-      };
-      const ok1 = clicar('Tributario');
-      const ok2 = clicar('Contabil');
-      const dois = { n: assuntos().length, discs: [...new Set(assuntos())].sort().join(',') };
-      /* Lido AGORA, com as duas em foco: `sel.value` e DOM vivo, e o final
-         deste teste desfaz o foco de proposito. */
-      const sel = document.getElementById('plano-disc');
-      const selValor = sel ? sel.value : '';
-      const selTexto = (sel && sel.options[sel.selectedIndex]) ? sel.options[sel.selectedIndex].text : '';
-      const rotulo = ((document.querySelector('.pl-hero-escopo') || { textContent: '' }).textContent || '')
-        .replace(/ver o geral\s*$/, '').replace(/\s+/g, ' ').trim();
-      const marcados = chips().filter((e) => e.classList.contains('is-on')).map((e) => e.dataset.foco).sort().join(',');
-      const aria = chips().filter((e) => e.getAttribute('aria-pressed') === 'true').length;
-      const salvo = (PlanoEngine.prefs().foco || []).slice().sort().join(',');
-      const derivada = PlanoEngine.prefs().disciplina;
-      const a = PlanoAuditoria.gerar({ cadencia: 'avulsa' });
-      const noArquivo = ((a.contexto && a.contexto.materiasEmFoco) || []).slice().sort().join(',');
-      const fita = (() => { try { return TecAjustes.resumo('plano'); } catch (e) { return ''; } })();
-      // desmarcar uma volta a uma so
-      clicar('Contabil');
-      const umaSo = { n: assuntos().length, sel: document.getElementById('plano-disc').value,
-        disc: PlanoEngine.prefs().disciplina };
-      // e "ver o geral" limpa tudo
-      const limpar = document.getElementById('plano-todas-disc');
-      if (limpar) limpar.click();
-      const voltou = { n: assuntos().length, foco: (PlanoEngine.prefs().foco || []).length,
-        sel: document.getElementById('plano-disc').value, rot: !document.querySelector('.pl-hero-escopo') };
-      return { geral, nChips, ok1, ok2, dois, selValor, selTexto,
-        rotulo, marcados, aria, salvo, derivada, noArquivo,
-        fita: String(fita || '').replace(/\s+/g, ' '), umaSo, voltou };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-      PlanoEngine.salvarPrefs({ foco: [], disciplina: '__todas__', minAmostra: antes.minAmostra,
-        limite: antes.limite, ordenar: antes.ordenar, granPiso: antes.granPiso || 0 });
-    }
-  });
-  (foco.nChips === 3 && foco.ok1 && foco.ok2 && foco.geral.n === 12 && foco.dois.n === 9
-    && foco.dois.discs === 'Contabil,Tributario')
-    ? ok(`o foco acumula: 3 materias oferecem chip, duas marcadas recortam a lista de ${foco.geral.n} para ${foco.dois.n} assuntos (${foco.dois.discs})`)
-    : erro('o foco de varias materias nao recortou a lista: ' + JSON.stringify(foco));
-  (foco.marcados === 'Contabil,Tributario' && foco.aria === 2 && foco.salvo === 'Contabil,Tributario')
-    ? ok('e as duas linhas do quadro ficam marcadas, com o estado exposto para leitor de tela')
-    : erro('o estado do chip nao acompanha o foco: ' + JSON.stringify(foco));
-  (foco.selValor === '__varias__' && /2 mat/.test(foco.selTexto) && foco.derivada === '__todas__'
-    && /Tributario/.test(foco.rotulo) && /Contabil/.test(foco.rotulo))
-    ? ok(`o numero grande nomeia as duas ("${foco.rotulo}") e o select mostra o mesmo estado ("${foco.selTexto}")`)
-    : erro('o select e o rotulo divergem do foco: ' + JSON.stringify(foco));
-  (foco.noArquivo === 'Contabil,Tributario' && /2 mat/.test(foco.fita))
-    ? ok('a auditoria grava o recorte aplicado e a fita dos ajustes o repete')
-    : erro('o recorte nao chegou ao arquivo nem a fita: ' + JSON.stringify({ arq: foco.noArquivo, fita: foco.fita }));
-  (foco.umaSo.n === 5 && foco.umaSo.sel === 'Tributario' && foco.umaSo.disc === 'Tributario'
-    && foco.voltou.n === 12 && foco.voltou.foco === 0 && foco.voltou.sel === '__todas__' && foco.voltou.rot)
-    ? ok('desmarcar volta ao filtro de uma (e o select acompanha); "ver o geral" limpa o foco inteiro')
-    : erro('o foco nao desfaz corretamente: ' + JSON.stringify(foco));
-
-  /* ── A GRANULARIDADE DA UNIDADE E UMA ESCOLHA, NAO UM DESTINO ─────────
-     A arvore do TecConcursos e irregular: materia que termina no segundo nivel
-     convive com materia que desce ao sexto. A lente de folha transforma isso em
-     centenas de unidades de duas ou tres questoes, e o Plano inteiro morria na
-     mensagem "nenhum assunto atingiu a amostra minima" — com o retrato na mao.
-
-     O piso junta o que nao mede sozinho ao topico-pai. O que este teste cobra e
-     que a escolha seja REVERSIVEL e HONESTA: mesmo volume em qualquer piso, o
-     bloco se anunciando na tela, e a saida do beco oferecida em um toque. */
-  const gran = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    const antes = PlanoEngine.prefs();
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({});
-      /* Um retrato realista: duas materias, cada uma com um topico-pai que se
-         desdobra em muitos filhos de 2 a 4 questoes — o caso em que a lente de
-         folha nao mede NADA e o app nao tinha saida boa a oferecer. */
-      const rs = [{ depth: 0, codigo: null, nome: 'Tributario', disciplina: 'Tributario', questoes: 0, acertos: 0 },
-        { depth: 1, codigo: '01', nome: 'Obrigacao', disciplina: 'Tributario', questoes: 0, acertos: 0 }];
-      let qT = 0, aT = 0;
-      for (let i = 1; i <= 12; i++) {
-        const q = 2 + (i % 3), ac = Math.round(q * 0.4);
-        rs.push({ depth: 2, codigo: '01.' + String(i).padStart(2, '0'), nome: 'Obrigacao ' + i,
-          disciplina: 'Tributario', questoes: q, acertos: ac });
-        qT += q; aT += ac;
-      }
-      rs[1].questoes = qT; rs[1].acertos = aT; rs[0].questoes = qT; rs[0].acertos = aT;
-      rs.push({ depth: 0, codigo: null, nome: 'Contabil', disciplina: 'Contabil', questoes: 0, acertos: 0 },
-        { depth: 1, codigo: '01', nome: 'Ativo', disciplina: 'Contabil', questoes: 0, acertos: 0 });
-      let qC = 0, aC = 0;
-      for (let i = 1; i <= 9; i++) {
-        const q = 3, ac = 2;
-        rs.push({ depth: 2, codigo: '01.' + String(i).padStart(2, '0'), nome: 'Ativo ' + i,
-          disciplina: 'Contabil', questoes: q, acertos: ac });
-        qC += q; aC += ac;
-      }
-      rs[rs.length - 10].questoes = qC; rs[rs.length - 10].acertos = aC;
-      rs[rs.length - 11].questoes = qC; rs[rs.length - 11].acertos = aC;
-      DB.getTecSnapshots = () => ([{ id: 'G', nome: 'G', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-      const total = qT + qC, totalAc = aT + aC;
-      const pintar = (piso) => {
-        PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
-          limite: 30, ordenar: 'pior', apenasFolhas: true, granPiso: piso, incluirPequenas: false });
-        PlanoEngine._agrC = null;
-        DesempenhoTecScreen._planoRefC = null; DesempenhoTecScreen._fatias = null;
-        DesempenhoTecScreen.renderPlano();
-      };
-      // 1) o controle existe na folha, com os quatro estados
-      const sel = document.getElementById('plano-granpiso');
-      const opcoes = sel ? [...sel.options].map((o) => o.value).join(',') : '';
-      const naSecao = !!(sel && sel.closest('.tec-cfg-sec[data-tab="plano"][data-sec="amostra"]'));
-      // 2) sem piso, o Plano nao existe — e a tela oferece o agrupamento
-      pintar(0);
-      const semPiso = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      const botao = document.getElementById('plano-juntar-finos');
-      const rotulo = botao ? botao.textContent.replace(/\s+/g, ' ').trim() : '';
-      const gSug = semPiso.granSugerida || null;
-      // 3) um toque, e o Plano volta
-      if (botao) botao.click();
-      const pisoAplicado = PlanoEngine.prefs().granPiso;
-      const comPiso = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      const selos = [...document.querySelectorAll('#plano-lista .pl-tag-bloco')];
-      const comInfo = selos.filter((e) => (e.dataset.info || '').length > 80).length;
-      const somaIdx = (piso) => {
-        PlanoEngine._agrC = null;
-        const idx = PlanoEngine._indice(DesempenhoTecScreen.scopedSnapshot(),
-          Object.assign({}, PlanoEngine.prefs(), { granPiso: piso }));
-        PlanoEngine._agrC = null;
-        return { u: Object.keys(idx).length,
-          q: Object.keys(idx).reduce((a, k) => a + idx[k].q, 0),
-          ac: Object.keys(idx).reduce((a, k) => a + idx[k].ac, 0) };
-      };
-      const porPiso = [0, 10, 20, 30, 50].map(somaIdx);
-      // 4) e a auditoria declara a lente, com a soma conferida no ato
-      const a = PlanoAuditoria.gerar({ cadencia: 'avulsa' });
-      const invGran = (a.invariantes || []).filter((i) => /agrupar|agrupamento/.test(i.nome));
-      return {
-        opcoes, naSecao, temSelect: !!sel,
-        erroSemPiso: semPiso.erro || null, gSug, rotulo, pisoAplicado,
-        erroComPiso: comPiso.erro || null, assuntosComPiso: comPiso.assuntos || 0,
-        blocosNaTela: selos.length, comInfo, textoSelo: selos.length ? selos[0].textContent.trim() : '',
-        total, totalAc, porPiso,
-        somaSempreIgual: porPiso.every((x) => x.q === total && x.ac === totalAc),
-        unidadesCaem: porPiso[0].u > porPiso[1].u,
-        gran: a.granularidade ? { piso: a.granularidade.piso, ok: a.granularidade.somaPreservada,
-          blocos: a.granularidade.blocos, topicos: a.granularidade.atomosAgrupados,
-          medem: a.granularidade.medemSozinhas, medemSem: a.granularidade.medemSozinhasSemAgrupar } : null,
-        invGran: invGran.map((i) => i.nome + '=' + i.ok), invTodasOk: (a.invariantes || []).every((i) => i.ok)
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-      PlanoEngine._agrC = null;
-      PlanoEngine.salvarPrefs({ granPiso: antes.granPiso || 0, minAmostra: antes.minAmostra,
-        apenasFolhas: antes.apenasFolhas, disciplina: '__todas__' });
-    }
-  });
-  (gran.temSelect && gran.naSecao && gran.opcoes === '0,10,20,30')
-    ? ok('o piso de granularidade e um seletor de quatro estados, na secao Amostra dos ajustes')
-    : erro('o controle de granularidade nao saiu certo: ' + JSON.stringify(gran));
-  (gran.erroSemPiso === 'amostra' && gran.gSug && gran.gSug.piso === 10 && /Juntar os assuntos finos/.test(gran.rotulo))
-    ? ok(`com 21 topicos de 2 a 4 questoes o Plano morria na amostra minima; agora a tela oferece juntar (${gran.rotulo})`)
-    : erro('o beco da amostra nao oferece o agrupamento: ' + JSON.stringify({ erro: gran.erroSemPiso, g: gran.gSug, rot: gran.rotulo }));
-  (gran.pisoAplicado === 10 && !gran.erroComPiso && gran.assuntosComPiso === 2)
-    ? ok(`e um toque devolve o Plano: ${gran.assuntosComPiso} unidades medidas onde nenhuma media`)
-    : erro('o toque nao devolveu o Plano: ' + JSON.stringify(gran));
-  (gran.blocosNaTela === 2 && gran.comInfo === 2 && /bloco/.test(gran.textoSelo))
-    ? ok(`cada unidade agrupada se anuncia na tela ("${gran.textoSelo}") e explica no "i" o que cobre`)
-    : erro('o bloco nao se anuncia: ' + JSON.stringify(gran));
-  (gran.somaSempreIgual && gran.unidadesCaem)
-    ? ok(`e o volume e o MESMO em todo piso (${gran.total} questoes, ${gran.totalAc} acertos; unidades ${gran.porPiso.map((x) => x.u).join(' → ')})`)
-    : erro('o agrupamento mexeu no volume: ' + JSON.stringify({ total: gran.total, porPiso: gran.porPiso }));
-  (gran.gran && gran.gran.ok === true && gran.gran.piso === 10 && gran.gran.medem > gran.gran.medemSem
-    && gran.invGran.length === 2 && gran.invGran.every((x) => /=true$/.test(x)) && gran.invTodasOk)
-    ? ok(`a auditoria declara a lente (piso ${gran.gran.piso}, ${gran.gran.blocos} blocos, ${gran.gran.topicos} topicos, ${gran.gran.medemSem} → ${gran.gran.medem} medindo) e confere a soma no ato`)
-    : erro('a auditoria nao declara a granularidade: ' + JSON.stringify({ gran: gran.gran, inv: gran.invGran, todas: gran.invTodasOk }));
-
-  /* ── A TELA COMECA PELA PERGUNTA, NAO PELA RESPOSTA ───────────────────
-     "O seu proximo bloco" vinha com quatro assuntos marcados e um botao grande
-     ANTES de "Onde atacar primeiro" dizer qual materia importa: quem abre pela
-     primeira vez criava quatro atividades sem ter visto que quatro materias
-     concentram metade do que esta em jogo. E a guia de cada item abria enquanto
-     `i <= idxMeta` — num plano de 17 assuntos, 17 guias completas abertas (e
-     TODAS quando a meta era inalcancavel), o que fazia os itens responderem por
-     84% de uma pagina de 20.681px a 390px. */
-  const layout = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      ReforcoEngine._incidByDisc = () => ({
-        'Grande': [{ codigo: null, depth: 0, nome: 'Grande', disciplina: 'Grande', incidencia: 890 }],
-        'Cara': [{ codigo: null, depth: 0, nome: 'Cara', disciplina: 'Cara', incidencia: 100 }],
-        'Miuda': [{ codigo: null, depth: 0, nome: 'Miuda', disciplina: 'Miuda', incidencia: 8 }] });
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      const rs = [];
-      [['Grande', 12, 58, 55], ['Cara', 8, 50, 80], ['Miuda', 1, 20, 88]].forEach(([d, n, q, tx]) => {
-        for (let t = 0; t < n; t++) rs.push({ depth: 1, codigo: String(t + 1), nome: d + ' ' + (t + 1),
-          disciplina: d, questoes: q, acertos: Math.round(q * (tx + t) / 100) });
-      });
-      DB.getTecSnapshots = () => ([{ id: 'L', nome: 'L', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85, limite: 30, ordenar: 'pior' });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      /* ── A ORDEM É A MESMA; A PROFUNDIDADE MUDOU ──────────────────────────
-         Esta leitura olhava só os filhos DIRETOS de `#plano-lista`. Com a rota
-         manual reagrupada num `<details class="tpm-legacy-exec">` (para o
-         botão 🎯 Atacar e a criação avulsa voltarem a existir quando há motor
-         ativo, sem recriar uma segunda fonte de decisão), "Onde atacar
-         primeiro" e "O seu próximo bloco" passaram a ser NETOS — e a busca
-         rasa devolvia -1 para o segundo.
-
-         O que o teste prova continua valendo e continua sendo verificado: a
-         matéria vem antes do bloco de assuntos. `querySelectorAll` devolve em
-         ordem de documento, então incluir o conteúdo do agrupamento mantém a
-         comparação de índices exata, com agrupamento ou sem ele. */
-      const blocos = [...document.querySelectorAll('#plano-lista > *, #plano-lista > .tpm-legacy-exec > *')]
-        .map((e) => (e.className || '').split(' ')[0]);
-      const tm = PlanoPontos.esforcoPorMateria();
-      const por = {}; tm.linhas.forEach((l) => { por[l.nome] = l; });
-      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      return {
-        iTempo: blocos.indexOf('pl-ciclo'), iHoje: blocos.indexOf('pl-hoje'),
-        guiasAbertas: document.querySelectorAll('.pl-guia[open]').length,
-        nItens: document.querySelectorAll('.pl-item').length,
-        // a ordem curta e visivel de cada item, e o conselho inteiro dentro da guia
-        comOrdem: document.querySelectorAll('.pl-item .pl-direcao').length,
-        linhasOrdem: [...document.querySelectorAll('.pl-item .pl-direcao span:last-child')]
-          .map(e => (e.textContent || '').trim().length),
-        conselhoNaGuia: document.querySelectorAll('.pl-item .pl-guia-acao').length,
-        idxMeta: r.idxMeta,
-        cara: por.Cara, miuda: por.Miuda
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-    }
-  });
-  (layout.iTempo >= 0 && layout.iHoje >= 0 && layout.iTempo < layout.iHoje)
-    ? ok('a tela abre por "Onde atacar primeiro" (a materia) e so depois pelo bloco de assuntos')
-    : erro('a ordem dos blocos voltou a comecar pela resposta: ' + JSON.stringify(layout));
-  {
-    /* CADA ITEM DIZ O QUE FAZER EM UMA LINHA, E NAO PERDE O PORQUE. O conselho
-       inteiro ocupava nove linhas coloridas em cada item, com o mesmo miolo
-       repetido dez vezes — 492px por assunto, mais que uma tela de celular.
-       Ele nao foi cortado: mudou de lugar, para a guia que ja existia. */
-    const maiorOrdem = Math.max(0, ...(layout.linhasOrdem || [0]));
-    (layout.comOrdem === layout.nItens && layout.conselhoNaGuia === layout.nItens && maiorOrdem <= 130)
-      ? ok(`cada um dos ${layout.nItens} itens traz a ordem em uma linha (maior: ${maiorOrdem} caracteres) e o conselho inteiro na guia`)
-      : erro('a ordem curta ou o conselho completo sumiu do item: ' + JSON.stringify({
-          itens: layout.nItens, comOrdem: layout.comOrdem, naGuia: layout.conselhoNaGuia, maiorOrdem }));
-  }
-  /* A guia nao abre sozinha em NENHUM item: ela abria nos tres primeiros
-     porque a linha nao dizia o que fazer. Agora a linha traz a ordem curta e o
-     conselho inteiro fica na guia — abrir tres seria voltar ao problema. */
-  (layout.guiasAbertas === 0 && layout.nItens > 10)
-    ? ok(`e nenhuma guia abre sozinha nos ${layout.nItens} itens (antes abria em ${layout.idxMeta >= 0 ? layout.idxMeta + 1 : 'todos'})`)
-    : erro('a guia voltou a abrir em meia lista: ' + JSON.stringify({ abertas: layout.guiasAbertas, itens: layout.nItens }));
-  (layout.cara.veredito === 'reduzir' && layout.miuda.veredito !== 'reduzir' && layout.miuda.sobra === true)
-    ? ok(`"reduza" so onde ha o que reduzir: Cara com ${layout.cara.shareEsforco.toFixed(0)}% do esforco sim, Miuda com ${layout.miuda.shareEsforco.toFixed(1)}% nao (a sobra fica anotada)`)
-    : erro('o piso de esforco do "reduza" falhou: ' + JSON.stringify({ cara: layout.cara.veredito, miuda: layout.miuda.veredito }));
-
-  /* ── A SETA SO ACENDE QUANDO A DIFERENCA SE SUSTENTA ──────────────────
-     `sensTendencia` responde "vale me avisar?" e e preferencia legitima.
-     Faltava a outra pergunta: "da para provar?". Medido no caso real: 70
-     questoes a 88% contra uma base de 10 a 65% acendia ▲ +18,6pp, quando a
-     menor subida comprovavel naquele par e 30pp. Anunciar melhora que nao se
-     sustenta e pior que nao anunciar: o aluno troca de estrategia por ruido. */
-  const setas = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const snap = (id, d, q, tx) => ({ id, nome: id, date: dia(d), startDate: dia(d + 7), endDate: dia(d),
-        rows: [{ depth: 1, codigo: 'T', nome: 'T', disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }] });
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({});
-      const medir = (snaps, alvo) => {
-        DB.getTecSnapshots = () => snaps;
-        PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, amostraAlvo: alvo,
-          pisoSerie: 5, sensTendencia: 3, ordenar: 'pior', limite: 30 });
-        DesempenhoTecScreen._planoRefC = null;
-        DesempenhoTecScreen.renderPlano();
-        const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-        const x = (r.itens || [])[0] || {};
-        return { delta: x.delta, minimo: x.deltaMinimo, firme: x.deltaFirme, melhorando: r.melhorando,
-          margem: /dentro da margem/.test(document.getElementById('plano-lista').textContent) };
-      };
-      return {
-        fraca: medir([snap('b1', 21, 10, 65), snap('b2', 7, 70, 88)], 50),
-        forte: medir([snap('c1', 21, 200, 60), snap('c2', 7, 200, 80)], 200)
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-    }
-  });
-  (setas.fraca.firme === false && setas.fraca.melhorando === 0 && setas.fraca.margem
-    && setas.fraca.delta > 3 && setas.fraca.minimo > setas.fraca.delta)
-    ? ok(`base curta: sobe ${setas.fraca.delta}pp mas so ${setas.fraca.minimo.toFixed(0)}pp seriam comprovaveis — a tela marca "dentro da margem" e nao conta como melhorando`)
-    : erro('a seta acendeu sem sustentacao: ' + JSON.stringify(setas.fraca));
-  (setas.forte.firme === true && setas.forte.melhorando === 1 && !setas.forte.margem
-    && setas.forte.delta > setas.forte.minimo)
-    ? ok(`e com volume dos dois lados a seta fica CHEIA: ${setas.forte.delta}pp contra ${setas.forte.minimo.toFixed(0)}pp de minimo`)
-    : erro('a seta firme deixou de acender: ' + JSON.stringify(setas.forte));
-
-  /* ── O CONSELHO DE CADA ASSUNTO DIZ QUANTAS QUESTOES, E PARA QUE ──────
-     Era "um bloco de ~B questoes" com B = custoQ/4: um quarto de uma
-     estimativa, sem pergunta por tras. Agora sao duas contas fechadas — a
-     amostra que MEDE (n = z²·p(1−p)/E², E = 10pp) e a que PROVA a subida ate
-     a meta (teste de duas proporcoes, 80% de poder). Quando a medicao de hoje
-     e curta demais para sustentar a comparacao, a tela diz isso em vez de
-     inventar um numero. */
-  const qtd = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const specs = [['Critico', 40, 33], ['Fragil', 40, 58], ['Desenv', 40, 75]];
-      const rs = specs.map(([n, q, tx]) => ({ depth: 1, codigo: n, nome: n, disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }));
-      DB.getTecSnapshots = () => ([{ id: 'q1', nome: 'q1', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({});
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, metaDominio: 85,
-        faixaCritico: 50, faixaFragil: 65, ordenar: 'pior', limite: 30, incluirPequenas: false });
-      DesempenhoTecScreen._planoRefC = null;
-      DesempenhoTecScreen.renderPlano();
-      const r = PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs());
-      const de = (n) => (r.itens || []).find((x) => x.nome === n) || {};
-      return {
-        critico: (de('Critico').status || {}).acao || '',
-        fragil: (de('Fragil').status || {}).acao || '',
-        desenv: (de('Desenv').status || {}).acao || '',
-        qMedirFragil: de('Fragil').qMedir, formula: PlanoEngine.qParaMedir(de('Fragil').taxa),
-        provarDesenv: PlanoEngine.qParaProvar(de('Desenv').taxa, de('Desenv').qJanela, 85 - de('Desenv').taxa),
-        txt: document.getElementById('plano-lista').textContent
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-    }
-  });
-  (/retome a teoria/.test(qtd.critico) && /bloco de \d+ questões/.test(qtd.critico))
-    ? ok('no critico a tela manda a TEORIA primeiro e so depois o bloco que remede o nivel')
-    : erro('o conselho do critico perdeu a teoria ou o numero: ' + qtd.critico.slice(0, 140));
-  (qtd.qMedirFragil === qtd.formula && /\d+ questões \(o que dá ±10pp de margem\)/.test(qtd.fragil) && !/~/.test(qtd.fragil))
-    ? ok(`no fragil o bloco e a amostra da formula (${qtd.qMedirFragil}q para ±10pp), nao mais um quarto do custo`)
-    : erro('o bloco do fragil nao saiu da formula: ' + JSON.stringify({ q: qtd.qMedirFragil, f: qtd.formula, t: qtd.fragil.slice(0, 140) }));
-  (qtd.provarDesenv === null && /são poucas para comprovar/.test(qtd.desenv))
-    ? ok('e quando a medicao de hoje e curta demais para provar a subida, a tela diz isso em vez de inventar um numero')
-    : erro('o limite da comprovacao nao foi declarado: ' + JSON.stringify({ p: qtd.provarDesenv, t: qtd.desenv.slice(0, 140) }));
-  !/\bNaN\b|\bundefined\b|\bInfinity\b/.test(qtd.txt)
-    ? ok('nenhum numero podre nos conselhos') : erro('numero podre no conselho dos assuntos');
-
-  /* ── A FILA NAO PODE PROMETER O QUE A AMOSTRA NAO SUSTENTA ────────────
-     Simulacao com 40 assuntos e taxas verdadeiras conhecidas: com 20 a 50
-     questoes por assunto, a fila por "pior acerto" acerta 55% dos cinco piores
-     REAIS — e mesmo assim captura 91% do ganho disponivel. A posicao no topo e
-     quase sorteio; a escolha entre os primeiros e quase otima. Calar isso
-     empurra o aluno a refazer a fila atras de um 1o lugar que o dado nao
-     sustenta. (Encolhimento bayesiano foi medido nos quatro regimes e movia o
-     acerto em ±1pp: descartado.) */
-  const emp = await pag.evaluate(() => {
-    const origSnaps = DB.getTecSnapshots, origSubs = DB.getActiveSubjects,
-      origModo = window.planCycleMode, origInc = ReforcoEngine._incidByDisc;
-    try {
-      const dia = (n) => { const d = new Date(todayLocal() + 'T00:00:00'); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
-      const montar = (specs) => {
-        const rs = specs.map(([n, q, tx]) => ({ depth: 1, codigo: n, nome: n, disciplina: 'D', questoes: q, acertos: Math.round(q * tx / 100) }));
-        DB.getTecSnapshots = () => ([{ id: 'emp', nome: 'emp', date: dia(5), startDate: dia(35), endDate: dia(5), rows: rs }]);
-        DesempenhoTecScreen._planoRefC = null;
-        DesempenhoTecScreen.renderPlano();
-        return { r: PlanoEngine.calcular(DesempenhoTecScreen.scopedSnapshot(), PlanoEngine.prefs()),
-          txt: document.getElementById('plano-lista').textContent.replace(/\s+/g, ' ') };
-      };
-      DB.getActiveSubjects = () => []; window.planCycleMode = () => 'pre';
-      ReforcoEngine._incidByDisc = () => ({});
-      const sel = document.getElementById('plano-ordenar');
-      if (sel) sel.value = 'pior';
-      PlanoEngine.salvarPrefs({ disciplina: '__todas__', minAmostra: 20, ordenar: 'pior',
-        limite: 30, amostraAlvo: 50, ritmoSemanal: 300, incluirPequenas: false });
-      const curta = montar([['T1', 22, 33], ['T2', 24, 42], ['T3', 21, 48], ['T4', 23, 52], ['T5', 200, 80]]);
-      const larga = montar([['T1', 400, 33], ['T2', 400, 42], ['T3', 400, 48], ['T4', 400, 52], ['T5', 400, 80]]);
-      return {
-        empCurta: curta.r.empatados, avisoCurta: /empatados dentro da margem de erro/.test(curta.txt),
-        empLarga: larga.r.empatados, avisoLarga: /empatados dentro da margem de erro/.test(larga.txt),
-        taxas: curta.r.itens.slice(0, 4).map((x) => x.taxa.toFixed(0) + '%±' + x.margem.toFixed(0))
-      };
-    } finally {
-      DB.getTecSnapshots = origSnaps; DB.getActiveSubjects = origSubs;
-      window.planCycleMode = origModo; ReforcoEngine._incidByDisc = origInc;
-    }
-  });
-  (emp.empCurta >= 3 && emp.avisoCurta && emp.empLarga === 1 && !emp.avisoLarga)
-    ? ok(`com amostra curta a tela declara os ${emp.empCurta} primeiros empatados (${emp.taxas.join(', ')}); com 400q cada, as mesmas taxas viram diferenca real e o aviso some`)
-    : erro('o empate tecnico falhou: ' + JSON.stringify(emp));
-
-  /* O AVISO TEM DE MUDAR ALGUMA COISA. Ele derivava a sugestao do MAIOR
-     assunto em faixas fixas: com o alvo em 50 e o maior em 72, sugeria 50. */
-  (num.alvo.inviavel && num.alvo.sugerido != null && num.alvo.sugerido < num.alvo.atual)
-    ? ok(`aviso de amostra: so ${num.alvo.comAlvo} de ${num.alvo.assuntos} chegam a ${num.alvo.atual} (maior ${num.alvo.maior}) e a sugestao e ${num.alvo.sugerido}, nao ${num.alvo.atual}`)
-    : erro('o aviso de amostra sugere o que ja esta ligado: ' + JSON.stringify(num.alvo));
-  (num.bruto < -10 && num.comparavel > 10 && /^\+/.test(num.cracha) && num.nota)
-    ? ok(`trajetoria: a diferenca crua dizia ${num.bruto}pp com todo assunto subindo; o cracha agora diz "${num.cracha}" e a tela explica a linha`)
-    : erro('a trajetoria ainda mente na direcao: ' + JSON.stringify(num));
-  (num.botaoTraj && num.analiseTraj)
-    ? ok('e os numeros por tras da trajetoria (serie importacao por importacao) abrem no "i", fora da tela')
-    : erro('a analise da trajetoria nao esta acessivel: ' + JSON.stringify({ botao: num.botaoTraj, analise: num.analiseTraj }));
-
-  (esf.casaGenero === 'lingua portuguesa' && esf.naoCasaIrmas === undefined && esf.naoCasaAmbiguo === undefined)
-    ? ok('e o casamento de nomes, onde ainda e preciso (edital digitado x banca), segue conservador')
-    : erro('o casamento de nomes virou palpite: ' + JSON.stringify(esf));
-
-  pts.tempo ? ok('e o quadro de esforco por materia esta na tela') : erro('o quadro de esforco sumiu');
-  !pts.podre ? ok('nenhum numero podre em nada disso') : erro('numero podre na tela de pontos');
-  await pag.evaluate(() => { DB._set(DB.KEYS.extras, []); });
   await pag.setViewportSize({ width: 1280, height: 900 });
-} catch (e) { erro('a gestao/regua de pontos falhou: ' + e.message); }
+} catch (e) { erro('a gestao das atividades falhou: ' + e.message); }
 
 /* ═══ 7) UM ANO DE USO, SIMULADO ════════════════════════════════════════════
    As etapas acima conferem partes. Esta confere a EXPERIÊNCIA: uma jornada de

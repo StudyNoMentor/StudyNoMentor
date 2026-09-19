@@ -523,19 +523,6 @@
   }
 
   if (typeof ExtrasScreen !== 'undefined') {
-    const puxarAnterior = ExtrasScreen.puxarDoPlano;
-    ExtrasScreen.puxarDoPlano = function () {
-      const r = PlanFastCache.withCache(() => puxarAnterior.apply(this, arguments));
-      const recalc = this._planoRecalc;
-      if (typeof recalc === 'function' && !recalc._planFastWrapped) {
-        const self = this;
-        const fast = function () { return PlanFastCache.withCache(() => recalc.call(self)); };
-        fast._planFastWrapped = true;
-        this._planoRecalc = fast;
-      }
-      return r;
-    };
-
     const renderAnterior = ExtrasScreen.render;
     ExtrasScreen.render = function () {
       try { LeiRodizio.sincronizarHoje(); } catch (e) { _quiet(e, 'lei-rodizio-sync'); }
