@@ -895,6 +895,159 @@ try {
     ? ok(`a leitura por secao reconstruiu o perfil do zero (${hidratou.assuntos.length} registros)`)
     : erro('a hidratacao por secao falhou: ' + JSON.stringify(hidratou));
 
+  // ── 10. MULTIAPARELHO REAL: PC + celular, delete/add/edit concorrentes ───
+  /* Reproduz o defeito observado em produção com DOIS contextos de navegador
+     independentes apontando para o MESMO banco falso (mesmas regras CAS do
+     PostgreSQL). A meta não é só "não perder": o ciclo normal precisa terminar
+     sem pendência/conflito e o indicador deve ficar verde. */
+  const quatroNoPc = await pg.evaluate(async () => {
+    const ids = new Set((DB.getEntries() || []).map(e => String(e.id)));
+    if (!ids.has('e-teste-3')) DB.saveEntry({ id:'e-teste-3', subject:'Matemática', method:'Questões', date:'2026-03-03', durationMin:30 });
+    if (!ids.has('e-teste-4')) DB.saveEntry({ id:'e-teste-4', subject:'AFO', method:'Teoria', date:'2026-03-04', durationMin:35 });
+    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
+    await CloudStore.flushPending();
+    return { n:(DB.getEntries()||[]).length, pend:SectionSync.pendingQuick(), err:SectionSync._lastError };
+  });
+  quatroNoPc.n === 4 && quatroNoPc.pend === 0 && !quatroNoPc.err
+    ? ok('PC publicou quatro registros e ficou sem pendência')
+    : erro('preparo multiaparelho falhou: ' + JSON.stringify(quatroNoPc));
+
+  const ctxMobile = await nav.newContext({ serviceWorkers: 'block' });
+  await ctxMobile.route('https://cdn.jsdelivr.net/**', (rota) => rota.fulfill({
+    status: 200, contentType: 'text/javascript; charset=utf-8',
+    headers: { 'access-control-allow-origin': '*' }, body: libSupabase
+  }));
+  await ctxMobile.route('https://fonts.googleapis.com/**', (rota) => rota.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+  const mobile = await ctxMobile.newPage();
+  const errosMobile = [];
+  mobile.on('pageerror', (e) => errosMobile.push(e.message));
+  await mobile.goto(base, { waitUntil: 'domcontentloaded' });
+  await mobile.waitForFunction(() => window.CloudStore && window.ProfileManager && window.SectionSync && window.SessionGuard, { timeout: 30000 });
+
+  const mobileEntrou = await mobile.evaluate(async ({ origem, pid }) => {
+    CloudStore.SUPABASE_URL = origem;
+    CloudStore.SUPABASE_KEY = 'chave-publicavel-de-teste';
+    CloudStore.init();
+    await CloudStore.signIn('estudante@teste.local', 'senha-de-teste-123');
+    await new Promise(r => setTimeout(r, 250));
+    const rows = await CloudStore.listProfiles();
+    const row = rows.find(x => x.id === pid);
+    if (row) {
+      ProfileManager.addMirror({ id:row.id, nome:row.profile_name || 'Perfil de teste', avatar:row.avatar || '📘', cor:row.color || '#4f46e5' });
+      ProfileManager.setRev(row.id, row.rev || 1);
+    }
+    ProfileManager.setActiveProfile(pid);
+    PlanManager.init();
+    sessionStorage.setItem('diario-estudos:entered', pid);
+    const h = await SectionSync.hydrateReadOnly(pid);
+    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
+    return {
+      ok: !!(h && h.ok),
+      n:(DB.getEntries()||[]).length,
+      multi: SessionGuard.singleDeviceMode === false,
+      blocked: SessionLock.isBlocked(),
+      overlay: (document.getElementById('single-session-overlay') || {}).style?.display || ''
+    };
+  }, { origem:new URL(base).origin, pid:criacao.id });
+  mobileEntrou.ok && mobileEntrou.n === 4 && mobileEntrou.multi && !mobileEntrou.blocked
+    ? ok('celular abriu os mesmos 4 registros sem expulsar o PC')
+    : erro('celular nao entrou limpo em modo multiaparelho: ' + JSON.stringify(mobileEntrou));
+
+  // Caso exato relatado: base limpa com 4, excluir 1 no celular, sincronizar.
+  const deleteLimpo = await mobile.evaluate(async () => {
+    const okDel = DB.deleteEntry('e-teste-4');
+    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
+    await CloudStore.flushPending();
+    CloudUI.refreshSyncBtn();
+    return {
+      okDel, n:(DB.getEntries()||[]).length, pend:SectionSync.pendingQuick(),
+      err:SectionSync._lastError, conflito:SectionSync._lastConflict,
+      cls:(document.getElementById('cloud-sync-btn')||{}).className || ''
+    };
+  });
+  const secAposDeleteLimpo = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
+  const idsAposDeleteLimpo = Array.isArray(secAposDeleteLimpo && secAposDeleteLimpo.data)
+    ? secAposDeleteLimpo.data.map(e => String(e.id)) : [];
+  deleteLimpo.okDel && deleteLimpo.n === 3 && deleteLimpo.pend === 0 && !deleteLimpo.err &&
+      !idsAposDeleteLimpo.includes('e-teste-4') && /st-ok/.test(deleteLimpo.cls)
+    ? ok('celular: 4 → excluir 1 → nuvem com 3 e spinner verde')
+    : erro('o cenário real 4→3 ainda falhou: ' + JSON.stringify({ deleteLimpo, idsAposDeleteLimpo }));
+
+  // Alinha PC aos 3. Depois PC cria um registro; celular fica propositalmente
+  // uma revisão atrás e exclui outro. O merge deve preservar a criação do PC.
+  await pg.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
+  const pcNovo = await pg.evaluate(async () => {
+    DB.saveEntry({ id:'e-teste-5', subject:'Contabilidade', method:'Questões', date:'2026-03-05', durationMin:40 });
+    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
+    await CloudStore.flushPending();
+    return { pend:SectionSync.pendingQuick(), err:SectionSync._lastError };
+  });
+  const mobileConflitoDelete = await mobile.evaluate(async () => {
+    DB.deleteEntry('e-teste-3');
+    CloudStore._lastBlobAt = Date.now(); CloudStore._forceBlob = false;
+    await CloudStore.flushPending();
+    CloudUI.refreshSyncBtn();
+    return {
+      ids:(DB.getEntries()||[]).map(e=>String(e.id)).sort(),
+      pend:SectionSync.pendingQuick(), err:SectionSync._lastError,
+      conflito:SectionSync._lastConflict,
+      ops:localStorage.getItem('diario-estudos:u:' + ProfileManager.getActiveProfileId() + ':__entryops'),
+      cls:(document.getElementById('cloud-sync-btn')||{}).className || ''
+    };
+  });
+  const secConflitoDelete = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
+  const idsConflitoDelete = Array.isArray(secConflitoDelete && secConflitoDelete.data)
+    ? secConflitoDelete.data.map(e => String(e.id)).sort() : [];
+  pcNovo.pend === 0 && !pcNovo.err &&
+      idsConflitoDelete.includes('e-teste-5') && !idsConflitoDelete.includes('e-teste-3') &&
+      mobileConflitoDelete.pend === 0 && !mobileConflitoDelete.err && !mobileConflitoDelete.ops &&
+      /st-ok/.test(mobileConflitoDelete.cls)
+    ? ok('conflito PC adiciona + celular exclui: merge por ID preserva ambos os intentos e termina verde')
+    : erro('merge delete concorrente falhou: ' + JSON.stringify({ pcNovo, mobileConflitoDelete, idsConflitoDelete }));
+
+  // Dois aparelhos criam IDs diferentes partindo da mesma revisão.
+  await pg.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
+  await mobile.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
+  await pg.evaluate(async () => {
+    DB.saveEntry({ id:'e-teste-6', subject:'Direito Tributário', method:'Questões', date:'2026-03-06', durationMin:25 });
+    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
+  });
+  const addConcorrente = await mobile.evaluate(async () => {
+    DB.saveEntry({ id:'e-teste-7', subject:'Auditoria', method:'Teoria', date:'2026-03-07', durationMin:20 });
+    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
+    CloudUI.refreshSyncBtn();
+    return { pend:SectionSync.pendingQuick(), err:SectionSync._lastError, cls:(document.getElementById('cloud-sync-btn')||{}).className||'' };
+  });
+  const secAdds = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
+  const idsAdds = Array.isArray(secAdds && secAdds.data) ? secAdds.data.map(e=>String(e.id)) : [];
+  idsAdds.includes('e-teste-6') && idsAdds.includes('e-teste-7') && addConcorrente.pend === 0 && !addConcorrente.err && /st-ok/.test(addConcorrente.cls)
+    ? ok('duas inclusões concorrentes em aparelhos diferentes são unidas sem perda')
+    : erro('inclusões concorrentes perderam dado: ' + JSON.stringify({ addConcorrente, idsAdds }));
+
+  // Mesmo ID: a operação explícita mais recente em reconciliação vence só nele;
+  // os demais registros permanecem intocados.
+  await pg.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
+  await mobile.evaluate(async (pid) => { await SectionSync.hydrateReadOnly(pid); }, criacao.id);
+  await pg.evaluate(async () => {
+    DB.updateEntry('e-teste-1', { subject:'Direito Constitucional (PC)' });
+    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
+  });
+  const sameId = await mobile.evaluate(async () => {
+    DB.deleteEntry('e-teste-1');
+    CloudStore._lastBlobAt=Date.now(); CloudStore._forceBlob=false; await CloudStore.flushPending();
+    return { pend:SectionSync.pendingQuick(), err:SectionSync._lastError };
+  });
+  const secSame = api.estado.tabelas.profile_sections.find(l => l.profile_id === criacao.id && /entries$/.test(l.section));
+  const arrSame = Array.isArray(secSame && secSame.data) ? secSame.data : [];
+  sameId.pend === 0 && !sameId.err && !arrSame.some(e => String(e.id) === 'e-teste-1') &&
+      arrSame.some(e => String(e.id) === 'e-teste-5') && arrSame.some(e => String(e.id) === 'e-teste-6') && arrSame.some(e => String(e.id) === 'e-teste-7')
+    ? ok('conflito no mesmo registro é determinístico e não afeta os outros IDs')
+    : erro('conflito no mesmo ID ficou preso ou atingiu outros registros: ' + JSON.stringify({ sameId, ids:arrSame.map(e=>e.id) }));
+
+  errosMobile.length === 0 ? ok('simulação do celular não gerou exceções não tratadas')
+    : erro('exceções no celular simulado: ' + errosMobile.slice(0,3).join(' | '));
+  await ctxMobile.close();
+
   // ── 10. ISOLAMENTO: outra conta nao ve nada do perfil alheio ────────────
   const outra = await pg.evaluate(async () => {
     await CloudStore.signOut();
