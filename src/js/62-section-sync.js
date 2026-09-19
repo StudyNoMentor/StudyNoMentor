@@ -472,6 +472,8 @@ const SectionSync = {
   async pushDirty(id) {
     if (!this.enabled || this._pushing) return;
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+    if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+        (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
     id = id || this._activeProfileId();
     if (!id) return;
     /* A marca de "envio em curso" é global para serializar os requests, mas o
@@ -744,6 +746,8 @@ const SectionSync = {
     if (!this.enabled) return;
     try {
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
+      if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+          (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) return;
       try { if (!sessionStorage.getItem('diario-estudos:entered')) return; } catch (_) { return; }
       if (!ProfileManager.getActiveProfileId()) return;
       // Recupera, uma vez por perfil, o que ficou por enviar na sessão anterior.
@@ -896,6 +900,11 @@ const SectionSync = {
     const res = { ok: false, motivo: null, seções: 0, em: new Date().toISOString() };
     try {
       res.origem = 'seções';
+      if ((window.SessionGuard && SessionGuard.isBlockedByRemote && SessionGuard.isBlockedByRemote()) ||
+          (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
+        res.motivo = 'sessão-bloqueada-em-outro-aparelho';
+        return this._saveLast(res);
+      }
       if (!this.readEnabled && !opts.force) { res.motivo = 'leitura-por-seção-desligada'; return this._saveLast(res); }
       if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) { res.motivo = 'sem-conexão'; return this._saveLast(res); }
       /* ANTES de ler: entrega o que este aparelho ainda não enviou. O que não
