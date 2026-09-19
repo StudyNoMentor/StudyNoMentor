@@ -1561,29 +1561,29 @@ const AutoTeste = {
        A fila completa permanece disponível para trocar o item de uma matéria,
        mas a rodada principal nunca abre quatro disciplinas por acidente. */
     const E = window.ExtrasScreen;
-    if (E && typeof E._planoMarcar === 'function') {
-      const guardaCand = E._planoCand, guardaSel = E._planoSel, guardaPrefs = E._planoPrefs;
+    if (E && typeof E._motorMarcar === 'function') {
+      const guardaCand = E._motorCand, guardaSel = E._motorSel, guardaPrefs = E._motorPrefs;
       try {
-        E._planoPrefs = { maxFrentes: 3, alvoQuestoes: 25, doseMin: 12 };
-        E._planoCand = [
+        E._motorPrefs = { maxFrentes: 3, alvoQuestoes: 25, doseMin: 12 };
+        E._motorCand = [
           { nome: 'A1', disciplina: 'Tributário', score: 10, taxaErro: 50 },
           { nome: 'A2', disciplina: 'Tributário', score: 9, taxaErro: 40 },
           { nome: 'B1', disciplina: 'Português', score: 8, taxaErro: 35 },
           { nome: 'C1', disciplina: 'Penal', score: 7, taxaErro: 30 },
           { nome: 'D1', disciplina: 'Civil', score: 6, taxaErro: 25 }
         ];
-        E._planoSel = new Set();
-        [0, 2, 3].forEach(i => E._planoMarcar(i));
-        this._ok('Rodada: três disciplinas distintas entram', E._planoSel.size === 3, [...E._planoSel]);
-        const recusou = E._planoMarcar(4, true) === false;
-        this._ok('Rodada: a quarta disciplina é recusada', recusou && E._planoSel.size === 3, [...E._planoSel]);
-        E._planoMarcar(1);
+        E._motorSel = new Set();
+        [0, 2, 3].forEach(i => E._motorMarcar(i));
+        this._ok('Rodada: três disciplinas distintas entram', E._motorSel.size === 3, [...E._motorSel]);
+        const recusou = E._motorMarcar(4, true) === false;
+        this._ok('Rodada: a quarta disciplina é recusada', recusou && E._motorSel.size === 3, [...E._motorSel]);
+        E._motorMarcar(1);
         this._ok('Rodada: outro tópico da mesma disciplina TROCA, não soma',
-          E._planoSel.size === 3 && E._planoSel.has(1) && !E._planoSel.has(0), [...E._planoSel]);
-        const ds = E._planoDoses();
+          E._motorSel.size === 3 && E._motorSel.has(1) && !E._motorSel.has(0), [...E._motorSel]);
+        const ds = E._motorDoses();
         this._ok('Rodada: todas as atividades selecionadas respeitam o piso útil',
-          [...E._planoSel].every(i => ds[i] >= 12), ds);
-      } finally { E._planoCand = guardaCand; E._planoSel = guardaSel; E._planoPrefs = guardaPrefs; }
+          [...E._motorSel].every(i => ds[i] >= 12), ds);
+      } finally { E._motorCand = guardaCand; E._motorSel = guardaSel; E._motorPrefs = guardaPrefs; }
     }
   },
 
