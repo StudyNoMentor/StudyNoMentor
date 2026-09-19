@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vb80815aa88">
+<meta name="diario-versao" content="v8c47a6e2a2">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -37454,14 +37454,29 @@ const ProfileUI = {
           }
         }
         if (!porSecao || !porSecao.ok) {
-          try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
-          /* Também aqui o download não pode apagar o que este aparelho ainda não
-             enviou: tenta entregar primeiro e preserva o que não subir. */
-          let preservar = [];
-          try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
-          const res = await CloudStore.fetchPayload(id);
-          mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
-          ProfileManager.setRev(id, res.rev);
+          const temSecoesRemotas = !!(porSecao && (porSecao.linhasRemotas || 0) > 0);
+          if (temSecoesRemotas) {
+            /* profile_sections já existe: blob não pode virar máquina do tempo.
+               Se houver cópia local, abrimos a cópia preservada e deixamos a
+               reconciliação tentar novamente. Em aparelho novo, recusamos uma
+               restauração potencialmente obsoleta em vez de fingir sucesso. */
+            if (!ProfileManager.temDadosLocais(id)) {
+              const er = new Error('As seções da nuvem estão incompletas. A cópia antiga de segurança não foi aplicada para evitar regressão de dados.');
+              er.code = 'secoes-incompletas';
+              throw er;
+            }
+            console.warn('[perfil] conjunto remoto por seção inválido; blob antigo NÃO aplicado. Abrindo cópia local preservada:', porSecao.motivo);
+            mudou = 1;
+          } else {
+            try { SectionSync._saveLast({ ok: false, origem: 'blob', motivo: (porSecao && porSecao.motivo) || 'leitura-por-seção-não-tentada', em: new Date().toISOString() }); } catch (_) { _quiet(_); }
+            /* Perfil legado sem linhas por seção: aqui o blob ainda é o plano B
+               compatível, preservando qualquer alteração local pendente. */
+            let preservar = [];
+            try { if (window.SectionSync) preservar = await SectionSync.flushBeforeRead(id); } catch (e) { _quiet(e, 'entrar-pendencia'); }
+            const res = await CloudStore.fetchPayload(id);
+            mudou = ProfileManager.restorePayloadInto(id, (res.payload && res.payload.data) || {}, preservar);
+            ProfileManager.setRev(id, res.rev);
+          }
         }
         ProfileManager.setActiveProfile(id);
         PlanManager.init();
@@ -41086,7 +41101,18 @@ const CloudStore = {
     const id = ProfileManager.getActiveProfileId(); if (!id) return;
     // FASE 2: tenta primeiro por seção. Em modo readOnly, nenhuma escrita remota é permitida.
     if (window.SectionSync && SectionSync.readEnabled) {
-      try { if (await SectionSync.pullAndReload(opts)) return; } catch (e) { console.warn('pull por seção', e); }
+      try {
+        if (await SectionSync.pullAndReload(opts)) return;
+        const lr = SectionSync.lastRead ? SectionSync.lastRead() : null;
+        /* Se JÁ existem linhas por seção, uma falha de manifesto/conjunto não
+           autoriza aplicar o blob antigo por cima. O blob só é plano B para
+           perfis legados que ainda não possuem nenhuma linha por seção. */
+        if (lr && (lr.linhasRemotas || 0) > 0) {
+          console.warn('[CloudStore] fallback para blob BLOQUEADO: há seções remotas, mas o conjunto não passou na validação', lr.motivo);
+          try { showToast('⚠ A nuvem respondeu com um conjunto de seções incompleto. Mantive seus dados sem voltar para uma cópia antiga.'); } catch (_) { _quiet(_); }
+          return false;
+        }
+      } catch (e) { console.warn('pull por seção', e); }
     }
     try {
       // Mesma regra do caminho por seção: primeiro ENTREGA o que este aparelho
@@ -42202,6 +42228,7 @@ const SectionSync = {
         ? this.pendingSections(id)
         : await this.flushBeforeRead(id, { explicitOnly: !!opts.explicitOnly });
       const rows = await this.fetchAllSections(id);
+      res.linhasRemotas = rows.length;
       const prep = this._prepare(rows);
       if (!prep.ok) { res.motivo = prep.motivo; return this._saveLast(res); }
       // Rede de segurança antes de sobrescrever o estado local.
