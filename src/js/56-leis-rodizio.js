@@ -7,7 +7,7 @@
 
   /* ── CACHE DO PLANO NO CAMINHO QUENTE DE EXTRAS ──────────────────────────
      A conclusão de uma Extra muda slots/progresso, mas NÃO muda o retrato TEC.
-     Antes cada conclusão + render + "Puxar do Plano" recalculava a mesma árvore
+     Antes cada conclusão + render + "Puxar do Motor" recalculava a mesma árvore
      inteira várias vezes. O cache é por OBJETO do scopedSnapshot (que já possui
      assinatura de conteúdo) + preferências efetivas. Alterou retrato/escopo ou
      preferência? A chave muda naturalmente. */
