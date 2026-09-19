@@ -83,7 +83,6 @@ const SessionGuard = {
     const uid = CS.session.user.id;
     this.subscribe(uid);
     if (this._claimedUid === uid) return;
-    this._claimedUid = uid;
 
     /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
        conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
@@ -94,13 +93,14 @@ const SessionGuard = {
       if (error) {
         if (this._isMissingTable(error)) this._disable(error);
         else console.warn('[SessionGuard] verificação inicial falhou', error);
-        return;
+        return; // não carimba _claimedUid: uma chamada futura pode tentar de novo
       }
       if (data && data.device_id && data.device_id !== this.deviceId()) {
+        this._claimedUid = uid;
         this._takenBy(data);
         return;
       }
-      await this.claim(uid);
+      if (await this.claim(uid)) this._claimedUid = uid;
     } catch (err) {
       if (this._isMissingTable(err)) this._disable(err);
       else console.warn('[SessionGuard] verificação inicial erro', err);
