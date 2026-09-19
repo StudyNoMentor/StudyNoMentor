@@ -32,6 +32,7 @@ assert.match(build,/js\/86-motor-sugestao\.js/,'build deve incluir o Motor de su
 
 const ciclo = fs.readFileSync('src/js/87-motor-ciclo.js','utf8');
 const telaExtras = fs.readFileSync('src/js/47-tela-extras.js','utf8');
+const filaReforco = fs.readFileSync('src/js/54-reforco-fila.js','utf8');
 assert.match(ciclo,/filtroTec\(item, disciplina\)/,'Motor deve materializar a receita do filtro do TEC');
 assert.match(ciclo,/filtroTec,/,'origem da atividade deve persistir a receita do TEC');
 assert.match(ciclo,/quantidade: item\.dose/,'receita deve persistir a quantidade do caderno');
@@ -39,5 +40,7 @@ assert.match(ciclo,/filtroTecDe\(extra\)/,'atividades antigas devem reconstruir 
 assert.match(telaExtras,/Caderno no TEC/,'card do reforço deve mostrar como montar o caderno');
 assert.match(telaExtras,/Marque juntos:/,'blocos devem dizer quais tópicos\/subtópicos marcar juntos');
 assert.match(telaExtras,/doseCriada/,'origem deve receber a dose exata usada na criação da atividade');
+assert.match(filaReforco,/Caderno no TEC/,'painel de reforços em curso deve mostrar a receita do caderno');
+assert.match(filaReforco,/guiaTec\.selecoes/,'painel em curso deve expor tópico(s)\/subtópico(s) do filtro');
 
 console.log('OK: organização de Extras, superfície do Motor e receita do caderno TEC cobertas.');
