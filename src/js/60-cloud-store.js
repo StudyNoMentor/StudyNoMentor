@@ -736,6 +736,13 @@ const CloudStore = {
   // Tempo real das SEÇÕES: escuta profile_sections do perfil aberto. O gatilho não
   // recarrega direto — pergunta antes se há revisão nova de verdade (hasRemoteUpdates).
   // Sem essa checagem, os nossos PRÓPRIOS envios disparariam um loop de recarga.
+  _isOwnSectionEvent(evt) {
+    try {
+      const row = (evt && (evt.new || evt.old)) || {};
+      const mine = window.SessionGuard && SessionGuard.deviceId ? SessionGuard.deviceId() : null;
+      return !!(mine && row.device_id && row.device_id === mine);
+    } catch (_) { return false; }
+  },
   subscribeSections(pid) {
     if (!this.isReady() || !this.isLoggedIn()) return;
     pid = pid || ProfileManager.getActiveProfileId(); if (!pid) return;
@@ -756,11 +763,7 @@ const CloudStore = {
              um falso pull/reload logo depois de salvar um registro, exatamente
              o fluxo "salvei e fui parar no seletor de perfil". Clientes antigos
              não têm device_id; nesses casos continuamos com a checagem normal. */
-          try {
-            const row = (evt && (evt.new || evt.old)) || {};
-            const mine = window.SessionGuard && SessionGuard.deviceId ? SessionGuard.deviceId() : null;
-            if (mine && row.device_id && row.device_id === mine) return;
-          } catch (_) { _quiet(_); }
+          if (this._isOwnSectionEvent(evt)) return;
           this._secRemotePending = true;
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
