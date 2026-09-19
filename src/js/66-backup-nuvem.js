@@ -42,9 +42,9 @@
        onde voltar. A faxina nunca desce de `MIN_KEEP`, nunca toca na âncora
        e nunca apaga nada com menos de 24 h: um bug nela não vira perda.
      · FALHA NUNCA É SILENCIOSA. Um perfil grande demais para uma foto, ou
-       qualquer erro de gravação, fica registrado e visível no diagnóstico e
-       na própria tela — "ativo" só aparece quando o último envio realmente
-       deu certo.
+       qualquer erro de gravação fica registrado, aparece na própria tela e
+       pode ser inspecionado por `CloudBackup.status()` — "ativo" só aparece
+       quando o último envio realmente deu certo.
 
    Se a tabela ainda não existir no Supabase, o módulo se desliga sozinho e
    avisa no console — o app inteiro continua funcionando como antes. O SQL para
@@ -75,7 +75,7 @@ const CloudBackup = {
   /* Quando a última foto REALMENTE entrou no banco. Persistido porque é o que
      permite responder "o backup automático está mesmo funcionando?" sem pedir
      nada à rede — um app que promete proteção precisa PROVAR isso na tela, não
-     só afirmar. Alimenta o diagnóstico e o cabeçalho da tela de backup. */
+     só afirmar. Serve à régua de frescor da proteção automática e à inspeção local. */
   _emKey(id) { return 'diario-estudos:cbk-em:' + id; },
   ultimoEnvioEm(id) {
     const alvo = id || (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
@@ -188,7 +188,7 @@ const CloudBackup = {
       const packed = await BackupHistory._gzip(json);
       if (String(packed.data).length > this.LIMITE_CHARS) {
         /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
-           diagnóstico e a tela continuavam dizendo "ativo" enquanto o backup
+           status técnico e a tela continuavam dizendo "ativo" enquanto o backup
            automático de um perfil grande falhava toda vez, silenciosamente. */
         this._ultimoErro = 'foto grande demais para o banco (' + String(packed.data).length + ' de ' + this.LIMITE_CHARS + ' caracteres). Backup em .json continua funcionando normalmente.';
         console.warn('[CloudBackup] ' + this._ultimoErro);
@@ -590,7 +590,7 @@ const CloudBackup = {
     return !!(r.ok || r.repetido);
   },
 
-  // Diagnóstico (console: CloudBackup.status())
+  // Status técnico (console: CloudBackup.status())
   async status() {
     const id = ProfileManager.getActiveProfileId();
     const linhas = await this.listar(id);
