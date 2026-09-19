@@ -5,7 +5,7 @@ const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
   SUPABASE_KEY: 'sb_publishable_5t8P8QpVF4tLoWNjQVWsSQ_3dpbxG94',
   TABLE: 'study_profiles',
-  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secChannelProfile: null, _secRtTimer: null,
+  client: null, session: null, libStatus: 'pending', channel: null, secChannel: null, _secChannelProfile: null, _secRtTimer: null, _secRemotePending: false,
   _debounce: null, DEBOUNCE_MS: 1500, _applying: false, _cfgMode: 'signin',
   _pending: false, _lastSyncAt: null, _syncing: false, _dirtyAt: null, _syncingDesde: 0,
   SYNC_TRAVADO_MS: 60000,   // teto para um envio "em curso" antes de ser considerado preso
@@ -497,6 +497,7 @@ const CloudStore = {
       return;
     } finally {
       this._syncing = false;
+      try { this._drainSectionRealtimeHint(syncId); } catch (e) { _quiet(e, 'sec-rt-drain'); }
     }
     // se surgiram NOVAS mudanças durante o envio (notifyChange remarcou _pending), dispara outro ciclo já
     if (this._pending) this._rearm(300);
@@ -708,11 +709,13 @@ const CloudStore = {
       try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); }
       this.secChannel = null;
       this._secChannelProfile = null;
+      this._secRemotePending = false;
     }
     try {
       this._secChannelProfile = pid;
       this.secChannel = this.client.channel('sec_rt_' + pid)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'profile_sections', filter: 'profile_id=eq.' + pid }, () => {
+          this._secRemotePending = true;
           clearTimeout(this._secRtTimer);
           this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 1200);
         })
@@ -735,20 +738,41 @@ const CloudStore = {
     this.subscribeSections(pid);
   },
   async _onSectionRealtime(pid) {
-    if (this._applying || this._pending || this._syncing || this._debounce) return; // edição local em curso: não atropela
-    if (!window.SectionSync || !SectionSync.readEnabled) return;
-    if (SectionSync._pushing || SectionSync._dirty.size) return;
+    if (pid !== ProfileManager.getActiveProfileId()) {
+      this._secRemotePending = false;
+      return;
+    }
+    if (!window.SectionSync || !SectionSync.readEnabled) {
+      this._secRemotePending = false;
+      return;
+    }
+    /* Evento remoto durante edição/upload não é descartado. Ele fica marcado e
+       será drenado assim que o estado local estiver estável. */
+    if (this._applying || this._pending || this._syncing || this._debounce ||
+        SectionSync._pushing || SectionSync._dirtyFor(pid).size) {
+      this._secRemotePending = true;
+      return;
+    }
+    this._secRemotePending = false;
     try {
-      // O aviso e a recarga saíam ANTES de saber se havia mudança de verdade —
-      // era o "Atualizado em tempo real ✓" seguido de um reload à toa. Agora
-      // quem avisa é o pullAndReload, e só quando alguma seção realmente mudou.
       if (await SectionSync.hasRemoteUpdates(pid)) await SectionSync.pullAndReload({ readOnly: true });
-    } catch (_) { _quiet(_); }
+    } catch (e) {
+      _quiet(e);
+      this._secRemotePending = true;
+      clearTimeout(this._secRtTimer);
+      this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 5000);
+    }
+  },
+  _drainSectionRealtimeHint(pid) {
+    if (!this._secRemotePending || !pid || pid !== ProfileManager.getActiveProfileId()) return;
+    clearTimeout(this._secRtTimer);
+    this._secRtTimer = setTimeout(() => this._onSectionRealtime(pid), 250);
   },
   _unsub() {
     if (this.channel) { try { this.client.removeChannel(this.channel); } catch (e) { _quiet(e); } this.channel = null; }
     if (this.secChannel) { try { this.client.removeChannel(this.secChannel); } catch (e) { _quiet(e); } this.secChannel = null; }
     this._secChannelProfile = null;
+    this._secRemotePending = false;
     clearTimeout(this._secRtTimer);
   },
   _onRealtime(evt) {
