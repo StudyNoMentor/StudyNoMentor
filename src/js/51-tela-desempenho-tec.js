@@ -2401,7 +2401,7 @@ const PlanoCiclo = {
   },
   _metaDoMotor() {
     try { return MotorSugestao.prefs().metaAcerto; }
-    catch (e) { _quiet(e, 'ciclo-meta'); return 85; }
+    catch (e) { _quiet(e, 'ciclo-meta'); return 90; }
   },
   _assinaturaDoMotor(item) {
     try {
@@ -3590,14 +3590,26 @@ const DesempenhoTecScreen = {
       if (this.tecTab === 'motor') this.renderMotor();
       else if (this.tecTab === 'incidencia') this.renderIncidencia();
     };
-    if (!opts.suave) { pintar(); return; }
+    if (!opts.suave) {
+      if (this._scopeRenderTimer) { clearTimeout(this._scopeRenderTimer); this._scopeRenderTimer = null; }
+      pintar(); return;
+    }
+    /* Checkbox de retrato é uma rajada de cliques, não vários pedidos
+       independentes de recálculo. O estado visual muda na hora; o cálculo espera
+       140 ms após o último clique. Isso mantém a lista/scroll intactos, deixa o
+       spinner realmente animar e evita três varreduras completas quando a pessoa
+       marca três retratos em sequência. */
     const token = (this._scopeRenderToken || 0) + 1;
     this._scopeRenderToken = token;
     this._escopoBusy(true);
-    requestAnimationFrame(() => setTimeout(() => {
-      if (token !== this._scopeRenderToken) return;
-      try { pintar(); } finally { this._escopoBusy(false); }
-    }, 0));
+    if (this._scopeRenderTimer) clearTimeout(this._scopeRenderTimer);
+    this._scopeRenderTimer = setTimeout(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (token !== this._scopeRenderToken) return;
+        this._scopeRenderTimer = null;
+        try { pintar(); } finally { this._escopoBusy(false); }
+      }));
+    }, 140);
   },
   openImport() {
     $id('tec-empty').style.display = 'none';
@@ -3923,7 +3935,6 @@ const DesempenhoTecScreen = {
       if (all.checked) snaps.forEach(s => this.selectedSnapIds.add(s.id)); else this.selectedSnapIds.clear();
       this._sincronizarScopeSelectState(snaps);
       this.aplicarMudancaEscopo({ preservarLista: true, suave: true });
-      if (list) list.scrollTop = 0;
     });
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -4176,7 +4187,7 @@ const DesempenhoTecScreen = {
       return e >= 50 ? 'critico' : e >= 35 ? 'alto' : e >= 20 ? 'medio' : 'leve';
     };
     const emoji = x => ({ critico: '🚨', alto: '🔥', medio: '⚠️', leve: '📌' }[tom(x)]);
-    const discTop = (r.disciplinas || []).slice(0, Math.min(r.prefs.maxFrentes || 3, 3));
+    const discTop = (r.disciplinas || []).slice(0, r.itens.length);
 
     const disciplinasHtml = discTop.map((d, i) => {
       const top = d.melhorTopico;
@@ -4189,8 +4200,9 @@ const DesempenhoTecScreen = {
             <h3>${escapeHtml(d.nome)}</h3>
             <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
             <div class="ms-priority-meta">
+              <span><i>lacuna segura</i><b>${top ? fmt1(top.gapConfiavel) + 'pp' : '—'}</b></span>
+              <span><i>déficit p/ meta</i><b>${top ? '~' + top.lacunaMeta + ' q' : '—'}</b></span>
               <span><i>disciplina</i><b>${ac}</b></span>
-              <span><i>resolvidas</i><b>${d.questoes.toLocaleString('pt-BR')}</b></span>
               <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
             </div>
           </div>
@@ -4232,9 +4244,10 @@ const DesempenhoTecScreen = {
             <span><i>erro</i><b>${erroPct}%</b></span>
             <span><i>histórico</i><b>${x.questoes} q</b></span>
             <span><i>margem</i><b>${margem}</b></span>
+            <span><i>lacuna segura</i><b>${fmt1(x.gapConfiavel)}pp</b></span>
             ${peso}
           </div>
-          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)}</p></div>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna segura:</b> ${fmt1(x.gapConfiavel)}pp abaixo da meta mesmo no extremo otimista da margem.</p></div>
           <div class="ms-suggestion-action">
             <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
@@ -4243,7 +4256,7 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.taxa) + '% no pior recorte · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
+      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.gapConfiavel) + 'pp de lacuna segura · ' + fmt1(t.taxa) + '% · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
@@ -4261,10 +4274,11 @@ const DesempenhoTecScreen = {
         <span>📚 ${r.prefs.doseMin}+ questões por atividade</span>
         <span>📏 margem ±${r.prefs.margemMax}pp</span>
         <span>🎯 meta ${r.prefs.metaAcerto}%</span>
+        <span>🛡️ ranking pela lacuna após a margem</span>
       </div>
 
       <section class="ms-stage">
-        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Disciplinas ordenadas pela regra do motor. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
+        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Até 3 disciplinas, ordenadas pela lacuna que continua comprovada após considerar a margem. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
         <div class="ms-priority-list">${disciplinasHtml}</div>
       </section>
 
@@ -4284,7 +4298,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com irmãos do mesmo pai. Se esse bloco ainda não for confiável, o motor sobe um nível dentro da matéria. A fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com outros irmãos pequenos do mesmo pai, do pior para o melhor, até a amostra ficar suficiente. Se sobrar uma cauda pequena demais para medir sozinha, ela entra no último bloco local em vez de forçar a subida de toda a árvore. A fronteira da disciplina nunca é atravessada.</p>`;
 
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
@@ -4854,7 +4868,7 @@ const DesempenhoTecScreen = {
   treeNodeHtml(node, prevIdx, level) {
     const pct = this.nodePct(node);
     const hasKids = node.children && node.children.length > 0;
-    const indent = 10 + level * 18;
+    const indent = 10 + Math.min(Math.max(0, level), 8) * 14;
     const delta = this.deltaHtml(node, prevIdx);
     const nameCls = level === 0 ? 'tnode-name lvl0' : 'tnode-name';
     const caret = hasKids ? `<span class="tnode-caret">▶</span>` : `<span class="tnode-dot"></span>`;
@@ -4866,9 +4880,10 @@ const DesempenhoTecScreen = {
     }
     const erros = Math.max(0, (node.questoes || 0) - (node.acertos || 0));
     const pctErro = Math.round((100 - pct) * 10) / 10;
-    const lvl = Math.min(5, Math.max(0, level));
+    const lvl = Math.min(5, Math.max(0, level)); // classe só preserva compatibilidade de espaçamento
+    const hue = (255 + Math.max(0, level) * 47) % 360; // 47 evita repetir tons nos níveis seguintes
     return `
-      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}">
+      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}" style="--tec-level-hue:${hue};--tec-indent:${Math.min(Math.max(0, level) * 5, 30)}px">
         <div class="tnode-row ${hasKids ? 'has-kids' : ''}" style="padding-left:${indent}px;">
           ${caret}
           <span class="${nameCls}" title="${escapeHtml(node.nome)}"><span class="tnode-label">${escapeHtml(node.nome)}</span>${delta}</span>

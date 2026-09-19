@@ -102,9 +102,9 @@ try{
   /* ── UM AGRUPADOR SO EM CONFIGURACOES ────────────────────────────────────
      Este teste exigia que quatro cartoes (espaco usado, recuperacao, versoes
      locais, backup no banco) vivessem dentro de um `<details id=ux-config-data>`
-     criado por esta camada. So que `ConfigUX` (80-ajustes-finais) JA divide a
-     tela em cinco secoes navegaveis — Estudo, Preferencias, Conta e nuvem,
-     Dados e backup, Diagnostico — e move esses mesmos cartoes para o painel
+     criado por esta camada. `ConfigUX` (80-ajustes-finais) divide a tela em
+     quatro secoes navegaveis — Estudo, Preferencias, Conta e nuvem e Dados e
+     backup — e move esses mesmos cartoes para o painel
      "Dados e backup". As duas camadas agrupavam o mesmo conteudo: o resultado
      era uma secao dentro da secao, com titulos repetidos e duas escalas
      tipograficas brigando (era daí que vinha a sensacao de fonte sem padrao

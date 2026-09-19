@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 
 const gov = fs.readFileSync('src/js/58-extras-governanca.js','utf8');
 const tec = fs.readFileSync('src/js/59-tec-premium.js','utf8');
+const telaTec = fs.readFileSync('src/js/51-tela-desempenho-tec.js','utf8');
+const motorTec = fs.readFileSync('src/js/86-motor-sugestao.js','utf8');
+const htmlTec = fs.readFileSync('src/html/05-corpo-cont.html','utf8');
 const css = fs.readFileSync('src/css/11-extras-governanca.css','utf8');
 
 const tem = (src, trecho, msg) => assert.ok(src.includes(trecho), msg || `faltou: ${trecho}`);
@@ -37,28 +40,34 @@ tem(gov, 'adiadaPorLimite', 'overflow de leis deve ser reagendado, não perdido'
 tem(gov, 'Registrar leitura', 'registro dedicado de leitura precisa existir');
 tem(gov, 'DB.addExtraProgress(atual.id,q,m', 'registro de lei deve armazenar linhas e minutos');
 
-// TEC: parâmetros órfãos e carga sob demanda.
+// TEC: carga sob demanda sem transformar instrumentação interna em interface.
 tem(tec, "this._tpAnalysisDirty=true", 'análise oculta deve virar lazy/dirty em vez de render imediato');
-tem(tec, "medir('motor'", 'o tempo do Motor precisa ser instrumentado como o das demais abas');
-tem(tec, 'auditoriaParametros()', 'TEC precisa auditar cobertura dos parâmetros');
-tem(tec, 'MotorSugestao.DEFAULTS', 'a auditoria de parâmetros tem de sair dos padrões do próprio motor');
-/* ── O MARCADOR DO SHELL NAO PODE SER O TEXTO QUE ELE EXIBE ────────────────
-   Esta linha procurava a string 'CENTRAL DE DESEMPENHO' — o rotulo maiusculo
-   que a faixa mostrava. O que ela quer garantir e que o shell operacional do
-   TEC EXISTE, e para isso o rotulo era so um marcador conveniente: qualquer
-   ajuste de copy derrubava a checagem sem que nada estrutural mudasse.
-
-   E o rotulo mudou por um motivo: a faixa repetia "retratos no escopo" e
-   "retratos salvos", que o cartao "Escopo da analise" logo abaixo ja mostra,
-   e trazia auditoria de parametros e um cronometro em milissegundos como se
-   fossem metrica de estudo. Ela passou a responder o que so ela pode — em que
-   aba voce esta, QUAL MODELO decide a fila agora, e se o retrato esta vencido.
-
-   Agora o teste olha a estrutura (a faixa e a funcao que a garante) e, de
-   quebra, exige a informacao nova: e mais forte do que era, nao menos. */
 tem(tec, "box.className='tp-command'", 'TEC precisa do shell operacional (faixa tp-command)');
 tem(tec, 'garantirComando()', 'o shell precisa ser garantido em um lugar so');
-tem(tec, 'fonteAtual()', 'o shell precisa dizer qual modelo decide a fila agora');
+tem(tec, 'mensagemAba(tab)', 'o cabeçalho precisa mudar a mensagem conforme a natureza da aba');
+tem(tec, 'Nenhum modelo opina aqui', 'Análise precisa se declarar como fato, não decisão do Motor');
+tem(tec, 'Fatos da banca', 'Incidência precisa se declarar como dado factual da banca');
+tem(tec, "if(tab==='motor')", 'somente a aba Motor deve explicar a lógica de prioridade');
+assert.ok(!tec.includes('auditoriaParametros()'), 'auditoria de desenvolvedor não deve voltar ao cabeçalho do aluno');
+assert.ok(!tec.includes("medir('motor'"), 'cronômetro interno não deve voltar a ser requisito de UX');
+assert.ok(!tec.includes('data-tp-settings') || tec.includes("querySelectorAll('.tp-overlay,[data-tp-settings],[data-tp-audit]"),
+  'seletor legado pode existir apenas como limpeza de DOM antigo, nunca como botão novo');
+assert.ok(!tec.includes('abrirDiagnostico()'), 'modal Diagnóstico do TEC não deve ser recriado');
+
+/* Contrato final do Motor/TEC: esta bateria é propositalmente textual e roda
+   antes do navegador. Se alguém ressuscitar um legado ou trocar silenciosamente
+   uma das decisões estruturais, a PR para aqui antes da suíte longa. */
+tem(motorTec, 'metaAcerto: 90', 'meta de fábrica do Motor deve ser 90%');
+tem(motorTec, 'maxFrentes: [1, 3]', 'rodada acionável deve ter no máximo 3 disciplinas');
+tem(motorTec, '_lacuna(item, p)', 'ranking deve usar lacuna confiável, não percentual cru');
+tem(motorTec, 'gapConfiavel', 'lacuna após margem precisa existir no modelo');
+assert.ok(!motorTec.includes('MAX_IRMAOS_GRUPO'), 'agrupamento não pode voltar a um teto arbitrário de irmãos');
+tem(telaTec, 'lacuna segura', 'cards e ranking precisam explicar a lacuna confiável ao aluno');
+tem(telaTec, '_scopeRenderTimer', 'seleção de retratos deve coalescer cliques rápidos');
+tem(telaTec, 'Atualizando análise…', 'seleção de retratos precisa mostrar feedback visual');
+tem(telaTec, '--tec-level-hue', 'granularidades profundas precisam conservar tom próprio');
+assert.match(htmlTec, /id="motor-meta"[^>]*value="90"/, 'campo da meta deve nascer em 90%');
+assert.match(htmlTec, /id="motor-frentes"[^>]*max="3"/, 'campo de disciplinas por rodada deve limitar em 3');
 
 // UX responsiva e janela modal independente.
 tem(css, '.rg-overlay', 'histórico/configuração precisam de modal independente');

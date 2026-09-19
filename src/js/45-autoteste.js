@@ -1816,7 +1816,7 @@ const AutoTeste = {
       this._ok('Ciclo: a atividade guarda o contador do assunto na criação',
         e1.origemPlano.qBase === 200, e1.origemPlano.qBase);
       this._ok('Ciclo: e a taxa inicial e a META DO DIA, não a de depois',
-        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 85, e1.origemPlano);
+        e1.origemPlano.taxaInicial === 40 && e1.origemPlano.metaAlvo === 90, e1.origemPlano);
       const comNovo = velhos.concat([R('c', dia(20), dia(1), [D('Dir Adm', 80, 48), L('01', 'Licitacoes', 'Dir Adm', 80, 48)])]);
       let v = comBanco(comNovo, () => C.avaliar(DB.getExtras()[0], P.calcular(comNovo[2], P.prefs())));
       this._ok('Ciclo: o retrato novo conta as questões sozinho', v.feito === 80 && v.medido === 80, { feito: v.feito, medido: v.medido });
@@ -1963,7 +1963,7 @@ const AutoTeste = {
       this._ok('Lente: as 200 do detalhe contam como progresso (eram 0)',
         v8.medido === 200 && v8.feito === 200 && v8.cumpriu, { medido: v8.medido, feito: v8.feito });
       this._ok('Lente: e a taxa é a do ramo, 88% — não os 30% do retrato em que era folha',
-        Math.round(v8.taxa) === 88 && v8.estado === 'funcionou', { taxa: v8.taxa, estado: v8.estado });
+        Math.round(v8.taxa) === 88 && v8.estado === 'subiu', { taxa: v8.taxa, estado: v8.estado });
       lente(false);
       const v8b = leia();
       lente(true);
@@ -3046,6 +3046,17 @@ const AutoTeste = {
     this._ok('Motor: o bloco continua abaixo da disciplina',
       local.length > 0 && local.every(x => x.nivel > 0 && x.disciplina === 'X'), local);
 
+    /* O agrupamento não pode parar num número mágico. Se cinco irmãos ainda
+       forem pouco, o sexto entra; quem encerra é a margem, não "até 4". */
+    const muitos = no('Tópico B', 36, 9, 1, [
+      no('B.1', 6, 1, 2), no('B.2', 6, 1, 2), no('B.3', 6, 1, 2),
+      no('B.4', 6, 2, 2), no('B.5', 6, 2, 2), no('B.6', 6, 2, 2)
+    ]);
+    const planoMuitos = M._planejarNo(muitos, 15, []);
+    const blocoMuitos = planoMuitos.find(x => x.agregado);
+    this._ok('Motor: agrupa quantos irmãos pequenos forem necessários até a margem fechar',
+      !!(blocoMuitos && blocoMuitos.membros.length > 4 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
+
     const raiz = no('X', 400, 180, 0, [miudos]);
     this._ok('Motor: depth 0 é fronteira absoluta e nunca vira atividade',
       M._planejarNo(raiz, 15, []).length === 0);
@@ -3060,7 +3071,7 @@ const AutoTeste = {
       ]),
       no('Tópico seguinte', 120, 84, 1, [])
     ]);
-    const fila = M._filaDisciplina(disc, Object.assign(M.prefs(), { margemMax: 15, metaAcerto: 85 }));
+    const fila = M._filaDisciplina(disc, Object.assign(M.prefs(), { margemMax: 15, metaAcerto: 90 }));
     const nomes = fila.map(x => x.nome);
     this._ok('Motor: percorre pior tópico e seus subtópicos antes do tópico seguinte',
       nomes[0] === 'Sub pior' && nomes[1] === 'Sub melhor' && nomes[2] === 'Tópico seguinte', nomes);
@@ -3070,6 +3081,21 @@ const AutoTeste = {
     /* A margem continua sendo a trava estatística, não o percentual cru. */
     this._ok('Motor: 2 questões nunca passam na régua de ±15pp', !M.legivel(2, 0, 15));
     this._ok('Motor: 200 questões passam na mesma régua', M.legivel(200, 100, 15));
+    this._ok('Motor: a meta padrão é 90% e a rodada padrão tem no máximo 3 disciplinas',
+      M.DEFAULTS.metaAcerto === 90 && M.LIMITES.maxFrentes[1] === 3,
+      { meta: M.DEFAULTS.metaAcerto, max: M.LIMITES.maxFrentes });
+
+    /* Lacuna confiável desconta a margem: um percentual ligeiramente pior,
+       porém muito incerto, não pode automaticamente superar um déficit mais
+       comprovado. */
+    const pa = Object.assign(M.prefs(), { metaAcerto: 90, fase: 'pre' });
+    const la = M._lacuna({ taxa: 59, margem: 13, questoes: 60 }, pa);
+    const lb = M._lacuna({ taxa: 61, margem: 3, questoes: 800 }, pa);
+    const da = { melhorTopico: Object.assign({ peso: 60, questoes: 60 }, la) };
+    const db = { melhorTopico: Object.assign({ peso: 800, questoes: 800 }, lb) };
+    this._ok('Motor: ranking entre disciplinas privilegia lacuna comprovada, não percentual cru',
+      M._compararDisciplinas(db, da, pa) < 0 && lb.gapConfiavel > la.gapConfiavel,
+      { a: la, b: lb });
 
     /* Dose é POR ATIVIDADE. O base de 25 não é um bolo para repartir em 1, 2,
        3 questões; cada reforço recebe pelo menos o piso útil. */
