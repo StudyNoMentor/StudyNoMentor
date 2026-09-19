@@ -1,379 +1,137 @@
 </script>
 
-<!-- ============================================================
-     CAMADA DE PERSISTÊNCIA: IndexedDB
-     ------------------------------------------------------------
-     O app inteiro foi escrito sobre a API SÍNCRONA do localStorage
-     (getItem/setItem/removeItem/key/length), que tem cota de ~5 MB.
-     Em vez de reescrever as ~80 chamadas para a API assíncrona do
-     IndexedDB, instalamos aqui uma FACHADA compatível:
-
-       1) Ao carregar, todos os pares chave/valor são lidos do
-          IndexedDB para um cache em memória (hidratação).
-       2) window.localStorage é substituído por uma implementação
-          que lê do cache (síncrono) e grava no IndexedDB de forma
-          assíncrona (write-through), sem bloquear a interface.
-       3) Só então o código do app (script inerte "app-code") é
-          executado — passando a usar o IndexedDB de forma transparente.
-
-     Ganho: a cota deixa de ser ~5 MB e passa a ser a do IndexedDB
-     (centenas de MB), eliminando os avisos de "armazenamento cheio".
-     ============================================================ -->
+<!-- ESTADO LOCAL: SOMENTE MEMÓRIA. Supabase relacional = fonte persistente. -->
 <script>
 (function () {
   'use strict';
 
-  var IDB_NAME = 'diario-estudos-db', IDB_STORE = 'kv', IDB_VERSION = 1;
-  var MIRROR_MAX = 100000; // espelha no localStorage nativo só chaves pequenas (evita cota)
-
   var nativeLS = null;
-  try { nativeLS = window.localStorage; } catch (e) { nativeLS = null; }
+  try { nativeLS = window.localStorage; } catch (_) { nativeLS = null; }
+  var mem = new Map();
+  var keysCache = null;
+  var THEME = 'diario-estudos:theme';
 
-  var cache = new Map();   // fonte da verdade em memória (síncrona)
-  var _keys = null;        // cache do Array de chaves p/ .key(i)
-  function invalidateKeys() { _keys = null; }
+  function invalidate() { keysCache = null; }
+  function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
+  function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
 
-  var db = null, queue = [], flushing = false;
-
-  function openIDB() {
-    /* Reaproveita a abertura disparada no <head> (roda em paralelo com o parse).
-       Só abre de novo se aquela não existir ou tiver falhado — assim o caminho
-       de erro continua idêntico ao de antes. */
-    if (window.__idbBoot && typeof window.__idbBoot.then === 'function') {
-      return window.__idbBoot.catch(function () { return abrirDireto(); });
-    }
-    return abrirDireto();
-  }
-  function abrirDireto() {
-    return new Promise(function (resolve, reject) {
-      var req;
-      try { req = indexedDB.open(IDB_NAME, IDB_VERSION); }
-      catch (e) { reject(e); return; }
-      req.onupgradeneeded = function () {
-        try {
-          var d = req.result;
-          if (!d.objectStoreNames.contains(IDB_STORE)) d.createObjectStore(IDB_STORE);
-        } catch (e) { _quiet(e); }
-      };
-      req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error); };
-      req.onblocked = function () { reject(new Error('IndexedDB bloqueado por outra aba')); };
-    });
-  }
-
-  // ---- write-through assíncrono (lote por microtask) ----
-  /* Quem está esperando o DISCO confirmar. `setItem` volta na hora (cache em
-     memória), mas a gravação real no IndexedDB acontece depois. Recarregar a
-     página nesse intervalo ABORTA a transação — e era assim que a sessão
-     recém-gravada do login às vezes não estava lá na abertura seguinte.
-     window.__idbFlush() permite ao app esperar a confirmação antes de recarregar. */
-  var esperandoDisco = [];
-  function avisarDisco() {
-    var lista = esperandoDisco; esperandoDisco = [];
-    for (var i = 0; i < lista.length; i++) { try { lista[i](); } catch (e) {} }
-  }
-  window.__idbFlush = function () {
-    if (!db || (!queue.length && !flushing)) return Promise.resolve();
-    return new Promise(function (resolve) {
-      esperandoDisco.push(resolve);
-      scheduleFlush();
-      setTimeout(resolve, 2000);   // teto: nunca travar a interface esperando o disco
-    });
-  };
-  /* Barreira ESTRITA de durabilidade. Ao contrário de __idbFlush(), não transforma
-     timeout em sucesso: só confirma quando a transação terminou (flushing=false)
-     E não restou nenhuma operação na fila. Usada antes de qualquer recarga que
-     poderia matar uma transação em voo. */
-  window.__idbPendingCount = function () { return queue.length + (flushing ? 1 : 0); };
-  window.__idbFlushStrict = function (limiteMs) {
-    var teto = Math.max(1000, Number(limiteMs) || 10000);
-    /* Sem IndexedDB ativo, o app está no localStorage nativo, cuja escrita é
-       síncrona. Não há transação assíncrona a esperar. */
-    if (!db) return Promise.resolve({ ok: true, fallback: true, pending: 0 });
-    var fim = Date.now() + teto;
-    return new Promise(function (resolve) {
-      var acabou = false;
-      function terminar(r) { if (acabou) return; acabou = true; resolve(r); }
-      function conferir() {
-        if (!queue.length && !flushing) { terminar({ ok: true, pending: 0 }); return; }
-        if (Date.now() >= fim) {
-          terminar({ ok: false, motivo: 'timeout', pending: queue.length + (flushing ? 1 : 0) });
-          return;
-        }
-        scheduleFlush();
-        setTimeout(conferir, 50);
-      }
-      conferir();
-    });
-  };
-  // App indo para segundo plano/fechando: garante a descarga do que está na fila.
-  try {
-    window.addEventListener('pagehide', function () { try { window.__idbFlush(); } catch (e) {} });
-    document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'hidden') { try { window.__idbFlush(); } catch (e) {} }
-    });
-  } catch (e) {}
-
-  function scheduleFlush() { if (!flushing) { flushing = true; Promise.resolve().then(flush); } }
-
-  /* ── QUANDO O DISCO RECUSA ────────────────────────────────────────────────
-     A gravação sai da fila ANTES de a transação terminar. Se ela falhava
-     (cota estourada, disco cheio, a conexão fechada por um `versionchange`), o
-     lote simplesmente sumia: o cache em memória continuava mostrando o valor, a
-     tela continuava mostrando o valor, e ele só deixava de existir na abertura
-     seguinte — sem um único erro no caminho. Este é o modo de perda mais
-     traiçoeiro que existe, porque nada parece errado até ser tarde.
-
-     Agora o lote VOLTA para a fila e é retentado com espera crescente. A ordem
-     é preservada: as operações que falharam entram na frente das que chegaram
-     depois, então uma gravação mais nova para a mesma chave continua vencendo.
-     Esgotadas as tentativas, o app é avisado — porque insistir em silêncio é o
-     que fazia o dado sumir sem ninguém saber. */
-  var falhasSeguidas = 0;
-  var ESPERA_RETENTAR = [400, 2000, 8000];
-  function devolverAFila(ops) {
-    if (ops && ops.length) queue = ops.concat(queue);
-    flushing = false;
-    var tentativa = falhasSeguidas++;
-    if (tentativa < ESPERA_RETENTAR.length) {
-      // ainda vamos tentar: quem espera o disco continua esperando (com o teto
-      // de 2 s do __idbFlush, que já impede a interface de ficar presa)
-      setTimeout(scheduleFlush, ESPERA_RETENTAR[tentativa]);
-      return;
-    }
-    /* Desistimos de retentar sozinhos, mas NÃO jogamos a fila fora: qualquer
-       gravação seguinte dispara uma nova rodada, e se o disco voltar o que está
-       aqui ainda entra. Descartar seria repetir, de propósito, exatamente a
-       perda que este bloco existe para impedir. */
-    falhasSeguidas = 0;
-    try { if (typeof window.__idbFalhouAoGravar === 'function') window.__idbFalhouAoGravar(queue.length); }
-    catch (e) { _quiet(e); }
-    avisarDisco();
-  }
-
-  function flush() {
-    if (!db) { flushing = false; avisarDisco(); return; }
-    var ops = queue; queue = [];
-    if (!ops.length) { flushing = false; avisarDisco(); return; }
-    var tx, store, encerrado = false;
-    try { tx = db.transaction(IDB_STORE, 'readwrite'); store = tx.objectStore(IDB_STORE); }
-    catch (e) { _quiet(e); devolverAFila(ops); return; }
-
-    /* error e abort podem ocorrer na mesma transação. Sem esta trava o lote
-       podia voltar DUAS vezes para a fila e uma gravação antiga reaparecer depois
-       da nova. O lote inteiro tem exatamente um desfecho: commit OU requeue. */
-    function falharLote(e) {
-      if (encerrado) return;
-      encerrado = true;
-      try { if (e) _quiet(e); } catch (_) {}
-      devolverAFila(ops);
-    }
-    tx.oncomplete = function () {
-      if (encerrado) return;
-      encerrado = true;
-      flushing = false; falhasSeguidas = 0;
-      if (queue.length) scheduleFlush(); else avisarDisco();
-    };
-    tx.onerror = function () { falharLote(tx.error); };
-    tx.onabort = function () { falharLote(tx.error); };
-
-    for (var i = 0; i < ops.length; i++) {
-      var op = ops[i];
-      try {
-        if (op.t === 'set') store.put(op.v, op.k);
-        else if (op.t === 'del') store.delete(op.k);
-        else if (op.t === 'clear') store.clear();
-      } catch (e) {
-        /* Uma operação que nem conseguiu entrar na transação NÃO pode ser
-           silenciosamente esquecida. Abortar garante atomicidade do lote e o
-           handler acima recoloca TODAS as operações na ordem original. */
-        try { tx.abort(); } catch (_) { falharLote(e); }
-        return;
-      }
-    }
-  }
-  function enqueue(op) { queue.push(op); scheduleFlush(); }
-
-  /* O armazenamento nativo NÃO é mais uma segunda cópia genérica do perfil.
-     Manter conteúdo/revisões pequenos aqui e conteúdo grande só no IndexedDB
-     criava estados impossíveis ("rev nova + dado antigo") depois de um reload.
-     Antes do shim só o tema é lido, portanto só ele precisa de espelho síncrono. */
-  function mirrorNative(t, k, v) {
-    if (!nativeLS) return;
+  /* Preserva apenas preferências globais pequenas nesta sessão de transição.
+     Dados de perfil não são adotados: o banco manda. */
+  if (nativeLS) {
     try {
-      if (k !== 'diario-estudos:theme') {
-        /* Cada escrita futura também remove uma cópia antiga que versões
-           anteriores possam ter deixado para trás. */
-        nativeLS.removeItem(k);
-        return;
+      for (var i = 0; i < nativeLS.length; i++) {
+        var k = nativeLS.key(i);
+        if (!k || !isMemoryKey(k) || k.indexOf('diario-estudos:u:') === 0) continue;
+        var v = nativeLS.getItem(k);
+        if (v != null) mem.set(k, String(v));
       }
-      if (t === 'set') { if (v.length < MIRROR_MAX) nativeLS.setItem(k, v); else nativeLS.removeItem(k); }
-      else if (t === 'del') nativeLS.removeItem(k);
-    } catch (e) { _quiet(e); }
+    } catch (_) {}
   }
 
-  // ---- fachada compatível com a Storage API ----
+  function notify(k, oldV, newV) {
+    try {
+      if (window.RelationalStore && RelationalStore.onStorageMutation) {
+        RelationalStore.onStorageMutation(k, oldV, newV);
+      }
+    } catch (e) { try { console.error('[memory-store] persist hook', e); } catch (_) {} }
+  }
+
   var LS = {
-    getItem: function (k) { k = String(k); return cache.has(k) ? cache.get(k) : null; },
+    getItem: function (k) {
+      k = String(k);
+      if (isMemoryKey(k)) return mem.has(k) ? mem.get(k) : null;
+      try { return nativeLS ? nativeLS.getItem(k) : null; } catch (_) { return null; }
+    },
     setItem: function (k, v) {
       k = String(k); v = String(v);
-      if (!cache.has(k)) invalidateKeys();
-      cache.set(k, v);
-      enqueue({ t: 'set', k: k, v: v });
-      mirrorNative('set', k, v);
+      if (isMemoryKey(k)) {
+        var oldV = mem.has(k) ? mem.get(k) : null;
+        if (!mem.has(k)) invalidate();
+        mem.set(k, v);
+        if (oldV !== v) notify(k, oldV, v);
+        return;
+      }
+      var oldNative = null;
+      try {
+        if (nativeLS) { oldNative = nativeLS.getItem(k); nativeLS.setItem(k, v); }
+      } catch (_) {}
+      if (isStudyKey(k) && oldNative !== v) notify(k, oldNative, v);
     },
     removeItem: function (k) {
       k = String(k);
-      if (cache.has(k)) { cache.delete(k); invalidateKeys(); }
-      enqueue({ t: 'del', k: k });
-      mirrorNative('del', k);
+      if (isMemoryKey(k)) {
+        var oldV = mem.has(k) ? mem.get(k) : null;
+        if (mem.delete(k)) invalidate();
+        if (oldV != null) notify(k, oldV, null);
+        return;
+      }
+      var oldNative = null;
+      try { if (nativeLS) { oldNative = nativeLS.getItem(k); nativeLS.removeItem(k); } } catch (_) {}
+      if (isStudyKey(k) && oldNative != null) notify(k, oldNative, null);
     },
     clear: function () {
-      cache.clear(); invalidateKeys();
-      enqueue({ t: 'clear' });
-      try { if (nativeLS) nativeLS.clear(); } catch (e) { _quiet(e); }
+      var olds = Array.from(mem.entries());
+      mem.clear(); invalidate();
+      olds.forEach(function (x) { notify(x[0], x[1], null); });
+      try { if (nativeLS) nativeLS.clear(); } catch (_) {}
     },
     key: function (i) {
       i = i >> 0;
-      if (!_keys) _keys = Array.from(cache.keys());
-      return (i >= 0 && i < _keys.length) ? _keys[i] : null;
+      if (!keysCache) {
+        var a = Array.from(mem.keys());
+        try {
+          if (nativeLS) for (var j = 0; j < nativeLS.length; j++) {
+            var nk = nativeLS.key(j);
+            if (nk != null && a.indexOf(nk) < 0) a.push(nk);
+          }
+        } catch (_) {}
+        keysCache = a;
+      }
+      return (i >= 0 && i < keysCache.length) ? keysCache[i] : null;
     }
   };
-  Object.defineProperty(LS, 'length', { get: function () { return cache.size; } });
+  Object.defineProperty(LS, 'length', { get: function () {
+    if (!keysCache) LS.key(-1);
+    return keysCache ? keysCache.length : 0;
+  }});
 
-  function installShim() {
-    // __idbShim informa ao app se ele está rodando sobre o IndexedDB (cota grande)
-    // ou caiu para o localStorage nativo (~5 MB). O aviso antecipado de espaço usa
-    // isso para não gritar "quase cheio" com 4 MB quando há centenas de MB livres.
+  try {
+    Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return LS; } });
+  } catch (e) {
+    try { window.localStorage = LS; } catch (_) {}
+  }
+  window.__nativeLS = nativeLS;
+  window.__memoryOnlyStore = true;
+  window.__idbShim = false;
+  window.__idbPendingCount = function () { return 0; };
+  window.__idbFlush = function () { return Promise.resolve(); };
+  window.__idbFlushStrict = function () { return Promise.resolve({ ok: true, relational: true, pending: 0 }); };
+
+  /* Limpa cópias persistentes antigas do namespace. O tema fica como cache visual. */
+  setTimeout(function () {
+    if (!nativeLS) return;
     try {
-      Object.defineProperty(window, 'localStorage', { configurable: true, get: function () { return LS; } });
-      window.__idbShim = true;
-      return true;
-    } catch (e) {
-      try { window.localStorage = LS; window.__idbShim = true; return true; }
-      catch (e2) { window.__idbShim = false; return false; }
-    }
-  }
-
-  function hydrateCursor(resolve) {
-    var tx, store, req;
-    try { tx = db.transaction(IDB_STORE, 'readonly'); store = tx.objectStore(IDB_STORE); req = store.openCursor(); }
-    catch (e) { resolve(); return; }
-    req.onsuccess = function () {
-      var cur = req.result;
-      if (cur) { cache.set(String(cur.key), String(cur.value)); cur.continue(); }
-      else { invalidateKeys(); resolve(); }
-    };
-    req.onerror = function () { resolve(); };
-  }
-  function hydrate() {
-    return new Promise(function (resolve) {
-      if (!db) { resolve(); return; }
-      var tx, store, rk, rv, keys = null, vals = null, settled = false;
-      try {
-        tx = db.transaction(IDB_STORE, 'readonly');
-        store = tx.objectStore(IDB_STORE);
-        if (typeof store.getAll !== 'function' || typeof store.getAllKeys !== 'function') {
-          hydrateCursor(resolve); return;
-        }
-        rk = store.getAllKeys();
-        rv = store.getAll();
-      } catch (e) { hydrateCursor(resolve); return; }
-      var fallback = function () {
-        if (settled) return;
-        settled = true;
-        hydrateCursor(resolve);
-      };
-      var finish = function () {
-        if (settled || keys === null || vals === null) return;
-        settled = true;
-        var n = Math.min(keys.length, vals.length);
-        for (var i = 0; i < n; i++) cache.set(String(keys[i]), String(vals[i]));
-        invalidateKeys();
-        resolve();
-      };
-      rk.onsuccess = function () { keys = rk.result || []; finish(); };
-      rv.onsuccess = function () { vals = rv.result || []; finish(); };
-      rk.onerror = fallback;
-      rv.onerror = fallback;
-    });
-  }
-
-  /* ── ADOÇÃO DO ARMAZENAMENTO ANTIGO ──────────────────────────────────────
-     Esta função era tudo-ou-nada: `if (cache.size > 0) return`. Ou seja, bastava
-     UMA chave existir no IndexedDB — o tema, um sinalizador de tela, uma
-     gravação parcial — para o localStorage nativo inteiro nunca mais ser lido.
-     E, como a partir daqui `window.localStorage` passa a apontar para esta
-     fachada, o que ficou lá vira invisível para o app TODO: os dados continuam
-     no navegador, íntegros, sem nenhuma porta.
-
-     Agora é uma FUSÃO, e roda sempre: toda chave que existe no armazenamento
-     antigo e não existe aqui é adotada. O IndexedDB continua mandando quando os
-     dois têm a mesma chave (é o store mais novo), então nada é sobrescrito —
-     só se acrescenta o que estava órfão.
-
-     Ressuscitar algo apagado de propósito não é risco real: remover pela fachada
-     também remove do nativo (mirrorNative 'del'), e o espelho nativo só guarda
-     chaves pequenas — uma seção grande presente lá e ausente aqui é, por
-     construção, dado antigo que nunca foi migrado. */
-  function migrateFromNative() {
-    if (!nativeLS) return 0;
-    var adotadas = 0, bytes = 0;
-    try {
-      for (var i = 0; i < nativeLS.length; i++) {
-        var k = nativeLS.key(i); if (k == null) continue;
-        if (cache.has(k)) continue;                 // o IndexedDB manda
-        var v = nativeLS.getItem(k); if (v == null) continue;
-        cache.set(k, v);
-        enqueue({ t: 'set', k: k, v: v });
-        adotadas++; bytes += v.length;
-      }
-      if (adotadas) {
-        invalidateKeys();
-        try { console.warn('[armazenamento] ' + adotadas + ' chave(s) do armazenamento antigo adotadas (' + Math.round(bytes / 1024) + ' KB) — estavam invisíveis para o app'); } catch (e) {}
-      }
-    } catch (e) { _quiet(e); }
-    return adotadas;
-  }
-
-  /* Depois de ADOTAR o armazenamento antigo, ele não pode continuar como uma
-     segunda fonte de verdade. A limpeza só acontece após confirmação estrita do
-     IndexedDB; se o commit falhar ou estourar o teto, deixamos as cópias antigas
-     intactas para recuperação. O tema é a única exceção porque é lido antes do
-     shim para evitar flash visual. */
-  function limparEspelhoNativoAposCommit() {
-    if (!nativeLS || !window.__idbFlushStrict) return Promise.resolve(false);
-    return window.__idbFlushStrict(10000).then(function (r) {
-      if (!r || r.ok === false) return false;
       var apagar = [];
-      try {
-        for (var i = 0; i < nativeLS.length; i++) {
-          var k = nativeLS.key(i);
-          if (k && k !== 'diario-estudos:theme') apagar.push(k);
-        }
-        for (var j = 0; j < apagar.length; j++) nativeLS.removeItem(apagar[j]);
-        if (apagar.length) {
-          try { console.info('[armazenamento] espelho legado limpo após confirmação do IndexedDB:', apagar.length, 'chave(s)'); } catch (_) {}
-        }
-        return true;
-      } catch (e) { _quiet(e); return false; }
-    }).catch(function () { return false; });
-  }
-  /* O armazenamento antigo continua acessível para a tela de Recuperação: sem
-     isto, depois da fachada instalada não há mais como olhar lá dentro. */
-  try { window.__nativeLS = nativeLS; } catch (e) { _quiet(e); }
+      for (var i = 0; i < nativeLS.length; i++) {
+        var k = nativeLS.key(i);
+        if (k && isStudyKey(k) && k !== THEME) apagar.push(k);
+      }
+      apagar.forEach(function (k) { try { nativeLS.removeItem(k); } catch (_) {} });
+    } catch (_) {}
+    try {
+      if (window.indexedDB && indexedDB.deleteDatabase) indexedDB.deleteDatabase('diario-estudos-db');
+    } catch (_) {}
+  }, 5000);
 
-  // Reaplica o tema a partir do cache já hidratado (garante o tema certo mesmo
-  // quando o dado existe só no IndexedDB e não no localStorage nativo).
   function applyTheme() {
     try {
-      var saved = cache.get('diario-estudos:theme');
+      var saved = nativeLS && nativeLS.getItem(THEME);
       if (!saved) saved = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
       document.documentElement.setAttribute('data-theme', saved);
-    } catch (e) { _quiet(e); }
+    } catch (_) {}
   }
+  applyTheme();
 
-  // Espera o DOM/scripts deferidos (xlsx, supabase) ficarem prontos antes de rodar o app.
   var domReady = new Promise(function (resolve) {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resolve, { once: true });
     else resolve();
@@ -383,153 +141,59 @@
     var codeEl = document.getElementById('app-code');
     if (!codeEl) return;
     var s = document.createElement('script');
-    s.textContent = codeEl.textContent; // executa em escopo global (idêntico ao original)
+    s.textContent = codeEl.textContent;
     document.body.appendChild(s);
-    // app-code já rodou (é síncrono): esconde o overlay de carregamento.
     try {
       var ov = document.getElementById('app-loading');
-      if (ov) { ov.classList.add('hide'); setTimeout(function () { if (ov && ov.parentNode) ov.parentNode.removeChild(ov); }, 320); }
-    } catch (e) { _quiet(e); }
+      if (ov) { ov.classList.add('hide'); setTimeout(function () { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 320); }
+    } catch (_) {}
   }
 
-  /* ── SERVICE WORKER (opcional) ────────────────────────────────────────────
-     Registrado DEPOIS que o app já carregou, para não competir por banda no
-     arranque. Se sw.js não existir ao lado do arquivo, o registro falha e o
-     erro é ignorado: o app segue idêntico, só sem funcionar offline.
-     Protocolo file:// não suporta service worker — nem tentamos. */
-  /* Sonda se os arquivos opcionais existem ANTES de usá-los.
-
-     Por que sondar em vez de simplesmente tentar: num host estático como o
-     GitHub Pages, pedir um arquivo inexistente devolve a PÁGINA 404 do host
-     (HTML, status 404) — não um erro limpo. O navegador registra isso no
-     console e o JavaScript não tem como silenciar. Sondando primeiro, quem
-     sobe só o index.html não vê ruído nenhum: o app simplesmente não ativa o
-     que não está lá.
-
-     A checagem de Content-Type importa: um 404 que devolve HTML com status 200
-     (alguns hosts fazem isso) passaria no teste de `ok` e o navegador tentaria
-     executar HTML como service worker. */
-  function existe(url, tipoEsperado) {
-    return fetch(url, { method: 'HEAD', cache: 'no-store' })
-      .then(function (r) {
-        if (!r || !r.ok) return false;
-        var ct = (r.headers.get('content-type') || '').toLowerCase();
-        return ct.indexOf(tipoEsperado) >= 0;
-      })
-      .catch(function () { return false; });
+  function existe(url, tipo) {
+    return fetch(url, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+      if (!r || !r.ok) return false;
+      return (r.headers.get('content-type') || '').toLowerCase().indexOf(tipo) >= 0;
+    }).catch(function () { return false; });
   }
-
-  function ativarManifest() {
-    // Sem manifest não há instalação na tela inicial — e nada mais muda.
-    existe('manifest.webmanifest', 'json').then(function (temMf) {
-      if (!temMf) return;
-      try {
-        var l = document.createElement('link');
-        l.rel = 'manifest'; l.href = 'manifest.webmanifest';
-        document.head.appendChild(l);
-      } catch (e) {}
-    });
-  }
-
   function registrarSW() {
     try {
-      if (!('serviceWorker' in navigator)) return;
-      if (location.protocol === 'file:') return;   // file:// não suporta SW
-      ativarManifest();
-      existe('sw.js', 'javascript').then(function (temSw) {
-        if (!temSw) return;                        // modo arquivo único: tudo normal
-        registrarDeFato();
+      if (!('serviceWorker' in navigator) || location.protocol === 'file:') return;
+      existe('manifest.webmanifest', 'json').then(function (ok) {
+        if (ok) {
+          var l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest'; document.head.appendChild(l);
+        }
       });
-    } catch (e) {}
-  }
-
-  function registrarDeFato() {
-    try {
-      /* updateViaCache:'none' é o detalhe que evita ficar preso numa versão
-         antiga: sem ele o navegador pode servir o PRÓPRIO sw.js do cache HTTP
-         por até 24h, e o worker velho continua entregando o index.html velho —
-         o app "não atualiza" e um login que depende de código novo falha sem
-         explicação. Com 'none', o sw.js é sempre buscado da rede. */
-      navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' })
-        .then(function (reg) {
-          // Atualização disponível: aplica na próxima abertura, sem interromper.
-          /* Um TOAST não resolvia: ele some em segundos, ninguém age, e a
-             pessoa segue rodando código velho por dias — que é de onde vêm os
-             "conflitos de login e uso" depois de uma publicação. O aviso agora
-             FICA na tela até ser resolvido, e traz o botão que resolve. */
+      existe('sw.js', 'javascript').then(function (ok) {
+        if (!ok) return;
+        navigator.serviceWorker.register('sw.js', { scope: './', updateViaCache: 'none' }).then(function (reg) {
+          function avisar() { try { if (window.__avisarAtualizacao) window.__avisarAtualizacao(reg); } catch (_) {} }
           reg.addEventListener('updatefound', function () {
-            var novo = reg.installing;
-            if (!novo) return;
+            var novo = reg.installing; if (!novo) return;
             novo.addEventListener('statechange', function () {
-              if (novo.state === 'installed' && navigator.serviceWorker.controller) {
-                try { window.__avisarAtualizacao && window.__avisarAtualizacao(reg); } catch (e) {}
-              }
+              if (novo.state === 'installed' && navigator.serviceWorker.controller) avisar();
             });
           });
-          // Já havia um worker esperando quando esta aba abriu (outra aba viu a
-          // atualização antes): o aviso vale igual.
-          if (reg.waiting && navigator.serviceWorker.controller) {
-            try { window.__avisarAtualizacao && window.__avisarAtualizacao(reg); } catch (e) {}
-          }
-          /* Procura versão nova ao voltar o foco (e a cada 30 min). O navegador
-             só checa sozinho na navegação; num app instalado que fica aberto por
-             dias, isso significava rodar código velho por dias. NÃO recarregamos
-             sozinhos: o worker novo assume na próxima abertura. */
-          var checar = function () { try { reg.update(); } catch (e) {} };
-          document.addEventListener('visibilitychange', function () {
-            if (document.visibilityState === 'visible') checar();
-          });
-          setInterval(checar, 1800000);
-        })
-        .catch(function () { /* sw.js ausente: modo arquivo único, tudo normal */ });
-      /* Um worker novo assumindo o controle NÃO recarrega a página: recarga
-         automática no meio do uso é exatamente o "pisca e carrega de novo" que
-         queremos evitar. A versão nova entra na próxima abertura. */
-    } catch (e) {}
+          if (reg.waiting && navigator.serviceWorker.controller) avisar();
+          var check = function () { try { reg.update(); } catch (_) {} };
+          document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); });
+          setInterval(check, 1800000);
+        }).catch(function () {});
+      });
+    } catch (_) {}
   }
-  /* Reparo manual, para quando o navegador ficar com uma versão antiga presa:
-     window.__repararCache() apaga os caches, remove os workers e recarrega.
-     Não toca em NENHUM dado de estudo — eles moram no IndexedDB. */
+
   window.__repararCache = function () {
-    var tarefas = [];
-    try { if (window.caches) tarefas.push(caches.keys().then(function (n) { return Promise.all(n.map(function (k) { return caches.delete(k); })); })); } catch (e) {}
+    var jobs = [];
+    try { if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })); } catch (_) {}
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
-        tarefas.push(navigator.serviceWorker.getRegistrations().then(function (rs) {
-          return Promise.all(rs.map(function (r) { return r.unregister(); }));
-        }));
+        jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
       }
-    } catch (e) {}
-    return Promise.all(tarefas).catch(function () {}).then(function () {
-      if (window.__idbFlushStrict) return window.__idbFlushStrict(10000);
-      return window.__idbFlush ? window.__idbFlush().then(function () { return { ok: true }; }) : { ok: true };
-    }).then(function (r) {
-      if (r && r.ok === false) {
-        try { console.error('[cache] recarga cancelada: commit local não confirmado', r); } catch (_) {}
-        return;
-      }
-      location.reload();
-    });
+    } catch (_) {}
+    return Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
   };
 
-  openIDB()
-    .then(function (database) { db = database; return hydrate(); })
-    .then(function () {
-      migrateFromNative();
-      installShim();
-      applyTheme();
-      /* Não bloqueia o arranque na faxina, mas a própria faxina só apaga o
-         legado depois de o IndexedDB confirmar tudo. */
-      setTimeout(function () { limparEspelhoNativoAposCommit(); }, 0);
-    })
-    .catch(function (err) {
-      // IndexedDB indisponível (modo privado antigo, navegador sem suporte, etc.):
-      // o app continua funcionando sobre o localStorage nativo, sem a fachada.
-      try { console.error('IndexedDB indisponível — usando localStorage nativo:', err); } catch (e) { _quiet(e); }
-    })
-    .then(function () { return domReady; })
-    .then(runApp)
-    .then(function () { setTimeout(registrarSW, 1200); });   // banda livre primeiro
+  domReady.then(runApp).then(function () { setTimeout(registrarSW, 1200); });
 })();
 </script>
 
