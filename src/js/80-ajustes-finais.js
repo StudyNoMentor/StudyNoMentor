@@ -966,14 +966,11 @@ else CloudStore.init();
         <div class="cloud-menu-body">
           <div class="cloud-menu-sec">Sincronização</div>
           <button type="button" class="cloud-menu-item" data-a="sync" ${logged ? '' : 'disabled'}><span class="ic">⟳</span><span class="tx">Sincronizar agora<small>Envia o que está pendente e baixa novidades.</small></span></button>
-          <button type="button" class="cloud-menu-item" data-a="push" ${logged ? '' : 'disabled'}><span class="ic">↑</span><span class="tx">Forçar envio deste dispositivo<small>Este aparelho passa a valer como a versão mais recente.</small></span></button>
-          <button type="button" class="cloud-menu-item" data-a="pull" ${logged ? '' : 'disabled'}><span class="ic">↓</span><span class="tx">Baixar da nuvem<small>Guarda uma versão de segurança antes de sobrescrever.</small></span></button>
+          <button type="button" class="cloud-menu-item" data-a="pull" ${logged ? '' : 'disabled'}><span class="ic">↓</span><span class="tx">Reconsultar banco<small>Descarta a projeção desta aba e refaz os SELECTs no PostgreSQL.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="recon"><span class="ic">🔌</span><span class="tx">Reconectar sessão<small>Renova o acesso sem digitar a senha.</small></span></button>
           <button type="button" class="cloud-menu-item" data-a="cache"><span class="ic">🔄</span><span class="tx">Atualizar o app (limpar cache)<small>Use se o app parecer travado numa versão antiga ou o login falhar sem motivo. Não apaga nenhum dado de estudo.</small></span></button>
           <div class="cloud-menu-sep"></div>
           <div class="cloud-menu-sec">Segurança da conta</div>
-          <div class="cloud-menu-toggle"><div class="tx">Sessão única<small>Ao entrar, derruba a sessão dos outros aparelhos.</small></div>
-            <button type="button" class="toggle-switch ${pget('single-session', '0') === '1' ? 'on' : ''}" data-a="single" role="switch"></button></div>
           <div class="cloud-menu-sel"><label>Sair por inatividade</label>
             <select data-a="idle">
               <option value="0"${idle === '0' ? ' selected' : ''}>Nunca (recomendado)</option>
@@ -994,7 +991,7 @@ else CloudStore.init();
           <button type="button" class="btn-primary" data-a="relogin" style="width:100%">Entrar novamente</button>
           <button type="button" class="cloud-menu-item" data-a="forgot" style="justify-content:center;margin-top:6px;font-size:var(--fs-2xs);"><span class="tx">Esqueci minha senha</span></button>
         </div>` : ''}
-        <div class="cloud-menu-foot">O envio é automático. Este menu existe para as horas em que você quer certeza — ou quer encerrar a sessão.</div>`;
+        <div class="cloud-menu-foot">O PostgreSQL é a fonte de verdade. PC, celular e outras abas podem permanecer conectados ao mesmo tempo.</div>`;
       document.body.appendChild(m);
       this._menu = m;
       const r = btn.getBoundingClientRect();
@@ -1008,14 +1005,12 @@ else CloudStore.init();
         const a = el.dataset.a;
         if (el.tagName === 'SELECT') { el.addEventListener('change', () => { pset('idle-mins', el.value); this._lastAct = Date.now(); toast(el.value === '0' ? 'Saída automática desligada' : 'Saída automática em ' + el.value + ' min'); }); return; }
         el.addEventListener('click', async () => {
-          if (a === 'single') { const on = el.classList.toggle('on'); pset('single-session', on ? '1' : '0'); toast(on ? 'Sessão única ligada' : 'Sessão única desligada'); return; }
           if (a === 'idle') return;
           if (a === 'relogin') { await this.relogin(m); return; }
           if (a === 'forgot') { this.closeMenu(); const f = $('#gate-forgot-btn'); if (f) f.click(); else toast('Use “Esqueci minha senha” na tela de acesso.'); return; }
           this.closeMenu();
           if (a === 'sync') { try { await CS.syncNow(); } catch (_) { _quiet(_); } }
-          else if (a === 'push') { try { CS._forceBlob = true; CS._pending = true; await CS.flushPending(); toast('Enviado ✓'); } catch (_) { toast('Não foi possível enviar agora.'); } }
-          else if (a === 'pull') { try { await CS.pullActiveAndReload({ readOnly: true }); } catch (_) { _quiet(_); } }
+          else if (a === 'pull') { try { await RelationalStore.flush(); await RelationalStore.catchUp(ProfileManager.getActiveProfileId(), 'manual-reconsult'); toast('Banco reconsultado ✓'); } catch (_) { toast('Não foi possível consultar o banco agora.'); } }
           else if (a === 'recon') { await this.reconnect(true); }
           else if (a === 'cache') { await this.repararCache(); }
           else if (a === 'cfg') { try { switchScreen('config'); } catch (_) { _quiet(_); } setTimeout(() => ConfigUX.show('conta'), 60); }
