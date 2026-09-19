@@ -778,6 +778,19 @@ try {
       ? ok('SELECT relacional reconstruiu a memoria do zero')
       : erro('hidratacao relacional divergiu: '+JSON.stringify(hidratou));
 
+    /* Regressão do caso real pós-migração: o SELECT já tinha preenchido a RAM,
+       mas o nome do planejamento e os registros continuavam vazios no DOM
+       porque ambos tinham sido renderizados antes do login. */
+    const uiAposHydrate = await pg.evaluate(() => ({
+      plano: (document.getElementById('active-plan-name') || {}).textContent || '',
+      recentesDisplay: (document.getElementById('recent-section') || {}).style?.display || '',
+      recentes: (document.getElementById('recent-list') || {}).textContent || ''
+    }));
+    uiAposHydrate.plano.trim() && uiAposHydrate.plano.trim() !== '—' &&
+        uiAposHydrate.recentesDisplay !== 'none' && /AFO/.test(uiAposHydrate.recentes)
+      ? ok('hidratação relacional também redesenha nome do planejamento e registros')
+      : erro('dados chegaram à memória, mas a UI não redesenhou: '+JSON.stringify(uiAposHydrate));
+
     const isolamento=await pg.evaluate(async (pid) => {
       await CloudStore.signOut();
       await CloudStore.signUp('outra@teste.local','senha-de-teste-456');

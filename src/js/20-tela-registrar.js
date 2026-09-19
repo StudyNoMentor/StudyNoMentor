@@ -749,5 +749,24 @@
   })();
   window.atualizarEtapasRegistrar = atualizarEtapas;
 
-  window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas };
+  /* A tela nasce antes do login, portanto o primeiro render enxerga a memória
+     vazia. Depois que o PostgreSQL hidrata o perfil, é obrigatório redesenhar
+     a projeção visual: os dados já estão na RAM, mas DOM antigo não se atualiza
+     sozinho. O mesmo evento também cobre catch-up/realtime entre aparelhos. */
+  function refreshFromRelationalStore() {
+    refreshSubjectSelect();
+    refreshMethodSelect(false);
+    renderRecent();
+    updateGauge();
+    updatePagesHint();
+    updateVideoConsumed();
+    updateVideoFieldsVisibility();
+    atualizarEtapas();
+  }
+  window.addEventListener('data:relational-hydrated', refreshFromRelationalStore);
+  window.addEventListener('screen:activated', (e) => {
+    if (e.detail && e.detail.screen === 'registrar') refreshFromRelationalStore();
+  });
+
+  window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas, refreshFromRelationalStore };
 })();
