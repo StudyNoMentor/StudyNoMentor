@@ -104,6 +104,84 @@ const SectionSync = {
     } catch (_) { return {}; }
   },
   _saveRevs(r, id) { try { localStorage.setItem(this._revKey(id), JSON.stringify(r)); } catch (_) { _quiet(_); } },
+  /* ── DIÁRIO: OPERAÇÕES POR ID ─────────────────────────────────────────────
+     A seção entries é uma lista inteira. Em dois aparelhos, tratar a lista como
+     um único valor faz uma exclusão local colidir com qualquer gravação mais
+     nova da nuvem. O CAS deve continuar protegendo a seção, mas o conflito é
+     resolvido reaplicando SOMENTE as operações que o usuário fez por ID sobre
+     a versão remota mais nova. */
+  ENTRY_OPS: '__entryops:',
+  _entryOpsKey(id, sec) { return this._prefixFor(id) + this.ENTRY_OPS + encodeURIComponent(String(sec || 'entries')); },
+  _isEntriesSection(sec) { return /(^|:)entries$/.test(String(sec || '')); },
+  _loadEntryOps(id, sec) {
+    try { const a = JSON.parse(localStorage.getItem(this._entryOpsKey(id, sec))); return Array.isArray(a) ? a : []; }
+    catch (_) { return []; }
+  },
+  _saveEntryOps(id, sec, ops) {
+    try {
+      const k = this._entryOpsKey(id, sec);
+      if (ops && ops.length) localStorage.setItem(k, JSON.stringify(ops));
+      else localStorage.removeItem(k);
+    } catch (e) { _quiet(e, 'entryops-save'); }
+  },
+  recordEntryMutation(fullKey, op) {
+    if (!this.enabled || !fullKey || !op) return;
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
+    if (!sec || !this._isEntriesSection(sec) || op.id == null) return;
+    const ops = this._loadEntryOps(id, sec);
+    const item = { type: op.type === 'delete' ? 'delete' : 'upsert', id: String(op.id), at: Date.now() };
+    if (item.type === 'upsert' && op.entry) item.entry = op.entry;
+    ops.push(item);
+    this._saveEntryOps(id, sec, ops.slice(-500));
+  },
+  _mergeEntries(remoteRaw, localRaw, ops) {
+    let remote = [], local = [];
+    try { const x = JSON.parse(remoteRaw || '[]'); if (Array.isArray(x)) remote = x; } catch (_) { _quiet(_); }
+    try { const x = JSON.parse(localRaw || '[]'); if (Array.isArray(x)) local = x; } catch (_) { _quiet(_); }
+    const byId = new Map(remote.filter(x => x && x.id != null).map(x => [String(x.id), x]));
+    const localById = new Map(local.filter(x => x && x.id != null).map(x => [String(x.id), x]));
+    (ops || []).forEach(op => {
+      const id = String(op && op.id);
+      if (!id) return;
+      if (op.type === 'delete') byId.delete(id);
+      else {
+        const entry = (op && op.entry) || localById.get(id);
+        if (entry) byId.set(id, entry);
+      }
+    });
+    /* Itens remotos sem id são preservados por segurança. */
+    const semId = remote.filter(x => !x || x.id == null);
+    return JSON.stringify(semId.concat([...byId.values()]));
+  },
+  async _resolveEntriesConflict(id, sec, gen, localHash, revs, pfx) {
+    if (!this._isEntriesSection(sec)) return { resolved: false };
+    const ops = this._loadEntryOps(id, sec);
+    if (!ops.length) return { resolved: false };
+    const remoto = await this._remoteSection(id, sec);
+    if (!remoto) return { resolved: false };
+    const remoteRaw = this._decode(remoto.data);
+    if (remoteRaw == null) return { resolved: false };
+    const localRaw = localStorage.getItem(pfx + sec) || '[]';
+    const mergedRaw = this._mergeEntries(remoteRaw, localRaw, ops);
+    const mergedHash = this._hash(mergedRaw);
+    /* Alinha a base ao remoto que acabamos de observar e tenta um único CAS.
+       Se outro aparelho mudar DE NOVO nesse intervalo, o CAS volta a proteger e
+       a operação permanece na fila para a próxima rodada. */
+    const wr = await this._writeSectionCAS({
+      profile_id: id, section: sec, data: this._encode(mergedRaw),
+      rev: (Number(remoto.rev) || 0) + 1, updated_at: new Date().toISOString(),
+      _contentHash: mergedHash
+    }, Number(remoto.rev) || 0,
+       remoto.content_hash == null ? this._hash(remoteRaw) : String(remoto.content_hash),
+       this._mutationId(sec, mergedHash));
+    if (!wr.ok) return { resolved: false, conflict: !!wr.conflict };
+    localStorage.setItem(pfx + sec, mergedRaw);
+    revs[sec] = { rev: wr.rev || ((Number(remoto.rev) || 0) + 1), hash: mergedHash, len: mergedRaw.length };
+    this._saveEntryOps(id, sec, []);
+    this._ackSent(sec, gen, mergedHash, pfx, id);
+    return { resolved: true, hash: mergedHash };
+  },
 
   /* ── CAIXA DE SAÍDA DURÁVEL ───────────────────────────────────────────────
      _dirty morava só na memória. Um recarregamento, o fechamento do app, uma
@@ -835,6 +913,11 @@ const SectionSync = {
               okCount++;
               continue;
             }
+          }
+          const resolvido = await this._resolveEntriesConflict(id, _sec, _gen, _hash, revs, pfx);
+          if (resolvido && resolvido.resolved) {
+            okCount++;
+            continue;
           }
           conflitos.push(_sec);
           falhas.push(_sec + ' (conflito de revisão protegido)');
