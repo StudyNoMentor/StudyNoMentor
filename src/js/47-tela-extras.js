@@ -344,7 +344,20 @@ const ExtrasScreen = {
       this._planoDiscOrder = (r.disciplinas || []).map(d => d.nome);
       this._planoDiscsDisponiveis = (r.disciplinasDisponiveis || []).slice();
       this._planoCand = (r.todos || []).filter(x => !jaTem(x)).slice(0, 240);
-      this._planoFila = (r.itens || []).map(x => x.disciplina + '\u0001' + x.nome);
+      /* A recomendação da aba Motor pode já ter atividade aberta. Nesse caso,
+         não deixamos um "buraco" entre recomendação 1 e 3: dentro da mesma
+         disciplina pegamos a primeira frente seguinte que ainda está livre.
+         A ordem das MATÉRIAS continua a mesma; só avançamos a fila interna. */
+      const disponivel = new Map();
+      this._planoCand.forEach(x => {
+        const d = ReforcoEngine.norm(x.disciplina || '');
+        if (d && !disponivel.has(d)) disponivel.set(d, x);
+      });
+      this._planoFila = [];
+      (r.disciplinas || []).slice(0, r.prefs.maxFrentes || 3).forEach(d => {
+        const x = disponivel.get(ReforcoEngine.norm(d.nome || ''));
+        if (x) this._planoFila.push(x.disciplina + '\u0001' + x.nome);
+      });
       this._planoErr = null;
     };
     this._planoRecalc();
