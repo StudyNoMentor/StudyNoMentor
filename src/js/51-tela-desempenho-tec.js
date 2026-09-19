@@ -1405,14 +1405,12 @@ const DesempenhoTecScreen = {
        incidência. Um quarto estável em vez de seis desalinhados. */
     const linhas = r.itens.map((x, i) => {
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
-      const porQue = x.agregado
-        ? `Bloco local com ${x.membros.length} dos irmãos mais fracos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam ${r.prefs.minAmostra} questões; juntos formam uma atividade executável. Os demais continuam na fila.`
+      const deGrupo = x.motivoNivel === 'pior-do-grupo';
+      const porQue = deGrupo
+        ? `Este subtópico tem só ${x.questoes} questão(ões) própria(s) — abaixo do piso de ${r.prefs.minAmostra} —, mas está entre ${x.grupoTamanho} irmãos igualmente fracos sob “${x.pai || 'o mesmo tópico'}” que juntos somam ${x.grupoQuestoes} questões, confirmando que a área é fraca de verdade. Miramos só nele, com o caderno cheio, para não diluir o esforço entre os irmãos: assim ele acumula amostra própria mais rápido e pode “se formar” sozinho no próximo retrato. Os demais continuam na fila.`
         : x.motivoNivel === 'subnivel-insuficiente'
           ? `Mesmo reunindo os subtópicos fracos, o nível abaixo não alcançou ${r.prefs.minAmostra} questões. Só então o motor subiu até este tópico.`
           : `Este nível tem pelo menos ${r.prefs.minAmostra} questões e pode ser usado diretamente.`;
-      const membros = x.agregado
-        ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
-        : '';
       const quarto = r.fase === 'pos'
         ? `<span><b>${x.peso}</b><i>Incidência</i></span>`
         : `<span><b>Nível ${x.nivel}</b><i>Profundidade</i></span>`;
@@ -1422,7 +1420,7 @@ const DesempenhoTecScreen = {
             <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
             <div class="ms-suggestion-title">
               <small>${trilha.map(escapeHtml).join(' › ')}</small>
-              <h3>${escapeHtml(x.nome)}${x.agregado ? ' <span class="ms-selo">bloco · ' + x.membros.length + ' irmãos</span>' : ''}</h3>
+              <h3>${escapeHtml(x.nome)}${deGrupo ? ' <span class="ms-selo">pior de ' + x.grupoTamanho + '</span>' : ''}</h3>
             </div>
             <div class="ms-dose"><b>${x.dose}</b><small>questões</small></div>
           </div>
@@ -1432,7 +1430,6 @@ const DesempenhoTecScreen = {
             <span>lacuna ${fmt1(x.disciplinaLacuna)}pp</span>
             ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
           </div>
-          ${membros}
           <div class="ms-suggestion-metrics">
             <span><b>${fmt1(x.taxa)}%</b><i>Acerto</i></span>
             <span><b>${fmt1(x.gapMeta)}pp</b><i>lacuna p/ meta</i></span>

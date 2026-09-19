@@ -30,24 +30,29 @@ const M=ctx.MotorSugestao;
 const no=(nome,q,taxa,depth=2,kids=[])=>({nome,codigo:nome,depth,disciplina:'X',questoes:q,acertos:q*taxa/100,children:kids});
 
 // Divide toda a faixa fraca em quantas sugestões executáveis forem possíveis.
+// O grupo só serve para CONFIRMAR a lacuna (amostra somada + exclusão de quem
+// já domina); o alvo oferecido é sempre o pior membro individual do grupo,
+// com dose cheia nele — não um "bloco" misturando os irmãos.
 let p=no('Pai',40,50,1,[no('A',10,50),no('B',10,50),no('C',20,50)]);
 let plano=M._planejarNo(p,20,[],90);
 assert.equal(plano.length,2,'dois pequenos + um suficiente devem gerar duas sugestões');
-assert.ok(plano.some(x=>x.agregado&&x.questoes===20&&x.membros.length===2));
-assert.ok(plano.some(x=>!x.agregado&&x.nome==='C'&&x.questoes===20));
+assert.ok(plano.some(x=>x.motivoNivel==='pior-do-grupo'&&x.nome==='A'&&x.grupoTamanho===2&&x.grupoQuestoes===20));
+assert.ok(plano.some(x=>x.motivoNivel!=='pior-do-grupo'&&x.nome==='C'&&x.questoes===20));
 
 p=no('Pai',40,50,1,[no('A',10,50),no('B',10,50),no('C',10,50),no('D',10,50)]);
 plano=M._planejarNo(p,20,[],90);
-assert.equal(JSON.stringify(plano.map(x=>x.questoes)),'[20,20]','quatro pequenos devem virar dois blocos, não um bloco único');
+assert.equal(JSON.stringify(plano.map(x=>x.nome)),'["A","C"]','quatro pequenos devem virar dois grupos, cada um mirando o pior membro');
+assert.ok(plano.every(x=>x.motivoNivel==='pior-do-grupo'&&x.grupoTamanho===2&&x.grupoQuestoes===20),'cada grupo deve confirmar 20 questões somadas, mesmo mirando só 10 do pior');
 
 p=no('Pai',35,50,1,[no('A',10,50),no('B',10,50),no('C',15,50)]);
 plano=M._planejarNo(p,20,[],90);
-assert.equal(plano.length,1);assert.equal(plano[0].questoes,35);assert.equal(plano[0].membros.length,3);
+assert.equal(plano.length,1);assert.equal(plano[0].nome,'A');assert.equal(plano[0].grupoQuestoes,35);assert.equal(plano[0].grupoTamanho,3);
 
-// Assunto forte não serve como enchimento artificial de bloco fraco.
+// Assunto forte não serve como enchimento artificial de bloco fraco — nem
+// para confirmar o grupo, nem para "esconder" o pior atrás de uma média boa.
 p=no('Pai',30,50,1,[no('A',10,20),no('B',10,30),no('Forte',10,100)]);
 plano=M._planejarNo(p,20,[],90);
-assert.equal(plano.length,1);assert.equal(JSON.stringify(plano[0].membros),'["A","B"]');
+assert.equal(plano.length,1);assert.equal(plano[0].nome,'A');assert.equal(plano[0].grupoTamanho,2);assert.equal(plano[0].grupoQuestoes,20);
 
 // A subida espera as frentes granulares; só aparece quando nenhuma é executável.
 p=no('Pai',25,40,1,[no('Granular',20,50),no('Residual',5,0)]);

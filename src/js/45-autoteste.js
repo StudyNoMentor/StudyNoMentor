@@ -1450,10 +1450,12 @@ const AutoTeste = {
       no('A.1', 10, 2, 2), no('A.2', 12, 3, 2), no('A.3', 18, 6, 2)
     ]);
     const local = M._planejarNo(miudos, 20, []);
-    const bloco = local.find(x => x.agregado);
+    /* O grupo só confirma a lacuna (amostra somada + exclusão de quem já
+       domina); o alvo oferecido é sempre o pior membro individual, nunca um
+       "bloco" misturando os irmãos — por isso `motivoNivel`, não `agregado`. */
+    const bloco = local.find(x => x.motivoNivel === 'pior-do-grupo');
     this._ok('Motor simples: ramos pequenos viram bloco somente entre irmãos do mesmo pai',
-      !!(bloco && bloco.pai === 'Tópico A' && bloco.membros.length === 3
-        && bloco.membros.every(n => /^A\./.test(n))), bloco);
+      !!(bloco && bloco.pai === 'Tópico A' && bloco.nome === 'A.1' && bloco.grupoTamanho === 3), bloco);
     this._ok('Motor simples: o bloco continua abaixo da disciplina',
       local.length > 0 && local.every(x => x.nivel > 0 && x.disciplina === 'X'), local);
 
@@ -1464,9 +1466,9 @@ const AutoTeste = {
       no('B.4', 6, 2, 2), no('B.5', 6, 2, 2), no('B.6', 6, 2, 2)
     ]);
     const planoMuitos = M._planejarNo(muitos, 20, []);
-    const blocoMuitos = planoMuitos.find(x => x.agregado);
+    const blocoMuitos = planoMuitos.find(x => x.motivoNivel === 'pior-do-grupo');
     this._ok('Motor simples: agrupa quantos irmãos pequenos forem necessários para alcançar a amostra',
-      !!(blocoMuitos && blocoMuitos.membros.length === 6 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
+      !!(blocoMuitos && blocoMuitos.grupoTamanho === 6 && blocoMuitos.pai === 'Tópico B' && blocoMuitos.nome === 'B.1'), blocoMuitos);
 
     const doisBlocos = no('Tópico C', 40, 20, 1, [
       no('C.1', 10, 5, 2), no('C.2', 10, 5, 2),
@@ -1474,15 +1476,17 @@ const AutoTeste = {
     ]);
     const planoDois = M._planejarNo(doisBlocos, 20, [], 90);
     this._ok('Motor simples: continua nos irmãos restantes e cria mais de um bloco executável',
-      planoDois.length === 2 && planoDois.every(x => x.agregado && x.questoes === 20), planoDois);
+      planoDois.length === 2
+        && planoDois.every(x => x.motivoNivel === 'pior-do-grupo' && x.grupoTamanho === 2 && x.grupoQuestoes === 20)
+        && planoDois.map(x => x.nome).join('|') === 'C.1|C.3', planoDois);
 
     const semEnchimento = no('Tópico D', 30, 15, 1, [
       no('D.1', 10, 2, 2), no('D.2', 10, 3, 2), no('D forte', 10, 10, 2)
     ]);
     const planoFraco = M._planejarNo(semEnchimento, 20, [], 90);
     this._ok('Motor simples: irmão forte não serve para completar bloco fraco',
-      planoFraco.length === 1 && planoFraco[0].agregado
-        && planoFraco[0].membros.length === 2 && !planoFraco[0].membros.includes('D forte'), planoFraco);
+      planoFraco.length === 1 && planoFraco[0].motivoNivel === 'pior-do-grupo'
+        && planoFraco[0].nome === 'D.1' && planoFraco[0].grupoTamanho === 2 && planoFraco[0].grupoQuestoes === 20, planoFraco);
 
     const porRamo = no('X', 80, 42, 0, [
       no('Pai mais fraco', 40, 16, 1, [no('P.1', 20, 6, 2), no('P.2', 20, 10, 2)]),
