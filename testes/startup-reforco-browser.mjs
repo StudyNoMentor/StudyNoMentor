@@ -348,14 +348,17 @@ try {
       client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
       saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS,last:SectionSync._lastConflict
     };
-    let deleteCalls=0,salvas=null,manifestSections=null;
-    CloudStore.client={from(){return {
-      select(){return {eq(){return Promise.resolve({data:[
-        {section:'entries',rev:6},{section:'__manifest',rev:1}
-      ],error:null});}};},
-      delete(){deleteCalls++;return this;},
-      eq(){return this;}
-    };}};
+    let deleteCalls=0,rpcCalls=0,salvas=null,manifestSections=null;
+    CloudStore.client={
+      from(){return {
+        select(){return {eq(){return Promise.resolve({data:[
+          {section:'entries',rev:6},{section:'__manifest',rev:1}
+        ],error:null});}};},
+        delete(){deleteCalls++;return this;},
+        eq(){return this;}
+      };},
+      rpc(){rpcCalls++;return Promise.resolve({data:true,error:null});}
+    };
     SectionSync.localSections=()=>[];
     SectionSync._loadDel=()=>[{section:'entries',rev:5}];
     SectionSync._saveDel=(x)=>{salvas=x;};
@@ -367,14 +370,50 @@ try {
     const conflito=SectionSync._lastConflict;
     CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
     SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;SectionSync._lastConflict=keep.last;
-    return {deleteCalls,falhou,conflito,salvas,manifestSections};
+    return {deleteCalls,rpcCalls,falhou,conflito,salvas,manifestSections};
   });
-  eq(deletionCas.deleteCalls,0,'exclusão velha não pode executar DELETE contra rev nova');
+  eq(deletionCas.deleteCalls,0,'exclusão velha não pode executar DELETE direto contra rev nova');
+  eq(deletionCas.rpcCalls,0,'exclusão velha não pode chamar a RPC CAS com base já vencida');
   ok(deletionCas.falhou,'conflito de exclusão deve manter a sincronização pendente');
   ok(deletionCas.conflito&&deletionCas.conflito.tipo==='exclusão','conflito de exclusão deve ficar diagnosticado');
   ok(Array.isArray(deletionCas.salvas)&&deletionCas.salvas.length===1,'tombstone em conflito deve permanecer durável');
   ok(Array.isArray(deletionCas.manifestSections)&&deletionCas.manifestSections.includes('entries'),
     'manifesto deve continuar expondo a seção remota mais nova quando a exclusão perde o CAS');
+
+
+  /* 2k.1. Exclusão válida usa exclusivamente a RPC CAS; DELETE direto fica fora
+     do protocolo mesmo quando a revisão-base é a atual. */
+  const deletionRpc=await page.evaluate(async()=>{
+    const id='p-del-rpc';
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS
+    };
+    let directDeletes=0,rpcArgs=null,manifestSections=null;
+    CloudStore.client={
+      from(){return {
+        select(){return {eq(){return Promise.resolve({data:[
+          {section:'entries',rev:5},{section:'__manifest',rev:1,data:{v:2,sections:['entries']}}
+        ],error:null});}};},
+        delete(){directDeletes++;return this;}
+      };},
+      rpc(name,args){rpcArgs={name,args};return Promise.resolve({data:true,error:null});}
+    };
+    SectionSync.localSections=()=>[];
+    SectionSync._loadDel=()=>[{section:'entries',rev:5}];
+    SectionSync._saveDel=()=>{};
+    SectionSync._writeSectionCAS=async(row)=>{manifestSections=row.data&&row.data.sections;return {ok:true,rev:2};};
+    const revs={entries:{rev:5,hash:'x'},__manifest:{rev:1,hash:SectionSync._hash('entries')}};
+    await SectionSync._syncManifest(id,revs);
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
+    SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;
+    return {directDeletes,rpcArgs,manifestSections,temRev:!!revs.entries};
+  });
+  eq(deletionRpc.directDeletes,0,'exclusão válida também não pode usar DELETE direto');
+  ok(deletionRpc.rpcArgs&&deletionRpc.rpcArgs.name==='delete_profile_section_cas','exclusão válida deve usar RPC CAS');
+  eq(deletionRpc.rpcArgs&&deletionRpc.rpcArgs.args&&deletionRpc.rpcArgs.args.p_expected_rev,5,'RPC de exclusão deve receber a revisão-base');
+  ok(Array.isArray(deletionRpc.manifestSections)&&!deletionRpc.manifestSections.includes('entries'),'manifesto deve remover apenas a seção cuja exclusão CAS foi confirmada');
+  ok(!deletionRpc.temRev,'revisão local da seção apagada só sai após confirmação CAS');
 
   /* 2l. Restaurar sessão com outro device ativo deve bloquear, não reivindicar. */
   const sessionNoTakeover=await page.evaluate(async()=>{
