@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v91ab810648">
+<meta name="diario-versao" content="v7656751630">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -41477,11 +41477,35 @@ const SectionSync = {
     console.info('[SectionSync] leitura por seção', on ? 'LIGADA (Fase 2)' : 'DESLIGADA (volta ao blob)');
     return this.readEnabled;
   },
-  _dirty: new Set(),        // seções alteradas aguardando envio
-  /* Geração local por seção. Um Set sozinho não distingue "a seção que começou
-     a subir" de "a mesma seção editada de novo enquanto o upload estava em voo".
-     A confirmação só pode limpar a fila se a geração ainda for a mesma. */
-  _dirtyGen: new Map(),
+  /* Outbox EM MEMÓRIA também é isolada por perfil. Antes "_dirty" era um Set
+     global de nomes como "entries"/"tracks": se o perfil mudasse enquanto um
+     request estava em voo, duas seções homônimas podiam compartilhar a mesma
+     marca. Os getters _dirty/_dirtyGen preservam a API antiga para o perfil
+     ativo, enquanto as rotinas assíncronas recebem o id capturado explicitamente. */
+  _dirtySets: new Map(),
+  _dirtyGenMaps: new Map(),
+  _orphanDirty: new Set(),
+  _orphanDirtyGen: new Map(),
+  _activeProfileId() {
+    try {
+      if (window.ProfileManager && ProfileManager.getActiveProfileId) return ProfileManager.getActiveProfileId() || null;
+      return localStorage.getItem('diario-estudos:active-profile') || null;
+    } catch (_) { return null; }
+  },
+  _dirtyFor(id) {
+    const pid = id || this._activeProfileId();
+    if (!pid) return this._orphanDirty;
+    if (!this._dirtySets.has(pid)) this._dirtySets.set(pid, new Set());
+    return this._dirtySets.get(pid);
+  },
+  _dirtyGenFor(id) {
+    const pid = id || this._activeProfileId();
+    if (!pid) return this._orphanDirtyGen;
+    if (!this._dirtyGenMaps.has(pid)) this._dirtyGenMaps.set(pid, new Map());
+    return this._dirtyGenMaps.get(pid);
+  },
+  get _dirty() { return this._dirtyFor(); },
+  get _dirtyGen() { return this._dirtyGenFor(); },
   _genSeq: 0,
   _lastConflict: null,
   _pushing: false,
@@ -41533,45 +41557,50 @@ const SectionSync = {
   // Espelha _dirty no armazenamento. Chamado a cada marcação e a cada envio.
   _savePend(id, listaOverride) {
     try {
-      const lista = listaOverride ? [...new Set(listaOverride)] : [...this._dirty];
+      const lista = listaOverride ? [...new Set(listaOverride)] : [...this._dirtyFor(id)];
       if (lista.length) localStorage.setItem(this._pendKey(id), JSON.stringify(lista));
       else localStorage.removeItem(this._pendKey(id));
     } catch (_) { _quiet(_); }
   },
-  _touchDirty(sec) {
+  _touchDirty(sec, id) {
     if (!sec) return 0;
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
     const g = ++this._genSeq;
-    this._dirty.add(sec);
-    this._dirtyGen.set(sec, g);
+    dirty.add(sec);
+    gens.set(sec, g);
     return g;
   },
-  _ensureDirty(sec) {
+  _ensureDirty(sec, id) {
     if (!sec) return 0;
-    if (!this._dirty.has(sec)) this._dirty.add(sec);
-    if (!this._dirtyGen.has(sec)) this._dirtyGen.set(sec, ++this._genSeq);
-    return this._dirtyGen.get(sec) || 0;
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    if (!dirty.has(sec)) dirty.add(sec);
+    if (!gens.has(sec)) gens.set(sec, ++this._genSeq);
+    return gens.get(sec) || 0;
   },
-  _clearDirtyIfGeneration(sec, gen) {
-    if ((this._dirtyGen.get(sec) || 0) !== (gen || 0)) return false;
-    this._dirty.delete(sec);
-    this._dirtyGen.delete(sec);
+  _clearDirtyIfGeneration(sec, gen, id) {
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    if ((gens.get(sec) || 0) !== (gen || 0)) return false;
+    dirty.delete(sec);
+    gens.delete(sec);
     return true;
   },
-  _ackSent(sec, gen, sentHash, prefix) {
-    const atual = localStorage.getItem((prefix || this._prefix()) + sec);
+  _ackSent(sec, gen, sentHash, prefix, id) {
+    const atual = localStorage.getItem((prefix || this._prefixFor(id)) + sec);
+    const gens = this._dirtyGenFor(id);
     /* Mesmo que algum código tenha escrito direto no armazenamento e esquecido
        de chamar markDirty(), o hash impede a confirmação antiga de limpar a fila. */
     if (atual !== null && this._hash(atual) !== sentHash) {
-      if ((this._dirtyGen.get(sec) || 0) === (gen || 0)) this._touchDirty(sec);
+      if ((gens.get(sec) || 0) === (gen || 0)) this._touchDirty(sec, id);
       return false;
     }
-    return this._clearDirtyIfGeneration(sec, gen);
+    return this._clearDirtyIfGeneration(sec, gen, id);
   },
   // Recarrega a caixa de saída gravada para a memória (na abertura do app).
   restorePending(id) {
-    const antes = this._dirty.size;
-    this._loadPend(id).forEach(s => this._ensureDirty(s));
-    const novas = this._dirty.size - antes;
+    const dirty = this._dirtyFor(id);
+    const antes = dirty.size;
+    this._loadPend(id).forEach(s => this._ensureDirty(s, id));
+    const novas = dirty.size - antes;
     if (novas) console.info('[SectionSync] ' + novas + ' alteração(ões) recuperada(s) da caixa de saída');
     return novas;
   },
@@ -41582,10 +41611,9 @@ const SectionSync = {
      Seções sem envio anterior registrado ficam de fora: não dá para saber se são
      novidade local ou sobra de uma versão antiga, e a semeadura normal cuida delas. */
   pendingSections(id) {
-    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
-    const mesmo = !id || id === ativo;
+    const alvo = id || this._activeProfileId();
     const out = new Set();
-    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._dirtyFor(alvo).forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
     this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     const revs = this._getRevs(id), pfx = this._prefixFor(id);
@@ -41609,10 +41637,9 @@ const SectionSync = {
      mais nova. Tratar essa divergência de cache como edição do usuário faria o
      aparelho subir o valor velho por cima da cópia correta da nuvem. */
   explicitPendingSections(id) {
-    const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
-    const mesmo = !id || id === ativo;
+    const alvo = id || this._activeProfileId();
     const out = new Set();
-    if (mesmo) this._dirty.forEach(s => out.add(s));
+    this._dirtyFor(alvo).forEach(s => out.add(s));
     this._loadPend(id).forEach(s => out.add(s));
     this._loadDel(id).forEach(x => { if (x && x.section) out.add(x.section); });
     return [...out];
@@ -41622,10 +41649,11 @@ const SectionSync = {
      indicador na tela, chamado a cada foco e a cada 30 s. A checagem completa
      (pendingSections) fica para os momentos em que ela é decisiva — antes de um
      download sobrescrever o local. */
-  pendingQuick() {
-    const out = new Set(this._dirty);
-    this._loadPend().forEach(s => out.add(s));
-    this._loadDel().forEach(x => { if (x && x.section) out.add(x.section); });
+  pendingQuick(id) {
+    const alvo = id || this._activeProfileId();
+    const out = new Set(this._dirtyFor(alvo));
+    this._loadPend(alvo).forEach(s => out.add(s));
+    this._loadDel(alvo).forEach(x => { if (x && x.section) out.add(x.section); });
     return out.size;
   },
   /* Tenta ENTREGAR o que está pendente antes de qualquer download sobrescrever o
@@ -41644,7 +41672,7 @@ const SectionSync = {
     if (!pend.length) return [];
     const ativo = (window.ProfileManager ? ProfileManager.getActiveProfileId() : null);
     if (id && id !== ativo) return pend;   // outro perfil: não há como enviar daqui agora
-    pend.forEach(s => this._ensureDirty(s));
+    pend.forEach(s => this._ensureDirty(s, id));
     this._savePend(id);
     try { await this.pushDirty(); } catch (e) { console.warn('[SectionSync] envio antes da leitura falhou', e); }
     const resta = listar();
@@ -41685,10 +41713,15 @@ const SectionSync = {
     if (sub.indexOf(this.DEL) === 0) return null;    // registro de exclusões: contabilidade local
     return sub;
   },
+  _profileIdFromKey(fullKey) {
+    const m = /^diario-estudos:u:([^:]+):/.exec(String(fullKey || ''));
+    return m ? m[1] : this._activeProfileId();
+  },
   markDirty(fullKey) {
     if (!this.enabled) return;
-    const sec = this.sectionForKey(fullKey);
-    if (sec) { this._touchDirty(sec); this._savePend(); }
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
+    if (sec) { this._touchDirty(sec, id); this._savePend(id); }
   },
   /* ── EXCLUSÕES DELIBERADAS ────────────────────────────────────────────────
      A nuvem só pode esquecer o que VOCÊ mandou esquecer. Antes, o manifesto era
@@ -41736,40 +41769,42 @@ const SectionSync = {
      fila, entra no registro de exclusões e some da nuvem no próximo envio. */
   dropSection(fullKey) {
     if (!this.enabled) return;
-    const sec = this.sectionForKey(fullKey);
+    const id = this._profileIdFromKey(fullKey);
+    const sec = this.sectionForKey(fullKey, this._prefixFor(id));
     if (!sec) return;
-    this._dirty.delete(sec);
-    this._dirtyGen.delete(sec);
-    this._savePend();
-    const revs = this._getRevs();
+    this._dirtyFor(id).delete(sec);
+    this._dirtyGenFor(id).delete(sec);
+    this._savePend(id);
+    const revs = this._getRevs(id);
     const baseRev = revs[sec] ? (revs[sec].rev || 0) : 0;
-    if (revs[sec]) { delete revs[sec]; this._saveRevs(revs); }
-    const del = this._loadDel();
+    if (revs[sec]) { delete revs[sec]; this._saveRevs(revs, id); }
+    const del = this._loadDel(id);
     del.push({ section: sec, rev: baseRev || null });
-    this._saveDel(del);
+    this._saveDel(del, id);
   },
   // Marca as seções do perfil que REALMENTE MUDARAM (hash diferente do último envio).
   // Assim a semeadura de cada sessão não re-sobe tudo nem infla o rev à toa.
-  markAllDirty() {
-    const pfx = this._prefix();
-    const revs = this._getRevs();
+  markAllDirty(id) {
+    const alvo = id || this._activeProfileId();
+    const pfx = this._prefixFor(alvo);
+    const revs = this._getRevs(alvo);
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const full = localStorage.key(i);
-        const sec = this.sectionForKey(full);
+        const sec = this.sectionForKey(full, pfx);
         if (!sec) continue;
         const raw = localStorage.getItem(full) || '';
         const h = this._hash(raw);
-        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec); // só o que mudou
+        if (!revs[sec] || revs[sec].hash !== h) this._ensureDirty(sec, alvo); // só o que mudou
       }
     } catch (_) { _quiet(_); }
-    this._savePend();
+    this._savePend(alvo);
   },
   seedOnce() {
     const id = ProfileManager.getActiveProfileId();
     if (!id || this._seededProfile === id) return;
     this._seededProfile = id;
-    this.markAllDirty();
+    this.markAllDirty(id);
   },
   /* ── O QUE FAZER COM UMA SEÇÃO SUJA (decisão pura, testável) ──────────────
      Recebe o texto local e o que sabemos do último envio; devolve a ação. Está
@@ -41865,15 +41900,16 @@ const SectionSync = {
     this._lastConflict = null;
     // Monta as linhas com hash de conteúdo. Só bumpa o rev quando o conteúdo mudou
     // de verdade (evita inflar o rev quando a semeadura reencontra dados idênticos).
-    const secs = [...this._dirty];
+    const dirty = this._dirtyFor(id), gens = this._dirtyGenFor(id);
+    const secs = [...dirty];
     const rows = [];
     const sumidas = [], esvaziando = [];
     secs.forEach(sec => {
-      const gen = this._dirtyGen.get(sec) || this._ensureDirty(sec);
+      const gen = gens.get(sec) || this._ensureDirty(sec, id);
       const raw = localStorage.getItem(pfx + sec);
       const d = this.decidirEnvio(raw, revs[sec]);
-      if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen); sumidas.push(sec); return; }
-      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen); return; }
+      if (d.acao === 'sumida') { this._clearDirtyIfGeneration(sec, gen, id); sumidas.push(sec); return; }
+      if (d.acao === 'idêntico') { this._clearDirtyIfGeneration(sec, gen, id); return; }
       if (d.esvaziando) esvaziando.push(sec);
       rows.push({
         _sec: sec, _hash: d.hash, _len: raw.length, _gen: gen, _expectedRev: (revs[sec] && revs[sec].rev) || 0,
@@ -41919,7 +41955,7 @@ const SectionSync = {
           const remotoHash = remotoRaw === null ? null : this._hash(remotoRaw);
           if (remoto && remotoHash === _hash) {
             revs[_sec] = { rev: remoto.rev || row.rev, hash: _hash, len: _len };
-            this._ackSent(_sec, _gen, _hash, pfx);
+            this._ackSent(_sec, _gen, _hash, pfx, id);
             /* Se houve edição nova durante o voo, a geração mudou e a seção fica
                suja; agora ela já parte da revisão remota confirmada. */
             okCount++;
@@ -41931,7 +41967,7 @@ const SectionSync = {
         }
         // `len` é a prova de que esta seção JÁ TEVE conteúdo na nuvem.
         revs[_sec] = { rev: wr.rev || row.rev, hash: _hash, len: _len };
-        this._ackSent(_sec, _gen, _hash, pfx);
+        this._ackSent(_sec, _gen, _hash, pfx, id);
         okCount++;
       } catch (e) {
         const msg = (e && (e.message || e.code || JSON.stringify(e))) || 'erro';
@@ -42209,9 +42245,9 @@ const SectionSync = {
     // rodada acharia tudo "sujo" e re-subiria o perfil inteiro sem necessidade.
     try { localStorage.setItem('diario-estudos:u:' + id + ':__secrev', JSON.stringify(novoRev)); } catch (_) { _quiet(_); }
     this._seededProfile = id;
-    this._dirty.clear();
-    this._dirtyGen.clear();
-    manter.forEach(s => this._ensureDirty(s));
+    this._dirtyFor(id).clear();
+    this._dirtyGenFor(id).clear();
+    manter.forEach(s => this._ensureDirty(s, id));
     try {
       const pk = prefix + this.PEND;
       if (manter.size) localStorage.setItem(pk, JSON.stringify([...manter]));
@@ -42343,11 +42379,12 @@ const SectionSync = {
   // Reenvia TUDO no formato atual (v2). Use uma vez ao migrar para a Fase 2, ou
   // se desconfiar de alguma linha antiga: SectionSync.reenviarTudo()
   async reenviarTudo() {
-    try { localStorage.removeItem(this._revKey()); } catch (_) { _quiet(_); }
+    const id = this._activeProfileId();
+    try { localStorage.removeItem(this._revKey(id)); } catch (_) { _quiet(_); }
     this._seededProfile = null;
-    this._dirty.clear();
-    this._dirtyGen.clear();
-    this.markAllDirty();
+    this._dirtyFor(id).clear();
+    this._dirtyGenFor(id).clear();
+    this.markAllDirty(id);
     await this.pushDirty();
     return this.status();
   },
