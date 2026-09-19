@@ -398,6 +398,21 @@ try {
   eq(sessionNoTakeover.claims,0,'sessão restaurada não pode tomar posse automaticamente de outro aparelho');
   eq(sessionNoTakeover.blocked,1,'sessão restaurada deve reconhecer e bloquear diante de outro aparelho');
 
+  /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
+  const pendingDelete=await page.evaluate(()=>{
+    const id='syncv2-pending-delete',sec='entries';
+    const keep=ProfileManager.getActiveProfileId;
+    ProfileManager.getActiveProfileId=()=>id;
+    localStorage.setItem('diario-estudos:u:'+id+':__secdel',JSON.stringify([{section:sec,rev:5}]));
+    const explicit=SectionSync.explicitPendingSections(id);
+    const quick=SectionSync.pendingQuick();
+    localStorage.removeItem('diario-estudos:u:'+id+':__secdel');
+    ProfileManager.getActiveProfileId=keep;
+    return {explicit,quick};
+  });
+  ok(pendingDelete.explicit.includes('entries'),'exclusão durável deve aparecer como pendência explícita');
+  ok(pendingDelete.quick>=1,'exclusão durável deve bloquear reconciliação rápida até ser resolvida');
+
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);
 } finally {
