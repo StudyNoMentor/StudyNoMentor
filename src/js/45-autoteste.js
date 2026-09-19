@@ -3106,6 +3106,9 @@ const AutoTeste = {
     /* A margem continua sendo a trava estatística, não o percentual cru. */
     this._ok('Motor: 2 questões nunca passam na régua de ±15pp', !M.legivel(2, 0, 15));
     this._ok('Motor: 200 questões passam na mesma régua', M.legivel(200, 100, 15));
+    const semIntervalo = M._lacuna({ taxa: 0, margem: null, questoes: 1 }, Object.assign(M.prefs(), { metaAcerto: 90 }));
+    this._ok('Motor: uma questão isolada nunca vira "lacuna segura" de matéria',
+      semIntervalo.gapConfiavel === 0 && semIntervalo.deficitSeguro === 0, semIntervalo);
     this._ok('Motor: a meta padrão é 90% e a rodada padrão tem no máximo 3 disciplinas',
       M.DEFAULTS.metaAcerto === 90 && M.LIMITES.maxFrentes[1] === 3,
       { meta: M.DEFAULTS.metaAcerto, max: M.LIMITES.maxFrentes });
