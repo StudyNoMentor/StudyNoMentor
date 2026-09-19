@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vbe17341cad">
+<meta name="diario-versao" content="v565c10dff3">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -20783,7 +20783,26 @@ const ReforcoEngine = {
   })();
   window.atualizarEtapasRegistrar = atualizarEtapas;
 
-  window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas };
+  /* A tela nasce antes do login, portanto o primeiro render enxerga a memória
+     vazia. Depois que o PostgreSQL hidrata o perfil, é obrigatório redesenhar
+     a projeção visual: os dados já estão na RAM, mas DOM antigo não se atualiza
+     sozinho. O mesmo evento também cobre catch-up/realtime entre aparelhos. */
+  function refreshFromRelationalStore() {
+    refreshSubjectSelect();
+    refreshMethodSelect(false);
+    renderRecent();
+    updateGauge();
+    updatePagesHint();
+    updateVideoConsumed();
+    updateVideoFieldsVisibility();
+    atualizarEtapas();
+  }
+  window.addEventListener('data:relational-hydrated', refreshFromRelationalStore);
+  window.addEventListener('screen:activated', (e) => {
+    if (e.detail && e.detail.screen === 'registrar') refreshFromRelationalStore();
+  });
+
+  window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas, refreshFromRelationalStore };
 })();
 
 /* ============================================================
@@ -37273,7 +37292,16 @@ $id('np-source').addEventListener('change', () => PlanUI.updateCopyOptionsVisibi
 $id('np-create').addEventListener('click', () => PlanUI.createFromForm());
 
 window.addEventListener('screen:activated', (e) => {
+  /* O seletor é global e pode ter sido pintado antes do login/hidratação. */
+  PlanUI.renderSidebar();
   if (e.detail.screen === 'planejamentos') PlanUI.renderScreen();
+});
+window.addEventListener('data:relational-hydrated', () => {
+  /* hydrateProfile já reconstruiu planejamentos + active-plan na memória.
+     Repaint aqui evita o nome "—" permanecer preso no DOM pré-login. */
+  PlanUI.renderSidebar();
+  const tela = document.getElementById('screen-planejamentos');
+  if (tela && tela.classList.contains('active')) PlanUI.renderScreen();
 });
 
 // Render inicial do seletor na sidebar
