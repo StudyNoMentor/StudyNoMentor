@@ -1477,7 +1477,7 @@ const DesempenhoTecScreen = {
       <div class="ms-rule-summary">
         <span>🧭 ${r.itens.length} MATÉRIAS NA RODADA</span>
         <span>🧩 1 FRENTE DE CADA</span>
-        <span>📚 ${r.prefs.alvoQuestoes} QUESTÕES/ATIVIDADE</span>
+        <span>📚 ${r.prefs.alvoQuestoes} QUESTÕES POR ATIVIDADE</span>
         <span>🧪 PISO ${r.prefs.minAmostra} Q/NÍVEL</span>
         <span>🎯 META ${r.prefs.metaAcerto}%</span>
         <span>🛡️ MATÉRIA, DEPOIS TÓPICO</span>

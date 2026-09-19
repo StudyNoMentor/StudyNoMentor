@@ -1005,7 +1005,7 @@ try {
       nenhumaDiscInteira: (motor.itens || []).every((x) => x.nivel > 0 && ReforcoEngine.norm(x.nome) !== ReforcoEngine.norm(x.disciplina)),
       umaPorDisc: new Set((motor.itens || []).map((x) => ReforcoEngine.norm(x.disciplina))).size === (motor.itens || []).length,
       rankingDisc: (motor.disciplinas || []).length,
-      temFilas: document.querySelectorAll('#motor-lista .ms-queue-group').length,
+      temFilas: document.querySelectorAll('#motor-lista .ms-queue-item').length,
       meta: motor.prefs.metaAcerto,
       maxFrentes: motor.prefs.maxFrentes,
       lacunasValidas: (motor.itens || []).every(x => Number.isFinite(x.gapMeta) && x.gapMeta > 0),
@@ -1040,7 +1040,7 @@ try {
   (est.comDose === est.itens && est.itens > 0 && est.minDose === 25)
     ? ok(`toda frente saiu com a dose fixa de ${est.minDose} questoes`)
     : erro('o Motor deixou de usar dose fixa por atividade: ' + JSON.stringify(est));
-  (/25 questões por atividade/.test(est.resumo) || /questões por atividade/.test(est.resumo))
+  (/25 questões por atividade/i.test(est.resumo) || /questões por atividade/i.test(est.resumo))
     ? ok('o resumo deixa claro que a dose é fixa por atividade')
     : erro('o resumo do Motor nao explica a dose por atividade: ' + est.resumo);
   est.overflow === 0 ? ok('nenhum vazamento horizontal a 360px') : erro(`o motor vaza ${est.overflow}px na horizontal a 360px`);
