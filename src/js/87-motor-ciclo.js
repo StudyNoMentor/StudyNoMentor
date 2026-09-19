@@ -31,16 +31,12 @@
 
     _ultimoRetrato() {
       try {
-        const snaps = (typeof DesempenhoTecScreen !== 'undefined' && DesempenhoTecScreen.activeSnapshots)
-          ? DesempenhoTecScreen.activeSnapshots()
-          : (DB.getTecSnapshots() || []);
-        if (!snaps.length) return null;
-        const s = snaps[snaps.length - 1];
-        return {
-          id: String(s.id || ''),
-          data: s.endDate || s.date || s.startDate || '',
-          assinatura: String(s.id || '') + '|' + String(s.endDate || s.date || s.startDate || '')
-        };
+        const s = (typeof MotorSugestao !== 'undefined' && MotorSugestao.retratoAtual)
+          ? MotorSugestao.retratoAtual()
+          : null;
+        if (!s) return null;
+        const data = s.endDate || s.date || s.startDate || '';
+        return { id: String(s.id || ''), data, assinatura: String(s.id || '') + '|' + String(data) };
       } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'motor-ciclo-retrato'); return null; }
     },
 
