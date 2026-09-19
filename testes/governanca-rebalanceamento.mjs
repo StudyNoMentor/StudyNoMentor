@@ -19,6 +19,7 @@ const ctx = {
   document: { addEventListener(){}, querySelector(){return null;}, querySelectorAll(){return [];} },
   UI: { confirm: async()=>true, prompt: async()=>null },
   ExtrasScreen: { renderManageList(){}, render(){} },
+  MotorCiclo: { origemDe: e => e && (e.origemMotor || e.origemPlano) || null },
   DB: {
     getExtras: () => extras,
     saveExtras: list => { extras=list; return list; },
@@ -30,14 +31,14 @@ const ctx = {
   ReforcoFila: {
     prefs: () => ({...prefs}),
     salvarPrefs(patch){ prefs={...prefs,...patch}; return this.sincronizar(); },
-    ePlano: e => !!(e&&e.origemPlano&&e.origemPlano.topico&&e.periodo==='unica'),
+    eMotor: e => !!(e&&e.origemMotor&&e.origemMotor.topico&&e.periodo==='unica'),
     eGerenciado: e => !!(e&&e.reforcoFila&&e.reforcoFila.auto!==false),
     _meta(e){ if(!e.reforcoFila)e.reforcoFila={auto:true,alvosPorDia:{}}; if(!e.reforcoFila.alvosPorDia)e.reforcoFila.alvosPorDia={}; return e.reforcoFila; },
     _sanearLimites(mi,ma){ mi=Math.max(1,Math.round(Number(mi)||10)); ma=Math.max(1,Math.round(Number(ma)||25)); if(mi>ma)mi=ma; return {min:mi,max:ma}; },
     limitesBloco(e){ const m=e&&e.reforcoFila||{}; return {min:Number(m.blocoMin)||prefs.blocoMin,max:Number(m.blocoMax)||prefs.blocoMax,personalizado:Number.isFinite(Number(m.blocoMin))}; },
     limiteDisciplinasDia: () => prefs.disciplinasDia,
     _norm: s => String(s||'').toLowerCase(),
-    _planoRef: () => null,
+    _motorRef: () => null,
     saldo: e => ({restante:e._remaining||0,avaliacao:{taxa:e._taxa??50}}),
     alvoNoDia: (e,d) => { const v=e.reforcoFila&&e.reforcoFila.alvosPorDia&&e.reforcoFila.alvosPorDia[d]; return v==null?null:Number(v); },
     feitoNoDia: (e,d) => (e.historico||[]).filter(h=>h.data===d).reduce((s,h)=>s+(Number(h.quantidade)||0),0),
@@ -54,7 +55,7 @@ assert.ok(G,'governança precisa ser exportada');
 
 const mk=(id,disc,dens,target,feito=0)=>({
   id,titulo:id,periodo:'unica',status:'ativa',disciplina:disc,_remaining:30,
-  origemPlano:{topico:'Top '+id,disciplina:disc,taxaInicial:45},
+  origemMotor:{motor:'sugestao',versao:2,topico:'Top '+id,disciplina:disc,taxaInicial:45},
   reforcoFila:{auto:true,alvosPorDia:target==null?{}:{[HOJE]:target},...(dens?{disciplinasDia:dens}:{})},
   datas:target==null?[]:[HOJE],concluidasEm:[],historico:feito?[{data:HOJE,quantidade:feito}]:[]
 });
@@ -87,7 +88,7 @@ assert.equal(extras[1].reforcoFila.blocoMax,20);
 assert.ok(Array.isArray(extras[1].reforcoFila.configHistorico)&&extras[1].reforcoFila.configHistorico.length,'mudança selecionada deve ficar auditável');
 
 // 4) Fechados são reconhecidos e podem sair da gestão operacional sem serem apagados.
-const fechado=mk('Z','Disc Z',1,null,0); fechado.status='concluida'; fechado.origemPlano.veredito={em:addDays(HOJE,-1)}; extras.push(fechado);
+const fechado=mk('Z','Disc Z',1,null,0); fechado.status='concluida'; fechado.origemMotor.veredito={em:addDays(HOJE,-1)}; extras.push(fechado);
 assert.equal(G.eFechado(fechado),true);
 assert.ok(G.fechados().some(e=>e.id==='Z'),'histórico deve preservar reforço concluído');
 
