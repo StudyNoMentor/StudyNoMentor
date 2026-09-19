@@ -348,9 +348,11 @@ e grava `rev + 1`. Se nenhuma linha for atualizada, há conflito: a cópia remot
 a revisão-base é zero.
 
 A mesma regra vale para `__manifest` e para exclusões. Um tombstone guarda a
-revisão em que a exclusão foi pedida; `DELETE` só ocorre se essa revisão ainda
-for a revisão remota. Se outro aparelho já editou a seção, a exclusão é recusada
-e a linha remota continua no manifesto.
+revisão em que a exclusão foi pedida. **DELETE direto é proibido para o cliente**:
+a remoção física passa por `delete_profile_section_cas(...)`, que valida no
+servidor o dono do perfil e a revisão esperada. Se outro aparelho já editou a
+seção, a exclusão é recusada e a linha remota continua no manifesto. Isso também
+protege contra abas antigas do app que ainda tentem o DELETE legado.
 
 ### Trava monotônica no próprio PostgreSQL
 
@@ -398,6 +400,62 @@ drop trigger if exists profile_sections_revision_guard on public.profile_section
 create trigger profile_sections_revision_guard
 before insert or update on public.profile_sections
 for each row execute function private.enforce_profile_section_revision();
+```
+
+### Exclusão protegida também no servidor
+
+Versões antigas faziam `DELETE` diretamente na tabela. Para que uma aba atrasada
+não possa apagar uma edição mais nova, o papel `authenticated` não possui mais
+`DELETE` direto em `profile_sections`. O único caminho de exclusão física é a
+RPC abaixo, que exige autenticação, confirma o dono do perfil e compara a revisão.
+
+```sql
+create or replace function public.delete_profile_section_cas(
+  p_profile_id uuid,
+  p_section text,
+  p_expected_rev integer
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_uid uuid := auth.uid();
+  v_deleted integer := 0;
+begin
+  if v_uid is null then
+    raise exception 'authentication required' using errcode = '42501';
+  end if;
+
+  if p_profile_id is null or p_section is null
+     or p_expected_rev is null or p_expected_rev < 1 then
+    return false;
+  end if;
+
+  if not exists (
+    select 1 from public.study_profiles p
+    where p.id = p_profile_id and p.user_id = v_uid
+  ) then
+    raise exception 'profile not owned by current user' using errcode = '42501';
+  end if;
+
+  delete from public.profile_sections
+  where profile_id = p_profile_id
+    and section = p_section
+    and rev = p_expected_rev;
+
+  get diagnostics v_deleted = row_count;
+  return v_deleted = 1;
+end;
+$;
+
+revoke all on function public.delete_profile_section_cas(uuid,text,integer) from public;
+revoke all on function public.delete_profile_section_cas(uuid,text,integer) from anon;
+grant execute on function public.delete_profile_section_cas(uuid,text,integer) to authenticated;
+
+revoke delete on table public.profile_sections from anon;
+revoke delete on table public.profile_sections from authenticated;
 ```
 
 A linha `section = '__manifest'` é especial: lista quais seções o perfil tem.
