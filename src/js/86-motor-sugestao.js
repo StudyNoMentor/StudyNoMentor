@@ -45,7 +45,7 @@
       margemMax: [5, 40],
       alvoQuestoes: [10, 100],
       doseMin: [10, 50],
-      maxFrentes: [1, 12],
+      maxFrentes: [1, 3],
       metaAcerto: [50, 100]
     }),
     _key() { return DB._profilePrefix() + this.KEY; },
