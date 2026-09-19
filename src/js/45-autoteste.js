@@ -3091,7 +3091,10 @@ const AutoTeste = {
   ajustesTec() {
     const T = TecAjustes;
     const secs = (aba) => [...document.querySelectorAll('#tec-cfg-body .tec-cfg-sec[data-tab="' + aba + '"]')];
-    const abas = ['motor', 'analise'];
+    const abas = ['motor'];
+    this._ok('Ajustes: a lista paralela de assuntos abaixo da régua foi removida',
+      !document.querySelector('#tec-weak-list, [data-cfg="analise"], #tec-cfg-body [data-tab="analise"]'));
+    this._ok('TEC: a API órfã de pontos fracos foi removida', typeof TecEngine.pontosFracos !== 'function');
     abas.forEach(aba => {
       const lista = secs(aba);
       this._ok('Ajustes: a aba "' + aba + '" tem seção na folha', lista.length >= 1, lista.length);
