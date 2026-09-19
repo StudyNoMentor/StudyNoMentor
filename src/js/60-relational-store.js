@@ -469,10 +469,6 @@ const RelationalStore = {
     for (const x of profileKeys) await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key));
     for (const x of planKeys) await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key));
 
-    const row = await this._profileRow(profileId).catch(()=>null);
-    if (row && row.active_plan_id !== localStorage.getItem(pfx+'active-plan')) {
-      await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan'));
-    }
     await this.hydrateProfile(profileId,{reason:opts.reason||'backup-restore'});
     return { ok:true, secoes:Object.keys(data).length, planos:plans.length };
   },
