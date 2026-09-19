@@ -119,10 +119,28 @@ const Atualizacao = {
     restaurar();
     if (!entregue) {
       const seguir = await UI.confirm(
-        'Ainda há alterações subindo para a nuvem.\n\nElas estão salvas neste aparelho e continuam na fila depois de atualizar — mas, se preferir, espere alguns segundos e tente de novo.',
+        'Ainda há alterações subindo para a nuvem.\n\nElas continuam preservadas neste aparelho e na fila durável. Você pode atualizar offline, desde que a gravação local seja confirmada.',
         { title: '↻ Atualizar mesmo assim?', okText: 'Atualizar assim mesmo' });
       if (!seguir) { this._trocando = false; return; }
     }
+
+    /* A nuvem pode estar indisponível e isso NÃO deve impedir uma atualização.
+       O que é inegociável é a durabilidade local: antes de trocar o worker,
+       exigimos confirmação real do IndexedDB. Timeout não conta como sucesso. */
+    let disco = { ok: true };
+    try {
+      if (window.__idbFlushStrict) disco = await window.__idbFlushStrict(10000);
+      else if (window.__idbFlush) { await window.__idbFlush(); disco = { ok: true, compat: true }; }
+    } catch (e) { disco = { ok: false, motivo: (e && e.message) || 'falha' }; }
+    if (!disco || disco.ok === false) {
+      this._trocando = false;
+      try { if (btn) { btn.disabled = false; btn.textContent = 'Atualizar agora'; } } catch (_) { _quiet(_); }
+      await UI.alert(
+        'A atualização foi cancelada porque o navegador ainda não confirmou a gravação dos dados neste aparelho. Nada foi apagado. Aguarde alguns instantes e tente novamente.',
+        { title: 'Dados ainda sendo gravados' });
+      return;
+    }
+
     /* A troca pode levar alguns segundos (o worker antigo precisa ficar livre).
        Sem dizer isso, a barra fica parada e a pessoa aperta de novo. */
     if (btn) { btn.disabled = true; btn.textContent = 'Atualizando…'; }
@@ -146,7 +164,26 @@ const Atualizacao = {
      a recarga simples, que ao menos deixa o app num estado limpo. */
   _recarregarComWorkerNovo() {
     let recarregou = false, tentativas = 0;
-    const recarregar = () => { if (recarregou) return; recarregou = true; clearInterval(bater); location.reload(); };
+    const recarregar = async () => {
+      if (recarregou) return;
+      recarregou = true; clearInterval(bater);
+      /* Segunda barreira: cobre qualquer gravação que tenha ocorrido entre o
+         clique em atualizar e o controllerchange. Enquanto houver fila local,
+         não matamos a página antiga. */
+      try {
+        const r = window.__idbFlushStrict ? await window.__idbFlushStrict(10000) : { ok: true };
+        if (r && r.ok === false) {
+          recarregou = false;
+          this._trocando = false;
+          try { showToast('⚠ Atualização pronta, mas a recarga aguardará seus dados terminarem de gravar.'); } catch (_) { _quiet(_); }
+          setTimeout(recarregar, 1000);
+          return;
+        }
+      } catch (_) {
+        recarregou = false; this._trocando = false; setTimeout(recarregar, 1000); return;
+      }
+      location.reload();
+    };
     try {
       navigator.serviceWorker.addEventListener('controllerchange', recarregar, { once: true });
     } catch (e) { _quiet(e, 'upd-controller'); }
