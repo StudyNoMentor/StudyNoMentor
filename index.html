@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd043953988">
+<meta name="diario-versao" content="v57de7e3571">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -35817,7 +35817,7 @@ window.addEventListener('screen:activated', (e) => {
   const token = ++_tecRelationalLoadToken;
   const tela = document.getElementById('screen-desempenhotec');
   if (tela) tela.setAttribute('aria-busy', 'true');
-  try { if (typeof showToast === 'function') showToast('Carregando dados do TEC…'); } catch (_) {}
+  try { if (typeof showToast === 'function') showToast('Carregando dados do TEC…'); } catch (e) { _quiet(e, 'tec-heavy-toast'); }
 
   RelationalStore.ensureHeavyData(id, { reason: 'screen-desempenhotec' })
     .then(() => {
@@ -36310,9 +36310,9 @@ const ProfileUI = {
          navegador: hydrateProfile faz SELECT nas tabelas relacionais e monta
          uma projeção exclusivamente em memória para as telas síncronas. */
       ProfileManager.setActiveProfile(id);
-      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id }); } catch (_) {}
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-inicio'); }
       await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
-      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id }); } catch (_) {}
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-pronto'); }
       PlanManager.init();
       CloudStore._applying = false;
 
@@ -36334,7 +36334,7 @@ const ProfileUI = {
       try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id } })); } catch (_) { _quiet(_); }
       /* TEC/incidência não bloqueiam o portão. Em rede normal, pré-carrega no
          tempo ocioso; em economia de dados, só baixa quando alguma tela pedir. */
-      try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (_) {}
+      try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (e) { _quiet(e, 'perfil-heavy-prefetch'); }
     } catch (err) {
       CloudStore._applying = false;
       this._entering = false;
@@ -40057,7 +40057,7 @@ const RelationalStore = {
   scheduleHeavyData(profileId, opts) {
     opts=opts||{};
     const id=profileId;if(!id||this.isHeavyReady(id)||this._heavyLoads.has(id))return false;
-    try{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c&&c.saveData)return false;}catch(_){}
+    try{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c&&c.saveData)return false;}catch(e){_quiet(e,'rel-heavy-network-info');}
     if(this._heavyTimers.has(id))return true;
     const run=()=>{this._heavyTimers.delete(id);this.ensureHeavyData(id,{reason:opts.reason||'idle-prefetch'}).catch(e=>_quiet(e,'rel-heavy-prefetch'));};
     const delay=Math.max(300,Number(opts.delay)||2500);
