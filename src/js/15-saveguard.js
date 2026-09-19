@@ -40,7 +40,15 @@ const SaveGuard = {
     /* flushPending pode reprogramar novas tentativas (rede instável). Esperamos
        a fila esvaziar de verdade em vez de confiar no retorno da primeira. */
     while (Date.now() < limite) {
-      if (!CS._pending && !CS._syncing) return { enviado: true, motivo: '' };
+      let secPendente = false;
+      try {
+        if (window.SectionSync) {
+          const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
+          secPendente = !!SectionSync._pushing ||
+            !!(pid && SectionSync.explicitPendingSections && SectionSync.explicitPendingSections(pid).length);
+        }
+      } catch (_) { secPendente = true; }
+      if (!CS._pending && !CS._syncing && !secPendente) return { enviado: true, motivo: '' };
       await new Promise(r => setTimeout(r, 250));
     }
     return { enviado: false, motivo: 'tempo-esgotado' };
