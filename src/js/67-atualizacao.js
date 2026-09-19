@@ -237,7 +237,7 @@ const Atualizacao = {
       }
     } catch (e) { _quiet(e, 'upd-desregistrar'); }
     showToast('Cache limpo ✓ recarregando…');
-    setTimeout(() => location.reload(), 500);
+    setTimeout(() => recarregarApp('limpeza manual do cache', { imediato: true }), 500);
   },
 
   // Procura atualização agora (usado pelo botão em Diagnóstico).
