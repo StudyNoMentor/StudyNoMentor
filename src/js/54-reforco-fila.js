@@ -1,7 +1,7 @@
 /* ============================================================
    FILA DIÁRIA DO REFORÇO — parcelas executáveis, meta global intacta
    ------------------------------------------------------------
-   Uma atividade criada pelo Plano tem DUAS escalas diferentes:
+   Uma atividade criada pelo Motor de Sugestão tem DUAS escalas diferentes:
 
      1) a META GLOBAL do ciclo (ex.: 100 questões de um assunto);
      2) a PARCELA DO DIA (ex.: 25 questões hoje).
@@ -190,7 +190,7 @@ const ReforcoFila = {
       const list = DB.getExtras();
       if (!Array.isArray(list) || !list.length) return { mudou: false };
       /* ── A REFERÊNCIA DO TEC SÓ É PAGA QUANDO ALGUÉM A USA ────────────────
-         `ref` serve exclusivamente às atividades vindas do Plano, no laço
+         `ref` serve exclusivamente às atividades vindas do Motor, no laço
          abaixo. Quem nunca usou o "Puxar do Motor" não tem nenhuma — e mesmo
          assim pagava o motor inteiro a cada repintura de Extras, para o
          resultado ser descartado sem uma única leitura. Agora a conta é
@@ -200,7 +200,7 @@ const ReforcoFila = {
       const obterRef = () => { if (!refLido) { refLido = true; ref = this._motorRef(); } return ref; };
 
       // Primeiro, recupera fechamentos prematuros identificáveis e adota todos
-      // os reforços abertos do Plano na fila nova.
+      // os reforços abertos do Motor na fila diária.
       doMotor.forEach(e => {
         if (this._recuperarParcialFechado(e, obterRef())) mudou = true;
         if (e.status !== 'concluida' && !e.reforcoFila) { this._meta(e); mudou = true; }
