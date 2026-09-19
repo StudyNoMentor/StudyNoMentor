@@ -1661,8 +1661,8 @@ try {
       && /Princ[ií]pios/.test(x.nome)).length;
     return { erro: r.erro || null, assuntos, dominio: disc ? disc.taxa : null };
   });
-  (!filtro.erro && filtro.assuntos === 1 && Math.round(filtro.dominio) === 10)
-    ? ok('filtrar por disciplina acha o homonimo daquela disciplina (10% de dominio)')
+  (!filtro.erro && filtro.assuntos === 1 && Math.abs(filtro.dominio - 12.5) < 0.01)
+    ? ok('filtrar por disciplina acha o homonimo e consolida o período selecionado (12,5% de domínio)')
     : erro('o filtro por disciplina perdeu o homonimo: ' + JSON.stringify(filtro));
   const ativ = await pag.evaluate(() => {
     const T = DesempenhoTecScreen;
@@ -1686,7 +1686,7 @@ try {
     ? ok('cada linha do Plano se liga a atividade da sua propria disciplina')
     : erro('as linhas do Plano se ligaram a atividade errada: ' + JSON.stringify(ativ.casados));
   (ativ.taxas.indexOf('Direito Constitucional:30') >= 0 && ativ.taxas.indexOf('Direito Administrativo:10') >= 0)
-    ? ok('e cada atividade guarda a taxa inicial do SEU assunto (30% e 10%)')
+    ? ok('e cada atividade guarda a taxa inicial do retrato mais recente do SEU assunto (30% e 10%)')
     : erro('a taxa inicial veio do assunto errado: ' + JSON.stringify(ativ.taxas));
 } catch (e) { erro('o caso dos homonimos falhou: ' + e.message); }
 
