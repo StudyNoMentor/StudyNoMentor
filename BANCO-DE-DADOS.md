@@ -268,9 +268,11 @@ create policy "perfis_proprios_delete" on public.study_profiles
   for delete using (auth.uid() = user_id);
 ```
 
-`rev` é o **cadeado otimista**: todo envio exige `rev = <valor conhecido>` e
-grava `rev + 1`. Dois aparelhos salvando ao mesmo tempo não se sobrescrevem —
-o segundo recebe "conflito", recarrega a revisão real e reenvia.
+`rev` é o **cadeado otimista** do blob, mas o blob não é mais a autoridade
+operacional do dia a dia. Se houver conflito, o cliente **não** copia a revisão
+remota para si e não reenvia o payload inteiro por cima: o conflito é preservado.
+A autoridade corrente fica em `profile_sections`; o blob funciona como checkpoint
+de recuperação compatível com versões antigas.
 
 ---
 
@@ -318,8 +320,37 @@ create policy "secoes_do_meu_perfil_delete" on public.profile_sections
     select 1 from public.study_profiles p
     where p.id = profile_sections.profile_id and p.user_id = auth.uid()));
 
-alter publication supabase_realtime add table public.profile_sections;
+/* Realtime é acelerador, não requisito de consistência. As duas tabelas que
+   o frontend assina precisam estar na publicação. Bloco idempotente. */
+do $
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='study_profiles'
+  ) then
+    execute 'alter publication supabase_realtime add table public.study_profiles';
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='profile_sections'
+  ) then
+    execute 'alter publication supabase_realtime add table public.profile_sections';
+  end if;
+end $;
 ```
+
+### Protocolo de concorrência
+
+Uma seção existente **nunca** é atualizada por `upsert` cego. O cliente envia
+`UPDATE ... WHERE profile_id = ? AND section = ? AND rev = <rev conhecida>`
+e grava `rev + 1`. Se nenhuma linha for atualizada, há conflito: a cópia remota
+é preservada e a alteração local continua na outbox. Inserção só é usada quando
+a revisão-base é zero.
+
+A mesma regra vale para `__manifest` e para exclusões. Um tombstone guarda a
+revisão em que a exclusão foi pedida; `DELETE` só ocorre se essa revisão ainda
+for a revisão remota. Se outro aparelho já editou a seção, a exclusão é recusada
+e a linha remota continua no manifesto.
 
 A linha `section = '__manifest'` é especial: lista quais seções o perfil tem.
 É o que permite que uma exclusão viaje entre aparelhos — e, desde a correção do
