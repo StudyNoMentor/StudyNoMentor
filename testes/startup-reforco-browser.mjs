@@ -557,6 +557,21 @@ try {
   ok(remoteOverlayWaitsClaim.disabled,'botão deve travar enquanto takeover é confirmado');
   ok(/Confirmando/.test(remoteOverlayWaitsClaim.text||''),'botão deve informar que está confirmando a posse');
 
+
+  /* 2l.6. O overlay remoto é autoridade final: nem um estado interno "allowed"
+     vindo de evento atrasado pode liberar o perfil antes da ação explícita. */
+  const overlayBeatsLateAllowed=await page.evaluate(()=>{
+    const keep={uid:SessionGuard._accessUid,state:SessionGuard._accessState,session:CloudStore.session};
+    CloudStore.session={user:{id:'user-overlay'}};
+    SessionGuard._accessUid='user-overlay';SessionGuard._accessState='allowed';
+    SessionLock.block('remote',{label:'Outro'});
+    const can=SessionGuard.canEnterNow();
+    SessionLock.unblock();
+    SessionGuard._accessUid=keep.uid;SessionGuard._accessState=keep.state;CloudStore.session=keep.session;
+    return can;
+  });
+  eq(overlayBeatsLateAllowed,false,'overlay remoto deve impedir entrada mesmo diante de allowed atrasado');
+
   /* 2m. Tombstone precisa contar como pendência mesmo após recarregar. */
   const pendingDelete=await page.evaluate(()=>{
     const id='syncv2-pending-delete',sec='entries';
