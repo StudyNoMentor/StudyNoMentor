@@ -403,7 +403,11 @@ const ExtrasScreen = {
           });
           // mesma origem do outro portão: sem isto a atividade nascia sem
           // `taxaInicial` nem `qBase`, e o ciclo dela nunca teria veredito
-          if (e) { DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, x) }); n++; }
+          if (e) {
+            const doseCriada = Math.max(1, doses[i] || this._motorPrefs.alvoQuestoes);
+            DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(x.nome, x.disciplina, Object.assign({}, x, { dose: doseCriada })) });
+            n++;
+          }
         });
         this.render();
         showToast(n ? n + ' atividade(s) criada(s) ✓' : 'Nenhuma selecionada');
@@ -656,6 +660,28 @@ const ExtrasScreen = {
     })();
     const evoTag = (ciclo && ciclo.origem.taxaInicial != null && ciclo.taxa != null)
       ? `<span class="extra-tag evo ${ciclo.delta != null && ciclo.delta >= 0 ? 'up' : 'down'}" title="Acerto no assunto quando você criou a atividade, e hoje">${ciclo.origem.taxaInicial.toFixed(0)}% → ${ciclo.taxa.toFixed(0)}%</span>` : '';
+    const tecGuide = (() => {
+      if (typeof MotorCiclo === 'undefined' || !MotorCiclo.filtroTecDe) return '';
+      const f = MotorCiclo.filtroTecDe(x);
+      if (!f || !Array.isArray(f.selecoes) || !f.selecoes.length) return '';
+      const o = MotorCiclo.origemDe(x) || {};
+      const qtd = Math.max(1, Math.round(Number(f.quantidade || o.alvoQuestoes || x.alvo) || 1));
+      const nivel = Math.max(1, Number(f.nivel) || 1);
+      const unidade = nivel <= 1 ? 'tópico' : (nivel === 2 ? 'subtópico' : 'subtópico nível ' + nivel);
+      const base = [f.disciplina].concat(Array.isArray(f.caminho) ? f.caminho : []).filter(Boolean);
+      const rota = (f.agregado ? base : base.concat(f.selecoes)).filter(Boolean).join(' → ');
+      const selecoes = f.selecoes.map(v => escapeHtml(v)).join(' <span aria-hidden="true">+</span> ');
+      return `<div class="exd-tec-guide" style="margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface-sunken);">
+        <div style="display:flex;gap:8px;align-items:baseline;justify-content:space-between;flex-wrap:wrap;">
+          <strong style="font-size:var(--fs-sm);">🎯 Caderno no TEC</strong>
+          <span style="font-size:var(--fs-sm);font-weight:800;">${qtd} questões</span>
+        </div>
+        <div class="hint" style="margin:5px 0 0;"><b>Filtro:</b> ${escapeHtml(rota)}</div>
+        ${f.agregado
+          ? `<div class="hint" style="margin:4px 0 0;"><b>Marque juntos:</b> ${selecoes} <span class="opt">(${f.selecoes.length} ${unidade}s)</span></div>`
+          : `<div class="hint" style="margin:4px 0 0;"><b>Selecionar:</b> ${escapeHtml(f.selecoes[0])} <span class="opt">(${unidade})</span></div>`}
+      </div>`;
+    })();
     const progBlock = (alvo > 0)
       ? `<div class="exd-prog">
            <div class="bar"><i class="${barFull ? 'full' : ''}" style="width:${pct}%"></i></div>
@@ -731,6 +757,7 @@ const ExtrasScreen = {
           </div>
         </div>
                 ${progBlock}
+        ${tecGuide}
         ${marcador}
         ${regRow}
       </div>`;
