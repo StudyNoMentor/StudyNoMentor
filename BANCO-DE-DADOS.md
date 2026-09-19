@@ -296,6 +296,7 @@ alter table public.profile_sections
   add column if not exists mutation_id text,
   add column if not exists device_id text;
 
+alter table public.profile_sections alter column rev set default 1;
 alter table public.profile_sections enable row level security;
 ```
 
@@ -471,6 +472,13 @@ declare
 begin
   if v_uid is null then
     raise exception 'authentication required' using errcode='42501';
+  end if;
+
+  if p_profile_id is null or p_section is null
+     or p_expected_rev is null or p_expected_rev < 0
+     or p_new_hash is null or btrim(p_new_hash) = ''
+     or p_mutation_id is null or btrim(p_mutation_id) = '' then
+    return jsonb_build_object('ok',false,'reason','invalid-arguments');
   end if;
 
   if not exists (
