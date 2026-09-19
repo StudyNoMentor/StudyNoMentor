@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0eed536a4a">
+<meta name="diario-versao" content="v2a863590b7">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -37647,7 +37647,16 @@ const ProfileUI = {
         ProfileManager.setRev(row.id, row.rev || 1);
         ProfileManager.setActiveProfile(row.id);
         PlanManager.init();
-        await CloudStore.saveActive();
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          const okSec = await CloudStore._pushSectionsNow(row.id);
+          if (!okSec) {
+            /* O perfil já existe e os dados continuam locais/outbox; não usamos
+               blob para contornar uma falha de CAS. A próxima rodada retoma. */
+            console.warn('[perfil] perfil novo criado; seções aguardam confirmação da nuvem');
+          }
+        } else {
+          await CloudStore.saveActive(row.id); // compatibilidade do modo legado
+        }
         $id('profile-modal').style.display = 'none';
         try { sessionStorage.setItem(this.SESSION_KEY, row.id); } catch (e) { _quiet(e); }
         recarregarApp('perfil novo criado', { imediato: true });
@@ -49004,6 +49013,30 @@ else CloudStore.init();
     } catch (e) { _quiet(e); }
     return adotadas;
   }
+
+  /* Depois de ADOTAR o armazenamento antigo, ele não pode continuar como uma
+     segunda fonte de verdade. A limpeza só acontece após confirmação estrita do
+     IndexedDB; se o commit falhar ou estourar o teto, deixamos as cópias antigas
+     intactas para recuperação. O tema é a única exceção porque é lido antes do
+     shim para evitar flash visual. */
+  function limparEspelhoNativoAposCommit() {
+    if (!nativeLS || !window.__idbFlushStrict) return Promise.resolve(false);
+    return window.__idbFlushStrict(10000).then(function (r) {
+      if (!r || r.ok === false) return false;
+      var apagar = [];
+      try {
+        for (var i = 0; i < nativeLS.length; i++) {
+          var k = nativeLS.key(i);
+          if (k && k !== 'diario-estudos:theme') apagar.push(k);
+        }
+        for (var j = 0; j < apagar.length; j++) nativeLS.removeItem(apagar[j]);
+        if (apagar.length) {
+          try { console.info('[armazenamento] espelho legado limpo após confirmação do IndexedDB:', apagar.length, 'chave(s)'); } catch (_) {}
+        }
+        return true;
+      } catch (e) { _quiet(e); return false; }
+    }).catch(function () { return false; });
+  }
   /* O armazenamento antigo continua acessível para a tela de Recuperação: sem
      isto, depois da fachada instalada não há mais como olhar lá dentro. */
   try { window.__nativeLS = nativeLS; } catch (e) { _quiet(e); }
@@ -49159,7 +49192,14 @@ else CloudStore.init();
 
   openIDB()
     .then(function (database) { db = database; return hydrate(); })
-    .then(function () { migrateFromNative(); installShim(); applyTheme(); })
+    .then(function () {
+      migrateFromNative();
+      installShim();
+      applyTheme();
+      /* Não bloqueia o arranque na faxina, mas a própria faxina só apaga o
+         legado depois de o IndexedDB confirmar tudo. */
+      setTimeout(function () { limparEspelhoNativoAposCommit(); }, 0);
+    })
     .catch(function (err) {
       // IndexedDB indisponível (modo privado antigo, navegador sem suporte, etc.):
       // o app continua funcionando sobre o localStorage nativo, sem a fachada.
