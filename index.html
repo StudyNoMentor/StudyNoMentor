@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0b6a4b4b14">
+<meta name="diario-versao" content="ve6488ad7cf">
 <script>
 /* ── ARRANQUE: abre o IndexedDB AGORA, em paralelo com o parse do documento ──
    A fachada de armazenamento vive no fim do <body>, depois de ~1,7 MB de HTML.
@@ -31109,10 +31109,12 @@ const AutoTeste = {
       no('A.1', 10, 2, 2), no('A.2', 12, 3, 2), no('A.3', 18, 6, 2)
     ]);
     const local = M._planejarNo(miudos, 20, []);
-    const bloco = local.find(x => x.agregado);
+    /* O grupo só confirma a lacuna (amostra somada + exclusão de quem já
+       domina); o alvo oferecido é sempre o pior membro individual, nunca um
+       "bloco" misturando os irmãos — por isso `motivoNivel`, não `agregado`. */
+    const bloco = local.find(x => x.motivoNivel === 'pior-do-grupo');
     this._ok('Motor simples: ramos pequenos viram bloco somente entre irmãos do mesmo pai',
-      !!(bloco && bloco.pai === 'Tópico A' && bloco.membros.length === 3
-        && bloco.membros.every(n => /^A\./.test(n))), bloco);
+      !!(bloco && bloco.pai === 'Tópico A' && bloco.nome === 'A.1' && bloco.grupoTamanho === 3), bloco);
     this._ok('Motor simples: o bloco continua abaixo da disciplina',
       local.length > 0 && local.every(x => x.nivel > 0 && x.disciplina === 'X'), local);
 
@@ -31123,9 +31125,9 @@ const AutoTeste = {
       no('B.4', 6, 2, 2), no('B.5', 6, 2, 2), no('B.6', 6, 2, 2)
     ]);
     const planoMuitos = M._planejarNo(muitos, 20, []);
-    const blocoMuitos = planoMuitos.find(x => x.agregado);
+    const blocoMuitos = planoMuitos.find(x => x.motivoNivel === 'pior-do-grupo');
     this._ok('Motor simples: agrupa quantos irmãos pequenos forem necessários para alcançar a amostra',
-      !!(blocoMuitos && blocoMuitos.membros.length === 6 && blocoMuitos.pai === 'Tópico B'), blocoMuitos);
+      !!(blocoMuitos && blocoMuitos.grupoTamanho === 6 && blocoMuitos.pai === 'Tópico B' && blocoMuitos.nome === 'B.1'), blocoMuitos);
 
     const doisBlocos = no('Tópico C', 40, 20, 1, [
       no('C.1', 10, 5, 2), no('C.2', 10, 5, 2),
@@ -31133,15 +31135,17 @@ const AutoTeste = {
     ]);
     const planoDois = M._planejarNo(doisBlocos, 20, [], 90);
     this._ok('Motor simples: continua nos irmãos restantes e cria mais de um bloco executável',
-      planoDois.length === 2 && planoDois.every(x => x.agregado && x.questoes === 20), planoDois);
+      planoDois.length === 2
+        && planoDois.every(x => x.motivoNivel === 'pior-do-grupo' && x.grupoTamanho === 2 && x.grupoQuestoes === 20)
+        && planoDois.map(x => x.nome).join('|') === 'C.1|C.3', planoDois);
 
     const semEnchimento = no('Tópico D', 30, 15, 1, [
       no('D.1', 10, 2, 2), no('D.2', 10, 3, 2), no('D forte', 10, 10, 2)
     ]);
     const planoFraco = M._planejarNo(semEnchimento, 20, [], 90);
     this._ok('Motor simples: irmão forte não serve para completar bloco fraco',
-      planoFraco.length === 1 && planoFraco[0].agregado
-        && planoFraco[0].membros.length === 2 && !planoFraco[0].membros.includes('D forte'), planoFraco);
+      planoFraco.length === 1 && planoFraco[0].motivoNivel === 'pior-do-grupo'
+        && planoFraco[0].nome === 'D.1' && planoFraco[0].grupoTamanho === 2 && planoFraco[0].grupoQuestoes === 20, planoFraco);
 
     const porRamo = no('X', 80, 42, 0, [
       no('Pai mais fraco', 40, 16, 1, [no('P.1', 20, 6, 2), no('P.2', 20, 10, 2)]),
@@ -32714,7 +32718,7 @@ const ExtrasScreen = {
         + (dose ? '<span class="pl-linha-dose">' + dose + ' questões</span>' : '')
         + '</div>'
         + '<div class="pl-linha-title">' + escapeHtml(x.nome)
-        + (x.agregado ? ' <span class="ms-selo">bloco' + (x.membros ? ' · ' + x.membros.length + ' ramos' : '') + '</span>' : '') + '</div>'
+        + (x.motivoNivel === 'pior-do-grupo' ? ' <span class="ms-selo">pior de ' + x.grupoTamanho + '</span>' : '') + '</div>'
         + '<div class="pl-linha-stats">'
         + '<span><b>' + Math.round(x.taxa) + '%</b><i>Acerto</i></span>'
         + (x.gapMeta != null ? '<span><b>' + (Math.round(x.gapMeta * 10) / 10) + 'pp</b><i>Lacuna</i></span>' : '')
@@ -35688,14 +35692,12 @@ const DesempenhoTecScreen = {
        incidência. Um quarto estável em vez de seis desalinhados. */
     const linhas = r.itens.map((x, i) => {
       const trilha = [x.disciplina].concat(x.caminho || []).filter(Boolean);
-      const porQue = x.agregado
-        ? `Bloco local com ${x.membros.length} dos irmãos mais fracos sob “${x.pai || 'o mesmo tópico'}”. Separados, não alcançavam ${r.prefs.minAmostra} questões; juntos formam uma atividade executável. Os demais continuam na fila.`
+      const deGrupo = x.motivoNivel === 'pior-do-grupo';
+      const porQue = deGrupo
+        ? `Este subtópico tem só ${x.questoes} questão(ões) própria(s) — abaixo do piso de ${r.prefs.minAmostra} —, mas está entre ${x.grupoTamanho} irmãos igualmente fracos sob “${x.pai || 'o mesmo tópico'}” que juntos somam ${x.grupoQuestoes} questões, confirmando que a área é fraca de verdade. Miramos só nele, com o caderno cheio, para não diluir o esforço entre os irmãos: assim ele acumula amostra própria mais rápido e pode “se formar” sozinho no próximo retrato. Os demais continuam na fila.`
         : x.motivoNivel === 'subnivel-insuficiente'
           ? `Mesmo reunindo os subtópicos fracos, o nível abaixo não alcançou ${r.prefs.minAmostra} questões. Só então o motor subiu até este tópico.`
           : `Este nível tem pelo menos ${r.prefs.minAmostra} questões e pode ser usado diretamente.`;
-      const membros = x.agregado
-        ? `<div class="ms-members">${x.membros.map(n => `<span>${escapeHtml(n)}</span>`).join('')}</div>`
-        : '';
       const quarto = r.fase === 'pos'
         ? `<span><b>${x.peso}</b><i>Incidência</i></span>`
         : `<span><b>Nível ${x.nivel}</b><i>Profundidade</i></span>`;
@@ -35705,7 +35707,7 @@ const DesempenhoTecScreen = {
             <div class="ms-suggestion-rank"><span>${i + 1}</span><i>${emoji(x)}</i></div>
             <div class="ms-suggestion-title">
               <small>${trilha.map(escapeHtml).join(' › ')}</small>
-              <h3>${escapeHtml(x.nome)}${x.agregado ? ' <span class="ms-selo">bloco · ' + x.membros.length + ' irmãos</span>' : ''}</h3>
+              <h3>${escapeHtml(x.nome)}${deGrupo ? ' <span class="ms-selo">pior de ' + x.grupoTamanho + '</span>' : ''}</h3>
             </div>
             <div class="ms-dose"><b>${x.dose}</b><small>questões</small></div>
           </div>
@@ -35715,7 +35717,6 @@ const DesempenhoTecScreen = {
             <span>lacuna ${fmt1(x.disciplinaLacuna)}pp</span>
             ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
           </div>
-          ${membros}
           <div class="ms-suggestion-metrics">
             <span><b>${fmt1(x.taxa)}%</b><i>Acerto</i></span>
             <span><b>${fmt1(x.gapMeta)}pp</b><i>lacuna p/ meta</i></span>
@@ -46965,25 +46966,29 @@ else CloudStore.init();
       };
     },
 
+    /* O GRUPO DECIDE PRIORIDADE; O CADERNO MIRA SÓ O PIOR DO GRUPO ───────────
+       Somar os irmãos fracos serve para confirmar, com amostra estatística
+       de verdade, que aquela família é fraca e para EXCLUIR quem já domina
+       o assunto — sem isso, a única alternativa seria subir para o tópico-pai
+       inteiro, misturando quem já vai bem com quem precisa de reforço. Mas o
+       caderno de estudo no TEC não precisa herdar essa soma: ele não está
+       preso ao que você já respondeu, então um caderno único no pior membro,
+       em dose cheia, ensina mais rápido do que o mesmo total diluído entre
+       vários irmãos — e é esse único subtópico, não o grupo, que acumula
+       amostra própria suficiente para "se formar" sozinho no próximo retrato.
+       `filhos` já chega ordenado do pior para o melhor (herda de `kids` em
+       `_planejarNo`), então filhos[0] é sempre o pior do grupo formado. */
     _grupo(pai, filhos, caminho) {
+      const pior = filhos[0];
       const q = filhos.reduce((s, x) => s + num(x.questoes), 0);
-      const ac = filhos.reduce((s, x) => s + num(x.acertos), 0);
-      const nomes = filhos.map(x => x.nome).filter(Boolean);
-      const base = {
-        nome: (pai.nome || 'Bloco') + ' · bloco',
-        codigo: pai.codigo || null,
-        depth: Math.max(1, num(pai.depth, 1) + 1),
-        disciplina: pai.disciplina || '',
-        questoes: q,
-        acertos: ac
-      };
-      return this._item(base, {
-        nome: base.nome,
-        membros: nomes,
+      const item = this._item(pior, {
         pai: pai.nome || null,
         caminho: (caminho || []).concat([pai.nome || '']).filter(Boolean),
-        motivoNivel: 'irmaos-agrupados'
+        motivoNivel: 'pior-do-grupo'
       });
+      item.grupoTamanho = filhos.length;
+      item.grupoQuestoes = q;
+      return item;
     },
 
     /* Planeja um ramo usando apenas um piso de questões.

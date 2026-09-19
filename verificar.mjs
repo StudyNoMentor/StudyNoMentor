@@ -1093,12 +1093,12 @@ try {
     const n = (nome, q, ac, depth, kids) => ({ nome, codigo: null, depth, disciplina: 'Teste', questoes: q, acertos: ac, children: kids || [] });
     const top = n('Topico', 40, 11, 1, [n('A.1', 10, 2, 2), n('A.2', 12, 3, 2), n('A.3', 18, 6, 2)]);
     const plano = MotorSugestao._planejarNo(top, 20, []);
-    const bloco = plano.find(x => x.agregado);
+    const bloco = plano.find(x => x.motivoNivel === 'pior-do-grupo');
     const muitos = n('Topico B', 36, 9, 1, [
       n('B.1', 6, 1, 2), n('B.2', 6, 1, 2), n('B.3', 6, 1, 2),
       n('B.4', 6, 2, 2), n('B.5', 6, 2, 2), n('B.6', 6, 2, 2)
     ]);
-    const blocoGrande = MotorSugestao._planejarNo(muitos, 20, []).find(x => x.agregado);
+    const blocoGrande = MotorSugestao._planejarNo(muitos, 20, []).find(x => x.motivoNivel === 'pior-do-grupo');
     const doisBlocos = n('Topico C', 40, 20, 1, [
       n('C.1', 10, 5, 2), n('C.2', 10, 5, 2), n('C.3', 10, 5, 2), n('C.4', 10, 5, 2)
     ]);
@@ -1124,10 +1124,10 @@ try {
     const sf = MotorSugestao._forestEstavel({ rows: s1.rows.concat(s2.rows), _fontes: [s1,s2] });
     const dx = sf[0] || { children: [] }, na = dx.children.find(x => x.nome === 'A'), nb = dx.children.find(x => x.nome === 'B');
     return {
-      bloco: bloco ? { pai: bloco.pai, membros: bloco.membros, nivel: bloco.nivel } : null,
-      blocoGrande: blocoGrande ? { pai: blocoGrande.pai, membros: blocoGrande.membros } : null,
-      doisBlocos: planoDois.map(x => ({ q: x.questoes, membros: x.membros })),
-      semForte: planoSemForte.map(x => ({ q: x.questoes, membros: x.membros })),
+      bloco: bloco ? { pai: bloco.pai, nome: bloco.nome, grupoTamanho: bloco.grupoTamanho, nivel: bloco.nivel } : null,
+      blocoGrande: blocoGrande ? { pai: blocoGrande.pai, nome: blocoGrande.nome, grupoTamanho: blocoGrande.grupoTamanho } : null,
+      doisBlocos: planoDois.map(x => ({ nome: x.nome, grupoTamanho: x.grupoTamanho, grupoQuestoes: x.grupoQuestoes })),
+      semForte: planoSemForte.map(x => ({ nome: x.nome, grupoTamanho: x.grupoTamanho })),
       filaRamos: filaRamos.map(x => x.nome),
       raiz: raiz.length,
       lacunaVenceVolume: MotorSugestao._compararDisciplinas(poucoPraticada, muitoPraticada, p) < 0,
@@ -1137,16 +1137,16 @@ try {
         && nb.children[0] && nb.children[0].nome === 'B-filho')
     };
   });
-  (hier.bloco && hier.bloco.pai === 'Topico' && hier.bloco.membros.length === 3 && hier.raiz === 0)
-    ? ok('ramos pequenos so agrupam entre irmaos do mesmo pai e nunca sobem para a disciplina')
+  (hier.bloco && hier.bloco.pai === 'Topico' && hier.bloco.nome === 'A.1' && hier.bloco.grupoTamanho === 3 && hier.raiz === 0)
+    ? ok('ramos pequenos so agrupam entre irmaos do mesmo pai e miram o pior deles, nunca sobem para a disciplina')
     : erro('o agrupamento atravessou a hierarquia: ' + JSON.stringify(hier));
-  (hier.blocoGrande && hier.blocoGrande.pai === 'Topico B' && hier.blocoGrande.membros.length > 4)
-    ? ok('o agrupamento simples usa todos os irmaos pequenos necessários')
+  (hier.blocoGrande && hier.blocoGrande.pai === 'Topico B' && hier.blocoGrande.nome === 'B.1' && hier.blocoGrande.grupoTamanho > 4)
+    ? ok('o agrupamento simples usa todos os irmaos pequenos necessários para confirmar a lacuna, mesmo mirando só o pior')
     : erro('o agrupamento simples perdeu ramos pequenos: ' + JSON.stringify(hier.blocoGrande));
-  (hier.doisBlocos.length === 2 && hier.doisBlocos.every(x => x.q === 20 && x.membros.length === 2))
-    ? ok('o agrupamento continua nos subtópicos restantes e cria várias sugestões executáveis')
+  (hier.doisBlocos.length === 2 && JSON.stringify(hier.doisBlocos.map(x => x.nome)) === '["C.1","C.3"]' && hier.doisBlocos.every(x => x.grupoTamanho === 2 && x.grupoQuestoes === 20))
+    ? ok('o agrupamento continua nos subtópicos restantes e cria várias sugestões executáveis, cada uma mirando o pior do seu grupo')
     : erro('o agrupamento parou depois do primeiro bloco: ' + JSON.stringify(hier.doisBlocos));
-  (hier.semForte.length === 1 && hier.semForte[0].membros.length === 2 && !hier.semForte[0].membros.includes('D forte'))
+  (hier.semForte.length === 1 && hier.semForte[0].nome === 'D.1' && hier.semForte[0].grupoTamanho === 2)
     ? ok('subtópico forte não é usado para completar bloco fraco')
     : erro('o agrupamento diluiu a lacuna com subtópico forte: ' + JSON.stringify(hier.semForte));
   hier.filaRamos.join('|') === 'P.1|P.2|O.1'

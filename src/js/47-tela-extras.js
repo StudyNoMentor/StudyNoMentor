@@ -506,7 +506,7 @@ const ExtrasScreen = {
         + (dose ? '<span class="pl-linha-dose">' + dose + ' questões</span>' : '')
         + '</div>'
         + '<div class="pl-linha-title">' + escapeHtml(x.nome)
-        + (x.agregado ? ' <span class="ms-selo">bloco' + (x.membros ? ' · ' + x.membros.length + ' ramos' : '') + '</span>' : '') + '</div>'
+        + (x.motivoNivel === 'pior-do-grupo' ? ' <span class="ms-selo">pior de ' + x.grupoTamanho + '</span>' : '') + '</div>'
         + '<div class="pl-linha-stats">'
         + '<span><b>' + Math.round(x.taxa) + '%</b><i>Acerto</i></span>'
         + (x.gapMeta != null ? '<span><b>' + (Math.round(x.gapMeta * 10) / 10) + 'pp</b><i>Lacuna</i></span>' : '')

@@ -293,25 +293,29 @@
       };
     },
 
+    /* O GRUPO DECIDE PRIORIDADE; O CADERNO MIRA SÓ O PIOR DO GRUPO ───────────
+       Somar os irmãos fracos serve para confirmar, com amostra estatística
+       de verdade, que aquela família é fraca e para EXCLUIR quem já domina
+       o assunto — sem isso, a única alternativa seria subir para o tópico-pai
+       inteiro, misturando quem já vai bem com quem precisa de reforço. Mas o
+       caderno de estudo no TEC não precisa herdar essa soma: ele não está
+       preso ao que você já respondeu, então um caderno único no pior membro,
+       em dose cheia, ensina mais rápido do que o mesmo total diluído entre
+       vários irmãos — e é esse único subtópico, não o grupo, que acumula
+       amostra própria suficiente para "se formar" sozinho no próximo retrato.
+       `filhos` já chega ordenado do pior para o melhor (herda de `kids` em
+       `_planejarNo`), então filhos[0] é sempre o pior do grupo formado. */
     _grupo(pai, filhos, caminho) {
+      const pior = filhos[0];
       const q = filhos.reduce((s, x) => s + num(x.questoes), 0);
-      const ac = filhos.reduce((s, x) => s + num(x.acertos), 0);
-      const nomes = filhos.map(x => x.nome).filter(Boolean);
-      const base = {
-        nome: (pai.nome || 'Bloco') + ' · bloco',
-        codigo: pai.codigo || null,
-        depth: Math.max(1, num(pai.depth, 1) + 1),
-        disciplina: pai.disciplina || '',
-        questoes: q,
-        acertos: ac
-      };
-      return this._item(base, {
-        nome: base.nome,
-        membros: nomes,
+      const item = this._item(pior, {
         pai: pai.nome || null,
         caminho: (caminho || []).concat([pai.nome || '']).filter(Boolean),
-        motivoNivel: 'irmaos-agrupados'
+        motivoNivel: 'pior-do-grupo'
       });
+      item.grupoTamanho = filhos.length;
+      item.grupoQuestoes = q;
+      return item;
     },
 
     /* Planeja um ramo usando apenas um piso de questões.
