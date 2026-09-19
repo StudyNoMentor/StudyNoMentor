@@ -4200,8 +4200,9 @@ const DesempenhoTecScreen = {
             <h3>${escapeHtml(d.nome)}</h3>
             <p>Pior recorte acionável: <b>${escapeHtml(top ? top.nome : '—')}</b> · ${top ? fmt1(top.taxa) + '% de acerto' : '—'}</p>
             <div class="ms-priority-meta">
+              <span><i>lacuna segura</i><b>${top ? fmt1(top.gapConfiavel) + 'pp' : '—'}</b></span>
+              <span><i>déficit p/ meta</i><b>${top ? '~' + top.lacunaMeta + ' q' : '—'}</b></span>
               <span><i>disciplina</i><b>${ac}</b></span>
-              <span><i>resolvidas</i><b>${d.questoes.toLocaleString('pt-BR')}</b></span>
               <span><i>fila</i><b>${(d.fila || []).length} frente(s)</b></span>
             </div>
           </div>
@@ -4243,9 +4244,10 @@ const DesempenhoTecScreen = {
             <span><i>erro</i><b>${erroPct}%</b></span>
             <span><i>histórico</i><b>${x.questoes} q</b></span>
             <span><i>margem</i><b>${margem}</b></span>
+            <span><i>lacuna segura</i><b>${fmt1(x.gapConfiavel)}pp</b></span>
             ${peso}
           </div>
-          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)}</p></div>
+          <div class="ms-why"><span>💡</span><p><b>Por que este nível?</b> ${escapeHtml(porQue)} <b>Lacuna segura:</b> ${fmt1(x.gapConfiavel)}pp abaixo da meta mesmo no extremo otimista da margem.</p></div>
           <div class="ms-suggestion-action">
             <button type="button" class="btn-primary" data-motor-extra="${i}">Criar reforço de ${x.dose} questões</button>
           </div>
@@ -4254,7 +4256,7 @@ const DesempenhoTecScreen = {
 
     const discRank = (r.disciplinas || []).map((d, i) => {
       const t = d.melhorTopico;
-      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.taxa) + '% no pior recorte · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
+      return `<li><span>${i + 1}</span><div><b>${escapeHtml(d.nome)}</b><small>${t ? fmt1(t.gapConfiavel) + 'pp de lacuna segura · ' + fmt1(t.taxa) + '% · ' + escapeHtml(t.nome) : 'sem recorte acionável'} · ${(d.fila || []).length} frente(s) na fila</small></div></li>`;
     }).join('');
 
     const filas = (r.disciplinas || []).map(d => {
@@ -4272,10 +4274,11 @@ const DesempenhoTecScreen = {
         <span>📚 ${r.prefs.doseMin}+ questões por atividade</span>
         <span>📏 margem ±${r.prefs.margemMax}pp</span>
         <span>🎯 meta ${r.prefs.metaAcerto}%</span>
+        <span>🛡️ ranking pela lacuna após a margem</span>
       </div>
 
       <section class="ms-stage">
-        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Disciplinas ordenadas pela regra do motor. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
+        <header><span>1</span><div><b>Onde entrar primeiro</b><small>Até 3 disciplinas, ordenadas pela lacuna que continua comprovada após considerar a margem. A disciplina só escolhe a porta; nunca vira atividade.</small></div></header>
         <div class="ms-priority-list">${disciplinasHtml}</div>
       </section>
 
@@ -4295,7 +4298,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com irmãos do mesmo pai. Se esse bloco ainda não for confiável, o motor sobe um nível dentro da matéria. A fronteira da disciplina nunca é atravessada.</p>`;
+      <p class="hint ms-nota">Regra estrutural: subtópicos pequenos só podem ser agrupados com outros irmãos pequenos do mesmo pai, do pior para o melhor, até a amostra ficar suficiente. Se sobrar uma cauda pequena demais para medir sozinha, ela entra no último bloco local em vez de forçar a subida de toda a árvore. A fronteira da disciplina nunca é atravessada.</p>`;
 
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
