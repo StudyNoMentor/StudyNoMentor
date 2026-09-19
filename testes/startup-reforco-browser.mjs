@@ -321,6 +321,85 @@ try {
   eq(strictDisk.r.pending,0,'confirmação estrita só pode ocorrer com fila vazia');
   ok(strictDisk.r2&&strictDisk.r2.ok,'remoção também deve ser confirmada no disco');
 
+  /* 2j. Manifesto também precisa de CAS; não pode voltar ao upsert cego. */
+  const manifestCas=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      write:SectionSync._writeSectionCAS
+    };
+    let expected=null,writes=0;
+    CloudStore.client={from(){return {select(){return {eq(){return Promise.resolve({data:[{section:'__manifest',rev:3}],error:null});}};}};}};
+    SectionSync.localSections=()=>['entries'];
+    SectionSync._loadDel=()=>[];
+    SectionSync._writeSectionCAS=async(row,exp)=>{writes++;expected=exp;return {ok:true,rev:4};};
+    const revs={__manifest:{rev:3,hash:'antigo'}};
+    await SectionSync._syncManifest('p-manifest',revs);
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;SectionSync._writeSectionCAS=keep.write;
+    return {writes,expected,rev:revs.__manifest&&revs.__manifest.rev};
+  });
+  eq(manifestCas.writes,1,'manifesto alterado deve passar pelo CAS');
+  eq(manifestCas.expected,3,'manifesto deve escrever a partir da revisão-base conhecida');
+  eq(manifestCas.rev,4,'manifesto deve registrar apenas a revisão confirmada');
+
+  /* 2k. Exclusão baseada em rev antiga não pode apagar uma edição remota mais nova. */
+  const deletionCas=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      saveDel:SectionSync._saveDel,last:SectionSync._lastConflict
+    };
+    let deleteCalls=0,salvas=null;
+    CloudStore.client={from(){return {
+      select(){return {eq(){return Promise.resolve({data:[
+        {section:'entries',rev:6},{section:'__manifest',rev:1}
+      ],error:null});}};},
+      delete(){deleteCalls++;return this;},
+      eq(){return this;},select(){return Promise.resolve({data:[],error:null});}
+    };}};
+    /* O objeto acima precisa só do SELECT inicial neste cenário: a rev remota 6
+       já diverge da base 5, então DELETE não deve sequer ser tentado. */
+    CloudStore.client={from(){return {select(){return {eq(){return Promise.resolve({data:[
+      {section:'entries',rev:6},{section:'__manifest',rev:1}
+    ],error:null});}};},delete(){deleteCalls++;return this;},eq(){return this;}};}};
+    SectionSync.localSections=()=>[];
+    SectionSync._loadDel=()=>[{section:'entries',rev:5}];
+    SectionSync._saveDel=(x)=>{salvas=x;};
+    SectionSync._lastConflict=null;
+    const revs={__manifest:{rev:1,hash:SectionSync._hash('')}};
+    let falhou=false;
+    try{await SectionSync._syncManifest('p-del',revs);}catch(_){falhou=true;}
+    const conflito=SectionSync._lastConflict;
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
+    SectionSync._saveDel=keep.saveDel;SectionSync._lastConflict=keep.last;
+    return {deleteCalls,falhou,conflito,salvas};
+  });
+  eq(deletionCas.deleteCalls,0,'exclusão velha não pode executar DELETE contra rev nova');
+  ok(deletionCas.falhou,'conflito de exclusão deve manter a sincronização pendente');
+  ok(deletionCas.conflito&&deletionCas.conflito.tipo==='exclusão','conflito de exclusão deve ficar diagnosticado');
+  ok(Array.isArray(deletionCas.salvas)&&deletionCas.salvas.length===1,'tombstone em conflito deve permanecer durável');
+
+  /* 2l. Restaurar sessão com outro device ativo deve bloquear, não reivindicar. */
+  const sessionNoTakeover=await page.evaluate(async()=>{
+    const keep={
+      client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,session:CloudStore.session,
+      subscribe:SessionGuard.subscribe,claim:SessionGuard.claim,taken:SessionGuard._takenBy,
+      claimed:SessionGuard._claimedUid,device:SessionGuard._deviceId,enabled:SessionGuard.enabled
+    };
+    let claims=0,blocked=0;
+    SessionGuard.enabled=true;SessionGuard._claimedUid=null;SessionGuard._deviceId='device-local';
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;CloudStore.session={user:{id:'user-1'}};
+    SessionGuard.subscribe=()=>{};
+    SessionGuard.claim=async()=>{claims++;return true;};
+    SessionGuard._takenBy=()=>{blocked++;};
+    CloudStore.client={from(){return {select(){return {eq(){return {maybeSingle(){return Promise.resolve({data:{device_id:'device-remoto',device_label:'Outro'},error:null});}};}};}};}};
+    await SessionGuard.onLogin();
+    CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;CloudStore.session=keep.session;
+    SessionGuard.subscribe=keep.subscribe;SessionGuard.claim=keep.claim;SessionGuard._takenBy=keep.taken;
+    SessionGuard._claimedUid=keep.claimed;SessionGuard._deviceId=keep.device;SessionGuard.enabled=keep.enabled;
+    return {claims,blocked};
+  });
+  eq(sessionNoTakeover.claims,0,'sessão restaurada não pode tomar posse automaticamente de outro aparelho');
+  eq(sessionNoTakeover.blocked,1,'sessão restaurada deve reconhecer e bloquear diante de outro aparelho');
+
   ok(errors.length===0,'sem erros no navegador: '+errors.join(' | '));
   console.log(`STARTUP/LOADERS OK — ${checks} invariantes.`);
 } finally {
