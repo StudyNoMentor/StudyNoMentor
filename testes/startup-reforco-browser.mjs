@@ -474,6 +474,83 @@ try {
   ok(readOnlyRepairsStaleCache.r&&readOnlyRepairsStaleCache.r.ok,'pull read-only deve validar e aplicar seções');
   eq(readOnlyRepairsStaleCache.depois,readOnlyRepairsStaleCache.remoto,'conteúdo remoto deve corrigir cache físico regressado');
 
+  /* 2p. Manifesto com revisão remota mais nova deve se realinhar e avançar
+     sem apagar a união remota/local. */
+  const manifestRebase=await page.evaluate(async()=>{
+    const id='syncv2-manifest-rebase';
+    const keep={
+      client:CloudStore.client,localSections:SectionSync.localSections,loadDel:SectionSync._loadDel,
+      saveDel:SectionSync._saveDel,write:SectionSync._writeSectionCAS,remote:SectionSync._remoteSection
+    };
+    let expectedSeen=[],writeCalls=0;
+    CloudStore.client={from(){return {
+      select(){return {eq(){return Promise.resolve({data:[
+        {section:'entries',rev:4},
+        {section:'__manifest',rev:7,data:{v:2,sections:['entries']}}
+      ],error:null});}};}
+    };}};
+    SectionSync.localSections=()=>['entries','cards'];
+    SectionSync._loadDel=()=>[];
+    SectionSync._saveDel=()=>{};
+    SectionSync._writeSectionCAS=async(row,exp)=>{
+      writeCalls++;expectedSeen.push(exp);
+      return {ok:true,rev:exp+1};
+    };
+    SectionSync._remoteSection=keep.remote;
+    const revs={__manifest:{rev:3,hash:'velho'}};
+    const okRun=await SectionSync._syncManifest(id,revs);
+    CloudStore.client=keep.client;SectionSync.localSections=keep.localSections;SectionSync._loadDel=keep.loadDel;
+    SectionSync._saveDel=keep.saveDel;SectionSync._writeSectionCAS=keep.write;SectionSync._remoteSection=keep.remote;
+    return {okRun,writeCalls,expectedSeen,rev:revs.__manifest&&revs.__manifest.rev};
+  });
+  ok(manifestRebase.okRun,'manifesto deve sincronizar a partir da revisão remota observada');
+  eq(manifestRebase.expectedSeen[0],7,'manifesto não pode usar revisão local obsoleta quando acabou de ler rev 7');
+  eq(manifestRebase.rev,8,'manifesto deve avançar monotonicamente da rev remota atual');
+
+  /* 2q. Trocar de perfil deve trocar a assinatura Realtime da tabela de seções. */
+  const realtimeProfileSwitch=await page.evaluate(()=>{
+    const keep={
+      client:CloudStore.client,ready:CloudStore.isReady,logged:CloudStore.isLoggedIn,
+      channel:CloudStore.secChannel,profile:CloudStore._secChannelProfile
+    };
+    const removed=[],created=[];
+    function fakeChannel(name){
+      const ch={name,on(){return ch;},subscribe(){return ch;}};
+      created.push(name);return ch;
+    }
+    CloudStore.client={channel:fakeChannel,removeChannel(ch){removed.push(ch&&ch.name);}};
+    CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
+    CloudStore.secChannel=null;CloudStore._secChannelProfile=null;
+    CloudStore.subscribeSections('perfil-a');
+    const first=CloudStore._secChannelProfile;
+    CloudStore.subscribeSections('perfil-b');
+    const second=CloudStore._secChannelProfile;
+    CloudStore.client=keep.client;CloudStore.isReady=keep.ready;CloudStore.isLoggedIn=keep.logged;
+    CloudStore.secChannel=keep.channel;CloudStore._secChannelProfile=keep.profile;
+    return {first,second,removed,created};
+  });
+  eq(realtimeProfileSwitch.first,'perfil-a','primeira assinatura realtime deve pertencer ao perfil A');
+  eq(realtimeProfileSwitch.second,'perfil-b','troca de perfil deve religar realtime no perfil B');
+  ok(realtimeProfileSwitch.removed.some(x=>String(x).includes('perfil-a')),'canal do perfil anterior deve ser removido');
+
+  /* 2r. O espelho nativo não pode continuar guardando bookkeeping/perfil.
+     A escrita pela fachada deve remover uma cópia legada pequena do nativeLS. */
+  const nativeMirrorIsolation=await page.evaluate(async()=>{
+    if(!window.__nativeLS)return {tem:false};
+    const k='diario-estudos:syncv2-native-split';
+    window.__nativeLS.setItem(k,'antigo');
+    localStorage.setItem(k,'novo');
+    await (window.__idbFlushStrict?window.__idbFlushStrict(5000):Promise.resolve({ok:true}));
+    const native=window.__nativeLS.getItem(k);
+    const facade=localStorage.getItem(k);
+    localStorage.removeItem(k);
+    await (window.__idbFlushStrict?window.__idbFlushStrict(5000):Promise.resolve({ok:true}));
+    return {tem:true,native,facade};
+  });
+  ok(nativeMirrorIsolation.tem,'teste precisa acessar o armazenamento nativo preservado');
+  eq(nativeMirrorIsolation.native,null,'chaves de dados/bookkeeping não podem permanecer espelhadas no localStorage nativo');
+  eq(nativeMirrorIsolation.facade,'novo','fachada IndexedDB deve manter o valor canônico');
+
   /* 2p. Duas filas homônimas de perfis diferentes não podem compartilhar estado. */
   const profileIsolation=await page.evaluate(()=>{
     const a='syncv2-profile-a',b='syncv2-profile-b',sec='entries';
