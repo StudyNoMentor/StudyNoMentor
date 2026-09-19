@@ -834,7 +834,7 @@ const EvolucaoScreen = {
      O painel de ritmo media páginas por hora e minutos de vídeo por hora, mas
      não a única taxa que responde "quanto tempo uma questão me custa?" — que
      é o número de que se precisa para planejar um bloco de 30 questões, e o
-     que o Robusto tenta estimar a partir dos reforços de Extras.
+     que o Motor acompanha a partir dos reforços de Extras.
 
      A conta só usa sessões de QUESTÕES com tempo e total registrados: dividir
      o tempo de uma sessão de leitura pelas questões que ela não tem produziria
