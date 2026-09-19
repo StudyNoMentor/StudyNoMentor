@@ -2401,7 +2401,7 @@ const PlanoCiclo = {
   },
   _metaDoMotor() {
     try { return MotorSugestao.prefs().metaAcerto; }
-    catch (e) { _quiet(e, 'ciclo-meta'); return 85; }
+    catch (e) { _quiet(e, 'ciclo-meta'); return 90; }
   },
   _assinaturaDoMotor(item) {
     try {
@@ -3590,14 +3590,26 @@ const DesempenhoTecScreen = {
       if (this.tecTab === 'motor') this.renderMotor();
       else if (this.tecTab === 'incidencia') this.renderIncidencia();
     };
-    if (!opts.suave) { pintar(); return; }
+    if (!opts.suave) {
+      if (this._scopeRenderTimer) { clearTimeout(this._scopeRenderTimer); this._scopeRenderTimer = null; }
+      pintar(); return;
+    }
+    /* Checkbox de retrato é uma rajada de cliques, não vários pedidos
+       independentes de recálculo. O estado visual muda na hora; o cálculo espera
+       140 ms após o último clique. Isso mantém a lista/scroll intactos, deixa o
+       spinner realmente animar e evita três varreduras completas quando a pessoa
+       marca três retratos em sequência. */
     const token = (this._scopeRenderToken || 0) + 1;
     this._scopeRenderToken = token;
     this._escopoBusy(true);
-    requestAnimationFrame(() => setTimeout(() => {
-      if (token !== this._scopeRenderToken) return;
-      try { pintar(); } finally { this._escopoBusy(false); }
-    }, 0));
+    if (this._scopeRenderTimer) clearTimeout(this._scopeRenderTimer);
+    this._scopeRenderTimer = setTimeout(() => {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (token !== this._scopeRenderToken) return;
+        this._scopeRenderTimer = null;
+        try { pintar(); } finally { this._escopoBusy(false); }
+      }));
+    }, 140);
   },
   openImport() {
     $id('tec-empty').style.display = 'none';
@@ -3923,7 +3935,6 @@ const DesempenhoTecScreen = {
       if (all.checked) snaps.forEach(s => this.selectedSnapIds.add(s.id)); else this.selectedSnapIds.clear();
       this._sincronizarScopeSelectState(snaps);
       this.aplicarMudancaEscopo({ preservarLista: true, suave: true });
-      if (list) list.scrollTop = 0;
     });
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -4176,7 +4187,7 @@ const DesempenhoTecScreen = {
       return e >= 50 ? 'critico' : e >= 35 ? 'alto' : e >= 20 ? 'medio' : 'leve';
     };
     const emoji = x => ({ critico: '🚨', alto: '🔥', medio: '⚠️', leve: '📌' }[tom(x)]);
-    const discTop = (r.disciplinas || []).slice(0, Math.min(r.prefs.maxFrentes || 3, 3));
+    const discTop = (r.disciplinas || []).slice(0, r.itens.length);
 
     const disciplinasHtml = discTop.map((d, i) => {
       const top = d.melhorTopico;
@@ -4866,9 +4877,10 @@ const DesempenhoTecScreen = {
     }
     const erros = Math.max(0, (node.questoes || 0) - (node.acertos || 0));
     const pctErro = Math.round((100 - pct) * 10) / 10;
-    const lvl = Math.min(5, Math.max(0, level));
+    const lvl = Math.min(5, Math.max(0, level)); // classe só preserva compatibilidade de espaçamento
+    const hue = (255 + Math.max(0, level) * 47) % 360; // 47 evita repetir tons nos níveis seguintes
     return `
-      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}">
+      <div class="tnode lvl${lvl}" data-level="${level}" data-haskids="${hasKids ? '1' : '0'}" style="--tec-level-hue:${hue}">
         <div class="tnode-row ${hasKids ? 'has-kids' : ''}" style="padding-left:${indent}px;">
           ${caret}
           <span class="${nameCls}" title="${escapeHtml(node.nome)}"><span class="tnode-label">${escapeHtml(node.nome)}</span>${delta}</span>
