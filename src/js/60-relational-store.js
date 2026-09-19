@@ -364,7 +364,7 @@ const RelationalStore = {
   scheduleHeavyData(profileId, opts) {
     opts=opts||{};
     const id=profileId;if(!id||this.isHeavyReady(id)||this._heavyLoads.has(id))return false;
-    try{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c&&c.saveData)return false;}catch(_){}
+    try{const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(c&&c.saveData)return false;}catch(e){_quiet(e,'rel-heavy-network-info');}
     if(this._heavyTimers.has(id))return true;
     const run=()=>{this._heavyTimers.delete(id);this.ensureHeavyData(id,{reason:opts.reason||'idle-prefetch'}).catch(e=>_quiet(e,'rel-heavy-prefetch'));};
     const delay=Math.max(300,Number(opts.delay)||2500);
