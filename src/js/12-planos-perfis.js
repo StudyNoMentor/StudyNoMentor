@@ -634,8 +634,15 @@ const ProfileManager = {
     const eraAtivo = (this.getActiveProfileId() === idAntigo);
     if (eraAtivo) {
       this.setActiveProfile(idNovo);
-      try { if (window.SectionSync) { SectionSync._seededProfile = null; SectionSync.markAllDirty(); SectionSync.kick(); } } catch (e) { _quiet(e, 'adotar-envio'); }
-      try { await CloudStore.saveActiveWithRetry(); } catch (e) { _quiet(e, 'adotar-blob'); }
+      try {
+        if (window.SectionSync && SectionSync.enabled && SectionSync.readEnabled) {
+          SectionSync._seededProfile = null;
+          SectionSync.markAllDirty(idNovo);
+          await CloudStore._pushSectionsNow(idNovo);
+        } else {
+          await CloudStore.saveActiveWithRetry(idNovo); // compatibilidade do modo legado
+        }
+      } catch (e) { _quiet(e, 'adotar-envio'); }
     }
     console.info('[perfis] id adotado da nuvem: ' + idAntigo + ' → ' + idNovo + (eraAtivo ? ' (ativo — enviado agora)' : ' (sobe ao ser aberto)'));
     return idNovo;
