@@ -410,24 +410,24 @@ const DesempenhoTecScreen = {
     }
     emptyEl.style.display = 'none';
     analysisEl.style.display = 'block';
-    /* O retrato novo é quem fecha os ciclos. Rodar a conciliação aqui pega
-       qualquer caminho que traga dado — importar, excluir, sincronizar da
-       nuvem — em vez de só o botão de importar. A marca `_cicloSel` faz isso
-       acontecer UMA vez por conjunto de retratos: repintar a tela dez vezes
-       não reescreve nada, e o veredito não pisca. */
+    /* O ciclo é iterativo: um retrato realmente novo recalcula TODAS as
+       disciplinas. Quem saiu do grupo prioritário libera a vaga; quem continua
+       entre as maiores lacunas permanece elegível para a próxima rodada. */
     try {
-      const sel = snaps.length + ':' + (snaps[snaps.length - 1] || {}).id;
+      const ultimo = snaps[snaps.length - 1] || {};
+      const sel = String(ultimo.id || '') + '|' + String(ultimo.endDate || ultimo.date || ultimo.startDate || '');
       if (this._cicloSel !== sel) {
         this._cicloSel = sel;
-        const rc = PlanoCiclo.conciliar();
+        const rc = MotorCiclo.conciliar();
         if (rc.fechadas.length) {
-          const ok = rc.vereditos.filter(v => v.tipo === 'funcionou').length;
-          const nao = rc.vereditos.length - ok;
-          showToast(`🏁 ${rc.fechadas.length} atividade(s) do Plano encerrada(s) pelo retrato` +
-            (ok ? ' · ' + ok + ' funcionou(ram)' : '') + (nao ? ' · ' + nao + ' não funcionou(ram)' : ''));
+          const partes = [];
+          if (rc.resolvidas.length) partes.push(rc.resolvidas.length + ' lacuna(s) fechada(s)');
+          if (rc.rotacionadas.length) partes.push(rc.rotacionadas.length + ' matéria(s) rotacionada(s)');
+          if (rc.rodadas.length) partes.push(rc.rodadas.length + ' rodada(s) concluída(s)');
+          showToast('🧭 Motor recalculado pelo novo retrato' + (partes.length ? ' · ' + partes.join(' · ') : ''));
         }
       }
-    } catch (e) { _quiet(e, 'ciclo-conciliar'); }
+    } catch (e) { _quiet(e, 'motor-ciclo-conciliar'); }
     // restaura o modo de escopo salvo (persistência de filtros)
     const _p = this._loadPrefs();
     if (_p.scopeMode && ['consolidado', 'select', 'range'].includes(_p.scopeMode)) this.scopeMode = _p.scopeMode;
@@ -1130,12 +1130,11 @@ const DesempenhoTecScreen = {
       if (!s) return;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
-        const foto = PlanoCiclo.fotoDoProgresso();
         DB.deleteTecSnapshot(id);
         this.selectedSnapIds.delete(id);
-        PlanoEngine._agrC = null;
-        const repin = PlanoCiclo.repinarProgresso(foto);
-        showToast('Retrato excluído' + (repin ? ' · progresso de ' + repin + ' atividade(s) preservado' : ''));
+        this._scopedC = null;
+        this._motorRefC = null;
+        showToast('Retrato excluído');
         this.render();
       });
     }));
@@ -1209,129 +1208,68 @@ const DesempenhoTecScreen = {
     try { TecAjustes.sincronizar(); } catch (e) { _quiet(e, 'resumo-abas'); }
     this.applyCfgHidden();
   },
-  // ---- Plano de pontos fracos ----
-  // Cria uma Atividade Extra ligada a um assunto do plano — fecha o ciclo:
-  // você resolve as questões, importa o novo retrato, e a métrica decide se acabou.
-  /* Retrato do Plano reaproveitado por alguns segundos: criar sete atividades
-     em lote recalculava a tela inteira sete vezes só para descobrir a taxa
-     inicial de cada assunto — o mesmo número, sete vezes. */
-  _planoRef() {
+  // ---- Atividades do único Motor de Sugestão ----
+  _motorRef() {
     const agora = Date.now();
-    if (this._planoRefC && agora - this._planoRefC.t < 3000) return this._planoRefC.r;
-    const r = PlanoEngine.calcular(this.scopedSnapshot(), PlanoEngine.prefs());
-    this._planoRefC = { t: agora, r };
+    if (this._motorRefC && agora - this._motorRefC.t < 1500) return this._motorRefC.r;
+    const r = MotorSugestao.calcular();
+    this._motorRefC = { t: agora, r };
     return r;
   },
-  /* ── UMA ATIVIDADE PERTENCE A UM ASSUNTO, NÃO A UM NOME ──────────────────
-     O vínculo entre a linha do Plano e a atividade criada para ela era feito só
-     pelo NOME do tópico. Enquanto o motor somava homônimos isso passava; agora
-     que "Atos" de Administrativo e "Atos" de Constitucional são duas linhas de
-     verdade, o nome sozinho junta o que o cálculo separou: criar a segunda
-     atividade era recusado com "já existe", e as duas linhas exibiam o MESMO
-     progresso — uma delas aparecia concluída sem que ninguém a tivesse feito.
-
-     A disciplina entra no casamento; quando um dos lados não a registra (as
-     atividades criadas antes disto), o nome ainda decide, para que nenhum
-     vínculo já existente se perca. */
   _casaTopico(origem, nome, disciplina) {
-    if (!origem || ReforcoEngine.norm(origem.topico) !== ReforcoEngine.norm(nome)) return false;
+    if (!origem || ReforcoEngine.norm(origem.topico || '') !== ReforcoEngine.norm(nome || '')) return false;
     const a = ReforcoEngine.norm(origem.disciplina || ''), b = ReforcoEngine.norm(disciplina || '');
     return (!a || !b) ? true : a === b;
   },
-  /* ── A ATIVIDADE E A UNIDADE PODEM TER TAMANHOS DIFERENTES ────────────────
-     Casar por nome exato basta enquanto unidade e assunto são a mesma coisa.
-     Com o agrupamento ligado deixam de ser: a atividade nasceu em "Dispensa" e
-     a linha da tela agora se chama "Licitações · bloco". Sem este casamento a
-     tela mostraria "+ Atividade" numa unidade que JÁ tem atividade aberta, e a
-     segunda nasceria duplicando o trabalho da primeira — o mesmo assunto
-     contado duas vezes na sua semana. Vale nos dois sentidos, porque a lente
-     pode ter mudado depois da criação. */
   _casaUnidade(origem, item) {
-    if (!origem || !item) return false;
-    if (this._casaTopico(origem, item.nome, item.disciplina)) return true;
-    const a = ReforcoEngine.norm(origem.disciplina || ''), b = ReforcoEngine.norm(item.disciplina || '');
-    if (a && b && a !== b) return false;
-    const kt = ReforcoEngine.norm(origem.topico || '');
-    if (item.membros && item.membros.length > 1 && item.membros.some(n => ReforcoEngine.norm(n) === kt)) return true;
-    const mb = (origem.escopo && origem.escopo.membros) || null;
-    const kn = ReforcoEngine.norm(item.nome || '');
-    return !!(mb && mb.length > 1 && mb.some(n => ReforcoEngine.norm(n) === kn));
+    return !!(typeof MotorSugestao !== 'undefined' && MotorSugestao.mesmaUnidade(origem, item));
   },
-  /* A unidade do Plano correspondente a um nome — é dela que saem os membros de
-     um bloco e o custo estimado. Um lugar só: a busca estava escrita duas vezes
-     dentro da mesma função, e agora serve também o portão de confirmação. */
-  _unidadeDoPlano(topico, disciplina) {
-    const r0 = this._planoRef();
-    return [].concat((r0 && r0.itens) || [], (r0 && r0.pequenas) || [])
+  _unidadeDoMotor(topico, disciplina) {
+    const r = this._motorRef();
+    return [].concat((r && r.todos) || [], (r && r.itens) || [])
       .find(t => this._casaTopico({ topico: t.nome, disciplina: t.disciplina }, topico, disciplina)) || null;
   },
-  /* ── O PORTÃO DA SOBREPOSIÇÃO ─────────────────────────────────────────────
-     Bloquear seria errado: atacar um subtópico específico dentro de uma frente
-     já aberta é estudo normal. Criar em silêncio também: a dobra de volume
-     rebaixa a calibragem e, com ela, o custo de TODO assunto do Plano. Então a
-     tela pergunta, dizendo qual atividade cobre qual e o que a dobra custa. */
   async _confirmarSobreposicao(topico, disciplina) {
-    const u = this._unidadeDoPlano(topico, disciplina);
-    const so = PlanoEngine.atividadeSobreposta(topico, disciplina, u && u.membros);
+    const u = this._unidadeDoMotor(topico, disciplina);
+    const so = MotorCiclo.atividadeSobreposta(topico, disciplina, u && u.membros);
     if (!so) return true;
     const dela = so.extra.titulo || so.noDela;
-    const frase = (so.relacao === 'cobre')
-      ? `A atividade aberta <b>${escapeHtml(dela)}</b> mede <b>${escapeHtml(so.noDela)}</b>, que <b>contém</b> "${escapeHtml(topico)}".`
-      : `A atividade aberta <b>${escapeHtml(dela)}</b> mede <b>${escapeHtml(so.noDela)}</b>, que está <b>dentro</b> de "${escapeHtml(topico)}".`;
     return !!(await UI.confirm(
-      frase + ' As questões que você resolver vão contar nas <b>duas</b>.<br><br>'
-      + 'Nas barras de progresso isso é justo — cada uma mede o escopo que declarou. '
-      + 'Na <b>calibragem</b> não: o mesmo volume entra duas vezes no total, e o '
-      + '"questões por ponto" que o Plano aprende com você sai <b>subestimado</b>, '
-      + 'rebaixando o custo estimado de todo assunto.<br><br>'
-      + 'Se a ideia é mesmo afunilar, considere encerrar a atividade mais ampla primeiro.',
-      { title: 'Duas atividades, as mesmas questões', okText: 'Criar assim mesmo', html: true }));
+      'Já existe uma atividade aberta na mesma disciplina/escopo: <b>' + escapeHtml(dela) + '</b>.<br><br>'
+      + 'O Motor trabalha com uma frente ativa por disciplina em cada rodada. '
+      + 'Finalize ou aguarde o próximo retrato recalcular essa matéria antes de abrir outra.',
+      { title: 'Frente já em andamento', okText: 'Voltar', html: true }));
   },
-  // `lote` = criação em série: sem aviso por item e sem repintar a cada um.
-  // Devolve true quando a atividade nasceu, para o chamador contar.
-  /* `sugerido` é a frente como o Motor a devolveu (margem, bloco, membros).
-     Ela é opcional: o portão continua servindo a quem cria uma atividade
-     direto de um nó da árvore, sem passar pela fila. */
-  criarExtraDoPlano(topico, disciplina, alvo, motivo, lote, sugerido) {
-    /* Só uma atividade ABERTA bloqueia. Uma já encerrada é história: o assunto
-       pode ter voltado a cair — e no caso do veredito "não funcionou" ele
-       PRECISA de um ataque novo, de outro tipo. Recusar por causa dela
-       trancava justamente o assunto que mais pede uma segunda tentativa. */
-    /* A unidade do Plano vem ANTES da trava: é dela que sai a lista de tópicos
-       que um bloco cobre, e sem ela a trava não veria a atividade aberta em um
-       membro. Ela também é o item que a origem lê para gravar o escopo. */
-    const alvoTop = sugerido || this._unidadeDoPlano(topico, disciplina);
-    const unidade = alvoTop || { nome: topico, disciplina: disciplina || '' };
-    const jaTem = DB.getExtras().find(e => e.status !== 'concluida' && this._casaUnidade(e.origemPlano, unidade));
-    if (jaTem) { if (!lote) showToast('Já existe uma atividade em aberto para "' + topico + '"'); return false; }
-    /* SOBREPOSIÇÃO DE ESCOPO. Em série a regra é a da duplicata: não cria e o
-       chamador conta. No clique, quem decide é a pessoa — e ela decide ANTES,
-       no portão de confirmação (`_confirmarSobreposicao`), porque aqui não há
-       como esperar por um diálogo sem tornar toda a criação assíncrona. */
-    if (lote && PlanoEngine.atividadeSobreposta(topico, disciplina, unidade.membros)) return false;
-    const diag = motivo === 'diagnostico';
+  criarExtraDoMotor(topico, disciplina, alvo, motivo, lote, sugerido) {
+    const item = sugerido || this._unidadeDoMotor(topico, disciplina) || { nome: topico, disciplina: disciplina || '' };
+    const kd = ReforcoEngine.norm(disciplina || '');
+    const ativaNaDisc = DB.getExtras().find(e => {
+      if (e.status === 'concluida' || typeof MotorCiclo === 'undefined') return false;
+      const o = MotorCiclo.origemDe(e);
+      return o && ReforcoEngine.norm(o.disciplina || '') === kd;
+    });
+    if (ativaNaDisc) {
+      if (!lote) showToast('Esta disciplina já tem uma frente do Motor em andamento');
+      return false;
+    }
+    if (MotorCiclo.atividadeSobreposta(topico, disciplina, item.membros)) return false;
     const e = DB.addExtra({
-      titulo: PlanoCiclo.titulo(topico, motivo, unidade.membros),
+      titulo: MotorCiclo.titulo(topico, item.membros),
       tipo: 'questoes',
       disciplina: disciplina || '',
       unidade: 'questoes',
-      alvo: Math.max(1, parseInt(alvo, 10) || 30),
+      alvo: Math.max(1, parseInt(alvo, 10) || MotorSugestao.prefs().alvoQuestoes),
       periodo: 'unica',
       contaMetricas: false,
-      obs: diag
-        ? 'Gerado pelo Motor: amostra insuficiente. Resolva estas questões para saber se é fraqueza real.'
-        : 'Gerado pelo Motor de sugestão. Ao importar o próximo retrato do TEC, a métrica dirá se o assunto saiu da fila.'
+      obs: 'Gerado pelo Motor de sugestão. Um novo retrato recalcula o ranking e decide se esta matéria continua na rodada.'
     });
-    if (e) {
-      // um só lugar monta a origem: os dois portões gravam exatamente o mesmo
-      DB.updateExtra(e.id, { origemPlano: PlanoCiclo.origem(topico, disciplina, alvoTop, { motivo: motivo || 'reforco' }) });
-      if (!lote) {
-        showToast('Atividade criada: ' + (diag ? 'diagnosticar ' : 'reforçar ') + topico);
-        if (this.tecTab === 'motor') this.renderMotor();
-      }
-      return true;
+    if (!e) return false;
+    DB.updateExtra(e.id, { origemMotor: MotorCiclo.origem(topico, disciplina, item) });
+    if (!lote) {
+      showToast('Atividade do Motor criada: ' + topico);
+      if (this.tecTab === 'motor') this.renderMotor();
     }
-    return false;
+    return true;
   },
   /* Filtro do Motor: estado próprio, compartilhado com o Puxar do Motor.
      Vazio significa "todas". Trocar uma caixa repinta o resultado, mas reabre
@@ -1571,7 +1509,7 @@ const DesempenhoTecScreen = {
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
       const x = r.itens[Number(b.dataset.motorExtra)];
       if (!x) return;
-      this.criarExtraDoPlano(x.nome, x.disciplina, x.dose, 'reforco', false, x);
+      this.criarExtraDoMotor(x.nome, x.disciplina, x.dose, 'reforco', false, x);
     }));
   },
   _incidParsed: null,
