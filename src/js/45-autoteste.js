@@ -123,17 +123,17 @@ const AutoTeste = {
   /* param_search: o filtro precisa acertar tanto o que INCLUI quanto o que EXCLUI. */
   busca() {
     const C = (q) => FSRS.compilarBusca(q);
-    const card = { materia: 'Direito Tributário', topico: 'Imunidades', tipo: 'cloze',
+    const card = { materia: 'Direito Tributário', assunto: 'Imunidades', tipo: 'cloze',
       _deckNome: 'Leis', frente: 'Art. 150 da CF', verso: 'Vedações', favorito: true,
       suspenso: false, leech: false };
-    const outro = { materia: 'Raciocínio Lógico', topico: 'Proposições', tipo: 'basico',
+    const outro = { materia: 'Raciocínio Lógico', assunto: 'Proposições', tipo: 'basico',
       _deckNome: 'Exatas', frente: 'Tabela verdade', verso: '', favorito: false,
       suspenso: true, leech: true };
     this._ok('busca vazia = sem filtro', C('') === null && C('   ') === null);
     this._ok('materia: casa sem acento e sem caixa', C('materia:tributario')(card));
     this._ok('materia: não casa outro card', !C('materia:tributario')(outro));
     this._ok('aspas preservam o espaço', C('materia:"direito tributario"')(card));
-    this._ok('topico: funciona', C('topico:imunidades')(card) && !C('topico:imunidades')(outro));
+    this._ok('assunto: funciona', C('assunto:imunidades')(card) && !C('assunto:imunidades')(outro));
     this._ok('baralho: funciona', C('baralho:leis')(card) && !C('baralho:leis')(outro));
     this._ok('tipo: funciona', C('tipo:cloze')(card) && !C('tipo:cloze')(outro));
     this._ok('marca "favorito"', C('favorito')(card) && !C('favorito')(outro));

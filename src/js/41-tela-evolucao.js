@@ -272,7 +272,7 @@ const ConquistasEngine = {
       leisComMarcador: leis.filter(l => l.bookmark != null).length,
       decks: decks.length,
       materias: new Set(ent.map(e => e.subject).filter(Boolean)).size,
-      topicos: new Set(ent.map(e => e.topico).filter(Boolean).concat(cards.map(c => c.topico).filter(Boolean))).size,
+      topicos: new Set(ent.map(e => e.topico).filter(Boolean).concat(cards.map(c => c.assunto).filter(Boolean))).size,
       metodos: new Set(ent.map(e => e.method).filter(Boolean)).size,
       fases: new Set(ent.map(e => e.fase).filter(Boolean)).size,
       bancas: new Set(incid.map(r => r.banca).filter(Boolean)).size,

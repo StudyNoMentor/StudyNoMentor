@@ -3,7 +3,7 @@
    ============================================================ */
 const CardsScreen = {
   tab: 'revisar',
-  filters: { busca: '', materias: new Set(), topico: '', tipo: '', status: 'todos', favorito: false },
+  filters: { busca: '', materias: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
   _editingId: null,
   _reviewQueue: [], _reviewIdx: 0, _flipped: false,
   _importParsed: null,
@@ -26,8 +26,8 @@ const CardsScreen = {
     const { subs, decks } = this.materiaOptionsHtml(cur);
     mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
     // tópicos existentes nos cards
-    const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
-    $id('cards-f-topico').innerHTML = `<option value="">Todos os tópicos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
   populateTipoSelect() {
@@ -541,7 +541,7 @@ const CardsScreen = {
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
-          ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+          ${c.assunto ? `<span class="lei-tag ref">${escapeHtml(c.assunto)}</span>` : ''}
           ${c.tipo ? `<span class="cards-type-tag">${escapeHtml(c.tipo)}</span>` : ''}
           <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" id="cards-review-fav" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
         </div>
@@ -928,7 +928,7 @@ const CardsScreen = {
             </label>
             <span class="mini-card-badges">
               <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
-              ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+              ${c.assunto ? `<span class="lei-tag ref">${escapeHtml(c.assunto)}</span>` : ''}
               ${c.banca ? `<span class="lei-tag" style="background:var(--accent);color:#fff;" title="Banca">🏛️ ${escapeHtml(c.banca)}</span>` : ''}
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
@@ -1116,16 +1116,16 @@ const CardsScreen = {
     $id('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     $id('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
-    let destSel = '', topico = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
+    let destSel = '', assunto = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
-      topico = c.topico || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
+      assunto = c.assunto || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
-    $id('card-topico').value = topico;
-    const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
-    $id('card-topico-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $id('card-assunto').value = assunto;
+    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Banca: sugere as bancas já importadas na Incidência + as já usadas em outros cards
     $id('card-banca').value = banca;
     const bancasImport = (DB.getBancas ? DB.getBancas() : []);
@@ -1155,7 +1155,7 @@ const CardsScreen = {
       return html.length > 0;
     };
     const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
-    return rico('card-frente') || rico('card-verso') || campo('card-topico') || campo('card-banca');
+    return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-banca');
   },
   // Fecha pedindo confirmação quando há conteúdo não salvo
   async fecharCardComAviso() {
@@ -1188,7 +1188,7 @@ const CardsScreen = {
       if (!CardEngine.plain(verso)) { showToast('Preencha o verso'); return null; }
     }
     const data = {
-      topico: $id('card-topico').value,
+      assunto: $id('card-assunto').value,
       banca: $id('card-banca').value,
       tipo: $id('card-tipo').value,
       kind: kind === 'cloze' ? 'cloze' : 'basic',
@@ -1290,7 +1290,7 @@ const CardsScreen = {
     cards.forEach(c => {
       const logs = revlog.filter(r => r.cardId === c.id).sort((a,b) => (a.ts||0) - (b.ts||0));
       byCard[c.id] = {
-        id:c.id, deckId:c.deckId||null, materia:c.materia||null, topico:c.topico||null, tipo:c.tipo||null,
+        id:c.id, deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, tipo:c.tipo||null,
         createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
         due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
         ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
@@ -1357,7 +1357,7 @@ const CardsScreen = {
     const lines = cards.map(c => {
       const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
       const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
-      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.topico, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
+      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
       return `${front}\t${back}\t${tags}`;
     });
     const header = '#separator:tab\n#html:true\n#tags column:3\n';
@@ -1433,12 +1433,12 @@ const CardsScreen = {
       const idMap = {};
       backupDecks.forEach(bd => { const nd = DB.addDeck(bd.nome); if (nd) idMap[bd.id] = nd.id; });
       this._importParsed.cards.forEach(c => {
-        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, topico: c.topico || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
+        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, assunto: c.assunto || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
         count++;
       });
     } else {
       this._importParsed.rows.forEach(r => {
-        DB.addCard({ deckId, materia, topico: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
+        DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
         count++;
       });
     }
@@ -1588,7 +1588,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     { key: 'historicalRetention', label: '🕰️ Retenção histórica presumida (%)', type: 'number', value: Math.round((cfg.historicalRetention || 0.9) * 100), min: 50, max: 99,
       hint: 'Usada para converter cards antigos do SM-2 em estado de memória do FSRS. É a pergunta que o Anki faz ao migrar. Padrão: 90.' },
     { key: 'paramSearch', label: '🔎 Cards que treinam os parâmetros', type: 'text', value: cfg.paramSearch || '', placeholder: 'ex.: materia:tributário -suspenso',
-      hint: 'Filtra quem entra no treino. Os parâmetros descrevem COMO VOCÊ ESQUECE — misturar lei seca com raciocínio lógico produz uma média que não descreve nenhum dos dois. Aceita materia: topico: tipo: baralho: favorito suspenso leech, texto livre e "-" para excluir. Vazio = todos.' }
+      hint: 'Filtra quem entra no treino. Os parâmetros descrevem COMO VOCÊ ESQUECE — misturar lei seca com raciocínio lógico produz uma média que não descreve nenhum dos dois. Aceita materia: assunto: tipo: baralho: favorito suspenso leech, texto livre e "-" para excluir. Vazio = todos.' }
   );
 
   /* ── PARÂMETROS DO CLÁSSICO (SM-2) ─────────────────────────────────────────

@@ -392,12 +392,12 @@ const FSRS = {
 
      Sintaxe aceita (tudo opcional, separado por espaço, tudo em E lógico):
        materia:tributário     campo começa com o texto (sem acento, sem caixa)
-       topico:imunidades      idem
+       assunto:imunidades     idem
        tipo:cloze             idem
        baralho:leis           idem
        favorito · suspenso · leech         exige a marca
        -favorito · -suspenso · -leech      exige a AUSÊNCIA da marca
-       qualquer outra palavra              busca em frente/verso/matéria/tópico
+       qualquer outra palavra              busca em frente/verso/matéria/assunto
        -palavra                            exclui quem contém a palavra
 
      Termo com aspas mantém o espaço: materia:"direito tributário".
@@ -410,7 +410,7 @@ const FSRS = {
     // divide respeitando aspas
     const termos = (q.match(/-?\w+:"[^"]*"|-?"[^"]*"|\S+/g) || []);
     const testes = [];
-    const CAMPOS = { materia: 'materia', topico: 'topico', tipo: 'tipo', baralho: '_deckNome' };
+    const CAMPOS = { materia: 'materia', assunto: 'assunto', tipo: 'tipo', baralho: '_deckNome' };
     const MARCAS = { favorito: 'favorito', suspenso: 'suspenso', leech: 'leech' };
     termos.forEach(bruto => {
       let t = bruto, neg = false;
@@ -430,7 +430,7 @@ const FSRS = {
       if (marca) { testes.push(c => (neg ? !c[marca] : !!c[marca])); return; }
       const alvo = norm(t);
       testes.push(c => {
-        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.topico);
+        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.assunto);
         const bate = blob.indexOf(alvo) >= 0;
         return neg ? !bate : bate;
       });
