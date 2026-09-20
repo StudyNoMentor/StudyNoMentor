@@ -980,6 +980,7 @@ const CardsScreen = {
           <span id="cards-sel-toggle-label">Selecionar todos</span>
         </label>
         <span class="cards-bulk-count" id="cards-sel-count"></span>
+        <button type="button" class="btn-secondary" id="cards-mover-sel" style="display:none;">📁 Mover p/ baralho</button>
         <button type="button" class="btn-danger" id="cards-del-sel" style="display:none;">Excluir selecionados</button>
       </div>
       <div class="cards-grid" id="cards-grid-meus">${filtered.slice(0, n).map(c => this.miniCardHtml(c)).join('')}</div>
@@ -997,10 +998,12 @@ const CardsScreen = {
     const selToggle = box.querySelector('#cards-sel-toggle');
     const selToggleLabel = box.querySelector('#cards-sel-toggle-label');
     const btnDel = box.querySelector('#cards-del-sel');
+    const btnMover = box.querySelector('#cards-mover-sel');
     const lblSel = box.querySelector('#cards-sel-count');
     const syncSel = () => {
       lblSel.textContent = sel.size ? sel.size + ' selecionado(s)' : '';
       btnDel.style.display = sel.size ? '' : 'none';
+      btnMover.style.display = sel.size ? '' : 'none';
       const todos = filtered.length > 0 && sel.size === filtered.length;
       selToggle.checked = todos;
       selToggle.indeterminate = sel.size > 0 && !todos;
@@ -1042,6 +1045,31 @@ const CardsScreen = {
         this._meusMostrando = 0;
         this.render();
         showToast(qtd + ' card(s) excluído(s) 🗑');
+      });
+    });
+    // Mover em massa: reatribui o baralho dos cards selecionados — sem tocar
+    // em assunto, banca ou histórico de revisão.
+    btnMover.addEventListener('click', () => {
+      const qtd = sel.size;
+      if (!qtd) return;
+      const decks = DB.getDecks();
+      if (!decks.length) { showToast('Crie um baralho primeiro em 📁 Criar baralho'); return; }
+      const opts = [{ value: '__nenhum__', label: '— Sem baralho —' }]
+        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome })));
+      UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
+        { title: '📁 Mover para baralho', okText: 'Mover' }
+      ).then((v) => {
+        if (!v) return;
+        const ids = new Set(sel);
+        const deckId = v.deck === '__nenhum__' ? null : v.deck;
+        const list = DB.getCards();
+        list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
+        DB.saveCards(list);
+        CardEngine.invalidateDueCache();
+        sel.clear();
+        this._meusMostrando = 0;
+        this.render();
+        showToast(qtd + ' card(s) movido(s) ✓');
       });
     });
     syncSel();
@@ -1245,17 +1273,34 @@ const CardsScreen = {
       return `<div class="deck-row" data-id="${d.id}">
         <input type="text" class="deck-name" value="${escapeHtml(d.nome)}">
         <span class="deck-count">${n} card(s)</span>
+        <button type="button" class="icon-btn deck-ver" title="Ver os cards deste baralho" aria-label="Ver os cards deste baralho">👁</button>
+        <button type="button" class="icon-btn deck-revisar" title="Revisar só este baralho" aria-label="Revisar só este baralho">▶</button>
         <button type="button" class="icon-btn danger deck-del" title="Excluir baralho" aria-label="Excluir baralho">×</button>
       </div>`;
     }).join('');
     box.querySelectorAll('.deck-row').forEach(row => {
       const id = row.dataset.id;
       row.querySelector('.deck-name').addEventListener('change', (e) => { DB.renameDeck(id, e.target.value); this.render(); });
+      row.querySelector('.deck-ver').addEventListener('click', () => this.irParaBaralho(id, 'meus'));
+      row.querySelector('.deck-revisar').addEventListener('click', () => this.irParaBaralho(id, 'revisar'));
       row.querySelector('.deck-del').addEventListener('click', async () => {
         if (!await UI.confirm('Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).')) return;
         DB.deleteDeck(id); this.renderDeckList(); this.render();
       });
     });
+  },
+  // Fecha o modal de baralhos e abre a aba pedida (Meus cards ou Revisar) já
+  // filtrada só por este baralho — o filtro fica valendo até ser trocado.
+  irParaBaralho(deckId, aba) {
+    $id('deck-modal').style.display = 'none';
+    this.tab = aba;
+    this.filters.materias = new Set(['deck:' + deckId]);
+    this._meusMostrando = 0;
+    this._reviewIdx = 0;
+    document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === aba));
+    this.render();
+    const mSel = document.getElementById('cards-f-materia');
+    if (mSel) mSel.value = 'deck:' + deckId;
   },
   addDeck() {
     const inp = document.getElementById('deck-new-input');
