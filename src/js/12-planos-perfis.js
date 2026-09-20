@@ -288,7 +288,7 @@ const ProfileManager = {
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const sub = k.slice(prefix.length);
-      if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
+      if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // lixeira técnica não entra no arquivo exportado
       data[sub] = localStorage.getItem(k);
     }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
