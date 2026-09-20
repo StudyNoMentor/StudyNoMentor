@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="veff4789d04">
+<meta name="diario-versao" content="va51b18b75f">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6626,7 +6626,7 @@ window.__relationalBoot = true;
   <section role="region" tabindex="-1" class="screen" id="screen-cards">
     <div class="page-header">
       <h2 class="page-title">🗂️ Cards de Revisão</h2>
-      <p class="page-subtitle">Revise por disciplina e tópico com repetição espaçada. Marque o que você já sabe e o app agenda a próxima revisão de cada card automaticamente.</p>
+      <p class="page-subtitle">Revise por matéria e assunto com repetição espaçada. Marque o que você já sabe e o app agenda a próxima revisão de cada card automaticamente.</p>
     </div>
 
     <div class="cards-topbar">
@@ -6659,12 +6659,12 @@ window.__relationalBoot = true;
       </div>
       <div id="cards-filter-body" style="padding: 14px 24px 20px;">
         <div class="field"><label for="cards-search">Buscar</label>
-          <input type="text" id="cards-search" placeholder="Buscar na frente, verso, tópico ou matéria..."></div>
+          <input type="text" id="cards-search" placeholder="Buscar na frente, verso, assunto ou matéria..."></div>
         <div class="field-group">
           <div class="field"><label for="cards-f-materia">Disciplina / baralho</label>
             <select id="cards-f-materia"><option value="">Todas</option></select></div>
-          <div class="field"><label for="cards-f-topico">Tópico</label>
-            <select id="cards-f-topico"><option value="">Todos os tópicos</option></select></div>
+          <div class="field"><label for="cards-f-assunto">Assunto</label>
+            <select id="cards-f-assunto"><option value="">Todos os assuntos</option></select></div>
           <div class="field"><label for="cards-f-tipo">Tipo</label>
             <select id="cards-f-tipo"><option value="">Todos os tipos</option></select></div>
         </div>
@@ -6715,11 +6715,11 @@ window.__relationalBoot = true;
       </div>
       <div class="cards-modal-body">
         <div class="field-group">
-          <div class="field"><label for="card-destino">Baralho ou disciplina <span class="req">*</span></label>
+          <div class="field"><label for="card-destino">Matéria <span class="req">*</span></label>
             <select id="card-destino"></select></div>
-          <div class="field"><label for="card-topico">Tópico <span class="opt">(opcional)</span></label>
-            <input type="text" id="card-topico" list="card-topico-list" placeholder="Ex.: Crimes contra a Adm.">
-            <datalist id="card-topico-list"></datalist></div>
+          <div class="field"><label for="card-assunto">Assunto <span class="opt">(opcional)</span></label>
+            <input type="text" id="card-assunto" list="card-assunto-list" placeholder="Ex.: Crimes contra a Adm.">
+            <datalist id="card-assunto-list"></datalist></div>
           <div class="field"><label for="card-banca">Banca <span class="opt">(opcional)</span></label>
             <input type="text" id="card-banca" list="card-banca-list" placeholder="Ex.: FCC, FGV, Cebraspe">
             <datalist id="card-banca-list"></datalist></div>
@@ -16122,7 +16122,7 @@ const DB = {
     cards.forEach(c => { if (c.deckId === id) { c.deckId = null; touched = true; } });
     if (touched) this.saveCards(cards);
   },
-  // Card: { id, deckId|null, materia|null, topico, tipo, frente, verso, favorito,
+  // Card: { id, deckId|null, materia|null, assunto, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
   getCards() { return this._get(this.KEYS.cards, []); },
   saveCards(list) { this._set(this.KEYS.cards, list); },
@@ -16138,7 +16138,7 @@ const DB = {
       id: this._uid(),
       deckId: data.deckId || null,
       materia: data.materia || null,
-      topico: (data.topico || '').trim(),
+      assunto: (data.assunto || '').trim(),
       banca: (data.banca || '').trim(),
       tipo: data.tipo || '',
       kind: data.kind || 'basic',      // 'basic' | 'cloze'
@@ -20843,12 +20843,12 @@ const FSRS = {
 
      Sintaxe aceita (tudo opcional, separado por espaço, tudo em E lógico):
        materia:tributário     campo começa com o texto (sem acento, sem caixa)
-       topico:imunidades      idem
+       assunto:imunidades     idem
        tipo:cloze             idem
        baralho:leis           idem
        favorito · suspenso · leech         exige a marca
        -favorito · -suspenso · -leech      exige a AUSÊNCIA da marca
-       qualquer outra palavra              busca em frente/verso/matéria/tópico
+       qualquer outra palavra              busca em frente/verso/matéria/assunto
        -palavra                            exclui quem contém a palavra
 
      Termo com aspas mantém o espaço: materia:"direito tributário".
@@ -20861,7 +20861,7 @@ const FSRS = {
     // divide respeitando aspas
     const termos = (q.match(/-?\w+:"[^"]*"|-?"[^"]*"|\S+/g) || []);
     const testes = [];
-    const CAMPOS = { materia: 'materia', topico: 'topico', tipo: 'tipo', baralho: '_deckNome' };
+    const CAMPOS = { materia: 'materia', assunto: 'assunto', tipo: 'tipo', baralho: '_deckNome' };
     const MARCAS = { favorito: 'favorito', suspenso: 'suspenso', leech: 'leech' };
     termos.forEach(bruto => {
       let t = bruto, neg = false;
@@ -20881,7 +20881,7 @@ const FSRS = {
       if (marca) { testes.push(c => (neg ? !c[marca] : !!c[marca])); return; }
       const alvo = norm(t);
       testes.push(c => {
-        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.topico);
+        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.assunto);
         const bate = blob.indexOf(alvo) >= 0;
         return neg ? !bate : bate;
       });
@@ -21654,18 +21654,18 @@ const CardEngine = {
     if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
     return (card.due || todayCards()) <= todayCards(); // agendamento por dia
   },
-  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, topico, tipo, status, favorito, deckId }
+  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, assunto, tipo, status, favorito, deckId }
   applyFilters(cards, f) {
     f = f || {};
     const busca = (f.busca || '').trim().toLowerCase();
     return cards.filter(c => {
       if (f.materias && f.materias.size && !(c.materia && f.materias.has(c.materia)) && !(c.deckId && f.materias.has('deck:' + c.deckId))) return false;
-      if (f.topico && (c.topico || '') !== f.topico) return false;
+      if (f.assunto && (c.assunto || '') !== f.assunto) return false;
       if (f.tipo && (c.tipo || '') !== f.tipo) return false;
       if (f.status && f.status !== 'todos' && (c.status || 'pendente') !== f.status) return false;
       if (f.favorito && !c.favorito) return false;
       if (busca) {
-        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.topico || '') + ' ' + (c.materia || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
+        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.assunto || '') + ' ' + (c.materia || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
         if (!hay.includes(busca)) return false;
       }
       return true;
@@ -23997,7 +23997,7 @@ const ConquistasEngine = {
       leisComMarcador: leis.filter(l => l.bookmark != null).length,
       decks: decks.length,
       materias: new Set(ent.map(e => e.subject).filter(Boolean)).size,
-      topicos: new Set(ent.map(e => e.topico).filter(Boolean).concat(cards.map(c => c.topico).filter(Boolean))).size,
+      topicos: new Set(ent.map(e => e.topico).filter(Boolean).concat(cards.map(c => c.assunto).filter(Boolean))).size,
       metodos: new Set(ent.map(e => e.method).filter(Boolean)).size,
       fases: new Set(ent.map(e => e.fase).filter(Boolean)).size,
       bancas: new Set(incid.map(r => r.banca).filter(Boolean)).size,
@@ -27292,7 +27292,7 @@ window.addEventListener('screen:activated', (e) => {
    ============================================================ */
 const CardsScreen = {
   tab: 'revisar',
-  filters: { busca: '', materias: new Set(), topico: '', tipo: '', status: 'todos', favorito: false },
+  filters: { busca: '', materias: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
   _editingId: null,
   _reviewQueue: [], _reviewIdx: 0, _flipped: false,
   _importParsed: null,
@@ -27315,8 +27315,8 @@ const CardsScreen = {
     const { subs, decks } = this.materiaOptionsHtml(cur);
     mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
     // tópicos existentes nos cards
-    const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
-    $id('cards-f-topico').innerHTML = `<option value="">Todos os tópicos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
   populateTipoSelect() {
@@ -27830,7 +27830,7 @@ const CardsScreen = {
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
-          ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+          ${c.assunto ? `<span class="lei-tag ref">${escapeHtml(c.assunto)}</span>` : ''}
           ${c.tipo ? `<span class="cards-type-tag">${escapeHtml(c.tipo)}</span>` : ''}
           <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" id="cards-review-fav" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
         </div>
@@ -28217,7 +28217,7 @@ const CardsScreen = {
             </label>
             <span class="mini-card-badges">
               <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
-              ${c.topico ? `<span class="lei-tag ref">${escapeHtml(c.topico)}</span>` : ''}
+              ${c.assunto ? `<span class="lei-tag ref">${escapeHtml(c.assunto)}</span>` : ''}
               ${c.banca ? `<span class="lei-tag" style="background:var(--accent);color:#fff;" title="Banca">🏛️ ${escapeHtml(c.banca)}</span>` : ''}
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
@@ -28405,16 +28405,16 @@ const CardsScreen = {
     $id('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     $id('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
-    let destSel = '', topico = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
+    let destSel = '', assunto = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
-      topico = c.topico || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
+      assunto = c.assunto || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
-    $id('card-topico').value = topico;
-    const tops = [...new Set(DB.getCards().map(c => c.topico).filter(Boolean))].sort();
-    $id('card-topico-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    $id('card-assunto').value = assunto;
+    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Banca: sugere as bancas já importadas na Incidência + as já usadas em outros cards
     $id('card-banca').value = banca;
     const bancasImport = (DB.getBancas ? DB.getBancas() : []);
@@ -28444,7 +28444,7 @@ const CardsScreen = {
       return html.length > 0;
     };
     const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
-    return rico('card-frente') || rico('card-verso') || campo('card-topico') || campo('card-banca');
+    return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-banca');
   },
   // Fecha pedindo confirmação quando há conteúdo não salvo
   async fecharCardComAviso() {
@@ -28477,7 +28477,7 @@ const CardsScreen = {
       if (!CardEngine.plain(verso)) { showToast('Preencha o verso'); return null; }
     }
     const data = {
-      topico: $id('card-topico').value,
+      assunto: $id('card-assunto').value,
       banca: $id('card-banca').value,
       tipo: $id('card-tipo').value,
       kind: kind === 'cloze' ? 'cloze' : 'basic',
@@ -28579,7 +28579,7 @@ const CardsScreen = {
     cards.forEach(c => {
       const logs = revlog.filter(r => r.cardId === c.id).sort((a,b) => (a.ts||0) - (b.ts||0));
       byCard[c.id] = {
-        id:c.id, deckId:c.deckId||null, materia:c.materia||null, topico:c.topico||null, tipo:c.tipo||null,
+        id:c.id, deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, tipo:c.tipo||null,
         createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
         due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
         ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
@@ -28646,7 +28646,7 @@ const CardsScreen = {
     const lines = cards.map(c => {
       const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
       const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
-      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.topico, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
+      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
       return `${front}\t${back}\t${tags}`;
     });
     const header = '#separator:tab\n#html:true\n#tags column:3\n';
@@ -28722,12 +28722,12 @@ const CardsScreen = {
       const idMap = {};
       backupDecks.forEach(bd => { const nd = DB.addDeck(bd.nome); if (nd) idMap[bd.id] = nd.id; });
       this._importParsed.cards.forEach(c => {
-        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, topico: c.topico || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
+        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, assunto: c.assunto || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
         count++;
       });
     } else {
       this._importParsed.rows.forEach(r => {
-        DB.addCard({ deckId, materia, topico: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
+        DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
         count++;
       });
     }
@@ -28877,7 +28877,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     { key: 'historicalRetention', label: '🕰️ Retenção histórica presumida (%)', type: 'number', value: Math.round((cfg.historicalRetention || 0.9) * 100), min: 50, max: 99,
       hint: 'Usada para converter cards antigos do SM-2 em estado de memória do FSRS. É a pergunta que o Anki faz ao migrar. Padrão: 90.' },
     { key: 'paramSearch', label: '🔎 Cards que treinam os parâmetros', type: 'text', value: cfg.paramSearch || '', placeholder: 'ex.: materia:tributário -suspenso',
-      hint: 'Filtra quem entra no treino. Os parâmetros descrevem COMO VOCÊ ESQUECE — misturar lei seca com raciocínio lógico produz uma média que não descreve nenhum dos dois. Aceita materia: topico: tipo: baralho: favorito suspenso leech, texto livre e "-" para excluir. Vazio = todos.' }
+      hint: 'Filtra quem entra no treino. Os parâmetros descrevem COMO VOCÊ ESQUECE — misturar lei seca com raciocínio lógico produz uma média que não descreve nenhum dos dois. Aceita materia: assunto: tipo: baralho: favorito suspenso leech, texto livre e "-" para excluir. Vazio = todos.' }
   );
 
   /* ── PARÂMETROS DO CLÁSSICO (SM-2) ─────────────────────────────────────────
@@ -29104,17 +29104,17 @@ const AutoTeste = {
   /* param_search: o filtro precisa acertar tanto o que INCLUI quanto o que EXCLUI. */
   busca() {
     const C = (q) => FSRS.compilarBusca(q);
-    const card = { materia: 'Direito Tributário', topico: 'Imunidades', tipo: 'cloze',
+    const card = { materia: 'Direito Tributário', assunto: 'Imunidades', tipo: 'cloze',
       _deckNome: 'Leis', frente: 'Art. 150 da CF', verso: 'Vedações', favorito: true,
       suspenso: false, leech: false };
-    const outro = { materia: 'Raciocínio Lógico', topico: 'Proposições', tipo: 'basico',
+    const outro = { materia: 'Raciocínio Lógico', assunto: 'Proposições', tipo: 'basico',
       _deckNome: 'Exatas', frente: 'Tabela verdade', verso: '', favorito: false,
       suspenso: true, leech: true };
     this._ok('busca vazia = sem filtro', C('') === null && C('   ') === null);
     this._ok('materia: casa sem acento e sem caixa', C('materia:tributario')(card));
     this._ok('materia: não casa outro card', !C('materia:tributario')(outro));
     this._ok('aspas preservam o espaço', C('materia:"direito tributario"')(card));
-    this._ok('topico: funciona', C('topico:imunidades')(card) && !C('topico:imunidades')(outro));
+    this._ok('assunto: funciona', C('assunto:imunidades')(card) && !C('assunto:imunidades')(outro));
     this._ok('baralho: funciona', C('baralho:leis')(card) && !C('baralho:leis')(outro));
     this._ok('tipo: funciona', C('tipo:cloze')(card) && !C('tipo:cloze')(outro));
     this._ok('marca "favorito"', C('favorito')(card) && !C('favorito')(outro));
@@ -30438,7 +30438,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     CardsScreen.filters.materias = e.target.value ? new Set([e.target.value]) : new Set();
     CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
   });
-  on('cards-f-topico', 'change', (e) => { CardsScreen.filters.topico = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-assunto', 'change', (e) => { CardsScreen.filters.assunto = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
   on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
   // status pills
   document.querySelectorAll('#cards-f-status .cards-pill').forEach(p => p.addEventListener('click', () => {
@@ -39334,7 +39334,7 @@ const RelationalStore = {
     }));
     putGroups(d.decks,'decks',r=>({id:this._legacyId(r.deck_id),nome:r.name,createdAt:r.created_at}));
     putGroups(d.cards,'cards',r=>Object.assign({},r.extra||{},{
-      id:this._legacyId(r.card_id),deckId:r.deck_id||null,materia:r.subject||null,topico:r.topic||null,tipo:r.card_type||null,
+      id:this._legacyId(r.card_id),deckId:r.deck_id||null,materia:r.subject||null,assunto:r.topic||null,tipo:r.card_type||null,
       frente:r.front||'',verso:r.back||'',favorito:!!r.favorite,status:r.status||null,banca:r.banca||null,kind:r.kind||null,
       due:r.due||null,dueTs:r.due_ts==null?null:Number(r.due_ts),ease:r.ease==null?null:Number(r.ease),
       intervalo:r.interval_value==null?null:Number(r.interval_value),lapses:r.lapses,learnStep:r.learn_step,reps:r.reps,
@@ -39614,8 +39614,8 @@ const RelationalStore = {
     if(sub==='entries')return this._syncById('study_entries',profileId,planId,'entry_id',oldA,newA,(x,i)=>Object.assign(base(),{entry_id:String(x.id),study_date:x.date,subject:x.subject||'',lesson:x.lesson||'',method:x.method||'',duration_min:Number(x.durationMin)||0,correct:Number(x.correct)||0,total:Number(x.total)||0,page_start:x.pageStart==null?null:Number(x.pageStart),page_end:x.pageEnd==null?null:Number(x.pageEnd),video_start:x.videoStart==null?null:Number(x.videoStart),video_end:x.videoEnd==null?null:Number(x.videoEnd),comment:x.comment||'',created_at:x.createdAt||null,updated_at:new Date().toISOString(),position:i+1}),'profile_id,plan_id,entry_id');
     if(sub==='decks')return this._syncById('study_decks',profileId,planId,'deck_id',oldA,newA,(x,i)=>Object.assign(base(),{deck_id:String(x.id),name:x.nome||'',created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,deck_id');
     if(sub==='cards')return this._syncById('study_cards',profileId,planId,'card_id',oldA,newA,(x,i)=>Object.assign(base(),{
-      card_id:String(x.id),deck_id:x.deckId==null?null:String(x.deckId),subject:x.materia||null,topic:x.topico||null,card_type:x.tipo||null,front:x.frente||'',back:x.verso||'',favorite:!!x.favorito,status:x.status||null,banca:x.banca||null,kind:x.kind||null,due:x.due==null?null:String(x.due),due_ts:x.dueTs==null?null:Number(x.dueTs),ease:x.ease==null?null:Number(x.ease),interval_value:x.intervalo==null?null:Number(x.intervalo),lapses:x.lapses==null?null:Number(x.lapses),learn_step:x.learnStep==null?null:Number(x.learnStep),reps:x.reps==null?null:Number(x.reps),phase:x.phase||null,reversed_of:x.reversedOf==null?null:String(x.reversedOf),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),algo:x.algo||null,last_review:x.lastReview||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,position:i+1,
-      extra:Object.fromEntries(Object.entries(x).filter(([k])=>!['id','deckId','materia','topico','tipo','frente','verso','favorito','status','banca','kind','due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s','algo','lastReview','createdAt','updatedAt'].includes(k)))
+      card_id:String(x.id),deck_id:x.deckId==null?null:String(x.deckId),subject:x.materia||null,topic:x.assunto||null,card_type:x.tipo||null,front:x.frente||'',back:x.verso||'',favorite:!!x.favorito,status:x.status||null,banca:x.banca||null,kind:x.kind||null,due:x.due==null?null:String(x.due),due_ts:x.dueTs==null?null:Number(x.dueTs),ease:x.ease==null?null:Number(x.ease),interval_value:x.intervalo==null?null:Number(x.intervalo),lapses:x.lapses==null?null:Number(x.lapses),learn_step:x.learnStep==null?null:Number(x.learnStep),reps:x.reps==null?null:Number(x.reps),phase:x.phase||null,reversed_of:x.reversedOf==null?null:String(x.reversedOf),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),algo:x.algo||null,last_review:x.lastReview||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,position:i+1,
+      extra:Object.fromEntries(Object.entries(x).filter(([k])=>!['id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind','due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s','algo','lastReview','createdAt','updatedAt'].includes(k)))
     }),'profile_id,plan_id,card_id');
     if(sub==='leis')return this._syncById('study_laws',profileId,planId,'law_id',oldA,newA,(x,i)=>Object.assign(base(),{law_id:String(x.id),title:x.titulo||null,reference:x.referencia||null,subject:x.materia||null,body:x.texto||'',bookmarked:x.bookmark==null?null:!!x.bookmark,bookmark_text:x.bookmarkTxt||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,options:x.opts||{},markings:x.marcacoes||[],suppressed:x.suppressed==null?null:x.suppressed,rotation:x.rodizio==null?null:x.rodizio,position:i+1,extra:{}}),'profile_id,plan_id,law_id');
     if(sub==='links')return this._syncById('study_links',profileId,planId,'link_id',oldA,newA,(x,i)=>Object.assign(base(),{link_id:String(x.id),name:x.nome||'',category:x.categoria||null,url:x.url||'',color:x.cor||null,logo:x.logo||null,created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,link_id');

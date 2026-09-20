@@ -401,18 +401,18 @@ const CardEngine = {
     if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
     return (card.due || todayCards()) <= todayCards(); // agendamento por dia
   },
-  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, topico, tipo, status, favorito, deckId }
+  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, assunto, tipo, status, favorito, deckId }
   applyFilters(cards, f) {
     f = f || {};
     const busca = (f.busca || '').trim().toLowerCase();
     return cards.filter(c => {
       if (f.materias && f.materias.size && !(c.materia && f.materias.has(c.materia)) && !(c.deckId && f.materias.has('deck:' + c.deckId))) return false;
-      if (f.topico && (c.topico || '') !== f.topico) return false;
+      if (f.assunto && (c.assunto || '') !== f.assunto) return false;
       if (f.tipo && (c.tipo || '') !== f.tipo) return false;
       if (f.status && f.status !== 'todos' && (c.status || 'pendente') !== f.status) return false;
       if (f.favorito && !c.favorito) return false;
       if (busca) {
-        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.topico || '') + ' ' + (c.materia || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
+        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.assunto || '') + ' ' + (c.materia || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
         if (!hay.includes(busca)) return false;
       }
       return true;

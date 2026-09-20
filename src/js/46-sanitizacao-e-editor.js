@@ -366,7 +366,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     CardsScreen.filters.materias = e.target.value ? new Set([e.target.value]) : new Set();
     CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
   });
-  on('cards-f-topico', 'change', (e) => { CardsScreen.filters.topico = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-assunto', 'change', (e) => { CardsScreen.filters.assunto = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
   on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
   // status pills
   document.querySelectorAll('#cards-f-status .cards-pill').forEach(p => p.addEventListener('click', () => {
