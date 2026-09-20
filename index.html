@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd5cb85db87">
+<meta name="diario-versao" content="veff4789d04">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -29341,16 +29341,18 @@ const AutoTeste = {
      dado fora do alcance é encontrável, e restaurar nunca sobrescreve por
      conta própria. */
   idsDePerfilSaoValidos() {
-    this._ok('idValido aceita um UUID de verdade',
-      ProfileManager.idValido('550e8400-e29b-41d4-a716-446655440000') === true);
-    this._ok('idValido rejeita o formato antigo (u_...)',
-      ProfileManager.idValido('u_lz3k9f2a') === false);
-    this._ok('idValido rejeita vazio/indefinido',
-      ProfileManager.idValido('') === false && ProfileManager.idValido(undefined) === false);
-    const criado = ProfileManager.createProfile({ nome: '__t_uuid__' });
+    /* O ID persistente não é mais validado/gerado pelo ProfileManager.
+       CloudStore.createRow() omite `id` no INSERT e recebe do PostgreSQL o UUID
+       definitivo. O helper local existe só para a projeção em RAM. */
+    const criar = String(CloudStore.createRow);
+    this._ok('perfil persistente deixa o PostgreSQL gerar o UUID',
+      /\.insert\s*\(\s*\{/.test(criar) &&
+      !/\n\s*id\s*:/.test(criar) &&
+      /\.select\(['"]id,created_at['"]\)/.test(criar));
+    const criado = ProfileManager.createProfile({ nome: '__t_projection__' });
     try {
-      this._ok('createProfile gera um id que passa em idValido',
-        ProfileManager.idValido(criado), criado);
+      this._ok('createProfile cria apenas a projeção local necessária às telas',
+        !!criado && ProfileManager.getProfiles().some(p => p.id === criado), criado);
     } finally {
       ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(p => p.id !== criado));
     }
