@@ -16,16 +16,6 @@ const DB = {
     const p = this._profilePrefix();
     return { plans: p + 'planejamentos', activePlan: p + 'active-plan' };
   },
-  // Chaves "legadas" (versão sem planejamentos) — usadas só na migração inicial
-  LEGACY_KEYS: {
-    entries: 'diario-estudos:entries',
-    subjects: 'diario-estudos:subjects',
-    methods: 'diario-estudos:methods',
-    phases: 'diario-estudos:phases',
-    currentCycle: 'diario-estudos:current-cycle',
-    cycleHistory: 'diario-estudos:cycle-history',
-    tracks: 'diario-estudos:tracks'
-  },
   /* ── O ID DO PLANEJAMENTO ATIVO, À PROVA DE ASPAS ─────────────────────────
      Este id entra na composição de TODAS as chaves do planejamento
      (`p:<id>:entries`, `p:<id>:cards`…). Se ele vier com aspas — o que acontece
