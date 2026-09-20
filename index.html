@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v57de7e3571">
+<meta name="diario-versao" content="v51571f5b98">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -5842,17 +5842,6 @@ window.__relationalBoot = true;
 
 <!-- Bloqueio de sessão única: evita a MESMA conta aberta em várias abas/janelas
      ao mesmo tempo, que causa conflito de cache e de registros. -->
-<div id="single-session-overlay" class="single-session-overlay" style="display:none;">
-  <div class="single-session-box">
-    <div class="ss-ico" id="ss-ico">🔒</div>
-    <h2 id="ss-title">Diário já aberto em outra janela</h2>
-    <p id="ss-desc">Para proteger seus dados, o Diário de Estudos funciona em <strong>uma aba/janela por vez</strong>. Já existe uma sessão ativa deste app neste navegador.</p>
-    <p class="ss-sub" id="ss-sub">Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever alterações na sincronização.</p>
-    <div class="ss-actions">
-      <button type="button" class="btn-primary" id="single-session-takeover">Usar aqui (encerrar as outras)</button>
-      <button type="button" class="btn-secondary" id="single-session-reload">Recarregar</button>
-    </div>
-  </div>
 </div>
 
 <a href="#main-content" class="skip-link" id="skip-link">Pular para o conteúdo</a>
@@ -7113,19 +7102,6 @@ window.__relationalBoot = true;
       <p class="page-subtitle">Gerencie matérias, formas de estudo e fases usadas em todo o app.</p>
     </div>
 
-    <section class="card" id="cfg-vhist-card">
-      <div class="card-header">
-        <div>
-          <h2>🛟 Histórico de versões</h2>
-          <p class="sub">A rede local — a mais rápida, porque não depende de internet: o app guarda <strong>neste aparelho</strong> as últimas versões do seu perfil, uma a cada 20 minutos de uso. Cobre o susto do dia a dia (apaguei sem querer, o outro aparelho sobrescreveu) em 2 cliques. Vale só para este navegador: se ele se perder, quem responde é o backup no banco, acima.</p>
-        </div>
-        <button type="button" class="btn-secondary" id="cfg-vhist-save">＋ Salvar versão agora</button>
-      </div>
-      <div style="padding: 12px 28px 24px;">
-        <div id="cfg-vhist-body"></div>
-      </div>
-    </section>
-
     <section class="card" id="cfg-cloudbk-card">
       <div class="card-header">
         <div>
@@ -7297,13 +7273,6 @@ window.__relationalBoot = true;
           </div>
 
           <hr class="divider">
-          <!-- ── 3. QUAL APARELHO ESTÁ COM A SESSÃO ──────────────────────── -->
-          <div class="cloud-sessions-head">
-            <p class="section-label" style="margin:0;">Aparelho com sessão ativa</p>
-            <button type="button" class="btn-secondary sess-refresh" id="cloud-sessions-refresh" title="Atualizar" aria-label="Atualizar">↻</button>
-          </div>
-          <p class="hint" style="margin:4px 0 10px;">Sua conta mantém <strong>um aparelho ativo por vez</strong>. Aqui você vê qual está com a sessão e pode trazê-la para este aparelho.</p>
-          <div id="cloud-sessions-list" class="cloud-sessions-list"></div>
 
           <!-- ── 4. AJUSTES RAROS — recolhidos ───────────────────────────── -->
           <details style="margin-top:16px;">
@@ -7327,7 +7296,6 @@ window.__relationalBoot = true;
 
             <hr class="divider">
             <p class="section-label">Segurança da sessão</p>
-            <label class="co-check" style="margin:6px 0 0;"><input type="checkbox" id="cfg-single-session"> Sessão única — ao entrar, encerra a sessão nos outros aparelhos</label>
             <div class="field" style="margin:12px 0 0;">
               <label for="cfg-idle-mins">Sair automaticamente por inatividade</label>
               <select id="cfg-idle-mins">
@@ -15142,7 +15110,6 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
      $id / _quiet / __diag ....... robustez: nada derruba o app por id ausente
      DB .......................... camada de dados (chave-valor, por perfil)
      PlanManager / ProfileManager  planejamentos e multi-usuário no dispositivo
-     BackupHistory .............. 8 versões + backup diário
      UI .......................... diálogos (substituem confirm/prompt nativos)
 
    MOTORES (puros — não tocam o DOM, portáveis)
@@ -15158,7 +15125,6 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
    BANCO
      CloudStore .................. autenticação e fachada Supabase
      RelationalStore ............. leitura/escrita SQL relacional
-     SessionGuard ................ coordenação entre dispositivos
 
    QUALIDADE
      AutoTeste.rodar() ........... suíte de testes no console
@@ -15362,7 +15328,7 @@ const Lixeira = {
       const m = /^(diario-estudos:u:[^:]+:)(.+)$/.exec(chaveCompleta);
       if (!m) return false;
       const sec = m[2];
-      if (sec.indexOf(this.PREFIXO) === 0 || sec.indexOf('vhist') === 0) return false;
+      if (sec.indexOf(this.PREFIXO) === 0) return false;
       const pacote = JSON.stringify({ sec, em: Date.now(), motivo: motivo || '', valor });
       localStorage.setItem(this._chave(m[1], sec), pacote);
       this.faxina(m[1]);
@@ -15503,16 +15469,6 @@ const DB = {
   get GLOBAL_KEYS() {
     const p = this._profilePrefix();
     return { plans: p + 'planejamentos', activePlan: p + 'active-plan' };
-  },
-  // Chaves "legadas" (versão sem planejamentos) — usadas só na migração inicial
-  LEGACY_KEYS: {
-    entries: 'diario-estudos:entries',
-    subjects: 'diario-estudos:subjects',
-    methods: 'diario-estudos:methods',
-    phases: 'diario-estudos:phases',
-    currentCycle: 'diario-estudos:current-cycle',
-    cycleHistory: 'diario-estudos:cycle-history',
-    tracks: 'diario-estudos:tracks'
   },
   /* ── O ID DO PLANEJAMENTO ATIVO, À PROVA DE ASPAS ─────────────────────────
      Este id entra na composição de TODAS as chaves do planejamento
@@ -17358,21 +17314,6 @@ const PlanManager = {
     return id;
   },
 
-  // Migração transparente: na primeira execução com a nova versão, cria o
-  // "Planejamento inicial" e move os dados antigos (sem namespace) para dentro dele.
-  _migrateLegacy(planId) {
-    // só migra o legado global UMA vez (para o perfil default). Perfis novos começam vazios.
-    if (localStorage.getItem('diario-estudos:legacy-consumed')) return;
-    const dk = DB.keysForPlan(planId);
-    Object.keys(DB.LEGACY_KEYS).forEach(entity => {
-      const legacyKey = DB.LEGACY_KEYS[entity];
-      const raw = localStorage.getItem(legacyKey);
-      if (raw !== null && localStorage.getItem(dk[entity]) === null) {
-        localStorage.setItem(dk[entity], raw); // copia (mantém o legado como backup de segurança)
-      }
-    });
-  },
-
   init() {
     let plans = this.getPlans();
     let bootstrap = false;
@@ -17384,7 +17325,6 @@ const PlanManager = {
          Em aparelho já existente a hidratação remota substitui estes andaimes;
          em perfil realmente novo a semeadura de seções os envia normalmente. */
       try { localStorage.setItem(this.GK.plans, JSON.stringify(plans)); } catch (e) { _quiet(e, 'plan-bootstrap-plans'); }
-      this._migrateLegacy(id);
       this._seedDefaults(id, { silent: true });
       try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active'); }
     }
@@ -17448,10 +17388,6 @@ const ProfileManager = {
   },
   getProfiles() { return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])); },
   saveProfiles(list) { DB._set(DB.PROFILES_KEY, this._sanearPerfis(list)); },
-  rotuloRecuperado(id) {
-    const s = String(id || '');
-    return 'Perfil recuperado ' + (s.length > 12 ? s.slice(0, 8) + '…' + s.slice(-4) : s);
-  },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) {
@@ -17485,16 +17421,8 @@ const ProfileManager = {
   },
 
   createProfile({ nome, avatar, cor, pin }) {
-    /* O id precisa ser um UUID de verdade: toda tabela da nuvem (study_profiles,
-       profile_sections, profile_backups) tem a coluna id/profile_id como `uuid`.
-       Um id fora desse formato faz TODA operação de nuvem para este perfil
-       falhar com "invalid input syntax for type uuid" — na maioria dos
-       caminhos, silenciosamente (a sincronização antiga engolia erro e só registrava
-       no console). O sintoma: o perfil parece normal aqui (o nome muda na
-       hora, é local), mas nunca sincroniza — nunca aparece em outro aparelho,
-       nunca tem backup no banco, e a lista pode "piscar" porque a nuvem nunca
-       tem nada de verdade para ele. Perfis com o formato antigo ('u_...') já
-       existentes são promovidos por ProfileManager.migrarIdsAntigos(). */
+    /* Helper de projeção em RAM. A persistência real de perfis é criada por
+       CloudStore.createRow(), que recebe o UUID definitivo do PostgreSQL. */
     const id = DB._uid();
     const list = this.getProfiles();
     list.push({
@@ -17505,13 +17433,6 @@ const ProfileManager = {
       createdAt: new Date().toISOString()
     });
     this.saveProfiles(list);
-    // se há conta logada, este perfil nasce já marcado como dela — impede que
-    // ele apareça na lista de outra conta neste mesmo navegador antes mesmo
-    // do primeiro envio à nuvem
-    try {
-      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-      if (uid) this._setOwner(id, uid);
-    } catch (e) { _quiet(e, 'owner-create'); }
     return id;
   },
   updateProfile(id, patch) {
@@ -17579,9 +17500,6 @@ const ProfileManager = {
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const sub = k.slice(prefix.length);
-      // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
-      // no backup faria o aparelho que importa herdar a fila de envio de outro.
-      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
       if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
       data[sub] = localStorage.getItem(k);
     }
@@ -17643,23 +17561,6 @@ const ProfileManager = {
     return id;
   },
 
-  // Migração única: move os dados globais existentes para o perfil default.
-  _migrateToDefault(profileId) {
-    const destPrefix = 'diario-estudos:u:' + profileId + ':';
-    const srcKeys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k || !k.startsWith('diario-estudos:')) continue;
-      if (k.startsWith('diario-estudos:u:')) continue;
-      if (k === DB.PROFILES_KEY || k === DB.ACTIVE_PROFILE_KEY || k === 'diario-estudos:legacy-consumed') continue;
-      srcKeys.push(k);
-    }
-    srcKeys.forEach(k => {
-      const destKey = destPrefix + k.slice('diario-estudos:'.length);
-      if (localStorage.getItem(destKey) === null) localStorage.setItem(destKey, localStorage.getItem(k));
-    });
-  },
-
   // ---- Cloud-first: o banco é a fonte da verdade; o "espelho" local é só cache ----
   initMirror() {
     if (!Array.isArray(this.getProfiles())) this.saveProfiles([]);
@@ -17673,306 +17574,19 @@ const ProfileManager = {
     else list.push({ id, nome: nome || 'Perfil', avatar: avatar || '📘', cor: cor || '#4f46e5', createdAt: new Date().toISOString() });
     this.saveProfiles(list);
   },
-  /* ── PERFIS QUE TÊM DADOS NESTE APARELHO ──────────────────────────────────
-     Varre o armazenamento atrás de namespaces `diario-estudos:u:<id>:` com
-     conteúdo de verdade (a contabilidade de sync, a lixeira e as fotos não
-     contam — um perfil que só tem isso está vazio). É a fonte da verdade para
-     a regra abaixo: quem tem dado aqui NUNCA some da lista. */
-  /* ── PREFERÊNCIA NÃO É ESTUDO ─────────────────────────────────────────────
-     QUALQUER chave do namespace contava como "este perfil tem dados aqui" — e
-     era daí que saíam os "🛟 Perfil recuperado" aparecendo sozinhos, sem que
-     ninguém tivesse feito nada.
-
-     Abrir um perfil UMA vez já grava ajustes de interface: o tamanho da
-     fonte grava `fs-scale`, a última aba grava `recent-view` e painéis
-     lembram se estavam recolhidos. Se depois esse perfil for apagado noutro
-     aparelho, a nuvem para de trazê-lo, este aparelho encontra as preferências
-     órfãs, conclui "tem dado aqui" e o devolve à lista — em TODA sincronização,
-     para sempre. Um perfil sem uma única anotação ressuscitando por causa do
-     tamanho da fonte que ficou gravado.
-
-     A lista abaixo é de AJUSTES, e é uma NEGATIVA: o que não estiver nela
-     continua contando como estudo. Errar para o lado de manter é obrigatório —
-     esquecer aqui uma chave de conteúdo faria o índice esconder estudo de
-     verdade, que é exatamente o problema que esta varredura veio resolver.
-     Os ajustes seguem contados à parte (`ajustes`), para quem precise saber
-     que o namespace existe mesmo sem nada dentro. */
-  AJUSTES_SEM_ESTUDO: ['tec-prefs',
-    'fs-scale', 'recent-view', 'active-plan', 'planejamentos', 'evo-scope-collapsed',
-    'grade-budget-open', 'extras-in-metrics', 'ferramentas', 'onboarded'],
-  _soAjuste(sub) {
-    if (this.AJUSTES_SEM_ESTUDO.indexOf(sub) >= 0) return true;
-    return sub.indexOf('pref-') === 0 || sub.indexOf('painel:') === 0;
-  },
-  perfisComDadosLocais() {
-    const achados = {};
-    const RE = /^diario-estudos:u:([^:]+):(.+)$/;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        const m = RE.exec(k);
-        if (!m) continue;
-        const sub = m[2];
-        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
-        if (sub.indexOf('vhist') === 0) continue;
-        if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
-        const v = localStorage.getItem(k) || '';
-        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
-        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0, ajustes: 0, bytesAjuste: 0 });
-        if (this._soAjuste(sub)) { a.ajustes++; a.bytesAjuste += v.length; continue; }
-        a.bytes += v.length; a.secoes++;
-      }
-    } catch (e) { _quiet(e, 'perfis-com-dados'); }
-    // só é "perfil com dados" quem tem ao menos uma seção de ESTUDO
-    return Object.values(achados).filter(a => a.secoes > 0);
-  },
-  temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
-
-  /* ── DE QUAL CONTA É ESTE PERFIL LOCAL ────────────────────────────────────
-     `perfisComDadosLocais` varre o navegador inteiro, sem saber de quem é cada
-     perfil. Isso é intencional para o caso de UMA conta (nunca perder dado que
-     falhou ao sincronizar) — mas em um navegador compartilhado por DUAS contas
-     diferentes, a mesma varredura reaparecia com o perfil da OUTRA conta na
-     lista de quem acabou de logar. Pior: `temDadosLocais` (usado para decidir
-     se abre um perfil "às cegas" quando a nuvem não o encontra) não distinguia
-     isso — clicar no perfil errado abria os dados inteiros de outra pessoa.
-
-     O rótulo é gravado FORA do namespace de qualquer perfil (não é dado do
-     usuário, é bookkeeping deste navegador) e associa profileId → user_id de
-     quem, alguma vez, teve esse perfil confirmado pela nuvem. Perfis gravados
-     ANTES desta correção não têm rótulo — ficam visíveis para qualquer um,
-     exatamente como sempre foram (nenhuma regressão, nenhum dado escondido
-     por engano). A partir daqui, todo perfil que passa pela nuvem uma vez fica
-     marcado, e para de vazar para a próxima conta que logar neste aparelho. */
-  _ownerKey(id) { return 'diario-estudos:owner:' + id; },
-  _getOwner(id) { try { return localStorage.getItem(this._ownerKey(id)) || null; } catch (_) { return null; } },
-  _setOwner(id, uid) { if (!id || !uid) return; try { localStorage.setItem(this._ownerKey(id), uid); } catch (e) { _quiet(e, 'owner-set'); } },
-  /* true quando o perfil pode ser mostrado/aberto por esta sessão: sem dono
-     conhecido (dado anterior à correção, ou nunca sincronizado) OU dono é
-     quem está logado agora. Falso só quando o dono é COMPROVADAMENTE outra
-     conta. */
-  _podeVerLocal(id, uidAtual) {
-    const dono = this._getOwner(id);
-    return !dono || !uidAtual || dono === uidAtual;
-  },
-
-  /* ── PROMOÇÃO DE IDS ANTIGOS (não-UUID) A IDS DE VERDADE ──────────────────
-     `createProfile` gerava ids como 'u_<timestamp><random>' — uma string
-     curta, não um UUID. Localmente isso nunca importou (localStorage não
-     exige formato de chave nenhum). Mas TODA tabela da nuvem tem a coluna
-     id/profile_id como `uuid`, e um id fora desse formato faz cada operação
-     de nuvem para aquele perfil falhar — na maioria dos caminhos, em
-     silêncio (a sincronização antiga engolia erro e só registrava no console). Quem
-     usa só vê: o nome muda na hora aqui, mas nunca sincroniza — nunca
-     aparece em outro aparelho, nunca tem backup no banco, e a lista pode
-     "piscar" porque a nuvem nunca tem nada de verdade para esse perfil.
-
-     Esta função promove cada perfil de id antigo a um id novo e válido —
-     movendo TODO o namespace local para a chave nova, sem apagar nada, e
-     enfileirando o envio à nuvem. Só roda com conta logada (é o `createRow`
-     da nuvem quem determina o id novo) e uma vez por perfil. */
-  ID_VALIDO_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  idValido(id) { return !!id && this.ID_VALIDO_RE.test(id); },
-  _migMarcaChave(id) { return 'diario-estudos:migrado-uuid:' + id; },
-  async migrarIdsAntigos() {
-    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
-    const alvos = (this.getProfiles() || []).filter(p => p && p.id && !this.idValido(p.id));
-    for (const p of alvos) {
-      let jaFeito = false;
-      try { jaFeito = !!localStorage.getItem(this._migMarcaChave(p.id)); } catch (_) { _quiet(_); }
-      if (jaFeito) continue;
-      try { await this._migrarUmPerfil(p); } catch (e) { console.warn('[perfis] migração de id falhou para', p.id, e); }
-    }
-    try { await this.repararSemLinhaNaNuvem(); } catch (e) { console.warn('[perfis] reparo de linha na nuvem falhou', e); }
-  },
-
-  /* ── PERFIL COM DADOS AQUI E SEM LINHA NA NUVEM ───────────────────────────
-     Um perfil nessa situação está mudo para sempre: `saveActive` e `updateMeta`
-     só sabem fazer UPDATE, e um UPDATE sem linha correspondente atinge zero
-     linhas — sem erro, sem aviso. O app mostra "sincronizado" e nada sai daqui.
-
-     Acontecia com todo perfil vindo de IMPORTAÇÃO (o retorno de `createRow`
-     era descartado, ver adotarIdDaNuvem) e acontece também se a linha for
-     apagada na nuvem por qualquer motivo. Este reparo fecha os dois casos.
-
-     Segurança do reparo, porque ele CRIA linha na nuvem:
-       · só roda com a lista da nuvem obtida com SUCESSO — uma falha de rede
-         não pode ser lida como "não existe lá" e virar linha duplicada;
-       · só para perfis que têm dado de verdade neste aparelho;
-       · só para perfis desta conta (ou sem dono conhecido), nunca de outra. */
-  async repararSemLinhaNaNuvem() {
-    let rows;
-    try { rows = await CloudStore.listProfiles(); }
-    catch (e) { _quiet(e, 'reparo-lista'); return 0; }      // sem certeza, não age
-    if (!Array.isArray(rows)) return 0;
-    const naNuvem = new Set(rows.map(r => r.id));
-    const uid = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-    const comDados = new Set(this.perfisComDadosLocais().map(d => d.id));
-    /* `_podeVerLocal` deixa passar o perfil SEM dono conhecido — o certo para
-       apenas EXIBIR (não esconder dado de ninguém), e o errado para CRIAR uma
-       linha na nuvem: num aparelho que já foi de outra conta, um perfil antigo
-       sem rótulo seria reivindicado pela conta que estiver logada agora.
-
-       Para criar, a régua é mais dura: ou o dono é comprovadamente esta conta,
-       ou este aparelho nunca viu outra conta (nenhum rótulo de dono aponta
-       para um uid diferente). Na dúvida, não reivindica — o perfil segue
-       local, exatamente como estava, sem regressão. */
-    const outraContaJaUsouEsteAparelho = (() => {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k || k.indexOf('diario-estudos:owner:') !== 0) continue;
-          const dono = localStorage.getItem(k);
-          if (dono && uid && dono !== uid) return true;
-        }
-      } catch (e) { _quiet(e, 'reparo-donos'); return true; }   // sem certeza: age como se sim
-      return false;
-    })();
-    const podeReivindicar = (id) => {
-      const dono = this._getOwner(id);
-      if (dono) return dono === uid;                 // rótulo explícito manda
-      return !outraContaJaUsouEsteAparelho;          // sem rótulo: só se o aparelho for de uma conta só
-    };
-    const alvos = (this.getProfiles() || []).filter(p =>
-      p && p.id && this.idValido(p.id) && !naNuvem.has(p.id) &&
-      comDados.has(p.id) && podeReivindicar(p.id));
-    let n = 0;
-    for (const p of alvos) {
-      try {
-        console.warn('[perfis] "' + (p.nome || p.id) + '" tem dados aqui e nenhuma linha na nuvem — criando e adotando o id…');
-        const row = await CloudStore.createRow({ name: p.nome, avatar: p.avatar, color: p.cor, payload: {} });
-        await this.adotarIdDaNuvem(p.id, row);
-        n++;
-      } catch (e) { console.warn('[perfis] não foi possível criar a linha de', p.id, e); }
-    }
-    return n;
-  },
-  async _migrarUmPerfil(perfilAntigo) {
-    console.info('[perfis] promovendo perfil de id local "' + perfilAntigo.id + '" a um id de nuvem válido…');
-    const row = await CloudStore.createRow({ name: perfilAntigo.nome, avatar: perfilAntigo.avatar, color: perfilAntigo.cor, payload: {} });
-    await this.adotarIdDaNuvem(perfilAntigo.id, row);
-    try { localStorage.setItem(this._migMarcaChave(perfilAntigo.id), row.id); } catch (e) { _quiet(e, 'mig-marca'); }
-  },
-
-  /* ── ADOTAR O ID QUE O BANCO GEROU ────────────────────────────────────────
-     `createRow` NÃO aceita um id: a coluna é `uuid primary key default
-     gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve.
-     Quem chama é obrigado a adotar esse id — e havia um caminho que não
-     adotava: a IMPORTAÇÃO de backup criava o perfil local com um id próprio,
-     mandava `createRow` para a nuvem e DESCARTAVA o retorno.
-
-     O resultado era um perfil partido em dois: o local, com o id antigo, que
-     nunca mais sincronizava (todo UPDATE batia em zero linhas, porque não
-     existia linha com aquele id); e o da nuvem, com outro id, congelado no
-     estado do instante da importação e aparecendo como um SEGUNDO perfil na
-     lista de todos os aparelhos — com o nome de antes, porque renomear
-     depois só mexia no local. Era exatamente o sintoma de "importei um
-     backup, mudei o nome, e agora aparecem dois perfis, um com o nome
-     antigo".
-
-     Adotar significa: mover o namespace local inteiro para o id novo (copiar
-     primeiro, só apagar depois de conferir que a cópia bateu — nunca apagar
-     sem prova), trocar o id no índice, herdar rev e dono, e reapontar o
-     ponteiro de perfil ativo se for o caso. */
-  async adotarIdDaNuvem(idAntigo, row) {
-    if (!row || !row.id) throw new Error('createRow não devolveu id');
-    const idNovo = row.id;
-    if (idNovo === idAntigo) return idNovo;
-    const prefixoAntigo = 'diario-estudos:u:' + idAntigo + ':';
-    const prefixoNovo = 'diario-estudos:u:' + idNovo + ':';
-    const mover = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.indexOf(prefixoAntigo) === 0) mover.push(k);
-    }
-    mover.forEach(k => {
-      const valor = localStorage.getItem(k);
-      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'adotar-copia'); }
-    });
-    mover.forEach(k => {
-      const destino = prefixoNovo + k.slice(prefixoAntigo.length);
-      if (localStorage.getItem(destino) === localStorage.getItem(k)) localStorage.removeItem(k);
-    });
-    const lista = this.getProfiles();
-    const entrada = lista.find(p => p.id === idAntigo);
-    if (entrada) entrada.id = idNovo;
-    this.saveProfiles(lista);
-    try {
-      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-      if (uid) this._setOwner(idNovo, uid);
-    } catch (e) { _quiet(e, 'adotar-dono'); }
-    /* A cópia do namespace passa pela fachada em RAM, que já enfileira cada
-       mutação no RelationalStore. Antes de concluir a troca de id, esperamos
-       essa fila SQL terminar — não existe segunda fila por seção ou blob. */
-    const eraAtivo = (this.getActiveProfileId() === idAntigo);
-    if (eraAtivo) this.setActiveProfile(idNovo);
-    try {
-      if (window.RelationalStore) await RelationalStore.flush();
-    } catch (e) { _quiet(e, 'adotar-envio-relacional'); }
-    console.info('[perfis] id adotado do banco: ' + idAntigo + ' → ' + idNovo);
-    return idNovo;
-  },
-
-  /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
-     Esta função reconstruía a lista de perfis com o que a nuvem devolvesse, e
-     só com isso. Se a resposta viesse sem um perfil — linha apagada, RLS
-     recusando, outra conta, resposta parcial —, a entrada dele sumia da lista
-     e os dados dele ficavam ILHADOS: continuam no aparelho, inteiros, sem
-     nenhuma porta para chegar até eles. Foi assim que um perfil com 1,1 MB de
-     estudo desapareceu da tela enquanto estava todo ali.
-
-     Duas regras agora:
-
-       1. QUEM TEM DADO AQUI NÃO SAI DA LISTA. Um perfil ausente na nuvem mas
-          com conteúdo neste aparelho permanece, marcado `soLocal`.
-       2. QUEM TEM DADO AQUI E NÃO ESTÁ NA LISTA, ENTRA. Se o registro já se
-          perdeu numa versão anterior, ele é readotado sozinho — a pessoa não
-          precisa descobrir que existe uma tela de recuperação para ver o
-          próprio estudo de volta.
-
-     A lista de perfis é um ÍNDICE, e um índice nunca pode ser mais restritivo
-     que o conteúdo que ele indexa. */
   syncMirrorFromCloud(rows) {
-    const daNuvem = (rows || []).map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color, createdAt: r.created_at || '' }));
-    const idsNuvem = new Set(daNuvem.map(p => p.id));
-    const anteriores = this.getProfiles() || [];
-    const porId = {};
-    anteriores.forEach(p => { if (p && p.id) porId[p.id] = p; });
-
-    /* A nuvem ACABOU de confirmar: estes ids são desta conta. Marca o dono
-       agora — é o que impede o mesmo perfil de "vazar" para a lista da
-       próxima conta que logar neste navegador. */
-    const uidAtual = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-    if (uidAtual) daNuvem.forEach(p => this._setOwner(p.id, uidAtual));
-
-    const sobreviventes = [];
-    const deOutraConta = [];
-    this.perfisComDadosLocais().forEach(d => {
-      if (idsNuvem.has(d.id)) return;                 // a nuvem já traz este
-      // dado físico existe, mas é COMPROVADAMENTE de outra conta: não mostra
-      // aqui (o dado não é apagado — só não aparece para quem não é dono).
-      if (!this._podeVerLocal(d.id, uidAtual)) { deOutraConta.push(d.id); return; }
-      const antigo = porId[d.id] || {};
-      sobreviventes.push({
-        id: d.id,
-        // o rótulo leva o começo E o fim do id: dois perfis distintos nunca
-        // aparecem com a mesma legenda, que é o que torna um duplicado
-        // indistinguível de dois perfis de verdade
-        nome: antigo.nome || ProfileManager.rotuloRecuperado(d.id),
-        avatar: antigo.avatar || '🛟',
-        cor: antigo.cor || '#0a95a8',
-        createdAt: antigo.createdAt || '',
-        soLocal: true
-      });
-    });
-    if (sobreviventes.length) {
-      try { console.warn('[perfis] ' + sobreviventes.length + ' perfil(is) têm dados neste aparelho e não vieram da nuvem — MANTIDOS na lista: ' + sobreviventes.map(p => p.id).join(', ')); } catch (e) { _quiet(e, 'perfis-log'); }
+    const daNuvem = (rows || []).map(r => ({
+      id: r.id,
+      nome: r.profile_name,
+      avatar: r.avatar,
+      cor: r.color,
+      createdAt: r.created_at || ''
+    }));
+    this.saveProfiles(daNuvem);
+    const ativo = this.getActiveProfileId();
+    if (ativo && !daNuvem.some(p => p.id === ativo)) {
+      try { localStorage.removeItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { _quiet(e, 'perfil-ativo-obsoleto'); }
     }
-    if (deOutraConta.length) {
-      try { console.info('[perfis] ' + deOutraConta.length + ' perfil(is) locais pertencem a OUTRA conta — ocultados desta sessão (dado preservado, não apagado): ' + deOutraConta.join(', ')); } catch (e) { _quiet(e, 'perfis-log2'); }
-    }
-    this.saveProfiles(daNuvem.concat(sobreviventes));
   },
 
 };
@@ -17983,178 +17597,6 @@ const ProfileManager = {
 ProfileManager.initMirror();
 // Expõe o ProfileManager no window para os módulos carregados depois dele.
 window.ProfileManager = ProfileManager;
-
-/* ============================================================
-   VERSION HISTORY — histórico de versões (rede de segurança "A")
-   ------------------------------------------------------------
-   Guarda no próprio dispositivo as últimas versões do perfil, para você
-   RESTAURAR caso algo se perca (apagou algo sem querer, ou um aparelho
-   sobrescreveu o outro). Cada snapshot é COMPRIMIDO com gzip (CompressionStream),
-   ficando ~5-10x menor — cabe com folga mesmo em perfis grandes.
-   Gatilhos: antes de baixar da nuvem (cobre o clobber, por dispositivo),
-   um backup automático por dia, e manual pelo botão em Configurações.
-   100% no cliente, reversível, e não exige nada do Supabase.
-   ============================================================ */
-/* ═══════════════════ HISTORICO DE VERSOES (rede de seguranca) ═══════════════
-   Antes: 1 foto por dia, 8 no total. Quem apagasse algo por engano de manha e
-   percebesse a tarde so tinha a foto da meia-noite — perdia o dia inteiro de
-   trabalho. Agora as fotos sao FREQUENTES (a cada 20 min de uso, e sempre que
-   uma acao destrutiva acontece) e a lista se AUTOLIMPA:
-
-     • JANELA de 7 dias — nada mais velho que isso e mantido; um backup de duas
-       semanas atras nao ajuda e ocupa espaco.
-     • PISO de 3 versoes — mesmo depois de 7 dias parado, voce sempre volta as
-       tres ultimas fotos. A limpeza nunca deixa o usuario sem rede.
-     • ORCAMENTO de espaco — o conjunto nunca passa de ~3 MB (ja comprimido em
-       gzip). Estourou, as mais antigas saem primeiro.
-   O resultado e uma protecao continua que nao cresce sem limite.
-   ═══════════════════════════════════════════════════════════════════════════ */
-const BackupHistory = {
-  MAX: 24,                       // teto de fotos guardadas
-  MIN_KEEP: 3,                   // nunca limpa abaixo disto, custe o que custar
-  MAX_AGE_MS: 7 * 24 * 3600 * 1000,   // janela de 7 dias
-  MAX_BYTES: 3 * 1024 * 1024,    // orcamento total (~3 MB comprimidos)
-  AUTO_EVERY_MS: 20 * 60 * 1000, // foto automatica a cada 20 min de uso
-  _key(id) { return 'diario-estudos:vhist:' + id; },
-  _dayKey(id) { return 'diario-estudos:vhist-day:' + id; },
-  _autoKey(id) { return 'diario-estudos:vhist-auto:' + id; },
-  _list(id) { try { return JSON.parse(localStorage.getItem(this._key(id))) || []; } catch (_) { return []; } },
-
-  /* Autolimpeza: idade > orcamento > teto, sempre respeitando MIN_KEEP.
-     Roda antes de cada gravacao, entao a lista nunca "engorda calada". */
-  _prune(arr) {
-    if (!Array.isArray(arr)) return [];
-    const agora = Date.now();
-    // 1) idade — descarta o que passou da janela, preservando o piso
-    let out = arr.filter(r => (agora - (r.ts || 0)) <= this.MAX_AGE_MS);
-    if (out.length < this.MIN_KEEP) out = arr.slice(-this.MIN_KEEP);
-    // 2) teto de quantidade
-    while (out.length > this.MAX) out.shift();
-    // 3) orcamento de espaco — as mais antigas saem primeiro
-    const peso = (r) => ((r && r.data) ? String(r.data).length : 0) * 2; // UTF-16
-    let total = out.reduce((a, r) => a + peso(r), 0);
-    while (total > this.MAX_BYTES && out.length > this.MIN_KEEP) {
-      total -= peso(out[0]);
-      out.shift();
-    }
-    return out;
-  },
-
-  _save(id, arr) {
-    arr = this._prune(arr);
-    while (true) {
-      try { localStorage.setItem(this._key(id), JSON.stringify(arr)); return true; }
-      catch (e) { if (arr.length > 1) { arr.shift(); continue; } try { localStorage.removeItem(this._key(id)); } catch (_) { _quiet(_); } return false; }
-    }
-  },
-  _b64enc(u8) { let s = ''; const CH = 0x8000; for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); },
-  _b64dec(b64) { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; },
-  _fnv(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
-  async _gzip(str) {
-    try {
-      if (typeof CompressionStream === 'undefined') return { enc: 'raw', data: str };
-      const cs = new CompressionStream('gzip');
-      const ab = await new Response(new Blob([str]).stream().pipeThrough(cs)).arrayBuffer();
-      return { enc: 'gz', data: this._b64enc(new Uint8Array(ab)) };
-    } catch (_) { return { enc: 'raw', data: str }; }
-  },
-  async _gunzip(rec) {
-    if (!rec) return null;
-    if (rec.enc !== 'gz') return rec.data;
-    try {
-      const ds = new DecompressionStream('gzip');
-      const ab = await new Response(new Blob([this._b64dec(rec.data)]).stream().pipeThrough(ds)).arrayBuffer();
-      return new TextDecoder().decode(ab);
-    } catch (_) { return null; }
-  },
-  // Cria uma versão do perfil ATIVO. Não duplica se for idêntica à última.
-  async snapshot(note) {
-    try {
-      const id = ProfileManager.getActiveProfileId(); if (!id) return false;
-      const backup = ProfileManager.exportProfile(id); if (!backup) return false;
-      const json = JSON.stringify(backup.data || {});
-      if (json === '{}' || json.length < 3) return false;
-      const sig = this._fnv(json);
-      const arr = this._list(id);
-      if (arr.length && arr[arr.length - 1].sig === sig) return false;
-      const packed = await this._gzip(json);
-      arr.push({ ts: Date.now(), rev: ProfileManager.getRev(id), note: note || '', sig, enc: packed.enc, data: packed.data, chars: json.length });
-      while (arr.length > this.MAX) arr.shift();
-      this._save(id, arr);
-      return true;
-    } catch (_) { return false; }
-  },
-  maybeDailySnapshot() {
-    try {
-      const id = ProfileManager.getActiveProfileId(); if (!id) return;
-      let last = null; try { last = localStorage.getItem(this._dayKey(id)); } catch (_) { _quiet(_); }
-      const hoje = todayLocal();
-      if (last !== hoje) {
-        try { localStorage.setItem(this._dayKey(id), hoje); } catch (_) { _quiet(_); }
-        this.snapshot('backup diário');
-        return;
-      }
-      this.maybeAutoSnapshot();
-    } catch (_) { _quiet(_); }
-  },
-
-  /* Foto periodica durante o uso. E o que transforma a rede de seguranca de
-     "uma vez por dia" em "sempre por perto": no maximo 20 min de trabalho entre
-     uma foto e outra. snapshot() ja ignora estados identicos, entao ficar com o
-     app aberto sem mexer em nada NAO gera copias repetidas. */
-  maybeAutoSnapshot() {
-    try {
-      const id = ProfileManager.getActiveProfileId(); if (!id) return false;
-      let last = 0; try { last = parseInt(localStorage.getItem(this._autoKey(id)), 10) || 0; } catch (_) { _quiet(_); }
-      if (Date.now() - last < this.AUTO_EVERY_MS) return false;
-      try { localStorage.setItem(this._autoKey(id), String(Date.now())); } catch (_) { _quiet(_); }
-      this.snapshot('cópia automática');
-      return true;
-    } catch (_) { return false; }
-  },
-
-  /* Foto AGORA, antes de uma acao destrutiva (limpar grade, excluir semana,
-     apagar planejamento). E o backup que salva o dia — literalmente o caso de
-     "limpei a grade sem querer". Nao espera intervalo nenhum. */
-  async antesDe(acao) {
-    try { return await this.snapshot('antes de ' + acao); } catch (_) { return false; }
-  },
-
-  // Faxina avulsa (chamada na abertura do app): aplica a janela de 7 dias.
-  limpar() {
-    try {
-      const id = ProfileManager.getActiveProfileId(); if (!id) return;
-      const arr = this._list(id);
-      const limpo = this._prune(arr.slice());
-      if (limpo.length !== arr.length) this._save(id, limpo);
-    } catch (_) { _quiet(_); }
-  },
-  async buildBackup(id, ts) {
-    const rec = this._list(id).find(r => r.ts === ts);
-    if (!rec) return null;
-    const json = await this._gunzip(rec);
-    if (json == null) return null;
-    let data; try { data = JSON.parse(json); } catch (_) { return null; }
-    const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
-    return { app: 'diario-estudos', kind: 'profile-backup', version: 1, exportedAt: new Date(rec.ts).toISOString(),
-      profile: { nome: meta.nome, avatar: meta.avatar, cor: meta.cor }, data };
-  },
-  // Restaura uma versão SOBRE o perfil ativo (guarda o estado atual antes, então é reversível).
-  async restore(id, ts) {
-    const rec = this._list(id).find(r => r.ts === ts);
-    if (!rec) return false;
-    const json = await this._gunzip(rec);
-    if (json == null) return false;
-    let data; try { data = JSON.parse(json); } catch (_) { return false; }
-    await this.snapshot('antes de restaurar uma versão');
-    try {
-      if (!window.RelationalStore) return false;
-      await RelationalStore.replaceProfileFromPayload(id, data, { reason: 'session-backup-restore' });
-      return true;
-    } catch (e) { _quiet(e, 'backup-session-restore'); return false; }
-  }
-};
-window.BackupHistory = BackupHistory;
 
 /* ============================================================
    NAVEGAÇÃO ENTRE TELAS
@@ -23625,7 +23067,7 @@ function planCycleMode() {
     if (n === 0) { showToast('Nenhuma célula marcada como concluída'); return; }
     if (!await UI.confirm(`Desmarcar as ${n} célula(s) concluída(s)?\n\nAs matérias e durações da grade são mantidas.`,
       { title: '↺ Desmarcar concluídos', okText: 'Desmarcar' })) return;
-    try { if (window.BackupHistory) await BackupHistory.antesDe('desmarcar a grade'); } catch (_) { _quiet(_); }
+    try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de desmarcar a grade'); } catch (_) { _quiet(_); }
     const t = gradeGet();
     DIAS_SEMANA.forEach(d => {
       if (!Array.isArray(t.grade[d])) return;
@@ -23646,7 +23088,7 @@ function planCycleMode() {
     if (!await UI.confirmTyped(`Limpar toda a grade?\n\nAs ${ocupadas} matéria(s) alocadas serão removidas das células. As siglas cadastradas são mantidas.`,
       { word: 'LIMPAR', title: '🗑️ Limpar grade inteira', okText: 'Limpar grade' })) return;
     // foto de seguranca ANTES de esvaziar: e exatamente este o caso de "limpei sem querer"
-    try { if (window.BackupHistory) await BackupHistory.antesDe('limpar a grade'); } catch (_) { _quiet(_); }
+    try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar a grade'); } catch (_) { _quiet(_); }
     const n = sessionCount(t);
     DIAS_SEMANA.forEach(d => { t.grade[d] = Array.from({ length: n }, () => ''); });
     gradeSave(t);
@@ -23793,7 +23235,7 @@ function planCycleMode() {
     if (!cycle) return;
     if (!await UI.confirm('Ela será salva no histórico permanentemente e uma nova semana começará zerada.\n\nOs registros de estudo não são apagados — continuam contando em Evolução e Conquistas.',
       { title: '✓ Fechar semana', sub: 'Encerrar o ciclo atual e arquivá-lo', okText: 'Fechar semana' })) return;
-    try { if (window.BackupHistory) await BackupHistory.antesDe('fechar a semana'); } catch (_) { _quiet(_); }
+    try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de fechar a semana'); } catch (_) { _quiet(_); }
 
     // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
     const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);
@@ -24223,7 +23665,7 @@ const HistoricoScreen = {
         const w = DB.getCycleHistory().find(x => x.id === id);
         if (!await UI.confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico?\n\nEssa ação não pode ser desfeita.`,
           { title: '🗑️ Excluir semana', okText: 'Excluir', danger: true })) return;
-        try { if (window.BackupHistory) await BackupHistory.antesDe('excluir uma semana do histórico'); } catch (_) { _quiet(_); }
+        try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir uma semana do histórico'); } catch (_) { _quiet(_); }
         DB.deleteCycleHistoryEntry(id);
         showToast('Semana removida do histórico');
         this.render();
@@ -29914,11 +29356,10 @@ const AutoTeste = {
         ProfileManager.idValido(criado), criado);
     } finally {
       ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(p => p.id !== criado));
-      try { localStorage.removeItem(ProfileManager._ownerKey(criado)); } catch (e) { _quiet(e, 'limpeza-uuid'); }
     }
   },
 
-  /* ── TUDO O QUE VOCÊ DIGITA ENTRA NUMA SEÇÃO SINCRONIZADA ────────────────
+  /* ── TUDO O QUE VOCÊ DIGITA ENTRA NA PERSISTÊNCIA RELACIONAL ─────────────
      Este grupo responde à pergunta mais simples e mais importante que se pode
      fazer ao app: "o que eu configurei fica guardado e chega no outro
      aparelho?".
@@ -35952,7 +35393,7 @@ const PlanUI = {
         const entries = DB.getEntriesForPlan(id).length;
         if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.`,
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
-        try { if (window.BackupHistory) await BackupHistory.antesDe('excluir um planejamento'); } catch (_) { _quiet(_); }
+        try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
         PlanManager.deletePlan(id);
         if (wasActive) { CloudStore.saveThenReload(); return; }
@@ -36024,7 +35465,8 @@ PlanUI.renderSidebar();
    ============================================================ */
 /* ============================================================
    TELA DE ACESSO (cloud-first): login -> perfis do banco -> entrar
-   Modelo: study_profiles (1 linha por perfil), com optimistic lock.
+   Modelo: study_profiles guarda somente metadados do perfil; o conteúdo
+   é hidratado diretamente das tabelas relacionais do PostgreSQL.
    ============================================================ */
 const ProfileUI = {
   SESSION_KEY: 'diario-estudos:entered',
@@ -36038,8 +35480,6 @@ const ProfileUI = {
   _editingId: null,
   _draftAvatar: null,
   _draftColor: null,
-  _pendingSessionProfile: null,
-  _sessionRetryTimer: null,
 
   AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
   autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
@@ -36063,17 +35503,10 @@ const ProfileUI = {
        enterProfile() faz SELECTs relacionais antes de mostrar o app. */
     this.showGate();
   },
-  _hasLocalData(id) {
-    if (!id) return false;
-    const pfx = 'diario-estudos:u:' + id + ':';
-    for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pfx)) return true; }
-    return false;
-  },
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { $id('profile-gate').style.display = 'none'; },
   _showEnteringGate(id) {
-    this._pendingSessionProfile = id || null;
     this._entering = true;
     this._autoEnterTried = true;
     this._stage = 'entering';
@@ -36087,27 +35520,6 @@ const ProfileUI = {
     if (profilesEl) profilesEl.style.display = 'none';
     if (enteringEl) enteringEl.style.display = 'block';
     if (head) head.style.display = 'none';
-  },
-  resumeAfterSessionClaim() {
-    clearTimeout(this._sessionRetryTimer);
-    this._sessionRetryTimer = null;
-    /* O takeover pode acontecer ANTES de enterProfile preencher
-       _pendingSessionProfile. Nesse caso o comportamento antigo voltava ao
-       refreshStage e podia cair no fast path sobre cache físico velho. Depois
-       de assumir a sessão, sempre reabrimos um alvo conhecido pelo caminho
-       canônico (hydrate explicitOnly), nunca apenas "liberamos" o cache. */
-    const id = this._pendingSessionProfile ||
-      (window.ProfileManager ? ProfileManager.getActiveProfileId() : null) ||
-      this.getDefaultProfile() || this.getLastProfile();
-    this._pendingSessionProfile = null;
-    if (id) {
-      this._showEnteringGate(id);
-      this.enterProfile(id);
-      return;
-    }
-    this._entering = false;
-    this._autoEnterTried = false;
-    this.refreshStage();
   },
   // O Supabase dispara vários eventos de auth (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED...).
   // Sem este guarda, cada evento re-renderizava o gate e causava a "piscada" nos perfis.
@@ -36254,7 +35666,7 @@ const ProfileUI = {
        vira dois cards idênticos sem nunca tocar o armazenamento local. */
     try { profiles = ProfileManager._sanearPerfis(profiles); } catch (e) { _quiet(e, 'gate-sanear'); }
     // Se a lista é exatamente a mesma que já está na tela, não repinta (evita o "flash").
-    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor, !!p.soLocal]));
+    const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
     if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
     this._gridSig = sig;
     grid.innerHTML = (profiles || []).map(p => `
@@ -36262,16 +35674,7 @@ const ProfileUI = {
         <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar" aria-label="Editar">✎</button>
         <div class="profile-card-avatar" style="background:${p.cor};">${p.avatar}</div>
         <div class="profile-card-name">${escapeHtml(p.nome)}</div>
-        ${/* ── POR QUE ESTE PERFIL ESTÁ AQUI ────────────────────────────────
-              `soLocal` já era gravado e nunca aparecia. Um card com bote
-              salva-vidas e um nome de oito caracteres hexadecimais lê-se como
-              "o app criou um perfil do nada" — quando é o contrário: o app
-              achou estudo SEU guardado neste aparelho que a nuvem não trouxe
-              (apagado noutro aparelho, criado antes do login, ou que nunca
-              chegou a sincronizar) e se recusou a deixá-lo inalcançável.
-              Dizer isso no card transforma um susto em uma decisão: abrir e
-              conferir, ou apagar. */''}
-        <div class="profile-card-stats${p.soLocal ? ' so-local' : ''}"${p.soLocal ? ' title="Há dados de estudo deste perfil guardados neste aparelho, mas a sua conta na nuvem não o trouxe. Pode ser um perfil apagado em outro aparelho, criado antes de você entrar na conta, ou que nunca chegou a sincronizar. Abra para conferir — e apague se não for seu."' : ''}>${p.soLocal ? '🛟 só neste aparelho' : '&nbsp;'}</div>
+        <div class="profile-card-stats">&nbsp;</div>
       </div>`).join('') + `
       <div class="profile-card add" id="profile-card-add">
         <div class="profile-card-avatar">＋</div>
@@ -36318,7 +35721,6 @@ const ProfileUI = {
 
       try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) { _quiet(e); }
       this.setLastProfile(id);
-      this._pendingSessionProfile = null;
       this._entering = false;
       this.hideGate();
       this.renderChip();
@@ -39441,7 +38843,6 @@ const CloudStore = {
 
     if (!this.isLoggedIn()) {
       this._unsub();
-      try { if (window.SessionGuard) SessionGuard.onLogout(); } catch (e) { _quiet(e, 'session-logout'); }
       return;
     }
 
@@ -39452,22 +38853,8 @@ const CloudStore = {
         RelationalStore.hydrateUserPreferences().catch(e => _quiet(e, 'rel-user-prefs'));
       }
     } catch (e) { _quiet(e, 'rel-user-prefs-start'); }
-
-    if (window.SessionGuard) {
-      Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
-        try {
-          if (!window.ProfileUI) return;
-          if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
-            ProfileUI.resumeAfterSessionClaim();
-            return;
-          }
-          if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
-        } catch (e) { _quiet(e, 'session-guard-login-ui'); }
-      }).catch(e => _quiet(e, 'session-guard-login'));
-    } else {
-      try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
-      catch (e) { _quiet(e, 'profile-stage-login'); }
-    }
+    try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
+    catch (e) { _quiet(e, 'profile-stage-login'); }
   },
 
   async signUp(email, password) {
@@ -40123,8 +39510,9 @@ const RelationalStore = {
     return null;
   },
   _ignoreSub(sub) {
-    return sub==='__secrev'||sub==='__secpend'||sub==='__secdel'||sub==='__entryops'||
-      sub.indexOf('__entrycloudops')===0||sub.indexOf('vhist')===0||sub.indexOf('__lixeira:')===0;
+    /* A lixeira é projeção transitória de segurança e não vira configuração.
+       Os marcadores de fila/revisão da sincronização antiga foram eliminados. */
+    return sub.indexOf('__lixeira:') === 0;
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
@@ -40135,8 +39523,7 @@ const RelationalStore = {
     if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
     if(p.scope==='user') {
-      if(p.sub==='profiles'||p.sub==='active-profile'||p.sub.indexOf('rev:')===0||p.sub.indexOf('owner:')===0||
-         p.sub.indexOf('migrado-uuid:')===0||p.sub==='legacy-consumed') return;
+      if(p.sub==='profiles'||p.sub==='active-profile') return;
       this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
       return;
     }
@@ -40409,416 +39796,6 @@ const RelationalStore = {
 };
 window.RelationalStore=RelationalStore;
 
-/* ============================================================================
-   SESSION GUARD — login único REAL entre dispositivos (via Supabase)
-   ----------------------------------------------------------------------------
-   Cada aparelho tem um device_id fixo. Ao logar (ou ao clicar em "Continuar
-   neste aparelho"), este device "reivindica" a conta gravando seu id na tabela
-   `active_sessions` (uma linha por usuário). Um canal Realtime avisa todos os
-   aparelhos: quem vê um device_id diferente do seu entende que outro assumiu,
-   é BLOQUEADO e tem a sincronização PAUSADA (para não sobrescrever dados).
-
-   Requer no Supabase (execute uma vez — SQL fornecido no relatório):
-     create table public.active_sessions (
-       user_id uuid primary key references auth.users(id) on delete cascade,
-       device_id text not null, device_label text, updated_at timestamptz default now());
-     alter table public.active_sessions enable row level security;
-     create policy "own_select" on public.active_sessions for select using (auth.uid()=user_id);
-     create policy "own_insert" on public.active_sessions for insert with check (auth.uid()=user_id);
-     create policy "own_update" on public.active_sessions for update using (auth.uid()=user_id);
-     alter publication supabase_realtime add table public.active_sessions;
-
-   Se a tabela ainda NÃO existir, o guard se desativa sozinho, sem quebrar o app
-   (o bloqueio local por aba continua funcionando).
-   ============================================================================ */
-const SessionGuard = {
-  TABLE: 'active_sessions',
-  DEVICE_KEY: 'diario-estudos:device-id',
-  enabled: true,        // infraestrutura disponível; pode cair para false se a tabela não existir
-  singleDeviceMode: false, // multiaparelho é o padrão: CAS + merge protegem os dados sem expulsar PC/celular
-  channel: null,
-  _deviceId: null,
-  _claimedUid: null,    // uid cuja posse foi confirmada neste aparelho
-  _accessUid: null,
-  _accessState: 'unknown', // unknown | checking | allowed | blocked | error | disabled
-  _loginPromise: null,
-  _loginPromiseUid: null,
-  _handoffDraining: false,
-  _handoffLast: null,
-  _avisouSemTabela: false,
-
-  accessState() {
-    const CS = window.CloudStore;
-    const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
-    if (!this.enabled) return 'disabled';
-    if (!uid || this._accessUid !== uid) return 'unknown';
-    return this._accessState || 'unknown';
-  },
-  canEnterNow() {
-    if (!this.singleDeviceMode) return true;
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') return false;
-    const s = this.accessState();
-    return s === 'allowed' || s === 'disabled';
-  },
-  isBlockedByRemote() {
-    if (!this.singleDeviceMode) return false;
-    return this.accessState() === 'blocked' ||
-      !!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote');
-  },
-
-  deviceId() {
-    if (this._deviceId) return this._deviceId;
-    let id = null;
-    try { id = localStorage.getItem(this.DEVICE_KEY); } catch (_) { _quiet(_); }
-    if (!id) {
-      id = (window.DB && DB._uid) ? DB._uid() : (Date.now().toString(36) + Math.random().toString(36).slice(2));
-      try { localStorage.setItem(this.DEVICE_KEY, id); } catch (_) { _quiet(_); }
-    }
-    this._deviceId = id;
-    return id;
-  },
-  // Rótulo legível do aparelho (aparece no aviso do outro dispositivo).
-  deviceLabel() {
-    try {
-      const ua = navigator.userAgent || '';
-      let so = 'Dispositivo';
-      if (/Android/i.test(ua)) so = 'Android';
-      else if (/iPhone|iPad|iPod/i.test(ua)) so = 'iPhone/iPad';
-      else if (/Windows/i.test(ua)) so = 'Windows';
-      else if (/Mac/i.test(ua)) so = 'Mac';
-      else if (/Linux/i.test(ua)) so = 'Linux';
-      let nav = 'navegador';
-      if (/Edg\//i.test(ua)) nav = 'Edge';
-      else if (/CriOS/i.test(ua)) nav = 'Chrome';
-      else if (/FxiOS|Firefox\//i.test(ua)) nav = 'Firefox';
-      else if (/Chrome\//i.test(ua)) nav = 'Chrome';
-      else if (/Safari\//i.test(ua)) nav = 'Safari';
-      // aparelhos Apple sem navegador específico identificado usam Safari
-      if (nav === 'navegador' && (so === 'iPhone/iPad' || so === 'Mac')) nav = 'Safari';
-      return so + ' · ' + nav;
-    } catch (_) { return 'Dispositivo'; }
-  },
-  _isMissingTable(err) {
-    const m = ((err && (err.message || err.code || err.details)) || '').toString().toLowerCase();
-    return m.includes('active_sessions') || m.includes('does not exist') || m.includes('42p01') ||
-           m.includes('could not find the table') || m.includes('schema cache');
-  },
-  _disable(err) {
-    this.enabled = false;
-    this._accessState = 'disabled';
-    this._loginPromise = null;
-    this._loginPromiseUid = null;
-    this._unsub();
-    if (!this._avisouSemTabela) {
-      this._avisouSemTabela = true;
-      console.info('[SessionGuard] tabela active_sessions ausente — login único entre dispositivos desligado. Rode o SQL do relatório para ativar. Detalhe:', err && (err.message || err));
-    }
-  },
-
-  // Chamado pelo CloudStore quando há sessão (login ou sessão restaurada).
-  // Esta PROMISE é também a barreira de entrada: perfil nenhum deve ser exibido
-  // ou hidratado enquanto a posse da sessão ainda estiver indefinida.
-  async onLogin() {
-    if (!this.enabled) return { ok: true, status: 'disabled' };
-    const CS = window.CloudStore;
-    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { ok: false, status: 'offline' };
-    const uid = CS.session.user.id;
-    /* Multiaparelho: não existe "dono exclusivo" da conta. O controle de
-       concorrência fica onde deve ficar — nas revisões/merges dos dados. Isso
-       evita PC e celular ficarem se expulsando e transformando uma simples
-       exclusão em envio bloqueado + spinner vermelho. */
-    if (!this.singleDeviceMode) {
-      this._accessUid = uid;
-      this._accessState = 'allowed';
-      this._claimedUid = uid;
-      try {
-        if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
-      } catch (_) { _quiet(_); }
-      return { ok: true, status: 'allowed', multiDevice: true };
-    }
-    this.subscribe(uid);
-
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
-      this._accessUid = uid;
-      this._accessState = 'blocked';
-      return { ok: false, blocked: true, status: 'blocked' };
-    }
-    if (this._accessUid === uid && this._accessState === 'allowed') {
-      return { ok: true, status: 'allowed' };
-    }
-    if (this._accessUid === uid && this._accessState === 'blocked') {
-      return { ok: false, blocked: true, status: 'blocked' };
-    }
-    if (this._loginPromise && this._loginPromiseUid === uid) return this._loginPromise;
-
-    this._accessUid = uid;
-    this._accessState = 'checking';
-    this._loginPromiseUid = uid;
-    const p = (async () => {
-      /* Restaurar a sessão NÃO é um takeover. Primeiro consultamos quem possui a
-         conta. Se outro aparelho está ativo, este é bloqueado e não toca na linha.
-         Só uma conta livre ou já pertencente a este device é renovada. */
-      try {
-        const { data, error } = await CS.client.from(this.TABLE)
-          .select('device_id,device_label').eq('user_id', uid).maybeSingle();
-        if (error) {
-          if (this._isMissingTable(error)) {
-            this._disable(error);
-            return { ok: true, status: 'disabled' };
-          }
-          this._accessState = 'error';
-          console.warn('[SessionGuard] verificação inicial falhou', error);
-          return { ok: false, status: 'error', error };
-        }
-        if (data && data.device_id && data.device_id !== this.deviceId()) {
-          this._accessState = 'blocked';
-          this._takenBy(data);
-          return { ok: false, blocked: true, status: 'blocked', row: data };
-        }
-        const ok = await this.claim(uid);
-        if (ok) return { ok: true, status: 'allowed' };
-        this._accessState = 'error';
-        return { ok: false, status: 'error' };
-      } catch (err) {
-        if (this._isMissingTable(err)) {
-          this._disable(err);
-          return { ok: true, status: 'disabled' };
-        }
-        this._accessState = 'error';
-        console.warn('[SessionGuard] verificação inicial erro', err);
-        return { ok: false, status: 'error', error: err };
-      }
-    })();
-    this._loginPromise = p;
-    try { return await p; }
-    finally {
-      if (this._loginPromise === p) {
-        this._loginPromise = null;
-        this._loginPromiseUid = null;
-      }
-    }
-  },
-  onLogout() {
-    this._claimedUid = null;
-    this._accessUid = null;
-    this._accessState = 'unknown';
-    this._loginPromise = null;
-    this._loginPromiseUid = null;
-    this._unsub();
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
-  },
-
-  // Grava este device como o dono ativo da conta (derruba os demais).
-  async claim(uid) {
-    if (!this.enabled) return false;
-    const CS = window.CloudStore;
-    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return false;
-    uid = uid || CS.session.user.id;
-    try {
-      const { error } = await CS.client.from(this.TABLE)
-        .upsert({ user_id: uid, device_id: this.deviceId(), device_label: this.deviceLabel(), updated_at: new Date().toISOString() },
-                { onConflict: 'user_id' });
-      if (error) {
-        if (this._isMissingTable(error)) this._disable(error);
-        else { this._accessState = 'error'; console.warn('[SessionGuard] claim falhou', error); }
-        return false;
-      }
-      this._claimedUid = uid;
-      this._accessUid = uid;
-      this._accessState = 'allowed';
-      return true;
-    } catch (err) {
-      if (this._isMissingTable(err)) this._disable(err);
-      else { this._accessState = 'error'; console.warn('[SessionGuard] claim erro', err); }
-      return false;
-    }
-  },
-
-  // Verifica quem é o dono atual (na entrada, antes mesmo do primeiro evento realtime).
-  async check(uid) {
-    if (!this.enabled || !this.singleDeviceMode) return;
-    const CS = window.CloudStore;
-    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return;
-    uid = uid || CS.session.user.id;
-    try {
-      const { data, error } = await CS.client.from(this.TABLE).select('device_id,device_label').eq('user_id', uid).maybeSingle();
-      if (error) { if (this._isMissingTable(error)) this._disable(error); return; }
-      if (data && data.device_id && data.device_id !== this.deviceId()) {
-        this._accessUid = uid;
-        this._accessState = 'blocked';
-        this._takenBy({ device_id: data.device_id, device_label: data.device_label });
-      } else if (data && data.device_id === this.deviceId() &&
-                 !(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
-        this._accessUid = uid;
-        this._accessState = 'allowed';
-        this._claimedUid = uid;
-      }
-    } catch (err) { if (this._isMissingTable(err)) this._disable(err); }
-  },
-
-  subscribe(uid) {
-    if (!this.enabled || !this.singleDeviceMode || this.channel) return;
-    const CS = window.CloudStore;
-    if (!CS || !CS.isReady()) return;
-    try {
-      this.channel = CS.client.channel('sess_guard')
-        .on('postgres_changes', { event: '*', schema: 'public', table: this.TABLE, filter: 'user_id=eq.' + uid }, (p) => {
-          const row = p.new || p.old || {};
-          if (!row.device_id) return;
-          if (row.device_id !== this.deviceId()) {
-            this._accessUid = uid;
-            this._accessState = 'blocked';
-            this._takenBy(row);
-          } else if (!(window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote')) {
-            this._accessUid = uid;
-            this._accessState = 'allowed';
-            this._claimedUid = uid;
-            /* Não fechamos automaticamente um bloqueio REMOTO só porque chegou
-               um evento com nosso device_id. O overlay só some após takeover
-               explícito confirmado; assim nenhum claim concorrente ou evento
-               tardio decide sozinho que a pessoa "continuou neste aparelho". */
-          }
-          // se a tela de Configurações estiver aberta, reflete a mudança na hora
-          try { const cfg = document.getElementById('screen-config'); if (cfg && cfg.classList.contains('active') && window.CloudUI) CloudUI.renderSessions(); } catch (_) { _quiet(_); }
-        })
-        .subscribe((status) => { if (status === 'SUBSCRIBED') this.check(uid); });
-    } catch (e) { console.warn('[SessionGuard] realtime indisponível', e); }
-  },
-  _unsub() {
-    if (this.channel) { try { window.CloudStore.client.removeChannel(this.channel); } catch (_) { _quiet(_); } this.channel = null; }
-  },
-
-  // Outro aparelho assumiu: bloqueia NOVAS ações aqui, mas entrega primeiro
-  // a fila SQL que já estava comprovadamente gravada neste aparelho.
-  _takenBy(row) {
-    if (!this.singleDeviceMode) {
-      this._accessState = 'allowed';
-      try {
-        if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
-          SessionLock.unblock();
-        }
-      } catch (e) { _quiet(e, 'session-unblock'); }
-      return;
-    }
-
-    try {
-      const CS = window.CloudStore;
-      const uid = CS && CS.session && CS.session.user ? CS.session.user.id : null;
-      if (uid) this._accessUid = uid;
-      this._accessState = 'blocked';
-    } catch (e) { _quiet(e, 'session-mark-blocked'); }
-
-    if (window.SessionLock) SessionLock.block('remote', { label: row.device_label });
-
-    /* Não existe mais fila SQL local durável. Se uma operação SQL já estava em
-       voo, apenas aguardamos a fila relacional terminar e refletimos o resultado.
-       O bloqueio continua imediato: nenhuma nova edição é autorizada. */
-    try {
-      const RS = window.RelationalStore;
-      const pendentes = RS && RS.pendingCount ? RS.pendingCount() : 0;
-      if (RS && pendentes > 0) {
-        this._handoffDraining = true;
-        this._handoffLast = {
-          em: Date.now(), perfil: ProfileManager.getActiveProfileId(),
-          total: pendentes, status: 'enviando'
-        };
-        if (window.CloudUI) {
-          CloudUI.refreshSyncBtn('syncing', 'Finalizando gravação no banco antes de pausar…');
-        }
-        Promise.resolve(RS.flush()).then(() => {
-          this._handoffDraining = false;
-          const resta = RS.pendingCount ? RS.pendingCount() : 0;
-          this._handoffLast = {
-            em: Date.now(), perfil: ProfileManager.getActiveProfileId(),
-            total: pendentes, status: resta ? 'pendente' : 'ok'
-          };
-          if (window.CloudUI) CloudUI.refreshSyncBtn();
-        }).catch((e) => {
-          this._handoffDraining = false;
-          this._handoffLast = {
-            em: Date.now(), perfil: ProfileManager.getActiveProfileId(),
-            total: pendentes, status: 'erro',
-            erro: String(e && (e.message || e) || 'erro')
-          };
-          if (window.CloudUI) {
-            CloudUI.refreshSyncBtn('error', 'Banco não confirmou uma operação antes da pausa');
-          }
-        });
-      }
-    } catch (e) { _quiet(e, 'session-drain-relational'); }
-
-    if (window.CloudUI) CloudUI.refreshSyncBtn();
-  },
-
-  // ---- Usado pela tela de Configurações ----
-  // status: 'ok' (leu a linha), 'empty' (sem sessão registrada), 'disabled'
-  // (tabela ausente/guard desligado), 'offline' (sem conexão/login), 'error'.
-  async fetchActive() {
-    if (!this.enabled) return { status: 'disabled' };
-    if (!this.singleDeviceMode) return { status: 'multi', thisDeviceId: this.deviceId(), thisLabel: this.deviceLabel() };
-    const CS = window.CloudStore;
-    if (!CS || !CS.isReady() || !CS.isLoggedIn()) return { status: 'offline' };
-    try {
-      const { data, error } = await CS.client.from(this.TABLE)
-        .select('device_id,device_label,updated_at').eq('user_id', CS.session.user.id).maybeSingle();
-      if (error) { if (this._isMissingTable(error)) { this._disable(error); return { status: 'disabled' }; } return { status: 'error', message: error.message }; }
-      if (!data || !data.device_id) return { status: 'empty' };
-      return {
-        status: 'ok',
-        row: data,
-        isThisDevice: data.device_id === this.deviceId(),
-        thisDeviceId: this.deviceId(),
-        thisLabel: this.deviceLabel()
-      };
-    } catch (err) { if (this._isMissingTable(err)) { this._disable(err); return { status: 'disabled' }; } return { status: 'error', message: err && err.message }; }
-  },
-  // Encerra a sessão do outro aparelho trazendo a posse para ESTE (reivindica).
-  // O outro aparelho recebe o evento em tempo real e é bloqueado.
-  async endRemoteAndClaimHere() {
-    if (!this.singleDeviceMode) {
-      this._accessState = 'allowed';
-      try { if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock(); } catch (_) { _quiet(_); }
-      if (window.CloudUI) CloudUI.refreshSyncBtn();
-      return true;
-    }
-    const ok = await this.claim();
-    if (ok) {
-      if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') SessionLock.unblock();
-      try {
-        const pid = window.ProfileManager ? ProfileManager.getActiveProfileId() : null;
-        if (pid && window.CloudStore && CloudStore._drainSectionRealtimeHint) CloudStore._drainSectionRealtimeHint(pid);
-      } catch (_) { _quiet(_); }
-    }
-    if (window.CloudUI) CloudUI.refreshSyncBtn();
-    return ok;
-  },
-
-  /* 61-session-guard carrega ANTES de 63-cloud-ui, onde SessionLock nasce.
-     Portanto o binding remoto não pode depender de "if (window.SessionLock)"
-     executado uma única vez durante o parse deste arquivo. Esta função é
-     idempotente e é chamada de novo por 63-cloud-ui logo depois de criar o lock. */
-  _sessionLockBound: false,
-  bindSessionLock() {
-    if (this._sessionLockBound || !window.SessionLock || !SessionLock.onTakeover) return false;
-    this._sessionLockBound = true;
-    SessionLock.onTakeover(async (origin) => {
-      if (origin !== 'remote') return;
-      const ok = await SessionGuard.endRemoteAndClaimHere();
-      if (ok) {
-        showToast('Sessão retomada neste aparelho ✓');
-        try { if (window.ProfileUI && ProfileUI.resumeAfterSessionClaim) ProfileUI.resumeAfterSessionClaim(); } catch (_) { _quiet(_); }
-      } else {
-        showToast('Não foi possível retomar agora — verifique a internet');
-        SessionLock.block('remote', {});
-      }
-    });
-    return true;
-  }
-};
-window.SessionGuard = SessionGuard;
-// No bundle atual SessionLock ainda não existe aqui; em ordens futuras, liga já.
-try { SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }
-
 /* ============================================================
    CLOUD UI — status da conta em Configurações (simplificado)
    ============================================================ */
@@ -40839,7 +39816,6 @@ const CloudUI = {
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
       this.setStatus('ok', 'Sincronização automática ativa');
       this.renderQueue();
-      this.renderSessions();
     }
   },
   /* ── FILA DE ENVIO ────────────────────────────────────────────────────────
@@ -40907,70 +39883,6 @@ const CloudUI = {
       '.</strong> O indicador volta a verde somente após a confirmação do banco.</p>';
     if (acoes) acoes.disabled = false;
   },
-  // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
-  async renderSessions() {
-    const box = document.getElementById('cloud-sessions-list');
-    if (!box) return;
-    if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
-    if (SessionGuard.enabled === false) {
-      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem permanecer conectados.</strong> A sincronização usa controle de revisão para conciliar alterações sem expulsar o outro aparelho.</div>';
-      return;
-    }
-    box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
-    const r = await SessionGuard.fetchActive();
-    if (r.status === 'multi') {
-      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem ficar conectados ao mesmo tempo.</strong> A sincronização usa revisão protegida e reconciliação de registros; apenas duas abas do mesmo navegador continuam evitando edição simultânea.</div>';
-      return;
-    }
-    if (r.status === 'disabled') {
-      box.innerHTML = '<div class="cloud-sessions-off">Controle remoto de sessão indisponível. A sincronização multiaparelho continua protegida pelas revisões dos dados; o bloqueio entre abas do mesmo navegador segue ativo.</div>';
-      return;
-    }
-    if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
-    if (r.status === 'error') { box.innerHTML = '<div class="cloud-sessions-off">Não foi possível carregar: ' + escapeHtml(r.message || '') + '</div>'; return; }
-    if (r.status === 'empty') {
-      box.innerHTML = '<div class="cloud-sessions-empty">Nenhuma sessão registrada ainda. Ela aparece assim que você usar a conta em um aparelho.</div>';
-      return;
-    }
-    // status 'ok'
-    const row = r.row;
-    const isThis = r.isThisDevice;
-    const quando = row.updated_at ? new Date(row.updated_at).toLocaleString('pt-BR') : '';
-    const nome = escapeHtml(row.device_label || 'Aparelho');
-    const idCurto = escapeHtml(String(row.device_id || '').slice(0, 8));
-    if (isThis) {
-      box.innerHTML = `<div class="sess-card is-this">
-        <span class="sess-ico">💻</span>
-        <div class="sess-info">
-          <div class="sess-name">${nome} <span class="sess-badge this">este aparelho</span></div>
-          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
-        </div>
-      </div>
-      <p class="hint" style="margin:8px 0 0;">Esta é a única sessão ativa. Ao entrar em outro aparelho, ele assume e esta é encerrada automaticamente.</p>`;
-    } else {
-      box.innerHTML = `<div class="sess-card">
-        <span class="sess-ico">📱</span>
-        <div class="sess-info">
-          <div class="sess-name">${nome} <span class="sess-badge other">outro aparelho</span></div>
-          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
-        </div>
-        <div class="sess-actions">
-          <button type="button" class="btn-primary" id="cloud-sess-endother">Encerrar e usar aqui</button>
-        </div>
-      </div>
-      <p class="hint" style="margin:8px 0 0;">Este aparelho (${escapeHtml(r.thisLabel)}) não está com a sessão. "Encerrar e usar aqui" bloqueia o outro e traz a sessão para cá.</p>`;
-      const btn = document.getElementById('cloud-sess-endother');
-      if (btn) btn.addEventListener('click', async () => {
-        const ok = await UI.confirm('Encerrar a sessão em "' + (row.device_label || 'outro aparelho') + '" e trazer a sessão para este aparelho?\n\nO outro aparelho será bloqueado e sua sincronização, pausada.', { title: '📵 Encerrar sessão', okText: 'Encerrar e usar aqui' });
-        if (!ok) return;
-        btn.disabled = true; btn.textContent = 'Encerrando…';
-        const done = await SessionGuard.endRemoteAndClaimHere();
-        if (done) { showToast('Sessão trazida para este aparelho ✓'); }
-        else { showToast('Não foi possível agora — verifique a internet'); }
-        this.renderSessions();
-      });
-    }
-  },
   setStatus(tone, text) {
     // painel em Configurações (quando visível)
     const el = document.getElementById('cloud-sync-status');
@@ -40998,16 +39910,6 @@ const CloudUI = {
     let fila = 0;
     try { fila = RS && RS.pendingCount ? RS.pendingCount() : 0; }
     catch (e) { _quiet(e, 'sync-ui-pending'); }
-
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
-      if (window.SessionGuard && SessionGuard._handoffDraining) {
-        tone = 'syncing';
-        text = 'Finalizando gravação no banco antes de pausar…';
-      } else {
-        tone = 'off';
-        text = 'Pausado · conta ativa em outro aparelho';
-      }
-    }
 
     if (!tone) {
       if (!CS || !CS.isReady()) {
@@ -41271,7 +40173,6 @@ window.CloudUI = CloudUI;
   }));
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
   on('cloud-change-pass', 'click', () => CloudUI.changePassword());
-  on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-queue-refresh', 'click', () => CloudUI.renderQueue());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   // "Baixar da nuvem" é semanticamente somente leitura: nunca publica o local antes.
@@ -41284,18 +40185,10 @@ window.CloudUI = CloudUI;
     const apfx = () => { try { const pid = localStorage.getItem('diario-estudos:active-profile'); return pid ? ('diario-estudos:u:' + pid + ':ux47:') : 'diario-estudos:ux47:'; } catch (_) { return 'diario-estudos:ux47:'; } };
     const g = (k, d) => { try { const v = localStorage.getItem(apfx() + k); return v === null ? d : v; } catch (_) { return d; } };
     const s = (k, v) => DB.setRaw(apfx() + k, String(v));
-    const ss = document.getElementById('cfg-single-session');
     const im = document.getElementById('cfg-idle-mins');
     const sync = () => {
-      if (ss) ss.checked = g('single-session', '0') === '1';
       if (im) im.value = g('idle-mins', '0');
     };
-    if (ss) {
-      ss.checked = false;
-      ss.disabled = true;
-      const row = ss.closest('label') || ss.parentElement;
-      if (row) row.style.display = 'none';
-    }
     if (im) im.addEventListener('change', () => { s('idle-mins', im.value); showToast(im.value === '0' ? 'Saída automática desligada' : 'Saída automática em ' + im.value + ' min'); });
     sync();
     window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') sync(); });
@@ -41396,108 +40289,6 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   window.aplicarEscalaFonte = () => aplicar(atual(), false); // reaplica ao trocar de perfil
 })();
 
-/* ============================================================================
-   SESSÃO ÚNICA — controlador central do bloqueio
-   Duas camadas cooperam:
-     · LOCAL  (SessionLock._local): abas/janelas do MESMO navegador, via
-       BroadcastChannel — instantâneo e sem custo de rede.
-     · REMOTO (SessionGuard, no CloudStore): entre DISPOSITIVOS diferentes,
-       via Supabase Realtime — quem entra por último "assume" a conta e os
-       demais aparelhos são bloqueados de verdade (login único real).
-   O overlay é compartilhado; a mensagem muda conforme a origem do bloqueio.
-   ============================================================================ */
-window.SessionLock = {
-  enabled: false,       // sem bloqueio entre abas/janelas/aparelhos; concorrência é resolvida nos dados
-  _blocked: false,
-  _origin: null,          // 'local' | 'remote'
-  _takeoverFns: [],       // callbacks de "Usar aqui" (uma por camada)
-  isBlocked() { return this.enabled ? this._blocked : false; },
-  _els() {
-    return {
-      o: document.getElementById('single-session-overlay'),
-      ico: document.getElementById('ss-ico'),
-      t: document.getElementById('ss-title'),
-      d: document.getElementById('ss-desc'),
-      s: document.getElementById('ss-sub'),
-      take: document.getElementById('single-session-takeover')
-    };
-  },
-  // Exibe o bloqueio. kind: 'local' (outra aba) | 'remote' (outro aparelho).
-  block(kind, info) {
-    if (!this.enabled) { this._blocked = false; this._origin = null; const z = this._els(); if (z.o) z.o.style.display = 'none'; return; }
-    this._blocked = true; this._origin = kind;
-    const e = this._els(); if (!e.o) return;
-    if (kind === 'remote') {
-      if (e.ico) e.ico.textContent = '📵';
-      if (e.t) e.t.textContent = 'Sessão aberta em outro aparelho';
-      if (e.d) e.d.innerHTML = 'Sua conta foi aberta em <strong>outro dispositivo</strong>' + (info && info.label ? ' (' + escapeHtml(info.label) + ')' : '') + '. Para proteger seus dados, o Diário mantém <strong>um aparelho ativo por vez</strong> — a sincronização foi <strong>pausada aqui</strong>.';
-      if (e.s) e.s.textContent = 'Se foi você, pode continuar neste aparelho: isso vai encerrar a sessão no outro.';
-      if (e.take) { e.take.disabled = false; e.take.textContent = 'Continuar neste aparelho'; }
-    } else {
-      if (e.ico) e.ico.textContent = '🔒';
-      if (e.t) e.t.textContent = 'Diário já aberto em outra janela';
-      if (e.d) e.d.innerHTML = 'Para proteger seus dados, o Diário funciona em <strong>uma aba/janela por vez</strong> neste navegador.';
-      if (e.s) e.s.textContent = 'Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever a sincronização.';
-      if (e.take) { e.take.disabled = false; e.take.textContent = 'Usar aqui (encerrar as outras)'; }
-    }
-    e.o.style.display = 'flex';
-  },
-  unblock() {
-    this._blocked = false; this._origin = null;
-    const e = this._els();
-    if (e.take) e.take.disabled = false;
-    if (e.o) e.o.style.display = 'none';
-  },
-  onTakeover(fn) { if (typeof fn === 'function') this._takeoverFns.push(fn); },
-  _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) { _quiet(_); } }); },
-  init() {
-    const e = this._els();
-    if (!this.enabled) { if (e.o) e.o.style.display = 'none'; return; }
-    if (e.take) e.take.addEventListener('click', () => {
-      const origin = this._origin;
-      /* Local: podemos liberar imediatamente porque o BroadcastChannel é deste
-         próprio navegador. Remoto: o overlay só fecha DEPOIS de o Supabase
-         confirmar o takeover. Assim um toque não cria uma janela em que o app
-         parece liberado antes de a posse existir no servidor. */
-      if (origin === 'local') this.unblock();
-      else if (origin === 'remote') {
-        e.take.disabled = true;
-        e.take.textContent = 'Confirmando…';
-      }
-      this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } });
-    });
-    const r = document.getElementById('single-session-reload');
-    if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
-  }
-};
-
-/* O SessionGuard foi carregado antes deste arquivo. Agora que SessionLock
-   realmente existe, liga o takeover REMOTO. Sem esta chamada o botão ficava
-   eternamente em "Confirmando…" porque nenhum callback remoto estava registrado. */
-try { if (window.SessionGuard && SessionGuard.bindSessionLock) SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }
-
-/* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
-(function () {
-  if (!SessionLock.enabled) return;
-  let bc = null;
-  try { bc = ('BroadcastChannel' in window) ? new BroadcastChannel('diario-estudos-single') : null; } catch (_) { bc = null; }
-  if (!bc) return;
-  const myId = Math.random().toString(36).slice(2);
-  const myStart = Date.now();
-  const outraEhDona = (m) => (m.start < myStart) || (m.start === myStart && m.id < myId);
-  bc.onmessage = (e) => {
-    const m = e.data || {};
-    if (!m || m.id === myId) return;
-    if (m.type === 'hello') { if (!(SessionLock.isBlocked() && SessionLock._origin === 'local')) bc.postMessage({ type: 'here', id: myId, start: myStart }); }
-    else if (m.type === 'here') { if (outraEhDona(m)) SessionLock.block('local'); }
-    else if (m.type === 'takeover') { if (m.id !== myId) SessionLock.block('local'); }
-  };
-  SessionLock.onTakeover((origin) => { if (origin === 'local') { try { bc.postMessage({ type: 'takeover', id: myId, start: myStart }); } catch (_) { _quiet(_); } } });
-  try { bc.postMessage({ type: 'hello', id: myId, start: myStart }); } catch (_) { _quiet(_); }
-  try { window.addEventListener('beforeunload', () => { try { bc.postMessage({ type: 'bye', id: myId }); } catch (_) { _quiet(_); } }); } catch (_) { _quiet(_); }
-})();
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => SessionLock.init());
-else SessionLock.init();
 
 /* ============================================================================
    INFO TIPS — converte textos de ajuda longos em um ícone "i" com popover
@@ -41662,76 +40453,6 @@ else SessionLock.init();
    RAM e a fonte durável é o PostgreSQL. Medir quota local deixou de representar
    o tamanho real do perfil. */
 
-/* ---- UI do Histórico de versões (Configurações) ---- */
-const BackupHistoryUI = {
-  _quando(ts) {
-    const d = new Date(ts), agora = Date.now();
-    const min = Math.round((agora - ts) / 60000);
-    if (min < 1) return 'agora mesmo';
-    if (min < 60) return 'há ' + min + ' min';
-    const h = Math.round(min / 60);
-    if (h < 24 && d.toDateString() === new Date().toDateString()) return 'hoje ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  },
-  render() {
-    const host = document.getElementById('cfg-vhist-body');
-    if (!host) return;
-    const id = ProfileManager.getActiveProfileId();
-    const arr = id ? BackupHistory._list(id).slice().reverse() : [];
-    if (!arr.length) {
-      host.innerHTML = '<p class="hint">Ainda não há versões guardadas. O app cria uma automaticamente na primeira alteração de cada dia e sempre antes de baixar da nuvem. Você também pode salvar uma agora, com o botão acima.</p>';
-      return;
-    }
-    host.innerHTML = arr.map((r, i) => {
-      const kb = Math.max(1, Math.round(r.chars * 2 / 1024)); // aprox. em KB (UTF-16)
-      const nota = r.note ? escapeHtml(r.note) : 'versão salva';
-      const atual = i === 0 ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;">mais recente</span>' : '';
-      return `<div class="cloud-slot-row" data-ts="${r.ts}">
-        <div class="cloud-slot-info">
-          <div class="name">${this._quando(r.ts)} ${atual}</div>
-          <div class="meta">${nota} · ~${kb} KB${r.enc === 'gz' ? ' · comprimido' : ''}</div>
-        </div>
-        <div class="cloud-slot-actions">
-          <button type="button" class="btn-secondary vh-download" title="Baixar esta versão como arquivo .json">↓ Baixar</button>
-          <button type="button" class="btn-primary vh-restore" title="Restaurar esta versão sobre o perfil atual">↺ Restaurar</button>
-        </div>
-      </div>`;
-    }).join('') + '<p class="hint" style="margin-top:10px;">Guardamos até ' + BackupHistory.MAX + ' versões dos últimos 7 dias (uma cópia automática a cada 20 min de uso e sempre antes de uma limpeza). As mais antigas saem sozinhas, então o histórico nunca ocupa espaço demais. Restaurar cria antes uma cópia do estado atual, então a ação é reversível.</p>';
-    host.querySelectorAll('.cloud-slot-row').forEach(row => {
-      const ts = parseInt(row.dataset.ts, 10);
-      row.querySelector('.vh-download').addEventListener('click', async () => {
-        const backup = await BackupHistory.buildBackup(id, ts);
-        if (!backup) { showToast('Não foi possível ler esta versão'); return; }
-        const meta = ProfileManager.getProfiles().find(p => p.id === id) || {};
-        const nome = 'versao-' + (meta.nome || 'perfil').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + new Date(ts).toISOString().slice(0, 10) + '.json';
-        CardsScreen._download(nome, JSON.stringify(backup, null, 2), 'application/json');
-        showToast('Versão baixada ✓');
-      });
-      row.querySelector('.vh-restore').addEventListener('click', async () => {
-        const ok = await UI.confirm('Restaurar esta versão sobre o perfil atual?\n\nO estado de agora é guardado antes, então você pode voltar atrás. Depois de restaurar, o app recarrega.', { title: '↺ Restaurar versão', okText: 'Restaurar' });
-        if (!ok) return;
-        showToast('Restaurando…');
-        // rede de segurança no banco antes de sobrescrever o estado atual
-        try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de restaurar uma versão local'); } catch (e) { _quiet(e, 'vh-cbk'); }
-        const done = await BackupHistory.restore(id, ts);
-        if (!done) { showToast('Não foi possível restaurar esta versão'); return; }
-        try { await CloudStore.flushPending(); } catch (_) { _quiet(_); }
-        setTimeout(() => recarregarApp('versão restaurada', { imediato: true }), 600);
-      });
-    });
-  }
-};
-window.BackupHistoryUI = BackupHistoryUI;
-(function () {
-  const b = document.getElementById('cfg-vhist-save');
-  if (b) b.addEventListener('click', async () => {
-    const ok = await BackupHistory.snapshot('salvo manualmente');
-    showToast(ok ? 'Versão salva ✓' : 'Nada mudou desde a última versão');
-    BackupHistoryUI.render();
-  });
-  window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') BackupHistoryUI.render(); });
-})();
-
 
 /* ---- Dica por toque nos gráficos ------------------------------------------
    Antes, o valor de uma barra só aparecia passando o mouse (atributo title),
@@ -41811,266 +40532,6 @@ document.addEventListener('click', (e) => {
 });
 
 
-/* ============================================================
-   RECUPERAÇÃO DE DADOS — o vasculhador do aparelho
-   ------------------------------------------------------------
-   Existe porque um dado pode ficar INVISÍVEL sem estar perdido, e as duas
-   situações se parecem na tela: você abre o app e "sumiu tudo". Os caminhos
-   conhecidos até aqui:
-
-     · a seção foi APAGADA no aparelho (era o caso do download que tratava
-       "não está na nuvem" como "foi excluída" — corrigido, e agora tudo o que
-       é apagado passa pela LIXEIRA antes);
-     · a seção existe, mas debaixo de um PLANEJAMENTO que não está mais na
-       lista de planejamentos — o app não tem por onde chegar até ela;
-     · a seção existe debaixo de um PERFIL que sumiu da lista de perfis;
-     · o dado só existe dentro de uma foto do histórico de versões.
-
-   Esta tela varre TODAS essas fontes, mostra o que encontrou com tamanho e
-   data, e restaura. Ela nunca apaga nada: só copia de volta para onde o app
-   sabe procurar. É de propósito uma ferramenta de LEITURA + RESTAURAÇÃO.
-   ============================================================ */
-const Recuperacao = {
-  /* Rótulos legíveis das seções. O nome interno ("p:pl_x:cards") não diz nada
-     a quem está com medo de ter perdido meses de estudo. */
-  ROTULOS: {
-    entries: 'registros de estudo', subjects: 'matérias', methods: 'formas de estudo',
-    phases: 'fases', statuses: 'status do Estudo Novo', modes: 'modos de estudo',
-    'current-cycle': 'ciclo da semana', 'cycle-history': 'histórico de semanas',
-    tracks: 'trilhas do Estudo Novo', tec: 'retratos do TEC',
-    'grade-template': 'grade semanal', 'saved-grades': 'grades salvas',
-    'custom-siglas': 'siglas', leis: 'leis secas', 'lei-keywords': 'palavras-chave das leis',
-    decks: 'baralhos', cards: 'cards', links: 'links', incidencia: 'incidência',
-    'last-cycle-setup': 'última montagem de ciclo', extras: 'atividades extras',
-    revlog: 'histórico de revisões', planejamentos: 'lista de planejamentos',
-    'active-plan': 'planejamento ativo', ferramentas: 'ferramentas'
-  },
-  rotulo(sec) {
-    const m = /^p:([^:]+):(.+)$/.exec(sec);
-    const folha = m ? m[2] : sec;
-    return this.ROTULOS[folha] || folha;
-  },
-  planoDe(sec) { const m = /^p:([^:]+):/.exec(sec); return m ? m[1] : null; },
-
-  /* ── VARREDURA ────────────────────────────────────────────────────────────
-     Percorre o armazenamento inteiro, não só o perfil ativo. Devolve, por
-     perfil: as seções presentes, quais estão alcançáveis hoje e quais estão
-     órfãs (planejamento fora da lista), mais a lixeira e as fotos. */
-  varrer() {
-    const perfis = {};
-    const registrados = {};
-    try { (ProfileManager.getProfiles() || []).forEach(p => { registrados[p.id] = p.nome || p.id; }); } catch (e) { _quiet(e, 'rec-perfis'); }
-    const RE = /^diario-estudos:u:([^:]+):(.+)$/;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        const m = RE.exec(k);
-        if (!m) continue;
-        const pid = m[1], sub = m[2];
-        const p = perfis[pid] || (perfis[pid] = {
-          id: pid, nome: registrados[pid] || null, naListaDePerfis: pid in registrados,
-          secoes: [], lixo: [], fotos: 0, bytes: 0
-        });
-        const bytes = (localStorage.getItem(k) || '').length;
-        p.bytes += bytes;
-        if (sub.indexOf('vhist') === 0) continue;          // fotos são contadas à parte
-        if (sub.indexOf(Lixeira.PREFIXO) === 0) {
-          const item = Lixeira.ler(k);
-          if (item) p.lixo.push(item);
-          continue;
-        }
-        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
-        p.secoes.push({ chave: k, sec: sub, bytes });
-      }
-    } catch (e) { _quiet(e, 'rec-varrer'); }
-
-    // Quais planejamentos cada perfil consegue ALCANÇAR hoje
-    Object.values(perfis).forEach(p => {
-      let planos = [];
-      try { planos = (JSON.parse(localStorage.getItem('diario-estudos:u:' + p.id + ':planejamentos')) || []).map(x => x.id); }
-      catch (e) { _quiet(e, 'rec-planos'); }
-      p.planos = planos;
-      p.secoes.forEach(s => {
-        const plano = this.planoDe(s.sec);
-        s.plano = plano;
-        s.alcancavel = !plano || planos.indexOf(plano) !== -1;
-      });
-      p.orfas = p.secoes.filter(s => !s.alcancavel);
-      p.fotos = this._contarFotos(p.id);
-    });
-    return Object.values(perfis).sort((a, b) => b.bytes - a.bytes);
-  },
-  /* As fotos NÃO moram no namespace do perfil — a chave é
-     'diario-estudos:vhist:<id>'. Ler pela API do próprio BackupHistory evita
-     que este módulo se desatualize se aquele formato mudar. */
-  _fotosDe(pid) {
-    try { return BackupHistory._list(pid) || []; } catch (e) { _quiet(e, 'rec-lista-fotos'); return []; }
-  },
-  _contarFotos(pid) { return this._fotosDe(pid).length; },
-  /* Planejamentos que TÊM dados mas não estão na lista — a causa mais comum de
-     "os registros aparecem mas o resto sumiu": o ponteiro se perdeu, os dados
-     não. Reanexar é uma operação puramente aditiva. */
-  /* Seções que TODO planejamento ganha de fábrica ao ser criado. Um "órfão"
-     que só tem isto não guarda nada seu: é a sobra de uma semeadura que não
-     virou planejamento nenhum. Reportá-lo como dado recuperável faz a tela
-     gritar "⚠️ há dado recuperável" por causa de 617 bytes de lista padrão —
-     e um alarme que dispara sem motivo é pior que nenhum alarme, porque ensina
-     a ignorar o alarme de verdade. */
-  SEMEADAS: ['methods', 'phases', 'modes', 'statuses'],
-  _soTemSemente(g) {
-    return g.folhas.length > 0 && g.folhas.every(f => this.SEMEADAS.indexOf(f) !== -1);
-  },
-  planosOrfaos(pid) {
-    const alvo = pid || ProfileManager.getActiveProfileId();
-    const perfil = this.varrer().find(p => p.id === alvo);
-    if (!perfil) return [];
-    const porPlano = {};
-    perfil.orfas.forEach(s => {
-      if (!s.plano) return;
-      const g = porPlano[s.plano] || (porPlano[s.plano] = { id: s.plano, secoes: 0, bytes: 0, registros: 0, folhas: [] });
-      g.secoes++; g.bytes += s.bytes;
-      const m = /^p:[^:]+:(.+)$/.exec(s.sec);
-      if (m) g.folhas.push(m[1]);
-      if (/:entries$/.test(s.sec)) {
-        try { g.registros = (JSON.parse(localStorage.getItem(s.chave)) || []).length; } catch (e) { _quiet(e, 'rec-conta'); }
-      }
-    });
-    return Object.values(porPlano)
-      .filter(g => !this._soTemSemente(g))
-      .sort((a, b) => b.bytes - a.bytes);
-  },
-  /* ── CÓPIAS ANTIGAS DO NAVEGADOR ─────────────────────────────────────────
-     O app atual usa RAM + PostgreSQL. Esta rotina existe apenas para recuperação
-     manual de cópias deixadas por versões anteriores no localStorage nativo;
-     esses dados nunca voltam a ser fonte operacional automaticamente. */
-  varrerAntigo() {
-    const nativo = window.__nativeLS;
-    const out = [];
-    if (!nativo) return out;
-    try {
-      for (let i = 0; i < nativo.length; i++) {
-        const k = nativo.key(i);
-        if (!k || k.indexOf('diario-estudos') !== 0) continue;
-        if (localStorage.getItem(k) !== null) continue;   // já está no armazenamento atual
-        const v = nativo.getItem(k) || '';
-        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
-        out.push({ chave: k, bytes: v.length });
-      }
-    } catch (e) { _quiet(e, 'rec-antigo'); }
-    return out.sort((a, b) => b.bytes - a.bytes);
-  },
-  /* Traz para o armazenamento atual o que ficou no antigo. Nunca sobrescreve:
-     onde já existe valor, o atual manda. */
-  adotarAntigo() {
-    const achadas = this.varrerAntigo();
-    let n = 0;
-    achadas.forEach(it => {
-      try {
-        const v = window.__nativeLS.getItem(it.chave);
-        if (v == null) return;
-        if (localStorage.getItem(it.chave) !== null) return;
-        if (DB.setRaw(it.chave, v) !== false) n++;
-      } catch (e) { _quiet(e, 'rec-adotar'); }
-    });
-    return n;
-  },
-  /* Chaves sem namespace de perfil ("diario-estudos:entries" e irmãs), de antes
-     de existirem perfis e planejamentos. O app só as consome numa migração que
-     roda uma vez — se ela não rodou, o dado fica parado ali. */
-  varrerLegado() {
-    const out = [];
-    try {
-      Object.keys(DB.LEGACY_KEYS).forEach(nome => {
-        const k = DB.LEGACY_KEYS[nome];
-        const v = localStorage.getItem(k);
-        if (v == null || v === '' || v === '[]' || v === '{}' || v === 'null') return;
-        let itens = null;
-        try { const o = JSON.parse(v); itens = Array.isArray(o) ? o.length : (o && typeof o === 'object' ? Object.keys(o).length : null); } catch (e) { _quiet(e, 'rec-legado-parse'); }
-        out.push({ nome, chave: k, bytes: v.length, itens });
-      });
-    } catch (e) { _quiet(e, 'rec-legado'); }
-    return out;
-  },
-  /* Devolve um PERFIL à lista de perfis. É a irmã de reanexarPlano um nível
-     acima: o namespace do perfil está inteiro no aparelho, só o registro dele
-     no índice se perdeu — e sem o registro não há como entrar nele. */
-  reanexarPerfil(pid, nome) {
-    const list = ProfileManager.getProfiles();
-    if (list.some(p => p.id === pid)) return false;
-    list.push({ id: pid, nome: nome || ProfileManager.rotuloRecuperado(pid),
-      avatar: '🛟', cor: '#0a95a8', createdAt: new Date().toISOString(), soLocal: true });
-    ProfileManager.saveProfiles(list);
-    return true;
-  },
-  /* Devolve um planejamento órfão à lista. Não move, não copia e não apaga
-     nada: só torna alcançável o que já está no aparelho. */
-  reanexarPlano(planId, nome) {
-    const plans = PlanManager.getPlans();
-    if (plans.some(p => p.id === planId)) return false;
-    plans.push({ id: planId, nome: nome || ('Planejamento recuperado ' + planId.slice(-4)), tipo: 'Outro', createdAt: new Date().toISOString(), recuperadoEm: new Date().toISOString() });
-    PlanManager.savePlans(plans);
-    return true;
-  },
-
-  /* ── FOTOS DO HISTÓRICO DE VERSÕES ────────────────────────────────────────
-     Além de restaurar a foto inteira (o que o Histórico de versões já faz),
-     aqui dá para ver O QUE cada foto tem e trazer de volta SÓ o que falta —
-     sem desfazer o que você fez depois. */
-  async inspecionarFotos(pid) {
-    const alvo = pid || ProfileManager.getActiveProfileId();
-    const out = [];
-    const lista = this._fotosDe(alvo);
-    for (const rec of lista) {
-      let data = null;
-      try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto'); }
-      if (!data) continue;
-      const secoes = Object.keys(data).filter(s => s !== '__secrev' && s !== '__secpend' && s !== '__secdel' && s !== '__entryops' && s.indexOf('vhist') !== 0);
-      out.push({ ts: rec.ts, nota: rec.note || '', secoes, total: secoes.length,
-        bytes: secoes.reduce((a, s) => a + String(data[s] || '').length, 0) });
-    }
-    return out.sort((a, b) => b.ts - a.ts);
-  },
-  /* Traz de volta, de uma foto, APENAS as seções que hoje não existem ou estão
-     vazias. É a operação segura por construção: nada do estado atual é
-     sobrescrito, então não há como perder o que você fez desde a foto. */
-  async restaurarFaltantes(pid, ts) {
-    const alvo = pid || ProfileManager.getActiveProfileId();
-    const rec = this._fotosDe(alvo).find(r => r.ts === ts);
-    if (!rec) return { ok: false, motivo: 'foto não encontrada' };
-    let data = null;
-    try { const json = await BackupHistory._gunzip(rec); data = json ? JSON.parse(json) : null; } catch (e) { _quiet(e, 'rec-abrir-foto2'); }
-    if (!data) return { ok: false, motivo: 'foto ilegível' };
-    try { await BackupHistory.snapshot('antes de recuperar seções faltantes'); } catch (e) { _quiet(e, 'rec-snap'); }
-    const prefix = 'diario-estudos:u:' + alvo + ':';
-    const trazidas = [];
-    Object.keys(data).forEach(sub => {
-      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops' || sub.indexOf('vhist') === 0) return;
-      const atual = localStorage.getItem(prefix + sub);
-      if (atual !== null && atual !== '' && atual !== '[]' && atual !== '{}' && atual !== 'null') return; // já há algo vivo aqui
-      const valor = data[sub];
-      if (valor == null || valor === '') return;
-      if (DB.setRaw(prefix + sub, valor) !== false) trazidas.push(sub);
-    });
-    return { ok: true, trazidas };
-  }
-};
-window.Recuperacao = Recuperacao;
-
-/* ── A TELA SAIU, O MOTOR FICOU ────────────────────────────────────────────
-   `RecuperacaoUI` era um painel de resgate em Ajustes ▸ Dados e backup: um
-   botão "Vasculhar o aparelho" e uma lista do que dava para trazer de volta.
-   Ele nasceu para um defeito que hoje tem conserto na raiz — seções anotadas
-   localmente mas ausentes do aparelho voltam sozinhas na reconciliação de
-   entrada, e nada é apagado sem passar pela lixeira. Um botão de emergência
-   que a pessoa vê todo dia, para uma emergência que não acontece mais, é
-   ruído na tela onde ela vai mexer em outra coisa.
-
-   O `Recuperacao` acima NÃO saiu, e não é resíduo: `66-backup-nuvem.js` lê
-   `rotulo()` para nomear seções em português, e o AutoTeste usa `varrer()` e
-   `planosOrfaos()` para provar, a cada execução, que nenhum dado ficou fora
-   de alcance. É a mesma varredura de antes — só não tem mais um botão. */
-
 /* ═══════════════════ BACKUP NO BANCO DE DADOS ══════════════════════════════
    O que existia antes, e por que não bastava.
 
@@ -42136,6 +40597,35 @@ const CloudBackup = {
   _ultimoEm: {},             // perfil → quando a última foto foi criada nesta sessão
   _ultimoErro: null,         // do último ENVIO REAL (não de "não havia nada a fazer")
 
+  _b64enc(u8) { let s = ''; const CH = 0x8000; for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); },
+  _b64dec(b64) { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; },
+  _fnv(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
+  async _gzip(str) {
+    try {
+      if (typeof CompressionStream === 'undefined') return { enc: 'raw', data: str };
+      const cs = new CompressionStream('gzip');
+      const ab = await new Response(new Blob([str]).stream().pipeThrough(cs)).arrayBuffer();
+      return { enc: 'gz', data: this._b64enc(new Uint8Array(ab)) };
+    } catch (_) { return { enc: 'raw', data: str }; }
+  },
+  async _gunzip(rec) {
+    if (!rec) return null;
+    if (rec.enc !== 'gz') return rec.data;
+    try {
+      const ds = new DecompressionStream('gzip');
+      const ab = await new Response(new Blob([this._b64dec(rec.data)]).stream().pipeThrough(ds)).arrayBuffer();
+      return new TextDecoder().decode(ab);
+    } catch (_) { return null; }
+  },
+  _device() {
+    try {
+      const ua = navigator.userAgent || '';
+      const so = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone/iPad' : /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : 'Dispositivo';
+      const nav = /Edg\//i.test(ua) ? 'Edge' : /CriOS|Chrome\//i.test(ua) ? 'Chrome' : /FxiOS|Firefox\//i.test(ua) ? 'Firefox' : /Safari\//i.test(ua) ? 'Safari' : 'navegador';
+      return so + ' · ' + nav;
+    } catch (_) { return 'Dispositivo'; }
+  },
+
   _diaKey(id) { return 'diario-estudos:cbk-dia:' + id; },
   /* Assinatura do último conteúdo publicado, por perfil. GRAVADA em disco (não
      só em memória): sem isto, um recarregamento — e o app recarrega sozinho
@@ -42178,7 +40668,7 @@ const CloudBackup = {
     if (!this._avisouSemTabela) {
       this._avisouSemTabela = true;
       console.warn('[CloudBackup] tabela ' + this.TABLE + ' ausente — o backup NO BANCO está desligado. ' +
-        'O histórico de versões local continua funcionando. Rode o SQL de BANCO-DE-DADOS.md para ativar. Detalhe:',
+        'Os backups em .json continuam disponíveis. Rode o SQL de BANCO-DE-DADOS.md para ativar. Detalhe:',
         err && (err.message || err));
     }
   },
@@ -42187,7 +40677,6 @@ const CloudBackup = {
     const CS = window.CloudStore;
     return !!(CS && CS.isReady() && CS.isLoggedIn());
   },
-  _device() { try { return SessionGuard.deviceLabel(); } catch (_) { return 'Dispositivo'; } },
 
   /* ── FILA POR PERFIL ───────────────────────────────────────────────────────
      `criar` e `criarDeDados` escrevem na mesma tabela para o mesmo perfil, e
@@ -42255,10 +40744,10 @@ const CloudBackup = {
       return { ok: false, motivo: 'perfil-vazio' };
     }
     const json = JSON.stringify(dataObj);
-    const sig = BackupHistory._fnv(json);
+    const sig = this._fnv(json);
     if (!opts.forcar && this._lerUltimoSig(id) === sig) return { ok: true, repetido: true };
     try {
-      const packed = await BackupHistory._gzip(json);
+      const packed = await this._gzip(json);
       if (String(packed.data).length > this.LIMITE_CHARS) {
         /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
            status técnico e a tela continuavam dizendo "ativo" enquanto o backup
@@ -42352,7 +40841,7 @@ const CloudBackup = {
         30000, 'Baixar o backup');
       if (error) throw error;
       if (!data) return null;
-      const json = await BackupHistory._gunzip({ enc: data.enc, data: data.data });
+      const json = await this._gunzip({ enc: data.enc, data: data.data });
       if (json == null) return null;
       let mapa; try { mapa = JSON.parse(json); } catch (_) { return null; }
       return { data: mapa, note: data.note, created_at: data.created_at, chars: data.chars };
@@ -42376,14 +40865,13 @@ const CloudBackup = {
     };
   },
   /* Restaura a foto SOBRE o perfil ativo. Duas garantias antes de qualquer
-     escrita: uma foto local do estado de agora (dá para voltar atrás) e uma
-     foto na nuvem do mesmo estado (dá para voltar atrás de outro aparelho). */
+     escrita: uma foto no banco do estado atual, para que a restauração continue
+     reversível em qualquer aparelho. */
   async restaurar(rowId) {
     const id = ProfileManager.getActiveProfileId();
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await BackupHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
     try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
     try {
       if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
@@ -42770,7 +41258,7 @@ const CloudBackupUI = {
        para um `<details>`, a um clique. */
     const ancoras = linhas.filter(r => r.ancora).length;
     let meuAparelho = null;
-    try { meuAparelho = SessionGuard.deviceLabel(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
+    try { meuAparelho = this._device(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
     const linhaHtml = (r) => {
       const tag = r.ancora
         ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;" title="O chão do seu histórico: a foto mais completa entre as que já passaram de 12 meses. A limpeza automática nunca a remove, e ela caminha sozinha para um retrato mais cheio conforme você estuda.">âncora</span>' : '';
@@ -46590,18 +45078,10 @@ else CloudStore.init();
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
   function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
 
-  /* Preserva apenas preferências globais pequenas nesta sessão de transição.
-     Dados de perfil não são adotados: o banco manda. */
-  if (nativeLS) {
-    try {
-      for (var i = 0; i < nativeLS.length; i++) {
-        var k = nativeLS.key(i);
-        if (!k || !isMemoryKey(k) || k.indexOf('diario-estudos:u:') === 0) continue;
-        var v = nativeLS.getItem(k);
-        if (v != null) mem.set(k, String(v));
-      }
-    } catch (_) {}
-  }
+  /* A projeção de estudo começa VAZIA em toda abertura.
+     Nenhuma chave antiga do navegador é adotada: depois da migração relacional,
+     o PostgreSQL é a única origem persistente. O tema visual é a única exceção
+     e continua sendo lido diretamente do armazenamento nativo em applyTheme(). */
 
   function notify(k, oldV, newV) {
     try {
@@ -46657,7 +45137,7 @@ else CloudStore.init();
         try {
           if (nativeLS) for (var j = 0; j < nativeLS.length; j++) {
             var nk = nativeLS.key(j);
-            if (nk != null && a.indexOf(nk) < 0) a.push(nk);
+            if (nk != null && !isMemoryKey(nk) && a.indexOf(nk) < 0) a.push(nk);
           }
         } catch (_) {}
         keysCache = a;

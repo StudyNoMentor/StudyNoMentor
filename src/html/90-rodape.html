@@ -15,18 +15,10 @@
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
   function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
 
-  /* Preserva apenas preferências globais pequenas nesta sessão de transição.
-     Dados de perfil não são adotados: o banco manda. */
-  if (nativeLS) {
-    try {
-      for (var i = 0; i < nativeLS.length; i++) {
-        var k = nativeLS.key(i);
-        if (!k || !isMemoryKey(k) || k.indexOf('diario-estudos:u:') === 0) continue;
-        var v = nativeLS.getItem(k);
-        if (v != null) mem.set(k, String(v));
-      }
-    } catch (_) {}
-  }
+  /* A projeção de estudo começa VAZIA em toda abertura.
+     Nenhuma chave antiga do navegador é adotada: depois da migração relacional,
+     o PostgreSQL é a única origem persistente. O tema visual é a única exceção
+     e continua sendo lido diretamente do armazenamento nativo em applyTheme(). */
 
   function notify(k, oldV, newV) {
     try {
@@ -82,7 +74,7 @@
         try {
           if (nativeLS) for (var j = 0; j < nativeLS.length; j++) {
             var nk = nativeLS.key(j);
-            if (nk != null && a.indexOf(nk) < 0) a.push(nk);
+            if (nk != null && !isMemoryKey(nk) && a.indexOf(nk) < 0) a.push(nk);
           }
         } catch (_) {}
         keysCache = a;

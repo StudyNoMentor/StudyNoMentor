@@ -1375,7 +1375,7 @@ function planCycleMode() {
     if (n === 0) { showToast('Nenhuma célula marcada como concluída'); return; }
     if (!await UI.confirm(`Desmarcar as ${n} célula(s) concluída(s)?\n\nAs matérias e durações da grade são mantidas.`,
       { title: '↺ Desmarcar concluídos', okText: 'Desmarcar' })) return;
-    try { if (window.BackupHistory) await BackupHistory.antesDe('desmarcar a grade'); } catch (_) { _quiet(_); }
+    try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de desmarcar a grade'); } catch (_) { _quiet(_); }
     const t = gradeGet();
     DIAS_SEMANA.forEach(d => {
       if (!Array.isArray(t.grade[d])) return;
@@ -1396,7 +1396,7 @@ function planCycleMode() {
     if (!await UI.confirmTyped(`Limpar toda a grade?\n\nAs ${ocupadas} matéria(s) alocadas serão removidas das células. As siglas cadastradas são mantidas.`,
       { word: 'LIMPAR', title: '🗑️ Limpar grade inteira', okText: 'Limpar grade' })) return;
     // foto de seguranca ANTES de esvaziar: e exatamente este o caso de "limpei sem querer"
-    try { if (window.BackupHistory) await BackupHistory.antesDe('limpar a grade'); } catch (_) { _quiet(_); }
+    try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de limpar a grade'); } catch (_) { _quiet(_); }
     const n = sessionCount(t);
     DIAS_SEMANA.forEach(d => { t.grade[d] = Array.from({ length: n }, () => ''); });
     gradeSave(t);
@@ -1543,7 +1543,7 @@ function planCycleMode() {
     if (!cycle) return;
     if (!await UI.confirm('Ela será salva no histórico permanentemente e uma nova semana começará zerada.\n\nOs registros de estudo não são apagados — continuam contando em Evolução e Conquistas.',
       { title: '✓ Fechar semana', sub: 'Encerrar o ciclo atual e arquivá-lo', okText: 'Fechar semana' })) return;
-    try { if (window.BackupHistory) await BackupHistory.antesDe('fechar a semana'); } catch (_) { _quiet(_); }
+    try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de fechar a semana'); } catch (_) { _quiet(_); }
 
     // a semana no histórico usa exatamente o intervalo definido no ciclo (início → término)
     const realEndDate = cycle.endDate || CycleEngine.weekEndDate(cycle.startDate);

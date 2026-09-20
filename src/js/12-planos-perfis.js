@@ -102,21 +102,6 @@ const PlanManager = {
     return id;
   },
 
-  // Migração transparente: na primeira execução com a nova versão, cria o
-  // "Planejamento inicial" e move os dados antigos (sem namespace) para dentro dele.
-  _migrateLegacy(planId) {
-    // só migra o legado global UMA vez (para o perfil default). Perfis novos começam vazios.
-    if (localStorage.getItem('diario-estudos:legacy-consumed')) return;
-    const dk = DB.keysForPlan(planId);
-    Object.keys(DB.LEGACY_KEYS).forEach(entity => {
-      const legacyKey = DB.LEGACY_KEYS[entity];
-      const raw = localStorage.getItem(legacyKey);
-      if (raw !== null && localStorage.getItem(dk[entity]) === null) {
-        localStorage.setItem(dk[entity], raw); // copia (mantém o legado como backup de segurança)
-      }
-    });
-  },
-
   init() {
     let plans = this.getPlans();
     let bootstrap = false;
@@ -128,7 +113,6 @@ const PlanManager = {
          Em aparelho já existente a hidratação remota substitui estes andaimes;
          em perfil realmente novo a semeadura de seções os envia normalmente. */
       try { localStorage.setItem(this.GK.plans, JSON.stringify(plans)); } catch (e) { _quiet(e, 'plan-bootstrap-plans'); }
-      this._migrateLegacy(id);
       this._seedDefaults(id, { silent: true });
       try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active'); }
     }
@@ -192,10 +176,6 @@ const ProfileManager = {
   },
   getProfiles() { return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])); },
   saveProfiles(list) { DB._set(DB.PROFILES_KEY, this._sanearPerfis(list)); },
-  rotuloRecuperado(id) {
-    const s = String(id || '');
-    return 'Perfil recuperado ' + (s.length > 12 ? s.slice(0, 8) + '…' + s.slice(-4) : s);
-  },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) {
@@ -229,16 +209,8 @@ const ProfileManager = {
   },
 
   createProfile({ nome, avatar, cor, pin }) {
-    /* O id precisa ser um UUID de verdade: toda tabela da nuvem (study_profiles,
-       profile_sections, profile_backups) tem a coluna id/profile_id como `uuid`.
-       Um id fora desse formato faz TODA operação de nuvem para este perfil
-       falhar com "invalid input syntax for type uuid" — na maioria dos
-       caminhos, silenciosamente (a sincronização antiga engolia erro e só registrava
-       no console). O sintoma: o perfil parece normal aqui (o nome muda na
-       hora, é local), mas nunca sincroniza — nunca aparece em outro aparelho,
-       nunca tem backup no banco, e a lista pode "piscar" porque a nuvem nunca
-       tem nada de verdade para ele. Perfis com o formato antigo ('u_...') já
-       existentes são promovidos por ProfileManager.migrarIdsAntigos(). */
+    /* Helper de projeção em RAM. A persistência real de perfis é criada por
+       CloudStore.createRow(), que recebe o UUID definitivo do PostgreSQL. */
     const id = DB._uid();
     const list = this.getProfiles();
     list.push({
@@ -249,13 +221,6 @@ const ProfileManager = {
       createdAt: new Date().toISOString()
     });
     this.saveProfiles(list);
-    // se há conta logada, este perfil nasce já marcado como dela — impede que
-    // ele apareça na lista de outra conta neste mesmo navegador antes mesmo
-    // do primeiro envio à nuvem
-    try {
-      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-      if (uid) this._setOwner(id, uid);
-    } catch (e) { _quiet(e, 'owner-create'); }
     return id;
   },
   updateProfile(id, patch) {
@@ -323,9 +288,6 @@ const ProfileManager = {
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const sub = k.slice(prefix.length);
-      // A contabilidade da sincronização por seção é local a cada aparelho: levá-la
-      // no backup faria o aparelho que importa herdar a fila de envio de outro.
-      if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
       if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
       data[sub] = localStorage.getItem(k);
     }
@@ -387,23 +349,6 @@ const ProfileManager = {
     return id;
   },
 
-  // Migração única: move os dados globais existentes para o perfil default.
-  _migrateToDefault(profileId) {
-    const destPrefix = 'diario-estudos:u:' + profileId + ':';
-    const srcKeys = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (!k || !k.startsWith('diario-estudos:')) continue;
-      if (k.startsWith('diario-estudos:u:')) continue;
-      if (k === DB.PROFILES_KEY || k === DB.ACTIVE_PROFILE_KEY || k === 'diario-estudos:legacy-consumed') continue;
-      srcKeys.push(k);
-    }
-    srcKeys.forEach(k => {
-      const destKey = destPrefix + k.slice('diario-estudos:'.length);
-      if (localStorage.getItem(destKey) === null) localStorage.setItem(destKey, localStorage.getItem(k));
-    });
-  },
-
   // ---- Cloud-first: o banco é a fonte da verdade; o "espelho" local é só cache ----
   initMirror() {
     if (!Array.isArray(this.getProfiles())) this.saveProfiles([]);
@@ -417,306 +362,19 @@ const ProfileManager = {
     else list.push({ id, nome: nome || 'Perfil', avatar: avatar || '📘', cor: cor || '#4f46e5', createdAt: new Date().toISOString() });
     this.saveProfiles(list);
   },
-  /* ── PERFIS QUE TÊM DADOS NESTE APARELHO ──────────────────────────────────
-     Varre o armazenamento atrás de namespaces `diario-estudos:u:<id>:` com
-     conteúdo de verdade (a contabilidade de sync, a lixeira e as fotos não
-     contam — um perfil que só tem isso está vazio). É a fonte da verdade para
-     a regra abaixo: quem tem dado aqui NUNCA some da lista. */
-  /* ── PREFERÊNCIA NÃO É ESTUDO ─────────────────────────────────────────────
-     QUALQUER chave do namespace contava como "este perfil tem dados aqui" — e
-     era daí que saíam os "🛟 Perfil recuperado" aparecendo sozinhos, sem que
-     ninguém tivesse feito nada.
-
-     Abrir um perfil UMA vez já grava ajustes de interface: o tamanho da
-     fonte grava `fs-scale`, a última aba grava `recent-view` e painéis
-     lembram se estavam recolhidos. Se depois esse perfil for apagado noutro
-     aparelho, a nuvem para de trazê-lo, este aparelho encontra as preferências
-     órfãs, conclui "tem dado aqui" e o devolve à lista — em TODA sincronização,
-     para sempre. Um perfil sem uma única anotação ressuscitando por causa do
-     tamanho da fonte que ficou gravado.
-
-     A lista abaixo é de AJUSTES, e é uma NEGATIVA: o que não estiver nela
-     continua contando como estudo. Errar para o lado de manter é obrigatório —
-     esquecer aqui uma chave de conteúdo faria o índice esconder estudo de
-     verdade, que é exatamente o problema que esta varredura veio resolver.
-     Os ajustes seguem contados à parte (`ajustes`), para quem precise saber
-     que o namespace existe mesmo sem nada dentro. */
-  AJUSTES_SEM_ESTUDO: ['tec-prefs',
-    'fs-scale', 'recent-view', 'active-plan', 'planejamentos', 'evo-scope-collapsed',
-    'grade-budget-open', 'extras-in-metrics', 'ferramentas', 'onboarded'],
-  _soAjuste(sub) {
-    if (this.AJUSTES_SEM_ESTUDO.indexOf(sub) >= 0) return true;
-    return sub.indexOf('pref-') === 0 || sub.indexOf('painel:') === 0;
-  },
-  perfisComDadosLocais() {
-    const achados = {};
-    const RE = /^diario-estudos:u:([^:]+):(.+)$/;
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (!k) continue;
-        const m = RE.exec(k);
-        if (!m) continue;
-        const sub = m[2];
-        if (sub === '__secrev' || sub === '__secpend' || sub === '__secdel' || sub === '__entryops') continue;
-        if (sub.indexOf('vhist') === 0) continue;
-        if (window.Lixeira && sub.indexOf(Lixeira.PREFIXO) === 0) continue;
-        const v = localStorage.getItem(k) || '';
-        if (v === '' || v === '[]' || v === '{}' || v === 'null') continue;
-        const a = achados[m[1]] || (achados[m[1]] = { id: m[1], bytes: 0, secoes: 0, ajustes: 0, bytesAjuste: 0 });
-        if (this._soAjuste(sub)) { a.ajustes++; a.bytesAjuste += v.length; continue; }
-        a.bytes += v.length; a.secoes++;
-      }
-    } catch (e) { _quiet(e, 'perfis-com-dados'); }
-    // só é "perfil com dados" quem tem ao menos uma seção de ESTUDO
-    return Object.values(achados).filter(a => a.secoes > 0);
-  },
-  temDadosLocais(id) { return this.perfisComDadosLocais().some(p => p.id === id); },
-
-  /* ── DE QUAL CONTA É ESTE PERFIL LOCAL ────────────────────────────────────
-     `perfisComDadosLocais` varre o navegador inteiro, sem saber de quem é cada
-     perfil. Isso é intencional para o caso de UMA conta (nunca perder dado que
-     falhou ao sincronizar) — mas em um navegador compartilhado por DUAS contas
-     diferentes, a mesma varredura reaparecia com o perfil da OUTRA conta na
-     lista de quem acabou de logar. Pior: `temDadosLocais` (usado para decidir
-     se abre um perfil "às cegas" quando a nuvem não o encontra) não distinguia
-     isso — clicar no perfil errado abria os dados inteiros de outra pessoa.
-
-     O rótulo é gravado FORA do namespace de qualquer perfil (não é dado do
-     usuário, é bookkeeping deste navegador) e associa profileId → user_id de
-     quem, alguma vez, teve esse perfil confirmado pela nuvem. Perfis gravados
-     ANTES desta correção não têm rótulo — ficam visíveis para qualquer um,
-     exatamente como sempre foram (nenhuma regressão, nenhum dado escondido
-     por engano). A partir daqui, todo perfil que passa pela nuvem uma vez fica
-     marcado, e para de vazar para a próxima conta que logar neste aparelho. */
-  _ownerKey(id) { return 'diario-estudos:owner:' + id; },
-  _getOwner(id) { try { return localStorage.getItem(this._ownerKey(id)) || null; } catch (_) { return null; } },
-  _setOwner(id, uid) { if (!id || !uid) return; try { localStorage.setItem(this._ownerKey(id), uid); } catch (e) { _quiet(e, 'owner-set'); } },
-  /* true quando o perfil pode ser mostrado/aberto por esta sessão: sem dono
-     conhecido (dado anterior à correção, ou nunca sincronizado) OU dono é
-     quem está logado agora. Falso só quando o dono é COMPROVADAMENTE outra
-     conta. */
-  _podeVerLocal(id, uidAtual) {
-    const dono = this._getOwner(id);
-    return !dono || !uidAtual || dono === uidAtual;
-  },
-
-  /* ── PROMOÇÃO DE IDS ANTIGOS (não-UUID) A IDS DE VERDADE ──────────────────
-     `createProfile` gerava ids como 'u_<timestamp><random>' — uma string
-     curta, não um UUID. Localmente isso nunca importou (localStorage não
-     exige formato de chave nenhum). Mas TODA tabela da nuvem tem a coluna
-     id/profile_id como `uuid`, e um id fora desse formato faz cada operação
-     de nuvem para aquele perfil falhar — na maioria dos caminhos, em
-     silêncio (a sincronização antiga engolia erro e só registrava no console). Quem
-     usa só vê: o nome muda na hora aqui, mas nunca sincroniza — nunca
-     aparece em outro aparelho, nunca tem backup no banco, e a lista pode
-     "piscar" porque a nuvem nunca tem nada de verdade para esse perfil.
-
-     Esta função promove cada perfil de id antigo a um id novo e válido —
-     movendo TODO o namespace local para a chave nova, sem apagar nada, e
-     enfileirando o envio à nuvem. Só roda com conta logada (é o `createRow`
-     da nuvem quem determina o id novo) e uma vez por perfil. */
-  ID_VALIDO_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-  idValido(id) { return !!id && this.ID_VALIDO_RE.test(id); },
-  _migMarcaChave(id) { return 'diario-estudos:migrado-uuid:' + id; },
-  async migrarIdsAntigos() {
-    if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) return;
-    const alvos = (this.getProfiles() || []).filter(p => p && p.id && !this.idValido(p.id));
-    for (const p of alvos) {
-      let jaFeito = false;
-      try { jaFeito = !!localStorage.getItem(this._migMarcaChave(p.id)); } catch (_) { _quiet(_); }
-      if (jaFeito) continue;
-      try { await this._migrarUmPerfil(p); } catch (e) { console.warn('[perfis] migração de id falhou para', p.id, e); }
-    }
-    try { await this.repararSemLinhaNaNuvem(); } catch (e) { console.warn('[perfis] reparo de linha na nuvem falhou', e); }
-  },
-
-  /* ── PERFIL COM DADOS AQUI E SEM LINHA NA NUVEM ───────────────────────────
-     Um perfil nessa situação está mudo para sempre: `saveActive` e `updateMeta`
-     só sabem fazer UPDATE, e um UPDATE sem linha correspondente atinge zero
-     linhas — sem erro, sem aviso. O app mostra "sincronizado" e nada sai daqui.
-
-     Acontecia com todo perfil vindo de IMPORTAÇÃO (o retorno de `createRow`
-     era descartado, ver adotarIdDaNuvem) e acontece também se a linha for
-     apagada na nuvem por qualquer motivo. Este reparo fecha os dois casos.
-
-     Segurança do reparo, porque ele CRIA linha na nuvem:
-       · só roda com a lista da nuvem obtida com SUCESSO — uma falha de rede
-         não pode ser lida como "não existe lá" e virar linha duplicada;
-       · só para perfis que têm dado de verdade neste aparelho;
-       · só para perfis desta conta (ou sem dono conhecido), nunca de outra. */
-  async repararSemLinhaNaNuvem() {
-    let rows;
-    try { rows = await CloudStore.listProfiles(); }
-    catch (e) { _quiet(e, 'reparo-lista'); return 0; }      // sem certeza, não age
-    if (!Array.isArray(rows)) return 0;
-    const naNuvem = new Set(rows.map(r => r.id));
-    const uid = (CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-    const comDados = new Set(this.perfisComDadosLocais().map(d => d.id));
-    /* `_podeVerLocal` deixa passar o perfil SEM dono conhecido — o certo para
-       apenas EXIBIR (não esconder dado de ninguém), e o errado para CRIAR uma
-       linha na nuvem: num aparelho que já foi de outra conta, um perfil antigo
-       sem rótulo seria reivindicado pela conta que estiver logada agora.
-
-       Para criar, a régua é mais dura: ou o dono é comprovadamente esta conta,
-       ou este aparelho nunca viu outra conta (nenhum rótulo de dono aponta
-       para um uid diferente). Na dúvida, não reivindica — o perfil segue
-       local, exatamente como estava, sem regressão. */
-    const outraContaJaUsouEsteAparelho = (() => {
-      try {
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (!k || k.indexOf('diario-estudos:owner:') !== 0) continue;
-          const dono = localStorage.getItem(k);
-          if (dono && uid && dono !== uid) return true;
-        }
-      } catch (e) { _quiet(e, 'reparo-donos'); return true; }   // sem certeza: age como se sim
-      return false;
-    })();
-    const podeReivindicar = (id) => {
-      const dono = this._getOwner(id);
-      if (dono) return dono === uid;                 // rótulo explícito manda
-      return !outraContaJaUsouEsteAparelho;          // sem rótulo: só se o aparelho for de uma conta só
-    };
-    const alvos = (this.getProfiles() || []).filter(p =>
-      p && p.id && this.idValido(p.id) && !naNuvem.has(p.id) &&
-      comDados.has(p.id) && podeReivindicar(p.id));
-    let n = 0;
-    for (const p of alvos) {
-      try {
-        console.warn('[perfis] "' + (p.nome || p.id) + '" tem dados aqui e nenhuma linha na nuvem — criando e adotando o id…');
-        const row = await CloudStore.createRow({ name: p.nome, avatar: p.avatar, color: p.cor, payload: {} });
-        await this.adotarIdDaNuvem(p.id, row);
-        n++;
-      } catch (e) { console.warn('[perfis] não foi possível criar a linha de', p.id, e); }
-    }
-    return n;
-  },
-  async _migrarUmPerfil(perfilAntigo) {
-    console.info('[perfis] promovendo perfil de id local "' + perfilAntigo.id + '" a um id de nuvem válido…');
-    const row = await CloudStore.createRow({ name: perfilAntigo.nome, avatar: perfilAntigo.avatar, color: perfilAntigo.cor, payload: {} });
-    await this.adotarIdDaNuvem(perfilAntigo.id, row);
-    try { localStorage.setItem(this._migMarcaChave(perfilAntigo.id), row.id); } catch (e) { _quiet(e, 'mig-marca'); }
-  },
-
-  /* ── ADOTAR O ID QUE O BANCO GEROU ────────────────────────────────────────
-     `createRow` NÃO aceita um id: a coluna é `uuid primary key default
-     gen_random_uuid()`, então quem decide o id é o banco, e ele o devolve.
-     Quem chama é obrigado a adotar esse id — e havia um caminho que não
-     adotava: a IMPORTAÇÃO de backup criava o perfil local com um id próprio,
-     mandava `createRow` para a nuvem e DESCARTAVA o retorno.
-
-     O resultado era um perfil partido em dois: o local, com o id antigo, que
-     nunca mais sincronizava (todo UPDATE batia em zero linhas, porque não
-     existia linha com aquele id); e o da nuvem, com outro id, congelado no
-     estado do instante da importação e aparecendo como um SEGUNDO perfil na
-     lista de todos os aparelhos — com o nome de antes, porque renomear
-     depois só mexia no local. Era exatamente o sintoma de "importei um
-     backup, mudei o nome, e agora aparecem dois perfis, um com o nome
-     antigo".
-
-     Adotar significa: mover o namespace local inteiro para o id novo (copiar
-     primeiro, só apagar depois de conferir que a cópia bateu — nunca apagar
-     sem prova), trocar o id no índice, herdar rev e dono, e reapontar o
-     ponteiro de perfil ativo se for o caso. */
-  async adotarIdDaNuvem(idAntigo, row) {
-    if (!row || !row.id) throw new Error('createRow não devolveu id');
-    const idNovo = row.id;
-    if (idNovo === idAntigo) return idNovo;
-    const prefixoAntigo = 'diario-estudos:u:' + idAntigo + ':';
-    const prefixoNovo = 'diario-estudos:u:' + idNovo + ':';
-    const mover = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.indexOf(prefixoAntigo) === 0) mover.push(k);
-    }
-    mover.forEach(k => {
-      const valor = localStorage.getItem(k);
-      try { localStorage.setItem(prefixoNovo + k.slice(prefixoAntigo.length), valor); } catch (e) { _quiet(e, 'adotar-copia'); }
-    });
-    mover.forEach(k => {
-      const destino = prefixoNovo + k.slice(prefixoAntigo.length);
-      if (localStorage.getItem(destino) === localStorage.getItem(k)) localStorage.removeItem(k);
-    });
-    const lista = this.getProfiles();
-    const entrada = lista.find(p => p.id === idAntigo);
-    if (entrada) entrada.id = idNovo;
-    this.saveProfiles(lista);
-    try {
-      const uid = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-      if (uid) this._setOwner(idNovo, uid);
-    } catch (e) { _quiet(e, 'adotar-dono'); }
-    /* A cópia do namespace passa pela fachada em RAM, que já enfileira cada
-       mutação no RelationalStore. Antes de concluir a troca de id, esperamos
-       essa fila SQL terminar — não existe segunda fila por seção ou blob. */
-    const eraAtivo = (this.getActiveProfileId() === idAntigo);
-    if (eraAtivo) this.setActiveProfile(idNovo);
-    try {
-      if (window.RelationalStore) await RelationalStore.flush();
-    } catch (e) { _quiet(e, 'adotar-envio-relacional'); }
-    console.info('[perfis] id adotado do banco: ' + idAntigo + ' → ' + idNovo);
-    return idNovo;
-  },
-
-  /* ── ESPELHO DA NUVEM — COM UMA TRAVA ─────────────────────────────────────
-     Esta função reconstruía a lista de perfis com o que a nuvem devolvesse, e
-     só com isso. Se a resposta viesse sem um perfil — linha apagada, RLS
-     recusando, outra conta, resposta parcial —, a entrada dele sumia da lista
-     e os dados dele ficavam ILHADOS: continuam no aparelho, inteiros, sem
-     nenhuma porta para chegar até eles. Foi assim que um perfil com 1,1 MB de
-     estudo desapareceu da tela enquanto estava todo ali.
-
-     Duas regras agora:
-
-       1. QUEM TEM DADO AQUI NÃO SAI DA LISTA. Um perfil ausente na nuvem mas
-          com conteúdo neste aparelho permanece, marcado `soLocal`.
-       2. QUEM TEM DADO AQUI E NÃO ESTÁ NA LISTA, ENTRA. Se o registro já se
-          perdeu numa versão anterior, ele é readotado sozinho — a pessoa não
-          precisa descobrir que existe uma tela de recuperação para ver o
-          próprio estudo de volta.
-
-     A lista de perfis é um ÍNDICE, e um índice nunca pode ser mais restritivo
-     que o conteúdo que ele indexa. */
   syncMirrorFromCloud(rows) {
-    const daNuvem = (rows || []).map(r => ({ id: r.id, nome: r.profile_name, avatar: r.avatar, cor: r.color, createdAt: r.created_at || '' }));
-    const idsNuvem = new Set(daNuvem.map(p => p.id));
-    const anteriores = this.getProfiles() || [];
-    const porId = {};
-    anteriores.forEach(p => { if (p && p.id) porId[p.id] = p; });
-
-    /* A nuvem ACABOU de confirmar: estes ids são desta conta. Marca o dono
-       agora — é o que impede o mesmo perfil de "vazar" para a lista da
-       próxima conta que logar neste navegador. */
-    const uidAtual = (window.CloudStore && CloudStore.session && CloudStore.session.user) ? CloudStore.session.user.id : null;
-    if (uidAtual) daNuvem.forEach(p => this._setOwner(p.id, uidAtual));
-
-    const sobreviventes = [];
-    const deOutraConta = [];
-    this.perfisComDadosLocais().forEach(d => {
-      if (idsNuvem.has(d.id)) return;                 // a nuvem já traz este
-      // dado físico existe, mas é COMPROVADAMENTE de outra conta: não mostra
-      // aqui (o dado não é apagado — só não aparece para quem não é dono).
-      if (!this._podeVerLocal(d.id, uidAtual)) { deOutraConta.push(d.id); return; }
-      const antigo = porId[d.id] || {};
-      sobreviventes.push({
-        id: d.id,
-        // o rótulo leva o começo E o fim do id: dois perfis distintos nunca
-        // aparecem com a mesma legenda, que é o que torna um duplicado
-        // indistinguível de dois perfis de verdade
-        nome: antigo.nome || ProfileManager.rotuloRecuperado(d.id),
-        avatar: antigo.avatar || '🛟',
-        cor: antigo.cor || '#0a95a8',
-        createdAt: antigo.createdAt || '',
-        soLocal: true
-      });
-    });
-    if (sobreviventes.length) {
-      try { console.warn('[perfis] ' + sobreviventes.length + ' perfil(is) têm dados neste aparelho e não vieram da nuvem — MANTIDOS na lista: ' + sobreviventes.map(p => p.id).join(', ')); } catch (e) { _quiet(e, 'perfis-log'); }
+    const daNuvem = (rows || []).map(r => ({
+      id: r.id,
+      nome: r.profile_name,
+      avatar: r.avatar,
+      cor: r.color,
+      createdAt: r.created_at || ''
+    }));
+    this.saveProfiles(daNuvem);
+    const ativo = this.getActiveProfileId();
+    if (ativo && !daNuvem.some(p => p.id === ativo)) {
+      try { localStorage.removeItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { _quiet(e, 'perfil-ativo-obsoleto'); }
     }
-    if (deOutraConta.length) {
-      try { console.info('[perfis] ' + deOutraConta.length + ' perfil(is) locais pertencem a OUTRA conta — ocultados desta sessão (dado preservado, não apagado): ' + deOutraConta.join(', ')); } catch (e) { _quiet(e, 'perfis-log2'); }
-    }
-    this.saveProfiles(daNuvem.concat(sobreviventes));
   },
 
 };

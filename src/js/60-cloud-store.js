@@ -149,7 +149,6 @@ const CloudStore = {
 
     if (!this.isLoggedIn()) {
       this._unsub();
-      try { if (window.SessionGuard) SessionGuard.onLogout(); } catch (e) { _quiet(e, 'session-logout'); }
       return;
     }
 
@@ -160,22 +159,8 @@ const CloudStore = {
         RelationalStore.hydrateUserPreferences().catch(e => _quiet(e, 'rel-user-prefs'));
       }
     } catch (e) { _quiet(e, 'rel-user-prefs-start'); }
-
-    if (window.SessionGuard) {
-      Promise.resolve(SessionGuard.onLogin()).then((acesso) => {
-        try {
-          if (!window.ProfileUI) return;
-          if (acesso && acesso.ok && ProfileUI._pendingSessionProfile && ProfileUI.resumeAfterSessionClaim) {
-            ProfileUI.resumeAfterSessionClaim();
-            return;
-          }
-          if (!(acesso && acesso.blocked) && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
-        } catch (e) { _quiet(e, 'session-guard-login-ui'); }
-      }).catch(e => _quiet(e, 'session-guard-login'));
-    } else {
-      try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
-      catch (e) { _quiet(e, 'profile-stage-login'); }
-    }
+    try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
+    catch (e) { _quiet(e, 'profile-stage-login'); }
   },
 
   async signUp(email, password) {

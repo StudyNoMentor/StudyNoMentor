@@ -7,7 +7,6 @@
      $id / _quiet / __diag ....... robustez: nada derruba o app por id ausente
      DB .......................... camada de dados (chave-valor, por perfil)
      PlanManager / ProfileManager  planejamentos e multi-usuário no dispositivo
-     BackupHistory .............. 8 versões + backup diário
      UI .......................... diálogos (substituem confirm/prompt nativos)
 
    MOTORES (puros — não tocam o DOM, portáveis)
@@ -23,7 +22,6 @@
    BANCO
      CloudStore .................. autenticação e fachada Supabase
      RelationalStore ............. leitura/escrita SQL relacional
-     SessionGuard ................ coordenação entre dispositivos
 
    QUALIDADE
      AutoTeste.rodar() ........... suíte de testes no console
@@ -227,7 +225,7 @@ const Lixeira = {
       const m = /^(diario-estudos:u:[^:]+:)(.+)$/.exec(chaveCompleta);
       if (!m) return false;
       const sec = m[2];
-      if (sec.indexOf(this.PREFIXO) === 0 || sec.indexOf('vhist') === 0) return false;
+      if (sec.indexOf(this.PREFIXO) === 0) return false;
       const pacote = JSON.stringify({ sec, em: Date.now(), motivo: motivo || '', valor });
       localStorage.setItem(this._chave(m[1], sec), pacote);
       this.faxina(m[1]);

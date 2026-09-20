@@ -430,8 +430,9 @@ const RelationalStore = {
     return null;
   },
   _ignoreSub(sub) {
-    return sub==='__secrev'||sub==='__secpend'||sub==='__secdel'||sub==='__entryops'||
-      sub.indexOf('__entrycloudops')===0||sub.indexOf('vhist')===0||sub.indexOf('__lixeira:')===0;
+    /* A lixeira é projeção transitória de segurança e não vira configuração.
+       Os marcadores de fila/revisão da sincronização antiga foram eliminados. */
+    return sub.indexOf('__lixeira:') === 0;
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
@@ -442,8 +443,7 @@ const RelationalStore = {
     if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
     if(p.scope==='user') {
-      if(p.sub==='profiles'||p.sub==='active-profile'||p.sub.indexOf('rev:')===0||p.sub.indexOf('owner:')===0||
-         p.sub.indexOf('migrado-uuid:')===0||p.sub==='legacy-consumed') return;
+      if(p.sub==='profiles'||p.sub==='active-profile') return;
       this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
       return;
     }
