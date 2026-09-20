@@ -58,6 +58,7 @@ const DB = {
       leiKeywords: base + 'lei-keywords',
       decks: base + 'decks',
       cards: base + 'cards',
+      bancasCards: base + 'bancas-cards',
       links: base + 'links',
       incidencia: base + 'incidencia',
       lastCycleSetup: base + 'last-cycle-setup',
@@ -68,6 +69,8 @@ const DB = {
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
   get KEYS() { return this.keysForPlan(this._activePlanId()); },
 
+  // Bancas oferecidas na criação de card (lista simples, editável em ⚙ Algoritmo → Gerenciar bancas)
+  DEFAULT_BANCAS_CARDS: ['FCC', 'CEBRASPE', 'FGV', 'CESGRANRIO', 'VUNESP'],
   DEFAULT_METHODS: ['Videoaula', 'Leitura', 'PDF', 'Resumo', 'Questões', 'Revisão Teórica', 'Mapa mental', 'Outro'],
   DEFAULT_PHASES: ['Novo', 'Sólido'],
   // Modos de estudo de cada disciplina na trilha de Estudo Novo (configuráveis)
@@ -666,6 +669,26 @@ const DB = {
     const cards = this.getCards(); let touched = false;
     cards.forEach(c => { if (c.deckId === id) { c.deckId = null; touched = true; } });
     if (touched) this.saveCards(cards);
+  },
+  // Bancas oferecidas no seletor de "Banca" da criação de card (lista simples,
+  // sem soft-delete: remover da lista não apaga a banca já gravada nos cards).
+  getCardBancas() {
+    let list = this._get(this.KEYS.bancasCards, null);
+    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._set(this.KEYS.bancasCards, list); }
+    return list;
+  },
+  saveCardBancas(list) { this._set(this.KEYS.bancasCards, list); },
+  addCardBanca(nome) {
+    const n = (nome || '').trim();
+    if (!n) return null;
+    const list = this.getCardBancas();
+    if (list.some(b => b.toLowerCase() === n.toLowerCase())) return null;
+    list.push(n);
+    this.saveCardBancas(list);
+    return n;
+  },
+  removeCardBanca(nome) {
+    this.saveCardBancas(this.getCardBancas().filter(b => b !== nome));
   },
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }

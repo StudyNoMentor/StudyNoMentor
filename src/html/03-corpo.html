@@ -1072,39 +1072,35 @@
         <button type="button" class="icon-btn" id="card-modal-close" aria-label="Fechar">✕</button>
       </div>
       <div class="cards-modal-body">
-        <div class="field-group field-group-3">
+        <div class="field-group field-group-assunto">
           <div class="field"><label for="card-materia-tec">Matéria (Tec) <span class="opt">(opcional)</span></label>
             <input type="text" id="card-materia-tec" list="card-materia-tec-list" placeholder="Ex.: Direito Administrativo">
             <datalist id="card-materia-tec-list"></datalist></div>
           <div class="field"><label for="card-assunto">Assunto <span class="opt">(opcional)</span></label>
             <input type="text" id="card-assunto" list="card-assunto-list" placeholder="Ex.: Crimes contra a Adm.">
             <datalist id="card-assunto-list"></datalist></div>
-          <div class="field"><label for="card-banca">Banca <span class="opt">(opcional)</span></label>
-            <input type="text" id="card-banca" list="card-banca-list" placeholder="Ex.: FCC, FGV, Cebraspe">
-            <datalist id="card-banca-list"></datalist></div>
         </div>
-        <div class="field-group">
-          <div class="field"><label for="card-destino">Disciplina <span class="req">*</span></label>
+        <div class="field-group field-group-3">
+          <div class="field"><label for="card-destino">Baralho <span class="req">*</span></label>
             <select id="card-destino"></select></div>
-          <div class="field"><label for="card-tipo">Categoria <span class="opt">(opcional)</span></label>
-            <select id="card-tipo"></select></div>
-        </div>
-        <div class="field"><label for="card-kind">Formato do card</label>
-          <select id="card-kind">
-            <option value="basic">Básico (frente e verso)</option>
-            <option value="basic_reversed">Básico + cartão invertido (gera 2 cards)</option>
-            <option value="cloze">Cloze — omissão de palavras {{ }}</option>
-          </select>
-          <p class="hint" id="card-kind-hint" style="margin-top:6px;"></p>
+          <div class="field"><label for="card-banca-btn">Banca <span class="opt">(opcional)</span></label>
+            <div class="banca-pick" id="card-banca-pick"></div></div>
+          <div class="field"><label for="card-kind">Formato do card</label>
+            <select id="card-kind">
+              <option value="basic">Básico (frente e verso)</option>
+              <option value="basic_reversed">Básico + cartão invertido (gera 2 cards)</option>
+              <option value="cloze">Cloze — omissão de palavras {{ }}</option>
+            </select>
+            <p class="hint" id="card-kind-hint" style="margin-top:6px;"></p></div>
         </div>
         <div class="field"><label id="card-frente-label">Frente (pergunta) <span class="req">*</span></label>
-          <div class="rte" data-target="card-frente" data-cloze="1">
+          <div class="rte" data-target="card-frente" data-cloze="1" data-start-collapsed="1">
             <div class="rte-toolbar"></div>
             <div class="rte-area" id="card-frente" contenteditable="true"></div>
           </div>
         </div>
         <div class="field" id="card-verso-field"><label id="card-verso-label">Verso (resposta) <span class="req">*</span></label>
-          <div class="rte" data-target="card-verso">
+          <div class="rte" data-target="card-verso" data-start-collapsed="1">
             <div class="rte-toolbar"></div>
             <div class="rte-area" id="card-verso" contenteditable="true"></div>
           </div>
@@ -1135,6 +1131,24 @@
         <div id="deck-list" style="margin-top:14px;"></div>
       </div>
       <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="deck-modal-done">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Modal: bancas dos cards -->
+  <div id="bancas-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>🏛️ Gerenciar bancas</h2><p class="sub">Lista oferecida no seletor de "Banca" ao criar um card. Remover uma banca daqui não apaga a banca já gravada nos cards que a usam.</p></div>
+        <button type="button" class="icon-btn" id="bancas-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="config-add-row">
+          <input type="text" id="banca-new-input" placeholder="Nome da nova banca (ex.: IBFC)">
+          <button class="btn-primary" id="banca-add-btn" type="button">Adicionar</button>
+        </div>
+        <div id="banca-list" style="margin-top:14px;"></div>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="bancas-modal-done">Fechar</button></div>
     </div>
   </div>
 

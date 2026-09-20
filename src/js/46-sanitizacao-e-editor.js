@@ -250,6 +250,7 @@ function buildRteToolbar(rte) {
   const swatches = (arr, kind) => arr.map(([nome, cor]) =>
     `<button type="button" class="rte-swatch" data-${kind}="${cor}" title="${nome}" aria-label="${nome}" style="background:${cor}"></button>`).join('');
   tb.innerHTML = `
+    <button type="button" class="rte-toggle" title="Mostrar/ocultar barra de formatação" aria-label="Mostrar/ocultar barra de formatação"></button>
     <div class="rte-grp">
       <button type="button" data-cmd="bold" title="Negrito (Ctrl+B)" aria-label="Negrito (Ctrl+B)"><b>B</b></button>
       <button type="button" data-cmd="italic" title="Itálico (Ctrl+I)" aria-label="Itálico (Ctrl+I)"><i>I</i></button>
@@ -317,6 +318,13 @@ function buildRteToolbar(rte) {
   // ↕ Espaçamento: remove linhas em branco extras sem mexer na formatação
   const spacingBtn = tb.querySelector('[data-spacing]');
   if (spacingBtn) spacingBtn.addEventListener('click', () => rteRemoverEspacamento(area));
+  // 🎨 Mostrar/ocultar a barra: minimizada por padrão pra não ocupar tela —
+  // o texto e o card em si importam mais que a barra em cima deles.
+  const toggleBtn = tb.querySelector('.rte-toggle');
+  const syncToggleLabel = () => { toggleBtn.textContent = rte.classList.contains('rte-collapsed') ? '🎨 Formatação ▸' : '🎨 Formatação ▾'; };
+  toggleBtn.addEventListener('click', () => { rte.classList.toggle('rte-collapsed'); syncToggleLabel(); });
+  rte.classList.toggle('rte-collapsed', rte.dataset.startCollapsed === '1');
+  syncToggleLabel();
   // cores de texto e marca-texto
   tb.querySelectorAll('[data-color]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'foreColor', sw.dataset.color)));
   tb.querySelectorAll('[data-hilite]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'hiliteColor', sw.dataset.hilite)));
@@ -456,6 +464,11 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('deck-modal-done', 'click', () => $id('deck-modal').style.display = 'none');
   on('deck-add-btn', 'click', () => CardsScreen.addDeck());
   on('deck-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addDeck(); });
+  // modal bancas
+  on('bancas-modal-close', 'click', () => $id('bancas-modal').style.display = 'none');
+  on('bancas-modal-done', 'click', () => $id('bancas-modal').style.display = 'none');
+  on('banca-add-btn', 'click', () => CardsScreen.addBanca());
+  on('banca-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addBanca(); });
   // modal exportar
   on('cards-export-close', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-cancel', 'click', () => $id('cards-export-modal').style.display = 'none');

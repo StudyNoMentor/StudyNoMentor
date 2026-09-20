@@ -719,6 +719,9 @@
 
   .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .field-group-3 { grid-template-columns: 1fr 1fr 1fr; }
+  /* Assunto é o campo mais usado pra achar um card depois — fica com o dobro
+     do espaço de Matéria (Tec) na mesma linha. */
+  .field-group-assunto { grid-template-columns: 1fr 2fr; }
   .cycle-hm-input { display: flex; align-items: center; gap: 6px; }
   .cycle-hm-input input { width: 64px; text-align: center; }
   .cycle-hm-input span { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); }
@@ -3496,6 +3499,8 @@
   .banca-pick-btn[disabled] { opacity: 0.6; cursor: default; }
   .banca-pick-btn .chev { color: var(--text-faint); }
   .banca-pick-panel { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; min-width: 260px; max-width: min(340px, 92vw); max-height: 320px; overflow: auto; padding: 10px; background: var(--surface); border: 1.5px solid var(--border-strong, var(--border)); border-radius: 12px; box-shadow: var(--shadow-lg, 0 12px 28px rgba(0,0,0,0.18)); }
+  .banca-pick-search { width: 100%; margin-bottom: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: var(--fs-2xs); }
+  .banca-pick-search:focus { outline: none; border-color: var(--accent); }
   .banca-pick-topo { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-faint); margin: 0 0 8px; }
   .banca-pick-item { display: flex; align-items: flex-start; gap: 9px; padding: 7px 6px; border-radius: 8px; cursor: pointer; }
   .banca-pick-item:hover { background: var(--surface-sunken); }
@@ -5038,9 +5043,14 @@
   .req { color: var(--bad-text, var(--bad)); }
   /* Editor de texto rico */
   .rte { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
-  .rte-toolbar { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
+  .rte-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
   .rte-toolbar button { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; font-size: var(--fs-xs); cursor: pointer; color: var(--text-soft); }
   .rte-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .rte-toggle { font-weight: 700; }
+  /* Minimizada: só o botão de alternância fica visível — o resto da barra some
+     sem perder estado (cor escolhida, etc.), até o próximo clique. */
+  .rte.rte-collapsed .rte-toolbar > *:not(.rte-toggle) { display: none; }
+  .rte.rte-collapsed .rte-toolbar { border-bottom: none; }
   .rte-sep { width: 1px; background: var(--border); margin: 2px 3px; align-self: stretch; }
   .rte-grp { display: inline-flex; align-items: center; gap: 3px; }
   .rte-color-grp { gap: 2px; }
@@ -5149,7 +5159,7 @@
      ============================================================ */
   @media (max-width: 720px) {
     /* formulários: empilha campos que ficariam apertados */
-    .field-group, .field-group-3 { grid-template-columns: 1fr; gap: 12px; }
+    .field-group, .field-group-3, .field-group-assunto { grid-template-columns: 1fr; gap: 12px; }
     .row-3 { grid-template-columns: 1fr; gap: 12px; }
     /* padding dos cards mais enxuto para ganhar largura útil */
     .card-header { padding: 18px 16px 0; }

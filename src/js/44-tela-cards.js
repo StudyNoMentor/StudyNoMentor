@@ -10,7 +10,6 @@ const CardsScreen = {
 
   render() {
     this.populateFilterOptions();
-    this.populateTipoSelect();
     this.renderContent();
     this.updateFavCount();
   },
@@ -30,27 +29,27 @@ const CardsScreen = {
     $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
-  populateTipoSelect() {
-    const sel = document.getElementById('card-tipo');
-    if (sel) sel.innerHTML = `<option value="">— sem tipo —</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  },
   destinoOptionsHtml(selected) {
-    const { subs, decks } = this.materiaOptionsHtml();
-    // para o destino, valor de matéria = "sub:Nome"; baralho = "deck:id"
-    const subOpts = DB.getActiveSubjects().map(s => `<option value="sub:${escapeHtml(s.nome)}"${selected === 'sub:' + s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
+    // O destino de um card novo é sempre um baralho ("deck:id") — a disciplina
+    // ficou pro campo Matéria (Tec), texto livre, sem duplicar o que já é feito
+    // aqui pelo baralho.
     const deckOpts = DB.getDecks().map(d => `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    // Cards antigos podiam ter uma disciplina como destino, sem baralho nenhum
+    // ("sub:Nome"). Editar um desses não pode fazer o destino atual sumir da
+    // lista sozinho — mantém só essa opção, sem reoferecer as outras disciplinas.
+    const legadoOpt = (selected && selected.indexOf('sub:') === 0)
+      ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected.slice(4))} (disciplina, sem baralho)</option>` : '';
     /* BUG CORRIGIDO — perfil novo não conseguia criar o PRIMEIRO card.
-       Sem disciplina no Plano e sem baralho criado, este seletor vinha só com o
-       texto de instrução. Ao salvar, o app pedia "Escolha o destino" apontando
-       para uma lista vazia: beco sem saída, achado simulando o uso real.
-       O Anki resolve isso tendo SEMPRE um baralho "Padrão". É o que fazemos:
-       quando não há nenhum destino, oferecemos "📁 Padrão", criado na hora em
-       que o card for salvo. */
-    if (!subOpts && !deckOpts) {
+       Sem baralho criado, este seletor vinha só com o texto de instrução. Ao
+       salvar, o app pedia "Escolha o destino" apontando para uma lista vazia:
+       beco sem saída, achado simulando o uso real. O Anki resolve isso tendo
+       SEMPRE um baralho "Padrão". É o que fazemos: quando não há nenhum
+       baralho, oferecemos "📁 Padrão", criado na hora em que o card for salvo. */
+    if (!deckOpts && !legadoOpt) {
       return `<option value="">Escolha onde este card fica...</option>`
         + `<option value="novo:Padrão"${selected === 'novo:Padrão' ? ' selected' : ''}>📁 Padrão</option>`;
     }
-    return `<option value="">Escolha onde este card fica...</option>` + subOpts + deckOpts;
+    return `<option value="">Escolha onde este card fica...</option>` + legadoOpt + deckOpts;
   },
   currentFilteredCards() {
     return CardEngine.applyFilters(DB.getCards(), this.filters);
@@ -1139,17 +1138,75 @@ const CardsScreen = {
     else if (kind === 'basic_reversed') hint.innerHTML = 'Serão criados <strong>2 cards</strong>: um frente→verso e outro verso→frente.';
     else hint.innerHTML = 'Card simples: você vê a frente e revela o verso.';
   },
+  // Seletor único de banca (busca + marca com ✓), reaproveitando o visual do
+  // banca-pick já usado no Motor/Incidência. Guarda o valor num input oculto
+  // #card-banca, então _readCardForm()/cardTemConteudo() continuam lendo
+  // $id('card-banca').value normalmente, sem saber que não é mais um <input>.
+  renderCardBancaPicker(valorAtual) {
+    const host = document.getElementById('card-banca-pick');
+    if (!host) return;
+    const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const cadastradas = DB.getCardBancas();
+    const usadas = DB.getCards().map(c => c.banca).filter(Boolean);
+    const extra = (valorAtual && !cadastradas.includes(valorAtual)) ? [valorAtual] : [];
+    const opcoes = [...new Set([...cadastradas, ...usadas, ...extra])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    host.innerHTML = `
+      <input type="hidden" id="card-banca" value="${escapeHtml(valorAtual || '')}">
+      <button type="button" class="banca-pick-btn" id="card-banca-btn" aria-expanded="false">
+        <span>${valorAtual ? '🏛️ ' + escapeHtml(valorAtual) : '— Nenhuma —'}</span><span class="chev">▾</span>
+      </button>
+      <div class="banca-pick-panel" hidden>
+        <input type="text" class="banca-pick-search" placeholder="Buscar banca…">
+        <div class="banca-pick-list">
+          <button type="button" class="banca-pick-all ${valorAtual ? '' : 'is-active'}" data-banca-op="">
+            <span class="banca-pick-all-mark">✓</span><span><b>— Nenhuma —</b></span>
+          </button>
+          ${opcoes.map(b => `<button type="button" class="banca-pick-all ${valorAtual === b ? 'is-active' : ''}" data-banca-op="${escapeHtml(b)}" data-banca-norm="${escapeHtml(norm(b))}">
+            <span class="banca-pick-all-mark">✓</span><span><b>${escapeHtml(b)}</b></span>
+          </button>`).join('')}
+        </div>
+        ${opcoes.length ? '' : '<p class="hint" style="margin:6px 2px 0;">Nenhuma banca cadastrada — adicione em ⚙ Algoritmo → Gerenciar bancas.</p>'}
+      </div>`;
+    const btn = host.querySelector('#card-banca-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    const search = host.querySelector('.banca-pick-search');
+    const label = btn.querySelector('span:not(.chev)');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = painel.hasAttribute('hidden');
+      document.querySelectorAll('.banca-pick-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
+      if (abrir) {
+        painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+        search.value = ''; host.querySelectorAll('[data-banca-op]').forEach(o => o.style.display = '');
+        setTimeout(() => search.focus(), 30);
+      } else { painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+    });
+    painel.addEventListener('click', (e) => e.stopPropagation());
+    search.addEventListener('input', () => {
+      const q = norm(search.value);
+      host.querySelectorAll('.banca-pick-list [data-banca-op]:not([data-banca-op=""])').forEach(o => {
+        o.style.display = !q || (o.dataset.bancaNorm || '').indexOf(q) >= 0 ? '' : 'none';
+      });
+    });
+    host.querySelectorAll('[data-banca-op]').forEach(opt => opt.addEventListener('click', () => {
+      const v = opt.dataset.bancaOp || '';
+      $id('card-banca').value = v;
+      label.textContent = v ? '🏛️ ' + v : '— Nenhuma —';
+      host.querySelectorAll('[data-banca-op]').forEach(o => o.classList.toggle('is-active', (o.dataset.bancaOp || '') === v));
+      painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false');
+    }));
+  },
   openCardModal(id) {
     this._editingId = id || null;
     const isEdit = !!id;
     $id('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     $id('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
-    let destSel = '', assunto = '', materiaTec = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
+    let destSel = '', assunto = '', materiaTec = '', banca = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
-      assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
+      assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
     $id('card-assunto').value = assunto;
@@ -1161,13 +1218,8 @@ const CardsScreen = {
     const materiaTecCards = DB.getCards().map(c => c.materiaTec).filter(Boolean);
     const materiaTecOpts = [...new Set([...discImport, ...materiaTecCards])].sort();
     $id('card-materia-tec-list').innerHTML = materiaTecOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
-    // Banca: sugere as bancas já importadas na Incidência + as já usadas em outros cards
-    $id('card-banca').value = banca;
-    const bancasImport = (DB.getBancas ? DB.getBancas() : []);
-    const bancasCards = DB.getCards().map(c => c.banca).filter(Boolean);
-    const bancaOpts = [...new Set([...bancasImport, ...bancasCards])].sort();
-    $id('card-banca-list').innerHTML = bancaOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
-    $id('card-tipo').value = tipo;
+    // Banca: seletor único com busca, entre as cadastradas em ⚙ Algoritmo → Gerenciar bancas
+    this.renderCardBancaPicker(banca);
     // ao editar, o formato invertido não é reofertado (já são 2 cards); mostra básico/cloze
     const kindSel = document.getElementById('card-kind');
     kindSel.querySelector('option[value="basic_reversed"]').style.display = isEdit ? 'none' : '';
@@ -1214,7 +1266,7 @@ const CardsScreen = {
     const kind = $id('card-kind').value;
     const frente = $id('card-frente').innerHTML.trim();
     const verso = $id('card-verso').innerHTML.trim();
-    if (!dest) { showToast('Escolha o destino (disciplina ou baralho)'); return null; }
+    if (!dest) { showToast('Escolha o baralho'); return null; }
     if (kind === 'cloze') {
       if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
       if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
@@ -1226,7 +1278,8 @@ const CardsScreen = {
       assunto: $id('card-assunto').value,
       materiaTec: $id('card-materia-tec').value,
       banca: $id('card-banca').value,
-      tipo: $id('card-tipo').value,
+      // "tipo" (Categoria) não tem mais campo na criação/edição — omitido de
+      // propósito, para não apagar o valor de cards antigos que já tinham um.
       kind: kind === 'cloze' ? 'cloze' : 'basic',
       frente, verso: kind === 'cloze' ? '' : verso, deckId: null, materia: null,
       _reversed: kind === 'basic_reversed'
@@ -1307,6 +1360,35 @@ const CardsScreen = {
     const d = DB.addDeck(inp.value);
     if (!d) { showToast('Digite um nome'); return; }
     inp.value = ''; this.renderDeckList(); this.render(); showToast('Baralho criado ✓');
+  },
+
+  // ---- bancas (lista oferecida no seletor "Banca" da criação de card) ----
+  openBancasModal() { this.renderBancasList(); $id('bancas-modal').style.display = 'flex'; },
+  renderBancasList() {
+    const box = document.getElementById('banca-list');
+    const bancas = DB.getCardBancas();
+    if (bancas.length === 0) { box.innerHTML = `<p class="hint">Nenhuma banca cadastrada. Adicione a primeira acima.</p>`; return; }
+    box.innerHTML = bancas.map(b => {
+      const n = DB.getCards().filter(c => c.banca === b).length;
+      return `<div class="deck-row" data-nome="${escapeHtml(b)}">
+        <span class="deck-name" style="padding:8px 10px;border-radius:8px;">${escapeHtml(b)}</span>
+        <span class="deck-count">${n} card(s)</span>
+        <button type="button" class="icon-btn danger banca-del" title="Remover banca" aria-label="Remover banca">×</button>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.deck-row').forEach(row => {
+      const nome = row.dataset.nome;
+      row.querySelector('.banca-del').addEventListener('click', async () => {
+        if (!await UI.confirm('Remover "' + nome + '" da lista de bancas? Os cards que já usam essa banca não são alterados.')) return;
+        DB.removeCardBanca(nome); this.renderBancasList();
+      });
+    });
+  },
+  addBanca() {
+    const inp = document.getElementById('banca-new-input');
+    const nome = DB.addCardBanca(inp.value);
+    if (!nome) { showToast('Digite um nome (ou a banca já existe)'); return; }
+    inp.value = ''; this.renderBancasList(); showToast('Banca adicionada ✓');
   },
 
   // ---- exportar ----
@@ -1506,12 +1588,14 @@ CardsScreen.openAlgoConfig = function () {
   const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
     decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
   );
+  opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
   opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Cada baralho pode ter seu próprio algoritmo/retenção (ex.: lei seca em 95%, teoria em 88%). Sem preset, o baralho herda o global.' }],
     { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
       if (!v) return;
       if (v.scope === '__reset__') { CardsScreen.zerarEstatisticas(); return; }
+      if (v.scope === '__bancas__') { CardsScreen.openBancasModal(); return; }
       CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
     });
 };
