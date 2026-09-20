@@ -136,6 +136,105 @@ const RelationalStore = {
       ['incidence','study_incidence',[{col:'plan_id'},{col:'row_no'}]]
     ];
   },
+  _coreGroupAppliers() {
+    if (this.__coreGroupAppliers) return this.__coreGroupAppliers;
+    const self = this;
+    this.__coreGroupAppliers = {
+      subjects:{suffix:'subjects',map:r=>({id:r.subject_id,nome:r.name,fase:r.phase,dificuldade:r.difficulty,ativo:r.active,modo:r.mode})},
+      methods:{suffix:'methods',map:r=>({id:r.method_id,nome:r.name,ativo:r.active})},
+      phases:{suffix:'phases',map:r=>({id:r.phase_id,nome:r.name,ativo:r.active})},
+      statuses:{suffix:'statuses',map:r=>({id:r.status_id,nome:r.name,color:r.color,bg:r.background,done:r.done,ativo:r.active})},
+      modes:{suffix:'modes',map:r=>({id:r.mode_id,nome:r.name,ativo:r.active})},
+      entries:{suffix:'entries',map:r=>({
+        id:self._legacyId(r.entry_id),date:self._date(r.study_date),subject:r.subject,lesson:r.lesson||'',method:r.method||'',
+        durationMin:r.duration_min||0,correct:r.correct||0,total:r.total||0,pageStart:r.page_start==null?null:Number(r.page_start),
+        pageEnd:r.page_end==null?null:Number(r.page_end),videoStart:r.video_start==null?null:Number(r.video_start),
+        videoEnd:r.video_end==null?null:Number(r.video_end),comment:r.comment||'',createdAt:r.created_at
+      })},
+      decks:{suffix:'decks',map:r=>({id:self._legacyId(r.deck_id),nome:r.name,createdAt:r.created_at})},
+      cards:{suffix:'cards',map:r=>Object.assign({},r.extra||{},{
+        id:self._legacyId(r.card_id),deckId:r.deck_id||null,materia:r.subject||null,assunto:r.topic||null,tipo:r.card_type||null,
+        frente:r.front||'',verso:r.back||'',favorito:!!r.favorite,status:r.status||null,banca:r.banca||null,kind:r.kind||null,
+        due:r.due||null,dueTs:r.due_ts==null?null:Number(r.due_ts),ease:r.ease==null?null:Number(r.ease),
+        intervalo:r.interval_value==null?null:Number(r.interval_value),lapses:r.lapses,learnStep:r.learn_step,reps:r.reps,
+        phase:r.phase,reversedOf:r.reversed_of,d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),algo:r.algo,
+        lastReview:r.last_review,createdAt:r.created_at,updatedAt:r.updated_at
+      })},
+      revlog:{suffix:'revlog',map:r=>Object.assign({},r.extra||{},{
+        cardId:r.card_id==null?null:self._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
+        acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
+        phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s)
+      })},
+      laws:{suffix:'leis',map:r=>Object.assign({},r.extra||{},{
+        id:self._legacyId(r.law_id),titulo:r.title,referencia:r.reference,materia:r.subject,texto:r.body||'',
+        bookmark:r.bookmarked,bookmarkTxt:r.bookmark_text,createdAt:r.created_at,updatedAt:r.updated_at,
+        opts:r.options||{},marcacoes:r.markings||[],suppressed:r.suppressed,rodizio:r.rotation
+      })},
+      lawKeywords:{suffix:'lei-keywords',map:r=>({t:r.term,cat:r.category,def:r.is_default})},
+      links:{suffix:'links',map:r=>({id:self._legacyId(r.link_id),nome:r.name,categoria:r.category,url:r.url,cor:r.color,logo:r.logo,createdAt:r.created_at})},
+      extras:{suffix:'extras',map:r=>{
+        const p=r.provenance||{};
+        return Object.assign({},r.extra||{},{
+          id:self._legacyId(r.extra_id),titulo:r.title,tipo:r.type,unidade:r.unit,marcador:r.marker,disciplina:r.discipline,
+          alvo:r.target==null?null:Number(r.target),progresso:r.progress==null?null:Number(r.progress),status:r.status,periodo:r.period,
+          dataInicio:self._date(r.start_date),dataFim:self._date(r.end_date),contaMetricas:r.counts_metrics,createdAt:r.created_at,
+          updatedAt:r.updated_at,concluidasEm:r.completed_dates||[],datas:r.dates||[],historico:r.history||[],
+          origemPlano:p.origemPlano,reforcoFila:p.reforcoFila,origemLacunaGlobal:p.origemLacunaGlobal,origemLei:p.origemLei
+        });
+      }},
+      siglas:{suffix:'custom-siglas',map:r=>({id:self._legacyId(r.sigla_id),nome:r.name,sigla:r.sigla,color:r.color})},
+      cycles:{suffix:'cycle-history',map:r=>Object.assign({},r.extra||{},{
+        id:self._legacyId(r.cycle_id),startDate:self._date(r.start_date),endDate:self._date(r.end_date),closedAt:r.closed_at,
+        sessions:r.sessions,weeklyHours:r.weekly_hours==null?null:Number(r.weekly_hours),finalizadas:r.completed_subjects,
+        pctCumprido:r.completion_pct==null?null:Number(r.completion_pct),totalSubjects:r.total_subjects,
+        totalTargetMin:r.total_target_min,totalStudiedMin:r.total_studied_min,
+        avgPerformancePct:r.avg_performance_pct==null?null:Number(r.avg_performance_pct),
+        avgPerformancePctLegado:r.avg_performance_legacy==null?undefined:Number(r.avg_performance_legacy),
+        grade:r.grade,subjects:r.subjects
+      })},
+      savedGrades:{suffix:'saved-grades',map:r=>({id:self._legacyId(r.grade_id),nome:r.name,sessions:r.sessions,grade:r.grade,createdAt:r.created_at})}
+    };
+    return this.__coreGroupAppliers;
+  },
+  /* Tabelas cobertas por _coreGroupAppliers podem ser recarregadas isoladamente
+     (mesma tabela -> mesmo grupo de chaves em localStorage, sem depender de
+     nenhum outro dado). study_plans/study_profiles/study_profile_settings/
+     study_plan_state/study_track_items ficam de fora de propósito: usam chaves
+     livres ou dependem de outras tabelas, então continuam pelo caminho seguro
+     (recarga completa do core) quando mudam. */
+  _coreSpecByTable() {
+    if (this.__coreSpecByTable) return this.__coreSpecByTable;
+    const appliers = this._coreGroupAppliers();
+    const m = {};
+    this._coreSpecs().forEach(s => { if (appliers[s[0]]) m[s[1]] = s; });
+    this.__coreSpecByTable = m;
+    return m;
+  },
+  _clearSuffixMemory(profileId, suffix) {
+    const p = this._pfx(profileId), rx = new RegExp('^p:[^:]+:' + suffix + '$'), keys = [];
+    this._applying = true;
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k || k.indexOf(p) !== 0) continue;
+        if (rx.test(k.slice(p.length))) keys.push(k);
+      }
+      keys.forEach(k => localStorage.removeItem(k));
+    } finally { this._applying = false; }
+  },
+  /* Recarrega só as tabelas informadas (já sabemos quais mudaram pelo
+     change-log) em vez de todo o perfil — mesmo resultado final, muito
+     menos egress quando o usuário só registrou uma sessão ou editou um card. */
+  async _refreshCorePartial(profileId, specs) {
+    const appliers = this._coreGroupAppliers();
+    const loaded = await Promise.all(specs.map(s => this._all(s[1], profileId, s[2])));
+    const pfx = this._pfx(profileId);
+    specs.forEach((s, i) => {
+      const a = appliers[s[0]]; if (!a) return;
+      this._clearSuffixMemory(profileId, a.suffix);
+      this._group(loaded[i]).forEach((arr, plan) => this._memSet(pfx + 'p:' + plan + ':' + a.suffix, JSON.stringify(arr.map(a.map))));
+    });
+  },
   _rpcMissing(error) {
     const code=String(error&&error.code||'');
     const msg=String(error&&error.message||'').toLowerCase();
@@ -242,59 +341,11 @@ const RelationalStore = {
     const putGroups=(rows,suffix,map)=>{
       this._group(rows).forEach((arr,plan)=>this._memSet(pfx+'p:'+plan+':'+suffix,JSON.stringify(arr.map(map))));
     };
-    putGroups(d.subjects,'subjects',r=>({id:r.subject_id,nome:r.name,fase:r.phase,dificuldade:r.difficulty,ativo:r.active,modo:r.mode}));
-    putGroups(d.methods,'methods',r=>({id:r.method_id,nome:r.name,ativo:r.active}));
-    putGroups(d.phases,'phases',r=>({id:r.phase_id,nome:r.name,ativo:r.active}));
-    putGroups(d.statuses,'statuses',r=>({id:r.status_id,nome:r.name,color:r.color,bg:r.background,done:r.done,ativo:r.active}));
-    putGroups(d.modes,'modes',r=>({id:r.mode_id,nome:r.name,ativo:r.active}));
-    putGroups(d.entries,'entries',r=>({
-      id:this._legacyId(r.entry_id),date:this._date(r.study_date),subject:r.subject,lesson:r.lesson||'',method:r.method||'',
-      durationMin:r.duration_min||0,correct:r.correct||0,total:r.total||0,pageStart:r.page_start==null?null:Number(r.page_start),
-      pageEnd:r.page_end==null?null:Number(r.page_end),videoStart:r.video_start==null?null:Number(r.video_start),
-      videoEnd:r.video_end==null?null:Number(r.video_end),comment:r.comment||'',createdAt:r.created_at
-    }));
-    putGroups(d.decks,'decks',r=>({id:this._legacyId(r.deck_id),nome:r.name,createdAt:r.created_at}));
-    putGroups(d.cards,'cards',r=>Object.assign({},r.extra||{},{
-      id:this._legacyId(r.card_id),deckId:r.deck_id||null,materia:r.subject||null,assunto:r.topic||null,tipo:r.card_type||null,
-      frente:r.front||'',verso:r.back||'',favorito:!!r.favorite,status:r.status||null,banca:r.banca||null,kind:r.kind||null,
-      due:r.due||null,dueTs:r.due_ts==null?null:Number(r.due_ts),ease:r.ease==null?null:Number(r.ease),
-      intervalo:r.interval_value==null?null:Number(r.interval_value),lapses:r.lapses,learnStep:r.learn_step,reps:r.reps,
-      phase:r.phase,reversedOf:r.reversed_of,d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),algo:r.algo,
-      lastReview:r.last_review,createdAt:r.created_at,updatedAt:r.updated_at
-    }));
-    putGroups(d.revlog,'revlog',r=>Object.assign({},r.extra||{},{
-      cardId:r.card_id==null?null:this._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
-      acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
-      phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s)
-    }));
-    putGroups(d.laws,'leis',r=>Object.assign({},r.extra||{},{
-      id:this._legacyId(r.law_id),titulo:r.title,referencia:r.reference,materia:r.subject,texto:r.body||'',
-      bookmark:r.bookmarked,bookmarkTxt:r.bookmark_text,createdAt:r.created_at,updatedAt:r.updated_at,
-      opts:r.options||{},marcacoes:r.markings||[],suppressed:r.suppressed,rodizio:r.rotation
-    }));
-    putGroups(d.lawKeywords,'lei-keywords',r=>({t:r.term,cat:r.category,def:r.is_default}));
-    putGroups(d.links,'links',r=>({id:this._legacyId(r.link_id),nome:r.name,categoria:r.category,url:r.url,cor:r.color,logo:r.logo,createdAt:r.created_at}));
-    putGroups(d.extras,'extras',r=>{
-      const p=r.provenance||{};
-      return Object.assign({},r.extra||{},{
-        id:this._legacyId(r.extra_id),titulo:r.title,tipo:r.type,unidade:r.unit,marcador:r.marker,disciplina:r.discipline,
-        alvo:r.target==null?null:Number(r.target),progresso:r.progress==null?null:Number(r.progress),status:r.status,periodo:r.period,
-        dataInicio:this._date(r.start_date),dataFim:this._date(r.end_date),contaMetricas:r.counts_metrics,createdAt:r.created_at,
-        updatedAt:r.updated_at,concluidasEm:r.completed_dates||[],datas:r.dates||[],historico:r.history||[],
-        origemPlano:p.origemPlano,reforcoFila:p.reforcoFila,origemLacunaGlobal:p.origemLacunaGlobal,origemLei:p.origemLei
-      });
+    const appliers=this._coreGroupAppliers();
+    Object.keys(appliers).forEach(key=>{
+      const a=appliers[key];
+      putGroups(d[key],a.suffix,a.map);
     });
-    putGroups(d.siglas,'custom-siglas',r=>({id:this._legacyId(r.sigla_id),nome:r.name,sigla:r.sigla,color:r.color}));
-    putGroups(d.cycles,'cycle-history',r=>Object.assign({},r.extra||{},{
-      id:this._legacyId(r.cycle_id),startDate:this._date(r.start_date),endDate:this._date(r.end_date),closedAt:r.closed_at,
-      sessions:r.sessions,weeklyHours:r.weekly_hours==null?null:Number(r.weekly_hours),finalizadas:r.completed_subjects,
-      pctCumprido:r.completion_pct==null?null:Number(r.completion_pct),totalSubjects:r.total_subjects,
-      totalTargetMin:r.total_target_min,totalStudiedMin:r.total_studied_min,
-      avgPerformancePct:r.avg_performance_pct==null?null:Number(r.avg_performance_pct),
-      avgPerformancePctLegado:r.avg_performance_legacy==null?undefined:Number(r.avg_performance_legacy),
-      grade:r.grade,subjects:r.subjects
-    }));
-    putGroups(d.savedGrades,'saved-grades',r=>({id:this._legacyId(r.grade_id),nome:r.name,sessions:r.sessions,grade:r.grade,createdAt:r.created_at}));
 
     const trackGroups=new Map();
     (d.tracks||[]).forEach(r=>{
@@ -650,9 +701,20 @@ const RelationalStore = {
   async _refreshDomains(profileId, tables, reason, truncated) {
     const set=new Set((tables||[]).filter(Boolean));
     const heavyNames=new Set(['study_tec_snapshots','study_tec_snapshot_rows','study_incidence']);
-    let heavy=!!truncated, core=!!truncated;
-    set.forEach(t=>{if(heavyNames.has(t))heavy=true;else core=true;});
-    if(core)await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+    const coreByTable=this._coreSpecByTable();
+    let heavy=!!truncated, core=!!truncated, needsFullCore=!!truncated;
+    const partialSpecs=[];
+    set.forEach(t=>{
+      if(heavyNames.has(t)){ heavy=true; return; }
+      const spec=coreByTable[t];
+      if(spec){ core=true; partialSpecs.push(spec); }
+      else { core=true; needsFullCore=true; }
+    });
+    if(needsFullCore){
+      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+    } else if(partialSpecs.length){
+      await this._refreshCorePartial(profileId,partialSpecs);
+    }
     if(heavy){
       this._heavyDirty.add(profileId);
       if(this._heavyReady.has(profileId))await this.ensureHeavyData(profileId,{reason:reason||'catch-up-heavy',force:true});
