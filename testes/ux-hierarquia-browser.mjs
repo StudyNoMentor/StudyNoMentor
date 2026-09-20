@@ -100,19 +100,9 @@ try{
   ok(tec.abasLegadas===0,'as abas dos motores antigos nao existem mais');
 
   /* ── UM AGRUPADOR SO EM CONFIGURACOES ────────────────────────────────────
-     Este teste exigia que quatro cartoes (espaco usado, recuperacao, versoes
-     locais, backup no banco) vivessem dentro de um `<details id=ux-config-data>`
-     criado por esta camada. `ConfigUX` (80-ajustes-finais) divide a tela em
-     quatro secoes navegaveis — Estudo, Preferencias, Conta e nuvem e Dados e
-     backup — e move esses mesmos cartoes para o painel
-     "Dados e backup". As duas camadas agrupavam o mesmo conteudo: o resultado
-     era uma secao dentro da secao, com titulos repetidos e duas escalas
-     tipograficas brigando (era daí que vinha a sensacao de fonte sem padrao
-     na tela).
-
-     O `<details>` desta camada saiu. O teste passa a garantir o que de fato
-     precisa valer: os quatro cartoes continuam acessiveis e agrupados — agora
-     no painel de `ConfigUX`, uma vez so. */
+     A arquitetura relacional aposentou o medidor local, a recuperação local e
+     o histórico de versões no navegador. "Dados e backup" deve manter só as
+     proteções atuais, sem ressuscitar cartões legados. */
   await page.evaluate(()=>{switchScreen('config');UXHierarchy.decorateConfig();});
   const cfg=await page.evaluate(()=>{
     const dentro=(id)=>{const c=document.getElementById(id);return !!(c&&c.closest('.cfg-group'));};
@@ -124,14 +114,14 @@ try{
          emergencia para um defeito que hoje tem conserto na raiz. */
       semStorage:!document.getElementById('cfg-storage-card'),
       semRecovery:!document.getElementById('cfg-recuperacao-card'),
-      backup:dentro('cfg-cloudbk-card'),
-      versoes:dentro('cfg-vhist-card')
+      semVersoesLocais:!document.getElementById('cfg-vhist-card'),
+      backup:dentro('cfg-cloudbk-card')
     };
   });
   ok(cfg.semDuplicata,'Configuracoes deve ter UM agrupador, nao um <details> dentro da secao que ja agrupa');
   ok(cfg.secoes===4,'Configuracoes deve manter quatro secoes uteis, sem a tela de Diagnostico');
-  ok(cfg.backup&&cfg.versoes,'backup e histórico de versões devem continuar acessíveis, agrupados uma vez só');
-  ok(cfg.semStorage&&cfg.semRecovery,'o medidor de espaço e o painel de recuperação não devem mais existir na tela');
+  ok(cfg.backup,'backup no banco deve continuar acessível em Dados e backup');
+  ok(cfg.semStorage&&cfg.semRecovery&&cfg.semVersoesLocais,'armazenamento, recuperação e versões locais não devem voltar à interface');
 
   /* Leis: perfil novo nasce com leitura limpa, sem remover nenhum comando. */
   const leis=await page.evaluate(()=>{
