@@ -17,8 +17,6 @@ const ProfileUI = {
   _editingId: null,
   _draftAvatar: null,
   _draftColor: null,
-  _pendingSessionProfile: null,
-  _sessionRetryTimer: null,
 
   AUTO_ENTER_KEY: 'diario-estudos:auto-enter',
   autoEnterOn() { try { return localStorage.getItem(this.AUTO_ENTER_KEY) !== '0'; } catch (e) { return true; } },
@@ -52,7 +50,6 @@ const ProfileUI = {
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
   hideGate() { $id('profile-gate').style.display = 'none'; },
   _showEnteringGate(id) {
-    this._pendingSessionProfile = id || null;
     this._entering = true;
     this._autoEnterTried = true;
     this._stage = 'entering';
@@ -66,27 +63,6 @@ const ProfileUI = {
     if (profilesEl) profilesEl.style.display = 'none';
     if (enteringEl) enteringEl.style.display = 'block';
     if (head) head.style.display = 'none';
-  },
-  resumeAfterSessionClaim() {
-    clearTimeout(this._sessionRetryTimer);
-    this._sessionRetryTimer = null;
-    /* O takeover pode acontecer ANTES de enterProfile preencher
-       _pendingSessionProfile. Nesse caso o comportamento antigo voltava ao
-       refreshStage e podia cair no fast path sobre cache físico velho. Depois
-       de assumir a sessão, sempre reabrimos um alvo conhecido pelo caminho
-       canônico (hydrate explicitOnly), nunca apenas "liberamos" o cache. */
-    const id = this._pendingSessionProfile ||
-      (window.ProfileManager ? ProfileManager.getActiveProfileId() : null) ||
-      this.getDefaultProfile() || this.getLastProfile();
-    this._pendingSessionProfile = null;
-    if (id) {
-      this._showEnteringGate(id);
-      this.enterProfile(id);
-      return;
-    }
-    this._entering = false;
-    this._autoEnterTried = false;
-    this.refreshStage();
   },
   // O Supabase dispara vários eventos de auth (INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED...).
   // Sem este guarda, cada evento re-renderizava o gate e causava a "piscada" nos perfis.
@@ -297,7 +273,6 @@ const ProfileUI = {
 
       try { sessionStorage.setItem(this.SESSION_KEY, id); } catch (e) { _quiet(e); }
       this.setLastProfile(id);
-      this._pendingSessionProfile = null;
       this._entering = false;
       this.hideGate();
       this.renderChip();
