@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v376a64ffc4">
+<meta name="diario-versao" content="v289cd0c344">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -815,6 +815,9 @@ window.__relationalBoot = true;
 
   .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .field-group-3 { grid-template-columns: 1fr 1fr 1fr; }
+  /* Assunto é o campo mais usado pra achar um card depois — fica com o dobro
+     do espaço de Matéria (Tec) na mesma linha. */
+  .field-group-assunto { grid-template-columns: 1fr 2fr; }
   .cycle-hm-input { display: flex; align-items: center; gap: 6px; }
   .cycle-hm-input input { width: 64px; text-align: center; }
   .cycle-hm-input span { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); }
@@ -3592,6 +3595,8 @@ window.__relationalBoot = true;
   .banca-pick-btn[disabled] { opacity: 0.6; cursor: default; }
   .banca-pick-btn .chev { color: var(--text-faint); }
   .banca-pick-panel { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; min-width: 260px; max-width: min(340px, 92vw); max-height: 320px; overflow: auto; padding: 10px; background: var(--surface); border: 1.5px solid var(--border-strong, var(--border)); border-radius: 12px; box-shadow: var(--shadow-lg, 0 12px 28px rgba(0,0,0,0.18)); }
+  .banca-pick-search { width: 100%; margin-bottom: 8px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: var(--fs-2xs); }
+  .banca-pick-search:focus { outline: none; border-color: var(--accent); }
   .banca-pick-topo { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-3xs); line-height: 1.5; color: var(--text-faint); margin: 0 0 8px; }
   .banca-pick-item { display: flex; align-items: flex-start; gap: 9px; padding: 7px 6px; border-radius: 8px; cursor: pointer; }
   .banca-pick-item:hover { background: var(--surface-sunken); }
@@ -5134,9 +5139,14 @@ window.__relationalBoot = true;
   .req { color: var(--bad-text, var(--bad)); }
   /* Editor de texto rico */
   .rte { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface); }
-  .rte-toolbar { display: flex; flex-wrap: wrap; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
+  .rte-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 6px 8px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); }
   .rte-toolbar button { background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 4px 9px; font-size: var(--fs-xs); cursor: pointer; color: var(--text-soft); }
   .rte-toolbar button:hover { border-color: var(--accent); color: var(--accent); }
+  .rte-toggle { font-weight: 700; }
+  /* Minimizada: só o botão de alternância fica visível — o resto da barra some
+     sem perder estado (cor escolhida, etc.), até o próximo clique. */
+  .rte.rte-collapsed .rte-toolbar > *:not(.rte-toggle) { display: none; }
+  .rte.rte-collapsed .rte-toolbar { border-bottom: none; }
   .rte-sep { width: 1px; background: var(--border); margin: 2px 3px; align-self: stretch; }
   .rte-grp { display: inline-flex; align-items: center; gap: 3px; }
   .rte-color-grp { gap: 2px; }
@@ -5245,7 +5255,7 @@ window.__relationalBoot = true;
      ============================================================ */
   @media (max-width: 720px) {
     /* formulários: empilha campos que ficariam apertados */
-    .field-group, .field-group-3 { grid-template-columns: 1fr; gap: 12px; }
+    .field-group, .field-group-3, .field-group-assunto { grid-template-columns: 1fr; gap: 12px; }
     .row-3 { grid-template-columns: 1fr; gap: 12px; }
     /* padding dos cards mais enxuto para ganhar largura útil */
     .card-header { padding: 18px 16px 0; }
@@ -6715,39 +6725,35 @@ window.__relationalBoot = true;
         <button type="button" class="icon-btn" id="card-modal-close" aria-label="Fechar">✕</button>
       </div>
       <div class="cards-modal-body">
-        <div class="field-group field-group-3">
+        <div class="field-group field-group-assunto">
           <div class="field"><label for="card-materia-tec">Matéria (Tec) <span class="opt">(opcional)</span></label>
             <input type="text" id="card-materia-tec" list="card-materia-tec-list" placeholder="Ex.: Direito Administrativo">
             <datalist id="card-materia-tec-list"></datalist></div>
           <div class="field"><label for="card-assunto">Assunto <span class="opt">(opcional)</span></label>
             <input type="text" id="card-assunto" list="card-assunto-list" placeholder="Ex.: Crimes contra a Adm.">
             <datalist id="card-assunto-list"></datalist></div>
-          <div class="field"><label for="card-banca">Banca <span class="opt">(opcional)</span></label>
-            <input type="text" id="card-banca" list="card-banca-list" placeholder="Ex.: FCC, FGV, Cebraspe">
-            <datalist id="card-banca-list"></datalist></div>
         </div>
-        <div class="field-group">
-          <div class="field"><label for="card-destino">Disciplina <span class="req">*</span></label>
+        <div class="field-group field-group-3">
+          <div class="field"><label for="card-destino">Baralho <span class="req">*</span></label>
             <select id="card-destino"></select></div>
-          <div class="field"><label for="card-tipo">Categoria <span class="opt">(opcional)</span></label>
-            <select id="card-tipo"></select></div>
-        </div>
-        <div class="field"><label for="card-kind">Formato do card</label>
-          <select id="card-kind">
-            <option value="basic">Básico (frente e verso)</option>
-            <option value="basic_reversed">Básico + cartão invertido (gera 2 cards)</option>
-            <option value="cloze">Cloze — omissão de palavras {{ }}</option>
-          </select>
-          <p class="hint" id="card-kind-hint" style="margin-top:6px;"></p>
+          <div class="field"><label for="card-banca-btn">Banca <span class="opt">(opcional)</span></label>
+            <div class="banca-pick" id="card-banca-pick"></div></div>
+          <div class="field"><label for="card-kind">Formato do card</label>
+            <select id="card-kind">
+              <option value="basic">Básico (frente e verso)</option>
+              <option value="basic_reversed">Básico + cartão invertido (gera 2 cards)</option>
+              <option value="cloze">Cloze — omissão de palavras {{ }}</option>
+            </select>
+            <p class="hint" id="card-kind-hint" style="margin-top:6px;"></p></div>
         </div>
         <div class="field"><label id="card-frente-label">Frente (pergunta) <span class="req">*</span></label>
-          <div class="rte" data-target="card-frente" data-cloze="1">
+          <div class="rte" data-target="card-frente" data-cloze="1" data-start-collapsed="1">
             <div class="rte-toolbar"></div>
             <div class="rte-area" id="card-frente" contenteditable="true"></div>
           </div>
         </div>
         <div class="field" id="card-verso-field"><label id="card-verso-label">Verso (resposta) <span class="req">*</span></label>
-          <div class="rte" data-target="card-verso">
+          <div class="rte" data-target="card-verso" data-start-collapsed="1">
             <div class="rte-toolbar"></div>
             <div class="rte-area" id="card-verso" contenteditable="true"></div>
           </div>
@@ -6778,6 +6784,24 @@ window.__relationalBoot = true;
         <div id="deck-list" style="margin-top:14px;"></div>
       </div>
       <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="deck-modal-done">Fechar</button></div>
+    </div>
+  </div>
+
+  <!-- Modal: bancas dos cards -->
+  <div id="bancas-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box">
+      <div class="cards-modal-head">
+        <div><h2>🏛️ Gerenciar bancas</h2><p class="sub">Lista oferecida no seletor de "Banca" ao criar um card. Remover uma banca daqui não apaga a banca já gravada nos cards que a usam.</p></div>
+        <button type="button" class="icon-btn" id="bancas-modal-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="config-add-row">
+          <input type="text" id="banca-new-input" placeholder="Nome da nova banca (ex.: IBFC)">
+          <button class="btn-primary" id="banca-add-btn" type="button">Adicionar</button>
+        </div>
+        <div id="banca-list" style="margin-top:14px;"></div>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span><button type="button" class="btn-secondary" id="bancas-modal-done">Fechar</button></div>
     </div>
   </div>
 
@@ -15519,6 +15543,7 @@ const DB = {
       leiKeywords: base + 'lei-keywords',
       decks: base + 'decks',
       cards: base + 'cards',
+      bancasCards: base + 'bancas-cards',
       links: base + 'links',
       incidencia: base + 'incidencia',
       lastCycleSetup: base + 'last-cycle-setup',
@@ -15529,6 +15554,8 @@ const DB = {
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
   get KEYS() { return this.keysForPlan(this._activePlanId()); },
 
+  // Bancas oferecidas na criação de card (lista simples, editável em ⚙ Algoritmo → Gerenciar bancas)
+  DEFAULT_BANCAS_CARDS: ['FCC', 'CEBRASPE', 'FGV', 'CESGRANRIO', 'VUNESP'],
   DEFAULT_METHODS: ['Videoaula', 'Leitura', 'PDF', 'Resumo', 'Questões', 'Revisão Teórica', 'Mapa mental', 'Outro'],
   DEFAULT_PHASES: ['Novo', 'Sólido'],
   // Modos de estudo de cada disciplina na trilha de Estudo Novo (configuráveis)
@@ -16127,6 +16154,26 @@ const DB = {
     const cards = this.getCards(); let touched = false;
     cards.forEach(c => { if (c.deckId === id) { c.deckId = null; touched = true; } });
     if (touched) this.saveCards(cards);
+  },
+  // Bancas oferecidas no seletor de "Banca" da criação de card (lista simples,
+  // sem soft-delete: remover da lista não apaga a banca já gravada nos cards).
+  getCardBancas() {
+    let list = this._get(this.KEYS.bancasCards, null);
+    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._set(this.KEYS.bancasCards, list); }
+    return list;
+  },
+  saveCardBancas(list) { this._set(this.KEYS.bancasCards, list); },
+  addCardBanca(nome) {
+    const n = (nome || '').trim();
+    if (!n) return null;
+    const list = this.getCardBancas();
+    if (list.some(b => b.toLowerCase() === n.toLowerCase())) return null;
+    list.push(n);
+    this.saveCardBancas(list);
+    return n;
+  },
+  removeCardBanca(nome) {
+    this.saveCardBancas(this.getCardBancas().filter(b => b !== nome));
   },
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
@@ -27306,7 +27353,6 @@ const CardsScreen = {
 
   render() {
     this.populateFilterOptions();
-    this.populateTipoSelect();
     this.renderContent();
     this.updateFavCount();
   },
@@ -27326,27 +27372,27 @@ const CardsScreen = {
     $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
-  populateTipoSelect() {
-    const sel = document.getElementById('card-tipo');
-    if (sel) sel.innerHTML = `<option value="">— sem tipo —</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  },
   destinoOptionsHtml(selected) {
-    const { subs, decks } = this.materiaOptionsHtml();
-    // para o destino, valor de matéria = "sub:Nome"; baralho = "deck:id"
-    const subOpts = DB.getActiveSubjects().map(s => `<option value="sub:${escapeHtml(s.nome)}"${selected === 'sub:' + s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
+    // O destino de um card novo é sempre um baralho ("deck:id") — a disciplina
+    // ficou pro campo Matéria (Tec), texto livre, sem duplicar o que já é feito
+    // aqui pelo baralho.
     const deckOpts = DB.getDecks().map(d => `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    // Cards antigos podiam ter uma disciplina como destino, sem baralho nenhum
+    // ("sub:Nome"). Editar um desses não pode fazer o destino atual sumir da
+    // lista sozinho — mantém só essa opção, sem reoferecer as outras disciplinas.
+    const legadoOpt = (selected && selected.indexOf('sub:') === 0)
+      ? `<option value="${escapeHtml(selected)}" selected>${escapeHtml(selected.slice(4))} (disciplina, sem baralho)</option>` : '';
     /* BUG CORRIGIDO — perfil novo não conseguia criar o PRIMEIRO card.
-       Sem disciplina no Plano e sem baralho criado, este seletor vinha só com o
-       texto de instrução. Ao salvar, o app pedia "Escolha o destino" apontando
-       para uma lista vazia: beco sem saída, achado simulando o uso real.
-       O Anki resolve isso tendo SEMPRE um baralho "Padrão". É o que fazemos:
-       quando não há nenhum destino, oferecemos "📁 Padrão", criado na hora em
-       que o card for salvo. */
-    if (!subOpts && !deckOpts) {
+       Sem baralho criado, este seletor vinha só com o texto de instrução. Ao
+       salvar, o app pedia "Escolha o destino" apontando para uma lista vazia:
+       beco sem saída, achado simulando o uso real. O Anki resolve isso tendo
+       SEMPRE um baralho "Padrão". É o que fazemos: quando não há nenhum
+       baralho, oferecemos "📁 Padrão", criado na hora em que o card for salvo. */
+    if (!deckOpts && !legadoOpt) {
       return `<option value="">Escolha onde este card fica...</option>`
         + `<option value="novo:Padrão"${selected === 'novo:Padrão' ? ' selected' : ''}>📁 Padrão</option>`;
     }
-    return `<option value="">Escolha onde este card fica...</option>` + subOpts + deckOpts;
+    return `<option value="">Escolha onde este card fica...</option>` + legadoOpt + deckOpts;
   },
   currentFilteredCards() {
     return CardEngine.applyFilters(DB.getCards(), this.filters);
@@ -28435,17 +28481,75 @@ const CardsScreen = {
     else if (kind === 'basic_reversed') hint.innerHTML = 'Serão criados <strong>2 cards</strong>: um frente→verso e outro verso→frente.';
     else hint.innerHTML = 'Card simples: você vê a frente e revela o verso.';
   },
+  // Seletor único de banca (busca + marca com ✓), reaproveitando o visual do
+  // banca-pick já usado no Motor/Incidência. Guarda o valor num input oculto
+  // #card-banca, então _readCardForm()/cardTemConteudo() continuam lendo
+  // $id('card-banca').value normalmente, sem saber que não é mais um <input>.
+  renderCardBancaPicker(valorAtual) {
+    const host = document.getElementById('card-banca-pick');
+    if (!host) return;
+    const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const cadastradas = DB.getCardBancas();
+    const usadas = DB.getCards().map(c => c.banca).filter(Boolean);
+    const extra = (valorAtual && !cadastradas.includes(valorAtual)) ? [valorAtual] : [];
+    const opcoes = [...new Set([...cadastradas, ...usadas, ...extra])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    host.innerHTML = `
+      <input type="hidden" id="card-banca" value="${escapeHtml(valorAtual || '')}">
+      <button type="button" class="banca-pick-btn" id="card-banca-btn" aria-expanded="false">
+        <span>${valorAtual ? '🏛️ ' + escapeHtml(valorAtual) : '— Nenhuma —'}</span><span class="chev">▾</span>
+      </button>
+      <div class="banca-pick-panel" hidden>
+        <input type="text" class="banca-pick-search" placeholder="Buscar banca…">
+        <div class="banca-pick-list">
+          <button type="button" class="banca-pick-all ${valorAtual ? '' : 'is-active'}" data-banca-op="">
+            <span class="banca-pick-all-mark">✓</span><span><b>— Nenhuma —</b></span>
+          </button>
+          ${opcoes.map(b => `<button type="button" class="banca-pick-all ${valorAtual === b ? 'is-active' : ''}" data-banca-op="${escapeHtml(b)}" data-banca-norm="${escapeHtml(norm(b))}">
+            <span class="banca-pick-all-mark">✓</span><span><b>${escapeHtml(b)}</b></span>
+          </button>`).join('')}
+        </div>
+        ${opcoes.length ? '' : '<p class="hint" style="margin:6px 2px 0;">Nenhuma banca cadastrada — adicione em ⚙ Algoritmo → Gerenciar bancas.</p>'}
+      </div>`;
+    const btn = host.querySelector('#card-banca-btn');
+    const painel = host.querySelector('.banca-pick-panel');
+    const search = host.querySelector('.banca-pick-search');
+    const label = btn.querySelector('span:not(.chev)');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const abrir = painel.hasAttribute('hidden');
+      document.querySelectorAll('.banca-pick-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
+      if (abrir) {
+        painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+        search.value = ''; host.querySelectorAll('[data-banca-op]').forEach(o => o.style.display = '');
+        setTimeout(() => search.focus(), 30);
+      } else { painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+    });
+    painel.addEventListener('click', (e) => e.stopPropagation());
+    search.addEventListener('input', () => {
+      const q = norm(search.value);
+      host.querySelectorAll('.banca-pick-list [data-banca-op]:not([data-banca-op=""])').forEach(o => {
+        o.style.display = !q || (o.dataset.bancaNorm || '').indexOf(q) >= 0 ? '' : 'none';
+      });
+    });
+    host.querySelectorAll('[data-banca-op]').forEach(opt => opt.addEventListener('click', () => {
+      const v = opt.dataset.bancaOp || '';
+      $id('card-banca').value = v;
+      label.textContent = v ? '🏛️ ' + v : '— Nenhuma —';
+      host.querySelectorAll('[data-banca-op]').forEach(o => o.classList.toggle('is-active', (o.dataset.bancaOp || '') === v));
+      painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false');
+    }));
+  },
   openCardModal(id) {
     this._editingId = id || null;
     const isEdit = !!id;
     $id('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     $id('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
-    let destSel = '', assunto = '', materiaTec = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
+    let destSel = '', assunto = '', materiaTec = '', banca = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
-      assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
+      assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
     $id('card-assunto').value = assunto;
@@ -28457,13 +28561,8 @@ const CardsScreen = {
     const materiaTecCards = DB.getCards().map(c => c.materiaTec).filter(Boolean);
     const materiaTecOpts = [...new Set([...discImport, ...materiaTecCards])].sort();
     $id('card-materia-tec-list').innerHTML = materiaTecOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
-    // Banca: sugere as bancas já importadas na Incidência + as já usadas em outros cards
-    $id('card-banca').value = banca;
-    const bancasImport = (DB.getBancas ? DB.getBancas() : []);
-    const bancasCards = DB.getCards().map(c => c.banca).filter(Boolean);
-    const bancaOpts = [...new Set([...bancasImport, ...bancasCards])].sort();
-    $id('card-banca-list').innerHTML = bancaOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
-    $id('card-tipo').value = tipo;
+    // Banca: seletor único com busca, entre as cadastradas em ⚙ Algoritmo → Gerenciar bancas
+    this.renderCardBancaPicker(banca);
     // ao editar, o formato invertido não é reofertado (já são 2 cards); mostra básico/cloze
     const kindSel = document.getElementById('card-kind');
     kindSel.querySelector('option[value="basic_reversed"]').style.display = isEdit ? 'none' : '';
@@ -28510,7 +28609,7 @@ const CardsScreen = {
     const kind = $id('card-kind').value;
     const frente = $id('card-frente').innerHTML.trim();
     const verso = $id('card-verso').innerHTML.trim();
-    if (!dest) { showToast('Escolha o destino (disciplina ou baralho)'); return null; }
+    if (!dest) { showToast('Escolha o baralho'); return null; }
     if (kind === 'cloze') {
       if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
       if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
@@ -28522,7 +28621,8 @@ const CardsScreen = {
       assunto: $id('card-assunto').value,
       materiaTec: $id('card-materia-tec').value,
       banca: $id('card-banca').value,
-      tipo: $id('card-tipo').value,
+      // "tipo" (Categoria) não tem mais campo na criação/edição — omitido de
+      // propósito, para não apagar o valor de cards antigos que já tinham um.
       kind: kind === 'cloze' ? 'cloze' : 'basic',
       frente, verso: kind === 'cloze' ? '' : verso, deckId: null, materia: null,
       _reversed: kind === 'basic_reversed'
@@ -28603,6 +28703,35 @@ const CardsScreen = {
     const d = DB.addDeck(inp.value);
     if (!d) { showToast('Digite um nome'); return; }
     inp.value = ''; this.renderDeckList(); this.render(); showToast('Baralho criado ✓');
+  },
+
+  // ---- bancas (lista oferecida no seletor "Banca" da criação de card) ----
+  openBancasModal() { this.renderBancasList(); $id('bancas-modal').style.display = 'flex'; },
+  renderBancasList() {
+    const box = document.getElementById('banca-list');
+    const bancas = DB.getCardBancas();
+    if (bancas.length === 0) { box.innerHTML = `<p class="hint">Nenhuma banca cadastrada. Adicione a primeira acima.</p>`; return; }
+    box.innerHTML = bancas.map(b => {
+      const n = DB.getCards().filter(c => c.banca === b).length;
+      return `<div class="deck-row" data-nome="${escapeHtml(b)}">
+        <span class="deck-name" style="padding:8px 10px;border-radius:8px;">${escapeHtml(b)}</span>
+        <span class="deck-count">${n} card(s)</span>
+        <button type="button" class="icon-btn danger banca-del" title="Remover banca" aria-label="Remover banca">×</button>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.deck-row').forEach(row => {
+      const nome = row.dataset.nome;
+      row.querySelector('.banca-del').addEventListener('click', async () => {
+        if (!await UI.confirm('Remover "' + nome + '" da lista de bancas? Os cards que já usam essa banca não são alterados.')) return;
+        DB.removeCardBanca(nome); this.renderBancasList();
+      });
+    });
+  },
+  addBanca() {
+    const inp = document.getElementById('banca-new-input');
+    const nome = DB.addCardBanca(inp.value);
+    if (!nome) { showToast('Digite um nome (ou a banca já existe)'); return; }
+    inp.value = ''; this.renderBancasList(); showToast('Banca adicionada ✓');
   },
 
   // ---- exportar ----
@@ -28802,12 +28931,14 @@ CardsScreen.openAlgoConfig = function () {
   const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
     decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
   );
+  opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
   opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Cada baralho pode ter seu próprio algoritmo/retenção (ex.: lei seca em 95%, teoria em 88%). Sem preset, o baralho herda o global.' }],
     { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
       if (!v) return;
       if (v.scope === '__reset__') { CardsScreen.zerarEstatisticas(); return; }
+      if (v.scope === '__bancas__') { CardsScreen.openBancasModal(); return; }
       CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
     });
 };
@@ -30382,6 +30513,7 @@ function buildRteToolbar(rte) {
   const swatches = (arr, kind) => arr.map(([nome, cor]) =>
     `<button type="button" class="rte-swatch" data-${kind}="${cor}" title="${nome}" aria-label="${nome}" style="background:${cor}"></button>`).join('');
   tb.innerHTML = `
+    <button type="button" class="rte-toggle" title="Mostrar/ocultar barra de formatação" aria-label="Mostrar/ocultar barra de formatação"></button>
     <div class="rte-grp">
       <button type="button" data-cmd="bold" title="Negrito (Ctrl+B)" aria-label="Negrito (Ctrl+B)"><b>B</b></button>
       <button type="button" data-cmd="italic" title="Itálico (Ctrl+I)" aria-label="Itálico (Ctrl+I)"><i>I</i></button>
@@ -30449,6 +30581,13 @@ function buildRteToolbar(rte) {
   // ↕ Espaçamento: remove linhas em branco extras sem mexer na formatação
   const spacingBtn = tb.querySelector('[data-spacing]');
   if (spacingBtn) spacingBtn.addEventListener('click', () => rteRemoverEspacamento(area));
+  // 🎨 Mostrar/ocultar a barra: minimizada por padrão pra não ocupar tela —
+  // o texto e o card em si importam mais que a barra em cima deles.
+  const toggleBtn = tb.querySelector('.rte-toggle');
+  const syncToggleLabel = () => { toggleBtn.textContent = rte.classList.contains('rte-collapsed') ? '🎨 Formatação ▸' : '🎨 Formatação ▾'; };
+  toggleBtn.addEventListener('click', () => { rte.classList.toggle('rte-collapsed'); syncToggleLabel(); });
+  rte.classList.toggle('rte-collapsed', rte.dataset.startCollapsed === '1');
+  syncToggleLabel();
   // cores de texto e marca-texto
   tb.querySelectorAll('[data-color]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'foreColor', sw.dataset.color)));
   tb.querySelectorAll('[data-hilite]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'hiliteColor', sw.dataset.hilite)));
@@ -30588,6 +30727,11 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('deck-modal-done', 'click', () => $id('deck-modal').style.display = 'none');
   on('deck-add-btn', 'click', () => CardsScreen.addDeck());
   on('deck-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addDeck(); });
+  // modal bancas
+  on('bancas-modal-close', 'click', () => $id('bancas-modal').style.display = 'none');
+  on('bancas-modal-done', 'click', () => $id('bancas-modal').style.display = 'none');
+  on('banca-add-btn', 'click', () => CardsScreen.addBanca());
+  on('banca-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addBanca(); });
   // modal exportar
   on('cards-export-close', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-cancel', 'click', () => $id('cards-export-modal').style.display = 'none');
