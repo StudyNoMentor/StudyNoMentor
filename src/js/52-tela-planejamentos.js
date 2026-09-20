@@ -115,7 +115,7 @@ const PlanUI = {
         const entries = DB.getEntriesForPlan(id).length;
         if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.`,
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
-        try { if (window.BackupHistory) await BackupHistory.antesDe('excluir um planejamento'); } catch (_) { _quiet(_); }
+        try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
         PlanManager.deletePlan(id);
         if (wasActive) { CloudStore.saveThenReload(); return; }
