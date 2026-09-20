@@ -372,11 +372,10 @@ const AutoTeste = {
         ProfileManager.idValido(criado), criado);
     } finally {
       ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(p => p.id !== criado));
-      try { localStorage.removeItem(ProfileManager._ownerKey(criado)); } catch (e) { _quiet(e, 'limpeza-uuid'); }
     }
   },
 
-  /* ── TUDO O QUE VOCÊ DIGITA ENTRA NUMA SEÇÃO SINCRONIZADA ────────────────
+  /* ── TUDO O QUE VOCÊ DIGITA ENTRA NA PERSISTÊNCIA RELACIONAL ─────────────
      Este grupo responde à pergunta mais simples e mais importante que se pode
      fazer ao app: "o que eu configurei fica guardado e chega no outro
      aparelho?".
