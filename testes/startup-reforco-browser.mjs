@@ -72,12 +72,12 @@ try {
   /* 2b. O mecanismo legado profile_sections deve estar operacionalmente aposentado. */
   const retired=await page.evaluate(()=>({
     sectionSync:typeof window.SectionSync,
-    lock:window.SessionLock&&SessionLock.enabled,
-    single:window.SessionGuard&&SessionGuard.singleDeviceMode
+    sessionLock:typeof window.SessionLock,
+    sessionGuard:typeof window.SessionGuard
   }));
   eq(retired.sectionSync,'undefined','SectionSync deve ter sido removido do bundle');
-  eq(retired.lock,false,'abas/janelas não podem bloquear umas às outras');
-  eq(retired.single,false,'PC e celular não podem disputar uma sessão exclusiva');
+  eq(retired.sessionLock,'undefined','SessionLock deve ter sido removido do bundle');
+  eq(retired.sessionGuard,'undefined','SessionGuard deve ter sido removido do bundle');
 
   /* 2c. Entrar em perfil sempre hidrata do SQL; não há fast path por cache. */
   const gate=await page.evaluate(()=>({

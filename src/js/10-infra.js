@@ -196,7 +196,8 @@ window.recarregarApp = recarregarApp;
    Então a remoção deixa de ser destrutiva. Toda seção do perfil apagada pelo
    app passa por aqui: o valor é guardado em `__trash:<seção>` com a data e o
    motivo. Como a chave pertence ao perfil, o RelationalStore a persiste no
-   PostgreSQL; a tela de Recuperação lista e devolve com um clique.
+   PostgreSQL. O helper técnico Lixeira permite listar/restaurar esse conteúdo
+   sem criar uma segunda persistência no navegador.
 
    Regras que mantêm a lixeira barata:
      · só entra o que tem conteúdo (apagar chave vazia não gera lixo);

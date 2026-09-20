@@ -14,10 +14,6 @@ const SaveGuard = {
         !window.RelationalStore) {
       return { enviado: false, motivo: 'sem-banco' };
     }
-    if (window.SessionLock && SessionLock.isBlocked && SessionLock.isBlocked()) {
-      return { enviado: false, motivo: 'sessao-em-outro-aparelho' };
-    }
-
     const limite = Math.max(1000, Number(ms) || this.CLOUD_TIMEOUT_MS);
     let timer = null;
     try {

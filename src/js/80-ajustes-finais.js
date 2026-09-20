@@ -614,19 +614,10 @@ else CloudStore.init();
       to('#config-modes-list', 'estudo');
       to('#config-statuses-list', 'estudo');
       to('#cloud-auth-box', 'conta');
-      /* ── ORDEM DE "DADOS E BACKUP" = FORÇA DA PROTEÇÃO ────────────────────
-         Da mais forte (no servidor, automática, sobrevive a perder este
-         aparelho) para a mais frágil (arquivo que você mesmo guarda), depois
-         a ferramenta de resgate e por fim o medidor de espaço. Quem chega
-         aqui com medo de ter perdido algo lê de cima para baixo e encontra a
-         proteção mais forte primeiro.
-
-         O cartão de Recuperação NÃO era movido por nenhum to(): ficava fora
-         do sistema de abas, pendurado embaixo de todas as seções e visível
-         em qualquer uma delas. */
-      to('#cfg-cloudbk-body', 'dados');   // no servidor, automático
-      to('#cfg-vhist-body', 'dados');     // neste aparelho, automático
-      this.buildDados();                  // em arquivo, manual
+      /* "Dados e backup" mantém apenas as duas proteções atuais:
+         fotos imutáveis no PostgreSQL e exportação manual em arquivo. */
+      to('#cfg-cloudbk-body', 'dados');   // fotos no servidor
+      this.buildDados();                  // exportação manual
       this.buildPrefs();
       /* A antiga tela "Diagnóstico" saiu da navegação: era uma superfície de
          manutenção técnica sem papel no fluxo de estudo. Os helpers internos

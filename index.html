@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v51571f5b98">
+<meta name="diario-versao" content="veff4789d04">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -15299,7 +15299,8 @@ window.recarregarApp = recarregarApp;
    Então a remoção deixa de ser destrutiva. Toda seção do perfil apagada pelo
    app passa por aqui: o valor é guardado em `__trash:<seção>` com a data e o
    motivo. Como a chave pertence ao perfil, o RelationalStore a persiste no
-   PostgreSQL; a tela de Recuperação lista e devolve com um clique.
+   PostgreSQL. O helper técnico Lixeira permite listar/restaurar esse conteúdo
+   sem criar uma segunda persistência no navegador.
 
    Regras que mantêm a lixeira barata:
      · só entra o que tem conteúdo (apagar chave vazia não gera lixo);
@@ -17500,7 +17501,7 @@ const ProfileManager = {
       const k = localStorage.key(i);
       if (!k || !k.startsWith(prefix)) continue;
       const sub = k.slice(prefix.length);
-      if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // a lixeira é rede local deste aparelho
+      if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // lixeira técnica não entra no arquivo exportado
       data[sub] = localStorage.getItem(k);
     }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
@@ -18028,10 +18029,6 @@ const SaveGuard = {
         !window.RelationalStore) {
       return { enviado: false, motivo: 'sem-banco' };
     }
-    if (window.SessionLock && SessionLock.isBlocked && SessionLock.isBlocked()) {
-      return { enviado: false, motivo: 'sessao-em-outro-aparelho' };
-    }
-
     const limite = Math.max(1000, Number(ms) || this.CLOUD_TIMEOUT_MS);
     let timer = null;
     try {
@@ -29344,16 +29341,18 @@ const AutoTeste = {
      dado fora do alcance é encontrável, e restaurar nunca sobrescreve por
      conta própria. */
   idsDePerfilSaoValidos() {
-    this._ok('idValido aceita um UUID de verdade',
-      ProfileManager.idValido('550e8400-e29b-41d4-a716-446655440000') === true);
-    this._ok('idValido rejeita o formato antigo (u_...)',
-      ProfileManager.idValido('u_lz3k9f2a') === false);
-    this._ok('idValido rejeita vazio/indefinido',
-      ProfileManager.idValido('') === false && ProfileManager.idValido(undefined) === false);
-    const criado = ProfileManager.createProfile({ nome: '__t_uuid__' });
+    /* O ID persistente não é mais validado/gerado pelo ProfileManager.
+       CloudStore.createRow() omite `id` no INSERT e recebe do PostgreSQL o UUID
+       definitivo. O helper local existe só para a projeção em RAM. */
+    const criar = String(CloudStore.createRow);
+    this._ok('perfil persistente deixa o PostgreSQL gerar o UUID',
+      /\.insert\s*\(\s*\{/.test(criar) &&
+      !/\n\s*id\s*:/.test(criar) &&
+      /\.select\(['"]id,created_at['"]\)/.test(criar));
+    const criado = ProfileManager.createProfile({ nome: '__t_projection__' });
     try {
-      this._ok('createProfile gera um id que passa em idValido',
-        ProfileManager.idValido(criado), criado);
+      this._ok('createProfile cria apenas a projeção local necessária às telas',
+        !!criado && ProfileManager.getProfiles().some(p => p.id === criado), criado);
     } finally {
       ProfileManager.saveProfiles(ProfileManager.getProfiles().filter(p => p.id !== criado));
     }
@@ -40533,56 +40532,24 @@ document.addEventListener('click', (e) => {
 
 
 /* ═══════════════════ BACKUP NO BANCO DE DADOS ══════════════════════════════
-   O que existia antes, e por que não bastava.
+   O PostgreSQL relacional guarda o estado atual do perfil em tabelas `study_*`.
+   Isso resolve a persistência operacional, mas não substitui histórico: um erro
+   lógico confirmado no banco pode sobrescrever o estado corrente corretamente.
 
-   O app tinha três redes de segurança, e as três moram NO APARELHO:
-     · a Lixeira (30 dias) — o que foi apagado;
-     · o Histórico de versões (7 dias, até 24 fotos) — o estado inteiro;
-     · a tela de Recuperação — o vasculhador.
+   `profile_backups` é a camada separada de recuperação. Ela guarda fotos
+   imutáveis e comprimidas do perfil, fora das tabelas operacionais, para que um
+   estado anterior possa ser restaurado em qualquer aparelho.
 
-   Todas resolvem o mesmo tipo de acidente: um erro que aconteceu AQUI e que
-   dá para desfazer AQUI. Nenhuma delas sobrevive a trocar de celular, formatar
-   o computador, limpar os dados do navegador ou simplesmente abrir o app pela
-   primeira vez num aparelho novo. E o banco de dados guardava só o ESTADO
-   ATUAL: a linha do perfil é sobrescrita a cada salvamento, as seções idem.
-   Quer dizer: no lugar mais durável de todos, não havia como voltar atrás.
+   Política:
+     · uma âncora permanente por perfil;
+     · foto diária, confirmada pelo próprio banco;
+     · foto antes de operações de risco;
+     · retenção em faixas (dias, semanas e meses);
+     · fila por perfil para impedir gravações concorrentes;
+     · falhas visíveis em `CloudBackup.status()`.
 
-   Este módulo fecha esse buraco. Uma tabela `profile_backups` guarda FOTOS
-   IMUTÁVEIS do perfil — comprimidas com gzip, uma linha por foto, nunca
-   sobrescritas. Elas são resgatáveis de qualquer aparelho, com a conta e nada
-   mais. As regras foram escolhidas para que a resposta a "e se eu perder
-   tudo?" seja sempre a mesma: não perde.
-
-     · UMA ÂNCORA PERMANENTE. A primeira foto de cada perfil é marcada
-       `ancora` e NUNCA é apagada pela faxina, tenha a idade que tiver. É o
-       chão: por pior que fique, existe um ponto de retorno. A decisão de
-       quem vira âncora é ARBITRADA PELO BANCO (índice único parcial em
-       BANCO-DE-DADOS.md) — não por um "cheguei primeiro" lido no cliente,
-       que sob concorrência real (o gatilho diário e um clique manual quase
-       ao mesmo tempo) produzia DUAS âncoras para o mesmo perfil.
-     · UMA FILA POR PERFIL. `criar`/`criarDeDados` nunca escrevem em paralelo
-       para o mesmo perfil — a segunda chamada espera a primeira terminar.
-       Sem isto, duas gravações simultâneas podiam duplicar conteúdo e
-       corromper a decisão da âncora acima delas.
-     · FOTO DIÁRIA automática, na primeira abertura de cada dia.
-     · FOTO ANTES DE ENCOLHER. Se o que vai subir é bem menor que o que subiu
-       da última vez, o estado anterior é fotografado antes. É a defesa contra
-       o apagamento acidental que se propaga para todos os aparelhos.
-     · FOTO ANTES DE ESVAZIAR uma seção que tinha conteúdo.
-     · RETENÇÃO EM FAIXAS (avô-pai-filho), a prática consolidada de quem faz
-       backup a sério: uma foto por dia nos últimos 14 dias, uma por semana
-       nas últimas 8, uma por mês nos últimos 12. Um ano de histórico em ~30
-       linhas — e um estrago percebido só três semanas depois ainda tem para
-       onde voltar. A faxina nunca desce de `MIN_KEEP`, nunca toca na âncora
-       e nunca apaga nada com menos de 24 h: um bug nela não vira perda.
-     · FALHA NUNCA É SILENCIOSA. Um perfil grande demais para uma foto, ou
-       qualquer erro de gravação fica registrado, aparece na própria tela e
-       pode ser inspecionado por `CloudBackup.status()` — "ativo" só aparece
-       quando o último envio realmente deu certo.
-
-   Se a tabela ainda não existir no Supabase, o módulo se desliga sozinho e
-   avisa no console — o app inteiro continua funcionando como antes. O SQL para
-   criá-la está em BANCO-DE-DADOS.md.
+   O backup manual em .json continua como opção de exportação. O navegador não
+   mantém histórico persistente de estudo: a fonte durável é o PostgreSQL.
    ═══════════════════════════════════════════════════════════════════════════ */
 const CloudBackup = {
   TABLE: 'profile_backups',
@@ -41207,9 +41174,7 @@ window.CloudBackup = CloudBackup;
 })();
 
 /* ── A TELA (Configurações → Dados) ────────────────────────────────────────
-   O mesmo desenho do histórico local, de propósito: quem já sabe usar um sabe
-   usar o outro. A diferença que importa está escrita em uma linha no topo —
-   estas cópias NÃO dependem deste aparelho. */
+   Lista as fotos persistidas no banco. Elas não dependem deste aparelho. */
 const CloudBackupUI = {
   _quando(iso) {
     const d = new Date(iso);
@@ -41230,7 +41195,7 @@ const CloudBackupUI = {
     host.innerHTML = '<p class="hint">Consultando o banco…</p>';
     const linhas = await CloudBackup.listar();
     if (!CloudBackup.enabled) {
-      host.innerHTML = '<p class="hint">⚠️ A tabela <code>profile_backups</code> ainda não existe no banco. As cópias continuam sendo guardadas <strong>neste aparelho</strong> (histórico de versões acima), mas ainda não no servidor. O SQL para criá-la está em <code>BANCO-DE-DADOS.md</code>, no repositório do app — é uma execução única, de menos de um minuto.</p>';
+      host.innerHTML = '<p class="hint">⚠️ A tabela <code>profile_backups</code> não está disponível. O estado atual continua no banco relacional, mas as fotos históricas automáticas ficam indisponíveis até a tabela ser restaurada. A exportação manual em .json continua disponível.</p>';
       return;
     }
     /* Falha do ÚLTIMO envio real (não de "não havia nada a fazer"): antes essa
@@ -41239,7 +41204,7 @@ const CloudBackupUI = {
        gatilho diário não pode passar despercebido só porque fotos antigas
        (de quando o perfil era menor) continuam na lista. */
     const aviso = CloudBackup._ultimoErro
-      ? `<p class="hint" style="color:var(--warn-text);background:var(--warn-soft);border-radius:10px;padding:8px 12px;margin:0 0 10px;">⚠️ O último envio ao banco não deu certo: ${escapeHtml(CloudBackup._ultimoErro)}. As fotos abaixo continuam válidas; o histórico local (acima) e o backup em .json seguem funcionando normalmente enquanto isso não for resolvido.</p>`
+      ? `<p class="hint" style="color:var(--warn-text);background:var(--warn-soft);border-radius:10px;padding:8px 12px;margin:0 0 10px;">⚠️ O último envio ao banco não deu certo: ${escapeHtml(CloudBackup._ultimoErro)}. As fotos já confirmadas abaixo continuam válidas e a exportação manual em .json segue disponível.</p>`
       : '';
     if (!linhas.length) {
       host.innerHTML = aviso + '<p class="hint">Nenhuma cópia no banco ainda. A primeira é criada sozinha na próxima abertura do dia — ou agora, no botão acima. A mais completa entre as antigas fica marcada como <strong>âncora</strong>, e a limpeza automática nunca a remove.</p>';
@@ -41319,7 +41284,7 @@ const CloudBackupUI = {
     host.querySelectorAll('.cbk-restore').forEach(b => b.addEventListener('click', async () => {
       const rid = b.closest('[data-bk]').dataset.bk;
       const ok = await UI.confirm(
-        'Restaurar esta cópia sobre o perfil atual?\n\nAntes de qualquer coisa o app guarda o estado de agora — neste aparelho e também no banco —, então dá para voltar atrás. Depois de restaurar, o app recarrega e envia o resultado para a nuvem.',
+        'Restaurar esta cópia sobre o perfil atual?\n\nAntes de aplicar, o app tenta guardar no banco uma nova foto do estado atual. Depois da restauração, o resultado é confirmado nas tabelas relacionais e o app recarrega.',
         { title: '↺ Restaurar do banco', okText: 'Restaurar' });
       if (!ok) return;
       showToast('Restaurando…');
@@ -42748,19 +42713,10 @@ else CloudStore.init();
       to('#config-modes-list', 'estudo');
       to('#config-statuses-list', 'estudo');
       to('#cloud-auth-box', 'conta');
-      /* ── ORDEM DE "DADOS E BACKUP" = FORÇA DA PROTEÇÃO ────────────────────
-         Da mais forte (no servidor, automática, sobrevive a perder este
-         aparelho) para a mais frágil (arquivo que você mesmo guarda), depois
-         a ferramenta de resgate e por fim o medidor de espaço. Quem chega
-         aqui com medo de ter perdido algo lê de cima para baixo e encontra a
-         proteção mais forte primeiro.
-
-         O cartão de Recuperação NÃO era movido por nenhum to(): ficava fora
-         do sistema de abas, pendurado embaixo de todas as seções e visível
-         em qualquer uma delas. */
-      to('#cfg-cloudbk-body', 'dados');   // no servidor, automático
-      to('#cfg-vhist-body', 'dados');     // neste aparelho, automático
-      this.buildDados();                  // em arquivo, manual
+      /* "Dados e backup" mantém apenas as duas proteções atuais:
+         fotos imutáveis no PostgreSQL e exportação manual em arquivo. */
+      to('#cfg-cloudbk-body', 'dados');   // fotos no servidor
+      this.buildDados();                  // exportação manual
       this.buildPrefs();
       /* A antiga tela "Diagnóstico" saiu da navegação: era uma superfície de
          manutenção técnica sem papel no fluxo de estudo. Os helpers internos
