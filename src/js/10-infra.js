@@ -225,7 +225,7 @@ const Lixeira = {
       const m = /^(diario-estudos:u:[^:]+:)(.+)$/.exec(chaveCompleta);
       if (!m) return false;
       const sec = m[2];
-      if (sec.indexOf(this.PREFIXO) === 0 || sec.indexOf('vhist') === 0) return false;
+      if (sec.indexOf(this.PREFIXO) === 0) return false;
       const pacote = JSON.stringify({ sec, em: Date.now(), motivo: motivo || '', valor });
       localStorage.setItem(this._chave(m[1], sec), pacote);
       this.faxina(m[1]);
