@@ -203,6 +203,40 @@ function rteClearFormatting(area) {
     showToast('Formatação de todo o texto removida ✓');
   }
 }
+// Remove linhas em branco extras (comum em texto colado de PDF/Word: uma linha
+// vazia entre cada parágrafo) SEM tocar em negrito/cor/tamanho — ao contrário do
+// "🧹 Limpar", que também apaga a formatação. Com um trecho selecionado, limpa
+// só ele; senão, limpa o editor todo.
+function rteRemoverEspacamento(area) {
+  area.focus();
+  const limpar = (html) => String(html || '')
+    .replace(/(?:<div>(?:<br\s*\/?>|&nbsp;|\s)*<\/div>\s*)+/gi, '')
+    .replace(/(?:<p>(?:<br\s*\/?>|&nbsp;|\s)*<\/p>\s*)+/gi, '')
+    .replace(/(?:<br\s*\/?>\s*){2,}/gi, '<br>');
+  const sel = window.getSelection ? window.getSelection() : null;
+  const dentro = sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode);
+  const temSelecao = dentro && !sel.getRangeAt(0).collapsed;
+  if (temSelecao) {
+    const range = sel.getRangeAt(0);
+    const div = document.createElement('div'); div.appendChild(range.cloneContents());
+    const novo = limpar(div.innerHTML);
+    if (novo === div.innerHTML) { showToast('Nada para remover na seleção'); return; }
+    range.deleteContents();
+    const frag = range.createContextualFragment(novo);
+    const last = frag.lastChild;
+    range.insertNode(frag);
+    if (last) {
+      const r = document.createRange(); r.setStartAfter(last); r.collapse(true);
+      sel.removeAllRanges(); sel.addRange(r);
+    }
+    showToast('Espaçamento removido da seleção ✓');
+  } else {
+    const novo = limpar(area.innerHTML);
+    if (novo === area.innerHTML) { showToast('Nada para remover'); return; }
+    area.innerHTML = novo;
+    showToast('Espaçamento removido ✓');
+  }
+}
 // paleta compacta: [rótulo, cor]
 const RTE_TEXT_COLORS = [['Preto', '#1a1c20'], ['Vermelho', '#e0393f'], ['Verde', '#0f9d63'], ['Azul', '#2563eb'], ['Roxo', '#7c3aed'], ['Laranja', '#d97a12']];
 const RTE_HILITE_COLORS = [['Amarelo', '#fde68a'], ['Verde', '#bbf7d0'], ['Azul', '#bfdbfe'], ['Rosa', '#fbcfe8'], ['Laranja', '#fed7aa']];
@@ -265,6 +299,7 @@ function buildRteToolbar(rte) {
       <button type="button" data-cmd="redo" title="Refazer (Ctrl+Y)" aria-label="Refazer (Ctrl+Y)">↷</button>
       <button type="button" data-plain="1" title="Limpar formatação do texto colado (deixa como texto puro). Com um trecho selecionado, limpa só ele.">🧹 Limpar</button>
       <button type="button" data-cmd="removeFormat" title="Remover só negrito/itálico/cor da seleção" aria-label="Remover só negrito/itálico/cor da seleção">✕</button>
+      <button type="button" data-spacing="1" title="Remover linhas em branco extras (texto colado de PDF/Word), sem tirar a formatação. Com um trecho selecionado, remove só nele.">↕ Espaçamento</button>
     </div>`;
 
   // preserva seleção: nenhum controle da toolbar pode roubar o foco
@@ -279,6 +314,9 @@ function buildRteToolbar(rte) {
   // 🧹 Limpar formatação: converte o texto colado (seleção ou tudo) em texto puro
   const plainBtn = tb.querySelector('[data-plain]');
   if (plainBtn) plainBtn.addEventListener('click', () => rteClearFormatting(area));
+  // ↕ Espaçamento: remove linhas em branco extras sem mexer na formatação
+  const spacingBtn = tb.querySelector('[data-spacing]');
+  if (spacingBtn) spacingBtn.addEventListener('click', () => rteRemoverEspacamento(area));
   // cores de texto e marca-texto
   tb.querySelectorAll('[data-color]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'foreColor', sw.dataset.color)));
   tb.querySelectorAll('[data-hilite]').forEach(sw => sw.addEventListener('click', () => rteExec(area, 'hiliteColor', sw.dataset.hilite)));
