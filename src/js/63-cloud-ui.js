@@ -18,7 +18,6 @@ const CloudUI = {
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
       this.setStatus('ok', 'Sincronização automática ativa');
       this.renderQueue();
-      this.renderSessions();
     }
   },
   /* ── FILA DE ENVIO ────────────────────────────────────────────────────────
@@ -86,70 +85,6 @@ const CloudUI = {
       '.</strong> O indicador volta a verde somente após a confirmação do banco.</p>';
     if (acoes) acoes.disabled = false;
   },
-  // Painel "Aparelho com sessão ativa" (login único entre dispositivos).
-  async renderSessions() {
-    const box = document.getElementById('cloud-sessions-list');
-    if (!box) return;
-    if (!window.SessionGuard) { box.innerHTML = '<p class="cloud-sessions-off">Controle de sessões indisponível nesta versão.</p>'; return; }
-    if (SessionGuard.enabled === false) {
-      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem permanecer conectados.</strong> A sincronização usa controle de revisão para conciliar alterações sem expulsar o outro aparelho.</div>';
-      return;
-    }
-    box.innerHTML = '<p class="hint" style="text-align:center; padding:10px;">Carregando…</p>';
-    const r = await SessionGuard.fetchActive();
-    if (r.status === 'multi') {
-      box.innerHTML = '<div class="cloud-sessions-empty">✓ <strong>PC e celular podem ficar conectados ao mesmo tempo.</strong> A sincronização usa revisão protegida e reconciliação de registros; apenas duas abas do mesmo navegador continuam evitando edição simultânea.</div>';
-      return;
-    }
-    if (r.status === 'disabled') {
-      box.innerHTML = '<div class="cloud-sessions-off">Controle remoto de sessão indisponível. A sincronização multiaparelho continua protegida pelas revisões dos dados; o bloqueio entre abas do mesmo navegador segue ativo.</div>';
-      return;
-    }
-    if (r.status === 'offline') { box.innerHTML = '<div class="cloud-sessions-off">Sem conexão com a conta agora. Tente novamente.</div>'; return; }
-    if (r.status === 'error') { box.innerHTML = '<div class="cloud-sessions-off">Não foi possível carregar: ' + escapeHtml(r.message || '') + '</div>'; return; }
-    if (r.status === 'empty') {
-      box.innerHTML = '<div class="cloud-sessions-empty">Nenhuma sessão registrada ainda. Ela aparece assim que você usar a conta em um aparelho.</div>';
-      return;
-    }
-    // status 'ok'
-    const row = r.row;
-    const isThis = r.isThisDevice;
-    const quando = row.updated_at ? new Date(row.updated_at).toLocaleString('pt-BR') : '';
-    const nome = escapeHtml(row.device_label || 'Aparelho');
-    const idCurto = escapeHtml(String(row.device_id || '').slice(0, 8));
-    if (isThis) {
-      box.innerHTML = `<div class="sess-card is-this">
-        <span class="sess-ico">💻</span>
-        <div class="sess-info">
-          <div class="sess-name">${nome} <span class="sess-badge this">este aparelho</span></div>
-          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
-        </div>
-      </div>
-      <p class="hint" style="margin:8px 0 0;">Esta é a única sessão ativa. Ao entrar em outro aparelho, ele assume e esta é encerrada automaticamente.</p>`;
-    } else {
-      box.innerHTML = `<div class="sess-card">
-        <span class="sess-ico">📱</span>
-        <div class="sess-info">
-          <div class="sess-name">${nome} <span class="sess-badge other">outro aparelho</span></div>
-          <div class="sess-meta">ativo desde ${escapeHtml(quando)} · id ${idCurto}</div>
-        </div>
-        <div class="sess-actions">
-          <button type="button" class="btn-primary" id="cloud-sess-endother">Encerrar e usar aqui</button>
-        </div>
-      </div>
-      <p class="hint" style="margin:8px 0 0;">Este aparelho (${escapeHtml(r.thisLabel)}) não está com a sessão. "Encerrar e usar aqui" bloqueia o outro e traz a sessão para cá.</p>`;
-      const btn = document.getElementById('cloud-sess-endother');
-      if (btn) btn.addEventListener('click', async () => {
-        const ok = await UI.confirm('Encerrar a sessão em "' + (row.device_label || 'outro aparelho') + '" e trazer a sessão para este aparelho?\n\nO outro aparelho será bloqueado e sua sincronização, pausada.', { title: '📵 Encerrar sessão', okText: 'Encerrar e usar aqui' });
-        if (!ok) return;
-        btn.disabled = true; btn.textContent = 'Encerrando…';
-        const done = await SessionGuard.endRemoteAndClaimHere();
-        if (done) { showToast('Sessão trazida para este aparelho ✓'); }
-        else { showToast('Não foi possível agora — verifique a internet'); }
-        this.renderSessions();
-      });
-    }
-  },
   setStatus(tone, text) {
     // painel em Configurações (quando visível)
     const el = document.getElementById('cloud-sync-status');
@@ -177,16 +112,6 @@ const CloudUI = {
     let fila = 0;
     try { fila = RS && RS.pendingCount ? RS.pendingCount() : 0; }
     catch (e) { _quiet(e, 'sync-ui-pending'); }
-
-    if (window.SessionLock && SessionLock.isBlocked() && SessionLock._origin === 'remote') {
-      if (window.SessionGuard && SessionGuard._handoffDraining) {
-        tone = 'syncing';
-        text = 'Finalizando gravação no banco antes de pausar…';
-      } else {
-        tone = 'off';
-        text = 'Pausado · conta ativa em outro aparelho';
-      }
-    }
 
     if (!tone) {
       if (!CS || !CS.isReady()) {
@@ -450,7 +375,6 @@ window.CloudUI = CloudUI;
   }));
   on('cloud-signout', 'click', async () => { await CloudStore.signOut(); CloudUI.render(); showToast('Desconectado da nuvem'); });
   on('cloud-change-pass', 'click', () => CloudUI.changePassword());
-  on('cloud-sessions-refresh', 'click', () => CloudUI.renderSessions());
   on('cloud-queue-refresh', 'click', () => CloudUI.renderQueue());
   on('cloud-push-now', 'click', () => CloudStore.autoSave());
   // "Baixar da nuvem" é semanticamente somente leitura: nunca publica o local antes.
@@ -463,18 +387,10 @@ window.CloudUI = CloudUI;
     const apfx = () => { try { const pid = localStorage.getItem('diario-estudos:active-profile'); return pid ? ('diario-estudos:u:' + pid + ':ux47:') : 'diario-estudos:ux47:'; } catch (_) { return 'diario-estudos:ux47:'; } };
     const g = (k, d) => { try { const v = localStorage.getItem(apfx() + k); return v === null ? d : v; } catch (_) { return d; } };
     const s = (k, v) => DB.setRaw(apfx() + k, String(v));
-    const ss = document.getElementById('cfg-single-session');
     const im = document.getElementById('cfg-idle-mins');
     const sync = () => {
-      if (ss) ss.checked = g('single-session', '0') === '1';
       if (im) im.value = g('idle-mins', '0');
     };
-    if (ss) {
-      ss.checked = false;
-      ss.disabled = true;
-      const row = ss.closest('label') || ss.parentElement;
-      if (row) row.style.display = 'none';
-    }
     if (im) im.addEventListener('change', () => { s('idle-mins', im.value); showToast(im.value === '0' ? 'Saída automática desligada' : 'Saída automática em ' + im.value + ' min'); });
     sync();
     window.addEventListener('screen:activated', (e) => { if (e.detail && e.detail.screen === 'config') sync(); });
@@ -575,105 +491,3 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   window.aplicarEscalaFonte = () => aplicar(atual(), false); // reaplica ao trocar de perfil
 })();
 
-/* ============================================================================
-   SESSÃO ÚNICA — controlador central do bloqueio
-   Duas camadas cooperam:
-     · LOCAL  (SessionLock._local): abas/janelas do MESMO navegador, via
-       BroadcastChannel — instantâneo e sem custo de rede.
-     · REMOTO (SessionGuard, no CloudStore): entre DISPOSITIVOS diferentes,
-       via Supabase Realtime — quem entra por último "assume" a conta e os
-       demais aparelhos são bloqueados de verdade (login único real).
-   O overlay é compartilhado; a mensagem muda conforme a origem do bloqueio.
-   ============================================================================ */
-window.SessionLock = {
-  enabled: false,       // sem bloqueio entre abas/janelas/aparelhos; concorrência é resolvida nos dados
-  _blocked: false,
-  _origin: null,          // 'local' | 'remote'
-  _takeoverFns: [],       // callbacks de "Usar aqui" (uma por camada)
-  isBlocked() { return this.enabled ? this._blocked : false; },
-  _els() {
-    return {
-      o: document.getElementById('single-session-overlay'),
-      ico: document.getElementById('ss-ico'),
-      t: document.getElementById('ss-title'),
-      d: document.getElementById('ss-desc'),
-      s: document.getElementById('ss-sub'),
-      take: document.getElementById('single-session-takeover')
-    };
-  },
-  // Exibe o bloqueio. kind: 'local' (outra aba) | 'remote' (outro aparelho).
-  block(kind, info) {
-    if (!this.enabled) { this._blocked = false; this._origin = null; const z = this._els(); if (z.o) z.o.style.display = 'none'; return; }
-    this._blocked = true; this._origin = kind;
-    const e = this._els(); if (!e.o) return;
-    if (kind === 'remote') {
-      if (e.ico) e.ico.textContent = '📵';
-      if (e.t) e.t.textContent = 'Sessão aberta em outro aparelho';
-      if (e.d) e.d.innerHTML = 'Sua conta foi aberta em <strong>outro dispositivo</strong>' + (info && info.label ? ' (' + escapeHtml(info.label) + ')' : '') + '. Para proteger seus dados, o Diário mantém <strong>um aparelho ativo por vez</strong> — a sincronização foi <strong>pausada aqui</strong>.';
-      if (e.s) e.s.textContent = 'Se foi você, pode continuar neste aparelho: isso vai encerrar a sessão no outro.';
-      if (e.take) { e.take.disabled = false; e.take.textContent = 'Continuar neste aparelho'; }
-    } else {
-      if (e.ico) e.ico.textContent = '🔒';
-      if (e.t) e.t.textContent = 'Diário já aberto em outra janela';
-      if (e.d) e.d.innerHTML = 'Para proteger seus dados, o Diário funciona em <strong>uma aba/janela por vez</strong> neste navegador.';
-      if (e.s) e.s.textContent = 'Continuar em duas ao mesmo tempo pode misturar registros e sobrescrever a sincronização.';
-      if (e.take) { e.take.disabled = false; e.take.textContent = 'Usar aqui (encerrar as outras)'; }
-    }
-    e.o.style.display = 'flex';
-  },
-  unblock() {
-    this._blocked = false; this._origin = null;
-    const e = this._els();
-    if (e.take) e.take.disabled = false;
-    if (e.o) e.o.style.display = 'none';
-  },
-  onTakeover(fn) { if (typeof fn === 'function') this._takeoverFns.push(fn); },
-  _fireTakeover() { this._takeoverFns.forEach(fn => { try { fn(this._origin); } catch (_) { _quiet(_); } }); },
-  init() {
-    const e = this._els();
-    if (!this.enabled) { if (e.o) e.o.style.display = 'none'; return; }
-    if (e.take) e.take.addEventListener('click', () => {
-      const origin = this._origin;
-      /* Local: podemos liberar imediatamente porque o BroadcastChannel é deste
-         próprio navegador. Remoto: o overlay só fecha DEPOIS de o Supabase
-         confirmar o takeover. Assim um toque não cria uma janela em que o app
-         parece liberado antes de a posse existir no servidor. */
-      if (origin === 'local') this.unblock();
-      else if (origin === 'remote') {
-        e.take.disabled = true;
-        e.take.textContent = 'Confirmando…';
-      }
-      this._takeoverFns.forEach(fn => { try { fn(origin); } catch (_) { _quiet(_); } });
-    });
-    const r = document.getElementById('single-session-reload');
-    if (r) r.addEventListener('click', () => recarregarApp('recarga pedida no aviso de sessão', { imediato: true }));
-  }
-};
-
-/* O SessionGuard foi carregado antes deste arquivo. Agora que SessionLock
-   realmente existe, liga o takeover REMOTO. Sem esta chamada o botão ficava
-   eternamente em "Confirmando…" porque nenhum callback remoto estava registrado. */
-try { if (window.SessionGuard && SessionGuard.bindSessionLock) SessionGuard.bindSessionLock(); } catch (_) { _quiet(_); }
-
-/* ---- Camada LOCAL: uma aba/janela por vez (BroadcastChannel) ---- */
-(function () {
-  if (!SessionLock.enabled) return;
-  let bc = null;
-  try { bc = ('BroadcastChannel' in window) ? new BroadcastChannel('diario-estudos-single') : null; } catch (_) { bc = null; }
-  if (!bc) return;
-  const myId = Math.random().toString(36).slice(2);
-  const myStart = Date.now();
-  const outraEhDona = (m) => (m.start < myStart) || (m.start === myStart && m.id < myId);
-  bc.onmessage = (e) => {
-    const m = e.data || {};
-    if (!m || m.id === myId) return;
-    if (m.type === 'hello') { if (!(SessionLock.isBlocked() && SessionLock._origin === 'local')) bc.postMessage({ type: 'here', id: myId, start: myStart }); }
-    else if (m.type === 'here') { if (outraEhDona(m)) SessionLock.block('local'); }
-    else if (m.type === 'takeover') { if (m.id !== myId) SessionLock.block('local'); }
-  };
-  SessionLock.onTakeover((origin) => { if (origin === 'local') { try { bc.postMessage({ type: 'takeover', id: myId, start: myStart }); } catch (_) { _quiet(_); } } });
-  try { bc.postMessage({ type: 'hello', id: myId, start: myStart }); } catch (_) { _quiet(_); }
-  try { window.addEventListener('beforeunload', () => { try { bc.postMessage({ type: 'bye', id: myId }); } catch (_) { _quiet(_); } }); } catch (_) { _quiet(_); }
-})();
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => SessionLock.init());
-else SessionLock.init();
