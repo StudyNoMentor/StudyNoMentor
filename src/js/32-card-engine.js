@@ -412,7 +412,7 @@ const CardEngine = {
       if (f.status && f.status !== 'todos' && (c.status || 'pendente') !== f.status) return false;
       if (f.favorito && !c.favorito) return false;
       if (busca) {
-        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.assunto || '') + ' ' + (c.materia || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
+        const hay = ((c.frente || '') + ' ' + (c.verso || '') + ' ' + (c.assunto || '') + ' ' + (c.materia || '') + ' ' + (c.materiaTec || '')).toLowerCase().replace(/<[^>]+>/g, ' ');
         if (!hay.includes(busca)) return false;
       }
       return true;

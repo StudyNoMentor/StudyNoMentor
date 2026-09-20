@@ -410,7 +410,7 @@ const FSRS = {
     // divide respeitando aspas
     const termos = (q.match(/-?\w+:"[^"]*"|-?"[^"]*"|\S+/g) || []);
     const testes = [];
-    const CAMPOS = { materia: 'materia', assunto: 'assunto', tipo: 'tipo', baralho: '_deckNome' };
+    const CAMPOS = { materia: 'materia', assunto: 'assunto', materiatec: 'materiaTec', tipo: 'tipo', baralho: '_deckNome' };
     const MARCAS = { favorito: 'favorito', suspenso: 'suspenso', leech: 'leech' };
     termos.forEach(bruto => {
       let t = bruto, neg = false;
@@ -430,7 +430,7 @@ const FSRS = {
       if (marca) { testes.push(c => (neg ? !c[marca] : !!c[marca])); return; }
       const alvo = norm(t);
       testes.push(c => {
-        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.assunto);
+        const blob = norm(c.frente) + ' ' + norm(c.verso) + ' ' + norm(c.materia) + ' ' + norm(c.assunto) + ' ' + norm(c.materiaTec);
         const bate = blob.indexOf(alvo) >= 0;
         return neg ? !bate : bate;
       });
