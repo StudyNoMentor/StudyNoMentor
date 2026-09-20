@@ -63,6 +63,35 @@ const CloudBackup = {
   _ultimoEm: {},             // perfil → quando a última foto foi criada nesta sessão
   _ultimoErro: null,         // do último ENVIO REAL (não de "não havia nada a fazer")
 
+  _b64enc(u8) { let s = ''; const CH = 0x8000; for (let i = 0; i < u8.length; i += CH) s += String.fromCharCode.apply(null, u8.subarray(i, i + CH)); return btoa(s); },
+  _b64dec(b64) { const bin = atob(b64); const u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i); return u8; },
+  _fnv(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); },
+  async _gzip(str) {
+    try {
+      if (typeof CompressionStream === 'undefined') return { enc: 'raw', data: str };
+      const cs = new CompressionStream('gzip');
+      const ab = await new Response(new Blob([str]).stream().pipeThrough(cs)).arrayBuffer();
+      return { enc: 'gz', data: this._b64enc(new Uint8Array(ab)) };
+    } catch (_) { return { enc: 'raw', data: str }; }
+  },
+  async _gunzip(rec) {
+    if (!rec) return null;
+    if (rec.enc !== 'gz') return rec.data;
+    try {
+      const ds = new DecompressionStream('gzip');
+      const ab = await new Response(new Blob([this._b64dec(rec.data)]).stream().pipeThrough(ds)).arrayBuffer();
+      return new TextDecoder().decode(ab);
+    } catch (_) { return null; }
+  },
+  _device() {
+    try {
+      const ua = navigator.userAgent || '';
+      const so = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iPhone/iPad' : /Windows/i.test(ua) ? 'Windows' : /Mac/i.test(ua) ? 'Mac' : /Linux/i.test(ua) ? 'Linux' : 'Dispositivo';
+      const nav = /Edg\//i.test(ua) ? 'Edge' : /CriOS|Chrome\//i.test(ua) ? 'Chrome' : /FxiOS|Firefox\//i.test(ua) ? 'Firefox' : /Safari\//i.test(ua) ? 'Safari' : 'navegador';
+      return so + ' · ' + nav;
+    } catch (_) { return 'Dispositivo'; }
+  },
+
   _diaKey(id) { return 'diario-estudos:cbk-dia:' + id; },
   /* Assinatura do último conteúdo publicado, por perfil. GRAVADA em disco (não
      só em memória): sem isto, um recarregamento — e o app recarrega sozinho
@@ -105,7 +134,7 @@ const CloudBackup = {
     if (!this._avisouSemTabela) {
       this._avisouSemTabela = true;
       console.warn('[CloudBackup] tabela ' + this.TABLE + ' ausente — o backup NO BANCO está desligado. ' +
-        'O histórico de versões local continua funcionando. Rode o SQL de BANCO-DE-DADOS.md para ativar. Detalhe:',
+        'Os backups em .json continuam disponíveis. Rode o SQL de BANCO-DE-DADOS.md para ativar. Detalhe:',
         err && (err.message || err));
     }
   },
@@ -114,7 +143,6 @@ const CloudBackup = {
     const CS = window.CloudStore;
     return !!(CS && CS.isReady() && CS.isLoggedIn());
   },
-  _device() { try { return SessionGuard.deviceLabel(); } catch (_) { return 'Dispositivo'; } },
 
   /* ── FILA POR PERFIL ───────────────────────────────────────────────────────
      `criar` e `criarDeDados` escrevem na mesma tabela para o mesmo perfil, e
@@ -182,10 +210,10 @@ const CloudBackup = {
       return { ok: false, motivo: 'perfil-vazio' };
     }
     const json = JSON.stringify(dataObj);
-    const sig = BackupHistory._fnv(json);
+    const sig = this._fnv(json);
     if (!opts.forcar && this._lerUltimoSig(id) === sig) return { ok: true, repetido: true };
     try {
-      const packed = await BackupHistory._gzip(json);
+      const packed = await this._gzip(json);
       if (String(packed.data).length > this.LIMITE_CHARS) {
         /* Falha que ANTES era muda: nunca marcada em `_ultimoErro`, então o
            status técnico e a tela continuavam dizendo "ativo" enquanto o backup
@@ -279,7 +307,7 @@ const CloudBackup = {
         30000, 'Baixar o backup');
       if (error) throw error;
       if (!data) return null;
-      const json = await BackupHistory._gunzip({ enc: data.enc, data: data.data });
+      const json = await this._gunzip({ enc: data.enc, data: data.data });
       if (json == null) return null;
       let mapa; try { mapa = JSON.parse(json); } catch (_) { return null; }
       return { data: mapa, note: data.note, created_at: data.created_at, chars: data.chars };
@@ -303,14 +331,13 @@ const CloudBackup = {
     };
   },
   /* Restaura a foto SOBRE o perfil ativo. Duas garantias antes de qualquer
-     escrita: uma foto local do estado de agora (dá para voltar atrás) e uma
-     foto na nuvem do mesmo estado (dá para voltar atrás de outro aparelho). */
+     escrita: uma foto no banco do estado atual, para que a restauração continue
+     reversível em qualquer aparelho. */
   async restaurar(rowId) {
     const id = ProfileManager.getActiveProfileId();
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await BackupHistory.snapshot('antes de restaurar um backup da nuvem'); } catch (e) { _quiet(e, 'cbk-vh'); }
     try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
     try {
       if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
@@ -697,7 +724,7 @@ const CloudBackupUI = {
        para um `<details>`, a um clique. */
     const ancoras = linhas.filter(r => r.ancora).length;
     let meuAparelho = null;
-    try { meuAparelho = SessionGuard.deviceLabel(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
+    try { meuAparelho = this._device(); } catch (e) { _quiet(e, 'cbk-aparelho'); }
     const linhaHtml = (r) => {
       const tag = r.ancora
         ? '<span class="inactive-tag" style="color:var(--good-text);background:var(--good-soft);border-color:transparent;" title="O chão do seu histórico: a foto mais completa entre as que já passaram de 12 meses. A limpeza automática nunca a remove, e ela caminha sozinha para um retrato mais cheio conforme você estuda.">âncora</span>' : '';
