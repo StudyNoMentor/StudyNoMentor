@@ -481,8 +481,9 @@ try {
    entao medi-los so gera alarme falso. */
 /* ── 6.5) O ARMAZENAMENTO ANTIGO NÃO VOLTA A SER AUTORIDADE ─────────────
    A migração relacional eliminou a adoção automática de IndexedDB/localStorage.
-   Uma cópia antiga pode continuar detectável para recuperação manual, mas nunca
-   pode povoar silenciosamente a projeção viva nem concorrer com PostgreSQL. */
+   Chaves antigas que ainda existam fisicamente em um navegador são ignoradas:
+   não entram na projeção em RAM, não religam sincronização e não criam uma rota
+   paralela de recuperação. */
 console.log('\n6.5) armazenamento antigo fica fora da fonte operacional');
 try {
   const ctx = await nav.newContext();
@@ -495,13 +496,19 @@ try {
   });
   await p2.goto(base, { waitUntil: 'domcontentloaded' });
   await p2.waitForFunction(() => window.AutoTeste && window.RelationalStore, { timeout: 30000 });
-  const antigo = await p2.evaluate(() => ({
-    memoriaSomente: window.__memoryOnlyStore === true && window.__idbShim === false,
-    syncLegadoRemovido: typeof window.SectionSync === 'undefined',
-    recuperavel: window.Recuperacao ? Recuperacao.varrerAntigo().length : -1
-  }));
-  antigo.memoriaSomente && antigo.syncLegadoRemovido && antigo.recuperavel >= 1
-    ? ok('copia antiga continua detectavel para recuperacao, sem reativar sincronizacao legada')
+  const antigo = await p2.evaluate(() => {
+    const k='diario-estudos:u:antigo:p:pl1:entries';
+    return {
+      memoriaSomente: window.__memoryOnlyStore === true && window.__idbShim === false,
+      syncLegadoRemovido: typeof window.SectionSync === 'undefined',
+      recuperacaoRemovida: typeof window.Recuperacao === 'undefined',
+      fachada: localStorage.getItem(k),
+      nativo: window.__nativeLS ? window.__nativeLS.getItem(k) : null
+    };
+  });
+  antigo.memoriaSomente && antigo.syncLegadoRemovido && antigo.recuperacaoRemovida &&
+      antigo.fachada === null && /"e1"/.test(antigo.nativo || '')
+    ? ok('copia antiga fica isolada no armazenamento nativo e não entra no app')
     : erro('legado local voltou ao caminho operacional: ' + JSON.stringify(antigo));
   await ctx.close();
 } catch (e) { erro('teste de isolamento do armazenamento antigo falhou: ' + e.message); }
