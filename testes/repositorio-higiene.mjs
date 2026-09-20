@@ -21,7 +21,8 @@ const proibidos=[
   'audit.html','audit-runner.cjs','audit-tests.js','audit-browser.js','audit-results.json','audit-browser-results.json',
   'testes/rodar-auditoria-browser.mjs','testes/stress-extras-tec.mjs','testes/resultado-stress-extras-tec.json',
   'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs','testes/reforco-cenarios.mjs',
-  'src/css/04-tec-inline.css','docs/robusto-auditoria-json.md'
+  'src/css/04-tec-inline.css','docs/robusto-auditoria-json.md',
+  'src/js/13-backups-locais.js','src/js/61-session-guard.js','src/js/65-recuperacao.js'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
@@ -33,6 +34,8 @@ for(const f of fontesJs){
   const codigo=semComentarios(readFileSync(f,'utf8'));
   assert.equal(apiVersionada.test(codigo),false,`API técnica versionada em src/: ${relative(ROOT,f)}`);
   assert.equal(/_legacyPuxar\b/.test(codigo),false,`fallback para Puxar do Plano legado não pode voltar: ${relative(ROOT,f)}`);
+  assert.equal(/\b(?:SessionLock|SessionGuard|BackupHistory|Recuperacao)\b|cfg-vhist/.test(codigo),false,
+    `runtime legado relacional/local não pode voltar: ${relative(ROOT,f)}`);
 }
 
 const testeAtual=fileURLToPath(import.meta.url);
