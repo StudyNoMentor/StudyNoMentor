@@ -7,7 +7,6 @@
      $id / _quiet / __diag ....... robustez: nada derruba o app por id ausente
      DB .......................... camada de dados (chave-valor, por perfil)
      PlanManager / ProfileManager  planejamentos e multi-usuário no dispositivo
-     BackupHistory .............. 8 versões + backup diário
      UI .......................... diálogos (substituem confirm/prompt nativos)
 
    MOTORES (puros — não tocam o DOM, portáveis)
@@ -23,7 +22,6 @@
    BANCO
      CloudStore .................. autenticação e fachada Supabase
      RelationalStore ............. leitura/escrita SQL relacional
-     SessionGuard ................ coordenação entre dispositivos
 
    QUALIDADE
      AutoTeste.rodar() ........... suíte de testes no console
