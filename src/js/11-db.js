@@ -667,7 +667,7 @@ const DB = {
     cards.forEach(c => { if (c.deckId === id) { c.deckId = null; touched = true; } });
     if (touched) this.saveCards(cards);
   },
-  // Card: { id, deckId|null, materia|null, assunto, tipo, frente, verso, favorito,
+  // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
   getCards() { return this._get(this.KEYS.cards, []); },
   saveCards(list) { this._set(this.KEYS.cards, list); },
@@ -684,6 +684,7 @@ const DB = {
       deckId: data.deckId || null,
       materia: data.materia || null,
       assunto: (data.assunto || '').trim(),
+      materiaTec: (data.materiaTec || '').trim(),
       banca: (data.banca || '').trim(),
       tipo: data.tipo || '',
       kind: data.kind || 'basic',      // 'basic' | 'cloze'

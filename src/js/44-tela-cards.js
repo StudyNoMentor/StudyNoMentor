@@ -929,6 +929,7 @@ const CardsScreen = {
             <span class="mini-card-badges">
               <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
               ${c.assunto ? `<span class="lei-tag ref">${escapeHtml(c.assunto)}</span>` : ''}
+              ${c.materiaTec ? `<span class="lei-tag" title="Matéria (Tec)">📚 ${escapeHtml(c.materiaTec)}</span>` : ''}
               ${c.banca ? `<span class="lei-tag" style="background:var(--accent);color:#fff;" title="Banca">🏛️ ${escapeHtml(c.banca)}</span>` : ''}
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
@@ -1116,16 +1117,22 @@ const CardsScreen = {
     $id('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     $id('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
-    let destSel = '', assunto = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
+    let destSel = '', assunto = '', materiaTec = '', banca = '', tipo = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
-      assunto = c.assunto || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
+      assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; tipo = c.tipo || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
     $id('card-assunto').value = assunto;
     const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
+    // Matéria (Tec): sugere as disciplinas já importadas na Incidência + as já usadas em outros cards
+    $id('card-materia-tec').value = materiaTec;
+    const discImport = (DB.getIncidencia ? [...new Set(DB.getIncidencia().map(r => r.disciplina).filter(Boolean))] : []);
+    const materiaTecCards = DB.getCards().map(c => c.materiaTec).filter(Boolean);
+    const materiaTecOpts = [...new Set([...discImport, ...materiaTecCards])].sort();
+    $id('card-materia-tec-list').innerHTML = materiaTecOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Banca: sugere as bancas já importadas na Incidência + as já usadas em outros cards
     $id('card-banca').value = banca;
     const bancasImport = (DB.getBancas ? DB.getBancas() : []);
@@ -1155,7 +1162,7 @@ const CardsScreen = {
       return html.length > 0;
     };
     const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
-    return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-banca');
+    return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-materia-tec') || campo('card-banca');
   },
   // Fecha pedindo confirmação quando há conteúdo não salvo
   async fecharCardComAviso() {
@@ -1189,6 +1196,7 @@ const CardsScreen = {
     }
     const data = {
       assunto: $id('card-assunto').value,
+      materiaTec: $id('card-materia-tec').value,
       banca: $id('card-banca').value,
       tipo: $id('card-tipo').value,
       kind: kind === 'cloze' ? 'cloze' : 'basic',
@@ -1290,7 +1298,7 @@ const CardsScreen = {
     cards.forEach(c => {
       const logs = revlog.filter(r => r.cardId === c.id).sort((a,b) => (a.ts||0) - (b.ts||0));
       byCard[c.id] = {
-        id:c.id, deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, tipo:c.tipo||null,
+        id:c.id, deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
         createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
         due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
         ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
@@ -1353,11 +1361,11 @@ const CardsScreen = {
   exportAnki() {
     const cards = DB.getCards();
     if (cards.length === 0) { showToast('Nenhum card para exportar'); return; }
-    // TSV: Frente \t Verso \t Tags (matéria/tópico/tipo viram tags)
+    // TSV: Frente \t Verso \t Tags (matéria/assunto/matéria-tec/tipo viram tags)
     const lines = cards.map(c => {
       const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
       const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
-      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
+      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.materiaTec, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
       return `${front}\t${back}\t${tags}`;
     });
     const header = '#separator:tab\n#html:true\n#tags column:3\n';
@@ -1433,7 +1441,7 @@ const CardsScreen = {
       const idMap = {};
       backupDecks.forEach(bd => { const nd = DB.addDeck(bd.nome); if (nd) idMap[bd.id] = nd.id; });
       this._importParsed.cards.forEach(c => {
-        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, assunto: c.assunto || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
+        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, assunto: c.assunto || '', materiaTec: c.materiaTec || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
         count++;
       });
     } else {
