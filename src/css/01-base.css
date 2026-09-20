@@ -718,6 +718,7 @@
   form { padding: 16px 24px 22px; }
 
   .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field-group-3 { grid-template-columns: 1fr 1fr 1fr; }
   .cycle-hm-input { display: flex; align-items: center; gap: 6px; }
   .cycle-hm-input input { width: 64px; text-align: center; }
   .cycle-hm-input span { font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); }
@@ -5148,7 +5149,7 @@
      ============================================================ */
   @media (max-width: 720px) {
     /* formulários: empilha campos que ficariam apertados */
-    .field-group { grid-template-columns: 1fr; gap: 12px; }
+    .field-group, .field-group-3 { grid-template-columns: 1fr; gap: 12px; }
     .row-3 { grid-template-columns: 1fr; gap: 12px; }
     /* padding dos cards mais enxuto para ganhar largura útil */
     .card-header { padding: 18px 16px 0; }
