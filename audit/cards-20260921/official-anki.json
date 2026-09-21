@@ -1,0 +1,70 @@
+{
+  "ankiVersion": "26.9.2",
+  "source": "official PyPI anki wheel, compiled Rust backend",
+  "sampledCards": 5781,
+  "comparisons": 23124,
+  "memoryMismatches": 17354,
+  "phaseMismatches": 0,
+  "exactIntervalMismatches": 15125,
+  "maxRelativeMemoryError": 0.0005345401988173589,
+  "examples": [
+    {
+      "card": "100000",
+      "grade": "dificil",
+      "studyInterval": 513,
+      "ankiInterval": 467,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100000",
+      "grade": "bom",
+      "studyInterval": 722,
+      "ankiInterval": 661,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100000",
+      "grade": "facil",
+      "studyInterval": 1184,
+      "ankiInterval": 1084,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100001",
+      "grade": "dificil",
+      "studyInterval": 82,
+      "ankiInterval": 94,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100001",
+      "grade": "bom",
+      "studyInterval": 97,
+      "ankiInterval": 111,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100001",
+      "grade": "facil",
+      "studyInterval": 132,
+      "ankiInterval": 150,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100002",
+      "grade": "dificil",
+      "studyInterval": 31,
+      "ankiInterval": 30,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    },
+    {
+      "card": "100002",
+      "grade": "bom",
+      "studyInterval": 37,
+      "ankiInterval": 35,
+      "note": "Random fuzz generators differ; mismatch alone does not establish wrong memory equations."
+    }
+  ],
+  "tolerance": 1e-05,
+  "limitations": "Independent one-step replay of end-of-year review cards, not lockstep yearly official queue. RNG differs. No cloud/AnkiWeb integration exercised."
+}

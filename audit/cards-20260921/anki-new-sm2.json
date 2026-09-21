@@ -1,0 +1,41 @@
+{
+  "current": {
+    "normal": {
+      "new": {
+        "position": 1
+      }
+    }
+  },
+  "again": {
+    "normal": {
+      "learning": {
+        "remainingSteps": 2,
+        "scheduledSecs": 60
+      }
+    }
+  },
+  "hard": {
+    "normal": {
+      "learning": {
+        "remainingSteps": 2,
+        "scheduledSecs": 330
+      }
+    }
+  },
+  "good": {
+    "normal": {
+      "learning": {
+        "remainingSteps": 1,
+        "scheduledSecs": 600
+      }
+    }
+  },
+  "easy": {
+    "normal": {
+      "review": {
+        "scheduledDays": 5,
+        "easeFactor": 2.5
+      }
+    }
+  }
+}
