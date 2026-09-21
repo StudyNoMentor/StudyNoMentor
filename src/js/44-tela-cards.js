@@ -1936,7 +1936,13 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Padrão Anki: 8. Use 0 para desativar.' },
     { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'suspend',
       options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (continua aparecendo)' }],
-      hint: 'Suspenso some da revisão até você reativar em Meus cards.' }
+      hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
+    { key: 'buryNewSiblings', label: '⇄ Enterrar irmãos de cards novos', type: 'select', value: cfg.buryNewSiblings === false ? '0' : '1',
+      options: [{ value:'1', label:'Ligado (padrão Anki)' }, { value:'0', label:'Desligado' }],
+      hint: 'Evita estudar frente e verso invertido no mesmo dia e receber a resposta de graça.' },
+    { key: 'buryReviewSiblings', label: '⇄ Enterrar irmãos em revisão', type: 'select', value: cfg.buryReviewSiblings === false ? '0' : '1',
+      options: [{ value:'1', label:'Ligado (padrão Anki)' }, { value:'0', label:'Desligado' }],
+      hint: 'Quando um lado do par é revisado, o outro fica para o próximo dia.' }
   ];
   /* ── ORDENAÇÃO E MISTURA — paridade com deck_config.proto ──────────────────
      Cada rótulo diz o que a opção FAZ, não só como se chama. São escolhas cujo
@@ -2041,6 +2047,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval, 10) || 36500)),
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'tag' ? 'tag' : 'suspend',
+      buryNewSiblings: v.buryNewSiblings !== '0',
+      buryReviewSiblings: v.buryReviewSiblings !== '0',
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
          permitida: um select adulterado não pode injetar uma chave que depois
          quebraria a montagem da fila. */
