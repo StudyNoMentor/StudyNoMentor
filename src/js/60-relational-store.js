@@ -26,6 +26,7 @@ const RelationalStore = {
     let n = this._pending;
     try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(); } catch (_) {}
     try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(); } catch (_) {}
+    try { if (typeof GenericOutbox !== 'undefined' && GenericOutbox.pendingCount) n += GenericOutbox.pendingCount(); } catch (_) {}
     return n;
   },
 
@@ -471,7 +472,12 @@ const RelationalStore = {
     this._lastSyncAt=Date.now();this._lastError=null;
     this.subscribeProfile(profileId);
     try {
-      if (typeof CardStore !== 'undefined' && CardStore.replayAll) await CardStore.replayAll();
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.overlayPending) GenericOutbox.overlayPending(profileId);
+      const jobs=[];
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll());
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll());
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll());
+      if(jobs.length)await Promise.allSettled(jobs);
     } catch (e) { _quiet(e, 'durable-outbox-replay-hydrate'); }
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
     try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
@@ -499,7 +505,11 @@ const RelationalStore = {
   },
   async flush() {
     try {
-      if (typeof CardStore !== 'undefined' && CardStore.replayAll) await CardStore.replayAll();
+      const jobs=[];
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll());
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll());
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll());
+      if(jobs.length)await Promise.allSettled(jobs);
       if (typeof DurableStudyStore !== 'undefined' && DurableStudyStore.flush) await DurableStudyStore.flush();
     } catch (e) { _quiet(e, 'durable-outbox-replay-flush'); }
     await this._tail;
@@ -644,7 +654,7 @@ const RelationalStore = {
           .eq('profile_id',p.profileId).eq('plan_id',p.planId)
           .order('position',{ascending:false}).limit(1);
         if(maxErr)throw maxErr;
-        pos=Math.max(pos+1,Number(data&&data[0]&&data[0].position)||0+1);
+        pos=Math.max(pos+1,(Number(data&&data[0]&&data[0].position)||0)+1);
       }
       const e=new Error('Não foi possível reservar posição única no histórico');e.code='revlog-position-conflict';throw e;
     });
@@ -687,31 +697,53 @@ const RelationalStore = {
        disponível. As linhas correspondentes já vão para `study_review_log` por
        queueRevlogAppend; persisti-las de novo criaria duplicata. */
     return sub.indexOf('__lixeira:') === 0
+        || sub === 'revlog'
         || sub === 'revlog-pendente'
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
   },
+  async _persistStorageMutation(payload) {
+    const key=payload&&payload.key, oldRaw=payload&&payload.oldRaw, newRaw=payload&&payload.newRaw;
+    const p=this._keyParts(key); if(!p)return true;
+    if(p.scope==='user'){
+      if(p.sub==='profiles'||p.sub==='active-profile')return true;
+      await this._persistUserPref(p.sub,newRaw); return true;
+    }
+    if(this._ignoreSub(p.sub))return true;
+    if(p.scope==='profile'){
+      if(p.sub==='planejamentos')await this._persistPlans(p.profileId,oldRaw,newRaw);
+      else if(p.sub==='active-plan')await this._persistActivePlan(p.profileId,newRaw);
+      else await this._persistProfileSetting(p.profileId,p.sub,newRaw);
+      return true;
+    }
+    await this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw);
+    return true;
+  },
+  queueStorageMutation(payload) {
+    if(this._applying||!this.isReady())return false;
+    return this._queue('storage:'+String(payload&&payload.key||''),()=>this._persistStorageMutation(payload));
+  },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
-    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
-       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
-       não viram falso erro de banco. Depois do login, isReady() permanece true
-       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
-    if(!this.isReady()) return;
-    const p=this._keyParts(key); if(!p) return;
-    if(p.scope==='user') {
-      if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
-      return;
-    }
-    if(this._ignoreSub(p.sub)) return;
-    if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw));
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw));
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw));
-      return;
-    }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw));
+    const p=this._keyParts(key); if(!p)return;
+    if(p.scope==='user'&&(p.sub==='profiles'||p.sub==='active-profile'))return;
+    if(this._ignoreSub(p.sub))return;
+
+    /* Offline também é uma mutação real. Em vez de descartá-la porque a sessão
+       não está pronta, guardamos o último estado por chave no WAL durável. */
+    try {
+      if(typeof GenericOutbox!=='undefined'&&GenericOutbox.put){
+        const ok=GenericOutbox.put(key,oldRaw,newRaw);
+        if(!ok){
+          const e=new Error('Não foi possível registrar a alteração no WAL local');
+          e.code='durable-outbox-failed'; this._lastError=e;
+        }
+        return;
+      }
+    } catch(e){this._lastError=e;return;}
+    // Fallback legado apenas se o módulo durável não carregou.
+    if(!this.isReady())return;
+    this._queue('storage:'+String(key),()=>this._persistStorageMutation({key,oldRaw,newRaw}));
   },
 
   async _persistUserPref(key, raw) {
