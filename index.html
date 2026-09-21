@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve87d38c5eb">
+<meta name="diario-versao" content="v14ad2bb8f5">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -40593,20 +40593,27 @@ const RelationalStore = {
     return {ok:true,mudou:1,profile:d.profile,heavyReady:this.isHeavyReady(profileId)};
   },
 
-  _queue(label, task, dirtyId) {
+  _queue(label, task, dirtyId, dirtyToken) {
     this._pending++;
     const failureKey = dirtyId || ('task|' + label);
     const run = async()=>{
       let last;
+      /* Se uma mutação anterior DA MESMA CHAVE falhou, um delta posterior pode
+         ter sido calculado sobre um estado que o servidor nunca recebeu.
+         Mesmo que este delta passe, mantemos a pendência para o replay completo
+         (base original → estado mais recente) antes do próximo pull. */
+      const haviaFalhaAnterior=this._failed.has(failureKey);
       for(let i=0;i<3;i++){
         try {
           const r=await task();
-          this._failed.delete(failureKey);
+          if(!haviaFalhaAnterior){
+            this._failed.delete(failureKey);
+            if(dirtyId && window.LocalDurable && LocalDurable.markSynced) {
+              try { await LocalDurable.markSynced(dirtyId, dirtyToken); } catch(e){ _quiet(e,'durable-ack'); }
+            }
+          }
           this._refreshFailureState();
           this._lastSyncAt=Date.now();
-          if(dirtyId && window.LocalDurable && LocalDurable.markSynced) {
-            try { await LocalDurable.markSynced(dirtyId); } catch(e){ _quiet(e,'durable-ack'); }
-          }
           return r;
         } catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
       }
@@ -40672,24 +40679,27 @@ const RelationalStore = {
     if(this._applying || !card) return false;
     const p=this._cardsParts(key); if(!p) return false;
     const dirtyId='card|'+key+'|'+String(card.id);
+    const token=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
+    const row=this._cardRow(p.profileId,p.planId,JSON.parse(JSON.stringify(card)),pos);
     if(!this.isReady()) return false;
     this._queue('card:upsert', async()=>{
       const {error}=await CloudStore.client.from('study_cards')
-        .upsert(this._cardRow(p.profileId,p.planId,card,pos),{onConflict:'profile_id,plan_id,card_id'});
+        .upsert(row,{onConflict:'profile_id,plan_id,card_id'});
       if(error)throw error;
-    },dirtyId);
+    },dirtyId,token);
     return true;
   },
   queueCardDelete(key, cardId) {
     if(this._applying) return false;
     const p=this._cardsParts(key); if(!p) return false;
     const dirtyId='card|'+key+'|'+String(cardId);
+    const token=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
     if(!this.isReady()) return false;
     this._queue('card:delete', async()=>{
       const {error}=await CloudStore.client.from('study_cards').delete()
         .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',String(cardId));
       if(error)throw error;
-    },dirtyId);
+    },dirtyId,token);
     return true;
   },
   queueCardsReplace(key, rows) {
@@ -40697,9 +40707,10 @@ const RelationalStore = {
     const p=this._cardsParts(key); if(!p) return false;
     const arr=Array.isArray(rows)?rows:[];
     const dirtyId='cards-replace|'+key;
+    const token=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
     if(!this.isReady()) return false;
     this._queue('cards:replace',()=>this._replacePlanRows('study_cards',p.profileId,p.planId,
-      arr.map((x,i)=>this._cardRow(p.profileId,p.planId,x,i)),'profile_id,plan_id,card_id'),dirtyId);
+      arr.map((x,i)=>this._cardRow(p.profileId,p.planId,x,i)),'profile_id,plan_id,card_id'),dirtyId,token);
     return true;
   },
 
@@ -40711,16 +40722,18 @@ const RelationalStore = {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
     const dirtyId='review|'+key+'|'+String(row.reviewId || (String(row.cardId)+'|'+String(row.ts)+'|'+String(row._position||'')));
+    const token=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
     this._queue('revlog:append', async () => {
       const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
       if(error && String(error.code)!=='23505') throw error;
-    },dirtyId);
+    },dirtyId,token);
     return true;
   },
   queueRevlogDelete(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
     const dirtyId='review-delete|'+key+'|'+String(row.reviewId || (String(row.cardId)+'|'+String(row.ts)+'|'+String(row._position||'')));
+    const token=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
     this._queue('revlog:delete', async () => {
       let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
       if(row.reviewId) q=q.eq('review_id',row.reviewId);
@@ -40731,15 +40744,17 @@ const RelationalStore = {
       }
       const {error} = await q;
       if(error) throw error;
-    },dirtyId);
+    },dirtyId,token);
     return true;
   },
   queueRevlogReplace(key, rows) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p) return false;
     const arr = Array.isArray(rows) ? rows : [];
+    const dirtyId='revlog-replace|'+key;
+    const token=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
     this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
-      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'),'revlog-replace|'+key);
+      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'),dirtyId,token);
     return true;
   },
 
@@ -40773,18 +40788,19 @@ const RelationalStore = {
        está pronto, simplesmente deixamos o dirty para replay na reconexão. */
     if(!this.isReady()) return;
     const dirtyId='kv|'+key;
+    const dirtyToken=window.LocalDurable&&LocalDurable.tokenFor?LocalDurable.tokenFor(dirtyId):null;
     if(p.scope==='user') {
       if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw),dirtyId);
+      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw),dirtyId,dirtyToken);
       return;
     }
     if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw),dirtyId);
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw),dirtyId);
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw),dirtyId);
+      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw),dirtyId,dirtyToken);
+      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw),dirtyId,dirtyToken);
+      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw),dirtyId,dirtyToken);
       return;
     }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw),dirtyId);
+    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw),dirtyId,dirtyToken);
   },
 
   async _persistUserPref(key, raw) {
@@ -41159,7 +41175,7 @@ const RelationalStore = {
     for(const item of items){
       try{
         await this._replayDirtyItem(item);
-        await LocalDurable.markSynced(item.id);
+        await LocalDurable.markSynced(item.id,item.token);
         this._failed.delete(item.id); done++;
       }catch(e){ this._failed.set(item.id,e); if(!firstErr)firstErr=e; }
     }
