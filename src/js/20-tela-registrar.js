@@ -70,6 +70,31 @@
   gaugeFill.style.strokeDasharray = CIRC;
   gaugeFill.style.strokeDashoffset = CIRC;
 
+  /* O tamanho da fonte do percentual é fixo em CSS (var(--fs-md)), mas o TEXTO
+     não é: "100" e "91,67%" têm larguras bem diferentes, e em telas com fonte
+     maior (zoom, acessibilidade) até "91,67%" sozinho já não cabia no anel —
+     o "9" e o "%" encostavam no traço. Em vez de um limite de largura fixo
+     (que só resolve um caso), medimos o texto de verdade depois de escrito e
+     encolhemos a fonte só o necessário para caber dentro do anel. */
+  function fitGaugePct() {
+    if (!gauge || !gaugePct) return;
+    gaugePct.style.fontSize = '';
+    const diameter = gauge.clientWidth || gauge.getBoundingClientRect().width;
+    if (!diameter) return;
+    // r=35, stroke-width=7 num viewBox 80x80: a área livre dentro do traço.
+    const avail = diameter * ((35 - 3.5) * 2 / 80) * 0.9;
+    const width = gaugePct.getBoundingClientRect().width;
+    if (width > avail && width > 0) {
+      const base = parseFloat(getComputedStyle(gaugePct).fontSize) || 16;
+      gaugePct.style.fontSize = Math.max(9, base * (avail / width)) + 'px';
+    }
+  }
+
+  function setGaugePct(text) {
+    gaugePct.textContent = text;
+    fitGaugePct();
+  }
+
   function updateGauge() {
     const correct = parseFloat(correctInput.value);
     const total = parseFloat(totalInput.value);
@@ -77,7 +102,7 @@
     perfPanel.classList.remove('tone-good', 'tone-warn', 'tone-bad');
 
     if (!total || total <= 0 || isNaN(correct)) {
-      gaugePct.textContent = '—';
+      setGaugePct('—');
       gaugeFill.style.strokeDashoffset = CIRC;
       return;
     }
@@ -85,18 +110,23 @@
        tom de erro) em vez de exibir 100%, que era o que o clamp fazia — a
        pessoa via um número plausível e só descobria o engano depois. */
     if (correct > total) {
-      gaugePct.textContent = '—';
+      setGaugePct('—');
       gaugeFill.style.strokeDashoffset = CIRC;
       gauge.classList.add('tone-bad');
       perfPanel.classList.add('tone-bad');
       return;
     }
     const pct = Math.max(0, Math.min(100, calcPct(correct, total)));
-    gaugePct.textContent = formatPct(pct);
+    setGaugePct(formatPct(pct));
     gaugeFill.style.strokeDashoffset = CIRC - (CIRC * pct / 100);
     const tone = toneFor(pct);
     gauge.classList.add('tone-' + tone);
     perfPanel.classList.add('tone-' + tone);
+  }
+  if (window.ResizeObserver && gauge) {
+    new ResizeObserver(() => fitGaugePct()).observe(gauge);
+  } else {
+    window.addEventListener('resize', fitGaugePct);
   }
 
   function updatePagesHint() {
