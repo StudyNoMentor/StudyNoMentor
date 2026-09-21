@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v14ad2bb8f5">
+<meta name="diario-versao" content="v4dbdf027ca">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -46672,6 +46672,7 @@ else CloudStore.init();
 
   function clearCardsKey(key, opts) {
     opts = opts || {};
+    var shouldDirty = opts.dirty !== false && !applyingRemote();
     cardsMem.delete(key); cardKeys.delete(key); invalidate();
     if (!idb) return Promise.resolve(true);
     var p = (async function () {
@@ -46679,7 +46680,7 @@ else CloudStore.init();
       await deleteCardsForKeyInTx(tx, key);
       await clearDirtyForKeyInTx(tx, key);
       tx.objectStore('kv').delete(key);
-      if (opts.dirty !== false && !applyingRemote()) {
+      if (shouldDirty) {
         var id='cards-replace|' + key, token=nextDirtyToken(id);
         tx.objectStore('dirty').put({
           id, token, kind:'cards-replace', key:key,
@@ -46694,6 +46695,7 @@ else CloudStore.init();
 
   function replaceCards(key, list, opts) {
     opts = opts || {};
+    var shouldDirty = opts.dirty !== false && !applyingRemote();
     list = Array.isArray(list) ? list : [];
     cardsMem.set(key, list); cardKeys.add(key); invalidate();
     if (!idb) return Promise.resolve(true);
@@ -46707,7 +46709,7 @@ else CloudStore.init();
         st.put({ pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id), position:i, card:card });
       });
       tx.objectStore('kv').delete(key); // cards nunca viram blob persistente
-      if (opts.dirty !== false && !applyingRemote()) {
+      if (shouldDirty) {
         var id='cards-replace|' + key, token=nextDirtyToken(id);
         tx.objectStore('dirty').put({ id, token, kind:'cards-replace', key:key, userId:currentUserId(), at:Date.now() });
       }
@@ -46719,6 +46721,7 @@ else CloudStore.init();
 
   function upsertCard(key, card, position, opts) {
     opts = opts || {};
+    var shouldDirty = opts.dirty !== false && !applyingRemote();
     if (!card || card.id == null) return Promise.resolve(false);
     if (!cardsMem.has(key)) cardsMem.set(key, []);
     cardKeys.add(key); invalidate();
@@ -46729,7 +46732,7 @@ else CloudStore.init();
         pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id),
         position:Number.isFinite(position) ? position : 0, card:card
       });
-      if (opts.dirty !== false && !applyingRemote()) {
+      if (shouldDirty) {
         var id='card|' + key + '|' + String(card.id), token=nextDirtyToken(id);
         tx.objectStore('dirty').put({
           id, token, kind:'card', key:key,
@@ -46744,11 +46747,12 @@ else CloudStore.init();
 
   function deleteCard(key, cardId, opts) {
     opts = opts || {};
+    var shouldDirty = opts.dirty !== false && !applyingRemote();
     if (!idb) return Promise.resolve(true);
     var p = (async function () {
       var tx = idb.transaction(['cards','dirty'], 'readwrite');
       tx.objectStore('cards').delete(cardPk(key, cardId));
-      if (opts.dirty !== false && !applyingRemote()) {
+      if (shouldDirty) {
         var id='card|' + key + '|' + String(cardId), token=nextDirtyToken(id);
         tx.objectStore('dirty').put({
           id, token, kind:'card', key:key,
