@@ -1033,7 +1033,10 @@ const DB = {
           dueTsAntesEnterrar: s.dueTsAntesEnterrar == null ? null : s.dueTsAntesEnterrar
         }
       });
-      if (this.buryCard(s.id) === false) return false;
+      if (this.buryCard(s.id) === false) {
+        this.restoreSiblingBury(snapshots.slice(0, -1));
+        return false;
+      }
     }
     return snapshots;
   },
@@ -1054,8 +1057,8 @@ const DB = {
   /* ══════════════════════════════════════════════════════════════════════════
      AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
      Implementadas aqui com o MESMO significado do original. Este app tem um
-     card por nota, então "enterrar nota" e "enterrar card" coincidem — no Anki
-     eles diferem só quando uma nota gera vários cards.
+     pares frente↔verso podem compartilhar noteId; por isso enterrar irmãos
+     é tratado separadamente de enterrar apenas o card atual.
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
@@ -1064,8 +1067,8 @@ const DB = {
     const amanha = CardEngine.addDays(todayCards(), 1);
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
-    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
-    return amanha;
+    const salvo = this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null }, { kind: 'bury' });
+    return salvo === false ? false : amanha;
   },
   unburyCard(id) {
     const c = this.getCard(id); if (!c) return;
