@@ -846,7 +846,14 @@ const CardsScreen = {
   undoAnswer() {
     const u = (this._undoStack || []).pop();
     if (!u) { showToast('Nada para desfazer'); return; }
-    DB.updateCard(u.id, u.antes);
+    DB.updateCard(u.id, u.antes, { kind: 'undo-review' });
+    if (u.siblingBury && u.siblingBury.length) DB.restoreSiblingBury(u.siblingBury);
+    if (u.siblingQueueRemoved && u.siblingQueueRemoved.length) {
+      u.siblingQueueRemoved.slice().sort((a,b)=>a.index-b.index).forEach(x => {
+        const pos=Math.max(0,Math.min(this._reviewQueue.length,x.index));
+        if (this._reviewQueue.indexOf(x.id, pos) !== pos) this._reviewQueue.splice(pos,0,x.id);
+      });
+    }
     CardEngine.invalidateDueCache();
     DB.removeRevlog(u.revTs);
     if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
@@ -906,7 +913,7 @@ const CardsScreen = {
       ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
         .forEach(k => { antes[k] = c[k]; });
       patch = CardEngine.schedule(c, grade);
-      if (DB.updateCard(id, patch) === false) {
+      if (DB.updateCard(id, patch, { kind: 'review', grade }) === false) {
         // O agendamento não foi gravado: desfaz o registro que acabou de entrar
         // no histórico para os dois não ficarem em desacordo.
         DB.removeRevlog(revTs);
@@ -915,8 +922,44 @@ const CardsScreen = {
         showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
         return;
       }
+
+      /* Irmãos: frente↔verso da mesma nota não devem aparecer no mesmo dia.
+         A configuração segue a fase que o card TINHA ao ser respondido. */
+      const cfg = CardsConfig.forDeck ? CardsConfig.forDeck(c.deckId) : CardsConfig.get();
+      const faseAntes = c.phase || 'new';
+      const deveEnterrarIrmaos = faseAntes === 'new'
+        ? cfg.buryNewSiblings !== false
+        : (faseAntes === 'review'
+          ? cfg.buryReviewSiblings !== false
+          : cfg.buryInterdayLearningSiblings !== false);
+      let siblingBury = [], siblingQueueRemoved = [];
+      if (deveEnterrarIrmaos) {
+        const sb = DB.burySiblings(id);
+        if (sb === false) {
+          DB.updateCard(id, antes, { kind: 'undo-review' });
+          DB.removeRevlog(revTs);
+          if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
+          this._seenThisSession.delete(id);
+          showToast('⚠ Não foi possível proteger os cards irmãos. Tente novamente.');
+          return;
+        }
+        siblingBury = sb || [];
+        if (siblingBury.length) {
+          const idsIrmaos = new Set(siblingBury.map(x => x.id));
+          for (let qi = this._reviewQueue.length - 1; qi > this._reviewIdx; qi--) {
+            if (idsIrmaos.has(this._reviewQueue[qi])) {
+              siblingQueueRemoved.push({ id: this._reviewQueue[qi], index: qi });
+              this._reviewQueue.splice(qi, 1);
+            }
+          }
+        }
+      }
+
       CardEngine.invalidateDueCache();
-      (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
+      (this._undoStack = this._undoStack || []).push({
+        id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx,
+        siblingBury, siblingQueueRemoved
+      });
       if (this._undoStack.length > 50) this._undoStack.shift();
       if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
     }
@@ -1350,24 +1393,63 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
     return data;
   },
-  saveCard(closeAfter) {
+  async saveCard(closeAfter) {
     const data = this._readCardForm();
     if (!data) return;
     const reversed = data._reversed; delete data._reversed;
-    if (this._editingId) {
-      DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
+    const editingId = this._editingId;
+    const savedIds = [];
+    let mensagem = '';
+
+    const res = await SaveGuard.run({
+      escrever: async () => {
+        if (editingId) {
+          const salvo = DB.updateCard(editingId, data, { kind: 'edit' });
+          if (salvo === false || !salvo) return false;
+          savedIds.push(editingId); mensagem = 'Card atualizado';
+          return true;
+        }
+
+        if (reversed) data.noteId = 'note-' + DB._uid();
+        const normal = DB.addCard(data);
+        if (!normal) return false;
+        savedIds.push(normal.id);
+        if (reversed) {
+          const invertido = DB.addCard({
+            ...data, frente: data.verso, verso: data.frente,
+            reversedOf: normal.id, noteId: data.noteId
+          });
+          if (!invertido) {
+            DB.deleteCard(normal.id);
+            return false;
+          }
+          savedIds.push(invertido.id);
+          mensagem = '2 cards criados (normal + invertido)';
+        } else mensagem = 'Card criado';
+        return true;
+      },
+      verificar: () => savedIds.length > 0 && savedIds.every(id => !!DB.getCard(id))
+    });
+
+    const pending = (() => {
+      try { return (CardStore.pendingCount ? CardStore.pendingCount() : 0) + (ReviewOutbox.pendingCount ? ReviewOutbox.pendingCount() : 0); }
+      catch (_) { return 0; }
+    })();
+
+    if (res && res.ok && res.cloud) {
+      showToast(mensagem + ' ✓');
+    } else if (savedIds.length && pending > 0) {
+      showToast('☁ ' + mensagem + ' neste dispositivo; sincronização pendente.');
     } else {
-      const c = DB.addCard(data);
-      if (reversed) {
-        DB.addCard({ ...data, frente: data.verso, verso: data.frente, reversedOf: c.id });
-        showToast('2 cards criados (normal + invertido) ✓');
-      } else showToast('Card criado ✓');
-      if (closeAfter) this.closeCardModal();
-      else {
-        $id('card-frente').innerHTML = '';
-        $id('card-verso').innerHTML = '';
-        $id('card-frente').focus();
-      }
+      showToast('⚠ O card não foi confirmado. Revise a conexão e tente novamente.');
+      return;
+    }
+
+    if (editingId || closeAfter) this.closeCardModal();
+    else {
+      $id('card-frente').innerHTML = '';
+      $id('card-verso').innerHTML = '';
+      $id('card-frente').focus();
     }
     this.render();
   },
