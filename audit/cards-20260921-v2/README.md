@@ -5,11 +5,12 @@ auditoria de 21/09 (1ª rodada) apontou e o que já foi corrigido**, e **repetir
 auditoria com os erros dela consertados e cenários mais agressivos**. Toda
 afirmação aqui vem de execução contra o código, não de comentário no código.
 
-**Veredito: reprovado.** Os treze achados da 1ª rodada estão endereçados no
-`main` — três deles apenas em parte. Em compensação, os cenários novos
-reproduzem **dez defeitos** que a 1ª rodada não podia ver, três deles críticos.
-Nenhum é hipótese: cada um tem uma verificação que falha e um arquivo de
-evidência nesta pasta.
+**Veredito da auditoria: reprovado — e corrigido nesta mesma entrega.** Os treze
+achados da 1ª rodada estavam endereçados no `main`, três deles apenas em parte.
+Os cenários novos reproduziram **dez defeitos** que a 1ª rodada não podia ver,
+três deles críticos. Cada um tem uma verificação que falhava, a correção
+correspondente e a mesma verificação passando: a suíte saiu de **44/60** para
+**62/62** e entrou no `verificar.mjs`.
 
 Código auditado: `StudyNoMentor/StudyNoMentor`, `main` no commit `3299fc2`.
 Backend independente: pacote oficial `anki==26.9.2` (Rust compilado), Python
@@ -32,7 +33,8 @@ tocados.
 | `simulate.mjs` — 3 cenários × 6.000 cards × 365 dias | — | 0 estados inválidos, 0 divergências de memória, 0 divergências de prévia |
 
 A simulação desta rodada (`simulacao.mjs`, cenários independentes dos da 1ª)
-repetiu a escala e passou em todas as invariantes:
+repetiu a escala e passou em todas as invariantes — estes números são da
+execução feita ANTES das correções, isto é, sobre o `main` auditado:
 
 | Cenário | Respostas | Distintos | Inválidos | Memória | Prévia | Limite diário | Fila suja | Pico/dia |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -121,9 +123,10 @@ do app. Ambos estão anotados no código dos testes.
 
 ---
 
-## 3. Achados novos
+## 3. Achados novos — e o que foi feito
 
-Todos reproduzidos por `regressao.mjs`. A coluna "verificação" é o id que falha.
+Todos reproduzidos por `regressao.mjs` antes da correção. A coluna
+"verificação" é o id que falhava e hoje passa.
 
 | # | Prioridade | Achado | Verificação | Origem |
 |---|---|---|---|---|
@@ -138,7 +141,7 @@ Todos reproduzidos por `regressao.mjs`. A coluna "verificação" é o id que fal
 | N9 | **Média** | Modo Clássico (SM-2): ao sair do reaprendizado, **"Fácil" devolve exatamente o mesmo intervalo que "Bom"** — acertar com folga um card que estava em reaprendizado não rende nada. O backend oficial devolve Bom = 1 dia e Fácil = 2 dias na mesma configuração. A invariante de ordem não pega isto porque aceita empate; a comparação com o Anki pega. | G4 | `graduateRelearn` em `_scheduleSM2` |
 | N10 | **Baixa** | `_kind` e `_val` — transitórios da prévia dos botões — são gravados no card, entram na coleção e no backup, e fazem o desfazer não devolver o card idêntico. | E4, E4b | `CardEngine.schedule` + `DB.updateCard` |
 
-### O que passou
+### O que já passava antes da correção
 
 44 das 60 verificações. Entre elas, e que a 1ª rodada não cobria: limites de
 novos e de revisões **por baralho** (D1, D2); aprendizado entre dias dividindo o
@@ -252,14 +255,62 @@ o agendador. Esse custo **não** fica escondido: é o objeto das verificações
 A1–A5 e da medição de degradação. Configuração, contadores diários e histórico
 continuam passando pelo DB real em todas as verificações de `regressao.mjs`.
 
-## 6. Situação da correção
+## 6. As correções
 
-**Esta entrega é auditoria, não correção.** Os dez achados acima continuam no
-`main`. Por isso `regressao.mjs` **não** foi ligado ao `verificar.mjs`: ele
-falha de propósito, e ligá-lo agora deixaria a verificação do projeto vermelha
-sem que nada tivesse sido consertado. Ligar é o último passo de quem corrigir,
-igual ao que a 1ª rodada fez com `functions.mjs` e `simulate.mjs` — hoje os dois
-rodam no `verificar.mjs` e passam.
+Os dez achados foram corrigidos. O que mudou, por área:
+
+**Histórico de revisões (N1, N2, N3).** O histórico deixa de morar num JSON
+único do `localStorage`. O dono dele passa a ser o banco relacional — onde ele
+já tinha uma linha por revisão em `study_review_log`. Ficam três camadas: a
+lista viva em RAM, a linha no banco, e uma rede de segurança local **apenas com
+o que o banco ainda não confirmou**, arquivada em lotes pequenos quando não há
+banco. Uma resposta passa a escrever o tamanho do lote, não o do histórico.
+
+O DB avisa o banco por chamada direta (`queueRevlogAppend`/`Delete`/`Replace`)
+em vez de deixá-lo **deduzir** a mudança comparando o JSON antigo com o novo —
+era essa dedução que obrigava o `localStorage` a guardar o histórico inteiro. A
+projeção em RAM é descartada na troca de perfil, na troca de planejamento, na
+importação de perfil e em qualquer escrita crua na chave.
+
+| Medida | Antes | Depois |
+|---|---:|---:|
+| Bytes escritos para gravar 3.000 revisões | 884 MB | **18 MB** |
+| Fator ao dobrar o número de revisões | 5,01× | **2,0×** |
+| Armazenamento local com 6.000 revisões e banco ativo | cresce sem limite | **do tamanho do lote** |
+
+E uma resposta que não foi gravada deixou de ser dada por concluída: a fila não
+avança, o desfazer não é empilhado, e se o agendamento falhar depois do
+registro no histórico o registro é desfeito, para os dois não ficarem em
+desacordo.
+
+**Agendador (N4, N5, N9).** O FSRS passou a limitar o índice do passo ao último
+da lista, como o Clássico já fazia. Passou a aceitar listas de passos vazias,
+graduando o card em vez de travá-lo com `dueTs: NaN`. E ao sair do
+reaprendizado no Clássico, "Fácil" voltou a render mais que "Bom" — 1 e 2 dias,
+exatamente o que o backend oficial devolve.
+
+**Importação e formatos (N6, N7, N8).** Aplicar um backup passou a restaurar
+**por id**: o mesmo arquivo aplicado duas vezes é inócuo. Importar TSV/CSV
+continua acrescentando, que é o correto para conteúdo sem id. A detecção do
+separador varre o arquivo inteiro, e o descarte de linhas de comentário
+respeita aspas.
+
+**Estado do card (N10).** Os transitórios da prévia dos botões não são mais
+gravados no card, na coleção nem no backup.
+
+### O que a correção mudou de comportamento
+
+O histórico passa a depender do banco relacional para durar indefinidamente —
+que é o que a arquitetura do app já declara ("Supabase é a única fonte
+persistente de verdade"). Sem banco, o histórico continua sendo gravado
+localmente em lotes, e a recusa por falta de espaço passa a ser **visível e
+bloqueante** em vez de silenciosa.
+
+Uma verificação da 1ª auditoria foi ajustada à API nova: esvaziar o histórico é
+`DB.replaceRevlog([])`, não uma escrita direta na chave. A verificação em si não
+mudou. E a verificação de compensação de atraso do SM-2 no AutoTeste cobrava um
+valor exato onde o agendador aplica fuzz — falha que **já existia no `main`** —
+e passou a cobrar a faixa da equação, mais a ordem Bom < Fácil.
 
 ## 7. Reprodução
 
@@ -271,7 +322,7 @@ node audit/cards-20260921/functions.mjs
 TZ=UTC node audit/cards-20260921/simulate.mjs
 
 # 2ª rodada
-node audit/cards-20260921-v2/regressao.mjs          # sai com 1: reproduz os achados
+node audit/cards-20260921-v2/regressao.mjs          # 62/62 (também roda no verificar.mjs)
 TZ=UTC node --max-old-space-size=6144 audit/cards-20260921-v2/simulacao.mjs
 
 # comparação com o backend oficial (roda depois da simulação)
@@ -281,7 +332,8 @@ TZ=UTC /tmp/anki-audit-v2/bin/python audit/cards-20260921-v2/oficial.py
 node audit/cards-20260921-v2/comparar.mjs
 ```
 
-`regressao.mjs` sai com código 1 quando encontra divergência: é intencional.
+`regressao.mjs` roda no `verificar.mjs` e sai com código 1 em qualquer
+divergência.
 `vetores.json` e `vetores-oficiais.json` são gerados e ficam fora do Git; os
 scripts e os resumos (`regressao.json`, `simulacao.json`, `oficial.json`,
 `comparacao.json`) são versionados. Os intervalos com fuzz podem mudar entre
