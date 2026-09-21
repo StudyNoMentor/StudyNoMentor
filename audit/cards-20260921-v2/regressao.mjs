@@ -310,7 +310,7 @@ for (const algo of ['fsrs', 'sm2']) {
 {
   // Sessão real via CardsScreen.answer(): o limite diário tem de valer durante
   // a sessão inteira, não só na montagem da fila.
-  A.reset({ newPerDay: 5, revPerDay: 0, algo: 'fsrs' });
+  A.reset({ newPerDay: 5, revPerDay: 999, algo: 'fsrs' });
   const hoje = A.hoje();
   DB.saveCards(Array.from({ length: 40 }, (_, i) => ({ id: 'x' + i, frente: 'F' + i, verso: 'V' + i, phase: 'new', due: hoje, posicaoNova: i, status: 'pendente' })));
   E.invalidateDueCache();
@@ -319,12 +319,12 @@ for (const algo of ['fsrs', 'sm2']) {
   while (S._reviewIdx < S._reviewQueue.length && respostas < 400) { S.answer(['bom', 'errei', 'facil', 'dificil'][respostas % 4]); respostas++; }
   const introduzidos = C.newDoneToday();
   check('D11', 'Ao longo de uma sessão real, o limite de novos do dia não é ultrapassado',
-    introduzidos <= 5, { introduzidosHoje: introduzidos, limite: 5, respostas });
+    respostas > 0 && introduzidos === 5, { introduzidosHoje: introduzidos, limite: 5, respostas });
   check('D12', 'Nenhum card foi gravado com agendamento inválido durante a sessão real',
-    DB.getCards().every((c) => dataIso(c.due) && (c.dueTs == null || finito(c.dueTs))),
+    respostas > 0 && DB.getCards().every((c) => dataIso(c.due) && (c.dueTs == null || finito(c.dueTs))),
     { ruins: DB.getCards().filter((c) => !dataIso(c.due) || (c.dueTs != null && !finito(c.dueTs))).slice(0, 3) });
   check('D13', 'A sessão real gravou uma linha de histórico por resposta',
-    DB.getRevlog().length === respostas, { revlog: DB.getRevlog().length, respostas });
+    respostas > 0 && DB.getRevlog().length === respostas, { revlog: DB.getRevlog().length, respostas });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
