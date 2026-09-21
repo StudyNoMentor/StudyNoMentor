@@ -1,6 +1,6 @@
 {
   "escopo": "Módulos de produção 11-db / 30-fsrs / 31-cards-config / 32-card-engine / 44-tela-cards; DOM, download e rede dublados; armazenamento serializado de verdade.",
-  "geradoEm": "2026-09-21T13:58:17.717Z",
+  "geradoEm": "2026-09-21T17:39:09.360Z",
   "total": 60,
   "falhas": 16,
   "itens": [
@@ -894,7 +894,7 @@
       "nome": "Passo curto no meio do dia continua agendado por horário, com fuzz dentro do teto do Anki",
       "pass": true,
       "detalhe": {
-        "dueTs": 1789981823000,
+        "dueTs": 1789981929000,
         "minimo": 600,
         "tetoFuzz": 750
       }
@@ -914,9 +914,9 @@
       "nome": "Montar a fila cresce de forma linear com a coleção, não quadrática",
       "pass": true,
       "detalhe": {
-        "ms3000": 17.3,
-        "ms12000": 56.9,
-        "razao": 3.3,
+        "ms3000": 20.4,
+        "ms12000": 59.9,
+        "razao": 2.9,
         "esperadoSeLinear": 4,
         "esperadoSeQuadratico": 16
       }

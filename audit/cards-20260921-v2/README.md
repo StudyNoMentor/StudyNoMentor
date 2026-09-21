@@ -31,6 +31,20 @@ tocados.
 | `simulate.mjs` — cenário SM-2 | 255 cards alcançados no ano | **6.000 alcançados** |
 | `simulate.mjs` — 3 cenários × 6.000 cards × 365 dias | — | 0 estados inválidos, 0 divergências de memória, 0 divergências de prévia |
 
+A simulação desta rodada (`simulacao.mjs`, cenários independentes dos da 1ª)
+repetiu a escala e passou em todas as invariantes:
+
+| Cenário | Respostas | Distintos | Inválidos | Memória | Prévia | Limite diário | Fila suja | Pico/dia |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| FSRS 90%, sem balanceamento | 182.274 | 6.000 | 0 | 0 | 0 | 0 | 0 | 720 |
+| FSRS 95%, com balanceamento | 191.493 | 6.000 | 0 | 0 | 0 | 0 | 0 | 707 |
+| Clássico (SM-2) | 176.822 | 6.000 | 0 | 0 | 0 | 0 | 0 | 675 |
+
+**550.589 respostas**, 330 dias ativos em cada cenário, 35 dias de ausência em
+dois blocos. "Fila suja" reúne três contagens separadas, todas zero: id
+repetido, card suspenso e card não vencido no momento em que a fila é montada.
+3,7 h de CPU no total.
+
 Os treze achados prioritários, um a um:
 
 | Achado da 1ª rodada | Situação |
@@ -150,8 +164,18 @@ idêntica ao que é gravado, inclusive com balanceamento ligado (C5).
   está em `comparacao.json`, seção `passoLongo`; com FSRS nenhum dos dois
   inverte). É consequência da configuração, não defeito do app, e por isso está
   excluído da invariante C3 — com a medição junto, não com uma dedução.
-- **Degradação medida** por `CardsScreen.answer()` com armazenamento real:
-  DEGRADACAO_AQUI
+- **Degradação medida** por `CardsScreen.answer()` com DB e `localStorage`
+  reais, 2.000 respostas em lotes de 250:
+
+  | Respostas acumuladas | ms por resposta | Bytes escritos acumulados |
+  |---:|---:|---:|
+  | 250 | 6,6 | 98 MB |
+  | 1.000 | 9,7 | 493 MB |
+  | 2.000 | 13,7 | 1.257 MB |
+
+  Responder fica **2,1× mais lento** em 2.000 respostas — cerca de duas semanas
+  de uso — e o total escrito chega a 1,26 GB para 946 KB de dados. É o achado
+  N1 visto do lado do usuário.
 
 ---
 
@@ -166,7 +190,7 @@ lado direito é a saída do Rust compilado do Anki 26.9.2.
 
 | O que foi comparado | Resultado |
 |---|---|
-| Estabilidade e dificuldade após cada nota | **5.208** comparações escalares, **0 divergências**; maior erro relativo **3,6 × 10⁻⁶** (tolerância 1e-5) |
+| Estabilidade e dificuldade após cada nota | **46.256** comparações escalares em 5.782 cards, **0 divergências**; maior erro relativo **2,8 × 10⁻⁶** (tolerância 1e-5) |
 | Fase resultante (revisão / reaprendizado) | **0 divergências** |
 | Segundos do passo de reaprendizado | **0 divergências** |
 | Card novo, aprendizado (passo 0 e 1), reaprendizado, revisão jovem, madura e muito atrasada — com FSRS ligado e desligado | 56 casos, **0 divergências** de fase, de segundos e de intervalo |
@@ -180,20 +204,27 @@ arredondamento de armazenamento, não equações.
 
 Os dois lados aplicam a mesma regra de fuzz sobre o mesmo valor puro, cada um
 com o seu sorteio. Dois sorteios independentes da mesma faixa distam, no
-máximo, duas larguras de faixa — e é isso que se verifica:
+máximo, duas larguras — e é isso que se cobra de "Difícil" e "Bom". De "Fácil"
+cobram-se três, porque o PISO do Fácil é o intervalo do Bom **já sorteado** mais
+1: os dois lados encadeiam dois sorteios, e a distância possível cresce junto.
+Não é tolerância escolhida para o teste passar — é o que a medição por nota
+mostra, e ela está em `comparacao.json`:
 
 | Medida | Resultado |
 |---|---|
-| Intervalos de revisão comparados | 1.953 |
-| Idênticos ao valor do Anki | 471 (24%) |
-| Dentro de **uma** largura de fuzz | 1.780 (91%) |
-| Fora de **duas** larguras (o limite verificável) | **0** — razão máxima exatamente 2,00 |
-| Viés médio Anki − Study, por faixa de atraso | adiantado <25%: **+2,4%** · 25-75%: **+1,8%** · no prazo: **+2,9%** — sem tendência sistemática |
+| Intervalos de revisão comparados | **17.346** (5.782 cards × Difícil/Bom/Fácil) |
+| Idênticos ao valor do Anki | 2.388 (13,8%) |
+| Dentro de **uma** largura de fuzz | 14.797 (85,3%) |
+| Fora do limite admissível | **0** |
+| Difícil · Bom | 5.782 casos cada, razão máxima **exatamente 2,00** |
+| Fácil | 5.782 casos, 18 acima de 2 larguras, razão máxima 2,50, **nenhum acima de 3** |
+| Viés médio Anki − Study, por faixa de atraso | no prazo **+0,3%** · adiantado 25-75% **+0,7%** · adiantado <25% **+1,1%** · atrasado **+2,2%** — sem tendência sistemática |
 
-Isto é o que a 1ª rodada não conseguiu concluir: ela comparou valor sorteado com
-valor sorteado, colheu 15.125 divergências em 17.343 e teve de escrever que o
-número não demonstrava nada. Com o limite de duas larguras, a afirmação passa a
-ser verificável — e passa.
+Isto é o que a 1ª rodada não conseguiu concluir. Ela comparou valor sorteado com
+valor sorteado sobre praticamente o mesmo conjunto — **15.125 divergências em
+17.343** — e teve de escrever que o número não demonstrava nada. Com o limite
+declarado por nota, sobre **17.346** comparações do mesmo tamanho, a afirmação
+passa a ser verificável: **nenhuma divergência**.
 
 **O que esta comparação ainda não demonstra:** trajetórias anuais idênticas.
 É um replay de UM passo a partir de estados finais, não a fila oficial do Anki

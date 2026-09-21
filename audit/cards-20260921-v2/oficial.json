@@ -7,15 +7,15 @@
     "faixa de fuzz exportada para verificar o sorteio do Study",
     "cobertura de card novo, aprendizado, reaprendizado e SM-2"
   ],
-  "vetoresEmRevisao": 651,
+  "vetoresEmRevisao": 5782,
   "limitacoes": "Replay de UM passo a partir de estados finais do Study, n\u00e3o a trajet\u00f3ria anual em lockstep. N\u00e3o exercita nuvem, AnkiWeb, m\u00eddia, notas/irm\u00e3os, modelos nem baralhos aninhados.",
   "casosDeFase": 14,
   "passoLongo": {
     "fsrs": {
       "errei": 259200,
       "dificil": 345600,
-      "bom": 4,
-      "facil": 8
+      "bom": 5,
+      "facil": 9
     },
     "sm2": {
       "errei": 259200,

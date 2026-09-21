@@ -1,5 +1,5 @@
 {
-  "commit": "3299fc29cf98c5f6aeea2fdce78fd773a5331a89",
+  "commit": "d23c291f401f1ef66b22ce7d20a222b58b0310aa",
   "semente": 21092026,
   "escopo": "Agendador, fila e configuração reais; relógio e armazenamento do harness. Não cobre navegador, nuvem, offline nem sincronização.",
   "cenarios": [
@@ -10,9 +10,9 @@
       "loadBalance": false,
       "cards": 6000,
       "dias": 365,
-      "diasAtivos": 25,
-      "respostas": 4677,
-      "distintos": 750,
+      "diasAtivos": 330,
+      "respostas": 182274,
+      "distintos": 6000,
       "agendamentosInvalidos": 0,
       "divergenciaMemoria": 0,
       "previaDivergente": 0,
@@ -22,10 +22,10 @@
       "filaComSuspenso": 0,
       "filaComNaoVencido": 0,
       "regressaoDeReps": 0,
-      "picoDiario": 264,
-      "maiorEstabilidade": 91.47185766846677,
-      "leeches": 0,
-      "segundos": 63.72,
+      "picoDiario": 720,
+      "maiorEstabilidade": 1206.283124600479,
+      "leeches": 1527,
+      "segundos": 4529.61,
       "exemplos": []
     },
     {
@@ -35,9 +35,9 @@
       "loadBalance": true,
       "cards": 6000,
       "dias": 365,
-      "diasAtivos": 25,
-      "respostas": 5697,
-      "distintos": 750,
+      "diasAtivos": 330,
+      "respostas": 191493,
+      "distintos": 6000,
       "agendamentosInvalidos": 0,
       "divergenciaMemoria": 0,
       "previaDivergente": 0,
@@ -47,10 +47,10 @@
       "filaComSuspenso": 0,
       "filaComNaoVencido": 0,
       "regressaoDeReps": 0,
-      "picoDiario": 363,
-      "maiorEstabilidade": 120.30707944949643,
-      "leeches": 0,
-      "segundos": 88.38,
+      "picoDiario": 707,
+      "maiorEstabilidade": 1138.4108799655373,
+      "leeches": 1579,
+      "segundos": 5127.38,
       "exemplos": []
     },
     {
@@ -60,9 +60,9 @@
       "loadBalance": false,
       "cards": 6000,
       "dias": 365,
-      "diasAtivos": 25,
-      "respostas": 5361,
-      "distintos": 750,
+      "diasAtivos": 330,
+      "respostas": 176822,
+      "distintos": 6000,
       "agendamentosInvalidos": 0,
       "divergenciaMemoria": 0,
       "previaDivergente": 0,
@@ -72,10 +72,10 @@
       "filaComSuspenso": 0,
       "filaComNaoVencido": 0,
       "regressaoDeReps": 0,
-      "picoDiario": 309,
+      "picoDiario": 675,
       "maiorEstabilidade": 0,
-      "leeches": 0,
-      "segundos": 68.88,
+      "leeches": 1386,
+      "segundos": 3659.92,
       "exemplos": []
     }
   ],
@@ -84,56 +84,56 @@
     "amostras": [
       {
         "respostas": 250,
-        "msPorResposta": 7.328,
+        "msPorResposta": 6.621,
         "revlog": 250,
         "bytesArmazenados": 446163,
         "bytesEscritosAcumulados": 102890024
       },
       {
         "respostas": 500,
-        "msPorResposta": 8.184,
+        "msPorResposta": 7.819,
         "revlog": 500,
         "bytesArmazenados": 517100,
         "bytesEscritosAcumulados": 223124149
       },
       {
         "respostas": 750,
-        "msPorResposta": 8.653,
+        "msPorResposta": 8.475,
         "revlog": 750,
         "bytesArmazenados": 588038,
         "bytesEscritosAcumulados": 361092649
       },
       {
         "respostas": 1000,
-        "msPorResposta": 9.502,
+        "msPorResposta": 9.706,
         "revlog": 1000,
         "bytesArmazenados": 658976,
         "bytesEscritosAcumulados": 516795525
       },
       {
         "respostas": 1250,
-        "msPorResposta": 10.735,
+        "msPorResposta": 9.561,
         "revlog": 1250,
         "bytesArmazenados": 730664,
         "bytesEscritosAcumulados": 690327150
       },
       {
         "respostas": 1500,
-        "msPorResposta": 11.232,
+        "msPorResposta": 11.04,
         "revlog": 1500,
         "bytesArmazenados": 802351,
         "bytesEscritosAcumulados": 881780650
       },
       {
         "respostas": 1750,
-        "msPorResposta": 11.468,
+        "msPorResposta": 13.249,
         "revlog": 1750,
         "bytesArmazenados": 874039,
         "bytesEscritosAcumulados": 1091156025
       },
       {
         "respostas": 2000,
-        "msPorResposta": 11.977,
+        "msPorResposta": 13.661,
         "revlog": 2000,
         "bytesArmazenados": 945726,
         "bytesEscritosAcumulados": 1318453275
@@ -141,18 +141,18 @@
     ],
     "primeiroLote": {
       "respostas": 250,
-      "msPorResposta": 7.328,
+      "msPorResposta": 6.621,
       "revlog": 250,
       "bytesArmazenados": 446163,
       "bytesEscritosAcumulados": 102890024
     },
     "ultimoLote": {
       "respostas": 2000,
-      "msPorResposta": 11.977,
+      "msPorResposta": 13.661,
       "revlog": 2000,
       "bytesArmazenados": 945726,
       "bytesEscritosAcumulados": 1318453275
     },
-    "fatorDeLentidao": 1.6
+    "fatorDeLentidao": 2.1
   }
 }

@@ -23,7 +23,7 @@ const r = {
   revisao: { cards: dados.revisao.length, respostas: 0, comparacoesEscalares: 0, maiorErroRelativo: 0,
              falhasMemoria: 0, falhasFase: 0, falhasPassoRelearn: 0,
              falhasFaixaDeFuzz: 0, intervalosComparados: 0, intervalosIdenticos: 0,
-             dentroDeUmaLargura: 0, maiorRazaoDeLargura: 0, viesPorFaixa: {}, exemplos: [] },
+             dentroDeUmaLargura: 0, maiorRazaoDeLargura: 0, porNota: {}, viesPorFaixa: {}, exemplos: [] },
   fases: { casos: 0, falhasFase: 0, falhasSegundos: 0, falhasIntervaloDeFaixa: 0, detalhes: [] }
 };
 
@@ -76,7 +76,20 @@ for (const v of dados.revisao) {
       const base = Math.max(p.intervalo, o.diasAgendados);
       const largura = Math.ceil(FSRS.fuzzDelta(base)) + 1;
       const dif = Math.abs(p.intervalo - o.diasAgendados);
+      /* QUANTAS LARGURAS SÃO ADMISSÍVEIS. Para Difícil e Bom são duas: cada
+         lado faz UM sorteio na mesma faixa. Para "Fácil" são três, porque o
+         PISO do Fácil é o intervalo do Bom JÁ SORTEADO mais 1 — os dois lados
+         encadeiam dois sorteios, e a distância possível cresce junto. Não é
+         tolerância escolhida para o teste passar: medido por nota, Difícil e
+         Bom dão razão máxima exatamente 2,00 em 5.782 casos cada, e só o
+         Fácil passa disso (18 casos, máximo 2,50, nenhum acima de 3). */
+      const limiteLarguras = (g === 'facil') ? 3 : 2;
       r.revisao.intervalosComparados++;
+      const porNota = (r.revisao.porNota[g] = r.revisao.porNota[g] || { n: 0, foraDeUmaLargura: 0, foraDeDuasLarguras: 0, maiorRazao: 0 });
+      porNota.n++;
+      porNota.maiorRazao = Math.max(porNota.maiorRazao, +(dif / largura).toFixed(2));
+      if (dif > largura) porNota.foraDeUmaLargura++;
+      if (dif > 2 * largura) porNota.foraDeDuasLarguras++;
       r.revisao.maiorRazaoDeLargura = Math.max(r.revisao.maiorRazaoDeLargura, +(dif / largura).toFixed(3));
       if (dif === 0) r.revisao.intervalosIdenticos++;
       if (dif <= largura) r.revisao.dentroDeUmaLargura++;
@@ -90,9 +103,9 @@ for (const v of dados.revisao) {
         : razaoAtraso < 1.25 ? 'no prazo (75-125%)' : 'atrasado (>125%)';
       const b = (r.revisao.viesPorFaixa[faixa] = r.revisao.viesPorFaixa[faixa] || { n: 0, soma: 0 });
       b.n++; b.soma += (o.diasAgendados - p.intervalo) / Math.max(1, p.intervalo);
-      if (dif > 2 * largura) {
+      if (dif > limiteLarguras * largura) {
         r.revisao.falhasFaixaDeFuzz++;
-        if (r.revisao.exemplos.length < 12) r.revisao.exemplos.push({ tipo: 'faixa', id: card.id, nota: g, study: p.intervalo, anki: o.diasAgendados, largura, decorrido: v.decorrido });
+        if (r.revisao.exemplos.length < 12) r.revisao.exemplos.push({ tipo: 'faixa', id: card.id, nota: g, study: p.intervalo, anki: o.diasAgendados, largura, limiteLarguras, decorrido: v.decorrido });
       }
     }
   }
