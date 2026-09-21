@@ -73,6 +73,21 @@ try {
   erro('configuracao invalida ainda torna cards inagendaveis:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
+// ── 3a. regressões reproduzidas pela auditoria 6.000 × 365 ─────────────────
+console.log('\n3a) cards: regressões Anki + simulação de 6.000 cards por 365 dias');
+for (const [rotulo, arquivo] of [
+  ['29 casos funcionais da auditoria', 'functions.mjs'],
+  ['simulacao anual FSRS/SM-2', 'simulate.mjs']
+]) {
+  try {
+    execFileSync(process.execPath, [join(RAIZ, 'audit', 'cards-20260921', arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
+    ok(rotulo);
+  } catch (e) {
+    const detalhe = (String(e.stdout || '') + String(e.stderr || '')).slice(-16000);
+    erro(rotulo + ' falhou:\n' + detalhe);
+  }
+}
+
 /* ── 3b. FIDELIDADE DA IMPORTACAO DO TEC ───────────────────────────────────
    A importacao e a fonte de todo numero do Desempenho TEC e do Plano: um erro
    de contagem ali erra o dominio, a fila de ataque, o custo e a nota projetada
