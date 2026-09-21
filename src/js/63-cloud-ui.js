@@ -439,6 +439,10 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   });
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
   window.addEventListener('online', () => {
+    if (window.ProfileUI) {
+      ProfileUI._offline = false;
+      if (ProfileUI.isGateOpen && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+    }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     CloudStore.syncOnFocus();
   });
