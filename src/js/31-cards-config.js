@@ -12,6 +12,7 @@ const CardsConfig = {
     algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null,
     loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200,
     maxInterval: 36500, leechThreshold: 8, leechAction: 'tag', rolloverHour: 4,
+    buryNewSiblings: true, buryReviewSiblings: true,
     /* Ordem em que as revisões vencidas são apresentadas. O padrão segue a
        direção que o Anki sinalizou adotar: menor retrievability primeiro, ou
        seja, revisar antes o que está mais perto de ser esquecido. Com fila em
@@ -19,8 +20,8 @@ const CardsConfig = {
        Alternativas: 'vencimento' (mais atrasado antes) e 'aleatoria'. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
        Os nomes seguem os oficiais para a equivalência ser rastreável.
-       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
-       TEMPLATES, que não existem neste app (cada card é independente). */
+       Templates complexos continuam fora do escopo. Pares normal↔invertido,
+       porém, agora são tratados como irmãos e podem ser enterrados como no Anki. */
 
     // ReviewCardOrder — em que ordem as revisões vencidas são apresentadas.
     // Padrão 'retrievabilityAsc': o mais perto de ser esquecido vem primeiro.
@@ -146,6 +147,8 @@ const CardsConfig = {
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    c.buryNewSiblings = c.buryNewSiblings !== false;
+    c.buryReviewSiblings = c.buryReviewSiblings !== false;
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
      'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {
