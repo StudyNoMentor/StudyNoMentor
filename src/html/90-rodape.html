@@ -1,6 +1,8 @@
 </script>
 
-<!-- ESTADO LOCAL: SOMENTE MEMÓRIA. Supabase relacional = fonte persistente. -->
+<!-- ESTADO LOCAL: projeção em memória. Supabase relacional = fonte de verdade.
+     Exceção de segurança: um outbox pequeno e IndexedDB por registro guardam
+     mutações ainda não confirmadas, sem virar fonte canônica. -->
 <script>
 (function () {
   'use strict';
@@ -13,7 +15,9 @@
 
   function invalidate() { keysCache = null; }
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
-  function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
+  var DURABLE_PREFIX = 'diario-estudos:__durable_outbox__:';
+  function isSafetyKey(k) { return String(k || '').indexOf(DURABLE_PREFIX) === 0; }
+  function isMemoryKey(k) { return isStudyKey(k) && k !== THEME && !isSafetyKey(k); }
 
   /* A projeção de estudo começa VAZIA em toda abertura.
      Nenhuma chave antiga do navegador é adotada: depois da migração relacional,
@@ -99,14 +103,15 @@
   window.__idbFlush = function () { return Promise.resolve(); };
   window.__idbFlushStrict = function () { return Promise.resolve({ ok: true, relational: true, pending: 0 }); };
 
-  /* Limpa cópias persistentes antigas do namespace. O tema fica como cache visual. */
+  /* Limpa cópias persistentes antigas do namespace. O tema e o outbox WAL
+     ficam: o primeiro é cache visual; o segundo protege mutações sem ACK. */
   setTimeout(function () {
     if (!nativeLS) return;
     try {
       var apagar = [];
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i);
-        if (k && isStudyKey(k) && k !== THEME) apagar.push(k);
+        if (k && isStudyKey(k) && k !== THEME && !isSafetyKey(k)) apagar.push(k);
       }
       apagar.forEach(function (k) { try { nativeLS.removeItem(k); } catch (_) {} });
     } catch (_) {}
