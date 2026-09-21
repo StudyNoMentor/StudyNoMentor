@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0743b10cd9">
+<meta name="diario-versao" content="vea961e1756">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -27719,8 +27719,15 @@ const CardsScreen = {
     /* `novos` precisa ser reatribuível: o modo 'materiaRodizio' constrói uma
        lista intercalada nova em vez de ordenar no lugar. Com `const` isso
        lançava TypeError e derrubava a montagem da fila inteira. */
-    let novos = []; const revisoes = [], aprend = [];
-    due.forEach(c => { const b = this._bucket(c); if (b === 'new') novos.push(c); else if (b === 'review') revisoes.push(c); else aprend.push(c); });
+    let novos = []; const revisoes = [], aprendAgora = [], aprendDia = [];
+    due.forEach(c => {
+      const b = this._bucket(c);
+      if (b === 'new') novos.push(c);
+      else if (b === 'review') revisoes.push(c);
+      else if (c.dueTs) aprendAgora.push(c); // intradiário: prioridade absoluta
+      else aprendDia.push(c);                // cruzou a virada: conta como review
+    });
+    aprendAgora.sort((a, b) => Number(a.dueTs || 0) - Number(b.dueTs || 0));
     /* ── ORDEM DAS REVISÕES ───────────────────────────────────────────────────
        Ordena ANTES de aplicar o limite: com acúmulo, quais 200 revisões entram
        importa tanto quanto a ordem em que aparecem.
@@ -27806,11 +27813,44 @@ const CardsScreen = {
        entrada de conteúdo novo por semanas — o usuário só apaga incêndio e
        nunca avança. 0 = desligado (comportamento anterior). */
     const pisoNovos = Math.max(0, cfgQ.newPerDayMinimum || 0);
-    const haAcumulo = revisoes.length > revRem;      // limite de revisões estourado
-    const newRemEfetivo = (pisoNovos > 0 && haAcumulo)
-      ? Math.max(newRem, Math.min(pisoNovos, novos.length))
-      : newRem;
-    const novosLim = novos.slice(0, newRemEfetivo), revLim = revisoes.slice(0, revRem);
+    const haAcumulo = (revisoes.length + aprendDia.length) > revRem;
+    // Anki: por padrão, quando o limite de review já foi atingido, novos param.
+    // newPerDayMinimum continua sendo a exceção explícita para garantir avanço.
+    const bloqueiaNovosPorReview = !cfgQ.newCardsIgnoreReviewLimit && revRem <= 0;
+    let newRemEfetivo = bloqueiaNovosPorReview ? 0 : newRem;
+    if (pisoNovos > 0 && haAcumulo) newRemEfetivo = Math.max(newRemEfetivo, Math.min(pisoNovos, novos.length));
+
+    const deckKey = (card) => card.deckId == null ? '__sem_baralho__' : String(card.deckId);
+    const limitarPorDeck = (lista, limiteGlobal, kind, usados) => {
+      const out = [], used = usados || new Map();
+      for (const card of lista) {
+        if (out.length >= limiteGlobal) break;
+        const k = deckKey(card);
+        const remDeck = kind === 'new'
+          ? CardsConfig.newRemainingForDeck(card.deckId)
+          : CardsConfig.revRemainingForDeck(card.deckId);
+        const ja = used.get(k) || 0;
+        if (ja >= remDeck) continue;
+        if (kind === 'new') {
+          const dc = CardsConfig.forDeck(card.deckId);
+          if (!dc.newCardsIgnoreReviewLimit && CardsConfig.revRemainingForDeck(card.deckId) <= 0
+              && Math.max(0, dc.newPerDayMinimum || 0) <= ja) continue;
+        }
+        out.push(card); used.set(k, ja + 1);
+      }
+      return { out, used };
+    };
+
+    const novosSel = limitarPorDeck(novos, newRemEfetivo, 'new');
+    const novosLim = novosSel.out;
+
+    // Interday learning compartilha o MESMO teto de revisões do Anki. Reservamos
+    // primeiro esses cards já iniciados; reviews ocupam apenas o saldo.
+    const revUsed = new Map();
+    const aprendSel = limitarPorDeck(aprendDia, revRem, 'review', revUsed);
+    const aprendDiaLim = aprendSel.out;
+    const revSel = limitarPorDeck(revisoes, Math.max(0, revRem - aprendDiaLim.length), 'review', aprendSel.used);
+    const revLim = revSel.out;
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
@@ -27861,7 +27901,10 @@ const CardsScreen = {
        Quem quiser acaso escolhe 'Aleatória' nas opções. */
     let corpo = revLim.slice();
     corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
-    corpo = aplicarMix(aprend.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    corpo = aplicarMix(aprendDiaLim.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    // Passos intradiários vencidos precedem review/new para respeitar o atraso
+    // configurado o mais de perto possível (regra explícita do Anki).
+    corpo = aprendAgora.concat(corpo);
     const queue = corpo.map(c => c.id);
     CardEngine._intercalar = intercalar;
     // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
@@ -27870,7 +27913,7 @@ const CardsScreen = {
       .sort((a, b) => a.dueTs - b.dueTs);
     this._queueMeta = {
       bloqueadosNovos: Math.max(0, novos.length - novosLim.length),
-      bloqueadosRev: Math.max(0, revisoes.length - revLim.length),
+      bloqueadosRev: Math.max(0, revisoes.length + aprendDia.length - revLim.length - aprendDiaLim.length),
       proximoTs: pendentes.length ? pendentes[0].dueTs : null,
       pendentes: pendentes.length,
       suspensos: this.currentFilteredCards().filter(c => c.suspenso).length
@@ -27883,7 +27926,7 @@ const CardsScreen = {
   _learnAheadQueue() {
     const limite = Date.now() + this.LEARN_AHEAD_MIN * 60000;
     return this.currentFilteredCards()
-      .filter(c => !c.suspenso && c.dueTs && c.dueTs > Date.now() && c.dueTs <= limite)
+      .filter(c => !c.suspenso && !CardEngine.estaEnterrado(c) && c.dueTs && c.dueTs > Date.now() && c.dueTs <= limite)
       .sort((a, b) => a.dueTs - b.dueTs)
       .map(c => c.id);
   },
@@ -29035,10 +29078,12 @@ const CardsScreen = {
   exportAnki() {
     const cards = DB.getCards();
     if (cards.length === 0) { showToast('Nenhum card para exportar'); return; }
-    // TSV: Frente \t Verso \t Tags (matéria/assunto/matéria-tec/tipo viram tags)
+    // TSV HTML do Anki: não achata o conteúdo rico. <img>, <audio>, cloze e
+    // formatação precisam sobreviver ao round-trip.
+    const campo = (html) => String(html || '').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
     const lines = cards.map(c => {
-      const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
-      const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
+      const front = campo(c.frente);
+      const back = campo(c.verso);
       const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.materiaTec, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
       return `${front}\t${back}\t${tags}`;
     });
@@ -29048,7 +29093,7 @@ const CardsScreen = {
     $id('cards-export-modal').style.display = 'none';
   },
   exportJson() {
-    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 1, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards() };
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 2, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards(), revlog: DB.getRevlog() };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Backup exportado ✓');
     $id('cards-export-modal').style.display = 'none';
@@ -29076,7 +29121,7 @@ const CardsScreen = {
       if (/\.json$/i.test(file.name)) {
         try {
           const obj = jsonSeguro(text);   // mesmo motivo do import de perfil
-          if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [] };
+          if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [], revlog: Array.isArray(obj.revlog) ? obj.revlog : [] };
           else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
         } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }
       } else {
@@ -29092,15 +29137,60 @@ const CardsScreen = {
     reader.readAsText(file);
   },
   parseAnkiText(text) {
-    const out = [];
-    String(text || '').split(/\r?\n/).forEach(line => {
-      if (!line.trim() || line.trim().startsWith('#')) return; // ignora comentários/cabeçalhos do Anki
-      const sep = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : (line.includes(',') ? ',' : '\t'));
-      const cols = line.split(sep);
-      if (cols.length < 2) return;
-      out.push({ frente: cols[0].trim(), verso: cols[1].trim(), tags: (cols[2] || '').trim() });
-    });
-    return out;
+    const src = String(text || '');
+    const rawLines = src.split(/\r?\n/);
+    let sep = null;
+    for (const line of rawLines) {
+      const m = /^#separator:(.+)$/i.exec(line.trim());
+      if (!m) continue;
+      const v = m[1].trim().toLowerCase();
+      sep = v === 'tab' ? '\t' : (v === 'comma' ? ',' : (v === 'semicolon' ? ';' : m[1]));
+      break;
+    }
+    const dataLines = rawLines.filter(line => !line.trim().startsWith('#'));
+    if (!sep) {
+      const probe = dataLines.find(line => line.trim()) || '';
+      const countOutsideQuotes = (ch) => {
+        let n = 0, q = false;
+        for (let i = 0; i < probe.length; i++) {
+          if (probe[i] === '"') {
+            if (q && probe[i + 1] === '"') { i++; continue; }
+            q = !q; continue;
+          }
+          if (!q && probe[i] === ch) n++;
+        }
+        return n;
+      };
+      sep = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]]
+        .sort((a, b) => b[1] - a[1])[0][0];
+    }
+
+    const data = dataLines.join('\n');
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    const pushRow = () => {
+      row.push(field); field = '';
+      if (row.length >= 2 && row.some(x => String(x).trim())) {
+        rows.push({ frente: String(row[0] || '').trim(), verso: String(row[1] || '').trim(), tags: String(row[2] || '').trim() });
+      }
+      row = [];
+    };
+    for (let i = 0; i < data.length; i++) {
+      const ch = data[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (data[i + 1] === '"') { field += '"'; i++; }
+          else quoted = false;
+        } else field += ch;
+        continue;
+      }
+      if (ch === '"' && field.length === 0) { quoted = true; continue; }
+      if (ch === sep) { row.push(field); field = ''; continue; }
+      if (ch === '\n') { pushRow(); continue; }
+      if (ch !== '\r') field += ch;
+    }
+    if (field.length || row.length) pushRow();
+    return rows;
   },
   doImport() {
     if (!this._importParsed) { showToast('Escolha um arquivo primeiro'); return; }
@@ -29110,15 +29200,49 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) materia = dest.slice(4);
     let count = 0;
     if (this._importParsed.kind === 'json') {
-      // recria baralhos ausentes por nome
+      // Backup JSON é restauração de ESTADO, não mera recriação de conteúdo.
+      // Mantém fase, dueTs, S/D, intervalos, lapsos, flags e demais metadados.
       const backupDecks = this._importParsed.decks || [];
-      const idMap = {};
-      backupDecks.forEach(bd => { const nd = DB.addDeck(bd.nome); if (nd) idMap[bd.id] = nd.id; });
-      this._importParsed.cards.forEach(c => {
-        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, assunto: c.assunto || '', materiaTec: c.materiaTec || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
-        count++;
+      const atuaisDecks = DB.getDecks();
+      const idMapDeck = {};
+      backupDecks.forEach(bd => {
+        let nd = atuaisDecks.find(d => String(d.nome || '') === String(bd.nome || ''));
+        if (!nd) { nd = DB.addDeck(bd.nome); if (nd) atuaisDecks.push(nd); }
+        if (nd) idMapDeck[String(bd.id)] = nd.id;
       });
-    } else {
+
+      const existentes = DB.getCards();
+      const usados = new Set(existentes.map(x => String(x.id)));
+      const idMapCard = {};
+      this._importParsed.cards.forEach(src => {
+        const old = src && src.id != null ? String(src.id) : '';
+        let nid = old && !usados.has(old) ? src.id : DB._uid();
+        while (usados.has(String(nid))) nid = DB._uid();
+        usados.add(String(nid));
+        if (old) idMapCard[old] = nid;
+      });
+      const restaurados = this._importParsed.cards.map(src => {
+        const old = src && src.id != null ? String(src.id) : '';
+        const x = Object.assign({}, src || {});
+        x.id = old && Object.prototype.hasOwnProperty.call(idMapCard, old) ? idMapCard[old] : DB._uid();
+        x.deckId = deckId || (x.deckId != null && idMapDeck[String(x.deckId)] != null ? idMapDeck[String(x.deckId)] : x.deckId || null);
+        x.materia = materia || x.materia || null;
+        if (x.reversedOf != null && idMapCard[String(x.reversedOf)] != null) x.reversedOf = idMapCard[String(x.reversedOf)];
+        return x;
+      });
+      DB.saveCards(existentes.concat(restaurados));
+      DB.sanitizeCardsInPlace();
+
+      const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
+      if (logs.length) {
+        const mapped = logs.map(r => {
+          const x = Object.assign({}, r);
+          if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
+          return x;
+        });
+        DB._set(DB.KEYS.revlog, DB.getRevlog().concat(mapped));
+      }
+      count = restaurados.length;    } else {
       this._importParsed.rows.forEach(r => {
         DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
         count++;
