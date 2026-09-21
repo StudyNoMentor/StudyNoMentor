@@ -1,0 +1,39 @@
+name: Verify StudyNoMentor
+
+on:
+  push:
+    branches:
+      - main
+      - 'fix/**'
+      - 'audit/**'
+      - 'cleanup/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install test dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Verify generated files
+        run: node build.mjs --check
+      - name: Full verification
+        run: node verificar.mjs
