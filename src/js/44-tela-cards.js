@@ -1688,14 +1688,21 @@ const CardsScreen = {
 
       const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
       if (logs.length) {
+        const atuaisLogs = DB.getRevlog();
+        const lastLog = atuaisLogs.length ? atuaisLogs[atuaisLogs.length - 1] : null;
+        let pos = Math.max(atuaisLogs.length, Number(lastLog && lastLog._position) || 0);
         const mapped = logs.map(r => {
           const x = Object.assign({}, r);
           if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
+          // Rebaseia a posição ao anexar o backup a uma coleção existente.
+          // Evita colisões no caminho incremental do Supabase após a importação.
+          x._position = ++pos;
           return x;
         });
-        DB._set(DB.KEYS.revlog, DB.getRevlog().concat(mapped));
+        DB._set(DB.KEYS.revlog, atuaisLogs.concat(mapped));
       }
-      count = restaurados.length;    } else {
+      count = restaurados.length;
+    } else {
       this._importParsed.rows.forEach(r => {
         DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
         count++;
