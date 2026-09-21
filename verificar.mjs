@@ -974,6 +974,35 @@ try {
       ? ok('reconexao reenvia a outbox antes do pull e confirma o card')
       : erro('replay da outbox falhou: '+JSON.stringify({replay,cardReplay}));
 
+    api.estado.falhaForcada=(req,url)=>
+      req.method==='POST' && /\/rest\/v1\/rpc\/mutate_study_plan_rows$/.test(url.pathname);
+    const deleteOffline=await pg.evaluate(async () => {
+      DB.deleteEntry('e-sql-2');
+      await LocalDurable.flush();
+      await RelationalStore.settle();
+      const sujas=await LocalDurable.listDirty(CloudStore.session.user.id);
+      const x=sujas.find(r=>r.kind==='kv'&&/:entries$/.test(r.key||''));
+      return {
+        local:(DB.getEntries()||[]).length,
+        temDirty:!!x,
+        oldTemRegistro:!!(x&&x.oldValue&&String(x.oldValue).includes('e-sql-2')),
+        falhou:RelationalStore.hasFailures()
+      };
+    });
+    deleteOffline.local===0 && deleteOffline.temDirty && deleteOffline.oldTemRegistro && deleteOffline.falhou
+      ? ok('exclusao offline preserva a base anterior da colecao normalizada')
+      : erro('base da exclusao offline se perdeu: '+JSON.stringify(deleteOffline));
+    api.estado.falhaForcada=null;
+    await pg.evaluate(async () => {
+      await RelationalStore.replayDurable();
+      await RelationalStore.flush();
+    });
+    const entryDepoisOffline=api.estado.tabelas.study_entries.filter((x)=>
+      x.profile_id===criacao.id&&x.entry_id==='e-sql-2');
+    entryDepoisOffline.length===0
+      ? ok('replay offline remove tambem a linha apagada no PostgreSQL')
+      : erro('replay offline deixou registro removido no banco: '+JSON.stringify(entryDepoisOffline));
+
     const lease1=await pg.evaluate(async ({pid,plan}) =>
       RelationalStore.ensureReviewLease(pid,plan,{force:true}),{pid:criacao.id,plan:criacao.plan});
     const lease2=await pg.evaluate(async ({pid,plan}) => {
