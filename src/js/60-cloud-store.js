@@ -246,6 +246,8 @@ const CloudStore = {
 
   async saveActive() {
     if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+    if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+    if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
     await RelationalStore.flush();
     this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
     return { relational: true };
@@ -261,6 +263,8 @@ const CloudStore = {
     if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
     this._syncing = true;
     try {
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
       await RelationalStore.flush();
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
       return true;
@@ -280,7 +284,7 @@ const CloudStore = {
   },
 
   _beaconSave() {
-    /* Não existe dado de estudo persistente no navegador para descarregar. */
+    /* A outbox já é durável no IndexedDB a cada mutação; não há blob a descarregar. */
   },
 
   async syncOnFocus() {
@@ -289,6 +293,8 @@ const CloudStore = {
       ? ProfileManager.getActiveProfileId() : null;
     if (!id) return false;
     try {
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
       await RelationalStore.flush();
       await RelationalStore.catchUp(id, 'focus');
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
@@ -308,7 +314,9 @@ const CloudStore = {
     const id = window.ProfileManager && ProfileManager.getActiveProfileId
       ? ProfileManager.getActiveProfileId() : null;
     try {
-      if (window.CloudUI) CloudUI.setStatus('syncing', 'Consultando banco…');
+      if (window.CloudUI) CloudUI.setStatus('syncing', 'Enviando pendências…');
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
       await RelationalStore.flush();
       if (id) await RelationalStore.catchUp(id, 'manual');
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
@@ -326,12 +334,17 @@ const CloudStore = {
     const id = window.ProfileManager && ProfileManager.getActiveProfileId
       ? ProfileManager.getActiveProfileId() : null;
     if (!id || !window.RelationalStore) return false;
+    if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+    if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
+    await RelationalStore.flush();
     return RelationalStore.catchUp(id, (opts && opts.reason) || 'pull');
   },
 
   async saveThenReload() {
     try {
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
       if (this.isReady() && this.isLoggedIn() && window.RelationalStore) {
+        if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
         await RelationalStore.flush();
       }
     } catch (e) {
