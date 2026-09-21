@@ -837,7 +837,7 @@
   .gauge.tone-good .fill { stroke: var(--good); }
   .gauge.tone-warn .fill { stroke: var(--warn); }
   .gauge.tone-bad .fill { stroke: var(--bad); }
-  .gauge-text { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .gauge-text { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 56px; max-width: 56px; text-align: center; }
   .gauge-text .pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-md); color: var(--text); line-height: 1; }
   .gauge-text .pct::after { content: '%'; font-size: var(--fs-3xs); margin-left: 1px; }
   .gauge-text .label { font-size: var(--fs-3xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; }
