@@ -701,7 +701,10 @@ const DB = {
     // de 8.000 apagava silenciosamente quase todo um ano de uso e inviabilizava
     // otimização/estatísticas FSRS. A persistência relacional cuida da escala.
     const l = this.getRevlog();
-    const pos = l.reduce((m, r, i) => Math.max(m, Number(r && r._position) || (i + 1)), 0) + 1;
+    // Posição monotônica em O(1): o histórico pode passar de centenas de
+    // milhares de linhas, então varrer todo o array a cada resposta seria O(n²).
+    const last = l.length ? l[l.length - 1] : null;
+    const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
     l.push(Object.assign({ _position: pos }, entry));
     this._set(this.KEYS.revlog, l);
   },
