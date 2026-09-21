@@ -1,9 +1,10 @@
 /* ============================================================
    CLOUD STORE — autenticação + fachada da persistência relacional
    ------------------------------------------------------------
-   O PostgreSQL relacional é a única fonte persistente dos dados de estudo.
-   CloudStore mantém apenas autenticação, metadados de perfis e a API pública
-   usada pelas telas. Leituras/escritas do estudo delegam ao RelationalStore.
+   O PostgreSQL relacional é a fonte canônica compartilhada dos dados de estudo.
+   O IndexedDB mantém cache/outbox duráveis neste aparelho para uso offline.
+   CloudStore coordena autenticação e garante outbox→PostgreSQL→pull, enquanto
+   as leituras/escritas relacionais delegam ao RelationalStore.
    ============================================================ */
 const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
