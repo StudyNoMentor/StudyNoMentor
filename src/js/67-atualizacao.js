@@ -93,40 +93,48 @@ const Atualizacao = {
     if (this._barra) { this._barra.remove(); this._barra = null; }
   },
 
-  /* Antes de qualquer reload, a única barreira de durabilidade é o SQL.
-     Se o PostgreSQL não confirmar, a atualização é cancelada. */
+  /* Antes de qualquer reload, a barreira primária é o IndexedDB durável.
+     PostgreSQL é confirmado quando a rede permite; pendências remotas ficam na outbox. */
   async _entregarPendencias(limiteMs) {
     const CS = window.CloudStore;
     const RS = window.RelationalStore;
-    /* ── SEM SESSÃO NÃO HÁ O QUE O BANCO CONFIRMAR ──────────────────────────
-       A fila do RelationalStore só recebe trabalho quando isReady() é
-       verdadeiro, ou seja, com sessão ativa. Tratar "sem sessão" como "não
-       entregue" invertia a barreira: ela existe para não perder alteração
-       pendente, mas passava a CANCELAR a atualização justamente onde não
-       existe alteração nenhuma — a tela de login. Quem estava deslogado via
-       "Banco ainda não confirmou" a cada tentativa e nunca conseguia sair da
-       versão antiga, que é exatamente quem mais precisa da versão nova para
-       conseguir entrar. É o mesmo critério que recarregarApp() em 10-infra.js
-       já usava: só cobra o banco quando há conexão. */
-    if (!RS) return true;
-    const comSessao = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn && CS.isLoggedIn());
-    if (!comSessao) {
-      // Sessão pode ter caído com a fila cheia: aí ainda há o que perder.
-      try { return typeof RS.pendingCount === 'function' ? RS.pendingCount() === 0 : true; }
-      catch (_) { return true; }
-    }
     const limite = Math.max(1000, Number(limiteMs) || 8000);
     let timer = null;
     try {
+      /* A primeira barreira agora é LOCAL e durável. Se a internet caiu, basta
+         o IndexedDB confirmar: a outbox sobrevive ao reload e será reenviada
+         antes de qualquer pull quando a conexão voltar. */
+      if (window.LocalDurable && LocalDurable.flush) {
+        await Promise.race([
+          LocalDurable.flush(),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('timeout-idb-update')), limite);
+          })
+        ]);
+        if (timer) { clearTimeout(timer); timer = null; }
+      }
+
+      if (!RS) return true;
+      const comSessao = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn && CS.isLoggedIn());
+      if (!comSessao) return true;
+
       await Promise.race([
-        RS.flush(),
+        (async () => {
+          if (RS.replayDurable) await RS.replayDurable();
+          await RS.flush();
+        })(),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error('timeout-sql-update')), limite);
         })
       ]);
-      return RS.pendingCount() === 0 && !RS._lastError;
+      return RS.pendingCount() === 0 && !(RS.hasFailures && RS.hasFailures());
     } catch (e) {
-      _quiet(e, 'upd-flush-sql');
+      _quiet(e, 'upd-flush-durable');
+      /* Se o SQL falhou, mas o IndexedDB já confirmou, o reload continua
+         seguro. Só bloqueamos quando a camada LOCAL não conseguiu persistir. */
+      try {
+        if (window.LocalDurable && LocalDurable.pendingCount && LocalDurable.pendingCount() === 0) return true;
+      } catch (_) {}
       return false;
     } finally {
       if (timer) clearTimeout(timer);
@@ -146,7 +154,7 @@ const Atualizacao = {
     if (!entregue) {
       this._trocando = false;
       await UI.alert(
-        'A atualização foi cancelada porque o banco ainda não confirmou todas as alterações. Nada será descartado da memória. Tente novamente quando a conexão estiver normal.',
+        'A atualização foi cancelada porque este aparelho ainda não confirmou as alterações no armazenamento local. Nada será descartado; tente novamente.',
         { title: 'Banco ainda não confirmou' });
       return;
     }
