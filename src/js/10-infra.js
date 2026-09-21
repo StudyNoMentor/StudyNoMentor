@@ -88,7 +88,7 @@ window.__diag = function () {
     porTipo: Object.assign({}, _engolidos.porTipo),
     ultimos: _engolidos.ultimos.slice(-15),
     idsAusentes: Array.from(_idsAusentes),
-    armazenamento: (window.__memoryOnlyStore ? 'projeção em RAM + PostgreSQL' : 'modo inesperado'),
+    armazenamento: (window.__idbShim ? 'IndexedDB durável + PostgreSQL' : (window.__memoryOnlyStore ? 'projeção em RAM + PostgreSQL' : 'modo inesperado')),
     cards: (function () { try { return DB.getCards().length; } catch (_) { return '?'; } })(),
     revisoes: (function () { try { return (DB.getRevlog() || []).length; } catch (_) { return '?'; } })()
   };
@@ -159,12 +159,16 @@ function recarregarApp(motivo, opts) {
   const ir = async () => {
     try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
     try {
+      /* Primeiro confirma o IndexedDB. Com isso, até um reload offline é
+         seguro: a outbox sobrevive e será reenviada antes do próximo pull. */
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
       const conectado = window.CloudStore && CloudStore.isReady && CloudStore.isReady() &&
         CloudStore.isLoggedIn && CloudStore.isLoggedIn();
       if (conectado) {
         if (!window.RelationalStore) throw new Error('camada relacional indisponível');
+        if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
         await RelationalStore.flush();
-        if (RelationalStore.pendingCount() !== 0 || RelationalStore._lastError) {
+        if (RelationalStore.pendingCount() !== 0 || (RelationalStore.hasFailures && RelationalStore.hasFailures())) {
           throw RelationalStore._lastError || new Error('operações SQL pendentes');
         }
       }
