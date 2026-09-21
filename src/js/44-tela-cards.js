@@ -1392,31 +1392,63 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
     return data;
   },
-  saveCard(closeAfter) {
+  async saveCard(closeAfter) {
+    if (this._savingCard) return;
     const data = this._readCardForm();
     if (!data) return;
+    this._savingCard = true;
     const reversed = data._reversed; delete data._reversed;
-    if (this._editingId) {
-      DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
-    } else {
-      const c = DB.addCard(data);
-      if (reversed) {
-        DB.addCard({ ...data, frente: data.verso, verso: data.frente, reversedOf: c.id });
-        showToast('2 cards criados (normal + invertido) ✓');
-      } else showToast('Card criado ✓');
-      if (closeAfter) this.closeCardModal();
-      else {
-        $id('card-frente').innerHTML = '';
-        $id('card-verso').innerHTML = '';
-        $id('card-frente').focus();
+    const editId = this._editingId;
+    const antes = editId ? JSON.parse(JSON.stringify(DB.getCard(editId) || null)) : null;
+    const criados = [];
+    try {
+      if (editId) {
+        if (DB.updateCard(editId, data) === false) throw new Error('card-edit-local');
+      } else {
+        const c = DB.addCard(data);
+        if (!c) throw new Error('card-create-local');
+        criados.push(c.id);
+        if (reversed) {
+          const inv = DB.addCard({ ...data, frente:data.verso, verso:data.frente, reversedOf:c.id });
+          if (!inv) throw new Error('card-reverse-local');
+          criados.push(inv.id);
+        }
       }
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+
+      if (editId) {
+        showToast('Card atualizado ✓');
+        this.closeCardModal();
+      } else {
+        showToast(reversed ? '2 cards criados (normal + invertido) ✓' : 'Card criado ✓');
+        if (closeAfter) this.closeCardModal();
+        else {
+          $id('card-frente').innerHTML = '';
+          $id('card-verso').innerHTML = '';
+          $id('card-frente').focus();
+        }
+      }
+      this.render();
+    } catch (e) {
+      console.error('[cards] falha ao salvar card', e);
+      try {
+        if (editId && antes) DB.updateCard(editId, antes);
+        else criados.slice().reverse().forEach(id => DB.deleteCard(id));
+        if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      } catch (rb) { _quiet(rb, 'card-save-rollback'); }
+      showToast('⚠ O card não foi confirmado neste aparelho. Tente novamente.');
+    } finally {
+      this._savingCard = false;
     }
-    this.render();
   },
   async deleteCard() {
     if (!this._editingId) return;
     if (!await UI.confirm('Excluir este card?')) return;
-    DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
+    const id=this._editingId;
+    if (DB.deleteCard(id) === false) { showToast('⚠ Não foi possível excluir o card.'); return; }
+    try { if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush(); }
+    catch (e) { showToast('⚠ A exclusão não foi confirmada neste aparelho.'); return; }
+    this.closeCardModal(); this.render(); showToast('Card excluído');
   },
 
   // ---- baralhos ----
