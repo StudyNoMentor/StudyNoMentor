@@ -708,10 +708,20 @@ const DB = {
   },
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
-  getCards() { return this._get(this.KEYS.cards, []); },
-  // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
-  // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
-  saveCards(list) { return this._set(this.KEYS.cards, list); },
+  getCards() {
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.getCards) {
+      return CardStore.getCards(this.KEYS.cards, () => this._get(this.KEYS.cards, []));
+    }
+    return this._get(this.KEYS.cards, []);
+  },
+  // Substituição INTEIRA continua existindo para importação/restauração e
+  // operações em lote. O caminho diário (add/update/delete) usa uma linha.
+  saveCards(list) {
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.replaceAll) {
+      return CardStore.replaceAll(this.KEYS.cards, list, (arr) => this._set(this.KEYS.cards, arr));
+    }
+    return this._set(this.KEYS.cards, list);
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
@@ -764,6 +774,11 @@ const DB = {
     }
     const pendentes = this._get(this.KEYS.revlogPendente, []);
     if (Array.isArray(pendentes)) fora.push(...pendentes);
+    try {
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingRows) {
+        fora.push(...ReviewOutbox.pendingRows(this.KEYS.revlog));
+      }
+    } catch (e) { _quiet(e, 'revlog-outbox-read'); }
     if (!fora.length) return Array.isArray(base) ? base : [];
     const vistas = new Set((Array.isArray(base) ? base : []).map(r => this._chaveRevisao(r)));
     const extras = fora.filter(r => { const k = this._chaveRevisao(r); if (vistas.has(k)) return false; vistas.add(k); return true; });
@@ -796,16 +811,25 @@ const DB = {
   },
   addRevlog(entry) {
     const l = this.getRevlog();
-    // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
+    // Posição local monotônica em O(1). Se dois aparelhos escolherem a mesma
+    // posição, queueRevlogAppend resolve a colisão atomicamente no PostgreSQL.
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
     const row = Object.assign({ _position: pos }, entry);
+    // WAL primeiro, RAM depois: fechar/recarregar a aba entre os dois não pode
+    // transformar uma resposta aceita em revisão perdida.
+    try {
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.append) {
+        if (!ReviewOutbox.append(this.KEYS.revlog, row)) return false;
+        l.push(row);
+        return true;
+      }
+    } catch (e) { _quiet(e, 'revlog-outbox-append'); return false; }
+    // Compatibilidade de emergência quando o módulo durável não carregou.
     l.push(row);
-    // 1) Banco relacional: UMA linha, não o histórico inteiro.
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
     } catch (e) { _quiet(e, 'revlog-append'); }
-    // 2) Rede de segurança local, do tamanho do lote.
     return this._guardarPendente(row);
   },
   _guardarPendente(row) {
@@ -833,12 +857,17 @@ const DB = {
     for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
     if (i < 0) return true;
     const removida = l[i];
+    try {
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.remove) {
+        if (!ReviewOutbox.remove(this.KEYS.revlog, removida)) return false;
+        l.splice(i, 1);
+        return true;
+      }
+    } catch (e) { _quiet(e, 'revlog-outbox-delete'); return false; }
     l.splice(i, 1);
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
     } catch (e) { _quiet(e, 'revlog-delete'); }
-    // Desfazer costuma retirar justamente a última linha, que está nos
-    // pendentes: nesse caso a remoção é do tamanho do lote.
     const pendentes = this._get(this.KEYS.revlogPendente, []);
     const lista = Array.isArray(pendentes) ? pendentes : [];
     const alvo = this._chaveRevisao(removida);
@@ -846,7 +875,12 @@ const DB = {
     if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
     return this.replaceRevlog(l);
   },
-  getCard(id) { return this.getCards().find(c => c.id === id) || null; },
+  getCard(id) {
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.getCard) {
+      return CardStore.getCard(this.KEYS.cards, id, () => this._get(this.KEYS.cards, []));
+    }
+    return this.getCards().find(c => c.id === id) || null;
+  },
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
@@ -859,6 +893,7 @@ const DB = {
       banca: (data.banca || '').trim(),
       tipo: data.tipo || '',
       kind: data.kind || 'basic',      // 'basic' | 'cloze'
+      noteId: data.noteId || null,       // irmãos (frente/verso) compartilham a nota
       reversedOf: data.reversedOf || null, // id do card original (cartão invertido)
       // Higienizado na ENTRADA: cobre o editor, a importação de .tsv/.json e
       // qualquer outro caminho que crie card. Ver sanitizeCardHtml().
@@ -893,7 +928,11 @@ const DB = {
       })(),
       createdAt: now, updatedAt: now
     };
-    list.push(card); this.saveCards(list); return card;
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.upsert) {
+      const salvo = CardStore.upsert(this.KEYS.cards, card, null, card, list.length, { kind: 'create' });
+      return salvo === false ? null : salvo;
+    }
+    list.push(card); return this.saveCards(list) === false ? null : card;
   },
   /* Campos que o agendador devolve para a TELA usar na mesma resposta e que não
      são estado do card: o rótulo do botão (_kind/_val) e o aviso de leech
@@ -912,19 +951,22 @@ const DB = {
     }
     return copia || patch;
   },
-  updateCard(id, patch) {
+  updateCard(id, patch, context) {
     const list = this.getCards(); const c = list.find(x => x.id === id);
+    if (!c) return null;
     patch = this._semTransitorios(patch);
-    // Só sanea quando o texto do card está de fato no patch — a maioria das
-    // chamadas é agendamento do FSRS (due, s, d, reps) e não toca em frente/verso.
     if (patch && ('frente' in patch || 'verso' in patch)) {
       patch = { ...patch };
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
-    // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
-    // CardsScreen.answer). Card inexistente continua devolvendo null.
+    const base = JSON.parse(JSON.stringify(c));
+    const next = Object.assign({}, c, patch || {}, { updatedAt: new Date().toISOString() });
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.upsert) {
+      const idx = list.indexOf(c);
+      return CardStore.upsert(this.KEYS.cards, next, base, patch || {}, idx, context || null);
+    }
+    Object.assign(c, next);
     return this.saveCards(list) === false ? false : c;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
@@ -952,12 +994,51 @@ const DB = {
      deles e continuava consumindo a cota de 20 novos do dia — cards que nem
      existiam mais ocupavam vaga na fila. */
   deleteCard(id) {
-    this.saveCards(this.getCards().filter(c => c.id !== id));
+    const list = this.getCards();
+    const c = list.find(x => x.id === id);
+    if (!c) return true;
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.remove) {
+      if (CardStore.remove(this.KEYS.cards, id, JSON.parse(JSON.stringify(c)), list.indexOf(c), { kind: 'delete' }) === false) return false;
+    } else if (this.saveCards(list.filter(x => x.id !== id)) === false) return false;
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
       this.replaceRevlog(l);
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
+    return true;
+  },
+  siblingCards(id) {
+    const list = this.getCards(), c = list.find(x => x.id === id);
+    if (!c) return [];
+    if (c.noteId) return list.filter(x => x.id !== c.id && x.noteId === c.noteId);
+    const raiz = c.reversedOf || c.id;
+    return list.filter(x => x.id !== c.id && (x.id === raiz || x.reversedOf === raiz));
+  },
+  burySiblings(id) {
+    const sibs = this.siblingCards(id), snapshots = [];
+    for (const s of sibs) {
+      snapshots.push({
+        id: s.id,
+        antes: {
+          enterradoAte: s.enterradoAte == null ? null : s.enterradoAte,
+          dueTs: s.dueTs == null ? null : s.dueTs,
+          dueTsAntesEnterrar: s.dueTsAntesEnterrar == null ? null : s.dueTsAntesEnterrar
+        }
+      });
+      if (this.buryCard(s.id) === false) return false;
+    }
+    return snapshots;
+  },
+  restoreSiblingBury(snapshots) {
+    for (const s of (snapshots || [])) {
+      const p = {
+        enterradoAte: s.antes && s.antes.enterradoAte,
+        dueTs: s.antes && s.antes.dueTs,
+        dueTsAntesEnterrar: s.antes && s.antes.dueTsAntesEnterrar
+      };
+      if (this.updateCard(s.id, p, { kind: 'undo-sibling-bury' }) === false) return false;
+    }
+    return true;
   },
   /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
      o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
