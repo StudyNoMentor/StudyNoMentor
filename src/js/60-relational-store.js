@@ -461,6 +461,7 @@ const RelationalStore = {
     }
     const d=await this._loadCoreBundle(profileId);
     this._applyCoreBundle(profileId,d,{preserveHeavy:!!opts.preserveHeavy});
+    if(window.LocalDurable&&LocalDurable.flush)await LocalDurable.flush();
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
     this._lastHydratedAt.set(profileId,Date.now());
@@ -944,7 +945,7 @@ const RelationalStore = {
     }
     const holder=this._reviewHolderId();
     const {data,error}=await CloudStore.client.rpc('claim_study_review_lease',{
-      p_profile_id:profileId,p_plan_id:String(planId),p_holder_id:holder,p_ttl_seconds:1800
+      p_profile_id:profileId,p_plan_id:String(planId),p_holder_id:holder,p_ttl_seconds:300
     });
     if(error) throw error;
     const d=data||{}, until=Date.parse(d.lease_until||'')||0;
