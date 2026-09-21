@@ -109,6 +109,7 @@ export function montarApiFalsa() {
     study_decks: [],
     study_cards: [],
     study_review_log: [],
+    study_review_leases: [],
     study_laws: [],
     study_law_keywords: [],
     study_links: [],
@@ -175,6 +176,15 @@ export function montarApiFalsa() {
     }
     if (tabela === 'active_sessions' && outras.some((l) => l.user_id === nova.user_id)) {
       return 'active_sessions_pkey';
+    }
+    if (tabela === 'study_review_log' && nova.review_id != null &&
+        outras.some((l) => l.profile_id === nova.profile_id && l.plan_id === nova.plan_id &&
+          l.review_id != null && String(l.review_id) === String(nova.review_id))) {
+      return 'study_review_log_review_id_uidx';
+    }
+    if (tabela === 'study_review_leases' &&
+        outras.some((l) => l.profile_id === nova.profile_id && l.plan_id === nova.plan_id)) {
+      return 'study_review_leases_pkey';
     }
     return null;
   }
@@ -248,6 +258,36 @@ export function montarApiFalsa() {
         max_change_id: max,
         tables: [...new Set(rows.map((x) => x.table_name).filter(Boolean))]
       }};
+    }
+
+    if (nome === 'claim_study_review_lease') {
+      const now = Date.now(), ttl = Math.max(60, Math.min(Number(a.p_ttl_seconds) || 600, 1800)) * 1000;
+      let lease = tabelas.study_review_leases.find((x) =>
+        x.profile_id === a.p_profile_id && String(x.plan_id) === String(a.p_plan_id));
+      if (!lease) {
+        lease = {
+          profile_id:a.p_profile_id, plan_id:String(a.p_plan_id),
+          holder_id:String(a.p_holder_id), lease_until:new Date(now + ttl).toISOString(), updated_at:AGORA()
+        };
+        tabelas.study_review_leases.push(lease);
+      } else if (lease.holder_id === String(a.p_holder_id) || Date.parse(lease.lease_until) <= now) {
+        lease.holder_id=String(a.p_holder_id);
+        lease.lease_until=new Date(now + ttl).toISOString();
+        lease.updated_at=AGORA();
+      }
+      return { status:200, corpo:{
+        acquired:lease.holder_id===String(a.p_holder_id) && Date.parse(lease.lease_until)>now,
+        holder_id:lease.holder_id, lease_until:lease.lease_until
+      }};
+    }
+
+    if (nome === 'release_study_review_lease') {
+      const antes=tabelas.study_review_leases.length;
+      tabelas.study_review_leases=tabelas.study_review_leases.filter((x) =>
+        !(x.profile_id===a.p_profile_id && String(x.plan_id)===String(a.p_plan_id) &&
+          x.holder_id===String(a.p_holder_id)));
+      estado.tabelas.study_review_leases=tabelas.study_review_leases;
+      return { status:200, corpo:tabelas.study_review_leases.length < antes };
     }
 
     const key = String(a.p_profile_id) + '\0' + String(a.p_section);
@@ -366,6 +406,11 @@ export function montarApiFalsa() {
     if (nome === 'replace_study_plan_rows') {
       if (!perfilEhDoUsuario(a.p_profile_id)) return erro(403,{code:'42501',message:'profile not owned by current user'});
       return { status:200, corpo:substituirPlano(a.p_table,a.p_profile_id,a.p_plan_id,a.p_rows || []) };
+    }
+
+    if (nome === 'replace_study_cards') {
+      if (!perfilEhDoUsuario(a.p_profile_id)) return erro(403,{code:'42501',message:'profile not owned by current user'});
+      return { status:200, corpo:substituirPlano('study_cards',a.p_profile_id,a.p_plan_id,a.p_rows || []) };
     }
 
     if (nome === 'replace_study_tec') {
