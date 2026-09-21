@@ -1699,7 +1699,7 @@ const CardsScreen = {
           x._position = ++pos;
           return x;
         });
-        DB._set(DB.KEYS.revlog, atuaisLogs.concat(mapped));
+        DB.replaceRevlog(atuaisLogs.concat(mapped));
       }
       count = restaurados.length;
     } else {
