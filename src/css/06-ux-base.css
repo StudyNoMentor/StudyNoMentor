@@ -999,6 +999,7 @@
 .reg-hbar { display: none; height: 12px; margin-top: 8px; border-radius: 8px;
   background: var(--surface-sunken); border: 1px solid var(--border); cursor: pointer; position: relative; }
 .reg-hbar.show { display: block; }
+.reg-hbar-top { margin-top: 0; margin-bottom: 8px; }
 .reg-hbar-thumb { position: absolute; top: 1px; bottom: 1px; left: 0; min-width: 40px;
   border-radius: 7px; background: var(--border-strong); cursor: grab; transition: background .12s ease; }
 .reg-hbar-thumb:hover { background: var(--text-faint); }

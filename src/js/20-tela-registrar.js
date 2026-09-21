@@ -320,58 +320,68 @@
   // sincronizada com o scroll da tabela, e arrastável. Aparece só quando há o que rolar.
   function setupRegHBar() {
     const sc = document.getElementById('reg-tbl-scroll');
-    const bar = document.getElementById('reg-hbar');
-    const thumb = document.getElementById('reg-hbar-thumb');
-    if (!sc || !bar || !thumb) return;
+    // duas barras (uma logo acima do filtro, outra abaixo da tabela): a tabela
+    // pode ter centenas de linhas e a barra de baixo fica longe demais para
+    // servir de atalho — a de cima resolve sem precisar descer até o fim.
+    const bars = [
+      { bar: document.getElementById('reg-hbar-top'), thumb: document.getElementById('reg-hbar-top-thumb') },
+      { bar: document.getElementById('reg-hbar'), thumb: document.getElementById('reg-hbar-thumb') }
+    ].filter(b => b.bar && b.thumb);
+    if (!sc || !bars.length) return;
     const sync = () => {
       const overflow = sc.scrollWidth - sc.clientWidth;
-      if (overflow <= 2) { bar.classList.remove('show'); return; }
-      bar.classList.add('show');
-      const ratio = sc.clientWidth / sc.scrollWidth;
-      const trackW = bar.clientWidth;
-      const thumbW = Math.max(40, Math.round(trackW * ratio));
-      const maxLeft = trackW - thumbW;
-      const left = overflow > 0 ? Math.round((sc.scrollLeft / overflow) * maxLeft) : 0;
-      thumb.style.width = thumbW + 'px';
-      thumb.style.transform = 'translateX(' + left + 'px)';
+      const has = overflow > 2;
+      bars.forEach(({ bar, thumb }) => {
+        bar.classList.toggle('show', has);
+        if (!has) return;
+        const ratio = sc.clientWidth / sc.scrollWidth;
+        const trackW = bar.clientWidth;
+        const thumbW = Math.max(40, Math.round(trackW * ratio));
+        const maxLeft = trackW - thumbW;
+        const left = overflow > 0 ? Math.round((sc.scrollLeft / overflow) * maxLeft) : 0;
+        thumb.style.width = thumbW + 'px';
+        thumb.style.transform = 'translateX(' + left + 'px)';
+      });
     };
     sc.addEventListener('scroll', sync, { passive: true });
     // recalcula quando a janela muda de tamanho (fica ligado a esta render)
     if (setupRegHBar._ro) setupRegHBar._ro.disconnect();
     if (window.ResizeObserver) { setupRegHBar._ro = new ResizeObserver(sync); setupRegHBar._ro.observe(sc); }
     else window.addEventListener('resize', sync);
-    // arrastar o thumb move a tabela
-    let dragging = false, startX = 0, startLeft = 0;
-    const onDown = (e) => {
-      dragging = true; startX = (e.touches ? e.touches[0].clientX : e.clientX);
-      startLeft = sc.scrollLeft; e.preventDefault();
-      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
-      document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp);
-    };
-    const onMove = (e) => {
-      if (!dragging) return;
-      const x = (e.touches ? e.touches[0].clientX : e.clientX);
-      const overflow = sc.scrollWidth - sc.clientWidth;
-      const trackW = bar.clientWidth; const thumbW = thumb.offsetWidth;
-      const maxLeft = trackW - thumbW;
-      const deltaPx = x - startX;
-      const deltaScroll = maxLeft > 0 ? (deltaPx / maxLeft) * overflow : 0;
-      sc.scrollLeft = startLeft + deltaScroll;
-      if (e.cancelable) e.preventDefault();
-    };
-    const onUp = () => {
-      dragging = false;
-      document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
-      document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp);
-    };
-    thumb.addEventListener('mousedown', onDown);
-    thumb.addEventListener('touchstart', onDown, { passive: false });
-    // clicar na trilha "salta" o scroll para a posição
-    bar.addEventListener('mousedown', (e) => {
-      if (e.target === thumb) return;
-      const rect = bar.getBoundingClientRect();
-      const rel = (e.clientX - rect.left) / rect.width;
-      sc.scrollLeft = rel * (sc.scrollWidth - sc.clientWidth);
+    // arrastar o thumb (de qualquer uma das duas barras) move a tabela
+    bars.forEach(({ bar, thumb }) => {
+      let dragging = false, startX = 0, startLeft = 0;
+      const onDown = (e) => {
+        dragging = true; startX = (e.touches ? e.touches[0].clientX : e.clientX);
+        startLeft = sc.scrollLeft; e.preventDefault();
+        document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp);
+      };
+      const onMove = (e) => {
+        if (!dragging) return;
+        const x = (e.touches ? e.touches[0].clientX : e.clientX);
+        const overflow = sc.scrollWidth - sc.clientWidth;
+        const trackW = bar.clientWidth; const thumbW = thumb.offsetWidth;
+        const maxLeft = trackW - thumbW;
+        const deltaPx = x - startX;
+        const deltaScroll = maxLeft > 0 ? (deltaPx / maxLeft) * overflow : 0;
+        sc.scrollLeft = startLeft + deltaScroll;
+        if (e.cancelable) e.preventDefault();
+      };
+      const onUp = () => {
+        dragging = false;
+        document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp);
+      };
+      thumb.addEventListener('mousedown', onDown);
+      thumb.addEventListener('touchstart', onDown, { passive: false });
+      // clicar na trilha "salta" o scroll para a posição
+      bar.addEventListener('mousedown', (e) => {
+        if (e.target === thumb) return;
+        const rect = bar.getBoundingClientRect();
+        const rel = (e.clientX - rect.left) / rect.width;
+        sc.scrollLeft = rel * (sc.scrollWidth - sc.clientWidth);
+      });
     });
     requestAnimationFrame(sync);
   }
@@ -482,6 +492,7 @@
         ${anyFilter ? '<button type="button" class="reg-filter-clear" id="reg-filter-clear">✕ Limpar filtros</button>' : ''}
       </div>
 
+      <div class="reg-hbar reg-hbar-top" id="reg-hbar-top" aria-hidden="true"><div class="reg-hbar-thumb" id="reg-hbar-top-thumb"></div></div>
       <div class="reg-tbl-scroll" id="reg-tbl-scroll">
         <table class="reg-tbl">
           <colgroup>
