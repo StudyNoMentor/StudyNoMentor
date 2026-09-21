@@ -23,10 +23,11 @@ const RelationalStore = {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
   pendingCount() {
-    let n = this._pending;
-    try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(); } catch (_) {}
-    try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(); } catch (_) {}
-    try { if (typeof GenericOutbox !== 'undefined' && GenericOutbox.pendingCount) n += GenericOutbox.pendingCount(); } catch (_) {}
+    let n = this._pending, profileId=null;
+    try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (_) {}
+    try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(profileId); } catch (_) {}
+    try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(profileId); } catch (_) {}
+    try { if (typeof GenericOutbox !== 'undefined' && GenericOutbox.pendingCount) n += GenericOutbox.pendingCount(profileId); } catch (_) {}
     return n;
   },
 
@@ -474,9 +475,9 @@ const RelationalStore = {
     try {
       if (typeof GenericOutbox !== 'undefined' && GenericOutbox.overlayPending) GenericOutbox.overlayPending(profileId);
       const jobs=[];
-      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll());
-      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll());
-      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll());
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll(profileId));
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll(profileId));
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll(profileId));
       if(jobs.length)await Promise.allSettled(jobs);
     } catch (e) { _quiet(e, 'durable-outbox-replay-hydrate'); }
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
@@ -505,10 +506,12 @@ const RelationalStore = {
   },
   async flush() {
     try {
+      let profileId=null;
+      try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (_) {}
       const jobs=[];
-      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll());
-      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll());
-      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll());
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll(profileId));
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll(profileId));
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll(profileId));
       if(jobs.length)await Promise.allSettled(jobs);
       if (typeof DurableStudyStore !== 'undefined' && DurableStudyStore.flush) await DurableStudyStore.flush();
     } catch (e) { _quiet(e, 'durable-outbox-replay-flush'); }
