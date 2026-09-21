@@ -291,6 +291,12 @@ const ProfileManager = {
       if (sub.indexOf(Lixeira.PREFIXO) === 0) continue;   // lixeira técnica não entra no arquivo exportado
       data[sub] = localStorage.getItem(k);
     }
+    // O revlog grande vive em RAM para não serializar 100k+ linhas a cada
+    // resposta. No momento do BACKUP, porém, ele precisa entrar uma vez no JSON.
+    try {
+      const rev = DB._exportRevlogMemoryForPrefix ? DB._exportRevlogMemoryForPrefix(prefix) : {};
+      Object.keys(rev).forEach(k => { data[k] = rev[k]; });
+    } catch (e) { _quiet(e, 'backup-revlog-memory'); }
     // não exporta o PIN (backup não deve carregar credencial); o usuário redefine se quiser
     const metaOut = { nome: meta.nome, avatar: meta.avatar, cor: meta.cor };
     return {
