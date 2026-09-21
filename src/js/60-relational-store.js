@@ -987,7 +987,10 @@ const RelationalStore = {
         else await this._persistProfileSetting(p.profileId,p.sub,item.value);
         return true;
       }
-      await this._persistPlanKey(p.profileId,p.planId,p.sub,null,item.value); return true;
+      await this._persistPlanKey(p.profileId,p.planId,p.sub,
+        Object.prototype.hasOwnProperty.call(item,'oldValue') ? item.oldValue : null,
+        item.value);
+      return true;
     }
     if(item.kind==='card'){
       if(!p||p.sub!=='cards')return true;
