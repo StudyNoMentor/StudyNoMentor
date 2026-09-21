@@ -19,8 +19,8 @@ const CardsConfig = {
        Alternativas: 'vencimento' (mais atrasado antes) e 'aleatoria'. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
        Os nomes seguem os oficiais para a equivalência ser rastreável.
-       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
-       TEMPLATES, que não existem neste app (cada card é independente). */
+       Pares frente↔verso agora compartilham uma nota (noteId), então o
+       enterro de irmãos também pode seguir a semântica do Anki. */
 
     // ReviewCardOrder — em que ordem as revisões vencidas são apresentadas.
     // Padrão 'retrievabilityAsc': o mais perto de ser esquecido vem primeiro.
@@ -50,6 +50,11 @@ const CardsConfig = {
     // Anki: por padrão, atingir o limite de revisões também bloqueia novos.
     // Pode ser habilitado explicitamente para ignorar esse bloqueio.
     newCardsIgnoreReviewLimit: false,
+
+    // Bury siblings: evita ver, no mesmo dia, outra direção/card da mesma nota.
+    buryNewSiblings: true,
+    buryReviewSiblings: true,
+    buryInterdayLearningSiblings: true,
 
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
@@ -146,6 +151,9 @@ const CardsConfig = {
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    ['buryNewSiblings','buryReviewSiblings','buryInterdayLearningSiblings'].forEach((k) => {
+      if (typeof c[k] !== 'boolean') c[k] = D[k];
+    });
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
      'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {
