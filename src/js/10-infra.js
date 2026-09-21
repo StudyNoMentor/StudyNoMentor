@@ -161,21 +161,29 @@ function recarregarApp(motivo, opts) {
     try {
       /* Primeiro confirma o IndexedDB. Com isso, até um reload offline é
          seguro: a outbox sobrevive e será reenviada antes do próximo pull. */
-      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      const localDuravel = !!(window.LocalDurable && LocalDurable.flush);
+      if (localDuravel) await LocalDurable.flush();
       const conectado = window.CloudStore && CloudStore.isReady && CloudStore.isReady() &&
         CloudStore.isLoggedIn && CloudStore.isLoggedIn();
       if (conectado) {
-        if (!window.RelationalStore) throw new Error('camada relacional indisponível');
-        if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
-        await RelationalStore.flush();
-        if (RelationalStore.pendingCount() !== 0 || (RelationalStore.hasFailures && RelationalStore.hasFailures())) {
-          throw RelationalStore._lastError || new Error('operações SQL pendentes');
+        if (!window.RelationalStore) {
+          if (!localDuravel) throw new Error('camada relacional indisponível');
+        } else {
+          try {
+            if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
+            await RelationalStore.flush();
+          } catch (sqlErr) {
+            /* A outbox já está no IndexedDB. Um erro de rede não transforma
+               reload seguro em perda de dados; o replay ocorre antes do pull. */
+            if (!localDuravel) throw sqlErr;
+            _quiet(sqlErr, 'recarga-sql-pendente');
+          }
         }
       }
       location.reload();
     } catch (e) {
       try { console.error('[recarga] cancelada: banco não confirmou as alterações', e); } catch (_) { _quiet(_); }
-      try { showToast('⚠ Não recarreguei: o banco ainda não confirmou todas as alterações.'); } catch (_) { _quiet(_); }
+      try { showToast('⚠ Não recarreguei: este aparelho ainda não confirmou as alterações localmente.'); } catch (_) { _quiet(_); }
     }
   };
   if ((opts && opts.imediato) || !_appOcupado()) { void ir(); return; }
