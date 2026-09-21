@@ -7,6 +7,7 @@ const RelationalStore = {
   _tail: Promise.resolve(),
   _pending: 0,
   _lastError: null,
+  _failed: new Map(),
   _lastSyncAt: null,
   _channel: null,
   _channelProfile: null,
@@ -23,6 +24,11 @@ const RelationalStore = {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
   pendingCount() { return this._pending; },
+  hasFailures() { return this._failed.size > 0; },
+  _refreshFailureState() {
+    const first = this._failed.values().next();
+    this._lastError = first.done ? null : first.value;
+  },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -170,6 +176,7 @@ const RelationalStore = {
         lastReview:r.last_review,createdAt:r.created_at,updatedAt:r.updated_at
       })},
       revlog:{suffix:'revlog',map:r=>Object.assign({},r.extra||{},{
+        reviewId:r.review_id||null,
         cardId:r.card_id==null?null:self._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
         acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
         phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),
@@ -458,15 +465,26 @@ const RelationalStore = {
     return {ok:true,mudou:1,profile:d.profile,heavyReady:this.isHeavyReady(profileId)};
   },
 
-  _queue(label, task) {
+  _queue(label, task, dirtyId) {
     this._pending++;
+    const failureKey = dirtyId || ('task|' + label);
     const run = async()=>{
       let last;
       for(let i=0;i<3;i++){
-        try { const r=await task(); this._lastError=null; this._lastSyncAt=Date.now(); return r; }
-        catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
+        try {
+          const r=await task();
+          this._failed.delete(failureKey);
+          this._refreshFailureState();
+          this._lastSyncAt=Date.now();
+          if(dirtyId && window.LocalDurable && LocalDurable.markSynced) {
+            try { await LocalDurable.markSynced(dirtyId); } catch(e){ _quiet(e,'durable-ack'); }
+          }
+          return r;
+        } catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
       }
-      this._lastError=last; throw last;
+      this._failed.set(failureKey,last);
+      this._refreshFailureState();
+      throw last;
     };
     const p=this._tail.then(run,run);
     this._tail=p.catch(e=>{ console.error('[RelationalStore]',label,e); }).finally(()=>{
@@ -476,9 +494,12 @@ const RelationalStore = {
     try { if(window.CloudUI)CloudUI.refreshSyncBtn('syncing','Salvando no banco…'); } catch(e){ _quiet(e, 'rel-sync-btn-saving'); }
     return p;
   },
+  async settle() { await this._tail; return true; },
   async flush() {
     await this._tail;
+    this._refreshFailureState();
     if (this._lastError) throw this._lastError;
+    if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
     return true;
   },
 
@@ -492,14 +513,68 @@ const RelationalStore = {
   _revlogRow(profileId, planId, x, posicaoAlternativa) {
     x = x || {};
     return {
-      profile_id: profileId, plan_id: planId,
+      profile_id: profileId, plan_id: planId, review_id: x.reviewId || null,
       card_id: x.cardId == null ? null : String(x.cardId), ts: x.ts == null ? null : Number(x.ts), review_date: x.date || null,
       correct: x.acerto == null ? null : !!x.acerto, grade: x.grade == null ? null : Number(x.grade), elapsed: x.elapsed == null ? null : Number(x.elapsed),
       phase: x.phase || null, interval_value: x.intervalo == null ? null : Number(x.intervalo), d: x.d == null ? null : Number(x.d), s: x.s == null ? null : Number(x.s),
       position: Number(x._position) || Number(posicaoAlternativa) || 1,
-      extra: Object.fromEntries(Object.entries(x).filter(([k]) => !['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
+      extra: Object.fromEntries(Object.entries(x).filter(([k]) => !['reviewId','cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
     };
   },
+  _cardRow(profileId, planId, x, i) {
+    x=x||{};
+    return {
+      profile_id:profileId,plan_id:planId,card_id:String(x.id),deck_id:x.deckId==null?null:String(x.deckId),
+      subject:x.materia||null,topic:x.assunto||null,card_type:x.tipo||null,front:x.frente||'',back:x.verso||'',
+      favorite:!!x.favorito,status:x.status||null,banca:x.banca||null,kind:x.kind||null,
+      due:x.due==null?null:String(x.due),due_ts:x.dueTs==null?null:Number(x.dueTs),ease:x.ease==null?null:Number(x.ease),
+      interval_value:x.intervalo==null?null:Number(x.intervalo),lapses:x.lapses==null?null:Number(x.lapses),
+      learn_step:x.learnStep==null?null:Number(x.learnStep),reps:x.reps==null?null:Number(x.reps),phase:x.phase||null,
+      reversed_of:x.reversedOf==null?null:String(x.reversedOf),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),
+      algo:x.algo||null,last_review:x.lastReview||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,
+      position:(Number(i)||0)+1,
+      extra:Object.fromEntries(Object.entries(x).filter(([k])=>!['id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind','due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s','algo','lastReview','createdAt','updatedAt'].includes(k)))
+    };
+  },
+  _cardsParts(key) {
+    const p=this._keyParts(key);
+    return (p&&p.scope==='plan'&&p.sub==='cards')?p:null;
+  },
+  queueCardUpsert(key, card, pos) {
+    if(this._applying || !card) return false;
+    const p=this._cardsParts(key); if(!p) return false;
+    const dirtyId='card|'+key+'|'+String(card.id);
+    if(!this.isReady()) return false;
+    this._queue('card:upsert', async()=>{
+      const {error}=await CloudStore.client.from('study_cards')
+        .upsert(this._cardRow(p.profileId,p.planId,card,pos),{onConflict:'profile_id,plan_id,card_id'});
+      if(error)throw error;
+    },dirtyId);
+    return true;
+  },
+  queueCardDelete(key, cardId) {
+    if(this._applying) return false;
+    const p=this._cardsParts(key); if(!p) return false;
+    const dirtyId='card|'+key+'|'+String(cardId);
+    if(!this.isReady()) return false;
+    this._queue('card:delete', async()=>{
+      const {error}=await CloudStore.client.from('study_cards').delete()
+        .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',String(cardId));
+      if(error)throw error;
+    },dirtyId);
+    return true;
+  },
+  queueCardsReplace(key, rows) {
+    if(this._applying) return false;
+    const p=this._cardsParts(key); if(!p) return false;
+    const arr=Array.isArray(rows)?rows:[];
+    const dirtyId='cards-replace|'+key;
+    if(!this.isReady()) return false;
+    this._queue('cards:replace',()=>this._replacePlanRows('study_cards',p.profileId,p.planId,
+      arr.map((x,i)=>this._cardRow(p.profileId,p.planId,x,i)),'profile_id,plan_id,card_id'),dirtyId);
+    return true;
+  },
+
   _revlogParts(key) {
     const p = this._keyParts(key);
     return (p && p.scope === 'plan' && p.sub === 'revlog') ? p : null;
@@ -507,23 +582,28 @@ const RelationalStore = {
   queueRevlogAppend(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
+    const dirtyId='review|'+key+'|'+String(row.reviewId || (String(row.cardId)+'|'+String(row.ts)+'|'+String(row._position||'')));
     this._queue('revlog:append', async () => {
       const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
-      if(error) throw error;
-    });
+      if(error && String(error.code)!=='23505') throw error;
+    },dirtyId);
     return true;
   },
   queueRevlogDelete(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
+    const dirtyId='review-delete|'+key+'|'+String(row.reviewId || (String(row.cardId)+'|'+String(row.ts)+'|'+String(row._position||'')));
     this._queue('revlog:delete', async () => {
       let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
-      if(row._position != null) q = q.eq('position', Number(row._position));
-      if(row.ts != null) q = q.eq('ts', Number(row.ts));
-      if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
+      if(row.reviewId) q=q.eq('review_id',row.reviewId);
+      else {
+        if(row._position != null) q = q.eq('position', Number(row._position));
+        if(row.ts != null) q = q.eq('ts', Number(row.ts));
+        if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
+      }
       const {error} = await q;
       if(error) throw error;
-    });
+    },dirtyId);
     return true;
   },
   queueRevlogReplace(key, rows) {
@@ -531,7 +611,7 @@ const RelationalStore = {
     const p = this._revlogParts(key); if(!p) return false;
     const arr = Array.isArray(rows) ? rows : [];
     this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
-      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'));
+      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'),'revlog-replace|'+key);
     return true;
   },
 
@@ -552,31 +632,31 @@ const RelationalStore = {
        disponível. As linhas correspondentes já vão para `study_review_log` por
        queueRevlogAppend; persisti-las de novo criaria duplicata. */
     return sub.indexOf('__lixeira:') === 0
+        || sub === 'revlog'
         || sub === 'revlog-pendente'
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
-    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
-       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
-       não viram falso erro de banco. Depois do login, isReady() permanece true
-       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
-    if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
+    if(p.scope!=='user' && this._ignoreSub(p.sub)) return;
+    /* Mesmo offline o LocalDurable já guardou a mutação. Se o cliente SQL não
+       está pronto, simplesmente deixamos o dirty para replay na reconexão. */
+    if(!this.isReady()) return;
+    const dirtyId='kv|'+key;
     if(p.scope==='user') {
       if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
+      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw),dirtyId);
       return;
     }
-    if(this._ignoreSub(p.sub)) return;
     if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw));
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw));
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw));
+      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw),dirtyId);
+      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw),dirtyId);
+      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw),dirtyId);
       return;
     }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw));
+    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw),dirtyId);
   },
 
   async _persistUserPref(key, raw) {
@@ -656,10 +736,8 @@ const RelationalStore = {
     if(sub==='modes')return this._syncById('study_modes',profileId,planId,'mode_id',oldA,newA,(x,i)=>Object.assign(base(),{mode_id:String(x.id),name:x.nome||'',active:x.ativo!==false,position:i+1}),'profile_id,plan_id,mode_id');
     if(sub==='entries')return this._syncById('study_entries',profileId,planId,'entry_id',oldA,newA,(x,i)=>Object.assign(base(),{entry_id:String(x.id),study_date:x.date,subject:x.subject||'',lesson:x.lesson||'',method:x.method||'',duration_min:Number(x.durationMin)||0,correct:Number(x.correct)||0,total:Number(x.total)||0,page_start:x.pageStart==null?null:Number(x.pageStart),page_end:x.pageEnd==null?null:Number(x.pageEnd),video_start:x.videoStart==null?null:Number(x.videoStart),video_end:x.videoEnd==null?null:Number(x.videoEnd),comment:x.comment||'',created_at:x.createdAt||null,updated_at:new Date().toISOString(),position:i+1}),'profile_id,plan_id,entry_id');
     if(sub==='decks')return this._syncById('study_decks',profileId,planId,'deck_id',oldA,newA,(x,i)=>Object.assign(base(),{deck_id:String(x.id),name:x.nome||'',created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,deck_id');
-    if(sub==='cards')return this._syncById('study_cards',profileId,planId,'card_id',oldA,newA,(x,i)=>Object.assign(base(),{
-      card_id:String(x.id),deck_id:x.deckId==null?null:String(x.deckId),subject:x.materia||null,topic:x.assunto||null,card_type:x.tipo||null,front:x.frente||'',back:x.verso||'',favorite:!!x.favorito,status:x.status||null,banca:x.banca||null,kind:x.kind||null,due:x.due==null?null:String(x.due),due_ts:x.dueTs==null?null:Number(x.dueTs),ease:x.ease==null?null:Number(x.ease),interval_value:x.intervalo==null?null:Number(x.intervalo),lapses:x.lapses==null?null:Number(x.lapses),learn_step:x.learnStep==null?null:Number(x.learnStep),reps:x.reps==null?null:Number(x.reps),phase:x.phase||null,reversed_of:x.reversedOf==null?null:String(x.reversedOf),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),algo:x.algo||null,last_review:x.lastReview||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,position:i+1,
-      extra:Object.fromEntries(Object.entries(x).filter(([k])=>!['id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind','due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s','algo','lastReview','createdAt','updatedAt'].includes(k)))
-    }),'profile_id,plan_id,card_id');
+    if(sub==='cards')return this._syncById('study_cards',profileId,planId,'card_id',oldA,newA,
+      (x,i)=>this._cardRow(profileId,planId,x,i),'profile_id,plan_id,card_id');
     if(sub==='leis')return this._syncById('study_laws',profileId,planId,'law_id',oldA,newA,(x,i)=>Object.assign(base(),{law_id:String(x.id),title:x.titulo||null,reference:x.referencia||null,subject:x.materia||null,body:x.texto||'',bookmarked:x.bookmark==null?null:!!x.bookmark,bookmark_text:x.bookmarkTxt||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,options:x.opts||{},markings:x.marcacoes||[],suppressed:x.suppressed==null?null:x.suppressed,rotation:x.rodizio==null?null:x.rodizio,position:i+1,extra:{}}),'profile_id,plan_id,law_id');
     if(sub==='links')return this._syncById('study_links',profileId,planId,'link_id',oldA,newA,(x,i)=>Object.assign(base(),{link_id:String(x.id),name:x.nome||'',category:x.categoria||null,url:x.url||'',color:x.cor||null,logo:x.logo||null,created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,link_id');
     if(sub==='custom-siglas')return this._syncById('study_custom_siglas',profileId,planId,'sigla_id',oldA,newA,(x,i)=>Object.assign(base(),{sigla_id:String(x.id),name:x.nome||null,sigla:x.sigla||'',color:x.color||null,position:i+1}),'profile_id,plan_id,sigla_id');
@@ -825,10 +903,87 @@ const RelationalStore = {
     return {core,heavy};
   },
 
+  async _replayDirtyItem(item) {
+    if(!item||!item.kind)return true;
+    const key=item.key, p=this._keyParts(key);
+    if(item.kind==='kv'){
+      if(!p)return true;
+      if(p.scope==='user'){
+        if(p.sub==='profiles'||p.sub==='active-profile')return true;
+        await this._persistUserPref(p.sub,item.value); return true;
+      }
+      if(this._ignoreSub(p.sub))return true;
+      if(p.scope==='profile'){
+        if(p.sub==='planejamentos')await this._persistPlans(p.profileId,null,item.value);
+        else if(p.sub==='active-plan')await this._persistActivePlan(p.profileId,item.value);
+        else await this._persistProfileSetting(p.profileId,p.sub,item.value);
+        return true;
+      }
+      await this._persistPlanKey(p.profileId,p.planId,p.sub,null,item.value); return true;
+    }
+    if(item.kind==='card'){
+      if(!p||p.sub!=='cards')return true;
+      if(item.value==null){
+        const {error}=await CloudStore.client.from('study_cards').delete()
+          .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',String(item.cardId));
+        if(error)throw error;
+      }else{
+        const cards=(window.LocalDurable&&LocalDurable.getCards)?(LocalDurable.getCards(key)||[]):[];
+        const pos=Math.max(0,cards.findIndex(c=>String(c.id)===String(item.cardId)));
+        const {error}=await CloudStore.client.from('study_cards')
+          .upsert(this._cardRow(p.profileId,p.planId,item.value,pos),{onConflict:'profile_id,plan_id,card_id'});
+        if(error)throw error;
+      }
+      return true;
+    }
+    if(item.kind==='cards-replace'){
+      if(!p||p.sub!=='cards')return true;
+      const cards=(window.LocalDurable&&LocalDurable.getCards)?(LocalDurable.getCards(key)||[]):[];
+      await this._replacePlanRows('study_cards',p.profileId,p.planId,cards.map((c,i)=>this._cardRow(p.profileId,p.planId,c,i)));
+      return true;
+    }
+    if(item.kind==='review'){
+      const rp=this._revlogParts(key); if(!rp)return true;
+      const {error}=await CloudStore.client.from('study_review_log').insert(this._revlogRow(rp.profileId,rp.planId,item.value));
+      if(error&&String(error.code)!=='23505')throw error;
+      return true;
+    }
+    if(item.kind==='review-delete'){
+      const rp=this._revlogParts(key); if(!rp)return true;
+      let q=CloudStore.client.from('study_review_log').delete().eq('profile_id',rp.profileId).eq('plan_id',rp.planId);
+      if(item.value&&item.value.reviewId)q=q.eq('review_id',item.value.reviewId);
+      else if(item.value){ if(item.value.ts!=null)q=q.eq('ts',Number(item.value.ts)); if(item.value.cardId!=null)q=q.eq('card_id',String(item.value.cardId)); }
+      const {error}=await q;if(error)throw error;return true;
+    }
+    if(item.kind==='revlog-replace'){
+      const rp=this._revlogParts(key); if(!rp)return true;
+      let rows=[];try{rows=JSON.parse(localStorage.getItem(key)||'[]');}catch(_){}
+      await this._replacePlanRows('study_review_log',rp.profileId,rp.planId,(Array.isArray(rows)?rows:[]).map((x,i)=>this._revlogRow(rp.profileId,rp.planId,x,i+1)));
+      return true;
+    }
+    return true;
+  },
+  async replayDurable() {
+    if(!this.isReady()||!window.LocalDurable||!LocalDurable.listDirty)return {ok:true,count:0};
+    await this.settle();
+    const items=await LocalDurable.listDirty();
+    let done=0, firstErr=null;
+    for(const item of items){
+      try{
+        await this._replayDirtyItem(item);
+        await LocalDurable.markSynced(item.id);
+        this._failed.delete(item.id); done++;
+      }catch(e){ this._failed.set(item.id,e); if(!firstErr)firstErr=e; }
+    }
+    this._refreshFailureState();
+    if(firstErr)throw firstErr;
+    return {ok:true,count:done};
+  },
+
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
-    try{await this.flush();}catch(e){_quiet(e,'rel-catchup-flush');}
+    try{await this.settle();}catch(e){_quiet(e,'rel-catchup-settle');}
     if(!this._lastChangeId.has(id)){
       return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false});
     }
