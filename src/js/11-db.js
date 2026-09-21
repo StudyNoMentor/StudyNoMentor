@@ -839,7 +839,7 @@ const DB = {
     this.saveCards(this.getCards().filter(c => c.id !== id));
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
-      this._set(this.KEYS.revlog, l);
+      this.replaceRevlog(l);
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
   },
