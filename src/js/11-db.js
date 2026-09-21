@@ -708,10 +708,56 @@ const DB = {
   },
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
-  getCards() { return this._get(this.KEYS.cards, []); },
-  // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
-  // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
-  saveCards(list) { return this._set(this.KEYS.cards, list); },
+  getCards() {
+    const key = this.KEYS.cards;
+    try {
+      if (window.LocalDurable && LocalDurable.getCards) {
+        const cached = LocalDurable.getCards(key);
+        if (Array.isArray(cached)) return cached;
+      }
+    } catch (e) { _quiet(e, 'cards-local-get'); }
+    const list = this._get(key, []);
+    try { if (window.LocalDurable && LocalDurable.replaceCards) LocalDurable.replaceCards(key, list, { dirty:false }); }
+    catch (e) { _quiet(e, 'cards-local-seed'); }
+    return list;
+  },
+  /* Bulk replace é deliberadamente raro (importar, restaurar, zerar, saneamento).
+     A resposta diária usa _persistCardOne() e grava UMA linha local/SQL. */
+  saveCards(list) {
+    list = Array.isArray(list) ? list : [];
+    const key = this.KEYS.cards;
+    try {
+      if (window.LocalDurable && LocalDurable.replaceCards) {
+        LocalDurable.replaceCards(key, list, { dirty:true });
+        if (window.RelationalStore && RelationalStore.queueCardsReplace) RelationalStore.queueCardsReplace(key, list);
+        return true;
+      }
+    } catch (e) {
+      console.error('Falha ao enfileirar coleção de cards', e);
+      return false;
+    }
+    return this._set(key, list);
+  },
+  _persistCardOne(card) {
+    if (!card || card.id == null) return false;
+    const key = this.KEYS.cards, list = this.getCards();
+    const pos = Math.max(0, list.findIndex(x => String(x.id) === String(card.id)));
+    try {
+      if (window.LocalDurable && LocalDurable.upsertCard) LocalDurable.upsertCard(key, card, pos, { dirty:true });
+      if (window.RelationalStore && RelationalStore.queueCardUpsert) RelationalStore.queueCardUpsert(key, card, pos);
+      else if (!(window.LocalDurable && LocalDurable.upsertCard)) return this.saveCards(list);
+      return card;
+    } catch (e) { _quiet(e, 'card-persist-one'); return false; }
+  },
+  _persistCardDelete(id) {
+    const key = this.KEYS.cards;
+    try {
+      if (window.LocalDurable && LocalDurable.deleteCard) LocalDurable.deleteCard(key, id, { dirty:true });
+      if (window.RelationalStore && RelationalStore.queueCardDelete) RelationalStore.queueCardDelete(key, id);
+      else if (!(window.LocalDurable && LocalDurable.deleteCard)) return this.saveCards(this.getCards());
+      return true;
+    } catch (e) { _quiet(e, 'card-persist-delete'); return false; }
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
@@ -745,8 +791,10 @@ const DB = {
     catch (_) { return false; }
   },
   _bancoSemPendencias() {
-    try { return this._bancoRelacionalPronto() && RelationalStore.pendingCount() === 0; }
-    catch (_) { return false; }
+    try {
+      return this._bancoRelacionalPronto() && RelationalStore.pendingCount() === 0
+        && !(RelationalStore.hasFailures && RelationalStore.hasFailures());
+    } catch (_) { return false; }
   },
   _lotesArquivados() {
     const n = Number(this._get(this.KEYS.revlogArquivo, 0)) || 0;
@@ -784,6 +832,8 @@ const DB = {
   replaceRevlog(list) {
     const k = this.KEYS.revlog, v = Array.isArray(list) ? list : [];
     this._revlogMem.set(k, v);
+    try { if (window.LocalDurable && LocalDurable.markRevlogReplace) LocalDurable.markRevlogReplace(k); }
+    catch (e) { _quiet(e, 'revlog-replace-local'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogReplace) RelationalStore.queueRevlogReplace(k, v);
     } catch (e) { _quiet(e, 'revlog-replace'); }
@@ -799,9 +849,11 @@ const DB = {
     // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
-    const row = Object.assign({ _position: pos }, entry);
+    const row = Object.assign({ _position: pos, reviewId: this._uid() }, entry);
     l.push(row);
-    // 1) Banco relacional: UMA linha, não o histórico inteiro.
+    // Primeiro entra no outbox durável; depois tentamos o PostgreSQL.
+    try { if (window.LocalDurable && LocalDurable.markReview) LocalDurable.markReview(this.KEYS.revlog, row); }
+    catch (e) { _quiet(e, 'revlog-local-outbox'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
     } catch (e) { _quiet(e, 'revlog-append'); }
@@ -834,6 +886,8 @@ const DB = {
     if (i < 0) return true;
     const removida = l[i];
     l.splice(i, 1);
+    try { if (window.LocalDurable && LocalDurable.markReviewDelete) LocalDurable.markReviewDelete(this.KEYS.revlog, removida); }
+    catch (e) { _quiet(e, 'revlog-delete-local'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
     } catch (e) { _quiet(e, 'revlog-delete'); }
@@ -893,7 +947,9 @@ const DB = {
       })(),
       createdAt: now, updatedAt: now
     };
-    list.push(card); this.saveCards(list); return card;
+    list.push(card);
+    if (this._persistCardOne(card) === false) { list.pop(); return null; }
+    return card;
   },
   /* Campos que o agendador devolve para a TELA usar na mesma resposta e que não
      são estado do card: o rótulo do botão (_kind/_val) e o aviso de leech
@@ -922,10 +978,10 @@ const DB = {
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
-    // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
-    // CardsScreen.answer). Card inexistente continua devolvendo null.
-    return this.saveCards(list) === false ? false : c;
+    if (!c) return null;
+    Object.assign(c, patch); c.updatedAt = new Date().toISOString();
+    // Caminho quente O(1): só o card alterado vai ao IndexedDB e ao SQL.
+    return this._persistCardOne(c) === false ? false : c;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
@@ -952,7 +1008,10 @@ const DB = {
      deles e continuava consumindo a cota de 20 novos do dia — cards que nem
      existiam mais ocupavam vaga na fila. */
   deleteCard(id) {
-    this.saveCards(this.getCards().filter(c => c.id !== id));
+    const cards = this.getCards();
+    const idx = cards.findIndex(c => String(c.id) === String(id));
+    if (idx >= 0) cards.splice(idx, 1);
+    if (this._persistCardDelete(id) === false) return false;
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
       this.replaceRevlog(l);
@@ -970,6 +1029,25 @@ const DB = {
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
+  siblingIds(id) {
+    const alvo = this.getCard(id); if (!alvo) return [];
+    const ids = new Set();
+    if (alvo.reversedOf) ids.add(String(alvo.reversedOf));
+    this.getCards().forEach(c => {
+      if (c && c.reversedOf != null && String(c.reversedOf) === String(id)) ids.add(String(c.id));
+    });
+    ids.delete(String(id));
+    return Array.from(ids);
+  },
+  burySiblings(id) {
+    const ids = this.siblingIds(id), ate = CardEngine.addDays(todayCards(), 1);
+    ids.forEach(sid => {
+      const c = this.getCard(sid);
+      if (!c || c.suspenso || CardEngine.estaEnterrado(c)) return;
+      this.updateCard(sid, { enterradoAte: ate, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
+    });
+    return ids.length;
+  },
   buryCard(id) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
