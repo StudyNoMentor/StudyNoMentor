@@ -501,10 +501,6 @@ const CardStore = {
       const p = this._sendCard(m.scope, m.id);
       if (p && typeof p.then === 'function') ps.push(p);
     });
-    if (typeof ReviewOutbox !== 'undefined') {
-      const r = ReviewOutbox.replayAll();
-      if (r && typeof r.then === 'function') ps.push(r);
-    }
     return Promise.allSettled(ps).then(() => true);
   },
 
@@ -604,11 +600,103 @@ const ReviewOutbox = {
   pendingCount() { return DurableStudyStore.listOutbox('revlog').length; }
 };
 
+const GenericOutbox = {
+  SCOPE: 'storage',
+  _inflight: new Map(),
+  _seq: 0,
+
+  _get(key) { return DurableStudyStore._nativeGet('storage', this.SCOPE, String(key)); },
+
+  put(key, oldRaw, newRaw) {
+    key=String(key||''); if(!key)return false;
+    const existing=this._get(key);
+    const payload={
+      kind:'storage', scope:this.SCOPE, id:key, key,
+      oldRaw:existing ? existing.oldRaw : oldRaw,
+      newRaw:newRaw,
+      version:'g-'+Date.now().toString(36)+'-'+(++this._seq).toString(36),
+      createdAt:existing&&existing.createdAt||new Date().toISOString(),
+      updatedAt:new Date().toISOString()
+    };
+    if(!DurableStudyStore.putOutbox(payload))return false;
+    this._send(key);
+    return true;
+  },
+
+  _ready() {
+    try {
+      return typeof RelationalStore!=='undefined'&&RelationalStore&&
+        RelationalStore.isReady&&RelationalStore.isReady()&&
+        RelationalStore.queueStorageMutation;
+    } catch (_) { return false; }
+  },
+
+  _send(key) {
+    key=String(key||'');
+    if(this._inflight.has(key)||!this._ready())return null;
+    const current=this._get(key); if(!current)return null;
+    const snapshot=JSON.parse(JSON.stringify(current));
+    let p;
+    try { p=RelationalStore.queueStorageMutation(snapshot); }
+    catch (_) { return null; }
+    if(!p||typeof p.then!=='function')return null;
+    let succeeded=false;
+    const tracked=p.then(()=>{
+      succeeded=true;
+      const now=this._get(key);
+      if(!now)return true;
+      if(now.version===snapshot.version){
+        DurableStudyStore.deleteOutbox('storage',this.SCOPE,key);
+      }else{
+        // O servidor agora está exatamente em snapshot.newRaw; isso vira a base
+        // correta do próximo diff, preservando a alteração feita durante o ACK.
+        now.oldRaw=snapshot.newRaw;
+        DurableStudyStore.putOutbox(now);
+      }
+      return true;
+    }).catch(()=>false).finally(()=>{
+      this._inflight.delete(key);
+      if(succeeded&&this._get(key)&&this._ready())this._send(key);
+    });
+    this._inflight.set(key,tracked);
+    return tracked;
+  },
+
+  replayAll() {
+    if(!this._ready())return Promise.resolve(false);
+    const ps=[];
+    DurableStudyStore.listOutbox('storage',this.SCOPE).forEach(m=>{
+      const p=this._send(m.key||m.id);
+      if(p&&typeof p.then==='function')ps.push(p);
+    });
+    return Promise.allSettled(ps).then(()=>true);
+  },
+
+  overlayPending(profileId) {
+    const prefix=profileId ? 'diario-estudos:u:'+profileId+':' : null;
+    const rows=DurableStudyStore.listOutbox('storage',this.SCOPE);
+    rows.forEach(m=>{
+      const key=String(m.key||m.id||'');
+      if(prefix&&key.indexOf(prefix)!==0)return;
+      try {
+        if(typeof RelationalStore!=='undefined'&&RelationalStore){
+          if(m.newRaw==null&&RelationalStore._memDel)RelationalStore._memDel(key);
+          else if(RelationalStore._memSet)RelationalStore._memSet(key,m.newRaw);
+        }
+      } catch (_) {}
+    });
+    return rows.length;
+  },
+
+  pendingCount() { return DurableStudyStore.listOutbox('storage',this.SCOPE).length; }
+};
+
 try {
   if (typeof window !== 'undefined') {
     window.DurableStudyStore = DurableStudyStore;
     window.CardStore = CardStore;
     window.ReviewOutbox = ReviewOutbox;
+    window.GenericOutbox = GenericOutbox;
     window.__cardSafetyStore = true;
   }
 } catch (_) {}
