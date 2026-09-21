@@ -176,6 +176,16 @@ export function montarApiFalsa() {
     if (tabela === 'active_sessions' && outras.some((l) => l.user_id === nova.user_id)) {
       return 'active_sessions_pkey';
     }
+    if (tabela === 'study_cards' && outras.some((l) =>
+        l.profile_id === nova.profile_id && l.plan_id === nova.plan_id &&
+        String(l.card_id) === String(nova.card_id))) {
+      return 'study_cards_profile_plan_card_key';
+    }
+    if (tabela === 'study_review_log' && outras.some((l) =>
+        l.profile_id === nova.profile_id && l.plan_id === nova.plan_id &&
+        Number(l.position) === Number(nova.position))) {
+      return 'study_review_log_profile_plan_position_key';
+    }
     return null;
   }
 
