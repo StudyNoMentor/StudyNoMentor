@@ -695,7 +695,34 @@ const DB = {
   getCards() { return this._get(this.KEYS.cards, []); },
   saveCards(list) { this._set(this.KEYS.cards, list); },
   // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
-  getRevlog() { return this._get(this.KEYS.revlog, []); },
+  // No app relacional ele vive como ARRAY em RAM + linhas no PostgreSQL. Não
+  // serializamos 100k+ revisões para JSON a cada resposta.
+  _revlogMem: new Map(),
+  _fastRevlog() {
+    try { return typeof RelationalStore !== 'undefined' && RelationalStore && RelationalStore.fastRevlog === true; }
+    catch (_) { return false; }
+  },
+  _setRevlogMemory(key, list) {
+    this._revlogMem.set(String(key || this.KEYS.revlog), Array.isArray(list) ? list : []);
+  },
+  _clearRevlogMemoryPrefix(prefix) {
+    const p = String(prefix || '');
+    for (const k of [...this._revlogMem.keys()]) if (!p || k.indexOf(p) === 0) this._revlogMem.delete(k);
+  },
+  getRevlog() {
+    const key = this.KEYS.revlog;
+    if (!this._fastRevlog()) return this._get(key, []);
+    if (!this._revlogMem.has(key)) this._revlogMem.set(key, this._get(key, []));
+    return this._revlogMem.get(key);
+  },
+  replaceRevlog(list) {
+    const key = this.KEYS.revlog, v = Array.isArray(list) ? list : [];
+    if (this._fastRevlog()) {
+      this._setRevlogMemory(key, v);
+      try { if (RelationalStore.queueRevlogReplace(key, v)) return true; } catch (_) { _quiet(_, 'revlog-replace'); }
+    }
+    return this._set(key, v);
+  },
   addRevlog(entry) {
     // O histórico é dado de aprendizagem, não cache descartável. O antigo teto
     // de 8.000 apagava silenciosamente quase todo um ano de uso e inviabilizava
@@ -705,7 +732,11 @@ const DB = {
     // milhares de linhas, então varrer todo o array a cada resposta seria O(n²).
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
-    l.push(Object.assign({ _position: pos }, entry));
+    const row = Object.assign({ _position: pos }, entry);
+    l.push(row);
+    if (this._fastRevlog()) {
+      try { if (RelationalStore.queueRevlogAppend(this.KEYS.revlog, row)) return; } catch (_) { _quiet(_, 'revlog-append'); }
+    }
     this._set(this.KEYS.revlog, l);
   },
   removeRevlog(ts) {
@@ -714,7 +745,14 @@ const DB = {
     // revisão MAIS RECENTE, não a primeira linha com o mesmo timestamp.
     let i = -1;
     for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
-    if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); }
+    if (i >= 0) {
+      const removed = l[i];
+      l.splice(i, 1);
+      if (this._fastRevlog()) {
+        try { if (RelationalStore.queueRevlogDelete(this.KEYS.revlog, removed)) return; } catch (_) { _quiet(_, 'revlog-delete'); }
+      }
+      this.replaceRevlog(l);
+    }
   },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
@@ -869,7 +907,7 @@ const DB = {
       c.updatedAt = new Date().toISOString();
     });
     this.saveCards(cards);
-    this._set(this.KEYS.revlog, []);
+    this.replaceRevlog([]);
     try {
       this.setRaw(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
     } catch (_) { _quiet(_); }
@@ -884,7 +922,7 @@ const DB = {
       const l = this.getRevlog();
       const limpo = l.filter(r => ids.has(r.cardId));
       n = l.length - limpo.length;
-      if (n) this._set(this.KEYS.revlog, limpo);
+      if (n) this.replaceRevlog(limpo);
     } catch (_) { _quiet(_); }
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
