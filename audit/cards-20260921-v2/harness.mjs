@@ -124,6 +124,10 @@ export function criarAmbiente(opts = {}) {
     // Zera TUDO: armazenamento, caches de config e estado de sessão da tela.
     reset(cfg) {
       store.clear(); estado.bytes = 0; estado.toasts.length = 0; estado.downloads.length = 0;
+      estado.escritas = 0; estado.bytesEscritos = 0;
+      // Equivale a recarregar a página: o histórico vive em RAM e não pode
+      // atravessar um reset de armazenamento.
+      try { ctx.DB.invalidarRevlogMemoria(); } catch (_) { /* versões antigas */ }
       const C = ctx.CardsConfig;
       C._c = null; C._cKey = null; C._presets = null; C._pKey = null;
       ctx.CardEngine.invalidateDueCache();

@@ -39,9 +39,32 @@ const dataIso = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) &&
     amplificacao < 50, { entradas: m2.n, bytesGuardados: m2.guardado, bytesEscritos: m2.escrito, amplificacao: Math.round(amplificacao) });
 
   const porEntrada = m2.guardado / m2.n;
-  const umAno = porEntrada * 180000;
-  check('A3', 'Um ano de histórico (180.000 revisões) cabe na cota típica de 5 MB do localStorage',
-    umAno <= 5 * 1024 * 1024, { bytesPorEntrada: Math.round(porEntrada), projecao180k: Math.round(umAno), cota: 5 * 1024 * 1024 });
+  check('A3', 'Sem banco relacional, a rede de segurança local do histórico cresce em lotes, não num blob único',
+    m2.escrito < m2.guardado * 80, { bytesPorEntrada: Math.round(porEntrada), bytesGuardados: m2.guardado, bytesEscritos: m2.escrito });
+}
+{
+  /* ── A PEGADA LOCAL NÃO PODE CRESCER COM O HISTÓRICO ─────────────────────
+     O histórico é a única coleção sem teto: um ano de uso são ~180.000 linhas,
+     que num único JSON dariam ~27 MB contra os ~5 MB de cota típica do
+     localStorage — o limite chegaria por volta de 33.000 revisões. Com o banco
+     relacional como dono do histórico, o armazenamento do navegador guarda
+     apenas o que o banco ainda não confirmou. Esta verificação exige isso: o
+     que fica gravado localmente tem de ser do tamanho do LOTE, não do ano. */
+  const B = criarAmbiente();
+  // Banco relacional disponível e em dia, que é o modo normal do app.
+  B.ctx.RelationalStore = { enabled: true, isReady: () => true, pendingCount: () => 0,
+    queueRevlogAppend: () => true, queueRevlogDelete: () => true, queueRevlogReplace: () => true };
+  B.reset();
+  const N = 6000;
+  for (let i = 0; i < N; i++) {
+    B.DB.addRevlog({ ts: B.agora() + i, cardId: 'card' + (i % 600), grade: 3, date: B.hoje(), elapsed: 5, intervalo: 10, s: 10, d: 5, acerto: true, phase: 'review' });
+  }
+  const guardadoLocal = B.bytes();
+  const noLote = B.DB.LOTE_REVLOG * 300;   // teto generoso: LOTE linhas de ~300 B
+  check('A4', 'Com o banco relacional ativo, o armazenamento local não cresce com o histórico',
+    guardadoLocal <= noLote, { revisoes: N, bytesLocais: guardadoLocal, tetoDoLote: noLote, emRam: B.DB.getRevlog().length });
+  check('A5', 'O histórico completo continua disponível para o app mesmo sem ficar no armazenamento local',
+    B.DB.getRevlog().length === N, { emRam: B.DB.getRevlog().length, esperado: N });
 }
 {
   // Cota estourada: o app avisa, mas a resposta AVANÇA a fila mesmo sem ter
@@ -61,9 +84,9 @@ const dataIso = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) &&
   console.error = erroOriginal;
   const gravou = cartaoAntes !== JSON.stringify(Q.DB.getCard('q1'));
   const avancou = q._reviewIdx > 0;
-  check('A4', 'Com a cota do navegador estourada, a resposta não é dada por concluída sem ter sido gravada',
+  check('A6', 'Com a cota do navegador estourada, a resposta não é dada por concluída sem ter sido gravada',
     gravou || !avancou, { excecaoVazou, revlogParado: logsAntes, agendamentoGravado: gravou, filaAvancou: avancou, desfazerEmpilhado: (q._undoStack || []).length, avisos: Q.estado.toasts.slice(-2) });
-  check('A5', 'A escrita rejeitada pela cota não é reportada como sucesso por DB._set',
+  check('A7', 'A escrita rejeitada pela cota não é reportada como sucesso por DB._set',
     Q.DB._set(Q.DB.KEYS.revlog, Q.DB.getRevlog().concat(Array.from({ length: 4000 }, (_, i) => ({ ts: 1e9 + i, cardId: 'q1', grade: 3 })))) === false,
     { nota: 'DB._set deve devolver false quando o localStorage recusa a gravação' });
 }

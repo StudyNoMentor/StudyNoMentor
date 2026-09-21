@@ -170,14 +170,23 @@ const AutoTeste = {
     this._ok('SM-2 "Fácil" +0,15', Math.abs(e.ease - 2.65) < 1e-9, e.ease);
     this._ok('SM-2 piso de facilidade 1,3',
       CardEngine._scheduleSM2(Object.assign({}, semAtraso, { ease: 1.3 }), 'errei').ease === 1.3);
-    // Compensação de atraso: era a divergência principal
+    /* Compensação de atraso: era a divergência principal.
+       O valor esperado é o da EQUAÇÃO — (iv + atraso/2) * ease para o Bom e
+       (iv + atraso) * ease * 1,3 para o Fácil. O agendador aplica fuzz por
+       cima disso, como o Anki, então cobrar o número exato é cobrar um
+       sorteio: era o que fazia esta verificação apontar 97 onde esperava 98.
+       A afirmação correta é que o intervalo cai dentro da faixa de fuzz do
+       valor da equação — e que a ordem Bom < Fácil se mantém. */
     const atrasado = Object.assign({}, base, { due: CardEngine.addDays(hoje, -20) });
-    this._ok('SM-2 Bom compensa metade do atraso',
-      CardEngine._scheduleSM2(atrasado, 'bom').intervalo === 50,
-      CardEngine._scheduleSM2(atrasado, 'bom').intervalo);
-    this._ok('SM-2 Fácil compensa o atraso inteiro',
-      CardEngine._scheduleSM2(atrasado, 'facil').intervalo === 98,
-      CardEngine._scheduleSM2(atrasado, 'facil').intervalo);
+    const naFaixa = (obtido, bruto) => {
+      const [lo, hi] = FSRS.fuzzBounds(bruto);
+      return obtido >= lo && obtido <= hi;
+    };
+    const ivBomAtrasado = CardEngine._scheduleSM2(atrasado, 'bom').intervalo;
+    const ivFacilAtrasado = CardEngine._scheduleSM2(atrasado, 'facil').intervalo;
+    this._ok('SM-2 Bom compensa metade do atraso', naFaixa(ivBomAtrasado, 50), ivBomAtrasado);
+    this._ok('SM-2 Fácil compensa o atraso inteiro', naFaixa(ivFacilAtrasado, 98), ivFacilAtrasado);
+    this._ok('SM-2 atrasado mantém Bom < Fácil', ivBomAtrasado < ivFacilAtrasado, [ivBomAtrasado, ivFacilAtrasado]);
     // maxInterval passou a valer também no Clássico
     CardsConfig._c.maxInterval = 30;
     this._ok('SM-2 respeita o intervalo máximo',

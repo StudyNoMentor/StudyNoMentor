@@ -884,7 +884,17 @@ const CardsScreen = {
          do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
          separar card jovem de card maduro: a coluna "Maduros" ficava vazia
          para sempre, porque a linha do histórico não guardava essa informação. */
-      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) });
+      /* ── UMA RESPOSTA SÓ CONTA SE FOI GRAVADA ────────────────────────────
+         O armazenamento pode recusar a escrita (cota do navegador cheia, por
+         exemplo). Antes, a recusa virava um aviso e a fila seguia em frente:
+         o card aparecia como respondido, o índice avançava, o desfazer era
+         empilhado — e nada disso existia depois de recarregar a página. Agora
+         a resposta é abortada e o card continua onde estava, para ser
+         respondido de novo depois que o espaço for liberado. */
+      if (DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) }) === false) {
+        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+        return;
+      }
       // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
@@ -895,7 +905,16 @@ const CardsScreen = {
       const antes = {};
       ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
         .forEach(k => { antes[k] = c[k]; });
-      patch = CardEngine.schedule(c, grade); DB.updateCard(id, patch);
+      patch = CardEngine.schedule(c, grade);
+      if (DB.updateCard(id, patch) === false) {
+        // O agendamento não foi gravado: desfaz o registro que acabou de entrar
+        // no histórico para os dois não ficarem em desacordo.
+        DB.removeRevlog(revTs);
+        if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
+        this._seenThisSession.delete(id);
+        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+        return;
+      }
       CardEngine.invalidateDueCache();
       (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
       if (this._undoStack.length > 50) this._undoStack.shift();
@@ -1600,25 +1619,51 @@ const CardsScreen = {
       sep = v === 'tab' ? '\t' : (v === 'comma' ? ',' : (v === 'semicolon' ? ';' : m[1]));
       break;
     }
-    const dataLines = rawLines.filter(line => !line.trim().startsWith('#'));
+    /* ── COMENTÁRIO É SÓ NO INÍCIO DE UM CAMPO, NÃO NO MEIO DE UM ────────────
+       O Anki trata linhas iniciadas por '#' como cabeçalho. Filtrar por linha,
+       porém, descarta também a CONTINUAÇÃO de um campo entre aspas que tenha
+       uma quebra de linha seguida de '#' — e aí a linha inteira do card some,
+       sem aviso. A varredura abaixo respeita as aspas: só remove a linha
+       quando ela começa fora de um campo aberto. */
+    const dataLines = [];
+    let dentroDeAspas = false;
+    for (const line of rawLines) {
+      if (!dentroDeAspas && line.trim().startsWith('#')) continue;
+      dataLines.push(line);
+      let q = dentroDeAspas;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] !== '"') continue;
+        if (q && line[i + 1] === '"') { i++; continue; }
+        q = !q;
+      }
+      dentroDeAspas = q;
+    }
+    const data = dataLines.join('\n');
     if (!sep) {
-      const probe = dataLines.find(line => line.trim()) || '';
+      /* ── A SONDAGEM PRECISA VER O ARQUIVO, NÃO A PRIMEIRA LINHA ────────────
+         Contar separadores só na primeira linha de dados erra sempre que ela é
+         o COMEÇO de um campo entre aspas com quebra de linha: o separador real
+         está na linha seguinte, e o candidato escolhido não aparece em lugar
+         nenhum — o arquivo inteiro vira uma coluna só e todos os cards são
+         descartados por terem menos de dois campos. Aqui a contagem varre o
+         texto inteiro, ignorando o que está dentro de aspas. */
       const countOutsideQuotes = (ch) => {
         let n = 0, q = false;
-        for (let i = 0; i < probe.length; i++) {
-          if (probe[i] === '"') {
-            if (q && probe[i + 1] === '"') { i++; continue; }
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] === '"') {
+            if (q && data[i + 1] === '"') { i++; continue; }
             q = !q; continue;
           }
-          if (!q && probe[i] === ch) n++;
+          if (!q && data[i] === ch) n++;
         }
         return n;
       };
-      sep = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]]
-        .sort((a, b) => b[1] - a[1])[0][0];
+      const candidatos = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]];
+      const melhor = candidatos.slice().sort((a, b) => b[1] - a[1])[0];
+      // Nenhum candidato aparece: mantém a tabulação, que é o padrão do Anki.
+      sep = melhor[1] > 0 ? melhor[0] : '\t';
     }
 
-    const data = dataLines.join('\n');
     const rows = [];
     let row = [], field = '', quoted = false;
     const pushRow = () => {
@@ -1664,44 +1709,65 @@ const CardsScreen = {
         if (nd) idMapDeck[String(bd.id)] = nd.id;
       });
 
+      /* ── APLICAR UM BACKUP É RESTAURAR, NÃO ACUMULAR ──────────────────────
+         O id do card é a identidade dele. Antes, um id que já existisse na
+         coleção ganhava um id NOVO — de modo que aplicar o mesmo arquivo duas
+         vezes dobrava a coleção, e o segundo conjunto vinha sem histórico
+         próprio. Agora um id conhecido ATUALIZA o card no lugar, e só um id
+         desconhecido entra como card novo. Aplicar o mesmo backup duas vezes
+         passa a ser inócuo. (Importar TSV/CSV continua acrescentando: lá não
+         há id, cada linha é conteúdo novo por definição.) */
       const existentes = DB.getCards();
-      const usados = new Set(existentes.map(x => String(x.id)));
+      const porId = new Map(existentes.map(x => [String(x.id), x]));
+      const usados = new Set(porId.keys());
       const idMapCard = {};
       this._importParsed.cards.forEach(src => {
-        const old = src && src.id != null ? String(src.id) : '';
-        let nid = old && !usados.has(old) ? src.id : DB._uid();
+        const antigo = src && src.id != null ? String(src.id) : '';
+        if (antigo) { idMapCard[antigo] = src.id; usados.add(antigo); return; }
+        let nid = DB._uid();
         while (usados.has(String(nid))) nid = DB._uid();
         usados.add(String(nid));
-        if (old) idMapCard[old] = nid;
       });
-      const restaurados = this._importParsed.cards.map(src => {
-        const old = src && src.id != null ? String(src.id) : '';
+      const novos = [];
+      this._importParsed.cards.forEach(src => {
+        const antigo = src && src.id != null ? String(src.id) : '';
         const x = Object.assign({}, src || {});
-        x.id = old && Object.prototype.hasOwnProperty.call(idMapCard, old) ? idMapCard[old] : DB._uid();
+        x.id = antigo || DB._uid();
         x.deckId = deckId || (x.deckId != null && idMapDeck[String(x.deckId)] != null ? idMapDeck[String(x.deckId)] : x.deckId || null);
         x.materia = materia || x.materia || null;
         if (x.reversedOf != null && idMapCard[String(x.reversedOf)] != null) x.reversedOf = idMapCard[String(x.reversedOf)];
-        return x;
+        const atual = porId.get(String(x.id));
+        if (atual) Object.assign(atual, x);   // mesmo card: restaura o estado dele
+        else { porId.set(String(x.id), x); novos.push(x); }
       });
-      DB.saveCards(existentes.concat(restaurados));
+      DB.saveCards(existentes.concat(novos));
       DB.sanitizeCardsInPlace();
 
       const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
       if (logs.length) {
+        /* Mesma regra para o histórico: uma revisão é identificada pelo par
+           (card, instante). Reaplicar o backup não pode multiplicar as
+           revisões — isso falsearia retenção real, contadores e o treino dos
+           pesos. Só entram as linhas que ainda não existem. */
         const atuaisLogs = DB.getRevlog();
+        const chave = (r) => String(r && r.cardId) + '|' + String(r && r.ts);
+        const conhecidas = new Set(atuaisLogs.map(chave));
         const lastLog = atuaisLogs.length ? atuaisLogs[atuaisLogs.length - 1] : null;
         let pos = Math.max(atuaisLogs.length, Number(lastLog && lastLog._position) || 0);
-        const mapped = logs.map(r => {
+        const inéditas = [];
+        logs.forEach(r => {
           const x = Object.assign({}, r);
           if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
+          if (conhecidas.has(chave(x))) return;
+          conhecidas.add(chave(x));
           // Rebaseia a posição ao anexar o backup a uma coleção existente.
           // Evita colisões no caminho incremental do Supabase após a importação.
           x._position = ++pos;
-          return x;
+          inéditas.push(x);
         });
-        DB._set(DB.KEYS.revlog, atuaisLogs.concat(mapped));
+        if (inéditas.length) DB.replaceRevlog(atuaisLogs.concat(inéditas));
       }
-      count = restaurados.length;
+      count = this._importParsed.cards.length;
     } else {
       this._importParsed.rows.forEach(r => {
         DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });

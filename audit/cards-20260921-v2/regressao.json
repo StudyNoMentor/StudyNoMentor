@@ -1,19 +1,19 @@
 {
   "escopo": "Módulos de produção 11-db / 30-fsrs / 31-cards-config / 32-card-engine / 44-tela-cards; DOM, download e rede dublados; armazenamento serializado de verdade.",
-  "geradoEm": "2026-09-21T17:39:09.360Z",
-  "total": 60,
-  "falhas": 16,
+  "geradoEm": "2026-09-21T19:17:37.851Z",
+  "total": 62,
+  "falhas": 0,
   "itens": [
     {
       "id": "A1",
       "nome": "Dobrar o histórico dobra o custo de gravação (O(1) amortizado), não quadruplica",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "n1": 1500,
-        "bytesEscritos1": 176430873,
+        "bytesEscritos1": 6007634,
         "n2": 3000,
-        "bytesEscritos2": 883888236,
-        "razao": 5.01,
+        "bytesEscritos2": 12046744,
+        "razao": 2.01,
         "esperadoSeLinear": 2,
         "esperadoSeQuadratico": 4
       }
@@ -21,42 +21,62 @@
     {
       "id": "A2",
       "nome": "Gravar uma resposta não reescreve o histórico inteiro",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "entradas": 3000,
-        "bytesGuardados": 472375,
-        "bytesEscritos": 883888236,
-        "amplificacao": 1871
+        "bytesGuardados": 474996,
+        "bytesEscritos": 12046744,
+        "amplificacao": 25
       }
     },
     {
       "id": "A3",
-      "nome": "Um ano de histórico (180.000 revisões) cabe na cota típica de 5 MB do localStorage",
-      "pass": false,
+      "nome": "Sem banco relacional, a rede de segurança local do histórico cresce em lotes, não num blob único",
+      "pass": true,
       "detalhe": {
-        "bytesPorEntrada": 157,
-        "projecao180k": 28342500,
-        "cota": 5242880
+        "bytesPorEntrada": 158,
+        "bytesGuardados": 474996,
+        "bytesEscritos": 12046744
       }
     },
     {
       "id": "A4",
-      "nome": "Com a cota do navegador estourada, a resposta não é dada por concluída sem ter sido gravada",
-      "pass": false,
+      "nome": "Com o banco relacional ativo, o armazenamento local não cresce com o histórico",
+      "pass": true,
       "detalhe": {
-        "excecaoVazou": false,
-        "revlogParado": 865,
-        "agendamentoGravado": false,
-        "filaAvancou": true,
-        "desfazerEmpilhado": 1,
-        "avisos": [
-          "⚠ Não foi possível salvar. Verifique a conexão com o banco.",
-          "⚠ Não foi possível atualizar o estado local. A gravação foi cancelada."
-        ]
+        "revisoes": 6000,
+        "bytesLocais": 199,
+        "tetoDoLote": 15000,
+        "emRam": 6000
       }
     },
     {
       "id": "A5",
+      "nome": "O histórico completo continua disponível para o app mesmo sem ficar no armazenamento local",
+      "pass": true,
+      "detalhe": {
+        "emRam": 6000,
+        "esperado": 6000
+      }
+    },
+    {
+      "id": "A6",
+      "nome": "Com a cota do navegador estourada, a resposta não é dada por concluída sem ter sido gravada",
+      "pass": true,
+      "detalhe": {
+        "excecaoVazou": false,
+        "revlogParado": 4000,
+        "agendamentoGravado": false,
+        "filaAvancou": false,
+        "desfazerEmpilhado": 0,
+        "avisos": [
+          "⚠ Não foi possível atualizar o estado local. A gravação foi cancelada.",
+          "⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo."
+        ]
+      }
+    },
+    {
+      "id": "A7",
       "nome": "A escrita rejeitada pela cota não é reportada como sucesso por DB._set",
       "pass": true,
       "detalhe": {
@@ -66,51 +86,56 @@
     {
       "id": "B1.fsrs",
       "nome": "FSRS: passos de aprendizado vazios — card novo com \"Errei\" recebe agendamento válido",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "reps": 1,
         "lastReview": "2026-09-21",
         "algo": "fsrs",
-        "phase": "learning",
+        "phase": "review",
         "learnStep": 0,
         "s": 0.212,
         "d": 6.4133,
-        "status": "naosei",
+        "due": "2026-09-22",
         "dueTs": null,
-        "due": "2026-09-21",
-        "_kind": "min"
+        "status": "naosei",
+        "intervalo": 1,
+        "_kind": "day",
+        "_val": 1
       }
     },
     {
       "id": "B2.fsrs",
       "nome": "FSRS: passos de reaprendizado vazios — revisão com \"Errei\" recebe agendamento válido",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "reps": 10,
         "lastReview": "2026-09-21",
         "algo": "fsrs",
-        "phase": "relearning",
+        "phase": "review",
         "learnStep": 0,
         "s": 1.7039776280348007,
         "d": 8.670455569296838,
         "lapses": 1,
         "status": "naosei",
+        "due": "2026-09-23",
         "dueTs": null,
-        "due": "2026-09-21",
-        "_kind": "min"
+        "intervalo": 2,
+        "_kind": "day",
+        "_val": 2
       }
     },
     {
       "id": "B3.fsrs",
       "nome": "FSRS: prévia dos quatro botões nunca devolve valor não numérico",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "errei": {
-          "kind": "min"
+          "kind": "day",
+          "val": 1
         },
         "dificil": {
-          "kind": "min",
-          "val": null
+          "kind": "day",
+          "val": 1
         },
         "bom": {
           "kind": "day",
@@ -125,10 +150,10 @@
     {
       "id": "B4.fsrs",
       "nome": "FSRS: rótulo do botão nunca exibe NaN/undefined/null",
-      "pass": false,
+      "pass": true,
       "detalhe": [
-        "NaN h",
-        "NaN h",
+        "1 dia",
+        "1 dia",
         "2 dias",
         "10 dias"
       ]
@@ -212,112 +237,22 @@
     {
       "id": "B5",
       "nome": "FSRS sem passos: 40 \"Errei\" seguidos não travam o card em estado sem agendamento",
-      "pass": false,
+      "pass": true,
       "detalhe": {
-        "fase": "learning",
-        "due": "2026-09-21",
-        "dueTs": null
+        "fase": "review",
+        "due": "2026-09-22",
+        "dueTs": null,
+        "val": 1
       }
     },
     {
       "id": "C1",
       "nome": "Nenhuma configuração válida produz agendamento inválido (due NaN, dueTs NaN, S/D não finitos)",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "total": 9216,
-        "invalidos": 264,
-        "exemplos": [
-          {
-            "cfg": {
-              "algo": "fsrs",
-              "learnSteps": [
-                1,
-                10
-              ],
-              "relearnSteps": [
-                10
-              ],
-              "maxInterval": 36500,
-              "loadBalance": false,
-              "retention": 0.9
-            },
-            "fase": "relearning",
-            "atraso": 0,
-            "g": "dificil",
-            "p": {
-              "reps": 8,
-              "lastReview": "2026-09-21",
-              "algo": "fsrs",
-              "learnStep": 1,
-              "s": 15.898451732962105,
-              "d": 7.462611289296839,
-              "status": "naosei",
-              "dueTs": null,
-              "due": "2026-09-21",
-              "_kind": "min"
-            }
-          },
-          {
-            "cfg": {
-              "algo": "fsrs",
-              "learnSteps": [
-                1,
-                10
-              ],
-              "relearnSteps": [
-                10
-              ],
-              "maxInterval": 36500,
-              "loadBalance": false,
-              "retention": 0.9
-            },
-            "fase": "relearning",
-            "atraso": 1,
-            "g": "dificil",
-            "p": {
-              "reps": 8,
-              "lastReview": "2026-09-21",
-              "algo": "fsrs",
-              "learnStep": 1,
-              "s": 15.898451732962105,
-              "d": 7.462611289296839,
-              "status": "naosei",
-              "dueTs": null,
-              "due": "2026-09-21",
-              "_kind": "min"
-            }
-          },
-          {
-            "cfg": {
-              "algo": "fsrs",
-              "learnSteps": [
-                1,
-                10
-              ],
-              "relearnSteps": [
-                10
-              ],
-              "maxInterval": 36500,
-              "loadBalance": false,
-              "retention": 0.9
-            },
-            "fase": "relearning",
-            "atraso": 45,
-            "g": "dificil",
-            "p": {
-              "reps": 8,
-              "lastReview": "2026-09-21",
-              "algo": "fsrs",
-              "learnStep": 1,
-              "s": 43.57463187932805,
-              "d": 7.462611289296839,
-              "status": "naosei",
-              "dueTs": null,
-              "due": "2026-09-21",
-              "_kind": "min"
-            }
-          }
-        ]
+        "invalidos": 0,
+        "exemplos": []
       }
     },
     {
@@ -334,9 +269,9 @@
       "nome": "Os quatro botões ficam sempre em ordem crescente de tempo (Errei ≤ Difícil ≤ Bom ≤ Fácil)",
       "pass": true,
       "detalhe": {
-        "casosJulgados": 480,
+        "casosJulgados": 576,
         "foraDeOrdem": 0,
-        "excluidosPorPassoDeDiasInteiros": 1560,
+        "excluidosPorPassoDeDiasInteiros": 1728,
         "exemplos": []
       }
     },
@@ -525,70 +460,18 @@
     {
       "id": "E4",
       "nome": "Desfazer 19 respostas encadeadas devolve os cards ao estado anterior (ignorando updatedAt)",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "respostas": 19,
-        "diferenca": {
-          "indice": 0,
-          "antes": {
-            "id": "u0",
-            "frente": "F0",
-            "verso": "V0",
-            "phase": "review",
-            "reps": 3,
-            "lapses": 1,
-            "s": 9,
-            "d": 5,
-            "intervalo": 10,
-            "due": "2026-09-21",
-            "lastReview": "2026-09-11",
-            "status": "sei",
-            "suspenso": false
-          },
-          "depois": {
-            "id": "u0",
-            "frente": "F0",
-            "verso": "V0",
-            "phase": "review",
-            "reps": 3,
-            "lapses": 1,
-            "s": 9,
-            "d": 5,
-            "intervalo": 10,
-            "due": "2026-09-21",
-            "lastReview": "2026-09-11",
-            "status": "sei",
-            "suspenso": false,
-            "_kind": "day",
-            "_val": 2
-          }
-        }
+        "diferenca": null
       }
     },
     {
       "id": "E4b",
       "nome": "Campos transitórios da prévia (_kind/_val/_leechNow) não são gravados no card",
-      "pass": false,
+      "pass": true,
       "detalhe": {
-        "cardsPoluidos": 12,
-        "exemplo": {
-          "id": "u0",
-          "frente": "F0",
-          "verso": "V0",
-          "phase": "review",
-          "reps": 3,
-          "lapses": 1,
-          "s": 9,
-          "d": 5,
-          "intervalo": 10,
-          "due": "2026-09-21",
-          "lastReview": "2026-09-11",
-          "status": "sei",
-          "suspenso": false,
-          "_kind": "day",
-          "_val": 2,
-          "updatedAt": "2026-09-21T09:00:00.000Z"
-        }
+        "cardsPoluidos": 0
       }
     },
     {
@@ -720,10 +603,10 @@
     {
       "id": "F5",
       "nome": "Aplicar o mesmo backup duas vezes não duplica a coleção (restauração x importação)",
-      "pass": false,
+      "pass": true,
       "detalhe": {
-        "cards": 3000,
-        "revlog": 3000,
+        "cards": 1500,
+        "revlog": 1500,
         "nota": "restaurar backup deve ser idempotente; importar conteúdo novo é outra operação"
       }
     },
@@ -762,8 +645,13 @@
     {
       "id": "F6.3",
       "nome": "CSV: \"linha 1…",
-      "pass": false,
+      "pass": true,
       "detalhe": {
+        "obtido": {
+          "frente": "linha 1\nlinha 2",
+          "verso": "verso",
+          "tags": "tag"
+        },
         "esperado": {
           "frente": "linha 1\nlinha 2",
           "verso": "verso"
@@ -773,8 +661,13 @@
     {
       "id": "F6.4",
       "nome": "CSV: \"tem # no meio…",
-      "pass": false,
+      "pass": true,
       "detalhe": {
+        "obtido": {
+          "frente": "tem # no meio\n#continuação",
+          "verso": "verso",
+          "tags": "tag"
+        },
         "esperado": {
           "frente": "tem # no meio\n#continuação",
           "verso": "verso"
@@ -850,7 +743,7 @@
     {
       "id": "G4",
       "nome": "Sair do reaprendizado com \"Fácil\" rende mais do que com \"Bom\" (Anki: Fácil ≥ Bom + 1)",
-      "pass": false,
+      "pass": true,
       "detalhe": {
         "pares": [
           {
@@ -858,14 +751,14 @@
               10
             ],
             "bom": 5,
-            "facil": 5
+            "facil": 6
           },
           {
             "relearnSteps": [
               4320
             ],
             "bom": 5,
-            "facil": 5
+            "facil": 6
           },
           {
             "relearnSteps": [
@@ -873,7 +766,7 @@
               20
             ],
             "bom": 5,
-            "facil": 5
+            "facil": 6
           }
         ],
         "referencia": "anki 26.9.2: bom=1 dia, facil=2 dias na mesma configuração"
@@ -894,7 +787,7 @@
       "nome": "Passo curto no meio do dia continua agendado por horário, com fuzz dentro do teto do Anki",
       "pass": true,
       "detalhe": {
-        "dueTs": 1789981929000,
+        "dueTs": 1789981916000,
         "minimo": 600,
         "tetoFuzz": 750
       }
@@ -914,9 +807,9 @@
       "nome": "Montar a fila cresce de forma linear com a coleção, não quadrática",
       "pass": true,
       "detalhe": {
-        "ms3000": 20.4,
-        "ms12000": 59.9,
-        "razao": 2.9,
+        "ms3000": 19.2,
+        "ms12000": 68.6,
+        "razao": 3.6,
         "esperadoSeLinear": 4,
         "esperadoSeQuadratico": 16
       }

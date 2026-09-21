@@ -60,7 +60,16 @@ const RelationalStore = {
   },
   _memSet(k, v) {
     this._applying = true;
-    try { localStorage.setItem(k, String(v)); }
+    try {
+      localStorage.setItem(k, String(v));
+      /* O histórico vive em RAM no DB. Quando a hidratação traz uma versão nova
+         do banco, a projeção em memória precisa ser descartada — senão a
+         sessão continua lendo a lista antiga e o que veio do banco fica
+         invisível até recarregar a página. */
+      if (String(k).slice(-7) === ':revlog') {
+        try { if (typeof DB !== 'undefined' && DB && DB.invalidarRevlogMemoria) DB.invalidarRevlogMemoria(k); } catch (_) { _quiet(_, 'revlog-mem'); }
+      }
+    }
     finally { this._applying = false; }
   },
   _memDel(k) {
@@ -473,6 +482,59 @@ const RelationalStore = {
     return true;
   },
 
+  /* ── HISTÓRICO DE REVISÕES: CHAMADA DIRETA, NÃO DIFERENÇA DE BLOBS ────────
+     O caminho antigo descobria "acrescentou uma linha" comparando o JSON
+     ANTIGO com o NOVO do localStorage. Isso obrigava o DB a manter — e a
+     reescrever — o histórico inteiro lá só para que a comparação existisse.
+     Agora o DB avisa o que aconteceu, e o localStorage deixa de ser o dono do
+     histórico. A comparação continua no lugar para quem grava o blob inteiro
+     (hidratação, restauração), mas não é mais o caminho quente. */
+  _revlogRow(profileId, planId, x, posicaoAlternativa) {
+    x = x || {};
+    return {
+      profile_id: profileId, plan_id: planId,
+      card_id: x.cardId == null ? null : String(x.cardId), ts: x.ts == null ? null : Number(x.ts), review_date: x.date || null,
+      correct: x.acerto == null ? null : !!x.acerto, grade: x.grade == null ? null : Number(x.grade), elapsed: x.elapsed == null ? null : Number(x.elapsed),
+      phase: x.phase || null, interval_value: x.intervalo == null ? null : Number(x.intervalo), d: x.d == null ? null : Number(x.d), s: x.s == null ? null : Number(x.s),
+      position: Number(x._position) || Number(posicaoAlternativa) || 1,
+      extra: Object.fromEntries(Object.entries(x).filter(([k]) => !['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
+    };
+  },
+  _revlogParts(key) {
+    const p = this._keyParts(key);
+    return (p && p.scope === 'plan' && p.sub === 'revlog') ? p : null;
+  },
+  queueRevlogAppend(key, row) {
+    if(this._applying || !this.isReady()) return false;
+    const p = this._revlogParts(key); if(!p || !row) return false;
+    this._queue('revlog:append', async () => {
+      const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
+      if(error) throw error;
+    });
+    return true;
+  },
+  queueRevlogDelete(key, row) {
+    if(this._applying || !this.isReady()) return false;
+    const p = this._revlogParts(key); if(!p || !row) return false;
+    this._queue('revlog:delete', async () => {
+      let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
+      if(row._position != null) q = q.eq('position', Number(row._position));
+      if(row.ts != null) q = q.eq('ts', Number(row.ts));
+      if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
+      const {error} = await q;
+      if(error) throw error;
+    });
+    return true;
+  },
+  queueRevlogReplace(key, rows) {
+    if(this._applying || !this.isReady()) return false;
+    const p = this._revlogParts(key); if(!p) return false;
+    const arr = Array.isArray(rows) ? rows : [];
+    this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
+      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'));
+    return true;
+  },
+
   _keyParts(key) {
     const m=/^diario-estudos:u:([^:]+):p:([^:]+):(.+)$/.exec(String(key||''));
     if(m)return {scope:'plan',profileId:m[1],planId:m[2],sub:m[3]};
@@ -483,8 +545,16 @@ const RelationalStore = {
   },
   _ignoreSub(sub) {
     /* A lixeira é projeção transitória de segurança e não vira configuração.
-       Os marcadores de fila/revisão da sincronização antiga foram eliminados. */
-    return sub.indexOf('__lixeira:') === 0;
+       Os marcadores de fila/revisão da sincronização antiga foram eliminados.
+
+       `revlog-pendente` e `revlog-arquivo*` também são transitórios: são a rede
+       de segurança LOCAL do histórico, para o caso de o banco não estar
+       disponível. As linhas correspondentes já vão para `study_review_log` por
+       queueRevlogAppend; persisti-las de novo criaria duplicata. */
+    return sub.indexOf('__lixeira:') === 0
+        || sub === 'revlog-pendente'
+        || sub === 'revlog-arquivo'
+        || sub.indexOf('revlog-arquivo:') === 0;
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
@@ -597,13 +667,7 @@ const RelationalStore = {
     if(sub==='saved-grades')return this._syncById('study_saved_grades',profileId,planId,'grade_id',oldA,newA,(x,i)=>Object.assign(base(),{grade_id:String(x.id),name:x.nome||'',sessions:x.sessions==null?null:Number(x.sessions),grade:x.grade||{},created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,grade_id');
 
     if(sub==='revlog'){
-      const rowFor=(x,i)=>Object.assign(base(),{
-        card_id:x.cardId==null?null:String(x.cardId),ts:x.ts==null?null:Number(x.ts),review_date:x.date||null,
-        correct:x.acerto==null?null:!!x.acerto,grade:x.grade==null?null:Number(x.grade),elapsed:x.elapsed==null?null:Number(x.elapsed),
-        phase:x.phase||null,interval_value:x.intervalo==null?null:Number(x.intervalo),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),
-        position:Number(x._position)||(i+1),
-        extra:Object.fromEntries(Object.entries(x||{}).filter(([k])=>!['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
-      });
+      const rowFor=(x,i)=>this._revlogRow(profileId,planId,x,i+1);
       const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 
       // Caminho quente: uma resposta acrescenta UMA linha. Não reescrevemos

@@ -648,9 +648,9 @@
             "studyFase": "review",
             "ankiFase": "review",
             "faseOk": true,
-            "studyVal": 1,
+            "studyVal": 2,
             "segOk": null,
-            "studyIntervalo": 1,
+            "studyIntervalo": 2,
             "ankiAgendado": 2,
             "faixaStudy": [
               0,
@@ -889,7 +889,7 @@
             "mesmaFase": true
           },
           "facil": {
-            "studyDias": 1,
+            "studyDias": 2,
             "ankiDias": 2,
             "mesmaFase": true
           }

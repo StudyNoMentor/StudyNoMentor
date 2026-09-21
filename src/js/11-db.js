@@ -63,7 +63,11 @@ const DB = {
       incidencia: base + 'incidencia',
       lastCycleSetup: base + 'last-cycle-setup',
       extras: base + 'extras',
-      revlog: base + 'revlog'
+      revlog: base + 'revlog',
+      /* Rede de segurança do histórico: só o que ainda NÃO está confirmado no
+         banco relacional. Ver o bloco do revlog mais abaixo. */
+      revlogPendente: base + 'revlog-pendente',
+      revlogArquivo: base + 'revlog-arquivo'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -129,6 +133,9 @@ const DB = {
          Trinta dias de arrependimento pelo preço de uma leitura. */
       try { if (valorVazio(txt)) Lixeira.guardar(key, 'esvaziada pelo app'); } catch (e2) { _quiet(e2, 'set-lixeira'); }
       localStorage.setItem(key, txt);
+      // Qualquer escrita na chave do histórico por fora de replaceRevlog torna
+      // a projeção em RAM obsoleta (hidratação, restauração, reset de dados).
+      this._esquecerRevlogSeForOCaso(key);
     } catch (e) {
       console.error('Falha ao atualizar a projeção em memória', key, e);
       try { showToast('⚠ Não foi possível atualizar o estado local. A gravação foi cancelada.'); } catch (_) { _quiet(_); }
@@ -160,9 +167,18 @@ const DB = {
   delRaw(key, motivo) {
     try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
+    this._esquecerRevlogSeForOCaso(key);
     return true;
   },
   _del(key) { return this.delRaw(key); },
+  // Chamado por _set/delRaw: a lista viva em RAM não pode sobreviver a uma
+  // escrita ou remoção feita direto na chave do histórico.
+  _esquecerRevlogSeForOCaso(key) {
+    try {
+      const k = String(key || '');
+      if (k.slice(-7) === ':revlog' && this._revlogMem && this._revlogMem.has(k)) this._revlogMem.delete(k);
+    } catch (_) { /* nunca impede a gravação */ }
+  },
   _uid() {
     // UUID v4 real quando disponível. crypto.randomUUID exige contexto seguro —
     // funciona em file:// e https://, mas NÃO em http:// simples (ex.: servir de um NAS).
@@ -693,20 +709,121 @@ const DB = {
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
   getCards() { return this._get(this.KEYS.cards, []); },
-  saveCards(list) { this._set(this.KEYS.cards, list); },
-  // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
-  getRevlog() { return this._get(this.KEYS.revlog, []); },
+  // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
+  // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
+  saveCards(list) { return this._set(this.KEYS.cards, list); },
+  /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
+     O histórico é a única coleção que cresce sem teto: uma linha por resposta,
+     centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
+     revisão em `study_review_log` — e em RAM durante a sessão. O localStorage
+     deixa de ser o dono dele.
+
+     POR QUE. Enquanto o histórico era um único JSON no localStorage, CADA
+     resposta reescrevia o histórico INTEIRO: com 3.000 linhas já eram 472 KB
+     guardados contra 884 MB escritos, e dobrar as linhas multiplicava o custo
+     por cinco. Um ano de uso projetava 27 MB num armazenamento cuja cota
+     costuma ser 5 MB — ou seja, o limite era atingido por volta de 33.000
+     revisões, e a partir dali a gravação falhava. Tirar o antigo teto de 8.000
+     linhas sem trocar o meio de armazenamento apenas trocou uma perda
+     silenciosa por outra.
+
+     COMO. Três camadas, e nenhuma delas reescreve o histórico inteiro:
+
+       1. RAM (`_revlogMem`) — a lista viva da sessão, que é o que o app lê.
+       2. BANCO — uma linha por resposta, enfileirada em queueRevlogAppend.
+       3. PENDENTES (`revlog-pendente`) — rede de segurança apenas com o que
+          o banco ainda não confirmou. Some assim que a fila esvazia. Sem
+          banco (offline, sem conta), ela acumula e é arquivada em lotes
+          pequenos (`revlog-arquivo:N`), nunca num blob único.
+
+     Assim uma resposta escreve o tamanho do LOTE, não o do histórico.        */
+  LOTE_REVLOG: 50,
+  _revlogMem: new Map(),
+  _chaveRevisao(r) { return String(r && r.cardId) + '|' + String(r && r.ts) + '|' + String(r && r._position); },
+  _bancoRelacionalPronto() {
+    try { return !!(typeof RelationalStore !== 'undefined' && RelationalStore && RelationalStore.enabled && RelationalStore.isReady()); }
+    catch (_) { return false; }
+  },
+  _bancoSemPendencias() {
+    try { return this._bancoRelacionalPronto() && RelationalStore.pendingCount() === 0; }
+    catch (_) { return false; }
+  },
+  _lotesArquivados() {
+    const n = Number(this._get(this.KEYS.revlogArquivo, 0)) || 0;
+    return n > 0 ? n : 0;
+  },
+  _lerHistoricoPersistido() {
+    // Consolidado (hidratação do banco ou versões anteriores) + lotes
+    // arquivados offline + o que ainda está pendente. Nessa ordem.
+    const base = this._get(this.KEYS.revlog, []);
+    const fora = [];
+    const nLotes = this._lotesArquivados();
+    for (let i = 0; i < nLotes; i++) {
+      const lote = this._get(this.KEYS.revlog + '-arquivo:' + i, []);
+      if (Array.isArray(lote)) fora.push(...lote);
+    }
+    const pendentes = this._get(this.KEYS.revlogPendente, []);
+    if (Array.isArray(pendentes)) fora.push(...pendentes);
+    if (!fora.length) return Array.isArray(base) ? base : [];
+    const vistas = new Set((Array.isArray(base) ? base : []).map(r => this._chaveRevisao(r)));
+    const extras = fora.filter(r => { const k = this._chaveRevisao(r); if (vistas.has(k)) return false; vistas.add(k); return true; });
+    return (Array.isArray(base) ? base : []).concat(extras);
+  },
+  getRevlog() {
+    const k = this.KEYS.revlog;
+    if (!this._revlogMem.has(k)) this._revlogMem.set(k, this._lerHistoricoPersistido());
+    return this._revlogMem.get(k);
+  },
+  // Descarta a projeção em RAM (troca de perfil/planejamento, hidratação nova).
+  invalidarRevlogMemoria(prefixo) {
+    const p = String(prefixo || '');
+    for (const k of Array.from(this._revlogMem.keys())) if (!p || k.indexOf(p) === 0) this._revlogMem.delete(k);
+  },
+  /* Substituição em bloco: excluir card, zerar estatísticas, restaurar backup.
+     São operações raras e por definição O(n) — aqui a reescrita é legítima. */
+  replaceRevlog(list) {
+    const k = this.KEYS.revlog, v = Array.isArray(list) ? list : [];
+    this._revlogMem.set(k, v);
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogReplace) RelationalStore.queueRevlogReplace(k, v);
+    } catch (e) { _quiet(e, 'revlog-replace'); }
+    // A rede de segurança é reconstruída junto: o consolidado passa a conter tudo.
+    const nLotes = this._lotesArquivados();
+    for (let i = 0; i < nLotes; i++) this.delRaw(this.KEYS.revlog + '-arquivo:' + i);
+    this._set(this.KEYS.revlogArquivo, 0);
+    this._set(this.KEYS.revlogPendente, []);
+    return this._set(k, v);
+  },
   addRevlog(entry) {
-    // O histórico é dado de aprendizagem, não cache descartável. O antigo teto
-    // de 8.000 apagava silenciosamente quase todo um ano de uso e inviabilizava
-    // otimização/estatísticas FSRS. A persistência relacional cuida da escala.
     const l = this.getRevlog();
-    // Posição monotônica em O(1): o histórico pode passar de centenas de
-    // milhares de linhas, então varrer todo o array a cada resposta seria O(n²).
+    // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
-    l.push(Object.assign({ _position: pos }, entry));
-    this._set(this.KEYS.revlog, l);
+    const row = Object.assign({ _position: pos }, entry);
+    l.push(row);
+    // 1) Banco relacional: UMA linha, não o histórico inteiro.
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
+    } catch (e) { _quiet(e, 'revlog-append'); }
+    // 2) Rede de segurança local, do tamanho do lote.
+    return this._guardarPendente(row);
+  },
+  _guardarPendente(row) {
+    const pendentes = this._get(this.KEYS.revlogPendente, []);
+    const lista = Array.isArray(pendentes) ? pendentes : [];
+    // Confirmado no banco: a rede de segurança não precisa mais dessas linhas.
+    if (this._bancoSemPendencias() && lista.length) {
+      if (!this._set(this.KEYS.revlogPendente, row ? [row] : [])) return false;
+      return true;
+    }
+    if (row) lista.push(row);
+    if (lista.length < this.LOTE_REVLOG) return this._set(this.KEYS.revlogPendente, lista);
+    // Lote cheio e sem banco para confirmar: arquiva o lote e recomeça. A
+    // gravação continua sendo do tamanho do lote, nunca do histórico.
+    const n = this._lotesArquivados();
+    if (!this._set(this.KEYS.revlog + '-arquivo:' + n, lista)) return false;
+    if (!this._set(this.KEYS.revlogArquivo, n + 1)) return false;
+    return this._set(this.KEYS.revlogPendente, []);
   },
   removeRevlog(ts) {
     const l = this.getRevlog();
@@ -714,7 +831,20 @@ const DB = {
     // revisão MAIS RECENTE, não a primeira linha com o mesmo timestamp.
     let i = -1;
     for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
-    if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); }
+    if (i < 0) return true;
+    const removida = l[i];
+    l.splice(i, 1);
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
+    } catch (e) { _quiet(e, 'revlog-delete'); }
+    // Desfazer costuma retirar justamente a última linha, que está nos
+    // pendentes: nesse caso a remoção é do tamanho do lote.
+    const pendentes = this._get(this.KEYS.revlogPendente, []);
+    const lista = Array.isArray(pendentes) ? pendentes : [];
+    const alvo = this._chaveRevisao(removida);
+    const idx = lista.map(r => this._chaveRevisao(r)).lastIndexOf(alvo);
+    if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
+    return this.replaceRevlog(l);
   },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
@@ -765,8 +895,26 @@ const DB = {
     };
     list.push(card); this.saveCards(list); return card;
   },
+  /* Campos que o agendador devolve para a TELA usar na mesma resposta e que não
+     são estado do card: o rótulo do botão (_kind/_val) e o aviso de leech
+     (_leechNow). Gravados, eles viajavam para a coleção, para o backup e para o
+     banco, e faziam o desfazer não devolver o card idêntico ao que era. Quem
+     precisa deles lê do PATCH, que continua intacto para o chamador. */
+  TRANSITORIOS_DO_AGENDADOR: ['_kind', '_val', '_leechNow'],
+  _semTransitorios(patch) {
+    if (!patch) return patch;
+    let copia = null;
+    for (const k of this.TRANSITORIOS_DO_AGENDADOR) {
+      if (Object.prototype.hasOwnProperty.call(patch, k)) {
+        if (!copia) copia = { ...patch };
+        delete copia[k];
+      }
+    }
+    return copia || patch;
+  },
   updateCard(id, patch) {
     const list = this.getCards(); const c = list.find(x => x.id === id);
+    patch = this._semTransitorios(patch);
     // Só sanea quando o texto do card está de fato no patch — a maioria das
     // chamadas é agendamento do FSRS (due, s, d, reps) e não toca em frente/verso.
     if (patch && ('frente' in patch || 'verso' in patch)) {
@@ -775,7 +923,9 @@ const DB = {
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
     if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
-    this.saveCards(list); return c;
+    // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
+    // CardsScreen.answer). Card inexistente continua devolvendo null.
+    return this.saveCards(list) === false ? false : c;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
@@ -787,6 +937,10 @@ const DB = {
       list.forEach(c => {
         const f = _sanCard(c.frente), v = _sanCard(c.verso);
         if (f !== c.frente || v !== c.verso) { c.frente = f; c.verso = v; n++; }
+        // Limpa os transitórios que versões anteriores gravaram na coleção.
+        this.TRANSITORIOS_DO_AGENDADOR.forEach(k => {
+          if (Object.prototype.hasOwnProperty.call(c, k)) { delete c[k]; n++; }
+        });
       });
       if (n) this.saveCards(list);
       return n;
@@ -801,7 +955,7 @@ const DB = {
     this.saveCards(this.getCards().filter(c => c.id !== id));
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
-      this._set(this.KEYS.revlog, l);
+      this.replaceRevlog(l);
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
   },
@@ -869,7 +1023,7 @@ const DB = {
       c.updatedAt = new Date().toISOString();
     });
     this.saveCards(cards);
-    this._set(this.KEYS.revlog, []);
+    this.replaceRevlog([]);
     try {
       this.setRaw(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
     } catch (_) { _quiet(_); }
@@ -884,7 +1038,7 @@ const DB = {
       const l = this.getRevlog();
       const limpo = l.filter(r => ids.has(r.cardId));
       n = l.length - limpo.length;
-      if (n) this._set(this.KEYS.revlog, limpo);
+      if (n) this.replaceRevlog(limpo);
     } catch (_) { _quiet(_); }
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
