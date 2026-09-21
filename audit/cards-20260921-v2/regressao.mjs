@@ -332,6 +332,20 @@ for (const algo of ['fsrs', 'sm2']) {
 // ─────────────────────────────────────────────────────────────────────────────
 {
   A.reset();
+  const hoje = A.hoje();
+  DB.saveCards([
+    { id:'sib-a', frente:'A', verso:'B', phase:'new', due:hoje, dueTs:null },
+    { id:'sib-b', frente:'B', verso:'A', reversedOf:'sib-a', phase:'new', due:hoje, dueTs:A.agora()+600000 }
+  ]);
+  const antesTs=DB.getCard('sib-b').dueTs;
+  const n=DB.burySiblings('sib-a');
+  const irmao=DB.getCard('sib-b');
+  check('E0', 'Irmão normal↔invertido é enterrado até amanhã sem perder o passo intradiário',
+    n===1 && irmao.enterradoAte===E.addDays(hoje,1) && irmao.dueTs==null && irmao.dueTsAntesEnterrar===antesTs,
+    {n,irmao});
+}
+{
+  A.reset();
   const hoje = A.hoje(), ts = A.agora() + 600000;
   DB.saveCards([{ id: 'e1', phase: 'learning', due: hoje, dueTs: ts, learnStep: 0 }]);
   DB.buryCard('e1');
