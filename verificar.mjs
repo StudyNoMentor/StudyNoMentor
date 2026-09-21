@@ -869,6 +869,141 @@ try {
       ? ok('hidratação relacional também redesenha nome do planejamento e registros')
       : erro('dados chegaram à memória, mas a UI não redesenhou: '+JSON.stringify(uiAposHydrate));
 
+    /* ── ROBUSTEZ DIÁRIA DOS CARDS ───────────────────────────────────────
+       A simulação matemática de 6.000 cards existe em outra suíte. Aqui o
+       navegador real prova a arquitetura que a simulação não alcança:
+       registros individuais no IndexedDB, outbox durável, replay idempotente
+       e lease exclusivo entre aparelhos/abas. */
+    const escalaLocal = await pg.evaluate(async () => {
+      const key=DB.KEYS.cards, hoje=todayCards();
+      const payload='x'.repeat(2800); // aproxima o tamanho médio observado em cards reais
+      const cards=Array.from({length:6000},(_,i)=>({
+        id:'scale-'+i,frente:'F'+i+' '+payload,verso:'V'+i,
+        phase:'new',due:hoje,dueTs:null,reps:0,lapses:0,status:'pendente',
+        posicaoNova:i,createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
+      }));
+      RelationalStore._applying=true;
+      try { DB.saveCards(cards); } finally { RelationalStore._applying=false; }
+      await LocalDurable.flush();
+
+      const db=await new Promise((resolve,reject)=>{
+        const q=indexedDB.open('diario-estudos-local-v3');
+        q.onsuccess=()=>resolve(q.result); q.onerror=()=>reject(q.error);
+      });
+      const count=await new Promise((resolve,reject)=>{
+        const tx=db.transaction('cards','readonly');
+        const q=tx.objectStore('cards').index('by_storage_key').count(IDBKeyRange.only(key));
+        q.onsuccess=()=>resolve(q.result); q.onerror=()=>reject(q.error);
+      });
+      const blob=await new Promise((resolve,reject)=>{
+        const tx=db.transaction('kv','readonly');
+        const q=tx.objectStore('kv').get(key);
+        q.onsuccess=()=>resolve(q.result||null); q.onerror=()=>reject(q.error);
+      });
+      db.close();
+      return {key,count,temBlob:!!blob,emRam:DB.getCards().length};
+    });
+    escalaLocal.count===6000 && escalaLocal.emRam===6000 && !escalaLocal.temBlob
+      ? ok('6.000 cards ficam em registros individuais no IndexedDB, sem blob monolitico')
+      : erro('persistencia local dos 6.000 cards divergiu: '+JSON.stringify(escalaLocal));
+
+    api.estado.falhaForcada=(req,url)=>
+      req.method==='POST' && /\/rest\/v1\/study_cards$/.test(url.pathname);
+    const offlineWrite=await pg.evaluate(async () => {
+      const c=DB.getCard('scale-0');
+      const antes=c && c.status;
+      const r=DB.updateCard('scale-0',{status:'sei',assunto:'offline-outbox'});
+      await LocalDurable.flush();
+      await RelationalStore.settle();
+      const uid=CloudStore.session.user.id;
+      const sujas=await LocalDurable.listDirty(uid);
+      return {
+        antes,gravou:r!==false,
+        cardsDirty:sujas.filter(x=>x.kind==='card'&&x.cardId==='scale-0').length,
+        totalDirty:sujas.length,
+        falhou:RelationalStore.hasFailures()
+      };
+    });
+    offlineWrite.gravou && offlineWrite.cardsDirty===1 && offlineWrite.falhou
+      ? ok('falha de rede deixa exatamente a mutacao do card na outbox duravel')
+      : erro('outbox offline nao reteve o card: '+JSON.stringify(offlineWrite));
+
+    /* Uma segunda pagina mínima, na MESMA origem, não herda nenhum Map da
+       primeira. Se ela vê os 6.000 cards + a pendência, vieram do IndexedDB. */
+    await ctx.route('**/idb-probe.html',(rota)=>rota.fulfill({
+      status:200,contentType:'text/html; charset=utf-8',
+      body:'<!doctype html><meta charset="utf-8"><title>probe</title>'
+    }));
+    const probe=await ctx.newPage();
+    await probe.goto(new URL('/idb-probe.html',base).href,{waitUntil:'domcontentloaded'});
+    const sobreviveu=await probe.evaluate(async (key) => {
+      const db=await new Promise((resolve,reject)=>{
+        const q=indexedDB.open('diario-estudos-local-v3');
+        q.onsuccess=()=>resolve(q.result); q.onerror=()=>reject(q.error);
+      });
+      const cards=await new Promise((resolve,reject)=>{
+        const tx=db.transaction('cards','readonly');
+        const q=tx.objectStore('cards').index('by_storage_key').count(IDBKeyRange.only(key));
+        q.onsuccess=()=>resolve(q.result); q.onerror=()=>reject(q.error);
+      });
+      const dirty=await new Promise((resolve,reject)=>{
+        const tx=db.transaction('dirty','readonly');
+        const q=tx.objectStore('dirty').getAll();
+        q.onsuccess=()=>resolve((q.result||[]).filter(x=>x.kind==='card'&&x.cardId==='scale-0').length);
+        q.onerror=()=>reject(q.error);
+      });
+      db.close(); return {cards,dirty};
+    },escalaLocal.key);
+    await probe.close();
+    sobreviveu.cards===6000 && sobreviveu.dirty===1
+      ? ok('cards e outbox sobrevivem ao fim da pagina no IndexedDB')
+      : erro('estado local nao sobreviveu em disco: '+JSON.stringify(sobreviveu));
+
+    api.estado.falhaForcada=null;
+    const replay=await pg.evaluate(async () => {
+      await RelationalStore.replayDurable();
+      await RelationalStore.flush();
+      const sujas=await LocalDurable.listDirty(CloudStore.session.user.id);
+      return {dirty:sujas.filter(x=>x.kind==='card'&&x.cardId==='scale-0').length,
+        falhou:RelationalStore.hasFailures()};
+    });
+    const cardReplay=api.estado.tabelas.study_cards.find((x)=>
+      x.profile_id===criacao.id&&x.plan_id===criacao.plan&&x.card_id==='scale-0');
+    replay.dirty===0 && !replay.falhou && cardReplay && cardReplay.status==='sei' &&
+        cardReplay.topic==='offline-outbox'
+      ? ok('reconexao reenvia a outbox antes do pull e confirma o card')
+      : erro('replay da outbox falhou: '+JSON.stringify({replay,cardReplay}));
+
+    const lease1=await pg.evaluate(async ({pid,plan}) =>
+      RelationalStore.ensureReviewLease(pid,plan,{force:true}),{pid:criacao.id,plan:criacao.plan});
+    const lease2=await pg.evaluate(async ({pid,plan}) => {
+      const q=await CloudStore.client.rpc('claim_study_review_lease',{
+        p_profile_id:pid,p_plan_id:plan,p_holder_id:'segundo-holder-teste-123',p_ttl_seconds:300
+      });
+      return {data:q.data,error:q.error&&q.error.message};
+    },{pid:criacao.id,plan:criacao.plan});
+    lease1 && lease1.acquired && lease2.data && lease2.data.acquired===false
+      ? ok('lease impede duas abas/aparelhos de revisar o mesmo plano simultaneamente')
+      : erro('lease de reviewer nao excluiu o segundo holder: '+JSON.stringify({lease1,lease2}));
+
+    const idem=await pg.evaluate(async () => {
+      const row={reviewId:'review-idempotente-e2e',cardId:'scale-0',ts:Date.now(),
+        date:todayCards(),grade:3,acerto:true,phase:'review',intervalo:1,s:1,d:5,_position:987654};
+      RelationalStore.queueRevlogAppend(DB.KEYS.revlog,row);
+      await RelationalStore.settle();
+      RelationalStore.queueRevlogAppend(DB.KEYS.revlog,row);
+      await RelationalStore.settle();
+      return {falhou:RelationalStore.hasFailures()};
+    });
+    const idemRows=api.estado.tabelas.study_review_log.filter((x)=>
+      x.profile_id===criacao.id&&x.plan_id===criacao.plan&&x.review_id==='review-idempotente-e2e');
+    !idem.falhou && idemRows.length===1
+      ? ok('reenvio da mesma revisao e idempotente por review_id')
+      : erro('revlog idempotente falhou: '+JSON.stringify({idem,n:idemRows.length}));
+    await pg.evaluate(async ({pid,plan}) => {
+      try { await RelationalStore.releaseReviewLease(pid,plan); } catch (_) {}
+    },{pid:criacao.id,plan:criacao.plan});
+
     const isolamento=await pg.evaluate(async (pid) => {
       await CloudStore.signOut();
       await CloudStore.signUp('outra@teste.local','senha-de-teste-456');
