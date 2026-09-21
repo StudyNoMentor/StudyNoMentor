@@ -163,7 +163,12 @@ const CardsConfig = {
     return this._c;
   },
   set(patch) {
-    const v = Object.assign(this.get(), patch || {}); this._c = v; this._cKey = this.KEY;
+    /* get()/forDeck() sempre sanitizam antes de devolver — mas set() só fundia o
+       patch no cache já sanitizado, sem rodar _sanear() de novo. Um valor ruim
+       (nuvem, otimizador com bug, o que for) ficava PRESO no cache vivo pelo
+       resto da sessão, porque get() só resanitiza no cold path (_c/_cKey
+       vazios), e depois de um set() o cache nunca mais fica vazio. */
+    const v = this._sanear(Object.assign(this.get(), patch || {})); this._c = v; this._cKey = this.KEY;
     DB.setRaw(this.KEY, JSON.stringify(v));
   },
   // ---- Presets POR BARALHO (como o Anki): overrides que herdam do global ----

@@ -114,7 +114,7 @@ const CardEngine = {
     const place = (ivRaw, minIv) => {
       const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
       const piso = Math.max(1, Math.min(maxIv, minIv || 1));
-      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso));
+      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso, sementeFuzz));
       /* O Anki sorteia UM fuzz_factor por card+reps (card.get_fuzz_factor) e usa
          o MESMO para os quatro botoes. Semear por nota/intervalo, como estava,
          dava a cada botao um sorteio proprio — os intervalos podiam se cruzar

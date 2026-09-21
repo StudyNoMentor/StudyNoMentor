@@ -492,7 +492,11 @@ const FSRS = {
      Modificadores de irmaos e "easy days" nao se aplicam: o app nao tem notas
      com varios cards nem dias de carga reduzida. */
   MAX_LOAD_BALANCE_INTERVAL: 90,
-  loadBalance(iv, dueCountByDay, maxIv, minIv) {
+  // `seed` é o MESMO sementeFuzz do card+resposta que o fuzz simples usa. Sem
+  // isso, cada chamada (Difícil/Bom/Fácil da prévia, e a resposta de verdade)
+  // sorteava um dia independente com Math.random() — a prévia podia divergir
+  // do que era gravado, e a ordem Difícil<Bom<Fácil podia furar na tela.
+  loadBalance(iv, dueCountByDay, maxIv, minIv, seed) {
     const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
     // acima de 90 dias o Anki nao balanceia: devolve o proprio intervalo
@@ -523,7 +527,7 @@ const FSRS = {
       }
     }
     if (!(soma > 0)) return lo;
-    let alvo = Math.random() * soma;
+    let alvo = (seed != null ? this._hash(String(seed)) : Math.random()) * soma;
     for (let i = 0; i < dias.length; i++) { alvo -= pesos[i]; if (alvo <= 0) return dias[i]; }
     return dias[dias.length - 1];
   },
