@@ -847,6 +847,7 @@ const CardsScreen = {
     const u = (this._undoStack || []).pop();
     if (!u) { showToast('Nada para desfazer'); return; }
     DB.updateCard(u.id, u.antes);
+    (u.siblingsAntes || []).forEach(x => DB.updateCard(x.id, x.state));
     CardEngine.invalidateDueCache();
     DB.removeRevlog(u.revTs);
     if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
@@ -864,113 +865,154 @@ const CardsScreen = {
     this.renderReviewCard(document.getElementById('cards-content'));
     this.atualizarFoco();
   },
-  answer(grade) {
+  async answer(grade) {
+    if (this._answering) return;
+    this._answering = true;
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
-    /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
-       respondido com "Errei" volta em 1 minuto e PRECISA ser avaliado de novo —
-       é assim que os passos do Anki funcionam. A guarda baseada no histórico de
-       desfazer bloqueava justamente essa volta legítima.
-       A proteção real contra reavaliar a MESMA apresentação é estrutural: sem
-       "voltar" e sem "pular", não existe caminho para retornar a um card já
-       avaliado na mesma posição da fila — exatamente como no Anki. */
-    let patch = null;
-    if (c) {
-      // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
+    let patch = null, revTs = null, primeiraVez = false, bucketAntes = null;
+    let antes = null, siblingsAntes = [];
+    try {
+      if (!c) return;
+
+      /* Uma única fila pode ser respondida por vez para este perfil/plano.
+         O lease é renovado no servidor e continua válido por alguns minutos
+         quando a rede oscila. Sem lease válido offline, a resposta é bloqueada
+         em vez de criar dois históricos concorrentes. */
+      const pid = window.ProfileManager && ProfileManager.getActiveProfileId
+        ? ProfileManager.getActiveProfileId() : null;
+      const planId = DB._activePlanId ? DB._activePlanId() : null;
+      if (window.RelationalStore && pid && planId && RelationalStore.ensureReviewLease) {
+        let lease;
+        try { lease = await RelationalStore.ensureReviewLease(pid, planId); }
+        catch (e) {
+          _quiet(e, 'review-lease');
+          showToast('⚠ Não consegui confirmar a sessão de revisão. Verifique a conexão.');
+          return;
+        }
+        if (!lease || !lease.acquired) {
+          showToast(lease && lease.offline
+            ? '⚠ A sessão exclusiva expirou offline. Reconecte para continuar com segurança.'
+            : '⚠ Este perfil já está sendo revisado em outra aba ou aparelho.');
+          return;
+        }
+      }
+
       const G = CardEngine.GRADE_NUM[grade] || 3;
-      const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
-      const revTs = Date.now();
-      /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
-         do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
-         separar card jovem de card maduro: a coluna "Maduros" ficava vazia
-         para sempre, porque a linha do histórico não guardava essa informação. */
-      /* ── UMA RESPOSTA SÓ CONTA SE FOI GRAVADA ────────────────────────────
-         O armazenamento pode recusar a escrita (cota do navegador cheia, por
-         exemplo). Antes, a recusa virava um aviso e a fila seguia em frente:
-         o card aparecia como respondido, o índice avançava, o desfazer era
-         empilhado — e nada disso existia depois de recarregar a página. Agora
-         a resposta é abortada e o card continua onde estava, para ser
-         respondido de novo depois que o espaço for liberado. */
-      if (DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) }) === false) {
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+      const elapsed = c.lastReview
+        ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000))
+        : 0;
+      revTs = Date.now();
+
+      // Snapshot ANTES de qualquer mutação: base do undo e do rollback local.
+      antes = {};
+      ['phase','learnStep','s','d','due','dueTs','reps','lapses','ease','intervalo',
+       'status','lastReview','algo','leech','suspenso','enterradoAte','dueTsAntesEnterrar']
+        .forEach(k => { antes[k] = c[k]; });
+
+      if (DB.addRevlog({
+        ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
+        phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0),
+        s: (c.s || null), d: (c.d || null)
+      }) === false) {
+        showToast('⚠ Não foi possível gravar esta revisão.');
         return;
       }
-      // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
-      const bucketAntes = this._bucket(c);
+
+      bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
-      const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
+      primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
       if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
       this._seenThisSession.add(id);
-      // snapshot para o DESFAZER — capturado ANTES de gravar (Anki: Ctrl+Z)
-      const antes = {};
-      ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
-        .forEach(k => { antes[k] = c[k]; });
-      patch = CardEngine.schedule(c, grade);
-      if (DB.updateCard(id, patch) === false) {
-        // O agendamento não foi gravado: desfaz o registro que acabou de entrar
-        // no histórico para os dois não ficarem em desacordo.
-        DB.removeRevlog(revTs);
-        if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
-        this._seenThisSession.delete(id);
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-        return;
-      }
-      CardEngine.invalidateDueCache();
-      (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
-      if (this._undoStack.length > 50) this._undoStack.shift();
-      if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
-    }
-    this._reviewIdx++;
-    this._flipped = false;
-    // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
-    // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
-    if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
-      const restam = this._reviewQueue.length - this._reviewIdx;
-      const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
-      const gap = curto ? Math.min(3, restam) : restam;
-      this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
-    }
-    // não mostra um card cujo passo ainda não venceu se houver outro disponível
-    this._skipNotDue();
-    this.atualizarFoco();
-    const box = document.getElementById('cards-content');
-    if (this._reviewIdx >= this._reviewQueue.length) {
-      /* ── FIDELIDADE AO ANKI: antecipados fazem parte da MESMA fila ───────────
-         No Anki (rslib/src/scheduler/queue/mod.rs) a ordem de apresentação é um
-         único iterador encadeado:
-             aprendizado vencido AGORA → revisões e novos → aprendizado ANTECIPADO
-         O "learn ahead" (padrão 1200s = 20 min) é o último elo desse mesmo
-         iterador — não uma fila separada. Por isso o Anki NUNCA diz "concluído"
-         para depois trazer os cards de volta: ele simplesmente continua.
 
-         Aqui os antecipados viviam fora da fila, então ela esvaziava, aparecia o
-         🎉 e os cards ressurgiam ao reabrir a tela. Mesma matemática, sensação
-         completamente diferente — e era isto que destoava do Anki.
-         Agora eles entram no fim da fila corrente, e o encerramento só acontece
-         quando não há mais nada dentro da janela de antecipação. */
-      const antecipados = (this._learnAheadQueue() || []).filter(id => {
-        const c = DB.getCard(id);
-        return c && !c.suspenso;
+      patch = CardEngine.schedule(c, grade);
+      if (DB.updateCard(id, patch) === false) throw new Error('card-local-write');
+
+      /* Pares normal↔invertido são irmãos. Como no Anki, o outro lado é
+         enterrado até o próximo dia para não dar a resposta de graça. */
+      const cfgCard = CardsConfig.forDeck(c.deckId);
+      const deveEnterrarIrmaos = bucketAntes === 'new'
+        ? cfgCard.buryNewSiblings !== false
+        : cfgCard.buryReviewSiblings !== false;
+      if (deveEnterrarIrmaos && DB.siblingIds) {
+        const ids = DB.siblingIds(id);
+        siblingsAntes = ids.map(sid => {
+          const sc = DB.getCard(sid);
+          return sc ? { id:sid, state:{
+            enterradoAte:sc.enterradoAte, dueTs:sc.dueTs,
+            dueTsAntesEnterrar:sc.dueTsAntesEnterrar
+          }} : null;
+        }).filter(Boolean);
+        if (ids.length) DB.burySiblings(id);
+      }
+
+      /* O clique só passa a existir para a UI depois da confirmação do
+         IndexedDB. O SQL pode ficar pendente na outbox sem travar o estudo. */
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+
+      CardEngine.invalidateDueCache();
+      (this._undoStack = this._undoStack || []).push({
+        id, antes, siblingsAntes, revTs,
+        contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx
       });
-      if (antecipados.length) {
-        this._reviewQueue = this._reviewQueue.concat(antecipados);
-        this._skipNotDue();
-        this.renderReviewCard(box);
+      if (this._undoStack.length > 50) this._undoStack.shift();
+      if (patch._leechNow) showToast(patch.suspenso
+        ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes'
+        : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
+
+      this._reviewIdx++;
+      this._flipped = false;
+
+      if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
+        const restam = this._reviewQueue.length - this._reviewIdx;
+        const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
+        const gap = curto ? Math.min(3, restam) : restam;
+        this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
+      }
+
+      this._skipNotDue();
+      this.atualizarFoco();
+      const box = document.getElementById('cards-content');
+      if (this._reviewIdx >= this._reviewQueue.length) {
+        const antecipados = (this._learnAheadQueue() || []).filter(cid => {
+          const cc = DB.getCard(cid);
+          return cc && !cc.suspenso;
+        });
+        if (antecipados.length) {
+          this._reviewQueue = this._reviewQueue.concat(antecipados);
+          this._skipNotDue();
+          this.renderReviewCard(box);
+          return;
+        }
+        const distintos = new Set(this._reviewQueue).size;
+        box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
+        const rb = document.getElementById('cards-review-restart');
+        if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
+        this.updateFavCount();
+        const prox = (this._queueMeta || {}).proximoTs;
+        clearTimeout(this._etaTimer);
+        if (prox) this._etaTimer = setTimeout(() => {
+          if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); }
+        }, Math.max(3000, prox - Date.now() + 500));
         return;
       }
-      // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
-      const distintos = new Set(this._reviewQueue).size;
-      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
-      const rb = document.getElementById('cards-review-restart');
-      if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
-      this.updateFavCount();
-      // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
-      const prox = (this._queueMeta || {}).proximoTs;
-      clearTimeout(this._etaTimer);
-      if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
-      return;
+      this.renderReviewCard(box);
+    } catch (e) {
+      console.error('[cards] resposta não confirmada localmente', e);
+      /* Reverte a projeção viva; o usuário continua no MESMO card. */
+      try { if (antes) DB.updateCard(id, antes); } catch (_) { _quiet(_, 'answer-rollback-card'); }
+      try {
+        (siblingsAntes || []).forEach(x => DB.updateCard(x.id, x.state));
+      } catch (_) { _quiet(_, 'answer-rollback-siblings'); }
+      try { if (revTs != null) DB.removeRevlog(revTs); } catch (_) { _quiet(_, 'answer-rollback-revlog'); }
+      try { if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id); } catch (_) { _quiet(_, 'answer-rollback-daily'); }
+      try { if (this._seenThisSession) this._seenThisSession.delete(id); } catch (_) { _quiet(_, 'answer-rollback-seen'); }
+      try { if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush(); } catch (_) { _quiet(_, 'answer-rollback-flush'); }
+      CardEngine.invalidateDueCache();
+      showToast('⚠ A revisão não foi confirmada neste aparelho. O card não avançou.');
+    } finally {
+      this._answering = false;
     }
-    this.renderReviewCard(box);
   },
   // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
