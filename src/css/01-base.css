@@ -838,7 +838,7 @@
   .gauge.tone-warn .fill { stroke: var(--warn); }
   .gauge.tone-bad .fill { stroke: var(--bad); }
   .gauge-text { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-  .gauge-text .pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-md); color: var(--text); line-height: 1; white-space: nowrap; }
+  .gauge-text .pct { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: calc(var(--fs-md) * 0.82); color: var(--text); line-height: 1; white-space: nowrap; }
   .gauge-text .pct::after { content: '%'; font-size: var(--fs-3xs); margin-left: 1px; }
   .gauge-text .label { font-size: var(--fs-3xs); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; }
 
@@ -1049,7 +1049,7 @@
        Aumento levemente o anel, afino o traço e reduzo o texto para caber com folga. */
     .performance-panel .gauge { width: 74px; height: 74px; }
     .performance-panel .gauge circle { stroke-width: 6; }
-    .performance-panel .gauge-text .pct { font-size: var(--fs-sm); }
+    .performance-panel .gauge-text .pct { font-size: calc(var(--fs-sm) * 0.85); }
     .performance-panel .gauge-text .pct::after { font-size: calc(8px * var(--fs-scale, 1)); }
     .performance-panel .gauge-text .label { font-size: calc(7.5px * var(--fs-scale, 1)); margin-top: 2px; letter-spacing: 0.03em; }
     .page-header h2.page-title { font-size: var(--fs-2xl); }
