@@ -310,7 +310,7 @@ for (const algo of ['fsrs', 'sm2']) {
 {
   // Sessão real via CardsScreen.answer(): o limite diário tem de valer durante
   // a sessão inteira, não só na montagem da fila.
-  A.reset({ newPerDay: 5, revPerDay: 0, algo: 'fsrs' });
+  A.reset({ newPerDay: 5, revPerDay: 999, algo: 'fsrs' });
   const hoje = A.hoje();
   DB.saveCards(Array.from({ length: 40 }, (_, i) => ({ id: 'x' + i, frente: 'F' + i, verso: 'V' + i, phase: 'new', due: hoje, posicaoNova: i, status: 'pendente' })));
   E.invalidateDueCache();
@@ -318,8 +318,8 @@ for (const algo of ['fsrs', 'sm2']) {
   let respostas = 0;
   while (S._reviewIdx < S._reviewQueue.length && respostas < 400) { S.answer(['bom', 'errei', 'facil', 'dificil'][respostas % 4]); respostas++; }
   const introduzidos = C.newDoneToday();
-  check('D11', 'Ao longo de uma sessão real, o limite de novos do dia não é ultrapassado',
-    introduzidos <= 5, { introduzidosHoje: introduzidos, limite: 5, respostas });
+  check('D11', 'Ao longo de uma sessão real, o limite de novos do dia é exercitado e não ultrapassado',
+    respostas > 0 && introduzidos === 5, { introduzidosHoje: introduzidos, limite: 5, respostas });
   check('D12', 'Nenhum card foi gravado com agendamento inválido durante a sessão real',
     DB.getCards().every((c) => dataIso(c.due) && (c.dueTs == null || finito(c.dueTs))),
     { ruins: DB.getCards().filter((c) => !dataIso(c.due) || (c.dueTs != null && !finito(c.dueTs))).slice(0, 3) });
@@ -339,6 +339,25 @@ for (const algo of ['fsrs', 'sm2']) {
     !E.isDue(DB.getCard('e1')) && DB.getCard('e1').dueTsAntesEnterrar === ts, DB.getCard('e1'));
   DB.unburyCard('e1');
   check('E2', 'Desenterrar devolve o horário intradiário original', DB.getCard('e1').dueTs === ts, DB.getCard('e1'));
+}
+{
+  A.reset({ newPerDay: 20, revPerDay: 200 });
+  const hoje=A.hoje();
+  DB.saveCards([
+    { id:'sib-a', noteId:'nota-1', frente:'A', verso:'B', phase:'new', due:hoje, posicaoNova:0, status:'pendente' },
+    { id:'sib-b', noteId:'nota-1', frente:'B', verso:'A', reversedOf:'sib-a', phase:'new', due:hoje, posicaoNova:1, status:'pendente' }
+  ]);
+  E.invalidateDueCache();
+  S._reviewQueue=S.buildQueue(); S._reviewIdx=0; S._undoStack=[]; S._seenThisSession=new Set();
+  const primeiro=S._reviewQueue[0], irmao=primeiro==='sib-a'?'sib-b':'sib-a';
+  S.answer('bom');
+  check('E3a', 'Responder um card enterra o irmão frente↔verso até o próximo dia',
+    !!DB.getCard(irmao).enterradoAte && !S._reviewQueue.slice(S._reviewIdx).includes(irmao),
+    { primeiro, irmao, enterradoAte:DB.getCard(irmao).enterradoAte, fila:S._reviewQueue });
+  S.undoAnswer();
+  check('E3b', 'Desfazer restaura o enterro e a posição do irmão na fila',
+    !DB.getCard(irmao).enterradoAte && S._reviewQueue.includes(irmao),
+    { irmao, enterradoAte:DB.getCard(irmao).enterradoAte, fila:S._reviewQueue });
 }
 {
   A.reset();
