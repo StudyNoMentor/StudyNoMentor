@@ -18,7 +18,15 @@
   var IDB_NAME = 'diario-estudos-local-v3';
   var IDB_VERSION = 1;
   var pendingWrites = new Set();
+  var dirtyTokens = new Map();
+  var dirtySeq = 0;
   var idb = null;
+
+  function nextDirtyToken(id) {
+    var t = Date.now().toString(36) + '-' + (++dirtySeq).toString(36) + '-' + Math.random().toString(36).slice(2,8);
+    dirtyTokens.set(String(id), t);
+    return t;
+  }
 
   function invalidate() { keysCache = null; }
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
@@ -107,7 +115,8 @@
   }
   function markKvDirty(k, v) {
     if (!dirtyAllowed(k)) return Promise.resolve();
-    return putDirty({ id: 'kv|' + k, kind: 'kv', key: k, value: v == null ? null : String(v), userId:currentUserId(), at: Date.now() });
+    var id='kv|' + k, token=nextDirtyToken(id);
+    return putDirty({ id, token, kind:'kv', key:k, value:v == null ? null : String(v), userId:currentUserId(), at:Date.now() });
   }
 
   async function persistKV(k, v, markDirty, oldValue) {
@@ -116,11 +125,11 @@
     var st = tx.objectStore('kv');
     if (v == null) st.delete(k); else st.put({ key: k, value: String(v) });
     if (markDirty && dirtyAllowed(k)) {
-      var ds=tx.objectStore('dirty'), id='kv|' + k;
+      var ds=tx.objectStore('dirty'), id='kv|' + k, token=nextDirtyToken(id);
       var anterior=null;
       try { anterior=await reqP(ds.get(id)); } catch (_) {}
       ds.put({
-        id, kind:'kv', key:k,
+        id, token, kind:'kv', key:k,
         /* A PRIMEIRA versão anterior é a base remota presumida. Se o usuário
            editar dez vezes offline, ela não é substituída pela nona edição. */
         oldValue:anterior && Object.prototype.hasOwnProperty.call(anterior,'oldValue')
@@ -170,8 +179,9 @@
       await clearDirtyForKeyInTx(tx, key);
       tx.objectStore('kv').delete(key);
       if (opts.dirty !== false && !applyingRemote()) {
+        var id='cards-replace|' + key, token=nextDirtyToken(id);
         tx.objectStore('dirty').put({
-          id:'cards-replace|' + key, kind:'cards-replace', key:key,
+          id, token, kind:'cards-replace', key:key,
           userId:currentUserId(), at:Date.now()
         });
       }
@@ -197,7 +207,8 @@
       });
       tx.objectStore('kv').delete(key); // cards nunca viram blob persistente
       if (opts.dirty !== false && !applyingRemote()) {
-        tx.objectStore('dirty').put({ id:'cards-replace|' + key, kind:'cards-replace', key:key, userId:currentUserId(), at:Date.now() });
+        var id='cards-replace|' + key, token=nextDirtyToken(id);
+        tx.objectStore('dirty').put({ id, token, kind:'cards-replace', key:key, userId:currentUserId(), at:Date.now() });
       }
       await txDone(tx);
       return true;
@@ -217,10 +228,13 @@
         pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id),
         position:Number.isFinite(position) ? position : 0, card:card
       });
-      if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
-        id:'card|' + key + '|' + String(card.id), kind:'card', key:key,
-        cardId:String(card.id), value:card, userId:currentUserId(), at:Date.now()
-      });
+      if (opts.dirty !== false && !applyingRemote()) {
+        var id='card|' + key + '|' + String(card.id), token=nextDirtyToken(id);
+        tx.objectStore('dirty').put({
+          id, token, kind:'card', key:key,
+          cardId:String(card.id), value:card, userId:currentUserId(), at:Date.now()
+        });
+      }
       await txDone(tx);
       return true;
     })();
@@ -233,10 +247,13 @@
     var p = (async function () {
       var tx = idb.transaction(['cards','dirty'], 'readwrite');
       tx.objectStore('cards').delete(cardPk(key, cardId));
-      if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
-        id:'card|' + key + '|' + String(cardId), kind:'card', key:key,
-        cardId:String(cardId), value:null, userId:currentUserId(), at:Date.now()
-      });
+      if (opts.dirty !== false && !applyingRemote()) {
+        var id='card|' + key + '|' + String(cardId), token=nextDirtyToken(id);
+        tx.objectStore('dirty').put({
+          id, token, kind:'card', key:key,
+          cardId:String(cardId), value:null, userId:currentUserId(), at:Date.now()
+        });
+      }
       await txDone(tx);
       return true;
     })();
@@ -247,11 +264,13 @@
     if (!idb || !row) return Promise.resolve();
     var rid = row.reviewId || (String(row.cardId) + '|' + String(row.ts) + '|' + String(row._position || ''));
     var k = kind === 'review-delete' ? 'review-delete' : 'review';
-    return track(putDirty({ id:k+'|' + key + '|' + rid, kind:k, key:key, reviewId:rid, value:row, userId:currentUserId(), at:Date.now() }));
+    var id=k+'|' + key + '|' + rid, token=nextDirtyToken(id);
+    return track(putDirty({ id, token, kind:k, key:key, reviewId:rid, value:row, userId:currentUserId(), at:Date.now() }));
   }
   function markRevlogReplace(key) {
     if (!idb) return Promise.resolve();
-    return track(putDirty({ id:'revlog-replace|' + key, kind:'revlog-replace', key:key, userId:currentUserId(), at:Date.now() }));
+    var id='revlog-replace|' + key, token=nextDirtyToken(id);
+    return track(putDirty({ id, token, kind:'revlog-replace', key:key, userId:currentUserId(), at:Date.now() }));
   }
 
   function loadAll() {
@@ -400,7 +419,20 @@
         return rows.filter(function (r) { return !r.userId || !uid || String(r.userId)===uid; });
       });
     },
-    markSynced: function (id) { return track(delDirty(id)); },
+    tokenFor: function (id) { return dirtyTokens.get(String(id)) || null; },
+    markSynced: function (id, token) {
+      if (!idb || !id) return Promise.resolve(false);
+      var p=(async function () {
+        var tx=idb.transaction('dirty','readwrite'), st=tx.objectStore('dirty');
+        var row=null; try { row=await reqP(st.get(id)); } catch (_) {}
+        var same=!row || !token || !row.token || row.token===token;
+        if (row && same) st.delete(id);
+        await txDone(tx);
+        if (same && (!token || dirtyTokens.get(String(id))===token)) dirtyTokens.delete(String(id));
+        return same;
+      })();
+      return track(p);
+    },
     markReview: function (key,row) { return markReview(key,row,'review'); },
     markReviewDelete: function (key,row) { return markReview(key,row,'review-delete'); },
     markRevlogReplace: markRevlogReplace,
