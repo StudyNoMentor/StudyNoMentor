@@ -807,10 +807,12 @@ CardsScreen.openFsrsTools = function () {
   const nRev = scope ? (DB.getRevlog() || []).filter(r => { const c = DB.getCard(r.cardId); return c && c.deckId === scope; }).length : (DB.getRevlog() || []).length;
   UI.confirm(
     `Escopo: ${alvo} · ${nRev} revisão(ões) registrada(s).\n\n` +
-    (custom ? `✔ Usando pesos PERSONALIZADOS${last ? ' (otimizados em ' + last + ')' : ''}.` : 'Usando os pesos PADRÃO do FSRS-6.') +
-    `\n\nEscolha uma ação avançada:`,
-    { title: '🧠 Ferramentas FSRS', okText: '⚡ Otimizar meus parâmetros', cancelText: 'Fechar' }
-  ).then(ok => { if (ok) CardsScreen.runOptimizer(); });
+    (custom
+      ? `⚠ Este escopo ainda usa pesos PERSONALIZADOS${last ? ' (gravados em ' + last + ')' : ''}. Eles são preservados para não alterar sua agenda sem autorização.`
+      : '✔ Usando os pesos PADRÃO oficiais do FSRS-6.') +
+    `\n\nA otimização local de pesos foi desativada: o agendador é comparado com o Anki, mas o antigo treinador local não era o otimizador oficial e não tinha equivalência certificada. As demais ferramentas continuam disponíveis abaixo.`,
+    { title: '🧠 Ferramentas FSRS', okText: 'Fechar', cancelText: 'Fechar' }
+  );
   setTimeout(() => {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
     if (!foot || document.getElementById('fsrs-extra-btns')) return;
@@ -894,7 +896,7 @@ CardsScreen.recalcularMemoria = function () {
     `${plano.length} card(s) teriam a memória recalculada (variação média de ${medio}% na estabilidade).` + aviso +
     `\n\nO histórico de revisões NÃO é alterado — só o estado (S/D) é reconstruído a partir dele com os pesos atuais. ` +
     `As datas já agendadas são mantidas quando ainda cabem na janela de dispersão do Anki; as demais são reagendadas.` +
-    `\n\nRecomendado depois de otimizar os parâmetros ou de atualizar o app. Dá para desfazer restaurando um backup.`,
+    `\n\nÚtil ao atualizar o algoritmo ou ao restaurar pesos padrão. Dá para desfazer restaurando um backup.`,
     { title: '↻ Recalcular memória pelo histórico', okText: 'Recalcular ' + plano.length + ' card(s)', cancelText: 'Cancelar' }
   ).then(okc => {
     if (!okc) return;
@@ -953,72 +955,12 @@ CardsScreen.abrirReposicionar = function () {
 };
 
 CardsScreen.runOptimizer = function () {
-  const scope = CardsScreen._fsrsScope || null; // null = global; senão deckId
-  let revlog = DB.getRevlog() || [];
-  const cfgOpt = scope ? CardsConfig.forDeck(scope) : CardsConfig.get();
-  /* param_search: restringe o treino aos cards que casam com a consulta.
-     O nome do baralho é anexado ao card só para o filtro poder usar "baralho:". */
-  const filtro = FSRS.compilarBusca(cfgOpt.paramSearch || '');
-  let elegiveis = DB.getCards();
-  if (scope) elegiveis = elegiveis.filter(c => c.deckId === scope);
-  let nFiltrados = null;
-  if (filtro) {
-    const nomeDeck = {}; (DB.getDecks() || []).forEach(d => { nomeDeck[d.id] = d.nome; });
-    const antes = elegiveis.length;
-    elegiveis = elegiveis.filter(c => filtro(Object.assign({ _deckNome: nomeDeck[c.deckId] || '' }, c)));
-    nFiltrados = { antes, depois: elegiveis.length };
-  }
-  if (scope || filtro) {
-    const ids = new Set(elegiveis.map(c => c.id));
-    revlog = revlog.filter(r => ids.has(r.cardId));
-  }
-  if (filtro && !elegiveis.length) {
-    UI.alert('Nenhum card corresponde ao filtro de treino configurado. Revise o campo "Cards que treinam os parâmetros" ou deixe-o vazio para usar todos.',
-      { title: 'Filtro sem resultados', okText: 'Entendi' });
-    return;
-  }
-  const alvo = scope ? ('do baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
-  UI.alert('Analisando seu histórico ' + alvo + ' e ajustando os 21 parâmetros do FSRS-6… pode levar alguns segundos.', { title: '⚡ Otimizando FSRS-6', okText: 'Aguarde…' });
-  setTimeout(() => {
-    const startW = scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights();
-    const res = FSRS.optimize(revlog, { startW, iters: 50, lr: 0.03,
-      ignorarAntesDe: (scope ? CardsConfig.forDeck(scope) : CardsConfig.get()).ignoreRevlogsBefore || '' });
-    UI._submit(false);
-    if (res.reason === 'few') {
-      UI.alert(`Só há ${res.treinaveis} revisão(ões) de LONGO PRAZO ${alvo} — revisões do mesmo dia não treinam a curva de esquecimento.\n\n` +
-               `Abaixo de ~32 o ajuste vira ruído: o otimizador acharia padrões que não existem. Os pesos padrão do FSRS-6 já são bons ` +
-               `(treinados em centenas de milhões de revisões reais).\n\nContinue revisando — o Anki recomenda reotimizar cada vez que suas revisões dobram.`,
-        { title: 'Ainda é cedo para personalizar', okText: 'Entendi' });
-      return;
-    }
-    if (res.improved) {
-      const antes = res.lossBefore.toFixed(4), depois = res.lossAfter.toFixed(4);
-      const ganho = ((1 - res.lossAfter / res.lossBefore) * 100).toFixed(1);
-      if (scope) CardsConfig.setDeckPreset(scope, { weights: res.w, lastOptim: Date.now() });
-      else CardsConfig.set({ weights: res.w, lastOptim: Date.now() });
-      /* Transparência sobre o ALCANCE do ajuste. Como o Anki 24.06+, o número de
-         parâmetros liberados cresce com o volume de dados: personalizar os 21 com
-         poucas revisões produz pesos encostados nos limites, que é sobreajuste. */
-      const escopoTxt = res.livres < 21
-        ? `\n\n🔒 Com ${res.treinaveis} revisões de longo prazo, ${res.livres} dos 21 parâmetros foram ajustados; ` +
-          `o resto ficou no padrão de propósito (é o que o Anki faz). Reotimize quando suas revisões dobrarem.`
-        : '';
-      const alerta = (res.noLimite && res.noLimite.length)
-        ? `\n\n⚠ ${res.noLimite.length} parâmetro(s) encostaram no limite permitido — sinal de que ainda falta histórico. Trate o resultado como provisório.`
-        : '';
-      const recorte = nFiltrados
-        ? `\n\n🔎 Filtro aplicado: ${nFiltrados.depois} de ${nFiltrados.antes} card(s) entraram no treino.`
-        : '';
-      UI.alert(`Parâmetros ${alvo} otimizados a partir de ${res.treinaveis} revisões de longo prazo! ✓\n\n` +
-               `Erro de previsão (log-loss): ${antes} → ${depois}  (−${ganho}%)` + recorte + escopoTxt + alerta +
-               `\n\n💡 Para os pesos novos valerem também nos cards ANTIGOS, use “↻ Recalcular memória”.`,
-        { title: '✅ Otimização concluída', okText: 'Ótimo!' });
-      if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
-    } else {
-      UI.alert('Seus parâmetros ' + alvo + ' já estão ótimos para o histórico — nenhuma mudança melhoraria a previsão.\n\n(O Anki segue a mesma regra: só troca se for comprovadamente melhor.)', { title: 'Já está ótimo', okText: 'Perfeito' });
-    }
-  }, 120);
+  UI.alert(
+    'A otimização local de pesos está desativada. O Study mantém o agendador FSRS-6 validado contra o Anki, mas não substitui o otimizador oficial com um treinador próprio não certificado.\n\nOs pesos padrão continuam disponíveis e pesos personalizados antigos são preservados até você optar por restaurar o padrão.',
+    { title: '🧠 Otimização de pesos desativada', okText: 'Entendi' }
+  );
 };
+
 // 🎯 Retenção recomendada: pergunta o tempo/dia e mostra a curva custo × retenção
 CardsScreen.computeRetention = function () {
   const scope = CardsScreen._fsrsScope || null;
