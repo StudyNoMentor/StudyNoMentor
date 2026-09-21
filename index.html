@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v82eb03d838">
+<meta name="diario-versao" content="v201004163d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -42443,8 +42443,22 @@ const Atualizacao = {
   async _entregarPendencias(limiteMs) {
     const CS = window.CloudStore;
     const RS = window.RelationalStore;
-    if (!CS || !CS.isReady || !CS.isReady() || !CS.isLoggedIn || !CS.isLoggedIn() || !RS) {
-      return false;
+    /* ── SEM SESSÃO NÃO HÁ O QUE O BANCO CONFIRMAR ──────────────────────────
+       A fila do RelationalStore só recebe trabalho quando isReady() é
+       verdadeiro, ou seja, com sessão ativa. Tratar "sem sessão" como "não
+       entregue" invertia a barreira: ela existe para não perder alteração
+       pendente, mas passava a CANCELAR a atualização justamente onde não
+       existe alteração nenhuma — a tela de login. Quem estava deslogado via
+       "Banco ainda não confirmou" a cada tentativa e nunca conseguia sair da
+       versão antiga, que é exatamente quem mais precisa da versão nova para
+       conseguir entrar. É o mesmo critério que recarregarApp() em 10-infra.js
+       já usava: só cobra o banco quando há conexão. */
+    if (!RS) return true;
+    const comSessao = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn && CS.isLoggedIn());
+    if (!comSessao) {
+      // Sessão pode ter caído com a fila cheia: aí ainda há o que perder.
+      try { return typeof RS.pendingCount === 'function' ? RS.pendingCount() === 0 : true; }
+      catch (_) { return true; }
     }
     const limite = Math.max(1000, Number(limiteMs) || 8000);
     let timer = null;
