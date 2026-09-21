@@ -1085,10 +1085,26 @@ const EvolucaoScreen = {
       return `<div class="evo-day-bar ${min === 0 ? 'empty' : ''}" style="height:${Math.max(2, h)}%;" title="${title}"></div>`;
     }).join('');
     const passo = 100 / days.length;
+    /* O último rótulo é sempre forçado a aparecer (âncora à direita), mas o
+       `labelEvery` foi pensado ignorando isso: quando a última data "certa"
+       (múltiplo de `labelEvery`) cai perto do fim, ela e o rótulo forçado do
+       último dia acabam colidindo e o texto sobrepõe ("19/09" grudado em
+       "20/09"). Por isso a escolha anda de trás para frente a partir do
+       último dia (que sempre entra) e só aceita o próximo candidato se ele
+       tiver o respiro mínimo em dias — igual ao gráfico de horas acumuladas. */
+    const lastIdx = days.length - 1;
+    const pxPerDay = larguraEixo / days.length;
+    const minGapDays = Math.max(labelEvery, Math.ceil(LARGURA_ROTULO / Math.max(1, pxPerDay)));
+    const chosen = new Set([lastIdx]);
+    let lastChosen = lastIdx;
+    for (let i = lastIdx - 1; i >= 1; i -= 1) {
+      if (lastChosen - i >= minGapDays) { chosen.add(i); lastChosen = i; }
+    }
+    if (lastIdx > 0 && lastChosen - 0 >= minGapDays) chosen.add(0);
     const axis = days.map((d, i) => {
-      if (!(i % labelEvery === 0 || i === days.length - 1)) return '';
+      if (!chosen.has(i)) return '';
       const centro = (i + 0.5) * passo;
-      const ancora = i === 0 ? 'is-first' : (i === days.length - 1 ? 'is-last' : '');
+      const ancora = i === 0 ? 'is-first' : (i === lastIdx ? 'is-last' : '');
       return `<span class="${ancora}" style="left:${centro.toFixed(3)}%;">${formatDateShort(d)}</span>`;
     }).join('');
     container.innerHTML = `
