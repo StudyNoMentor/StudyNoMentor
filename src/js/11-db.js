@@ -709,6 +709,14 @@ const DB = {
     const p = String(prefix || '');
     for (const k of [...this._revlogMem.keys()]) if (!p || k.indexOf(p) === 0) this._revlogMem.delete(k);
   },
+  _exportRevlogMemoryForPrefix(prefix) {
+    const p=String(prefix||''), out={};
+    for (const [k,v] of this._revlogMem.entries()) {
+      if (!k.startsWith(p)) continue;
+      out[k.slice(p.length)] = JSON.stringify(Array.isArray(v) ? v : []);
+    }
+    return out;
+  },
   getRevlog() {
     const key = this.KEYS.revlog;
     if (!this._fastRevlog()) return this._get(key, []);
