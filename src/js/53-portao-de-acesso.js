@@ -125,8 +125,9 @@ const ProfileUI = {
         if (sub) sub.textContent = 'Selecione seu perfil para entrar no seu diário.';
         const lo = document.getElementById('gate-logout-btn');
         if (lo) lo.style.display = logged ? 'inline-block' : 'none';
-        if (logged) this.loadCloudProfiles();
+        if (logged && !this._offline) this.loadCloudProfiles();
         else this.renderGrid(ProfileManager.getProfiles());
+        if (this._offline && sub) sub.textContent = 'Modo offline — alterações ficam seguras neste aparelho e sincronizam ao reconectar.';
       }
     }
   },
@@ -191,7 +192,19 @@ const ProfileUI = {
         setTimeout(() => { if (token === this._gridToken) this.loadCloudProfiles(); }, 5000);
         return;
       }
-      grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Tente recarregar a página.</p>';
+      const cached = ProfileManager.getProfiles();
+      const podeOffline = !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()
+        && cached && cached.length);
+      if (podeOffline) {
+        this._offline = true;
+        this._showProfilePicker();
+        this.renderGrid(cached);
+        const sub = document.getElementById('profile-gate-sub');
+        if (sub) sub.textContent = 'Sem conexão — usando a cópia durável deste aparelho.';
+        showToast('📴 Modo offline: suas alterações serão sincronizadas depois.');
+        return;
+      }
+      grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Conecte-se à internet e tente novamente.</p>';
     }
   },
 
@@ -229,16 +242,33 @@ const ProfileUI = {
     if (add) add.addEventListener('click', () => this.openModal(null));
   },
 
+  _hasLocalProfile(id) {
+    const pfx='diario-estudos:u:'+id+':';
+    try {
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(k&&k.indexOf(pfx)===0) return true;
+      }
+    } catch (_) {}
+    return false;
+  },
   async enterProfile(id) {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) {
       this._entering = false;
-      showToast('Entre na conta para carregar seus dados do banco.');
+      showToast('Entre na conta para acessar este perfil.');
       this.showGate();
       return;
     }
-    if (!window.RelationalStore || !RelationalStore.enabled) {
+    const offline = this._offline || (typeof navigator!=='undefined' && navigator.onLine===false);
+    if (offline && !this._hasLocalProfile(id)) {
+      this._entering=false;
+      showToast('Este perfil ainda não tem uma cópia offline neste aparelho.');
+      this._showProfilePicker();
+      return;
+    }
+    if (!offline && (!window.RelationalStore || !RelationalStore.enabled)) {
       this._entering = false;
-      showToast('Camada relacional indisponível. Nenhum dado local foi usado.');
+      showToast('Camada relacional indisponível.');
       this._showProfilePicker();
       return;
     }
@@ -247,13 +277,14 @@ const ProfileUI = {
     this._showEnteringGate(id);
     try {
       CloudStore._applying = true;
-      /* O perfil ativo é apenas estado da aba. Nenhum dado de estudo é lido do
-         navegador: hydrateProfile faz SELECT nas tabelas relacionais e monta
-         uma projeção exclusivamente em memória para as telas síncronas. */
+      /* Online: outbox→PostgreSQL→hidratação. Offline: a mesma projeção
+         síncrona vem do IndexedDB carregado antes do app iniciar. */
       ProfileManager.setActiveProfile(id);
-      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-inicio'); }
-      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
-      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-pronto'); }
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id, offline }); } catch (e) { _quiet(e, 'perfil-core-trace-inicio'); }
+      if (!offline) {
+        await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
+      }
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id, offline }); } catch (e) { _quiet(e, 'perfil-core-trace-pronto'); }
       PlanManager.init();
       CloudStore._applying = false;
 
@@ -271,10 +302,12 @@ const ProfileUI = {
       } else if (typeof switchScreen === 'function') {
         switchScreen('registrar');
       }
-      try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id } })); } catch (_) { _quiet(_); }
-      /* TEC/incidência não bloqueiam o portão. Em rede normal, pré-carrega no
-         tempo ocioso; em economia de dados, só baixa quando alguma tela pedir. */
-      try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (e) { _quiet(e, 'perfil-heavy-prefetch'); }
+      try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id, offline } })); } catch (_) { _quiet(_); }
+      if (offline) showToast('📴 Perfil aberto offline — sincroniza automaticamente ao reconectar.');
+      /* TEC/incidência não bloqueiam o portão. */
+      if (!offline) {
+        try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (e) { _quiet(e, 'perfil-heavy-prefetch'); }
+      }
     } catch (err) {
       CloudStore._applying = false;
       this._entering = false;
@@ -488,7 +521,14 @@ const ProfileUI = {
     try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
     catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   },
-  useOffline() { showToast('Este modo foi removido: os dados de estudo são consultados diretamente no banco.'); },
+  useOffline() {
+    const cached=ProfileManager.getProfiles();
+    if (!(window.CloudStore&&CloudStore.isLoggedIn&&CloudStore.isLoggedIn()) || !cached.length) {
+      showToast('Não há uma sessão autenticada com dados offline neste aparelho.');
+      return;
+    }
+    this._offline=true; this._showProfilePicker(); this.renderGrid(cached);
+  },
   async gateLogout() {
     const CS = window.CloudStore;
     const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
