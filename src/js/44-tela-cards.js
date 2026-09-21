@@ -989,6 +989,11 @@ const CardsScreen = {
         const rb = document.getElementById('cards-review-restart');
         if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
         this.updateFavCount();
+        try {
+          if (window.RelationalStore && pid && planId && RelationalStore.releaseReviewLease) {
+            RelationalStore.releaseReviewLease(pid, planId).catch(e => _quiet(e, 'review-lease-release'));
+          }
+        } catch (e) { _quiet(e, 'review-lease-release-start'); }
         const prox = (this._queueMeta || {}).proximoTs;
         clearTimeout(this._etaTimer);
         if (prox) this._etaTimer = setTimeout(() => {
