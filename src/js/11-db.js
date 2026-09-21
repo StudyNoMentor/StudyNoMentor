@@ -794,6 +794,14 @@ const DB = {
     const p = String(prefixo || '');
     for (const k of Array.from(this._revlogMem.keys())) if (!p || k.indexOf(p) === 0) this._revlogMem.delete(k);
   },
+  rebaseRevlogPosition(key, eventId, position) {
+    const l = this._revlogMem.get(key);
+    if (!Array.isArray(l) || !eventId || !Number.isFinite(Number(position))) return false;
+    const r = l.find(x => x && String(x._eventId || '') === String(eventId));
+    if (!r) return false;
+    r._position = Number(position);
+    return true;
+  },
   /* Substituição em bloco: excluir card, zerar estatísticas, restaurar backup.
      São operações raras e por definição O(n) — aqui a reescrita é legítima. */
   replaceRevlog(list) {
