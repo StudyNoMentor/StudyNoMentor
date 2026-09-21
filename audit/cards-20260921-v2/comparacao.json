@@ -9,31 +9,26 @@
     "falhasMemoria": 0,
     "falhasFase": 0,
     "falhasPassoRelearn": 0,
-    "falhasFaixaDeFuzz": 2,
+    "falhasFaixaDeFuzz": 0,
     "intervalosComparados": 1953,
-    "intervalosIdenticos": 486,
-    "dentroDeUmaLargura": 1767,
-    "maiorRazaoDeLargura": 2.4,
-    "exemplos": [
-      {
-        "tipo": "faixa",
-        "id": "100370",
-        "nota": "facil",
-        "study": 19,
-        "anki": 31,
-        "largura": 5,
-        "decorrido": 1
+    "intervalosIdenticos": 471,
+    "dentroDeUmaLargura": 1780,
+    "maiorRazaoDeLargura": 2,
+    "viesPorFaixa": {
+      "adiantado (<25% do intervalo)": {
+        "comparacoes": 846,
+        "viesMedioPercentual": 2.36
       },
-      {
-        "tipo": "faixa",
-        "id": "100470",
-        "nota": "facil",
-        "study": 24,
-        "anki": 36,
-        "largura": 5,
-        "decorrido": 1
+      "adiantado (25-75%)": {
+        "comparacoes": 936,
+        "viesMedioPercentual": 1.76
+      },
+      "no prazo (75-125%)": {
+        "comparacoes": 171,
+        "viesMedioPercentual": 2.88
       }
-    ]
+    },
+    "exemplos": []
   },
   "fases": {
     "casos": 56,
@@ -186,10 +181,10 @@
             "studyVal": 4,
             "segOk": null,
             "studyIntervalo": 4,
-            "ankiAgendado": 4,
+            "ankiAgendado": 3,
             "faixaStudy": [
-              -2,
-              10
+              -3,
+              9
             ],
             "ivOk": true
           }
@@ -226,10 +221,10 @@
             "studyVal": 5,
             "segOk": null,
             "studyIntervalo": 5,
-            "ankiAgendado": 7,
+            "ankiAgendado": 4,
             "faixaStudy": [
-              1,
-              13
+              -2,
+              10
             ],
             "ivOk": true
           },
@@ -240,10 +235,10 @@
             "studyVal": 9,
             "segOk": null,
             "studyIntervalo": 9,
-            "ankiAgendado": 11,
+            "ankiAgendado": 8,
             "faixaStudy": [
-              3,
-              19
+              2,
+              14
             ],
             "ivOk": true
           }
@@ -298,10 +293,10 @@
             "studyVal": 18,
             "segOk": null,
             "studyIntervalo": 18,
-            "ankiAgendado": 20,
+            "ankiAgendado": 21,
             "faixaStudy": [
-              12,
-              28
+              11,
+              31
             ],
             "ivOk": true
           }
@@ -328,10 +323,10 @@
             "studyVal": 398,
             "segOk": null,
             "studyIntervalo": 398,
-            "ankiAgendado": 400,
+            "ankiAgendado": 366,
             "faixaStudy": [
-              354,
-              446
+              320,
+              412
             ],
             "ivOk": true
           },
@@ -342,10 +337,10 @@
             "studyVal": 523,
             "segOk": null,
             "studyIntervalo": 523,
-            "ankiAgendado": 525,
+            "ankiAgendado": 483,
             "faixaStudy": [
-              465,
-              585
+              423,
+              543
             ],
             "ivOk": true
           },
@@ -356,10 +351,10 @@
             "studyVal": 797,
             "segOk": null,
             "studyIntervalo": 797,
-            "ankiAgendado": 799,
+            "ankiAgendado": 736,
             "faixaStudy": [
-              713,
-              885
+              650,
+              822
             ],
             "ivOk": true
           }
@@ -386,10 +381,10 @@
             "studyVal": 66,
             "segOk": null,
             "studyIntervalo": 66,
-            "ankiAgendado": 72,
+            "ankiAgendado": 64,
             "faixaStudy": [
-              58,
-              86
+              50,
+              78
             ],
             "ivOk": true
           },
@@ -400,10 +395,10 @@
             "studyVal": 97,
             "segOk": null,
             "studyIntervalo": 97,
-            "ankiAgendado": 105,
+            "ankiAgendado": 95,
             "faixaStudy": [
-              87,
-              123
+              79,
+              111
             ],
             "ivOk": true
           },
@@ -414,10 +409,10 @@
             "studyVal": 165,
             "segOk": null,
             "studyIntervalo": 165,
-            "ankiAgendado": 177,
+            "ankiAgendado": 163,
             "faixaStudy": [
-              153,
-              201
+              139,
+              187
             ],
             "ivOk": true
           }
@@ -520,10 +515,10 @@
             "studyVal": 3,
             "segOk": null,
             "studyIntervalo": 3,
-            "ankiAgendado": 3,
+            "ankiAgendado": 5,
             "faixaStudy": [
-              -3,
-              9
+              -1,
+              11
             ],
             "ivOk": true
           }
@@ -576,10 +571,10 @@
             "studyVal": 5,
             "segOk": null,
             "studyIntervalo": 5,
-            "ankiAgendado": 5,
+            "ankiAgendado": 3,
             "faixaStudy": [
-              -1,
-              11
+              -3,
+              9
             ],
             "ivOk": true
           }
@@ -663,10 +658,10 @@
             "studyVal": 4,
             "segOk": null,
             "studyIntervalo": 4,
-            "ankiAgendado": 5,
+            "ankiAgendado": 4,
             "faixaStudy": [
-              -1,
-              11
+              -2,
+              10
             ],
             "ivOk": true
           },
@@ -677,10 +672,10 @@
             "studyVal": 6,
             "segOk": null,
             "studyIntervalo": 6,
-            "ankiAgendado": 9,
+            "ankiAgendado": 6,
             "faixaStudy": [
-              3,
-              15
+              0,
+              12
             ],
             "ivOk": true
           },
@@ -691,10 +686,10 @@
             "studyVal": 8,
             "segOk": null,
             "studyIntervalo": 8,
-            "ankiAgendado": 12,
+            "ankiAgendado": 8,
             "faixaStudy": [
-              4,
-              20
+              2,
+              14
             ],
             "ivOk": true
           }
@@ -722,10 +717,10 @@
             "studyVal": 240,
             "segOk": null,
             "studyIntervalo": 240,
-            "ankiAgendado": 247,
+            "ankiAgendado": 248,
             "faixaStudy": [
-              215,
-              279
+              216,
+              280
             ],
             "ivOk": true
           },
@@ -750,10 +745,10 @@
             "studyVal": 655,
             "segOk": null,
             "studyIntervalo": 655,
-            "ankiAgendado": 671,
+            "ankiAgendado": 673,
             "faixaStudy": [
-              597,
-              745
+              599,
+              747
             ],
             "ivOk": true
           }
@@ -781,10 +776,10 @@
             "studyVal": 26,
             "segOk": null,
             "studyIntervalo": 26,
-            "ankiAgendado": 27,
+            "ankiAgendado": 25,
             "faixaStudy": [
-              17,
-              37
+              15,
+              35
             ],
             "ivOk": true
           },
@@ -795,10 +790,10 @@
             "studyVal": 149,
             "segOk": null,
             "studyIntervalo": 149,
-            "ankiAgendado": 151,
+            "ankiAgendado": 147,
             "faixaStudy": [
-              129,
-              173
+              125,
+              169
             ],
             "ivOk": true
           },
@@ -809,14 +804,75 @@
             "studyVal": 318,
             "segOk": null,
             "studyIntervalo": 318,
-            "ankiAgendado": 321,
+            "ankiAgendado": 315,
             "faixaStudy": [
-              281,
-              361
+              277,
+              353
             ],
             "ivOk": true
           }
         }
+      }
+    ]
+  },
+  "passoLongo": {
+    "nota": "passo de reaprendizado de 3 dias (4320 min), intervalo pós-lapso de 1 dia",
+    "casos": [
+      {
+        "algo": "fsrs",
+        "notas": {
+          "errei": {
+            "studyDias": 3,
+            "ankiDias": 3,
+            "mesmaFase": true
+          },
+          "dificil": {
+            "studyDias": 4,
+            "ankiDias": 4,
+            "mesmaFase": true
+          },
+          "bom": {
+            "studyDias": 8,
+            "ankiDias": 4,
+            "mesmaFase": true
+          },
+          "facil": {
+            "studyDias": 12,
+            "ankiDias": 8,
+            "mesmaFase": true
+          }
+        },
+        "inverteStudy": false,
+        "inverteAnki": false,
+        "mesmoComportamento": true
+      },
+      {
+        "algo": "sm2",
+        "notas": {
+          "errei": {
+            "studyDias": 3,
+            "ankiDias": 3,
+            "mesmaFase": true
+          },
+          "dificil": {
+            "studyDias": 4,
+            "ankiDias": 4,
+            "mesmaFase": true
+          },
+          "bom": {
+            "studyDias": 1,
+            "ankiDias": 1,
+            "mesmaFase": true
+          },
+          "facil": {
+            "studyDias": 1,
+            "ankiDias": 2,
+            "mesmaFase": true
+          }
+        },
+        "inverteStudy": true,
+        "inverteAnki": true,
+        "mesmoComportamento": true
       }
     ]
   }

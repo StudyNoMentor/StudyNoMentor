@@ -460,6 +460,24 @@ for (const algo of ['fsrs', 'sm2']) {
     pTag.leech === true && !pTag.suspenso && pSusp.leech === true && pSusp.suspenso === true, { tag: pTag.suspenso, suspender: pSusp.suspenso });
 }
 
+{
+  /* Ao sair do reaprendizado, o Anki impõe "Fácil ≥ Bom + 1" — conferido no
+     backend oficial (26.9.2): com passo de 3 dias e intervalo pós-lapso de
+     1 dia, ele devolve Bom = 1 dia e Fácil = 2 dias. No modo Clássico o app
+     devolve o MESMO intervalo para os dois: acertar com folga um card que
+     estava em reaprendizado não rende nada. A invariante de ordem C3 não pega
+     isto porque ela aceita empate; aqui a exigência é estrita, como no Anki. */
+  const pares = [];
+  for (const relearnSteps of [[10], [4320], [10, 20]]) {
+    A.reset({ algo: 'sm2', learnSteps: [1, 10], relearnSteps });
+    const c = { id: 'g4', phase: 'relearning', learnStep: relearnSteps.length - 1, reps: 12, lapses: 4,
+      intervalo: 7, ease: 2.5, due: A.hoje(), lastReview: A.hoje() };
+    pares.push({ relearnSteps, bom: E.schedule(c, 'bom').intervalo, facil: E.schedule(c, 'facil').intervalo });
+  }
+  check('G4', 'Sair do reaprendizado com "Fácil" rende mais do que com "Bom" (Anki: Fácil ≥ Bom + 1)',
+    pares.every((x) => x.facil > x.bom), { pares, referencia: 'anki 26.9.2: bom=1 dia, facil=2 dias na mesma configuração' });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // H. VIRADA DO DIA E PASSOS LONGOS
 // ─────────────────────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@ afirmação aqui vem de execução contra o código, não de comentário no cód
 
 **Veredito: reprovado.** Os treze achados da 1ª rodada estão endereçados no
 `main` — três deles apenas em parte. Em compensação, os cenários novos
-reproduzem **nove defeitos** que a 1ª rodada não podia ver, três deles críticos.
+reproduzem **dez defeitos** que a 1ª rodada não podia ver, três deles críticos.
 Nenhum é hipótese: cada um tem uma verificação que falha e um arquivo de
 evidência nesta pasta.
 
@@ -121,11 +121,12 @@ Todos reproduzidos por `regressao.mjs`. A coluna "verificação" é o id que fal
 | N6 | **Média** | Importar um backup **acrescenta**, não restaura: o mesmo arquivo aplicado duas vezes deixa 3.000 cards e 3.000 linhas de histórico numa coleção de 1.500. O encaminhamento nº 2 da 1ª rodada segue aberto. | F5 | `CardsScreen.doImport` |
 | N7 | **Média** | A detecção do separador CSV olha só a primeira linha de dados. Se ela for o começo de um campo entre aspas com quebra de linha, o separador sai errado e a linha inteira é descartada. | F6.3 | `CardsScreen.parseAnkiText` |
 | N8 | **Média** | Linhas de continuação de um campo multi-linha que comecem com `#` são removidas antes do parser. | F6.4 | idem |
-| N9 | **Baixa** | `_kind` e `_val` — transitórios da prévia dos botões — são gravados no card, entram na coleção e no backup, e fazem o desfazer não devolver o card idêntico. | E4, E4b | `CardEngine.schedule` + `DB.updateCard` |
+| N9 | **Média** | Modo Clássico (SM-2): ao sair do reaprendizado, **"Fácil" devolve exatamente o mesmo intervalo que "Bom"** — acertar com folga um card que estava em reaprendizado não rende nada. O backend oficial devolve Bom = 1 dia e Fácil = 2 dias na mesma configuração. A invariante de ordem não pega isto porque aceita empate; a comparação com o Anki pega. | G4 | `graduateRelearn` em `_scheduleSM2` |
+| N10 | **Baixa** | `_kind` e `_val` — transitórios da prévia dos botões — são gravados no card, entram na coleção e no backup, e fazem o desfazer não devolver o card idêntico. | E4, E4b | `CardEngine.schedule` + `DB.updateCard` |
 
 ### O que passou
 
-44 das 59 verificações. Entre elas, e que a 1ª rodada não cobria: limites de
+44 das 60 verificações. Entre elas, e que a 1ª rodada não cobria: limites de
 novos e de revisões **por baralho** (D1, D2); aprendizado entre dias dividindo o
 mesmo teto de revisões do Anki (D4); `newCardsIgnoreReviewLimit` e
 `newPerDayMinimum` (D6, D7); fila sem id repetido, sem suspenso, sem enterrado e
@@ -140,13 +141,15 @@ idêntica ao que é gravado, inclusive com balanceamento ligado (C5).
 
 ### Medidas, não defeitos
 
-- **Montar a fila é linear** na coleção: 16 ms com 3.000 cards, 73 ms com
-  12.000 (I1). Não é o gargalo.
+- **Montar a fila é linear** na coleção: 17 ms com 3.000 cards, 57 ms com
+  12.000 — razão 3,3 onde linear seria 4 e quadrático 16 (I1). Não é o gargalo.
 - **Ordem invertida dos botões com passos de dias inteiros**: com
-  `relearnSteps: [4320]`, "Errei" agenda 3 dias à frente e "Bom" gradua para 1.
-  O backend oficial do Anki produz a mesma inversão — passo de aprendizado não
-  passa pelo intervalo máximo de revisão. É consequência da configuração, não
-  defeito do app, e está excluído da invariante C3 com essa justificativa.
+  `relearnSteps: [4320]` (3 dias) e intervalo pós-lapso de 1 dia, o modo
+  Clássico agenda "Errei" para 3 dias e "Bom" para 1. **Perguntado ao backend
+  oficial, ele responde igual**: Errei 3 dias, Difícil 4, Bom 1 (a evidência
+  está em `comparacao.json`, seção `passoLongo`; com FSRS nenhum dos dois
+  inverte). É consequência da configuração, não defeito do app, e por isso está
+  excluído da invariante C3 — com a medição junto, não com uma dedução.
 - **Degradação medida** por `CardsScreen.answer()` com armazenamento real:
   DEGRADACAO_AQUI
 
@@ -163,7 +166,7 @@ lado direito é a saída do Rust compilado do Anki 26.9.2.
 
 | O que foi comparado | Resultado |
 |---|---|
-| Estabilidade e dificuldade após cada nota | COMPARA_ESCALARES comparações escalares, **0 divergências**; maior erro relativo **COMPARA_ERRO** (tolerância 1e-5) |
+| Estabilidade e dificuldade após cada nota | **5.208** comparações escalares, **0 divergências**; maior erro relativo **3,6 × 10⁻⁶** (tolerância 1e-5) |
 | Fase resultante (revisão / reaprendizado) | **0 divergências** |
 | Segundos do passo de reaprendizado | **0 divergências** |
 | Card novo, aprendizado (passo 0 e 1), reaprendizado, revisão jovem, madura e muito atrasada — com FSRS ligado e desligado | 56 casos, **0 divergências** de fase, de segundos e de intervalo |
@@ -181,11 +184,11 @@ máximo, duas larguras de faixa — e é isso que se verifica:
 
 | Medida | Resultado |
 |---|---|
-| Intervalos de revisão comparados | COMPARA_IVS |
-| Idênticos ao valor do Anki | COMPARA_IDENT |
-| Dentro de **uma** largura de fuzz | COMPARA_1L |
-| Fora de **duas** larguras (o limite verificável) | COMPARA_FORA |
-| Viés médio Anki − Study, por faixa de atraso | **+1,2% a +2,2%** — sem tendência sistemática |
+| Intervalos de revisão comparados | 1.953 |
+| Idênticos ao valor do Anki | 471 (24%) |
+| Dentro de **uma** largura de fuzz | 1.780 (91%) |
+| Fora de **duas** larguras (o limite verificável) | **0** — razão máxima exatamente 2,00 |
+| Viés médio Anki − Study, por faixa de atraso | adiantado <25%: **+2,4%** · 25-75%: **+1,8%** · no prazo: **+2,9%** — sem tendência sistemática |
 
 Isto é o que a 1ª rodada não conseguiu concluir: ela comparou valor sorteado com
 valor sorteado, colheu 15.125 divergências em 17.343 e teve de escrever que o
@@ -220,7 +223,7 @@ continuam passando pelo DB real em todas as verificações de `regressao.mjs`.
 
 ## 6. Situação da correção
 
-**Esta entrega é auditoria, não correção.** Os nove achados acima continuam no
+**Esta entrega é auditoria, não correção.** Os dez achados acima continuam no
 `main`. Por isso `regressao.mjs` **não** foi ligado ao `verificar.mjs`: ele
 falha de propósito, e ligá-lo agora deixaria a verificação do projeto vermelha
 sem que nada tivesse sido consertado. Ligar é o último passo de quem corrigir,

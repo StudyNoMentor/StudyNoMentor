@@ -23,7 +23,7 @@ const r = {
   revisao: { cards: dados.revisao.length, respostas: 0, comparacoesEscalares: 0, maiorErroRelativo: 0,
              falhasMemoria: 0, falhasFase: 0, falhasPassoRelearn: 0,
              falhasFaixaDeFuzz: 0, intervalosComparados: 0, intervalosIdenticos: 0,
-             dentroDeUmaLargura: 0, maiorRazaoDeLargura: 0, exemplos: [] },
+             dentroDeUmaLargura: 0, maiorRazaoDeLargura: 0, viesPorFaixa: {}, exemplos: [] },
   fases: { casos: 0, falhasFase: 0, falhasSegundos: 0, falhasIntervaloDeFaixa: 0, detalhes: [] }
 };
 
@@ -80,6 +80,16 @@ for (const v of dados.revisao) {
       r.revisao.maiorRazaoDeLargura = Math.max(r.revisao.maiorRazaoDeLargura, +(dif / largura).toFixed(3));
       if (dif === 0) r.revisao.intervalosIdenticos++;
       if (dif <= largura) r.revisao.dentroDeUmaLargura++;
+      /* Viés por faixa de atraso: se o Study divergisse do Anki de forma
+         sistemática (e não por sorteio), apareceria aqui como um viés que
+         cresce ou muda de sinal conforme o card é respondido adiantado, no
+         prazo ou atrasado. */
+      const razaoAtraso = v.decorrido / Math.max(1, v.card.intervalo || 1);
+      const faixa = razaoAtraso < 0.25 ? 'adiantado (<25% do intervalo)'
+        : razaoAtraso < 0.75 ? 'adiantado (25-75%)'
+        : razaoAtraso < 1.25 ? 'no prazo (75-125%)' : 'atrasado (>125%)';
+      const b = (r.revisao.viesPorFaixa[faixa] = r.revisao.viesPorFaixa[faixa] || { n: 0, soma: 0 });
+      b.n++; b.soma += (o.diasAgendados - p.intervalo) / Math.max(1, p.intervalo);
       if (dif > 2 * largura) {
         r.revisao.falhasFaixaDeFuzz++;
         if (r.revisao.exemplos.length < 12) r.revisao.exemplos.push({ tipo: 'faixa', id: card.id, nota: g, study: p.intervalo, anki: o.diasAgendados, largura, decorrido: v.decorrido });
@@ -132,8 +142,39 @@ for (const caso of dados.fases) {
   r.fases.detalhes.push(linha);
 }
 
+for (const [k, b] of Object.entries(r.revisao.viesPorFaixa)) {
+  r.revisao.viesPorFaixa[k] = { comparacoes: b.n, viesMedioPercentual: +(100 * b.soma / b.n).toFixed(2) };
+}
+
+// ── (3) PASSO DE REAPRENDIZADO LONGO ────────────────────────────────────────
+// A inversão "Errei depois de Bom" com passo de dias inteiros é do app ou da
+// regra do Anki? Aqui a pergunta é respondida pelo backend, não por dedução.
+r.passoLongo = { nota: 'passo de reaprendizado de 3 dias (4320 min), intervalo pós-lapso de 1 dia', casos: [] };
+for (const caso of (dados.passoLongo || [])) {
+  A.reset({ algo: caso.fsrs ? 'fsrs' : 'sm2', retention: 0.9, learnSteps: [1, 10], relearnSteps: [4320], maxInterval: 36500, loadBalance: false });
+  const hoje = A.hoje();
+  const card = { id: 'passo-longo-' + caso.fsrs, phase: 'relearning', learnStep: 0, reps: 12, lapses: 4,
+    intervalo: 1, ease: 2.5, s: caso.fsrs ? 6 : null, d: caso.fsrs ? 7.5 : null,
+    lastReview: hoje, due: hoje, dueTs: null };
+  const linha = { algo: caso.fsrs ? 'fsrs' : 'sm2', notas: {} };
+  for (const g of NOTAS) {
+    const p = E.schedule(card, g), o = caso.oficial[g];
+    const studyDias = p.dueTs != null || p._kind === 'min' ? (p._val || 0) / 1440 : p.intervalo;
+    const ankiDias = o.fase === 'review' ? o.diasAgendados : o.segundos / 86400;
+    linha.notas[g] = { studyDias, ankiDias, mesmaFase: (Object.assign({}, card, p).phase === MAPA_FASE[o.fase]) };
+  }
+  const inverteStudy = linha.notas.errei.studyDias > linha.notas.bom.studyDias;
+  const inverteAnki = linha.notas.errei.ankiDias > linha.notas.bom.ankiDias;
+  linha.inverteStudy = inverteStudy;
+  linha.inverteAnki = inverteAnki;
+  linha.mesmoComportamento = inverteStudy === inverteAnki;
+  if (!linha.mesmoComportamento) r.passoLongo.divergencias = (r.passoLongo.divergencias || 0) + 1;
+  r.passoLongo.casos.push(linha);
+}
+
 fs.writeFileSync(new URL('comparacao.json', PASTA), JSON.stringify(r, null, 2));
 console.log(JSON.stringify(Object.assign({}, r, { fases: Object.assign({}, r.fases, { detalhes: r.fases.detalhes.length + ' linhas em comparacao.json' }) }), null, 2));
 const falhou = r.revisao.falhasMemoria || r.revisao.falhasFase || r.revisao.falhasPassoRelearn
-  || r.revisao.falhasFaixaDeFuzz || r.fases.falhasFase || r.fases.falhasSegundos || r.fases.falhasIntervaloDeFaixa;
+  || r.revisao.falhasFaixaDeFuzz || r.fases.falhasFase || r.fases.falhasSegundos
+  || r.fases.falhasIntervaloDeFaixa || r.passoLongo.divergencias;
 process.exitCode = falhou ? 1 : 0;

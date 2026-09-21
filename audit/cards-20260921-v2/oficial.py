@@ -162,7 +162,33 @@ with tempfile.TemporaryDirectory() as tmp:
             })
         col.close()
 
+    # ── (3) PASSO DE REAPRENDIZADO LONGO ────────────────────────────────────
+    # A ordem "Errei < Bom" se inverte quando o passo de reaprendizado dura
+    # mais que o intervalo pós-lapso. Antes de chamar isso de defeito do app,
+    # perguntamos ao backend oficial o que ELE faz na mesma configuração.
+    saida['passoLongo'] = []
+    for usa_fsrs in (True, False):
+        col = nova_colecao(tmp, 'pl' + str(usa_fsrs), fsrs=usa_fsrs)
+        conf = col.decks.get_config(1)
+        conf['lapse']['delays'] = [4320.0]     # 3 dias
+        conf['new']['delays'] = [1.0, 10.0]
+        col.decks.update_config(conf)
+        card = novo_card(col, 'passo-longo')
+        card.type = 3; card.queue = 1; card.ivl = 1; card.due = col.sched.today
+        card.reps = 12; card.lapses = 4; card.factor = 2500; card.left = 1
+        if usa_fsrs:
+            card.memory_state = FSRSMemoryState(stability=6.0, difficulty=7.5)
+            card.desired_retention = 0.9
+        card.last_review_time = stamp
+        col._backend.update_cards(cards=[card._to_backend_card()], skip_undo_entry=True)
+        saida['passoLongo'].append({'fsrs': usa_fsrs, 'oficial': estados(col, card, 'relearning')})
+        col.close()
+
 (PASTA / 'vetores-oficiais.json').write_text(json.dumps(saida))
 relatorio['casosDeFase'] = len(saida['fases'])
+relatorio['passoLongo'] = {
+    ('fsrs' if x['fsrs'] else 'sm2'): {g: (v.get('segundos') or v.get('diasAgendados')) for g, v in x['oficial'].items()}
+    for x in saida['passoLongo']
+}
 (PASTA / 'oficial.json').write_text(json.dumps(relatorio, indent=2))
 print(json.dumps(relatorio, indent=2))

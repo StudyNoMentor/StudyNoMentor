@@ -1,8 +1,8 @@
 {
   "escopo": "Módulos de produção 11-db / 30-fsrs / 31-cards-config / 32-card-engine / 44-tela-cards; DOM, download e rede dublados; armazenamento serializado de verdade.",
-  "geradoEm": "2026-09-21T13:42:17.314Z",
-  "total": 59,
-  "falhas": 15,
+  "geradoEm": "2026-09-21T13:58:17.717Z",
+  "total": 60,
+  "falhas": 16,
   "itens": [
     {
       "id": "A1",
@@ -848,6 +848,38 @@
       }
     },
     {
+      "id": "G4",
+      "nome": "Sair do reaprendizado com \"Fácil\" rende mais do que com \"Bom\" (Anki: Fácil ≥ Bom + 1)",
+      "pass": false,
+      "detalhe": {
+        "pares": [
+          {
+            "relearnSteps": [
+              10
+            ],
+            "bom": 5,
+            "facil": 5
+          },
+          {
+            "relearnSteps": [
+              4320
+            ],
+            "bom": 5,
+            "facil": 5
+          },
+          {
+            "relearnSteps": [
+              10,
+              20
+            ],
+            "bom": 5,
+            "facil": 5
+          }
+        ],
+        "referencia": "anki 26.9.2: bom=1 dia, facil=2 dias na mesma configuração"
+      }
+    },
+    {
       "id": "H1",
       "nome": "Passo que ultrapassa a virada das 4h passa a ser agendado por DIA, não por horário",
       "pass": true,
@@ -862,7 +894,7 @@
       "nome": "Passo curto no meio do dia continua agendado por horário, com fuzz dentro do teto do Anki",
       "pass": true,
       "detalhe": {
-        "dueTs": 1789981857000,
+        "dueTs": 1789981823000,
         "minimo": 600,
         "tetoFuzz": 750
       }
@@ -882,9 +914,9 @@
       "nome": "Montar a fila cresce de forma linear com a coleção, não quadrática",
       "pass": true,
       "detalhe": {
-        "ms3000": 16.5,
-        "ms12000": 59.5,
-        "razao": 3.6,
+        "ms3000": 17.3,
+        "ms12000": 56.9,
+        "razao": 3.3,
         "esperadoSeLinear": 4,
         "esperadoSeQuadratico": 16
       }

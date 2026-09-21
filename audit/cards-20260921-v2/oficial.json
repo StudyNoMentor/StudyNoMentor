@@ -9,5 +9,19 @@
   ],
   "vetoresEmRevisao": 651,
   "limitacoes": "Replay de UM passo a partir de estados finais do Study, n\u00e3o a trajet\u00f3ria anual em lockstep. N\u00e3o exercita nuvem, AnkiWeb, m\u00eddia, notas/irm\u00e3os, modelos nem baralhos aninhados.",
-  "casosDeFase": 14
+  "casosDeFase": 14,
+  "passoLongo": {
+    "fsrs": {
+      "errei": 259200,
+      "dificil": 345600,
+      "bom": 4,
+      "facil": 8
+    },
+    "sm2": {
+      "errei": 259200,
+      "dificil": 345600,
+      "bom": 1,
+      "facil": 2
+    }
+  }
 }
