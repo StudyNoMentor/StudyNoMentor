@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v632b278eee">
+<meta name="diario-versao" content="v414ff49c6b">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16182,8 +16182,20 @@ const DB = {
   saveCards(list) { this._set(this.KEYS.cards, list); },
   // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
   getRevlog() { return this._get(this.KEYS.revlog, []); },
-  addRevlog(entry) { const l = this.getRevlog(); l.push(entry); if (l.length > 8000) l.splice(0, l.length - 8000); this._set(this.KEYS.revlog, l); },
-  removeRevlog(ts) { const l = this.getRevlog(); const i = l.findIndex(r => r.ts === ts); if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); } },
+  addRevlog(entry) {
+    // O histórico é dado de aprendizagem, não cache descartável. O antigo teto
+    // de 8.000 apagava silenciosamente quase todo um ano de uso e inviabilizava
+    // otimização/estatísticas FSRS. A persistência relacional cuida da escala.
+    const l = this.getRevlog(); l.push(entry); this._set(this.KEYS.revlog, l);
+  },
+  removeRevlog(ts) {
+    const l = this.getRevlog();
+    // Date.now() pode colidir em respostas muito próximas. Undo deve retirar a
+    // revisão MAIS RECENTE, não a primeira linha com o mesmo timestamp.
+    let i = -1;
+    for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
+    if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); }
+  },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
     const list = this.getCards();
@@ -16287,10 +16299,20 @@ const DB = {
   buryCard(id) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
-    this.updateCard(id, { enterradoAte: amanha, dueTs: null });
+    // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
+    // apenas o ocultamos enquanto o card está enterrado.
+    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
     return amanha;
   },
-  unburyCard(id) { this.updateCard(id, { enterradoAte: null }); },
+  unburyCard(id) {
+    const c = this.getCard(id); if (!c) return;
+    const patch = { enterradoAte: null };
+    if (Object.prototype.hasOwnProperty.call(c, 'dueTsAntesEnterrar')) {
+      patch.dueTs = c.dueTsAntesEnterrar;
+      patch.dueTsAntesEnterrar = null;
+    }
+    this.updateCard(id, patch);
+  },
   // ESQUECER (forget, Ctrl+Alt+N): devolve o card ao estado de novo, apagando
   // a memória do FSRS. O conteúdo permanece.
   forgetCard(id) {
