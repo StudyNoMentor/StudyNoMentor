@@ -33,6 +33,10 @@
     try { return !!(window.RelationalStore && RelationalStore._applying); } catch (_) { return false; }
   }
   function dirtyAllowed(k) { return isMemoryKey(k) && !isTransientKey(k) && !applyingRemote(); }
+  function currentUserId() {
+    try { return window.CloudStore && CloudStore.session && CloudStore.session.user ? String(CloudStore.session.user.id || '') : ''; }
+    catch (_) { return ''; }
+  }
 
   function openIDB() {
     if (!window.indexedDB) return Promise.resolve(null);
@@ -100,7 +104,7 @@
   }
   function markKvDirty(k, v) {
     if (!dirtyAllowed(k)) return Promise.resolve();
-    return putDirty({ id: 'kv|' + k, kind: 'kv', key: k, value: v == null ? null : String(v), at: Date.now() });
+    return putDirty({ id: 'kv|' + k, kind: 'kv', key: k, value: v == null ? null : String(v), userId:currentUserId(), at: Date.now() });
   }
 
   function persistKV(k, v, markDirty) {
@@ -109,7 +113,7 @@
     var st = tx.objectStore('kv');
     if (v == null) st.delete(k); else st.put({ key: k, value: String(v) });
     if (markDirty && dirtyAllowed(k)) tx.objectStore('dirty').put({
-      id:'kv|' + k, kind:'kv', key:k, value:v == null ? null : String(v), at:Date.now()
+      id:'kv|' + k, kind:'kv', key:k, value:v == null ? null : String(v), userId:currentUserId(), at:Date.now()
     });
     return txDone(tx);
   }
@@ -158,7 +162,7 @@
       });
       tx.objectStore('kv').delete(key); // cards nunca viram blob persistente
       if (opts.dirty !== false && !applyingRemote()) {
-        tx.objectStore('dirty').put({ id:'cards-replace|' + key, kind:'cards-replace', key:key, at:Date.now() });
+        tx.objectStore('dirty').put({ id:'cards-replace|' + key, kind:'cards-replace', key:key, userId:currentUserId(), at:Date.now() });
       }
       await txDone(tx);
       return true;
@@ -180,7 +184,7 @@
       });
       if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
         id:'card|' + key + '|' + String(card.id), kind:'card', key:key,
-        cardId:String(card.id), value:card, at:Date.now()
+        cardId:String(card.id), value:card, userId:currentUserId(), at:Date.now()
       });
       await txDone(tx);
       return true;
@@ -196,7 +200,7 @@
       tx.objectStore('cards').delete(cardPk(key, cardId));
       if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
         id:'card|' + key + '|' + String(cardId), kind:'card', key:key,
-        cardId:String(cardId), value:null, at:Date.now()
+        cardId:String(cardId), value:null, userId:currentUserId(), at:Date.now()
       });
       await txDone(tx);
       return true;
@@ -208,11 +212,11 @@
     if (!idb || !row) return Promise.resolve();
     var rid = row.reviewId || (String(row.cardId) + '|' + String(row.ts) + '|' + String(row._position || ''));
     var k = kind === 'review-delete' ? 'review-delete' : 'review';
-    return track(putDirty({ id:k+'|' + key + '|' + rid, kind:k, key:key, reviewId:rid, value:row, at:Date.now() }));
+    return track(putDirty({ id:k+'|' + key + '|' + rid, kind:k, key:key, reviewId:rid, value:row, userId:currentUserId(), at:Date.now() }));
   }
   function markRevlogReplace(key) {
     if (!idb) return Promise.resolve();
-    return track(putDirty({ id:'revlog-replace|' + key, kind:'revlog-replace', key:key, at:Date.now() }));
+    return track(putDirty({ id:'revlog-replace|' + key, kind:'revlog-replace', key:key, userId:currentUserId(), at:Date.now() }));
   }
 
   function loadAll() {
@@ -349,10 +353,16 @@
     ready: localReady,
     flush: flushLocal,
     pendingCount: function () { return pendingWrites.size; },
-    listDirty: function () {
+    listDirty: function (userId) {
       if (!idb) return Promise.resolve([]);
       var tx=idb.transaction('dirty','readonly');
-      return reqP(tx.objectStore('dirty').getAll()).then(function (rows) { return rows || []; });
+      return reqP(tx.objectStore('dirty').getAll()).then(function (rows) {
+        rows=rows||[];
+        var uid=String(userId || currentUserId() || '');
+        /* Registros antigos sem userId são aceitos apenas quando o profile_id
+           da chave pertence à sessão atual; o RLS continua sendo a barreira final. */
+        return rows.filter(function (r) { return !r.userId || !uid || String(r.userId)===uid; });
+      });
     },
     markSynced: function (id) { return track(delDirty(id)); },
     markReview: function (key,row) { return markReview(key,row,'review'); },
