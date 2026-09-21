@@ -447,6 +447,12 @@ const RelationalStore = {
   async hydrateProfile(profileId, opts) {
     opts=opts||{};
     if(!this.isReady())throw new Error('Banco indisponível');
+    /* Startup também obedece à regra outbox-first. Sem isto, um reload logo
+       após perder a rede poderia hidratar o snapshot remoto antigo por cima
+       dos cards já confirmados no IndexedDB. */
+    if(!opts.skipReplay && this.replayDurable && window.LocalDurable){
+      await this.replayDurable();
+    }
     const t0=Date.now();
     this._trace('rel-core-inicio',{profileId,reason:opts.reason||'open'});
     let watermark=this._lastChangeId.get(profileId)||0;
@@ -900,7 +906,7 @@ const RelationalStore = {
       else { core=true; needsFullCore=true; }
     });
     if(needsFullCore){
-      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true,skipReplay:true});
     } else if(partialSpecs.length){
       await this._refreshCorePartial(profileId,partialSpecs);
     }
@@ -1047,7 +1053,7 @@ const RelationalStore = {
       try{await this.replayDurable();}catch(e){throw e;}
     }
     if(!this._lastChangeId.has(id)){
-      return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false});
+      return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false,skipReplay:true});
     }
     const after=Number(this._lastChangeId.get(id))||0;
     const summary=await this._changeSummary(id,after);
