@@ -1,0 +1,903 @@
+{
+  "versaoAnki": "26.9.2",
+  "tolerancia": 0.00001,
+  "revisao": {
+    "cards": 5782,
+    "respostas": 23128,
+    "comparacoesEscalares": 46256,
+    "maiorErroRelativo": 0.0000028095507067491573,
+    "falhasMemoria": 0,
+    "falhasFase": 0,
+    "falhasPassoRelearn": 0,
+    "falhasFaixaDeFuzz": 0,
+    "intervalosComparados": 17346,
+    "intervalosIdenticos": 2388,
+    "dentroDeUmaLargura": 14797,
+    "maiorRazaoDeLargura": 2.5,
+    "porNota": {
+      "dificil": {
+        "n": 5782,
+        "foraDeUmaLargura": 649,
+        "foraDeDuasLarguras": 0,
+        "maiorRazao": 2
+      },
+      "bom": {
+        "n": 5782,
+        "foraDeUmaLargura": 864,
+        "foraDeDuasLarguras": 0,
+        "maiorRazao": 2
+      },
+      "facil": {
+        "n": 5782,
+        "foraDeUmaLargura": 1036,
+        "foraDeDuasLarguras": 18,
+        "maiorRazao": 2.5
+      }
+    },
+    "viesPorFaixa": {
+      "no prazo (75-125%)": {
+        "comparacoes": 3687,
+        "viesMedioPercentual": 0.28
+      },
+      "adiantado (25-75%)": {
+        "comparacoes": 5412,
+        "viesMedioPercentual": 0.65
+      },
+      "atrasado (>125%)": {
+        "comparacoes": 4308,
+        "viesMedioPercentual": 2.21
+      },
+      "adiantado (<25% do intervalo)": {
+        "comparacoes": 3939,
+        "viesMedioPercentual": 1.11
+      }
+    },
+    "exemplos": []
+  },
+  "fases": {
+    "casos": 56,
+    "falhasFase": 0,
+    "falhasSegundos": 0,
+    "falhasIntervaloDeFaixa": 0,
+    "detalhes": [
+      {
+        "caso": "novo",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 1,
+            "ankiSegundos": 60,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 5.5,
+            "ankiSegundos": 330,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 6,
+            "segOk": null,
+            "studyIntervalo": 6,
+            "ankiAgendado": 9,
+            "faixaStudy": [
+              3,
+              15
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "aprendizado-passo0",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 1,
+            "ankiSegundos": 60,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 5.5,
+            "ankiSegundos": 330,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 2,
+            "segOk": null,
+            "studyIntervalo": 2,
+            "ankiAgendado": 2,
+            "faixaStudy": [
+              0,
+              4
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "aprendizado-passo1",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 1,
+            "ankiSegundos": 60,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 2,
+            "segOk": null,
+            "studyIntervalo": 2,
+            "ankiAgendado": 2,
+            "faixaStudy": [
+              0,
+              4
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 4,
+            "segOk": null,
+            "studyIntervalo": 4,
+            "ankiAgendado": 3,
+            "faixaStudy": [
+              -3,
+              9
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "reaprendizado",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 15,
+            "ankiSegundos": 900,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 5,
+            "segOk": null,
+            "studyIntervalo": 5,
+            "ankiAgendado": 5,
+            "faixaStudy": [
+              -1,
+              11
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 9,
+            "segOk": null,
+            "studyIntervalo": 9,
+            "ankiAgendado": 9,
+            "faixaStudy": [
+              3,
+              15
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "revisao-jovem",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 8,
+            "segOk": null,
+            "studyIntervalo": 8,
+            "ankiAgendado": 7,
+            "faixaStudy": [
+              1,
+              13
+            ],
+            "ivOk": true
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 11,
+            "segOk": null,
+            "studyIntervalo": 11,
+            "ankiAgendado": 10,
+            "faixaStudy": [
+              2,
+              18
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 18,
+            "segOk": null,
+            "studyIntervalo": 18,
+            "ankiAgendado": 17,
+            "faixaStudy": [
+              9,
+              25
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "revisao-madura",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 398,
+            "segOk": null,
+            "studyIntervalo": 398,
+            "ankiAgendado": 359,
+            "faixaStudy": [
+              313,
+              405
+            ],
+            "ivOk": true
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 523,
+            "segOk": null,
+            "studyIntervalo": 523,
+            "ankiAgendado": 473,
+            "faixaStudy": [
+              413,
+              533
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 797,
+            "segOk": null,
+            "studyIntervalo": 797,
+            "ankiAgendado": 722,
+            "faixaStudy": [
+              636,
+              808
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "revisao-muito-atrasada",
+        "fsrs": true,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 66,
+            "segOk": null,
+            "studyIntervalo": 66,
+            "ankiAgendado": 68,
+            "faixaStudy": [
+              54,
+              82
+            ],
+            "ivOk": true
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 97,
+            "segOk": null,
+            "studyIntervalo": 97,
+            "ankiAgendado": 100,
+            "faixaStudy": [
+              84,
+              116
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 165,
+            "segOk": null,
+            "studyIntervalo": 165,
+            "ankiAgendado": 170,
+            "faixaStudy": [
+              146,
+              194
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "novo",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 1,
+            "ankiSegundos": 60,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 5.5,
+            "ankiSegundos": 330,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 5,
+            "segOk": null,
+            "studyIntervalo": 5,
+            "ankiAgendado": 4,
+            "faixaStudy": [
+              -2,
+              10
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "aprendizado-passo0",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 1,
+            "ankiSegundos": 60,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 5.5,
+            "ankiSegundos": 330,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 3,
+            "segOk": null,
+            "studyIntervalo": 3,
+            "ankiAgendado": 4,
+            "faixaStudy": [
+              -2,
+              10
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "aprendizado-passo1",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 1,
+            "ankiSegundos": 60,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "learning",
+            "ankiFase": "learning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 0,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 1,
+            "segOk": null,
+            "studyIntervalo": 1,
+            "ankiAgendado": 1,
+            "faixaStudy": [
+              -1,
+              3
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 5,
+            "segOk": null,
+            "studyIntervalo": 5,
+            "ankiAgendado": 3,
+            "faixaStudy": [
+              -3,
+              9
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "reaprendizado",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 1,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 15,
+            "ankiSegundos": 900,
+            "segOk": true,
+            "studyIntervalo": 1,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 1,
+            "segOk": null,
+            "studyIntervalo": 1,
+            "ankiAgendado": 1,
+            "faixaStudy": [
+              -1,
+              3
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 2,
+            "segOk": null,
+            "studyIntervalo": 2,
+            "ankiAgendado": 2,
+            "faixaStudy": [
+              0,
+              4
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "revisao-jovem",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 1,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 4,
+            "segOk": null,
+            "studyIntervalo": 4,
+            "ankiAgendado": 4,
+            "faixaStudy": [
+              -2,
+              10
+            ],
+            "ivOk": true
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 6,
+            "segOk": null,
+            "studyIntervalo": 6,
+            "ankiAgendado": 6,
+            "faixaStudy": [
+              0,
+              12
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 8,
+            "segOk": null,
+            "studyIntervalo": 8,
+            "ankiAgendado": 8,
+            "faixaStudy": [
+              2,
+              14
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "revisao-madura",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 1,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 240,
+            "segOk": null,
+            "studyIntervalo": 240,
+            "ankiAgendado": 254,
+            "faixaStudy": [
+              222,
+              286
+            ],
+            "ivOk": true
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 503,
+            "segOk": null,
+            "studyIntervalo": 503,
+            "ankiAgendado": 529,
+            "faixaStudy": [
+              469,
+              589
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 655,
+            "segOk": null,
+            "studyIntervalo": 655,
+            "ankiAgendado": 688,
+            "faixaStudy": [
+              612,
+              764
+            ],
+            "ivOk": true
+          }
+        }
+      },
+      {
+        "caso": "revisao-muito-atrasada",
+        "fsrs": false,
+        "notas": {
+          "errei": {
+            "studyFase": "relearning",
+            "ankiFase": "relearning",
+            "faseOk": true,
+            "studyVal": 10,
+            "ankiSegundos": 600,
+            "segOk": true,
+            "studyIntervalo": 1,
+            "faixaStudy": null,
+            "ivOk": null
+          },
+          "dificil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 26,
+            "segOk": null,
+            "studyIntervalo": 26,
+            "ankiAgendado": 27,
+            "faixaStudy": [
+              17,
+              37
+            ],
+            "ivOk": true
+          },
+          "bom": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 149,
+            "segOk": null,
+            "studyIntervalo": 149,
+            "ankiAgendado": 152,
+            "faixaStudy": [
+              130,
+              174
+            ],
+            "ivOk": true
+          },
+          "facil": {
+            "studyFase": "review",
+            "ankiFase": "review",
+            "faseOk": true,
+            "studyVal": 318,
+            "segOk": null,
+            "studyIntervalo": 318,
+            "ankiAgendado": 324,
+            "faixaStudy": [
+              284,
+              364
+            ],
+            "ivOk": true
+          }
+        }
+      }
+    ]
+  },
+  "passoLongo": {
+    "nota": "passo de reaprendizado de 3 dias (4320 min), intervalo pós-lapso de 1 dia",
+    "casos": [
+      {
+        "algo": "fsrs",
+        "notas": {
+          "errei": {
+            "studyDias": 3,
+            "ankiDias": 3,
+            "mesmaFase": true
+          },
+          "dificil": {
+            "studyDias": 4,
+            "ankiDias": 4,
+            "mesmaFase": true
+          },
+          "bom": {
+            "studyDias": 8,
+            "ankiDias": 5,
+            "mesmaFase": true
+          },
+          "facil": {
+            "studyDias": 12,
+            "ankiDias": 9,
+            "mesmaFase": true
+          }
+        },
+        "inverteStudy": false,
+        "inverteAnki": false,
+        "mesmoComportamento": true
+      },
+      {
+        "algo": "sm2",
+        "notas": {
+          "errei": {
+            "studyDias": 3,
+            "ankiDias": 3,
+            "mesmaFase": true
+          },
+          "dificil": {
+            "studyDias": 4,
+            "ankiDias": 4,
+            "mesmaFase": true
+          },
+          "bom": {
+            "studyDias": 1,
+            "ankiDias": 1,
+            "mesmaFase": true
+          },
+          "facil": {
+            "studyDias": 2,
+            "ankiDias": 2,
+            "mesmaFase": true
+          }
+        },
+        "inverteStudy": true,
+        "inverteAnki": true,
+        "mesmoComportamento": true
+      }
+    ]
+  }
+}

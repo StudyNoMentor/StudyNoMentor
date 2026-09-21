@@ -20,7 +20,10 @@ const parsed=S.parseAnkiText('"front, with comma",back,tag');check('CSV quoted d
 const tsv=Array.from({length:6000},(_,i)=>'F'+i+'\tV'+i+'\ttag').join('\n');check('TSV 6000 rows parsed',S.parseAnkiText(tsv).length===6000,{});
 D.saveCards([{id:'rich',frente:'<b>Bold</b><img src="image.png">',verso:'<audio src="a.mp3"></audio>',phase:'new'}]);S.exportAnki();check('Anki export preserves rich media',download.content.includes('image.png')&&download.content.includes('a.mp3'),{actual:download.content});
 // Same-timestamp undo collision on production DB methods.
-D._set(D.KEYS.revlog,[]);D.addRevlog({ts:1,cardId:'A'});D.addRevlog({ts:1,cardId:'B'});D.removeRevlog(1);check('Undo removes latest log when timestamps collide',D.getRevlog()[0]?.cardId==='A',{remaining:D.getRevlog()});
+// O histórico deixou de morar num JSON único do localStorage: esvaziá-lo agora
+// é DB.replaceRevlog([]), e não uma escrita direta na chave. A verificação em
+// si não mudou — continua exigindo que o undo retire a revisão mais recente.
+D.replaceRevlog([]);D.addRevlog({ts:1,cardId:'A'});D.addRevlog({ts:1,cardId:'B'});D.removeRevlog(1);check('Undo removes latest log when timestamps collide',D.getRevlog()[0]?.cardId==='A',{remaining:D.getRevlog()});
 raw.set(D.ACTIVE_PROFILE_KEY,'alice');C.set({retention:.85});raw.set(D.ACTIVE_PROFILE_KEY,'bob');C.set({retention:.95});raw.set(D.ACTIVE_PROFILE_KEY,'alice');check('Profile config isolation',C.get().retention===.85,{actual:C.get().retention});
 C.set({revPerDay:200,newPerDay:20,interdayMix:'misturar'});
 D.saveCards([...Array.from({length:4},(_,i)=>({id:'review'+i,phase:'review',due:ctx.todayCards(),intervalo:10,s:10,d:5})),{id:'learn-now',phase:'learning',due:ctx.todayCards(),dueTs:Date.now()-1000}]);

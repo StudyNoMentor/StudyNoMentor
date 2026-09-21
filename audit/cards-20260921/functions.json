@@ -3,17 +3,17 @@
   "tests": [
     {
       "name": "Yearly history retained: 6000 cards x 30 answers",
-      "pass": false,
+      "pass": true,
       "detail": {
         "written": 180000,
-        "retained": 8000,
-        "lost": 172000,
-        "firstRetained": 172001
+        "retained": 180000,
+        "lost": 0,
+        "firstRetained": 1
       }
     },
     {
       "name": "Card backup includes revlog",
-      "pass": false,
+      "pass": true,
       "detail": {
         "keys": [
           "app",
@@ -21,7 +21,8 @@
           "version",
           "exportedAt",
           "decks",
-          "cards"
+          "cards",
+          "revlog"
         ]
       }
     },
@@ -34,35 +35,23 @@
     },
     {
       "name": "Backup round trip preserves learning state",
-      "pass": false,
+      "pass": true,
       "detail": {
         "first": {
-          "id": "id1",
-          "deckId": null,
-          "materia": null,
-          "assunto": "",
-          "materiaTec": "",
-          "banca": "",
-          "tipo": "",
-          "kind": "basic",
-          "reversedOf": null,
+          "id": "card0",
           "frente": "F0",
           "verso": "V0",
-          "favorito": false,
-          "status": "pendente",
-          "ease": 2.5,
-          "intervalo": 0,
-          "due": "2026-09-21",
-          "reps": 0,
-          "lapses": 0,
-          "phase": "new",
-          "learnStep": 0,
-          "s": null,
-          "d": null,
-          "dueTs": null,
-          "posicaoNova": 0,
-          "createdAt": "2026-09-21T12:01:09.941Z",
-          "updatedAt": "2026-09-21T12:01:09.941Z"
+          "phase": "review",
+          "s": 30,
+          "d": 5,
+          "reps": 20,
+          "intervalo": 30,
+          "due": "2026-10-01",
+          "lastReview": "2026-09-01",
+          "status": "sei",
+          "favorito": true,
+          "deckId": null,
+          "materia": null
         }
       }
     },
@@ -78,9 +67,9 @@
     },
     {
       "name": "Unbury preserves learning timestamp",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": null
+        "actual": 1790018971773
       }
     },
     {
@@ -100,13 +89,13 @@
     },
     {
       "name": "CSV quoted delimiter preserved",
-      "pass": false,
+      "pass": true,
       "detail": {
         "actual": [
           {
-            "frente": "\"front",
-            "verso": "with comma\"",
-            "tags": "back"
+            "frente": "front, with comma",
+            "verso": "back",
+            "tags": "tag"
           }
         ]
       }
@@ -118,19 +107,20 @@
     },
     {
       "name": "Anki export preserves rich media",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": "#separator:tab\n#html:true\n#tags column:3\nBold\t\tSem_disciplina"
+        "actual": "#separator:tab\n#html:true\n#tags column:3\n<b>Bold</b><img src=\"image.png\">\t<audio src=\"a.mp3\"></audio>\tSem_disciplina"
       }
     },
     {
       "name": "Undo removes latest log when timestamps collide",
-      "pass": false,
+      "pass": true,
       "detail": {
         "remaining": [
           {
+            "_position": 1,
             "ts": 1,
-            "cardId": "B"
+            "cardId": "A"
           }
         ]
       }
@@ -144,12 +134,12 @@
     },
     {
       "name": "Due intraday learning priority over four reviews",
-      "pass": false,
+      "pass": true,
       "detail": {
         "actual": [
+          "learn-now",
           "review0",
           "review1",
-          "learn-now",
           "review2",
           "review3"
         ]
@@ -157,10 +147,10 @@
     },
     {
       "name": "SM2 Easy graduates phase out of new",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": "new",
-        "bucket": "new"
+        "actual": "review",
+        "bucket": "review"
       }
     }
   ]

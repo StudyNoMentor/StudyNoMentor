@@ -15,7 +15,11 @@ const PlanManager = {
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
-  setActivePlan(id) { DB.setRaw(this.GK.active, id); },
+  setActivePlan(id) {
+    DB.setRaw(this.GK.active, id);
+    // Idem: cada planejamento tem o seu histórico.
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem'); }
+  },
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
   // para que todas as telas já funcionem "de fábrica".
@@ -180,6 +184,8 @@ const ProfileManager = {
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) {
     localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id);
+    // Trocar de perfil troca o dono do histórico: a lista viva não atravessa.
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'perfil-revlog-mem'); }
     /* A assinatura Realtime de seções depende do perfil ativo. Centralizar o
        aviso aqui evita deixar um canal antigo ouvindo o perfil anterior. */
     try {
@@ -342,6 +348,11 @@ const ProfileManager = {
       }
       localStorage.setItem(prefix + subKey, valor);
     });
+    /* O histórico de revisões vive em RAM (ver o bloco do revlog em 11-db.js).
+       Este caminho grava as chaves CRUAS, sem passar por DB._set, então a
+       projeção em memória precisa ser descartada à mão — senão o perfil
+       importado continuaria mostrando o histórico do perfil anterior. */
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'import-revlog-mem'); }
     if (saneados) {
       try { showToast('⚠ ' + saneados + ' card(is) do backup tinham conteúdo suspeito e foram limpos na importação.'); } catch (_) { _quiet(_); }
       console.warn('[importProfile] cards saneados:', saneados);

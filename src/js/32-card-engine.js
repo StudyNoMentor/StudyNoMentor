@@ -165,7 +165,15 @@ const CardEngine = {
        maybe_round_in_days: acima de 1 dia, arredonda para dias inteiros. */
     const atrasoDificil = (passos, idx) => {
       const arredDias = (min) => (min > 1440 ? Math.round(min / 1440) * 1440 : min);
-      if (idx !== 0) return passos[idx];
+      /* O ÍNDICE PRECISA SER LIMITADO AO ÚLTIMO PASSO. Um card guarda em que
+         passo parou; se depois você ENCURTA a lista de passos nas opções (de
+         [10, 20] para [10], por exemplo), o card volta apontando para um passo
+         que não existe mais. `passos[idx]` devolvia undefined, stepDue()
+         calculava Math.round(undefined * 60) e o card era gravado com
+         `dueTs: NaN` e o botão exibia "NaN h". O agendador Clássico já fazia
+         este limite; o FSRS não fazia. */
+      const i = Math.max(0, Math.min(Number(idx) || 0, passos.length - 1));
+      if (i !== 0) return passos[i];
       if (passos.length > 1) return arredDias((passos[0] + passos[1]) / 2);
       return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
     };
@@ -185,11 +193,21 @@ const CardEngine = {
         piso = place(FSRS.interval(stBom.s, r, w), 1) + 1;
       }
       const iv = place(FSRS.interval(S, r, w), piso);
-      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv, _kind: 'day', _val: iv });
+      /* O status acompanha a NOTA, não o fato de ter graduado. Com listas de
+         passos vazias um "Errei" também sai por aqui, e marcá-lo como 'sei'
+         contaria um erro como acerto nas estatísticas e nos filtros. */
+      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: (g === 1 ? 'naosei' : 'sei'), intervalo: iv, _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
       const st = shortTerm(G);
       const cur = (c.phase === 'new' ? 0 : (c.learnStep || 0));
+      /* SEM PASSOS, NÃO HÁ APRENDIZADO A CUMPRIR. Lista vazia é configuração
+         VÁLIDA (CardsConfig._passosValidos preserva []) e significa deixar o
+         agendador cuidar do curto prazo sozinho — é assim que o Anki trata.
+         O agendador Clássico já graduava direto; o FSRS tentava ler learn[0]
+         de uma lista vazia e gravava `dueTs: NaN`, com o botão exibindo
+         "NaN h" e o card preso em aprendizado para sempre. */
+      if (!learn.length) return graduate(G, st);
       if (G === 1) { Object.assign(patch, { phase: 'learning', learnStep: 0, s: st.s, d: st.d, status: 'naosei' }, stepDue(learn[0])); patch._kind = 'min'; patch._val = learn[0]; }
       else if (G === 4) { graduate(4, st); }
       else if (G === 3) {
@@ -210,6 +228,7 @@ const CardEngine = {
          days_since_last_review < 1, inclusive no Again. */
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
       const mesmoDia = elapsed < 1;
+      const semReaprendizado = !relearn.length;   // ver nota sobre listas vazias acima
       const D2 = FSRS.nextD(c.d, G, w);
       // A estabilidade resultante de UMA nota qualquer — precisamos das três
       // (Difícil/Bom/Fácil) para impor a ordem entre elas, mesmo gravando uma só.
@@ -220,9 +239,19 @@ const CardEngine = {
       };
       const S2 = sDaNota(G);
       if (G === 1) {
-        Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
-          lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0]));
-        patch._kind = 'min'; patch._val = relearn[0];
+        const lapses = (c.lapses || 0) + 1;
+        if (semReaprendizado) {
+          /* Sem passos de reaprendizado o card volta direto para revisão, com
+             o intervalo que a memória recalculada indica e piso de 1 dia. */
+          const iv = place(FSRS.interval(S2, r, w), 1);
+          Object.assign(patch, { phase: 'review', learnStep: 0, s: S2, d: D2, lapses,
+            status: 'naosei', due: this.addDays(tdy, iv), dueTs: null, intervalo: iv });
+          patch._kind = 'day'; patch._val = iv;
+        } else {
+          Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
+            lapses, status: 'naosei' }, stepDue(relearn[0]));
+          patch._kind = 'min'; patch._val = relearn[0];
+        }
       } else {
         /* ── ORDEM GARANTIDA: Difícil < Bom < Fácil ───────────────────────────
            rslib/scheduler/states/review.rs::passing_fsrs_review_intervals calcula
@@ -253,6 +282,7 @@ const CardEngine = {
     } else if (c.phase === 'relearning') {
       const st = shortTerm(G);
       const cur = c.learnStep || 0;
+      if (!relearn.length) return graduate(G, st);
       if (G === 1) { Object.assign(patch, { learnStep: 0, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
       else if (G === 4) { graduate(4, st); }
       else if (G === 3) { const next = cur + 1; if (next >= relearn.length) graduate(3, st); else { Object.assign(patch, { learnStep: next, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[next])); patch._kind = 'min'; patch._val = relearn[next]; } }
@@ -355,8 +385,16 @@ const CardEngine = {
         dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
       };
     };
-    const graduateRelearn = () => {
-      intervalo = constr(Math.max(minLapse, intervalo || minLapse), 1);
+    const graduateRelearn = (easy) => {
+      /* ORDEM "FÁCIL > BOM" TAMBÉM NA SAÍDA DO REAPRENDIZADO. O Anki impõe
+         easy ≥ good + 1 aqui como impõe na revisão (verificado no backend
+         oficial 26.9.2: Bom devolve 1 dia e Fácil devolve 2 na mesma
+         configuração). O app devolvia o MESMO intervalo para os dois, de modo
+         que acertar com folga um card que estava em reaprendizado não rendia
+         nada — e a invariante de ordem não pegava, porque ela aceita empate. */
+      const base = Math.max(minLapse, intervalo || minLapse);
+      const ivBom = constr(base, 1);
+      intervalo = easy ? constr(base, ivBom + 1) : ivBom;
       return {
         status: 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -378,13 +416,13 @@ const CardEngine = {
 
     // REAPRENDIZAGEM: o lapso/ease já foi contabilizado ao sair de review.
     if (phase === 'relearning') {
-      if (!relearn.length) return graduateRelearn();
+      if (!relearn.length) return graduateRelearn(grade === 'facil');
       const cur = Math.max(0, Math.min(card.learnStep || 0, relearn.length - 1));
       if (grade === 'errei') return stepPatch('relearning', 0, relearn[0], 'naosei');
       if (grade === 'dificil') return stepPatch('relearning', cur, hardDelay(relearn, cur), 'naosei');
-      if (grade === 'facil') return graduateRelearn();
+      if (grade === 'facil') return graduateRelearn(true);
       const next = cur + 1;
-      if (next >= relearn.length) return graduateRelearn();
+      if (next >= relearn.length) return graduateRelearn(false);
       return stepPatch('relearning', next, relearn[next], 'naosei');
     }
 

@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v6f43caa49d">
+<meta name="diario-versao" content="v82eb03d838">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -15549,7 +15549,11 @@ const DB = {
       incidencia: base + 'incidencia',
       lastCycleSetup: base + 'last-cycle-setup',
       extras: base + 'extras',
-      revlog: base + 'revlog'
+      revlog: base + 'revlog',
+      /* Rede de segurança do histórico: só o que ainda NÃO está confirmado no
+         banco relacional. Ver o bloco do revlog mais abaixo. */
+      revlogPendente: base + 'revlog-pendente',
+      revlogArquivo: base + 'revlog-arquivo'
     };
   },
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
@@ -15615,6 +15619,9 @@ const DB = {
          Trinta dias de arrependimento pelo preço de uma leitura. */
       try { if (valorVazio(txt)) Lixeira.guardar(key, 'esvaziada pelo app'); } catch (e2) { _quiet(e2, 'set-lixeira'); }
       localStorage.setItem(key, txt);
+      // Qualquer escrita na chave do histórico por fora de replaceRevlog torna
+      // a projeção em RAM obsoleta (hidratação, restauração, reset de dados).
+      this._esquecerRevlogSeForOCaso(key);
     } catch (e) {
       console.error('Falha ao atualizar a projeção em memória', key, e);
       try { showToast('⚠ Não foi possível atualizar o estado local. A gravação foi cancelada.'); } catch (_) { _quiet(_); }
@@ -15646,9 +15653,18 @@ const DB = {
   delRaw(key, motivo) {
     try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
+    this._esquecerRevlogSeForOCaso(key);
     return true;
   },
   _del(key) { return this.delRaw(key); },
+  // Chamado por _set/delRaw: a lista viva em RAM não pode sobreviver a uma
+  // escrita ou remoção feita direto na chave do histórico.
+  _esquecerRevlogSeForOCaso(key) {
+    try {
+      const k = String(key || '');
+      if (k.slice(-7) === ':revlog' && this._revlogMem && this._revlogMem.has(k)) this._revlogMem.delete(k);
+    } catch (_) { /* nunca impede a gravação */ }
+  },
   _uid() {
     // UUID v4 real quando disponível. crypto.randomUUID exige contexto seguro —
     // funciona em file:// e https://, mas NÃO em http:// simples (ex.: servir de um NAS).
@@ -16179,20 +16195,121 @@ const DB = {
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
   getCards() { return this._get(this.KEYS.cards, []); },
-  saveCards(list) { this._set(this.KEYS.cards, list); },
-  // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
-  getRevlog() { return this._get(this.KEYS.revlog, []); },
+  // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
+  // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
+  saveCards(list) { return this._set(this.KEYS.cards, list); },
+  /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
+     O histórico é a única coleção que cresce sem teto: uma linha por resposta,
+     centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
+     revisão em `study_review_log` — e em RAM durante a sessão. O localStorage
+     deixa de ser o dono dele.
+
+     POR QUE. Enquanto o histórico era um único JSON no localStorage, CADA
+     resposta reescrevia o histórico INTEIRO: com 3.000 linhas já eram 472 KB
+     guardados contra 884 MB escritos, e dobrar as linhas multiplicava o custo
+     por cinco. Um ano de uso projetava 27 MB num armazenamento cuja cota
+     costuma ser 5 MB — ou seja, o limite era atingido por volta de 33.000
+     revisões, e a partir dali a gravação falhava. Tirar o antigo teto de 8.000
+     linhas sem trocar o meio de armazenamento apenas trocou uma perda
+     silenciosa por outra.
+
+     COMO. Três camadas, e nenhuma delas reescreve o histórico inteiro:
+
+       1. RAM (`_revlogMem`) — a lista viva da sessão, que é o que o app lê.
+       2. BANCO — uma linha por resposta, enfileirada em queueRevlogAppend.
+       3. PENDENTES (`revlog-pendente`) — rede de segurança apenas com o que
+          o banco ainda não confirmou. Some assim que a fila esvazia. Sem
+          banco (offline, sem conta), ela acumula e é arquivada em lotes
+          pequenos (`revlog-arquivo:N`), nunca num blob único.
+
+     Assim uma resposta escreve o tamanho do LOTE, não o do histórico.        */
+  LOTE_REVLOG: 50,
+  _revlogMem: new Map(),
+  _chaveRevisao(r) { return String(r && r.cardId) + '|' + String(r && r.ts) + '|' + String(r && r._position); },
+  _bancoRelacionalPronto() {
+    try { return !!(typeof RelationalStore !== 'undefined' && RelationalStore && RelationalStore.enabled && RelationalStore.isReady()); }
+    catch (_) { return false; }
+  },
+  _bancoSemPendencias() {
+    try { return this._bancoRelacionalPronto() && RelationalStore.pendingCount() === 0; }
+    catch (_) { return false; }
+  },
+  _lotesArquivados() {
+    const n = Number(this._get(this.KEYS.revlogArquivo, 0)) || 0;
+    return n > 0 ? n : 0;
+  },
+  _lerHistoricoPersistido() {
+    // Consolidado (hidratação do banco ou versões anteriores) + lotes
+    // arquivados offline + o que ainda está pendente. Nessa ordem.
+    const base = this._get(this.KEYS.revlog, []);
+    const fora = [];
+    const nLotes = this._lotesArquivados();
+    for (let i = 0; i < nLotes; i++) {
+      const lote = this._get(this.KEYS.revlog + '-arquivo:' + i, []);
+      if (Array.isArray(lote)) fora.push(...lote);
+    }
+    const pendentes = this._get(this.KEYS.revlogPendente, []);
+    if (Array.isArray(pendentes)) fora.push(...pendentes);
+    if (!fora.length) return Array.isArray(base) ? base : [];
+    const vistas = new Set((Array.isArray(base) ? base : []).map(r => this._chaveRevisao(r)));
+    const extras = fora.filter(r => { const k = this._chaveRevisao(r); if (vistas.has(k)) return false; vistas.add(k); return true; });
+    return (Array.isArray(base) ? base : []).concat(extras);
+  },
+  getRevlog() {
+    const k = this.KEYS.revlog;
+    if (!this._revlogMem.has(k)) this._revlogMem.set(k, this._lerHistoricoPersistido());
+    return this._revlogMem.get(k);
+  },
+  // Descarta a projeção em RAM (troca de perfil/planejamento, hidratação nova).
+  invalidarRevlogMemoria(prefixo) {
+    const p = String(prefixo || '');
+    for (const k of Array.from(this._revlogMem.keys())) if (!p || k.indexOf(p) === 0) this._revlogMem.delete(k);
+  },
+  /* Substituição em bloco: excluir card, zerar estatísticas, restaurar backup.
+     São operações raras e por definição O(n) — aqui a reescrita é legítima. */
+  replaceRevlog(list) {
+    const k = this.KEYS.revlog, v = Array.isArray(list) ? list : [];
+    this._revlogMem.set(k, v);
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogReplace) RelationalStore.queueRevlogReplace(k, v);
+    } catch (e) { _quiet(e, 'revlog-replace'); }
+    // A rede de segurança é reconstruída junto: o consolidado passa a conter tudo.
+    const nLotes = this._lotesArquivados();
+    for (let i = 0; i < nLotes; i++) this.delRaw(this.KEYS.revlog + '-arquivo:' + i);
+    this._set(this.KEYS.revlogArquivo, 0);
+    this._set(this.KEYS.revlogPendente, []);
+    return this._set(k, v);
+  },
   addRevlog(entry) {
-    // O histórico é dado de aprendizagem, não cache descartável. O antigo teto
-    // de 8.000 apagava silenciosamente quase todo um ano de uso e inviabilizava
-    // otimização/estatísticas FSRS. A persistência relacional cuida da escala.
     const l = this.getRevlog();
-    // Posição monotônica em O(1): o histórico pode passar de centenas de
-    // milhares de linhas, então varrer todo o array a cada resposta seria O(n²).
+    // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
-    l.push(Object.assign({ _position: pos }, entry));
-    this._set(this.KEYS.revlog, l);
+    const row = Object.assign({ _position: pos }, entry);
+    l.push(row);
+    // 1) Banco relacional: UMA linha, não o histórico inteiro.
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
+    } catch (e) { _quiet(e, 'revlog-append'); }
+    // 2) Rede de segurança local, do tamanho do lote.
+    return this._guardarPendente(row);
+  },
+  _guardarPendente(row) {
+    const pendentes = this._get(this.KEYS.revlogPendente, []);
+    const lista = Array.isArray(pendentes) ? pendentes : [];
+    // Confirmado no banco: a rede de segurança não precisa mais dessas linhas.
+    if (this._bancoSemPendencias() && lista.length) {
+      if (!this._set(this.KEYS.revlogPendente, row ? [row] : [])) return false;
+      return true;
+    }
+    if (row) lista.push(row);
+    if (lista.length < this.LOTE_REVLOG) return this._set(this.KEYS.revlogPendente, lista);
+    // Lote cheio e sem banco para confirmar: arquiva o lote e recomeça. A
+    // gravação continua sendo do tamanho do lote, nunca do histórico.
+    const n = this._lotesArquivados();
+    if (!this._set(this.KEYS.revlog + '-arquivo:' + n, lista)) return false;
+    if (!this._set(this.KEYS.revlogArquivo, n + 1)) return false;
+    return this._set(this.KEYS.revlogPendente, []);
   },
   removeRevlog(ts) {
     const l = this.getRevlog();
@@ -16200,7 +16317,20 @@ const DB = {
     // revisão MAIS RECENTE, não a primeira linha com o mesmo timestamp.
     let i = -1;
     for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
-    if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); }
+    if (i < 0) return true;
+    const removida = l[i];
+    l.splice(i, 1);
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
+    } catch (e) { _quiet(e, 'revlog-delete'); }
+    // Desfazer costuma retirar justamente a última linha, que está nos
+    // pendentes: nesse caso a remoção é do tamanho do lote.
+    const pendentes = this._get(this.KEYS.revlogPendente, []);
+    const lista = Array.isArray(pendentes) ? pendentes : [];
+    const alvo = this._chaveRevisao(removida);
+    const idx = lista.map(r => this._chaveRevisao(r)).lastIndexOf(alvo);
+    if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
+    return this.replaceRevlog(l);
   },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
@@ -16251,8 +16381,26 @@ const DB = {
     };
     list.push(card); this.saveCards(list); return card;
   },
+  /* Campos que o agendador devolve para a TELA usar na mesma resposta e que não
+     são estado do card: o rótulo do botão (_kind/_val) e o aviso de leech
+     (_leechNow). Gravados, eles viajavam para a coleção, para o backup e para o
+     banco, e faziam o desfazer não devolver o card idêntico ao que era. Quem
+     precisa deles lê do PATCH, que continua intacto para o chamador. */
+  TRANSITORIOS_DO_AGENDADOR: ['_kind', '_val', '_leechNow'],
+  _semTransitorios(patch) {
+    if (!patch) return patch;
+    let copia = null;
+    for (const k of this.TRANSITORIOS_DO_AGENDADOR) {
+      if (Object.prototype.hasOwnProperty.call(patch, k)) {
+        if (!copia) copia = { ...patch };
+        delete copia[k];
+      }
+    }
+    return copia || patch;
+  },
   updateCard(id, patch) {
     const list = this.getCards(); const c = list.find(x => x.id === id);
+    patch = this._semTransitorios(patch);
     // Só sanea quando o texto do card está de fato no patch — a maioria das
     // chamadas é agendamento do FSRS (due, s, d, reps) e não toca em frente/verso.
     if (patch && ('frente' in patch || 'verso' in patch)) {
@@ -16261,7 +16409,9 @@ const DB = {
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
     if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
-    this.saveCards(list); return c;
+    // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
+    // CardsScreen.answer). Card inexistente continua devolvendo null.
+    return this.saveCards(list) === false ? false : c;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
@@ -16273,6 +16423,10 @@ const DB = {
       list.forEach(c => {
         const f = _sanCard(c.frente), v = _sanCard(c.verso);
         if (f !== c.frente || v !== c.verso) { c.frente = f; c.verso = v; n++; }
+        // Limpa os transitórios que versões anteriores gravaram na coleção.
+        this.TRANSITORIOS_DO_AGENDADOR.forEach(k => {
+          if (Object.prototype.hasOwnProperty.call(c, k)) { delete c[k]; n++; }
+        });
       });
       if (n) this.saveCards(list);
       return n;
@@ -16287,7 +16441,7 @@ const DB = {
     this.saveCards(this.getCards().filter(c => c.id !== id));
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
-      this._set(this.KEYS.revlog, l);
+      this.replaceRevlog(l);
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
   },
@@ -16355,7 +16509,7 @@ const DB = {
       c.updatedAt = new Date().toISOString();
     });
     this.saveCards(cards);
-    this._set(this.KEYS.revlog, []);
+    this.replaceRevlog([]);
     try {
       this.setRaw(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
     } catch (_) { _quiet(_); }
@@ -16370,7 +16524,7 @@ const DB = {
       const l = this.getRevlog();
       const limpo = l.filter(r => ids.has(r.cardId));
       n = l.length - limpo.length;
-      if (n) this._set(this.KEYS.revlog, limpo);
+      if (n) this.replaceRevlog(limpo);
     } catch (_) { _quiet(_); }
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
     // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
@@ -17311,7 +17465,11 @@ const PlanManager = {
   getActivePlan() { return this.getPlans().find(p => p.id === this.getActivePlanId()) || null; },
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
-  setActivePlan(id) { DB.setRaw(this.GK.active, id); },
+  setActivePlan(id) {
+    DB.setRaw(this.GK.active, id);
+    // Idem: cada planejamento tem o seu histórico.
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem'); }
+  },
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
   // para que todas as telas já funcionem "de fábrica".
@@ -17476,6 +17634,8 @@ const ProfileManager = {
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) {
     localStorage.setItem(DB.ACTIVE_PROFILE_KEY, id);
+    // Trocar de perfil troca o dono do histórico: a lista viva não atravessa.
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'perfil-revlog-mem'); }
     /* A assinatura Realtime de seções depende do perfil ativo. Centralizar o
        aviso aqui evita deixar um canal antigo ouvindo o perfil anterior. */
     try {
@@ -17638,6 +17798,11 @@ const ProfileManager = {
       }
       localStorage.setItem(prefix + subKey, valor);
     });
+    /* O histórico de revisões vive em RAM (ver o bloco do revlog em 11-db.js).
+       Este caminho grava as chaves CRUAS, sem passar por DB._set, então a
+       projeção em memória precisa ser descartada à mão — senão o perfil
+       importado continuaria mostrando o histórico do perfil anterior. */
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'import-revlog-mem'); }
     if (saneados) {
       try { showToast('⚠ ' + saneados + ' card(is) do backup tinham conteúdo suspeito e foram limpos na importação.'); } catch (_) { _quiet(_); }
       console.warn('[importProfile] cards saneados:', saneados);
@@ -21581,7 +21746,15 @@ const CardEngine = {
        maybe_round_in_days: acima de 1 dia, arredonda para dias inteiros. */
     const atrasoDificil = (passos, idx) => {
       const arredDias = (min) => (min > 1440 ? Math.round(min / 1440) * 1440 : min);
-      if (idx !== 0) return passos[idx];
+      /* O ÍNDICE PRECISA SER LIMITADO AO ÚLTIMO PASSO. Um card guarda em que
+         passo parou; se depois você ENCURTA a lista de passos nas opções (de
+         [10, 20] para [10], por exemplo), o card volta apontando para um passo
+         que não existe mais. `passos[idx]` devolvia undefined, stepDue()
+         calculava Math.round(undefined * 60) e o card era gravado com
+         `dueTs: NaN` e o botão exibia "NaN h". O agendador Clássico já fazia
+         este limite; o FSRS não fazia. */
+      const i = Math.max(0, Math.min(Number(idx) || 0, passos.length - 1));
+      if (i !== 0) return passos[i];
       if (passos.length > 1) return arredDias((passos[0] + passos[1]) / 2);
       return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
     };
@@ -21601,11 +21774,21 @@ const CardEngine = {
         piso = place(FSRS.interval(stBom.s, r, w), 1) + 1;
       }
       const iv = place(FSRS.interval(S, r, w), piso);
-      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: 'sei', intervalo: iv, _kind: 'day', _val: iv });
+      /* O status acompanha a NOTA, não o fato de ter graduado. Com listas de
+         passos vazias um "Errei" também sai por aqui, e marcá-lo como 'sei'
+         contaria um erro como acerto nas estatísticas e nos filtros. */
+      return Object.assign(patch, { phase: 'review', learnStep: 0, s: S, d: D, due: this.addDays(tdy, iv), dueTs: null, status: (g === 1 ? 'naosei' : 'sei'), intervalo: iv, _kind: 'day', _val: iv });
     };
     if (c.phase === 'new' || c.phase === 'learning') {
       const st = shortTerm(G);
       const cur = (c.phase === 'new' ? 0 : (c.learnStep || 0));
+      /* SEM PASSOS, NÃO HÁ APRENDIZADO A CUMPRIR. Lista vazia é configuração
+         VÁLIDA (CardsConfig._passosValidos preserva []) e significa deixar o
+         agendador cuidar do curto prazo sozinho — é assim que o Anki trata.
+         O agendador Clássico já graduava direto; o FSRS tentava ler learn[0]
+         de uma lista vazia e gravava `dueTs: NaN`, com o botão exibindo
+         "NaN h" e o card preso em aprendizado para sempre. */
+      if (!learn.length) return graduate(G, st);
       if (G === 1) { Object.assign(patch, { phase: 'learning', learnStep: 0, s: st.s, d: st.d, status: 'naosei' }, stepDue(learn[0])); patch._kind = 'min'; patch._val = learn[0]; }
       else if (G === 4) { graduate(4, st); }
       else if (G === 3) {
@@ -21626,6 +21809,7 @@ const CardEngine = {
          days_since_last_review < 1, inclusive no Again. */
       const elapsed = this._daysBetween(c.lastReview || tdy, tdy);
       const mesmoDia = elapsed < 1;
+      const semReaprendizado = !relearn.length;   // ver nota sobre listas vazias acima
       const D2 = FSRS.nextD(c.d, G, w);
       // A estabilidade resultante de UMA nota qualquer — precisamos das três
       // (Difícil/Bom/Fácil) para impor a ordem entre elas, mesmo gravando uma só.
@@ -21636,9 +21820,19 @@ const CardEngine = {
       };
       const S2 = sDaNota(G);
       if (G === 1) {
-        Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
-          lapses: (c.lapses || 0) + 1, status: 'naosei' }, stepDue(relearn[0]));
-        patch._kind = 'min'; patch._val = relearn[0];
+        const lapses = (c.lapses || 0) + 1;
+        if (semReaprendizado) {
+          /* Sem passos de reaprendizado o card volta direto para revisão, com
+             o intervalo que a memória recalculada indica e piso de 1 dia. */
+          const iv = place(FSRS.interval(S2, r, w), 1);
+          Object.assign(patch, { phase: 'review', learnStep: 0, s: S2, d: D2, lapses,
+            status: 'naosei', due: this.addDays(tdy, iv), dueTs: null, intervalo: iv });
+          patch._kind = 'day'; patch._val = iv;
+        } else {
+          Object.assign(patch, { phase: 'relearning', learnStep: 0, s: S2, d: D2,
+            lapses, status: 'naosei' }, stepDue(relearn[0]));
+          patch._kind = 'min'; patch._val = relearn[0];
+        }
       } else {
         /* ── ORDEM GARANTIDA: Difícil < Bom < Fácil ───────────────────────────
            rslib/scheduler/states/review.rs::passing_fsrs_review_intervals calcula
@@ -21669,6 +21863,7 @@ const CardEngine = {
     } else if (c.phase === 'relearning') {
       const st = shortTerm(G);
       const cur = c.learnStep || 0;
+      if (!relearn.length) return graduate(G, st);
       if (G === 1) { Object.assign(patch, { learnStep: 0, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[0])); patch._kind = 'min'; patch._val = relearn[0]; }
       else if (G === 4) { graduate(4, st); }
       else if (G === 3) { const next = cur + 1; if (next >= relearn.length) graduate(3, st); else { Object.assign(patch, { learnStep: next, s: st.s, d: st.d, status: 'naosei' }, stepDue(relearn[next])); patch._kind = 'min'; patch._val = relearn[next]; } }
@@ -21771,8 +21966,16 @@ const CardEngine = {
         dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
       };
     };
-    const graduateRelearn = () => {
-      intervalo = constr(Math.max(minLapse, intervalo || minLapse), 1);
+    const graduateRelearn = (easy) => {
+      /* ORDEM "FÁCIL > BOM" TAMBÉM NA SAÍDA DO REAPRENDIZADO. O Anki impõe
+         easy ≥ good + 1 aqui como impõe na revisão (verificado no backend
+         oficial 26.9.2: Bom devolve 1 dia e Fácil devolve 2 na mesma
+         configuração). O app devolvia o MESMO intervalo para os dois, de modo
+         que acertar com folga um card que estava em reaprendizado não rendia
+         nada — e a invariante de ordem não pegava, porque ela aceita empate. */
+      const base = Math.max(minLapse, intervalo || minLapse);
+      const ivBom = constr(base, 1);
+      intervalo = easy ? constr(base, ivBom + 1) : ivBom;
       return {
         status: 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -21794,13 +21997,13 @@ const CardEngine = {
 
     // REAPRENDIZAGEM: o lapso/ease já foi contabilizado ao sair de review.
     if (phase === 'relearning') {
-      if (!relearn.length) return graduateRelearn();
+      if (!relearn.length) return graduateRelearn(grade === 'facil');
       const cur = Math.max(0, Math.min(card.learnStep || 0, relearn.length - 1));
       if (grade === 'errei') return stepPatch('relearning', 0, relearn[0], 'naosei');
       if (grade === 'dificil') return stepPatch('relearning', cur, hardDelay(relearn, cur), 'naosei');
-      if (grade === 'facil') return graduateRelearn();
+      if (grade === 'facil') return graduateRelearn(true);
       const next = cur + 1;
-      if (next >= relearn.length) return graduateRelearn();
+      if (next >= relearn.length) return graduateRelearn(false);
       return stepPatch('relearning', next, relearn[next], 'naosei');
     }
 
@@ -28437,7 +28640,17 @@ const CardsScreen = {
          do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
          separar card jovem de card maduro: a coluna "Maduros" ficava vazia
          para sempre, porque a linha do histórico não guardava essa informação. */
-      DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) });
+      /* ── UMA RESPOSTA SÓ CONTA SE FOI GRAVADA ────────────────────────────
+         O armazenamento pode recusar a escrita (cota do navegador cheia, por
+         exemplo). Antes, a recusa virava um aviso e a fila seguia em frente:
+         o card aparecia como respondido, o índice avançava, o desfazer era
+         empilhado — e nada disso existia depois de recarregar a página. Agora
+         a resposta é abortada e o card continua onde estava, para ser
+         respondido de novo depois que o espaço for liberado. */
+      if (DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) }) === false) {
+        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+        return;
+      }
       // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
@@ -28448,7 +28661,16 @@ const CardsScreen = {
       const antes = {};
       ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
         .forEach(k => { antes[k] = c[k]; });
-      patch = CardEngine.schedule(c, grade); DB.updateCard(id, patch);
+      patch = CardEngine.schedule(c, grade);
+      if (DB.updateCard(id, patch) === false) {
+        // O agendamento não foi gravado: desfaz o registro que acabou de entrar
+        // no histórico para os dois não ficarem em desacordo.
+        DB.removeRevlog(revTs);
+        if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
+        this._seenThisSession.delete(id);
+        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+        return;
+      }
       CardEngine.invalidateDueCache();
       (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
       if (this._undoStack.length > 50) this._undoStack.shift();
@@ -29153,25 +29375,51 @@ const CardsScreen = {
       sep = v === 'tab' ? '\t' : (v === 'comma' ? ',' : (v === 'semicolon' ? ';' : m[1]));
       break;
     }
-    const dataLines = rawLines.filter(line => !line.trim().startsWith('#'));
+    /* ── COMENTÁRIO É SÓ NO INÍCIO DE UM CAMPO, NÃO NO MEIO DE UM ────────────
+       O Anki trata linhas iniciadas por '#' como cabeçalho. Filtrar por linha,
+       porém, descarta também a CONTINUAÇÃO de um campo entre aspas que tenha
+       uma quebra de linha seguida de '#' — e aí a linha inteira do card some,
+       sem aviso. A varredura abaixo respeita as aspas: só remove a linha
+       quando ela começa fora de um campo aberto. */
+    const dataLines = [];
+    let dentroDeAspas = false;
+    for (const line of rawLines) {
+      if (!dentroDeAspas && line.trim().startsWith('#')) continue;
+      dataLines.push(line);
+      let q = dentroDeAspas;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] !== '"') continue;
+        if (q && line[i + 1] === '"') { i++; continue; }
+        q = !q;
+      }
+      dentroDeAspas = q;
+    }
+    const data = dataLines.join('\n');
     if (!sep) {
-      const probe = dataLines.find(line => line.trim()) || '';
+      /* ── A SONDAGEM PRECISA VER O ARQUIVO, NÃO A PRIMEIRA LINHA ────────────
+         Contar separadores só na primeira linha de dados erra sempre que ela é
+         o COMEÇO de um campo entre aspas com quebra de linha: o separador real
+         está na linha seguinte, e o candidato escolhido não aparece em lugar
+         nenhum — o arquivo inteiro vira uma coluna só e todos os cards são
+         descartados por terem menos de dois campos. Aqui a contagem varre o
+         texto inteiro, ignorando o que está dentro de aspas. */
       const countOutsideQuotes = (ch) => {
         let n = 0, q = false;
-        for (let i = 0; i < probe.length; i++) {
-          if (probe[i] === '"') {
-            if (q && probe[i + 1] === '"') { i++; continue; }
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] === '"') {
+            if (q && data[i + 1] === '"') { i++; continue; }
             q = !q; continue;
           }
-          if (!q && probe[i] === ch) n++;
+          if (!q && data[i] === ch) n++;
         }
         return n;
       };
-      sep = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]]
-        .sort((a, b) => b[1] - a[1])[0][0];
+      const candidatos = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]];
+      const melhor = candidatos.slice().sort((a, b) => b[1] - a[1])[0];
+      // Nenhum candidato aparece: mantém a tabulação, que é o padrão do Anki.
+      sep = melhor[1] > 0 ? melhor[0] : '\t';
     }
 
-    const data = dataLines.join('\n');
     const rows = [];
     let row = [], field = '', quoted = false;
     const pushRow = () => {
@@ -29217,44 +29465,65 @@ const CardsScreen = {
         if (nd) idMapDeck[String(bd.id)] = nd.id;
       });
 
+      /* ── APLICAR UM BACKUP É RESTAURAR, NÃO ACUMULAR ──────────────────────
+         O id do card é a identidade dele. Antes, um id que já existisse na
+         coleção ganhava um id NOVO — de modo que aplicar o mesmo arquivo duas
+         vezes dobrava a coleção, e o segundo conjunto vinha sem histórico
+         próprio. Agora um id conhecido ATUALIZA o card no lugar, e só um id
+         desconhecido entra como card novo. Aplicar o mesmo backup duas vezes
+         passa a ser inócuo. (Importar TSV/CSV continua acrescentando: lá não
+         há id, cada linha é conteúdo novo por definição.) */
       const existentes = DB.getCards();
-      const usados = new Set(existentes.map(x => String(x.id)));
+      const porId = new Map(existentes.map(x => [String(x.id), x]));
+      const usados = new Set(porId.keys());
       const idMapCard = {};
       this._importParsed.cards.forEach(src => {
-        const old = src && src.id != null ? String(src.id) : '';
-        let nid = old && !usados.has(old) ? src.id : DB._uid();
+        const antigo = src && src.id != null ? String(src.id) : '';
+        if (antigo) { idMapCard[antigo] = src.id; usados.add(antigo); return; }
+        let nid = DB._uid();
         while (usados.has(String(nid))) nid = DB._uid();
         usados.add(String(nid));
-        if (old) idMapCard[old] = nid;
       });
-      const restaurados = this._importParsed.cards.map(src => {
-        const old = src && src.id != null ? String(src.id) : '';
+      const novos = [];
+      this._importParsed.cards.forEach(src => {
+        const antigo = src && src.id != null ? String(src.id) : '';
         const x = Object.assign({}, src || {});
-        x.id = old && Object.prototype.hasOwnProperty.call(idMapCard, old) ? idMapCard[old] : DB._uid();
+        x.id = antigo || DB._uid();
         x.deckId = deckId || (x.deckId != null && idMapDeck[String(x.deckId)] != null ? idMapDeck[String(x.deckId)] : x.deckId || null);
         x.materia = materia || x.materia || null;
         if (x.reversedOf != null && idMapCard[String(x.reversedOf)] != null) x.reversedOf = idMapCard[String(x.reversedOf)];
-        return x;
+        const atual = porId.get(String(x.id));
+        if (atual) Object.assign(atual, x);   // mesmo card: restaura o estado dele
+        else { porId.set(String(x.id), x); novos.push(x); }
       });
-      DB.saveCards(existentes.concat(restaurados));
+      DB.saveCards(existentes.concat(novos));
       DB.sanitizeCardsInPlace();
 
       const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
       if (logs.length) {
+        /* Mesma regra para o histórico: uma revisão é identificada pelo par
+           (card, instante). Reaplicar o backup não pode multiplicar as
+           revisões — isso falsearia retenção real, contadores e o treino dos
+           pesos. Só entram as linhas que ainda não existem. */
         const atuaisLogs = DB.getRevlog();
+        const chave = (r) => String(r && r.cardId) + '|' + String(r && r.ts);
+        const conhecidas = new Set(atuaisLogs.map(chave));
         const lastLog = atuaisLogs.length ? atuaisLogs[atuaisLogs.length - 1] : null;
         let pos = Math.max(atuaisLogs.length, Number(lastLog && lastLog._position) || 0);
-        const mapped = logs.map(r => {
+        const inéditas = [];
+        logs.forEach(r => {
           const x = Object.assign({}, r);
           if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
+          if (conhecidas.has(chave(x))) return;
+          conhecidas.add(chave(x));
           // Rebaseia a posição ao anexar o backup a uma coleção existente.
           // Evita colisões no caminho incremental do Supabase após a importação.
           x._position = ++pos;
-          return x;
+          inéditas.push(x);
         });
-        DB._set(DB.KEYS.revlog, atuaisLogs.concat(mapped));
+        if (inéditas.length) DB.replaceRevlog(atuaisLogs.concat(inéditas));
       }
-      count = restaurados.length;
+      count = this._importParsed.cards.length;
     } else {
       this._importParsed.rows.forEach(r => {
         DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
@@ -29683,14 +29952,23 @@ const AutoTeste = {
     this._ok('SM-2 "Fácil" +0,15', Math.abs(e.ease - 2.65) < 1e-9, e.ease);
     this._ok('SM-2 piso de facilidade 1,3',
       CardEngine._scheduleSM2(Object.assign({}, semAtraso, { ease: 1.3 }), 'errei').ease === 1.3);
-    // Compensação de atraso: era a divergência principal
+    /* Compensação de atraso: era a divergência principal.
+       O valor esperado é o da EQUAÇÃO — (iv + atraso/2) * ease para o Bom e
+       (iv + atraso) * ease * 1,3 para o Fácil. O agendador aplica fuzz por
+       cima disso, como o Anki, então cobrar o número exato é cobrar um
+       sorteio: era o que fazia esta verificação apontar 97 onde esperava 98.
+       A afirmação correta é que o intervalo cai dentro da faixa de fuzz do
+       valor da equação — e que a ordem Bom < Fácil se mantém. */
     const atrasado = Object.assign({}, base, { due: CardEngine.addDays(hoje, -20) });
-    this._ok('SM-2 Bom compensa metade do atraso',
-      CardEngine._scheduleSM2(atrasado, 'bom').intervalo === 50,
-      CardEngine._scheduleSM2(atrasado, 'bom').intervalo);
-    this._ok('SM-2 Fácil compensa o atraso inteiro',
-      CardEngine._scheduleSM2(atrasado, 'facil').intervalo === 98,
-      CardEngine._scheduleSM2(atrasado, 'facil').intervalo);
+    const naFaixa = (obtido, bruto) => {
+      const [lo, hi] = FSRS.fuzzBounds(bruto);
+      return obtido >= lo && obtido <= hi;
+    };
+    const ivBomAtrasado = CardEngine._scheduleSM2(atrasado, 'bom').intervalo;
+    const ivFacilAtrasado = CardEngine._scheduleSM2(atrasado, 'facil').intervalo;
+    this._ok('SM-2 Bom compensa metade do atraso', naFaixa(ivBomAtrasado, 50), ivBomAtrasado);
+    this._ok('SM-2 Fácil compensa o atraso inteiro', naFaixa(ivFacilAtrasado, 98), ivFacilAtrasado);
+    this._ok('SM-2 atrasado mantém Bom < Fácil', ivBomAtrasado < ivFacilAtrasado, [ivBomAtrasado, ivFacilAtrasado]);
     // maxInterval passou a valer também no Clássico
     CardsConfig._c.maxInterval = 30;
     this._ok('SM-2 respeita o intervalo máximo',
@@ -39722,7 +40000,16 @@ const RelationalStore = {
   },
   _memSet(k, v) {
     this._applying = true;
-    try { localStorage.setItem(k, String(v)); }
+    try {
+      localStorage.setItem(k, String(v));
+      /* O histórico vive em RAM no DB. Quando a hidratação traz uma versão nova
+         do banco, a projeção em memória precisa ser descartada — senão a
+         sessão continua lendo a lista antiga e o que veio do banco fica
+         invisível até recarregar a página. */
+      if (String(k).slice(-7) === ':revlog') {
+        try { if (typeof DB !== 'undefined' && DB && DB.invalidarRevlogMemoria) DB.invalidarRevlogMemoria(k); } catch (_) { _quiet(_, 'revlog-mem'); }
+      }
+    }
     finally { this._applying = false; }
   },
   _memDel(k) {
@@ -40135,6 +40422,59 @@ const RelationalStore = {
     return true;
   },
 
+  /* ── HISTÓRICO DE REVISÕES: CHAMADA DIRETA, NÃO DIFERENÇA DE BLOBS ────────
+     O caminho antigo descobria "acrescentou uma linha" comparando o JSON
+     ANTIGO com o NOVO do localStorage. Isso obrigava o DB a manter — e a
+     reescrever — o histórico inteiro lá só para que a comparação existisse.
+     Agora o DB avisa o que aconteceu, e o localStorage deixa de ser o dono do
+     histórico. A comparação continua no lugar para quem grava o blob inteiro
+     (hidratação, restauração), mas não é mais o caminho quente. */
+  _revlogRow(profileId, planId, x, posicaoAlternativa) {
+    x = x || {};
+    return {
+      profile_id: profileId, plan_id: planId,
+      card_id: x.cardId == null ? null : String(x.cardId), ts: x.ts == null ? null : Number(x.ts), review_date: x.date || null,
+      correct: x.acerto == null ? null : !!x.acerto, grade: x.grade == null ? null : Number(x.grade), elapsed: x.elapsed == null ? null : Number(x.elapsed),
+      phase: x.phase || null, interval_value: x.intervalo == null ? null : Number(x.intervalo), d: x.d == null ? null : Number(x.d), s: x.s == null ? null : Number(x.s),
+      position: Number(x._position) || Number(posicaoAlternativa) || 1,
+      extra: Object.fromEntries(Object.entries(x).filter(([k]) => !['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
+    };
+  },
+  _revlogParts(key) {
+    const p = this._keyParts(key);
+    return (p && p.scope === 'plan' && p.sub === 'revlog') ? p : null;
+  },
+  queueRevlogAppend(key, row) {
+    if(this._applying || !this.isReady()) return false;
+    const p = this._revlogParts(key); if(!p || !row) return false;
+    this._queue('revlog:append', async () => {
+      const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
+      if(error) throw error;
+    });
+    return true;
+  },
+  queueRevlogDelete(key, row) {
+    if(this._applying || !this.isReady()) return false;
+    const p = this._revlogParts(key); if(!p || !row) return false;
+    this._queue('revlog:delete', async () => {
+      let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
+      if(row._position != null) q = q.eq('position', Number(row._position));
+      if(row.ts != null) q = q.eq('ts', Number(row.ts));
+      if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
+      const {error} = await q;
+      if(error) throw error;
+    });
+    return true;
+  },
+  queueRevlogReplace(key, rows) {
+    if(this._applying || !this.isReady()) return false;
+    const p = this._revlogParts(key); if(!p) return false;
+    const arr = Array.isArray(rows) ? rows : [];
+    this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
+      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'));
+    return true;
+  },
+
   _keyParts(key) {
     const m=/^diario-estudos:u:([^:]+):p:([^:]+):(.+)$/.exec(String(key||''));
     if(m)return {scope:'plan',profileId:m[1],planId:m[2],sub:m[3]};
@@ -40145,8 +40485,16 @@ const RelationalStore = {
   },
   _ignoreSub(sub) {
     /* A lixeira é projeção transitória de segurança e não vira configuração.
-       Os marcadores de fila/revisão da sincronização antiga foram eliminados. */
-    return sub.indexOf('__lixeira:') === 0;
+       Os marcadores de fila/revisão da sincronização antiga foram eliminados.
+
+       `revlog-pendente` e `revlog-arquivo*` também são transitórios: são a rede
+       de segurança LOCAL do histórico, para o caso de o banco não estar
+       disponível. As linhas correspondentes já vão para `study_review_log` por
+       queueRevlogAppend; persisti-las de novo criaria duplicata. */
+    return sub.indexOf('__lixeira:') === 0
+        || sub === 'revlog-pendente'
+        || sub === 'revlog-arquivo'
+        || sub.indexOf('revlog-arquivo:') === 0;
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
@@ -40259,13 +40607,7 @@ const RelationalStore = {
     if(sub==='saved-grades')return this._syncById('study_saved_grades',profileId,planId,'grade_id',oldA,newA,(x,i)=>Object.assign(base(),{grade_id:String(x.id),name:x.nome||'',sessions:x.sessions==null?null:Number(x.sessions),grade:x.grade||{},created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,grade_id');
 
     if(sub==='revlog'){
-      const rowFor=(x,i)=>Object.assign(base(),{
-        card_id:x.cardId==null?null:String(x.cardId),ts:x.ts==null?null:Number(x.ts),review_date:x.date||null,
-        correct:x.acerto==null?null:!!x.acerto,grade:x.grade==null?null:Number(x.grade),elapsed:x.elapsed==null?null:Number(x.elapsed),
-        phase:x.phase||null,interval_value:x.intervalo==null?null:Number(x.intervalo),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),
-        position:Number(x._position)||(i+1),
-        extra:Object.fromEntries(Object.entries(x||{}).filter(([k])=>!['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
-      });
+      const rowFor=(x,i)=>this._revlogRow(profileId,planId,x,i+1);
       const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 
       // Caminho quente: uma resposta acrescenta UMA linha. Não reescrevemos

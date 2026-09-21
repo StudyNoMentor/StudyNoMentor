@@ -1,0 +1,27 @@
+{
+  "versaoAnki": "26.9.2",
+  "origem": "wheel oficial do PyPI, backend Rust compilado",
+  "correcoes": [
+    "card novo por vetor (a 1\u00aa rodada reusava um card tempor\u00e1rio)",
+    "intervalo comparado por FAIXA de fuzz, n\u00e3o por valor sorteado (a 1\u00aa rodada comparou sorteio com sorteio e teve de descartar o resultado)",
+    "faixa de fuzz exportada para verificar o sorteio do Study",
+    "cobertura de card novo, aprendizado, reaprendizado e SM-2"
+  ],
+  "vetoresEmRevisao": 5782,
+  "limitacoes": "Replay de UM passo a partir de estados finais do Study, n\u00e3o a trajet\u00f3ria anual em lockstep. N\u00e3o exercita nuvem, AnkiWeb, m\u00eddia, notas/irm\u00e3os, modelos nem baralhos aninhados.",
+  "casosDeFase": 14,
+  "passoLongo": {
+    "fsrs": {
+      "errei": 259200,
+      "dificil": 345600,
+      "bom": 5,
+      "facil": 9
+    },
+    "sm2": {
+      "errei": 259200,
+      "dificil": 345600,
+      "bom": 1,
+      "facil": 2
+    }
+  }
+}

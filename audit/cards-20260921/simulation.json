@@ -1,109 +1,109 @@
 {
-  "commit": "1691b80dbe52e1f750322781b743c23004a7bc9a",
+  "commit": "78ea3563878f0f1652ef211f5ed3e432b8e17dba",
   "seed": 9212026,
   "scope": "Engine/queue/config with simulated clock and storage; no cloud or UI claims. Local port is NOT official backend.",
   "checks": [
     {
       "name": "SM2 new errei learning step",
-      "pass": false,
+      "pass": true,
       "detail": {
         "status": "naosei",
         "grade": "errei",
-        "ease": 2.3,
-        "intervalo": 1,
-        "reps": 0,
-        "lapses": 1,
-        "due": "2025-01-02",
-        "dueTs": null,
+        "ease": 2.5,
+        "intervalo": 0,
+        "reps": 1,
+        "lapses": 0,
+        "phase": "learning",
+        "learnStep": 0,
         "lastReview": "2025-01-01",
         "algo": "sm2",
-        "_kind": "day",
+        "dueTs": 1735732865000,
+        "due": "2025-01-01",
+        "_kind": "min",
         "_val": 1
       }
     },
     {
       "name": "SM2 new dificil learning step",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "status": "sei",
+        "status": "naosei",
         "grade": "dificil",
-        "ease": 2.35,
-        "intervalo": 1,
+        "ease": 2.5,
+        "intervalo": 0,
         "reps": 1,
         "lapses": 0,
-        "due": "2025-01-02",
-        "dueTs": null,
+        "phase": "learning",
+        "learnStep": 0,
         "lastReview": "2025-01-01",
         "algo": "sm2",
-        "_kind": "day",
-        "_val": 1
+        "dueTs": 1735733189000,
+        "due": "2025-01-01",
+        "_kind": "min",
+        "_val": 5.5
       }
     },
     {
       "name": "SM2 new bom learning step",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "status": "sei",
+        "status": "naosei",
         "grade": "bom",
         "ease": 2.5,
-        "intervalo": 1,
+        "intervalo": 0,
         "reps": 1,
         "lapses": 0,
-        "due": "2025-01-02",
-        "dueTs": null,
+        "phase": "learning",
+        "learnStep": 1,
         "lastReview": "2025-01-01",
         "algo": "sm2",
-        "_kind": "day",
-        "_val": 1
+        "dueTs": 1735733434000,
+        "due": "2025-01-01",
+        "_kind": "min",
+        "_val": 10
       }
     },
     {
       "name": "SM2 new Easy keeps initial ease",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": 2.65,
+        "actual": 2.5,
         "expected": 2.5
       }
     },
     {
       "name": "Empty relearning steps preserved",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": [
-          10
-        ]
+        "actual": []
       }
     },
     {
       "name": "Review limit zero blocks new by default",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": [
-          "new"
-        ]
+        "actual": []
       }
     },
     {
       "name": "Interday learning obeys review limit",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": 10
+        "actual": 1
       }
     },
     {
       "name": "Learn ahead excludes buried cards",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": [
-          "buried"
-        ]
+        "actual": []
       }
     },
     {
       "name": "Deck new limit respected",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": 20
+        "actual": 1
       }
     },
     {
@@ -141,9 +141,9 @@
     },
     {
       "name": "Cloze hints are rendered as hints",
-      "pass": false,
+      "pass": true,
       "detail": {
-        "actual": "<span class=\"cloze-blank\">[&nbsp;…&nbsp;]</span>"
+        "actual": "<span class=\"cloze-blank\">[capital]</span>"
       }
     }
   ],
@@ -156,44 +156,44 @@
       "cards": 6000,
       "days": 365,
       "activeDays": 330,
-      "answers": 181572,
+      "answers": 182247,
       "distinctReviewed": 6000,
       "invalid": 0,
       "memoryMismatchVsLocalPort": 0,
       "previewMismatch": 0,
-      "maxDaily": 701,
-      "maxStability": 997.5024515094306,
-      "leechCards": 1479,
-      "seconds": 64.91,
+      "maxDaily": 704,
+      "maxStability": 1200.229823832196,
+      "leechCards": 1501,
+      "seconds": 53.48,
       "daysDetail": [
         {
           "day": 0,
-          "answers": 57,
+          "answers": 55,
           "due": 5971
         },
         {
           "day": 1,
-          "answers": 81,
+          "answers": 84,
           "due": 5941
         },
         {
           "day": 2,
-          "answers": 108,
+          "answers": 103,
           "due": 5911
         },
         {
           "day": 3,
-          "answers": 108,
-          "due": 5882
+          "answers": 115,
+          "due": 5881
         },
         {
           "day": 4,
-          "answers": 122,
+          "answers": 112,
           "due": 5851
         },
         {
           "day": 5,
-          "answers": 137,
+          "answers": 125,
           "due": 5821
         },
         {
@@ -203,277 +203,277 @@
         },
         {
           "day": 7,
-          "answers": 144,
+          "answers": 135,
           "due": 5761
         },
         {
           "day": 8,
-          "answers": 171,
+          "answers": 156,
           "due": 5731
         },
         {
           "day": 9,
-          "answers": 172,
+          "answers": 176,
           "due": 5701
         },
         {
           "day": 10,
-          "answers": 175,
+          "answers": 157,
           "due": 5671
         },
         {
           "day": 11,
-          "answers": 192,
+          "answers": 170,
           "due": 5641
         },
         {
           "day": 12,
-          "answers": 201,
+          "answers": 181,
           "due": 5611
         },
         {
           "day": 13,
-          "answers": 199,
+          "answers": 200,
           "due": 5581
         },
         {
           "day": 14,
-          "answers": 212,
+          "answers": 208,
           "due": 5551
         },
         {
           "day": 15,
-          "answers": 209,
+          "answers": 214,
           "due": 5521
         },
         {
           "day": 16,
-          "answers": 223,
+          "answers": 226,
           "due": 5491
         },
         {
           "day": 17,
-          "answers": 222,
+          "answers": 223,
           "due": 5461
         },
         {
           "day": 18,
-          "answers": 245,
+          "answers": 254,
           "due": 5431
         },
         {
           "day": 19,
-          "answers": 229,
+          "answers": 242,
           "due": 5401
         },
         {
           "day": 20,
-          "answers": 236,
+          "answers": 249,
           "due": 5371
         },
         {
           "day": 21,
-          "answers": 254,
+          "answers": 236,
           "due": 5341
         },
         {
           "day": 22,
-          "answers": 259,
+          "answers": 268,
           "due": 5311
         },
         {
           "day": 23,
-          "answers": 256,
+          "answers": 251,
           "due": 5281
         },
         {
           "day": 24,
-          "answers": 282,
+          "answers": 295,
           "due": 5251
         },
         {
           "day": 25,
-          "answers": 278,
+          "answers": 253,
           "due": 5221
         },
         {
           "day": 26,
-          "answers": 278,
+          "answers": 271,
           "due": 5191
         },
         {
           "day": 27,
-          "answers": 301,
+          "answers": 293,
           "due": 5161
         },
         {
           "day": 28,
-          "answers": 294,
+          "answers": 291,
           "due": 5131
         },
         {
           "day": 29,
-          "answers": 313,
+          "answers": 305,
           "due": 5101
         },
         {
           "day": 30,
-          "answers": 314,
+          "answers": 291,
           "due": 5071
         },
         {
           "day": 31,
-          "answers": 319,
+          "answers": 312,
           "due": 5041
         },
         {
           "day": 32,
-          "answers": 344,
+          "answers": 326,
           "due": 5011
         },
         {
           "day": 33,
-          "answers": 357,
+          "answers": 322,
           "due": 4981
         },
         {
           "day": 34,
-          "answers": 337,
+          "answers": 347,
           "due": 4951
         },
         {
           "day": 35,
-          "answers": 349,
+          "answers": 338,
           "due": 4921
         },
         {
           "day": 36,
-          "answers": 340,
+          "answers": 328,
           "due": 4891
         },
         {
           "day": 37,
-          "answers": 363,
+          "answers": 336,
           "due": 4861
         },
         {
           "day": 38,
-          "answers": 363,
-          "due": 4832
+          "answers": 367,
+          "due": 4831
         },
         {
           "day": 39,
-          "answers": 344,
+          "answers": 357,
           "due": 4801
         },
         {
           "day": 40,
-          "answers": 383,
+          "answers": 369,
           "due": 4771
         },
         {
           "day": 41,
-          "answers": 359,
+          "answers": 365,
           "due": 4741
         },
         {
           "day": 42,
-          "answers": 369,
+          "answers": 383,
           "due": 4711
         },
         {
           "day": 43,
-          "answers": 373,
+          "answers": 410,
           "due": 4681
         },
         {
           "day": 44,
-          "answers": 408,
+          "answers": 390,
           "due": 4651
         },
         {
           "day": 45,
-          "answers": 401,
+          "answers": 384,
           "due": 4621
         },
         {
           "day": 46,
-          "answers": 412,
+          "answers": 401,
           "due": 4591
         },
         {
           "day": 47,
-          "answers": 396,
+          "answers": 440,
           "due": 4561
         },
         {
           "day": 48,
-          "answers": 427,
+          "answers": 415,
           "due": 4531
         },
         {
           "day": 49,
-          "answers": 434,
+          "answers": 446,
           "due": 4501
         },
         {
           "day": 50,
-          "answers": 430,
+          "answers": 416,
           "due": 4471
         },
         {
           "day": 51,
-          "answers": 415,
+          "answers": 446,
           "due": 4441
         },
         {
           "day": 52,
-          "answers": 438,
+          "answers": 437,
           "due": 4411
         },
         {
           "day": 53,
-          "answers": 455,
+          "answers": 458,
           "due": 4381
         },
         {
           "day": 54,
-          "answers": 472,
+          "answers": 471,
           "due": 4351
         },
         {
           "day": 55,
-          "answers": 454,
+          "answers": 449,
           "due": 4321
         },
         {
           "day": 56,
-          "answers": 498,
+          "answers": 513,
           "due": 4291
         },
         {
           "day": 57,
-          "answers": 483,
+          "answers": 487,
           "due": 4261
         },
         {
           "day": 58,
-          "answers": 495,
+          "answers": 468,
           "due": 4231
         },
         {
           "day": 59,
-          "answers": 484,
+          "answers": 483,
           "due": 4201
         },
         {
           "day": 60,
-          "answers": 515,
+          "answers": 493,
           "due": 4171
         },
         {
           "day": 61,
-          "answers": 495,
+          "answers": 524,
           "due": 4141
         },
         {
@@ -483,87 +483,87 @@
         },
         {
           "day": 63,
-          "answers": 497,
+          "answers": 481,
           "due": 4081
         },
         {
           "day": 64,
-          "answers": 495,
+          "answers": 526,
           "due": 4051
         },
         {
           "day": 65,
-          "answers": 518,
+          "answers": 521,
           "due": 4021
         },
         {
           "day": 66,
-          "answers": 508,
+          "answers": 505,
           "due": 3991
         },
         {
           "day": 67,
-          "answers": 524,
+          "answers": 535,
           "due": 3961
         },
         {
           "day": 68,
-          "answers": 514,
+          "answers": 535,
           "due": 3931
         },
         {
           "day": 69,
-          "answers": 542,
+          "answers": 554,
           "due": 3901
         },
         {
           "day": 70,
-          "answers": 545,
+          "answers": 576,
           "due": 3871
         },
         {
           "day": 71,
-          "answers": 558,
+          "answers": 559,
           "due": 3841
         },
         {
           "day": 72,
-          "answers": 583,
+          "answers": 579,
           "due": 3811
         },
         {
           "day": 73,
-          "answers": 566,
+          "answers": 579,
           "due": 3781
         },
         {
           "day": 74,
-          "answers": 593,
+          "answers": 544,
           "due": 3751
         },
         {
           "day": 75,
-          "answers": 595,
-          "due": 3721
+          "answers": 564,
+          "due": 3723
         },
         {
           "day": 76,
-          "answers": 588,
+          "answers": 574,
           "due": 3691
         },
         {
           "day": 77,
-          "answers": 603,
-          "due": 3661
+          "answers": 577,
+          "due": 3662
         },
         {
           "day": 78,
-          "answers": 598,
+          "answers": 592,
           "due": 3631
         },
         {
           "day": 79,
-          "answers": 589,
+          "answers": 590,
           "due": 3601
         },
         {
@@ -638,533 +638,533 @@
         },
         {
           "day": 94,
-          "answers": 626,
-          "due": 4565
+          "answers": 608,
+          "due": 4606
         },
         {
           "day": 95,
-          "answers": 657,
-          "due": 4308
+          "answers": 651,
+          "due": 4358
         },
         {
           "day": 96,
-          "answers": 658,
-          "due": 4151
+          "answers": 635,
+          "due": 4196
         },
         {
           "day": 97,
-          "answers": 633,
-          "due": 3963
+          "answers": 634,
+          "due": 4013
         },
         {
           "day": 98,
-          "answers": 638,
-          "due": 3840
+          "answers": 623,
+          "due": 3885
         },
         {
           "day": 99,
-          "answers": 628,
-          "due": 3716
+          "answers": 634,
+          "due": 3785
         },
         {
           "day": 100,
-          "answers": 629,
-          "due": 3632
+          "answers": 602,
+          "due": 3688
         },
         {
           "day": 101,
-          "answers": 630,
-          "due": 3523
+          "answers": 621,
+          "due": 3578
         },
         {
           "day": 102,
-          "answers": 611,
-          "due": 3450
+          "answers": 624,
+          "due": 3496
         },
         {
           "day": 103,
-          "answers": 621,
-          "due": 3368
+          "answers": 620,
+          "due": 3443
         },
         {
           "day": 104,
-          "answers": 640,
-          "due": 3319
+          "answers": 634,
+          "due": 3399
         },
         {
           "day": 105,
-          "answers": 635,
-          "due": 3264
+          "answers": 640,
+          "due": 3362
         },
         {
           "day": 106,
-          "answers": 643,
-          "due": 3226
+          "answers": 611,
+          "due": 3327
         },
         {
           "day": 107,
-          "answers": 650,
-          "due": 3181
+          "answers": 653,
+          "due": 3265
         },
         {
           "day": 108,
-          "answers": 660,
-          "due": 3175
+          "answers": 654,
+          "due": 3230
         },
         {
           "day": 109,
-          "answers": 661,
-          "due": 3142
+          "answers": 645,
+          "due": 3208
         },
         {
           "day": 110,
-          "answers": 663,
-          "due": 3137
+          "answers": 644,
+          "due": 3134
         },
         {
           "day": 111,
-          "answers": 672,
-          "due": 3105
+          "answers": 656,
+          "due": 3121
         },
         {
           "day": 112,
-          "answers": 652,
-          "due": 3082
+          "answers": 635,
+          "due": 3093
         },
         {
           "day": 113,
-          "answers": 625,
-          "due": 3071
+          "answers": 626,
+          "due": 3092
         },
         {
           "day": 114,
-          "answers": 642,
+          "answers": 626,
           "due": 3080
         },
         {
           "day": 115,
-          "answers": 635,
-          "due": 3055
+          "answers": 637,
+          "due": 3045
         },
         {
           "day": 116,
-          "answers": 640,
-          "due": 3031
+          "answers": 633,
+          "due": 3033
         },
         {
           "day": 117,
-          "answers": 648,
-          "due": 3023
+          "answers": 652,
+          "due": 3021
         },
         {
           "day": 118,
-          "answers": 637,
-          "due": 3003
+          "answers": 670,
+          "due": 3000
         },
         {
           "day": 119,
-          "answers": 637,
-          "due": 2985
-        },
-        {
-          "day": 120,
-          "answers": 667,
-          "due": 2974
-        },
-        {
-          "day": 121,
-          "answers": 645,
-          "due": 2968
-        },
-        {
-          "day": 122,
-          "answers": 642,
-          "due": 2973
-        },
-        {
-          "day": 123,
-          "answers": 659,
-          "due": 2938
-        },
-        {
-          "day": 124,
-          "answers": 659,
-          "due": 2946
-        },
-        {
-          "day": 125,
-          "answers": 653,
+          "answers": 684,
           "due": 2954
         },
         {
+          "day": 120,
+          "answers": 666,
+          "due": 2966
+        },
+        {
+          "day": 121,
+          "answers": 676,
+          "due": 2942
+        },
+        {
+          "day": 122,
+          "answers": 675,
+          "due": 2938
+        },
+        {
+          "day": 123,
+          "answers": 671,
+          "due": 2913
+        },
+        {
+          "day": 124,
+          "answers": 637,
+          "due": 2933
+        },
+        {
+          "day": 125,
+          "answers": 656,
+          "due": 2928
+        },
+        {
           "day": 126,
-          "answers": 645,
-          "due": 2936
+          "answers": 637,
+          "due": 2924
         },
         {
           "day": 127,
-          "answers": 651,
-          "due": 2895
+          "answers": 630,
+          "due": 2920
         },
         {
           "day": 128,
-          "answers": 664,
-          "due": 2900
+          "answers": 636,
+          "due": 2934
         },
         {
           "day": 129,
-          "answers": 665,
-          "due": 2885
+          "answers": 647,
+          "due": 2930
         },
         {
           "day": 130,
-          "answers": 668,
-          "due": 2874
+          "answers": 658,
+          "due": 2925
         },
         {
           "day": 131,
-          "answers": 663,
-          "due": 2878
+          "answers": 655,
+          "due": 2911
         },
         {
           "day": 132,
-          "answers": 654,
-          "due": 2881
+          "answers": 669,
+          "due": 2895
         },
         {
           "day": 133,
-          "answers": 658,
-          "due": 2850
+          "answers": 676,
+          "due": 2892
         },
         {
           "day": 134,
-          "answers": 653,
-          "due": 2860
-        },
-        {
-          "day": 135,
-          "answers": 669,
-          "due": 2875
-        },
-        {
-          "day": 136,
-          "answers": 671,
-          "due": 2854
-        },
-        {
-          "day": 137,
-          "answers": 678,
-          "due": 2845
-        },
-        {
-          "day": 138,
-          "answers": 644,
-          "due": 2834
-        },
-        {
-          "day": 139,
-          "answers": 643,
-          "due": 2852
-        },
-        {
-          "day": 140,
-          "answers": 641,
-          "due": 2836
-        },
-        {
-          "day": 141,
-          "answers": 635,
-          "due": 2839
-        },
-        {
-          "day": 142,
-          "answers": 642,
-          "due": 2831
-        },
-        {
-          "day": 143,
-          "answers": 633,
-          "due": 2836
-        },
-        {
-          "day": 144,
-          "answers": 654,
-          "due": 2806
-        },
-        {
-          "day": 145,
-          "answers": 650,
-          "due": 2815
-        },
-        {
-          "day": 146,
-          "answers": 672,
-          "due": 2818
-        },
-        {
-          "day": 147,
-          "answers": 687,
-          "due": 2807
-        },
-        {
-          "day": 148,
-          "answers": 660,
-          "due": 2815
-        },
-        {
-          "day": 149,
-          "answers": 671,
-          "due": 2817
-        },
-        {
-          "day": 150,
-          "answers": 665,
-          "due": 2826
-        },
-        {
-          "day": 151,
-          "answers": 677,
-          "due": 2820
-        },
-        {
-          "day": 152,
-          "answers": 679,
-          "due": 2824
-        },
-        {
-          "day": 153,
-          "answers": 677,
-          "due": 2847
-        },
-        {
-          "day": 154,
-          "answers": 668,
-          "due": 2849
-        },
-        {
-          "day": 155,
-          "answers": 652,
-          "due": 2863
-        },
-        {
-          "day": 156,
-          "answers": 650,
-          "due": 2872
-        },
-        {
-          "day": 157,
-          "answers": 672,
-          "due": 2851
-        },
-        {
-          "day": 158,
-          "answers": 654,
-          "due": 2864
-        },
-        {
-          "day": 159,
-          "answers": 648,
-          "due": 2877
-        },
-        {
-          "day": 160,
-          "answers": 651,
-          "due": 2886
-        },
-        {
-          "day": 161,
-          "answers": 661,
-          "due": 2884
-        },
-        {
-          "day": 162,
-          "answers": 681,
-          "due": 2872
-        },
-        {
-          "day": 163,
-          "answers": 669,
-          "due": 2884
-        },
-        {
-          "day": 164,
-          "answers": 672,
-          "due": 2893
-        },
-        {
-          "day": 165,
-          "answers": 701,
-          "due": 2853
-        },
-        {
-          "day": 166,
-          "answers": 686,
-          "due": 2887
-        },
-        {
-          "day": 167,
-          "answers": 667,
-          "due": 2874
-        },
-        {
-          "day": 168,
-          "answers": 666,
-          "due": 2856
-        },
-        {
-          "day": 169,
           "answers": 670,
           "due": 2864
         },
         {
-          "day": 170,
-          "answers": 661,
+          "day": 135,
+          "answers": 666,
           "due": 2876
         },
         {
-          "day": 171,
-          "answers": 665,
-          "due": 2843
+          "day": 136,
+          "answers": 673,
+          "due": 2870
         },
         {
-          "day": 172,
-          "answers": 659,
-          "due": 2862
+          "day": 137,
+          "answers": 653,
+          "due": 2854
         },
         {
-          "day": 173,
-          "answers": 669,
-          "due": 2882
+          "day": 138,
+          "answers": 653,
+          "due": 2851
         },
         {
-          "day": 174,
-          "answers": 682,
-          "due": 2892
+          "day": 139,
+          "answers": 645,
+          "due": 2849
         },
         {
-          "day": 175,
+          "day": 140,
+          "answers": 663,
+          "due": 2834
+        },
+        {
+          "day": 141,
           "answers": 680,
+          "due": 2829
+        },
+        {
+          "day": 142,
+          "answers": 676,
+          "due": 2841
+        },
+        {
+          "day": 143,
+          "answers": 678,
+          "due": 2854
+        },
+        {
+          "day": 144,
+          "answers": 661,
+          "due": 2863
+        },
+        {
+          "day": 145,
+          "answers": 679,
+          "due": 2863
+        },
+        {
+          "day": 146,
+          "answers": 676,
           "due": 2895
         },
         {
-          "day": 176,
-          "answers": 681,
-          "due": 2896
+          "day": 147,
+          "answers": 674,
+          "due": 2890
         },
         {
-          "day": 177,
-          "answers": 685,
+          "day": 148,
+          "answers": 672,
           "due": 2901
         },
         {
+          "day": 149,
+          "answers": 672,
+          "due": 2905
+        },
+        {
+          "day": 150,
+          "answers": 657,
+          "due": 2903
+        },
+        {
+          "day": 151,
+          "answers": 667,
+          "due": 2906
+        },
+        {
+          "day": 152,
+          "answers": 652,
+          "due": 2949
+        },
+        {
+          "day": 153,
+          "answers": 669,
+          "due": 2943
+        },
+        {
+          "day": 154,
+          "answers": 671,
+          "due": 2954
+        },
+        {
+          "day": 155,
+          "answers": 659,
+          "due": 2990
+        },
+        {
+          "day": 156,
+          "answers": 636,
+          "due": 3004
+        },
+        {
+          "day": 157,
+          "answers": 647,
+          "due": 2987
+        },
+        {
+          "day": 158,
+          "answers": 677,
+          "due": 2966
+        },
+        {
+          "day": 159,
+          "answers": 682,
+          "due": 2967
+        },
+        {
+          "day": 160,
+          "answers": 678,
+          "due": 2964
+        },
+        {
+          "day": 161,
+          "answers": 684,
+          "due": 2943
+        },
+        {
+          "day": 162,
+          "answers": 694,
+          "due": 2962
+        },
+        {
+          "day": 163,
+          "answers": 682,
+          "due": 2957
+        },
+        {
+          "day": 164,
+          "answers": 670,
+          "due": 2973
+        },
+        {
+          "day": 165,
+          "answers": 672,
+          "due": 2939
+        },
+        {
+          "day": 166,
+          "answers": 687,
+          "due": 2942
+        },
+        {
+          "day": 167,
+          "answers": 671,
+          "due": 2941
+        },
+        {
+          "day": 168,
+          "answers": 659,
+          "due": 2957
+        },
+        {
+          "day": 169,
+          "answers": 652,
+          "due": 2950
+        },
+        {
+          "day": 170,
+          "answers": 667,
+          "due": 2937
+        },
+        {
+          "day": 171,
+          "answers": 656,
+          "due": 2925
+        },
+        {
+          "day": 172,
+          "answers": 653,
+          "due": 2945
+        },
+        {
+          "day": 173,
+          "answers": 674,
+          "due": 2945
+        },
+        {
+          "day": 174,
+          "answers": 680,
+          "due": 2925
+        },
+        {
+          "day": 175,
+          "answers": 701,
+          "due": 2937
+        },
+        {
+          "day": 176,
+          "answers": 684,
+          "due": 2931
+        },
+        {
+          "day": 177,
+          "answers": 693,
+          "due": 2902
+        },
+        {
           "day": 178,
-          "answers": 663,
-          "due": 2900
+          "answers": 666,
+          "due": 2911
         },
         {
           "day": 179,
-          "answers": 668,
+          "answers": 676,
           "due": 2883
         },
         {
           "day": 180,
-          "answers": 670,
-          "due": 2869
+          "answers": 671,
+          "due": 2920
         },
         {
           "day": 181,
-          "answers": 661,
-          "due": 2859
+          "answers": 655,
+          "due": 2896
         },
         {
           "day": 182,
-          "answers": 677,
-          "due": 2853
+          "answers": 646,
+          "due": 2869
         },
         {
           "day": 183,
-          "answers": 680,
-          "due": 2868
+          "answers": 662,
+          "due": 2869
         },
         {
           "day": 184,
-          "answers": 653,
-          "due": 2902
+          "answers": 686,
+          "due": 2854
         },
         {
           "day": 185,
-          "answers": 670,
-          "due": 2868
-        },
-        {
-          "day": 186,
-          "answers": 679,
-          "due": 2878
-        },
-        {
-          "day": 187,
-          "answers": 673,
+          "answers": 692,
           "due": 2855
         },
         {
-          "day": 188,
-          "answers": 669,
-          "due": 2843
-        },
-        {
-          "day": 189,
-          "answers": 666,
-          "due": 2830
-        },
-        {
-          "day": 190,
-          "answers": 677,
+          "day": 186,
+          "answers": 704,
           "due": 2836
         },
         {
+          "day": 187,
+          "answers": 687,
+          "due": 2808
+        },
+        {
+          "day": 188,
+          "answers": 688,
+          "due": 2802
+        },
+        {
+          "day": 189,
+          "answers": 650,
+          "due": 2832
+        },
+        {
+          "day": 190,
+          "answers": 659,
+          "due": 2839
+        },
+        {
           "day": 191,
-          "answers": 694,
-          "due": 2838
+          "answers": 664,
+          "due": 2839
         },
         {
           "day": 192,
-          "answers": 663,
-          "due": 2840
+          "answers": 675,
+          "due": 2830
         },
         {
           "day": 193,
-          "answers": 684,
-          "due": 2813
+          "answers": 692,
+          "due": 2803
         },
         {
           "day": 194,
-          "answers": 658,
-          "due": 2811
+          "answers": 675,
+          "due": 2757
         },
         {
           "day": 195,
-          "answers": 650,
-          "due": 2829
+          "answers": 658,
+          "due": 2766
         },
         {
           "day": 196,
-          "answers": 659,
-          "due": 2824
+          "answers": 682,
+          "due": 2781
         },
         {
           "day": 197,
-          "answers": 658,
-          "due": 2795
+          "answers": 680,
+          "due": 2760
         },
         {
           "day": 198,
-          "answers": 655,
-          "due": 2784
+          "answers": 667,
+          "due": 2734
         },
         {
           "day": 199,
-          "answers": 644,
-          "due": 2796
+          "answers": 680,
+          "due": 2697
         },
         {
           "day": 200,
@@ -1273,723 +1273,723 @@
         },
         {
           "day": 221,
-          "answers": 629,
-          "due": 4277
+          "answers": 666,
+          "due": 4196
         },
         {
           "day": 222,
-          "answers": 675,
-          "due": 4032
+          "answers": 669,
+          "due": 3982
         },
         {
           "day": 223,
-          "answers": 656,
-          "due": 3892
+          "answers": 681,
+          "due": 3848
         },
         {
           "day": 224,
-          "answers": 655,
-          "due": 3755
+          "answers": 667,
+          "due": 3728
         },
         {
           "day": 225,
-          "answers": 643,
-          "due": 3602
+          "answers": 630,
+          "due": 3565
         },
         {
           "day": 226,
-          "answers": 612,
-          "due": 3489
+          "answers": 618,
+          "due": 3443
         },
         {
           "day": 227,
-          "answers": 616,
-          "due": 3385
+          "answers": 644,
+          "due": 3324
         },
         {
           "day": 228,
-          "answers": 636,
-          "due": 3269
+          "answers": 641,
+          "due": 3212
         },
         {
           "day": 229,
-          "answers": 645,
-          "due": 3159
+          "answers": 655,
+          "due": 3125
         },
         {
           "day": 230,
-          "answers": 648,
-          "due": 3102
+          "answers": 671,
+          "due": 3057
         },
         {
           "day": 231,
-          "answers": 648,
-          "due": 3061
+          "answers": 676,
+          "due": 3016
         },
         {
           "day": 232,
-          "answers": 645,
-          "due": 2974
+          "answers": 665,
+          "due": 2955
         },
         {
           "day": 233,
-          "answers": 650,
-          "due": 2912
+          "answers": 634,
+          "due": 2921
         },
         {
           "day": 234,
-          "answers": 637,
-          "due": 2855
+          "answers": 661,
+          "due": 2880
         },
         {
           "day": 235,
-          "answers": 615,
-          "due": 2837
+          "answers": 626,
+          "due": 2841
         },
         {
           "day": 236,
-          "answers": 602,
-          "due": 2814
+          "answers": 570,
+          "due": 2849
         },
         {
           "day": 237,
-          "answers": 576,
-          "due": 2838
+          "answers": 551,
+          "due": 2851
         },
         {
           "day": 238,
-          "answers": 540,
-          "due": 2818
+          "answers": 555,
+          "due": 2831
         },
         {
           "day": 239,
-          "answers": 550,
-          "due": 2829
+          "answers": 560,
+          "due": 2825
         },
         {
           "day": 240,
-          "answers": 569,
-          "due": 2816
+          "answers": 564,
+          "due": 2844
         },
         {
           "day": 241,
-          "answers": 572,
-          "due": 2820
+          "answers": 565,
+          "due": 2846
         },
         {
           "day": 242,
-          "answers": 546,
-          "due": 2815
+          "answers": 556,
+          "due": 2856
         },
         {
           "day": 243,
-          "answers": 542,
-          "due": 2807
+          "answers": 543,
+          "due": 2848
         },
         {
           "day": 244,
-          "answers": 538,
-          "due": 2795
+          "answers": 560,
+          "due": 2831
         },
         {
           "day": 245,
-          "answers": 523,
-          "due": 2798
+          "answers": 549,
+          "due": 2839
         },
         {
           "day": 246,
-          "answers": 548,
-          "due": 2780
+          "answers": 570,
+          "due": 2818
         },
         {
           "day": 247,
-          "answers": 549,
-          "due": 2778
+          "answers": 551,
+          "due": 2835
         },
         {
           "day": 248,
-          "answers": 526,
-          "due": 2764
+          "answers": 566,
+          "due": 2840
         },
         {
           "day": 249,
-          "answers": 570,
-          "due": 2724
+          "answers": 560,
+          "due": 2848
         },
         {
           "day": 250,
-          "answers": 555,
-          "due": 2718
+          "answers": 551,
+          "due": 2828
         },
         {
           "day": 251,
-          "answers": 533,
-          "due": 2705
+          "answers": 561,
+          "due": 2804
         },
         {
           "day": 252,
           "answers": 542,
-          "due": 2695
+          "due": 2790
         },
         {
           "day": 253,
-          "answers": 551,
-          "due": 2664
+          "answers": 567,
+          "due": 2764
         },
         {
           "day": 254,
-          "answers": 552,
-          "due": 2636
+          "answers": 564,
+          "due": 2738
         },
         {
           "day": 255,
-          "answers": 540,
-          "due": 2641
+          "answers": 580,
+          "due": 2703
         },
         {
           "day": 256,
-          "answers": 559,
-          "due": 2613
+          "answers": 578,
+          "due": 2672
         },
         {
           "day": 257,
-          "answers": 558,
-          "due": 2601
+          "answers": 557,
+          "due": 2665
         },
         {
           "day": 258,
-          "answers": 567,
-          "due": 2580
+          "answers": 570,
+          "due": 2642
         },
         {
           "day": 259,
-          "answers": 592,
-          "due": 2557
+          "answers": 573,
+          "due": 2627
         },
         {
           "day": 260,
-          "answers": 571,
-          "due": 2550
+          "answers": 557,
+          "due": 2611
         },
         {
           "day": 261,
-          "answers": 567,
-          "due": 2529
+          "answers": 556,
+          "due": 2600
         },
         {
           "day": 262,
-          "answers": 564,
-          "due": 2504
+          "answers": 572,
+          "due": 2605
         },
         {
           "day": 263,
-          "answers": 589,
-          "due": 2508
+          "answers": 548,
+          "due": 2607
         },
         {
           "day": 264,
-          "answers": 578,
-          "due": 2516
+          "answers": 576,
+          "due": 2584
         },
         {
           "day": 265,
-          "answers": 581,
-          "due": 2531
+          "answers": 565,
+          "due": 2576
         },
         {
           "day": 266,
-          "answers": 558,
-          "due": 2524
+          "answers": 535,
+          "due": 2599
         },
         {
           "day": 267,
-          "answers": 545,
-          "due": 2510
+          "answers": 558,
+          "due": 2582
         },
         {
           "day": 268,
-          "answers": 549,
-          "due": 2493
+          "answers": 565,
+          "due": 2587
         },
         {
           "day": 269,
-          "answers": 551,
-          "due": 2517
+          "answers": 566,
+          "due": 2568
         },
         {
           "day": 270,
-          "answers": 540,
-          "due": 2524
+          "answers": 570,
+          "due": 2543
         },
         {
           "day": 271,
-          "answers": 564,
-          "due": 2500
+          "answers": 548,
+          "due": 2534
         },
         {
           "day": 272,
-          "answers": 563,
-          "due": 2486
+          "answers": 581,
+          "due": 2493
         },
         {
           "day": 273,
-          "answers": 575,
-          "due": 2473
+          "answers": 590,
+          "due": 2484
         },
         {
           "day": 274,
-          "answers": 583,
-          "due": 2465
+          "answers": 585,
+          "due": 2482
         },
         {
           "day": 275,
-          "answers": 570,
-          "due": 2469
+          "answers": 576,
+          "due": 2461
         },
         {
           "day": 276,
-          "answers": 555,
-          "due": 2462
+          "answers": 579,
+          "due": 2473
         },
         {
           "day": 277,
-          "answers": 590,
-          "due": 2432
+          "answers": 563,
+          "due": 2475
         },
         {
           "day": 278,
-          "answers": 568,
-          "due": 2414
+          "answers": 567,
+          "due": 2458
         },
         {
           "day": 279,
-          "answers": 561,
-          "due": 2416
+          "answers": 553,
+          "due": 2458
         },
         {
           "day": 280,
-          "answers": 556,
-          "due": 2401
+          "answers": 555,
+          "due": 2480
         },
         {
           "day": 281,
-          "answers": 583,
-          "due": 2391
+          "answers": 564,
+          "due": 2450
         },
         {
           "day": 282,
-          "answers": 567,
-          "due": 2376
+          "answers": 533,
+          "due": 2473
         },
         {
           "day": 283,
-          "answers": 570,
-          "due": 2343
+          "answers": 569,
+          "due": 2458
         },
         {
           "day": 284,
-          "answers": 562,
-          "due": 2347
+          "answers": 550,
+          "due": 2461
         },
         {
           "day": 285,
-          "answers": 561,
-          "due": 2328
+          "answers": 564,
+          "due": 2450
         },
         {
           "day": 286,
-          "answers": 553,
-          "due": 2321
+          "answers": 561,
+          "due": 2434
         },
         {
           "day": 287,
-          "answers": 556,
-          "due": 2320
+          "answers": 587,
+          "due": 2393
         },
         {
           "day": 288,
-          "answers": 603,
-          "due": 2298
+          "answers": 595,
+          "due": 2396
         },
         {
           "day": 289,
-          "answers": 588,
-          "due": 2276
+          "answers": 575,
+          "due": 2374
         },
         {
           "day": 290,
-          "answers": 603,
-          "due": 2323
+          "answers": 553,
+          "due": 2389
         },
         {
           "day": 291,
-          "answers": 580,
-          "due": 2312
+          "answers": 572,
+          "due": 2390
         },
         {
           "day": 292,
-          "answers": 576,
-          "due": 2314
+          "answers": 550,
+          "due": 2394
         },
         {
           "day": 293,
-          "answers": 556,
-          "due": 2314
+          "answers": 563,
+          "due": 2396
         },
         {
           "day": 294,
-          "answers": 559,
-          "due": 2323
+          "answers": 565,
+          "due": 2394
         },
         {
           "day": 295,
-          "answers": 566,
-          "due": 2306
+          "answers": 550,
+          "due": 2384
         },
         {
           "day": 296,
-          "answers": 560,
-          "due": 2326
+          "answers": 584,
+          "due": 2389
         },
         {
           "day": 297,
-          "answers": 565,
-          "due": 2361
+          "answers": 563,
+          "due": 2395
         },
         {
           "day": 298,
-          "answers": 553,
-          "due": 2348
+          "answers": 569,
+          "due": 2398
         },
         {
           "day": 299,
-          "answers": 566,
-          "due": 2346
+          "answers": 557,
+          "due": 2387
         },
         {
           "day": 300,
-          "answers": 567,
-          "due": 2340
+          "answers": 569,
+          "due": 2376
         },
         {
           "day": 301,
-          "answers": 592,
-          "due": 2316
+          "answers": 565,
+          "due": 2367
         },
         {
           "day": 302,
-          "answers": 571,
-          "due": 2325
+          "answers": 578,
+          "due": 2374
         },
         {
           "day": 303,
-          "answers": 568,
-          "due": 2332
+          "answers": 583,
+          "due": 2356
         },
         {
           "day": 304,
-          "answers": 559,
-          "due": 2347
+          "answers": 580,
+          "due": 2357
         },
         {
           "day": 305,
-          "answers": 552,
-          "due": 2345
+          "answers": 583,
+          "due": 2344
         },
         {
           "day": 306,
-          "answers": 571,
-          "due": 2305
+          "answers": 576,
+          "due": 2344
         },
         {
           "day": 307,
-          "answers": 556,
-          "due": 2295
+          "answers": 586,
+          "due": 2335
         },
         {
           "day": 308,
-          "answers": 570,
-          "due": 2300
+          "answers": 594,
+          "due": 2323
         },
         {
           "day": 309,
-          "answers": 574,
-          "due": 2283
+          "answers": 592,
+          "due": 2307
         },
         {
           "day": 310,
-          "answers": 575,
-          "due": 2290
+          "answers": 578,
+          "due": 2317
         },
         {
           "day": 311,
-          "answers": 580,
-          "due": 2262
+          "answers": 578,
+          "due": 2337
         },
         {
           "day": 312,
-          "answers": 597,
-          "due": 2252
+          "answers": 581,
+          "due": 2341
         },
         {
           "day": 313,
-          "answers": 587,
-          "due": 2272
+          "answers": 582,
+          "due": 2349
         },
         {
           "day": 314,
-          "answers": 559,
-          "due": 2271
+          "answers": 575,
+          "due": 2352
         },
         {
           "day": 315,
-          "answers": 553,
-          "due": 2273
+          "answers": 561,
+          "due": 2352
         },
         {
           "day": 316,
-          "answers": 567,
-          "due": 2245
+          "answers": 566,
+          "due": 2369
         },
         {
           "day": 317,
-          "answers": 566,
-          "due": 2270
+          "answers": 578,
+          "due": 2388
         },
         {
           "day": 318,
-          "answers": 574,
-          "due": 2257
+          "answers": 602,
+          "due": 2370
         },
         {
           "day": 319,
-          "answers": 564,
-          "due": 2263
+          "answers": 594,
+          "due": 2363
         },
         {
           "day": 320,
-          "answers": 562,
-          "due": 2233
+          "answers": 579,
+          "due": 2352
         },
         {
           "day": 321,
-          "answers": 579,
-          "due": 2238
+          "answers": 589,
+          "due": 2343
         },
         {
           "day": 322,
-          "answers": 574,
-          "due": 2240
+          "answers": 603,
+          "due": 2331
         },
         {
           "day": 323,
-          "answers": 571,
-          "due": 2222
+          "answers": 584,
+          "due": 2313
         },
         {
           "day": 324,
-          "answers": 573,
-          "due": 2218
+          "answers": 563,
+          "due": 2316
         },
         {
           "day": 325,
-          "answers": 576,
-          "due": 2221
+          "answers": 564,
+          "due": 2317
         },
         {
           "day": 326,
-          "answers": 562,
-          "due": 2241
+          "answers": 557,
+          "due": 2340
         },
         {
           "day": 327,
-          "answers": 565,
-          "due": 2215
+          "answers": 567,
+          "due": 2301
         },
         {
           "day": 328,
-          "answers": 580,
-          "due": 2201
+          "answers": 572,
+          "due": 2300
         },
         {
           "day": 329,
-          "answers": 588,
-          "due": 2193
+          "answers": 574,
+          "due": 2304
         },
         {
           "day": 330,
-          "answers": 583,
-          "due": 2173
+          "answers": 558,
+          "due": 2297
         },
         {
           "day": 331,
-          "answers": 586,
-          "due": 2171
+          "answers": 589,
+          "due": 2286
         },
         {
           "day": 332,
-          "answers": 612,
-          "due": 2155
+          "answers": 584,
+          "due": 2302
         },
         {
           "day": 333,
-          "answers": 594,
-          "due": 2169
+          "answers": 589,
+          "due": 2276
         },
         {
           "day": 334,
-          "answers": 568,
-          "due": 2191
+          "answers": 550,
+          "due": 2293
         },
         {
           "day": 335,
-          "answers": 547,
-          "due": 2211
+          "answers": 567,
+          "due": 2311
         },
         {
           "day": 336,
-          "answers": 558,
-          "due": 2188
+          "answers": 574,
+          "due": 2276
         },
         {
           "day": 337,
-          "answers": 580,
-          "due": 2186
+          "answers": 587,
+          "due": 2233
         },
         {
           "day": 338,
-          "answers": 593,
-          "due": 2163
+          "answers": 617,
+          "due": 2220
         },
         {
           "day": 339,
-          "answers": 583,
-          "due": 2172
+          "answers": 588,
+          "due": 2237
         },
         {
           "day": 340,
-          "answers": 585,
-          "due": 2161
+          "answers": 575,
+          "due": 2260
         },
         {
           "day": 341,
-          "answers": 589,
-          "due": 2170
+          "answers": 581,
+          "due": 2244
         },
         {
           "day": 342,
-          "answers": 566,
-          "due": 2174
+          "answers": 563,
+          "due": 2252
         },
         {
           "day": 343,
-          "answers": 576,
-          "due": 2139
+          "answers": 567,
+          "due": 2251
         },
         {
           "day": 344,
-          "answers": 582,
-          "due": 2160
+          "answers": 598,
+          "due": 2241
         },
         {
           "day": 345,
-          "answers": 582,
-          "due": 2156
+          "answers": 573,
+          "due": 2228
         },
         {
           "day": 346,
-          "answers": 577,
-          "due": 2156
+          "answers": 587,
+          "due": 2230
         },
         {
           "day": 347,
-          "answers": 599,
-          "due": 2151
+          "answers": 571,
+          "due": 2229
         },
         {
           "day": 348,
-          "answers": 579,
-          "due": 2143
+          "answers": 582,
+          "due": 2218
         },
         {
           "day": 349,
-          "answers": 565,
-          "due": 2113
+          "answers": 598,
+          "due": 2220
         },
         {
           "day": 350,
-          "answers": 557,
-          "due": 2135
+          "answers": 575,
+          "due": 2201
         },
         {
           "day": 351,
-          "answers": 585,
-          "due": 2099
+          "answers": 576,
+          "due": 2190
         },
         {
           "day": 352,
-          "answers": 574,
-          "due": 2093
+          "answers": 576,
+          "due": 2200
         },
         {
           "day": 353,
-          "answers": 579,
-          "due": 2107
+          "answers": 570,
+          "due": 2188
         },
         {
           "day": 354,
-          "answers": 572,
-          "due": 2101
+          "answers": 559,
+          "due": 2209
         },
         {
           "day": 355,
-          "answers": 571,
-          "due": 2077
+          "answers": 557,
+          "due": 2192
         },
         {
           "day": 356,
-          "answers": 542,
-          "due": 2101
+          "answers": 581,
+          "due": 2176
         },
         {
           "day": 357,
-          "answers": 545,
-          "due": 2109
+          "answers": 565,
+          "due": 2185
         },
         {
           "day": 358,
-          "answers": 546,
-          "due": 2104
+          "answers": 547,
+          "due": 2174
         },
         {
           "day": 359,
-          "answers": 555,
-          "due": 2069
+          "answers": 561,
+          "due": 2177
         },
         {
           "day": 360,
-          "answers": 558,
-          "due": 2058
+          "answers": 574,
+          "due": 2171
         },
         {
           "day": 361,
-          "answers": 533,
-          "due": 2042
+          "answers": 584,
+          "due": 2173
         },
         {
           "day": 362,
-          "answers": 545,
-          "due": 2050
+          "answers": 572,
+          "due": 2170
         },
         {
           "day": 363,
-          "answers": 578,
-          "due": 2035
+          "answers": 585,
+          "due": 2152
         },
         {
           "day": 364,
-          "answers": 549,
-          "due": 2009
+          "answers": 580,
+          "due": 2141
         }
       ]
     },
@@ -2001,19 +2001,19 @@
       "cards": 6000,
       "days": 365,
       "activeDays": 330,
-      "answers": 190631,
+      "answers": 190409,
       "distinctReviewed": 6000,
       "invalid": 0,
       "memoryMismatchVsLocalPort": 0,
       "previewMismatch": 0,
-      "maxDaily": 699,
-      "maxStability": 1180.4786484623944,
-      "leechCards": 1559,
-      "seconds": 126.29,
+      "maxDaily": 707,
+      "maxStability": 1112.7799518796428,
+      "leechCards": 1586,
+      "seconds": 122.11,
       "daysDetail": [
         {
           "day": 0,
-          "answers": 56,
+          "answers": 57,
           "due": 5971
         },
         {
@@ -2023,7 +2023,7 @@
         },
         {
           "day": 2,
-          "answers": 110,
+          "answers": 107,
           "due": 5911
         },
         {
@@ -2033,17 +2033,17 @@
         },
         {
           "day": 4,
-          "answers": 135,
+          "answers": 143,
           "due": 5851
         },
         {
           "day": 5,
-          "answers": 153,
+          "answers": 148,
           "due": 5821
         },
         {
           "day": 6,
-          "answers": 156,
+          "answers": 175,
           "due": 5791
         },
         {
@@ -2053,7 +2053,7 @@
         },
         {
           "day": 8,
-          "answers": 184,
+          "answers": 186,
           "due": 5731
         },
         {
@@ -2063,137 +2063,137 @@
         },
         {
           "day": 10,
-          "answers": 223,
+          "answers": 204,
           "due": 5671
         },
         {
           "day": 11,
-          "answers": 214,
+          "answers": 204,
           "due": 5641
         },
         {
           "day": 12,
-          "answers": 231,
+          "answers": 230,
           "due": 5611
         },
         {
           "day": 13,
-          "answers": 241,
+          "answers": 238,
           "due": 5581
         },
         {
           "day": 14,
-          "answers": 259,
+          "answers": 252,
           "due": 5551
         },
         {
           "day": 15,
-          "answers": 278,
+          "answers": 250,
           "due": 5521
         },
         {
           "day": 16,
-          "answers": 271,
+          "answers": 254,
           "due": 5491
         },
         {
           "day": 17,
-          "answers": 271,
+          "answers": 290,
           "due": 5461
         },
         {
           "day": 18,
-          "answers": 311,
+          "answers": 299,
           "due": 5431
         },
         {
           "day": 19,
-          "answers": 321,
+          "answers": 319,
           "due": 5401
         },
         {
           "day": 20,
-          "answers": 338,
+          "answers": 329,
           "due": 5371
         },
         {
           "day": 21,
-          "answers": 332,
+          "answers": 326,
           "due": 5341
         },
         {
           "day": 22,
-          "answers": 357,
+          "answers": 337,
           "due": 5311
         },
         {
           "day": 23,
-          "answers": 362,
+          "answers": 359,
           "due": 5281
         },
         {
           "day": 24,
-          "answers": 367,
+          "answers": 358,
           "due": 5251
         },
         {
           "day": 25,
-          "answers": 364,
+          "answers": 385,
           "due": 5221
         },
         {
           "day": 26,
-          "answers": 386,
+          "answers": 391,
           "due": 5191
         },
         {
           "day": 27,
-          "answers": 390,
+          "answers": 407,
           "due": 5161
         },
         {
           "day": 28,
-          "answers": 404,
+          "answers": 402,
           "due": 5131
         },
         {
           "day": 29,
-          "answers": 409,
+          "answers": 412,
           "due": 5101
         },
         {
           "day": 30,
-          "answers": 426,
+          "answers": 416,
           "due": 5071
         },
         {
           "day": 31,
-          "answers": 443,
+          "answers": 418,
           "due": 5041
         },
         {
           "day": 32,
-          "answers": 423,
+          "answers": 459,
           "due": 5011
         },
         {
           "day": 33,
-          "answers": 455,
+          "answers": 464,
           "due": 4981
         },
         {
           "day": 34,
-          "answers": 455,
+          "answers": 467,
           "due": 4951
         },
         {
           "day": 35,
-          "answers": 473,
+          "answers": 469,
           "due": 4921
         },
         {
           "day": 36,
-          "answers": 507,
+          "answers": 500,
           "due": 4891
         },
         {
@@ -2203,213 +2203,213 @@
         },
         {
           "day": 38,
-          "answers": 501,
+          "answers": 503,
           "due": 4831
         },
         {
           "day": 39,
-          "answers": 514,
+          "answers": 505,
           "due": 4801
         },
         {
           "day": 40,
-          "answers": 523,
+          "answers": 508,
           "due": 4771
         },
         {
           "day": 41,
-          "answers": 525,
+          "answers": 534,
           "due": 4741
         },
         {
           "day": 42,
-          "answers": 557,
+          "answers": 544,
           "due": 4711
         },
         {
           "day": 43,
-          "answers": 565,
+          "answers": 538,
           "due": 4681
         },
         {
           "day": 44,
-          "answers": 567,
-          "due": 4651
+          "answers": 577,
+          "due": 4655
         },
         {
           "day": 45,
-          "answers": 586,
+          "answers": 570,
           "due": 4621
         },
         {
           "day": 46,
-          "answers": 576,
-          "due": 4601
+          "answers": 573,
+          "due": 4591
         },
         {
           "day": 47,
-          "answers": 605,
-          "due": 4571
+          "answers": 589,
+          "due": 4564
         },
         {
           "day": 48,
-          "answers": 607,
-          "due": 4538
+          "answers": 592,
+          "due": 4541
         },
         {
           "day": 49,
-          "answers": 605,
-          "due": 4516
+          "answers": 591,
+          "due": 4509
         },
         {
           "day": 50,
-          "answers": 617,
-          "due": 4484
+          "answers": 601,
+          "due": 4496
         },
         {
           "day": 51,
-          "answers": 601,
-          "due": 4485
-        },
-        {
-          "day": 52,
-          "answers": 598,
-          "due": 4467
-        },
-        {
-          "day": 53,
-          "answers": 589,
-          "due": 4484
-        },
-        {
-          "day": 54,
-          "answers": 613,
-          "due": 4471
-        },
-        {
-          "day": 55,
-          "answers": 604,
-          "due": 4464
-        },
-        {
-          "day": 56,
-          "answers": 629,
-          "due": 4481
-        },
-        {
-          "day": 57,
-          "answers": 644,
-          "due": 4469
-        },
-        {
-          "day": 58,
-          "answers": 626,
-          "due": 4473
-        },
-        {
-          "day": 59,
-          "answers": 624,
-          "due": 4482
-        },
-        {
-          "day": 60,
-          "answers": 617,
-          "due": 4489
-        },
-        {
-          "day": 61,
-          "answers": 614,
+          "answers": 597,
           "due": 4501
         },
         {
+          "day": 52,
+          "answers": 616,
+          "due": 4472
+        },
+        {
+          "day": 53,
+          "answers": 615,
+          "due": 4456
+        },
+        {
+          "day": 54,
+          "answers": 636,
+          "due": 4456
+        },
+        {
+          "day": 55,
+          "answers": 619,
+          "due": 4431
+        },
+        {
+          "day": 56,
+          "answers": 628,
+          "due": 4413
+        },
+        {
+          "day": 57,
+          "answers": 629,
+          "due": 4417
+        },
+        {
+          "day": 58,
+          "answers": 615,
+          "due": 4447
+        },
+        {
+          "day": 59,
+          "answers": 615,
+          "due": 4431
+        },
+        {
+          "day": 60,
+          "answers": 599,
+          "due": 4457
+        },
+        {
+          "day": 61,
+          "answers": 620,
+          "due": 4457
+        },
+        {
           "day": 62,
-          "answers": 631,
-          "due": 4504
+          "answers": 640,
+          "due": 4465
         },
         {
           "day": 63,
-          "answers": 625,
-          "due": 4519
+          "answers": 639,
+          "due": 4465
         },
         {
           "day": 64,
-          "answers": 629,
-          "due": 4523
+          "answers": 618,
+          "due": 4494
         },
         {
           "day": 65,
-          "answers": 621,
-          "due": 4535
+          "answers": 614,
+          "due": 4512
         },
         {
           "day": 66,
-          "answers": 621,
-          "due": 4548
+          "answers": 616,
+          "due": 4529
         },
         {
           "day": 67,
-          "answers": 640,
-          "due": 4556
+          "answers": 613,
+          "due": 4528
         },
         {
           "day": 68,
-          "answers": 651,
-          "due": 4535
+          "answers": 608,
+          "due": 4541
         },
         {
           "day": 69,
-          "answers": 641,
-          "due": 4542
+          "answers": 614,
+          "due": 4546
         },
         {
           "day": 70,
-          "answers": 668,
-          "due": 4523
+          "answers": 632,
+          "due": 4563
         },
         {
           "day": 71,
-          "answers": 673,
-          "due": 4514
+          "answers": 652,
+          "due": 4557
         },
         {
           "day": 72,
-          "answers": 653,
-          "due": 4525
+          "answers": 655,
+          "due": 4552
         },
         {
           "day": 73,
-          "answers": 669,
-          "due": 4519
+          "answers": 652,
+          "due": 4563
         },
         {
           "day": 74,
-          "answers": 667,
-          "due": 4523
+          "answers": 644,
+          "due": 4575
         },
         {
           "day": 75,
-          "answers": 640,
-          "due": 4562
+          "answers": 663,
+          "due": 4573
         },
         {
           "day": 76,
-          "answers": 643,
-          "due": 4565
+          "answers": 648,
+          "due": 4592
         },
         {
           "day": 77,
-          "answers": 639,
-          "due": 4570
+          "answers": 648,
+          "due": 4579
         },
         {
           "day": 78,
-          "answers": 643,
-          "due": 4570
+          "answers": 620,
+          "due": 4596
         },
         {
           "day": 79,
           "answers": 629,
-          "due": 4570
+          "due": 4594
         },
         {
           "day": 80,
@@ -2483,533 +2483,533 @@
         },
         {
           "day": 94,
-          "answers": 631,
-          "due": 5263
+          "answers": 647,
+          "due": 5257
         },
         {
           "day": 95,
-          "answers": 630,
-          "due": 5075
+          "answers": 660,
+          "due": 5062
         },
         {
           "day": 96,
-          "answers": 616,
-          "due": 4995
+          "answers": 652,
+          "due": 4973
         },
         {
           "day": 97,
-          "answers": 605,
+          "answers": 637,
           "due": 4830
         },
         {
           "day": 98,
-          "answers": 599,
-          "due": 4725
+          "answers": 612,
+          "due": 4744
         },
         {
           "day": 99,
-          "answers": 612,
+          "answers": 599,
           "due": 4672
         },
         {
           "day": 100,
-          "answers": 614,
-          "due": 4609
+          "answers": 616,
+          "due": 4615
         },
         {
           "day": 101,
-          "answers": 608,
-          "due": 4549
+          "answers": 621,
+          "due": 4547
         },
         {
           "day": 102,
-          "answers": 629,
-          "due": 4492
+          "answers": 642,
+          "due": 4520
         },
         {
           "day": 103,
           "answers": 633,
-          "due": 4455
+          "due": 4485
         },
         {
           "day": 104,
-          "answers": 631,
-          "due": 4418
-        },
-        {
-          "day": 105,
-          "answers": 624,
-          "due": 4408
-        },
-        {
-          "day": 106,
-          "answers": 637,
-          "due": 4378
-        },
-        {
-          "day": 107,
-          "answers": 627,
-          "due": 4356
-        },
-        {
-          "day": 108,
-          "answers": 633,
-          "due": 4331
-        },
-        {
-          "day": 109,
-          "answers": 647,
-          "due": 4317
-        },
-        {
-          "day": 110,
-          "answers": 667,
-          "due": 4287
-        },
-        {
-          "day": 111,
-          "answers": 638,
-          "due": 4276
-        },
-        {
-          "day": 112,
-          "answers": 639,
-          "due": 4262
-        },
-        {
-          "day": 113,
-          "answers": 646,
-          "due": 4262
-        },
-        {
-          "day": 114,
-          "answers": 651,
-          "due": 4248
-        },
-        {
-          "day": 115,
-          "answers": 640,
-          "due": 4241
-        },
-        {
-          "day": 116,
-          "answers": 628,
-          "due": 4234
-        },
-        {
-          "day": 117,
-          "answers": 640,
-          "due": 4233
-        },
-        {
-          "day": 118,
-          "answers": 636,
-          "due": 4240
-        },
-        {
-          "day": 119,
-          "answers": 653,
-          "due": 4253
-        },
-        {
-          "day": 120,
-          "answers": 653,
-          "due": 4235
-        },
-        {
-          "day": 121,
-          "answers": 667,
-          "due": 4220
-        },
-        {
-          "day": 122,
-          "answers": 657,
-          "due": 4202
-        },
-        {
-          "day": 123,
-          "answers": 659,
-          "due": 4206
-        },
-        {
-          "day": 124,
-          "answers": 634,
-          "due": 4228
-        },
-        {
-          "day": 125,
-          "answers": 632,
-          "due": 4251
-        },
-        {
-          "day": 126,
-          "answers": 659,
-          "due": 4233
-        },
-        {
-          "day": 127,
-          "answers": 668,
-          "due": 4248
-        },
-        {
-          "day": 128,
-          "answers": 650,
-          "due": 4266
-        },
-        {
-          "day": 129,
-          "answers": 648,
-          "due": 4260
-        },
-        {
-          "day": 130,
-          "answers": 657,
-          "due": 4265
-        },
-        {
-          "day": 131,
-          "answers": 658,
-          "due": 4270
-        },
-        {
-          "day": 132,
-          "answers": 675,
-          "due": 4267
-        },
-        {
-          "day": 133,
-          "answers": 642,
-          "due": 4289
-        },
-        {
-          "day": 134,
-          "answers": 663,
-          "due": 4310
-        },
-        {
-          "day": 135,
-          "answers": 660,
-          "due": 4316
-        },
-        {
-          "day": 136,
-          "answers": 676,
-          "due": 4300
-        },
-        {
-          "day": 137,
-          "answers": 678,
-          "due": 4290
-        },
-        {
-          "day": 138,
-          "answers": 663,
-          "due": 4306
-        },
-        {
-          "day": 139,
-          "answers": 651,
-          "due": 4314
-        },
-        {
-          "day": 140,
-          "answers": 657,
-          "due": 4311
-        },
-        {
-          "day": 141,
-          "answers": 659,
-          "due": 4304
-        },
-        {
-          "day": 142,
-          "answers": 669,
-          "due": 4283
-        },
-        {
-          "day": 143,
-          "answers": 668,
-          "due": 4283
-        },
-        {
-          "day": 144,
-          "answers": 672,
-          "due": 4293
-        },
-        {
-          "day": 145,
-          "answers": 699,
-          "due": 4275
-        },
-        {
-          "day": 146,
-          "answers": 686,
-          "due": 4276
-        },
-        {
-          "day": 147,
-          "answers": 694,
-          "due": 4295
-        },
-        {
-          "day": 148,
-          "answers": 688,
-          "due": 4284
-        },
-        {
-          "day": 149,
-          "answers": 666,
-          "due": 4283
-        },
-        {
-          "day": 150,
-          "answers": 667,
-          "due": 4277
-        },
-        {
-          "day": 151,
-          "answers": 675,
-          "due": 4296
-        },
-        {
-          "day": 152,
-          "answers": 685,
-          "due": 4292
-        },
-        {
-          "day": 153,
-          "answers": 674,
-          "due": 4316
-        },
-        {
-          "day": 154,
-          "answers": 668,
-          "due": 4340
-        },
-        {
-          "day": 155,
-          "answers": 675,
-          "due": 4339
-        },
-        {
-          "day": 156,
-          "answers": 665,
-          "due": 4351
-        },
-        {
-          "day": 157,
-          "answers": 662,
-          "due": 4347
-        },
-        {
-          "day": 158,
-          "answers": 687,
-          "due": 4350
-        },
-        {
-          "day": 159,
-          "answers": 688,
-          "due": 4332
-        },
-        {
-          "day": 160,
-          "answers": 687,
-          "due": 4339
-        },
-        {
-          "day": 161,
-          "answers": 686,
-          "due": 4366
-        },
-        {
-          "day": 162,
-          "answers": 668,
-          "due": 4354
-        },
-        {
-          "day": 163,
-          "answers": 676,
-          "due": 4360
-        },
-        {
-          "day": 164,
-          "answers": 680,
-          "due": 4395
-        },
-        {
-          "day": 165,
-          "answers": 672,
-          "due": 4392
-        },
-        {
-          "day": 166,
-          "answers": 650,
-          "due": 4393
-        },
-        {
-          "day": 167,
-          "answers": 664,
-          "due": 4392
-        },
-        {
-          "day": 168,
-          "answers": 645,
-          "due": 4402
-        },
-        {
-          "day": 169,
-          "answers": 668,
-          "due": 4422
-        },
-        {
-          "day": 170,
           "answers": 667,
           "due": 4416
         },
         {
-          "day": 171,
-          "answers": 659,
-          "due": 4417
+          "day": 105,
+          "answers": 661,
+          "due": 4394
         },
         {
-          "day": 172,
-          "answers": 666,
-          "due": 4397
-        },
-        {
-          "day": 173,
-          "answers": 665,
-          "due": 4380
-        },
-        {
-          "day": 174,
-          "answers": 668,
-          "due": 4383
-        },
-        {
-          "day": 175,
-          "answers": 667,
+          "day": 106,
+          "answers": 663,
           "due": 4370
         },
         {
-          "day": 176,
-          "answers": 682,
-          "due": 4379
+          "day": 107,
+          "answers": 650,
+          "due": 4363
         },
         {
-          "day": 177,
-          "answers": 662,
-          "due": 4372
+          "day": 108,
+          "answers": 672,
+          "due": 4333
         },
         {
-          "day": 178,
-          "answers": 643,
-          "due": 4383
+          "day": 109,
+          "answers": 672,
+          "due": 4332
         },
         {
-          "day": 179,
+          "day": 110,
+          "answers": 670,
+          "due": 4300
+        },
+        {
+          "day": 111,
+          "answers": 684,
+          "due": 4308
+        },
+        {
+          "day": 112,
+          "answers": 667,
+          "due": 4311
+        },
+        {
+          "day": 113,
+          "answers": 673,
+          "due": 4303
+        },
+        {
+          "day": 114,
+          "answers": 658,
+          "due": 4288
+        },
+        {
+          "day": 115,
+          "answers": 647,
+          "due": 4305
+        },
+        {
+          "day": 116,
+          "answers": 645,
+          "due": 4295
+        },
+        {
+          "day": 117,
           "answers": 668,
-          "due": 4375
+          "due": 4309
         },
         {
-          "day": 180,
-          "answers": 682,
-          "due": 4359
+          "day": 118,
+          "answers": 660,
+          "due": 4309
         },
         {
-          "day": 181,
-          "answers": 654,
+          "day": 119,
+          "answers": 676,
+          "due": 4311
+        },
+        {
+          "day": 120,
+          "answers": 677,
+          "due": 4308
+        },
+        {
+          "day": 121,
+          "answers": 658,
+          "due": 4313
+        },
+        {
+          "day": 122,
+          "answers": 668,
+          "due": 4303
+        },
+        {
+          "day": 123,
+          "answers": 681,
+          "due": 4313
+        },
+        {
+          "day": 124,
+          "answers": 665,
+          "due": 4316
+        },
+        {
+          "day": 125,
+          "answers": 646,
+          "due": 4312
+        },
+        {
+          "day": 126,
+          "answers": 663,
+          "due": 4327
+        },
+        {
+          "day": 127,
+          "answers": 650,
+          "due": 4326
+        },
+        {
+          "day": 128,
+          "answers": 631,
           "due": 4354
         },
         {
-          "day": 182,
-          "answers": 653,
-          "due": 4369
+          "day": 129,
+          "answers": 635,
+          "due": 4367
         },
         {
-          "day": 183,
-          "answers": 634,
-          "due": 4377
+          "day": 130,
+          "answers": 646,
+          "due": 4355
         },
         {
-          "day": 184,
-          "answers": 649,
-          "due": 4362
+          "day": 131,
+          "answers": 659,
+          "due": 4344
         },
         {
-          "day": 185,
-          "answers": 656,
-          "due": 4359
+          "day": 132,
+          "answers": 657,
+          "due": 4349
         },
         {
-          "day": 186,
-          "answers": 666,
+          "day": 133,
+          "answers": 654,
+          "due": 4344
+        },
+        {
+          "day": 134,
+          "answers": 669,
           "due": 4337
         },
         {
-          "day": 187,
-          "answers": 674,
+          "day": 135,
+          "answers": 683,
+          "due": 4322
+        },
+        {
+          "day": 136,
+          "answers": 652,
+          "due": 4324
+        },
+        {
+          "day": 137,
+          "answers": 669,
+          "due": 4323
+        },
+        {
+          "day": 138,
+          "answers": 637,
+          "due": 4335
+        },
+        {
+          "day": 139,
+          "answers": 646,
+          "due": 4341
+        },
+        {
+          "day": 140,
+          "answers": 653,
           "due": 4331
         },
         {
-          "day": 188,
-          "answers": 672,
+          "day": 141,
+          "answers": 660,
+          "due": 4309
+        },
+        {
+          "day": 142,
+          "answers": 663,
+          "due": 4305
+        },
+        {
+          "day": 143,
+          "answers": 683,
+          "due": 4291
+        },
+        {
+          "day": 144,
+          "answers": 689,
+          "due": 4287
+        },
+        {
+          "day": 145,
+          "answers": 674,
+          "due": 4297
+        },
+        {
+          "day": 146,
+          "answers": 671,
+          "due": 4305
+        },
+        {
+          "day": 147,
+          "answers": 686,
+          "due": 4293
+        },
+        {
+          "day": 148,
+          "answers": 643,
+          "due": 4310
+        },
+        {
+          "day": 149,
+          "answers": 656,
+          "due": 4318
+        },
+        {
+          "day": 150,
+          "answers": 632,
           "due": 4338
         },
         {
-          "day": 189,
+          "day": 151,
+          "answers": 638,
+          "due": 4347
+        },
+        {
+          "day": 152,
+          "answers": 655,
+          "due": 4355
+        },
+        {
+          "day": 153,
+          "answers": 662,
+          "due": 4369
+        },
+        {
+          "day": 154,
+          "answers": 660,
+          "due": 4343
+        },
+        {
+          "day": 155,
+          "answers": 653,
+          "due": 4334
+        },
+        {
+          "day": 156,
+          "answers": 656,
+          "due": 4342
+        },
+        {
+          "day": 157,
+          "answers": 648,
+          "due": 4339
+        },
+        {
+          "day": 158,
+          "answers": 668,
+          "due": 4321
+        },
+        {
+          "day": 159,
+          "answers": 667,
+          "due": 4305
+        },
+        {
+          "day": 160,
+          "answers": 693,
+          "due": 4281
+        },
+        {
+          "day": 161,
+          "answers": 699,
+          "due": 4291
+        },
+        {
+          "day": 162,
+          "answers": 677,
+          "due": 4300
+        },
+        {
+          "day": 163,
+          "answers": 648,
+          "due": 4332
+        },
+        {
+          "day": 164,
+          "answers": 655,
+          "due": 4322
+        },
+        {
+          "day": 165,
+          "answers": 641,
+          "due": 4327
+        },
+        {
+          "day": 166,
+          "answers": 636,
+          "due": 4360
+        },
+        {
+          "day": 167,
+          "answers": 651,
+          "due": 4350
+        },
+        {
+          "day": 168,
+          "answers": 664,
+          "due": 4335
+        },
+        {
+          "day": 169,
+          "answers": 661,
+          "due": 4335
+        },
+        {
+          "day": 170,
+          "answers": 648,
+          "due": 4339
+        },
+        {
+          "day": 171,
           "answers": 674,
-          "due": 4317
+          "due": 4325
+        },
+        {
+          "day": 172,
+          "answers": 675,
+          "due": 4321
+        },
+        {
+          "day": 173,
+          "answers": 674,
+          "due": 4327
+        },
+        {
+          "day": 174,
+          "answers": 663,
+          "due": 4339
+        },
+        {
+          "day": 175,
+          "answers": 691,
+          "due": 4343
+        },
+        {
+          "day": 176,
+          "answers": 707,
+          "due": 4334
+        },
+        {
+          "day": 177,
+          "answers": 684,
+          "due": 4310
+        },
+        {
+          "day": 178,
+          "answers": 673,
+          "due": 4331
+        },
+        {
+          "day": 179,
+          "answers": 664,
+          "due": 4347
+        },
+        {
+          "day": 180,
+          "answers": 672,
+          "due": 4329
+        },
+        {
+          "day": 181,
+          "answers": 678,
+          "due": 4337
+        },
+        {
+          "day": 182,
+          "answers": 622,
+          "due": 4370
+        },
+        {
+          "day": 183,
+          "answers": 657,
+          "due": 4358
+        },
+        {
+          "day": 184,
+          "answers": 677,
+          "due": 4365
+        },
+        {
+          "day": 185,
+          "answers": 648,
+          "due": 4374
+        },
+        {
+          "day": 186,
+          "answers": 651,
+          "due": 4352
+        },
+        {
+          "day": 187,
+          "answers": 671,
+          "due": 4339
+        },
+        {
+          "day": 188,
+          "answers": 677,
+          "due": 4331
+        },
+        {
+          "day": 189,
+          "answers": 667,
+          "due": 4328
         },
         {
           "day": 190,
-          "answers": 664,
-          "due": 4298
+          "answers": 693,
+          "due": 4306
         },
         {
           "day": 191,
-          "answers": 686,
-          "due": 4285
+          "answers": 668,
+          "due": 4328
         },
         {
           "day": 192,
-          "answers": 671,
-          "due": 4289
+          "answers": 649,
+          "due": 4327
         },
         {
           "day": 193,
-          "answers": 670,
-          "due": 4293
+          "answers": 654,
+          "due": 4330
         },
         {
           "day": 194,
-          "answers": 632,
-          "due": 4314
+          "answers": 681,
+          "due": 4318
         },
         {
           "day": 195,
-          "answers": 652,
-          "due": 4307
+          "answers": 672,
+          "due": 4303
         },
         {
           "day": 196,
-          "answers": 659,
-          "due": 4293
+          "answers": 657,
+          "due": 4311
         },
         {
           "day": 197,
-          "answers": 679,
-          "due": 4302
+          "answers": 654,
+          "due": 4308
         },
         {
           "day": 198,
-          "answers": 680,
-          "due": 4292
+          "answers": 678,
+          "due": 4299
         },
         {
           "day": 199,
-          "answers": 665,
-          "due": 4282
+          "answers": 688,
+          "due": 4252
         },
         {
           "day": 200,
@@ -3118,723 +3118,723 @@
         },
         {
           "day": 221,
-          "answers": 664,
-          "due": 5105
+          "answers": 665,
+          "due": 5117
         },
         {
           "day": 222,
-          "answers": 663,
-          "due": 4925
+          "answers": 682,
+          "due": 4895
         },
         {
           "day": 223,
-          "answers": 677,
-          "due": 4843
+          "answers": 684,
+          "due": 4838
         },
         {
           "day": 224,
-          "answers": 673,
-          "due": 4725
+          "answers": 689,
+          "due": 4718
         },
         {
           "day": 225,
-          "answers": 675,
-          "due": 4619
+          "answers": 664,
+          "due": 4625
         },
         {
           "day": 226,
-          "answers": 667,
-          "due": 4524
+          "answers": 662,
+          "due": 4536
         },
         {
           "day": 227,
-          "answers": 667,
-          "due": 4449
+          "answers": 662,
+          "due": 4459
         },
         {
           "day": 228,
-          "answers": 672,
-          "due": 4385
+          "answers": 692,
+          "due": 4359
         },
         {
           "day": 229,
           "answers": 669,
-          "due": 4314
+          "due": 4308
         },
         {
           "day": 230,
-          "answers": 688,
-          "due": 4271
+          "answers": 670,
+          "due": 4277
         },
         {
           "day": 231,
-          "answers": 675,
-          "due": 4240
+          "answers": 656,
+          "due": 4222
         },
         {
           "day": 232,
-          "answers": 664,
+          "answers": 657,
           "due": 4194
         },
         {
           "day": 233,
-          "answers": 657,
-          "due": 4163
+          "answers": 647,
+          "due": 4179
         },
         {
           "day": 234,
-          "answers": 645,
-          "due": 4159
+          "answers": 665,
+          "due": 4141
         },
         {
           "day": 235,
-          "answers": 600,
-          "due": 4169
+          "answers": 631,
+          "due": 4139
         },
         {
           "day": 236,
-          "answers": 582,
-          "due": 4158
+          "answers": 580,
+          "due": 4140
         },
         {
           "day": 237,
-          "answers": 560,
-          "due": 4170
+          "answers": 588,
+          "due": 4117
         },
         {
           "day": 238,
-          "answers": 555,
-          "due": 4170
+          "answers": 561,
+          "due": 4121
         },
         {
           "day": 239,
-          "answers": 572,
-          "due": 4145
+          "answers": 554,
+          "due": 4124
         },
         {
           "day": 240,
-          "answers": 571,
-          "due": 4147
-        },
-        {
-          "day": 241,
-          "answers": 555,
-          "due": 4143
-        },
-        {
-          "day": 242,
-          "answers": 558,
-          "due": 4145
-        },
-        {
-          "day": 243,
-          "answers": 556,
-          "due": 4129
-        },
-        {
-          "day": 244,
-          "answers": 530,
-          "due": 4129
-        },
-        {
-          "day": 245,
-          "answers": 535,
-          "due": 4120
-        },
-        {
-          "day": 246,
-          "answers": 551,
+          "answers": 567,
           "due": 4110
         },
         {
-          "day": 247,
-          "answers": 546,
+          "day": 241,
+          "answers": 562,
+          "due": 4116
+        },
+        {
+          "day": 242,
+          "answers": 536,
+          "due": 4118
+        },
+        {
+          "day": 243,
+          "answers": 549,
+          "due": 4116
+        },
+        {
+          "day": 244,
+          "answers": 554,
+          "due": 4111
+        },
+        {
+          "day": 245,
+          "answers": 566,
+          "due": 4083
+        },
+        {
+          "day": 246,
+          "answers": 555,
           "due": 4108
         },
         {
+          "day": 247,
+          "answers": 561,
+          "due": 4081
+        },
+        {
           "day": 248,
-          "answers": 555,
-          "due": 4093
+          "answers": 567,
+          "due": 4083
         },
         {
           "day": 249,
-          "answers": 575,
-          "due": 4078
+          "answers": 556,
+          "due": 4079
         },
         {
           "day": 250,
-          "answers": 549,
-          "due": 4056
+          "answers": 543,
+          "due": 4072
         },
         {
           "day": 251,
-          "answers": 556,
-          "due": 4043
+          "answers": 541,
+          "due": 4047
         },
         {
           "day": 252,
-          "answers": 545,
-          "due": 4033
+          "answers": 553,
+          "due": 4067
         },
         {
           "day": 253,
-          "answers": 564,
-          "due": 4019
+          "answers": 557,
+          "due": 4035
         },
         {
           "day": 254,
-          "answers": 567,
-          "due": 4002
+          "answers": 560,
+          "due": 4026
         },
         {
           "day": 255,
-          "answers": 583,
-          "due": 3986
+          "answers": 537,
+          "due": 4011
         },
         {
           "day": 256,
-          "answers": 585,
-          "due": 3959
+          "answers": 551,
+          "due": 4001
         },
         {
           "day": 257,
-          "answers": 532,
-          "due": 3965
+          "answers": 553,
+          "due": 3975
         },
         {
           "day": 258,
-          "answers": 544,
-          "due": 3958
+          "answers": 564,
+          "due": 3982
         },
         {
           "day": 259,
-          "answers": 563,
-          "due": 3952
+          "answers": 572,
+          "due": 3936
         },
         {
           "day": 260,
-          "answers": 569,
-          "due": 3941
+          "answers": 577,
+          "due": 3922
         },
         {
           "day": 261,
-          "answers": 574,
-          "due": 3924
-        },
-        {
-          "day": 262,
-          "answers": 544,
+          "answers": 557,
           "due": 3929
         },
         {
+          "day": 262,
+          "answers": 545,
+          "due": 3927
+        },
+        {
           "day": 263,
-          "answers": 527,
-          "due": 3925
+          "answers": 568,
+          "due": 3911
         },
         {
           "day": 264,
-          "answers": 545,
+          "answers": 551,
           "due": 3916
         },
         {
           "day": 265,
-          "answers": 562,
-          "due": 3909
+          "answers": 554,
+          "due": 3896
         },
         {
           "day": 266,
-          "answers": 551,
-          "due": 3905
+          "answers": 565,
+          "due": 3888
         },
         {
           "day": 267,
-          "answers": 570,
-          "due": 3902
+          "answers": 578,
+          "due": 3886
         },
         {
           "day": 268,
-          "answers": 568,
-          "due": 3881
+          "answers": 580,
+          "due": 3884
         },
         {
           "day": 269,
-          "answers": 580,
-          "due": 3881
+          "answers": 576,
+          "due": 3873
         },
         {
           "day": 270,
-          "answers": 565,
-          "due": 3882
+          "answers": 561,
+          "due": 3881
         },
         {
           "day": 271,
-          "answers": 540,
-          "due": 3894
+          "answers": 543,
+          "due": 3896
         },
         {
           "day": 272,
-          "answers": 549,
-          "due": 3901
+          "answers": 533,
+          "due": 3908
         },
         {
           "day": 273,
-          "answers": 557,
-          "due": 3898
+          "answers": 531,
+          "due": 3913
         },
         {
           "day": 274,
-          "answers": 577,
-          "due": 3878
+          "answers": 565,
+          "due": 3896
         },
         {
           "day": 275,
-          "answers": 555,
-          "due": 3894
+          "answers": 584,
+          "due": 3895
         },
         {
           "day": 276,
-          "answers": 560,
-          "due": 3903
+          "answers": 576,
+          "due": 3888
         },
         {
           "day": 277,
           "answers": 556,
-          "due": 3908
-        },
-        {
-          "day": 278,
-          "answers": 565,
-          "due": 3887
-        },
-        {
-          "day": 279,
-          "answers": 557,
-          "due": 3879
-        },
-        {
-          "day": 280,
-          "answers": 563,
           "due": 3870
         },
         {
+          "day": 278,
+          "answers": 563,
+          "due": 3862
+        },
+        {
+          "day": 279,
+          "answers": 546,
+          "due": 3870
+        },
+        {
+          "day": 280,
+          "answers": 568,
+          "due": 3845
+        },
+        {
           "day": 281,
-          "answers": 573,
-          "due": 3828
+          "answers": 564,
+          "due": 3854
         },
         {
           "day": 282,
-          "answers": 561,
-          "due": 3825
+          "answers": 563,
+          "due": 3842
         },
         {
           "day": 283,
-          "answers": 552,
-          "due": 3817
+          "answers": 556,
+          "due": 3858
         },
         {
           "day": 284,
-          "answers": 561,
-          "due": 3791
+          "answers": 586,
+          "due": 3832
         },
         {
           "day": 285,
-          "answers": 571,
-          "due": 3789
+          "answers": 550,
+          "due": 3853
         },
         {
           "day": 286,
-          "answers": 571,
-          "due": 3805
+          "answers": 560,
+          "due": 3837
         },
         {
           "day": 287,
-          "answers": 565,
-          "due": 3784
+          "answers": 561,
+          "due": 3835
         },
         {
           "day": 288,
-          "answers": 579,
-          "due": 3780
+          "answers": 582,
+          "due": 3784
         },
         {
           "day": 289,
-          "answers": 570,
-          "due": 3765
+          "answers": 579,
+          "due": 3798
         },
         {
           "day": 290,
-          "answers": 585,
-          "due": 3729
-        },
-        {
-          "day": 291,
-          "answers": 594,
-          "due": 3714
-        },
-        {
-          "day": 292,
-          "answers": 560,
-          "due": 3727
-        },
-        {
-          "day": 293,
-          "answers": 570,
-          "due": 3730
-        },
-        {
-          "day": 294,
-          "answers": 557,
-          "due": 3745
-        },
-        {
-          "day": 295,
-          "answers": 581,
-          "due": 3707
-        },
-        {
-          "day": 296,
-          "answers": 596,
-          "due": 3706
-        },
-        {
-          "day": 297,
-          "answers": 573,
-          "due": 3715
-        },
-        {
-          "day": 298,
-          "answers": 558,
-          "due": 3726
-        },
-        {
-          "day": 299,
-          "answers": 555,
-          "due": 3729
-        },
-        {
-          "day": 300,
-          "answers": 581,
-          "due": 3722
-        },
-        {
-          "day": 301,
-          "answers": 590,
-          "due": 3721
-        },
-        {
-          "day": 302,
-          "answers": 579,
-          "due": 3708
-        },
-        {
-          "day": 303,
-          "answers": 575,
-          "due": 3738
-        },
-        {
-          "day": 304,
-          "answers": 591,
-          "due": 3723
-        },
-        {
-          "day": 305,
-          "answers": 590,
-          "due": 3730
-        },
-        {
-          "day": 306,
-          "answers": 587,
-          "due": 3745
-        },
-        {
-          "day": 307,
-          "answers": 582,
-          "due": 3734
-        },
-        {
-          "day": 308,
-          "answers": 585,
-          "due": 3741
-        },
-        {
-          "day": 309,
-          "answers": 587,
-          "due": 3753
-        },
-        {
-          "day": 310,
-          "answers": 600,
-          "due": 3726
-        },
-        {
-          "day": 311,
-          "answers": 592,
-          "due": 3726
-        },
-        {
-          "day": 312,
-          "answers": 566,
-          "due": 3712
-        },
-        {
-          "day": 313,
-          "answers": 601,
-          "due": 3713
-        },
-        {
-          "day": 314,
-          "answers": 616,
-          "due": 3691
-        },
-        {
-          "day": 315,
-          "answers": 596,
-          "due": 3714
-        },
-        {
-          "day": 316,
-          "answers": 587,
-          "due": 3711
-        },
-        {
-          "day": 317,
-          "answers": 583,
-          "due": 3732
-        },
-        {
-          "day": 318,
-          "answers": 609,
-          "due": 3725
-        },
-        {
-          "day": 319,
-          "answers": 591,
-          "due": 3715
-        },
-        {
-          "day": 320,
-          "answers": 578,
-          "due": 3720
-        },
-        {
-          "day": 321,
-          "answers": 591,
-          "due": 3731
-        },
-        {
-          "day": 322,
-          "answers": 603,
-          "due": 3726
-        },
-        {
-          "day": 323,
-          "answers": 592,
-          "due": 3736
-        },
-        {
-          "day": 324,
-          "answers": 543,
-          "due": 3770
-        },
-        {
-          "day": 325,
-          "answers": 566,
-          "due": 3761
-        },
-        {
-          "day": 326,
-          "answers": 575,
-          "due": 3766
-        },
-        {
-          "day": 327,
-          "answers": 586,
-          "due": 3760
-        },
-        {
-          "day": 328,
-          "answers": 563,
-          "due": 3775
-        },
-        {
-          "day": 329,
-          "answers": 579,
-          "due": 3772
-        },
-        {
-          "day": 330,
-          "answers": 590,
-          "due": 3783
-        },
-        {
-          "day": 331,
-          "answers": 586,
-          "due": 3804
-        },
-        {
-          "day": 332,
-          "answers": 600,
-          "due": 3770
-        },
-        {
-          "day": 333,
-          "answers": 609,
-          "due": 3772
-        },
-        {
-          "day": 334,
-          "answers": 567,
-          "due": 3789
-        },
-        {
-          "day": 335,
-          "answers": 585,
-          "due": 3780
-        },
-        {
-          "day": 336,
-          "answers": 572,
-          "due": 3782
-        },
-        {
-          "day": 337,
-          "answers": 558,
-          "due": 3800
-        },
-        {
-          "day": 338,
-          "answers": 569,
-          "due": 3793
-        },
-        {
-          "day": 339,
-          "answers": 581,
-          "due": 3799
-        },
-        {
-          "day": 340,
-          "answers": 564,
-          "due": 3809
-        },
-        {
-          "day": 341,
           "answers": 584,
           "due": 3795
         },
         {
-          "day": 342,
-          "answers": 565,
-          "due": 3809
-        },
-        {
-          "day": 343,
-          "answers": 558,
-          "due": 3806
-        },
-        {
-          "day": 344,
-          "answers": 573,
-          "due": 3812
-        },
-        {
-          "day": 345,
-          "answers": 575,
-          "due": 3798
-        },
-        {
-          "day": 346,
-          "answers": 576,
-          "due": 3813
-        },
-        {
-          "day": 347,
-          "answers": 606,
-          "due": 3817
-        },
-        {
-          "day": 348,
-          "answers": 579,
-          "due": 3816
-        },
-        {
-          "day": 349,
-          "answers": 575,
-          "due": 3824
-        },
-        {
-          "day": 350,
-          "answers": 588,
-          "due": 3836
-        },
-        {
-          "day": 351,
-          "answers": 596,
-          "due": 3812
-        },
-        {
-          "day": 352,
-          "answers": 600,
-          "due": 3807
-        },
-        {
-          "day": 353,
-          "answers": 597,
-          "due": 3804
-        },
-        {
-          "day": 354,
-          "answers": 587,
+          "day": 291,
+          "answers": 586,
           "due": 3799
         },
         {
-          "day": 355,
+          "day": 292,
           "answers": 574,
-          "due": 3817
+          "due": 3789
+        },
+        {
+          "day": 293,
+          "answers": 582,
+          "due": 3789
+        },
+        {
+          "day": 294,
+          "answers": 598,
+          "due": 3753
+        },
+        {
+          "day": 295,
+          "answers": 603,
+          "due": 3750
+        },
+        {
+          "day": 296,
+          "answers": 581,
+          "due": 3744
+        },
+        {
+          "day": 297,
+          "answers": 557,
+          "due": 3744
+        },
+        {
+          "day": 298,
+          "answers": 570,
+          "due": 3742
+        },
+        {
+          "day": 299,
+          "answers": 591,
+          "due": 3708
+        },
+        {
+          "day": 300,
+          "answers": 591,
+          "due": 3705
+        },
+        {
+          "day": 301,
+          "answers": 587,
+          "due": 3706
+        },
+        {
+          "day": 302,
+          "answers": 574,
+          "due": 3701
+        },
+        {
+          "day": 303,
+          "answers": 608,
+          "due": 3696
+        },
+        {
+          "day": 304,
+          "answers": 585,
+          "due": 3685
+        },
+        {
+          "day": 305,
+          "answers": 590,
+          "due": 3673
+        },
+        {
+          "day": 306,
+          "answers": 587,
+          "due": 3671
+        },
+        {
+          "day": 307,
+          "answers": 576,
+          "due": 3683
+        },
+        {
+          "day": 308,
+          "answers": 581,
+          "due": 3694
+        },
+        {
+          "day": 309,
+          "answers": 585,
+          "due": 3691
+        },
+        {
+          "day": 310,
+          "answers": 592,
+          "due": 3682
+        },
+        {
+          "day": 311,
+          "answers": 570,
+          "due": 3701
+        },
+        {
+          "day": 312,
+          "answers": 595,
+          "due": 3683
+        },
+        {
+          "day": 313,
+          "answers": 627,
+          "due": 3651
+        },
+        {
+          "day": 314,
+          "answers": 588,
+          "due": 3639
+        },
+        {
+          "day": 315,
+          "answers": 578,
+          "due": 3647
+        },
+        {
+          "day": 316,
+          "answers": 587,
+          "due": 3635
+        },
+        {
+          "day": 317,
+          "answers": 585,
+          "due": 3654
+        },
+        {
+          "day": 318,
+          "answers": 582,
+          "due": 3646
+        },
+        {
+          "day": 319,
+          "answers": 580,
+          "due": 3641
+        },
+        {
+          "day": 320,
+          "answers": 588,
+          "due": 3625
+        },
+        {
+          "day": 321,
+          "answers": 560,
+          "due": 3643
+        },
+        {
+          "day": 322,
+          "answers": 551,
+          "due": 3642
+        },
+        {
+          "day": 323,
+          "answers": 552,
+          "due": 3636
+        },
+        {
+          "day": 324,
+          "answers": 587,
+          "due": 3623
+        },
+        {
+          "day": 325,
+          "answers": 571,
+          "due": 3625
+        },
+        {
+          "day": 326,
+          "answers": 570,
+          "due": 3619
+        },
+        {
+          "day": 327,
+          "answers": 573,
+          "due": 3622
+        },
+        {
+          "day": 328,
+          "answers": 591,
+          "due": 3609
+        },
+        {
+          "day": 329,
+          "answers": 584,
+          "due": 3622
+        },
+        {
+          "day": 330,
+          "answers": 593,
+          "due": 3620
+        },
+        {
+          "day": 331,
+          "answers": 561,
+          "due": 3640
+        },
+        {
+          "day": 332,
+          "answers": 574,
+          "due": 3651
+        },
+        {
+          "day": 333,
+          "answers": 578,
+          "due": 3680
+        },
+        {
+          "day": 334,
+          "answers": 567,
+          "due": 3688
+        },
+        {
+          "day": 335,
+          "answers": 545,
+          "due": 3700
+        },
+        {
+          "day": 336,
+          "answers": 539,
+          "due": 3693
+        },
+        {
+          "day": 337,
+          "answers": 554,
+          "due": 3696
+        },
+        {
+          "day": 338,
+          "answers": 589,
+          "due": 3656
+        },
+        {
+          "day": 339,
+          "answers": 556,
+          "due": 3684
+        },
+        {
+          "day": 340,
+          "answers": 576,
+          "due": 3674
+        },
+        {
+          "day": 341,
+          "answers": 560,
+          "due": 3681
+        },
+        {
+          "day": 342,
+          "answers": 563,
+          "due": 3671
+        },
+        {
+          "day": 343,
+          "answers": 574,
+          "due": 3692
+        },
+        {
+          "day": 344,
+          "answers": 570,
+          "due": 3683
+        },
+        {
+          "day": 345,
+          "answers": 581,
+          "due": 3673
+        },
+        {
+          "day": 346,
+          "answers": 585,
+          "due": 3655
+        },
+        {
+          "day": 347,
+          "answers": 591,
+          "due": 3649
+        },
+        {
+          "day": 348,
+          "answers": 582,
+          "due": 3659
+        },
+        {
+          "day": 349,
+          "answers": 574,
+          "due": 3650
+        },
+        {
+          "day": 350,
+          "answers": 593,
+          "due": 3662
+        },
+        {
+          "day": 351,
+          "answers": 591,
+          "due": 3661
+        },
+        {
+          "day": 352,
+          "answers": 595,
+          "due": 3649
+        },
+        {
+          "day": 353,
+          "answers": 578,
+          "due": 3661
+        },
+        {
+          "day": 354,
+          "answers": 579,
+          "due": 3667
+        },
+        {
+          "day": 355,
+          "answers": 578,
+          "due": 3669
         },
         {
           "day": 356,
-          "answers": 580,
-          "due": 3814
+          "answers": 589,
+          "due": 3681
         },
         {
           "day": 357,
-          "answers": 583,
-          "due": 3811
+          "answers": 578,
+          "due": 3689
         },
         {
           "day": 358,
-          "answers": 579,
-          "due": 3829
+          "answers": 572,
+          "due": 3696
         },
         {
           "day": 359,
-          "answers": 600,
-          "due": 3832
+          "answers": 582,
+          "due": 3684
         },
         {
           "day": 360,
-          "answers": 612,
-          "due": 3819
+          "answers": 579,
+          "due": 3685
         },
         {
           "day": 361,
-          "answers": 608,
-          "due": 3830
+          "answers": 588,
+          "due": 3693
         },
         {
           "day": 362,
-          "answers": 573,
-          "due": 3858
+          "answers": 568,
+          "due": 3689
         },
         {
           "day": 363,
-          "answers": 579,
-          "due": 3856
+          "answers": 558,
+          "due": 3702
         },
         {
           "day": 364,
-          "answers": 570,
-          "due": 3859
+          "answers": 547,
+          "due": 3724
         }
       ]
     },
@@ -3846,415 +3846,415 @@
       "cards": 6000,
       "days": 365,
       "activeDays": 330,
-      "answers": 9900,
-      "distinctReviewed": 255,
+      "answers": 175890,
+      "distinctReviewed": 6000,
       "invalid": 0,
       "memoryMismatchVsLocalPort": 0,
       "previewMismatch": 0,
-      "maxDaily": 30,
+      "maxDaily": 681,
       "maxStability": 0,
-      "leechCards": 102,
-      "seconds": 3.42,
+      "leechCards": 1392,
+      "seconds": 18.58,
       "daysDetail": [
         {
           "day": 0,
-          "answers": 30,
-          "due": 5970
+          "answers": 56,
+          "due": 5972
         },
         {
           "day": 1,
-          "answers": 30,
-          "due": 5967
+          "answers": 90,
+          "due": 5941
         },
         {
           "day": 2,
-          "answers": 30,
-          "due": 5950
+          "answers": 105,
+          "due": 5911
         },
         {
           "day": 3,
-          "answers": 30,
-          "due": 5951
+          "answers": 124,
+          "due": 5881
         },
         {
           "day": 4,
-          "answers": 30,
-          "due": 5950
+          "answers": 139,
+          "due": 5851
         },
         {
           "day": 5,
-          "answers": 30,
-          "due": 5946
+          "answers": 168,
+          "due": 5821
         },
         {
           "day": 6,
-          "answers": 30,
-          "due": 5942
+          "answers": 178,
+          "due": 5791
         },
         {
           "day": 7,
-          "answers": 30,
-          "due": 5931
+          "answers": 196,
+          "due": 5761
         },
         {
           "day": 8,
-          "answers": 30,
-          "due": 5929
+          "answers": 206,
+          "due": 5731
         },
         {
           "day": 9,
-          "answers": 30,
-          "due": 5928
+          "answers": 197,
+          "due": 5701
         },
         {
           "day": 10,
-          "answers": 30,
-          "due": 5918
+          "answers": 221,
+          "due": 5671
         },
         {
           "day": 11,
-          "answers": 30,
-          "due": 5915
+          "answers": 227,
+          "due": 5641
         },
         {
           "day": 12,
-          "answers": 30,
-          "due": 5915
+          "answers": 229,
+          "due": 5611
         },
         {
           "day": 13,
-          "answers": 30,
-          "due": 5909
+          "answers": 233,
+          "due": 5581
         },
         {
           "day": 14,
-          "answers": 30,
-          "due": 5912
+          "answers": 238,
+          "due": 5551
         },
         {
           "day": 15,
-          "answers": 30,
-          "due": 5906
+          "answers": 251,
+          "due": 5521
         },
         {
           "day": 16,
-          "answers": 30,
-          "due": 5902
+          "answers": 238,
+          "due": 5491
         },
         {
           "day": 17,
-          "answers": 30,
-          "due": 5901
+          "answers": 255,
+          "due": 5461
         },
         {
           "day": 18,
-          "answers": 30,
-          "due": 5902
+          "answers": 240,
+          "due": 5431
         },
         {
           "day": 19,
-          "answers": 30,
-          "due": 5892
+          "answers": 260,
+          "due": 5401
         },
         {
           "day": 20,
-          "answers": 30,
-          "due": 5893
+          "answers": 278,
+          "due": 5371
         },
         {
           "day": 21,
-          "answers": 30,
-          "due": 5891
+          "answers": 278,
+          "due": 5341
         },
         {
           "day": 22,
-          "answers": 30,
-          "due": 5890
+          "answers": 284,
+          "due": 5311
         },
         {
           "day": 23,
-          "answers": 30,
-          "due": 5894
+          "answers": 311,
+          "due": 5281
         },
         {
           "day": 24,
-          "answers": 30,
-          "due": 5885
+          "answers": 325,
+          "due": 5251
         },
         {
           "day": 25,
-          "answers": 30,
-          "due": 5885
+          "answers": 327,
+          "due": 5221
         },
         {
           "day": 26,
-          "answers": 30,
-          "due": 5875
+          "answers": 335,
+          "due": 5191
         },
         {
           "day": 27,
-          "answers": 30,
-          "due": 5882
+          "answers": 325,
+          "due": 5161
         },
         {
           "day": 28,
-          "answers": 30,
-          "due": 5874
+          "answers": 326,
+          "due": 5131
         },
         {
           "day": 29,
-          "answers": 30,
-          "due": 5867
+          "answers": 341,
+          "due": 5101
         },
         {
           "day": 30,
-          "answers": 30,
-          "due": 5870
+          "answers": 374,
+          "due": 5071
         },
         {
           "day": 31,
-          "answers": 30,
-          "due": 5863
+          "answers": 353,
+          "due": 5041
         },
         {
           "day": 32,
-          "answers": 30,
-          "due": 5865
+          "answers": 366,
+          "due": 5011
         },
         {
           "day": 33,
-          "answers": 30,
-          "due": 5864
+          "answers": 358,
+          "due": 4981
         },
         {
           "day": 34,
-          "answers": 30,
-          "due": 5860
+          "answers": 355,
+          "due": 4951
         },
         {
           "day": 35,
-          "answers": 30,
-          "due": 5861
+          "answers": 359,
+          "due": 4921
         },
         {
           "day": 36,
-          "answers": 30,
-          "due": 5864
+          "answers": 382,
+          "due": 4891
         },
         {
           "day": 37,
-          "answers": 30,
-          "due": 5869
+          "answers": 378,
+          "due": 4861
         },
         {
           "day": 38,
-          "answers": 30,
-          "due": 5861
+          "answers": 395,
+          "due": 4831
         },
         {
           "day": 39,
-          "answers": 30,
-          "due": 5863
+          "answers": 402,
+          "due": 4801
         },
         {
           "day": 40,
-          "answers": 30,
-          "due": 5857
+          "answers": 400,
+          "due": 4771
         },
         {
           "day": 41,
-          "answers": 30,
-          "due": 5855
+          "answers": 391,
+          "due": 4741
         },
         {
           "day": 42,
-          "answers": 30,
-          "due": 5861
+          "answers": 393,
+          "due": 4711
         },
         {
           "day": 43,
-          "answers": 30,
-          "due": 5853
+          "answers": 408,
+          "due": 4681
         },
         {
           "day": 44,
-          "answers": 30,
-          "due": 5854
+          "answers": 421,
+          "due": 4651
         },
         {
           "day": 45,
-          "answers": 30,
-          "due": 5850
+          "answers": 436,
+          "due": 4621
         },
         {
           "day": 46,
-          "answers": 30,
-          "due": 5859
+          "answers": 422,
+          "due": 4591
         },
         {
           "day": 47,
-          "answers": 30,
-          "due": 5862
+          "answers": 415,
+          "due": 4561
         },
         {
           "day": 48,
-          "answers": 30,
-          "due": 5853
+          "answers": 442,
+          "due": 4531
         },
         {
           "day": 49,
-          "answers": 30,
-          "due": 5849
+          "answers": 420,
+          "due": 4501
         },
         {
           "day": 50,
-          "answers": 30,
-          "due": 5846
+          "answers": 441,
+          "due": 4471
         },
         {
           "day": 51,
-          "answers": 30,
-          "due": 5847
+          "answers": 454,
+          "due": 4442
         },
         {
           "day": 52,
-          "answers": 30,
-          "due": 5850
+          "answers": 450,
+          "due": 4411
         },
         {
           "day": 53,
-          "answers": 30,
-          "due": 5845
+          "answers": 437,
+          "due": 4381
         },
         {
           "day": 54,
-          "answers": 30,
-          "due": 5850
+          "answers": 450,
+          "due": 4351
         },
         {
           "day": 55,
-          "answers": 30,
-          "due": 5850
+          "answers": 467,
+          "due": 4321
         },
         {
           "day": 56,
-          "answers": 30,
-          "due": 5847
+          "answers": 464,
+          "due": 4291
         },
         {
           "day": 57,
-          "answers": 30,
-          "due": 5845
+          "answers": 477,
+          "due": 4261
         },
         {
           "day": 58,
-          "answers": 30,
-          "due": 5840
+          "answers": 458,
+          "due": 4231
         },
         {
           "day": 59,
-          "answers": 30,
-          "due": 5842
+          "answers": 478,
+          "due": 4201
         },
         {
           "day": 60,
-          "answers": 30,
-          "due": 5842
+          "answers": 480,
+          "due": 4171
         },
         {
           "day": 61,
-          "answers": 30,
-          "due": 5841
+          "answers": 484,
+          "due": 4141
         },
         {
           "day": 62,
-          "answers": 30,
-          "due": 5842
+          "answers": 504,
+          "due": 4111
         },
         {
           "day": 63,
-          "answers": 30,
-          "due": 5845
+          "answers": 489,
+          "due": 4081
         },
         {
           "day": 64,
-          "answers": 30,
-          "due": 5843
+          "answers": 470,
+          "due": 4051
         },
         {
           "day": 65,
-          "answers": 30,
-          "due": 5841
+          "answers": 482,
+          "due": 4021
         },
         {
           "day": 66,
-          "answers": 30,
-          "due": 5836
+          "answers": 498,
+          "due": 3991
         },
         {
           "day": 67,
-          "answers": 30,
-          "due": 5839
+          "answers": 508,
+          "due": 3961
         },
         {
           "day": 68,
-          "answers": 30,
-          "due": 5842
+          "answers": 508,
+          "due": 3931
         },
         {
           "day": 69,
-          "answers": 30,
-          "due": 5838
+          "answers": 521,
+          "due": 3901
         },
         {
           "day": 70,
-          "answers": 30,
-          "due": 5844
+          "answers": 520,
+          "due": 3871
         },
         {
           "day": 71,
-          "answers": 30,
-          "due": 5836
+          "answers": 534,
+          "due": 3841
         },
         {
           "day": 72,
-          "answers": 30,
-          "due": 5834
+          "answers": 539,
+          "due": 3811
         },
         {
           "day": 73,
-          "answers": 30,
-          "due": 5832
+          "answers": 530,
+          "due": 3782
         },
         {
           "day": 74,
-          "answers": 30,
-          "due": 5828
+          "answers": 536,
+          "due": 3751
         },
         {
           "day": 75,
-          "answers": 30,
-          "due": 5836
+          "answers": 572,
+          "due": 3721
         },
         {
           "day": 76,
-          "answers": 30,
-          "due": 5833
+          "answers": 541,
+          "due": 3691
         },
         {
           "day": 77,
-          "answers": 30,
-          "due": 5839
+          "answers": 535,
+          "due": 3661
         },
         {
           "day": 78,
-          "answers": 30,
-          "due": 5832
+          "answers": 552,
+          "due": 3631
         },
         {
           "day": 79,
-          "answers": 30,
-          "due": 5835
+          "answers": 536,
+          "due": 3601
         },
         {
           "day": 80,
@@ -4328,533 +4328,533 @@
         },
         {
           "day": 94,
-          "answers": 30,
-          "due": 5905
+          "answers": 568,
+          "due": 4756
         },
         {
           "day": 95,
-          "answers": 30,
-          "due": 5886
+          "answers": 568,
+          "due": 4538
         },
         {
           "day": 96,
-          "answers": 30,
-          "due": 5873
+          "answers": 591,
+          "due": 4325
         },
         {
           "day": 97,
-          "answers": 30,
-          "due": 5864
+          "answers": 584,
+          "due": 4143
         },
         {
           "day": 98,
-          "answers": 30,
-          "due": 5861
+          "answers": 574,
+          "due": 3966
         },
         {
           "day": 99,
-          "answers": 30,
-          "due": 5849
+          "answers": 589,
+          "due": 3808
         },
         {
           "day": 100,
-          "answers": 30,
-          "due": 5839
+          "answers": 597,
+          "due": 3655
         },
         {
           "day": 101,
-          "answers": 30,
-          "due": 5833
+          "answers": 628,
+          "due": 3528
         },
         {
           "day": 102,
-          "answers": 30,
-          "due": 5831
+          "answers": 596,
+          "due": 3423
         },
         {
           "day": 103,
-          "answers": 30,
-          "due": 5830
+          "answers": 633,
+          "due": 3301
         },
         {
           "day": 104,
-          "answers": 30,
-          "due": 5824
+          "answers": 560,
+          "due": 3271
         },
         {
           "day": 105,
-          "answers": 30,
-          "due": 5823
+          "answers": 535,
+          "due": 3241
         },
         {
           "day": 106,
-          "answers": 30,
-          "due": 5820
+          "answers": 541,
+          "due": 3211
         },
         {
           "day": 107,
-          "answers": 30,
-          "due": 5814
+          "answers": 544,
+          "due": 3181
         },
         {
           "day": 108,
-          "answers": 30,
-          "due": 5817
+          "answers": 556,
+          "due": 3151
         },
         {
           "day": 109,
-          "answers": 30,
-          "due": 5816
+          "answers": 549,
+          "due": 3121
         },
         {
           "day": 110,
-          "answers": 30,
-          "due": 5816
+          "answers": 521,
+          "due": 3091
         },
         {
           "day": 111,
-          "answers": 30,
-          "due": 5819
+          "answers": 554,
+          "due": 3061
         },
         {
           "day": 112,
-          "answers": 30,
-          "due": 5815
+          "answers": 564,
+          "due": 3031
         },
         {
           "day": 113,
-          "answers": 30,
-          "due": 5806
+          "answers": 605,
+          "due": 3001
         },
         {
           "day": 114,
-          "answers": 30,
-          "due": 5812
+          "answers": 577,
+          "due": 2971
         },
         {
           "day": 115,
-          "answers": 30,
-          "due": 5814
+          "answers": 579,
+          "due": 2941
         },
         {
           "day": 116,
-          "answers": 30,
-          "due": 5806
+          "answers": 591,
+          "due": 2912
         },
         {
           "day": 117,
-          "answers": 30,
-          "due": 5806
+          "answers": 616,
+          "due": 2884
         },
         {
           "day": 118,
-          "answers": 30,
-          "due": 5808
+          "answers": 593,
+          "due": 2851
         },
         {
           "day": 119,
-          "answers": 30,
-          "due": 5807
+          "answers": 609,
+          "due": 2844
         },
         {
           "day": 120,
-          "answers": 30,
-          "due": 5805
+          "answers": 601,
+          "due": 2823
         },
         {
           "day": 121,
-          "answers": 30,
-          "due": 5810
+          "answers": 600,
+          "due": 2800
         },
         {
           "day": 122,
-          "answers": 30,
-          "due": 5820
+          "answers": 613,
+          "due": 2763
         },
         {
           "day": 123,
-          "answers": 30,
-          "due": 5816
+          "answers": 621,
+          "due": 2713
         },
         {
           "day": 124,
-          "answers": 30,
-          "due": 5820
+          "answers": 619,
+          "due": 2686
         },
         {
           "day": 125,
-          "answers": 30,
-          "due": 5812
+          "answers": 631,
+          "due": 2655
         },
         {
           "day": 126,
-          "answers": 30,
-          "due": 5813
+          "answers": 619,
+          "due": 2623
         },
         {
           "day": 127,
-          "answers": 30,
-          "due": 5814
+          "answers": 618,
+          "due": 2642
         },
         {
           "day": 128,
-          "answers": 30,
-          "due": 5808
+          "answers": 625,
+          "due": 2628
         },
         {
           "day": 129,
-          "answers": 30,
-          "due": 5807
+          "answers": 621,
+          "due": 2657
         },
         {
           "day": 130,
-          "answers": 30,
-          "due": 5802
+          "answers": 614,
+          "due": 2661
         },
         {
           "day": 131,
-          "answers": 30,
-          "due": 5812
+          "answers": 600,
+          "due": 2649
         },
         {
           "day": 132,
-          "answers": 30,
-          "due": 5808
+          "answers": 595,
+          "due": 2634
         },
         {
           "day": 133,
-          "answers": 30,
-          "due": 5802
+          "answers": 605,
+          "due": 2617
         },
         {
           "day": 134,
-          "answers": 30,
-          "due": 5805
+          "answers": 623,
+          "due": 2587
         },
         {
           "day": 135,
-          "answers": 30,
-          "due": 5797
+          "answers": 601,
+          "due": 2557
         },
         {
           "day": 136,
-          "answers": 30,
-          "due": 5802
+          "answers": 587,
+          "due": 2555
         },
         {
           "day": 137,
-          "answers": 30,
-          "due": 5799
+          "answers": 604,
+          "due": 2527
         },
         {
           "day": 138,
-          "answers": 30,
-          "due": 5805
+          "answers": 623,
+          "due": 2509
         },
         {
           "day": 139,
-          "answers": 30,
-          "due": 5801
+          "answers": 630,
+          "due": 2497
         },
         {
           "day": 140,
-          "answers": 30,
-          "due": 5803
+          "answers": 637,
+          "due": 2458
         },
         {
           "day": 141,
-          "answers": 30,
-          "due": 5804
+          "answers": 643,
+          "due": 2451
         },
         {
           "day": 142,
-          "answers": 30,
-          "due": 5804
+          "answers": 623,
+          "due": 2435
         },
         {
           "day": 143,
-          "answers": 30,
-          "due": 5803
+          "answers": 620,
+          "due": 2414
         },
         {
           "day": 144,
-          "answers": 30,
-          "due": 5801
+          "answers": 630,
+          "due": 2388
         },
         {
           "day": 145,
-          "answers": 30,
-          "due": 5804
+          "answers": 663,
+          "due": 2380
         },
         {
           "day": 146,
-          "answers": 30,
-          "due": 5806
+          "answers": 638,
+          "due": 2354
         },
         {
           "day": 147,
-          "answers": 30,
-          "due": 5803
+          "answers": 616,
+          "due": 2355
         },
         {
           "day": 148,
-          "answers": 30,
-          "due": 5807
+          "answers": 614,
+          "due": 2333
         },
         {
           "day": 149,
-          "answers": 30,
-          "due": 5810
+          "answers": 628,
+          "due": 2321
         },
         {
           "day": 150,
-          "answers": 30,
-          "due": 5806
+          "answers": 623,
+          "due": 2304
         },
         {
           "day": 151,
-          "answers": 30,
-          "due": 5803
+          "answers": 639,
+          "due": 2285
         },
         {
           "day": 152,
-          "answers": 30,
-          "due": 5799
+          "answers": 635,
+          "due": 2266
         },
         {
           "day": 153,
-          "answers": 30,
-          "due": 5795
+          "answers": 628,
+          "due": 2237
         },
         {
           "day": 154,
-          "answers": 30,
-          "due": 5792
+          "answers": 627,
+          "due": 2214
         },
         {
           "day": 155,
-          "answers": 30,
-          "due": 5796
+          "answers": 629,
+          "due": 2182
         },
         {
           "day": 156,
-          "answers": 30,
-          "due": 5797
+          "answers": 642,
+          "due": 2154
         },
         {
           "day": 157,
-          "answers": 30,
-          "due": 5790
+          "answers": 635,
+          "due": 2153
         },
         {
           "day": 158,
-          "answers": 30,
-          "due": 5783
+          "answers": 652,
+          "due": 2144
         },
         {
           "day": 159,
-          "answers": 30,
-          "due": 5783
+          "answers": 662,
+          "due": 2113
         },
         {
           "day": 160,
-          "answers": 30,
-          "due": 5780
+          "answers": 654,
+          "due": 2098
         },
         {
           "day": 161,
-          "answers": 30,
-          "due": 5788
+          "answers": 657,
+          "due": 2099
         },
         {
           "day": 162,
-          "answers": 30,
-          "due": 5787
+          "answers": 669,
+          "due": 2081
         },
         {
           "day": 163,
-          "answers": 30,
-          "due": 5786
+          "answers": 673,
+          "due": 2046
         },
         {
           "day": 164,
-          "answers": 30,
-          "due": 5790
+          "answers": 665,
+          "due": 2030
         },
         {
           "day": 165,
-          "answers": 30,
-          "due": 5792
+          "answers": 665,
+          "due": 2013
         },
         {
           "day": 166,
-          "answers": 30,
-          "due": 5796
+          "answers": 634,
+          "due": 2026
         },
         {
           "day": 167,
-          "answers": 30,
-          "due": 5799
+          "answers": 637,
+          "due": 2035
         },
         {
           "day": 168,
-          "answers": 30,
-          "due": 5797
+          "answers": 618,
+          "due": 2021
         },
         {
           "day": 169,
-          "answers": 30,
-          "due": 5799
+          "answers": 633,
+          "due": 2004
         },
         {
           "day": 170,
-          "answers": 30,
-          "due": 5802
+          "answers": 630,
+          "due": 2013
         },
         {
           "day": 171,
-          "answers": 30,
-          "due": 5800
+          "answers": 613,
+          "due": 2020
         },
         {
           "day": 172,
-          "answers": 30,
-          "due": 5802
+          "answers": 612,
+          "due": 2001
         },
         {
           "day": 173,
-          "answers": 30,
-          "due": 5799
+          "answers": 614,
+          "due": 1996
         },
         {
           "day": 174,
-          "answers": 30,
-          "due": 5798
+          "answers": 626,
+          "due": 1975
         },
         {
           "day": 175,
-          "answers": 30,
-          "due": 5803
+          "answers": 638,
+          "due": 1955
         },
         {
           "day": 176,
-          "answers": 30,
-          "due": 5808
+          "answers": 640,
+          "due": 1948
         },
         {
           "day": 177,
-          "answers": 30,
-          "due": 5800
+          "answers": 645,
+          "due": 1932
         },
         {
           "day": 178,
-          "answers": 30,
-          "due": 5798
+          "answers": 639,
+          "due": 1921
         },
         {
           "day": 179,
-          "answers": 30,
-          "due": 5805
+          "answers": 623,
+          "due": 1926
         },
         {
           "day": 180,
-          "answers": 30,
-          "due": 5807
+          "answers": 626,
+          "due": 1896
         },
         {
           "day": 181,
-          "answers": 30,
-          "due": 5801
+          "answers": 640,
+          "due": 1869
         },
         {
           "day": 182,
-          "answers": 30,
-          "due": 5798
+          "answers": 664,
+          "due": 1859
         },
         {
           "day": 183,
-          "answers": 30,
-          "due": 5794
+          "answers": 661,
+          "due": 1843
         },
         {
           "day": 184,
-          "answers": 30,
-          "due": 5799
+          "answers": 648,
+          "due": 1836
         },
         {
           "day": 185,
-          "answers": 30,
-          "due": 5805
+          "answers": 666,
+          "due": 1851
         },
         {
           "day": 186,
-          "answers": 30,
-          "due": 5803
+          "answers": 674,
+          "due": 1846
         },
         {
           "day": 187,
-          "answers": 30,
-          "due": 5804
+          "answers": 681,
+          "due": 1849
         },
         {
           "day": 188,
-          "answers": 30,
-          "due": 5798
+          "answers": 657,
+          "due": 1847
         },
         {
           "day": 189,
-          "answers": 30,
-          "due": 5807
+          "answers": 655,
+          "due": 1837
         },
         {
           "day": 190,
-          "answers": 30,
-          "due": 5795
+          "answers": 674,
+          "due": 1810
         },
         {
           "day": 191,
-          "answers": 30,
-          "due": 5795
+          "answers": 664,
+          "due": 1810
         },
         {
           "day": 192,
-          "answers": 30,
-          "due": 5799
+          "answers": 664,
+          "due": 1792
         },
         {
           "day": 193,
-          "answers": 30,
-          "due": 5802
+          "answers": 651,
+          "due": 1761
         },
         {
           "day": 194,
-          "answers": 30,
-          "due": 5807
+          "answers": 650,
+          "due": 1730
         },
         {
           "day": 195,
-          "answers": 30,
-          "due": 5807
+          "answers": 652,
+          "due": 1728
         },
         {
           "day": 196,
-          "answers": 30,
-          "due": 5809
+          "answers": 656,
+          "due": 1721
         },
         {
           "day": 197,
-          "answers": 30,
-          "due": 5808
+          "answers": 649,
+          "due": 1729
         },
         {
           "day": 198,
-          "answers": 30,
-          "due": 5804
+          "answers": 640,
+          "due": 1708
         },
         {
           "day": 199,
-          "answers": 30,
-          "due": 5805
+          "answers": 662,
+          "due": 1690
         },
         {
           "day": 200,
@@ -4963,723 +4963,723 @@
         },
         {
           "day": 221,
-          "answers": 30,
-          "due": 5872
+          "answers": 622,
+          "due": 3395
         },
         {
           "day": 222,
-          "answers": 30,
-          "due": 5854
+          "answers": 635,
+          "due": 3207
         },
         {
           "day": 223,
-          "answers": 30,
-          "due": 5841
+          "answers": 648,
+          "due": 3050
         },
         {
           "day": 224,
-          "answers": 30,
-          "due": 5829
+          "answers": 652,
+          "due": 2884
         },
         {
           "day": 225,
-          "answers": 30,
-          "due": 5819
+          "answers": 635,
+          "due": 2734
         },
         {
           "day": 226,
-          "answers": 30,
-          "due": 5810
+          "answers": 621,
+          "due": 2597
         },
         {
           "day": 227,
-          "answers": 30,
-          "due": 5807
+          "answers": 626,
+          "due": 2491
         },
         {
           "day": 228,
-          "answers": 30,
-          "due": 5800
+          "answers": 647,
+          "due": 2384
         },
         {
           "day": 229,
-          "answers": 30,
-          "due": 5797
+          "answers": 637,
+          "due": 2287
         },
         {
           "day": 230,
-          "answers": 30,
-          "due": 5794
+          "answers": 639,
+          "due": 2195
         },
         {
           "day": 231,
-          "answers": 30,
-          "due": 5790
+          "answers": 634,
+          "due": 2114
         },
         {
           "day": 232,
-          "answers": 30,
-          "due": 5786
+          "answers": 627,
+          "due": 2029
         },
         {
           "day": 233,
-          "answers": 30,
-          "due": 5781
+          "answers": 630,
+          "due": 1955
         },
         {
           "day": 234,
-          "answers": 30,
-          "due": 5775
+          "answers": 644,
+          "due": 1876
         },
         {
           "day": 235,
-          "answers": 30,
-          "due": 5776
+          "answers": 606,
+          "due": 1829
         },
         {
           "day": 236,
-          "answers": 30,
-          "due": 5771
+          "answers": 599,
+          "due": 1796
         },
         {
           "day": 237,
-          "answers": 30,
-          "due": 5766
+          "answers": 578,
+          "due": 1786
         },
         {
           "day": 238,
-          "answers": 30,
-          "due": 5766
+          "answers": 549,
+          "due": 1780
         },
         {
           "day": 239,
-          "answers": 30,
-          "due": 5762
+          "answers": 570,
+          "due": 1698
         },
         {
           "day": 240,
-          "answers": 30,
-          "due": 5766
+          "answers": 569,
+          "due": 1673
         },
         {
           "day": 241,
-          "answers": 30,
-          "due": 5775
+          "answers": 552,
+          "due": 1670
         },
         {
           "day": 242,
-          "answers": 30,
-          "due": 5769
+          "answers": 553,
+          "due": 1644
         },
         {
           "day": 243,
-          "answers": 30,
-          "due": 5773
+          "answers": 546,
+          "due": 1640
         },
         {
           "day": 244,
-          "answers": 30,
-          "due": 5775
+          "answers": 542,
+          "due": 1640
         },
         {
           "day": 245,
-          "answers": 30,
-          "due": 5771
+          "answers": 567,
+          "due": 1591
         },
         {
           "day": 246,
-          "answers": 30,
-          "due": 5776
+          "answers": 537,
+          "due": 1573
         },
         {
           "day": 247,
-          "answers": 30,
-          "due": 5774
+          "answers": 543,
+          "due": 1536
         },
         {
           "day": 248,
-          "answers": 30,
-          "due": 5776
+          "answers": 526,
+          "due": 1524
         },
         {
           "day": 249,
-          "answers": 30,
-          "due": 5775
+          "answers": 522,
+          "due": 1536
         },
         {
           "day": 250,
-          "answers": 30,
-          "due": 5778
+          "answers": 528,
+          "due": 1499
         },
         {
           "day": 251,
-          "answers": 30,
-          "due": 5778
+          "answers": 530,
+          "due": 1484
         },
         {
           "day": 252,
-          "answers": 30,
-          "due": 5779
+          "answers": 534,
+          "due": 1472
         },
         {
           "day": 253,
-          "answers": 30,
-          "due": 5785
+          "answers": 553,
+          "due": 1469
         },
         {
           "day": 254,
-          "answers": 30,
-          "due": 5778
+          "answers": 528,
+          "due": 1472
         },
         {
           "day": 255,
-          "answers": 30,
-          "due": 5777
+          "answers": 547,
+          "due": 1423
         },
         {
           "day": 256,
-          "answers": 30,
-          "due": 5775
+          "answers": 527,
+          "due": 1401
         },
         {
           "day": 257,
-          "answers": 30,
-          "due": 5771
+          "answers": 539,
+          "due": 1403
         },
         {
           "day": 258,
-          "answers": 30,
-          "due": 5768
+          "answers": 540,
+          "due": 1373
         },
         {
           "day": 259,
-          "answers": 30,
-          "due": 5768
+          "answers": 543,
+          "due": 1362
         },
         {
           "day": 260,
-          "answers": 30,
-          "due": 5764
+          "answers": 526,
+          "due": 1332
         },
         {
           "day": 261,
-          "answers": 30,
-          "due": 5764
+          "answers": 521,
+          "due": 1331
         },
         {
           "day": 262,
-          "answers": 30,
-          "due": 5773
+          "answers": 523,
+          "due": 1299
         },
         {
           "day": 263,
-          "answers": 30,
-          "due": 5773
+          "answers": 532,
+          "due": 1291
         },
         {
           "day": 264,
-          "answers": 30,
-          "due": 5765
+          "answers": 536,
+          "due": 1263
         },
         {
           "day": 265,
-          "answers": 30,
-          "due": 5761
+          "answers": 542,
+          "due": 1244
         },
         {
           "day": 266,
-          "answers": 30,
-          "due": 5761
+          "answers": 529,
+          "due": 1242
         },
         {
           "day": 267,
-          "answers": 30,
-          "due": 5756
+          "answers": 513,
+          "due": 1216
         },
         {
           "day": 268,
-          "answers": 30,
-          "due": 5759
+          "answers": 538,
+          "due": 1195
         },
         {
           "day": 269,
-          "answers": 30,
-          "due": 5763
+          "answers": 554,
+          "due": 1164
         },
         {
           "day": 270,
-          "answers": 30,
-          "due": 5760
+          "answers": 535,
+          "due": 1158
         },
         {
           "day": 271,
-          "answers": 30,
-          "due": 5757
+          "answers": 561,
+          "due": 1163
         },
         {
           "day": 272,
-          "answers": 30,
-          "due": 5763
+          "answers": 564,
+          "due": 1154
         },
         {
           "day": 273,
-          "answers": 30,
-          "due": 5765
+          "answers": 558,
+          "due": 1153
         },
         {
           "day": 274,
-          "answers": 30,
-          "due": 5764
+          "answers": 571,
+          "due": 1124
         },
         {
           "day": 275,
-          "answers": 30,
-          "due": 5765
+          "answers": 550,
+          "due": 1128
         },
         {
           "day": 276,
-          "answers": 30,
-          "due": 5759
+          "answers": 555,
+          "due": 1105
         },
         {
           "day": 277,
-          "answers": 30,
-          "due": 5758
+          "answers": 573,
+          "due": 1063
         },
         {
           "day": 278,
-          "answers": 30,
-          "due": 5765
+          "answers": 544,
+          "due": 1092
         },
         {
           "day": 279,
-          "answers": 30,
-          "due": 5765
+          "answers": 526,
+          "due": 1102
         },
         {
           "day": 280,
-          "answers": 30,
-          "due": 5762
+          "answers": 540,
+          "due": 1098
         },
         {
           "day": 281,
-          "answers": 30,
-          "due": 5757
+          "answers": 568,
+          "due": 1077
         },
         {
           "day": 282,
-          "answers": 30,
-          "due": 5759
+          "answers": 554,
+          "due": 1069
         },
         {
           "day": 283,
-          "answers": 30,
-          "due": 5758
+          "answers": 546,
+          "due": 1060
         },
         {
           "day": 284,
-          "answers": 30,
-          "due": 5754
+          "answers": 533,
+          "due": 1041
         },
         {
           "day": 285,
-          "answers": 30,
-          "due": 5755
+          "answers": 550,
+          "due": 999
         },
         {
           "day": 286,
-          "answers": 30,
-          "due": 5748
+          "answers": 547,
+          "due": 987
         },
         {
           "day": 287,
-          "answers": 30,
-          "due": 5750
+          "answers": 529,
+          "due": 1005
         },
         {
           "day": 288,
-          "answers": 30,
-          "due": 5749
+          "answers": 553,
+          "due": 966
         },
         {
           "day": 289,
-          "answers": 30,
-          "due": 5752
+          "answers": 560,
+          "due": 956
         },
         {
           "day": 290,
-          "answers": 30,
-          "due": 5757
+          "answers": 558,
+          "due": 953
         },
         {
           "day": 291,
-          "answers": 30,
-          "due": 5754
+          "answers": 575,
+          "due": 954
         },
         {
           "day": 292,
-          "answers": 30,
-          "due": 5754
+          "answers": 548,
+          "due": 919
         },
         {
           "day": 293,
-          "answers": 30,
-          "due": 5756
+          "answers": 551,
+          "due": 895
         },
         {
           "day": 294,
-          "answers": 30,
-          "due": 5760
+          "answers": 556,
+          "due": 891
         },
         {
           "day": 295,
-          "answers": 30,
-          "due": 5757
+          "answers": 566,
+          "due": 856
         },
         {
           "day": 296,
-          "answers": 30,
-          "due": 5749
+          "answers": 561,
+          "due": 866
         },
         {
           "day": 297,
-          "answers": 30,
-          "due": 5746
+          "answers": 576,
+          "due": 862
         },
         {
           "day": 298,
-          "answers": 30,
-          "due": 5745
+          "answers": 575,
+          "due": 871
         },
         {
           "day": 299,
-          "answers": 30,
-          "due": 5753
+          "answers": 568,
+          "due": 861
         },
         {
           "day": 300,
-          "answers": 30,
-          "due": 5756
+          "answers": 568,
+          "due": 836
         },
         {
           "day": 301,
-          "answers": 30,
-          "due": 5761
+          "answers": 573,
+          "due": 831
         },
         {
           "day": 302,
-          "answers": 30,
-          "due": 5761
+          "answers": 562,
+          "due": 829
         },
         {
           "day": 303,
-          "answers": 30,
-          "due": 5760
+          "answers": 556,
+          "due": 811
         },
         {
           "day": 304,
-          "answers": 30,
-          "due": 5757
+          "answers": 567,
+          "due": 804
         },
         {
           "day": 305,
-          "answers": 30,
-          "due": 5751
+          "answers": 547,
+          "due": 791
         },
         {
           "day": 306,
-          "answers": 30,
-          "due": 5748
+          "answers": 551,
+          "due": 790
         },
         {
           "day": 307,
-          "answers": 30,
-          "due": 5751
+          "answers": 535,
+          "due": 787
         },
         {
           "day": 308,
-          "answers": 30,
-          "due": 5747
+          "answers": 558,
+          "due": 794
         },
         {
           "day": 309,
-          "answers": 30,
-          "due": 5750
+          "answers": 558,
+          "due": 786
         },
         {
           "day": 310,
-          "answers": 30,
-          "due": 5753
+          "answers": 540,
+          "due": 782
         },
         {
           "day": 311,
-          "answers": 30,
-          "due": 5754
+          "answers": 554,
+          "due": 748
         },
         {
           "day": 312,
-          "answers": 30,
-          "due": 5762
+          "answers": 562,
+          "due": 736
         },
         {
           "day": 313,
-          "answers": 30,
-          "due": 5760
+          "answers": 550,
+          "due": 730
         },
         {
           "day": 314,
-          "answers": 30,
-          "due": 5759
+          "answers": 567,
+          "due": 722
         },
         {
           "day": 315,
-          "answers": 30,
-          "due": 5756
+          "answers": 573,
+          "due": 706
         },
         {
           "day": 316,
-          "answers": 30,
-          "due": 5758
+          "answers": 553,
+          "due": 716
         },
         {
           "day": 317,
-          "answers": 30,
-          "due": 5756
+          "answers": 527,
+          "due": 710
         },
         {
           "day": 318,
-          "answers": 30,
-          "due": 5756
+          "answers": 551,
+          "due": 701
         },
         {
           "day": 319,
-          "answers": 30,
-          "due": 5760
+          "answers": 542,
+          "due": 713
         },
         {
           "day": 320,
-          "answers": 30,
-          "due": 5767
+          "answers": 553,
+          "due": 717
         },
         {
           "day": 321,
-          "answers": 30,
-          "due": 5766
+          "answers": 513,
+          "due": 706
         },
         {
           "day": 322,
-          "answers": 30,
-          "due": 5769
+          "answers": 512,
+          "due": 704
         },
         {
           "day": 323,
-          "answers": 30,
-          "due": 5769
+          "answers": 533,
+          "due": 686
         },
         {
           "day": 324,
-          "answers": 30,
-          "due": 5775
+          "answers": 541,
+          "due": 672
         },
         {
           "day": 325,
-          "answers": 30,
-          "due": 5769
+          "answers": 544,
+          "due": 673
         },
         {
           "day": 326,
-          "answers": 30,
-          "due": 5771
+          "answers": 545,
+          "due": 659
         },
         {
           "day": 327,
-          "answers": 30,
-          "due": 5768
+          "answers": 552,
+          "due": 653
         },
         {
           "day": 328,
-          "answers": 30,
-          "due": 5767
+          "answers": 549,
+          "due": 660
         },
         {
           "day": 329,
-          "answers": 30,
-          "due": 5767
+          "answers": 547,
+          "due": 651
         },
         {
           "day": 330,
-          "answers": 30,
-          "due": 5767
+          "answers": 539,
+          "due": 651
         },
         {
           "day": 331,
-          "answers": 30,
-          "due": 5765
+          "answers": 544,
+          "due": 638
         },
         {
           "day": 332,
-          "answers": 30,
-          "due": 5765
+          "answers": 540,
+          "due": 628
         },
         {
           "day": 333,
-          "answers": 30,
-          "due": 5762
+          "answers": 581,
+          "due": 635
         },
         {
           "day": 334,
-          "answers": 30,
-          "due": 5758
+          "answers": 570,
+          "due": 626
         },
         {
           "day": 335,
-          "answers": 30,
-          "due": 5771
+          "answers": 550,
+          "due": 619
         },
         {
           "day": 336,
-          "answers": 30,
-          "due": 5769
+          "answers": 566,
+          "due": 593
         },
         {
           "day": 337,
-          "answers": 30,
-          "due": 5763
+          "answers": 543,
+          "due": 627
         },
         {
           "day": 338,
-          "answers": 30,
-          "due": 5762
+          "answers": 562,
+          "due": 616
         },
         {
           "day": 339,
-          "answers": 30,
-          "due": 5764
+          "answers": 540,
+          "due": 602
         },
         {
           "day": 340,
-          "answers": 30,
-          "due": 5759
+          "answers": 545,
+          "due": 595
         },
         {
           "day": 341,
-          "answers": 30,
-          "due": 5761
+          "answers": 530,
+          "due": 583
         },
         {
           "day": 342,
-          "answers": 30,
-          "due": 5760
+          "answers": 537,
+          "due": 568
         },
         {
           "day": 343,
-          "answers": 30,
-          "due": 5756
+          "answers": 533,
+          "due": 606
         },
         {
           "day": 344,
-          "answers": 30,
-          "due": 5758
+          "answers": 564,
+          "due": 588
         },
         {
           "day": 345,
-          "answers": 30,
-          "due": 5762
+          "answers": 551,
+          "due": 584
         },
         {
           "day": 346,
-          "answers": 30,
-          "due": 5763
+          "answers": 540,
+          "due": 582
         },
         {
           "day": 347,
-          "answers": 30,
-          "due": 5763
+          "answers": 539,
+          "due": 580
         },
         {
           "day": 348,
-          "answers": 30,
-          "due": 5759
+          "answers": 555,
+          "due": 578
         },
         {
           "day": 349,
-          "answers": 30,
-          "due": 5760
+          "answers": 543,
+          "due": 559
         },
         {
           "day": 350,
-          "answers": 30,
-          "due": 5764
+          "answers": 541,
+          "due": 579
         },
         {
           "day": 351,
-          "answers": 30,
-          "due": 5765
+          "answers": 523,
+          "due": 582
         },
         {
           "day": 352,
-          "answers": 30,
-          "due": 5770
+          "answers": 528,
+          "due": 588
         },
         {
           "day": 353,
-          "answers": 30,
-          "due": 5767
+          "answers": 539,
+          "due": 574
         },
         {
           "day": 354,
-          "answers": 30,
-          "due": 5761
+          "answers": 551,
+          "due": 561
         },
         {
           "day": 355,
-          "answers": 30,
-          "due": 5763
+          "answers": 529,
+          "due": 556
         },
         {
           "day": 356,
-          "answers": 30,
-          "due": 5762
+          "answers": 528,
+          "due": 554
         },
         {
           "day": 357,
-          "answers": 30,
-          "due": 5758
+          "answers": 562,
+          "due": 558
         },
         {
           "day": 358,
-          "answers": 30,
-          "due": 5762
+          "answers": 573,
+          "due": 577
         },
         {
           "day": 359,
-          "answers": 30,
-          "due": 5761
+          "answers": 569,
+          "due": 577
         },
         {
           "day": 360,
-          "answers": 30,
-          "due": 5759
+          "answers": 557,
+          "due": 587
         },
         {
           "day": 361,
-          "answers": 30,
-          "due": 5760
+          "answers": 554,
+          "due": 598
         },
         {
           "day": 362,
-          "answers": 30,
-          "due": 5759
+          "answers": 557,
+          "due": 590
         },
         {
           "day": 363,
-          "answers": 30,
-          "due": 5751
+          "answers": 548,
+          "due": 571
         },
         {
           "day": 364,
-          "answers": 30,
-          "due": 5757
+          "answers": 545,
+          "due": 555
         }
       ]
     }

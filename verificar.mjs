@@ -75,12 +75,19 @@ try {
 
 // ── 3a. regressões reproduzidas pela auditoria 6.000 × 365 ─────────────────
 console.log('\n3a) cards: regressões Anki + simulação de 6.000 cards por 365 dias');
-for (const [rotulo, arquivo] of [
-  ['29 casos funcionais da auditoria', 'functions.mjs'],
-  ['simulacao anual FSRS/SM-2', 'simulate.mjs']
+for (const [rotulo, pasta, arquivo] of [
+  ['29 casos funcionais da auditoria', 'cards-20260921', 'functions.mjs'],
+  ['simulacao anual FSRS/SM-2', 'cards-20260921', 'simulate.mjs'],
+  /* 2ª auditoria: armazenamento serializado de verdade, 9.216 agendamentos
+     sobre configurações válidas, sessão real por CardsScreen.answer() e as
+     dez regressões que ela reproduziu. Não inclui a simulação anual nem a
+     comparação com o backend oficial do Anki: as duas levam horas e dependem
+     do pacote `anki` do PyPI — ficam para execução manual, documentada em
+     audit/cards-20260921-v2/README.md. */
+  ['62 verificacoes da 2a auditoria dos cards', 'cards-20260921-v2', 'regressao.mjs']
 ]) {
   try {
-    execFileSync(process.execPath, [join(RAIZ, 'audit', 'cards-20260921', arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
+    execFileSync(process.execPath, [join(RAIZ, 'audit', pasta, arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
     ok(rotulo);
   } catch (e) {
     const detalhe = (String(e.stdout || '') + String(e.stderr || '')).slice(-16000);
