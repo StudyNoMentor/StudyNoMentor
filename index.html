@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vf09a5ef1dd">
+<meta name="diario-versao" content="vb3af3ec2ed">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -41103,7 +41103,10 @@ const RelationalStore = {
         else await this._persistProfileSetting(p.profileId,p.sub,item.value);
         return true;
       }
-      await this._persistPlanKey(p.profileId,p.planId,p.sub,null,item.value); return true;
+      await this._persistPlanKey(p.profileId,p.planId,p.sub,
+        Object.prototype.hasOwnProperty.call(item,'oldValue') ? item.oldValue : null,
+        item.value);
+      return true;
     }
     if(item.kind==='card'){
       if(!p||p.sub!=='cards')return true;
@@ -46592,15 +46595,26 @@ else CloudStore.init();
     return putDirty({ id: 'kv|' + k, kind: 'kv', key: k, value: v == null ? null : String(v), userId:currentUserId(), at: Date.now() });
   }
 
-  function persistKV(k, v, markDirty) {
-    if (!idb) return Promise.resolve();
+  async function persistKV(k, v, markDirty, oldValue) {
+    if (!idb) return;
     var tx = idb.transaction(['kv','dirty'], 'readwrite');
     var st = tx.objectStore('kv');
     if (v == null) st.delete(k); else st.put({ key: k, value: String(v) });
-    if (markDirty && dirtyAllowed(k)) tx.objectStore('dirty').put({
-      id:'kv|' + k, kind:'kv', key:k, value:v == null ? null : String(v), userId:currentUserId(), at:Date.now()
-    });
-    return txDone(tx);
+    if (markDirty && dirtyAllowed(k)) {
+      var ds=tx.objectStore('dirty'), id='kv|' + k;
+      var anterior=null;
+      try { anterior=await reqP(ds.get(id)); } catch (_) {}
+      ds.put({
+        id, kind:'kv', key:k,
+        /* A PRIMEIRA versão anterior é a base remota presumida. Se o usuário
+           editar dez vezes offline, ela não é substituída pela nona edição. */
+        oldValue:anterior && Object.prototype.hasOwnProperty.call(anterior,'oldValue')
+          ? anterior.oldValue : (oldValue == null ? null : String(oldValue)),
+        value:v == null ? null : String(v),
+        userId:currentUserId(), at:Date.now()
+      });
+    }
+    await txDone(tx);
   }
 
   function deleteCardsForKeyInTx(tx, key) {
@@ -46786,7 +46800,7 @@ else CloudStore.init();
         var old = mem.has(k) ? mem.get(k) : null;
         if (!mem.has(k)) invalidate();
         mem.set(k, v);
-        track(persistKV(k, v, !applyingRemote()));
+        track(persistKV(k, v, !applyingRemote(), old));
         if (old !== v) notify(k, old, v);
         return;
       }
@@ -46808,7 +46822,7 @@ else CloudStore.init();
         }
         var oldV = mem.has(k) ? mem.get(k) : null;
         if (mem.delete(k)) invalidate();
-        track(persistKV(k, null, !applyingRemote()));
+        track(persistKV(k, null, !applyingRemote(), oldV));
         if (oldV != null) notify(k, oldV, null);
         return;
       }
