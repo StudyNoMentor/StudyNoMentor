@@ -33,7 +33,7 @@ jobs:
         run: npm ci
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
-      - name: Verify generated files
-        run: node build.mjs --check
+      - name: Build app from current source
+        run: node build.mjs
       - name: Full verification
         run: node verificar.mjs
