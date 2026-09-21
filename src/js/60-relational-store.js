@@ -22,7 +22,12 @@ const RelationalStore = {
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
-  pendingCount() { return this._pending; },
+  pendingCount() {
+    let n = this._pending;
+    try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(); } catch (_) {}
+    try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(); } catch (_) {}
+    return n;
+  },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -61,7 +66,16 @@ const RelationalStore = {
   _memSet(k, v) {
     this._applying = true;
     try {
-      localStorage.setItem(k, String(v));
+      let raw = String(v);
+      if (String(k).slice(-6) === ':cards') {
+        try {
+          if (typeof CardStore !== 'undefined' && CardStore.applyRemoteSnapshot) {
+            const remote = this._parse(raw, []);
+            raw = JSON.stringify(CardStore.applyRemoteSnapshot(k, remote));
+          }
+        } catch (e) { _quiet(e, 'cards-remote-overlay'); }
+      }
+      localStorage.setItem(k, raw);
       /* O histórico vive em RAM no DB. Quando a hidratação traz uma versão nova
          do banco, a projeção em memória precisa ser descartada — senão a
          sessão continua lendo a lista antiga e o que veio do banco fica
@@ -93,6 +107,7 @@ const RelationalStore = {
         if(opts.preserveHeavy && this._isHeavyMemoryKey(profileId,k)) continue;
         keys.push(k);
       }
+      try { if (typeof CardStore !== 'undefined' && CardStore.invalidatePrefix) CardStore.invalidatePrefix(p); } catch (_) {}
       keys.forEach(k=>localStorage.removeItem(k));
     } finally { this._applying=false; }
   },
@@ -228,6 +243,9 @@ const RelationalStore = {
         const k = localStorage.key(i);
         if (!k || k.indexOf(p) !== 0) continue;
         if (rx.test(k.slice(p.length))) keys.push(k);
+      }
+      if (suffix === 'cards') {
+        try { keys.forEach(k => { if (typeof CardStore !== 'undefined' && CardStore.invalidateScope) CardStore.invalidateScope(k); }); } catch (_) {}
       }
       keys.forEach(k => localStorage.removeItem(k));
     } finally { this._applying = false; }
@@ -452,6 +470,9 @@ const RelationalStore = {
     this._lastHydratedAt.set(profileId,Date.now());
     this._lastSyncAt=Date.now();this._lastError=null;
     this.subscribeProfile(profileId);
+    try {
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) await CardStore.replayAll();
+    } catch (e) { _quiet(e, 'durable-outbox-replay-hydrate'); }
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
     try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
     if(opts.includeHeavy!==false)await this.ensureHeavyData(profileId,{reason:opts.reason||'hydrate',force:true});
@@ -477,9 +498,114 @@ const RelationalStore = {
     return p;
   },
   async flush() {
+    try {
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) await CardStore.replayAll();
+      if (typeof DurableStudyStore !== 'undefined' && DurableStudyStore.flush) await DurableStudyStore.flush();
+    } catch (e) { _quiet(e, 'durable-outbox-replay-flush'); }
     await this._tail;
     if (this._lastError) throw this._lastError;
     return true;
+  },
+
+  /* ── CARDS: UMA LINHA + CAS POR updated_at ───────────────────────────────
+     O array em memória continua existindo para a UI síncrona, mas a mutação
+     diária toca somente a linha do card. Em conflito, o patch/review pendente
+     é reexecutado sobre o estado remoto mais novo antes de tentar novamente. */
+  _cardRow(profileId, planId, x, position) {
+    x = x || {};
+    return {
+      profile_id:profileId, plan_id:planId, card_id:String(x.id),
+      deck_id:x.deckId==null?null:String(x.deckId), subject:x.materia||null,
+      topic:x.assunto||null, card_type:x.tipo||null, front:x.frente||'',
+      back:x.verso||'', favorite:!!x.favorito, status:x.status||null,
+      banca:x.banca||null, kind:x.kind||null, due:x.due==null?null:String(x.due),
+      due_ts:x.dueTs==null?null:Number(x.dueTs), ease:x.ease==null?null:Number(x.ease),
+      interval_value:x.intervalo==null?null:Number(x.intervalo),
+      lapses:x.lapses==null?null:Number(x.lapses), learn_step:x.learnStep==null?null:Number(x.learnStep),
+      reps:x.reps==null?null:Number(x.reps), phase:x.phase||null,
+      reversed_of:x.reversedOf==null?null:String(x.reversedOf),
+      d:x.d==null?null:Number(x.d), s:x.s==null?null:Number(x.s), algo:x.algo||null,
+      last_review:x.lastReview||null, created_at:x.createdAt||null,
+      updated_at:x.updatedAt||new Date().toISOString(), position:(Number(position)||0)+1,
+      extra:Object.fromEntries(Object.entries(x).filter(([k])=>![
+        'id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind',
+        'due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s',
+        'algo','lastReview','createdAt','updatedAt'
+      ].includes(k)))
+    };
+  },
+  _cardFromRow(row) {
+    return this._coreGroupAppliers().cards.map(row);
+  },
+  async _fetchCardRow(profileId, planId, id) {
+    const {data,error}=await CloudStore.client.from('study_cards').select('*')
+      .eq('profile_id',profileId).eq('plan_id',planId).eq('card_id',String(id)).limit(1);
+    if(error)throw error;
+    return data&&data[0] ? data[0] : null;
+  },
+  async _applyCardMutation(scope, mutation) {
+    const p=this._keyParts(scope);
+    if(!p||p.scope!=='plan'||p.sub!=='cards'||!mutation||mutation.id==null) {
+      throw new Error('Mutação de card fora do escopo');
+    }
+    const id=String(mutation.id);
+    if(mutation.action==='delete'){
+      for(let tentativa=0;tentativa<6;tentativa++){
+        const remote=await this._fetchCardRow(p.profileId,p.planId,id);
+        if(!remote)return {deleted:true,id};
+        let q=CloudStore.client.from('study_cards').delete()
+          .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',id);
+        if(remote.updated_at!=null)q=q.eq('updated_at',remote.updated_at);
+        const {data,error}=await q.select('card_id,updated_at');
+        if(error)throw error;
+        if(data&&data.length)return {deleted:true,id};
+      }
+      const e=new Error('Conflito concorrente ao excluir card');e.code='card-conflict';throw e;
+    }
+
+    for(let tentativa=0;tentativa<6;tentativa++){
+      let remote=await this._fetchCardRow(p.profileId,p.planId,id);
+      if(!remote){
+        let target=mutation.card||{};
+        target=Object.assign({},target,{updatedAt:new Date().toISOString()});
+        const row=this._cardRow(p.profileId,p.planId,target,mutation.position);
+        const {data,error}=await CloudStore.client.from('study_cards').insert(row).select('*');
+        if(!error&&data&&data[0])return {card:this._cardFromRow(data[0]),inserted:true};
+        if(error&&String(error.code||'')!=='23505')throw error;
+        remote=await this._fetchCardRow(p.profileId,p.planId,id);
+        if(!remote)continue;
+      }
+
+      const remoteCard=this._cardFromRow(remote);
+      const baseTs=mutation.base&&mutation.base.updatedAt;
+      let target;
+      if(baseTs!=null&&String(baseTs)===String(remote.updated_at)){
+        target=Object.assign({},mutation.card||remoteCard);
+      }else{
+        target=(typeof CardStore!=='undefined'&&CardStore._applyOps)
+          ? CardStore._applyOps(remoteCard,mutation.ops||[])
+          : Object.assign({},remoteCard,mutation.card||{});
+        try {
+          if(typeof CardStore!=='undefined'&&CardStore.rebasePending) {
+            CardStore.rebasePending(scope,id,remoteCard);
+          }
+        } catch (_) {}
+      }
+      target.updatedAt=new Date().toISOString();
+      const row=this._cardRow(p.profileId,p.planId,target,mutation.position);
+      let q=CloudStore.client.from('study_cards').update(row)
+        .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',id);
+      if(remote.updated_at!=null)q=q.eq('updated_at',remote.updated_at);
+      const {data,error}=await q.select('*');
+      if(error)throw error;
+      if(data&&data.length)return {card:this._cardFromRow(data[0]),updated:true};
+      // Outra aba ganhou entre SELECT e UPDATE: refaz sobre o novo remoto.
+    }
+    const e=new Error('Conflito concorrente ao atualizar card');e.code='card-conflict';throw e;
+  },
+  queueCardMutation(scope, mutation) {
+    if(this._applying||!this.isReady())return false;
+    return this._queue('card:'+String(mutation&&mutation.id||''),()=>this._applyCardMutation(scope,mutation));
   },
 
   /* ── HISTÓRICO DE REVISÕES: CHAMADA DIRETA, NÃO DIFERENÇA DE BLOBS ────────
@@ -507,32 +633,41 @@ const RelationalStore = {
   queueRevlogAppend(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
-    this._queue('revlog:append', async () => {
-      const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
-      if(error) throw error;
+    return this._queue('revlog:append', async () => {
+      let pos=Math.max(1,Number(row._position)||1);
+      for(let tentativa=0;tentativa<8;tentativa++){
+        row._position=pos;
+        const {error}=await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId,p.planId,row,pos));
+        if(!error)return {position:pos};
+        if(String(error.code||'')!=='23505')throw error;
+        const {data,error:maxErr}=await CloudStore.client.from('study_review_log').select('position')
+          .eq('profile_id',p.profileId).eq('plan_id',p.planId)
+          .order('position',{ascending:false}).limit(1);
+        if(maxErr)throw maxErr;
+        pos=Math.max(pos+1,Number(data&&data[0]&&data[0].position)||0+1);
+      }
+      const e=new Error('Não foi possível reservar posição única no histórico');e.code='revlog-position-conflict';throw e;
     });
-    return true;
   },
   queueRevlogDelete(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
-    this._queue('revlog:delete', async () => {
+    return this._queue('revlog:delete', async () => {
       let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
       if(row._position != null) q = q.eq('position', Number(row._position));
       if(row.ts != null) q = q.eq('ts', Number(row.ts));
       if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
       const {error} = await q;
       if(error) throw error;
+      return {deleted:true};
     });
-    return true;
   },
   queueRevlogReplace(key, rows) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p) return false;
     const arr = Array.isArray(rows) ? rows : [];
-    this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
+    return this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
       arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'));
-    return true;
   },
 
   _keyParts(key) {
