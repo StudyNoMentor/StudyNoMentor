@@ -1,5 +1,5 @@
 {
-  "commit": "78ea3563878f0f1652ef211f5ed3e432b8e17dba",
+  "commit": "125e8d5b9d67b5f4048dae3465dbdc071ddb569f",
   "seed": 9212026,
   "scope": "Engine/queue/config with simulated clock and storage; no cloud or UI claims. Local port is NOT official backend.",
   "checks": [
@@ -164,7 +164,7 @@
       "maxDaily": 704,
       "maxStability": 1200.229823832196,
       "leechCards": 1501,
-      "seconds": 53.48,
+      "seconds": 55.46,
       "daysDetail": [
         {
           "day": 0,
@@ -2009,7 +2009,7 @@
       "maxDaily": 707,
       "maxStability": 1112.7799518796428,
       "leechCards": 1586,
-      "seconds": 122.11,
+      "seconds": 122.08,
       "daysDetail": [
         {
           "day": 0,
@@ -3854,7 +3854,7 @@
       "maxDaily": 681,
       "maxStability": 0,
       "leechCards": 1392,
-      "seconds": 18.58,
+      "seconds": 18.41,
       "daysDetail": [
         {
           "day": 0,
