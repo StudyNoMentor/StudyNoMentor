@@ -297,48 +297,126 @@ const CardEngine = {
     const gradGood = Math.max(1, cfg.graduatingIntervalGood != null ? cfg.graduatingIntervalGood : 1);
     const gradEasy = Math.max(1, cfg.graduatingIntervalEasy != null ? cfg.graduatingIntervalEasy : 4);
     const maxIv = Math.max(1, cfg.maxInterval || 36500);
+    const learn = Array.isArray(cfg.learnSteps) ? cfg.learnSteps : [1, 10];
+    const relearn = Array.isArray(cfg.relearnSteps) ? cfg.relearnSteps : [10];
 
-    let ease = card.ease || easeIni, intervalo = card.intervalo || 0;
-    let reps = card.reps || 0, lapses = card.lapses || 0;
-    const isNew = reps === 0 || intervalo <= 0;
-    let status;
-    // Anki tem apenas MINIMUM_EASE_FACTOR; não existe teto.
+    const tdy = todayCards(), nowTs = Date.now();
+    const phase = card.phase || (((card.reps || 0) > 0 && (card.intervalo || 0) > 0) ? 'review' : 'new');
+    let ease = Number(card.ease) || easeIni;
+    let intervalo = Math.max(0, Number(card.intervalo) || 0);
+    let lapses = Math.max(0, Number(card.lapses) || 0);
+    const reps = Math.max(0, Number(card.reps) || 0) + 1;
     const clampE = (e) => Math.max(this.MIN_EASE, e);
-    // constrain_passing_interval: aplica o multiplicador global e os limites.
-    const constr = (dias, minimo) => {
-      const v = dias * fGlobal;
-      const min = Math.min(Math.max(1, minimo || 1), maxIv);
-      return Math.max(min, Math.min(maxIv, Math.round(v)));
-    };
-    // days_late: quantos dias além do previsto você levou para revisar.
-    const atraso = Math.max(0, this._daysBetween(card.due || todayCards(), todayCards()));
+    const seed = (card.id || 'c') + '|' + (card.reps || 0);
 
-    if (grade === 'errei') {
-      lapses += 1; reps = 0;
-      ease = clampE(ease + this.EASE_AGAIN_DELTA);
-      // failing_review_interval: iv * lapse_multiplier, com piso próprio
-      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(Math.max(1, intervalo) * fLapse)));
-      status = 'naosei';
-    } else if (isNew) {
-      reps += 1; status = 'sei';
-      if (grade === 'facil') { intervalo = constr(gradEasy, 1); ease = clampE(ease + this.EASE_EASY_DELTA); }
-      else if (grade === 'dificil') { intervalo = constr(gradGood, 1); ease = clampE(ease + this.EASE_HARD_DELTA); }
-      else { intervalo = constr(gradGood, 1); }   // "Bom" não altera a facilidade
-    } else {
-      reps += 1; status = 'sei';
-      const base = Math.max(1, intervalo);
-      // Os três intervalos são calculados JUNTOS porque cada piso depende do anterior.
-      const minHard = fHard <= 1.0 ? 0 : base + 1;
-      const ivHard = constr(base * fHard, minHard);
-      const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
-      const ivGood = constr((base + atraso / 2) * ease, minGood);
-      const ivEasy = constr((base + atraso) * ease * fEasy, ivGood + 1);
-      if (grade === 'dificil') { intervalo = ivHard; ease = clampE(ease + this.EASE_HARD_DELTA); }
-      else if (grade === 'facil') { intervalo = ivEasy; ease = clampE(ease + this.EASE_EASY_DELTA); }
-      else { intervalo = ivGood; }                 // "Bom" não altera a facilidade
+    // Mesma conversão intradiário/dia usada pelo agendador moderno do Anki.
+    const stepDue = (min) => {
+      const segs = Math.max(0, Math.round(Number(min || 0) * 60));
+      const teto = Math.floor(Math.min(segs * 0.25, 300));
+      const segsFuzz = teto > 0 ? segs + Math.floor(Math.random() * teto) : segs;
+      const ateVirada = Math.max(0, Math.round((proximaViradaTs() - nowTs) / 1000));
+      if (segsFuzz >= ateVirada) {
+        const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
+        return { dueTs: null, due: this.addDays(tdy, dias) };
+      }
+      return { dueTs: nowTs + segsFuzz * 1000, due: tdy };
+    };
+    const hardDelay = (steps, idx) => {
+      if (!steps.length) return 0;
+      const arredDias = (min) => (min > 1440 ? Math.round(min / 1440) * 1440 : min);
+      if (idx !== 0) return steps[Math.min(idx, steps.length - 1)];
+      if (steps.length > 1) return arredDias((steps[0] + steps[1]) / 2);
+      return arredDias(Math.min(steps[0] * 1.5, steps[0] + 1440));
+    };
+    const constr = (dias, minimo) => {
+      const raw = Math.max(1, Number(dias) || 1) * fGlobal;
+      const min = Math.min(Math.max(1, minimo || 1), maxIv);
+      const base = Math.max(min, Math.min(maxIv, Math.round(raw)));
+      // O SM-2 do Anki também aplica fuzz aos intervalos em dias.
+      try { return Math.min(maxIv, FSRS.fuzzed(base, seed, maxIv, min)); }
+      catch (_) { return base; }
+    };
+    const stepPatch = (whichPhase, idx, delay, status) => {
+      const p = Object.assign({
+        status: status || 'naosei', grade, ease, intervalo, reps, lapses,
+        phase: whichPhase, learnStep: idx, lastReview: tdy, algo: 'sm2'
+      }, stepDue(delay));
+      p._kind = 'min'; p._val = delay;
+      return p;
+    };
+    const graduateNew = (easy) => {
+      // A facilidade inicial nasce NA GRADUAÇÃO. Again/Hard durante aprendizagem
+      // não reduzem ease, e Easy em card novo não a aumenta.
+      ease = Number(card.ease) || easeIni;
+      intervalo = constr(easy ? gradEasy : gradGood, 1);
+      return {
+        status: 'sei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    };
+    const graduateRelearn = () => {
+      intervalo = constr(Math.max(minLapse, intervalo || minLapse), 1);
+      return {
+        status: 'sei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    };
+
+    // NOVO/APRENDIZAGEM: a aquisição não altera a facilidade futura.
+    if (phase === 'new' || phase === 'learning') {
+      if (!learn.length) return graduateNew(grade === 'facil');
+      const cur = phase === 'new' ? 0 : Math.max(0, Math.min(card.learnStep || 0, learn.length - 1));
+      if (grade === 'errei') return stepPatch('learning', 0, learn[0], 'naosei');
+      if (grade === 'dificil') return stepPatch('learning', cur, hardDelay(learn, cur), 'naosei');
+      if (grade === 'facil') return graduateNew(true);
+      const next = cur + 1;
+      if (next >= learn.length) return graduateNew(false);
+      return stepPatch('learning', next, learn[next], 'naosei');
     }
-    intervalo = Math.max(1, Math.min(maxIv, Math.round(intervalo)));
-    return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayCards(), intervalo), dueTs: null, lastReview: todayCards(), algo: 'sm2', _kind: 'day', _val: intervalo };
+
+    // REAPRENDIZAGEM: o lapso/ease já foi contabilizado ao sair de review.
+    if (phase === 'relearning') {
+      if (!relearn.length) return graduateRelearn();
+      const cur = Math.max(0, Math.min(card.learnStep || 0, relearn.length - 1));
+      if (grade === 'errei') return stepPatch('relearning', 0, relearn[0], 'naosei');
+      if (grade === 'dificil') return stepPatch('relearning', cur, hardDelay(relearn, cur), 'naosei');
+      if (grade === 'facil') return graduateRelearn();
+      const next = cur + 1;
+      if (next >= relearn.length) return graduateRelearn();
+      return stepPatch('relearning', next, relearn[next], 'naosei');
+    }
+
+    // REVIEW: mantém as regras clássicas de atraso, facilidade e multiplicadores.
+    const base = Math.max(1, intervalo);
+    const atraso = Math.max(0, this._daysBetween(card.due || tdy, tdy));
+    if (grade === 'errei') {
+      lapses += 1;
+      ease = clampE(ease + this.EASE_AGAIN_DELTA);
+      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(base * fLapse)));
+      if (relearn.length) return stepPatch('relearning', 0, relearn[0], 'naosei');
+      intervalo = constr(intervalo, minLapse);
+      return {
+        status: 'naosei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    }
+
+    const minHard = fHard <= 1.0 ? 0 : base + 1;
+    const ivHard = constr(base * fHard, minHard);
+    const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
+    const ivGood = constr((base + atraso / 2) * ease, minGood);
+    const ivEasy = constr((base + atraso) * ease * fEasy, ivGood + 1);
+    if (grade === 'dificil') { intervalo = ivHard; ease = clampE(ease + this.EASE_HARD_DELTA); }
+    else if (grade === 'facil') { intervalo = ivEasy; ease = clampE(ease + this.EASE_EASY_DELTA); }
+    else intervalo = ivGood;
+    return {
+      status: 'sei', grade, ease, intervalo, reps, lapses,
+      phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+      dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+    };
   },
   // Ponto único de entrada. grade: 'errei'|'dificil'|'bom'|'facil' (ou 'sei'/'naosei')
   schedule(card, grade) {
@@ -391,8 +469,15 @@ const CardEngine = {
   hasCloze(text) { return /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
   // reveal=false => mostra [ ... ] no lugar; reveal=true => revela destacado
   clozeRender(html, reveal) {
-    return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) =>
-      reveal ? `<span class="cloze-reveal">${inner}</span>` : `<span class="cloze-blank">[&nbsp;…&nbsp;]</span>`);
+    return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) => {
+      const k = inner.indexOf('::');
+      const answer = k >= 0 ? inner.slice(0, k) : inner;
+      const hint = k >= 0 ? inner.slice(k + 2) : '';
+      if (reveal) return `<span class="cloze-reveal">${answer}</span>`;
+      return hint
+        ? `<span class="cloze-blank">[${hint}]</span>`
+        : '<span class="cloze-blank">[&nbsp;…&nbsp;]</span>';
+    });
   },
   // Card ENTERRADO não entra na fila até a data marcada (bury do Anki)
   estaEnterrado(card) { return !!(card && card.enterradoAte && card.enterradoAte > todayCards()); },
