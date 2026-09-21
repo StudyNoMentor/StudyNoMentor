@@ -72,6 +72,10 @@ jobs:
           for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
           node build.mjs
           git diff --exit-code -- index.html sw.js src/manifesto.json
+      - name: Auditar comportamento dos cards contra casos Anki
+        run: node audit/cards-20260921/functions.mjs
+      - name: Simular 6.000 cards por 365 dias
+        run: node audit/cards-20260921/simulate.mjs
       - name: Validar organizacao de Extras e do Motor
         run: node testes/ui-organizacao-extras-tec.mjs
       - name: Auditar higiene do repositorio
