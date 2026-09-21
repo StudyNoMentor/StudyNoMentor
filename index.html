@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v201004163d">
+<meta name="diario-versao" content="vf09a5ef1dd">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -15222,7 +15222,7 @@ window.__diag = function () {
     porTipo: Object.assign({}, _engolidos.porTipo),
     ultimos: _engolidos.ultimos.slice(-15),
     idsAusentes: Array.from(_idsAusentes),
-    armazenamento: (window.__memoryOnlyStore ? 'projeção em RAM + PostgreSQL' : 'modo inesperado'),
+    armazenamento: (window.__idbShim ? 'IndexedDB durável + PostgreSQL' : (window.__memoryOnlyStore ? 'projeção em RAM + PostgreSQL' : 'modo inesperado')),
     cards: (function () { try { return DB.getCards().length; } catch (_) { return '?'; } })(),
     revisoes: (function () { try { return (DB.getRevlog() || []).length; } catch (_) { return '?'; } })()
   };
@@ -15293,19 +15293,31 @@ function recarregarApp(motivo, opts) {
   const ir = async () => {
     try { console.info('[recarga]', motivo || 'sem motivo declarado'); } catch (e) { _quiet(e, 'recarga-log'); }
     try {
+      /* Primeiro confirma o IndexedDB. Com isso, até um reload offline é
+         seguro: a outbox sobrevive e será reenviada antes do próximo pull. */
+      const localDuravel = !!(window.LocalDurable && LocalDurable.flush);
+      if (localDuravel) await LocalDurable.flush();
       const conectado = window.CloudStore && CloudStore.isReady && CloudStore.isReady() &&
         CloudStore.isLoggedIn && CloudStore.isLoggedIn();
       if (conectado) {
-        if (!window.RelationalStore) throw new Error('camada relacional indisponível');
-        await RelationalStore.flush();
-        if (RelationalStore.pendingCount() !== 0 || RelationalStore._lastError) {
-          throw RelationalStore._lastError || new Error('operações SQL pendentes');
+        if (!window.RelationalStore) {
+          if (!localDuravel) throw new Error('camada relacional indisponível');
+        } else {
+          try {
+            if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
+            await RelationalStore.flush();
+          } catch (sqlErr) {
+            /* A outbox já está no IndexedDB. Um erro de rede não transforma
+               reload seguro em perda de dados; o replay ocorre antes do pull. */
+            if (!localDuravel) throw sqlErr;
+            _quiet(sqlErr, 'recarga-sql-pendente');
+          }
         }
       }
       location.reload();
     } catch (e) {
       try { console.error('[recarga] cancelada: banco não confirmou as alterações', e); } catch (_) { _quiet(_); }
-      try { showToast('⚠ Não recarreguei: o banco ainda não confirmou todas as alterações.'); } catch (_) { _quiet(_); }
+      try { showToast('⚠ Não recarreguei: este aparelho ainda não confirmou as alterações localmente.'); } catch (_) { _quiet(_); }
     }
   };
   if ((opts && opts.imediato) || !_appOcupado()) { void ir(); return; }
@@ -16194,10 +16206,56 @@ const DB = {
   },
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
-  getCards() { return this._get(this.KEYS.cards, []); },
-  // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
-  // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
-  saveCards(list) { return this._set(this.KEYS.cards, list); },
+  getCards() {
+    const key = this.KEYS.cards;
+    try {
+      if (window.LocalDurable && LocalDurable.getCards) {
+        const cached = LocalDurable.getCards(key);
+        if (Array.isArray(cached)) return cached;
+      }
+    } catch (e) { _quiet(e, 'cards-local-get'); }
+    const list = this._get(key, []);
+    try { if (window.LocalDurable && LocalDurable.replaceCards) LocalDurable.replaceCards(key, list, { dirty:false }); }
+    catch (e) { _quiet(e, 'cards-local-seed'); }
+    return list;
+  },
+  /* Bulk replace é deliberadamente raro (importar, restaurar, zerar, saneamento).
+     A resposta diária usa _persistCardOne() e grava UMA linha local/SQL. */
+  saveCards(list) {
+    list = Array.isArray(list) ? list : [];
+    const key = this.KEYS.cards;
+    try {
+      if (window.LocalDurable && LocalDurable.replaceCards) {
+        LocalDurable.replaceCards(key, list, { dirty:true });
+        if (window.RelationalStore && RelationalStore.queueCardsReplace) RelationalStore.queueCardsReplace(key, list);
+        return true;
+      }
+    } catch (e) {
+      console.error('Falha ao enfileirar coleção de cards', e);
+      return false;
+    }
+    return this._set(key, list);
+  },
+  _persistCardOne(card) {
+    if (!card || card.id == null) return false;
+    const key = this.KEYS.cards, list = this.getCards();
+    const pos = Math.max(0, list.findIndex(x => String(x.id) === String(card.id)));
+    try {
+      if (window.LocalDurable && LocalDurable.upsertCard) LocalDurable.upsertCard(key, card, pos, { dirty:true });
+      if (window.RelationalStore && RelationalStore.queueCardUpsert) RelationalStore.queueCardUpsert(key, card, pos);
+      else if (!(window.LocalDurable && LocalDurable.upsertCard)) return this.saveCards(list);
+      return card;
+    } catch (e) { _quiet(e, 'card-persist-one'); return false; }
+  },
+  _persistCardDelete(id) {
+    const key = this.KEYS.cards;
+    try {
+      if (window.LocalDurable && LocalDurable.deleteCard) LocalDurable.deleteCard(key, id, { dirty:true });
+      if (window.RelationalStore && RelationalStore.queueCardDelete) RelationalStore.queueCardDelete(key, id);
+      else if (!(window.LocalDurable && LocalDurable.deleteCard)) return this.saveCards(this.getCards());
+      return true;
+    } catch (e) { _quiet(e, 'card-persist-delete'); return false; }
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
@@ -16231,8 +16289,10 @@ const DB = {
     catch (_) { return false; }
   },
   _bancoSemPendencias() {
-    try { return this._bancoRelacionalPronto() && RelationalStore.pendingCount() === 0; }
-    catch (_) { return false; }
+    try {
+      return this._bancoRelacionalPronto() && RelationalStore.pendingCount() === 0
+        && !(RelationalStore.hasFailures && RelationalStore.hasFailures());
+    } catch (_) { return false; }
   },
   _lotesArquivados() {
     const n = Number(this._get(this.KEYS.revlogArquivo, 0)) || 0;
@@ -16270,6 +16330,8 @@ const DB = {
   replaceRevlog(list) {
     const k = this.KEYS.revlog, v = Array.isArray(list) ? list : [];
     this._revlogMem.set(k, v);
+    try { if (window.LocalDurable && LocalDurable.markRevlogReplace) LocalDurable.markRevlogReplace(k); }
+    catch (e) { _quiet(e, 'revlog-replace-local'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogReplace) RelationalStore.queueRevlogReplace(k, v);
     } catch (e) { _quiet(e, 'revlog-replace'); }
@@ -16285,9 +16347,11 @@ const DB = {
     // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
-    const row = Object.assign({ _position: pos }, entry);
+    const row = Object.assign({ _position: pos, reviewId: this._uid() }, entry);
     l.push(row);
-    // 1) Banco relacional: UMA linha, não o histórico inteiro.
+    // Primeiro entra no outbox durável; depois tentamos o PostgreSQL.
+    try { if (window.LocalDurable && LocalDurable.markReview) LocalDurable.markReview(this.KEYS.revlog, row); }
+    catch (e) { _quiet(e, 'revlog-local-outbox'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
     } catch (e) { _quiet(e, 'revlog-append'); }
@@ -16320,6 +16384,8 @@ const DB = {
     if (i < 0) return true;
     const removida = l[i];
     l.splice(i, 1);
+    try { if (window.LocalDurable && LocalDurable.markReviewDelete) LocalDurable.markReviewDelete(this.KEYS.revlog, removida); }
+    catch (e) { _quiet(e, 'revlog-delete-local'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
     } catch (e) { _quiet(e, 'revlog-delete'); }
@@ -16379,7 +16445,9 @@ const DB = {
       })(),
       createdAt: now, updatedAt: now
     };
-    list.push(card); this.saveCards(list); return card;
+    list.push(card);
+    if (this._persistCardOne(card) === false) { list.pop(); return null; }
+    return card;
   },
   /* Campos que o agendador devolve para a TELA usar na mesma resposta e que não
      são estado do card: o rótulo do botão (_kind/_val) e o aviso de leech
@@ -16408,10 +16476,10 @@ const DB = {
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
-    // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
-    // CardsScreen.answer). Card inexistente continua devolvendo null.
-    return this.saveCards(list) === false ? false : c;
+    if (!c) return null;
+    Object.assign(c, patch); c.updatedAt = new Date().toISOString();
+    // Caminho quente O(1): só o card alterado vai ao IndexedDB e ao SQL.
+    return this._persistCardOne(c) === false ? false : c;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
@@ -16438,7 +16506,10 @@ const DB = {
      deles e continuava consumindo a cota de 20 novos do dia — cards que nem
      existiam mais ocupavam vaga na fila. */
   deleteCard(id) {
-    this.saveCards(this.getCards().filter(c => c.id !== id));
+    const cards = this.getCards();
+    const idx = cards.findIndex(c => String(c.id) === String(id));
+    if (idx >= 0) cards.splice(idx, 1);
+    if (this._persistCardDelete(id) === false) return false;
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
       this.replaceRevlog(l);
@@ -16456,6 +16527,25 @@ const DB = {
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
+  siblingIds(id) {
+    const alvo = this.getCard(id); if (!alvo) return [];
+    const ids = new Set();
+    if (alvo.reversedOf) ids.add(String(alvo.reversedOf));
+    this.getCards().forEach(c => {
+      if (c && c.reversedOf != null && String(c.reversedOf) === String(id)) ids.add(String(c.id));
+    });
+    ids.delete(String(id));
+    return Array.from(ids);
+  },
+  burySiblings(id) {
+    const ids = this.siblingIds(id), ate = CardEngine.addDays(todayCards(), 1);
+    ids.forEach(sid => {
+      const c = this.getCard(sid);
+      if (!c || c.suspenso || CardEngine.estaEnterrado(c)) return;
+      this.updateCard(sid, { enterradoAte: ate, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
+    });
+    return ids.length;
+  },
   buryCard(id) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
@@ -21314,6 +21404,7 @@ const CardsConfig = {
     algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null,
     loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200,
     maxInterval: 36500, leechThreshold: 8, leechAction: 'tag', rolloverHour: 4,
+    buryNewSiblings: true, buryReviewSiblings: true,
     /* Ordem em que as revisões vencidas são apresentadas. O padrão segue a
        direção que o Anki sinalizou adotar: menor retrievability primeiro, ou
        seja, revisar antes o que está mais perto de ser esquecido. Com fila em
@@ -21321,8 +21412,8 @@ const CardsConfig = {
        Alternativas: 'vencimento' (mais atrasado antes) e 'aleatoria'. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
        Os nomes seguem os oficiais para a equivalência ser rastreável.
-       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
-       TEMPLATES, que não existem neste app (cada card é independente). */
+       Templates complexos continuam fora do escopo. Pares normal↔invertido,
+       porém, agora são tratados como irmãos e podem ser enterrados como no Anki. */
 
     // ReviewCardOrder — em que ordem as revisões vencidas são apresentadas.
     // Padrão 'retrievabilityAsc': o mais perto de ser esquecido vem primeiro.
@@ -21448,6 +21539,8 @@ const CardsConfig = {
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    c.buryNewSiblings = c.buryNewSiblings !== false;
+    c.buryReviewSiblings = c.buryReviewSiblings !== false;
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
      'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {
@@ -28603,6 +28696,7 @@ const CardsScreen = {
     const u = (this._undoStack || []).pop();
     if (!u) { showToast('Nada para desfazer'); return; }
     DB.updateCard(u.id, u.antes);
+    (u.siblingsAntes || []).forEach(x => DB.updateCard(x.id, x.state));
     CardEngine.invalidateDueCache();
     DB.removeRevlog(u.revTs);
     if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
@@ -28620,113 +28714,159 @@ const CardsScreen = {
     this.renderReviewCard(document.getElementById('cards-content'));
     this.atualizarFoco();
   },
-  answer(grade) {
+  async answer(grade) {
+    if (this._answering) return;
+    this._answering = true;
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
-    /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
-       respondido com "Errei" volta em 1 minuto e PRECISA ser avaliado de novo —
-       é assim que os passos do Anki funcionam. A guarda baseada no histórico de
-       desfazer bloqueava justamente essa volta legítima.
-       A proteção real contra reavaliar a MESMA apresentação é estrutural: sem
-       "voltar" e sem "pular", não existe caminho para retornar a um card já
-       avaliado na mesma posição da fila — exatamente como no Anki. */
-    let patch = null;
-    if (c) {
-      // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
+    let patch = null, revTs = null, primeiraVez = false, bucketAntes = null;
+    let antes = null, siblingsAntes = [];
+    try {
+      if (!c) return;
+
+      /* Uma única fila pode ser respondida por vez para este perfil/plano.
+         O lease é renovado no servidor e continua válido por alguns minutos
+         quando a rede oscila. Sem lease válido offline, a resposta é bloqueada
+         em vez de criar dois históricos concorrentes. */
+      const pid = window.ProfileManager && ProfileManager.getActiveProfileId
+        ? ProfileManager.getActiveProfileId() : null;
+      const planId = DB._activePlanId ? DB._activePlanId() : null;
+      if (window.RelationalStore && pid && planId && RelationalStore.ensureReviewLease) {
+        let lease;
+        try { lease = await RelationalStore.ensureReviewLease(pid, planId); }
+        catch (e) {
+          _quiet(e, 'review-lease');
+          showToast('⚠ Não consegui confirmar a sessão de revisão. Verifique a conexão.');
+          return;
+        }
+        if (!lease || !lease.acquired) {
+          showToast(lease && lease.offline
+            ? '⚠ A sessão exclusiva expirou offline. Reconecte para continuar com segurança.'
+            : '⚠ Este perfil já está sendo revisado em outra aba ou aparelho.');
+          return;
+        }
+      }
+
       const G = CardEngine.GRADE_NUM[grade] || 3;
-      const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
-      const revTs = Date.now();
-      /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
-         do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
-         separar card jovem de card maduro: a coluna "Maduros" ficava vazia
-         para sempre, porque a linha do histórico não guardava essa informação. */
-      /* ── UMA RESPOSTA SÓ CONTA SE FOI GRAVADA ────────────────────────────
-         O armazenamento pode recusar a escrita (cota do navegador cheia, por
-         exemplo). Antes, a recusa virava um aviso e a fila seguia em frente:
-         o card aparecia como respondido, o índice avançava, o desfazer era
-         empilhado — e nada disso existia depois de recarregar a página. Agora
-         a resposta é abortada e o card continua onde estava, para ser
-         respondido de novo depois que o espaço for liberado. */
-      if (DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) }) === false) {
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+      const elapsed = c.lastReview
+        ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000))
+        : 0;
+      revTs = Date.now();
+
+      // Snapshot ANTES de qualquer mutação: base do undo e do rollback local.
+      antes = {};
+      ['phase','learnStep','s','d','due','dueTs','reps','lapses','ease','intervalo',
+       'status','lastReview','algo','leech','suspenso','enterradoAte','dueTsAntesEnterrar']
+        .forEach(k => { antes[k] = c[k]; });
+
+      if (DB.addRevlog({
+        ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
+        phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0),
+        s: (c.s || null), d: (c.d || null)
+      }) === false) {
+        showToast('⚠ Não foi possível gravar esta revisão.');
         return;
       }
-      // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
-      const bucketAntes = this._bucket(c);
+
+      bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
-      const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
+      primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
       if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
       this._seenThisSession.add(id);
-      // snapshot para o DESFAZER — capturado ANTES de gravar (Anki: Ctrl+Z)
-      const antes = {};
-      ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
-        .forEach(k => { antes[k] = c[k]; });
-      patch = CardEngine.schedule(c, grade);
-      if (DB.updateCard(id, patch) === false) {
-        // O agendamento não foi gravado: desfaz o registro que acabou de entrar
-        // no histórico para os dois não ficarem em desacordo.
-        DB.removeRevlog(revTs);
-        if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
-        this._seenThisSession.delete(id);
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-        return;
-      }
-      CardEngine.invalidateDueCache();
-      (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
-      if (this._undoStack.length > 50) this._undoStack.shift();
-      if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
-    }
-    this._reviewIdx++;
-    this._flipped = false;
-    // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
-    // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
-    if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
-      const restam = this._reviewQueue.length - this._reviewIdx;
-      const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
-      const gap = curto ? Math.min(3, restam) : restam;
-      this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
-    }
-    // não mostra um card cujo passo ainda não venceu se houver outro disponível
-    this._skipNotDue();
-    this.atualizarFoco();
-    const box = document.getElementById('cards-content');
-    if (this._reviewIdx >= this._reviewQueue.length) {
-      /* ── FIDELIDADE AO ANKI: antecipados fazem parte da MESMA fila ───────────
-         No Anki (rslib/src/scheduler/queue/mod.rs) a ordem de apresentação é um
-         único iterador encadeado:
-             aprendizado vencido AGORA → revisões e novos → aprendizado ANTECIPADO
-         O "learn ahead" (padrão 1200s = 20 min) é o último elo desse mesmo
-         iterador — não uma fila separada. Por isso o Anki NUNCA diz "concluído"
-         para depois trazer os cards de volta: ele simplesmente continua.
 
-         Aqui os antecipados viviam fora da fila, então ela esvaziava, aparecia o
-         🎉 e os cards ressurgiam ao reabrir a tela. Mesma matemática, sensação
-         completamente diferente — e era isto que destoava do Anki.
-         Agora eles entram no fim da fila corrente, e o encerramento só acontece
-         quando não há mais nada dentro da janela de antecipação. */
-      const antecipados = (this._learnAheadQueue() || []).filter(id => {
-        const c = DB.getCard(id);
-        return c && !c.suspenso;
+      patch = CardEngine.schedule(c, grade);
+      if (DB.updateCard(id, patch) === false) throw new Error('card-local-write');
+
+      /* Pares normal↔invertido são irmãos. Como no Anki, o outro lado é
+         enterrado até o próximo dia para não dar a resposta de graça. */
+      const cfgCard = CardsConfig.forDeck(c.deckId);
+      const deveEnterrarIrmaos = bucketAntes === 'new'
+        ? cfgCard.buryNewSiblings !== false
+        : cfgCard.buryReviewSiblings !== false;
+      if (deveEnterrarIrmaos && DB.siblingIds) {
+        const ids = DB.siblingIds(id);
+        siblingsAntes = ids.map(sid => {
+          const sc = DB.getCard(sid);
+          return sc ? { id:sid, state:{
+            enterradoAte:sc.enterradoAte, dueTs:sc.dueTs,
+            dueTsAntesEnterrar:sc.dueTsAntesEnterrar
+          }} : null;
+        }).filter(Boolean);
+        if (ids.length) DB.burySiblings(id);
+      }
+
+      /* O clique só passa a existir para a UI depois da confirmação do
+         IndexedDB. O SQL pode ficar pendente na outbox sem travar o estudo. */
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+
+      CardEngine.invalidateDueCache();
+      (this._undoStack = this._undoStack || []).push({
+        id, antes, siblingsAntes, revTs,
+        contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx
       });
-      if (antecipados.length) {
-        this._reviewQueue = this._reviewQueue.concat(antecipados);
-        this._skipNotDue();
-        this.renderReviewCard(box);
+      if (this._undoStack.length > 50) this._undoStack.shift();
+      if (patch._leechNow) showToast(patch.suspenso
+        ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes'
+        : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
+
+      this._reviewIdx++;
+      this._flipped = false;
+
+      if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
+        const restam = this._reviewQueue.length - this._reviewIdx;
+        const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
+        const gap = curto ? Math.min(3, restam) : restam;
+        this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
+      }
+
+      this._skipNotDue();
+      this.atualizarFoco();
+      const box = document.getElementById('cards-content');
+      if (this._reviewIdx >= this._reviewQueue.length) {
+        const antecipados = (this._learnAheadQueue() || []).filter(cid => {
+          const cc = DB.getCard(cid);
+          return cc && !cc.suspenso;
+        });
+        if (antecipados.length) {
+          this._reviewQueue = this._reviewQueue.concat(antecipados);
+          this._skipNotDue();
+          this.renderReviewCard(box);
+          return;
+        }
+        const distintos = new Set(this._reviewQueue).size;
+        box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
+        const rb = document.getElementById('cards-review-restart');
+        if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
+        this.updateFavCount();
+        try {
+          if (window.RelationalStore && pid && planId && RelationalStore.releaseReviewLease) {
+            RelationalStore.releaseReviewLease(pid, planId).catch(e => _quiet(e, 'review-lease-release'));
+          }
+        } catch (e) { _quiet(e, 'review-lease-release-start'); }
+        const prox = (this._queueMeta || {}).proximoTs;
+        clearTimeout(this._etaTimer);
+        if (prox) this._etaTimer = setTimeout(() => {
+          if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); }
+        }, Math.max(3000, prox - Date.now() + 500));
         return;
       }
-      // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
-      const distintos = new Set(this._reviewQueue).size;
-      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
-      const rb = document.getElementById('cards-review-restart');
-      if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
-      this.updateFavCount();
-      // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
-      const prox = (this._queueMeta || {}).proximoTs;
-      clearTimeout(this._etaTimer);
-      if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
-      return;
+      this.renderReviewCard(box);
+    } catch (e) {
+      console.error('[cards] resposta não confirmada localmente', e);
+      /* Reverte a projeção viva; o usuário continua no MESMO card. */
+      try { if (antes) DB.updateCard(id, antes); } catch (_) { _quiet(_, 'answer-rollback-card'); }
+      try {
+        (siblingsAntes || []).forEach(x => DB.updateCard(x.id, x.state));
+      } catch (_) { _quiet(_, 'answer-rollback-siblings'); }
+      try { if (revTs != null) DB.removeRevlog(revTs); } catch (_) { _quiet(_, 'answer-rollback-revlog'); }
+      try { if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id); } catch (_) { _quiet(_, 'answer-rollback-daily'); }
+      try { if (this._seenThisSession) this._seenThisSession.delete(id); } catch (_) { _quiet(_, 'answer-rollback-seen'); }
+      try { if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush(); } catch (_) { _quiet(_, 'answer-rollback-flush'); }
+      CardEngine.invalidateDueCache();
+      showToast('⚠ A revisão não foi confirmada neste aparelho. O card não avançou.');
+    } finally {
+      this._answering = false;
     }
-    this.renderReviewCard(box);
   },
   // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
@@ -29106,31 +29246,63 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
     return data;
   },
-  saveCard(closeAfter) {
+  async saveCard(closeAfter) {
+    if (this._savingCard) return;
     const data = this._readCardForm();
     if (!data) return;
+    this._savingCard = true;
     const reversed = data._reversed; delete data._reversed;
-    if (this._editingId) {
-      DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
-    } else {
-      const c = DB.addCard(data);
-      if (reversed) {
-        DB.addCard({ ...data, frente: data.verso, verso: data.frente, reversedOf: c.id });
-        showToast('2 cards criados (normal + invertido) ✓');
-      } else showToast('Card criado ✓');
-      if (closeAfter) this.closeCardModal();
-      else {
-        $id('card-frente').innerHTML = '';
-        $id('card-verso').innerHTML = '';
-        $id('card-frente').focus();
+    const editId = this._editingId;
+    const antes = editId ? JSON.parse(JSON.stringify(DB.getCard(editId) || null)) : null;
+    const criados = [];
+    try {
+      if (editId) {
+        if (DB.updateCard(editId, data) === false) throw new Error('card-edit-local');
+      } else {
+        const c = DB.addCard(data);
+        if (!c) throw new Error('card-create-local');
+        criados.push(c.id);
+        if (reversed) {
+          const inv = DB.addCard({ ...data, frente:data.verso, verso:data.frente, reversedOf:c.id });
+          if (!inv) throw new Error('card-reverse-local');
+          criados.push(inv.id);
+        }
       }
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+
+      if (editId) {
+        showToast('Card atualizado ✓');
+        this.closeCardModal();
+      } else {
+        showToast(reversed ? '2 cards criados (normal + invertido) ✓' : 'Card criado ✓');
+        if (closeAfter) this.closeCardModal();
+        else {
+          $id('card-frente').innerHTML = '';
+          $id('card-verso').innerHTML = '';
+          $id('card-frente').focus();
+        }
+      }
+      this.render();
+    } catch (e) {
+      console.error('[cards] falha ao salvar card', e);
+      try {
+        if (editId && antes) DB.updateCard(editId, antes);
+        else criados.slice().reverse().forEach(id => DB.deleteCard(id));
+        if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      } catch (rb) { _quiet(rb, 'card-save-rollback'); }
+      showToast('⚠ O card não foi confirmado neste aparelho. Tente novamente.');
+    } finally {
+      this._savingCard = false;
     }
-    this.render();
   },
   async deleteCard() {
     if (!this._editingId) return;
     if (!await UI.confirm('Excluir este card?')) return;
-    DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
+    const id=this._editingId;
+    if (DB.deleteCard(id) === false) { showToast('⚠ Não foi possível excluir o card.'); return; }
+    try { if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush(); }
+    catch (e) { showToast('⚠ A exclusão não foi confirmada neste aparelho.'); return; }
+    this.closeCardModal(); this.render(); showToast('Card excluído');
   },
 
   // ---- baralhos ----
@@ -29618,7 +29790,13 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Padrão Anki: 8. Use 0 para desativar.' },
     { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'suspend',
       options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (continua aparecendo)' }],
-      hint: 'Suspenso some da revisão até você reativar em Meus cards.' }
+      hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
+    { key: 'buryNewSiblings', label: '⇄ Enterrar irmãos de cards novos', type: 'select', value: cfg.buryNewSiblings === false ? '0' : '1',
+      options: [{ value:'1', label:'Ligado (padrão Anki)' }, { value:'0', label:'Desligado' }],
+      hint: 'Evita estudar frente e verso invertido no mesmo dia e receber a resposta de graça.' },
+    { key: 'buryReviewSiblings', label: '⇄ Enterrar irmãos em revisão', type: 'select', value: cfg.buryReviewSiblings === false ? '0' : '1',
+      options: [{ value:'1', label:'Ligado (padrão Anki)' }, { value:'0', label:'Desligado' }],
+      hint: 'Quando um lado do par é revisado, o outro fica para o próximo dia.' }
   ];
   /* ── ORDENAÇÃO E MISTURA — paridade com deck_config.proto ──────────────────
      Cada rótulo diz o que a opção FAZ, não só como se chama. São escolhas cujo
@@ -29723,6 +29901,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval, 10) || 36500)),
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'tag' ? 'tag' : 'suspend',
+      buryNewSiblings: v.buryNewSiblings !== '0',
+      buryReviewSiblings: v.buryReviewSiblings !== '0',
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
          permitida: um select adulterado não pode injetar uma chave que depois
          quebraria a montagem da fila. */
@@ -30589,10 +30769,12 @@ CardsScreen.openFsrsTools = function () {
   const nRev = scope ? (DB.getRevlog() || []).filter(r => { const c = DB.getCard(r.cardId); return c && c.deckId === scope; }).length : (DB.getRevlog() || []).length;
   UI.confirm(
     `Escopo: ${alvo} · ${nRev} revisão(ões) registrada(s).\n\n` +
-    (custom ? `✔ Usando pesos PERSONALIZADOS${last ? ' (otimizados em ' + last + ')' : ''}.` : 'Usando os pesos PADRÃO do FSRS-6.') +
-    `\n\nEscolha uma ação avançada:`,
-    { title: '🧠 Ferramentas FSRS', okText: '⚡ Otimizar meus parâmetros', cancelText: 'Fechar' }
-  ).then(ok => { if (ok) CardsScreen.runOptimizer(); });
+    (custom
+      ? `⚠ Este escopo ainda usa pesos PERSONALIZADOS${last ? ' (gravados em ' + last + ')' : ''}. Eles são preservados para não alterar sua agenda sem autorização.`
+      : '✔ Usando os pesos PADRÃO oficiais do FSRS-6.') +
+    `\n\nA otimização local de pesos foi desativada: o agendador é comparado com o Anki, mas o antigo treinador local não era o otimizador oficial e não tinha equivalência certificada. As demais ferramentas continuam disponíveis abaixo.`,
+    { title: '🧠 Ferramentas FSRS', okText: 'Fechar', cancelText: 'Fechar' }
+  );
   setTimeout(() => {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
     if (!foot || document.getElementById('fsrs-extra-btns')) return;
@@ -30676,7 +30858,7 @@ CardsScreen.recalcularMemoria = function () {
     `${plano.length} card(s) teriam a memória recalculada (variação média de ${medio}% na estabilidade).` + aviso +
     `\n\nO histórico de revisões NÃO é alterado — só o estado (S/D) é reconstruído a partir dele com os pesos atuais. ` +
     `As datas já agendadas são mantidas quando ainda cabem na janela de dispersão do Anki; as demais são reagendadas.` +
-    `\n\nRecomendado depois de otimizar os parâmetros ou de atualizar o app. Dá para desfazer restaurando um backup.`,
+    `\n\nÚtil ao atualizar o algoritmo ou ao restaurar pesos padrão. Dá para desfazer restaurando um backup.`,
     { title: '↻ Recalcular memória pelo histórico', okText: 'Recalcular ' + plano.length + ' card(s)', cancelText: 'Cancelar' }
   ).then(okc => {
     if (!okc) return;
@@ -30735,72 +30917,12 @@ CardsScreen.abrirReposicionar = function () {
 };
 
 CardsScreen.runOptimizer = function () {
-  const scope = CardsScreen._fsrsScope || null; // null = global; senão deckId
-  let revlog = DB.getRevlog() || [];
-  const cfgOpt = scope ? CardsConfig.forDeck(scope) : CardsConfig.get();
-  /* param_search: restringe o treino aos cards que casam com a consulta.
-     O nome do baralho é anexado ao card só para o filtro poder usar "baralho:". */
-  const filtro = FSRS.compilarBusca(cfgOpt.paramSearch || '');
-  let elegiveis = DB.getCards();
-  if (scope) elegiveis = elegiveis.filter(c => c.deckId === scope);
-  let nFiltrados = null;
-  if (filtro) {
-    const nomeDeck = {}; (DB.getDecks() || []).forEach(d => { nomeDeck[d.id] = d.nome; });
-    const antes = elegiveis.length;
-    elegiveis = elegiveis.filter(c => filtro(Object.assign({ _deckNome: nomeDeck[c.deckId] || '' }, c)));
-    nFiltrados = { antes, depois: elegiveis.length };
-  }
-  if (scope || filtro) {
-    const ids = new Set(elegiveis.map(c => c.id));
-    revlog = revlog.filter(r => ids.has(r.cardId));
-  }
-  if (filtro && !elegiveis.length) {
-    UI.alert('Nenhum card corresponde ao filtro de treino configurado. Revise o campo "Cards que treinam os parâmetros" ou deixe-o vazio para usar todos.',
-      { title: 'Filtro sem resultados', okText: 'Entendi' });
-    return;
-  }
-  const alvo = scope ? ('do baralho "' + ((DB.getDecks().find(d => d.id === scope) || {}).nome || '') + '"') : 'global';
-  UI.alert('Analisando seu histórico ' + alvo + ' e ajustando os 21 parâmetros do FSRS-6… pode levar alguns segundos.', { title: '⚡ Otimizando FSRS-6', okText: 'Aguarde…' });
-  setTimeout(() => {
-    const startW = scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights();
-    const res = FSRS.optimize(revlog, { startW, iters: 50, lr: 0.03,
-      ignorarAntesDe: (scope ? CardsConfig.forDeck(scope) : CardsConfig.get()).ignoreRevlogsBefore || '' });
-    UI._submit(false);
-    if (res.reason === 'few') {
-      UI.alert(`Só há ${res.treinaveis} revisão(ões) de LONGO PRAZO ${alvo} — revisões do mesmo dia não treinam a curva de esquecimento.\n\n` +
-               `Abaixo de ~32 o ajuste vira ruído: o otimizador acharia padrões que não existem. Os pesos padrão do FSRS-6 já são bons ` +
-               `(treinados em centenas de milhões de revisões reais).\n\nContinue revisando — o Anki recomenda reotimizar cada vez que suas revisões dobram.`,
-        { title: 'Ainda é cedo para personalizar', okText: 'Entendi' });
-      return;
-    }
-    if (res.improved) {
-      const antes = res.lossBefore.toFixed(4), depois = res.lossAfter.toFixed(4);
-      const ganho = ((1 - res.lossAfter / res.lossBefore) * 100).toFixed(1);
-      if (scope) CardsConfig.setDeckPreset(scope, { weights: res.w, lastOptim: Date.now() });
-      else CardsConfig.set({ weights: res.w, lastOptim: Date.now() });
-      /* Transparência sobre o ALCANCE do ajuste. Como o Anki 24.06+, o número de
-         parâmetros liberados cresce com o volume de dados: personalizar os 21 com
-         poucas revisões produz pesos encostados nos limites, que é sobreajuste. */
-      const escopoTxt = res.livres < 21
-        ? `\n\n🔒 Com ${res.treinaveis} revisões de longo prazo, ${res.livres} dos 21 parâmetros foram ajustados; ` +
-          `o resto ficou no padrão de propósito (é o que o Anki faz). Reotimize quando suas revisões dobrarem.`
-        : '';
-      const alerta = (res.noLimite && res.noLimite.length)
-        ? `\n\n⚠ ${res.noLimite.length} parâmetro(s) encostaram no limite permitido — sinal de que ainda falta histórico. Trate o resultado como provisório.`
-        : '';
-      const recorte = nFiltrados
-        ? `\n\n🔎 Filtro aplicado: ${nFiltrados.depois} de ${nFiltrados.antes} card(s) entraram no treino.`
-        : '';
-      UI.alert(`Parâmetros ${alvo} otimizados a partir de ${res.treinaveis} revisões de longo prazo! ✓\n\n` +
-               `Erro de previsão (log-loss): ${antes} → ${depois}  (−${ganho}%)` + recorte + escopoTxt + alerta +
-               `\n\n💡 Para os pesos novos valerem também nos cards ANTIGOS, use “↻ Recalcular memória”.`,
-        { title: '✅ Otimização concluída', okText: 'Ótimo!' });
-      if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
-    } else {
-      UI.alert('Seus parâmetros ' + alvo + ' já estão ótimos para o histórico — nenhuma mudança melhoraria a previsão.\n\n(O Anki segue a mesma regra: só troca se for comprovadamente melhor.)', { title: 'Já está ótimo', okText: 'Perfeito' });
-    }
-  }, 120);
+  UI.alert(
+    'A otimização local de pesos está desativada. O Study mantém o agendador FSRS-6 validado contra o Anki, mas não substitui o otimizador oficial com um treinador próprio não certificado.\n\nOs pesos padrão continuam disponíveis e pesos personalizados antigos são preservados até você optar por restaurar o padrão.',
+    { title: '🧠 Otimização de pesos desativada', okText: 'Entendi' }
+  );
 };
+
 // 🎯 Retenção recomendada: pergunta o tempo/dia e mostra a curva custo × retenção
 CardsScreen.computeRetention = function () {
   const scope = CardsScreen._fsrsScope || null;
@@ -36447,8 +36569,9 @@ const ProfileUI = {
         if (sub) sub.textContent = 'Selecione seu perfil para entrar no seu diário.';
         const lo = document.getElementById('gate-logout-btn');
         if (lo) lo.style.display = logged ? 'inline-block' : 'none';
-        if (logged) this.loadCloudProfiles();
+        if (logged && !this._offline) this.loadCloudProfiles();
         else this.renderGrid(ProfileManager.getProfiles());
+        if (this._offline && sub) sub.textContent = 'Modo offline — alterações ficam seguras neste aparelho e sincronizam ao reconectar.';
       }
     }
   },
@@ -36513,7 +36636,19 @@ const ProfileUI = {
         setTimeout(() => { if (token === this._gridToken) this.loadCloudProfiles(); }, 5000);
         return;
       }
-      grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Tente recarregar a página.</p>';
+      const cached = ProfileManager.getProfiles();
+      const podeOffline = !!(window.CloudStore && CloudStore.isLoggedIn && CloudStore.isLoggedIn()
+        && cached && cached.length);
+      if (podeOffline) {
+        this._offline = true;
+        this._showProfilePicker();
+        this.renderGrid(cached);
+        const sub = document.getElementById('profile-gate-sub');
+        if (sub) sub.textContent = 'Sem conexão — usando a cópia durável deste aparelho.';
+        showToast('📴 Modo offline: suas alterações serão sincronizadas depois.');
+        return;
+      }
+      grid.innerHTML = '<p class="hint" style="color:var(--bad); text-align:center; padding:20px;">Não foi possível carregar seus perfis: ' + escapeHtml(err.message || '') + '<br>Conecte-se à internet e tente novamente.</p>';
     }
   },
 
@@ -36551,16 +36686,33 @@ const ProfileUI = {
     if (add) add.addEventListener('click', () => this.openModal(null));
   },
 
+  _hasLocalProfile(id) {
+    const pfx='diario-estudos:u:'+id+':';
+    try {
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        if(k&&k.indexOf(pfx)===0) return true;
+      }
+    } catch (_) {}
+    return false;
+  },
   async enterProfile(id) {
     if (!window.CloudStore || !CloudStore.isReady() || !CloudStore.isLoggedIn()) {
       this._entering = false;
-      showToast('Entre na conta para carregar seus dados do banco.');
+      showToast('Entre na conta para acessar este perfil.');
       this.showGate();
       return;
     }
-    if (!window.RelationalStore || !RelationalStore.enabled) {
+    const offline = this._offline || (typeof navigator!=='undefined' && navigator.onLine===false);
+    if (offline && !this._hasLocalProfile(id)) {
+      this._entering=false;
+      showToast('Este perfil ainda não tem uma cópia offline neste aparelho.');
+      this._showProfilePicker();
+      return;
+    }
+    if (!offline && (!window.RelationalStore || !RelationalStore.enabled)) {
       this._entering = false;
-      showToast('Camada relacional indisponível. Nenhum dado local foi usado.');
+      showToast('Camada relacional indisponível.');
       this._showProfilePicker();
       return;
     }
@@ -36569,13 +36721,14 @@ const ProfileUI = {
     this._showEnteringGate(id);
     try {
       CloudStore._applying = true;
-      /* O perfil ativo é apenas estado da aba. Nenhum dado de estudo é lido do
-         navegador: hydrateProfile faz SELECT nas tabelas relacionais e monta
-         uma projeção exclusivamente em memória para as telas síncronas. */
+      /* Online: outbox→PostgreSQL→hidratação. Offline: a mesma projeção
+         síncrona vem do IndexedDB carregado antes do app iniciar. */
       ProfileManager.setActiveProfile(id);
-      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-inicio'); }
-      await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
-      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id }); } catch (e) { _quiet(e, 'perfil-core-trace-pronto'); }
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-inicio', { profileId: id, offline }); } catch (e) { _quiet(e, 'perfil-core-trace-inicio'); }
+      if (!offline) {
+        await RelationalStore.hydrateProfile(id, { reason: 'enter-profile', includeHeavy: false });
+      }
+      try { if (window.StartupTrace && StartupTrace.mark) StartupTrace.mark('perfil-core-pronto', { profileId: id, offline }); } catch (e) { _quiet(e, 'perfil-core-trace-pronto'); }
       PlanManager.init();
       CloudStore._applying = false;
 
@@ -36593,10 +36746,12 @@ const ProfileUI = {
       } else if (typeof switchScreen === 'function') {
         switchScreen('registrar');
       }
-      try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id } })); } catch (_) { _quiet(_); }
-      /* TEC/incidência não bloqueiam o portão. Em rede normal, pré-carrega no
-         tempo ocioso; em economia de dados, só baixa quando alguma tela pedir. */
-      try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (e) { _quiet(e, 'perfil-heavy-prefetch'); }
+      try { window.dispatchEvent(new CustomEvent('profile:relational-ready', { detail: { id, offline } })); } catch (_) { _quiet(_); }
+      if (offline) showToast('📴 Perfil aberto offline — sincroniza automaticamente ao reconectar.');
+      /* TEC/incidência não bloqueiam o portão. */
+      if (!offline) {
+        try { RelationalStore.scheduleHeavyData(id, { reason: 'post-open-prefetch', delay: 2500 }); } catch (e) { _quiet(e, 'perfil-heavy-prefetch'); }
+      }
     } catch (err) {
       CloudStore._applying = false;
       this._entering = false;
@@ -36810,7 +36965,14 @@ const ProfileUI = {
     try { await CS.changePassword(vals.p1); showToast('Senha alterada com sucesso ✓'); }
     catch (err) { showToast('Não foi possível alterar a senha: ' + (err.message || '')); }
   },
-  useOffline() { showToast('Este modo foi removido: os dados de estudo são consultados diretamente no banco.'); },
+  useOffline() {
+    const cached=ProfileManager.getProfiles();
+    if (!(window.CloudStore&&CloudStore.isLoggedIn&&CloudStore.isLoggedIn()) || !cached.length) {
+      showToast('Não há uma sessão autenticada com dados offline neste aparelho.');
+      return;
+    }
+    this._offline=true; this._showProfilePicker(); this.renderGrid(cached);
+  },
   async gateLogout() {
     const CS = window.CloudStore;
     const logged = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn());
@@ -39555,9 +39717,10 @@ window.ReforcoFila = ReforcoFila;
 /* ============================================================
    CLOUD STORE — autenticação + fachada da persistência relacional
    ------------------------------------------------------------
-   O PostgreSQL relacional é a única fonte persistente dos dados de estudo.
-   CloudStore mantém apenas autenticação, metadados de perfis e a API pública
-   usada pelas telas. Leituras/escritas do estudo delegam ao RelationalStore.
+   O PostgreSQL relacional é a fonte canônica compartilhada dos dados de estudo.
+   O IndexedDB mantém cache/outbox duráveis neste aparelho para uso offline.
+   CloudStore coordena autenticação e garante outbox→PostgreSQL→pull, enquanto
+   as leituras/escritas relacionais delegam ao RelationalStore.
    ============================================================ */
 const CloudStore = {
   SUPABASE_URL: 'https://gizhxgnbmmhhniubelbz.supabase.co',
@@ -39800,6 +39963,8 @@ const CloudStore = {
 
   async saveActive() {
     if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
+    if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+    if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
     await RelationalStore.flush();
     this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
     return { relational: true };
@@ -39815,6 +39980,8 @@ const CloudStore = {
     if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
     this._syncing = true;
     try {
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
       await RelationalStore.flush();
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
       return true;
@@ -39834,7 +40001,7 @@ const CloudStore = {
   },
 
   _beaconSave() {
-    /* Não existe dado de estudo persistente no navegador para descarregar. */
+    /* A outbox já é durável no IndexedDB a cada mutação; não há blob a descarregar. */
   },
 
   async syncOnFocus() {
@@ -39843,6 +40010,8 @@ const CloudStore = {
       ? ProfileManager.getActiveProfileId() : null;
     if (!id) return false;
     try {
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
       await RelationalStore.flush();
       await RelationalStore.catchUp(id, 'focus');
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
@@ -39862,7 +40031,9 @@ const CloudStore = {
     const id = window.ProfileManager && ProfileManager.getActiveProfileId
       ? ProfileManager.getActiveProfileId() : null;
     try {
-      if (window.CloudUI) CloudUI.setStatus('syncing', 'Consultando banco…');
+      if (window.CloudUI) CloudUI.setStatus('syncing', 'Enviando pendências…');
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+      if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
       await RelationalStore.flush();
       if (id) await RelationalStore.catchUp(id, 'manual');
       this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
@@ -39880,12 +40051,17 @@ const CloudStore = {
     const id = window.ProfileManager && ProfileManager.getActiveProfileId
       ? ProfileManager.getActiveProfileId() : null;
     if (!id || !window.RelationalStore) return false;
+    if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+    if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
+    await RelationalStore.flush();
     return RelationalStore.catchUp(id, (opts && opts.reason) || 'pull');
   },
 
   async saveThenReload() {
     try {
+      if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
       if (this.isReady() && this.isLoggedIn() && window.RelationalStore) {
+        if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
         await RelationalStore.flush();
       }
     } catch (e) {
@@ -39939,7 +40115,11 @@ const CloudStore = {
 window.CloudStore = CloudStore;
 
 /* ============================================================
-   RELATIONAL STORE — Supabase é a única fonte persistente de verdade
+   RELATIONAL STORE — PostgreSQL canônico + outbox IndexedDB durável
+   ------------------------------------------------------------
+   O PostgreSQL continua sendo a cópia canônica compartilhada. O IndexedDB
+   guarda a projeção offline e mutações ainda não confirmadas, que são sempre
+   reenviadas antes de qualquer pull/hidratação.
    ============================================================ */
 const RelationalStore = {
   enabled: true,
@@ -39947,6 +40127,7 @@ const RelationalStore = {
   _tail: Promise.resolve(),
   _pending: 0,
   _lastError: null,
+  _failed: new Map(),
   _lastSyncAt: null,
   _channel: null,
   _channelProfile: null,
@@ -39958,11 +40139,17 @@ const RelationalStore = {
   _heavyTimers: new Map(),
   _lastChangeId: new Map(),
   _lastHydratedAt: new Map(),
+  _reviewLeaseUntil: new Map(),
 
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
   pendingCount() { return this._pending; },
+  hasFailures() { return this._failed.size > 0; },
+  _refreshFailureState() {
+    const first = this._failed.values().next();
+    this._lastError = first.done ? null : first.value;
+  },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -40110,6 +40297,7 @@ const RelationalStore = {
         lastReview:r.last_review,createdAt:r.created_at,updatedAt:r.updated_at
       })},
       revlog:{suffix:'revlog',map:r=>Object.assign({},r.extra||{},{
+        reviewId:r.review_id||null,
         cardId:r.card_id==null?null:self._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
         acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
         phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),
@@ -40351,7 +40539,7 @@ const RelationalStore = {
       const d=await this._loadHeavyBundle(id);
       this._applyHeavyBundle(id,d||{});
       this._heavyReady.add(id);this._heavyDirty.delete(id);
-      this._lastSyncAt=Date.now();this._lastError=null;
+      this._lastSyncAt=Date.now();this._refreshFailureState();
       this._trace('rel-heavy-ok',{profileId:id,ms:Date.now()-t0});
       try{window.dispatchEvent(new CustomEvent('data:relational-heavy-hydrated',{detail:{profileId:id,reason:opts.reason||'demand'}}));}catch(e){_quiet(e,'rel-heavy-event');}
       return {ok:true,mudou:1};
@@ -40379,6 +40567,12 @@ const RelationalStore = {
   async hydrateProfile(profileId, opts) {
     opts=opts||{};
     if(!this.isReady())throw new Error('Banco indisponível');
+    /* Startup também obedece à regra outbox-first. Sem isto, um reload logo
+       após perder a rede poderia hidratar o snapshot remoto antigo por cima
+       dos cards já confirmados no IndexedDB. */
+    if(!opts.skipReplay && this.replayDurable && window.LocalDurable){
+      await this.replayDurable();
+    }
     const t0=Date.now();
     this._trace('rel-core-inicio',{profileId,reason:opts.reason||'open'});
     let watermark=this._lastChangeId.get(profileId)||0;
@@ -40387,10 +40581,11 @@ const RelationalStore = {
     }
     const d=await this._loadCoreBundle(profileId);
     this._applyCoreBundle(profileId,d,{preserveHeavy:!!opts.preserveHeavy});
+    if(window.LocalDurable&&LocalDurable.flush)await LocalDurable.flush();
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
     this._lastHydratedAt.set(profileId,Date.now());
-    this._lastSyncAt=Date.now();this._lastError=null;
+    this._lastSyncAt=Date.now();this._refreshFailureState();
     this.subscribeProfile(profileId);
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
     try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
@@ -40398,15 +40593,26 @@ const RelationalStore = {
     return {ok:true,mudou:1,profile:d.profile,heavyReady:this.isHeavyReady(profileId)};
   },
 
-  _queue(label, task) {
+  _queue(label, task, dirtyId) {
     this._pending++;
+    const failureKey = dirtyId || ('task|' + label);
     const run = async()=>{
       let last;
       for(let i=0;i<3;i++){
-        try { const r=await task(); this._lastError=null; this._lastSyncAt=Date.now(); return r; }
-        catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
+        try {
+          const r=await task();
+          this._failed.delete(failureKey);
+          this._refreshFailureState();
+          this._lastSyncAt=Date.now();
+          if(dirtyId && window.LocalDurable && LocalDurable.markSynced) {
+            try { await LocalDurable.markSynced(dirtyId); } catch(e){ _quiet(e,'durable-ack'); }
+          }
+          return r;
+        } catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
       }
-      this._lastError=last; throw last;
+      this._failed.set(failureKey,last);
+      this._refreshFailureState();
+      throw last;
     };
     const p=this._tail.then(run,run);
     this._tail=p.catch(e=>{ console.error('[RelationalStore]',label,e); }).finally(()=>{
@@ -40416,9 +40622,12 @@ const RelationalStore = {
     try { if(window.CloudUI)CloudUI.refreshSyncBtn('syncing','Salvando no banco…'); } catch(e){ _quiet(e, 'rel-sync-btn-saving'); }
     return p;
   },
+  async settle() { await this._tail; return true; },
   async flush() {
     await this._tail;
+    this._refreshFailureState();
     if (this._lastError) throw this._lastError;
+    if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
     return true;
   },
 
@@ -40432,14 +40641,68 @@ const RelationalStore = {
   _revlogRow(profileId, planId, x, posicaoAlternativa) {
     x = x || {};
     return {
-      profile_id: profileId, plan_id: planId,
+      profile_id: profileId, plan_id: planId, review_id: x.reviewId || null,
       card_id: x.cardId == null ? null : String(x.cardId), ts: x.ts == null ? null : Number(x.ts), review_date: x.date || null,
       correct: x.acerto == null ? null : !!x.acerto, grade: x.grade == null ? null : Number(x.grade), elapsed: x.elapsed == null ? null : Number(x.elapsed),
       phase: x.phase || null, interval_value: x.intervalo == null ? null : Number(x.intervalo), d: x.d == null ? null : Number(x.d), s: x.s == null ? null : Number(x.s),
       position: Number(x._position) || Number(posicaoAlternativa) || 1,
-      extra: Object.fromEntries(Object.entries(x).filter(([k]) => !['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
+      extra: Object.fromEntries(Object.entries(x).filter(([k]) => !['reviewId','cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
     };
   },
+  _cardRow(profileId, planId, x, i) {
+    x=x||{};
+    return {
+      profile_id:profileId,plan_id:planId,card_id:String(x.id),deck_id:x.deckId==null?null:String(x.deckId),
+      subject:x.materia||null,topic:x.assunto||null,card_type:x.tipo||null,front:x.frente||'',back:x.verso||'',
+      favorite:!!x.favorito,status:x.status||null,banca:x.banca||null,kind:x.kind||null,
+      due:x.due==null?null:String(x.due),due_ts:x.dueTs==null?null:Number(x.dueTs),ease:x.ease==null?null:Number(x.ease),
+      interval_value:x.intervalo==null?null:Number(x.intervalo),lapses:x.lapses==null?null:Number(x.lapses),
+      learn_step:x.learnStep==null?null:Number(x.learnStep),reps:x.reps==null?null:Number(x.reps),phase:x.phase||null,
+      reversed_of:x.reversedOf==null?null:String(x.reversedOf),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),
+      algo:x.algo||null,last_review:x.lastReview||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,
+      position:(Number(i)||0)+1,
+      extra:Object.fromEntries(Object.entries(x).filter(([k])=>!['id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind','due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s','algo','lastReview','createdAt','updatedAt'].includes(k)))
+    };
+  },
+  _cardsParts(key) {
+    const p=this._keyParts(key);
+    return (p&&p.scope==='plan'&&p.sub==='cards')?p:null;
+  },
+  queueCardUpsert(key, card, pos) {
+    if(this._applying || !card) return false;
+    const p=this._cardsParts(key); if(!p) return false;
+    const dirtyId='card|'+key+'|'+String(card.id);
+    if(!this.isReady()) return false;
+    this._queue('card:upsert', async()=>{
+      const {error}=await CloudStore.client.from('study_cards')
+        .upsert(this._cardRow(p.profileId,p.planId,card,pos),{onConflict:'profile_id,plan_id,card_id'});
+      if(error)throw error;
+    },dirtyId);
+    return true;
+  },
+  queueCardDelete(key, cardId) {
+    if(this._applying) return false;
+    const p=this._cardsParts(key); if(!p) return false;
+    const dirtyId='card|'+key+'|'+String(cardId);
+    if(!this.isReady()) return false;
+    this._queue('card:delete', async()=>{
+      const {error}=await CloudStore.client.from('study_cards').delete()
+        .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',String(cardId));
+      if(error)throw error;
+    },dirtyId);
+    return true;
+  },
+  queueCardsReplace(key, rows) {
+    if(this._applying) return false;
+    const p=this._cardsParts(key); if(!p) return false;
+    const arr=Array.isArray(rows)?rows:[];
+    const dirtyId='cards-replace|'+key;
+    if(!this.isReady()) return false;
+    this._queue('cards:replace',()=>this._replacePlanRows('study_cards',p.profileId,p.planId,
+      arr.map((x,i)=>this._cardRow(p.profileId,p.planId,x,i)),'profile_id,plan_id,card_id'),dirtyId);
+    return true;
+  },
+
   _revlogParts(key) {
     const p = this._keyParts(key);
     return (p && p.scope === 'plan' && p.sub === 'revlog') ? p : null;
@@ -40447,23 +40710,28 @@ const RelationalStore = {
   queueRevlogAppend(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
+    const dirtyId='review|'+key+'|'+String(row.reviewId || (String(row.cardId)+'|'+String(row.ts)+'|'+String(row._position||'')));
     this._queue('revlog:append', async () => {
       const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
-      if(error) throw error;
-    });
+      if(error && String(error.code)!=='23505') throw error;
+    },dirtyId);
     return true;
   },
   queueRevlogDelete(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
+    const dirtyId='review-delete|'+key+'|'+String(row.reviewId || (String(row.cardId)+'|'+String(row.ts)+'|'+String(row._position||'')));
     this._queue('revlog:delete', async () => {
       let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
-      if(row._position != null) q = q.eq('position', Number(row._position));
-      if(row.ts != null) q = q.eq('ts', Number(row.ts));
-      if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
+      if(row.reviewId) q=q.eq('review_id',row.reviewId);
+      else {
+        if(row._position != null) q = q.eq('position', Number(row._position));
+        if(row.ts != null) q = q.eq('ts', Number(row.ts));
+        if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
+      }
       const {error} = await q;
       if(error) throw error;
-    });
+    },dirtyId);
     return true;
   },
   queueRevlogReplace(key, rows) {
@@ -40471,7 +40739,7 @@ const RelationalStore = {
     const p = this._revlogParts(key); if(!p) return false;
     const arr = Array.isArray(rows) ? rows : [];
     this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
-      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'));
+      arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'),'revlog-replace|'+key);
     return true;
   },
 
@@ -40492,31 +40760,31 @@ const RelationalStore = {
        disponível. As linhas correspondentes já vão para `study_review_log` por
        queueRevlogAppend; persisti-las de novo criaria duplicata. */
     return sub.indexOf('__lixeira:') === 0
+        || sub === 'revlog'
         || sub === 'revlog-pendente'
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
-    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
-       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
-       não viram falso erro de banco. Depois do login, isReady() permanece true
-       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
-    if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
+    if(p.scope!=='user' && this._ignoreSub(p.sub)) return;
+    /* Mesmo offline o LocalDurable já guardou a mutação. Se o cliente SQL não
+       está pronto, simplesmente deixamos o dirty para replay na reconexão. */
+    if(!this.isReady()) return;
+    const dirtyId='kv|'+key;
     if(p.scope==='user') {
       if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
+      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw),dirtyId);
       return;
     }
-    if(this._ignoreSub(p.sub)) return;
     if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw));
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw));
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw));
+      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw),dirtyId);
+      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw),dirtyId);
+      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw),dirtyId);
       return;
     }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw));
+    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw),dirtyId);
   },
 
   async _persistUserPref(key, raw) {
@@ -40572,6 +40840,13 @@ const RelationalStore = {
     if(error)throw error;
   },
   async _replacePlanRows(table,profileId,planId,rows,onConflict){
+    if(table==='study_cards'){
+      const {error}=await CloudStore.client.rpc('replace_study_cards',{
+        p_profile_id:profileId,p_plan_id:planId,p_rows:rows||[]
+      });
+      if(error)throw error;
+      return;
+    }
     const {error}=await CloudStore.client.rpc('replace_study_plan_rows',{
       p_table:table,p_profile_id:profileId,p_plan_id:planId,p_rows:rows||[]
     });
@@ -40596,10 +40871,8 @@ const RelationalStore = {
     if(sub==='modes')return this._syncById('study_modes',profileId,planId,'mode_id',oldA,newA,(x,i)=>Object.assign(base(),{mode_id:String(x.id),name:x.nome||'',active:x.ativo!==false,position:i+1}),'profile_id,plan_id,mode_id');
     if(sub==='entries')return this._syncById('study_entries',profileId,planId,'entry_id',oldA,newA,(x,i)=>Object.assign(base(),{entry_id:String(x.id),study_date:x.date,subject:x.subject||'',lesson:x.lesson||'',method:x.method||'',duration_min:Number(x.durationMin)||0,correct:Number(x.correct)||0,total:Number(x.total)||0,page_start:x.pageStart==null?null:Number(x.pageStart),page_end:x.pageEnd==null?null:Number(x.pageEnd),video_start:x.videoStart==null?null:Number(x.videoStart),video_end:x.videoEnd==null?null:Number(x.videoEnd),comment:x.comment||'',created_at:x.createdAt||null,updated_at:new Date().toISOString(),position:i+1}),'profile_id,plan_id,entry_id');
     if(sub==='decks')return this._syncById('study_decks',profileId,planId,'deck_id',oldA,newA,(x,i)=>Object.assign(base(),{deck_id:String(x.id),name:x.nome||'',created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,deck_id');
-    if(sub==='cards')return this._syncById('study_cards',profileId,planId,'card_id',oldA,newA,(x,i)=>Object.assign(base(),{
-      card_id:String(x.id),deck_id:x.deckId==null?null:String(x.deckId),subject:x.materia||null,topic:x.assunto||null,card_type:x.tipo||null,front:x.frente||'',back:x.verso||'',favorite:!!x.favorito,status:x.status||null,banca:x.banca||null,kind:x.kind||null,due:x.due==null?null:String(x.due),due_ts:x.dueTs==null?null:Number(x.dueTs),ease:x.ease==null?null:Number(x.ease),interval_value:x.intervalo==null?null:Number(x.intervalo),lapses:x.lapses==null?null:Number(x.lapses),learn_step:x.learnStep==null?null:Number(x.learnStep),reps:x.reps==null?null:Number(x.reps),phase:x.phase||null,reversed_of:x.reversedOf==null?null:String(x.reversedOf),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),algo:x.algo||null,last_review:x.lastReview||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,position:i+1,
-      extra:Object.fromEntries(Object.entries(x).filter(([k])=>!['id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind','due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s','algo','lastReview','createdAt','updatedAt'].includes(k)))
-    }),'profile_id,plan_id,card_id');
+    if(sub==='cards')return this._syncById('study_cards',profileId,planId,'card_id',oldA,newA,
+      (x,i)=>this._cardRow(profileId,planId,x,i),'profile_id,plan_id,card_id');
     if(sub==='leis')return this._syncById('study_laws',profileId,planId,'law_id',oldA,newA,(x,i)=>Object.assign(base(),{law_id:String(x.id),title:x.titulo||null,reference:x.referencia||null,subject:x.materia||null,body:x.texto||'',bookmarked:x.bookmark==null?null:!!x.bookmark,bookmark_text:x.bookmarkTxt||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,options:x.opts||{},markings:x.marcacoes||[],suppressed:x.suppressed==null?null:x.suppressed,rotation:x.rodizio==null?null:x.rodizio,position:i+1,extra:{}}),'profile_id,plan_id,law_id');
     if(sub==='links')return this._syncById('study_links',profileId,planId,'link_id',oldA,newA,(x,i)=>Object.assign(base(),{link_id:String(x.id),name:x.nome||'',category:x.categoria||null,url:x.url||'',color:x.cor||null,logo:x.logo||null,created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,link_id');
     if(sub==='custom-siglas')return this._syncById('study_custom_siglas',profileId,planId,'sigla_id',oldA,newA,(x,i)=>Object.assign(base(),{sigla_id:String(x.id),name:x.nome||null,sigla:x.sigla||'',color:x.color||null,position:i+1}),'profile_id,plan_id,sigla_id');
@@ -40754,7 +41027,7 @@ const RelationalStore = {
       else { core=true; needsFullCore=true; }
     });
     if(needsFullCore){
-      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true,skipReplay:true});
     } else if(partialSpecs.length){
       await this._refreshCorePartial(profileId,partialSpecs);
     }
@@ -40765,12 +41038,143 @@ const RelationalStore = {
     return {core,heavy};
   },
 
+  _reviewHolderId() {
+    const K='diario-estudos:review-holder';
+    try {
+      let id=sessionStorage.getItem(K);
+      if(!id){ id=(crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2)); sessionStorage.setItem(K,id); }
+      return id;
+    } catch (_) { return 'tab-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2); }
+  },
+  _leaseKey(profileId,planId){ return String(profileId)+'|'+String(planId); },
+  _cachedLease(profileId,planId){
+    const k=this._leaseKey(profileId,planId);
+    let until=Number(this._reviewLeaseUntil.get(k))||0;
+    try {
+      const raw=sessionStorage.getItem('diario-estudos:lease:'+k);
+      if(raw) until=Math.max(until,Number(raw)||0);
+    } catch (_) {}
+    return until;
+  },
+  async ensureReviewLease(profileId, planId, opts) {
+    opts=opts||{};
+    const k=this._leaseKey(profileId,planId), now=Date.now(), cached=this._cachedLease(profileId,planId);
+    if(!opts.force && cached>now+30000) return {acquired:true,leaseUntil:cached,cached:true};
+    if(!this.isReady() || (typeof navigator!=='undefined' && navigator.onLine===false)){
+      return {acquired:cached>now,leaseUntil:cached,offline:true};
+    }
+    const holder=this._reviewHolderId();
+    const {data,error}=await CloudStore.client.rpc('claim_study_review_lease',{
+      p_profile_id:profileId,p_plan_id:String(planId),p_holder_id:holder,p_ttl_seconds:300
+    });
+    if(error) throw error;
+    const d=data||{}, until=Date.parse(d.lease_until||'')||0;
+    if(d.acquired){
+      this._reviewLeaseUntil.set(k,until);
+      try{sessionStorage.setItem('diario-estudos:lease:'+k,String(until));}catch(_){}
+    }
+    return {acquired:!!d.acquired,leaseUntil:until,holderId:d.holder_id||null};
+  },
+  async releaseReviewLease(profileId,planId) {
+    const k=this._leaseKey(profileId,planId), holder=this._reviewHolderId();
+    this._reviewLeaseUntil.delete(k);
+    try{sessionStorage.removeItem('diario-estudos:lease:'+k);}catch(_){}
+    if(!this.isReady()) return false;
+    const {data,error}=await CloudStore.client.rpc('release_study_review_lease',{
+      p_profile_id:profileId,p_plan_id:String(planId),p_holder_id:holder
+    });
+    if(error)throw error;
+    return !!data;
+  },
+
+  async _replayDirtyItem(item) {
+    if(!item||!item.kind)return true;
+    const key=item.key, p=this._keyParts(key);
+    if(item.kind==='kv'){
+      if(!p)return true;
+      if(p.scope==='user'){
+        if(p.sub==='profiles'||p.sub==='active-profile')return true;
+        await this._persistUserPref(p.sub,item.value); return true;
+      }
+      if(this._ignoreSub(p.sub))return true;
+      if(p.scope==='profile'){
+        if(p.sub==='planejamentos')await this._persistPlans(p.profileId,null,item.value);
+        else if(p.sub==='active-plan')await this._persistActivePlan(p.profileId,item.value);
+        else await this._persistProfileSetting(p.profileId,p.sub,item.value);
+        return true;
+      }
+      await this._persistPlanKey(p.profileId,p.planId,p.sub,null,item.value); return true;
+    }
+    if(item.kind==='card'){
+      if(!p||p.sub!=='cards')return true;
+      if(item.value==null){
+        const {error}=await CloudStore.client.from('study_cards').delete()
+          .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',String(item.cardId));
+        if(error)throw error;
+      }else{
+        const cards=(window.LocalDurable&&LocalDurable.getCards)?(LocalDurable.getCards(key)||[]):[];
+        const pos=Math.max(0,cards.findIndex(c=>String(c.id)===String(item.cardId)));
+        const {error}=await CloudStore.client.from('study_cards')
+          .upsert(this._cardRow(p.profileId,p.planId,item.value,pos),{onConflict:'profile_id,plan_id,card_id'});
+        if(error)throw error;
+      }
+      return true;
+    }
+    if(item.kind==='cards-replace'){
+      if(!p||p.sub!=='cards')return true;
+      const cards=(window.LocalDurable&&LocalDurable.getCards)?(LocalDurable.getCards(key)||[]):[];
+      await this._replacePlanRows('study_cards',p.profileId,p.planId,cards.map((c,i)=>this._cardRow(p.profileId,p.planId,c,i)));
+      return true;
+    }
+    if(item.kind==='review'){
+      const rp=this._revlogParts(key); if(!rp)return true;
+      const {error}=await CloudStore.client.from('study_review_log').insert(this._revlogRow(rp.profileId,rp.planId,item.value));
+      if(error&&String(error.code)!=='23505')throw error;
+      return true;
+    }
+    if(item.kind==='review-delete'){
+      const rp=this._revlogParts(key); if(!rp)return true;
+      let q=CloudStore.client.from('study_review_log').delete().eq('profile_id',rp.profileId).eq('plan_id',rp.planId);
+      if(item.value&&item.value.reviewId)q=q.eq('review_id',item.value.reviewId);
+      else if(item.value){ if(item.value.ts!=null)q=q.eq('ts',Number(item.value.ts)); if(item.value.cardId!=null)q=q.eq('card_id',String(item.value.cardId)); }
+      const {error}=await q;if(error)throw error;return true;
+    }
+    if(item.kind==='revlog-replace'){
+      const rp=this._revlogParts(key); if(!rp)return true;
+      let rows=[];try{rows=JSON.parse(localStorage.getItem(key)||'[]');}catch(_){}
+      await this._replacePlanRows('study_review_log',rp.profileId,rp.planId,(Array.isArray(rows)?rows:[]).map((x,i)=>this._revlogRow(rp.profileId,rp.planId,x,i+1)));
+      return true;
+    }
+    return true;
+  },
+  async replayDurable() {
+    if(!this.isReady()||!window.LocalDurable||!LocalDurable.listDirty)return {ok:true,count:0};
+    await this.settle();
+    const uid=CloudStore.session&&CloudStore.session.user?CloudStore.session.user.id:null;
+    const items=await LocalDurable.listDirty(uid);
+    let done=0, firstErr=null;
+    for(const item of items){
+      try{
+        await this._replayDirtyItem(item);
+        await LocalDurable.markSynced(item.id);
+        this._failed.delete(item.id); done++;
+      }catch(e){ this._failed.set(item.id,e); if(!firstErr)firstErr=e; }
+    }
+    this._refreshFailureState();
+    if(firstErr)throw firstErr;
+    return {ok:true,count:done};
+  },
+
   async catchUp(profileId, reason) {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
-    try{await this.flush();}catch(e){_quiet(e,'rel-catchup-flush');}
+    try{await this.settle();}catch(e){_quiet(e,'rel-catchup-settle');}
+    /* Nunca baixa estado remoto por cima de uma mutação local não reenviada. */
+    if(this.replayDurable){
+      try{await this.replayDurable();}catch(e){throw e;}
+    }
     if(!this._lastChangeId.has(id)){
-      return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false});
+      return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false,skipReplay:true});
     }
     const after=Number(this._lastChangeId.get(id))||0;
     const summary=await this._changeSummary(id,after);
@@ -40780,7 +41184,7 @@ const RelationalStore = {
     }
     await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
     this._lastChangeId.set(id,Math.max(after,Number(summary.maxChangeId)||after));
-    this._lastSyncAt=Date.now();this._lastError=null;
+    this._lastSyncAt=Date.now();this._refreshFailureState();
     return {ok:true,mudou:summary.count||1,changeId:this._lastChangeId.get(id),tables:summary.tables};
   },
 
@@ -41262,6 +41666,10 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   });
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
   window.addEventListener('online', () => {
+    if (window.ProfileUI) {
+      ProfileUI._offline = false;
+      if (ProfileUI.isGateOpen && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+    }
     if (window.CloudUI) CloudUI.refreshSyncBtn();
     CloudStore.syncOnFocus();
   });
@@ -41574,8 +41982,9 @@ document.addEventListener('click', (e) => {
      · fila por perfil para impedir gravações concorrentes;
      · falhas visíveis em `CloudBackup.status()`.
 
-   O backup manual em .json continua como opção de exportação. O navegador não
-   mantém histórico persistente de estudo: a fonte durável é o PostgreSQL.
+   O backup manual em .json continua como opção de exportação. O IndexedDB
+   protege trabalho offline e pendências; o PostgreSQL é a cópia canônica
+   compartilhada. As fotos históricas continuam separadas em profile_backups.
    ═══════════════════════════════════════════════════════════════════════════ */
 const CloudBackup = {
   TABLE: 'profile_backups',
@@ -41777,7 +42186,13 @@ const CloudBackup = {
       /* A foto só é produzida depois de toda escrita relacional anterior estar
          confirmada. Backup nunca fotografa uma projeção RAM ainda não persistida. */
       if (window.RelationalStore) {
+        if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+        if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
         await RelationalStore.flush();
+        /* Traz qualquer change-log que tenha sido confirmado entre a última
+           hidratação e este clique. Assim a foto nunca captura um revlog/cards
+           atrasados só porque o Realtime ainda não disparou. */
+        await RelationalStore.catchUp(id, 'cloud-backup');
         /* A abertura rápida hidrata TEC/incidência sob demanda. Um backup, porém,
            precisa ser completo: nunca fotografa só o núcleo e omite o bloco pesado. */
         try {
@@ -42438,40 +42853,48 @@ const Atualizacao = {
     if (this._barra) { this._barra.remove(); this._barra = null; }
   },
 
-  /* Antes de qualquer reload, a única barreira de durabilidade é o SQL.
-     Se o PostgreSQL não confirmar, a atualização é cancelada. */
+  /* Antes de qualquer reload, a barreira primária é o IndexedDB durável.
+     PostgreSQL é confirmado quando a rede permite; pendências remotas ficam na outbox. */
   async _entregarPendencias(limiteMs) {
     const CS = window.CloudStore;
     const RS = window.RelationalStore;
-    /* ── SEM SESSÃO NÃO HÁ O QUE O BANCO CONFIRMAR ──────────────────────────
-       A fila do RelationalStore só recebe trabalho quando isReady() é
-       verdadeiro, ou seja, com sessão ativa. Tratar "sem sessão" como "não
-       entregue" invertia a barreira: ela existe para não perder alteração
-       pendente, mas passava a CANCELAR a atualização justamente onde não
-       existe alteração nenhuma — a tela de login. Quem estava deslogado via
-       "Banco ainda não confirmou" a cada tentativa e nunca conseguia sair da
-       versão antiga, que é exatamente quem mais precisa da versão nova para
-       conseguir entrar. É o mesmo critério que recarregarApp() em 10-infra.js
-       já usava: só cobra o banco quando há conexão. */
-    if (!RS) return true;
-    const comSessao = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn && CS.isLoggedIn());
-    if (!comSessao) {
-      // Sessão pode ter caído com a fila cheia: aí ainda há o que perder.
-      try { return typeof RS.pendingCount === 'function' ? RS.pendingCount() === 0 : true; }
-      catch (_) { return true; }
-    }
     const limite = Math.max(1000, Number(limiteMs) || 8000);
     let timer = null;
     try {
+      /* A primeira barreira agora é LOCAL e durável. Se a internet caiu, basta
+         o IndexedDB confirmar: a outbox sobrevive ao reload e será reenviada
+         antes de qualquer pull quando a conexão voltar. */
+      if (window.LocalDurable && LocalDurable.flush) {
+        await Promise.race([
+          LocalDurable.flush(),
+          new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error('timeout-idb-update')), limite);
+          })
+        ]);
+        if (timer) { clearTimeout(timer); timer = null; }
+      }
+
+      if (!RS) return true;
+      const comSessao = !!(CS && CS.isReady && CS.isReady() && CS.isLoggedIn && CS.isLoggedIn());
+      if (!comSessao) return true;
+
       await Promise.race([
-        RS.flush(),
+        (async () => {
+          if (RS.replayDurable) await RS.replayDurable();
+          await RS.flush();
+        })(),
         new Promise((_, reject) => {
           timer = setTimeout(() => reject(new Error('timeout-sql-update')), limite);
         })
       ]);
-      return RS.pendingCount() === 0 && !RS._lastError;
+      return RS.pendingCount() === 0 && !(RS.hasFailures && RS.hasFailures());
     } catch (e) {
-      _quiet(e, 'upd-flush-sql');
+      _quiet(e, 'upd-flush-durable');
+      /* Se o SQL falhou, mas o IndexedDB já confirmou, o reload continua
+         seguro. Só bloqueamos quando a camada LOCAL não conseguiu persistir. */
+      try {
+        if (window.LocalDurable && LocalDurable.pendingCount && LocalDurable.pendingCount() === 0) return true;
+      } catch (_) {}
       return false;
     } finally {
       if (timer) clearTimeout(timer);
@@ -42491,7 +42914,7 @@ const Atualizacao = {
     if (!entregue) {
       this._trocando = false;
       await UI.alert(
-        'A atualização foi cancelada porque o banco ainda não confirmou todas as alterações. Nada será descartado da memória. Tente novamente quando a conexão estiver normal.',
+        'A atualização foi cancelada porque este aparelho ainda não confirmou as alterações no armazenamento local. Nada será descartado; tente novamente.',
         { title: 'Banco ainda não confirmou' });
       return;
     }
@@ -46059,7 +46482,10 @@ else CloudStore.init();
 
 </script>
 
-<!-- ESTADO LOCAL: SOMENTE MEMÓRIA. Supabase relacional = fonte persistente. -->
+<!-- ESTADO LOCAL DURÁVEL: RAM síncrona + IndexedDB por registro.
+     PostgreSQL continua sendo a fonte canônica online; o IndexedDB é cache
+     offline + outbox. Cards não voltam a um blob gigante: cada card é uma
+     linha local e só é serializado quando algum fluxo realmente pede JSON. -->
 <script>
 (function () {
   'use strict';
@@ -46067,39 +46493,301 @@ else CloudStore.init();
   var nativeLS = null;
   try { nativeLS = window.localStorage; } catch (_) { nativeLS = null; }
   var mem = new Map();
+  var cardsMem = new Map();      // storageKey -> Array<card>
+  var cardKeys = new Set();
   var keysCache = null;
   var THEME = 'diario-estudos:theme';
+  var IDB_NAME = 'diario-estudos-local-v3';
+  var IDB_VERSION = 1;
+  var pendingWrites = new Set();
+  var idb = null;
 
   function invalidate() { keysCache = null; }
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
   function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
+  function isCardsKey(k) { return /^diario-estudos:u:[^:]+:p:[^:]+:cards$/.test(String(k || '')); }
+  function isTransientKey(k) {
+    var s = String(k || '');
+    return /:(?:revlog|revlog-pendente|revlog-arquivo(?:[:].*)?|__trash:.*)$/.test(s)
+      || s === 'diario-estudos:profiles' || s === 'diario-estudos:active-profile';
+  }
+  function applyingRemote() {
+    try {
+      return !!((window.RelationalStore && RelationalStore._applying)
+        || (window.CloudStore && CloudStore._applying));
+    } catch (_) { return false; }
+  }
+  function dirtyAllowed(k) { return isMemoryKey(k) && !isTransientKey(k) && !applyingRemote(); }
+  function currentUserId() {
+    try { return window.CloudStore && CloudStore.session && CloudStore.session.user ? String(CloudStore.session.user.id || '') : ''; }
+    catch (_) { return ''; }
+  }
 
-  /* A projeção de estudo começa VAZIA em toda abertura.
-     Nenhuma chave antiga do navegador é adotada: depois da migração relacional,
-     o PostgreSQL é a única origem persistente. O tema visual é a única exceção
-     e continua sendo lido diretamente do armazenamento nativo em applyTheme(). */
+  function openIDB() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var req;
+      try { req = indexedDB.open(IDB_NAME, IDB_VERSION); } catch (_) { resolve(null); return; }
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('cards')) {
+          var cs = db.createObjectStore('cards', { keyPath: 'pk' });
+          cs.createIndex('by_storage_key', 'storageKey', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('dirty')) {
+          var ds = db.createObjectStore('dirty', { keyPath: 'id' });
+          ds.createIndex('by_key', 'key', { unique: false });
+        }
+      };
+      req.onsuccess = function () {
+        idb = req.result;
+        idb.onversionchange = function () { try { idb.close(); } catch (_) {} };
+        resolve(idb);
+      };
+      req.onerror = function () { resolve(null); };
+      req.onblocked = function () { resolve(null); };
+    });
+  }
+
+  function reqP(req) {
+    return new Promise(function (resolve, reject) {
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('IndexedDB')); };
+    });
+  }
+  function txDone(tx) {
+    return new Promise(function (resolve, reject) {
+      tx.oncomplete = function () { resolve(); };
+      tx.onabort = tx.onerror = function () { reject(tx.error || new Error('IndexedDB transaction')); };
+    });
+  }
+  function track(p) {
+    p = Promise.resolve(p).catch(function (e) {
+      try { console.error('[local-durable]', e); } catch (_) {}
+      throw e;
+    });
+    pendingWrites.add(p);
+    p.then(function () { pendingWrites.delete(p); }, function () { pendingWrites.delete(p); });
+    return p;
+  }
+  function flushLocal() {
+    return Promise.all(Array.from(pendingWrites)).then(function () { return true; });
+  }
+
+  function putDirty(rec) {
+    if (!idb || !rec || !rec.id) return Promise.resolve();
+    var tx = idb.transaction('dirty', 'readwrite');
+    tx.objectStore('dirty').put(rec);
+    return txDone(tx);
+  }
+  function delDirty(id) {
+    if (!idb || !id) return Promise.resolve();
+    var tx = idb.transaction('dirty', 'readwrite');
+    tx.objectStore('dirty').delete(id);
+    return txDone(tx);
+  }
+  function markKvDirty(k, v) {
+    if (!dirtyAllowed(k)) return Promise.resolve();
+    return putDirty({ id: 'kv|' + k, kind: 'kv', key: k, value: v == null ? null : String(v), userId:currentUserId(), at: Date.now() });
+  }
+
+  function persistKV(k, v, markDirty) {
+    if (!idb) return Promise.resolve();
+    var tx = idb.transaction(['kv','dirty'], 'readwrite');
+    var st = tx.objectStore('kv');
+    if (v == null) st.delete(k); else st.put({ key: k, value: String(v) });
+    if (markDirty && dirtyAllowed(k)) tx.objectStore('dirty').put({
+      id:'kv|' + k, kind:'kv', key:k, value:v == null ? null : String(v), userId:currentUserId(), at:Date.now()
+    });
+    return txDone(tx);
+  }
+
+  function deleteCardsForKeyInTx(tx, key) {
+    return new Promise(function (resolve, reject) {
+      var idx = tx.objectStore('cards').index('by_storage_key');
+      var req = idx.openCursor(IDBKeyRange.only(key));
+      req.onsuccess = function () {
+        var cur = req.result;
+        if (!cur) { resolve(); return; }
+        cur.delete(); cur.continue();
+      };
+      req.onerror = function () { reject(req.error || new Error('cards cursor')); };
+    });
+  }
+  function clearDirtyForKeyInTx(tx, key) {
+    return new Promise(function (resolve, reject) {
+      var idx = tx.objectStore('dirty').index('by_key');
+      var req = idx.openCursor(IDBKeyRange.only(key));
+      req.onsuccess = function () {
+        var cur = req.result;
+        if (!cur) { resolve(); return; }
+        var v = cur.value || {};
+        if (v.kind === 'card' || v.kind === 'cards-replace') cur.delete();
+        cur.continue();
+      };
+      req.onerror = function () { reject(req.error || new Error('dirty cursor')); };
+    });
+  }
+  function cardPk(key, id) { return key + '\u0000' + String(id); }
+
+  function clearCardsKey(key, opts) {
+    opts = opts || {};
+    cardsMem.delete(key); cardKeys.delete(key); invalidate();
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty','kv'], 'readwrite');
+      await deleteCardsForKeyInTx(tx, key);
+      await clearDirtyForKeyInTx(tx, key);
+      tx.objectStore('kv').delete(key);
+      if (opts.dirty !== false && !applyingRemote()) {
+        tx.objectStore('dirty').put({
+          id:'cards-replace|' + key, kind:'cards-replace', key:key,
+          userId:currentUserId(), at:Date.now()
+        });
+      }
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function replaceCards(key, list, opts) {
+    opts = opts || {};
+    list = Array.isArray(list) ? list : [];
+    cardsMem.set(key, list); cardKeys.add(key); invalidate();
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty','kv'], 'readwrite');
+      await deleteCardsForKeyInTx(tx, key);
+      await clearDirtyForKeyInTx(tx, key);
+      var st = tx.objectStore('cards');
+      list.forEach(function (card, i) {
+        if (!card || card.id == null) return;
+        st.put({ pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id), position:i, card:card });
+      });
+      tx.objectStore('kv').delete(key); // cards nunca viram blob persistente
+      if (opts.dirty !== false && !applyingRemote()) {
+        tx.objectStore('dirty').put({ id:'cards-replace|' + key, kind:'cards-replace', key:key, userId:currentUserId(), at:Date.now() });
+      }
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function upsertCard(key, card, position, opts) {
+    opts = opts || {};
+    if (!card || card.id == null) return Promise.resolve(false);
+    if (!cardsMem.has(key)) cardsMem.set(key, []);
+    cardKeys.add(key); invalidate();
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty'], 'readwrite');
+      tx.objectStore('cards').put({
+        pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id),
+        position:Number.isFinite(position) ? position : 0, card:card
+      });
+      if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
+        id:'card|' + key + '|' + String(card.id), kind:'card', key:key,
+        cardId:String(card.id), value:card, userId:currentUserId(), at:Date.now()
+      });
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function deleteCard(key, cardId, opts) {
+    opts = opts || {};
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty'], 'readwrite');
+      tx.objectStore('cards').delete(cardPk(key, cardId));
+      if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
+        id:'card|' + key + '|' + String(cardId), kind:'card', key:key,
+        cardId:String(cardId), value:null, userId:currentUserId(), at:Date.now()
+      });
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function markReview(key, row, kind) {
+    if (!idb || !row) return Promise.resolve();
+    var rid = row.reviewId || (String(row.cardId) + '|' + String(row.ts) + '|' + String(row._position || ''));
+    var k = kind === 'review-delete' ? 'review-delete' : 'review';
+    return track(putDirty({ id:k+'|' + key + '|' + rid, kind:k, key:key, reviewId:rid, value:row, userId:currentUserId(), at:Date.now() }));
+  }
+  function markRevlogReplace(key) {
+    if (!idb) return Promise.resolve();
+    return track(putDirty({ id:'revlog-replace|' + key, kind:'revlog-replace', key:key, userId:currentUserId(), at:Date.now() }));
+  }
+
+  function loadAll() {
+    return openIDB().then(async function (db) {
+      if (!db) return;
+      try {
+        var tx1 = db.transaction('kv', 'readonly');
+        var rows = await reqP(tx1.objectStore('kv').getAll());
+        rows.forEach(function (r) { if (r && r.key != null) mem.set(String(r.key), String(r.value)); });
+        await txDone(tx1);
+      } catch (_) {}
+      try {
+        var tx2 = db.transaction('cards', 'readonly');
+        var rows2 = await reqP(tx2.objectStore('cards').getAll());
+        var groups = new Map();
+        rows2.forEach(function (r) {
+          if (!r || !r.storageKey) return;
+          var a = groups.get(r.storageKey); if (!a) { a=[]; groups.set(r.storageKey,a); }
+          a.push(r);
+        });
+        groups.forEach(function (rows3, key) {
+          rows3.sort(function (a,b) { return (a.position||0)-(b.position||0); });
+          cardsMem.set(key, rows3.map(function (r) { return r.card; }));
+          cardKeys.add(key);
+        });
+      } catch (_) {}
+      invalidate();
+    });
+  }
+  var localReady = loadAll();
 
   function notify(k, oldV, newV) {
     try {
       if (window.RelationalStore && RelationalStore.onStorageMutation) {
         RelationalStore.onStorageMutation(k, oldV, newV);
       }
-    } catch (e) { try { console.error('[memory-store] persist hook', e); } catch (_) {} }
+    } catch (e) { try { console.error('[local-durable] persist hook', e); } catch (_) {} }
   }
 
   var LS = {
     getItem: function (k) {
       k = String(k);
+      if (isCardsKey(k) && cardsMem.has(k)) {
+        try { return JSON.stringify(cardsMem.get(k)); } catch (_) { return '[]'; }
+      }
       if (isMemoryKey(k)) return mem.has(k) ? mem.get(k) : null;
       try { return nativeLS ? nativeLS.getItem(k) : null; } catch (_) { return null; }
     },
     setItem: function (k, v) {
       k = String(k); v = String(v);
       if (isMemoryKey(k)) {
-        var oldV = mem.has(k) ? mem.get(k) : null;
+        if (isCardsKey(k)) {
+          var oldCards = cardsMem.get(k) || [];
+          var oldV = applyingRemote() ? null : JSON.stringify(oldCards);
+          var parsed = [];
+          try { parsed = JSON.parse(v); if (!Array.isArray(parsed)) parsed=[]; } catch (_) {}
+          replaceCards(k, parsed, { dirty: !applyingRemote() });
+          if (oldV !== v) notify(k, oldV, v);
+          return;
+        }
+        var old = mem.has(k) ? mem.get(k) : null;
         if (!mem.has(k)) invalidate();
         mem.set(k, v);
-        if (oldV !== v) notify(k, oldV, v);
+        track(persistKV(k, v, !applyingRemote()));
+        if (old !== v) notify(k, old, v);
         return;
       }
       var oldNative = null;
@@ -46111,8 +46799,16 @@ else CloudStore.init();
     removeItem: function (k) {
       k = String(k);
       if (isMemoryKey(k)) {
+        if (isCardsKey(k)) {
+          var oldCards = cardsMem.get(k) || [];
+          var oldRaw = applyingRemote() ? null : JSON.stringify(oldCards);
+          clearCardsKey(k, { dirty: !applyingRemote() });
+          if (oldRaw != null) notify(k, oldRaw, null);
+          return;
+        }
         var oldV = mem.has(k) ? mem.get(k) : null;
         if (mem.delete(k)) invalidate();
+        track(persistKV(k, null, !applyingRemote()));
         if (oldV != null) notify(k, oldV, null);
         return;
       }
@@ -46121,15 +46817,20 @@ else CloudStore.init();
       if (isStudyKey(k) && oldNative != null) notify(k, oldNative, null);
     },
     clear: function () {
-      var olds = Array.from(mem.entries());
-      mem.clear(); invalidate();
-      olds.forEach(function (x) { notify(x[0], x[1], null); });
+      /* Remove através do MESMO caminho durável; limpar os Maps antes fazia
+         removeItem achar "nada" e deixava chaves órfãs no IndexedDB. */
+      var memKeys = Array.from(mem.keys());
+      var cardKeysNow = Array.from(cardKeys);
+      memKeys.forEach(function (k) { LS.removeItem(k); });
+      cardKeysNow.forEach(function (k) { LS.removeItem(k); });
       try { if (nativeLS) nativeLS.clear(); } catch (_) {}
+      invalidate();
     },
     key: function (i) {
       i = i >> 0;
       if (!keysCache) {
         var a = Array.from(mem.keys());
+        cardKeys.forEach(function (k) { if (a.indexOf(k)<0) a.push(k); });
         try {
           if (nativeLS) for (var j = 0; j < nativeLS.length; j++) {
             var nk = nativeLS.key(j);
@@ -46151,14 +46852,43 @@ else CloudStore.init();
   } catch (e) {
     try { window.localStorage = LS; } catch (_) {}
   }
-  window.__nativeLS = nativeLS;
-  window.__memoryOnlyStore = true;
-  window.__idbShim = false;
-  window.__idbPendingCount = function () { return 0; };
-  window.__idbFlush = function () { return Promise.resolve(); };
-  window.__idbFlushStrict = function () { return Promise.resolve({ ok: true, relational: true, pending: 0 }); };
 
-  /* Limpa cópias persistentes antigas do namespace. O tema fica como cache visual. */
+  window.__nativeLS = nativeLS;
+  window.__memoryOnlyStore = false;
+  window.__idbShim = true;
+  window.LocalDurable = {
+    ready: localReady,
+    flush: flushLocal,
+    pendingCount: function () { return pendingWrites.size; },
+    listDirty: function (userId) {
+      if (!idb) return Promise.resolve([]);
+      var tx=idb.transaction('dirty','readonly');
+      return reqP(tx.objectStore('dirty').getAll()).then(function (rows) {
+        rows=rows||[];
+        var uid=String(userId || currentUserId() || '');
+        /* Registros antigos sem userId são aceitos apenas quando o profile_id
+           da chave pertence à sessão atual; o RLS continua sendo a barreira final. */
+        return rows.filter(function (r) { return !r.userId || !uid || String(r.userId)===uid; });
+      });
+    },
+    markSynced: function (id) { return track(delDirty(id)); },
+    markReview: function (key,row) { return markReview(key,row,'review'); },
+    markReviewDelete: function (key,row) { return markReview(key,row,'review-delete'); },
+    markRevlogReplace: markRevlogReplace,
+    getCards: function (key) { return cardsMem.get(key) || null; },
+    replaceCards: replaceCards,
+    upsertCard: upsertCard,
+    deleteCard: deleteCard,
+    clearCardsKey: clearCardsKey
+  };
+  window.__idbPendingCount = function () { return pendingWrites.size; };
+  window.__idbFlush = flushLocal;
+  window.__idbFlushStrict = function () {
+    return flushLocal().then(function () { return {ok:true, relational:false, pending:pendingWrites.size}; });
+  };
+
+  /* Remove só o namespace de estudo do localStorage NATIVO. A cópia offline
+     vive no IndexedDB novo; auth do Supabase e tema continuam intactos. */
   setTimeout(function () {
     if (!nativeLS) return;
     try {
@@ -46168,9 +46898,6 @@ else CloudStore.init();
         if (k && isStudyKey(k) && k !== THEME) apagar.push(k);
       }
       apagar.forEach(function (k) { try { nativeLS.removeItem(k); } catch (_) {} });
-    } catch (_) {}
-    try {
-      if (window.indexedDB && indexedDB.deleteDatabase) indexedDB.deleteDatabase('diario-estudos-db');
     } catch (_) {}
   }, 5000);
 
@@ -46244,7 +46971,7 @@ else CloudStore.init();
     return Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
   };
 
-  domReady.then(runApp).then(function () { setTimeout(registrarSW, 1200); });
+  Promise.all([domReady, localReady.catch(function(){})]).then(runApp).then(function () { setTimeout(registrarSW, 1200); });
 })();
 </script>
 
