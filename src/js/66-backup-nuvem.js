@@ -218,7 +218,13 @@ const CloudBackup = {
       /* A foto só é produzida depois de toda escrita relacional anterior estar
          confirmada. Backup nunca fotografa uma projeção RAM ainda não persistida. */
       if (window.RelationalStore) {
+        if (window.LocalDurable && LocalDurable.flush) await LocalDurable.flush();
+        if (RelationalStore.replayDurable) await RelationalStore.replayDurable();
         await RelationalStore.flush();
+        /* Traz qualquer change-log que tenha sido confirmado entre a última
+           hidratação e este clique. Assim a foto nunca captura um revlog/cards
+           atrasados só porque o Realtime ainda não disparou. */
+        await RelationalStore.catchUp(id, 'cloud-backup');
         /* A abertura rápida hidrata TEC/incidência sob demanda. Um backup, porém,
            precisa ser completo: nunca fotografa só o núcleo e omite o bloco pesado. */
         try {
