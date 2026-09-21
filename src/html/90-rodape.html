@@ -1,6 +1,9 @@
 </script>
 
-<!-- ESTADO LOCAL: SOMENTE MEMÓRIA. Supabase relacional = fonte persistente. -->
+<!-- ESTADO LOCAL DURÁVEL: RAM síncrona + IndexedDB por registro.
+     PostgreSQL continua sendo a fonte canônica online; o IndexedDB é cache
+     offline + outbox. Cards não voltam a um blob gigante: cada card é uma
+     linha local e só é serializado quando algum fluxo realmente pede JSON. -->
 <script>
 (function () {
   'use strict';
@@ -8,39 +11,273 @@
   var nativeLS = null;
   try { nativeLS = window.localStorage; } catch (_) { nativeLS = null; }
   var mem = new Map();
+  var cardsMem = new Map();      // storageKey -> Array<card>
+  var cardKeys = new Set();
   var keysCache = null;
   var THEME = 'diario-estudos:theme';
+  var IDB_NAME = 'diario-estudos-local-v3';
+  var IDB_VERSION = 1;
+  var pendingWrites = new Set();
+  var idb = null;
 
   function invalidate() { keysCache = null; }
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
   function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
+  function isCardsKey(k) { return /^diario-estudos:u:[^:]+:p:[^:]+:cards$/.test(String(k || '')); }
+  function isTransientKey(k) {
+    var s = String(k || '');
+    return /:(?:revlog|revlog-pendente|revlog-arquivo(?:[:].*)?|__trash:.*)$/.test(s)
+      || s === 'diario-estudos:profiles' || s === 'diario-estudos:active-profile';
+  }
+  function applyingRemote() {
+    try { return !!(window.RelationalStore && RelationalStore._applying); } catch (_) { return false; }
+  }
+  function dirtyAllowed(k) { return isMemoryKey(k) && !isTransientKey(k) && !applyingRemote(); }
 
-  /* A projeção de estudo começa VAZIA em toda abertura.
-     Nenhuma chave antiga do navegador é adotada: depois da migração relacional,
-     o PostgreSQL é a única origem persistente. O tema visual é a única exceção
-     e continua sendo lido diretamente do armazenamento nativo em applyTheme(). */
+  function openIDB() {
+    if (!window.indexedDB) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      var req;
+      try { req = indexedDB.open(IDB_NAME, IDB_VERSION); } catch (_) { resolve(null); return; }
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('cards')) {
+          var cs = db.createObjectStore('cards', { keyPath: 'pk' });
+          cs.createIndex('by_storage_key', 'storageKey', { unique: false });
+        }
+        if (!db.objectStoreNames.contains('dirty')) {
+          var ds = db.createObjectStore('dirty', { keyPath: 'id' });
+          ds.createIndex('by_key', 'key', { unique: false });
+        }
+      };
+      req.onsuccess = function () {
+        idb = req.result;
+        idb.onversionchange = function () { try { idb.close(); } catch (_) {} };
+        resolve(idb);
+      };
+      req.onerror = function () { resolve(null); };
+      req.onblocked = function () { resolve(null); };
+    });
+  }
+
+  function reqP(req) {
+    return new Promise(function (resolve, reject) {
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('IndexedDB')); };
+    });
+  }
+  function txDone(tx) {
+    return new Promise(function (resolve, reject) {
+      tx.oncomplete = function () { resolve(); };
+      tx.onabort = tx.onerror = function () { reject(tx.error || new Error('IndexedDB transaction')); };
+    });
+  }
+  function track(p) {
+    p = Promise.resolve(p).catch(function (e) {
+      try { console.error('[local-durable]', e); } catch (_) {}
+      throw e;
+    });
+    pendingWrites.add(p);
+    p.then(function () { pendingWrites.delete(p); }, function () { pendingWrites.delete(p); });
+    return p;
+  }
+  function flushLocal() {
+    return Promise.all(Array.from(pendingWrites)).then(function () { return true; });
+  }
+
+  function putDirty(rec) {
+    if (!idb || !rec || !rec.id) return Promise.resolve();
+    var tx = idb.transaction('dirty', 'readwrite');
+    tx.objectStore('dirty').put(rec);
+    return txDone(tx);
+  }
+  function delDirty(id) {
+    if (!idb || !id) return Promise.resolve();
+    var tx = idb.transaction('dirty', 'readwrite');
+    tx.objectStore('dirty').delete(id);
+    return txDone(tx);
+  }
+  function markKvDirty(k, v) {
+    if (!dirtyAllowed(k)) return Promise.resolve();
+    return putDirty({ id: 'kv|' + k, kind: 'kv', key: k, value: v == null ? null : String(v), at: Date.now() });
+  }
+
+  function persistKV(k, v, markDirty) {
+    if (!idb) return Promise.resolve();
+    var tx = idb.transaction(['kv','dirty'], 'readwrite');
+    var st = tx.objectStore('kv');
+    if (v == null) st.delete(k); else st.put({ key: k, value: String(v) });
+    if (markDirty && dirtyAllowed(k)) tx.objectStore('dirty').put({
+      id:'kv|' + k, kind:'kv', key:k, value:v == null ? null : String(v), at:Date.now()
+    });
+    return txDone(tx);
+  }
+
+  function deleteCardsForKeyInTx(tx, key) {
+    return new Promise(function (resolve, reject) {
+      var idx = tx.objectStore('cards').index('by_storage_key');
+      var req = idx.openCursor(IDBKeyRange.only(key));
+      req.onsuccess = function () {
+        var cur = req.result;
+        if (!cur) { resolve(); return; }
+        cur.delete(); cur.continue();
+      };
+      req.onerror = function () { reject(req.error || new Error('cards cursor')); };
+    });
+  }
+  function clearDirtyForKeyInTx(tx, key) {
+    return new Promise(function (resolve, reject) {
+      var idx = tx.objectStore('dirty').index('by_key');
+      var req = idx.openCursor(IDBKeyRange.only(key));
+      req.onsuccess = function () {
+        var cur = req.result;
+        if (!cur) { resolve(); return; }
+        var v = cur.value || {};
+        if (v.kind === 'card' || v.kind === 'cards-replace') cur.delete();
+        cur.continue();
+      };
+      req.onerror = function () { reject(req.error || new Error('dirty cursor')); };
+    });
+  }
+  function cardPk(key, id) { return key + '\u0000' + String(id); }
+
+  function replaceCards(key, list, opts) {
+    opts = opts || {};
+    list = Array.isArray(list) ? list : [];
+    cardsMem.set(key, list); cardKeys.add(key); invalidate();
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty','kv'], 'readwrite');
+      await deleteCardsForKeyInTx(tx, key);
+      await clearDirtyForKeyInTx(tx, key);
+      var st = tx.objectStore('cards');
+      list.forEach(function (card, i) {
+        if (!card || card.id == null) return;
+        st.put({ pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id), position:i, card:card });
+      });
+      tx.objectStore('kv').delete(key); // cards nunca viram blob persistente
+      if (opts.dirty !== false && !applyingRemote()) {
+        tx.objectStore('dirty').put({ id:'cards-replace|' + key, kind:'cards-replace', key:key, at:Date.now() });
+      }
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function upsertCard(key, card, position, opts) {
+    opts = opts || {};
+    if (!card || card.id == null) return Promise.resolve(false);
+    if (!cardsMem.has(key)) cardsMem.set(key, []);
+    cardKeys.add(key); invalidate();
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty'], 'readwrite');
+      tx.objectStore('cards').put({
+        pk:cardPk(key,card.id), storageKey:key, cardId:String(card.id),
+        position:Number.isFinite(position) ? position : 0, card:card
+      });
+      if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
+        id:'card|' + key + '|' + String(card.id), kind:'card', key:key,
+        cardId:String(card.id), value:card, at:Date.now()
+      });
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function deleteCard(key, cardId, opts) {
+    opts = opts || {};
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty'], 'readwrite');
+      tx.objectStore('cards').delete(cardPk(key, cardId));
+      if (opts.dirty !== false && !applyingRemote()) tx.objectStore('dirty').put({
+        id:'card|' + key + '|' + String(cardId), kind:'card', key:key,
+        cardId:String(cardId), value:null, at:Date.now()
+      });
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
+
+  function markReview(key, row, kind) {
+    if (!idb || !row) return Promise.resolve();
+    var rid = row.reviewId || (String(row.cardId) + '|' + String(row.ts) + '|' + String(row._position || ''));
+    var k = kind === 'review-delete' ? 'review-delete' : 'review';
+    return track(putDirty({ id:k+'|' + key + '|' + rid, kind:k, key:key, reviewId:rid, value:row, at:Date.now() }));
+  }
+  function markRevlogReplace(key) {
+    if (!idb) return Promise.resolve();
+    return track(putDirty({ id:'revlog-replace|' + key, kind:'revlog-replace', key:key, at:Date.now() }));
+  }
+
+  function loadAll() {
+    return openIDB().then(async function (db) {
+      if (!db) return;
+      try {
+        var tx1 = db.transaction('kv', 'readonly');
+        var rows = await reqP(tx1.objectStore('kv').getAll());
+        rows.forEach(function (r) { if (r && r.key != null) mem.set(String(r.key), String(r.value)); });
+        await txDone(tx1);
+      } catch (_) {}
+      try {
+        var tx2 = db.transaction('cards', 'readonly');
+        var rows2 = await reqP(tx2.objectStore('cards').getAll());
+        var groups = new Map();
+        rows2.forEach(function (r) {
+          if (!r || !r.storageKey) return;
+          var a = groups.get(r.storageKey); if (!a) { a=[]; groups.set(r.storageKey,a); }
+          a.push(r);
+        });
+        groups.forEach(function (rows3, key) {
+          rows3.sort(function (a,b) { return (a.position||0)-(b.position||0); });
+          cardsMem.set(key, rows3.map(function (r) { return r.card; }));
+          cardKeys.add(key);
+        });
+      } catch (_) {}
+      invalidate();
+    });
+  }
+  var localReady = loadAll();
 
   function notify(k, oldV, newV) {
     try {
       if (window.RelationalStore && RelationalStore.onStorageMutation) {
         RelationalStore.onStorageMutation(k, oldV, newV);
       }
-    } catch (e) { try { console.error('[memory-store] persist hook', e); } catch (_) {} }
+    } catch (e) { try { console.error('[local-durable] persist hook', e); } catch (_) {} }
   }
 
   var LS = {
     getItem: function (k) {
       k = String(k);
+      if (isCardsKey(k) && cardsMem.has(k)) {
+        try { return JSON.stringify(cardsMem.get(k)); } catch (_) { return '[]'; }
+      }
       if (isMemoryKey(k)) return mem.has(k) ? mem.get(k) : null;
       try { return nativeLS ? nativeLS.getItem(k) : null; } catch (_) { return null; }
     },
     setItem: function (k, v) {
       k = String(k); v = String(v);
       if (isMemoryKey(k)) {
-        var oldV = mem.has(k) ? mem.get(k) : null;
+        if (isCardsKey(k)) {
+          var oldCards = cardsMem.get(k) || [];
+          var oldV = applyingRemote() ? null : JSON.stringify(oldCards);
+          var parsed = [];
+          try { parsed = JSON.parse(v); if (!Array.isArray(parsed)) parsed=[]; } catch (_) {}
+          replaceCards(k, parsed, { dirty: !applyingRemote() });
+          if (oldV !== v) notify(k, oldV, v);
+          return;
+        }
+        var old = mem.has(k) ? mem.get(k) : null;
         if (!mem.has(k)) invalidate();
         mem.set(k, v);
-        if (oldV !== v) notify(k, oldV, v);
+        track(persistKV(k, v, !applyingRemote()));
+        if (old !== v) notify(k, old, v);
         return;
       }
       var oldNative = null;
@@ -52,8 +289,17 @@
     removeItem: function (k) {
       k = String(k);
       if (isMemoryKey(k)) {
+        if (isCardsKey(k)) {
+          var oldCards = cardsMem.get(k) || [];
+          var oldRaw = applyingRemote() ? null : JSON.stringify(oldCards);
+          cardsMem.delete(k); cardKeys.delete(k); invalidate();
+          replaceCards(k, [], { dirty: !applyingRemote() });
+          if (oldRaw != null) notify(k, oldRaw, null);
+          return;
+        }
         var oldV = mem.has(k) ? mem.get(k) : null;
         if (mem.delete(k)) invalidate();
+        track(persistKV(k, null, !applyingRemote()));
         if (oldV != null) notify(k, oldV, null);
         return;
       }
@@ -63,14 +309,17 @@
     },
     clear: function () {
       var olds = Array.from(mem.entries());
-      mem.clear(); invalidate();
-      olds.forEach(function (x) { notify(x[0], x[1], null); });
+      var cardOlds = Array.from(cardsMem.entries());
+      mem.clear(); cardsMem.clear(); cardKeys.clear(); invalidate();
+      olds.forEach(function (x) { LS.removeItem(x[0]); });
+      cardOlds.forEach(function (x) { replaceCards(x[0], [], {dirty:true}); notify(x[0], JSON.stringify(x[1]), null); });
       try { if (nativeLS) nativeLS.clear(); } catch (_) {}
     },
     key: function (i) {
       i = i >> 0;
       if (!keysCache) {
         var a = Array.from(mem.keys());
+        cardKeys.forEach(function (k) { if (a.indexOf(k)<0) a.push(k); });
         try {
           if (nativeLS) for (var j = 0; j < nativeLS.length; j++) {
             var nk = nativeLS.key(j);
@@ -92,14 +341,36 @@
   } catch (e) {
     try { window.localStorage = LS; } catch (_) {}
   }
-  window.__nativeLS = nativeLS;
-  window.__memoryOnlyStore = true;
-  window.__idbShim = false;
-  window.__idbPendingCount = function () { return 0; };
-  window.__idbFlush = function () { return Promise.resolve(); };
-  window.__idbFlushStrict = function () { return Promise.resolve({ ok: true, relational: true, pending: 0 }); };
 
-  /* Limpa cópias persistentes antigas do namespace. O tema fica como cache visual. */
+  window.__nativeLS = nativeLS;
+  window.__memoryOnlyStore = false;
+  window.__idbShim = true;
+  window.LocalDurable = {
+    ready: localReady,
+    flush: flushLocal,
+    pendingCount: function () { return pendingWrites.size; },
+    listDirty: function () {
+      if (!idb) return Promise.resolve([]);
+      var tx=idb.transaction('dirty','readonly');
+      return reqP(tx.objectStore('dirty').getAll()).then(function (rows) { return rows || []; });
+    },
+    markSynced: function (id) { return track(delDirty(id)); },
+    markReview: function (key,row) { return markReview(key,row,'review'); },
+    markReviewDelete: function (key,row) { return markReview(key,row,'review-delete'); },
+    markRevlogReplace: markRevlogReplace,
+    getCards: function (key) { return cardsMem.get(key) || null; },
+    replaceCards: replaceCards,
+    upsertCard: upsertCard,
+    deleteCard: deleteCard
+  };
+  window.__idbPendingCount = function () { return pendingWrites.size; };
+  window.__idbFlush = flushLocal;
+  window.__idbFlushStrict = function () {
+    return flushLocal().then(function () { return {ok:true, relational:false, pending:pendingWrites.size}; });
+  };
+
+  /* Remove só o namespace de estudo do localStorage NATIVO. A cópia offline
+     vive no IndexedDB novo; auth do Supabase e tema continuam intactos. */
   setTimeout(function () {
     if (!nativeLS) return;
     try {
@@ -109,9 +380,6 @@
         if (k && isStudyKey(k) && k !== THEME) apagar.push(k);
       }
       apagar.forEach(function (k) { try { nativeLS.removeItem(k); } catch (_) {} });
-    } catch (_) {}
-    try {
-      if (window.indexedDB && indexedDB.deleteDatabase) indexedDB.deleteDatabase('diario-estudos-db');
     } catch (_) {}
   }, 5000);
 
@@ -185,7 +453,7 @@
     return Promise.all(jobs).catch(function () {}).then(function () { location.reload(); });
   };
 
-  domReady.then(runApp).then(function () { setTimeout(registrarSW, 1200); });
+  Promise.all([domReady, localReady.catch(function(){})]).then(runApp).then(function () { setTimeout(registrarSW, 1200); });
 })();
 </script>
 
