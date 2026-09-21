@@ -37,7 +37,12 @@ try{
       s:20,d:5,intervalo:20,due:'2026-09-21',lastReview:'2026-09-01',
       createdAt:'2026-01-01T00:00:00.000Z',updatedAt:'2026-09-20T00:00:00.000Z'
     }));
-    const projection=(arr)=>{localStorage.setItem(scope,JSON.stringify(arr));return true;};
+    const projection=(arr)=>{
+      const applying=RelationalStore._applying;
+      RelationalStore._applying=true;
+      try{localStorage.setItem(scope,JSON.stringify(arr));return true;}
+      finally{RelationalStore._applying=applying;}
+    };
     if(CardStore.replaceAll(scope,cards,projection)===false)throw new Error('replaceAll falhou');
     await DurableStudyStore.flush();
 
