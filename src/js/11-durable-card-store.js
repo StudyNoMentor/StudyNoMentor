@@ -493,9 +493,10 @@ const CardStore = {
   },
   resetForTests() { this._scopes.clear(); this._inflight.clear(); },
 
-  replayAll() {
+  replayAll(profileId) {
     if (!this._relReady()) return Promise.resolve(false);
-    const pending = DurableStudyStore.listOutbox('card');
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    const pending = DurableStudyStore.listOutbox('card').filter(m => !marker || String(m.scope||'').includes(marker));
     const ps = [];
     pending.forEach(m => {
       const p = this._sendCard(m.scope, m.id);
@@ -504,7 +505,10 @@ const CardStore = {
     return Promise.allSettled(ps).then(() => true);
   },
 
-  pendingCount() { return DurableStudyStore.listOutbox('card').length; }
+  pendingCount(profileId) {
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    return DurableStudyStore.listOutbox('card').filter(m => !marker || String(m.scope||'').includes(marker)).length;
+  }
 };
 
 const ReviewOutbox = {
@@ -582,10 +586,11 @@ const ReviewOutbox = {
     return tracked;
   },
 
-  replayAll() {
+  replayAll(profileId) {
     if (!this._ready()) return Promise.resolve(false);
+    const marker=profileId ? ':u:'+profileId+':' : null;
     const ps = [];
-    DurableStudyStore.listOutbox('revlog').forEach(m => {
+    DurableStudyStore.listOutbox('revlog').filter(m => !marker || String(m.scope||'').includes(marker)).forEach(m => {
       const p = this._send(m.scope, m.id);
       if (p && typeof p.then === 'function') ps.push(p);
     });
@@ -597,7 +602,10 @@ const ReviewOutbox = {
       .filter(m => m.action === 'append' && m.row).map(m => m.row);
   },
 
-  pendingCount() { return DurableStudyStore.listOutbox('revlog').length; }
+  pendingCount(profileId) {
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    return DurableStudyStore.listOutbox('revlog').filter(m => !marker || String(m.scope||'').includes(marker)).length;
+  }
 };
 
 const GenericOutbox = {
@@ -662,13 +670,20 @@ const GenericOutbox = {
     return tracked;
   },
 
-  replayAll() {
+  replayAll(profileId) {
     if(!this._ready())return Promise.resolve(false);
+    const marker=profileId ? ':u:'+profileId+':' : null;
     const ps=[];
-    DurableStudyStore.listOutbox('storage',this.SCOPE).forEach(m=>{
-      const p=this._send(m.key||m.id);
-      if(p&&typeof p.then==='function')ps.push(p);
-    });
+    DurableStudyStore.listOutbox('storage',this.SCOPE)
+      .filter(m=>{
+        const key=String(m.key||m.id||'');
+        if(!marker)return true;
+        return !key.includes(':u:') || key.includes(marker);
+      })
+      .forEach(m=>{
+        const p=this._send(m.key||m.id);
+        if(p&&typeof p.then==='function')ps.push(p);
+      });
     return Promise.allSettled(ps).then(()=>true);
   },
 
@@ -688,7 +703,14 @@ const GenericOutbox = {
     return rows.length;
   },
 
-  pendingCount() { return DurableStudyStore.listOutbox('storage',this.SCOPE).length; }
+  pendingCount(profileId) {
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    return DurableStudyStore.listOutbox('storage',this.SCOPE).filter(m=>{
+      const key=String(m.key||m.id||'');
+      if(!marker)return true;
+      return !key.includes(':u:') || key.includes(marker);
+    }).length;
+  }
 };
 
 try {
