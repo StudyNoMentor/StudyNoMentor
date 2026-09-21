@@ -1,5 +1,9 @@
 /* ============================================================
-   RELATIONAL STORE — Supabase é a única fonte persistente de verdade
+   RELATIONAL STORE — PostgreSQL canônico + outbox IndexedDB durável
+   ------------------------------------------------------------
+   O PostgreSQL continua sendo a cópia canônica compartilhada. O IndexedDB
+   guarda a projeção offline e mutações ainda não confirmadas, que são sempre
+   reenviadas antes de qualquer pull/hidratação.
    ============================================================ */
 const RelationalStore = {
   enabled: true,
