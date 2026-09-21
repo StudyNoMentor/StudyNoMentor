@@ -1,0 +1,13 @@
+{
+  "ankiVersion": "26.9.2",
+  "cards": 5781,
+  "answers": 23124,
+  "scalarComparisons": 46248,
+  "tolerance": 0.00001,
+  "memoryFailures": 0,
+  "maxRelativeError": 0.0000025661230723796136,
+  "phaseFailures": 0,
+  "stepFailures": 0,
+  "exactIntervalMismatches": 15125,
+  "note": "Study inputs aligned to memory state actually persisted by Anki (rounding in storage); compares actual Rust outputs, no local reference equations. RNG unaligned; interval differences counted separately."
+}

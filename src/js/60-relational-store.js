@@ -163,7 +163,8 @@ const RelationalStore = {
       revlog:{suffix:'revlog',map:r=>Object.assign({},r.extra||{},{
         cardId:r.card_id==null?null:self._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
         acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
-        phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s)
+        phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),
+        _position:r.position==null?null:Number(r.position)
       })},
       laws:{suffix:'leis',map:r=>Object.assign({},r.extra||{},{
         id:self._legacyId(r.law_id),titulo:r.title,referencia:r.reference,materia:r.subject,texto:r.body||'',
@@ -596,7 +597,45 @@ const RelationalStore = {
     if(sub==='saved-grades')return this._syncById('study_saved_grades',profileId,planId,'grade_id',oldA,newA,(x,i)=>Object.assign(base(),{grade_id:String(x.id),name:x.nome||'',sessions:x.sessions==null?null:Number(x.sessions),grade:x.grade||{},created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,grade_id');
 
     if(sub==='revlog'){
-      const rows=newA.map((x,i)=>Object.assign(base(),{card_id:x.cardId==null?null:String(x.cardId),ts:x.ts==null?null:Number(x.ts),review_date:x.date||null,correct:x.acerto==null?null:!!x.acerto,grade:x.grade==null?null:Number(x.grade),elapsed:x.elapsed==null?null:Number(x.elapsed),phase:x.phase||null,interval_value:x.intervalo==null?null:Number(x.intervalo),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),position:i+1,extra:{}}));
+      const rowFor=(x,i)=>Object.assign(base(),{
+        card_id:x.cardId==null?null:String(x.cardId),ts:x.ts==null?null:Number(x.ts),review_date:x.date||null,
+        correct:x.acerto==null?null:!!x.acerto,grade:x.grade==null?null:Number(x.grade),elapsed:x.elapsed==null?null:Number(x.elapsed),
+        phase:x.phase||null,interval_value:x.intervalo==null?null:Number(x.intervalo),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),
+        position:Number(x._position)||(i+1),
+        extra:Object.fromEntries(Object.entries(x||{}).filter(([k])=>!['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
+      });
+      const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+
+      // Caminho quente: uma resposta acrescenta UMA linha. Não reescrevemos
+      // centenas de milhares de revisões no PostgreSQL a cada clique.
+      if(newA.length===oldA.length+1 && oldA.every((x,i)=>eq(x,newA[i]))){
+        const row=rowFor(newA[newA.length-1],newA.length-1);
+        const {error}=await CloudStore.client.from('study_review_log').insert(row);
+        if(error)throw error;
+        return;
+      }
+
+      // Undo remove exatamente uma linha. A posição é monotônica e não é
+      // renumerada, então os próximos appends continuam estáveis mesmo com gaps.
+      if(oldA.length===newA.length+1){
+        let idx=0;
+        while(idx<newA.length && eq(oldA[idx],newA[idx])) idx++;
+        const okSuffix=newA.slice(idx).every((x,j)=>eq(x,oldA[idx+j+1]));
+        if(okSuffix){
+          const rem=oldA[idx];
+          let q=CloudStore.client.from('study_review_log').delete()
+            .eq('profile_id',profileId).eq('plan_id',planId)
+            .eq('position',Number(rem&&rem._position)||(idx+1));
+          if(rem&&rem.ts!=null)q=q.eq('ts',Number(rem.ts));
+          if(rem&&rem.cardId!=null)q=q.eq('card_id',String(rem.cardId));
+          const {error}=await q;
+          if(error)throw error;
+          return;
+        }
+      }
+
+      // Importação/limpeza em massa: caminho raro, mas mantém equivalência total.
+      const rows=newA.map(rowFor);
       return this._replacePlanRows('study_review_log',profileId,planId,rows,'review_pk');
     }
     if(sub==='lei-keywords'){

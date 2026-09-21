@@ -1,0 +1,167 @@
+{
+  "scope": "Production DB methods, config, imports/export; low-level storage and DOM doubled. No real network.",
+  "tests": [
+    {
+      "name": "Yearly history retained: 6000 cards x 30 answers",
+      "pass": false,
+      "detail": {
+        "written": 180000,
+        "retained": 8000,
+        "lost": 172000,
+        "firstRetained": 172001
+      }
+    },
+    {
+      "name": "Card backup includes revlog",
+      "pass": false,
+      "detail": {
+        "keys": [
+          "app",
+          "kind",
+          "version",
+          "exportedAt",
+          "decks",
+          "cards"
+        ]
+      }
+    },
+    {
+      "name": "Backup round trip preserves 6000 contents",
+      "pass": true,
+      "detail": {
+        "cards": 6000
+      }
+    },
+    {
+      "name": "Backup round trip preserves learning state",
+      "pass": false,
+      "detail": {
+        "first": {
+          "id": "id1",
+          "deckId": null,
+          "materia": null,
+          "assunto": "",
+          "materiaTec": "",
+          "banca": "",
+          "tipo": "",
+          "kind": "basic",
+          "reversedOf": null,
+          "frente": "F0",
+          "verso": "V0",
+          "favorito": false,
+          "status": "pendente",
+          "ease": 2.5,
+          "intervalo": 0,
+          "due": "2026-09-21",
+          "reps": 0,
+          "lapses": 0,
+          "phase": "new",
+          "learnStep": 0,
+          "s": null,
+          "d": null,
+          "dueTs": null,
+          "posicaoNova": 0,
+          "createdAt": "2026-09-21T12:01:09.941Z",
+          "updatedAt": "2026-09-21T12:01:09.941Z"
+        }
+      }
+    },
+    {
+      "name": "Deletion cleans card log and daily counter",
+      "pass": true,
+      "detail": {}
+    },
+    {
+      "name": "Bury removes card until tomorrow",
+      "pass": true,
+      "detail": {}
+    },
+    {
+      "name": "Unbury preserves learning timestamp",
+      "pass": false,
+      "detail": {
+        "actual": null
+      }
+    },
+    {
+      "name": "Suspended excluded from queue",
+      "pass": true,
+      "detail": {}
+    },
+    {
+      "name": "Flag persists",
+      "pass": true,
+      "detail": {}
+    },
+    {
+      "name": "Forget resets memory",
+      "pass": true,
+      "detail": {}
+    },
+    {
+      "name": "CSV quoted delimiter preserved",
+      "pass": false,
+      "detail": {
+        "actual": [
+          {
+            "frente": "\"front",
+            "verso": "with comma\"",
+            "tags": "back"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TSV 6000 rows parsed",
+      "pass": true,
+      "detail": {}
+    },
+    {
+      "name": "Anki export preserves rich media",
+      "pass": false,
+      "detail": {
+        "actual": "#separator:tab\n#html:true\n#tags column:3\nBold\t\tSem_disciplina"
+      }
+    },
+    {
+      "name": "Undo removes latest log when timestamps collide",
+      "pass": false,
+      "detail": {
+        "remaining": [
+          {
+            "ts": 1,
+            "cardId": "B"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Profile config isolation",
+      "pass": true,
+      "detail": {
+        "actual": 0.85
+      }
+    },
+    {
+      "name": "Due intraday learning priority over four reviews",
+      "pass": false,
+      "detail": {
+        "actual": [
+          "review0",
+          "review1",
+          "learn-now",
+          "review2",
+          "review3"
+        ]
+      }
+    },
+    {
+      "name": "SM2 Easy graduates phase out of new",
+      "pass": false,
+      "detail": {
+        "actual": "new",
+        "bucket": "new"
+      }
+    }
+  ]
+}

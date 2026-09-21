@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va6cebd1b46">
+<meta name="diario-versao" content="v6f43caa49d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16182,8 +16182,26 @@ const DB = {
   saveCards(list) { this._set(this.KEYS.cards, list); },
   // Histórico de revisões (revlog) — base para o otimizador FSRS personalizar seus pesos.
   getRevlog() { return this._get(this.KEYS.revlog, []); },
-  addRevlog(entry) { const l = this.getRevlog(); l.push(entry); if (l.length > 8000) l.splice(0, l.length - 8000); this._set(this.KEYS.revlog, l); },
-  removeRevlog(ts) { const l = this.getRevlog(); const i = l.findIndex(r => r.ts === ts); if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); } },
+  addRevlog(entry) {
+    // O histórico é dado de aprendizagem, não cache descartável. O antigo teto
+    // de 8.000 apagava silenciosamente quase todo um ano de uso e inviabilizava
+    // otimização/estatísticas FSRS. A persistência relacional cuida da escala.
+    const l = this.getRevlog();
+    // Posição monotônica em O(1): o histórico pode passar de centenas de
+    // milhares de linhas, então varrer todo o array a cada resposta seria O(n²).
+    const last = l.length ? l[l.length - 1] : null;
+    const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
+    l.push(Object.assign({ _position: pos }, entry));
+    this._set(this.KEYS.revlog, l);
+  },
+  removeRevlog(ts) {
+    const l = this.getRevlog();
+    // Date.now() pode colidir em respostas muito próximas. Undo deve retirar a
+    // revisão MAIS RECENTE, não a primeira linha com o mesmo timestamp.
+    let i = -1;
+    for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
+    if (i >= 0) { l.splice(i, 1); this._set(this.KEYS.revlog, l); }
+  },
   getCard(id) { return this.getCards().find(c => c.id === id) || null; },
   addCard(data) {
     const list = this.getCards();
@@ -16287,10 +16305,20 @@ const DB = {
   buryCard(id) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
-    this.updateCard(id, { enterradoAte: amanha, dueTs: null });
+    // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
+    // apenas o ocultamos enquanto o card está enterrado.
+    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
     return amanha;
   },
-  unburyCard(id) { this.updateCard(id, { enterradoAte: null }); },
+  unburyCard(id) {
+    const c = this.getCard(id); if (!c) return;
+    const patch = { enterradoAte: null };
+    if (Object.prototype.hasOwnProperty.call(c, 'dueTsAntesEnterrar')) {
+      patch.dueTs = c.dueTsAntesEnterrar;
+      patch.dueTsAntesEnterrar = null;
+    }
+    this.updateCard(id, patch);
+  },
   // ESQUECER (forget, Ctrl+Alt+N): devolve o card ao estado de novo, apagando
   // a memória do FSRS. O conteúdo permanece.
   forgetCard(id) {
@@ -21156,6 +21184,10 @@ const CardsConfig = {
     // new_per_day_minimum — piso de novos por dia mesmo com revisões estouradas.
     newPerDayMinimum: 0,
 
+    // Anki: por padrão, atingir o limite de revisões também bloqueia novos.
+    // Pode ser habilitado explicitamente para ignorar esse bloqueio.
+    newCardsIgnoreReviewLimit: false,
+
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
     easyDays: [1, 1, 1, 1, 1, 1, 1],
@@ -21223,6 +21255,9 @@ const CardsConfig = {
      direito de perder cards. */
   _passosValidos(v, padrao) {
     if (!Array.isArray(v)) return padrao.slice();
+    // [] é configuração VÁLIDA no Anki (especialmente com FSRS): significa
+    // deixar o agendador controlar o curto prazo sem passos manuais.
+    if (v.length === 0) return [];
     const limpos = v.map(Number).filter((x) => isFinite(x) && x > 0);
     return limpos.length ? limpos : padrao.slice();
   },
@@ -21352,8 +21387,31 @@ const CardsConfig = {
     if (n) this._saveDaily(d);
     return n;
   },
+  _doneForDeck(kind, deckId) {
+    const d = this._daily();
+    const ids = kind === 'new' ? d.newIds : d.revIds;
+    if (!ids.length) return 0;
+    const alvo = deckId == null ? null : String(deckId);
+    const mapa = new Map(DB.getCards().map(c => [String(c.id), c]));
+    let n = 0;
+    ids.forEach(id => {
+      const c = mapa.get(String(id));
+      if (!c) return; // marcadores legados só afetam o limite global
+      const did = c.deckId == null ? null : String(c.deckId);
+      if (did === alvo) n++;
+    });
+    return n;
+  },
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
-  revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); }
+  revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); },
+  newRemainingForDeck(deckId) {
+    const cfg = this.forDeck(deckId);
+    return Math.max(0, (cfg.newPerDay || 0) - this._doneForDeck('new', deckId));
+  },
+  revRemainingForDeck(deckId) {
+    const cfg = this.forDeck(deckId);
+    return Math.max(0, (cfg.revPerDay || 0) - this._doneForDeck('review', deckId));
+  }
 };
 
 const CardEngine = {
@@ -21655,48 +21713,126 @@ const CardEngine = {
     const gradGood = Math.max(1, cfg.graduatingIntervalGood != null ? cfg.graduatingIntervalGood : 1);
     const gradEasy = Math.max(1, cfg.graduatingIntervalEasy != null ? cfg.graduatingIntervalEasy : 4);
     const maxIv = Math.max(1, cfg.maxInterval || 36500);
+    const learn = Array.isArray(cfg.learnSteps) ? cfg.learnSteps : [1, 10];
+    const relearn = Array.isArray(cfg.relearnSteps) ? cfg.relearnSteps : [10];
 
-    let ease = card.ease || easeIni, intervalo = card.intervalo || 0;
-    let reps = card.reps || 0, lapses = card.lapses || 0;
-    const isNew = reps === 0 || intervalo <= 0;
-    let status;
-    // Anki tem apenas MINIMUM_EASE_FACTOR; não existe teto.
+    const tdy = todayCards(), nowTs = Date.now();
+    const phase = card.phase || (((card.reps || 0) > 0 && (card.intervalo || 0) > 0) ? 'review' : 'new');
+    let ease = Number(card.ease) || easeIni;
+    let intervalo = Math.max(0, Number(card.intervalo) || 0);
+    let lapses = Math.max(0, Number(card.lapses) || 0);
+    const reps = Math.max(0, Number(card.reps) || 0) + 1;
     const clampE = (e) => Math.max(this.MIN_EASE, e);
-    // constrain_passing_interval: aplica o multiplicador global e os limites.
-    const constr = (dias, minimo) => {
-      const v = dias * fGlobal;
-      const min = Math.min(Math.max(1, minimo || 1), maxIv);
-      return Math.max(min, Math.min(maxIv, Math.round(v)));
-    };
-    // days_late: quantos dias além do previsto você levou para revisar.
-    const atraso = Math.max(0, this._daysBetween(card.due || todayCards(), todayCards()));
+    const seed = (card.id || 'c') + '|' + (card.reps || 0);
 
-    if (grade === 'errei') {
-      lapses += 1; reps = 0;
-      ease = clampE(ease + this.EASE_AGAIN_DELTA);
-      // failing_review_interval: iv * lapse_multiplier, com piso próprio
-      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(Math.max(1, intervalo) * fLapse)));
-      status = 'naosei';
-    } else if (isNew) {
-      reps += 1; status = 'sei';
-      if (grade === 'facil') { intervalo = constr(gradEasy, 1); ease = clampE(ease + this.EASE_EASY_DELTA); }
-      else if (grade === 'dificil') { intervalo = constr(gradGood, 1); ease = clampE(ease + this.EASE_HARD_DELTA); }
-      else { intervalo = constr(gradGood, 1); }   // "Bom" não altera a facilidade
-    } else {
-      reps += 1; status = 'sei';
-      const base = Math.max(1, intervalo);
-      // Os três intervalos são calculados JUNTOS porque cada piso depende do anterior.
-      const minHard = fHard <= 1.0 ? 0 : base + 1;
-      const ivHard = constr(base * fHard, minHard);
-      const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
-      const ivGood = constr((base + atraso / 2) * ease, minGood);
-      const ivEasy = constr((base + atraso) * ease * fEasy, ivGood + 1);
-      if (grade === 'dificil') { intervalo = ivHard; ease = clampE(ease + this.EASE_HARD_DELTA); }
-      else if (grade === 'facil') { intervalo = ivEasy; ease = clampE(ease + this.EASE_EASY_DELTA); }
-      else { intervalo = ivGood; }                 // "Bom" não altera a facilidade
+    // Mesma conversão intradiário/dia usada pelo agendador moderno do Anki.
+    const stepDue = (min) => {
+      const segs = Math.max(0, Math.round(Number(min || 0) * 60));
+      const teto = Math.floor(Math.min(segs * 0.25, 300));
+      const segsFuzz = teto > 0 ? segs + Math.floor(Math.random() * teto) : segs;
+      const ateVirada = Math.max(0, Math.round((proximaViradaTs() - nowTs) / 1000));
+      if (segsFuzz >= ateVirada) {
+        const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
+        return { dueTs: null, due: this.addDays(tdy, dias) };
+      }
+      return { dueTs: nowTs + segsFuzz * 1000, due: tdy };
+    };
+    const hardDelay = (steps, idx) => {
+      if (!steps.length) return 0;
+      const arredDias = (min) => (min > 1440 ? Math.round(min / 1440) * 1440 : min);
+      if (idx !== 0) return steps[Math.min(idx, steps.length - 1)];
+      if (steps.length > 1) return arredDias((steps[0] + steps[1]) / 2);
+      return arredDias(Math.min(steps[0] * 1.5, steps[0] + 1440));
+    };
+    const constr = (dias, minimo) => {
+      const raw = Math.max(1, Number(dias) || 1) * fGlobal;
+      const min = Math.min(Math.max(1, minimo || 1), maxIv);
+      const base = Math.max(min, Math.min(maxIv, Math.round(raw)));
+      // O SM-2 do Anki também aplica fuzz aos intervalos em dias.
+      try { return Math.min(maxIv, FSRS.fuzzed(base, seed, maxIv, min)); }
+      catch (_) { return base; }
+    };
+    const stepPatch = (whichPhase, idx, delay, status) => {
+      const p = Object.assign({
+        status: status || 'naosei', grade, ease, intervalo, reps, lapses,
+        phase: whichPhase, learnStep: idx, lastReview: tdy, algo: 'sm2'
+      }, stepDue(delay));
+      p._kind = 'min'; p._val = delay;
+      return p;
+    };
+    const graduateNew = (easy) => {
+      // A facilidade inicial nasce NA GRADUAÇÃO. Again/Hard durante aprendizagem
+      // não reduzem ease, e Easy em card novo não a aumenta.
+      ease = Number(card.ease) || easeIni;
+      intervalo = constr(easy ? gradEasy : gradGood, 1);
+      return {
+        status: 'sei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    };
+    const graduateRelearn = () => {
+      intervalo = constr(Math.max(minLapse, intervalo || minLapse), 1);
+      return {
+        status: 'sei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    };
+
+    // NOVO/APRENDIZAGEM: a aquisição não altera a facilidade futura.
+    if (phase === 'new' || phase === 'learning') {
+      if (!learn.length) return graduateNew(grade === 'facil');
+      const cur = phase === 'new' ? 0 : Math.max(0, Math.min(card.learnStep || 0, learn.length - 1));
+      if (grade === 'errei') return stepPatch('learning', 0, learn[0], 'naosei');
+      if (grade === 'dificil') return stepPatch('learning', cur, hardDelay(learn, cur), 'naosei');
+      if (grade === 'facil') return graduateNew(true);
+      const next = cur + 1;
+      if (next >= learn.length) return graduateNew(false);
+      return stepPatch('learning', next, learn[next], 'naosei');
     }
-    intervalo = Math.max(1, Math.min(maxIv, Math.round(intervalo)));
-    return { status, grade, ease, intervalo, reps, lapses, due: this.addDays(todayCards(), intervalo), dueTs: null, lastReview: todayCards(), algo: 'sm2', _kind: 'day', _val: intervalo };
+
+    // REAPRENDIZAGEM: o lapso/ease já foi contabilizado ao sair de review.
+    if (phase === 'relearning') {
+      if (!relearn.length) return graduateRelearn();
+      const cur = Math.max(0, Math.min(card.learnStep || 0, relearn.length - 1));
+      if (grade === 'errei') return stepPatch('relearning', 0, relearn[0], 'naosei');
+      if (grade === 'dificil') return stepPatch('relearning', cur, hardDelay(relearn, cur), 'naosei');
+      if (grade === 'facil') return graduateRelearn();
+      const next = cur + 1;
+      if (next >= relearn.length) return graduateRelearn();
+      return stepPatch('relearning', next, relearn[next], 'naosei');
+    }
+
+    // REVIEW: mantém as regras clássicas de atraso, facilidade e multiplicadores.
+    const base = Math.max(1, intervalo);
+    const atraso = Math.max(0, this._daysBetween(card.due || tdy, tdy));
+    if (grade === 'errei') {
+      lapses += 1;
+      ease = clampE(ease + this.EASE_AGAIN_DELTA);
+      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(base * fLapse)));
+      if (relearn.length) return stepPatch('relearning', 0, relearn[0], 'naosei');
+      intervalo = constr(intervalo, minLapse);
+      return {
+        status: 'naosei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    }
+
+    const minHard = fHard <= 1.0 ? 0 : base + 1;
+    const ivHard = constr(base * fHard, minHard);
+    const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
+    const ivGood = constr((base + atraso / 2) * ease, minGood);
+    const ivEasy = constr((base + atraso) * ease * fEasy, ivGood + 1);
+    if (grade === 'dificil') { intervalo = ivHard; ease = clampE(ease + this.EASE_HARD_DELTA); }
+    else if (grade === 'facil') { intervalo = ivEasy; ease = clampE(ease + this.EASE_EASY_DELTA); }
+    else intervalo = ivGood;
+    return {
+      status: 'sei', grade, ease, intervalo, reps, lapses,
+      phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+      dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+    };
   },
   // Ponto único de entrada. grade: 'errei'|'dificil'|'bom'|'facil' (ou 'sei'/'naosei')
   schedule(card, grade) {
@@ -21749,8 +21885,15 @@ const CardEngine = {
   hasCloze(text) { return /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
   // reveal=false => mostra [ ... ] no lugar; reveal=true => revela destacado
   clozeRender(html, reveal) {
-    return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) =>
-      reveal ? `<span class="cloze-reveal">${inner}</span>` : `<span class="cloze-blank">[&nbsp;…&nbsp;]</span>`);
+    return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) => {
+      const k = inner.indexOf('::');
+      const answer = k >= 0 ? inner.slice(0, k) : inner;
+      const hint = k >= 0 ? inner.slice(k + 2) : '';
+      if (reveal) return `<span class="cloze-reveal">${answer}</span>`;
+      return hint
+        ? `<span class="cloze-blank">[${hint}]</span>`
+        : '<span class="cloze-blank">[&nbsp;…&nbsp;]</span>';
+    });
   },
   // Card ENTERRADO não entra na fila até a data marcada (bury do Anki)
   estaEnterrado(card) { return !!(card && card.enterradoAte && card.enterradoAte > todayCards()); },
@@ -27582,8 +27725,15 @@ const CardsScreen = {
     /* `novos` precisa ser reatribuível: o modo 'materiaRodizio' constrói uma
        lista intercalada nova em vez de ordenar no lugar. Com `const` isso
        lançava TypeError e derrubava a montagem da fila inteira. */
-    let novos = []; const revisoes = [], aprend = [];
-    due.forEach(c => { const b = this._bucket(c); if (b === 'new') novos.push(c); else if (b === 'review') revisoes.push(c); else aprend.push(c); });
+    let novos = []; const revisoes = [], aprendAgora = [], aprendDia = [];
+    due.forEach(c => {
+      const b = this._bucket(c);
+      if (b === 'new') novos.push(c);
+      else if (b === 'review') revisoes.push(c);
+      else if (c.dueTs) aprendAgora.push(c); // intradiário: prioridade absoluta
+      else aprendDia.push(c);                // cruzou a virada: conta como review
+    });
+    aprendAgora.sort((a, b) => Number(a.dueTs || 0) - Number(b.dueTs || 0));
     /* ── ORDEM DAS REVISÕES ───────────────────────────────────────────────────
        Ordena ANTES de aplicar o limite: com acúmulo, quais 200 revisões entram
        importa tanto quanto a ordem em que aparecem.
@@ -27669,11 +27819,44 @@ const CardsScreen = {
        entrada de conteúdo novo por semanas — o usuário só apaga incêndio e
        nunca avança. 0 = desligado (comportamento anterior). */
     const pisoNovos = Math.max(0, cfgQ.newPerDayMinimum || 0);
-    const haAcumulo = revisoes.length > revRem;      // limite de revisões estourado
-    const newRemEfetivo = (pisoNovos > 0 && haAcumulo)
-      ? Math.max(newRem, Math.min(pisoNovos, novos.length))
-      : newRem;
-    const novosLim = novos.slice(0, newRemEfetivo), revLim = revisoes.slice(0, revRem);
+    const haAcumulo = (revisoes.length + aprendDia.length) > revRem;
+    // Anki: por padrão, quando o limite de review já foi atingido, novos param.
+    // newPerDayMinimum continua sendo a exceção explícita para garantir avanço.
+    const bloqueiaNovosPorReview = !cfgQ.newCardsIgnoreReviewLimit && revRem <= 0;
+    let newRemEfetivo = bloqueiaNovosPorReview ? 0 : newRem;
+    if (pisoNovos > 0 && haAcumulo) newRemEfetivo = Math.max(newRemEfetivo, Math.min(pisoNovos, novos.length));
+
+    const deckKey = (card) => card.deckId == null ? '__sem_baralho__' : String(card.deckId);
+    const limitarPorDeck = (lista, limiteGlobal, kind, usados) => {
+      const out = [], used = usados || new Map();
+      for (const card of lista) {
+        if (out.length >= limiteGlobal) break;
+        const k = deckKey(card);
+        const remDeck = kind === 'new'
+          ? CardsConfig.newRemainingForDeck(card.deckId)
+          : CardsConfig.revRemainingForDeck(card.deckId);
+        const ja = used.get(k) || 0;
+        if (ja >= remDeck) continue;
+        if (kind === 'new') {
+          const dc = CardsConfig.forDeck(card.deckId);
+          if (!dc.newCardsIgnoreReviewLimit && CardsConfig.revRemainingForDeck(card.deckId) <= 0
+              && Math.max(0, dc.newPerDayMinimum || 0) <= ja) continue;
+        }
+        out.push(card); used.set(k, ja + 1);
+      }
+      return { out, used };
+    };
+
+    const novosSel = limitarPorDeck(novos, newRemEfetivo, 'new');
+    const novosLim = novosSel.out;
+
+    // Interday learning compartilha o MESMO teto de revisões do Anki. Reservamos
+    // primeiro esses cards já iniciados; reviews ocupam apenas o saldo.
+    const revUsed = new Map();
+    const aprendSel = limitarPorDeck(aprendDia, revRem, 'review', revUsed);
+    const aprendDiaLim = aprendSel.out;
+    const revSel = limitarPorDeck(revisoes, Math.max(0, revRem - aprendDiaLim.length), 'review', aprendSel.used);
+    const revLim = revSel.out;
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
@@ -27724,7 +27907,10 @@ const CardsScreen = {
        Quem quiser acaso escolhe 'Aleatória' nas opções. */
     let corpo = revLim.slice();
     corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
-    corpo = aplicarMix(aprend.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    corpo = aplicarMix(aprendDiaLim.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    // Passos intradiários vencidos precedem review/new para respeitar o atraso
+    // configurado o mais de perto possível (regra explícita do Anki).
+    corpo = aprendAgora.concat(corpo);
     const queue = corpo.map(c => c.id);
     CardEngine._intercalar = intercalar;
     // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
@@ -27733,7 +27919,7 @@ const CardsScreen = {
       .sort((a, b) => a.dueTs - b.dueTs);
     this._queueMeta = {
       bloqueadosNovos: Math.max(0, novos.length - novosLim.length),
-      bloqueadosRev: Math.max(0, revisoes.length - revLim.length),
+      bloqueadosRev: Math.max(0, revisoes.length + aprendDia.length - revLim.length - aprendDiaLim.length),
       proximoTs: pendentes.length ? pendentes[0].dueTs : null,
       pendentes: pendentes.length,
       suspensos: this.currentFilteredCards().filter(c => c.suspenso).length
@@ -27746,7 +27932,7 @@ const CardsScreen = {
   _learnAheadQueue() {
     const limite = Date.now() + this.LEARN_AHEAD_MIN * 60000;
     return this.currentFilteredCards()
-      .filter(c => !c.suspenso && c.dueTs && c.dueTs > Date.now() && c.dueTs <= limite)
+      .filter(c => !c.suspenso && !CardEngine.estaEnterrado(c) && c.dueTs && c.dueTs > Date.now() && c.dueTs <= limite)
       .sort((a, b) => a.dueTs - b.dueTs)
       .map(c => c.id);
   },
@@ -28898,10 +29084,12 @@ const CardsScreen = {
   exportAnki() {
     const cards = DB.getCards();
     if (cards.length === 0) { showToast('Nenhum card para exportar'); return; }
-    // TSV: Frente \t Verso \t Tags (matéria/assunto/matéria-tec/tipo viram tags)
+    // TSV HTML do Anki: não achata o conteúdo rico. <img>, <audio>, cloze e
+    // formatação precisam sobreviver ao round-trip.
+    const campo = (html) => String(html || '').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
     const lines = cards.map(c => {
-      const front = CardEngine.plain(c.frente).replace(/\t/g, ' ').replace(/\n/g, '<br>');
-      const back = CardEngine.plain(c.verso).replace(/\t/g, ' ').replace(/\n/g, '<br>');
+      const front = campo(c.frente);
+      const back = campo(c.verso);
       const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.materiaTec, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
       return `${front}\t${back}\t${tags}`;
     });
@@ -28911,7 +29099,7 @@ const CardsScreen = {
     $id('cards-export-modal').style.display = 'none';
   },
   exportJson() {
-    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 1, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards() };
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 2, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards(), revlog: DB.getRevlog() };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Backup exportado ✓');
     $id('cards-export-modal').style.display = 'none';
@@ -28939,7 +29127,7 @@ const CardsScreen = {
       if (/\.json$/i.test(file.name)) {
         try {
           const obj = jsonSeguro(text);   // mesmo motivo do import de perfil
-          if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [] };
+          if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [], revlog: Array.isArray(obj.revlog) ? obj.revlog : [] };
           else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
         } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }
       } else {
@@ -28955,15 +29143,60 @@ const CardsScreen = {
     reader.readAsText(file);
   },
   parseAnkiText(text) {
-    const out = [];
-    String(text || '').split(/\r?\n/).forEach(line => {
-      if (!line.trim() || line.trim().startsWith('#')) return; // ignora comentários/cabeçalhos do Anki
-      const sep = line.includes('\t') ? '\t' : (line.includes(';') ? ';' : (line.includes(',') ? ',' : '\t'));
-      const cols = line.split(sep);
-      if (cols.length < 2) return;
-      out.push({ frente: cols[0].trim(), verso: cols[1].trim(), tags: (cols[2] || '').trim() });
-    });
-    return out;
+    const src = String(text || '');
+    const rawLines = src.split(/\r?\n/);
+    let sep = null;
+    for (const line of rawLines) {
+      const m = /^#separator:(.+)$/i.exec(line.trim());
+      if (!m) continue;
+      const v = m[1].trim().toLowerCase();
+      sep = v === 'tab' ? '\t' : (v === 'comma' ? ',' : (v === 'semicolon' ? ';' : m[1]));
+      break;
+    }
+    const dataLines = rawLines.filter(line => !line.trim().startsWith('#'));
+    if (!sep) {
+      const probe = dataLines.find(line => line.trim()) || '';
+      const countOutsideQuotes = (ch) => {
+        let n = 0, q = false;
+        for (let i = 0; i < probe.length; i++) {
+          if (probe[i] === '"') {
+            if (q && probe[i + 1] === '"') { i++; continue; }
+            q = !q; continue;
+          }
+          if (!q && probe[i] === ch) n++;
+        }
+        return n;
+      };
+      sep = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]]
+        .sort((a, b) => b[1] - a[1])[0][0];
+    }
+
+    const data = dataLines.join('\n');
+    const rows = [];
+    let row = [], field = '', quoted = false;
+    const pushRow = () => {
+      row.push(field); field = '';
+      if (row.length >= 2 && row.some(x => String(x).trim())) {
+        rows.push({ frente: String(row[0] || '').trim(), verso: String(row[1] || '').trim(), tags: String(row[2] || '').trim() });
+      }
+      row = [];
+    };
+    for (let i = 0; i < data.length; i++) {
+      const ch = data[i];
+      if (quoted) {
+        if (ch === '"') {
+          if (data[i + 1] === '"') { field += '"'; i++; }
+          else quoted = false;
+        } else field += ch;
+        continue;
+      }
+      if (ch === '"' && field.length === 0) { quoted = true; continue; }
+      if (ch === sep) { row.push(field); field = ''; continue; }
+      if (ch === '\n') { pushRow(); continue; }
+      if (ch !== '\r') field += ch;
+    }
+    if (field.length || row.length) pushRow();
+    return rows;
   },
   doImport() {
     if (!this._importParsed) { showToast('Escolha um arquivo primeiro'); return; }
@@ -28973,14 +29206,55 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) materia = dest.slice(4);
     let count = 0;
     if (this._importParsed.kind === 'json') {
-      // recria baralhos ausentes por nome
+      // Backup JSON é restauração de ESTADO, não mera recriação de conteúdo.
+      // Mantém fase, dueTs, S/D, intervalos, lapsos, flags e demais metadados.
       const backupDecks = this._importParsed.decks || [];
-      const idMap = {};
-      backupDecks.forEach(bd => { const nd = DB.addDeck(bd.nome); if (nd) idMap[bd.id] = nd.id; });
-      this._importParsed.cards.forEach(c => {
-        DB.addCard({ deckId: deckId || (c.deckId && idMap[c.deckId]) || null, materia: materia || c.materia || null, assunto: c.assunto || '', materiaTec: c.materiaTec || '', tipo: c.tipo || '', frente: c.frente || '', verso: c.verso || '' });
-        count++;
+      const atuaisDecks = DB.getDecks();
+      const idMapDeck = {};
+      backupDecks.forEach(bd => {
+        let nd = atuaisDecks.find(d => String(d.nome || '') === String(bd.nome || ''));
+        if (!nd) { nd = DB.addDeck(bd.nome); if (nd) atuaisDecks.push(nd); }
+        if (nd) idMapDeck[String(bd.id)] = nd.id;
       });
+
+      const existentes = DB.getCards();
+      const usados = new Set(existentes.map(x => String(x.id)));
+      const idMapCard = {};
+      this._importParsed.cards.forEach(src => {
+        const old = src && src.id != null ? String(src.id) : '';
+        let nid = old && !usados.has(old) ? src.id : DB._uid();
+        while (usados.has(String(nid))) nid = DB._uid();
+        usados.add(String(nid));
+        if (old) idMapCard[old] = nid;
+      });
+      const restaurados = this._importParsed.cards.map(src => {
+        const old = src && src.id != null ? String(src.id) : '';
+        const x = Object.assign({}, src || {});
+        x.id = old && Object.prototype.hasOwnProperty.call(idMapCard, old) ? idMapCard[old] : DB._uid();
+        x.deckId = deckId || (x.deckId != null && idMapDeck[String(x.deckId)] != null ? idMapDeck[String(x.deckId)] : x.deckId || null);
+        x.materia = materia || x.materia || null;
+        if (x.reversedOf != null && idMapCard[String(x.reversedOf)] != null) x.reversedOf = idMapCard[String(x.reversedOf)];
+        return x;
+      });
+      DB.saveCards(existentes.concat(restaurados));
+      DB.sanitizeCardsInPlace();
+
+      const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
+      if (logs.length) {
+        const atuaisLogs = DB.getRevlog();
+        const lastLog = atuaisLogs.length ? atuaisLogs[atuaisLogs.length - 1] : null;
+        let pos = Math.max(atuaisLogs.length, Number(lastLog && lastLog._position) || 0);
+        const mapped = logs.map(r => {
+          const x = Object.assign({}, r);
+          if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
+          // Rebaseia a posição ao anexar o backup a uma coleção existente.
+          // Evita colisões no caminho incremental do Supabase após a importação.
+          x._position = ++pos;
+          return x;
+        });
+        DB._set(DB.KEYS.revlog, atuaisLogs.concat(mapped));
+      }
+      count = restaurados.length;
     } else {
       this._importParsed.rows.forEach(r => {
         DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
@@ -39551,7 +39825,8 @@ const RelationalStore = {
       revlog:{suffix:'revlog',map:r=>Object.assign({},r.extra||{},{
         cardId:r.card_id==null?null:self._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
         acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
-        phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s)
+        phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),
+        _position:r.position==null?null:Number(r.position)
       })},
       laws:{suffix:'leis',map:r=>Object.assign({},r.extra||{},{
         id:self._legacyId(r.law_id),titulo:r.title,referencia:r.reference,materia:r.subject,texto:r.body||'',
@@ -39984,7 +40259,45 @@ const RelationalStore = {
     if(sub==='saved-grades')return this._syncById('study_saved_grades',profileId,planId,'grade_id',oldA,newA,(x,i)=>Object.assign(base(),{grade_id:String(x.id),name:x.nome||'',sessions:x.sessions==null?null:Number(x.sessions),grade:x.grade||{},created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,grade_id');
 
     if(sub==='revlog'){
-      const rows=newA.map((x,i)=>Object.assign(base(),{card_id:x.cardId==null?null:String(x.cardId),ts:x.ts==null?null:Number(x.ts),review_date:x.date||null,correct:x.acerto==null?null:!!x.acerto,grade:x.grade==null?null:Number(x.grade),elapsed:x.elapsed==null?null:Number(x.elapsed),phase:x.phase||null,interval_value:x.intervalo==null?null:Number(x.intervalo),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),position:i+1,extra:{}}));
+      const rowFor=(x,i)=>Object.assign(base(),{
+        card_id:x.cardId==null?null:String(x.cardId),ts:x.ts==null?null:Number(x.ts),review_date:x.date||null,
+        correct:x.acerto==null?null:!!x.acerto,grade:x.grade==null?null:Number(x.grade),elapsed:x.elapsed==null?null:Number(x.elapsed),
+        phase:x.phase||null,interval_value:x.intervalo==null?null:Number(x.intervalo),d:x.d==null?null:Number(x.d),s:x.s==null?null:Number(x.s),
+        position:Number(x._position)||(i+1),
+        extra:Object.fromEntries(Object.entries(x||{}).filter(([k])=>!['cardId','ts','date','acerto','grade','elapsed','phase','intervalo','d','s','_position'].includes(k)))
+      });
+      const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+
+      // Caminho quente: uma resposta acrescenta UMA linha. Não reescrevemos
+      // centenas de milhares de revisões no PostgreSQL a cada clique.
+      if(newA.length===oldA.length+1 && oldA.every((x,i)=>eq(x,newA[i]))){
+        const row=rowFor(newA[newA.length-1],newA.length-1);
+        const {error}=await CloudStore.client.from('study_review_log').insert(row);
+        if(error)throw error;
+        return;
+      }
+
+      // Undo remove exatamente uma linha. A posição é monotônica e não é
+      // renumerada, então os próximos appends continuam estáveis mesmo com gaps.
+      if(oldA.length===newA.length+1){
+        let idx=0;
+        while(idx<newA.length && eq(oldA[idx],newA[idx])) idx++;
+        const okSuffix=newA.slice(idx).every((x,j)=>eq(x,oldA[idx+j+1]));
+        if(okSuffix){
+          const rem=oldA[idx];
+          let q=CloudStore.client.from('study_review_log').delete()
+            .eq('profile_id',profileId).eq('plan_id',planId)
+            .eq('position',Number(rem&&rem._position)||(idx+1));
+          if(rem&&rem.ts!=null)q=q.eq('ts',Number(rem.ts));
+          if(rem&&rem.cardId!=null)q=q.eq('card_id',String(rem.cardId));
+          const {error}=await q;
+          if(error)throw error;
+          return;
+        }
+      }
+
+      // Importação/limpeza em massa: caminho raro, mas mantém equivalência total.
+      const rows=newA.map(rowFor);
       return this._replacePlanRows('study_review_log',profileId,planId,rows,'review_pk');
     }
     if(sub==='lei-keywords'){

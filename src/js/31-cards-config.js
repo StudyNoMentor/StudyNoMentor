@@ -47,6 +47,10 @@ const CardsConfig = {
     // new_per_day_minimum — piso de novos por dia mesmo com revisões estouradas.
     newPerDayMinimum: 0,
 
+    // Anki: por padrão, atingir o limite de revisões também bloqueia novos.
+    // Pode ser habilitado explicitamente para ignorar esse bloqueio.
+    newCardsIgnoreReviewLimit: false,
+
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
     easyDays: [1, 1, 1, 1, 1, 1, 1],
@@ -114,6 +118,9 @@ const CardsConfig = {
      direito de perder cards. */
   _passosValidos(v, padrao) {
     if (!Array.isArray(v)) return padrao.slice();
+    // [] é configuração VÁLIDA no Anki (especialmente com FSRS): significa
+    // deixar o agendador controlar o curto prazo sem passos manuais.
+    if (v.length === 0) return [];
     const limpos = v.map(Number).filter((x) => isFinite(x) && x > 0);
     return limpos.length ? limpos : padrao.slice();
   },
@@ -243,6 +250,29 @@ const CardsConfig = {
     if (n) this._saveDaily(d);
     return n;
   },
+  _doneForDeck(kind, deckId) {
+    const d = this._daily();
+    const ids = kind === 'new' ? d.newIds : d.revIds;
+    if (!ids.length) return 0;
+    const alvo = deckId == null ? null : String(deckId);
+    const mapa = new Map(DB.getCards().map(c => [String(c.id), c]));
+    let n = 0;
+    ids.forEach(id => {
+      const c = mapa.get(String(id));
+      if (!c) return; // marcadores legados só afetam o limite global
+      const did = c.deckId == null ? null : String(c.deckId);
+      if (did === alvo) n++;
+    });
+    return n;
+  },
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
-  revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); }
+  revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); },
+  newRemainingForDeck(deckId) {
+    const cfg = this.forDeck(deckId);
+    return Math.max(0, (cfg.newPerDay || 0) - this._doneForDeck('new', deckId));
+  },
+  revRemainingForDeck(deckId) {
+    const cfg = this.forDeck(deckId);
+    return Math.max(0, (cfg.revPerDay || 0) - this._doneForDeck('review', deckId));
+  }
 };
