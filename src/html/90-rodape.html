@@ -30,7 +30,10 @@
       || s === 'diario-estudos:profiles' || s === 'diario-estudos:active-profile';
   }
   function applyingRemote() {
-    try { return !!(window.RelationalStore && RelationalStore._applying); } catch (_) { return false; }
+    try {
+      return !!((window.RelationalStore && RelationalStore._applying)
+        || (window.CloudStore && CloudStore._applying));
+    } catch (_) { return false; }
   }
   function dirtyAllowed(k) { return isMemoryKey(k) && !isTransientKey(k) && !applyingRemote(); }
   function currentUserId() {
@@ -145,6 +148,27 @@
     });
   }
   function cardPk(key, id) { return key + '\u0000' + String(id); }
+
+  function clearCardsKey(key, opts) {
+    opts = opts || {};
+    cardsMem.delete(key); cardKeys.delete(key); invalidate();
+    if (!idb) return Promise.resolve(true);
+    var p = (async function () {
+      var tx = idb.transaction(['cards','dirty','kv'], 'readwrite');
+      await deleteCardsForKeyInTx(tx, key);
+      await clearDirtyForKeyInTx(tx, key);
+      tx.objectStore('kv').delete(key);
+      if (opts.dirty !== false && !applyingRemote()) {
+        tx.objectStore('dirty').put({
+          id:'cards-replace|' + key, kind:'cards-replace', key:key,
+          userId:currentUserId(), at:Date.now()
+        });
+      }
+      await txDone(tx);
+      return true;
+    })();
+    return track(p);
+  }
 
   function replaceCards(key, list, opts) {
     opts = opts || {};
@@ -296,8 +320,7 @@
         if (isCardsKey(k)) {
           var oldCards = cardsMem.get(k) || [];
           var oldRaw = applyingRemote() ? null : JSON.stringify(oldCards);
-          cardsMem.delete(k); cardKeys.delete(k); invalidate();
-          replaceCards(k, [], { dirty: !applyingRemote() });
+          clearCardsKey(k, { dirty: !applyingRemote() });
           if (oldRaw != null) notify(k, oldRaw, null);
           return;
         }
@@ -312,12 +335,14 @@
       if (isStudyKey(k) && oldNative != null) notify(k, oldNative, null);
     },
     clear: function () {
-      var olds = Array.from(mem.entries());
-      var cardOlds = Array.from(cardsMem.entries());
-      mem.clear(); cardsMem.clear(); cardKeys.clear(); invalidate();
-      olds.forEach(function (x) { LS.removeItem(x[0]); });
-      cardOlds.forEach(function (x) { replaceCards(x[0], [], {dirty:true}); notify(x[0], JSON.stringify(x[1]), null); });
+      /* Remove através do MESMO caminho durável; limpar os Maps antes fazia
+         removeItem achar "nada" e deixava chaves órfãs no IndexedDB. */
+      var memKeys = Array.from(mem.keys());
+      var cardKeysNow = Array.from(cardKeys);
+      memKeys.forEach(function (k) { LS.removeItem(k); });
+      cardKeysNow.forEach(function (k) { LS.removeItem(k); });
       try { if (nativeLS) nativeLS.clear(); } catch (_) {}
+      invalidate();
     },
     key: function (i) {
       i = i >> 0;
@@ -371,7 +396,8 @@
     getCards: function (key) { return cardsMem.get(key) || null; },
     replaceCards: replaceCards,
     upsertCard: upsertCard,
-    deleteCard: deleteCard
+    deleteCard: deleteCard,
+    clearCardsKey: clearCardsKey
   };
   window.__idbPendingCount = function () { return pendingWrites.size; };
   window.__idbFlush = flushLocal;
