@@ -238,8 +238,10 @@ const DurableStudyStore = {
         try {
           const tx = db.transaction(this.OUTBOX_STORE, 'readwrite');
           const s = tx.objectStore(this.OUTBOX_STORE);
-          const req = s.index('scope').getAllKeys(IDBKeyRange.only(scope));
-          req.onsuccess = () => (req.result || []).forEach(k => s.delete(k));
+          const req = s.index('scope').getAll(IDBKeyRange.only(scope));
+          req.onsuccess = () => (req.result || []).forEach(x => {
+            if (!kind || x.kind === kind) s.delete(x.pk);
+          });
           tx.oncomplete = () => resolve();
           tx.onerror = tx.onabort = () => resolve();
         } catch (_) { resolve(); }
@@ -422,7 +424,9 @@ const CardStore = {
     try { p = RelationalStore.queueCardMutation(scope, snapshot); }
     catch (_) { return null; }
     if (!p || typeof p.then !== 'function') return null;
-    const tracked = p.then(() => {
+    let succeeded = false;
+    const tracked = p.then((ack) => {
+      succeeded = true;
       const now = this._outbox(scope, id);
       if (!now) return true;
       if (snapshot.action === 'delete') {
@@ -430,10 +434,17 @@ const CardStore = {
       } else if (now.action === 'upsert') {
         const done = new Set((snapshot.ops || []).map(x => x.id));
         now.ops = (now.ops || []).filter(x => !done.has(x.id));
+        const confirmed = ack && ack.card ? this._clone(ack.card) : this._clone(snapshot.card);
         if (!now.ops.length) {
           DurableStudyStore.deleteOutbox('card', scope, id);
+          if (confirmed) {
+            const s = this._scope(scope, () => []);
+            const m = { id, action:'upsert', card:confirmed, position:now.position };
+            this._applyMutationToScope(s, m);
+            DurableStudyStore.putCard(scope, confirmed, now.position);
+          }
         } else {
-          now.base = this._clone(snapshot.card);
+          now.base = confirmed;
           now.card = this._applyOps(now.base, now.ops);
           DurableStudyStore.putOutbox(now);
           const s = this._scope(scope, () => []);
@@ -444,8 +455,11 @@ const CardStore = {
       return true;
     }).catch(() => false).finally(() => {
       this._inflight.delete(key);
+      // Só encadeia automaticamente mutações que surgiram ENQUANTO a anterior
+      // era confirmada. Em erro, o WAL fica parado para replay no próximo
+      // flush/foco/reconexão — sem loop de rede infinito.
       const again = this._outbox(scope, id);
-      if (again && this._relReady()) this._sendCard(scope, id);
+      if (succeeded && again && this._relReady()) this._sendCard(scope, id);
     });
     this._inflight.set(key, tracked);
     return tracked;
@@ -551,13 +565,22 @@ const ReviewOutbox = {
         : RelationalStore.queueRevlogAppend(scope, m.row);
     } catch (_) { return null; }
     if (!p || typeof p.then !== 'function') return null;
-    const tracked = p.then(() => {
+    let succeeded = false;
+    const tracked = p.then((ack) => {
+      succeeded = true;
+      if (m.action === 'append' && ack && Number.isFinite(Number(ack.position))) {
+        try {
+          if (typeof DB !== 'undefined' && DB.rebaseRevlogPosition) {
+            DB.rebaseRevlogPosition(scope, id, Number(ack.position));
+          }
+        } catch (_) {}
+      }
       const now = DurableStudyStore._nativeGet('revlog', scope, id);
       if (now && now.action === m.action) DurableStudyStore.deleteOutbox('revlog', scope, id);
       return true;
     }).catch(() => false).finally(() => {
       this._inflight.delete(k);
-      if (DurableStudyStore._nativeGet('revlog', scope, id) && this._ready()) this._send(scope, id);
+      if (succeeded && DurableStudyStore._nativeGet('revlog', scope, id) && this._ready()) this._send(scope, id);
     });
     this._inflight.set(k, tracked);
     return tracked;
