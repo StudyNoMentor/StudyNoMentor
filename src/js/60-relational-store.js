@@ -19,6 +19,7 @@ const RelationalStore = {
   _heavyTimers: new Map(),
   _lastChangeId: new Map(),
   _lastHydratedAt: new Map(),
+  _reviewLeaseUntil: new Map(),
 
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
@@ -418,7 +419,7 @@ const RelationalStore = {
       const d=await this._loadHeavyBundle(id);
       this._applyHeavyBundle(id,d||{});
       this._heavyReady.add(id);this._heavyDirty.delete(id);
-      this._lastSyncAt=Date.now();this._lastError=null;
+      this._lastSyncAt=Date.now();this._refreshFailureState();
       this._trace('rel-heavy-ok',{profileId:id,ms:Date.now()-t0});
       try{window.dispatchEvent(new CustomEvent('data:relational-heavy-hydrated',{detail:{profileId:id,reason:opts.reason||'demand'}}));}catch(e){_quiet(e,'rel-heavy-event');}
       return {ok:true,mudou:1};
@@ -457,7 +458,7 @@ const RelationalStore = {
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
     this._lastHydratedAt.set(profileId,Date.now());
-    this._lastSyncAt=Date.now();this._lastError=null;
+    this._lastSyncAt=Date.now();this._refreshFailureState();
     this.subscribeProfile(profileId);
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
     try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
@@ -712,6 +713,13 @@ const RelationalStore = {
     if(error)throw error;
   },
   async _replacePlanRows(table,profileId,planId,rows,onConflict){
+    if(table==='study_cards'){
+      const {error}=await CloudStore.client.rpc('replace_study_cards',{
+        p_profile_id:profileId,p_plan_id:planId,p_rows:rows||[]
+      });
+      if(error)throw error;
+      return;
+    }
     const {error}=await CloudStore.client.rpc('replace_study_plan_rows',{
       p_table:table,p_profile_id:profileId,p_plan_id:planId,p_rows:rows||[]
     });
@@ -903,6 +911,55 @@ const RelationalStore = {
     return {core,heavy};
   },
 
+  _reviewHolderId() {
+    const K='diario-estudos:review-holder';
+    try {
+      let id=sessionStorage.getItem(K);
+      if(!id){ id=(crypto&&crypto.randomUUID)?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2)); sessionStorage.setItem(K,id); }
+      return id;
+    } catch (_) { return 'tab-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2); }
+  },
+  _leaseKey(profileId,planId){ return String(profileId)+'|'+String(planId); },
+  _cachedLease(profileId,planId){
+    const k=this._leaseKey(profileId,planId);
+    let until=Number(this._reviewLeaseUntil.get(k))||0;
+    try {
+      const raw=sessionStorage.getItem('diario-estudos:lease:'+k);
+      if(raw) until=Math.max(until,Number(raw)||0);
+    } catch (_) {}
+    return until;
+  },
+  async ensureReviewLease(profileId, planId, opts) {
+    opts=opts||{};
+    const k=this._leaseKey(profileId,planId), now=Date.now(), cached=this._cachedLease(profileId,planId);
+    if(!opts.force && cached>now+30000) return {acquired:true,leaseUntil:cached,cached:true};
+    if(!this.isReady() || (typeof navigator!=='undefined' && navigator.onLine===false)){
+      return {acquired:cached>now,leaseUntil:cached,offline:true};
+    }
+    const holder=this._reviewHolderId();
+    const {data,error}=await CloudStore.client.rpc('claim_study_review_lease',{
+      p_profile_id:profileId,p_plan_id:String(planId),p_holder_id:holder,p_ttl_seconds:1800
+    });
+    if(error) throw error;
+    const d=data||{}, until=Date.parse(d.lease_until||'')||0;
+    if(d.acquired){
+      this._reviewLeaseUntil.set(k,until);
+      try{sessionStorage.setItem('diario-estudos:lease:'+k,String(until));}catch(_){}
+    }
+    return {acquired:!!d.acquired,leaseUntil:until,holderId:d.holder_id||null};
+  },
+  async releaseReviewLease(profileId,planId) {
+    const k=this._leaseKey(profileId,planId), holder=this._reviewHolderId();
+    this._reviewLeaseUntil.delete(k);
+    try{sessionStorage.removeItem('diario-estudos:lease:'+k);}catch(_){}
+    if(!this.isReady()) return false;
+    const {data,error}=await CloudStore.client.rpc('release_study_review_lease',{
+      p_profile_id:profileId,p_plan_id:String(planId),p_holder_id:holder
+    });
+    if(error)throw error;
+    return !!data;
+  },
+
   async _replayDirtyItem(item) {
     if(!item||!item.kind)return true;
     const key=item.key, p=this._keyParts(key);
@@ -966,7 +1023,8 @@ const RelationalStore = {
   async replayDurable() {
     if(!this.isReady()||!window.LocalDurable||!LocalDurable.listDirty)return {ok:true,count:0};
     await this.settle();
-    const items=await LocalDurable.listDirty();
+    const uid=CloudStore.session&&CloudStore.session.user?CloudStore.session.user.id:null;
+    const items=await LocalDurable.listDirty(uid);
     let done=0, firstErr=null;
     for(const item of items){
       try{
@@ -984,6 +1042,10 @@ const RelationalStore = {
     const id=profileId||(window.ProfileManager&&ProfileManager.getActiveProfileId&&ProfileManager.getActiveProfileId());
     if(!id||!this.isReady())return false;
     try{await this.settle();}catch(e){_quiet(e,'rel-catchup-settle');}
+    /* Nunca baixa estado remoto por cima de uma mutação local não reenviada. */
+    if(this.replayDurable){
+      try{await this.replayDurable();}catch(e){throw e;}
+    }
     if(!this._lastChangeId.has(id)){
       return this.hydrateProfile(id,{reason:reason||'catch-up-bootstrap',includeHeavy:false});
     }
@@ -995,7 +1057,7 @@ const RelationalStore = {
     }
     await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
     this._lastChangeId.set(id,Math.max(after,Number(summary.maxChangeId)||after));
-    this._lastSyncAt=Date.now();this._lastError=null;
+    this._lastSyncAt=Date.now();this._refreshFailureState();
     return {ok:true,mudou:summary.count||1,changeId:this._lastChangeId.get(id),tables:summary.tables};
   },
 
