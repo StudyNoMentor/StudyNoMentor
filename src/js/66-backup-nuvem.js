@@ -15,8 +15,9 @@
      · fila por perfil para impedir gravações concorrentes;
      · falhas visíveis em `CloudBackup.status()`.
 
-   O backup manual em .json continua como opção de exportação. O navegador não
-   mantém histórico persistente de estudo: a fonte durável é o PostgreSQL.
+   O backup manual em .json continua como opção de exportação. O IndexedDB
+   protege trabalho offline e pendências; o PostgreSQL é a cópia canônica
+   compartilhada. As fotos históricas continuam separadas em profile_backups.
    ═══════════════════════════════════════════════════════════════════════════ */
 const CloudBackup = {
   TABLE: 'profile_backups',
