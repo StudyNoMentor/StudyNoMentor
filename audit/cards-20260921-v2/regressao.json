@@ -1,0 +1,893 @@
+{
+  "escopo": "Módulos de produção 11-db / 30-fsrs / 31-cards-config / 32-card-engine / 44-tela-cards; DOM, download e rede dublados; armazenamento serializado de verdade.",
+  "geradoEm": "2026-09-21T13:42:17.314Z",
+  "total": 59,
+  "falhas": 15,
+  "itens": [
+    {
+      "id": "A1",
+      "nome": "Dobrar o histórico dobra o custo de gravação (O(1) amortizado), não quadruplica",
+      "pass": false,
+      "detalhe": {
+        "n1": 1500,
+        "bytesEscritos1": 176430873,
+        "n2": 3000,
+        "bytesEscritos2": 883888236,
+        "razao": 5.01,
+        "esperadoSeLinear": 2,
+        "esperadoSeQuadratico": 4
+      }
+    },
+    {
+      "id": "A2",
+      "nome": "Gravar uma resposta não reescreve o histórico inteiro",
+      "pass": false,
+      "detalhe": {
+        "entradas": 3000,
+        "bytesGuardados": 472375,
+        "bytesEscritos": 883888236,
+        "amplificacao": 1871
+      }
+    },
+    {
+      "id": "A3",
+      "nome": "Um ano de histórico (180.000 revisões) cabe na cota típica de 5 MB do localStorage",
+      "pass": false,
+      "detalhe": {
+        "bytesPorEntrada": 157,
+        "projecao180k": 28342500,
+        "cota": 5242880
+      }
+    },
+    {
+      "id": "A4",
+      "nome": "Com a cota do navegador estourada, a resposta não é dada por concluída sem ter sido gravada",
+      "pass": false,
+      "detalhe": {
+        "excecaoVazou": false,
+        "revlogParado": 865,
+        "agendamentoGravado": false,
+        "filaAvancou": true,
+        "desfazerEmpilhado": 1,
+        "avisos": [
+          "⚠ Não foi possível salvar. Verifique a conexão com o banco.",
+          "⚠ Não foi possível atualizar o estado local. A gravação foi cancelada."
+        ]
+      }
+    },
+    {
+      "id": "A5",
+      "nome": "A escrita rejeitada pela cota não é reportada como sucesso por DB._set",
+      "pass": true,
+      "detalhe": {
+        "nota": "DB._set deve devolver false quando o localStorage recusa a gravação"
+      }
+    },
+    {
+      "id": "B1.fsrs",
+      "nome": "FSRS: passos de aprendizado vazios — card novo com \"Errei\" recebe agendamento válido",
+      "pass": false,
+      "detalhe": {
+        "reps": 1,
+        "lastReview": "2026-09-21",
+        "algo": "fsrs",
+        "phase": "learning",
+        "learnStep": 0,
+        "s": 0.212,
+        "d": 6.4133,
+        "status": "naosei",
+        "dueTs": null,
+        "due": "2026-09-21",
+        "_kind": "min"
+      }
+    },
+    {
+      "id": "B2.fsrs",
+      "nome": "FSRS: passos de reaprendizado vazios — revisão com \"Errei\" recebe agendamento válido",
+      "pass": false,
+      "detalhe": {
+        "reps": 10,
+        "lastReview": "2026-09-21",
+        "algo": "fsrs",
+        "phase": "relearning",
+        "learnStep": 0,
+        "s": 1.7039776280348007,
+        "d": 8.670455569296838,
+        "lapses": 1,
+        "status": "naosei",
+        "dueTs": null,
+        "due": "2026-09-21",
+        "_kind": "min"
+      }
+    },
+    {
+      "id": "B3.fsrs",
+      "nome": "FSRS: prévia dos quatro botões nunca devolve valor não numérico",
+      "pass": false,
+      "detalhe": {
+        "errei": {
+          "kind": "min"
+        },
+        "dificil": {
+          "kind": "min",
+          "val": null
+        },
+        "bom": {
+          "kind": "day",
+          "val": 2
+        },
+        "facil": {
+          "kind": "day",
+          "val": 10
+        }
+      }
+    },
+    {
+      "id": "B4.fsrs",
+      "nome": "FSRS: rótulo do botão nunca exibe NaN/undefined/null",
+      "pass": false,
+      "detalhe": [
+        "NaN h",
+        "NaN h",
+        "2 dias",
+        "10 dias"
+      ]
+    },
+    {
+      "id": "B1.sm2",
+      "nome": "SM2: passos de aprendizado vazios — card novo com \"Errei\" recebe agendamento válido",
+      "pass": true,
+      "detalhe": {
+        "status": "sei",
+        "grade": "errei",
+        "ease": 2.5,
+        "intervalo": 1,
+        "reps": 1,
+        "lapses": 0,
+        "phase": "review",
+        "learnStep": 0,
+        "due": "2026-09-22",
+        "dueTs": null,
+        "lastReview": "2026-09-21",
+        "algo": "sm2",
+        "_kind": "day",
+        "_val": 1
+      }
+    },
+    {
+      "id": "B2.sm2",
+      "nome": "SM2: passos de reaprendizado vazios — revisão com \"Errei\" recebe agendamento válido",
+      "pass": true,
+      "detalhe": {
+        "status": "naosei",
+        "grade": "errei",
+        "ease": 2.3,
+        "intervalo": 1,
+        "reps": 10,
+        "lapses": 1,
+        "phase": "review",
+        "learnStep": 0,
+        "due": "2026-09-22",
+        "dueTs": null,
+        "lastReview": "2026-09-21",
+        "algo": "sm2",
+        "_kind": "day",
+        "_val": 1
+      }
+    },
+    {
+      "id": "B3.sm2",
+      "nome": "SM2: prévia dos quatro botões nunca devolve valor não numérico",
+      "pass": true,
+      "detalhe": {
+        "errei": {
+          "kind": "day",
+          "val": 1
+        },
+        "dificil": {
+          "kind": "day",
+          "val": 1
+        },
+        "bom": {
+          "kind": "day",
+          "val": 1
+        },
+        "facil": {
+          "kind": "day",
+          "val": 5
+        }
+      }
+    },
+    {
+      "id": "B4.sm2",
+      "nome": "SM2: rótulo do botão nunca exibe NaN/undefined/null",
+      "pass": true,
+      "detalhe": [
+        "1 dia",
+        "1 dia",
+        "1 dia",
+        "5 dias"
+      ]
+    },
+    {
+      "id": "B5",
+      "nome": "FSRS sem passos: 40 \"Errei\" seguidos não travam o card em estado sem agendamento",
+      "pass": false,
+      "detalhe": {
+        "fase": "learning",
+        "due": "2026-09-21",
+        "dueTs": null
+      }
+    },
+    {
+      "id": "C1",
+      "nome": "Nenhuma configuração válida produz agendamento inválido (due NaN, dueTs NaN, S/D não finitos)",
+      "pass": false,
+      "detalhe": {
+        "total": 9216,
+        "invalidos": 264,
+        "exemplos": [
+          {
+            "cfg": {
+              "algo": "fsrs",
+              "learnSteps": [
+                1,
+                10
+              ],
+              "relearnSteps": [
+                10
+              ],
+              "maxInterval": 36500,
+              "loadBalance": false,
+              "retention": 0.9
+            },
+            "fase": "relearning",
+            "atraso": 0,
+            "g": "dificil",
+            "p": {
+              "reps": 8,
+              "lastReview": "2026-09-21",
+              "algo": "fsrs",
+              "learnStep": 1,
+              "s": 15.898451732962105,
+              "d": 7.462611289296839,
+              "status": "naosei",
+              "dueTs": null,
+              "due": "2026-09-21",
+              "_kind": "min"
+            }
+          },
+          {
+            "cfg": {
+              "algo": "fsrs",
+              "learnSteps": [
+                1,
+                10
+              ],
+              "relearnSteps": [
+                10
+              ],
+              "maxInterval": 36500,
+              "loadBalance": false,
+              "retention": 0.9
+            },
+            "fase": "relearning",
+            "atraso": 1,
+            "g": "dificil",
+            "p": {
+              "reps": 8,
+              "lastReview": "2026-09-21",
+              "algo": "fsrs",
+              "learnStep": 1,
+              "s": 15.898451732962105,
+              "d": 7.462611289296839,
+              "status": "naosei",
+              "dueTs": null,
+              "due": "2026-09-21",
+              "_kind": "min"
+            }
+          },
+          {
+            "cfg": {
+              "algo": "fsrs",
+              "learnSteps": [
+                1,
+                10
+              ],
+              "relearnSteps": [
+                10
+              ],
+              "maxInterval": 36500,
+              "loadBalance": false,
+              "retention": 0.9
+            },
+            "fase": "relearning",
+            "atraso": 45,
+            "g": "dificil",
+            "p": {
+              "reps": 8,
+              "lastReview": "2026-09-21",
+              "algo": "fsrs",
+              "learnStep": 1,
+              "s": 43.57463187932805,
+              "d": 7.462611289296839,
+              "status": "naosei",
+              "dueTs": null,
+              "due": "2026-09-21",
+              "_kind": "min"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "C2",
+      "nome": "Nenhum intervalo ultrapassa o intervalo máximo configurado",
+      "pass": true,
+      "detalhe": {
+        "total": 9216,
+        "foraDoTeto": 0
+      }
+    },
+    {
+      "id": "C3",
+      "nome": "Os quatro botões ficam sempre em ordem crescente de tempo (Errei ≤ Difícil ≤ Bom ≤ Fácil)",
+      "pass": true,
+      "detalhe": {
+        "casosJulgados": 480,
+        "foraDeOrdem": 0,
+        "excluidosPorPassoDeDiasInteiros": 1560,
+        "exemplos": []
+      }
+    },
+    {
+      "id": "C4",
+      "nome": "reps incrementa exatamente 1 e lapses nunca decresce em toda a matriz",
+      "pass": true,
+      "detalhe": {
+        "repsRuim": 0,
+        "lapsesRuim": 0
+      }
+    },
+    {
+      "id": "C5",
+      "nome": "A prévia do botão é idêntica ao que será gravado (inclusive com balanceamento ligado)",
+      "pass": true,
+      "detalhe": {
+        "total": 9216,
+        "previaDivergente": 0
+      }
+    },
+    {
+      "id": "D1",
+      "nome": "Limite de novos por baralho é respeitado",
+      "pass": true,
+      "detalhe": {
+        "esperado": 3,
+        "obtido": 3
+      }
+    },
+    {
+      "id": "D2",
+      "nome": "Limite de revisões por baralho é respeitado",
+      "pass": true,
+      "detalhe": {
+        "esperado": 2,
+        "obtido": 2
+      }
+    },
+    {
+      "id": "D3",
+      "nome": "A fila nunca repete um id",
+      "pass": true,
+      "detalhe": {
+        "tamanho": 5,
+        "distintos": 5
+      }
+    },
+    {
+      "id": "D4",
+      "nome": "Aprendizado entre dias divide o MESMO teto de revisões (Anki), não um teto próprio",
+      "pass": true,
+      "detalhe": {
+        "interday": 5,
+        "review": 0,
+        "teto": 5
+      }
+    },
+    {
+      "id": "D5",
+      "nome": "Com o teto de revisões esgotado, os novos param por padrão (newCardsIgnoreReviewLimit=false)",
+      "pass": true,
+      "detalhe": {
+        "fila": 5
+      }
+    },
+    {
+      "id": "D6",
+      "nome": "newCardsIgnoreReviewLimit=true libera os novos mesmo com revisões esgotadas",
+      "pass": true,
+      "detalhe": {
+        "novos": 10
+      }
+    },
+    {
+      "id": "D7",
+      "nome": "newPerDayMinimum garante o piso de novos mesmo com acúmulo de revisões",
+      "pass": true,
+      "detalhe": {
+        "novos": 4,
+        "esperado": 4
+      }
+    },
+    {
+      "id": "D8",
+      "nome": "A fila exclui suspenso, enterrado, vencimento futuro e passo ainda não vencido",
+      "pass": true,
+      "detalhe": {
+        "fila": [
+          "ok"
+        ]
+      }
+    },
+    {
+      "id": "D9",
+      "nome": "\"Learn ahead\" (20 min) traz o passo pendente e continua excluindo o enterrado",
+      "pass": true,
+      "detalhe": {
+        "antecipados": [
+          "passo"
+        ]
+      }
+    },
+    {
+      "id": "D10",
+      "nome": "Mistura de novos com revisões é proporcional (não amontoa no fim nem sorteia)",
+      "pass": true,
+      "detalhe": {
+        "saidas": [
+          "12a34",
+          "12a34b56",
+          "12",
+          "ab"
+        ]
+      }
+    },
+    {
+      "id": "D11",
+      "nome": "Ao longo de uma sessão real, o limite de novos do dia não é ultrapassado",
+      "pass": true,
+      "detalhe": {
+        "introduzidosHoje": 0,
+        "limite": 5,
+        "respostas": 0
+      }
+    },
+    {
+      "id": "D12",
+      "nome": "Nenhum card foi gravado com agendamento inválido durante a sessão real",
+      "pass": true,
+      "detalhe": {
+        "ruins": []
+      }
+    },
+    {
+      "id": "D13",
+      "nome": "A sessão real gravou uma linha de histórico por resposta",
+      "pass": true,
+      "detalhe": {
+        "revlog": 0,
+        "respostas": 0
+      }
+    },
+    {
+      "id": "E1",
+      "nome": "Enterrar tira o card da fila sem destruir o passo intradiário",
+      "pass": true,
+      "detalhe": {
+        "id": "e1",
+        "phase": "learning",
+        "due": "2026-09-21",
+        "dueTs": null,
+        "learnStep": 0,
+        "enterradoAte": "2026-09-22",
+        "dueTsAntesEnterrar": 1789981800000,
+        "updatedAt": "2026-09-21T09:00:00.000Z"
+      }
+    },
+    {
+      "id": "E2",
+      "nome": "Desenterrar devolve o horário intradiário original",
+      "pass": true,
+      "detalhe": {
+        "id": "e1",
+        "phase": "learning",
+        "due": "2026-09-21",
+        "dueTs": 1789981800000,
+        "learnStep": 0,
+        "enterradoAte": null,
+        "dueTsAntesEnterrar": null,
+        "updatedAt": "2026-09-21T09:00:00.000Z"
+      }
+    },
+    {
+      "id": "E3",
+      "nome": "Com timestamps colididos, desfazer remove a revisão MAIS RECENTE",
+      "pass": true,
+      "detalhe": [
+        {
+          "_position": 1,
+          "ts": 1,
+          "cardId": "A"
+        }
+      ]
+    },
+    {
+      "id": "E4",
+      "nome": "Desfazer 19 respostas encadeadas devolve os cards ao estado anterior (ignorando updatedAt)",
+      "pass": false,
+      "detalhe": {
+        "respostas": 19,
+        "diferenca": {
+          "indice": 0,
+          "antes": {
+            "id": "u0",
+            "frente": "F0",
+            "verso": "V0",
+            "phase": "review",
+            "reps": 3,
+            "lapses": 1,
+            "s": 9,
+            "d": 5,
+            "intervalo": 10,
+            "due": "2026-09-21",
+            "lastReview": "2026-09-11",
+            "status": "sei",
+            "suspenso": false
+          },
+          "depois": {
+            "id": "u0",
+            "frente": "F0",
+            "verso": "V0",
+            "phase": "review",
+            "reps": 3,
+            "lapses": 1,
+            "s": 9,
+            "d": 5,
+            "intervalo": 10,
+            "due": "2026-09-21",
+            "lastReview": "2026-09-11",
+            "status": "sei",
+            "suspenso": false,
+            "_kind": "day",
+            "_val": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "E4b",
+      "nome": "Campos transitórios da prévia (_kind/_val/_leechNow) não são gravados no card",
+      "pass": false,
+      "detalhe": {
+        "cardsPoluidos": 12,
+        "exemplo": {
+          "id": "u0",
+          "frente": "F0",
+          "verso": "V0",
+          "phase": "review",
+          "reps": 3,
+          "lapses": 1,
+          "s": 9,
+          "d": 5,
+          "intervalo": 10,
+          "due": "2026-09-21",
+          "lastReview": "2026-09-11",
+          "status": "sei",
+          "suspenso": false,
+          "_kind": "day",
+          "_val": 2,
+          "updatedAt": "2026-09-21T09:00:00.000Z"
+        }
+      }
+    },
+    {
+      "id": "E5",
+      "nome": "Desfazer tudo esvazia o histórico gravado na sessão",
+      "pass": true,
+      "detalhe": {
+        "revlog": 0
+      }
+    },
+    {
+      "id": "E6",
+      "nome": "Desfazer tudo zera os contadores diários",
+      "pass": true,
+      "detalhe": {
+        "novos": 0,
+        "revisoes": 0
+      }
+    },
+    {
+      "id": "E7",
+      "nome": "Esquecer devolve o card ao estado novo por completo",
+      "pass": true,
+      "detalhe": {
+        "id": "f1",
+        "phase": "new",
+        "s": null,
+        "d": null,
+        "reps": 0,
+        "lapses": 0,
+        "intervalo": 0,
+        "due": "2026-09-21",
+        "ease": 2.5,
+        "leech": false,
+        "status": "pendente",
+        "lastReview": null,
+        "learnStep": 0,
+        "dueTs": null,
+        "updatedAt": "2026-09-21T09:00:00.000Z"
+      }
+    },
+    {
+      "id": "F1",
+      "nome": "O backup de cards carrega decks, cards e histórico",
+      "pass": true,
+      "detalhe": {
+        "chaves": [
+          "app",
+          "kind",
+          "version",
+          "exportedAt",
+          "decks",
+          "cards",
+          "revlog"
+        ],
+        "cards": 1500,
+        "revlog": 1500
+      }
+    },
+    {
+      "id": "F2",
+      "nome": "Restaurar o backup preserva conteúdo, memória, agendamento, favoritos e bandeiras",
+      "pass": true,
+      "detalhe": {
+        "cards": 1500,
+        "primeiro": {
+          "id": "c0",
+          "frente": "<b>F0</b>",
+          "verso": "V0",
+          "phase": "review",
+          "s": 30,
+          "d": 5,
+          "reps": 20,
+          "lapses": 2,
+          "intervalo": 30,
+          "due": "2026-10-01",
+          "lastReview": "2026-09-01",
+          "status": "sei",
+          "favorito": true,
+          "flag": 0,
+          "deckId": null,
+          "ease": 2.5,
+          "learnStep": 0,
+          "dueTs": null,
+          "materia": null
+        },
+        "esperado": {
+          "id": "c0",
+          "frente": "<b>F0</b>",
+          "verso": "V0",
+          "phase": "review",
+          "s": 30,
+          "d": 5,
+          "reps": 20,
+          "lapses": 2,
+          "intervalo": 30,
+          "due": "2026-10-01",
+          "lastReview": "2026-09-01",
+          "status": "sei",
+          "favorito": true,
+          "flag": 0,
+          "deckId": null,
+          "ease": 2.5,
+          "learnStep": 0,
+          "dueTs": null
+        }
+      }
+    },
+    {
+      "id": "F3",
+      "nome": "Restaurar o backup traz o histórico de revisões junto",
+      "pass": true,
+      "detalhe": {
+        "revlog": 1500
+      }
+    },
+    {
+      "id": "F4",
+      "nome": "As posições do histórico restaurado são estritamente crescentes e sem colisão",
+      "pass": true,
+      "detalhe": {
+        "primeiras": [
+          1,
+          2,
+          3
+        ]
+      }
+    },
+    {
+      "id": "F5",
+      "nome": "Aplicar o mesmo backup duas vezes não duplica a coleção (restauração x importação)",
+      "pass": false,
+      "detalhe": {
+        "cards": 3000,
+        "revlog": 3000,
+        "nota": "restaurar backup deve ser idempotente; importar conteúdo novo é outra operação"
+      }
+    },
+    {
+      "id": "F6.1",
+      "nome": "CSV: \"frente, com vírgula\",verso,tag…",
+      "pass": true,
+      "detalhe": {
+        "obtido": {
+          "frente": "frente, com vírgula",
+          "verso": "verso",
+          "tags": "tag"
+        },
+        "esperado": {
+          "frente": "frente, com vírgula",
+          "verso": "verso"
+        }
+      }
+    },
+    {
+      "id": "F6.2",
+      "nome": "CSV: \"aspas \"\"duplas\"\" dentro\",verso,tag…",
+      "pass": true,
+      "detalhe": {
+        "obtido": {
+          "frente": "aspas \"duplas\" dentro",
+          "verso": "verso",
+          "tags": "tag"
+        },
+        "esperado": {
+          "frente": "aspas \"duplas\" dentro",
+          "verso": "verso"
+        }
+      }
+    },
+    {
+      "id": "F6.3",
+      "nome": "CSV: \"linha 1…",
+      "pass": false,
+      "detalhe": {
+        "esperado": {
+          "frente": "linha 1\nlinha 2",
+          "verso": "verso"
+        }
+      }
+    },
+    {
+      "id": "F6.4",
+      "nome": "CSV: \"tem # no meio…",
+      "pass": false,
+      "detalhe": {
+        "esperado": {
+          "frente": "tem # no meio\n#continuação",
+          "verso": "verso"
+        }
+      }
+    },
+    {
+      "id": "F7",
+      "nome": "TSV de 6.000 linhas é lido por completo",
+      "pass": true,
+      "detalhe": {
+        "linhas": 6000
+      }
+    },
+    {
+      "id": "F8",
+      "nome": "Exportar para o Anki preserva imagem, áudio e formatação",
+      "pass": true,
+      "detalhe": {
+        "conteudo": "#separator:tab\n#html:true\n#tags column:3\n<b>Negrito</b><img src=\"imagem.png\">\t<audio src=\"a.mp3\"></audio>Resposta\tSem_disciplina Tópico"
+      }
+    },
+    {
+      "id": "F9",
+      "nome": "Round-trip exportar→importar no formato Anki preserva frente e verso",
+      "pass": true,
+      "detalhe": {
+        "obtido": {
+          "frente": "<b>Negrito</b><img src=\"imagem.png\">",
+          "verso": "<audio src=\"a.mp3\"></audio>Resposta",
+          "tags": "Sem_disciplina Tópico"
+        }
+      }
+    },
+    {
+      "id": "G1",
+      "nome": "Limiar par (8): alerta em 8, 12, 16… (metade arredondada para cima)",
+      "pass": true,
+      "detalhe": {
+        "obtido": [
+          8,
+          12,
+          16,
+          20,
+          24,
+          28
+        ]
+      }
+    },
+    {
+      "id": "G2",
+      "nome": "Limiar ímpar (5): alerta em 5, 8, 11… sem pular lapsos",
+      "pass": true,
+      "detalhe": {
+        "obtido": [
+          5,
+          8,
+          11,
+          14,
+          17,
+          20
+        ]
+      }
+    },
+    {
+      "id": "G3",
+      "nome": "leechAction \"tag\" marca sem suspender; qualquer outra ação suspende",
+      "pass": true,
+      "detalhe": {
+        "suspender": true
+      }
+    },
+    {
+      "id": "H1",
+      "nome": "Passo que ultrapassa a virada das 4h passa a ser agendado por DIA, não por horário",
+      "pass": true,
+      "detalhe": {
+        "due": "2026-09-21",
+        "dueTs": null,
+        "hoje": "2026-09-20"
+      }
+    },
+    {
+      "id": "H2",
+      "nome": "Passo curto no meio do dia continua agendado por horário, com fuzz dentro do teto do Anki",
+      "pass": true,
+      "detalhe": {
+        "dueTs": 1789981857000,
+        "minimo": 600,
+        "tetoFuzz": 750
+      }
+    },
+    {
+      "id": "H3",
+      "nome": "Card vencido às 23h continua vencido às 3h (o dia do card só vira às 4h)",
+      "pass": true,
+      "detalhe": {
+        "antes": true,
+        "depois": true,
+        "dia": "2026-09-21"
+      }
+    },
+    {
+      "id": "I1",
+      "nome": "Montar a fila cresce de forma linear com a coleção, não quadrática",
+      "pass": true,
+      "detalhe": {
+        "ms3000": 16.5,
+        "ms12000": 59.5,
+        "razao": 3.6,
+        "esperadoSeLinear": 4,
+        "esperadoSeQuadratico": 16
+      }
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "proposito": "Reexecução SEM MODIFICAÇÃO dos scripts da 1ª auditoria (audit/cards-20260921/) contra o main atual. Serve para dizer o que já foi corrigido.",
+  "commit": "3299fc29cf98c5f6aeea2fdce78fd773a5331a89",
+  "functions": {
+    "total": 17,
+    "falhasNaEpoca": 9,
+    "falhasAgora": 0,
+    "nomesQueFalhavam": [
+      "Yearly history retained: 6000 cards x 30 answers",
+      "Card backup includes revlog",
+      "Backup round trip preserves learning state",
+      "Unbury preserves learning timestamp",
+      "CSV quoted delimiter preserved",
+      "Anki export preserves rich media",
+      "Undo removes latest log when timestamps collide",
+      "Due intraday learning priority over four reviews",
+      "SM2 Easy graduates phase out of new"
+    ]
+  },
+  "caracterizacao": {
+    "total": 12,
+    "falhasNaEpoca": 10,
+    "falhasAgora": 0,
+    "nomesQueFalhavam": [
+      "SM2 new errei learning step",
+      "SM2 new dificil learning step",
+      "SM2 new bom learning step",
+      "SM2 new Easy keeps initial ease",
+      "Empty relearning steps preserved",
+      "Review limit zero blocks new by default",
+      "Interday learning obeys review limit",
+      "Learn ahead excludes buried cards",
+      "Deck new limit respected",
+      "Cloze hints are rendered as hints"
+    ]
+  },
+  "cenarios": [
+    {
+      "nome": "fsrs-default",
+      "respostas": 182247,
+      "distintosAlcancados": 6000,
+      "invalidos": 0,
+      "divergenciaMemoria": 0,
+      "previaDivergente": 0,
+      "distintosNaEpoca": 6000
+    },
+    {
+      "nome": "fsrs-balance-95",
+      "respostas": 190409,
+      "distintosAlcancados": 6000,
+      "invalidos": 0,
+      "divergenciaMemoria": 0,
+      "previaDivergente": 0,
+      "distintosNaEpoca": 6000
+    },
+    {
+      "nome": "sm2",
+      "respostas": 177957,
+      "distintosAlcancados": 6000,
+      "invalidos": 0,
+      "divergenciaMemoria": 0,
+      "previaDivergente": 0,
+      "distintosNaEpoca": 255
+    }
+  ]
+}

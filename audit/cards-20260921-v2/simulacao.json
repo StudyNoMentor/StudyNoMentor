@@ -1,0 +1,158 @@
+{
+  "commit": "3299fc29cf98c5f6aeea2fdce78fd773a5331a89",
+  "semente": 21092026,
+  "escopo": "Agendador, fila e configuração reais; relógio e armazenamento do harness. Não cobre navegador, nuvem, offline nem sincronização.",
+  "cenarios": [
+    {
+      "nome": "fsrs-padrao",
+      "algo": "fsrs",
+      "retention": 0.9,
+      "loadBalance": false,
+      "cards": 6000,
+      "dias": 365,
+      "diasAtivos": 25,
+      "respostas": 4677,
+      "distintos": 750,
+      "agendamentosInvalidos": 0,
+      "divergenciaMemoria": 0,
+      "previaDivergente": 0,
+      "limiteNovosEstourado": 0,
+      "limiteRevisoesEstourado": 0,
+      "filaComRepetido": 0,
+      "filaComSuspenso": 0,
+      "filaComNaoVencido": 0,
+      "regressaoDeReps": 0,
+      "picoDiario": 264,
+      "maiorEstabilidade": 91.47185766846677,
+      "leeches": 0,
+      "segundos": 63.72,
+      "exemplos": []
+    },
+    {
+      "nome": "fsrs-balanceado-95",
+      "algo": "fsrs",
+      "retention": 0.95,
+      "loadBalance": true,
+      "cards": 6000,
+      "dias": 365,
+      "diasAtivos": 25,
+      "respostas": 5697,
+      "distintos": 750,
+      "agendamentosInvalidos": 0,
+      "divergenciaMemoria": 0,
+      "previaDivergente": 0,
+      "limiteNovosEstourado": 0,
+      "limiteRevisoesEstourado": 0,
+      "filaComRepetido": 0,
+      "filaComSuspenso": 0,
+      "filaComNaoVencido": 0,
+      "regressaoDeReps": 0,
+      "picoDiario": 363,
+      "maiorEstabilidade": 120.30707944949643,
+      "leeches": 0,
+      "segundos": 88.38,
+      "exemplos": []
+    },
+    {
+      "nome": "sm2-classico",
+      "algo": "sm2",
+      "retention": 0.9,
+      "loadBalance": false,
+      "cards": 6000,
+      "dias": 365,
+      "diasAtivos": 25,
+      "respostas": 5361,
+      "distintos": 750,
+      "agendamentosInvalidos": 0,
+      "divergenciaMemoria": 0,
+      "previaDivergente": 0,
+      "limiteNovosEstourado": 0,
+      "limiteRevisoesEstourado": 0,
+      "filaComRepetido": 0,
+      "filaComSuspenso": 0,
+      "filaComNaoVencido": 0,
+      "regressaoDeReps": 0,
+      "picoDiario": 309,
+      "maiorEstabilidade": 0,
+      "leeches": 0,
+      "segundos": 68.88,
+      "exemplos": []
+    }
+  ],
+  "degradacao": {
+    "escopo": "CardsScreen.answer() com DB e localStorage reais",
+    "amostras": [
+      {
+        "respostas": 250,
+        "msPorResposta": 7.328,
+        "revlog": 250,
+        "bytesArmazenados": 446163,
+        "bytesEscritosAcumulados": 102890024
+      },
+      {
+        "respostas": 500,
+        "msPorResposta": 8.184,
+        "revlog": 500,
+        "bytesArmazenados": 517100,
+        "bytesEscritosAcumulados": 223124149
+      },
+      {
+        "respostas": 750,
+        "msPorResposta": 8.653,
+        "revlog": 750,
+        "bytesArmazenados": 588038,
+        "bytesEscritosAcumulados": 361092649
+      },
+      {
+        "respostas": 1000,
+        "msPorResposta": 9.502,
+        "revlog": 1000,
+        "bytesArmazenados": 658976,
+        "bytesEscritosAcumulados": 516795525
+      },
+      {
+        "respostas": 1250,
+        "msPorResposta": 10.735,
+        "revlog": 1250,
+        "bytesArmazenados": 730664,
+        "bytesEscritosAcumulados": 690327150
+      },
+      {
+        "respostas": 1500,
+        "msPorResposta": 11.232,
+        "revlog": 1500,
+        "bytesArmazenados": 802351,
+        "bytesEscritosAcumulados": 881780650
+      },
+      {
+        "respostas": 1750,
+        "msPorResposta": 11.468,
+        "revlog": 1750,
+        "bytesArmazenados": 874039,
+        "bytesEscritosAcumulados": 1091156025
+      },
+      {
+        "respostas": 2000,
+        "msPorResposta": 11.977,
+        "revlog": 2000,
+        "bytesArmazenados": 945726,
+        "bytesEscritosAcumulados": 1318453275
+      }
+    ],
+    "primeiroLote": {
+      "respostas": 250,
+      "msPorResposta": 7.328,
+      "revlog": 250,
+      "bytesArmazenados": 446163,
+      "bytesEscritosAcumulados": 102890024
+    },
+    "ultimoLote": {
+      "respostas": 2000,
+      "msPorResposta": 11.977,
+      "revlog": 2000,
+      "bytesArmazenados": 945726,
+      "bytesEscritosAcumulados": 1318453275
+    },
+    "fatorDeLentidao": 1.6
+  }
+}
