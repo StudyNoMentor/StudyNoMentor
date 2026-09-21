@@ -931,7 +931,7 @@ const CardsScreen = {
         ? cfg.buryNewSiblings !== false
         : (faseAntes === 'review'
           ? cfg.buryReviewSiblings !== false
-          : cfg.buryInterdayLearningSiblings !== false);
+          : ((c.dueTs == null) && cfg.buryInterdayLearningSiblings !== false));
       let siblingBury = [], siblingQueueRemoved = [];
       if (deveEnterrarIrmaos) {
         const sb = DB.burySiblings(id);
