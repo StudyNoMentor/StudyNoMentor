@@ -230,6 +230,9 @@ for (const algo of ['fsrs', 'sm2']) {
 // ─────────────────────────────────────────────────────────────────────────────
 {
   A.reset({ newPerDay: 20, revPerDay: 200 });
+  // No Anki, todo card pertence a um deck existente. A árvore moderna de
+  // limites é construída a partir desses decks, não de IDs órfãos do harness.
+  DB.saveDecks([{ id: 'd-novo', nome: 'Novos' }, { id: 'd-rev', nome: 'Revisões' }]);
   C.setDeckPreset('d-novo', { newPerDay: 3 });
   C.setDeckPreset('d-rev', { revPerDay: 2 });
   const hoje = A.hoje();
@@ -379,6 +382,9 @@ for (const algo of ['fsrs', 'sm2']) {
     s: 9 + i, d: 5, intervalo: 10, due: hoje, lastReview: E.addDays(hoje, -10), status: 'sei', suspenso: false
   }));
   DB.saveCards(JSON.parse(JSON.stringify(inicial)));
+  // A migração de identidade Anki é independente da resposta/undo. Materialize
+  // antes do snapshot para comparar apenas o que o undo realmente modifica.
+  A.AnkiParity.ensureIdentities();
   E.invalidateDueCache();
   const semVolateis = (l) => JSON.stringify(l.map((c) => { const x = Object.assign({}, c); delete x.updatedAt; return x; }));
   const antes = semVolateis(DB.getCards());
@@ -542,7 +548,7 @@ for (const algo of ['fsrs', 'sm2']) {
   A.reset({ algo: 'sm2', leechThreshold: 3, leechAction: 'tag', relearnSteps: [] });
   let c1 = { id: 'g2', phase: 'review', reps: 5, lapses: 2, intervalo: 10, ease: 2.5, due: A.hoje(), lastReview: E.addDays(A.hoje(), -10) };
   const pTag = E.schedule(c1, 'errei');
-  A.reset({ algo: 'sm2', leechThreshold: 3, leechAction: 'suspender', relearnSteps: [] });
+  A.reset({ algo: 'sm2', leechThreshold: 3, leechAction: 'suspend', relearnSteps: [] });
   const pSusp = E.schedule(c1, 'errei');
   check('G3', 'leechAction "tag" marca sem suspender; qualquer outra ação suspende',
     pTag.leech === true && !pTag.suspenso && pSusp.leech === true && pSusp.suspenso === true, { tag: pTag.suspenso, suspender: pSusp.suspenso });
