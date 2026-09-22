@@ -403,22 +403,56 @@ AnkiParity._renderConditionals=function(tpl,fields){
   }
   return out;
 };
+AnkiParity._stripHtml=function(v){
+  return String(v==null?'':v).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'').replace(/&nbsp;/gi,' ');
+};
+AnkiParity._specialField=function(name,nt,note,tmpl,card){
+  const n=String(name||'').trim(),deck=DB.getDecks().find(d=>String(d.id)===String(card&&card.deckId));
+  if(n==='Tags')return (note.tags||[]).join(' ');
+  if(n==='Type')return String(nt&&nt.name||'');
+  if(n==='Card')return String(tmpl&&tmpl.name||'');
+  if(n==='Deck')return String(deck&&deck.nome||'');
+  if(n==='Subdeck'){const x=String(deck&&deck.nome||'').split('::');return x[x.length-1]||'';}
+  if(n==='CardFlag')return Number(card&&card.flag)||0;
+  return null;
+};
 AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
-  nt=nt||{};note=note||{};const fields=note.fields||{},tmpl=(nt.templates||[])[Number(ord)||0]||{};
+  nt=nt||{};note=note||{};card=card||{};const fields=note.fields||{},tmpl=(nt.templates||[])[Number(ord)||0]||{};
   let src=String(side==='answer'?tmpl.afmt:tmpl.qfmt||'');
   src=this._renderConditionals(src,fields);
   src=src.replace(/\{\{FrontSide\}\}/g,String(frontSide||''));
-  src=src.replace(/\{\{cloze:([^{}]+)\}\}/g,(m,n)=>{
-    const value=fields[String(n).trim()]||'',o=Number(card&&card.clozeOrd)||1;
-    return this.revealCloze(value,o,side!=='answer');
+  src=src.replace(/\{\{([^{}]+)\}\}/g,(m,expr)=>{
+    expr=String(expr||'').trim();
+    if(expr==='FrontSide')return String(frontSide||'');
+    const parts=expr.split(':').map(x=>x.trim()),fieldName=parts.pop(),filters=parts;
+    let value=this._specialField(fieldName,nt,note,tmpl,card);
+    if(value==null)value=String(fields[fieldName]??'');
+    for(let i=filters.length-1;i>=0;i--){
+      const filter=filters[i].toLowerCase();
+      if(filter==='cloze'){
+        const o=Number(card.clozeOrd)||Number(card.ankiTemplateOrd)+1||1;
+        value=this.revealCloze(value,o,side!=='answer');
+      }else if(filter==='cloze-only'){
+        const o=Number(card.clozeOrd)||Number(card.ankiTemplateOrd)+1||1;
+        const rendered=this.revealCloze(value,o,side!=='answer');
+        value=this._stripHtml(rendered).replace(/^.*?\[|\].*$/g,'');
+      }else if(filter==='text'){
+        value=this._stripHtml(value);
+      }else if(filter==='hint'){
+        value=value?'<details class="hint"><summary>Mostrar dica</summary>'+value+'</details>':'';
+      }else if(filter==='type'){
+        value=side==='answer'?value:'<span class="typeans" data-field="'+this._escAttr(fieldName)+'"></span>';
+      }else if(filter==='kanji'||filter==='kana'||filter==='furigana'){
+        // Mantém o conteúdo em vez de descartá-lo quando o filtro japonês não
+        // está disponível no navegador. Isso preserva informação e templates.
+        value=String(value);
+      }
+    }
+    return String(value);
   });
-  src=src.replace(/\{\{type:([^{}]+)\}\}/g,(m,n)=>{
-    const value=String(fields[String(n).trim()]||'');
-    return side==='answer'?value:'<span class="typeans" data-field="'+this._escAttr(String(n).trim())+'"></span>';
-  });
-  src=src.replace(/\{\{([^{}:]+)\}\}/g,(m,n)=>String(fields[String(n).trim()]??''));
   return src;
 };
+
 AnkiParity._inferLegacyNote=function(siblings){
   siblings=(siblings||[]).slice();const first=siblings[0]||{};
   let stock='basic',fields={Front:first.frente||'',Back:first.verso||''};

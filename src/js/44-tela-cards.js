@@ -739,9 +739,23 @@ const CardsScreen = {
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
   faceHtml(c) {
-    // Saneia também na SAÍDA (além da entrada, em DB.addCard): assim um card que já
-    // estivesse gravado de antes, ou vindo por um caminho novo, nunca executa nada.
-    // Custo desprezível — é um card por vez, com memória de resultado.
+    // Cards vindos do Anki mantêm a nota/tipo/template canônicos. Renderizar
+    // daqui evita "achatar" templates importados em uma frente/verso estáticos.
+    if (typeof AnkiParity !== 'undefined') {
+      try {
+        const nid = AnkiParity.noteId(c), note = nid ? AnkiParity.getNote(nid) : null;
+        const nt = note ? AnkiParity.noteTypes().find(x => String(x.id) === String(note.notetypeId)) : null;
+        if (note && nt && Array.isArray(nt.templates) && nt.templates.length) {
+          const ord = Number(c.ankiTemplateOrd) || 0;
+          const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
+          const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
+          const front = _sanCard(frontRaw), back = _sanCard(backRaw);
+          return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
+            <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
+        }
+      } catch (e) { _quiet(e, 'anki-template-render'); }
+    }
+    // Legado Study: saneia na saída e mantém o renderer local.
     const cFrente = _sanCard(c.frente), cVerso = _sanCard(c.verso);
     if (c.kind === 'cloze') {
       const ord = Number(c.clozeOrd || ((c.template || '').match(/^cloze:(\\d+)$/) || [])[1]) || 1;
@@ -753,6 +767,7 @@ const CardsScreen = {
     return `<div class="cards-face cards-front">${cFrente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
       <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${cVerso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>`;
   },
+
   // renderiza os botões: "Mostrar resposta" OU os 4 botões de avaliação
   renderActions(box, c) {
     const el = document.getElementById('cards-review-actions');
@@ -1857,32 +1872,44 @@ const CardsScreen = {
     $id('cards-import-file').value = '';
     $id('cards-import-modal').style.display = 'flex';
   },
-  handleImportFile(file) {
+  async handleImportFile(file) {
     if (!file) return;
     const fn = document.getElementById('cards-import-name');
     fn.style.display = 'inline-flex'; fn.textContent = '📎 ' + file.name;
     const prev = document.getElementById('cards-import-preview');
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
+    prev.textContent = '⏳ Lendo e validando o arquivo...'; prev.style.color = 'var(--text-faint)';
+    try {
       let parsed = null;
       if (/\.json$/i.test(file.name)) {
-        try {
-          const obj = jsonSeguro(text);   // mesmo motivo do import de perfil
-          if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [], revlog: Array.isArray(obj.revlog) ? obj.revlog : [] };
-          else { prev.textContent = '⚠ JSON não é um backup de cards válido.'; prev.style.color = 'var(--warn)'; return; }
-        } catch (err) { prev.textContent = '⚠ JSON inválido.'; prev.style.color = 'var(--bad)'; return; }
+        const text = await file.text();
+        const obj = jsonSeguro(text);
+        if (obj && obj.kind === 'cards-backup' && Array.isArray(obj.cards)) {
+          parsed = { kind: 'json', cards: obj.cards, decks: obj.decks || [], revlog: Array.isArray(obj.revlog) ? obj.revlog : [] };
+        } else throw new Error('JSON não é um backup de cards válido.');
       } else {
-        // texto Anki (TSV/CSV): detecta separador
-        const rows = this.parseAnkiText(text);
-        parsed = { kind: 'text', rows };
+        if (typeof AnkiImport === 'undefined') throw new Error('Importador Anki não foi carregado.');
+        parsed = await AnkiImport.inspectFile(file);
+        if (!parsed) throw new Error('Formato não reconhecido.');
       }
       this._importParsed = parsed;
-      const n = parsed.kind === 'json' ? parsed.cards.length : parsed.rows.length;
-      if (n === 0) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
-      else { prev.textContent = `✓ ${n} card(s) reconhecido(s) para importar.`; prev.style.color = 'var(--good)'; }
-    };
-    reader.readAsText(file);
+      let n = 0, detalhe = '';
+      if (parsed.kind === 'json') n = parsed.cards.length;
+      else if (parsed.kind === 'text') {
+        n = parsed.rows.length;
+        const html = document.getElementById('cards-import-html');
+        if (html && parsed.headers && Object.prototype.hasOwnProperty.call(parsed.headers, 'html')) html.checked = !!parsed.isHtml;
+        detalhe = parsed.columns && parsed.columns.length ? ' · colunas: ' + parsed.columns.join(', ') : '';
+      } else if (parsed.counts) {
+        n = Number(parsed.counts.cards) || 0;
+        detalhe = ' · ' + (Number(parsed.counts.notes)||0) + ' nota(s)' + (parsed.counts.revlog ? ' · ' + parsed.counts.revlog + ' revisão(ões)' : '');
+      }
+      if (!n) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
+      else { prev.textContent = '✓ ' + n + ' card(s) reconhecido(s)' + detalhe + '.'; prev.style.color = 'var(--good)'; }
+    } catch (err) {
+      this._importParsed = null;
+      prev.textContent = '⚠ ' + (err && err.message ? err.message : String(err));
+      prev.style.color = 'var(--bad)';
+    }
   },
   parseAnkiText(text) {
     const src = String(text || '');
@@ -1966,12 +1993,18 @@ const CardsScreen = {
     if (field.length || row.length) pushRow();
     return rows;
   },
-  doImport() {
+  async doImport() {
     if (!this._importParsed) { showToast('Escolha um arquivo primeiro'); return; }
     const dest = $id('cards-import-destino').value;
     let deckId = null, materia = null;
     if (dest.startsWith('deck:')) deckId = dest.slice(5);
     else if (dest.startsWith('sub:')) materia = dest.slice(4);
+    const withScheduling = !!(document.getElementById('cards-import-scheduling') || {}).checked;
+    const withDeckConfigs = !!(document.getElementById('cards-import-deck-configs') || {}).checked;
+    const mergeNotetypes = !!(document.getElementById('cards-import-merge-notetypes') || {}).checked;
+    const updateNotes = (document.getElementById('cards-import-update-notes') || {}).value || 'if-newer';
+    const updateNotetypes = (document.getElementById('cards-import-update-notetypes') || {}).value || 'if-newer';
+    const isHtml = !!(document.getElementById('cards-import-html') || {}).checked;
     let count = 0;
     if (this._importParsed.kind === 'json') {
       // Backup JSON é restauração de ESTADO, não mera recriação de conteúdo.
@@ -2044,15 +2077,19 @@ const CardsScreen = {
         if (inéditas.length) DB.replaceRevlog(atuaisLogs.concat(inéditas));
       }
       count = this._importParsed.cards.length;
-    } else {
-      this._importParsed.rows.forEach(r => {
-        DB.addCard({ deckId, materia, assunto: r.tags || '', tipo: '', frente: r.frente, verso: r.verso });
-        count++;
-      });
+    } else if (this._importParsed.kind === 'anki-package') {
+      const r = await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
+      count = Number(r.cards) || 0;
+    } else if (this._importParsed.kind === 'mnemosyne') {
+      const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
+      count = Number(r.cards) || 0;
+    } else if (this._importParsed.kind === 'text') {
+      const r = AnkiImport.importText(this._importParsed, { deckId, materia, isHtml });
+      count = Number(r.cards) || 0;
     }
     $id('cards-import-modal').style.display = 'none';
     this.render();
-    showToast(`${count} card(s) importado(s) ✓`);
+    showToast(count + ' card(s) importado(s) ✓');
   }
 };
 // Passo 1: escolher o ESCOPO (global ou um baralho específico) — como o Anki (presets por baralho)

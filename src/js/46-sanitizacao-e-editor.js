@@ -65,14 +65,14 @@ function sanitizeCardHtml(html) {
         }
         // 'class' fica de fora de propósito: um card importado não deve poder vestir
         // as classes do app e quebrar o layout da tela de revisão.
-        if (!['href','src','alt','title','colspan','rowspan','color','size','face'].includes(nome)) {
+        if (!['href','src','alt','title','colspan','rowspan','color','size','face','open','controls','preload','poster','width','height','loop','muted','autoplay'].includes(nome)) {
           el.removeAttribute(a.name); return;
         }
         if (nome === 'href' || nome === 'src') {
           // \u0000-\u0020 fora: "java\tscript:" e afins driblariam a checagem
           const url = val.trim().replace(/[\u0000-\u0020]/g, '');
           const ok = (nome === 'src')
-            ? (/^data:image\/(png|jpe?g|gif|webp|bmp);base64,/i.test(url) || /^https?:\/\//i.test(url))
+            ? (/^data:(?:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+);base64,/i.test(url) || /^https?:\/\//i.test(url))
             : /^(https?:|mailto:)/i.test(url);
           if (!ok) el.removeAttribute(a.name);
         }
@@ -109,6 +109,7 @@ function rteSanitize(html) {
       const nome = a.name.toLowerCase();
       // qualquer on* (onerror, onclick...) e URLs javascript: saem
       if (nome.startsWith('on') || /javascript:/i.test(a.value)) { el.removeAttribute(a.name); return; }
+      if (['open','controls','preload','poster','width','height','loop','muted','autoplay'].includes(nome)) return;
       if (nome === 'style') {
         // Mantém só formatação neutra. COR e FUNDO são descartados de propósito: texto
         // branco copiado de um site escuro ficava invisível no card claro (e vice-versa).
