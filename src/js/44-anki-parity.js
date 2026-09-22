@@ -304,6 +304,156 @@ AnkiParity.installConfigParity=function(){
   };
 };
 
+
+/* ── NOTAS / NOTE TYPES / CAMPOS / TEMPLATES ─────────────────────────────
+   O Anki agenda CARDS, mas o conteúdo pertence a uma NOTE. Uma nota aponta
+   para um NOTE TYPE que define campos e templates; os cards são derivados.
+   Guardamos cada entidade em uma chave própria do PLANO. Assim ela entra no
+   study_plan_state e sincroniza sem transformar toda a coleção em um blob. */
+AnkiParity._planPrefix=function(){
+  try{return DB._profilePrefix()+'p:'+DB._activePlanId()+':';}
+  catch(_){return 'diario-estudos:p:default:';}
+};
+AnkiParity._entityKey=function(kind,id){return this._planPrefix()+'cards-'+kind+':'+String(id);};
+AnkiParity._scanEntities=function(kind){
+  const prefix=this._entityKey(kind,''),out=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const k=localStorage.key(i);if(!k||!String(k).startsWith(prefix))continue;
+      try{const v=JSON.parse(localStorage.getItem(k)||'null');if(v&&typeof v==='object')out.push(v);}catch(_){}
+    }
+  }catch(_){}
+  return out;
+};
+AnkiParity.getNotetype=function(id){
+  try{return JSON.parse(localStorage.getItem(this._entityKey('notetype',id))||'null');}catch(_){return null;}
+};
+AnkiParity.saveNotetype=function(nt){
+  if(!nt||!nt.id)return false;
+  const now=new Date().toISOString(),x=JSON.parse(JSON.stringify(nt));
+  x.id=this._validId(x.id)||this._allocId();x.ankiId=x.id;
+  x.name=String(x.name||'Note Type');x.kind=x.kind==='cloze'?'cloze':'normal';
+  x.fields=Array.isArray(x.fields)?x.fields.map((f,i)=>Object.assign({
+    name:'Field '+(i+1),ord:i,sticky:false,rtl:false,fontName:'Arial',fontSize:20,description:'',plainText:false
+  },f||{},{ord:i})):[];
+  x.templates=Array.isArray(x.templates)?x.templates.map((t,i)=>Object.assign({
+    name:'Card '+(i+1),ord:i,qfmt:'',afmt:'{{FrontSide}}'
+  },t||{},{ord:i})):[];
+  x.css=String(x.css==null?'.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n':x.css);
+  x.updatedAt=now;if(!x.createdAt)x.createdAt=now;
+  DB.setRaw(this._entityKey('notetype',x.id),JSON.stringify(x));return x;
+};
+AnkiParity.noteTypes=function(){return this._scanEntities('notetype').sort((a,b)=>String(a.name).localeCompare(String(b.name)));};
+AnkiParity._stockNotetypeDef=function(kind){
+  const css='.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n';
+  if(kind==='basic_reversed')return {
+    stockKind:'basic_reversed',name:'Basic (and reversed card)',kind:'normal',css,
+    fields:[{name:'Front'},{name:'Back'}],
+    templates:[
+      {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'},
+      {name:'Card 2',qfmt:'{{Back}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}'}
+    ]
+  };
+  if(kind==='typing')return {
+    stockKind:'typing',name:'Basic (type in the answer)',kind:'normal',css,
+    fields:[{name:'Front'},{name:'Back'}],
+    templates:[{name:'Card 1',qfmt:'{{Front}}\n\n{{type:Back}}',afmt:'{{Front}}\n\n<hr id=answer>\n\n{{type:Back}}'}]
+  };
+  if(kind==='cloze')return {
+    stockKind:'cloze',name:'Cloze',kind:'cloze',
+    css:css+'.cloze {\n    font-weight: bold;\n    color: blue;\n}\n.nightMode .cloze {\n    color: lightblue;\n}\n',
+    fields:[{name:'Text'},{name:'Back Extra'}],
+    templates:[{name:'Cloze',qfmt:'{{cloze:Text}}',afmt:'{{cloze:Text}}<br>\n{{Back Extra}}'}]
+  };
+  return {
+    stockKind:'basic',name:'Basic',kind:'normal',css,
+    fields:[{name:'Front'},{name:'Back'}],
+    templates:[{name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'}]
+  };
+};
+AnkiParity.stockNotetype=function(kind){
+  kind=kind||'basic';
+  const found=this.noteTypes().find(x=>x.stockKind===kind);if(found)return found;
+  const def=this._stockNotetypeDef(kind);def.id=this._allocId();return this.saveNotetype(def);
+};
+AnkiParity.getNote=function(id){
+  try{return JSON.parse(localStorage.getItem(this._entityKey('note',id))||'null');}catch(_){return null;}
+};
+AnkiParity.saveNote=function(note){
+  if(!note||!note.id)return false;
+  const now=new Date().toISOString(),x=JSON.parse(JSON.stringify(note));
+  x.id=this._validId(x.id)||this._allocId();x.ankiId=x.id;
+  x.notetypeId=this._validId(x.notetypeId)||this.stockNotetype('basic').id;
+  x.fields=x.fields&&typeof x.fields==='object'&&!Array.isArray(x.fields)?x.fields:{};
+  x.tags=Array.isArray(x.tags)?[...new Set(x.tags.map(String).filter(Boolean))]:[];
+  x.updatedAt=now;if(!x.createdAt)x.createdAt=now;
+  x.revision=Math.max(1,Number(x.revision)||0)+1;
+  DB.setRaw(this._entityKey('note',x.id),JSON.stringify(x));return x;
+};
+AnkiParity.notes=function(){return this._scanEntities('note');};
+AnkiParity._fieldNonempty=function(v){
+  return String(v==null?'':v).replace(/<!--[\s\S]*?-->/g,'').replace(/<(br|div)\b[^>]*>/gi,'').replace(/<\/div>/gi,'').replace(/[ \t\r\n\f]+/g,'').length>0;
+};
+AnkiParity._renderConditionals=function(tpl,fields){
+  let out=String(tpl||''),last=null,guard=0;
+  while(out!==last&&guard++<50){
+    last=out;
+    out=out.replace(/\{\{#([^{}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,(m,n,body)=>this._fieldNonempty(fields[String(n).trim()])?body:'');
+    out=out.replace(/\{\{\^([^{}]+)\}\}([\s\S]*?)\{\{\/\1\}\}/g,(m,n,body)=>this._fieldNonempty(fields[String(n).trim()])?'':body);
+  }
+  return out;
+};
+AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
+  nt=nt||{};note=note||{};const fields=note.fields||{},tmpl=(nt.templates||[])[Number(ord)||0]||{};
+  let src=String(side==='answer'?tmpl.afmt:tmpl.qfmt||'');
+  src=this._renderConditionals(src,fields);
+  src=src.replace(/\{\{FrontSide\}\}/g,String(frontSide||''));
+  src=src.replace(/\{\{cloze:([^{}]+)\}\}/g,(m,n)=>{
+    const value=fields[String(n).trim()]||'',o=Number(card&&card.clozeOrd)||1;
+    return this.revealCloze(value,o,side!=='answer');
+  });
+  src=src.replace(/\{\{type:([^{}]+)\}\}/g,(m,n)=>{
+    const value=String(fields[String(n).trim()]||'');
+    return side==='answer'?value:'<span class="typeans" data-field="'+this._escAttr(String(n).trim())+'"></span>';
+  });
+  src=src.replace(/\{\{([^{}:]+)\}\}/g,(m,n)=>String(fields[String(n).trim()]??''));
+  return src;
+};
+AnkiParity._inferLegacyNote=function(siblings){
+  siblings=(siblings||[]).slice();const first=siblings[0]||{};
+  let stock='basic',fields={Front:first.frente||'',Back:first.verso||''};
+  if(siblings.some(c=>c.kind==='cloze')){
+    stock='cloze';fields={Text:first.frente||'', 'Back Extra':first.verso||''};
+  }else if(siblings.some(c=>c.template==='reverse'||c.reversedOf)){
+    stock='basic_reversed';
+    const f=siblings.find(c=>c.template==='forward')||siblings.find(c=>c.template!=='reverse')||first;
+    fields={Front:f.frente||'',Back:f.verso||''};
+  }
+  return {stock,fields};
+};
+AnkiParity.ensureCanonicalNotes=function(cards){
+  cards=Array.isArray(cards)?cards:DB.getCards();const groups=new Map();let changed=false,created=0;
+  cards.forEach(c=>{const nid=this.noteId(c);if(!nid)return;const k=String(nid);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(c);});
+  groups.forEach((sibs,key)=>{
+    let note=this.getNote(key);
+    if(!note){
+      const inf=this._inferLegacyNote(sibs),nt=this.stockNotetype(inf.stock);
+      note=this.saveNote({id:Number(key),notetypeId:nt.id,fields:inf.fields,tags:[]});created++;
+    }
+    sibs.forEach((c,i)=>{
+      if(c.notetypeId!==note.notetypeId){c.notetypeId=note.notetypeId;changed=true;}
+      if(c.ankiTemplateOrd==null){
+        let ord=0;
+        if(c.kind==='cloze')ord=Math.max(0,(Number(c.clozeOrd)||1)-1);
+        else if(c.template==='reverse')ord=1;
+        c.ankiTemplateOrd=ord;changed=true;
+      }
+    });
+  });
+  if(changed)DB.saveCards(cards);
+  return {notes:groups.size,created,cardsChanged:changed};
+};
+
 /* ── LIMIT TREE: equivalente a rslib/decks/limits.rs ───────────────────── */
 AnkiParity.deckPath=function(deckId){
   if(deckId==null)return [];
