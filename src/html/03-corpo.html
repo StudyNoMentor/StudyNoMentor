@@ -1177,7 +1177,14 @@
           <div class="field-group" style="margin-top:10px;">
             <label class="check-row"><input type="checkbox" id="cards-import-scheduling" checked> <span>Importar progresso/agendamento e histórico quando existirem</span></label>
             <label class="check-row"><input type="checkbox" id="cards-import-deck-configs" checked> <span>Importar configurações/presets dos baralhos</span></label>
+            <label class="check-row"><input type="checkbox" id="cards-import-merge-notetypes" checked> <span>Combinar tipos de nota compatíveis</span></label>
             <label class="check-row"><input type="checkbox" id="cards-import-html"> <span>Interpretar campos de texto como HTML</span></label>
+          </div>
+          <div class="field-group" style="margin-top:10px;">
+            <div class="field"><label for="cards-import-update-notes">Atualizar notas existentes</label>
+              <select id="cards-import-update-notes"><option value="if-newer">Se o arquivo for mais novo</option><option value="always">Sempre</option><option value="never">Nunca</option></select></div>
+            <div class="field"><label for="cards-import-update-notetypes">Atualizar tipos de nota</label>
+              <select id="cards-import-update-notetypes"><option value="if-newer">Se o arquivo for mais novo</option><option value="always">Sempre</option><option value="never">Nunca</option></select></div>
           </div>
           <p class="hint" style="margin-top:8px;">Pacotes Anki preservam tipos de nota, campos, templates, tags, decks e mídia suportada. Em arquivos de texto, cabeçalhos #separator, #html e #columns são reconhecidos.</p>
         </details>
