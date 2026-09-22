@@ -191,8 +191,6 @@ assert.equal(rev[1][2],1,'lastIvl deve vir do intervalo anterior registrado');
 
 db.close();
 
-console.log('EXPORT TEST: legacy OK');
-
 /* ── Exportadores de texto atuais do Anki ─────────────────────────────── */
 const noteText=X.buildTextNotes({withHtml:true,withTags:true,withDeck:true,withNotetype:true,withGuid:true});
 assert.equal(noteText.notes,2,'exportação de notas deve emitir uma linha por nota');
@@ -216,12 +214,8 @@ assert.equal(X._sortNew('templateRandom'),2);
 assert.equal(X._sortNew('randomNoteTemplate'),3);
 assert.equal(X._sortNew('randomCard'),4);
 
-console.log('EXPORT TEST: texto/enums OK');
-
 /* ── PackageMetadata VERSION_LATEST = 3 / schema 18 ───────────────────── */
-console.log('EXPORT TEST: iniciando pacote moderno');
 const modern=await X.buildPackage({legacy:false});
-console.log('EXPORT TEST: pacote moderno gerado');
 const modernFiles=unzipStored(modern.bytes);
 assert.deepEqual(Array.from(modernFiles.get('meta')),[0x08,0x03],'meta moderno deve declarar VERSION_LATEST');
 assert.ok(modernFiles.has('collection.anki21b'),'pacote moderno deve usar collection.anki21b');
@@ -244,9 +238,7 @@ assert.deepEqual(Array.from(context.fzstd.decompress(modernFiles.get('0'))),Arra
   'mídia moderna deve descomprimir para os mesmos bytes do legado');
 
 /* ── Toggles oficiais: sem agendamento/config/mídia ────────────────────── */
-console.log('EXPORT TEST: schema18/midia OK; iniciando toggles');
 const clean=await X.buildPackage({legacy:false,withScheduling:false,withDeckConfigs:false,withMedia:false});
-console.log('EXPORT TEST: pacote sem scheduling gerado');
 const cleanFiles=unzipStored(clean.bytes);
 const cleanDb=new SQL.Database(context.fzstd.decompress(cleanFiles.get('collection.anki21b')));
 assert.equal(cleanDb.exec('select count(*) from revlog')[0].values[0][0],0,'sem scheduling não deve exportar revlog');
