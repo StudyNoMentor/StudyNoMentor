@@ -33,7 +33,7 @@ const zstdDecoded=await I._zstd(zstdFixture);
 assert.equal(new TextDecoder().decode(zstdDecoded),'anki-modern-package');
 
 // Texto Anki: cabeçalhos, HTML e campo multilinha entre aspas não podem se perder.
-const txt='#separator:tab\n#html:true\n#columns:Front,Back,Tags,Deck,GUID\n#tags:global tag2\n"linha 1\n#isto continua no campo"\t"<details><summary>Dica</summary>R</details>"\ttagA\tFiscal\tg-1';
+const txt='#separator:tab\n#html:true\n#columns:Front\tBack\tTags\tDeck\tGUID\n#tags:global tag2\n"linha 1\n#isto continua no campo"\t"<details><summary>Dica</summary>R</details>"\ttagA\tFiscal\tg-1';
 const parsed=I.parseText(txt,'cards.txt');
 assert.equal(parsed.delimiter,'\t');
 assert.equal(parsed.isHtml,true);
@@ -49,6 +49,87 @@ for(const [name,ch] of [['tab','\t'],['pipe','|'],['semicolon',';'],['colon',':'
   assert.equal(p.delimiter,ch,name);
   assert.deepEqual(Array.from(p.rows[0]),['A','B'],name);
 }
+
+// Contrato completo de CsvMetadata do Anki 26.09.2: colunas especiais,
+// mapeamento arbitrário, duplicatas, match scope e override de separador.
+const advanced=I.parseText(
+  '#separator:pipe\n#html:true\n#notetype:Basic\n#deck column:3\n#tags column:4\n#guid column:5\n#columns:Back|Front|Deck|Tags|GUID\nResposta|Pergunta|Fiscal|tagA|g-adv',
+  'advanced.txt'
+);
+assert.deepEqual(Array.from(advanced.columns),['Back','Front','Deck','Tags','GUID']);
+assert.equal(advanced.deckColumn,3);assert.equal(advanced.tagsColumn,4);assert.equal(advanced.guidColumn,5);
+const forced=I.parseText('#separator:comma\nA,B','forced.txt',{delimiter:'|'});
+assert.equal(forced.delimiter,'|','force_delimiter precisa prevalecer sobre cabeçalho');
+
+const state={decks:[],cards:[],notes:new Map(),next:100};
+const basic={id:1,ankiId:1,name:'Basic',kind:'normal',fields:[{name:'Front'},{name:'Back'}],
+  templates:[{name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}<hr id=answer>{{Back}}'}]};
+ctx.escapeHtml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ctx.CardEngine={invalidateDueCache(){}};
+ctx.DB={
+  getDecks:()=>state.decks,
+  addDeck(nome){const d={id:'d'+(state.decks.length+1),nome:String(nome)};state.decks.push(d);return d;},
+  getCards:()=>state.cards,
+  addCard(data){const x={id:'c'+(++state.next),...structuredClone(data)};state.cards.push(x);return x;},
+  updateCard(id,patch){const x=state.cards.find(c=>c.id===id);Object.assign(x,structuredClone(patch));return x;}
+};
+ctx.AnkiParity={
+  noteTypes:()=>[basic],
+  stockNotetype:()=>basic,
+  notes:()=>[...state.notes.values()],
+  _allocId:()=>++state.next,
+  saveNote(n){const x=structuredClone(n);state.notes.set(String(x.id),x);return x;},
+  renderTemplate(nt,note,ord,side,card,front){
+    const t=nt.templates[ord]||nt.templates[0],fields=note.fields||{};
+    return String(side==='answer'?t.afmt:t.qfmt).replace(/\{\{FrontSide\}\}/g,String(front||'')).replace(/\{\{([^{}]+)\}\}/g,(_,k)=>String(fields[k]||''));
+  },
+  _fieldNonempty:v=>String(v||'').replace(/<[^>]+>/g,'').trim().length>0,
+  clozeOrdinals:()=>[]
+};
+const first=I.importText(advanced,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'update',matchScope:'notetype',forceIsHtml:true,isHtml:true});
+assert.equal(first.notes,1);assert.equal(state.notes.size,1);assert.equal(state.cards.length,1);
+const n1=[...state.notes.values()][0];
+assert.equal(n1.fields.Front,'Pergunta');assert.equal(n1.fields.Back,'Resposta');assert.deepEqual(n1.tags,['tagA']);
+assert.equal(state.decks[0].nome,'Fiscal');
+
+// GUID existente sempre atualiza; opção Duplicate não cria uma segunda nota.
+const guidUpdate=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\n#guid column:4\nNova resposta|Pergunta|Fiscal|g-adv','x.txt');
+const gu=I.importText(guidUpdate,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'duplicate',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,1);assert.equal(gu.updated,1);assert.equal([...state.notes.values()][0].fields.Back,'Nova resposta');
+
+// Sem GUID, Duplicate cria nova nota; Preserve ignora; MatchScope inclui baralho.
+const noGuid=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\nR2|Pergunta|Fiscal','x.txt');
+I.importText(noGuid,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'duplicate',matchScope:'notetype',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,2,'Duplicate deve criar nova nota quando o match é pelo primeiro campo');
+I.importText(noGuid,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'preserve',matchScope:'notetype',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,2,'Preserve deve manter a coleção sem nova duplicata');
+const otherDeck=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\nR3|Pergunta|Outro','x.txt');
+I.importText(otherDeck,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'update',matchScope:'notetype-and-deck',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,3,'MatchScope NoteType+Deck não pode casar nota em outro baralho');
+
+// Merge de Note Types: preserva campos/templates dos dois lados e remapeia ords,
+// inclusive quando um lado tem IDs modernos e o outro só ordinais legados.
+const existingNt={id:10,ankiId:10,name:'Basic',kind:'normal',
+  fields:[{name:'Front',ord:0},{name:'Back',ord:1},{name:'LegacyExtra',ord:2}],
+  templates:[{name:'Card 1',ord:0,qfmt:'{{Front}}',afmt:'{{Back}}'}]};
+const incomingNt={id:10,ankiId:10,name:'Basic',kind:'normal',
+  fields:[{id:101,name:'Front Renamed',sourceOrd:0,ord:0},{id:102,name:'Back',sourceOrd:1,ord:1},{id:103,name:'IncomingExtra',sourceOrd:2,ord:2}],
+  templates:[{id:201,name:'Card 1 renamed',sourceOrd:0,ord:0,qfmt:'{{Front Renamed}}',afmt:'{{Back}}'},
+             {id:202,name:'Card 2',sourceOrd:1,ord:1,qfmt:'{{Back}}',afmt:'{{Front Renamed}}'}]};
+const merged=I._mergeNotetype(existingNt,incomingNt,true);
+assert.equal(merged.notetype.fields.length,3,'mesma posição legado↔moderno não pode duplicar campo');
+assert.equal(merged.notetype.fields[0].name,'Front Renamed','versão incoming deve poder renomear campo correspondente');
+assert.equal(merged.notetype.fields[2].name,'IncomingExtra','campo incoming no mesmo ordinal substitui versão correspondente');
+assert.equal(merged.notetype.templates.length,2,'template adicional incoming deve ser preservado');
+assert.deepEqual(Array.from(merged.templateOrd),[0,1],'ordinais incoming devem ser remapeados para o merge');
+const union=I._mergeNotetype(
+  {id:11,kind:'normal',fields:[{id:1,name:'Front',ord:0},{id:2,name:'Back',ord:1}],templates:[{id:9,name:'C1',ord:0}]},
+  {id:11,kind:'normal',fields:[{id:1,name:'Front',ord:0},{id:3,name:'Third',ord:1}],templates:[{id:9,name:'C1',ord:0},{id:10,name:'C2',ord:1}]},
+  false
+);
+assert.ok(union.notetype.fields.some(x=>x.name==='Back')&&union.notetype.fields.some(x=>x.name==='Third'),
+  'merge por IDs deve preservar campos exclusivos dos dois lados');
+assert.equal(union.notetype.templates.length,2,'merge deve preservar template exclusivo');
 
 // Pacote Legacy2 real: ZIP -> collection.anki21 -> SQLite -> contagens/metadados.
 const db=new SQL.Database();

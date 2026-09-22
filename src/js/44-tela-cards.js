@@ -1735,11 +1735,15 @@ const CardsScreen = {
 
   // ---- exportar ----
   openExportModal() {
-    const cards=DB.getCards(),body=document.getElementById('cards-export-body');
+    const cards=DB.getCards(),decks=DB.getDecks(),body=document.getElementById('cards-export-body');
     if(!cards.length){body.innerHTML=`<p class="hint">Você ainda não criou nenhum card.</p>`;}
     else{
       body.innerHTML=`
         <p style="font-size:14px;margin-top:0;">Você tem <strong>${cards.length} card(s)</strong>. Os formatos abaixo seguem os exportadores atuais do Anki.</p>
+        <div class="field" style="margin:8px 0 12px;"><label for="cards-export-scope">Escopo de .apkg e texto</label>
+          <select id="cards-export-scope"><option value="all">Coleção inteira</option>${decks.filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))).map(d=>'<option value="deck:'+escapeHtml(String(d.id))+'">'+escapeHtml(String(d.nome||'Baralho'))+'</option>').join('')}</select>
+          <p class="hint" style="margin:4px 0 0;">Ao escolher um baralho, o .apkg inclui esse baralho e todos os subbaralhos, como o ExportLimit do Anki. .colpkg sempre representa a coleção inteira.</p>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px;">
           <fieldset style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
             <legend style="font-weight:700;font-size:13px;">Pacote .apkg / .colpkg</legend>
@@ -1845,12 +1849,17 @@ const CardsScreen = {
     const el=document.getElementById(id);
     return el ? !!el.checked : !!fallback;
   },
+  _ankiExportLimit() {
+    const el=document.getElementById('cards-export-scope'),v=el?String(el.value||'all'):'all';
+    return v.startsWith('deck:')?{deckId:v.slice(5)}:{wholeCollection:true};
+  },
   _ankiPackageOptions() {
     return {
       legacy:this._exportChecked('cards-export-legacy',false),
       withScheduling:this._exportChecked('cards-export-scheduling',true),
       withDeckConfigs:this._exportChecked('cards-export-deckconfigs',true),
-      withMedia:this._exportChecked('cards-export-media',true)
+      withMedia:this._exportChecked('cards-export-media',true),
+      limit:this._ankiExportLimit()
     };
   },
   _ankiTextOptions() {
@@ -1859,7 +1868,8 @@ const CardsScreen = {
       withTags:this._exportChecked('cards-export-tags',true),
       withDeck:this._exportChecked('cards-export-deck',true),
       withNotetype:this._exportChecked('cards-export-notetype',true),
-      withGuid:this._exportChecked('cards-export-guid',true)
+      withGuid:this._exportChecked('cards-export-guid',true),
+      limit:this._ankiExportLimit()
     };
   },
   exportAnkiNotes() {
@@ -1879,7 +1889,7 @@ const CardsScreen = {
     if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
     try{
       if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextCards!=='function')throw new Error('Exportador de cards indisponível');
-      const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true)});
+      const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
       this._download('cards-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
       showToast('Cards do Anki exportados: '+out.cards.toLocaleString('pt-BR')+' ✓');
       $id('cards-export-modal').style.display='none';
@@ -1923,12 +1933,44 @@ const CardsScreen = {
   // ---- importar ----
   openImportModal() {
     this._importParsed = null;
+    const textOpts=document.getElementById('cards-import-text-options');if(textOpts)textOpts.style.display='none';
+    const mapBox=document.getElementById('cards-import-field-mapping');if(mapBox)mapBox.innerHTML='';
     $id('cards-import-destino').innerHTML = this.destinoOptionsHtml('');
     $id('cards-import-preview').textContent = 'Aguardando arquivo...';
     $id('cards-import-preview').style.color = 'var(--text-faint)';
     const fn = document.getElementById('cards-import-name'); fn.style.display = 'none';
     $id('cards-import-file').value = '';
     $id('cards-import-modal').style.display = 'flex';
+  },
+  _textColumnLabels(parsed) {
+    const n=Math.max((parsed.columns||[]).length,...(parsed.rows||[]).map(r=>r.length),0);
+    return Array.from({length:n},(_,i)=>(parsed.columns&&parsed.columns[i])?String(parsed.columns[i]):('Coluna '+(i+1)));
+  },
+  renderTextImportOptions(parsed) {
+    const box=document.getElementById('cards-import-text-options'),ntSel=document.getElementById('cards-import-notetype'),mapBox=document.getElementById('cards-import-field-mapping');
+    if(!box||!ntSel||!mapBox)return;box.style.display=parsed&&parsed.kind==='text'?'block':'none';if(!parsed||parsed.kind!=='text')return;
+    const types=typeof AnkiParity!=='undefined'?AnkiParity.noteTypes():[],labels=this._textColumnLabels(parsed);
+    ntSel.innerHTML=types.map(nt=>'<option value="'+escapeHtml(String(nt.id))+'">'+escapeHtml(String(nt.name||'Tipo de nota'))+'</option>').join('');
+    let wanted=String(parsed.globalNotetype||'').trim(),hit=types.find(nt=>String(nt.id)===wanted||String(nt.ankiId||'')===wanted||String(nt.name||'').toLowerCase()===wanted.toLowerCase());
+    if(hit)ntSel.value=String(hit.id);else if(types.length)ntSel.value=String(types[0].id);
+    const render=()=>{
+      const nt=types.find(x=>String(x.id)===String(ntSel.value))||types[0],opt=(selected)=>'<option value="0">— nenhuma —</option>'+labels.map((x,i)=>'<option value="'+(i+1)+'" '+(Number(selected)===i+1?'selected':'')+'>'+escapeHtml((i+1)+': '+x)+'</option>').join('');
+      const regularSpecial=new Set([parsed.deckColumn,parsed.notetypeColumn,parsed.tagsColumn,parsed.guidColumn].filter(Boolean));
+      let regular=labels.map((_,i)=>i+1).filter(i=>!regularSpecial.has(i)),html='<p class="hint" style="margin:0 0 7px;"><strong>Colunas especiais</strong></p><div class="field-group">';
+      html+='<div class="field"><label>Tipo por coluna</label><select id="cards-import-col-notetype">'+opt(parsed.notetypeColumn)+'</select></div>';
+      html+='<div class="field"><label>Baralho por coluna</label><select id="cards-import-col-deck">'+opt(parsed.deckColumn)+'</select></div>';
+      html+='<div class="field"><label>Tags por coluna</label><select id="cards-import-col-tags">'+opt(parsed.tagsColumn)+'</select></div>';
+      html+='<div class="field"><label>GUID por coluna</label><select id="cards-import-col-guid">'+opt(parsed.guidColumn)+'</select></div></div>';
+      if(nt&&!(parsed.notetypeColumn>0)){
+        html+='<p class="hint" style="margin:10px 0 7px;"><strong>Mapeamento para os campos de '+escapeHtml(String(nt.name||''))+'</strong></p><div class="field-group">';
+        (nt.fields||[]).forEach((field,i)=>{
+          let selected=0;const byName=labels.findIndex(x=>String(x).trim().toLowerCase()===String(field.name||'').trim().toLowerCase());if(byName>=0&&!regularSpecial.has(byName+1))selected=byName+1;else selected=regular[i]||0;
+          html+='<div class="field"><label>'+escapeHtml(String(field.name||('Campo '+(i+1))))+'</label><select class="cards-import-field-col" data-field-ord="'+i+'">'+opt(selected)+'</select></div>';
+        });html+='</div>';
+      }else if(parsed.notetypeColumn>0)html+='<p class="hint" style="margin:10px 0 0;">Com “notetype column”, os campos regulares são mapeados por ordem para cada tipo de nota, exatamente como no Anki.</p>';
+      mapBox.innerHTML=html;
+    };
+    ntSel.onchange=render;render();
   },
   async handleImportFile(file) {
     if (!file) return;
@@ -1956,8 +1998,10 @@ const CardsScreen = {
         n = parsed.rows.length;
         const html = document.getElementById('cards-import-html');
         if (html && parsed.headers && Object.prototype.hasOwnProperty.call(parsed.headers, 'html')) html.checked = !!parsed.isHtml;
+        this.renderTextImportOptions(parsed);
         detalhe = parsed.columns && parsed.columns.length ? ' · colunas: ' + parsed.columns.join(', ') : '';
       } else if (parsed.counts) {
+        const tbox=document.getElementById('cards-import-text-options');if(tbox)tbox.style.display='none';
         n = Number(parsed.counts.cards) || 0;
         detalhe = ' · ' + (Number(parsed.counts.notes)||0) + ' nota(s)' + (parsed.counts.revlog ? ' · ' + parsed.counts.revlog + ' revisão(ões)' : '');
       }
@@ -2063,6 +2107,11 @@ const CardsScreen = {
     const updateNotes = (document.getElementById('cards-import-update-notes') || {}).value || 'if-newer';
     const updateNotetypes = (document.getElementById('cards-import-update-notetypes') || {}).value || 'if-newer';
     const isHtml = !!(document.getElementById('cards-import-html') || {}).checked;
+    const delimiterName=(document.getElementById('cards-import-delimiter')||{}).value||'',delims={tab:'\t',pipe:'|',semicolon:';',colon:':',comma:',',space:' '};
+    const dupeResolution=(document.getElementById('cards-import-dupe')||{}).value||'update',matchScope=(document.getElementById('cards-import-match-scope')||{}).value||'notetype';
+    const notetypeId=(document.getElementById('cards-import-notetype')||{}).value||null;
+    const readCol=id=>Math.max(0,Number((document.getElementById(id)||{}).value)||0);
+    const fieldColumns=[...document.querySelectorAll('.cards-import-field-col')].sort((a,b)=>Number(a.dataset.fieldOrd)-Number(b.dataset.fieldOrd)).map(x=>Number(x.value)||0);
     let count = 0;
     if (this._importParsed.kind === 'json') {
       // Backup JSON é restauração de ESTADO, não mera recriação de conteúdo.
@@ -2136,14 +2185,19 @@ const CardsScreen = {
       }
       count = this._importParsed.cards.length;
     } else if (this._importParsed.kind === 'anki-package') {
-      const r = await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
+      const r = this._importParsed.format==='colpkg'
+        ? await AnkiImport.importCollectionPackage(this._importParsed)
+        : await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
       count = Number(r.cards) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
       const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
       count = Number(r.cards) || 0;
     } else if (this._importParsed.kind === 'text') {
-      const r = AnkiImport.importText(this._importParsed, { deckId, materia, isHtml });
-      count = Number(r.cards) || 0;
+      let parsed=this._importParsed;
+      if(delimiterName&&parsed.source)parsed=AnkiImport.parseText(parsed.source,'texto.txt',{delimiter:delims[delimiterName]});
+      const r = AnkiImport.importText(parsed, {deckId,materia,isHtml,forceIsHtml:true,notetypeId,dupeResolution,matchScope,
+        fieldColumns,notetypeColumn:readCol('cards-import-col-notetype'),deckColumn:readCol('cards-import-col-deck'),tagsColumn:readCol('cards-import-col-tags'),guidColumn:readCol('cards-import-col-guid')});
+      count = Number(r.notes+r.updated+r.preserved) || Number(r.cards) || 0;
     }
     $id('cards-import-modal').style.display = 'none';
     this.render();

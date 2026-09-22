@@ -664,12 +664,38 @@ const AnkiExport = {
     return globalThis.initSqlJs();
   },
 
+  _cardsForLimit(options) {
+    options=options||{};const all=DB.getCards().slice(),limit=options.limit||{};
+    if(limit.deckId!=null){
+      const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(limit.deckId));
+      if(!root)return [];
+      const prefix=String(root.nome||'')+'::',ids=new Set(decks.filter(d=>String(d.id)===String(root.id)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
+      return all.filter(c=>ids.has(String(c.originalDeckId||c.deckId)));
+    }
+    if(Array.isArray(limit.noteIds)){const ids=new Set(limit.noteIds.map(String));return all.filter(c=>ids.has(String(AnkiParity.noteId(c))));}
+    if(Array.isArray(limit.cardIds)){const ids=new Set(limit.cardIds.map(String));return all.filter(c=>ids.has(String(c.id))||ids.has(String(c.ankiId)));}
+    return all;
+  },
+  _decksForCards(cards,allDecks) {
+    const byId=new Map(allDecks.map(d=>[String(d.id),d])),keep=new Set();
+    const addAncestors=(d)=>{
+      if(!d)return;keep.add(String(d.id));
+      const parts=String(d.nome||'').split('::');
+      for(let i=1;i<parts.length;i++){
+        const name=parts.slice(0,i).join('::'),p=allDecks.find(x=>String(x.nome||'')===name);
+        if(p)keep.add(String(p.id));
+      }
+    };
+    cards.forEach(c=>addAncestors(byId.get(String(c.originalDeckId||c.deckId))));
+    return allDecks.filter(d=>keep.has(String(d.id))&&!AnkiParity.isFilteredDeck(d));
+  },
+
   buildTextNotes(options) {
     options=Object.assign({withHtml:true,withTags:true,withDeck:true,withNotetype:true,withGuid:true},options||{});
     if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
-    const cards=DB.getCards(),decks=DB.getDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
-    const notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),typeById=new Map(types.map(nt=>[String(nt.id),nt]));
+    const cards=this._cardsForLimit(options),decks=DB.getDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
+    const noteIds=new Set(cards.map(c=>String(AnkiParity.noteId(c)))),notes=AnkiParity.notes().filter(n=>noteIds.has(String(n.id))||noteIds.has(String(n.ankiId))),types=AnkiParity.noteTypes(),typeById=new Map(types.map(nt=>[String(nt.id),nt]));
     const siblings=new Map();
     cards.forEach(c=>{const nid=String(AnkiParity.noteId(c));if(!siblings.has(nid))siblings.set(nid,[]);siblings.get(nid).push(c);});
     const maxFields=Math.max(0,...types.map(nt=>Array.isArray(nt.fields)?nt.fields.length:0));
@@ -704,7 +730,7 @@ const AnkiExport = {
     if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
     const rows=[];
-    const exportCards=DB.getCards().slice().sort((a,b)=>Number(a.ankiId||a.id)-Number(b.ankiId||b.id));
+    const exportCards=this._cardsForLimit(options).slice().sort((a,b)=>Number(a.ankiId||a.id)-Number(b.ankiId||b.id));
     for(const card of exportCards){
       const note=AnkiParity.getNote(AnkiParity.noteId(card));if(!note)continue;
       const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
@@ -722,8 +748,8 @@ const AnkiExport = {
     options=Object.assign({schema:11,withScheduling:true,withDeckConfigs:true},options||{});
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
-    const cards = DB.getCards().slice(), allDecks = DB.getDecks().slice();
-    const decks = allDecks.filter(d => !AnkiParity.isFilteredDeck(d)), crt = this._collectionEpoch(cards);
+    const cards = this._cardsForLimit(options), allDecks = DB.getDecks().slice();
+    const decks = this._decksForCards(cards,allDecks), crt = this._collectionEpoch(cards);
     const deckMap=this._deckIdMap(decks),dj=this._deckJson(decks,options),media={items:[],byKey:new Map()};
     const notesById = new Map(), siblings = new Map(), usedNt = new Set();
     for (const c of cards) {
@@ -790,7 +816,7 @@ const AnkiExport = {
   async buildPackage(options) {
     options=Object.assign({legacy:true,withMedia:true,withScheduling:true,withDeckConfigs:true},options||{});
     const legacy=options.legacy!==false,collectionOpts={
-      withScheduling:options.withScheduling!==false,withDeckConfigs:options.withDeckConfigs!==false
+      withScheduling:options.withScheduling!==false,withDeckConfigs:options.withDeckConfigs!==false,limit:options.limit||{}
     };
     const col=await this.buildCollection(Object.assign({schema:legacy?11:18},collectionOpts)),mediaMap={},mediaEntries=[];
     const compatibility=legacy?col:await this.buildCollection(Object.assign({schema:11},collectionOpts));
@@ -821,9 +847,15 @@ const AnkiExport = {
       withScheduling:collectionOpts.withScheduling,withDeckConfigs:collectionOpts.withDeckConfigs});
   },
   async buildCollectionPackage(options) {
-    // No StudyNoMentor, a coleção de Cards inteira é o perfil exportável; o
-    // contêiner .colpkg usa o mesmo formato oficial de pacote, mas a UI avisa
-    // que sua importação no Anki substitui a coleção atual.
-    return this.buildPackage(options);
+    // ExportCollectionPackageRequest do Anki 26.09.2 só expõe include_media e legacy:
+    // coleção inteira + agendamento + configs são obrigatórios.
+    options=options||{};
+    return this.buildPackage({
+      legacy:options.legacy!==false,
+      withMedia:options.withMedia!==false,
+      withScheduling:true,
+      withDeckConfigs:true,
+      limit:{wholeCollection:true}
+    });
   }
 };
