@@ -2089,6 +2089,20 @@ CardsScreen.zerarEstatisticas = function () {
       });
   });
 };
+CardsScreen.optimizeFsrsOfficial = async function (deckId) {
+  const globalCfg = CardsConfig.get();
+  if (globalCfg.algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
+  const cfg = CardsConfig.forDeck(deckId == null ? null : deckId);
+  if (!FSRS || typeof FSRS.optimizeOfficial !== 'function') throw new Error('Otimizador oficial FSRS indisponível.');
+
+  const out = await FSRS.optimizeOfficial(DB.getRevlog(), { deckId: deckId == null ? null : deckId, cfg });
+  const patch = { weights: out.params.slice(), lastOptim: new Date().toISOString() };
+  if (deckId != null) CardsConfig.setDeckPreset(deckId, patch);
+  else CardsConfig.set(patch);
+  CardEngine.invalidateDueCache();
+  return out;
+};
+
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
 CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
@@ -2290,10 +2304,35 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
     CardEngine.invalidateDueCache();
-    // Não chama ferramenta FSRS inexistente: otimização precisa usar o mesmo
-    // backend oficial do Anki/fsrs-rs antes de ser exposta como equivalente.
     if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
+
+  // O Anki expõe a otimização no próprio Deck Options. Aqui o botão usa o
+  // fsrs-rs 6.6.2 vendorado localmente e salva os 21 parâmetros no mesmo
+  // escopo (global/preset) que está sendo configurado.
+  if (g.algo === 'fsrs') setTimeout(() => {
+    const foot = document.querySelector('#ui-modal .cards-modal-foot');
+    if (!foot || document.getElementById('cards-optimize-fsrs-btn')) return;
+    const b = document.createElement('button');
+    b.id = 'cards-optimize-fsrs-btn'; b.type = 'button'; b.className = 'btn-secondary';
+    b.title = 'Treina os 21 parâmetros com o fsrs-rs 6.6.2 oficial, respeitando o histórico ignorado e o filtro de treino.';
+    b.textContent = '🧠 Otimizar FSRS';
+    b.addEventListener('click', async () => {
+      const old = b.textContent; b.disabled = true; b.textContent = '⏳ Otimizando…';
+      try {
+        const out = await CardsScreen.optimizeFsrsOfficial(deckId);
+        showToast('FSRS otimizado com ' + out.reviewCount.toLocaleString('pt-BR') + ' revisões de ' +
+          out.cardCount.toLocaleString('pt-BR') + ' card(s) ✓');
+        UI._submit(false);
+        setTimeout(() => CardsScreen.openAlgoConfigFor(deckId), 0);
+      } catch (e) {
+        b.disabled = false; b.textContent = old;
+        showToast('Não foi possível otimizar FSRS: ' + (e && e.message ? e.message : String(e)));
+      }
+    });
+    foot.insertBefore(b, foot.firstChild);
+  }, 60);
+
   // botão extra "restaurar herança" quando o baralho tem preset
   if (isDeck && hasPreset) setTimeout(() => {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
