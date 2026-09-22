@@ -163,6 +163,10 @@ eq(moved.originalDeckId,'home','card filtrado preserva home deck');
 eq(moved.originalDue,oldDue,'card filtrado preserva due original');
 eq(moved.deckId,cs.deck.id,'card entra no deck filtrado');
 CardsScreen.filters.materias=new Set(['deck:'+cs.deck.id]);
+// O harness de longo prazo substitui currentFilteredCards() por "todos" para
+// simular milhares de cards sem DOM. Aqui precisamos preservar o recorte que a
+// tela real faria antes de chamar buildQueue().
+CardsScreen.currentFilteredCards=()=>DB.getCards().filter(c=>String(c.deckId)===String(cs.deck.id));
 q=CardsScreen.buildQueue();
 eq(q,[fr.id],'filtered deck ignora limites diários normais já aplicados na construção');
 
