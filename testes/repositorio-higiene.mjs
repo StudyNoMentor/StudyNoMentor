@@ -11,11 +11,28 @@ const declarados=[...build.matchAll(/['"]((?:html|css|js)\/[^'"]+)['"]/g)].map(m
 const duplicados=declarados.filter((x,i)=>declarados.indexOf(x)!==i);
 assert.deepEqual([...new Set(duplicados)],[],'build.mjs não pode carregar a mesma fonte duas vezes');
 
-const fontesAbs=walk(join(ROOT,'src')).filter(f=>/\.(?:js|css|html)$/.test(f));
-const fontes=fontesAbs.map(f=>relative(join(ROOT,'src'),f).replaceAll('\\','/')).sort();
-for(const f of fontesAbs) assert.notEqual(readFileSync(f,'utf8').trim(),'',`fonte vazia não deve ser versionada: ${relative(ROOT,f)}`);
-for(const f of fontes) assert.equal(/-v\d+\.(?:js|css)$/i.test(f),false,`fonte atual não deve carregar sufixo de versão: ${f}`);
-assert.deepEqual([...new Set(declarados)].sort(),fontes,'todo JS/CSS/HTML de src deve participar exatamente do build publicado');
+const todosSrcAbs=walk(join(ROOT,'src')).filter(f=>/\.(?:js|css|html)$/.test(f));
+const relSrc=f=>relative(join(ROOT,'src'),f).replaceAll('\\','/');
+const vendorAbs=todosSrcAbs.filter(f=>relSrc(f).startsWith('vendor/'));
+const fontesAbs=todosSrcAbs.filter(f=>!relSrc(f).startsWith('vendor/'));
+const fontes=fontesAbs.map(relSrc).sort();
+for(const f of todosSrcAbs) assert.notEqual(readFileSync(f,'utf8').trim(),'',
+  `fonte vazia não deve ser versionada: ${relative(ROOT,f)}`);
+for(const f of fontes) assert.equal(/-v\d+\.(?:js|css)$/i.test(f),false,
+  `fonte atual não deve carregar sufixo de versão: ${f}`);
+assert.deepEqual([...new Set(declarados)].sort(),fontes,
+  'todo JS/CSS/HTML autoral de src deve participar exatamente do build publicado');
+
+// Vendors são runtimes estáticos carregados sob demanda e NÃO entram no bundle
+// concatenado. A whitelist exata mantém o gate estrito: vendor/ não vira um
+// lugar onde JS órfão pode ser escondido.
+const vendorsPermitidos=[
+  'vendor/fsrs-6.6.2/fsrs_optimizer.js',
+  'vendor/sqljs-1.2.1/sql-asm.js'
+].sort();
+const vendors=vendorAbs.map(relSrc).sort();
+assert.deepEqual(vendors,vendorsPermitidos,
+  'src/vendor só pode conter os runtimes estáticos explicitamente auditados');
 
 const proibidos=[
   'audit.html','audit-runner.cjs','audit-tests.js','audit-browser.js','audit-results.json','audit-browser-results.json',

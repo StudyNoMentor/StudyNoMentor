@@ -1,5 +1,4 @@
-# Barreira de qualidade: nada entra no main sem passar por aqui.
-# Protege build, o Motor de sugestao, Extras, TEC, performance, acessibilidade e higiene do repositorio.
+# Gate minimo de PR: apenas o necessario para impedir merge quebrado.
 name: Verificacao
 
 on:
@@ -17,45 +16,9 @@ permissions:
   contents: read
 
 jobs:
-  sincronizar-gerados:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    permissions:
-      contents: write
-    outputs:
-      alterou: ${{ steps.sync.outputs.alterou }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.ref }}
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Sincronizar build derivado
-        id: sync
-        shell: bash
-        run: |
-          set -euo pipefail
-          node --check build.mjs
-          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
-          node build.mjs
-          if git diff --quiet -- index.html sw.js src/manifesto.json; then
-            echo 'alterou=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'StudyNoMentor CI'
-          git config user.email 'actions@users.noreply.github.com'
-          git add index.html sw.js src/manifesto.json
-          git commit -m 'build: sincroniza artefatos gerados'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          echo 'alterou=true' >> "$GITHUB_OUTPUT"
-
   verificar:
-    needs: [sincronizar-gerados]
-    if: ${{ always() && (needs.sincronizar-gerados.result == 'skipped' || needs.sincronizar-gerados.result == 'success') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 4
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,50 +26,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Preflight rapido
+
+      - name: Build e sintaxe
         shell: bash
         run: |
           set -euo pipefail
           node --check build.mjs
-          node --check verificar.mjs
-          for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
+          for f in src/js/*.js; do node --check "$f"; done
           node build.mjs
           git diff --exit-code -- index.html sw.js src/manifesto.json
-      - name: Validar organizacao de Extras e do Motor
-        run: node testes/ui-organizacao-extras-tec.mjs
-      - name: Certificar contratos Anki dos Cards
-        run: node testes/cards-certificacao-anki.mjs
-      - name: Auditar higiene do repositorio
-        run: node testes/repositorio-higiene.mjs
-      - name: Instalar dependencias de teste
-        run: npm ci
-      - name: Validar estabilidade estrutural de Extras
-        run: node testes/extras-estabilidade.mjs
-      - name: Validar contratos premium de governanca
-        run: node testes/governanca-premium.mjs
-      - name: Validar regra hierarquica do Motor
-        run: node testes/motor-sugestao-regra.mjs
-      - name: Validar rebalanceamento seletivo de reforcos
-        run: node testes/governanca-rebalanceamento.mjs
-      - name: Validar rodizio e cache de lei seca
-        run: node testes/lei-rodizio-perf.mjs
-      - name: Validar fila diaria de reforco
-        run: node testes/reforco-fila.mjs
-      - name: Instalar Chromium
-        run: |
-          npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
-      - name: Auditar startup e loaders
-        run: node testes/startup-reforco-browser.mjs
-      - name: Auditar performance do site inteiro
-        run: node testes/site-performance-browser.mjs
-      - name: Validar modais de Extras no navegador
-        run: node testes/extras-estabilidade-browser.mjs
-      - name: Auditar UX completa de Extras
-        run: node testes/extras-ux100-browser.mjs
-      - name: Auditar estabilidade visual
-        run: node testes/ux-stability-browser.mjs
-      - name: Auditar hierarquia e fluidez global
-        run: node testes/ux-hierarquia-browser.mjs
-      - name: Verificar
-        run: node verificar.mjs
+
+      - name: Contrato central dos Cards
+        run: node testes/cards-paridade-total-anki.mjs

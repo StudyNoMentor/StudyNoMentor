@@ -20,6 +20,23 @@ const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 page.on('console',m=>{if(m.type()==='error'&&!/net::|ERR_|favicon/.test(m.text()))errors.push(m.text());});
 
+async function abrirApp(){
+  let ultimoErro;
+  for(let tentativa=0;tentativa<2;tentativa++){
+    try {
+      await page.goto(url,{waitUntil:'domcontentloaded',timeout:45000});
+      return;
+    } catch(e) {
+      ultimoErro=e;
+      if(tentativa===0){
+        await page.goto('about:blank',{waitUntil:'domcontentloaded',timeout:10000}).catch(()=>{});
+        await page.waitForTimeout(250);
+      }
+    }
+  }
+  throw ultimoErro;
+}
+
 async function caixa(sel,label){
   const g=await page.locator(sel).evaluate(el=>{const r=el.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,w:r.width,h:r.height,sw:el.scrollWidth,cw:el.clientWidth};});
   const vp=page.viewportSize();
@@ -57,7 +74,7 @@ async function auditarCentral(width,height){
 }
 
 try {
-  await page.goto(url,{waitUntil:'domcontentloaded'});
+  await abrirApp();
   await page.waitForFunction(()=>window.switchScreen&&window.ExtrasCentral&&window.ExtrasOverlayStack,{timeout:30000});
   await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){} switchScreen('extras'); if(window.ExtrasScreen?.render)ExtrasScreen.render();});
   await page.waitForTimeout(200);

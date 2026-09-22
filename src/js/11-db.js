@@ -1036,6 +1036,12 @@ const DB = {
     const id = this._uid();
     const card = {
       id,
+      // Identidade compatível com o Anki vive em paralelo ao UUID do Study.
+      // Os campos são opcionais durante bootstrap/importação e normalizados
+      // pela camada AnkiParity antes de a fila ser construída.
+      ankiId: data.ankiId || (typeof AnkiParity !== 'undefined' ? AnkiParity._allocId() : null),
+      ankiNoteId: data.ankiNoteId || null,
+      ankiMod: Math.floor(Date.now() / 1000),
       noteId: data.noteId || id,
       template: data.template || ((data.kind || 'basic') === 'cloze' ? 'cloze' : (data.reversedOf ? 'reverse' : 'forward')),
       deckId: data.deckId || null,
@@ -1108,7 +1114,7 @@ const DB = {
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
+    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); c.ankiMod = Math.floor(Date.now() / 1000); }
     // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
     // CardsScreen.answer). Card inexistente continua devolvendo null.
     return this.saveCards(list) === false ? false : c;
@@ -1233,17 +1239,22 @@ const DB = {
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
-  buryCard(id) {
+  buryCard(id, origem) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
+    // O Anki distingue enterro explícito do usuário (UserBuried) do enterro
+    // automático de irmãos (SchedBuried). A fila trata ambos como ocultos,
+    // mas a distinção importa para busca, diagnóstico e exportação fiel.
+    const buryKind = origem === 'scheduler' ? 'scheduler' : 'user';
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
-    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
+    this.updateCard(id, { enterradoAte: amanha, buryKind,
+      dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
     return amanha;
   },
   unburyCard(id) {
     const c = this.getCard(id); if (!c) return;
-    const patch = { enterradoAte: null };
+    const patch = { enterradoAte: null, buryKind: null };
     if (Object.prototype.hasOwnProperty.call(c, 'dueTsAntesEnterrar')) {
       patch.dueTs = c.dueTsAntesEnterrar;
       patch.dueTsAntesEnterrar = null;
@@ -1265,7 +1276,7 @@ const DB = {
     const n = Math.max(0, Math.round(Number(dias) || 0));
     const c = this.getCard(id); if (!c) return null;
     const data = CardEngine.addDays(todayCards(), n);
-    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null,
+    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null, buryKind: null,
       phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
     return data;
   },

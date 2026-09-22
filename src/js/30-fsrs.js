@@ -183,7 +183,10 @@ const FSRS = {
   fuzzed(iv, seed, maxIv, minIv) {
     const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
-    return lo + Math.floor(this._hash(String(seed)) * (hi - lo + 1));
+    const f = (typeof AnkiParity !== 'undefined' && seed != null)
+      ? AnkiParity.fuzzFactor(seed)
+      : this._hash(String(seed));
+    return Math.floor(lo + f * (1 + hi - lo));
   },
 
   // ---- OTIMIZADOR (personaliza os 21 pesos a partir do seu histórico) ----
@@ -496,37 +499,29 @@ const FSRS = {
   // isso, cada chamada (Difícil/Bom/Fácil da prévia, e a resposta de verdade)
   // sorteava um dia independente com Math.random() — a prévia podia divergir
   // do que era gravado, e a ordem Difícil<Bom<Fácil podia furar na tela.
-  loadBalance(iv, dueCountByDay, maxIv, minIv, seed) {
+  loadBalance(iv, dueCountByDay, maxIv, minIv, seed, card) {
+    // Caminho de paridade: reproduz o LoadBalancer do Anki 26.09.2 por
+    // deck-config/preset, Easy Days, irmãos e WeightedIndex f32. Quando o
+    // balanceador oficial não se aplica (>90d), o Anki volta ao fuzz normal.
+    if (typeof AnkiParity !== 'undefined' && seed != null) {
+      const chosen = AnkiParity.loadBalance(iv, maxIv, minIv, seed, card);
+      if (chosen != null) return chosen;
+      return this.fuzzed(iv, seed, maxIv, minIv);
+    }
+    // Fallback para ambientes antigos que carreguem este módulo isoladamente.
     const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
-    // acima de 90 dias o Anki nao balanceia: devolve o proprio intervalo
     if (iv > this.MAX_LOAD_BALANCE_INTERVAL || (minIv || 1) > this.MAX_LOAD_BALANCE_INTERVAL) {
-      return Math.min(hi, Math.max(lo, Math.round(iv)));
+      return this.fuzzed(iv, seed, maxIv, minIv);
     }
     const dias = [], pesos = [];
     let soma = 0;
-    const hojeLB = todayCards();
     for (let d = lo; d <= hi; d++) {
       const n = dueCountByDay(d) || 0;
-      let peso = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
-      /* easy_days_percentages: multiplica o peso do dia pelo percentual de carga
-         que aquele dia da semana aceita. Um dia zerado sai do sorteio — mas veja
-         o fallback abaixo: se TODOS os dias da janela estiverem zerados, voltamos
-         aos pesos originais. O Anki prefere marcar num dia ruim a violar o
-         intervalo que o algoritmo calculou. */
-      peso *= this.pesoDoDia(this.addDaysISO(hojeLB, d));
+      const peso = n === 0 ? 1 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
       dias.push(d); pesos.push(peso); soma += peso;
     }
-    if (!(soma > 0)) {
-      // todos os dias da janela são "leves": ignora o modificador nesta rodada
-      soma = 0;
-      for (let k = 0; k < dias.length; k++) {
-        const d = dias[k], n = dueCountByDay(d) || 0;
-        pesos[k] = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
-        soma += pesos[k];
-      }
-    }
-    if (!(soma > 0)) return lo;
+    if (!(soma > 0)) return this.fuzzed(iv, seed, maxIv, minIv);
     let alvo = (seed != null ? this._hash(String(seed)) : Math.random()) * soma;
     for (let i = 0; i < dias.length; i++) { alvo -= pesos[i]; if (alvo <= 0) return dias[i]; }
     return dias[dias.length - 1];
@@ -557,6 +552,88 @@ const FSRS = {
     if (best.reviewsPerDay > capacity) { const feas = curve.filter(c => c.reviewsPerDay <= capacity); if (feas.length) rec = feas[feas.length - 1].retention; }
     return { recommended: rec, optimal: best.retention, capacity: Math.round(capacity), curve };
   }
+};
+
+
+/* ── OTIMIZADOR OFICIAL ANKI 26.09.2 / fsrs-rs 6.6.2 ──────────────────────
+   Carregado sob demanda: o scheduler diário continua 100% síncrono e não paga
+   o custo do WASM. O arquivo é servido localmente pelo próprio PWA. */
+FSRS._officialOptimizerModule=null;
+FSRS._officialOptimizerLoading=null;
+FSRS._loadOfficialOptimizer=async function(){
+  if(this._officialOptimizerModule)return this._officialOptimizerModule;
+  if(this._officialOptimizerLoading)return this._officialOptimizerLoading;
+  this._officialOptimizerLoading=(async()=>{
+    const mod=await import('./src/vendor/fsrs-6.6.2/fsrs_optimizer.js');
+    if(typeof mod.default==='function')await mod.default();
+    if(typeof mod.optimize_json!=='function')throw new Error('Otimizador FSRS oficial indisponível');
+    this._officialOptimizerModule=mod;
+    return mod;
+  })();
+  try{return await this._officialOptimizerLoading;}
+  finally{this._officialOptimizerLoading=null;}
+};
+FSRS.trainingCardsForScope=function(deckId,cfg){
+  cfg=cfg||CardsConfig.forDeck(deckId==null?null:deckId);
+  let cards=DB.getCards().slice();
+
+  // No escopo de um baralho, o Anki considera o baralho e seus filhos.
+  // Cards temporariamente em filtered decks continuam pertencendo ao home deck.
+  if(deckId!=null){
+    const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(deckId));
+    if(root){
+      const prefix=String(root.nome||'')+'::';
+      const ids=new Set(decks.filter(d=>{
+        const n=String(d.nome||'');
+        return String(d.id)===String(deckId)||n.startsWith(prefix);
+      }).map(d=>String(d.id)));
+      cards=cards.filter(card=>ids.has(String(card.originalDeckId||card.deckId)));
+    }else{
+      cards=cards.filter(card=>String(card.originalDeckId||card.deckId)===String(deckId));
+    }
+  }
+
+  // param_search é aplicado ANTES de montar as sequências do revlog, para que
+  // o modelo seja treinado apenas nos cards escolhidos pelo usuário/preset.
+  const search=String(cfg&&cfg.paramSearch||'').trim();
+  if(search&&typeof AnkiParity!=='undefined'&&AnkiParity.filteredSearchMatches){
+    cards=cards.filter(card=>AnkiParity.filteredSearchMatches(card,search));
+  }
+  return cards;
+};
+
+FSRS.optimizeOfficial=async function(revlog,opts){
+  opts=opts||{};
+  if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki não carregada');
+  const deckId=opts.deckId==null?null:opts.deckId;
+  const cfg=opts.cfg||CardsConfig.forDeck(deckId);
+  let ignoreBeforeMs=Number(opts.ignoreBeforeMs)||0;
+  if(!ignoreBeforeMs&&cfg.ignoreRevlogsBefore){
+    const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');
+    if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();
+  }
+  const scopedCards=Array.isArray(opts.cards)?opts.cards:this.trainingCardsForScope(deckId,cfg);
+  const data=AnkiParity.fsrsTrainingData(
+    Array.isArray(revlog)?revlog:DB.getRevlog(),
+    {cards:scopedCards,nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs}
+  );
+  if(!data.items.length)throw new Error('Dados insuficientes para otimizar parâmetros FSRS');
+
+  const current=Array.isArray(opts.currentParams)
+    ? this.migrarW(opts.currentParams)
+    : CardsConfig.weightsFor(deckId);
+  const mod=await this._loadOfficialOptimizer();
+  const out=JSON.parse(mod.optimize_json(JSON.stringify({
+    items:data.items,
+    card_ids:data.cardIds,
+    current_params:current||[],
+    num_relearning_steps:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0
+  })));
+  if(!out||!Array.isArray(out.params)||out.params.length!==21)throw new Error('Resposta inválida do fsrs-rs 6.6.2');
+  out.reviewCount=data.reviewCount;
+  out.cardCount=new Set(data.cardIds.map(String)).size;
+  out.nextDayAtSec=data.nextDayAtSec;
+  return out;
 };
 
 // Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.

@@ -45,6 +45,12 @@ const CardsConfig = {
     // Pode ser habilitado explicitamente para ignorar esse bloqueio.
     newCardsIgnoreReviewLimit: false,
 
+    // Enterramento automático de irmãos. Os três defaults do Anki 26.09.2 são false.
+    buryNew: false,
+    buryReviews: false,
+    buryInterdayLearning: false,
+    applyAllParentLimits: false,
+
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
     easyDays: [1, 1, 1, 1, 1, 1, 1],
@@ -139,6 +145,7 @@ const CardsConfig = {
     c.newPerDay = Math.round(this._numValido(c.newPerDay, D.newPerDay, 0, 999999));
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
+    ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits'].forEach(k => { if (typeof c[k] !== 'boolean') c[k] = !!D[k]; });
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
@@ -224,18 +231,66 @@ const CardsConfig = {
       const n = Number(d.revDone) || 0;
       d.revIds = Array.from({ length: n }, (_, i) => '__legado_rev_' + i);
     }
+    if (!Array.isArray(d.usage)) {
+      // Migração: reconstrói o caminho de deck dos IDs ainda existentes. O
+      // snapshot passa a ser gravado na resposta seguinte e sobrevive a
+      // renome/reparent do deck, como os contadores internos do Anki.
+      d.usage = [];
+      const cards = new Map(DB.getCards().map(c => [String(c.id), c]));
+      const pathFor = (card) => {
+        if (!card || card.deckId == null) return [];
+        const decks = DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
+        if (!deck) return [String(card.deckId)];
+        const parts = String(deck.nome || '').split('::'), path = [];
+        for (let i = 1; i <= parts.length; i++) {
+          const nome = parts.slice(0, i).join('::');
+          const hit = decks.find(x => String(x.nome || '') === nome);
+          if (hit) path.push(String(hit.id));
+        }
+        return path.length ? path : [String(card.deckId)];
+      };
+      d.newIds.forEach(id => { const c=cards.get(String(id)); if(c)d.usage.push({id:String(id),kind:'new',deckId:c.deckId==null?null:String(c.deckId),path:pathFor(c)}); });
+      d.revIds.forEach(id => { const c=cards.get(String(id)); if(c)d.usage.push({id:String(id),kind:'review',deckId:c.deckId==null?null:String(c.deckId),path:pathFor(c)}); });
+    }
     return d;
   },
   _saveDaily(d) { DB.setRaw(this.DKEY, JSON.stringify(d)); },
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
-  markIntroduced(kind, id) { const d = this._daily(); const a = kind === 'new' ? d.newIds : d.revIds; if (id && !a.includes(id)) a.push(id); this._saveDaily(d); },
-  unmarkIntroduced(kind, id) { const d = this._daily(); const k = kind === 'new' ? 'newIds' : 'revIds'; d[k] = id ? d[k].filter(x => x !== id) : d[k]; this._saveDaily(d); },
+  _deckPathForCard(card) {
+    if (!card || card.deckId == null) return [];
+    const decks = DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
+    if (!deck) return [String(card.deckId)];
+    const parts = String(deck.nome || '').split('::'), path = [];
+    for (let i = 1; i <= parts.length; i++) {
+      const nome = parts.slice(0, i).join('::');
+      const hit = decks.find(x => String(x.nome || '') === nome);
+      if (hit) path.push(String(hit.id));
+    }
+    return path.length ? path : [String(card.deckId)];
+  },
+  markIntroduced(kind, id) {
+    const d=this._daily(), k=kind==='new'?'new':'review', a=k==='new'?d.newIds:d.revIds;
+    if (id && !a.includes(id)) {
+      a.push(id);
+      const c=DB.getCard(id);
+      d.usage=d.usage||[];
+      d.usage.push({id:String(id),kind:k,deckId:c&&c.deckId!=null?String(c.deckId):null,path:this._deckPathForCard(c)});
+    }
+    this._saveDaily(d);
+  },
+  unmarkIntroduced(kind, id) {
+    const d=this._daily(), k=kind==='new'?'new':'review', arr=k==='new'?'newIds':'revIds';
+    d[arr]=id?d[arr].filter(x=>String(x)!==String(id)):d[arr];
+    d.usage=(d.usage||[]).filter(x=>!(String(x.id)===String(id)&&x.kind===k));
+    this._saveDaily(d);
+  },
   // Tira um card dos contadores do dia (usado ao excluir o card)
   forgetCardId(id) {
     const d = this._daily();
     const antes = d.newIds.length + d.revIds.length;
     d.newIds = d.newIds.filter(x => x !== id);
     d.revIds = d.revIds.filter(x => x !== id);
+    d.usage = (d.usage || []).filter(x => String(x.id) !== String(id));
     if (antes !== d.newIds.length + d.revIds.length) this._saveDaily(d);
   },
   // Remove do contador os IDs que não correspondem a card nenhum. Marcadores de
@@ -256,11 +311,12 @@ const CardsConfig = {
     const ids = kind === 'new' ? d.newIds : d.revIds;
     if (!ids.length) return 0;
     const alvo = deckId == null ? null : String(deckId);
+    const usage=(d.usage||[]).filter(x=>x.kind===(kind==='new'?'new':'review'));
+    if (usage.length) return usage.filter(x => alvo == null ? x.deckId == null : (x.path||[]).includes(alvo)).length;
     const mapa = new Map(DB.getCards().map(c => [String(c.id), c]));
     let n = 0;
     ids.forEach(id => {
-      const c = mapa.get(String(id));
-      if (!c) return; // marcadores legados só afetam o limite global
+      const c = mapa.get(String(id)); if (!c) return;
       const did = c.deckId == null ? null : String(c.deckId);
       if (did === alvo) n++;
     });

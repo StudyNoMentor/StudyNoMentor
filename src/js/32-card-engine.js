@@ -79,7 +79,8 @@ const CardEngine = {
   },
   // ---- Agendador FSRS (com passos de aprendizado/reaprendizado em minutos, como o Anki) ----
   _scheduleFSRS(card, G) {
-    const cfg = CardsConfig.forDeck(card.deckId), w = CardsConfig.weightsFor(card.deckId), r = cfg.retention || 0.9;
+    const effectiveDeckId = card.originalDeckId || card.deckId;
+    const cfg = CardsConfig.forDeck(effectiveDeckId), w = CardsConfig.weightsFor(effectiveDeckId), r = cfg.retention || 0.9;
     const learn = cfg.learnSteps, relearn = cfg.relearnSteps;
     const maxIv = Math.max(1, cfg.maxInterval || 36500);
     const c = this._ensureFsrsState(card);
@@ -100,7 +101,8 @@ const CardEngine = {
       const segs = Math.max(0, Math.round(min * 60));
       // fuzz: [segs, segs + min(25%, 5min))
       const teto = Math.floor(Math.min(segs * 0.25, 300));
-      const segsFuzz = teto > 0 ? segs + Math.floor(Math.random() * teto) : segs;
+      const segsFuzz = (typeof AnkiParity !== 'undefined') ? AnkiParity.learningFuzzSeconds(c, segs)
+        : (teto > 0 ? segs + Math.floor(Math.random() * teto) : segs);
       const ateVirada = Math.max(0, Math.round((proximaViradaTs() - nowTs) / 1000));
       if (segsFuzz >= ateVirada) {
         const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
@@ -110,11 +112,11 @@ const CardEngine = {
     };
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
-    const sementeFuzz = (c.id || 'c') + '|' + (c.reps || 0);
+    const sementeFuzz = (typeof AnkiParity !== 'undefined') ? AnkiParity.fuzzSeed(c) : ((c.id || 'c') + '|' + (c.reps || 0));
     const place = (ivRaw, minIv) => {
       const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
       const piso = Math.max(1, Math.min(maxIv, minIv || 1));
-      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso, sementeFuzz));
+      if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso, sementeFuzz, c));
       /* O Anki sorteia UM fuzz_factor por card+reps (card.get_fuzz_factor) e usa
          o MESMO para os quatro botoes. Semear por nota/intervalo, como estava,
          dava a cada botao um sorteio proprio — os intervalos podiam se cruzar
@@ -317,7 +319,7 @@ const CardEngine = {
 
      Também passou a usar os multiplicadores configuráveis em vez de constantes. */
   _scheduleSM2(card, grade) {
-    const cfg = CardsConfig.forDeck(card.deckId) || CardsConfig.get();
+    const cfg = CardsConfig.forDeck(card.originalDeckId || card.deckId) || CardsConfig.get();
     const easeIni = cfg.initialEase != null ? cfg.initialEase : 2.5;
     const fHard = cfg.hardMultiplier != null ? cfg.hardMultiplier : 1.2;
     const fEasy = cfg.easyMultiplier != null ? cfg.easyMultiplier : 1.3;
@@ -337,13 +339,14 @@ const CardEngine = {
     let lapses = Math.max(0, Number(card.lapses) || 0);
     const reps = Math.max(0, Number(card.reps) || 0) + 1;
     const clampE = (e) => Math.max(this.MIN_EASE, e);
-    const seed = (card.id || 'c') + '|' + (card.reps || 0);
+    const seed = (typeof AnkiParity !== 'undefined') ? AnkiParity.fuzzSeed(card) : ((card.id || 'c') + '|' + (card.reps || 0));
 
     // Mesma conversão intradiário/dia usada pelo agendador moderno do Anki.
     const stepDue = (min) => {
       const segs = Math.max(0, Math.round(Number(min || 0) * 60));
       const teto = Math.floor(Math.min(segs * 0.25, 300));
-      const segsFuzz = teto > 0 ? segs + Math.floor(Math.random() * teto) : segs;
+      const segsFuzz = (typeof AnkiParity !== 'undefined') ? AnkiParity.learningFuzzSeconds(card, segs)
+        : (teto > 0 ? segs + Math.floor(Math.random() * teto) : segs);
       const ateVirada = Math.max(0, Math.round((proximaViradaTs() - nowTs) / 1000));
       if (segsFuzz >= ateVirada) {
         const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
@@ -460,7 +463,7 @@ const CardEngine = {
   schedule(card, grade) {
     if (grade === 'sei') grade = 'bom';
     if (grade === 'naosei') grade = 'errei';
-    const cfg = CardsConfig.forDeck(card.deckId);
+    const cfg = CardsConfig.forDeck(card.originalDeckId || card.deckId);
     const patch = (cfg.algo === 'fsrs')
       ? this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3)
       : this._scheduleSM2(card, grade);
@@ -504,9 +507,10 @@ const CardEngine = {
     const an = Math.round(dias / 365 * 10) / 10; return an === 1 ? '1 ano' : an + ' anos';
   },
   // ---- Cloze / Omissão de palavras: {{texto}} ou {{c1::texto}} ----
-  hasCloze(text) { return /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
+  hasCloze(text) { return (typeof AnkiParity !== 'undefined') ? AnkiParity.clozeOrdinals(text).length > 0 : /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
   // reveal=false => mostra [ ... ] no lugar; reveal=true => revela destacado
-  clozeRender(html, reveal) {
+  clozeRender(html, reveal, ordinal) {
+    if (typeof AnkiParity !== 'undefined') return AnkiParity.revealCloze(html, Number(ordinal) || 1, !reveal);
     return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) => {
       const k = inner.indexOf('::');
       const answer = k >= 0 ? inner.slice(0, k) : inner;

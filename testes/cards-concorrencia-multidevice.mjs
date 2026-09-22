@@ -1,0 +1,126 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
+const src=readFileSync(join(ROOT,'src/js/60-relational-store.js'),'utf8');
+
+const store=new Map();
+const localStorage={
+  get length(){return store.size;},
+  key(i){return [...store.keys()][i]??null;},
+  getItem(k){return store.has(String(k))?store.get(String(k)):null;},
+  setItem(k,v){store.set(String(k),String(v));},
+  removeItem(k){store.delete(String(k));}
+};
+
+const calls=[];
+const reviewRows=new Map();
+let remoteUpdatedAt='2026-09-22T10:00:00.000Z';
+
+function builder(table){
+  const b={
+    _table:table,
+    select(){return b;}, eq(){return b;}, order(){return b;},
+    range(){return b;}, limit(){return b;}, gt(){return b;}, delete(){return b;},
+    async maybeSingle(){
+      if(table==='study_cards') return {data:{updated_at:remoteUpdatedAt},error:null};
+      return {data:null,error:null};
+    },
+    async upsert(row,opts){
+      const copy=structuredClone(row);
+      calls.push({table,row:copy,opts:structuredClone(opts||{})});
+      if(table==='study_review_log') reviewRows.set(String(row.review_id),copy);
+      return {data:null,error:null};
+    },
+    then(resolve,reject){return Promise.resolve({data:[],error:null}).then(resolve,reject);}
+  };
+  return b;
+}
+
+const CloudStore={
+  client:{from:table=>builder(table)},
+  isLoggedIn:()=>true,
+  session:{user:{id:'u1'}}
+};
+const DB={normalizeCardNotesInPlace(){}};
+const ctx={
+  console,Promise,Set,Map,Object,Array,Number,String,Boolean,Date,JSON,RegExp,Error,
+  structuredClone,parseInt,parseFloat,localStorage,
+  navigator:{},CustomEvent:class{constructor(type,init){this.type=type;this.detail=init&&init.detail;}},
+  setTimeout,clearTimeout,
+  _quiet(){},
+  CloudStore,DB,
+  window:{CloudStore,dispatchEvent(){},CloudUI:null}
+};
+ctx.globalThis=ctx;
+vm.createContext(ctx);
+vm.runInContext(src+'\n;globalThis.RelationalStore=RelationalStore;',ctx,{filename:'60-relational-store.js'});
+const R=ctx.RelationalStore;
+
+// 1) ReviewId é identidade estável: replay da mesma operação não duplica histórico.
+const baseOp={
+  profileId:'p1',planId:'pl1',type:'append',
+  row:{reviewId:'rev-1',cardId:'c1',ts:1000,date:'2026-09-22',grade:3,_position:1},
+  cardAfter:{id:'c1',updatedAt:'2026-09-22T09:00:00.000Z',frente:'Q',verso:'A'},
+  cardPosition:1
+};
+await R._commitReviewOutboxOp(baseOp);
+await R._commitReviewOutboxOp(baseOp);
+assert.equal(reviewRows.size,1,'replay do mesmo reviewId deve permanecer idempotente');
+const reviewWrites=calls.filter(x=>x.table==='study_review_log');
+assert.ok(reviewWrites.length>=2,'o teste deve exercitar replay real');
+assert.ok(reviewWrites.every(x=>x.opts.onConflict==='profile_id,plan_id,review_id'&&x.opts.ignoreDuplicates===true),
+  'revlog deve usar chave composta estável e ignoreDuplicates');
+
+// 2) Operação offline antiga registra o review, mas NÃO pisa no card mais novo do outro aparelho.
+assert.equal(calls.filter(x=>x.table==='study_cards').length,0,
+  'card remoto mais novo não pode ser sobrescrito por replay offline antigo');
+
+// 3) Se o snapshot local é realmente mais novo, a projeção do card pode avançar.
+remoteUpdatedAt='2026-09-22T08:00:00.000Z';
+await R._commitReviewOutboxOp({
+  ...baseOp,
+  row:{...baseOp.row,reviewId:'rev-2',ts:2000,_position:2},
+  cardAfter:{...baseOp.cardAfter,updatedAt:'2026-09-22T11:00:00.000Z',reps:2}
+});
+const cardWrites=calls.filter(x=>x.table==='study_cards');
+assert.equal(cardWrites.length,1,'snapshot local mais novo deve atualizar a projeção remota do card');
+assert.equal(cardWrites[0].row.card_id,'c1');
+assert.equal(cardWrites[0].opts.onConflict,'profile_id,plan_id,card_id');
+
+// 4) Empates de position entre aparelhos têm ordenação determinística.
+R._rpcBundle=async()=>({missing:false,data:{
+  profile:{id:'p1'},
+  revlog:[
+    {review_id:'r4',plan_id:'pl1',position:2,ts:10,review_pk:8},
+    {review_id:'r3',plan_id:'pl1',position:1,ts:20,review_pk:7},
+    {review_id:'r2',plan_id:'pl1',position:1,ts:10,review_pk:9},
+    {review_id:'r1',plan_id:'pl1',position:1,ts:10,review_pk:3}
+  ]
+}});
+const bundle=await R._loadCoreBundle('p1');
+assert.deepEqual(Array.from(bundle.revlog,x=>x.review_id),['r1','r2','r3','r4'],
+  'revlog concorrente deve desempatar por position, ts e review_pk');
+
+// 5) Hidratação nunca substitui a projeção local antes de drenar respostas offline.
+const order=[];
+R.isReady=()=>true;
+R._trace=()=>{};
+R.replayReviewOutbox=async()=>{order.push('replay');return {ok:true,mudou:1};};
+R._loadCoreBundle=async()=>{order.push('load');return {profile:{id:'p1'}};};
+R._applyCoreBundle=()=>{order.push('apply');};
+R.subscribeProfile=()=>{};
+R.isHeavyReady=()=>true;
+R._lastChangeId=new Map();
+R._lastHydratedAt=new Map();
+R._heavyReady=new Set();
+R._heavyDirty=new Set();
+await R.hydrateProfile('p1',{skipWatermark:true,includeHeavy:false});
+assert.deepEqual(order.slice(0,3),['replay','load','apply'],
+  'outbox offline deve ser drenada antes de carregar/aplicar a nuvem');
+
+console.log('CONCORRÊNCIA CARDS: replay idempotente, LWW seguro, ordenação estável e hydrate-after-outbox válidos.');

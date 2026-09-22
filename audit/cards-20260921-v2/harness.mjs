@@ -14,8 +14,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const ROOT = new URL('../../', import.meta.url);
-export const MODULOS = ['11-db.js', '30-fsrs.js', '31-cards-config.js', '32-card-engine.js', '44-tela-cards.js'];
-const NOMES = { '11-db.js': 'DB', '30-fsrs.js': 'FSRS', '31-cards-config.js': 'CardsConfig', '32-card-engine.js': 'CardEngine', '44-tela-cards.js': 'CardsScreen' };
+export const MODULOS = ['11-db.js', '30-fsrs.js', '31-cards-config.js', '32-card-engine.js', '44-tela-cards.js', '44-anki-parity.js'];
+const NOMES = { '11-db.js': 'DB', '30-fsrs.js': 'FSRS', '31-cards-config.js': 'CardsConfig', '32-card-engine.js': 'CardEngine', '44-tela-cards.js': 'CardsScreen', '44-anki-parity.js': 'AnkiParity' };
 
 export function criarAmbiente(opts = {}) {
   const estado = {
@@ -113,7 +113,7 @@ export function criarAmbiente(opts = {}) {
 
   const api = {
     ctx, estado, store, localStorage,
-    DB: ctx.DB, FSRS: ctx.FSRS, CardsConfig: ctx.CardsConfig, CardEngine: ctx.CardEngine, CardsScreen: ctx.CardsScreen,
+    DB: ctx.DB, FSRS: ctx.FSRS, CardsConfig: ctx.CardsConfig, CardEngine: ctx.CardEngine, CardsScreen: ctx.CardsScreen, AnkiParity: ctx.AnkiParity,
     hoje: todayCards,
     // Relógio do harness. Os testes NUNCA devem usar o Date.now() do Node:
     // ele não é o relógio que os módulos enxergam.
