@@ -183,7 +183,10 @@ const FSRS = {
   fuzzed(iv, seed, maxIv, minIv) {
     const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
-    return lo + Math.floor(this._hash(String(seed)) * (hi - lo + 1));
+    const f = (typeof AnkiParity !== 'undefined' && seed != null)
+      ? AnkiParity.fuzzFactor(seed)
+      : this._hash(String(seed));
+    return Math.floor(lo + f * (1 + hi - lo));
   },
 
   // ---- OTIMIZADOR (personaliza os 21 pesos a partir do seu histórico) ----
@@ -496,37 +499,29 @@ const FSRS = {
   // isso, cada chamada (Difícil/Bom/Fácil da prévia, e a resposta de verdade)
   // sorteava um dia independente com Math.random() — a prévia podia divergir
   // do que era gravado, e a ordem Difícil<Bom<Fácil podia furar na tela.
-  loadBalance(iv, dueCountByDay, maxIv, minIv, seed) {
+  loadBalance(iv, dueCountByDay, maxIv, minIv, seed, card) {
+    // Caminho de paridade: reproduz o LoadBalancer do Anki 26.09.2 por
+    // deck-config/preset, Easy Days, irmãos e WeightedIndex f32. Quando o
+    // balanceador oficial não se aplica (>90d), o Anki volta ao fuzz normal.
+    if (typeof AnkiParity !== 'undefined' && seed != null) {
+      const chosen = AnkiParity.loadBalance(iv, maxIv, minIv, seed, card);
+      if (chosen != null) return chosen;
+      return this.fuzzed(iv, seed, maxIv, minIv);
+    }
+    // Fallback para ambientes antigos que carreguem este módulo isoladamente.
     const [lo, hi] = this.fuzzRange(iv, maxIv, minIv);
     if (hi <= lo) return lo;
-    // acima de 90 dias o Anki nao balanceia: devolve o proprio intervalo
     if (iv > this.MAX_LOAD_BALANCE_INTERVAL || (minIv || 1) > this.MAX_LOAD_BALANCE_INTERVAL) {
-      return Math.min(hi, Math.max(lo, Math.round(iv)));
+      return this.fuzzed(iv, seed, maxIv, minIv);
     }
     const dias = [], pesos = [];
     let soma = 0;
-    const hojeLB = todayCards();
     for (let d = lo; d <= hi; d++) {
       const n = dueCountByDay(d) || 0;
-      let peso = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
-      /* easy_days_percentages: multiplica o peso do dia pelo percentual de carga
-         que aquele dia da semana aceita. Um dia zerado sai do sorteio — mas veja
-         o fallback abaixo: se TODOS os dias da janela estiverem zerados, voltamos
-         aos pesos originais. O Anki prefere marcar num dia ruim a violar o
-         intervalo que o algoritmo calculou. */
-      peso *= this.pesoDoDia(this.addDaysISO(hojeLB, d));
+      const peso = n === 0 ? 1 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
       dias.push(d); pesos.push(peso); soma += peso;
     }
-    if (!(soma > 0)) {
-      // todos os dias da janela são "leves": ignora o modificador nesta rodada
-      soma = 0;
-      for (let k = 0; k < dias.length; k++) {
-        const d = dias[k], n = dueCountByDay(d) || 0;
-        pesos[k] = (n === 0) ? 1.0 : Math.pow(1 / n, 2.15) * Math.pow(1 / d, 3);
-        soma += pesos[k];
-      }
-    }
-    if (!(soma > 0)) return lo;
+    if (!(soma > 0)) return this.fuzzed(iv, seed, maxIv, minIv);
     let alvo = (seed != null ? this._hash(String(seed)) : Math.random()) * soma;
     for (let i = 0; i < dias.length; i++) { alvo -= pesos[i]; if (alvo <= 0) return dias[i]; }
     return dias[dias.length - 1];
