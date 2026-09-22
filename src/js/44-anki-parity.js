@@ -660,5 +660,297 @@ AnkiParity.fsrsTrainingData=function(revlog,opts){
   };
 };
 
+
+/* ── FILTERED DECKS / CUSTOM STUDY (Anki 26.09.2) ─────────────────────────
+   Contratos espelhados de rslib/src/scheduler/filtered/{mod,card,custom_study}.rs.
+   Um card levado a um baralho filtrado guarda o baralho/vencimento de origem.
+   Com reschedule=true, a primeira resposta o devolve ao baralho original com o
+   NOVO agendamento. Com reschedule=false, Again/Hard podem repetir em preview,
+   e Good/Easy (ou atraso 0) devolvem o estado original sem alterar a memória. */
+AnkiParity.FILTERED_ORDERS={
+  OLDEST_REVIEWED_FIRST:0,RANDOM:1,INTERVALS_ASCENDING:2,INTERVALS_DESCENDING:3,
+  LAPSES:4,ADDED:5,DUE:6,REVERSE_ADDED:7,RETRIEVABILITY_ASCENDING:8,
+  RETRIEVABILITY_DESCENDING:9,RELATIVE_OVERDUENESS:10
+};
+AnkiParity.filteredDefaults=function(){
+  return {
+    reschedule:true,
+    searchTerms:[{search:'',limit:100,order:this.FILTERED_ORDERS.RANDOM}],
+    delays:[],previewDelay:10,previewAgainSecs:60,previewHardSecs:600,previewGoodSecs:0
+  };
+};
+AnkiParity.isFilteredDeck=function(deckOrId){
+  const d=(deckOrId&&typeof deckOrId==='object')?deckOrId:
+    DB.getDecks().find(x=>String(x.id)===String(deckOrId));
+  return !!(d&&(d.filtered===true||d.kind==='filtered'||d.filteredConfig));
+};
+AnkiParity.filteredConfig=function(deckOrId){
+  const d=(deckOrId&&typeof deckOrId==='object')?deckOrId:
+    DB.getDecks().find(x=>String(x.id)===String(deckOrId));
+  if(!this.isFilteredDeck(d))return null;
+  const raw=d.filteredConfig||{},def=this.filteredDefaults();
+  const terms=Array.isArray(raw.searchTerms)?raw.searchTerms:
+    (Array.isArray(raw.search_terms)?raw.search_terms:def.searchTerms);
+  return Object.assign({},def,raw,{
+    searchTerms:terms.slice(0,2).map(t=>({
+      search:String(t&&t.search||''),
+      limit:Math.max(0,Math.floor(Number(t&&t.limit)||0)),
+      order:Number.isInteger(Number(t&&t.order))?Number(t.order):this.FILTERED_ORDERS.RANDOM
+    }))
+  });
+};
+AnkiParity._clearFilteredFields=function(patch){
+  Object.assign(patch,{
+    originalDeckId:null,originalDue:null,originalDueTs:null,originalPhase:null,
+    filteredPosition:null,filteredReschedule:null,filteredDeckId:null
+  });
+  return patch;
+};
+AnkiParity._restoreFilteredCardPatch=function(card){
+  const p={
+    deckId:card.originalDeckId||null,
+    due:card.originalDue||todayCards(),
+    dueTs:card.originalDueTs==null?null:card.originalDueTs,
+    phase:card.originalPhase||card.phase
+  };
+  return this._clearFilteredFields(p);
+};
+AnkiParity.emptyFilteredDeck=function(deckId){
+  if(!this.isFilteredDeck(deckId))return 0;
+  const cards=DB.getCards();let n=0;
+  cards.forEach(card=>{
+    if(String(card.deckId)!==String(deckId)||!card.originalDeckId)return;
+    Object.assign(card,this._restoreFilteredCardPatch(card));card.updatedAt=new Date().toISOString();n++;
+  });
+  if(n)DB.saveCards(cards);
+  CardEngine.invalidateDueCache();
+  return n;
+};
+AnkiParity.removeFromFilteredAfterReschedule=function(card,patch){
+  if(!card||!card.originalDeckId)return patch||{};
+  const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId));
+  const cfg=this.filteredConfig(deck);
+  if(!cfg||!cfg.reschedule)return patch||{};
+  const out=Object.assign({},patch||{},{deckId:card.originalDeckId});
+  return this._clearFilteredFields(out);
+};
+AnkiParity._noteTagsForCard=function(card){
+  const note=this.getNote(this.noteId(card));
+  const tags=(note&&Array.isArray(note.tags))?note.tags:(Array.isArray(card&&card.tags)?card.tags:[]);
+  return tags.map(String);
+};
+AnkiParity._splitSearchTop=function(expr,mode){
+  expr=String(expr||'').trim();const out=[];let cur='',depth=0,quote=false;
+  const flush=()=>{const x=cur.trim();if(x)out.push(x);cur='';};
+  for(let i=0;i<expr.length;i++){
+    const ch=expr[i];
+    if(ch==='"'){quote=!quote;cur+=ch;continue;}
+    if(!quote){
+      if(ch==='('){depth++;cur+=ch;continue;}
+      if(ch===')'){depth=Math.max(0,depth-1);cur+=ch;continue;}
+      if(depth===0&&mode==='or'&&expr.slice(i,i+4).toUpperCase()===' OR '){flush();i+=3;continue;}
+      if(depth===0&&mode==='and'&&/\s/.test(ch)){flush();while(i+1<expr.length&&/\s/.test(expr[i+1]))i++;continue;}
+    }
+    cur+=ch;
+  }
+  flush();return out;
+};
+AnkiParity._stripOuterParens=function(s){
+  s=String(s||'').trim();
+  while(s[0]==='('&&s[s.length-1]===')'){
+    let d=0,q=false,ok=true;
+    for(let i=0;i<s.length;i++){
+      if(s[i]==='"')q=!q;
+      if(q)continue;
+      if(s[i]==='(')d++;else if(s[i]===')')d--;
+      if(d===0&&i<s.length-1){ok=false;break;}
+    }
+    if(!ok)break;s=s.slice(1,-1).trim();
+  }
+  return s;
+};
+AnkiParity._filteredTermMatches=function(card,term){
+  term=this._stripOuterParens(term);
+  if(!term)return true;
+  if(term[0]==='-')return !this._filteredTermMatches(card,term.slice(1));
+  if(/^not:/i.test(term))return !this._filteredTermMatches(card,term.slice(4));
+  const m=term.match(/^([^:]+):(.*)$/),key=m?m[1].toLowerCase():'',raw=m?m[2]:'';
+  const val=String(raw||'').replace(/^"(.*)"$/,'$1');
+  const homeId=card.originalDeckId||card.deckId;
+  if(key==='deck'){
+    const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(homeId));
+    if(!d)return false;const n=String(d.nome||'').toLowerCase(),want=val.toLowerCase();
+    return n===want||n.startsWith(want+'::');
+  }
+  if(key==='is'){
+    const ph=String(card.originalPhase||card.phase||(((card.reps||0)>0&&(card.intervalo||0)>0)?'review':'new')).toLowerCase();
+    const v=val.toLowerCase();
+    if(v==='new')return ph==='new';
+    if(v==='review')return ph==='review';
+    if(v==='learn'||v==='learning')return ph==='learning'||ph==='relearning';
+    if(v==='suspended')return !!card.suspenso;
+    if(v==='buried')return CardEngine.estaEnterrado(card);
+    if(v==='due')return ph!=='new'&&(
+      card.originalDueTs?card.originalDueTs<=Date.now():(card.originalDue||card.due||todayCards())<=todayCards()
+    );
+  }
+  if(key==='added'){
+    const days=Math.max(0,Number(val)||0),ts=Date.parse(card.createdAt||'');
+    return Number.isFinite(ts)&&ts>=Date.now()-days*86400000;
+  }
+  if(key==='rated'){
+    const bits=val.split(':'),days=Math.max(0,Number(bits[0])||0),grade=bits.length>1?Number(bits[1]):null;
+    const cutoff=Date.now()-days*86400000;
+    return DB.getRevlog().some(r=>String(r.cardId)===String(card.id)&&(Number(r.ts)||0)>=cutoff&&(grade==null||Number(r.grade)===grade));
+  }
+  if(key==='tag'){
+    const want=val.toLowerCase();
+    return this._noteTagsForCard(card).some(t=>{const x=t.toLowerCase();return x===want||x.startsWith(want+'::');});
+  }
+  if(key==='prop'){
+    const pm=val.match(/^due\s*(<=|>=|=|<|>)\s*(-?\d+)$/i);
+    if(pm){
+      const due=card.originalDue||card.due||todayCards(),delta=CardEngine._daysBetween(todayCards(),due);
+      const n=Number(pm[2]),op=pm[1];
+      return op==='<='?delta<=n:op==='>='?delta>=n:op==='<'?delta<n:op==='>'?delta>n:delta===n;
+    }
+  }
+  const needle=term.replace(/^"|"$/g,'').toLowerCase();
+  const hay=[card.frente,card.verso,card.assunto,card.materia,card.materiaTec,card.banca].filter(Boolean).join(' ').replace(/<[^>]+>/g,' ').toLowerCase();
+  return hay.includes(needle);
+};
+AnkiParity.filteredSearchMatches=function(card,expr){
+  expr=this._stripOuterParens(expr);if(!expr)return true;
+  const ors=this._splitSearchTop(expr,'or');
+  if(ors.length>1)return ors.some(x=>this.filteredSearchMatches(card,x));
+  const ands=this._splitSearchTop(expr,'and');
+  if(ands.length>1)return ands.every(x=>this.filteredSearchMatches(card,x));
+  return this._filteredTermMatches(card,expr);
+};
+AnkiParity._filteredSort=function(cards,order){
+  const xs=cards.slice(),lastReview=(c)=>{
+    let max=0;DB.getRevlog().forEach(r=>{if(String(r.cardId)===String(c.id))max=Math.max(max,Number(r.ts)||0);});return max;
+  };
+  const overdue=(c)=>{
+    const iv=Math.max(1,Number(c.intervalo)||1),due=c.originalDue||c.due||todayCards();
+    const late=Math.max(0,CardEngine._daysBetween(due,todayCards()));return (late+iv)/iv;
+  };
+  const R=c=>CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId));
+  switch(Number(order)){
+    case 0:xs.sort((a,b)=>lastReview(a)-lastReview(b));break;
+    case 1:for(let i=xs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[xs[i],xs[j]]=[xs[j],xs[i]];}break;
+    case 2:xs.sort((a,b)=>(a.intervalo||0)-(b.intervalo||0));break;
+    case 3:xs.sort((a,b)=>(b.intervalo||0)-(a.intervalo||0));break;
+    case 4:xs.sort((a,b)=>(b.lapses||0)-(a.lapses||0));break;
+    case 5:xs.sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));break;
+    case 6:xs.sort((a,b)=>String(a.originalDue||a.due||'').localeCompare(String(b.originalDue||b.due||'')));break;
+    case 7:xs.sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));break;
+    case 8:xs.sort((a,b)=>R(a)-R(b));break;
+    case 9:xs.sort((a,b)=>R(b)-R(a));break;
+    case 10:xs.sort((a,b)=>overdue(b)-overdue(a));break;
+  }
+  return xs;
+};
+AnkiParity.rebuildFilteredDeck=function(deckId){
+  const deck=DB.getDecks().find(d=>String(d.id)===String(deckId));
+  const cfg=this.filteredConfig(deck);if(!cfg)return 0;
+  this.emptyFilteredDeck(deckId);
+  try{this.ensureIdentities();this.ensureCanonicalNotes();}catch(_){}
+  const all=DB.getCards(),picked=[],seen=new Set();
+  for(const term of cfg.searchTerms.slice(0,2)){
+    const candidates=all.filter(card=>{
+      if(card.suspenso||CardEngine.estaEnterrado(card)||card.originalDeckId)return false;
+      if(String(card.deckId)===String(deckId))return false;
+      return this.filteredSearchMatches(card,term.search);
+    });
+    const ordered=this._filteredSort(candidates,term.order);
+    const lim=Math.max(0,Number(term.limit)||0);
+    for(const card of ordered.slice(0,lim)){
+      if(seen.has(String(card.id)))continue;seen.add(String(card.id));picked.push(card);
+    }
+  }
+  picked.forEach((card,i)=>{
+    card.originalDeckId=card.deckId;
+    card.originalDue=card.due||todayCards();
+    card.originalDueTs=card.dueTs==null?null:card.dueTs;
+    card.originalPhase=card.phase||(((card.reps||0)>0&&(card.intervalo||0)>0)?'review':'new');
+    card.filteredPosition=-100000+i;
+    card.filteredReschedule=!!cfg.reschedule;card.filteredDeckId=deck.id;
+    card.deckId=deck.id;card.due=todayCards();card.dueTs=null;card.updatedAt=new Date().toISOString();
+  });
+  if(picked.length)DB.saveCards(all);
+  CardEngine.invalidateDueCache();
+  return picked.length;
+};
+AnkiParity.saveFilteredDeck=function(input){
+  input=input||{};const decks=DB.getDecks(),id=input.id||DB._uid(),old=decks.find(d=>String(d.id)===String(id));
+  const cfg=Object.assign(this.filteredDefaults(),input.config||input.filteredConfig||{});
+  cfg.searchTerms=(cfg.searchTerms||[]).slice(0,2);
+  const deck=Object.assign(old||{},{
+    id,nome:String(input.nome||input.name||(old&&old.nome)||'Baralho filtrado').trim()||'Baralho filtrado',
+    kind:'filtered',filtered:true,filteredConfig:cfg,configId:null,
+    createdAt:(old&&old.createdAt)||new Date().toISOString(),updatedAt:new Date().toISOString()
+  });
+  if(old)Object.assign(old,deck);else decks.push(deck);
+  DB.saveDecks(decks);
+  const count=this.rebuildFilteredDeck(id);
+  if(count===0&&!input.allowEmpty){
+    if(!old)DB.saveDecks(DB.getDecks().filter(d=>String(d.id)!==String(id)));
+    else DB.saveDecks(decks);
+    return {ok:false,count:0,deck:null};
+  }
+  return {ok:true,count,deck};
+};
+AnkiParity.previewFilteredAnswer=function(card,grade){
+  if(!card||!card.originalDeckId)return null;
+  const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId)),cfg=this.filteredConfig(deck);
+  if(!cfg||cfg.reschedule)return null;
+  const g=String(grade||'bom');
+  const secs=g==='errei'||g==='naosei'?Number(cfg.previewAgainSecs)||0:
+    g==='dificil'?Number(cfg.previewHardSecs)||0:
+    g==='bom'||g==='sei'?Number(cfg.previewGoodSecs)||0:0;
+  if(secs<=0)return Object.assign(this._restoreFilteredCardPatch(card),{_filteredPreview:true,_filteredFinished:true});
+  const delay=(typeof this.learningFuzzSeconds==='function')?this.learningFuzzSeconds(card,secs):secs;
+  return {
+    deckId:card.deckId,due:todayCards(),dueTs:Date.now()+delay*1000,
+    phase:card.phase,status:card.status,_filteredPreview:true,_filteredFinished:false
+  };
+};
+AnkiParity.customStudy=function(input){
+  input=input||{};const deckId=input.deckId;
+  const home=DB.getDecks().find(d=>String(d.id)===String(deckId));if(!home||this.isFilteredDeck(home))return {ok:false,count:0,error:'normal-deck-required'};
+  const name='Estudo Personalizado',kind=String(input.kind||''),days=Math.max(0,Number(input.days)||0);
+  const esc=String(home.nome||'').replace(/"/g,'\\"');
+  if(kind==='newLimitDelta'||kind==='reviewLimitDelta'){
+    const key=kind==='newLimitDelta'?'newPerDay':'revPerDay',delta=Number(input.delta)||0;
+    const cfg=CardsConfig.forDeck(deckId),next=Math.max(0,(Number(cfg[key])||0)+delta);
+    const existing=CardsConfig.getDeckPreset?CardsConfig.getDeckPreset(deckId):{};
+    CardsConfig.setDeckPreset(deckId,Object.assign({},existing||{},{[key]:next}));
+    return {ok:true,count:0,limitOnly:true};
+  }
+  let cfg=this.filteredDefaults(),term={search:'deck:"'+esc+'"',limit:99999,order:this.FILTERED_ORDERS.RANDOM};
+  if(kind==='forgot'){
+    term.search+=' rated:'+days+':1';cfg.reschedule=false;term.order=this.FILTERED_ORDERS.RANDOM;
+  }else if(kind==='ahead'){
+    term.search+=' prop:due<='+days+' -is:new';cfg.reschedule=true;term.order=this.FILTERED_ORDERS.DUE;
+  }else if(kind==='preview'){
+    term.search+=' is:new added:'+days;cfg.reschedule=false;term.order=this.FILTERED_ORDERS.ADDED;
+  }else if(kind==='cram'){
+    const ck=String(input.cramKind||'due'),limit=Math.max(0,Number(input.limit)||0);
+    cfg.reschedule=ck!=='all';term.limit=limit;
+    if(ck==='new'){term.search+=' is:new';term.order=this.FILTERED_ORDERS.ADDED;}
+    else if(ck==='due'){term.search+=' is:due';term.order=this.FILTERED_ORDERS.DUE;}
+    else if(ck==='review'){term.search+=' -is:new';term.order=this.FILTERED_ORDERS.RANDOM;}
+    else {term.order=this.FILTERED_ORDERS.RANDOM;}
+    const inc=(input.includeTags||[]).map(String).filter(Boolean),exc=(input.excludeTags||[]).map(String).filter(Boolean);
+    if(inc.length)term.search+=' ('+inc.map(t=>'tag:"'+t.replace(/"/g,'\\"')+'"').join(' OR ')+')';
+    if(exc.length)term.search+=' '+exc.map(t=>'-tag:"'+t.replace(/"/g,'\\"')+'"').join(' ');
+  }else return {ok:false,count:0,error:'unknown-kind'};
+  cfg.searchTerms=[term];cfg.previewDelay=10;cfg.previewAgainSecs=60;cfg.previewHardSecs=600;cfg.previewGoodSecs=0;
+  const existing=DB.getDecks().find(d=>String(d.nome||'').toLowerCase()===name.toLowerCase());
+  if(existing&&!this.isFilteredDeck(existing))return {ok:false,count:0,error:'name-conflict'};
+  return this.saveFilteredDeck({id:existing&&existing.id,nome:name,config:cfg,allowEmpty:false});
+};
+
 AnkiParity.installConfigParity();
 try{if(typeof window!=='undefined')window.AnkiParity=AnkiParity;}catch(e){_quiet(e,'anki-parity-global');}
