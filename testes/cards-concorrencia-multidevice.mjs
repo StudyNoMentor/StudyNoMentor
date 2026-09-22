@@ -123,4 +123,23 @@ await R.hydrateProfile('p1',{skipWatermark:true,includeHeavy:false});
 assert.deepEqual(order.slice(0,3),['replay','load','apply'],
   'outbox offline deve ser drenada antes de carregar/aplicar a nuvem');
 
-console.log('CONCORRÊNCIA CARDS: replay idempotente, LWW seguro, ordenação estável e hydrate-after-outbox válidos.');
+// 6) Stress concorrente: milhares de respostas de dois aparelhos em ordens opostas.
+// Cada reviewId deve aparecer uma única vez; snapshot remoto mais novo nunca regride.
+const beforeStress=reviewRows.size,cardWritesBefore=calls.filter(x=>x.table==='study_cards').length;
+for(let i=0;i<5000;i++){
+  remoteUpdatedAt='2026-09-22T10:00:00.000Z';
+  const newer=(i%2)===1,op={
+    ...baseOp,
+    row:{...baseOp.row,reviewId:'stress-'+i,ts:100000+i,_position:(i%37)+1},
+    cardAfter:{...baseOp.cardAfter,updatedAt:newer?'2026-09-22T11:00:00.000Z':'2026-09-22T09:00:00.000Z',reps:i+3}
+  };
+  await R._commitReviewOutboxOp(op);
+  await R._commitReviewOutboxOp(op); // replay do outro dispositivo / reconexão
+}
+assert.equal(reviewRows.size,beforeStress+5000,'5.000 reviewIds concorrentes devem permanecer idempotentes');
+const stressCardWrites=calls.filter(x=>x.table==='study_cards').length-cardWritesBefore;
+assert.equal(stressCardWrites,5000,'cada snapshot realmente mais novo escreve em dois replays idempotentes; stale nunca escreve');
+const uniqueStress=new Set([...reviewRows.keys()].filter(x=>x.startsWith('stress-')));
+assert.equal(uniqueStress.size,5000,'nenhuma revisão concorrente pode desaparecer ou colidir');
+
+console.log('CONCORRÊNCIA CARDS: 5.000 conflitos + replay idempotente, LWW seguro, ordenação estável e hydrate-after-outbox válidos.');
