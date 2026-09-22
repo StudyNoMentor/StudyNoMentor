@@ -271,7 +271,14 @@ const CardsScreen = {
       }
       return h >>> 0;
     };
-    const rndRev = c => fnv32(String(c.id || '') + '|' + String(c.updatedAt || c.createdAt || ''));
+    const rndCache = new Map();
+    const rndRev = c => {
+      const k = String(c && c.id || '');
+      if (rndCache.has(k)) return rndCache.get(k);
+      const v = fnv32(k + '|' + String(c && (c.updatedAt || c.createdAt) || ''));
+      rndCache.set(k, v);
+      return v;
+    };
     const ORDENADORES = {
       retrievabilityAsc:  (a, b) => R(a) - R(b) || rndRev(a) - rndRev(b),
       retrievabilityDesc: (a, b) => R(b) - R(a) || rndRev(a) - rndRev(b),
