@@ -119,7 +119,7 @@ const AnkiProductParity = {
         <div class="cards-modal-box anki-whiteboard-box">
           <div class="cards-modal-head"><div><h2>✍ Quadro</h2><p class="sub">Rascunho temporário da revisão. Não altera o card.</p></div><button type="button" class="icon-btn" data-ap-close="anki-whiteboard-modal">✕</button></div>
           <div class="cards-modal-body"><canvas id="anki-whiteboard"></canvas></div>
-          <div class="cards-modal-foot"><button type="button" class="btn-secondary" id="anki-whiteboard-clear">Limpar</button><span style="flex:1"></span><button type="button" class="btn-primary" data-ap-close="anki-whiteboard-modal">Fechar</button></div>
+          <div class="cards-modal-foot"><button type="button" class="btn-secondary" id="anki-whiteboard-undo">↶ Desfazer</button><button type="button" class="btn-secondary" id="anki-whiteboard-redo">↷ Refazer</button><button type="button" class="btn-secondary" id="anki-whiteboard-clear">Limpar</button><span style="flex:1"></span><button type="button" class="btn-primary" data-ap-close="anki-whiteboard-modal">Fechar</button></div>
         </div>
       </div>
     `;
@@ -141,8 +141,16 @@ const AnkiProductParity = {
       const before=beforeId&&document.getElementById(beforeId);if(before&&before.parentNode===menu)menu.insertBefore(b,before);else menu.appendChild(b);
     };
     insert('cards-browser-btn','🗃️ Navegador de notas',()=>this.openBrowser(),'cards-stats-btn');
+    insert('cards-shared-decks-btn','🌐 Baralhos compartilhados',()=>this.openSharedDecks(),'cards-import-btn');
     insert('cards-notetypes-btn','🧩 Tipos de nota',()=>this.openNotetypes(),'cards-import-btn');
     insert('cards-check-collection-btn','🛠 Verificar coleção',()=>this.openCheck(),'cards-empty-btn');
+  },
+
+  openSharedDecks(){
+    const url='https://ankiweb.net/shared/decks/';
+    const w=window.open(url,'_blank','noopener,noreferrer');
+    if(!w)showToast('Permita abrir nova aba para acessar os baralhos compartilhados do AnkiWeb.');
+    else showToast('Baixe o .apkg no AnkiWeb e use ↑ Importar no Study.');
   },
 
   _cardsForNote(id){ const k=String(id);return DB.getCards().filter(c=>this.noteId(c)===k); },
@@ -595,12 +603,15 @@ const AnkiProductParity = {
 
   openReviewerActions(){
     const c=this._currentReviewCard();if(!c)return;
-    UI.prompt([{key:'action',label:'Ação',type:'select',value:'tags',options:[
+    const opts=[
       {value:'tags',label:'🏷 Editar etiquetas'},{value:'media',label:'▶ Repetição de mídia'},{value:'tts',label:'🎙 Reproduzir voz'},
       {value:'whiteboard',label:'✍ Quadro'},{value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}
-    ]}],{title:'⋯ Mais ações',okText:'Abrir'}).then(v=>{
+    ];
+    if((CardsScreen._redoStack||[]).length)opts.unshift({value:'redo',label:'↷ Refazer última ação'});
+    UI.prompt([{key:'action',label:'Ação',type:'select',value:opts[0].value,options:opts}],{title:'⋯ Mais ações',okText:'Abrir'}).then(v=>{
       if(!v)return;const nid=this.noteId(c);
-      if(v.action==='tags')this.editTags([nid]);
+      if(v.action==='redo')CardsScreen.redoAnswer();
+      else if(v.action==='tags')this.editTags([nid]);
       else if(v.action==='media')this.replayMedia(c);
       else if(v.action==='tts')this.speakCard(c);
       else if(v.action==='whiteboard')this.openWhiteboard();
@@ -626,16 +637,36 @@ const AnkiProductParity = {
   },
 
   openWhiteboard(){
-    const modal=document.getElementById('anki-whiteboard-modal');modal.style.display='flex';requestAnimationFrame(()=>this._resizeWhiteboard(true));
+    this._wbUndo=[];this._wbRedo=[];
+    const modal=document.getElementById('anki-whiteboard-modal');modal.style.display='flex';requestAnimationFrame(()=>{this._resizeWhiteboard(true);this._syncWhiteboardButtons();});
+  },
+
+  _wbSnapshot(c,ctx){try{return ctx.getImageData(0,0,c.width,c.height);}catch(_){return null;}},
+  _wbPushUndo(c,ctx){
+    const snap=this._wbSnapshot(c,ctx);if(!snap)return;
+    (this._wbUndo=this._wbUndo||[]).push(snap);if(this._wbUndo.length>30)this._wbUndo.shift();
+    this._wbRedo=[];this._syncWhiteboardButtons();
+  },
+  _wbRestore(stack,target,c,ctx){
+    const snap=stack&&stack.pop();if(!snap)return;
+    const cur=this._wbSnapshot(c,ctx);if(cur)(target=target||[]).push(cur);
+    if(snap.width===c.width&&snap.height===c.height)ctx.putImageData(snap,0,0);
+    this._syncWhiteboardButtons();
+  },
+  _syncWhiteboardButtons(){
+    const u=document.getElementById('anki-whiteboard-undo'),r=document.getElementById('anki-whiteboard-redo');
+    if(u)u.disabled=!(this._wbUndo||[]).length;if(r)r.disabled=!(this._wbRedo||[]).length;
   },
 
   _bindWhiteboard(){
     const c=document.getElementById('anki-whiteboard'),ctx=c.getContext('2d');let draw=false,last=null;
     const pos=e=>{const r=c.getBoundingClientRect(),p=e.touches?e.touches[0]:e;return {x:(p.clientX-r.left)*c.width/r.width,y:(p.clientY-r.top)*c.height/r.height};};
-    const start=e=>{draw=true;last=pos(e);e.preventDefault();},move=e=>{if(!draw)return;const p=pos(e);ctx.lineWidth=Math.max(2,c.width/300);ctx.lineCap='round';ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#111';ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;e.preventDefault();},end=()=>{draw=false;last=null;};
+    const start=e=>{this._wbPushUndo(c,ctx);draw=true;last=pos(e);e.preventDefault();},move=e=>{if(!draw)return;const p=pos(e);ctx.lineWidth=Math.max(2,c.width/300);ctx.lineCap='round';ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--text').trim()||'#111';ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;e.preventDefault();},end=()=>{draw=false;last=null;this._syncWhiteboardButtons();};
     c.addEventListener('pointerdown',start);c.addEventListener('pointermove',move);window.addEventListener('pointerup',end);
-    document.getElementById('anki-whiteboard-clear').addEventListener('click',()=>ctx.clearRect(0,0,c.width,c.height));
-    window.addEventListener('resize',()=>{if(document.getElementById('anki-whiteboard-modal').style.display==='flex')this._resizeWhiteboard(false);});
+    document.getElementById('anki-whiteboard-undo').addEventListener('click',()=>this._wbRestore(this._wbUndo,this._wbRedo,c,ctx));
+    document.getElementById('anki-whiteboard-redo').addEventListener('click',()=>this._wbRestore(this._wbRedo,this._wbUndo,c,ctx));
+    document.getElementById('anki-whiteboard-clear').addEventListener('click',()=>{this._wbPushUndo(c,ctx);ctx.clearRect(0,0,c.width,c.height);this._syncWhiteboardButtons();});
+    window.addEventListener('resize',()=>{if(document.getElementById('anki-whiteboard-modal').style.display==='flex'){this._resizeWhiteboard(false);this._wbUndo=[];this._wbRedo=[];this._syncWhiteboardButtons();}});
   },
 
   _resizeWhiteboard(clear){
