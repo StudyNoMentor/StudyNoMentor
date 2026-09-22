@@ -145,9 +145,13 @@ const AnkiParity = {
   cmpBig(a,b){return a<b?-1:(a>b?1:0);},
   stableNewSort(cards,mode){
     const xs=cards.slice(),days=this.daysElapsed(),salt=this.knuthSalt(days);
-    const ord=c=>Math.max(0,Number(c&&c.ankiTemplateOrd)!=null?Number(c.ankiTemplateOrd):(c&&c.template==='reverse'?1:0));
+    const ord=c=>{
+      const raw=Number(c&&c.ankiTemplateOrd);
+      return Number.isFinite(raw)?Math.max(0,raw):(c&&c.template==='reverse'?1:0);
+    };
     const cid=c=>this.newCardHash(c,days),nid=c=>this.newNoteHash(c,days);
-    if(mode==='templateRandom')xs.sort((a,b)=>ord(a)-ord(b)||this.cmpBig(cid(a),cid(b)));
+    if(mode==='template')xs.sort((a,b)=>ord(a)-ord(b));
+    else if(mode==='templateRandom')xs.sort((a,b)=>ord(a)-ord(b)||this.cmpBig(cid(a),cid(b)));
     else if(mode==='randomNoteTemplate')xs.sort((a,b)=>this.cmpBig(nid(a),nid(b))||ord(a)-ord(b));
     else if(mode==='randomCard')xs.sort((a,b)=>this.cmpBig(cid(a),cid(b)));
     else if(mode==='gatherRandomNotes')xs.sort((a,b)=>this.cmpBig(this.newNoteHash(a,salt),this.newNoteHash(b,salt))||ord(a)-ord(b));
