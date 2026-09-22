@@ -71,11 +71,13 @@ jobs:
           python testes/anki-oficial-roundtrip.py
           node testes/cards-import-anki-oficial.mjs
 
-      - name: Simulacao anual 6000 cards x 365 dias
+      - name: Auditoria exaustiva dos Cards
         if: github.event_name != 'push'
         shell: bash
         run: |
           set -euo pipefail
+          node audit/cards-20260921/functions.mjs
+          node audit/cards-20260921-v2/regressao.mjs
           node audit/cards-20260921/simulate.mjs
 
       - name: Sincronizar artefatos gerados na main
