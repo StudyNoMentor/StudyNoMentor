@@ -27,6 +27,9 @@ assert.match(typedQ,/snm-anki-type-input/,'type:Field precisa virar campo de dig
 R._typedAnswers.set('123|Front','Correta');
 const typedA=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
 assert.match(typedA,/is-correct/,'resposta digitada precisa sobreviver ao flip e ser comparada');
+R.clearTyped({id:123});
+assert.equal(R._typedAnswers.has('123|Front'),false,'resposta digitada deve ser limpa ao avançar o card');
+assert.equal(R._needsMath('Preço: R$ 100'),false,'valor monetário não deve carregar MathJax');
 const hidden=R.renderFrame(nt,html,'answer',{id:123},false);
 assert.doesNotMatch(hidden,/<iframe/,'lado oculto não pode executar JS/TTS antes do flip');
 console.log('RUNTIME ANKI: CSS, HTML expansível, JS sandboxado, TTS, MathJax e flip validados.');
