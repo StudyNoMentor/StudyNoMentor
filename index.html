@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v39494bfb7e">
+<meta name="diario-versao" content="v1ab3056dfa">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -28288,7 +28288,14 @@ const CardsScreen = {
       }
       return h >>> 0;
     };
-    const rndRev = c => fnv32(String(c.id || '') + '|' + String(c.updatedAt || c.createdAt || ''));
+    const rndCache = new Map();
+    const rndRev = c => {
+      const k = String(c && c.id || '');
+      if (rndCache.has(k)) return rndCache.get(k);
+      const v = fnv32(k + '|' + String(c && (c.updatedAt || c.createdAt) || ''));
+      rndCache.set(k, v);
+      return v;
+    };
     const ORDENADORES = {
       retrievabilityAsc:  (a, b) => R(a) - R(b) || rndRev(a) - rndRev(b),
       retrievabilityDesc: (a, b) => R(b) - R(a) || rndRev(a) - rndRev(b),
