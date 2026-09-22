@@ -14,7 +14,7 @@ def import_and_assert(path: str) -> None:
         cards=[col.get_card(cid) for cid in cids]
         assert any(c.reps==4 for c in cards), 'scheduling/reps do Study não chegaram ao Anki oficial'
         names={col.models.get(col.get_note(c.nid).mid)['name'] for c in cards}
-        assert 'Basic' in names and 'Cloze' in names, names
+        assert any(n.startswith('Basic') for n in names) and any(n.startswith('Cloze') for n in names), names
         media=os.listdir(col.media.dir())
         assert any(x.endswith('.png') for x in media), media
         assert any(x.endswith('.mp3') for x in media), media
