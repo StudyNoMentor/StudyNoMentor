@@ -240,7 +240,7 @@ const AnkiParity = {
   },
 
   autoBurySiblings(card){
-    if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.deckId),nid=String(card.noteId);let n=0;
+    if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),nid=String(card.noteId);let n=0;
     const buried=[];
     DB.getCards().forEach(s=>{
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
