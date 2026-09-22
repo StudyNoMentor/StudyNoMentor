@@ -107,6 +107,30 @@ const otherDeck=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\nR
 I.importText(otherDeck,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'update',matchScope:'notetype-and-deck',forceIsHtml:true,isHtml:true});
 assert.equal(state.notes.size,3,'MatchScope NoteType+Deck não pode casar nota em outro baralho');
 
+// Merge de Note Types: preserva campos/templates dos dois lados e remapeia ords,
+// inclusive quando um lado tem IDs modernos e o outro só ordinais legados.
+const existingNt={id:10,ankiId:10,name:'Basic',kind:'normal',
+  fields:[{name:'Front',ord:0},{name:'Back',ord:1},{name:'LegacyExtra',ord:2}],
+  templates:[{name:'Card 1',ord:0,qfmt:'{{Front}}',afmt:'{{Back}}'}]};
+const incomingNt={id:10,ankiId:10,name:'Basic',kind:'normal',
+  fields:[{id:101,name:'Front Renamed',sourceOrd:0,ord:0},{id:102,name:'Back',sourceOrd:1,ord:1},{id:103,name:'IncomingExtra',sourceOrd:2,ord:2}],
+  templates:[{id:201,name:'Card 1 renamed',sourceOrd:0,ord:0,qfmt:'{{Front Renamed}}',afmt:'{{Back}}'},
+             {id:202,name:'Card 2',sourceOrd:1,ord:1,qfmt:'{{Back}}',afmt:'{{Front Renamed}}'}]};
+const merged=I._mergeNotetype(existingNt,incomingNt,true);
+assert.equal(merged.notetype.fields.length,3,'mesma posição legado↔moderno não pode duplicar campo');
+assert.equal(merged.notetype.fields[0].name,'Front Renamed','versão incoming deve poder renomear campo correspondente');
+assert.equal(merged.notetype.fields[2].name,'IncomingExtra','campo incoming no mesmo ordinal substitui versão correspondente');
+assert.equal(merged.notetype.templates.length,2,'template adicional incoming deve ser preservado');
+assert.deepEqual(Array.from(merged.templateOrd),[0,1],'ordinais incoming devem ser remapeados para o merge');
+const union=I._mergeNotetype(
+  {id:11,kind:'normal',fields:[{id:1,name:'Front',ord:0},{id:2,name:'Back',ord:1}],templates:[{id:9,name:'C1',ord:0}]},
+  {id:11,kind:'normal',fields:[{id:1,name:'Front',ord:0},{id:3,name:'Third',ord:1}],templates:[{id:9,name:'C1',ord:0},{id:10,name:'C2',ord:1}]},
+  false
+);
+assert.ok(union.notetype.fields.some(x=>x.name==='Back')&&union.notetype.fields.some(x=>x.name==='Third'),
+  'merge por IDs deve preservar campos exclusivos dos dois lados');
+assert.equal(union.notetype.templates.length,2,'merge deve preservar template exclusivo');
+
 // Pacote Legacy2 real: ZIP -> collection.anki21 -> SQLite -> contagens/metadados.
 const db=new SQL.Database();
 db.run("CREATE TABLE col (id integer PRIMARY KEY, crt integer, ver integer, models text, decks text, dconf text)");
