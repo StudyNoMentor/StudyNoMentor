@@ -301,10 +301,14 @@ const AnkiImport = {
       AnkiParity.saveNote(Object.assign({},note,{fields:nf}));
     }
   },
-  _resolveTextNotetype(value,fallbackId){
+  _findTextNotetype(value){
     const all=AnkiParity.noteTypes(),v=String(value==null?'':value).trim();
-    let nt=v?all.find(x=>String(x.id)===v||String(x.ankiId||'')===v||String(x.name||'').toLowerCase()===v.toLowerCase()):null;
-    if(!nt&&fallbackId!=null)nt=all.find(x=>String(x.id)===String(fallbackId)||String(x.ankiId||'')===String(fallbackId));
+    if(!v)return null;
+    return all.find(x=>String(x.id)===v||String(x.ankiId||'')===v||String(x.name||'').toLowerCase()===v.toLowerCase())||null;
+  },
+  _resolveTextNotetype(value,fallbackId){
+    let nt=this._findTextNotetype(value);
+    if(!nt&&fallbackId!=null)nt=this._findTextNotetype(fallbackId);
     return nt||AnkiParity.stockNotetype('basic');
   },
   _resolveTextDeck(value,fallbackId){
@@ -360,11 +364,36 @@ const AnkiImport = {
       }
     }catch(_){}
   },
+  _snapshotCollectionState(){
+    const values={};
+    try{
+      const p=AnkiParity._planPrefix(),extra=new Set([AnkiParity._presetKey(),CardsConfig.KEY,CardsConfig.PKEY,CardsConfig.DKEY]);
+      for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(k.startsWith(p+'cards-')||extra.has(k)))values[k]=localStorage.getItem(k);}
+    }catch(_){}
+    return {cards:structuredClone(DB.getCards()),decks:structuredClone(DB.getDecks()),revlog:structuredClone(DB.getRevlog()),values};
+  },
+  _restoreCollectionState(s){
+    if(!s)return;
+    this._clearCanonicalCardEntities();
+    try{
+      const p=AnkiParity._planPrefix(),extra=new Set([AnkiParity._presetKey(),CardsConfig.KEY,CardsConfig.PKEY,CardsConfig.DKEY]),del=[];
+      for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(k.startsWith(p+'cards-')||extra.has(k)))del.push(k);}
+      del.forEach(k=>localStorage.removeItem(k));Object.entries(s.values||{}).forEach(([k,v])=>localStorage.setItem(k,v));
+    }catch(_){}
+    DB.saveCards(structuredClone(s.cards||[]));DB.saveDecks(structuredClone(s.decks||[]));DB.replaceRevlog(structuredClone(s.revlog||[]));
+    if(typeof CardsConfig!=='undefined'){CardsConfig._c=null;CardsConfig._cKey=null;}
+  },
   async importCollectionPackage(parsed){
     if(!parsed||parsed.format!=='colpkg')throw new Error('Collection Package inválido');
-    DB.saveCards([]);DB.saveDecks([]);DB.replaceRevlog([]);this._clearCanonicalCardEntities();
-    if(parsed.meta&&parsed.meta.dconf&&parsed.meta.dconf['1'])CardsConfig.set(this._deckCfg(parsed.meta.dconf['1']));
-    return this.importPackage(parsed,{withScheduling:true,withDeckConfigs:true,mergeNotetypes:false,updateNotes:'always',updateNotetypes:'always'});
+    const backup=this._snapshotCollectionState();
+    try{
+      DB.saveCards([]);DB.saveDecks([]);DB.replaceRevlog([]);this._clearCanonicalCardEntities();
+      if(parsed.meta&&parsed.meta.dconf&&parsed.meta.dconf['1'])CardsConfig.set(this._deckCfg(parsed.meta.dconf['1']));
+      return await this.importPackage(parsed,{withScheduling:true,withDeckConfigs:true,mergeNotetypes:false,updateNotes:'always',updateNotetypes:'always'});
+    }catch(err){
+      this._restoreCollectionState(backup);
+      throw err;
+    }
   },
   async importPackage(parsed,opts){
     opts=opts||{};const SQL=await this._SQL(),db=new SQL.Database(parsed.pkg.collection),meta=parsed.meta;
@@ -472,11 +501,13 @@ const AnkiImport = {
     const clean=v=>html?String(v||''):escapeHtml(String(v||'')).replace(/\n/g,'<br>');
     const report={cards:0,notes:0,updated:0,duplicates:0,preserved:0,conflicting:0};
     for(const row of rows){
-      const at=n=>n>0?String(row[n-1]||''):'',nt=this._resolveTextNotetype(ntCol?at(ntCol):(opts.notetypeId||parsed.globalNotetype),globalNt.id);
+      const at=n=>n>0?String(row[n-1]||''):'',rawNt=ntCol?at(ntCol):(opts.notetypeId||parsed.globalNotetype);
+      const nt=ntCol&&String(rawNt).trim()?this._findTextNotetype(rawNt):this._resolveTextNotetype(rawNt,globalNt.id);
+      if(!nt){report.conflicting++;continue;}
       const deckId=this._resolveTextDeck(deckCol?at(deckCol):parsed.globalDeck,opts.deckId||null);
       const regs=regular(row),fields={},maps=Array.isArray(opts.fieldColumns)?opts.fieldColumns.map(Number):null;
       (nt.fields||[]).forEach((f,i)=>{
-        let col=maps&&maps[i]?maps[i]:0;
+        let col=maps&&maps[i]&&!special.has(Number(maps[i]))?Number(maps[i]):0;
         if(!col&&parsed.columns&&parsed.columns.length){const hit=parsed.columns.findIndex((x,j)=>!special.has(j+1)&&String(x).trim().toLowerCase()===String(f.name).trim().toLowerCase());if(hit>=0)col=hit+1;}
         if(!col)col=regs[i]||0;fields[f.name]=clean(at(col));
       });
