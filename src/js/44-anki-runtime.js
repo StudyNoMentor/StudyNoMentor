@@ -19,12 +19,12 @@ const AnkiRuntime = {
       (m, attrs, body) => '<span class="snm-anki-tts" data-anki-tts="' + this._escAttr(attrs) + '">' + body + '</span>');
   },
   _latexMarkup(html) {
-    return String(html || '').replace(/\[latex\]([\s\S]*?)\[\/latex\]/gi,(m,x)=>'\\\\['+x+'\\\\]')
-      .replace(/\[\$\]([\s\S]*?)\[\/\$\]/gi,(m,x)=>'\\\\('+x+'\\\\)');
+    return String(html || '').replace(/\[latex\]([\s\S]*?)\[\/latex\]/gi,(m,x)=>'\\['+x+'\\]')
+      .replace(/\[\$\]([\s\S]*?)\[\/\$\]/gi,(m,x)=>'\\('+x+'\\)');
   },
   _needsMath(html) {
     const s=String(html||'');
-    return s.includes('\\\\(')||s.includes('\\\\[')||s.includes('$')||/\\\\begin\{/.test(s)||/<anki-mathjax\b/i.test(s);
+    return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$')||/<anki-mathjax\b/i.test(s);
   },
   _typeMarkup(html,side,card,note){
     const self=this,key=this._cardKey(card),fields=note&&note.fields||{};
