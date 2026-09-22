@@ -284,12 +284,12 @@ const CardsScreen = {
       retrievabilityDesc: (a, b) => R(b) - R(a) || rndRev(a) - rndRev(b),
       relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a) || rndRev(a) - rndRev(b),
       day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || rndRev(a) - rndRev(b),
-      intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0),
-      intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0),
-      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0),     // no FSRS a dificuldade
-      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0),     // faz o papel do "ease"
-      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')),
-      random:             () => Math.random() - 0.5
+      intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || rndRev(a) - rndRev(b),
+      intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || rndRev(a) - rndRev(b),
+      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0) || rndRev(a) - rndRev(b),     // no FSRS a dificuldade
+      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0) || rndRev(a) - rndRev(b),     // faz o papel do "ease"
+      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || rndRev(a) - rndRev(b),
+      random:             (a, b) => rndRev(a) - rndRev(b)
     };
     const cmp = ORDENADORES[ordemRev];
     if (cmp) revisoes.sort(cmp);
