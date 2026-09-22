@@ -739,9 +739,23 @@ const CardsScreen = {
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
   faceHtml(c) {
-    // Saneia também na SAÍDA (além da entrada, em DB.addCard): assim um card que já
-    // estivesse gravado de antes, ou vindo por um caminho novo, nunca executa nada.
-    // Custo desprezível — é um card por vez, com memória de resultado.
+    // Cards vindos do Anki mantêm a nota/tipo/template canônicos. Renderizar
+    // daqui evita "achatar" templates importados em uma frente/verso estáticos.
+    if (typeof AnkiParity !== 'undefined') {
+      try {
+        const nid = AnkiParity.noteId(c), note = nid ? AnkiParity.getNote(nid) : null;
+        const nt = note ? AnkiParity.noteTypes().find(x => String(x.id) === String(note.notetypeId)) : null;
+        if (note && nt && Array.isArray(nt.templates) && nt.templates.length) {
+          const ord = Number(c.ankiTemplateOrd) || 0;
+          const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
+          const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
+          const front = _sanCard(frontRaw), back = _sanCard(backRaw);
+          return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
+            <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
+        }
+      } catch (e) { _quiet(e, 'anki-template-render'); }
+    }
+    // Legado Study: saneia na saída e mantém o renderer local.
     const cFrente = _sanCard(c.frente), cVerso = _sanCard(c.verso);
     if (c.kind === 'cloze') {
       const ord = Number(c.clozeOrd || ((c.template || '').match(/^cloze:(\\d+)$/) || [])[1]) || 1;
@@ -753,6 +767,7 @@ const CardsScreen = {
     return `<div class="cards-face cards-front">${cFrente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
       <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${cVerso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>`;
   },
+
   // renderiza os botões: "Mostrar resposta" OU os 4 botões de avaliação
   renderActions(box, c) {
     const el = document.getElementById('cards-review-actions');
