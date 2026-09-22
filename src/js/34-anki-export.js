@@ -370,7 +370,9 @@ const AnkiExport = {
   deckConfigSchema(id, name, cfg) {
     const weights = (typeof FSRS !== 'undefined' && FSRS.migrarW) ? (FSRS.migrarW(cfg.weights) || FSRS.DEFAULT_W) : (cfg.weights || []);
     return {
-      id, mod: Math.floor(Date.now() / 1000), name: String(name || 'Default'), usn: -1, maxTaken: 60, autoplay: true, timer: 0, replayq: true,
+      id, mod: Math.floor(Date.now() / 1000), name: String(name || 'Default'), usn: -1,
+      maxTaken: Math.max(0,Math.round(Number(cfg.capAnswerTimeToSecs)||60)),
+      autoplay: !cfg.disableAutoplay, timer: cfg.showTimer?1:0, replayq: !cfg.skipQuestionWhenReplayingAnswer,
       new: {
         bury: !!cfg.buryNew, delays: (cfg.learnSteps || []).map(Number), initialFactor: Math.round((Number(cfg.initialEase) || 2.5) * 1000),
         ints: [Number(cfg.graduatingIntervalGood) || 1, Number(cfg.graduatingIntervalEasy) || 4, 0],
@@ -391,8 +393,17 @@ const AnkiExport = {
       newSortOrder: this._sortNew(cfg.newSortOrder), newGatherPriority: this._gather(cfg.newGatherOrder),
       buryInterdayLearning: !!cfg.buryInterdayLearning, fsrsWeights: [], fsrsParams5: [], fsrsParams6: Array.from(weights || [], Number),
       desiredRetention: Number(cfg.retention) || 0.9, ignoreRevlogsBeforeDate: String(cfg.ignoreRevlogsBefore || ''),
-      easyDaysPercentages: (cfg.easyDays || []).map(x => Number(x) * 100), stopTimerOnAnswer: false,
-      secondsToShowQuestion: 0, secondsToShowAnswer: 0, questionAction: 0, answerAction: 0, waitForAudio: true,
+      easyDaysPercentages: (cfg.easyDays || []).map(x => Number(x) * 100),
+      disableAutoplay: !!cfg.disableAutoplay,
+      capAnswerTimeToSecs: Math.max(0,Math.round(Number(cfg.capAnswerTimeToSecs)||60)),
+      showTimer: !!cfg.showTimer,
+      stopTimerOnAnswer: !!cfg.stopTimerOnAnswer,
+      secondsToShowQuestion: Math.max(0,Number(cfg.secondsToShowQuestion)||0),
+      secondsToShowAnswer: Math.max(0,Number(cfg.secondsToShowAnswer)||0),
+      questionAction: Math.max(0,Math.min(1,Math.round(Number(cfg.questionAction)||0))),
+      answerAction: Math.max(0,Math.min(4,Math.round(Number(cfg.answerAction)||0))),
+      waitForAudio: cfg.waitForAudio!==false,
+      skipQuestionWhenReplayingAnswer: !!cfg.skipQuestionWhenReplayingAnswer,
       sm2Retention: Number(cfg.historicalRetention) || 0.9, weightSearch: String(cfg.paramSearch || '')
     };
   },
@@ -526,6 +537,10 @@ const AnkiExport = {
     p.push(this._pbU32(20,Number(c.new&&c.new.order)||0));
     p.push(this._pbU32(21,Number(c.lapse&&c.lapse.leechAction)||0));
     p.push(this._pbU32(22,Number(c.lapse&&c.lapse.leechFails)||8));
+    p.push(this._pbBool(23,!!c.disableAutoplay));
+    p.push(this._pbU32(24,Math.max(0,Math.round(Number(c.capAnswerTimeToSecs)||60))));
+    p.push(this._pbBool(25,!!c.showTimer));
+    p.push(this._pbBool(26,!!c.skipQuestionWhenReplayingAnswer));
     p.push(this._pbBool(27,!!(c.new&&c.new.bury)));
     p.push(this._pbBool(28,!!(c.rev&&c.rev.bury)));
     p.push(this._pbBool(29,!!c.buryInterdayLearning));
@@ -535,6 +550,7 @@ const AnkiExport = {
     p.push(this._pbU32(33,Number(c.reviewOrder)||0));
     p.push(this._pbU32(34,Number(c.newGatherPriority)||0));
     p.push(this._pbU32(35,Number(c.newPerDayMinimum)||0));
+    p.push(this._pbU32(36,Number(c.questionAction)||0));
     p.push(this._pbFloat(37,Number(c.desiredRetention)||.9));
     p.push(this._pbBool(38,!!c.stopTimerOnAnswer));
     p.push(this._pbFloat(40,Number(c.sm2Retention)||.9));
