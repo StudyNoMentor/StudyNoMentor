@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { criarAmbiente } from '../audit/cards-20260921-v2/harness.mjs';
 
 let checks=0;
-const eq=(a,b,m)=>{checks++;assert.deepEqual(a,b,m);};
+const eq=(a,b,m)=>{checks++;assert.deepEqual(structuredClone(a),structuredClone(b),m);};
 const ok=(v,m)=>{checks++;assert.ok(v,m);};
 const A=criarAmbiente().reset();
 const {DB,CardsConfig,CardEngine,CardsScreen,AnkiParity,FSRS}=A;
