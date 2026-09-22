@@ -436,6 +436,14 @@ for (const algo of ['fsrs', 'sm2']) {
   check('E9', 'Par invertido legado é migrado para uma nota compartilhada sem recriar cards',
     normalizados > 0 && lf.noteId === lr.noteId && lf.template === 'forward' && lr.template === 'reverse' && DB.getCards().length === 2,
     { normalizados, forward:lf, reverse:lr });
+
+  DB.addRevlog({ ts:A.agora()+1, cardId:'lf', grade:3, date:A.hoje(), acerto:true, phase:'review' });
+  DB.addRevlog({ ts:A.agora()+2, cardId:'lr', grade:3, date:A.hoje(), acerto:true, phase:'review' });
+  const removidos=DB.deleteNoteByCard('lr');
+  check('E10', 'Excluir um card irmão pela interface lógica exclui a nota inteira, seus cards e seus revlogs',
+    removidos === 2 && DB.getCard('lf') == null && DB.getCard('lr') == null
+      && DB.getRevlog().every(x => x.cardId !== 'lf' && x.cardId !== 'lr'),
+    { removidos, cards:DB.getCards().length, revlog:DB.getRevlog().length });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
