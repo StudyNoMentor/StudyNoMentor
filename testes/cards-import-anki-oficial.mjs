@@ -27,6 +27,7 @@ const AnkiParity={
  _fieldNonempty:v=>String(v||'').replace(/<[^>]+>/g,'').trim().length>0,clozeOrdinals:text=>[...new Set([...String(text||'').matchAll(/\{\{c(\d+)::/g)].map(m=>Number(m[1])))].sort((a,b)=>a-b)
 };
 const ctx={console,TextEncoder,TextDecoder,Uint8Array,Uint32Array,ArrayBuffer,DataView,Map,Set,Date,JSON,Math,Number,String,Boolean,RegExp,Error,Promise,Blob,Response,DecompressionStream,structuredClone,atob:globalThis.atob,btoa:globalThis.btoa,Buffer,initSqlJs:async()=>SQL,DB,CardsConfig,CardEngine,AnkiParity,todayCards,escapeHtml,globalThis:null};ctx.globalThis=ctx;vm.createContext(ctx);
+vm.runInContext(readFileSync(join(ROOT,'src/vendor/fzstd-0.1.1/fzstd.js'),'utf8'),ctx,{filename:'fzstd.js'});
 for(const p of ['src/js/34-anki-export.js','src/js/35-anki-import.js'])vm.runInContext(readFileSync(join(ROOT,p),'utf8'),ctx,{filename:p});
 vm.runInContext('globalThis.I=AnkiImport;globalThis.X=AnkiExport;',ctx);ctx.X._loadSqlJs=async()=>SQL;
 const bytes=readFileSync(fixture); const file={name:'official.apkg',async arrayBuffer(){return bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);}};
