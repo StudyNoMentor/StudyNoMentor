@@ -117,7 +117,8 @@ DB.saveDecks([
   {id:'other',nome:'Outra',createdAt:new Date().toISOString()}
 ]);
 const tr1=DB.addCard({deckId:'child',materia:'Direito Tributário',assunto:'ICMS',tipo:'lei',banca:'FCC',frente:'Q1',verso:'A1'});
-const tr2=DB.addCard({deckId:'child',materia:'Contabilidade',assunto:'Estoques',tipo:'conceito',frente:'Q2',verso:'A2',suspenso:true});
+const tr2=DB.addCard({deckId:'child',materia:'Contabilidade',assunto:'Estoques',tipo:'conceito',frente:'Q2',verso:'A2'});
+DB.updateCard(tr2.id,{suspenso:true});
 DB.addCard({deckId:'other',materia:'Direito Tributário',assunto:'ICMS',tipo:'lei',frente:'Q3',verso:'A3'});
 eq(FSRS.trainingCardsForScope('root',{paramSearch:'materia:"Direito Tributário" -suspenso'}).map(c=>c.id),
    [tr1.id],'otimizador respeita deck+filhos e param_search documentado');
