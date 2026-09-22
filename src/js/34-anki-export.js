@@ -181,7 +181,9 @@ const AnkiExport = {
     return ({
       'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/gif':'gif','image/webp':'webp','image/bmp':'bmp','image/svg+xml':'svg',
       'audio/mpeg':'mp3','audio/mp3':'mp3','audio/ogg':'ogg','audio/wav':'wav','audio/x-wav':'wav','audio/mp4':'m4a','audio/aac':'aac','audio/flac':'flac',
-      'video/mp4':'mp4','video/webm':'webm','video/ogg':'ogv'
+      'video/mp4':'mp4','video/webm':'webm','video/ogg':'ogv',
+      'text/css':'css','text/javascript':'js','application/javascript':'js','application/json':'json',
+      'font/woff':'woff','font/woff2':'woff2','font/ttf':'ttf','font/otf':'otf','application/pdf':'pdf'
     })[m] || ((m.split('/')[1]||'bin').replace(/[^a-z0-9.+-]/g,'').replace(/^x-/,'')||'bin');
   },
   _storeMedia(bytes, mime, media) {
@@ -194,16 +196,18 @@ const AnkiExport = {
     }
     return item;
   },
-  extractMedia(html, media) {
-    let src=String(html||'');
-    // O importador materializa mídia Anki como data URI. No caminho inverso,
-    // qualquer <img>/<audio>/<video> embutido volta a ser arquivo numerado do
-    // pacote; não limitamos o round-trip a imagens.
-    const re=/<(img|audio|video)\b([^>]*?)\bsrc=(["'])data:([^;,]+);base64,([^"']+)\3([^>]*)>/gi;
-    src=src.replace(re,(m,tag,a,q,mime,b64,z)=>{
-      const item=this._storeMedia(this._base64Bytes(b64),mime,media);
-      return '<'+tag+a+'src='+q+item.name+q+z+'>';
-    });
+  extractMedia(content, media) {
+    let src=String(content||'');
+    const store=(mime,b64)=>{
+      try{return this._storeMedia(this._base64Bytes(b64),mime,media).name;}catch(_){return null;}
+    };
+    // Atributos de qualquer tag: img/audio/video/source/script/link/poster etc.
+    src=src.replace(/\b(src|href|poster)=(["'])data:([^;,"']+)(?:;charset=[^;,"']+)?;base64,([^"']+)\2/gi,
+      (m,attr,q,mime,b64)=>{const name=store(mime,b64);return name?attr+'='+q+name+q:m;});
+    src=src.replace(/url\(\s*(["']?)data:([^;,)"']+)(?:;charset=[^;,)"']+)?;base64,([^)"']+)\1\s*\)/gi,
+      (m,q,mime,b64)=>{const name=store(mime,b64);return name?'url("'+name+'")':m;});
+    src=src.replace(/@import\s+(["'])data:([^;,"']+)(?:;charset=[^;,"']+)?;base64,([^"']+)\1/gi,
+      (m,q,mime,b64)=>{const name=store(mime,b64);return name?'@import '+q+name+q:m;});
     return src;
   },
 
@@ -761,7 +765,14 @@ const AnkiExport = {
       if (!note) continue; notesById.set(nid, note); usedNt.add(String(note.notetypeId));
     }
     const models = {};
-    for (const nt of AnkiParity.noteTypes()) if (usedNt.has(String(nt.id))) models[String(nt.id)] = this.modelSchema(nt);
+    for (const nt of AnkiParity.noteTypes()) if (usedNt.has(String(nt.id))) {
+      const model=this.modelSchema(nt);
+      model.css=this.extractMedia(model.css,media);
+      model.latexPre=this.extractMedia(model.latexPre||'',media);
+      model.latexPost=this.extractMedia(model.latexPost||'',media);
+      for(const t of model.tmpls||[])for(const k of ['qfmt','afmt','bqfmt','bafmt'])t[k]=this.extractMedia(t[k]||'',media);
+      models[String(nt.id)] = model;
+    }
 
     const SQL = await this._loadSqlJs(), db = new SQL.Database(); db.run(this.SCHEMA11);
     const nowMs = Date.now(), conf = {
