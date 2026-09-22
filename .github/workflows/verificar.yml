@@ -7,6 +7,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
   workflow_dispatch:
 
 concurrency:
@@ -96,6 +97,10 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Auditar startup e loaders
         run: node testes/startup-reforco-browser.mjs
+      - name: Auditar cards duraveis, offline e reload
+        run: node testes/cards-durable-browser.mjs
+      - name: Auditar concorrencia de cards e revlog
+        run: node testes/cards-concorrencia-browser.mjs
       - name: Auditar performance do site inteiro
         run: node testes/site-performance-browser.mjs
       - name: Validar modais de Extras no navegador
