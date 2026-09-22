@@ -1,0 +1,14 @@
+/* Image Occlusion — ferramentas avançadas */
+.anki-io-max-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.anki-io-zoom{display:inline-flex;gap:4px;align-items:center}
+.anki-io-color{width:38px;height:36px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface-sunken);display:inline-flex;align-items:center;justify-content:center}
+.anki-io-color input{width:44px;height:44px;border:0;padding:0;background:transparent;cursor:pointer}
+#anki-io-opacity.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.anki-io-stage-editor{overflow:auto;align-items:flex-start;justify-content:flex-start}
+.anki-io-mask-list>div.is-selected{outline:2px solid var(--accent);background:var(--accent-soft)}
+#anki-io-canvas{transform-origin:top left}
+.anki-field-row-max [data-remove]:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:720px){
+  .anki-io-max-tools{width:100%}
+  .anki-io-max-tools>.btn-secondary{flex:1 1 auto}
+}
