@@ -666,17 +666,52 @@ const CardsScreen = {
         <div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div>
     </div>`;
   },
+  _reviewElapsedMs(cfg) {
+    const start=Number(this._reviewStartedAt)||Date.now();
+    const end=(cfg&&cfg.stopTimerOnAnswer&&this._answerShownAt)?Number(this._answerShownAt):Date.now();
+    let ms=Math.max(0,end-start),cap=Math.max(0,Number(cfg&&cfg.capAnswerTimeToSecs)||0)*1000;
+    if(cap>0)ms=Math.min(ms,cap);
+    return Math.round(ms);
+  },
+  _armReviewerAutomation(c,cfg) {
+    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
+    const tick=()=>{
+      const el=document.getElementById('cards-review-timer');if(!el)return;
+      el.textContent=(this._reviewElapsedMs(cfg)/1000).toFixed(1)+'s';
+    };
+    if(cfg&&cfg.showTimer){tick();this._reviewTimer=setInterval(tick,250);}
+    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))fn();},ms);};
+    if(!this._flipped&&cfg&&Number(cfg.secondsToShowQuestion)>0){
+      const rem=Math.max(0,Number(cfg.secondsToShowQuestion)*1000-(Date.now()-(Number(this._reviewStartedAt)||Date.now())));
+      run(rem,()=>{if(Number(cfg.questionAction)===0)this.flip(document.getElementById('cards-content'));else showToast('⏰ Tempo da pergunta concluído');});
+    }else if(this._flipped&&cfg&&Number(cfg.secondsToShowAnswer)>0){
+      const base=Number(this._answerShownAt)||Date.now(),rem=Math.max(0,Number(cfg.secondsToShowAnswer)*1000-(Date.now()-base));
+      run(rem,()=>{
+        const a=Number(cfg.answerAction)||0;
+        if(a===0){const b=document.getElementById('cards-act-bury');if(b)b.click();}
+        else if(a===1)this.answer('errei');
+        else if(a===2)this.answer('bom');
+        else if(a===3)this.answer('dificil');
+        else showToast('⏰ Tempo da resposta concluído');
+      });
+    }
+  },
   renderReviewCard(box) {
     const total = this._reviewQueue.length;
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
     if (!c) { this.renderRevisar(box); return; }
+    const cfgReview=CardsConfig.forDeck(c.deckId);
+    if(String(this._reviewCardId||'')!==String(id)){
+      this._reviewCardId=id;this._reviewStartedAt=Date.now();this._answerShownAt=null;
+    }
     const done = this._reviewIdx; // já revisados nesta sessão
     box.innerHTML = `
       <div class="card cards-review-wrap">
         <div class="cards-review-progress"><span title="Posição atual na fila">Card ${done + 1} de ${total}</span>
           <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
           <span class="cards-limit-chip" title="Cards únicos respondidos hoje: novos / limite diário e revisões / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
+          ${cfgReview.showTimer?'<span class="cards-limit-chip" title="Tempo desta resposta (respeita o teto do preset)">⏱ <span id="cards-review-timer">0.0s</span></span>':''}
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
@@ -763,6 +798,7 @@ const CardsScreen = {
     });
     $id('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
     const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
+    this._armReviewerAutomation(c,cfgReview);
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
   faceHtml(c) {
@@ -782,9 +818,9 @@ const CardsScreen = {
           // conteúdo do card acesso ao DOM/storage/Supabase do Study.
           if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
             return '<div class="cards-face cards-front cards-anki-template">' +
-              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note) +
+              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note, CardsConfig.forDeck(c.deckId)) +
               '</div><div class="cards-face cards-back cards-anki-template">' +
-              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note) + '</div>';
+              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note, CardsConfig.forDeck(c.deckId)) + '</div>';
           }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
           return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
@@ -863,7 +899,7 @@ const CardsScreen = {
         </table></div>` : '<p style="color:var(--text-faint);font-size:12px">Nenhuma revisão ainda.</p>'}`;
     UI.alert(corpo, { title: 'ℹ Informações do card', html: true, okText: 'Fechar' });
   },
-  flip(box) { this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
+  flip(box) { if(!this._flipped)this._answerShownAt=Date.now(); this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
   // atalhos de teclado durante a revisão
   onKey(e) {
     // só na tela de cards, aba revisar, com um card na tela e sem modal aberto
@@ -1021,6 +1057,7 @@ const CardsScreen = {
            uma transação recuperável. Guardamos na outbox: revlog + estado final do
            card. Só então aplicamos a projeção local e liberamos a interface. */
         const bucketAntes = this._bucket(c);
+        const reviewTimeMs=this._reviewElapsedMs(CardsConfig.forDeck(c.deckId));
         const previewPatch = (typeof AnkiParity !== 'undefined') ? AnkiParity.previewFilteredAnswer(c, grade) : null;
         const emFiltrado = !!c.originalDeckId;
         if (!this._seenThisSession) this._seenThisSession = new Set();
@@ -1030,7 +1067,7 @@ const CardsScreen = {
   
         // snapshot para DESFAZER, antes de qualquer mutação.
         const antes = {};
-        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
+        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'firstReviewAt', 'algo', 'leech', 'suspenso']
           .forEach(k => { antes[k] = c[k]; });
   
         if (previewPatch) {
@@ -1041,6 +1078,7 @@ const CardsScreen = {
             patch = AnkiParity.removeFromFilteredAfterReschedule(c, patch);
           }
         }
+        if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
@@ -1048,7 +1086,7 @@ const CardsScreen = {
           { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
             phase: previewPatch ? 'filtered' : (c.phase || 'new'),
             ankiReviewKind: previewPatch ? 'filtered' : undefined,
-            elapsed: previewPatch ? 0 : elapsed,
+            elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
             intervalo: previewPatch ? 0 : (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
           cardAfter, cardPosition
         );
@@ -1081,6 +1119,8 @@ const CardsScreen = {
         if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.clearTyped) AnkiRuntime.clearTyped(c);
       }
       this._reviewIdx++;
+      this._reviewCardId=null;this._reviewStartedAt=null;this._answerShownAt=null;
+      clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
       this._flipped = false;
       // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
       // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
@@ -2338,6 +2378,21 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'tag',
       options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (padrão Anki 26.09.2)' }],
       hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
+    { key: 'showTimer', label: '⏱️ Mostrar timer no reviewer', type: 'select', value: cfg.showTimer ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Espelha show_timer do Anki. O tempo gravado no revlog respeita o teto abaixo.' },
+    { key: 'capAnswerTimeToSecs', label: '⏲️ Tempo máximo contabilizado (s)', type: 'number', value: cfg.capAnswerTimeToSecs == null ? 60 : cfg.capAnswerTimeToSecs, min: 0, max: 86400,
+      hint: 'Padrão Anki: 60s. 0 = sem teto.' },
+    { key: 'stopTimerOnAnswer', label: '⏹️ Parar timer ao mostrar resposta', type: 'select', value: cfg.stopTimerOnAnswer ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Se ligado, o tempo salvo termina quando o verso é revelado; senão, termina ao avaliar.' },
+    { key: 'disableAutoplay', label: '🔇 Desativar reprodução automática', type: 'select', value: cfg.disableAutoplay ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Controla áudio/TTS automático de templates importados.' },
+    { key: 'secondsToShowQuestion', label: '⏭️ Mostrar resposta automaticamente após (s)', type: 'number', value: cfg.secondsToShowQuestion || 0, min: 0, max: 86400,
+      hint: '0 = desligado. Quando ativo, usa a ação configurada pelo preset do Anki.' },
+    { key: 'secondsToShowAnswer', label: '⏭️ Agir automaticamente na resposta após (s)', type: 'number', value: cfg.secondsToShowAnswer || 0, min: 0, max: 86400,
+      hint: '0 = desligado. A ação automática importada do Anki é preservada.' },
     { key: 'buryNew', label: '🫥 Enterrar irmãos novos', type: 'select', value: cfg.buryNew ? '1' : '0',
       options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
       hint: 'Depois de responder um card, esconde até amanhã os irmãos novos da mesma nota.' },
@@ -2470,6 +2525,11 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'suspend' ? 'suspend' : 'tag',
       buryNew: v.buryNew === '1', buryReviews: v.buryReviews === '1', buryInterdayLearning: v.buryInterdayLearning === '1',
+      showTimer: v.showTimer === '1',
+      capAnswerTimeToSecs: Math.max(0,Math.min(86400,parseInt(v.capAnswerTimeToSecs,10)||0)),
+      stopTimerOnAnswer: v.stopTimerOnAnswer === '1', disableAutoplay: v.disableAutoplay === '1',
+      secondsToShowQuestion: Math.max(0,Math.min(86400,Number(v.secondsToShowQuestion)||0)),
+      secondsToShowAnswer: Math.max(0,Math.min(86400,Number(v.secondsToShowAnswer)||0)),
       newPerDay: Math.max(0, parseInt(v.newPerDay, 10) || 0),
       revPerDay: Math.max(0, parseInt(v.revPerDay, 10) || 0),
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista

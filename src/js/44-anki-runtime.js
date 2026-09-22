@@ -45,7 +45,7 @@ const AnkiRuntime = {
       return '<div class="snm-anki-type-result '+(same?'is-correct':'is-different')+'"><div><strong>Sua resposta:</strong> '+self._escAttr(typed||'—')+'</div><div><strong>Resposta:</strong> '+self._escAttr(correct)+'</div></div>';
     });
   },
-  buildSrcdoc(nt, html, side, card, note) {
+  buildSrcdoc(nt, html, side, card, note, options) {
     nt=nt||{}; card=card||{};
     const body=this._typeMarkup(this._latexMarkup(this._ttsMarkup(html)),side,card,note);
     const css=String(nt.css||'.card { font-family: Arial, sans-serif; font-size: 20px; text-align: center; }');
@@ -53,26 +53,28 @@ const AnkiRuntime = {
     // A URL é versionada e o service worker a pré-carrega para revisão offline.
     const math=this._needsMath(body)?'<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml-full.js"><\/script>':'';
     const frameId='anki-'+String(card.ankiId||card.id||'')+'-'+String(side||'question');
+    const autoPlay=!(options&&options.disableAutoplay);
     const bootstrap='<script>(function(){'+
-      'const FRAME_ID='+JSON.stringify(frameId)+';'+
+      'const FRAME_ID='+JSON.stringify(frameId)+';const AUTO_PLAY='+JSON.stringify(autoPlay)+';'+
       'function resize(){try{const h=Math.max(document.documentElement.scrollHeight||0,document.body&&document.body.scrollHeight||0,80);parent.postMessage({type:"snm-anki-frame-height",id:FRAME_ID,height:h},"*");}catch(_){}}'+
       'function voiceFor(spec){const m=String(spec||"").match(/voices=([^\\s]+)/i);if(!m||!window.speechSynthesis)return null;const wanted=m[1].split(",").map(x=>x.trim().toLowerCase());return speechSynthesis.getVoices().find(v=>wanted.includes(String(v.name||"").toLowerCase()))||null;}'+
       'function speak(el){if(!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;const spec=el.getAttribute("data-anki-tts")||"";const u=new SpeechSynthesisUtterance(el.textContent||"");const lm=spec.match(/(?:^|\\s)lang=([^\\s]+)/i);if(lm)u.lang=lm[1];const v=voiceFor(spec);if(v)u.voice=v;speechSynthesis.speak(u);}'+
-      'function initTts(){const nodes=[...document.querySelectorAll("[data-anki-tts]")];nodes.forEach(el=>el.addEventListener("click",()=>speak(el)));if(nodes.length)setTimeout(()=>speak(nodes[0]),0);}'+
+      'function initTts(){const nodes=[...document.querySelectorAll("[data-anki-tts]")];nodes.forEach(el=>el.addEventListener("click",()=>speak(el)));if(AUTO_PLAY&&nodes.length)setTimeout(()=>speak(nodes[0]),0);}'+
+      'function initMedia(){if(!AUTO_PLAY)return;const a=document.querySelector("audio,video");if(a&&a.play)setTimeout(()=>{try{const p=a.play();if(p&&p.catch)p.catch(()=>{});}catch(_){}},0);}'+
       'function initType(){for(const el of document.querySelectorAll("[data-anki-type-key]")){const send=()=>parent.postMessage({type:"snm-anki-typed",id:FRAME_ID,key:el.dataset.ankiTypeKey,field:el.dataset.ankiTypeField,value:el.value},"*");el.addEventListener("input",send);el.addEventListener("change",send);}}'+
-      'addEventListener("load",()=>{initTts();initType();resize();setTimeout(resize,100);setTimeout(resize,500);});addEventListener("resize",resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(document.documentElement);new MutationObserver(resize).observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});})();<\/script>';
+      'addEventListener("load",()=>{initTts();initMedia();initType();resize();setTimeout(resize,100);setTimeout(resize,500);});addEventListener("resize",resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(document.documentElement);new MutationObserver(resize).observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});})();<\/script>';
     const csp="default-src data: blob: https:; img-src data: blob: https:; media-src data: blob: https:; font-src data: blob: https:; style-src 'unsafe-inline' data: blob: https:; script-src 'unsafe-inline' data: blob: https:; connect-src https:; frame-src data: blob: https:";
     return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
       '<meta http-equiv="Content-Security-Policy" content="'+this._escAttr(csp)+'"><base target="_blank">'+
       '<style>html,body{margin:0;padding:0;background:transparent;color:inherit}body{overflow-wrap:anywhere}.snm-anki-tts{cursor:pointer}.snm-anki-type-input{box-sizing:border-box;max-width:100%;padding:.4em .55em;font:inherit}.snm-anki-type-result{margin:.5em 0;text-align:left}.snm-anki-type-result.is-correct{outline:1px solid currentColor;padding:.4em}</style><style>'+css+'</style>'+math+
       '</head><body class="card '+this._escAttr(side||'question')+'">'+body+bootstrap+'</body></html>';
   },
-  renderFrame(nt, html, side, card, visible, note) {
+  renderFrame(nt, html, side, card, visible, note, options) {
     // Iframe oculto ainda executaria JS/TTS. O Anki só executa o lado da
     // resposta quando ela é revelada, então o lado invisível nem é criado.
     if(!visible)return '<div class="cards-anki-frame-placeholder" aria-hidden="true"></div>';
     const id='anki-'+String(card&&(card.ankiId||card.id)||'')+'-'+String(side||'question');
-    const srcdoc=this.buildSrcdoc(nt,html,side,card,note);
+    const srcdoc=this.buildSrcdoc(nt,html,side,card,note,options);
     return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
   },
   init() {

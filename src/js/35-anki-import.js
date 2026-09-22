@@ -193,7 +193,10 @@ const AnkiImport = {
     }
     if(this._has(db,'deck_config'))for(const r of this._rows(db,'select id,name,config from deck_config')){
       const x=this._proto(r.config||new Uint8Array()),floats=(n)=>(x[n]||[]).filter(f=>f.wire===5).map(f=>new DataView(f.value.buffer,f.value.byteOffset,4).getFloat32(0,true));
-      dconf[String(r.id)]={id:Number(r.id),name:r.name,new:{perDay:this._pNum(x,9,20),delays:floats(1)},rev:{perDay:this._pNum(x,10,200)},lapse:{delays:floats(2),leechFails:this._pNum(x,22,8),leechAction:this._pNum(x,21,1)},maxIvl:this._pNum(x,16,36500),fsrsParams6:floats(6),desiredRetention:this._pFloat(x,37,.9),easyDaysPercentages:floats(4)};
+      dconf[String(r.id)]={id:Number(r.id),name:r.name,new:{perDay:this._pNum(x,9,20),delays:floats(1)},rev:{perDay:this._pNum(x,10,200)},lapse:{delays:floats(2),leechFails:this._pNum(x,22,8),leechAction:this._pNum(x,21,1)},maxIvl:this._pNum(x,16,36500),fsrsParams6:floats(6),desiredRetention:this._pFloat(x,37,.9),easyDaysPercentages:floats(4),
+        disableAutoplay:!!this._pNum(x,23,0),capAnswerTimeToSecs:this._pNum(x,24,60),showTimer:!!this._pNum(x,25,0),
+        skipQuestionWhenReplayingAnswer:!!this._pNum(x,26,0),questionAction:this._pNum(x,36,0),stopTimerOnAnswer:!!this._pNum(x,38,0),
+        secondsToShowQuestion:this._pFloat(x,41,0),secondsToShowAnswer:this._pFloat(x,42,0),answerAction:this._pNum(x,43,0),waitForAudio:!!this._pNum(x,44,1)};
     }
     return {ver:18,models,decks,dconf};
   },
@@ -208,7 +211,15 @@ const AnkiImport = {
       learnSteps:Array.isArray(d.new&&d.new.delays)?d.new.delays:[1,10],relearnSteps:Array.isArray(d.lapse&&d.lapse.delays)?d.lapse.delays:[10],
       leechThreshold:Number(d.lapse&&d.lapse.leechFails)||8,leechAction:Number(d.lapse&&d.lapse.leechAction)===0?'suspend':'tag',
       maxInterval:Number(d.maxIvl)||36500,weights:w,retention:Number(d.desiredRetention)||.9,
-      easyDays:Array.isArray(d.easyDaysPercentages)&&d.easyDaysPercentages.length===7?d.easyDaysPercentages.map(x=>Number(x)>1?Number(x)/100:Number(x)):undefined};
+      easyDays:Array.isArray(d.easyDaysPercentages)&&d.easyDaysPercentages.length===7?d.easyDaysPercentages.map(x=>Number(x)>1?Number(x)/100:Number(x)):undefined,
+      disableAutoplay:d.disableAutoplay!=null?!!d.disableAutoplay:(d.autoplay===false),
+      capAnswerTimeToSecs:Number(d.capAnswerTimeToSecs!=null?d.capAnswerTimeToSecs:d.maxTaken)||60,
+      showTimer:d.showTimer!=null?!!d.showTimer:!!d.timer,
+      stopTimerOnAnswer:!!d.stopTimerOnAnswer,
+      secondsToShowQuestion:Number(d.secondsToShowQuestion)||0,secondsToShowAnswer:Number(d.secondsToShowAnswer)||0,
+      questionAction:Number(d.questionAction)||0,answerAction:Number(d.answerAction)||0,
+      waitForAudio:d.waitForAudio!==false,
+      skipQuestionWhenReplayingAnswer:!!d.skipQuestionWhenReplayingAnswer};
   },
   _isCollectionPackageName(name){
     const n=String(name||'').toLowerCase().split(/[\\/]/).pop()||'';

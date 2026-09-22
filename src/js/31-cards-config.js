@@ -79,7 +79,19 @@ const CardsConfig = {
     intervalMultiplier: 1.0,   // interval_multiplier — escala global
     minimumLapseInterval: 1,   // minimum_lapse_interval
     graduatingIntervalGood: 1, // graduating_interval_good
-    graduatingIntervalEasy: 4  // graduating_interval_easy
+    graduatingIntervalEasy: 4, // graduating_interval_easy
+
+    // Reviewer/timer — deck_config.proto do Anki 26.09.2.
+    disableAutoplay: false,
+    capAnswerTimeToSecs: 60,
+    showTimer: false,
+    stopTimerOnAnswer: false,
+    secondsToShowQuestion: 0,
+    secondsToShowAnswer: 0,
+    questionAction: 0,
+    answerAction: 0,
+    waitForAudio: true,
+    skipQuestionWhenReplayingAnswer: false
   },
   _c: null, _cKey: null,
   _read(key, legacyKey) {
@@ -158,7 +170,15 @@ const CardsConfig = {
       algo: ['fsrs','sm2']
     };
     Object.keys(enums).forEach(k => { if (!enums[k].includes(c[k])) c[k] = D[k]; });
-    ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits'].forEach(k => { if (typeof c[k] !== 'boolean') c[k] = !!D[k]; });
+    ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits','disableAutoplay','showTimer',
+     'stopTimerOnAnswer','waitForAudio','skipQuestionWhenReplayingAnswer'].forEach(k => {
+      if (typeof c[k] !== 'boolean') c[k] = !!D[k];
+    });
+    c.capAnswerTimeToSecs = Math.round(this._numValido(c.capAnswerTimeToSecs, D.capAnswerTimeToSecs, 0, 86400));
+    c.secondsToShowQuestion = this._numValido(c.secondsToShowQuestion, D.secondsToShowQuestion, 0, 86400);
+    c.secondsToShowAnswer = this._numValido(c.secondsToShowAnswer, D.secondsToShowAnswer, 0, 86400);
+    c.questionAction = Math.round(this._numValido(c.questionAction, D.questionAction, 0, 1));
+    c.answerAction = Math.round(this._numValido(c.answerAction, D.answerAction, 0, 4));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
@@ -230,7 +250,8 @@ const CardsConfig = {
   // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
   _daily() {
     let d = this._read(this.DKEY, this.LEGACY_DKEY);
-    if (!d || d.date !== todayCards()) d = { date: todayCards(), newIds: [], revIds: [] };
+    if (!d || d.date !== todayCards()) d = { date: todayCards(), newIds: [], revIds: [], todayLimits: {} };
+    if (!d.todayLimits || typeof d.todayLimits !== 'object' || Array.isArray(d.todayLimits)) d.todayLimits = {};
     /* MIGRACAO do formato antigo ({newDone: 7}) para o novo (lista de IDs).
        Sem isto, quem atualizasse o app no meio do dia via o contador voltar a
        zero e ganhava um lote extra de cards novos. Os IDs reais nao existem
@@ -268,6 +289,23 @@ const CardsConfig = {
     return d;
   },
   _saveDaily(d) { DB.setRaw(this.DKEY, JSON.stringify(d)); },
+  setTodayLimit(deckId, kind, limit) {
+    if (deckId == null || !['new','review'].includes(kind)) return false;
+    const d=this._daily(),key=String(deckId),row=Object.assign({},d.todayLimits[key]||{});
+    row[kind]=Math.max(0,Math.floor(Number(limit)||0));d.todayLimits[key]=row;this._saveDaily(d);return row[kind];
+  },
+  todayLimitForDeck(deckId, kind) {
+    if (deckId == null || !['new','review'].includes(kind)) return null;
+    const row=this._daily().todayLimits[String(deckId)];
+    if (!row || row[kind] == null) return null;
+    const n=Number(row[kind]);return Number.isFinite(n)?Math.max(0,Math.floor(n)):null;
+  },
+  currentLimitForDeck(deckId, kind) {
+    const today=this.todayLimitForDeck(deckId,kind);
+    if (today != null) return today;
+    const cfg=this.forDeck(deckId);
+    return kind==='new'?(Number(cfg.newPerDay)||0):(Number(cfg.revPerDay)||0);
+  },
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   _deckPathForCard(card) {
     if (!card || card.deckId == null) return [];
@@ -338,11 +376,9 @@ const CardsConfig = {
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
   revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); },
   newRemainingForDeck(deckId) {
-    const cfg = this.forDeck(deckId);
-    return Math.max(0, (cfg.newPerDay || 0) - this._doneForDeck('new', deckId));
+    return Math.max(0, this.currentLimitForDeck(deckId,'new') - this._doneForDeck('new', deckId));
   },
   revRemainingForDeck(deckId) {
-    const cfg = this.forDeck(deckId);
-    return Math.max(0, (cfg.revPerDay || 0) - this._doneForDeck('review', deckId));
+    return Math.max(0, this.currentLimitForDeck(deckId,'review') - this._doneForDeck('review', deckId));
   }
 };

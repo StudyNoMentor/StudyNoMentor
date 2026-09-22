@@ -18,6 +18,8 @@ assert.match(doc,/<details open>/,'HTML expansível deve permanecer intacto');
 assert.match(doc,/<script>document\.body\.dataset\.js=/,'JavaScript do template deve ser preservado no sandbox');
 assert.match(doc,/data-anki-tts="lang=pt-BR voices=Maria"/,'marcador TTS deve virar elemento executável');
 assert.match(doc,/mathjax@3\.2\.2\/es5\/tex-chtml-full\.js/,'MathJax deve usar o mesmo 3.2.2/bundle do Anki 26.09.2');
+const noAuto=R.buildSrcdoc(nt,html,'question',{id:123},null,{disableAutoplay:true});
+assert.match(noAuto,/const AUTO_PLAY=false/,'preset com autoplay desativado deve chegar ao runtime do card');
 const frame=R.renderFrame(nt,html,'question',{id:123},true);
 assert.match(frame,/sandbox="allow-scripts allow-forms allow-popups allow-modals"/);
 assert.doesNotMatch(frame,/allow-same-origin/,'sandbox nunca pode compartilhar a origem do Study');
