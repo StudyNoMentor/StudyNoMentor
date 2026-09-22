@@ -13,6 +13,7 @@ const AnkiPractical10 = {
     this._enhanceDeckManager();
     this._enhanceBrowserSidebar();
     this._installPreferences();
+    this._installStatsCompleteness();
     this._installHooks();
   },
   esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');},
@@ -223,6 +224,40 @@ const AnkiPractical10 = {
       AnkiMaxParity._saveBrowserPrefs();
     }
     CardEngine.invalidateDueCache();document.getElementById('anki-cards-preferences').style.display='none';showToast('Preferências salvas ✓');
+  },
+
+  /* ───────────────────── STATS COMPLETAS ───────────────────── */
+  _histBars(values,bins,labels){
+    const out=Array.from({length:labels.length},()=>0);
+    values.forEach(raw=>{const v=Number(raw);if(!Number.isFinite(v))return;let i=0;while(i<bins.length&&v>=bins[i])i++;out[Math.min(i,out.length-1)]++;});
+    const max=Math.max(1,...out);return '<div class="anki-p10-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
+  },
+  _trueRetentionRows(logs){
+    const now=Date.now(),day=86400000,windows=[['Hoje',1],['7 dias',7],['30 dias',30],['1 ano',365]];
+    return windows.map(([label,n])=>{
+      const xs=logs.filter(r=>{const ts=Number(r.ts)||Date.parse(r.date||'');return Number.isFinite(ts)&&ts>=now-n*day&&Number(r.grade)>=1&&Number(r.grade)<=4;});
+      const pass=xs.filter(r=>Number(r.grade)>1).length,rate=xs.length?pass/xs.length:0;
+      return '<tr><td>'+label+'</td><td>'+xs.length.toLocaleString('pt-BR')+'</td><td>'+pass.toLocaleString('pt-BR')+'</td><td>'+(xs.length?(rate*100).toFixed(1)+'%':'—')+'</td></tr>';
+    }).join('');
+  },
+  _completeStatsHtml(){
+    const cards=DB.getCards(),logs=DB.getRevlog();
+    const intervals=cards.map(c=>Number(c.intervalo)||0).filter(x=>x>0);
+    const retr=cards.map(c=>{try{return c.s!=null?Number(CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId))):NaN;}catch(_){return NaN;}}).filter(Number.isFinite).map(x=>x*100);
+    const grades=[1,2,3,4].map(g=>logs.filter(r=>Number(r.grade)===g).length),gmax=Math.max(1,...grades);
+    return '<div class="anki-p10-stats">'+
+      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>↔ Intervalos de revisão</h2><p class="sub">Distribuição atual</p></div></div>'+
+      this._histBars(intervals,[1,7,30,90,365],['<1d','1–7d','7–30d','30–90d','90–365d','>1a'])+'</div>'+
+      '<div class="card stat-card"><div class="card-header"><div><h2>🎯 Recuperabilidade</h2><p class="sub">Probabilidade de lembrar hoje</p></div></div>'+
+      this._histBars(retr,[50,70,80,90,95],['<50%','50–70','70–80','80–90','90–95','>95%'])+'</div></div>'+
+      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>◉ Botões de resposta</h2><p class="sub">Again / Hard / Good / Easy</p></div></div><div class="anki-p10-answer-bars">'+
+      ['Again','Hard','Good','Easy'].map((x,i)=>'<div><i style="height:'+Math.max(grades[i]?5:0,Math.round(grades[i]/gmax*100))+'%"></i><strong>'+grades[i].toLocaleString('pt-BR')+'</strong><span>'+x+'</span></div>').join('')+
+      '</div></div><div class="card stat-card"><div class="card-header"><div><h2>✓ True Retention</h2><p class="sub">Respostas corretas entre revisões registradas</p></div></div><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Período</th><th>Respostas</th><th>Corretas</th><th>Retenção</th></tr></thead><tbody>'+this._trueRetentionRows(logs)+'</tbody></table></div></div></div></div>';
+  },
+  _installStatsCompleteness(){
+    if(typeof AnkiMaxStatsMedia==='undefined'||typeof AnkiMaxStatsMedia.statsHtml!=='function'||AnkiMaxStatsMedia.statsHtml.__p10)return;
+    const old=AnkiMaxStatsMedia.statsHtml.bind(AnkiMaxStatsMedia),self=this;
+    function wrapped(){return old()+self._completeStatsHtml();}wrapped.__p10=true;AnkiMaxStatsMedia.statsHtml=wrapped;
   },
 
   /* ───────────────────── EXTENSION HOOKS ───────────────────── */
