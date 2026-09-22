@@ -56,6 +56,7 @@ jobs:
           node testes/cards-apkg-export.mjs
           node testes/cards-import-formatos.mjs
           node testes/cards-runtime-anki.mjs
+          node testes/cards-fsrs-optimizer-oficial.mjs
           node testes/cards-concorrencia-multidevice.mjs
 
       - name: Round-trip com Anki oficial 26.09.2
