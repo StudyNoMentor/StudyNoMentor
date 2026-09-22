@@ -49,6 +49,27 @@ const signed=AnkiParity.reviewTie({ankiId:123456789,ankiMod:1700000000});
 ok(typeof signed==='bigint','fnvhash retorna BigInt');
 ok(signed>=-(1n<<63n)&&signed<(1n<<63n),'fnvhash segue ordem signed i64 do SQLite');
 
+
+// ── Ordem dos novos: mesmos hashes/salts do rslib, sem Math.random() ───────
+const legacyReverse={ankiId:22,ankiNoteId:2,template:'reverse'};
+const legacyForward={ankiId:11,ankiNoteId:1,template:'forward'};
+eq(AnkiParity.stableNewSort([legacyReverse,legacyForward],'template').map(c=>c.ankiId),
+   [11,22],'template ordinal ausente cai para forward=0/reverse=1, sem NaN');
+
+A.reset({newPerDay:99,revPerDay:99,newGatherOrder:'posicao',newSortOrder:'randomCard'});
+for(let i=0;i<8;i++) DB.addCard({frente:'N'+i,verso:'A'+i,phase:'new',due:A.hoje(),posicaoNova:i+1});
+AnkiParity.ensureIdentities();
+const novosOrdenacao=DB.getCards().filter(c=>(c.phase||'new')==='new');
+const esperadoRandom=AnkiParity.stableNewSort(novosOrdenacao,'randomCard').map(c=>c.id);
+const filaRandom1=CardsScreen.buildQueue();
+const filaRandom2=CardsScreen.buildQueue();
+eq(filaRandom1,esperadoRandom,'newSortOrder=randomCard usa o hash determinístico oficial');
+eq(filaRandom2,filaRandom1,'reconstruir a fila preserva a ordem pseudoaleatória dos novos');
+
+CardsConfig.set({newSortOrder:'aleatoria',newGatherOrder:'materiaRodizio'});
+eq(CardsConfig.get().newSortOrder,'template','modo legado de sort volta ao default oficial');
+eq(CardsConfig.get().newGatherOrder,'deck','modo legado de gather volta ao default oficial');
+
 // ── Cloze oficial: ordinais, múltiplos, hints e aninhamento ───────────────
 const strip=s=>String(s).replace(/<[^>]+>/g,'');
 eq(Array.from(AnkiParity.clozeOrdinals('test')),[],'sem cloze');
@@ -76,10 +97,15 @@ eq(sib.map(c=>c.clozeOrd).sort((a,b)=>a-b),[1,2],'irmãos preservam ordinal');
 ok(new Set(sib.map(c=>c.ankiNoteId)).size===1,'irmãos compartilham ankiNoteId');
 const c2=sib.find(c=>c.clozeOrd===2);
 DB.updateCard(c2.id,{phase:'review',s:50,d:4,intervalo:50,reps:9});
+DB.addRevlog({cardId:c2.id,ts:Date.now(),grade:3,phase:'review',intervalo:50});
 DB.updateCardNote(base.id,{kind:'cloze',frente:'A {{c1::um}}',verso:'',deckId:null,materia:null,assunto:'',materiaTec:'',banca:''});
 AnkiParity.syncClozeSiblings(base.id);
-eq(DB.getCards().filter(c=>String(c.noteId||c.id)===String(base.noteId||base.id)).length,1,'remover ordinal remove card órfão');
-eq(DB.getRevlog().filter(r=>String(r.cardId)===String(c2.id)).length,0,'card Cloze removido não deixa revlog órfão');
+eq(DB.getCards().filter(c=>String(c.noteId||c.id)===String(base.noteId||base.id)).length,2,'remover ordinal mantém o card Cloze vazio até Empty Cards');
+ok(AnkiParity.emptyCardIds().map(String).includes(String(c2.id)),'ordinal Cloze removido aparece em Empty Cards');
+eq(DB.getRevlog().filter(r=>String(r.cardId)===String(c2.id)).length,1,'Empty Card preserva histórico antes da limpeza explícita');
+eq(AnkiParity.deleteEmptyCards(),1,'Empty Cards remove somente o card que deixou de gerar pergunta');
+eq(DB.getCards().filter(c=>String(c.noteId||c.id)===String(base.noteId||base.id)).length,1,'Empty Cards preserva o irmão Cloze ainda válido');
+eq(DB.getRevlog().filter(r=>String(r.cardId)===String(c2.id)).length,0,'Empty Cards remove o revlog do card efetivamente excluído');
 
 // ── Sibling bury/suspend ─────────────────────────────────────────────────
 A.reset({buryNew:true,buryReviews:true,buryInterdayLearning:true});
