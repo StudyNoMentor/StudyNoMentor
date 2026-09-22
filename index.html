@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0f43f4bd0c">
+<meta name="diario-versao" content="v5ccc8960ae">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -21866,7 +21866,19 @@ const CardsConfig = {
     intervalMultiplier: 1.0,   // interval_multiplier — escala global
     minimumLapseInterval: 1,   // minimum_lapse_interval
     graduatingIntervalGood: 1, // graduating_interval_good
-    graduatingIntervalEasy: 4  // graduating_interval_easy
+    graduatingIntervalEasy: 4, // graduating_interval_easy
+
+    // Reviewer/timer — deck_config.proto do Anki 26.09.2.
+    disableAutoplay: false,
+    capAnswerTimeToSecs: 60,
+    showTimer: false,
+    stopTimerOnAnswer: false,
+    secondsToShowQuestion: 0,
+    secondsToShowAnswer: 0,
+    questionAction: 0,
+    answerAction: 0,
+    waitForAudio: true,
+    skipQuestionWhenReplayingAnswer: false
   },
   _c: null, _cKey: null,
   _read(key, legacyKey) {
@@ -21945,7 +21957,15 @@ const CardsConfig = {
       algo: ['fsrs','sm2']
     };
     Object.keys(enums).forEach(k => { if (!enums[k].includes(c[k])) c[k] = D[k]; });
-    ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits'].forEach(k => { if (typeof c[k] !== 'boolean') c[k] = !!D[k]; });
+    ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits','disableAutoplay','showTimer',
+     'stopTimerOnAnswer','waitForAudio','skipQuestionWhenReplayingAnswer'].forEach(k => {
+      if (typeof c[k] !== 'boolean') c[k] = !!D[k];
+    });
+    c.capAnswerTimeToSecs = Math.round(this._numValido(c.capAnswerTimeToSecs, D.capAnswerTimeToSecs, 0, 86400));
+    c.secondsToShowQuestion = this._numValido(c.secondsToShowQuestion, D.secondsToShowQuestion, 0, 86400);
+    c.secondsToShowAnswer = this._numValido(c.secondsToShowAnswer, D.secondsToShowAnswer, 0, 86400);
+    c.questionAction = Math.round(this._numValido(c.questionAction, D.questionAction, 0, 1));
+    c.answerAction = Math.round(this._numValido(c.answerAction, D.answerAction, 0, 4));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
@@ -22017,7 +22037,8 @@ const CardsConfig = {
   // ---- Contadores diários (novos/revisões introduzidos hoje) — resetam a cada dia ----
   _daily() {
     let d = this._read(this.DKEY, this.LEGACY_DKEY);
-    if (!d || d.date !== todayCards()) d = { date: todayCards(), newIds: [], revIds: [] };
+    if (!d || d.date !== todayCards()) d = { date: todayCards(), newIds: [], revIds: [], todayLimits: {} };
+    if (!d.todayLimits || typeof d.todayLimits !== 'object' || Array.isArray(d.todayLimits)) d.todayLimits = {};
     /* MIGRACAO do formato antigo ({newDone: 7}) para o novo (lista de IDs).
        Sem isto, quem atualizasse o app no meio do dia via o contador voltar a
        zero e ganhava um lote extra de cards novos. Os IDs reais nao existem
@@ -22055,6 +22076,23 @@ const CardsConfig = {
     return d;
   },
   _saveDaily(d) { DB.setRaw(this.DKEY, JSON.stringify(d)); },
+  setTodayLimit(deckId, kind, limit) {
+    if (deckId == null || !['new','review'].includes(kind)) return false;
+    const d=this._daily(),key=String(deckId),row=Object.assign({},d.todayLimits[key]||{});
+    row[kind]=Math.max(0,Math.floor(Number(limit)||0));d.todayLimits[key]=row;this._saveDaily(d);return row[kind];
+  },
+  todayLimitForDeck(deckId, kind) {
+    if (deckId == null || !['new','review'].includes(kind)) return null;
+    const row=this._daily().todayLimits[String(deckId)];
+    if (!row || row[kind] == null) return null;
+    const n=Number(row[kind]);return Number.isFinite(n)?Math.max(0,Math.floor(n)):null;
+  },
+  currentLimitForDeck(deckId, kind) {
+    const today=this.todayLimitForDeck(deckId,kind);
+    if (today != null) return today;
+    const cfg=this.forDeck(deckId);
+    return kind==='new'?(Number(cfg.newPerDay)||0):(Number(cfg.revPerDay)||0);
+  },
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   _deckPathForCard(card) {
     if (!card || card.deckId == null) return [];
@@ -22125,12 +22163,10 @@ const CardsConfig = {
   newRemaining() { return Math.max(0, (this.get().newPerDay || 0) - this.newDoneToday()); },
   revRemaining() { return Math.max(0, (this.get().revPerDay || 0) - this.revDoneToday()); },
   newRemainingForDeck(deckId) {
-    const cfg = this.forDeck(deckId);
-    return Math.max(0, (cfg.newPerDay || 0) - this._doneForDeck('new', deckId));
+    return Math.max(0, this.currentLimitForDeck(deckId,'new') - this._doneForDeck('new', deckId));
   },
   revRemainingForDeck(deckId) {
-    const cfg = this.forDeck(deckId);
-    return Math.max(0, (cfg.revPerDay || 0) - this._doneForDeck('review', deckId));
+    return Math.max(0, this.currentLimitForDeck(deckId,'review') - this._doneForDeck('review', deckId));
   }
 };
 
@@ -23069,7 +23105,9 @@ const AnkiExport = {
   deckConfigSchema(id, name, cfg) {
     const weights = (typeof FSRS !== 'undefined' && FSRS.migrarW) ? (FSRS.migrarW(cfg.weights) || FSRS.DEFAULT_W) : (cfg.weights || []);
     return {
-      id, mod: Math.floor(Date.now() / 1000), name: String(name || 'Default'), usn: -1, maxTaken: 60, autoplay: true, timer: 0, replayq: true,
+      id, mod: Math.floor(Date.now() / 1000), name: String(name || 'Default'), usn: -1,
+      maxTaken: Math.max(0,Math.round(Number(cfg.capAnswerTimeToSecs)||60)),
+      autoplay: !cfg.disableAutoplay, timer: cfg.showTimer?1:0, replayq: !cfg.skipQuestionWhenReplayingAnswer,
       new: {
         bury: !!cfg.buryNew, delays: (cfg.learnSteps || []).map(Number), initialFactor: Math.round((Number(cfg.initialEase) || 2.5) * 1000),
         ints: [Number(cfg.graduatingIntervalGood) || 1, Number(cfg.graduatingIntervalEasy) || 4, 0],
@@ -23090,8 +23128,17 @@ const AnkiExport = {
       newSortOrder: this._sortNew(cfg.newSortOrder), newGatherPriority: this._gather(cfg.newGatherOrder),
       buryInterdayLearning: !!cfg.buryInterdayLearning, fsrsWeights: [], fsrsParams5: [], fsrsParams6: Array.from(weights || [], Number),
       desiredRetention: Number(cfg.retention) || 0.9, ignoreRevlogsBeforeDate: String(cfg.ignoreRevlogsBefore || ''),
-      easyDaysPercentages: (cfg.easyDays || []).map(x => Number(x) * 100), stopTimerOnAnswer: false,
-      secondsToShowQuestion: 0, secondsToShowAnswer: 0, questionAction: 0, answerAction: 0, waitForAudio: true,
+      easyDaysPercentages: (cfg.easyDays || []).map(x => Number(x) * 100),
+      disableAutoplay: !!cfg.disableAutoplay,
+      capAnswerTimeToSecs: Math.max(0,Math.round(Number(cfg.capAnswerTimeToSecs)||60)),
+      showTimer: !!cfg.showTimer,
+      stopTimerOnAnswer: !!cfg.stopTimerOnAnswer,
+      secondsToShowQuestion: Math.max(0,Number(cfg.secondsToShowQuestion)||0),
+      secondsToShowAnswer: Math.max(0,Number(cfg.secondsToShowAnswer)||0),
+      questionAction: Math.max(0,Math.min(1,Math.round(Number(cfg.questionAction)||0))),
+      answerAction: Math.max(0,Math.min(4,Math.round(Number(cfg.answerAction)||0))),
+      waitForAudio: cfg.waitForAudio!==false,
+      skipQuestionWhenReplayingAnswer: !!cfg.skipQuestionWhenReplayingAnswer,
       sm2Retention: Number(cfg.historicalRetention) || 0.9, weightSearch: String(cfg.paramSearch || '')
     };
   },
@@ -23225,6 +23272,10 @@ const AnkiExport = {
     p.push(this._pbU32(20,Number(c.new&&c.new.order)||0));
     p.push(this._pbU32(21,Number(c.lapse&&c.lapse.leechAction)||0));
     p.push(this._pbU32(22,Number(c.lapse&&c.lapse.leechFails)||8));
+    p.push(this._pbBool(23,!!c.disableAutoplay));
+    p.push(this._pbU32(24,Math.max(0,Math.round(Number(c.capAnswerTimeToSecs)||60))));
+    p.push(this._pbBool(25,!!c.showTimer));
+    p.push(this._pbBool(26,!!c.skipQuestionWhenReplayingAnswer));
     p.push(this._pbBool(27,!!(c.new&&c.new.bury)));
     p.push(this._pbBool(28,!!(c.rev&&c.rev.bury)));
     p.push(this._pbBool(29,!!c.buryInterdayLearning));
@@ -23234,6 +23285,7 @@ const AnkiExport = {
     p.push(this._pbU32(33,Number(c.reviewOrder)||0));
     p.push(this._pbU32(34,Number(c.newGatherPriority)||0));
     p.push(this._pbU32(35,Number(c.newPerDayMinimum)||0));
+    p.push(this._pbU32(36,Number(c.questionAction)||0));
     p.push(this._pbFloat(37,Number(c.desiredRetention)||.9));
     p.push(this._pbBool(38,!!c.stopTimerOnAnswer));
     p.push(this._pbFloat(40,Number(c.sm2Retention)||.9));
@@ -23765,7 +23817,10 @@ const AnkiImport = {
     }
     if(this._has(db,'deck_config'))for(const r of this._rows(db,'select id,name,config from deck_config')){
       const x=this._proto(r.config||new Uint8Array()),floats=(n)=>(x[n]||[]).filter(f=>f.wire===5).map(f=>new DataView(f.value.buffer,f.value.byteOffset,4).getFloat32(0,true));
-      dconf[String(r.id)]={id:Number(r.id),name:r.name,new:{perDay:this._pNum(x,9,20),delays:floats(1)},rev:{perDay:this._pNum(x,10,200)},lapse:{delays:floats(2),leechFails:this._pNum(x,22,8),leechAction:this._pNum(x,21,1)},maxIvl:this._pNum(x,16,36500),fsrsParams6:floats(6),desiredRetention:this._pFloat(x,37,.9),easyDaysPercentages:floats(4)};
+      dconf[String(r.id)]={id:Number(r.id),name:r.name,new:{perDay:this._pNum(x,9,20),delays:floats(1)},rev:{perDay:this._pNum(x,10,200)},lapse:{delays:floats(2),leechFails:this._pNum(x,22,8),leechAction:this._pNum(x,21,1)},maxIvl:this._pNum(x,16,36500),fsrsParams6:floats(6),desiredRetention:this._pFloat(x,37,.9),easyDaysPercentages:floats(4),
+        disableAutoplay:!!this._pNum(x,23,0),capAnswerTimeToSecs:this._pNum(x,24,60),showTimer:!!this._pNum(x,25,0),
+        skipQuestionWhenReplayingAnswer:!!this._pNum(x,26,0),questionAction:this._pNum(x,36,0),stopTimerOnAnswer:!!this._pNum(x,38,0),
+        secondsToShowQuestion:this._pFloat(x,41,0),secondsToShowAnswer:this._pFloat(x,42,0),answerAction:this._pNum(x,43,0),waitForAudio:!!this._pNum(x,44,1)};
     }
     return {ver:18,models,decks,dconf};
   },
@@ -23780,7 +23835,15 @@ const AnkiImport = {
       learnSteps:Array.isArray(d.new&&d.new.delays)?d.new.delays:[1,10],relearnSteps:Array.isArray(d.lapse&&d.lapse.delays)?d.lapse.delays:[10],
       leechThreshold:Number(d.lapse&&d.lapse.leechFails)||8,leechAction:Number(d.lapse&&d.lapse.leechAction)===0?'suspend':'tag',
       maxInterval:Number(d.maxIvl)||36500,weights:w,retention:Number(d.desiredRetention)||.9,
-      easyDays:Array.isArray(d.easyDaysPercentages)&&d.easyDaysPercentages.length===7?d.easyDaysPercentages.map(x=>Number(x)>1?Number(x)/100:Number(x)):undefined};
+      easyDays:Array.isArray(d.easyDaysPercentages)&&d.easyDaysPercentages.length===7?d.easyDaysPercentages.map(x=>Number(x)>1?Number(x)/100:Number(x)):undefined,
+      disableAutoplay:d.disableAutoplay!=null?!!d.disableAutoplay:(d.autoplay===false),
+      capAnswerTimeToSecs:Number(d.capAnswerTimeToSecs!=null?d.capAnswerTimeToSecs:d.maxTaken)||60,
+      showTimer:d.showTimer!=null?!!d.showTimer:!!d.timer,
+      stopTimerOnAnswer:!!d.stopTimerOnAnswer,
+      secondsToShowQuestion:Number(d.secondsToShowQuestion)||0,secondsToShowAnswer:Number(d.secondsToShowAnswer)||0,
+      questionAction:Number(d.questionAction)||0,answerAction:Number(d.answerAction)||0,
+      waitForAudio:d.waitForAudio!==false,
+      skipQuestionWhenReplayingAnswer:!!d.skipQuestionWhenReplayingAnswer};
   },
   _isCollectionPackageName(name){
     const n=String(name||'').toLowerCase().split(/[\\/]/).pop()||'';
@@ -30495,17 +30558,52 @@ const CardsScreen = {
         <div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div>
     </div>`;
   },
+  _reviewElapsedMs(cfg) {
+    const start=Number(this._reviewStartedAt)||Date.now();
+    const end=(cfg&&cfg.stopTimerOnAnswer&&this._answerShownAt)?Number(this._answerShownAt):Date.now();
+    let ms=Math.max(0,end-start),cap=Math.max(0,Number(cfg&&cfg.capAnswerTimeToSecs)||0)*1000;
+    if(cap>0)ms=Math.min(ms,cap);
+    return Math.round(ms);
+  },
+  _armReviewerAutomation(c,cfg) {
+    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
+    const tick=()=>{
+      const el=document.getElementById('cards-review-timer');if(!el)return;
+      el.textContent=(this._reviewElapsedMs(cfg)/1000).toFixed(1)+'s';
+    };
+    if(cfg&&cfg.showTimer){tick();this._reviewTimer=setInterval(tick,250);}
+    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))fn();},ms);};
+    if(!this._flipped&&cfg&&Number(cfg.secondsToShowQuestion)>0){
+      const rem=Math.max(0,Number(cfg.secondsToShowQuestion)*1000-(Date.now()-(Number(this._reviewStartedAt)||Date.now())));
+      run(rem,()=>{if(Number(cfg.questionAction)===0)this.flip(document.getElementById('cards-content'));else showToast('⏰ Tempo da pergunta concluído');});
+    }else if(this._flipped&&cfg&&Number(cfg.secondsToShowAnswer)>0){
+      const base=Number(this._answerShownAt)||Date.now(),rem=Math.max(0,Number(cfg.secondsToShowAnswer)*1000-(Date.now()-base));
+      run(rem,()=>{
+        const a=Number(cfg.answerAction)||0;
+        if(a===0){const b=document.getElementById('cards-act-bury');if(b)b.click();}
+        else if(a===1)this.answer('errei');
+        else if(a===2)this.answer('bom');
+        else if(a===3)this.answer('dificil');
+        else showToast('⏰ Tempo da resposta concluído');
+      });
+    }
+  },
   renderReviewCard(box) {
     const total = this._reviewQueue.length;
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
     if (!c) { this.renderRevisar(box); return; }
+    const cfgReview=CardsConfig.forDeck(c.deckId);
+    if(String(this._reviewCardId||'')!==String(id)){
+      this._reviewCardId=id;this._reviewStartedAt=Date.now();this._answerShownAt=null;
+    }
     const done = this._reviewIdx; // já revisados nesta sessão
     box.innerHTML = `
       <div class="card cards-review-wrap">
         <div class="cards-review-progress"><span title="Posição atual na fila">Card ${done + 1} de ${total}</span>
           <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
           <span class="cards-limit-chip" title="Cards únicos respondidos hoje: novos / limite diário e revisões / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
+          ${cfgReview.showTimer?'<span class="cards-limit-chip" title="Tempo desta resposta (respeita o teto do preset)">⏱ <span id="cards-review-timer">0.0s</span></span>':''}
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
@@ -30592,6 +30690,7 @@ const CardsScreen = {
     });
     $id('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
     const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
+    this._armReviewerAutomation(c,cfgReview);
   },
   // renderiza as faces conforme o tipo (cloze ou básico)
   faceHtml(c) {
@@ -30611,9 +30710,9 @@ const CardsScreen = {
           // conteúdo do card acesso ao DOM/storage/Supabase do Study.
           if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
             return '<div class="cards-face cards-front cards-anki-template">' +
-              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note) +
+              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note, CardsConfig.forDeck(c.deckId)) +
               '</div><div class="cards-face cards-back cards-anki-template">' +
-              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note) + '</div>';
+              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note, CardsConfig.forDeck(c.deckId)) + '</div>';
           }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
           return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
@@ -30692,7 +30791,7 @@ const CardsScreen = {
         </table></div>` : '<p style="color:var(--text-faint);font-size:12px">Nenhuma revisão ainda.</p>'}`;
     UI.alert(corpo, { title: 'ℹ Informações do card', html: true, okText: 'Fechar' });
   },
-  flip(box) { this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
+  flip(box) { if(!this._flipped)this._answerShownAt=Date.now(); this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
   // atalhos de teclado durante a revisão
   onKey(e) {
     // só na tela de cards, aba revisar, com um card na tela e sem modal aberto
@@ -30850,6 +30949,7 @@ const CardsScreen = {
            uma transação recuperável. Guardamos na outbox: revlog + estado final do
            card. Só então aplicamos a projeção local e liberamos a interface. */
         const bucketAntes = this._bucket(c);
+        const reviewTimeMs=this._reviewElapsedMs(CardsConfig.forDeck(c.deckId));
         const previewPatch = (typeof AnkiParity !== 'undefined') ? AnkiParity.previewFilteredAnswer(c, grade) : null;
         const emFiltrado = !!c.originalDeckId;
         if (!this._seenThisSession) this._seenThisSession = new Set();
@@ -30859,7 +30959,7 @@ const CardsScreen = {
   
         // snapshot para DESFAZER, antes de qualquer mutação.
         const antes = {};
-        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
+        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'firstReviewAt', 'algo', 'leech', 'suspenso']
           .forEach(k => { antes[k] = c[k]; });
   
         if (previewPatch) {
@@ -30870,6 +30970,7 @@ const CardsScreen = {
             patch = AnkiParity.removeFromFilteredAfterReschedule(c, patch);
           }
         }
+        if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
@@ -30877,7 +30978,7 @@ const CardsScreen = {
           { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
             phase: previewPatch ? 'filtered' : (c.phase || 'new'),
             ankiReviewKind: previewPatch ? 'filtered' : undefined,
-            elapsed: previewPatch ? 0 : elapsed,
+            elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
             intervalo: previewPatch ? 0 : (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
           cardAfter, cardPosition
         );
@@ -30910,6 +31011,8 @@ const CardsScreen = {
         if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.clearTyped) AnkiRuntime.clearTyped(c);
       }
       this._reviewIdx++;
+      this._reviewCardId=null;this._reviewStartedAt=null;this._answerShownAt=null;
+      clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
       this._flipped = false;
       // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
       // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
@@ -32167,6 +32270,21 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'tag',
       options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (padrão Anki 26.09.2)' }],
       hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
+    { key: 'showTimer', label: '⏱️ Mostrar timer no reviewer', type: 'select', value: cfg.showTimer ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Espelha show_timer do Anki. O tempo gravado no revlog respeita o teto abaixo.' },
+    { key: 'capAnswerTimeToSecs', label: '⏲️ Tempo máximo contabilizado (s)', type: 'number', value: cfg.capAnswerTimeToSecs == null ? 60 : cfg.capAnswerTimeToSecs, min: 0, max: 86400,
+      hint: 'Padrão Anki: 60s. 0 = sem teto.' },
+    { key: 'stopTimerOnAnswer', label: '⏹️ Parar timer ao mostrar resposta', type: 'select', value: cfg.stopTimerOnAnswer ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Se ligado, o tempo salvo termina quando o verso é revelado; senão, termina ao avaliar.' },
+    { key: 'disableAutoplay', label: '🔇 Desativar reprodução automática', type: 'select', value: cfg.disableAutoplay ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Controla áudio/TTS automático de templates importados.' },
+    { key: 'secondsToShowQuestion', label: '⏭️ Mostrar resposta automaticamente após (s)', type: 'number', value: cfg.secondsToShowQuestion || 0, min: 0, max: 86400,
+      hint: '0 = desligado. Quando ativo, usa a ação configurada pelo preset do Anki.' },
+    { key: 'secondsToShowAnswer', label: '⏭️ Agir automaticamente na resposta após (s)', type: 'number', value: cfg.secondsToShowAnswer || 0, min: 0, max: 86400,
+      hint: '0 = desligado. A ação automática importada do Anki é preservada.' },
     { key: 'buryNew', label: '🫥 Enterrar irmãos novos', type: 'select', value: cfg.buryNew ? '1' : '0',
       options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
       hint: 'Depois de responder um card, esconde até amanhã os irmãos novos da mesma nota.' },
@@ -32299,6 +32417,11 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'suspend' ? 'suspend' : 'tag',
       buryNew: v.buryNew === '1', buryReviews: v.buryReviews === '1', buryInterdayLearning: v.buryInterdayLearning === '1',
+      showTimer: v.showTimer === '1',
+      capAnswerTimeToSecs: Math.max(0,Math.min(86400,parseInt(v.capAnswerTimeToSecs,10)||0)),
+      stopTimerOnAnswer: v.stopTimerOnAnswer === '1', disableAutoplay: v.disableAutoplay === '1',
+      secondsToShowQuestion: Math.max(0,Math.min(86400,Number(v.secondsToShowQuestion)||0)),
+      secondsToShowAnswer: Math.max(0,Math.min(86400,Number(v.secondsToShowAnswer)||0)),
       newPerDay: Math.max(0, parseInt(v.newPerDay, 10) || 0),
       revPerDay: Math.max(0, parseInt(v.revPerDay, 10) || 0),
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
@@ -32802,6 +32925,14 @@ AnkiParity._stockNotetypeDef=function(kind){
       {name:'Card 2',qfmt:'{{Back}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}'}
     ]
   };
+  if(kind==='basic_optional_reversed')return {
+    stockKind:'basic_optional_reversed',name:'Basic (optional reversed card)',kind:'normal',css,
+    fields:[{name:'Front'},{name:'Back'},{name:'Add Reverse'}],
+    templates:[
+      {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'},
+      {name:'Card 2',qfmt:'{{#Add Reverse}}{{Back}}{{/Add Reverse}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}'}
+    ]
+  };
   if(kind==='typing')return {
     stockKind:'typing',name:'Basic (type in the answer)',kind:'normal',css,
     fields:[{name:'Front'},{name:'Back'}],
@@ -32979,8 +33110,10 @@ AnkiParity.limitState=function(selectedDeckId){
   const stats=(id,kind)=>usage.filter(e=>e.kind===kind&&(e.path||[]).includes(String(id))).length;
   decks.forEach(d=>{
     const cfg=CardsConfig.forDeck(d.id),newDone=stats(d.id,'new'),revDone=stats(d.id,'review');
-    let review=Math.max(0,(Number(cfg.revPerDay)||0)-revDone);
-    let news=Math.max(0,(Number(cfg.newPerDay)||0)-newDone);
+    const reviewCap=CardsConfig.currentLimitForDeck?CardsConfig.currentLimitForDeck(d.id,'review'):(Number(cfg.revPerDay)||0);
+    const newCap=CardsConfig.currentLimitForDeck?CardsConfig.currentLimitForDeck(d.id,'new'):(Number(cfg.newPerDay)||0);
+    let review=Math.max(0,reviewCap-revDone);
+    let news=Math.max(0,newCap-newDone);
     if(!ignore){review=Math.max(0,review-newDone);news=Math.min(news,review);}
     rem.set(String(d.id),{new:news,review,capNewToReview:!ignore});
   });
@@ -33329,13 +33462,63 @@ AnkiParity._filteredTermMatches=function(card,term){
     const want=val.toLowerCase();
     return this._noteTagsForCard(card).some(t=>{const x=t.toLowerCase();return x===want||x.startsWith(want+'::');});
   }
+  if(key==='note'){
+    const note=this.getNote(this.noteId(card)),nt=note&&this.getNotetype(note.notetypeId);
+    return !!nt&&includes(nt.name,val);
+  }
+  if(key==='card'){
+    const note=this.getNote(this.noteId(card)),nt=note&&this.getNotetype(note.notetypeId);
+    const ord=Number(card.ankiTemplateOrd)||0,tmpl=nt&&nt.templates&&nt.templates[ord];
+    const n=Number(val);return Number.isFinite(n)&&String(val).trim()!==''?ord===Math.max(0,n-1):!!tmpl&&includes(tmpl.name,val);
+  }
+  if(key==='flag')return Number(card.flag||0)===Number(val);
+  if(key==='edited'){
+    const days=Math.max(1,Number(val)||1),ts=Date.parse(card.updatedAt||'');
+    return Number.isFinite(ts)&&ts>=Date.now()-days*86400000;
+  }
+  if(key==='introduced'){
+    const days=Math.max(1,Number(val)||1),ts=Date.parse(card.firstReviewAt||card.createdAt||'');
+    return Number.isFinite(ts)&&ts>=Date.now()-days*86400000&&(Number(card.reps)||0)>0;
+  }
+  if(key==='nid'){
+    const ids=val.split(',').map(x=>x.trim()).filter(Boolean);
+    return ids.includes(String(card.ankiNoteId||card.noteId||''));
+  }
+  if(key==='cid'){
+    const ids=val.split(',').map(x=>x.trim()).filter(Boolean);
+    return ids.includes(String(card.ankiId||card.id||''));
+  }
+  if(key==='preset'){
+    const did=card.originalDeckId||card.deckId,cid=this.configIdForDeck(did),all=this.sharedPresets(),p=all[String(cid)];
+    const name=p&&p.name?String(p.name):String(cid||'default');
+    return includes(name,val);
+  }
+  if(key==='re'){
+    try{return new RegExp(val,'i').test([card.frente,card.verso,card.assunto,card.materia,card.materiaTec,card.banca].filter(Boolean).join(' '));}
+    catch(_){return false;}
+  }
   if(key==='prop'){
-    const pm=val.match(/^due\s*(<=|>=|=|<|>)\s*(-?\d+)$/i);
+    const pm=val.match(/^(due|ivl|reps|lapses|ease|pos|s|d|r)\s*(<=|>=|!=|=|<|>)\s*(-?\d+(?:\.\d+)?)$/i);
     if(pm){
-      const due=card.originalDue||card.due||todayCards(),delta=CardEngine._daysBetween(todayCards(),due);
-      const n=Number(pm[2]),op=pm[1];
-      return op==='<='?delta<=n:op==='>='?delta>=n:op==='<'?delta<n:op==='>'?delta>n:delta===n;
+      const prop=pm[1].toLowerCase(),n=Number(pm[3]),op=pm[2];
+      let actual;
+      if(prop==='due'){
+        const due=card.originalDue||card.due||todayCards();actual=CardEngine._daysBetween(todayCards(),due);
+      }else if(prop==='ivl')actual=Number(card.intervalo)||0;
+      else if(prop==='reps')actual=Number(card.reps)||0;
+      else if(prop==='lapses')actual=Number(card.lapses)||0;
+      else if(prop==='ease')actual=Number(card.ease)||0;
+      else if(prop==='pos')actual=Number(card.posicaoNova||card.ankiDue||0);
+      else if(prop==='s')actual=Number(card.s)||0;
+      else if(prop==='d')actual=Number(card.d)||0;
+      else actual=Number(CardEngine.retrievabilityDe(card,todayCards(),CardsConfig.weightsFor(card.originalDeckId||card.deckId)))||0;
+      return op==='<='?actual<=n:op==='>='?actual>=n:op==='!='?actual!==n:op==='<'?actual<n:op==='>'?actual>n:actual===n;
     }
+  }
+  if(m&&key&&!['materia','subject','assunto','topic','tipo','type','banca','favorito','favorite','suspenso','suspended','leech','deck','baralho','is','added','rated','tag','note','card','flag','edited','introduced','nid','cid','preset','re','prop'].includes(key)){
+    const note=this.getNote(this.noteId(card)),fields=note&&note.fields||{};
+    const hit=Object.keys(fields).find(k=>lc(k)===lc(key));
+    if(hit)return includes(fields[hit],val);
   }
   const needle=term.replace(/^"|"$/g,'').toLowerCase();
   const hay=[card.frente,card.verso,card.assunto,card.materia,card.materiaTec,card.banca].filter(Boolean).join(' ').replace(/<[^>]+>/g,' ').toLowerCase();
@@ -33444,11 +33627,12 @@ AnkiParity.customStudy=function(input){
   const name='Estudo Personalizado',kind=String(input.kind||''),days=Math.max(0,Number(input.days)||0);
   const esc=String(home.nome||'').replace(/"/g,'\\"');
   if(kind==='newLimitDelta'||kind==='reviewLimitDelta'){
-    const key=kind==='newLimitDelta'?'newPerDay':'revPerDay',delta=Number(input.delta)||0;
-    const cfg=CardsConfig.forDeck(deckId),next=Math.max(0,(Number(cfg[key])||0)+delta);
-    const existing=CardsConfig.getDeckPreset?CardsConfig.getDeckPreset(deckId):{};
-    CardsConfig.setDeckPreset(deckId,Object.assign({},existing||{},{[key]:next}));
-    return {ok:true,count:0,limitOnly:true};
+    const limitKind=kind==='newLimitDelta'?'new':'review',delta=Number(input.delta)||0;
+    const current=CardsConfig.currentLimitForDeck?CardsConfig.currentLimitForDeck(deckId,limitKind):
+      Number(CardsConfig.forDeck(deckId)[limitKind==='new'?'newPerDay':'revPerDay'])||0;
+    const next=Math.max(0,current+delta);
+    CardsConfig.setTodayLimit(deckId,limitKind,next);
+    return {ok:true,count:0,limitOnly:true,todayOnly:true,limit:next};
   }
   let cfg=this.filteredDefaults(),term={search:'deck:"'+esc+'"',limit:99999,order:this.FILTERED_ORDERS.RANDOM};
   if(kind==='forgot'){
@@ -33524,7 +33708,7 @@ const AnkiRuntime = {
       return '<div class="snm-anki-type-result '+(same?'is-correct':'is-different')+'"><div><strong>Sua resposta:</strong> '+self._escAttr(typed||'—')+'</div><div><strong>Resposta:</strong> '+self._escAttr(correct)+'</div></div>';
     });
   },
-  buildSrcdoc(nt, html, side, card, note) {
+  buildSrcdoc(nt, html, side, card, note, options) {
     nt=nt||{}; card=card||{};
     const body=this._typeMarkup(this._latexMarkup(this._ttsMarkup(html)),side,card,note);
     const css=String(nt.css||'.card { font-family: Arial, sans-serif; font-size: 20px; text-align: center; }');
@@ -33532,26 +33716,28 @@ const AnkiRuntime = {
     // A URL é versionada e o service worker a pré-carrega para revisão offline.
     const math=this._needsMath(body)?'<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml-full.js"><\/script>':'';
     const frameId='anki-'+String(card.ankiId||card.id||'')+'-'+String(side||'question');
+    const autoPlay=!(options&&options.disableAutoplay);
     const bootstrap='<script>(function(){'+
-      'const FRAME_ID='+JSON.stringify(frameId)+';'+
+      'const FRAME_ID='+JSON.stringify(frameId)+';const AUTO_PLAY='+JSON.stringify(autoPlay)+';'+
       'function resize(){try{const h=Math.max(document.documentElement.scrollHeight||0,document.body&&document.body.scrollHeight||0,80);parent.postMessage({type:"snm-anki-frame-height",id:FRAME_ID,height:h},"*");}catch(_){}}'+
       'function voiceFor(spec){const m=String(spec||"").match(/voices=([^\\s]+)/i);if(!m||!window.speechSynthesis)return null;const wanted=m[1].split(",").map(x=>x.trim().toLowerCase());return speechSynthesis.getVoices().find(v=>wanted.includes(String(v.name||"").toLowerCase()))||null;}'+
       'function speak(el){if(!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;const spec=el.getAttribute("data-anki-tts")||"";const u=new SpeechSynthesisUtterance(el.textContent||"");const lm=spec.match(/(?:^|\\s)lang=([^\\s]+)/i);if(lm)u.lang=lm[1];const v=voiceFor(spec);if(v)u.voice=v;speechSynthesis.speak(u);}'+
-      'function initTts(){const nodes=[...document.querySelectorAll("[data-anki-tts]")];nodes.forEach(el=>el.addEventListener("click",()=>speak(el)));if(nodes.length)setTimeout(()=>speak(nodes[0]),0);}'+
+      'function initTts(){const nodes=[...document.querySelectorAll("[data-anki-tts]")];nodes.forEach(el=>el.addEventListener("click",()=>speak(el)));if(AUTO_PLAY&&nodes.length)setTimeout(()=>speak(nodes[0]),0);}'+
+      'function initMedia(){if(!AUTO_PLAY)return;const a=document.querySelector("audio,video");if(a&&a.play)setTimeout(()=>{try{const p=a.play();if(p&&p.catch)p.catch(()=>{});}catch(_){}},0);}'+
       'function initType(){for(const el of document.querySelectorAll("[data-anki-type-key]")){const send=()=>parent.postMessage({type:"snm-anki-typed",id:FRAME_ID,key:el.dataset.ankiTypeKey,field:el.dataset.ankiTypeField,value:el.value},"*");el.addEventListener("input",send);el.addEventListener("change",send);}}'+
-      'addEventListener("load",()=>{initTts();initType();resize();setTimeout(resize,100);setTimeout(resize,500);});addEventListener("resize",resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(document.documentElement);new MutationObserver(resize).observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});})();<\/script>';
+      'addEventListener("load",()=>{initTts();initMedia();initType();resize();setTimeout(resize,100);setTimeout(resize,500);});addEventListener("resize",resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(document.documentElement);new MutationObserver(resize).observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});})();<\/script>';
     const csp="default-src data: blob: https:; img-src data: blob: https:; media-src data: blob: https:; font-src data: blob: https:; style-src 'unsafe-inline' data: blob: https:; script-src 'unsafe-inline' data: blob: https:; connect-src https:; frame-src data: blob: https:";
     return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
       '<meta http-equiv="Content-Security-Policy" content="'+this._escAttr(csp)+'"><base target="_blank">'+
       '<style>html,body{margin:0;padding:0;background:transparent;color:inherit}body{overflow-wrap:anywhere}.snm-anki-tts{cursor:pointer}.snm-anki-type-input{box-sizing:border-box;max-width:100%;padding:.4em .55em;font:inherit}.snm-anki-type-result{margin:.5em 0;text-align:left}.snm-anki-type-result.is-correct{outline:1px solid currentColor;padding:.4em}</style><style>'+css+'</style>'+math+
       '</head><body class="card '+this._escAttr(side||'question')+'">'+body+bootstrap+'</body></html>';
   },
-  renderFrame(nt, html, side, card, visible, note) {
+  renderFrame(nt, html, side, card, visible, note, options) {
     // Iframe oculto ainda executaria JS/TTS. O Anki só executa o lado da
     // resposta quando ela é revelada, então o lado invisível nem é criado.
     if(!visible)return '<div class="cards-anki-frame-placeholder" aria-hidden="true"></div>';
     const id='anki-'+String(card&&(card.ankiId||card.id)||'')+'-'+String(side||'question');
-    const srcdoc=this.buildSrcdoc(nt,html,side,card,note);
+    const srcdoc=this.buildSrcdoc(nt,html,side,card,note,options);
     return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
   },
   init() {
