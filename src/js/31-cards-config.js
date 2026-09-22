@@ -45,6 +45,11 @@ const CardsConfig = {
     // Pode ser habilitado explicitamente para ignorar esse bloqueio.
     newCardsIgnoreReviewLimit: false,
 
+    // Enterramento automático de irmãos. Os três defaults do Anki 26.09.2 são false.
+    buryNew: false,
+    buryReviews: false,
+    buryInterdayLearning: false,
+
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
     easyDays: [1, 1, 1, 1, 1, 1, 1],
