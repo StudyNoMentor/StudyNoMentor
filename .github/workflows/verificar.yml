@@ -78,6 +78,8 @@ jobs:
         run: node testes/cards-certificacao-anki.mjs
       - name: Certificar paridade total RNG Cloze LB irmãos presets
         run: node testes/cards-paridade-total-anki.mjs
+      - name: Certificar concorrencia multi-dispositivo dos Cards
+        run: node testes/cards-concorrencia-multidevice.mjs
       - name: Auditar higiene do repositorio
         run: node testes/repositorio-higiene.mjs
       - name: Instalar dependencias de teste
