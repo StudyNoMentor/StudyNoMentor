@@ -303,5 +303,74 @@ AnkiParity.installConfigParity=function(){
     return out;
   };
 };
+
+/* ── LIMIT TREE: equivalente a rslib/decks/limits.rs ───────────────────── */
+AnkiParity.deckPath=function(deckId){
+  if(deckId==null)return [];
+  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [String(deckId)];
+  const parts=String(d.nome||'').split('::'),out=[];
+  for(let i=1;i<=parts.length;i++){
+    const name=parts.slice(0,i).join('::'),hit=ds.find(x=>String(x.nome||'')===name);
+    if(hit)out.push(String(hit.id));
+  }
+  return out.length?out:[String(deckId)];
+};
+AnkiParity.selectedDeckId=function(){
+  try{
+    const set=CardsScreen.filters&&CardsScreen.filters.materias;
+    if(set&&set.size===1){const v=[...set][0];if(typeof v==='string'&&v.startsWith('deck:'))return v.slice(5);}
+  }catch(_){}
+  return null;
+};
+AnkiParity.limitState=function(selectedDeckId){
+  const global=CardsConfig.get(),ignore=!!global.newCardsIgnoreReviewLimit,applyParents=!!global.applyAllParentLimits;
+  const decks=DB.getDecks(),byId=new Map(decks.map(d=>[String(d.id),d])),daily=CardsConfig._daily(),usage=daily.usage||[];
+  const rem=new Map();
+  const stats=(id,kind)=>usage.filter(e=>e.kind===kind&&(e.path||[]).includes(String(id))).length;
+  decks.forEach(d=>{
+    const cfg=CardsConfig.forDeck(d.id),newDone=stats(d.id,'new'),revDone=stats(d.id,'review');
+    let review=Math.max(0,(Number(cfg.revPerDay)||0)-revDone);
+    let news=Math.max(0,(Number(cfg.newPerDay)||0)-newDone);
+    if(!ignore){review=Math.max(0,review-newDone);news=Math.min(news,review);}
+    rem.set(String(d.id),{new:news,review,capNewToReview:!ignore});
+  });
+  // Sem baralho: usa a config global como nó isolado.
+  const nullNew=Math.max(0,(Number(global.newPerDay)||0)-CardsConfig._doneForDeck('new',null));
+  let nullReview=Math.max(0,(Number(global.revPerDay)||0)-CardsConfig._doneForDeck('review',null));
+  const nullNewCapped=ignore?nullNew:Math.min(nullNew,Math.max(0,nullReview-CardsConfig._doneForDeck('new',null)));
+  rem.set('__none__',{new:nullNewCapped,review:ignore?nullReview:Math.max(0,nullReview-CardsConfig._doneForDeck('new',null)),capNewToReview:!ignore});
+
+  const selected=selectedDeckId==null?null:String(selectedDeckId);
+  const relevantPath=(deckId)=>{
+    if(deckId==null)return ['__none__'];
+    const full=AnkiParity.deckPath(deckId);
+    if(!selected)return full;
+    const pos=full.indexOf(selected);
+    if(pos<0)return [];
+    return applyParents?full:full.slice(pos);
+  };
+  const can=(card,kind)=>{
+    const path=relevantPath(card&&card.deckId);
+    if(!path.length)return false;
+    return path.every(id=>{const r=rem.get(id);return !r||r[kind]>0;});
+  };
+  const take=(card,kind)=>{
+    const path=relevantPath(card&&card.deckId);if(!path.length)return false;
+    if(!can(card,kind))return false;
+    path.forEach(id=>{
+      const r=rem.get(id);if(!r)return;
+      r[kind]=Math.max(0,r[kind]-1);
+      if(kind==='review'&&r.capNewToReview)r.new=Math.min(r.new,r.review);
+    });
+    return true;
+  };
+  return {rem,can,take,relevantPath};
+};
+AnkiParity.filterMatchesDeck=function(cardDeckId,selectedDeckId){
+  if(cardDeckId==null||selectedDeckId==null)return false;
+  if(String(cardDeckId)===String(selectedDeckId))return true;
+  return AnkiParity.deckDescendant(cardDeckId,selectedDeckId);
+};
+
 AnkiParity.installConfigParity();
 try{if(typeof window!=='undefined')window.AnkiParity=AnkiParity;}catch(e){_quiet(e,'anki-parity-global');}
