@@ -1282,10 +1282,13 @@ const DB = {
       phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
     return data;
   },
-  // BANDEIRAS (Ctrl+1..4 / 0 remove) — mesmas cores e ordem do Anki
+  // BANDEIRAS do Anki atual: 1–7; a barra compacta do Study continua
+  // mostrando as quatro clássicas, e as adicionais ficam nas ações avançadas.
   FLAGS: [null, { nome: 'Vermelha', cor: '#e0393f' }, { nome: 'Laranja', cor: '#e07a1f' },
-          { nome: 'Verde', cor: '#0f9d63' }, { nome: 'Azul', cor: '#2563eb' }],
-  setFlag(id, n) { this.updateCard(id, { flag: (n >= 1 && n <= 4) ? n : 0 }); },
+          { nome: 'Verde', cor: '#0f9d63' }, { nome: 'Azul', cor: '#2563eb' },
+          { nome: 'Rosa', cor: '#d946ef' }, { nome: 'Turquesa', cor: '#0891b2' },
+          { nome: 'Roxa', cor: '#7c3aed' }],
+  setFlag(id, n) { n=Math.round(Number(n)||0); this.updateCard(id, { flag: (n >= 1 && n <= 7) ? n : 0 }); },
   zerarProgressoCards() {
     const cards = this.getCards();
     const nRev = this.getRevlog().length;
