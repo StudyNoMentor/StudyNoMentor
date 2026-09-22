@@ -453,7 +453,17 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('foco-undo', 'click', () => CardsScreen.undoAnswer());
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
-    on('cards-audit-export-btn', 'click', () => CardsScreen.exportAudit());
+  on('cards-empty-btn', 'click', async () => {
+    if (typeof AnkiParity === 'undefined') return;
+    const ids = AnkiParity.emptyCardIds();
+    if (!ids.length) { showToast('Nenhum card vazio ✓'); return; }
+    const ok = await UI.confirm('Foram encontrados ' + ids.length + ' card(s) vazio(s). Remover esses cards e o histórico deles?', { title:'🧹 Cards vazios', okText:'Remover', danger:true });
+    if (!ok) return;
+    const n = AnkiParity.deleteEmptyCards();
+    CardsScreen.render();
+    showToast(n + ' card(s) vazio(s) removido(s) ✓');
+  });
+  on('cards-audit-export-btn', 'click', () => CardsScreen.exportAudit());
   on('cards-import-btn', 'click', () => CardsScreen.openImportModal());
   // modal card
   on('card-modal-close', 'click', () => CardsScreen.fecharCardComAviso());

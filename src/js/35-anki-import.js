@@ -52,6 +52,17 @@ const AnkiImport = {
     const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
     return new Uint8Array(ab);
   },
+  async _loadFzstd(){
+    if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return globalThis.fzstd;
+    if(typeof document==='undefined')return null;
+    await new Promise((resolve,reject)=>{
+      const old=document.querySelector('script[data-snm-fzstd]');
+      if(old){if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return resolve();old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return;}
+      const s=document.createElement('script');s.src='./src/vendor/fzstd-0.1.1/fzstd.js';s.dataset.snmFzstd='1';
+      s.onload=resolve;s.onerror=()=>reject(new Error('Falha ao carregar decoder zstd local'));document.head.appendChild(s);
+    });
+    return globalThis.fzstd||null;
+  },
   async _zstd(bytes){
     if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return globalThis.fzstd.decompress(bytes);
     if(typeof DecompressionStream!=='undefined'){
@@ -61,7 +72,9 @@ const AnkiImport = {
         return new Uint8Array(ab);
       }catch(_){}
     }
-    throw new Error('Este pacote usa Zstandard (formato Anki atual), mas este navegador não expõe descompressão zstd. Exporte pelo Anki em formato legado ou use um navegador com zstd.');
+    const mod=await this._loadFzstd();
+    if(mod&&typeof mod.decompress==='function')return mod.decompress(bytes);
+    throw new Error('Decoder Zstandard local indisponível para pacote Anki atual.');
   },
   async unzip(bytes){
     bytes=this._u8(bytes);const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),eocd=this._findEOCD(bytes);

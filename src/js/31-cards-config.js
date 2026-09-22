@@ -16,9 +16,8 @@ const CardsConfig = {
        padrão é "Due date, then random": vence primeiro quem tem a menor data,
        e empates são desfeitos por uma ordem pseudoaleatória estável. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
-       Os nomes seguem os oficiais para a equivalência ser rastreável.
-       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
-       TEMPLATES, que não existem neste app (cada card é independente). */
+       O app já mantém Note/irmãos/template canônicos, então os modos modernos
+       de coleta, ordenação e mistura podem seguir o contrato completo do Anki. */
 
     // ReviewCardOrder — padrão do Anki 26.09.2: Due date, then random.
     reviewOrder: 'day',
@@ -145,6 +144,20 @@ const CardsConfig = {
     c.newPerDay = Math.round(this._numValido(c.newPerDay, D.newPerDay, 0, 999999));
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
+    // Enums também chegam por backup/nuvem. Um valor legado ou corrompido não
+    // pode criar um caminho de fila que o scheduler atual não reconhece.
+    const enums = {
+      reviewOrder: ['day','dayThenDeck','deckThenDay','intervalsAsc','intervalsDesc','easeAsc','easeDesc',
+                    'retrievabilityAsc','retrievabilityDesc','relativeOverdueness','random','added','reverseAdded'],
+      newGatherOrder: ['deck','deckRandomNotes','posicao','posicaoDesc','randomNotes','randomCards'],
+      newSortOrder: ['template','coleta','templateRandom','randomNoteTemplate','randomCard'],
+      newInsertOrder: ['sequencial','aleatoria'],
+      newMix: ['misturar','depois','antes'],
+      interdayMix: ['misturar','depois','antes'],
+      leechAction: ['tag','suspend'],
+      algo: ['fsrs','sm2']
+    };
+    Object.keys(enums).forEach(k => { if (!enums[k].includes(c[k])) c[k] = D[k]; });
     ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits'].forEach(k => { if (typeof c[k] !== 'boolean') c[k] = !!D[k]; });
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.

@@ -138,7 +138,8 @@ async function precarregar() {
   const dinamicos = [
     './src/vendor/fsrs-6.6.2/fsrs_optimizer.js',
     './src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm',
-    './src/vendor/sqljs-1.2.1/sql-asm.js'
+    './src/vendor/sqljs-1.2.1/sql-asm.js',
+    './src/vendor/fzstd-0.1.1/fzstd.js'
   ];
   for (const recurso of dinamicos) {
     try {
