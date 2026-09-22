@@ -20,3 +20,6 @@ A conversao do revlog do Study para `FSRSItem` fica no JavaScript de
 
 O binario de navegador e gerado de forma reproduzivel e versionado em
 `src/vendor/fsrs-6.6.2/`. Nao ha CDN em tempo de execucao.
+
+A pasta `src/vendor/fsrs-6.6.2/` e artefato derivado: deve ser produzida pelo workflow
+`Cards FSRS 6.6.2 vendor` a partir deste wrapper, nunca editada manualmente.
