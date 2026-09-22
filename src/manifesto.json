@@ -17,376 +17,381 @@
  {
   "arquivo": "html/03-corpo.html",
   "de": 5654,
-  "ate": 7216
+  "ate": 7217
  },
  {
   "arquivo": "html/05-corpo-cont.html",
-  "de": 7218,
-  "ate": 8098
+  "de": 7219,
+  "ate": 8099
  },
  {
   "arquivo": "css/06-ux-base.css",
-  "de": 8101,
-  "ate": 9453
+  "de": 8102,
+  "ate": 9454
  },
  {
   "arquivo": "css/07-ux-layout.css",
-  "de": 9458,
-  "ate": 10644
+  "de": 9459,
+  "ate": 10645
  },
  {
   "arquivo": "css/08-ux-components.css",
-  "de": 10649,
-  "ate": 11222
+  "de": 10650,
+  "ate": 11223
  },
  {
   "arquivo": "css/09-extras.css",
-  "de": 11227,
-  "ate": 11854
+  "de": 11228,
+  "ate": 11855
  },
  {
   "arquivo": "css/10-lei-rodizio.css",
-  "de": 11859,
-  "ate": 11873
+  "de": 11860,
+  "ate": 11874
  },
  {
   "arquivo": "css/11-extras-governanca.css",
-  "de": 11878,
-  "ate": 11884
+  "de": 11879,
+  "ate": 11885
  },
  {
   "arquivo": "css/12-tec-premium.css",
-  "de": 11889,
-  "ate": 11913
+  "de": 11890,
+  "ate": 11914
  },
  {
   "arquivo": "css/13-extras-central.css",
-  "de": 11918,
-  "ate": 11924
+  "de": 11919,
+  "ate": 11925
  },
  {
   "arquivo": "css/16-extras-stability.css",
-  "de": 11929,
-  "ate": 11973
+  "de": 11930,
+  "ate": 11974
  },
  {
   "arquivo": "css/17-interaction-feedback.css",
-  "de": 11978,
-  "ate": 12005
+  "de": 11979,
+  "ate": 12006
  },
  {
   "arquivo": "css/18-extras-ux100.css",
-  "de": 12010,
-  "ate": 12288
+  "de": 12011,
+  "ate": 12289
  },
  {
   "arquivo": "css/20-ux-stability.css",
-  "de": 12293,
-  "ate": 12501
+  "de": 12294,
+  "ate": 12502
  },
  {
   "arquivo": "css/21-startup-spinners-reforco.css",
-  "de": 12506,
-  "ate": 12626
+  "de": 12507,
+  "ate": 12627
  },
  {
   "arquivo": "css/22-motor-sugestao.css",
-  "de": 12631,
-  "ate": 12693
+  "de": 12632,
+  "ate": 12694
  },
  {
   "arquivo": "css/27-ux-hierarquia.css",
-  "de": 12698,
-  "ate": 12899
+  "de": 12699,
+  "ate": 12900
  },
  {
   "arquivo": "css/28-tec-padrao.css",
-  "de": 12904,
-  "ate": 13245
+  "de": 12905,
+  "ate": 13246
  },
  {
   "arquivo": "css/29-config-central.css",
-  "de": 13250,
-  "ate": 13526
+  "de": 13251,
+  "ate": 13527
  },
  {
   "arquivo": "css/30-evolucao-mpq.css",
-  "de": 13531,
-  "ate": 13600
+  "de": 13532,
+  "ate": 13601
  },
  {
   "arquivo": "css/31-leis-lista.css",
-  "de": 13605,
-  "ate": 13833
+  "de": 13606,
+  "ate": 13834
  },
  {
   "arquivo": "css/32-ajustes-ui.css",
-  "de": 13838,
-  "ate": 15213
+  "de": 13839,
+  "ate": 15214
  },
  {
   "arquivo": "js/10-infra.js",
-  "de": 15218,
-  "ate": 15568
+  "de": 15219,
+  "ate": 15569
  },
  {
   "arquivo": "js/11-db.js",
-  "de": 15570,
-  "ate": 17801
+  "de": 15571,
+  "ate": 17802
  },
  {
   "arquivo": "js/12-planos-perfis.js",
-  "de": 17803,
-  "ate": 18200
+  "de": 17804,
+  "ate": 18201
  },
  {
   "arquivo": "js/14-navegacao-e-dialogos.js",
-  "de": 18202,
-  "ate": 18614
+  "de": 18203,
+  "ate": 18615
  },
  {
   "arquivo": "js/15-saveguard.js",
-  "de": 18616,
-  "ate": 18914
+  "de": 18617,
+  "ate": 18915
  },
  {
   "arquivo": "js/16-planilhas-e-tec.js",
-  "de": 18916,
-  "ate": 19500
+  "de": 18917,
+  "ate": 19501
  },
  {
   "arquivo": "js/17-reforco.js",
-  "de": 19502,
-  "ate": 19750
+  "de": 19503,
+  "ate": 19751
  },
  {
   "arquivo": "js/20-tela-registrar.js",
-  "de": 19752,
-  "ate": 20564
+  "de": 19753,
+  "ate": 20565
  },
  {
   "arquivo": "js/21-tela-ciclo.js",
-  "de": 20566,
-  "ate": 20847
+  "de": 20567,
+  "ate": 20848
  },
  {
   "arquivo": "js/22-leis-engine.js",
-  "de": 20849,
-  "ate": 21091
+  "de": 20850,
+  "ate": 21092
  },
  {
   "arquivo": "js/30-fsrs.js",
-  "de": 21093,
-  "ate": 21731
+  "de": 21094,
+  "ate": 21732
  },
  {
   "arquivo": "js/31-cards-config.js",
-  "de": 21732,
-  "ate": 22066
+  "de": 21733,
+  "ate": 22067
  },
  {
   "arquivo": "js/32-card-engine.js",
-  "de": 22068,
-  "ate": 22629
+  "de": 22069,
+  "ate": 22630
+ },
+ {
+  "arquivo": "js/34-anki-export.js",
+  "de": 22632,
+  "ate": 23077
  },
  {
   "arquivo": "js/33-tela-grade.js",
-  "de": 22631,
-  "ate": 24234
+  "de": 23079,
+  "ate": 24682
  },
  {
   "arquivo": "js/40-tela-historico.js",
-  "de": 24236,
-  "ate": 24665
+  "de": 24684,
+  "ate": 25113
  },
  {
   "arquivo": "js/41-tela-evolucao.js",
-  "de": 24667,
-  "ate": 26654
+  "de": 25115,
+  "ate": 27102
  },
  {
   "arquivo": "js/42-tela-estudo-novo.js",
-  "de": 26656,
-  "ate": 27255
+  "de": 27104,
+  "ate": 27703
  },
  {
   "arquivo": "js/43-tela-leis.js",
-  "de": 27257,
-  "ate": 28245
+  "de": 27705,
+  "ate": 28693
  },
  {
   "arquivo": "js/44-tela-cards.js",
-  "de": 28247,
-  "ate": 30590
+  "de": 28695,
+  "ate": 31038
  },
  {
   "arquivo": "js/44-anki-parity.js",
-  "de": 30591,
-  "ate": 31568
+  "de": 31039,
+  "ate": 32016
  },
  {
   "arquivo": "js/45-autoteste.js",
-  "de": 31570,
-  "ate": 32668
+  "de": 32018,
+  "ate": 33116
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 32670,
-  "ate": 33210
+  "de": 33118,
+  "ate": 33659
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 33212,
-  "ate": 34478
+  "de": 33661,
+  "ate": 34927
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 34480,
-  "ate": 34673
+  "de": 34929,
+  "ate": 35122
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 34675,
-  "ate": 35087
+  "de": 35124,
+  "ate": 35536
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 35089,
-  "ate": 35320
+  "de": 35538,
+  "ate": 35769
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 35322,
-  "ate": 37943
+  "de": 35771,
+  "ate": 38392
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 37945,
-  "ate": 38127
+  "de": 38394,
+  "ate": 38576
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 38129,
-  "ate": 38734
+  "de": 38578,
+  "ate": 39183
  },
  {
   "arquivo": "js/54-reforco-fila.js",
-  "de": 38736,
-  "ate": 39366
+  "de": 39185,
+  "ate": 39815
  },
  {
   "arquivo": "js/55-extras-ui-moderna.js",
-  "de": 39368,
-  "ate": 39753
+  "de": 39817,
+  "ate": 40202
  },
  {
   "arquivo": "js/56-leis-rodizio.js",
-  "de": 39755,
-  "ate": 40209
+  "de": 40204,
+  "ate": 40658
  },
  {
   "arquivo": "js/57-extras-lei-fonte.js",
-  "de": 40211,
-  "ate": 40288
+  "de": 40660,
+  "ate": 40737
  },
  {
   "arquivo": "js/58-extras-governanca.js",
-  "de": 40290,
-  "ate": 40440
+  "de": 40739,
+  "ate": 40889
  },
  {
   "arquivo": "js/59-tec-premium.js",
-  "de": 40442,
-  "ate": 40545
+  "de": 40891,
+  "ate": 40994
  },
  {
   "arquivo": "js/59-extras-central-ui.js",
-  "de": 40547,
-  "ate": 40817
+  "de": 40996,
+  "ate": 41266
  },
  {
   "arquivo": "js/59-extras-stability.js",
-  "de": 40819,
-  "ate": 40952
+  "de": 41268,
+  "ate": 41401
  },
  {
   "arquivo": "js/59-interaction-feedback.js",
-  "de": 40954,
-  "ate": 41120
+  "de": 41403,
+  "ate": 41569
  },
  {
   "arquivo": "js/59-extras-ux100.js",
-  "de": 41122,
-  "ate": 41359
+  "de": 41571,
+  "ate": 41808
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 41361,
-  "ate": 41745
+  "de": 41810,
+  "ate": 42194
  },
  {
   "arquivo": "js/60-relational-store.js",
-  "de": 41747,
-  "ate": 42748
+  "de": 42196,
+  "ate": 43197
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 42750,
-  "ate": 43242
+  "de": 43199,
+  "ate": 43691
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 43244,
-  "ate": 43484
+  "de": 43693,
+  "ate": 43933
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 43486,
-  "ate": 44270
+  "de": 43935,
+  "ate": 44719
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 44272,
-  "ate": 44527
+  "de": 44721,
+  "ate": 44976
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 44529,
-  "ate": 45064
+  "de": 44978,
+  "ate": 45513
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 45066,
-  "ate": 46143
+  "de": 45515,
+  "ate": 46592
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 46145,
-  "ate": 46438
+  "de": 46594,
+  "ate": 46887
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 46439,
-  "ate": 46669
+  "de": 46888,
+  "ate": 47118
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 46671,
-  "ate": 47334
+  "de": 47120,
+  "ate": 47783
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 47336,
-  "ate": 47639
+  "de": 47785,
+  "ate": 48088
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 47641,
-  "ate": 47984
+  "de": 48090,
+  "ate": 48433
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 47986,
-  "ate": 48178
+  "de": 48435,
+  "ate": 48627
  }
 ]
