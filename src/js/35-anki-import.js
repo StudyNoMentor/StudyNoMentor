@@ -246,28 +246,38 @@ const AnkiImport = {
   },
   _schemaEqual(a,b){
     if(!a||!b||a.kind!==b.kind)return false;
-    const sig=x=>(x||[]).map((v,i)=>String(v.id!=null?'id:'+v.id:(v.sourceOrd!=null?'ord:'+v.sourceOrd:'name:'+String(v.name||i).toLowerCase())));
-    const af=sig(a.fields),bf=sig(b.fields),at=sig(a.templates),bt=sig(b.templates);
-    return af.length===bf.length&&at.length===bt.length&&af.every((x,i)=>x===bf[i])&&at.every((x,i)=>x===bt[i]);
+    const af=a.fields||[],bf=b.fields||[],at=a.templates||[],bt=b.templates||[];
+    return af.length===bf.length&&at.length===bt.length&&
+      af.every((x,i)=>this._sameSchemaItem(x,bf[i],i,i))&&
+      at.every((x,i)=>this._sameSchemaItem(x,bt[i],i,i));
+  },
+  _itemOrd(x,i){
+    const v=x&&x.sourceOrd!=null?Number(x.sourceOrd):(x&&x.ord!=null?Number(x.ord):Number(i));
+    return Number.isFinite(v)?v:Number(i);
+  },
+  _sameSchemaItem(a,b,ai,bi){
+    const aid=a&&a.id!=null&&Number.isFinite(Number(a.id))?Number(a.id):null;
+    const bid=b&&b.id!=null&&Number.isFinite(Number(b.id))?Number(b.id):null;
+    if(aid!=null&&bid!=null)return aid===bid;
+    const ao=this._itemOrd(a,ai),bo=this._itemOrd(b,bi);
+    if(Number.isFinite(ao)&&Number.isFinite(bo))return ao===bo;
+    return String(a&&a.name||'').trim().toLowerCase()===String(b&&b.name||'').trim().toLowerCase();
   },
   _identity(x,i){
     if(x&&x.id!=null&&Number.isFinite(Number(x.id)))return 'id:'+Number(x.id);
-    if(x&&x.sourceOrd!=null&&Number.isFinite(Number(x.sourceOrd)))return 'ord:'+Number(x.sourceOrd);
-    return 'name:'+String(x&&x.name||i).trim().toLowerCase();
+    return 'ord:'+this._itemOrd(x,i);
   },
   _mergeNotetype(existing,incoming,preferIncoming){
     if(existing.kind!==incoming.kind)throw new Error('Não é possível mesclar tipo Cloze com tipo Normal.');
     const mergeList=(oldList,newList)=>{
-      const out=(oldList||[]).map(x=>Object.assign({},x)),map=new Map();
-      out.forEach((x,i)=>map.set(this._identity(x,i),i));
-      const incomingMap=[];
+      const out=(oldList||[]).map(x=>Object.assign({},x)),incomingMap=[];
       (newList||[]).forEach((x,i)=>{
-        const k=this._identity(x,i),at=map.has(k)?map.get(k):-1;
+        const at=out.findIndex((y,j)=>this._sameSchemaItem(y,x,j,i));
         if(at>=0){
           if(preferIncoming)out[at]=Object.assign({},out[at],x,{ord:at});
           incomingMap[i]=at;
         }else{
-          const ni=out.length;out.push(Object.assign({},x,{ord:ni}));map.set(k,ni);incomingMap[i]=ni;
+          const ni=out.length;out.push(Object.assign({},x,{ord:ni}));incomingMap[i]=ni;
         }
       });
       out.forEach((x,i)=>{x.ord=i;});
@@ -282,11 +292,10 @@ const AnkiImport = {
   },
   _migrateNotesForMergedNotetype(existing,merged){
     const old=existing.fields||[],next=merged.fields||[];
-    const oldByKey=new Map(old.map((x,i)=>[this._identity(x,i),x]));
     for(const note of AnkiParity.notes().filter(n=>String(n.notetypeId)===String(existing.id))){
       const fields=Object.assign({},note.fields||{}),nf={};
       next.forEach((f,i)=>{
-        const prev=oldByKey.get(this._identity(f,i));
+        const pi=old.findIndex((x,j)=>this._sameSchemaItem(x,f,j,i)),prev=pi>=0?old[pi]:null;
         nf[f.name]=prev&&Object.prototype.hasOwnProperty.call(fields,prev.name)?fields[prev.name]:(Object.prototype.hasOwnProperty.call(fields,f.name)?fields[f.name]:'');
       });
       AnkiParity.saveNote(Object.assign({},note,{fields:nf}));
@@ -345,7 +354,10 @@ const AnkiImport = {
       const keys=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(k.startsWith(p+'cards-note:')||k.startsWith(p+'cards-notetype:')))keys.push(k);}
       keys.forEach(k=>localStorage.removeItem(k));
       localStorage.removeItem(AnkiParity._presetKey());
-      if(typeof CardsConfig!=='undefined'){localStorage.removeItem(CardsConfig.PKEY);CardsConfig._c=null;CardsConfig._cKey=null;}
+      if(typeof CardsConfig!=='undefined'){
+        localStorage.removeItem(CardsConfig.PKEY);localStorage.removeItem(CardsConfig.DKEY);
+        CardsConfig._c=null;CardsConfig._cKey=null;
+      }
     }catch(_){}
   },
   async importCollectionPackage(parsed){
