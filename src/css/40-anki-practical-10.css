@@ -1,0 +1,42 @@
+/* Paridade prática 10/10 — Deck Manager, Browser Sidebar e menu semântico */
+.cards-more-menu{min-width:260px}
+.cards-more-group{padding:3px 0}
+.cards-more-group+.cards-more-group{border-top:1px solid var(--border);margin-top:3px;padding-top:6px}
+.cards-more-group-label{padding:4px 11px 3px;font-size:var(--fs-3xs);font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text-faint);pointer-events:none}
+.cards-more-group button{margin:0}
+
+.anki-deck-tools{display:flex;gap:8px;align-items:center;margin:12px 0 4px}
+.anki-deck-tools input{flex:1;min-width:0}
+#deck-list .deck-row{padding-left:calc(4px + var(--deck-depth,0)*18px)}
+#deck-list .anki-deck-tree-toggle{flex:0 0 28px}
+#deck-list .anki-deck-tree-toggle:disabled{opacity:.28;cursor:default}
+#deck-list .deck-name{min-width:120px}
+#deck-list .deck-count{white-space:nowrap;font-size:var(--fs-2xs)}
+
+#anki-browser-modal .anki-browser-layout{grid-template-columns:220px minmax(0,1.55fr) minmax(280px,.85fr)}
+.anki-browser-sidebar{border:1px solid var(--border);border-radius:14px;background:var(--surface-sunken);padding:8px;min-width:0;max-height:610px;overflow:auto;align-self:start}
+.anki-browser-side-head{display:flex;align-items:center;justify-content:space-between;padding:3px 4px 8px}
+.anki-browser-side-head strong{font-size:var(--fs-sm)}
+.anki-browser-side-section{border-top:1px solid var(--border);padding-top:4px;margin-top:4px}
+.anki-browser-side-section summary{cursor:pointer;font-size:var(--fs-xs);font-weight:800;color:var(--text-soft);padding:6px 5px;user-select:none}
+.anki-browser-side-section>div{display:flex;flex-direction:column;gap:1px}
+.anki-browser-side-section button{border:0;background:transparent;border-radius:7px;padding:6px 7px;display:flex;gap:8px;align-items:center;justify-content:space-between;text-align:left;color:var(--text);cursor:pointer;font-size:var(--fs-xs);min-width:0}
+.anki-browser-side-section button:hover,.anki-browser-side-section button:focus-visible{background:var(--accent-soft);color:var(--accent-text)}
+.anki-browser-side-section button span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anki-browser-side-section button small{font-family:'Space Mono',ui-monospace,monospace;color:var(--text-faint);flex:0 0 auto}
+
+@media(max-width:1100px){
+  #anki-browser-modal .anki-browser-layout{grid-template-columns:190px minmax(0,1fr)}
+  #anki-browser-modal .anki-browser-preview{grid-column:1/-1}
+}
+@media(max-width:800px){
+  #anki-browser-modal .anki-browser-layout{grid-template-columns:1fr}
+  .anki-browser-sidebar{max-height:260px}
+  #anki-browser-modal .anki-browser-preview{grid-column:auto}
+}
+@media(max-width:560px){
+  .anki-deck-tools{flex-direction:column;align-items:stretch}
+  #deck-list .deck-row{padding-left:calc(2px + var(--deck-depth,0)*10px)}
+  #deck-list .deck-count{white-space:normal}
+  .cards-more-group-label{position:sticky;top:-6px;background:var(--surface);z-index:1}
+}
