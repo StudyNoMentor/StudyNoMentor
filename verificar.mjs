@@ -209,6 +209,24 @@ for (const alvo of ['playwright', '/opt/node22/lib/node_modules/playwright/index
 }
 if (!chromium) { console.log('\n5-6) PULADAS: Playwright nao encontrado (npm i -D playwright).'); process.exit(falhas ? 1 : 0); }
 
+/* ── 4.8) CARDS DURAVEIS / OFFLINE / CONCORRENCIA ─────────────────────────
+   Esses testes ficam no verifier padrão, não no YAML do Actions. Assim toda
+   PR executa o mesmo gate mesmo quando o próprio workflow não é alterado. */
+console.log('\n4.8) cards: persistencia duravel, offline, reload e concorrencia');
+for (const [rotulo, arquivo] of [
+  ['6.000 cards + WAL + reload real', 'cards-durable-browser.mjs'],
+  ['CAS entre dispositivos + colisao do revlog', 'cards-concorrencia-browser.mjs']
+]) {
+  try {
+    const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', arquivo)], {
+      stdio: 'pipe', maxBuffer: 32 * 1024 * 1024
+    });
+    ok(rotulo + ' — ' + String(saida).trim().split('\n').pop());
+  } catch (e) {
+    erro(rotulo + ' falhou:\n' + (String(e.stdout || '') + String(e.stderr || '')).slice(-12000));
+  }
+}
+
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.webmanifest': 'application/manifest+json', '.json': 'application/json' };
 /* Permite a um teste servir uma versao DIFERENTE de um arquivo sem tocar no
