@@ -11,7 +11,7 @@ const math=Object.create(Math); math.random=random;
 class Clock extends Date {constructor(...a){super(...(a.length?a:[now]));}static now(){return now;}}
 const today=()=>new Date(now-4*3600e3).toISOString().slice(0,10);
 let cards=[],logs=[];const storage=new Map();
-const DB={_profilePrefix:()=> 'audit:',setRaw:(k,v)=>storage.set(k,v),getCards:()=>cards,getCard:id=>cards.find(c=>c.id===id),getDecks:()=>[],getRevlog:()=>logs,updateCard:(id,p)=>Object.assign(DB.getCard(id),p),addRevlog:r=>logs.push(r),removeRevlog:ts=>{logs=logs.filter(r=>r.ts!==ts);}};
+const DB={_profilePrefix:()=> 'audit:',setRaw:(k,v)=>storage.set(k,v),getCards:()=>cards,getCard:id=>cards.find(c=>c.id===id),getDecks:()=>[],getRevlog:()=>logs,updateCard:(id,p)=>Object.assign(DB.getCard(id),p),addRevlog:r=>logs.push(r),async addRevlogDurable(r){const row={...r,reviewId:'sim-'+(logs.length+1),_position:logs.length+1};logs.push(row);return row;},async cancelarRevlogDurable(row){logs=logs.filter(r=>r.reviewId!==row.reviewId);return true;},kickRevlogDuravel:()=>{},removeRevlog:ts=>{logs=logs.filter(r=>r.ts!==ts);}};
 const ctx={console,Math:math,Date:Clock,window:{},_quiet:()=>{},todayCards:today,proximaViradaTs:()=>Date.parse(today()+'T04:00:00Z')+864e5,DB,localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},showToast:()=>{},document:{getElementById:()=>({innerHTML:'',addEventListener:()=>{}})},clearTimeout:()=>{},setTimeout:()=>0};
 vm.createContext(ctx);
 for(const [file,name] of [['30-fsrs.js','FSRS'],['31-cards-config.js','CardsConfig'],['32-card-engine.js','CardEngine'],['44-tela-cards.js','CardsScreen']]) vm.runInContext(fs.readFileSync(new URL('src/js/'+file,root),'utf8')+'\n;globalThis.'+name+'='+name+';',ctx);
@@ -30,7 +30,7 @@ reset();cards=[{id:'buried',phase:'learning',due:today(),dueTs:now+600e3,enterra
 reset({newPerDay:20});C.setDeckPreset('tiny',{newPerDay:1});cards=Array.from({length:20},(_,i)=>({id:'n'+i,deckId:'tiny',phase:'new',due:today()}));check('Deck new limit respected',S.buildQueue().length===1,{actual:S.buildQueue().length});
 reset();cards=[{id:'rv',phase:'review',due:today(),s:10,d:5,intervalo:10,lastReview:E.addDays(today(),-10)},{id:'lr',phase:'learning',due:today(),dueTs:now-1000}];check('Due intraday learning precedes review',S.buildQueue()[0]==='lr',{actual:S.buildQueue()});
 reset();const initial={id:'undo',phase:'review',reps:9,lapses:7,s:10,d:5,intervalo:10,lastReview:E.addDays(today(),-10),due:today(),suspenso:false};cards=[{...initial}];logs=[];S._reviewQueue=['undo'];S._reviewIdx=0;S._undoStack=[];S._seenThisSession=new Set();S.renderReviewCard=()=>{};S.atualizarFoco=()=>{};S.updateFavCount=()=>{};S._skipNotDue=()=>{};
-S.answer('errei');S.undoAnswer();check('Undo restores scheduling fields and daily counts',Object.keys(initial).every(k=>cards[0][k]===initial[k])&&logs.length===0&&C.revDoneToday()===0,{card:cards[0],logs:logs.length,revDone:C.revDoneToday()});
+await S.answer('errei');S.undoAnswer();check('Undo restores scheduling fields and daily counts',Object.keys(initial).every(k=>cards[0][k]===initial[k])&&logs.length===0&&C.revDoneToday()===0,{card:cards[0],logs:logs.length,revDone:C.revDoneToday()});
 check('Cloze hints are rendered as hints',E.clozeRender('{{c1::Paris::capital}}',false).includes('capital'),{actual:E.clozeRender('{{c1::Paris::capital}}',false)});
 // Simulation: real engine + real queue + real config; storage and clock are doubles.
 const scenarios=[];const vectors=[];
