@@ -1,0 +1,32 @@
+/* Paridade máxima — editor avançado / Note Types. */
+.anki-nt-meta{margin:10px 0 4px}
+.anki-nt-meta>details,.anki-field-advanced,.anki-template-advanced{
+  border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken);padding:7px 9px
+}
+.anki-nt-meta summary,.anki-field-advanced summary,.anki-template-advanced summary{cursor:pointer;font-weight:700;font-size:var(--fs-xs)}
+.anki-field-row-max{grid-template-columns:auto minmax(0,1fr) auto;align-items:start}
+.anki-field-main{min-width:0}
+.anki-field-main>.anki-field-name{width:100%;box-sizing:border-box}
+.anki-field-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.anki-field-options>label:not(.check-label){display:flex;flex-direction:column;gap:4px;font-size:var(--fs-2xs);color:var(--text-soft)}
+.anki-field-options .check-label{align-self:end;min-height:34px}
+.anki-field-options .hint{grid-column:1/-1}
+.anki-template-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.anki-template-advanced{margin-top:9px}
+.anki-template-advanced .field-group{margin-top:9px}
+.anki-max-field{margin-bottom:12px}
+.anki-max-field>.hint{margin:2px 0 6px}
+.anki-max-rte .rte-area{min-height:110px;max-height:420px;overflow:auto}
+.anki-max-rte .anki-extra-media{display:flex;gap:4px}
+.anki-max-rte .anki-extra-media button{min-width:34px}
+.anki-field-collapsed .rte-toolbar{opacity:.92}
+.anki-field-collapsed .rte-area{min-height:72px}
+.anki-max-plain{width:100%;box-sizing:border-box;resize:vertical}
+#anki-nt-stock-kind{font-family:'Space Mono',ui-monospace,monospace;font-size:12px;background:var(--surface-sunken)}
+@media(max-width:760px){
+  .anki-field-options{grid-template-columns:1fr 1fr}
+  .anki-template-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  .anki-field-options{grid-template-columns:1fr}
+}

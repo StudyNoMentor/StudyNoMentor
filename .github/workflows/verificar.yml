@@ -59,6 +59,7 @@ jobs:
           node testes/cards-product-parity.mjs
           node testes/cards-max-reviewer-browser.mjs
           node testes/cards-image-occlusion.mjs
+          node testes/cards-max-editor-io.mjs
           node testes/cards-fsrs-optimizer-oficial.mjs
           node testes/cards-concorrencia-multidevice.mjs
 
