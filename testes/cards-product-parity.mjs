@@ -70,4 +70,11 @@ const rows=P._browserRows();
 assert.equal(rows.length,2);
 assert.equal(rows.find(x=>String(x.note.id)==='n1').cards.length,2);
 
+// "Marked" no Anki é propriedade da nota via tag; favoritos legados continuam aceitos.
+notes.get('n2').tags=['marked'];
+P.browser.marked=true;
+const markedRows=P._browserRows();
+assert.deepEqual(Array.from(markedRows,x=>String(x.note.id)),['n2']);
+P.browser.marked=false;
+
 console.log('PARIDADE DE PRODUTO: browser por notas, reconciliação sem perder agendamento e manutenção segura validados.');
