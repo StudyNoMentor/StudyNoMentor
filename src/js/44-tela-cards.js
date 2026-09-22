@@ -356,6 +356,7 @@ const CardsScreen = {
        o teto de reviews quando a opção global do Anki assim exige. */
     const selectedDeckId = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
     const limitTree = (typeof AnkiParity !== 'undefined') ? AnkiParity.limitState(selectedDeckId) : null;
+    const fallbackTaken = new Map();
     const limitarPorArvore = (lista, limiteGlobal, kind) => {
       const out = [];
       for (const card of lista) {
@@ -363,13 +364,27 @@ const CardsScreen = {
         if (limitTree) {
           if (!limitTree.take(card, kind)) continue;
         } else {
-          // Fallback para carregamento isolado/legado sem a camada de paridade.
-          const remDeck = kind === 'new'
+          /* Fallback para carregamento isolado/legado sem a camada de paridade.
+             As consultas *RemainingForDeck() refletem apenas o que já foi
+             confirmado hoje; durante a construção da fila precisamos consumir
+             também as vagas aceitas nesta própria passagem. Sem esse saldo
+             local, um deck com limite 1 aceitava todos os seus cards porque cada
+             iteração continuava enxergando o mesmo "1 restante". */
+          const did = card.deckId == null ? '__sem_deck__' : String(card.deckId);
+          const key = kind + ':' + did;
+          const usados = fallbackTaken.get(key) || 0;
+          const remDeck = (kind === 'new'
             ? CardsConfig.newRemainingForDeck(card.deckId)
-            : CardsConfig.revRemainingForDeck(card.deckId);
+            : CardsConfig.revRemainingForDeck(card.deckId)) - usados;
           if (remDeck <= 0) continue;
-          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit
-              && CardsConfig.revRemainingForDeck(card.deckId) <= 0) continue;
+          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit) {
+            const revKey = 'review:' + did;
+            const revUsados = fallbackTaken.get(revKey) || 0;
+            const revRemDeck = CardsConfig.revRemainingForDeck(card.deckId) - revUsados;
+            if (revRemDeck <= 0) continue;
+            fallbackTaken.set(revKey, revUsados + 1);
+          }
+          fallbackTaken.set(key, usados + 1);
         }
         out.push(card);
       }
