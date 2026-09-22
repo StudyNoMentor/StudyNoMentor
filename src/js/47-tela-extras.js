@@ -735,7 +735,9 @@ const ExtrasScreen = {
     const ultimoReg = nReg ? regsDia[nReg - 1] : null;
     const totalDia = regsDia.reduce((a, h) => a + (h.quantidade || 0), 0);
     const acertosDia = regsDia.reduce((a, h) => a + (h.acertos != null ? (parseFloat(h.acertos) || 0) : 0), 0);
+    const minutosDia = regsDia.reduce((a, h) => a + (parseFloat(h.minutos) || 0), 0);
     const temAcertos = x.tipo === 'questoes' && regsDia.some(h => h.acertos != null);
+    const temTempo = x.tipo === 'questoes' && regsDia.some(h => (parseFloat(h.minutos) || 0) > 0);
     const futuro = day > todayLocal();
     /* Registro independente da conclusão: pode ser parcial ou integral.
        Bug corrigido (C): quando concluída, o card ESCONDIA tudo o que foi feito.
@@ -744,7 +746,7 @@ const ExtrasScreen = {
     if (done) {
       regRow = totalDia > 0
         ? `<div class="exd-reg exd-reg-donerow">
-             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}</span>
+             <span class="exd-doneinfo">✓ <b>${totalDia.toLocaleString('pt-BR')}</b> ${escapeHtml(unidLabel)} registrado(s) neste dia${temAcertos ? ` · <b>${acertosDia.toLocaleString('pt-BR')}</b> acerto(s)` : ''}${temTempo ? ` · <b>${minutosDia.toLocaleString('pt-BR')}</b> min` : ''}</span>
            </div>`
         : '';
     } else if (futuro) {
@@ -756,7 +758,8 @@ const ExtrasScreen = {
             <div class="exd-reg-group">
               <input type="number" inputmode="decimal" class="exd-num exd-qtd" min="0"
                      placeholder="${placeholder}" title="Informe o valor a registrar" aria-label="Informe o valor a registrar">
-              ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)" aria-label="Acertos (opcional)">` : ''}
+              ${x.tipo === 'questoes' ? `<input type="number" inputmode="numeric" class="exd-num exd-ac" min="0" placeholder="acertos" title="Acertos (opcional)" aria-label="Acertos (opcional)">
+              <input type="number" inputmode="decimal" class="exd-num exd-min" min="0" step="1" placeholder="min" title="Tempo em minutos (opcional)" aria-label="Tempo em minutos (opcional)">` : ''}
               <button type="button" class="btn-primary exd-reg-btn">Registrar</button>
               ${ultimoReg ? `<button type="button" class="btn-secondary exd-reg-cancel">Cancelar</button>` : ''}
             </div>`;
@@ -764,7 +767,7 @@ const ExtrasScreen = {
         <div class="exd-reg">
           ${(ultimoReg && !forceInput) ? `
             <div class="exd-reg-saved">
-              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}</span>
+              <span class="exd-reg-value">✓ ${totalDia.toLocaleString('pt-BR')} ${escapeHtml(unidLabel)} no dia${temAcertos ? ` · ${acertosDia.toLocaleString('pt-BR')} acerto(s)` : ''}${temTempo ? ` · ${minutosDia.toLocaleString('pt-BR')} min` : ''}</span>
               <button type="button" class="btn-secondary exd-reg-more">＋ Registrar mais</button>
               <button type="button" class="btn-secondary exd-reg-edit">Editar último</button>
             </div>` : inputGroup}
@@ -825,12 +828,13 @@ const ExtrasScreen = {
       if (regBtn) regBtn.addEventListener('click', () => {
         const qEl = card.querySelector('.exd-qtd');
         const acEl = card.querySelector('.exd-ac');
+        const minEl = card.querySelector('.exd-min');
         const q = qEl ? qEl.value : '';
         if (!q || parseFloat(q) <= 0) { showToast('Informe um valor válido'); return; }
         if (acEl && acEl.value !== '' && parseFloat(acEl.value) > parseFloat(q)) { showToast('Acertos não podem passar do total'); return; }
         if (day > todayLocal()) { showToast('Não dá para registrar em data futura'); return; }
         const executar = () => {
-          DB.addExtraProgress(id, q, 0, { data: day, acertos: acEl ? acEl.value : null });
+          DB.addExtraProgress(id, q, minEl ? minEl.value : 0, { data: day, acertos: acEl ? acEl.value : null });
           this._addMoreFor = null;
           this.render();
           showToast(day === todayLocal() ? 'Registrado ✓' : 'Registrado em ' + formatDateShort(day) + ' ✓');
@@ -850,14 +854,17 @@ const ExtrasScreen = {
         const atual = regs.length ? regs[regs.length - 1] : null;
         if (!atual) { this.render(); return; }
         const campos = [{ key: 'quantidade', label: 'Novo valor', type: 'number', value: String(atual.quantidade || ''), min: 0 }];
-        if (xAtual.tipo === 'questoes') campos.push({ key: 'acertos', label: 'Acertos', type: 'number', value: atual.acertos == null ? '' : String(atual.acertos), min: 0 });
+        if (xAtual.tipo === 'questoes') {
+          campos.push({ key: 'acertos', label: 'Acertos', type: 'number', value: atual.acertos == null ? '' : String(atual.acertos), min: 0 });
+          campos.push({ key: 'minutos', label: 'Tempo (min)', type: 'number', value: atual.minutos == null || Number(atual.minutos) === 0 ? '' : String(atual.minutos), min: 0 });
+        }
         UI.prompt(campos, { title: 'Editar registro', okText: 'Salvar' }).then(v => {
           if (!v) return;
           const novo = parseFloat(v.quantidade);
           if (!novo || novo <= 0) { showToast('Informe um valor válido'); return; }
           if (v.acertos !== undefined && v.acertos !== '' && parseFloat(v.acertos) > novo) { showToast('Acertos não podem passar do total'); return; }
           DB.undoExtraProgressDay(id, day);
-          DB.addExtraProgress(id, novo, 0, { data: day, acertos: v.acertos == null ? null : v.acertos });
+          DB.addExtraProgress(id, novo, v.minutos == null ? 0 : v.minutos, { data: day, acertos: v.acertos == null ? null : v.acertos });
           this._addMoreFor = null;
           this.render();
           showToast('Registro atualizado ✓');
