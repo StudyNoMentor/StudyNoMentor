@@ -777,7 +777,29 @@ AnkiParity._filteredTermMatches=function(card,term){
   const m=term.match(/^([^:]+):(.*)$/),key=m?m[1].toLowerCase():'',raw=m?m[2]:'';
   const val=String(raw||'').replace(/^"(.*)"$/,'$1');
   const homeId=card.originalDeckId||card.deckId;
-  if(key==='deck'){
+  const lc=x=>String(x==null?'':x).toLowerCase();
+  const includes=(x,w)=>lc(x).includes(lc(w));
+  if(!m){
+    const bare=lc(term.replace(/^"|"$/g,''));
+    if(bare==='favorito'||bare==='favorite')return !!card.favorito;
+    if(bare==='suspenso'||bare==='suspended')return !!card.suspenso;
+    if(bare==='leech')return !!card.leech||this._noteTagsForCard(card).some(t=>lc(t)==='leech');
+  }
+  if(key==='materia'||key==='subject')return includes(card.materia,val)||includes(card.materiaTec,val);
+  if(key==='assunto'||key==='topic')return includes(card.assunto,val);
+  if(key==='tipo'||key==='type')return includes(card.tipo||card.kind,val);
+  if(key==='banca')return includes(card.banca,val);
+  if(key==='favorito'||key==='favorite'){
+    const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?!!card.favorito:!card.favorito;
+  }
+  if(key==='suspenso'||key==='suspended'){
+    const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?!!card.suspenso:!card.suspenso;
+  }
+  if(key==='leech'){
+    const hit=!!card.leech||this._noteTagsForCard(card).some(t=>lc(t)==='leech');
+    const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?hit:!hit;
+  }
+  if(key==='deck'||key==='baralho'){
     const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(homeId));
     if(!d)return false;const n=String(d.nome||'').toLowerCase(),want=val.toLowerCase();
     return n===want||n.startsWith(want+'::');
