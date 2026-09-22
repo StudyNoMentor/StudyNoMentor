@@ -130,6 +130,22 @@ async function precarregar() {
     const m = await fetch(new Request('./manifest.webmanifest', { cache: 'reload' }));
     if (m && m.ok) await c.put('./manifest.webmanifest', m.clone());
   } catch (_) { /* o manifesto é dispensável para abrir offline */ }
+
+  /* Runtimes dinâmicos que NÃO entram no index.html concatenado.
+     Sem pré-cache, o app abre offline mas a primeira otimização FSRS ou a
+     primeira exportação .apkg feita sem rede falharia justamente porque esses
+     arquivos só seriam pedidos naquele momento. */
+  const dinamicos = [
+    './src/vendor/fsrs-6.6.2/fsrs_optimizer.js',
+    './src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm',
+    './src/vendor/sqljs-1.2.1/sql-asm.js'
+  ];
+  for (const recurso of dinamicos) {
+    try {
+      const r = await fetch(new Request(recurso, { cache: 'reload' }));
+      if (r && r.ok) await c.put(recurso, r.clone());
+    } catch (_) { /* recurso avançado: não impede instalar a casca principal */ }
+  }
 }
 
 self.addEventListener('install', (evt) => {
