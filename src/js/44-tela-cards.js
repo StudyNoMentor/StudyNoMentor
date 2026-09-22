@@ -309,37 +309,44 @@ const CardsScreen = {
     const bloqueiaNovosPorReview = !cfgQ.newCardsIgnoreReviewLimit && revRem <= 0;
     const newRemEfetivo = bloqueiaNovosPorReview ? 0 : newRem;
 
-    const deckKey = (card) => card.deckId == null ? '__sem_baralho__' : String(card.deckId);
-    const limitarPorDeck = (lista, limiteGlobal, kind, usados) => {
-      const out = [], used = usados || new Map();
+    /* ── LIMIT TREE HIERÁRQUICA (rslib/decks/limits.rs) ─────────────────────
+       Um ÚNICO estado mutável é compartilhado por novos, interday learning e
+       reviews. Assim, ao aceitar um card, todos os nós aplicáveis (baralho e,
+       conforme a opção global, pais) perdem a vaga imediatamente. Isso evita
+       ultrapassar o teto de um pai somando vários filhos e faz novos consumirem
+       o teto de reviews quando a opção global do Anki assim exige. */
+    const selectedDeckId = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
+    const limitTree = (typeof AnkiParity !== 'undefined') ? AnkiParity.limitState(selectedDeckId) : null;
+    const limitarPorArvore = (lista, limiteGlobal, kind) => {
+      const out = [];
       for (const card of lista) {
         if (out.length >= limiteGlobal) break;
-        const k = deckKey(card);
-        const remDeck = kind === 'new'
-          ? CardsConfig.newRemainingForDeck(card.deckId)
-          : CardsConfig.revRemainingForDeck(card.deckId);
-        const ja = used.get(k) || 0;
-        if (ja >= remDeck) continue;
-        if (kind === 'new') {
-          // Esta chave é global no Anki; _queueConfig()/forDeck() a mantém
-          // presa ao valor global mesmo que um preset antigo contenha override.
-          if (!cfgQ.newCardsIgnoreReviewLimit && CardsConfig.revRemainingForDeck(card.deckId) <= 0) continue;
+        if (limitTree) {
+          if (!limitTree.take(card, kind)) continue;
+        } else {
+          // Fallback para carregamento isolado/legado sem a camada de paridade.
+          const remDeck = kind === 'new'
+            ? CardsConfig.newRemainingForDeck(card.deckId)
+            : CardsConfig.revRemainingForDeck(card.deckId);
+          if (remDeck <= 0) continue;
+          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit
+              && CardsConfig.revRemainingForDeck(card.deckId) <= 0) continue;
         }
-        out.push(card); used.set(k, ja + 1);
+        out.push(card);
       }
-      return { out, used };
+      return out;
     };
 
-    const novosSel = limitarPorDeck(novos, newRemEfetivo, 'new');
-    const novosLim = novosSel.out;
+    const novosLim = limitarPorArvore(novos, newRemEfetivo, 'new');
 
-    // Interday learning compartilha o MESMO teto de revisões do Anki. Reservamos
-    // primeiro esses cards já iniciados; reviews ocupam apenas o saldo.
-    const revUsed = new Map();
-    const aprendSel = limitarPorDeck(aprendDia, revRem, 'review', revUsed);
-    const aprendDiaLim = aprendSel.out;
-    const revSel = limitarPorDeck(revisoes, Math.max(0, revRem - aprendDiaLim.length), 'review', aprendSel.used);
-    const revLim = revSel.out;
+    // Interday learning e reviews usam O MESMO saldo de review da árvore.
+    // Cards intradiários continuam fora do teto, como no scheduler moderno.
+    const aprendDiaLim = limitarPorArvore(aprendDia, revRem, 'review');
+    const revLim = limitarPorArvore(
+      revisoes,
+      Math.max(0, revRem - aprendDiaLim.length),
+      'review'
+    );
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
