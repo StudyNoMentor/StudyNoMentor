@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd151d1988c">
+<meta name="diario-versao" content="v34fcd52275">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -21773,6 +21773,13 @@ FSRS.optimizeOfficial=async function(revlog,opts){
   return out;
 };
 
+// O otimizador histórico em JavaScript fica deliberadamente INACESSÍVEL em
+// produção. A única rota suportada é optimizeOfficial(), que usa o WASM
+// fsrs-rs 6.6.2 correspondente ao Anki 26.09.2.
+FSRS.optimize=function(){
+  throw new Error('Otimizador legado desativado. Use FSRS.optimizeOfficial() (fsrs-rs 6.6.2).');
+};
+
 // Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.
 const CardsConfig = {
   // Chaves NAMESPACED pelo perfil ativo: acompanham o perfil e entram no backup/sync.
@@ -22869,7 +22876,9 @@ const AnkiExport = {
     return ({
       'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/gif':'gif','image/webp':'webp','image/bmp':'bmp','image/svg+xml':'svg',
       'audio/mpeg':'mp3','audio/mp3':'mp3','audio/ogg':'ogg','audio/wav':'wav','audio/x-wav':'wav','audio/mp4':'m4a','audio/aac':'aac','audio/flac':'flac',
-      'video/mp4':'mp4','video/webm':'webm','video/ogg':'ogv'
+      'video/mp4':'mp4','video/webm':'webm','video/ogg':'ogv',
+      'text/css':'css','text/javascript':'js','application/javascript':'js','application/json':'json',
+      'font/woff':'woff','font/woff2':'woff2','font/ttf':'ttf','font/otf':'otf','application/pdf':'pdf'
     })[m] || ((m.split('/')[1]||'bin').replace(/[^a-z0-9.+-]/g,'').replace(/^x-/,'')||'bin');
   },
   _storeMedia(bytes, mime, media) {
@@ -22882,16 +22891,18 @@ const AnkiExport = {
     }
     return item;
   },
-  extractMedia(html, media) {
-    let src=String(html||'');
-    // O importador materializa mídia Anki como data URI. No caminho inverso,
-    // qualquer <img>/<audio>/<video> embutido volta a ser arquivo numerado do
-    // pacote; não limitamos o round-trip a imagens.
-    const re=/<(img|audio|video)\b([^>]*?)\bsrc=(["'])data:([^;,]+);base64,([^"']+)\3([^>]*)>/gi;
-    src=src.replace(re,(m,tag,a,q,mime,b64,z)=>{
-      const item=this._storeMedia(this._base64Bytes(b64),mime,media);
-      return '<'+tag+a+'src='+q+item.name+q+z+'>';
-    });
+  extractMedia(content, media) {
+    let src=String(content||'');
+    const store=(mime,b64)=>{
+      try{return this._storeMedia(this._base64Bytes(b64),mime,media).name;}catch(_){return null;}
+    };
+    // Atributos de qualquer tag: img/audio/video/source/script/link/poster etc.
+    src=src.replace(/\b(src|href|poster)=(["'])data:([^;,"']+)(?:;charset=[^;,"']+)?;base64,([^"']+)\2/gi,
+      (m,attr,q,mime,b64)=>{const name=store(mime,b64);return name?attr+'='+q+name+q:m;});
+    src=src.replace(/url\(\s*(["']?)data:([^;,)"']+)(?:;charset=[^;,)"']+)?;base64,([^)"']+)\1\s*\)/gi,
+      (m,q,mime,b64)=>{const name=store(mime,b64);return name?'url("'+name+'")':m;});
+    src=src.replace(/@import\s+(["'])data:([^;,"']+)(?:;charset=[^;,"']+)?;base64,([^"']+)\1/gi,
+      (m,q,mime,b64)=>{const name=store(mime,b64);return name?'@import '+q+name+q:m;});
     return src;
   },
 
@@ -23449,7 +23460,14 @@ const AnkiExport = {
       if (!note) continue; notesById.set(nid, note); usedNt.add(String(note.notetypeId));
     }
     const models = {};
-    for (const nt of AnkiParity.noteTypes()) if (usedNt.has(String(nt.id))) models[String(nt.id)] = this.modelSchema(nt);
+    for (const nt of AnkiParity.noteTypes()) if (usedNt.has(String(nt.id))) {
+      const model=this.modelSchema(nt);
+      model.css=this.extractMedia(model.css,media);
+      model.latexPre=this.extractMedia(model.latexPre||'',media);
+      model.latexPost=this.extractMedia(model.latexPost||'',media);
+      for(const t of model.tmpls||[])for(const k of ['qfmt','afmt','bqfmt','bafmt'])t[k]=this.extractMedia(t[k]||'',media);
+      models[String(nt.id)] = model;
+    }
 
     const SQL = await this._loadSqlJs(), db = new SQL.Database(); db.run(this.SCHEMA11);
     const nowMs = Date.now(), conf = {
@@ -23564,7 +23582,10 @@ const AnkiImport = {
     const e=String(name||'').split('.').pop().toLowerCase();
     return ({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',
       mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav',m4a:'audio/mp4',aac:'audio/aac',flac:'audio/flac',
-      mp4:'video/mp4',webm:'video/webm'})[e]||'application/octet-stream';
+      mp4:'video/mp4',webm:'video/webm',ogv:'video/ogg',
+      css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',
+      woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',otf:'font/otf',
+      pdf:'application/pdf'})[e]||'application/octet-stream';
   },
   _varint(bytes,pos){
     let x=0n,s=0n,i=pos;
@@ -23677,15 +23698,43 @@ const AnkiImport = {
   _has(db,name){
     try{return this._rows(db,"select 1 as x from sqlite_master where type='table' and name=?",[name]).length>0;}catch(_){return false;}
   },
-  _replaceMedia(html,media){
-    let s=String(html==null?'':html);if(!media||!media.size)return s;
-    const cache=new Map(),dataFor=(name)=>{
-      if(cache.has(name))return cache.get(name);const b=media.get(name);if(!b)return null;
+  _replaceMedia(content,media){
+    let s=String(content==null?'':content);if(!media||!media.size)return s;
+    const cache=new Map(),dataFor=(raw)=>{
+      let name=String(raw||'').trim();
+      if(/^data:|^https?:|^blob:|^#|^mailto:/i.test(name))return null;
+      try{name=decodeURIComponent(name);}catch(_){}
+      if(cache.has(name))return cache.get(name);
+      const b=media.get(name);if(!b)return null;
       const u='data:'+this._mime(name)+';base64,'+this._b64(b);cache.set(name,u);return u;
     };
-    s=s.replace(/(<(?:img|audio|video)\b[^>]*?\bsrc=["'])([^"']+)(["'][^>]*>)/gi,(m,a,n,z)=>a+(dataFor(n)||n)+z);
+    // Qualquer recurso estático do template: img/audio/video/source/script/link,
+    // poster e afins. A substituição é pelo NOME presente no media manifest.
+    s=s.replace(/\b(src|href|poster)=(["'])([^"']+)\2/gi,(m,attr,q,n)=>{
+      const u=dataFor(n);return u?attr+'='+q+u+q:m;
+    });
+    s=s.replace(/\bsrcset=(["'])([^"']+)\1/gi,(m,q,v)=>{
+      const parts=v.split(',').map(x=>{const a=x.trim().split(/\s+/),u=dataFor(a[0]);if(u)a[0]=u;return a.join(' ');});
+      return 'srcset='+q+parts.join(', ')+q;
+    });
+    // CSS de Note Type, inclusive @font-face e background-image.
+    s=s.replace(/url\(\s*(["']?)([^)"']+)\1\s*\)/gi,(m,q,n)=>{const u=dataFor(n);return u?'url("'+u+'")':m;});
+    s=s.replace(/@import\s+(["'])([^"']+)\1/gi,(m,q,n)=>{const u=dataFor(n);return u?'@import '+q+u+q:m;});
     s=s.replace(/\[sound:([^\]]+)\]/gi,(m,n)=>{const u=dataFor(n);return u?'<audio controls preload="none" src="'+u+'"></audio>':m;});
     return s;
+  },
+  _materializeNotetype(nt,media){
+    nt=Object.assign({},nt||{});
+    nt.css=this._replaceMedia(nt.css||'',media);
+    nt.latexPre=this._replaceMedia(nt.latexPre||'',media);
+    nt.latexPost=this._replaceMedia(nt.latexPost||'',media);
+    nt.fields=(nt.fields||[]).map(f=>Object.assign({},f));
+    nt.templates=(nt.templates||[]).map(t=>{
+      const x=Object.assign({},t);
+      for(const k of ['qfmt','afmt','bqfmt','bafmt'])x[k]=this._replaceMedia(x[k]||'',media);
+      return x;
+    });
+    return nt;
   },
   _legacyMetadata(db){
     const c=this._rows(db,'select ver,models,decks,dconf from col where id=1')[0]||{};
@@ -23963,7 +24012,7 @@ const AnkiImport = {
 
     const currentTypes=AnkiParity.noteTypes();
     for(const m of Object.values(meta.models||{})){
-      const incoming=this._toNotetype(m),sourceId=String(m.id);
+      const incoming=this._materializeNotetype(this._toNotetype(m),parsed.pkg.media),sourceId=String(m.id);
       let existing=currentTypes.find(x=>Number(x.id)===Number(m.id));
       if(!existing)existing=currentTypes.find(x=>Number(x.originalId)===Number(m.id)&&this._schemaEqual(x,incoming));
       if(existing&&opts.mergeNotetypes!==false){
@@ -30079,6 +30128,7 @@ const CardsScreen = {
        o teto de reviews quando a opção global do Anki assim exige. */
     const selectedDeckId = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
     const limitTree = (typeof AnkiParity !== 'undefined') ? AnkiParity.limitState(selectedDeckId) : null;
+    const fallbackTaken = new Map();
     const limitarPorArvore = (lista, limiteGlobal, kind) => {
       const out = [];
       for (const card of lista) {
@@ -30086,13 +30136,27 @@ const CardsScreen = {
         if (limitTree) {
           if (!limitTree.take(card, kind)) continue;
         } else {
-          // Fallback para carregamento isolado/legado sem a camada de paridade.
-          const remDeck = kind === 'new'
+          /* Fallback para carregamento isolado/legado sem a camada de paridade.
+             As consultas *RemainingForDeck() refletem apenas o que já foi
+             confirmado hoje; durante a construção da fila precisamos consumir
+             também as vagas aceitas nesta própria passagem. Sem esse saldo
+             local, um deck com limite 1 aceitava todos os seus cards porque cada
+             iteração continuava enxergando o mesmo "1 restante". */
+          const did = card.deckId == null ? '__sem_deck__' : String(card.deckId);
+          const key = kind + ':' + did;
+          const usados = fallbackTaken.get(key) || 0;
+          const remDeck = (kind === 'new'
             ? CardsConfig.newRemainingForDeck(card.deckId)
-            : CardsConfig.revRemainingForDeck(card.deckId);
+            : CardsConfig.revRemainingForDeck(card.deckId)) - usados;
           if (remDeck <= 0) continue;
-          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit
-              && CardsConfig.revRemainingForDeck(card.deckId) <= 0) continue;
+          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit) {
+            const revKey = 'review:' + did;
+            const revUsados = fallbackTaken.get(revKey) || 0;
+            const revRemDeck = CardsConfig.revRemainingForDeck(card.deckId) - revUsados;
+            if (revRemDeck <= 0) continue;
+            fallbackTaken.set(revKey, revUsados + 1);
+          }
+          fallbackTaken.set(key, usados + 1);
         }
         out.push(card);
       }
@@ -30484,6 +30548,16 @@ const CardsScreen = {
           const ord = Number(c.ankiTemplateOrd) || 0;
           const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
           const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
+          // Note Types importados do Anki podem conter CSS, JavaScript, fontes,
+          // MathJax, TTS e HTML arbitrário. Eles rodam dentro de um iframe
+          // sandboxado de origem opaca: mantém a compatibilidade sem dar ao
+          // conteúdo do card acesso ao DOM/storage/Supabase do Study.
+          if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
+            return '<div class="cards-face cards-front cards-anki-template">' +
+              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note) +
+              '</div><div class="cards-face cards-back cards-anki-template">' +
+              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note) + '</div>';
+          }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
           return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
             <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
@@ -30774,6 +30848,9 @@ const CardsScreen = {
         (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings });
         if (this._undoStack.length > 50) this._undoStack.shift();
         if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
+        // O campo {{type:...}} pertence somente a esta apresentação. Limpa
+        // APÓS journal + projeção local terem sido confirmados.
+        if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.clearTyped) AnkiRuntime.clearTyped(c);
       }
       this._reviewIdx++;
       this._flipped = false;
@@ -33336,6 +33413,89 @@ AnkiParity.customStudy=function(input){
 
 AnkiParity.installConfigParity();
 try{if(typeof window!=='undefined')window.AnkiParity=AnkiParity;}catch(e){_quiet(e,'anki-parity-global');}
+
+/* ============================================================
+   RUNTIME ANKI — templates avançados isolados do app
+   CSS/JS/HTML do note type rodam em iframe sandboxado SEM
+   allow-same-origin: scripts do card não acessam DOM/storage
+   do StudyNoMentor, mas continuam funcionais dentro do card.
+   ============================================================ */
+const AnkiRuntime = {
+  _typedAnswers:new Map(),
+  _cardKey(card){return String(card&&(card.ankiId||card.id)||'');},
+  clearTyped(card){
+    const prefix=this._cardKey(card)+'|';
+    for(const k of [...this._typedAnswers.keys()])if(k.startsWith(prefix))this._typedAnswers.delete(k);
+  },
+  _plain(v){
+    if(typeof AnkiParity!=='undefined'&&AnkiParity._stripHtml)return AnkiParity._stripHtml(v);
+    return String(v==null?'':v).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'').replace(/&nbsp;/gi,' ');
+  },
+  _escAttr(v) {
+    return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  },
+  _ttsMarkup(html) {
+    return String(html || '').replace(/\[anki:tts\s+([^\]]*)\]([\s\S]*?)\[\/anki:tts\]/gi,
+      (m, attrs, body) => '<span class="snm-anki-tts" data-anki-tts="' + this._escAttr(attrs) + '">' + body + '</span>');
+  },
+  _latexMarkup(html) {
+    return String(html || '').replace(/\[latex\]([\s\S]*?)\[\/latex\]/gi,(m,x)=>'\\['+x+'\\]')
+      .replace(/\[\$\]([\s\S]*?)\[\/\$\]/gi,(m,x)=>'\\('+x+'\\)');
+  },
+  _needsMath(html) {
+    const s=String(html||'');
+    return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$$')||/<anki-mathjax\b/i.test(s);
+  },
+  _typeMarkup(html,side,card,note){
+    const self=this,key=this._cardKey(card),fields=note&&note.fields||{};
+    return String(html||'').replace(/\[\[type:(?:(cloze|nc):)?([^\]]+)\]\]/gi,(m,mode,field)=>{
+      field=String(field||'').trim();const mapKey=key+'|'+field,typed=self._typedAnswers.get(mapKey)||'';
+      let correct=String(fields[field]??'');
+      if(String(mode||'').toLowerCase()==='cloze'&&typeof AnkiParity!=='undefined'&&AnkiParity.clozeOnly){
+        const ord=Number(card&&card.clozeOrd)||Number(card&&card.ankiTemplateOrd)+1||1;
+        correct=AnkiParity.clozeOnly(correct,ord,false);
+      }
+      correct=self._plain(correct);
+      if(side!=='answer')return '<input class="snm-anki-type-input" data-anki-type-key="'+self._escAttr(key)+'" data-anki-type-field="'+self._escAttr(field)+'" autocomplete="off" spellcheck="false" value="'+self._escAttr(typed)+'">';
+      const same=typed.trim()===correct.trim();
+      return '<div class="snm-anki-type-result '+(same?'is-correct':'is-different')+'"><div><strong>Sua resposta:</strong> '+self._escAttr(typed||'—')+'</div><div><strong>Resposta:</strong> '+self._escAttr(correct)+'</div></div>';
+    });
+  },
+  buildSrcdoc(nt, html, side, card, note) {
+    nt=nt||{}; card=card||{};
+    const body=this._typeMarkup(this._latexMarkup(this._ttsMarkup(html)),side,card,note);
+    const css=String(nt.css||'.card { font-family: Arial, sans-serif; font-size: 20px; text-align: center; }');
+    const math=this._needsMath(body)?'<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"><\/script>':'';
+    const frameId='anki-'+String(card.ankiId||card.id||'')+'-'+String(side||'question');
+    const bootstrap='<script>(function(){'+
+      'const FRAME_ID='+JSON.stringify(frameId)+';'+
+      'function resize(){try{const h=Math.max(document.documentElement.scrollHeight||0,document.body&&document.body.scrollHeight||0,80);parent.postMessage({type:"snm-anki-frame-height",id:FRAME_ID,height:h},"*");}catch(_){}}'+
+      'function voiceFor(spec){const m=String(spec||"").match(/voices=([^\\s]+)/i);if(!m||!window.speechSynthesis)return null;const wanted=m[1].split(",").map(x=>x.trim().toLowerCase());return speechSynthesis.getVoices().find(v=>wanted.includes(String(v.name||"").toLowerCase()))||null;}'+
+      'function speak(el){if(!window.speechSynthesis||!window.SpeechSynthesisUtterance)return;const spec=el.getAttribute("data-anki-tts")||"";const u=new SpeechSynthesisUtterance(el.textContent||"");const lm=spec.match(/(?:^|\\s)lang=([^\\s]+)/i);if(lm)u.lang=lm[1];const v=voiceFor(spec);if(v)u.voice=v;speechSynthesis.speak(u);}'+
+      'function initTts(){const nodes=[...document.querySelectorAll("[data-anki-tts]")];nodes.forEach(el=>el.addEventListener("click",()=>speak(el)));if(nodes.length)setTimeout(()=>speak(nodes[0]),0);}'+
+      'function initType(){for(const el of document.querySelectorAll("[data-anki-type-key]")){const send=()=>parent.postMessage({type:"snm-anki-typed",id:FRAME_ID,key:el.dataset.ankiTypeKey,field:el.dataset.ankiTypeField,value:el.value},"*");el.addEventListener("input",send);el.addEventListener("change",send);}}'+
+      'addEventListener("load",()=>{initTts();initType();resize();setTimeout(resize,100);setTimeout(resize,500);});addEventListener("resize",resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(document.documentElement);new MutationObserver(resize).observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});})();<\/script>';
+    const csp="default-src data: blob: https:; img-src data: blob: https:; media-src data: blob: https:; font-src data: blob: https:; style-src 'unsafe-inline' data: blob: https:; script-src 'unsafe-inline' data: blob: https:; connect-src https:; frame-src data: blob: https:";
+    return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
+      '<meta http-equiv="Content-Security-Policy" content="'+this._escAttr(csp)+'"><base target="_blank">'+
+      '<style>html,body{margin:0;padding:0;background:transparent;color:inherit}body{overflow-wrap:anywhere}.snm-anki-tts{cursor:pointer}.snm-anki-type-input{box-sizing:border-box;max-width:100%;padding:.4em .55em;font:inherit}.snm-anki-type-result{margin:.5em 0;text-align:left}.snm-anki-type-result.is-correct{outline:1px solid currentColor;padding:.4em}</style><style>'+css+'</style>'+math+
+      '</head><body class="card '+this._escAttr(side||'question')+'">'+body+bootstrap+'</body></html>';
+  },
+  renderFrame(nt, html, side, card, visible, note) {
+    // Iframe oculto ainda executaria JS/TTS. O Anki só executa o lado da
+    // resposta quando ela é revelada, então o lado invisível nem é criado.
+    if(!visible)return '<div class="cards-anki-frame-placeholder" aria-hidden="true"></div>';
+    const id='anki-'+String(card&&(card.ankiId||card.id)||'')+'-'+String(side||'question');
+    const srcdoc=this.buildSrcdoc(nt,html,side,card,note);
+    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
+  },
+  init() {
+    if(typeof window==='undefined'||!window.addEventListener)return;
+    window.addEventListener('message',(ev)=>{const d=ev&&ev.data;if(!d||!d.id)return;const frames=document.querySelectorAll('iframe[data-anki-frame-id]');let trusted=false,frame=null;for(const f of frames){if(f.contentWindow===ev.source&&f.dataset.ankiFrameId===String(d.id)){trusted=true;frame=f;break;}}if(!trusted)return;if(d.type==='snm-anki-frame-height'){const h=Math.max(80,Math.min(12000,Number(d.height)||0));if(h&&frame)frame.style.height=h+'px';}else if(d.type==='snm-anki-typed'&&d.key&&d.field){this._typedAnswers.set(String(d.key)+'|'+String(d.field),String(d.value||''));}});
+  }
+};
+AnkiRuntime.init();
+try{globalThis.AnkiRuntime=AnkiRuntime;}catch(_){}
 
 /* ═══════════════════════ SUÍTE DE AUTOTESTE ═══════════════════════════════
    O app não tinha teste nenhum versionado — toda refatoração era feita no
