@@ -318,14 +318,21 @@ const AnkiImport = {
     }return {cards:n,notes:facts.size};
   },
   importText(parsed,opts){
-    opts=opts||{};let n=0;const cols=parsed.columns||[],html=opts.isHtml!=null?opts.isHtml:parsed.isHtml;
+    opts=opts||{};let n=0;const cols=(parsed.columns||[]).map(String),html=opts.isHtml!=null?opts.isHtml:parsed.isHtml;
+    const norm=s=>String(s||'').trim().toLowerCase();
+    const colIndex=(names)=>{names=names.map(norm);for(let i=0;i<cols.length;i++)if(names.includes(norm(cols[i])))return i;return -1;};
+    const iFront=colIndex(['front','frente']),iBack=colIndex(['back','verso']),iTags=colIndex(['tags','tag']),iDeck=colIndex(['deck','baralho']),iGuid=colIndex(['guid']);
     for(const row of parsed.rows||[]){
-      const get=(name,fallback)=>{const i=cols.findIndex(x=>x.toLowerCase()===name);return i>=0?(row[i]||''):(row[fallback]||'');};
-      let front=get('front',0),back=get('back',1),tags=get('tags',2),deck=get('deck',-1),guid=get('guid',-1);
+      const at=(i,fallback)=>String(row[i>=0?i:fallback]||'');
+      let front=at(iFront,0),back=at(iBack,1),tags=at(iTags,2),deck=at(iDeck,-1),guid=at(iGuid,-1);
+      if(parsed.globalTags&&parsed.globalTags.length)tags=[tags].concat(parsed.globalTags).filter(Boolean).join(' ');
+      if(!deck&&parsed.globalDeck)deck=parsed.globalDeck;
       if(!html){front=escapeHtml(front).replace(/\n/g,'<br>');back=escapeHtml(back).replace(/\n/g,'<br>');}
-      let deckId=opts.deckId||null;if(deck){let d=DB.getDecks().find(x=>x.nome===deck);if(!d)d=DB.addDeck(deck);deckId=d&&d.id||deckId;}
-      const c=DB.addCard({deckId,frente:front,verso:back,assunto:tags});if(guid)c.ankiGuid=guid;n++;
+      let deckId=opts.deckId||null;if(deck){let d=DB.getDecks().find(x=>String(x.nome)===deck);if(!d)d=DB.addDeck(deck);deckId=d&&d.id||deckId;}
+      const c=DB.addCard({deckId,materia:opts.materia||null,frente:front,verso:back,assunto:tags});
+      if(guid){c.ankiGuid=guid;DB.updateCard(c.id,{ankiGuid:guid});}n++;
     }return {cards:n,notes:n};
   }
+
 };
 try{globalThis.AnkiImport=AnkiImport;}catch(_){}
