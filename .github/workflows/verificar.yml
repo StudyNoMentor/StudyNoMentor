@@ -80,6 +80,8 @@ jobs:
         run: node testes/cards-paridade-total-anki.mjs
       - name: Certificar concorrencia multi-dispositivo dos Cards
         run: node testes/cards-concorrencia-multidevice.mjs
+      - name: Certificar exportacao Anki APKG completa
+        run: node testes/cards-apkg-export.mjs
       - name: Auditar higiene do repositorio
         run: node testes/repositorio-higiene.mjs
       - name: Instalar dependencias de teste
