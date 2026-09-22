@@ -52,12 +52,15 @@ const dataIso = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) &&
      que fica gravado localmente tem de ser do tamanho do LOTE, não do ano. */
   const B = criarAmbiente();
   // Banco relacional disponível e em dia, que é o modo normal do app.
+  // A confirmação é EXPLÍCITA por reviewId — pendingCount=0 sozinho não vale.
   B.ctx.RelationalStore = { enabled: true, isReady: () => true, pendingCount: () => 0,
     queueRevlogAppend: () => true, queueRevlogDelete: () => true, queueRevlogReplace: () => true };
   B.reset();
   const N = 6000;
   for (let i = 0; i < N; i++) {
     B.DB.addRevlog({ ts: B.agora() + i, cardId: 'card' + (i % 600), grade: 3, date: B.hoje(), elapsed: 5, intervalo: 10, s: 10, d: 5, acerto: true, phase: 'review' });
+    const gravada = B.DB.getRevlog()[B.DB.getRevlog().length - 1];
+    B.DB.confirmarRevlog(gravada.reviewId);
   }
   const guardadoLocal = B.bytes();
   const noLote = B.DB.LOTE_REVLOG * 300;   // teto generoso: LOTE linhas de ~300 B
@@ -65,6 +68,13 @@ const dataIso = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) &&
     guardadoLocal <= noLote, { revisoes: N, bytesLocais: guardadoLocal, tetoDoLote: noLote, emRam: B.DB.getRevlog().length });
   check('A5', 'O histórico completo continua disponível para o app mesmo sem ficar no armazenamento local',
     B.DB.getRevlog().length === N, { emRam: B.DB.getRevlog().length, esperado: N });
+
+  // Regressão do antigo falso ACK: uma fila vazia NÃO prova sucesso remoto.
+  const antesSemAck = B.DB.getRevlogPendentes().length;
+  B.DB.addRevlog({ ts: B.agora() + N + 1, cardId: 'sem-ack', grade: 3, date: B.hoje(), acerto: true, phase: 'review' });
+  const depoisSemAck = B.DB.getRevlogPendentes().length;
+  check('A5b', 'pendingCount=0 sem ACK explícito não apaga a revisão pendente',
+    depoisSemAck === antesSemAck + 1, { antesSemAck, depoisSemAck });
 }
 {
   // Cota estourada: o app avisa, mas a resposta AVANÇA a fila mesmo sem ter
@@ -80,7 +90,7 @@ const dataIso = (x) => typeof x === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(x) &&
   const logsAntes = Q.DB.getRevlog().length;
   const cartaoAntes = JSON.stringify(Q.DB.getCard('q1'));
   q._reviewQueue = ['q1']; q._reviewIdx = 0; q._undoStack = []; q._seenThisSession = new Set();
-  q.answer('bom');
+  await q.answer('bom');
   console.error = erroOriginal;
   const gravou = cartaoAntes !== JSON.stringify(Q.DB.getCard('q1'));
   const avancou = q._reviewIdx > 0;
@@ -315,16 +325,25 @@ for (const algo of ['fsrs', 'sm2']) {
   DB.saveCards(Array.from({ length: 40 }, (_, i) => ({ id: 'x' + i, frente: 'F' + i, verso: 'V' + i, phase: 'new', due: hoje, posicaoNova: i, status: 'pendente' })));
   E.invalidateDueCache();
   S._reviewQueue = S.buildQueue(); S._reviewIdx = 0; S._undoStack = []; S._seenThisSession = new Set();
-  let respostas = 0;
-  while (S._reviewIdx < S._reviewQueue.length && respostas < 400) { S.answer(['bom', 'errei', 'facil', 'dificil'][respostas % 4]); respostas++; }
+  let tentativas = 0, confirmadas = 0;
+  while (S._reviewIdx < S._reviewQueue.length && tentativas < 400) {
+    const ok = await S.answer(['bom', 'errei', 'facil', 'dificil'][tentativas % 4]);
+    tentativas++;
+    if (ok === true) confirmadas++;
+  }
   const introduzidos = C.newDoneToday();
-  check('D11', 'Ao longo de uma sessão real, o limite de novos do dia não é ultrapassado',
-    introduzidos <= 5, { introduzidosHoje: introduzidos, limite: 5, respostas });
-  check('D12', 'Nenhum card foi gravado com agendamento inválido durante a sessão real',
-    DB.getCards().every((c) => dataIso(c.due) && (c.dueTs == null || finito(c.dueTs))),
-    { ruins: DB.getCards().filter((c) => !dataIso(c.due) || (c.dueTs != null && !finito(c.dueTs))).slice(0, 3) });
-  check('D13', 'A sessão real gravou uma linha de histórico por resposta',
-    DB.getRevlog().length === respostas, { revlog: DB.getRevlog().length, respostas });
+  check('D11', 'Ao longo de uma sessão real, o limite de novos do dia é respeitado e realmente exercitado',
+    introduzidos === 5 && confirmadas > 0, { introduzidosHoje: introduzidos, limite: 5, tentativas, confirmadas });
+  check('D12', 'Nenhum card confirmado foi gravado com agendamento inválido durante a sessão real',
+    confirmadas > 0 && DB.getCards().every((c) => dataIso(c.due) && (c.dueTs == null || finito(c.dueTs))),
+    { confirmadas, ruins: DB.getCards().filter((c) => !dataIso(c.due) || (c.dueTs != null && !finito(c.dueTs))).slice(0, 3) });
+  check('D13', 'A sessão real grava exatamente uma linha de histórico por resposta CONFIRMADA',
+    confirmadas > 0 && DB.getRevlog().length === confirmadas,
+    { revlog: DB.getRevlog().length, tentativas, confirmadas });
+  const ids = DB.getRevlog().map(r => r.reviewId).filter(Boolean);
+  check('D14', 'Cada revisão confirmada tem identidade estável e única para replay idempotente',
+    ids.length === confirmadas && new Set(ids).size === ids.length,
+    { ids: ids.length, unicos: new Set(ids).size, confirmadas });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,7 +382,11 @@ for (const algo of ['fsrs', 'sm2']) {
   const antes = semVolateis(DB.getCards());
   S._reviewQueue = S.buildQueue(); S._reviewIdx = 0; S._undoStack = []; S._seenThisSession = new Set();
   let n = 0;
-  while (S._reviewIdx < S._reviewQueue.length && n < 60) { S.answer(['errei', 'dificil', 'bom', 'facil'][n % 4]); n++; }
+  while (S._reviewIdx < S._reviewQueue.length && n < 60) {
+    const ok = await S.answer(['errei', 'dificil', 'bom', 'facil'][n % 4]);
+    if (ok !== true) break;
+    n++;
+  }
   while ((S._undoStack || []).length) S.undoAnswer();
   const depois = semVolateis(DB.getCards());
   check('E4', `Desfazer ${n} respostas encadeadas devolve os cards ao estado anterior (ignorando updatedAt)`,
@@ -381,6 +404,38 @@ for (const algo of ['fsrs', 'sm2']) {
   const c = DB.getCard('f1');
   check('E7', 'Esquecer devolve o card ao estado novo por completo',
     c.phase === 'new' && c.s === null && c.d === null && c.reps === 0 && c.lapses === 0 && c.intervalo === 0 && c.leech === false && c.lastReview === null, c);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// E7–E9. NOTAS / IRMÃOS / CARTÃO INVERTIDO
+// ─────────────────────────────────────────────────────────────────────────────
+{
+  A.reset();
+  const noteId = 'nota-par';
+  const f = DB.addCard({ noteId, template:'forward', frente:'Pergunta', verso:'Resposta', kind:'basic' });
+  const r = DB.addCard({ noteId, template:'reverse', frente:'Resposta', verso:'Pergunta', kind:'basic', reversedOf:f.id });
+  DB.updateCard(f.id, { phase:'review', intervalo:30, s:15, d:5 });
+  DB.updateCard(r.id, { phase:'review', intervalo:7, s:6, d:6 });
+  const schedF = { intervalo:DB.getCard(f.id).intervalo, s:DB.getCard(f.id).s };
+  const schedR = { intervalo:DB.getCard(r.id).intervalo, s:DB.getCard(r.id).s };
+
+  DB.updateCardNote(r.id, { frente:'Resposta EDITADA', verso:'Pergunta EDITADA', assunto:'X', kind:'basic' });
+  const ff = DB.getCard(f.id), rr = DB.getCard(r.id);
+  check('E7', 'Normal e invertido compartilham a mesma nota e mantêm faces espelhadas ao editar qualquer irmão',
+    ff.noteId === rr.noteId && ff.frente === 'Pergunta EDITADA' && ff.verso === 'Resposta EDITADA'
+      && rr.frente === 'Resposta EDITADA' && rr.verso === 'Pergunta EDITADA',
+    { forward:{frente:ff.frente,verso:ff.verso,noteId:ff.noteId}, reverse:{frente:rr.frente,verso:rr.verso,noteId:rr.noteId} });
+  check('E8', 'Editar a nota não mistura o agendamento independente dos dois cards',
+    ff.intervalo === schedF.intervalo && ff.s === schedF.s && rr.intervalo === schedR.intervalo && rr.s === schedR.s,
+    { forward:{antes:schedF,depois:{intervalo:ff.intervalo,s:ff.s}}, reverse:{antes:schedR,depois:{intervalo:rr.intervalo,s:rr.s}} });
+
+  const legacyF={id:'lf',frente:'A',verso:'B',kind:'basic'}, legacyR={id:'lr',frente:'B',verso:'A',kind:'basic',reversedOf:'lf'};
+  DB.saveCards([legacyF,legacyR]);
+  const normalizados=DB.normalizeCardNotesInPlace();
+  const lf=DB.getCard('lf'), lr=DB.getCard('lr');
+  check('E9', 'Par invertido legado é migrado para uma nota compartilhada sem recriar cards',
+    normalizados > 0 && lf.noteId === lr.noteId && lf.template === 'forward' && lr.template === 'reverse' && DB.getCards().length === 2,
+    { normalizados, forward:lf, reverse:lr });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
