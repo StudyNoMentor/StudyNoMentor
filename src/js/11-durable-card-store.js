@@ -82,7 +82,7 @@ const DurableStudyStore = {
       ls.setItem(this._nativeKey(kind, scope, id), JSON.stringify(payload));
       return true;
     } catch (e) {
-      try { console.error('[durable-outbox] native put', e); } catch (_) {}
+      _quiet(e, 'durable-native-put');
       return false;
     }
   },
@@ -99,7 +99,7 @@ const DurableStudyStore = {
   _nativeDelete(kind, scope, id) {
     const ls = this._native();
     if (!ls) return;
-    try { ls.removeItem(this._nativeKey(kind, scope, id)); } catch (_) {}
+    try { ls.removeItem(this._nativeKey(kind, scope, id)); } catch (e) { _quiet(e, 'durable-native-delete'); }
   },
 
   _nativeList(kind, scope) {
@@ -117,7 +117,7 @@ const DurableStudyStore = {
         if (scope && v.scope !== scope) continue;
         out.push(v);
       }
-    } catch (_) {}
+    } catch (e) { _quiet(e, 'durable-native-list'); }
     return out;
   },
 
@@ -288,9 +288,9 @@ const CardStore = {
         this._applyPendingToScope(scope, s);
         try {
           if (typeof CardsScreen !== 'undefined' && CardsScreen.render) CardsScreen.render();
-        } catch (_) {}
+        } catch (e) { _quiet(e, 'card-idb-render'); }
       }
-    }).catch(() => {}).finally(() => { s.idbLoading = false; });
+    }).catch(e => { _quiet(e, 'card-idb-hydrate'); }).finally(() => { s.idbLoading = false; });
   },
 
   _applyPendingToScope(scope, s) {
@@ -354,7 +354,7 @@ const CardStore = {
           patch = CardEngine.schedule(card, op.context.grade);
           if (typeof DB !== 'undefined' && DB._semTransitorios) patch = DB._semTransitorios(patch);
         }
-      } catch (_) {}
+      } catch (e) { _quiet(e, 'card-op-rebase'); }
       Object.assign(card, this._clone(patch || {}));
       card.updatedAt = op.updatedAt || card.updatedAt || new Date().toISOString();
     }
@@ -573,7 +573,7 @@ const ReviewOutbox = {
           if (typeof DB !== 'undefined' && DB.rebaseRevlogPosition) {
             DB.rebaseRevlogPosition(scope, id, Number(ack.position));
           }
-        } catch (_) {}
+        } catch (e) { _quiet(e, 'revlog-position-rebase'); }
       }
       const now = DurableStudyStore._nativeGet('revlog', scope, id);
       if (now && now.action === m.action) DurableStudyStore.deleteOutbox('revlog', scope, id);
@@ -698,7 +698,7 @@ const GenericOutbox = {
           if(m.newRaw==null&&RelationalStore._memDel)RelationalStore._memDel(key);
           else if(RelationalStore._memSet)RelationalStore._memSet(key,m.newRaw);
         }
-      } catch (_) {}
+      } catch (e) { _quiet(e, 'generic-outbox-overlay'); }
     });
     return rows.length;
   },
@@ -721,4 +721,4 @@ try {
     window.GenericOutbox = GenericOutbox;
     window.__cardSafetyStore = true;
   }
-} catch (_) {}
+} catch (e) { _quiet(e, 'durable-store-export'); }
