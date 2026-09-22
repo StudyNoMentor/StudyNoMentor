@@ -110,7 +110,7 @@ CardsScreen.filters = { materias: new Set() };
 eq(CardsScreen.buildQueue().length, 0,
   'new_per_day_minimum é campo legado: não pode furar o teto de reviews');
 CardsConfig.set({ newCardsIgnoreReviewLimit: true });
-eq(CardsScreen.buildQueue(), ['novo-bloqueado'],
+eq(Array.from(CardsScreen.buildQueue()), ['novo-bloqueado'],
   'o interruptor global oficial deve permitir novos apesar do teto de reviews');
 
 // ── 6) FSRS sem passos nunca pode produzir estado/data inválidos ────────────
