@@ -320,7 +320,7 @@ for (const algo of ['fsrs', 'sm2']) {
 {
   // Sessão real via CardsScreen.answer(): o limite diário tem de valer durante
   // a sessão inteira, não só na montagem da fila.
-  A.reset({ newPerDay: 5, revPerDay: 0, algo: 'fsrs' });
+  A.reset({ newPerDay: 5, revPerDay: 200, algo: 'fsrs' });
   const hoje = A.hoje();
   DB.saveCards(Array.from({ length: 40 }, (_, i) => ({ id: 'x' + i, frente: 'F' + i, verso: 'V' + i, phase: 'new', due: hoje, posicaoNova: i, status: 'pendente' })));
   E.invalidateDueCache();
