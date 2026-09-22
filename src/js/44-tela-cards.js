@@ -1061,6 +1061,9 @@ const CardsScreen = {
         (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings });
         if (this._undoStack.length > 50) this._undoStack.shift();
         if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
+        // O campo {{type:...}} pertence somente a esta apresentação. Limpa
+        // APÓS journal + projeção local terem sido confirmados.
+        if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.clearTyped) AnkiRuntime.clearTyped(c);
       }
       this._reviewIdx++;
       this._flipped = false;
