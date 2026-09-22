@@ -913,7 +913,10 @@ const CardsScreen = {
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
     const box = document.getElementById('cards-content');
-    // Ctrl+Z / Cmd+Z: desfazer a última avaliação (como no Anki)
+    // Undo/Redo do reviewer, como Anki/AnkiDroid.
+    if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) {
+      e.preventDefault(); this.redoAnswer(); return;
+    }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); this.undoAnswer(); return; }
     /* Atalhos do reviewer do Anki (qt/aqt/reviewer.py::_shortcutKeys) */
     const idAtual = (this._reviewQueue || [])[this._reviewIdx];
@@ -1024,9 +1027,26 @@ const CardsScreen = {
       if (i >= 0) this._reviewIdx = i; else { this._reviewQueue.splice(this._reviewIdx, 0, u.id); }
     }
     this._flipped = false;
+    (this._redoStack = this._redoStack || []).push(u);
+    if (this._redoStack.length > 50) this._redoStack.shift();
     showToast('Revisão desfeita ↶');
     this.renderReviewCard(document.getElementById('cards-content'));
     this.atualizarFoco();
+  },
+  async redoAnswer() {
+    const stack=this._redoStack=this._redoStack||[],r=stack.pop();
+    if(!r){showToast('Nada para refazer');return false;}
+    const idx=this._reviewQueue.indexOf(r.id);
+    if(idx>=0)this._reviewIdx=idx;
+    else{this._reviewIdx=Math.max(0,Math.min(r.idx||0,this._reviewQueue.length));this._reviewQueue.splice(this._reviewIdx,0,r.id);}
+    this._flipped=true;
+    this._redoing=true;
+    let ok=false;
+    try{ok=await this.answer(r.grade||'bom');}
+    finally{this._redoing=false;}
+    if(ok!==true){stack.push(r);return false;}
+    showToast('Revisão refeita ↷');
+    return true;
   },
   async answer(grade) {
     if (this._answering) return false;
@@ -1111,7 +1131,8 @@ const CardsScreen = {
         DB.kickRevlogDuravel();
         CardEngine.invalidateDueCache();
         const buriedSiblings = (typeof AnkiParity !== 'undefined') ? AnkiParity.autoBurySiblings(c) : [];
-        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings });
+        if(!this._redoing)this._redoStack=[];
+        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings, grade });
         if (this._undoStack.length > 50) this._undoStack.shift();
         if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
         // O campo {{type:...}} pertence somente a esta apresentação. Limpa
