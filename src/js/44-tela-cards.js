@@ -163,6 +163,20 @@ const CardsScreen = {
     if (ph === 'learning' || ph === 'relearning') return 'learn';
     return 'review';
   },
+  /* O Anki toma as opções de Display Order do baralho SELECIONADO para estudar,
+     e não do preset de cada card individual. Neste app, "Revisar só este
+     baralho" é representado por um único filtro deck:<id>; nesse caso a fila
+     usa o preset daquele baralho. Em "Todos", usamos a configuração global. */
+  _queueConfig() {
+    const sel = this.filters && this.filters.materias;
+    if (sel && sel.size === 1) {
+      const unico = [...sel][0];
+      if (typeof unico === 'string' && unico.startsWith('deck:')) {
+        return CardsConfig.forDeck(unico.slice(5));
+      }
+    }
+    return CardsConfig.get();
+  },
   // Monta a fila do dia respeitando os LIMITES diários (novos/revisões) — como o Anki.
   buildQueue() {
     // cards suspensos (leech) ficam fora da fila, como no Anki
@@ -191,7 +205,7 @@ const CardsScreen = {
        próximos dias virarem monotemáticos. */
     const posDe = (c) => (typeof c.posicaoNova === 'number' ? c.posicaoNova : Number.MAX_SAFE_INTEGER);
     const criacaoDe = (c) => String(c.createdAt || '');
-    const cfgQ = CardsConfig.get();
+    const cfgQ = this._queueConfig();
     const COLETA = {
       posicao:     (a, b) => posDe(a) - posDe(b) || criacaoDe(a).localeCompare(criacaoDe(b)),
       posicaoDesc: (a, b) => posDe(b) - posDe(a) || criacaoDe(b).localeCompare(criacaoDe(a)),
@@ -258,7 +272,7 @@ const CardsScreen = {
       const atraso = CardEngine._daysBetween(c.due || hojeQ, hojeQ);
       return (atraso + iv) / iv;                       // >1 = mais urgente
     };
-    const ordemRev = CardsConfig.get().reviewOrder || 'day';
+    const ordemRev = cfgQ.reviewOrder || 'day';
     // O backend do Anki sempre acrescenta fnvhash(id, mod) como desempate.
     // IDs aqui são strings/UUIDs, então usamos FNV-1a sobre id + updatedAt:
     // mesma propriedade importante — ordem pseudoaleatória, estável enquanto
@@ -293,17 +307,13 @@ const CardsScreen = {
     };
     const cmp = ORDENADORES[ordemRev];
     if (cmp) revisoes.sort(cmp);
-    /* new_per_day_minimum: garante um mínimo de cards novos por dia mesmo quando
-       o limite de revisões está estourado. Sem isso, uma fila acumulada trava a
-       entrada de conteúdo novo por semanas — o usuário só apaga incêndio e
-       nunca avança. 0 = desligado (comportamento anterior). */
-    const pisoNovos = Math.max(0, cfgQ.newPerDayMinimum || 0);
-    const haAcumulo = (revisoes.length + aprendDia.length) > revRem;
-    // Anki: por padrão, quando o limite de review já foi atingido, novos param.
-    // newPerDayMinimum continua sendo a exceção explícita para garantir avanço.
+    /* O campo new_per_day_minimum ainda existe no protobuf do Anki, mas o
+       backend atual o marca explicitamente como "not currently used". Não
+       deixamos um campo legado alterar a fila. A única exceção oficial ao
+       bloqueio de novos pelo teto de revisões é o interruptor global
+       newCardsIgnoreReviewLimit. */
     const bloqueiaNovosPorReview = !cfgQ.newCardsIgnoreReviewLimit && revRem <= 0;
-    let newRemEfetivo = bloqueiaNovosPorReview ? 0 : newRem;
-    if (pisoNovos > 0 && haAcumulo) newRemEfetivo = Math.max(newRemEfetivo, Math.min(pisoNovos, novos.length));
+    const newRemEfetivo = bloqueiaNovosPorReview ? 0 : newRem;
 
     const deckKey = (card) => card.deckId == null ? '__sem_baralho__' : String(card.deckId);
     const limitarPorDeck = (lista, limiteGlobal, kind, usados) => {
@@ -317,9 +327,9 @@ const CardsScreen = {
         const ja = used.get(k) || 0;
         if (ja >= remDeck) continue;
         if (kind === 'new') {
-          const dc = CardsConfig.forDeck(card.deckId);
-          if (!dc.newCardsIgnoreReviewLimit && CardsConfig.revRemainingForDeck(card.deckId) <= 0
-              && Math.max(0, dc.newPerDayMinimum || 0) <= ja) continue;
+          // Esta chave é global no Anki; _queueConfig()/forDeck() a mantém
+          // presa ao valor global mesmo que um preset antigo contenha override.
+          if (!cfgQ.newCardsIgnoreReviewLimit && CardsConfig.revRemainingForDeck(card.deckId) <= 0) continue;
         }
         out.push(card); used.set(k, ja + 1);
       }
@@ -371,7 +381,7 @@ const CardsScreen = {
                        gente prefere despachar as revisões antes de retomar o
                        que ficou pela metade.
        "Misturar" usa o intercalador proporcional acima, não sorteio. */
-    const cfgMix = CardsConfig.get();
+    const cfgMix = cfgQ;
     const aplicarMix = (grupo, base, modo) => {
       if (!grupo.length) return base;
       if (modo === 'antes') return grupo.concat(base);
@@ -2022,8 +2032,10 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
   if (!isDeck) {
     fields.push({ key: 'newPerDay', label: '🆕 Máx. de cards NOVOS por dia', type: 'number', value: g.newPerDay, min: 0, max: 999, hint: 'Padrão Anki: 20.' });
     fields.push({ key: 'revPerDay', label: '🔄 Máx. de REVISÕES por dia', type: 'number', value: g.revPerDay, min: 0, max: 9999, hint: 'Padrão Anki: 200.' });
-    fields.push({ key: 'newPerDayMinimum', label: '🆕 Mínimo de novos mesmo com fila cheia', type: 'number', value: g.newPerDayMinimum || 0, min: 0, max: 99,
-      hint: 'Sem isto, uma fila acumulada trava a entrada de conteúdo novo por semanas — você só apaga incêndio e nunca avança. 0 = desligado.' });
+    fields.push({ key: 'newCardsIgnoreReviewLimit', label: '🆕 Novos ignoram o limite de revisões', type: 'select',
+      value: g.newCardsIgnoreReviewLimit ? '1' : '0',
+      options: [{ value: '0', label: 'Não (padrão Anki)' }, { value: '1', label: 'Sim' }],
+      hint: 'Global, como no Anki. Desligado: ao esgotar o limite de revisões, nenhum novo entra. Ligado: novos continuam até o próprio limite diário.' });
   }
   const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
   UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
@@ -2078,7 +2090,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       patch.algo = v.algo === 'sm2' ? 'sm2' : 'fsrs';
       patch.newPerDay = Math.max(0, parseInt(v.newPerDay, 10) || 0);
       patch.revPerDay = Math.max(0, parseInt(v.revPerDay, 10) || 0);
-      patch.newPerDayMinimum = Math.max(0, Math.min(99, parseInt(v.newPerDayMinimum, 10) || 0));   // gravado no escopo global
+      patch.newCardsIgnoreReviewLimit = v.newCardsIgnoreReviewLimit === '1';
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
     CardEngine.invalidateDueCache();
