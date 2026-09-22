@@ -49,7 +49,9 @@ const AnkiRuntime = {
     nt=nt||{}; card=card||{};
     const body=this._typeMarkup(this._latexMarkup(this._ttsMarkup(html)),side,card,note);
     const css=String(nt.css||'.card { font-family: Arial, sans-serif; font-size: 20px; text-align: center; }');
-    const math=this._needsMath(body)?'<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"><\/script>':'';
+    // Anki 26.09.2 empacota MathJax 3.2.2 e usa o componente tex-chtml-full.
+    // A URL é versionada e o service worker a pré-carrega para revisão offline.
+    const math=this._needsMath(body)?'<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml-full.js"><\/script>':'';
     const frameId='anki-'+String(card.ankiId||card.id||'')+'-'+String(side||'question');
     const bootstrap='<script>(function(){'+
       'const FRAME_ID='+JSON.stringify(frameId)+';'+
