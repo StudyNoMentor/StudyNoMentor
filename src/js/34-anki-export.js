@@ -543,7 +543,7 @@ const AnkiExport = {
     return this._concat(p);
   },
   _upgradeToSchema18(db, models, dj) {
-    db.run([
+    const ddl=[
       'CREATE TABLE deck_config (id integer PRIMARY KEY NOT NULL,name text NOT NULL,mtime_secs integer NOT NULL,usn integer NOT NULL,config blob NOT NULL);',
       'CREATE TABLE config (key text NOT NULL PRIMARY KEY,usn integer NOT NULL,mtime_secs integer NOT NULL,val blob NOT NULL) WITHOUT ROWID;',
       'CREATE TABLE tags (tag text NOT NULL PRIMARY KEY,usn integer NOT NULL) WITHOUT ROWID;',
@@ -564,7 +564,8 @@ const AnkiExport = {
       'INSERT OR IGNORE INTO graves (oid,type,usn) SELECT oid,type,usn FROM graves_old;',
       'DROP TABLE graves_old;',
       'CREATE INDEX idx_graves_pending ON graves (usn);'
-    ].join('\n'));
+    ];
+    ddl.forEach((sql,i)=>{console.log('ANKI18 DDL '+i);db.run(sql);});
 
     console.log('ANKI18: schema criado');
     const nt=db.prepare('INSERT INTO notetypes VALUES (?,?,?,?,?)');
