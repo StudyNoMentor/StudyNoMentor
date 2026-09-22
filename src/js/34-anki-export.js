@@ -198,7 +198,10 @@ const AnkiExport = {
       due = Number.isFinite(dueTs) ? Math.floor(dueTs / 1000) : this._dueDay(c.due, crtSec);
     }
     if (c.suspenso) queue = -1;
-    else if (c.enterradoAte && String(c.enterradoAte) >= String(todayCards())) queue = -2;
+    else if (c.enterradoAte && String(c.enterradoAte) >= String(todayCards())) {
+      // CardQueue moderno: SchedBuried=-2, UserBuried=-3.
+      queue = c.buryKind === 'user' ? -3 : -2;
+    }
     const cfg = CardsConfig.forDeck(c.deckId);
     const steps = phase === 'relearning' ? (cfg.relearnSteps || []) : (cfg.learnSteps || []);
     const left = (phase === 'learning' || phase === 'relearning') ? Math.max(0, steps.length - (Number(c.learnStep) || 0)) * 1000 : 0;
