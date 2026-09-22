@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v30e21ca5f0">
+<meta name="diario-versao" content="vef42d2b2ea">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -30515,7 +30515,7 @@ const AnkiParity = {
   },
 
   autoBurySiblings(card){
-    if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.deckId),nid=String(card.noteId);let n=0;
+    if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),nid=String(card.noteId);let n=0;
     const buried=[];
     DB.getCards().forEach(s=>{
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
