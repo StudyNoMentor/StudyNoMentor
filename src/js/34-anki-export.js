@@ -411,23 +411,35 @@ const AnkiExport = {
     }
     return { keys, configs, keyFor };
   },
-  _deckJson(decks) {
-    const p = this._presetMap(decks), obj = {};
-    obj['1'] = {
-      id: 1, mod: Math.floor(Date.now() / 1000), name: 'StudyNoMentor', usn: -1,
-      lrnToday: [0, 0], revToday: [0, 0], newToday: [0, 0], timeToday: [0, 0],
-      collapsed: false, browserCollapsed: false, desc: '', dyn: 0, conf: 1, extendNew: 0, extendRev: 0
+  _deckJson(decks, options) {
+    options=Object.assign({withScheduling:true,withDeckConfigs:true},options||{});
+    const p=this._presetMap(decks),obj={};
+    obj['1']={
+      id:1,mod:Math.floor(Date.now()/1000),name:'Default',usn:-1,
+      lrnToday:[0,0],revToday:[0,0],newToday:[0,0],timeToday:[0,0],
+      collapsed:false,browserCollapsed:false,desc:'',dyn:0,conf:1,extendNew:0,extendRev:0
     };
-    for (const d of decks) {
-      const id = Number(d.ankiId), cfgId = p.keys.get(p.keyFor(d)) || 1, cfg = CardsConfig.forDeck(d.id);
-      obj[String(id)] = {
-        id, mod: this._mod(d.updatedAt || d.createdAt), name: String(d.nome || 'Deck'), usn: -1,
-        lrnToday: [0, 0], revToday: [0, 0], newToday: [0, 0], timeToday: [0, 0],
-        collapsed: !!d.collapsed, browserCollapsed: !!d.browserCollapsed, desc: String(d.desc || ''),
-        dyn: 0, conf: cfgId, extendNew: 0, extendRev: 0, desiredRetention: Math.round((Number(cfg.retention) || 0.9) * 100)
+    for(const d of decks){
+      const id=Number(d.ankiId),cfg=CardsConfig.forDeck(d.id);
+      const cfgId=options.withDeckConfigs?(p.keys.get(p.keyFor(d))||1):1;
+      obj[String(id)]={
+        id,mod:this._mod(d.updatedAt||d.createdAt),name:String(d.nome||'Deck'),usn:-1,
+        lrnToday:[0,0],revToday:[0,0],newToday:[0,0],timeToday:[0,0],
+        collapsed:!!d.collapsed,browserCollapsed:!!d.browserCollapsed,desc:String(d.desc||''),
+        dyn:0,conf:cfgId,extendNew:0,extendRev:0,desiredRetention:Math.round((Number(cfg.retention)||.9)*100)
       };
     }
-    return { decks: obj, dconf: p.configs };
+    let dconf;
+    if(!options.withDeckConfigs){
+      dconf={'1':this.deckConfigSchema(1,'Default',CardsConfig.get())};
+    }else{
+      dconf=structuredClone(p.configs);
+      if(!options.withScheduling){
+        // O Anki remove parâmetros FSRS ao exportar presets sem agendamento.
+        for(const c of Object.values(dconf)){c.fsrsWeights=[];c.fsrsParams5=[];c.fsrsParams6=[];}
+      }
+    }
+    return {decks:obj,dconf};
   },
   _deckIdMap(decks) { const m = new Map(); for (const d of decks) m.set(String(d.id), Number(d.ankiId)); return m; },
 
@@ -594,10 +606,13 @@ const AnkiExport = {
 
     db.run("UPDATE col SET ver=18,conf='',models='',decks='',dconf='',tags='' WHERE id=1");
   },
-  _tagsFor(note, cards) {
-    const tags = [].concat(note && Array.isArray(note.tags) ? note.tags : []);
-    for (const c of cards || []) for (const v of [c.materia, c.assunto, c.materiaTec, c.banca, c.tipo, c.leech ? 'leech' : null, c.favorito ? 'marked' : null]) if (v) tags.push(String(v));
-    return Array.from(new Set(tags.map(t => t.trim().replace(/\s+/g, '_')).filter(Boolean)));
+  _tagsFor(note, cards, options) {
+    options=options||{};
+    const tags=[].concat(note&&Array.isArray(note.tags)?note.tags:[]);
+    for(const c of cards||[])for(const v of [c.materia,c.assunto,c.materiaTec,c.banca,c.tipo,c.leech?'leech':null,c.favorito?'marked':null])if(v)tags.push(String(v));
+    let out=Array.from(new Set(tags.map(t=>t.trim().replace(/\s+/g,'_')).filter(Boolean)));
+    if(options.withScheduling===false)out=out.filter(t=>!/^(marked|leech)$/i.test(t));
+    return out;
   },
   _revKind(r) {
     const k = (typeof AnkiParity !== 'undefined' && AnkiParity._trainingKind) ? AnkiParity._trainingKind(r) : String(r.phase || 'review');
@@ -703,12 +718,12 @@ const AnkiExport = {
   },
 
   async buildCollection(options) {
-    options=Object.assign({schema:11},options||{});
+    options=Object.assign({schema:11,withScheduling:true,withDeckConfigs:true},options||{});
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
     const cards = DB.getCards().slice(), allDecks = DB.getDecks().slice();
     const decks = allDecks.filter(d => !AnkiParity.isFilteredDeck(d)), crt = this._collectionEpoch(cards);
-    const deckMap = this._deckIdMap(decks), dj = this._deckJson(decks), media = { items: [], byKey: new Map() };
+    const deckMap=this._deckIdMap(decks),dj=this._deckJson(decks,options),media={items:[],byKey:new Map()};
     const notesById = new Map(), siblings = new Map(), usedNt = new Set();
     for (const c of cards) {
       const nid = String(AnkiParity.noteId(c)); if (!siblings.has(nid)) siblings.set(nid, []); siblings.get(nid).push(c);
@@ -739,26 +754,31 @@ const AnkiExport = {
         const raw = note.fields && Object.prototype.hasOwnProperty.call(note.fields, f.name) ? note.fields[f.name] : '';
         fields.push(this.extractMedia(raw, media));
       }
-      const sfld = this._plain(fields[Number(nt.sortf) || 0] || fields[0] || ''), tags = this._tagsFor(note, sibs);
+      const sfld=this._plain(fields[Number(nt.sortf)||0]||fields[0]||''),tags=this._tagsFor(note,sibs,options);
       ns.run([Number(note.ankiId || note.id), String(note.guid || ('snm-' + Number(note.id).toString(36))), Number(note.notetypeId),
         this._mod(note.updatedAt || note.createdAt), -1, tags.length ? ' ' + tags.join(' ') + ' ' : '', fields.join('\x1f'),
         sfld, this._sha1First32(sfld), 0, '']);
     }
     ns.free();
 
-    const cs = db.prepare('INSERT INTO cards VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'); let newPos = 1;
-    for (const original of cards) {
-      const c = this._homeState(original), did = deckMap.get(String(c.deckId)) || 1, sched = this.cardSchedule(original, crt, newPos++);
-      const cfg = CardsConfig.forDeck(c.deckId), rawEase = Number(c.ease) || 2.5, factor = Math.round(rawEase < 10 ? rawEase * 1000 : rawEase);
-      cs.run([Number(original.ankiId), Number(original.ankiNoteId), did, Math.max(0, Number(original.ankiTemplateOrd) || 0),
-        Number(original.ankiMod) || this._mod(original.updatedAt || original.createdAt), -1, sched.type, sched.queue, sched.due,
-        Math.max(0, Math.round(Number(c.intervalo) || 0)), factor, Math.max(0, Math.round(Number(c.reps) || 0)),
-        Math.max(0, Math.round(Number(c.lapses) || 0)), sched.left, 0, 0, Math.max(0, Math.min(7, Math.round(Number(c.flag) || 0))), this.cardData(c, cfg)]);
+    const cs=db.prepare('INSERT INTO cards VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');let newPos=1;
+    for(const original of cards){
+      const c=this._homeState(original),did=deckMap.get(String(c.deckId))||1,cfg=CardsConfig.forDeck(c.deckId);
+      const keep=options.withScheduling!==false,sched=keep?this.cardSchedule(original,crt,newPos):{type:0,queue:0,due:newPos,left:0};
+      const rawEase=keep?(Number(c.ease)||2.5):0,factor=keep?Math.round(rawEase<10?rawEase*1000:rawEase):0;
+      const ivl=keep?Math.max(0,Math.round(Number(c.intervalo)||0)):0;
+      const reps=keep?Math.max(0,Math.round(Number(c.reps)||0)):0,lapses=keep?Math.max(0,Math.round(Number(c.lapses)||0)):0;
+      const flags=keep?Math.max(0,Math.min(7,Math.round(Number(c.flag)||0))):0;
+      const data=keep?this.cardData(c,cfg):JSON.stringify({pos:Math.max(0,newPos-1)});
+      cs.run([Number(original.ankiId),Number(original.ankiNoteId),did,Math.max(0,Number(original.ankiTemplateOrd)||0),
+        Number(original.ankiMod)||this._mod(original.updatedAt||original.createdAt),-1,sched.type,sched.queue,sched.due,
+        ivl,factor,reps,lapses,sched.left,0,0,flags,data]);
+      newPos++;
     }
     cs.free();
 
-    const rs = db.prepare('INSERT INTO revlog VALUES (?,?,?,?,?,?,?,?,?)');
-    const revRows = this._revRows(cards, DB.getRevlog());
+    const rs=db.prepare('INSERT INTO revlog VALUES (?,?,?,?,?,?,?,?,?)');
+    const revRows=options.withScheduling===false?[]:this._revRows(cards,DB.getRevlog());
     for (const row of revRows) rs.run(row);
     rs.free();
     if(Number(options.schema)===18)this._upgradeToSchema18(db,models,dj);
@@ -767,10 +787,12 @@ const AnkiExport = {
   },
 
   async buildPackage(options) {
-    options=Object.assign({legacy:true,withMedia:true},options||{});
-    const legacy=options.legacy!==false;
-    const col=await this.buildCollection({schema:legacy?11:18}),mediaMap={},mediaEntries=[];
-    const compatibility=legacy?col:await this.buildCollection({schema:11});
+    options=Object.assign({legacy:true,withMedia:true,withScheduling:true,withDeckConfigs:true},options||{});
+    const legacy=options.legacy!==false,collectionOpts={
+      withScheduling:options.withScheduling!==false,withDeckConfigs:options.withDeckConfigs!==false
+    };
+    const col=await this.buildCollection(Object.assign({schema:legacy?11:18},collectionOpts)),mediaMap={},mediaEntries=[];
+    const compatibility=legacy?col:await this.buildCollection(Object.assign({schema:11},collectionOpts));
     const exportedMedia=options.withMedia===false?[]:col.media;
     exportedMedia.forEach((m,i)=>{mediaMap[String(i)]=m.name;});
     let entries;
@@ -794,7 +816,8 @@ const AnkiExport = {
         ...mediaEntries
       ];
     }
-    return Object.assign({},col,{bytes:this.zipStore(entries),legacy,withMedia:options.withMedia!==false});
+    return Object.assign({},col,{bytes:this.zipStore(entries),legacy,withMedia:options.withMedia!==false,
+      withScheduling:collectionOpts.withScheduling,withDeckConfigs:collectionOpts.withDeckConfigs});
   },
   async buildCollectionPackage(options) {
     // No StudyNoMentor, a coleção de Cards inteira é o perfil exportável; o
