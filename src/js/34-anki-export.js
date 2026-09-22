@@ -163,18 +163,33 @@ const AnkiExport = {
     if (typeof Buffer !== 'undefined') return new Uint8Array(Buffer.from(String(s), 'base64'));
     throw new Error('Decodificador base64 indisponível');
   },
+  _mediaExt(mime) {
+    const m=String(mime||'').toLowerCase().split(';')[0].trim();
+    return ({
+      'image/png':'png','image/jpeg':'jpg','image/jpg':'jpg','image/gif':'gif','image/webp':'webp','image/bmp':'bmp','image/svg+xml':'svg',
+      'audio/mpeg':'mp3','audio/mp3':'mp3','audio/ogg':'ogg','audio/wav':'wav','audio/x-wav':'wav','audio/mp4':'m4a','audio/aac':'aac','audio/flac':'flac',
+      'video/mp4':'mp4','video/webm':'webm','video/ogg':'ogv'
+    })[m] || ((m.split('/')[1]||'bin').replace(/[^a-z0-9.+-]/g,'').replace(/^x-/,'')||'bin');
+  },
+  _storeMedia(bytes, mime, media) {
+    bytes=this._u8(bytes);
+    const ext=this._mediaExt(mime),key=this._crc32(bytes).toString(16).padStart(8,'0')+'-'+bytes.length;
+    let item=media.byKey.get(key);
+    if(!item){
+      item={name:'studynomentor_'+key+'.'+ext,bytes,mime:String(mime||'application/octet-stream')};
+      media.byKey.set(key,item);media.items.push(item);
+    }
+    return item;
+  },
   extractMedia(html, media) {
-    let src = String(html || '');
-    const re = /<img\b([^>]*?)\bsrc=(["'])data:image\/(png|jpe?g|gif|webp|bmp);base64,([^"']+)\2([^>]*)>/gi;
-    src = src.replace(re, (m, a, q, typ, b64, z) => {
-      const bytes = this._base64Bytes(b64), ext = typ.toLowerCase() === 'jpeg' ? 'jpg' : typ.toLowerCase();
-      const key = this._crc32(bytes).toString(16).padStart(8, '0') + '-' + bytes.length;
-      let item = media.byKey.get(key);
-      if (!item) {
-        item = { name: 'studynomentor_' + key + '.' + ext, bytes };
-        media.byKey.set(key, item); media.items.push(item);
-      }
-      return '<img' + a + 'src=' + q + item.name + q + z + '>';
+    let src=String(html||'');
+    // O importador materializa mídia Anki como data URI. No caminho inverso,
+    // qualquer <img>/<audio>/<video> embutido volta a ser arquivo numerado do
+    // pacote; não limitamos o round-trip a imagens.
+    const re=/<(img|audio|video)\b([^>]*?)\bsrc=(["'])data:([^;,]+);base64,([^"']+)\3([^>]*)>/gi;
+    src=src.replace(re,(m,tag,a,q,mime,b64,z)=>{
+      const item=this._storeMedia(this._base64Bytes(b64),mime,media);
+      return '<'+tag+a+'src='+q+item.name+q+z+'>';
     });
     return src;
   },
@@ -325,11 +340,16 @@ const AnkiExport = {
   },
 
   _reviewOrder(v) {
-    return ({ day: 0, intervalsAsc: 3, intervalsDesc: 4, easeAsc: 5, easeDesc: 6, retrievabilityAsc: 7, random: 8, added: 9, retrievabilityDesc: 11, relativeOverdueness: 12 })[v] ?? 0;
+    return ({ day:0, dayThenDeck:1, deckThenDay:2, intervalsAsc:3, intervalsDesc:4, easeAsc:5, easeDesc:6,
+      retrievabilityAsc:7, random:8, added:9, reverseAdded:10, retrievabilityDesc:11, relativeOverdueness:12 })[v] ?? 0;
   },
   _mix(v) { return v === 'depois' ? 1 : (v === 'antes' ? 2 : 0); },
-  _gather(v) { return ({ deck: 0, posicao: 1, posicaoDesc: 2, materiaRodizio: 4 })[v] ?? 0; },
-  _sortNew(v) { return v === 'coleta' ? 1 : (v === 'aleatoria' ? 4 : 0); },
+  _gather(v) {
+    return ({deck:0,posicao:1,posicaoDesc:2,randomNotes:3,randomCards:4,deckRandomNotes:5})[v] ?? 0;
+  },
+  _sortNew(v) {
+    return ({template:0,coleta:1,templateRandom:2,randomNoteTemplate:3,randomCard:4})[v] ?? 0;
+  },
   deckConfigSchema(id, name, cfg) {
     const weights = (typeof FSRS !== 'undefined' && FSRS.migrarW) ? (FSRS.migrarW(cfg.weights) || FSRS.DEFAULT_W) : (cfg.weights || []);
     return {
@@ -491,7 +511,8 @@ const AnkiExport = {
     if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
     const rows=[];
-    for(const card of DB.getCards()){
+    const exportCards=DB.getCards().slice().sort((a,b)=>Number(a.ankiId||a.id)-Number(b.ankiId||b.id));
+    for(const card of exportCards){
       const note=AnkiParity.getNote(AnkiParity.noteId(card));if(!note)continue;
       const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
       const ord=Number(card.ankiTemplateOrd)||0;
