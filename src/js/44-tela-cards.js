@@ -2077,8 +2077,7 @@ const CardsScreen = {
         if (inéditas.length) DB.replaceRevlog(atuaisLogs.concat(inéditas));
       }
       count = this._importParsed.cards.length;
-
-    else if (this._importParsed.kind === 'anki-package') {
+    } else if (this._importParsed.kind === 'anki-package') {
       const r = await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
       count = Number(r.cards) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
