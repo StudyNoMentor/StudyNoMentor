@@ -76,6 +76,8 @@ jobs:
         run: node testes/ui-organizacao-extras-tec.mjs
       - name: Certificar contratos Anki dos Cards
         run: node testes/cards-certificacao-anki.mjs
+      - name: Certificar paridade total RNG Cloze LB irmãos presets
+        run: node testes/cards-paridade-total-anki.mjs
       - name: Auditar higiene do repositorio
         run: node testes/repositorio-higiene.mjs
       - name: Instalar dependencias de teste
