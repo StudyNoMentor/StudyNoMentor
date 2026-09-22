@@ -7,6 +7,10 @@
 const AnkiRuntime = {
   _typedAnswers:new Map(),
   _cardKey(card){return String(card&&(card.ankiId||card.id)||'');},
+  clearTyped(card){
+    const prefix=this._cardKey(card)+'|';
+    for(const k of [...this._typedAnswers.keys()])if(k.startsWith(prefix))this._typedAnswers.delete(k);
+  },
   _plain(v){
     if(typeof AnkiParity!=='undefined'&&AnkiParity._stripHtml)return AnkiParity._stripHtml(v);
     return String(v==null?'':v).replace(/<br\s*\/?>/gi,'\n').replace(/<[^>]*>/g,'').replace(/&nbsp;/gi,' ');
