@@ -34,4 +34,11 @@ assert.equal(R._typedAnswers.has('123|Front'),false,'resposta digitada deve ser 
 assert.equal(R._needsMath('Preço: R$ 100'),false,'valor monetário não deve carregar MathJax');
 const hidden=R.renderFrame(nt,html,'answer',{id:123},false);
 assert.doesNotMatch(hidden,/<iframe/,'lado oculto não pode executar JS/TTS antes do flip');
+
+// Regressão visual do reviewer: no flip, a frente precisa sair do layout e o
+// verso ocupar seu lugar. Antes, o iframe sumia mas o contêiner da frente
+// continuava visível como um retângulo vazio acima da resposta.
+const reviewer=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
+assert.match(reviewer,/const frontDisplay = this\._flipped \? 'none' : 'block';/,'frente deve ser ocultada após o flip');
+assert.match(reviewer,/const backDisplay = this\._flipped \? 'block' : 'none';/,'verso deve substituir a frente no flip');
 console.log('RUNTIME ANKI: CSS, HTML expansível, JS sandboxado, TTS, MathJax e flip validados.');
