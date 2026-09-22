@@ -35,6 +35,7 @@ assert.match(build,/js\/86-motor-sugestao\.js/,'build deve incluir o Motor de su
 
 const ciclo = fs.readFileSync('src/js/87-motor-ciclo.js','utf8');
 const telaExtras = fs.readFileSync('src/js/47-tela-extras.js','utf8');
+const db = fs.readFileSync('src/js/11-db.js','utf8');
 const filaReforco = fs.readFileSync('src/js/54-reforco-fila.js','utf8');
 assert.match(ciclo,/filtroTec\(item, disciplina\)/,'Motor deve materializar a receita do filtro do TEC');
 assert.match(ciclo,/filtroTec,/,'origem da atividade deve persistir a receita do TEC');
@@ -44,6 +45,11 @@ assert.doesNotMatch(ciclo,/origemPlano|LEGACY_ORIGIN_KEY/,'ciclo não deve mante
 assert.match(telaExtras,/Caderno no TEC/,'card do reforço deve mostrar como montar o caderno');
 assert.match(telaExtras,/Marque juntos:/,'blocos devem dizer quais tópicos\/subtópicos marcar juntos');
 assert.match(telaExtras,/doseCriada/,'origem deve receber a dose exata usada na criação da atividade');
+assert.match(telaExtras,/class="exd-num exd-min"/,'registro de questões deve oferecer tempo opcional em minutos');
+assert.match(telaExtras,/DB\.addExtraProgress\(id, q, minEl \? minEl\.value : 0/,'tempo informado deve ser persistido no histórico do reforço');
+assert.match(telaExtras,/key: 'minutos', label: 'Tempo \(min\)'/,'edição do último registro deve preservar o tempo');
+assert.match(telaExtras,/minutosDia\.toLocaleString\('pt-BR'\)/,'resumo do dia deve exibir os minutos registrados');
+assert.match(db,/const reg = \{ data, quantidade: q, minutos: min \}/,'DB deve manter os minutos no histórico persistido dos Extras');
 assert.match(filaReforco,/Caderno no TEC/,'painel de reforços em curso deve mostrar a receita do caderno');
 assert.match(filaReforco,/guiaTec\.selecoes/,'painel em curso deve expor tópico(s)\/subtópico(s) do filtro');
 
