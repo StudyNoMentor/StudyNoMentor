@@ -1,0 +1,42 @@
+/* Paridade máxima — estatísticas e manutenção de mídia */
+.anki-max-stats{display:grid;gap:14px;margin-top:14px}
+.anki-calendar-grid{
+  display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;grid-auto-columns:10px;
+  gap:3px;overflow-x:auto;padding:6px 2px 3px;min-height:88px
+}
+.anki-cal-day{width:10px;height:10px;border-radius:2px;background:var(--surface-sunken);border:1px solid var(--border)}
+.anki-cal-day.l1{background:color-mix(in srgb,var(--good) 25%,var(--surface))}
+.anki-cal-day.l2{background:color-mix(in srgb,var(--good) 45%,var(--surface))}
+.anki-cal-day.l3{background:color-mix(in srgb,var(--good) 68%,var(--surface))}
+.anki-cal-day.l4{background:var(--good)}
+.anki-hourly{height:170px;display:grid;grid-template-columns:repeat(24,minmax(10px,1fr));gap:3px;align-items:end;padding-top:8px}
+.anki-hour{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
+.anki-hour-fill{width:78%;min-height:0;background:var(--accent);border-radius:4px 4px 1px 1px}
+.anki-hour span{font-size:9px;color:var(--text-faint);writing-mode:vertical-rl;transform:rotate(180deg);height:19px}
+.anki-review-bars{height:170px;display:grid;grid-template-columns:repeat(30,minmax(5px,1fr));gap:3px;align-items:end;padding-top:8px}
+.anki-review-day{height:100%;display:flex;align-items:flex-end}
+.anki-stack{width:100%;height:100%;display:flex;flex-direction:column-reverse;justify-content:flex-start}
+.anki-stack i{display:block;width:100%;min-height:0}
+.anki-stack .learn{background:var(--warn)}
+.anki-stack .review{background:var(--accent)}
+.anki-stack .relearn{background:var(--bad)}
+.anki-stack .filtered{background:var(--text-faint)}
+.anki-stat-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:var(--text-faint);font-size:var(--fs-2xs)}
+.anki-future-bars{height:160px;display:grid;grid-template-columns:repeat(13,1fr);gap:5px;align-items:end}
+.anki-future-bars>div,.anki-mini-hist>div{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
+.anki-future-bars i,.anki-mini-hist i{display:block;width:72%;background:var(--accent);border-radius:4px 4px 1px 1px}
+.anki-future-bars span,.anki-mini-hist span{font-size:9px;color:var(--text-faint);white-space:nowrap}
+.anki-mini-hist{height:145px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;align-items:end}
+.anki-memory-grid .stat-card:first-child .anki-mini-hist{grid-template-columns:repeat(5,minmax(0,1fr))}
+.anki-sim-card{display:flex;flex-direction:column;justify-content:space-between}
+.anki-sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}
+.anki-sim-bars{height:160px;display:flex;gap:2px;align-items:flex-end;overflow:hidden;padding-top:8px}
+.anki-sim-bars i{display:block;flex:1 1 2px;min-width:2px;background:var(--accent);border-radius:2px 2px 0 0}
+.anki-retention-result{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--accent-soft);margin:12px 0}
+.anki-media-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+#anki-check-extended{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+@media(max-width:700px){
+  .anki-hourly{overflow-x:auto;grid-template-columns:repeat(24,18px)}
+  .anki-review-bars{overflow-x:auto;grid-template-columns:repeat(30,12px)}
+  .anki-future-bars{overflow-x:auto;grid-template-columns:repeat(13,28px)}
+}
