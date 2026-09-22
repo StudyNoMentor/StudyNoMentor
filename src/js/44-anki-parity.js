@@ -226,12 +226,13 @@ const AnkiParity = {
 
   autoBurySiblings(card){
     if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.deckId),nid=String(card.noteId);let n=0;
+    const buried=[];
     DB.getCards().forEach(s=>{
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
       const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
       const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
-      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id);n++;}
-    });return n;
+      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id);buried.push(s.id);}
+    });return buried;
   },
   suspendCard(id){
     const c=DB.getCard(id);if(!c)return false;const p={suspenso:true,enterradoAte:null};
