@@ -45,7 +45,7 @@ const nts=[
 ];
 const notes=new Map([
   ['1700000000301',{id:1700000000301,ankiId:1700000000301,notetypeId:1700000000401,guid:'g-basic',
-    fields:{Front:'Pergunta <img src="data:image/png;base64,'+pixel+'">',Back:'Resposta'},tags:['original'],
+    fields:{Front:'Pergunta <img src="data:image/png;base64,'+pixel+'">',Back:'Resposta <audio src="data:audio/mpeg;base64,SUQz"></audio>'},tags:['original'],
     createdAt:'2026-09-01T12:00:00.000Z',updatedAt:'2026-09-22T08:00:00.000Z'}],
   ['1700000000302',{id:1700000000302,ankiId:1700000000302,notetypeId:1700000000402,guid:'g-cloze',
     fields:{Text:'O {{c1::ICMS}} é estadual.','Back Extra':'CF/88'},tags:[],
@@ -66,6 +66,17 @@ const AnkiParity={
   noteId:c=>Number(c.ankiNoteId),
   getNote:id=>structuredClone(notes.get(String(id))||null),
   noteTypes:()=>structuredClone(nts),
+  notes:()=>structuredClone([...notes.values()]),
+  renderTemplate(nt,note,ord,side,card,frontSide){
+    const tmpl=(nt.templates||[])[nt.kind==='cloze'?0:(Number(ord)||0)]||{},fields=note.fields||{};
+    let src=String(side==='answer'?tmpl.afmt:tmpl.qfmt||'').replace(/\{\{FrontSide\}\}/g,String(frontSide||''));
+    src=src.replace(/\{\{cloze:([^}]+)\}\}/g,(_,name)=>{
+      const raw=String(fields[name]||''),target=Number(card&&card.clozeOrd)||1;
+      return raw.replace(/\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}/g,(m,n,val,hint)=>Number(n)===target?(side==='answer'?val:'['+(hint||'...')+']'):val);
+    });
+    src=src.replace(/\{\{([^}:]+)\}\}/g,(_,name)=>String(fields[name]??''));
+    return src;
+  },
   sharedPresets:()=>({}),
   _trainingKind(r){
     const p=String(r&&r.phase||'').toLowerCase();
@@ -84,6 +95,8 @@ context.globalThis=context;
 vm.createContext(context);
 const source=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
 vm.runInContext(source+'\n;globalThis.AnkiExport=AnkiExport;',context,{filename:'34-anki-export.js'});
+const fzstdSource=readFileSync(join(ROOT,'src/vendor/fzstd-0.1.1/fzstd.js'),'utf8');
+vm.runInContext(fzstdSource,context,{filename:'fzstd.js'});
 const X=context.AnkiExport;
 X._loadSqlJs=async()=>SQL;
 
@@ -135,8 +148,11 @@ assert.deepEqual(Array.from(files.get('meta')),[0x08,0x02],'meta protobuf deve d
 assert.ok(files.has('collection.anki21'),'APKG Legacy2 do Anki 26.09.2 deve conter collection.anki21');
 assert.ok(files.has('media'),'APKG deve conter media manifest');
 assert.ok(files.has('0'),'imagem incorporada deve virar arquivo de mídia numerado');
+assert.ok(files.has('1'),'áudio incorporado deve virar arquivo de mídia numerado');
+assert.ok(files.has('collection.anki2'),'pacote deve carregar a coleção de compatibilidade Legacy1');
 const media=JSON.parse(new TextDecoder().decode(files.get('media')));
 assert.match(media['0'],/^studynomentor_[0-9a-f]{8}-\d+\.png$/);
+assert.match(media['1'],/^studynomentor_[0-9a-f]{8}-\d+\.mp3$/);
 
 const db=new SQL.Database(files.get('collection.anki21'));
 const scalar=sql=>db.exec(sql)[0].values[0][0];
@@ -174,4 +190,64 @@ assert.deepEqual(rev.map(r=>r[1]),[0,1,1],'tipos learning/review devem ser prese
 assert.equal(rev[1][2],1,'lastIvl deve vir do intervalo anterior registrado');
 
 db.close();
-console.log('APKG ANKI: Legacy2 (meta + collection.anki21), SQLite schema11, notas, cards, FSRS, revlog, presets/tags e mídia validados com sql.js real.');
+
+/* ── Exportadores de texto atuais do Anki ─────────────────────────────── */
+const noteText=X.buildTextNotes({withHtml:true,withTags:true,withDeck:true,withNotetype:true,withGuid:true});
+assert.equal(noteText.notes,2,'exportação de notas deve emitir uma linha por nota');
+assert.ok(noteText.text.startsWith('#separator:tab\n#html:true\n#guid column:1\n#notetype column:2\n#deck column:3\n#tags column:6\n'),
+  'cabeçalhos/índices de colunas de Notes in Plain Text devem seguir o Anki');
+assert.ok(noteText.text.includes('<img src='),'Notes in Plain Text com HTML deve preservar HTML');
+
+const cardText=X.buildTextCards({withHtml:true});
+assert.equal(cardText.cards,2,'Cards in Plain Text deve emitir uma linha por card');
+assert.ok(cardText.text.startsWith('#separator:tab\n#html:true\n'),'Cards in Plain Text deve usar os dois cabeçalhos oficiais');
+assert.ok(!cardText.text.includes('<hr id=answer>'),'lado da resposta não deve repetir a pergunta antes do separador');
+
+/* ── Enums modernos de Display Order não podem cair no default ────────── */
+assert.equal(X._reviewOrder('dayThenDeck'),1);
+assert.equal(X._reviewOrder('deckThenDay'),2);
+assert.equal(X._reviewOrder('reverseAdded'),10);
+assert.equal(X._gather('deckRandomNotes'),5);
+assert.equal(X._gather('randomNotes'),3);
+assert.equal(X._gather('randomCards'),4);
+assert.equal(X._sortNew('templateRandom'),2);
+assert.equal(X._sortNew('randomNoteTemplate'),3);
+assert.equal(X._sortNew('randomCard'),4);
+
+/* ── PackageMetadata VERSION_LATEST = 3 / schema 18 ───────────────────── */
+const modern=await X.buildPackage({legacy:false});
+const modernFiles=unzipStored(modern.bytes);
+assert.deepEqual(Array.from(modernFiles.get('meta')),[0x08,0x03],'meta moderno deve declarar VERSION_LATEST');
+assert.ok(modernFiles.has('collection.anki21b'),'pacote moderno deve usar collection.anki21b');
+assert.ok(modernFiles.has('collection.anki2'),'pacote moderno mantém caminho Legacy1 de compatibilidade');
+const modernDbBytes=context.fzstd.decompress(modernFiles.get('collection.anki21b'));
+const modernDb=new SQL.Database(modernDbBytes);
+assert.equal(modernDb.exec('select ver from col where id=1')[0].values[0][0],18,'collection.anki21b precisa ser schema 18 real');
+for(const table of ['notetypes','fields','templates','decks','deck_config','config','tags']){
+  assert.equal(modernDb.exec("select count(*) from sqlite_master where type='table' and name='"+table+"'")[0].values[0][0],1,
+    'schema18 deve conter tabela normalizada '+table);
+}
+assert.equal(modernDb.exec('select count(*) from notetypes')[0].values[0][0],2);
+assert.equal(modernDb.exec('select count(*) from decks')[0].values[0][0],2,'Default + Fiscal devem estar normalizados');
+assert.ok(modernDb.exec('select length(config) from notetypes')[0].values.every(r=>r[0]>0),'note type config deve ser protobuf');
+modernDb.close();
+
+const modernMedia=context.fzstd.decompress(modernFiles.get('media'));
+assert.ok(modernMedia.length>0,'manifesto moderno de mídia deve ser protobuf+Zstd');
+assert.deepEqual(Array.from(context.fzstd.decompress(modernFiles.get('0'))),Array.from(files.get('0')),
+  'mídia moderna deve descomprimir para os mesmos bytes do legado');
+
+/* ── Toggles oficiais: sem agendamento/config/mídia ────────────────────── */
+const clean=await X.buildPackage({legacy:false,withScheduling:false,withDeckConfigs:false,withMedia:false});
+const cleanFiles=unzipStored(clean.bytes);
+const cleanDb=new SQL.Database(context.fzstd.decompress(cleanFiles.get('collection.anki21b')));
+assert.equal(cleanDb.exec('select count(*) from revlog')[0].values[0][0],0,'sem scheduling não deve exportar revlog');
+const reset=cleanDb.exec('select type,queue,ivl,reps,lapses,flags from cards')[0].values;
+assert.ok(reset.every(r=>r.every(v=>Number(v)===0)),'sem scheduling todos os cards devem sair como novos e sem estado');
+assert.equal(cleanDb.exec('select count(*) from deck_config')[0].values[0][0],1,'sem deck configs só o preset Default deve viajar');
+cleanDb.close();
+assert.equal([...cleanFiles.keys()].filter(k=>/^\d+$/.test(k)).length,0,'withMedia=false não deve escrever blobs de mídia');
+assert.equal(typeof X.buildCollectionPackage,'function','.colpkg deve reutilizar o mesmo contêiner oficial validado');
+
+console.log('APKG/COLPKG/TEXTO ANKI: Legacy2 schema11 + Latest schema18, Zstd, mídia, opções e exports de texto validados.');
+
