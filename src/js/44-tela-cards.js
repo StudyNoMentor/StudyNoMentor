@@ -817,9 +817,15 @@ const CardsScreen = {
           // sandboxado de origem opaca: mantém a compatibilidade sem dar ao
           // conteúdo do card acesso ao DOM/storage/Supabase do Study.
           if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
-            return '<div class="cards-face cards-front cards-anki-template">' +
+            // No reviewer do Anki, o lado da pergunta é SUBSTITUÍDO pelo lado
+            // da resposta no flip. Não mantenha o contêiner da frente visível
+            // com um placeholder vazio: além do espaço fantasma, o afmt pode
+            // trazer {{FrontSide}} e acabaria duplicando visualmente a pergunta.
+            const frontDisplay = this._flipped ? 'none' : 'block';
+            const backDisplay = this._flipped ? 'block' : 'none';
+            return '<div class="cards-face cards-front cards-anki-template" style="display:' + frontDisplay + '">' +
               AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note, CardsConfig.forDeck(c.deckId)) +
-              '</div><div class="cards-face cards-back cards-anki-template">' +
+              '</div><div class="cards-face cards-back cards-anki-template" style="display:' + backDisplay + '">' +
               AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note, CardsConfig.forDeck(c.deckId)) + '</div>';
           }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
