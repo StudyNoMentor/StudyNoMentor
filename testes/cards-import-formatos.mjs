@@ -213,4 +213,18 @@ assert.match(richHtml,/src="data:text\/javascript;base64,/,'script do pacote dev
 assert.match(richHtml,/href="data:text\/css;base64,/,'stylesheet do pacote deve ser materializado');
 assert.match(richHtml,/url\("data:font\/woff2;base64,/,'fonte em CSS deve ser materializada');
 
+// DeckConfig/reviewer: import/export não pode voltar a valores fixos.
+const cfgOut=X.deckConfigSchema(77,'Reviewer',{newPerDay:20,revPerDay:200,learnSteps:[1,10],relearnSteps:[10],
+  leechThreshold:8,leechAction:'tag',maxInterval:36500,retention:.9,easyDays:[1,1,1,1,1,1,1],
+  disableAutoplay:true,capAnswerTimeToSecs:42,showTimer:true,stopTimerOnAnswer:true,
+  secondsToShowQuestion:3.5,secondsToShowAnswer:7,questionAction:1,answerAction:3,waitForAudio:false,skipQuestionWhenReplayingAnswer:true});
+assert.equal(cfgOut.autoplay,false);assert.equal(cfgOut.maxTaken,42);assert.equal(cfgOut.timer,1);
+assert.equal(cfgOut.disableAutoplay,true);assert.equal(cfgOut.capAnswerTimeToSecs,42);assert.equal(cfgOut.showTimer,true);
+assert.equal(cfgOut.stopTimerOnAnswer,true);assert.equal(cfgOut.secondsToShowQuestion,3.5);assert.equal(cfgOut.secondsToShowAnswer,7);
+assert.equal(cfgOut.questionAction,1);assert.equal(cfgOut.answerAction,3);assert.equal(cfgOut.waitForAudio,false);
+const cfgIn=I._deckCfg(cfgOut);
+assert.equal(cfgIn.disableAutoplay,true);assert.equal(cfgIn.capAnswerTimeToSecs,42);assert.equal(cfgIn.showTimer,true);
+assert.equal(cfgIn.stopTimerOnAnswer,true);assert.equal(cfgIn.secondsToShowQuestion,3.5);assert.equal(cfgIn.secondsToShowAnswer,7);
+assert.equal(cfgIn.questionAction,1);assert.equal(cfgIn.answerAction,3);assert.equal(cfgIn.waitForAudio,false);
+
 console.log('IMPORT ANKI: formatos oficiais, collection packages legados, CsvMetadata completo, mídia avançada e Mnemosyne validados.');
