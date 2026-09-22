@@ -985,10 +985,10 @@ const CardsScreen = {
       }
       this.renderReviewCard(box);
       return true;
-    },
-      } finally {
+    } finally {
       this._answering = false;
     }
+  },
   // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
   // incluídas — e refazia a lista inteira a cada clique numa estrela. Com alguns
