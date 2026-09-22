@@ -1,0 +1,45 @@
+/* Paridade máxima — Browser/Reviewer.
+   Só amplia os componentes Anki; não altera as telas principais do Study. */
+#anki-browser-modal .anki-browser-toolbar{
+  grid-template-columns:minmax(220px,1.5fr) minmax(110px,.55fr) minmax(135px,.7fr) minmax(125px,.65fr) minmax(130px,.65fr) minmax(135px,.7fr) auto auto auto;
+}
+.anki-browser-sort-dir{min-width:42px;padding-inline:10px}
+.anki-browser-columns{position:relative}
+.anki-browser-columns>summary{
+  list-style:none;cursor:pointer;border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken);
+  min-height:38px;padding:8px 11px;font-size:var(--fs-xs);font-weight:700;display:flex;align-items:center;justify-content:center
+}
+.anki-browser-columns>summary::-webkit-details-marker{display:none}
+#anki-browser-columns-menu{
+  position:absolute;right:0;top:calc(100% + 6px);z-index:40;min-width:225px;max-height:340px;overflow:auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);padding:8px
+}
+#anki-browser-columns-menu label{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;font-size:var(--fs-xs);white-space:nowrap}
+#anki-browser-columns-menu label:hover{background:var(--surface-sunken)}
+.anki-browser-table-head,.anki-browser-row{min-width:max-content}
+.anki-browser-table-head{overflow:visible}
+.anki-browser-col-head{
+  appearance:none;border:0;background:transparent;color:var(--text-faint);padding:0;text-align:left;cursor:pointer;
+  font:inherit;font-weight:800;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap
+}
+.anki-browser-cell{
+  appearance:none;border:0;background:transparent;color:var(--text-soft);padding:0;text-align:left;cursor:pointer;
+  font:inherit;font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0
+}
+.anki-browser-cell.anki-browser-field{color:var(--text);font-weight:650}
+.anki-browser-row>.anki-browser-state{white-space:nowrap;text-align:right}
+.anki-browser-list-wrap{overflow-x:auto}
+.cards-flagbar{display:inline-flex;gap:5px;flex-wrap:wrap}
+
+@media(max-width:1100px){
+  #anki-browser-modal .anki-browser-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:760px){
+  #anki-browser-modal .anki-browser-toolbar{grid-template-columns:1fr 1fr}
+  .anki-browser-table-head{display:grid}
+  .anki-browser-row{grid-template-areas:none}
+  .anki-browser-row>label,.anki-browser-row>.anki-browser-state,.anki-browser-row .anki-browser-cell{grid-area:auto}
+}
+@media(max-width:520px){
+  #anki-browser-modal .anki-browser-toolbar{grid-template-columns:1fr}
+}
