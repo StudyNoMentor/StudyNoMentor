@@ -406,6 +406,23 @@ for (const algo of ['fsrs', 'sm2']) {
   check('E6', 'Desfazer tudo zera os contadores diários', C.newDoneToday() === 0 && C.revDoneToday() === 0, { novos: C.newDoneToday(), revisoes: C.revDoneToday() });
 }
 {
+  // Redo do AnkiDroid: refaz pela mesma rota de resposta durável, não por cópia
+  // cega de snapshot. Estado do scheduler e revlog devem voltar ao pós-resposta.
+  A.reset({ algo:'fsrs', newPerDay:999, revPerDay:999 });
+  const hoje=A.hoje();
+  DB.saveCards([{id:'redo1',frente:'Q',verso:'A',phase:'review',reps:3,lapses:0,s:12,d:5,intervalo:10,due:hoje,lastReview:E.addDays(hoje,-10),status:'sei'}]);
+  A.AnkiParity.ensureIdentities();E.invalidateDueCache();
+  S._reviewQueue=S.buildQueue();S._reviewIdx=0;S._undoStack=[];S._redoStack=[];S._seenThisSession=new Set();
+  const pick=c=>({phase:c.phase,reps:c.reps,lapses:c.lapses,s:c.s,d:c.d,intervalo:c.intervalo,due:c.due,dueTs:c.dueTs||null,status:c.status});
+  const ok1=await S.answer('bom'),apos=pick(DB.getCard('redo1')),log1=DB.getRevlog().length;
+  S.undoAnswer();
+  const redoDisponivel=(S._redoStack||[]).length===1;
+  const ok2=await S.redoAnswer(),refeito=pick(DB.getCard('redo1')),log2=DB.getRevlog().length;
+  check('E6b','Undo → Redo reaplica a revisão e recupera o mesmo estado do scheduler',
+    ok1===true&&ok2===true&&redoDisponivel&&JSON.stringify(apos)===JSON.stringify(refeito)&&log1===1&&log2===1,
+    {ok1,ok2,redoDisponivel,apos,refeito,log1,log2});
+}
+{
   A.reset();
   DB.saveCards([{ id: 'f1', phase: 'review', s: 10, d: 5, reps: 9, lapses: 4, intervalo: 40, due: A.hoje(), ease: 1.9, leech: true, status: 'sei', lastReview: E.addDays(A.hoje(), -40) }]);
   DB.forgetCard('f1');
