@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vc8e75a94d4">
+<meta name="diario-versao" content="vceacd7271a">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6653,6 +6653,7 @@ window.__relationalBoot = true;
           <button type="button" role="menuitem" id="cards-filtered-btn">🔎 Baralho filtrado</button>
           <button type="button" role="menuitem" id="cards-import-btn">↑ Importar</button>
           <button type="button" role="menuitem" id="cards-export-btn">↓ Exportar p/ Anki</button>
+          <button type="button" role="menuitem" id="cards-empty-btn" title="Localizar e remover cards que não geram mais uma pergunta, como no Anki">🧹 Cards vazios</button>
           <button type="button" role="menuitem" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
         </div>
       </div>
@@ -16762,7 +16763,9 @@ const DB = {
       Object.assign(c, p); c.updatedAt = now;
     });
     if (this.saveCards(list) === false) return false;
-    return this.getCard(id);
+    const salvo=this.getCard(id);
+    try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){_quiet(e,'sync-canonical-note');}
+    return salvo;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
@@ -21769,9 +21772,8 @@ const CardsConfig = {
        padrão é "Due date, then random": vence primeiro quem tem a menor data,
        e empates são desfeitos por uma ordem pseudoaleatória estável. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
-       Os nomes seguem os oficiais para a equivalência ser rastreável.
-       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
-       TEMPLATES, que não existem neste app (cada card é independente). */
+       O app já mantém Note/irmãos/template canônicos, então os modos modernos
+       de coleta, ordenação e mistura podem seguir o contrato completo do Anki. */
 
     // ReviewCardOrder — padrão do Anki 26.09.2: Due date, then random.
     reviewOrder: 'day',
@@ -21898,6 +21900,20 @@ const CardsConfig = {
     c.newPerDay = Math.round(this._numValido(c.newPerDay, D.newPerDay, 0, 999999));
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
+    // Enums também chegam por backup/nuvem. Um valor legado ou corrompido não
+    // pode criar um caminho de fila que o scheduler atual não reconhece.
+    const enums = {
+      reviewOrder: ['day','dayThenDeck','deckThenDay','intervalsAsc','intervalsDesc','easeAsc','easeDesc',
+                    'retrievabilityAsc','retrievabilityDesc','relativeOverdueness','random','added','reverseAdded'],
+      newGatherOrder: ['deck','deckRandomNotes','posicao','posicaoDesc','randomNotes','randomCards'],
+      newSortOrder: ['template','coleta','templateRandom','randomNoteTemplate','randomCard'],
+      newInsertOrder: ['sequencial','aleatoria'],
+      newMix: ['misturar','depois','antes'],
+      interdayMix: ['misturar','depois','antes'],
+      leechAction: ['tag','suspend'],
+      algo: ['fsrs','sm2']
+    };
+    Object.keys(enums).forEach(k => { if (!enums[k].includes(c[k])) c[k] = D[k]; });
     ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits'].forEach(k => { if (typeof c[k] !== 'boolean') c[k] = !!D[k]; });
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
@@ -23169,6 +23185,17 @@ const AnkiImport = {
     const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
     return new Uint8Array(ab);
   },
+  async _loadFzstd(){
+    if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return globalThis.fzstd;
+    if(typeof document==='undefined')return null;
+    await new Promise((resolve,reject)=>{
+      const old=document.querySelector('script[data-snm-fzstd]');
+      if(old){if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return resolve();old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return;}
+      const s=document.createElement('script');s.src='./src/vendor/fzstd-0.1.1/fzstd.js';s.dataset.snmFzstd='1';
+      s.onload=resolve;s.onerror=()=>reject(new Error('Falha ao carregar decoder zstd local'));document.head.appendChild(s);
+    });
+    return globalThis.fzstd||null;
+  },
   async _zstd(bytes){
     if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return globalThis.fzstd.decompress(bytes);
     if(typeof DecompressionStream!=='undefined'){
@@ -23178,7 +23205,9 @@ const AnkiImport = {
         return new Uint8Array(ab);
       }catch(_){}
     }
-    throw new Error('Este pacote usa Zstandard (formato Anki atual), mas este navegador não expõe descompressão zstd. Exporte pelo Anki em formato legado ou use um navegador com zstd.');
+    const mod=await this._loadFzstd();
+    if(mod&&typeof mod.decompress==='function')return mod.decompress(bytes);
+    throw new Error('Decoder Zstandard local indisponível para pacote Anki atual.');
   },
   async unzip(bytes){
     bytes=this._u8(bytes);const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),eocd=this._findEOCD(bytes);
@@ -29306,54 +29335,63 @@ const CardsScreen = {
     const posDe = (c) => (typeof c.posicaoNova === 'number' ? c.posicaoNova : Number.MAX_SAFE_INTEGER);
     const criacaoDe = (c) => String(c.createdAt || '');
     const cfgQ = this._queueConfig();
+    const decksOrdenados = DB.getDecks().slice().sort((a,b) =>
+      String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
+    const ordemDeck = new Map(decksOrdenados.map((d,i) => [String(d.id), i]));
+    const rankDeck = (c) => c && c.deckId != null
+      ? (ordemDeck.get(String(c.deckId)) ?? Number.MAX_SAFE_INTEGER)
+      : Number.MAX_SAFE_INTEGER;
+    const ordTemplate = (c) => {
+      const raw = Number(c && c.ankiTemplateOrd);
+      return Number.isFinite(raw) ? Math.max(0, raw) : (c && c.template === 'reverse' ? 1 : 0);
+    };
     const COLETA = {
-      posicao:     (a, b) => posDe(a) - posDe(b) || criacaoDe(a).localeCompare(criacaoDe(b)),
-      posicaoDesc: (a, b) => posDe(b) - posDe(a) || criacaoDe(b).localeCompare(criacaoDe(a)),
-      criacao:     (a, b) => criacaoDe(a).localeCompare(criacaoDe(b)),
-      materiaRodizio: null,
-      deck: null
+      posicao:     (a, b) => posDe(a) - posDe(b) || ordTemplate(a) - ordTemplate(b) || criacaoDe(a).localeCompare(criacaoDe(b)),
+      posicaoDesc: (a, b) => posDe(b) - posDe(a) || ordTemplate(a) - ordTemplate(b) || criacaoDe(b).localeCompare(criacaoDe(a))
     };
     const gather = cfgQ.newGatherOrder || 'deck';
     if (gather === 'deck') {
-      // Anki: DECK = baralhos em ordem e, dentro de cada um, posição crescente.
-      const ordemDeck = new Map(
-        DB.getDecks().slice().sort((a,b) => String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'))
-          .map((d,i) => [String(d.id), i])
-      );
-      novos.sort((a,b) => {
-        const da = a.deckId == null ? Number.MAX_SAFE_INTEGER : (ordemDeck.get(String(a.deckId)) ?? Number.MAX_SAFE_INTEGER);
-        const db = b.deckId == null ? Number.MAX_SAFE_INTEGER : (ordemDeck.get(String(b.deckId)) ?? Number.MAX_SAFE_INTEGER);
-        return da - db || COLETA.posicao(a,b);
+      // Anki: decks em ordem alfabética/preorder; dentro de cada um, menor posição.
+      novos.sort((a,b) => rankDeck(a) - rankDeck(b) || COLETA.posicao(a,b));
+    } else if (gather === 'deckRandomNotes') {
+      // Anki: cada deck continua em ordem; dentro dele as NOTES são pseudoaleatórias,
+      // e irmãos da mesma nota ficam consecutivos por ordinal de template.
+      const grupos = new Map();
+      novos.forEach(c => {
+        const k = c && c.deckId != null ? String(c.deckId) : '__sem_deck__';
+        if (!grupos.has(k)) grupos.set(k, []);
+        grupos.get(k).push(c);
       });
-    } else if (gather === 'materiaRodizio') {
-      const porMat = {};
-      novos.slice().sort(COLETA.posicao).forEach(c => {
-        const k = c.materia || '—';
-        (porMat[k] = porMat[k] || []).push(c);
-      });
-      const filas = Object.keys(porMat).sort().map(k => porMat[k]);
-      const inter = [];
-      let restam = true;
-      while (restam) {
-        restam = false;
-        filas.forEach(f => { if (f.length) { inter.push(f.shift()); restam = true; } });
-      }
-      novos = inter;
-    } else if (COLETA[gather]) {
-      novos.sort(COLETA[gather]);
+      const lotes = Array.from(grupos.values()).sort((a,b) => rankDeck(a[0]) - rankDeck(b[0]));
+      novos = lotes.flatMap(g => (typeof AnkiParity !== 'undefined')
+        ? AnkiParity.stableNewSort(g,'gatherRandomNotes')
+        : g.slice().sort(COLETA.posicao));
+    } else if (gather === 'posicao') {
+      novos.sort(COLETA.posicao);
+    } else if (gather === 'posicaoDesc') {
+      novos.sort(COLETA.posicaoDesc);
+    } else if (gather === 'randomNotes') {
+      novos = (typeof AnkiParity !== 'undefined')
+        ? AnkiParity.stableNewSort(novos,'gatherRandomNotes')
+        : novos.slice().sort(COLETA.posicao);
+    } else if (gather === 'randomCards') {
+      novos = (typeof AnkiParity !== 'undefined')
+        ? AnkiParity.stableNewSort(novos,'gatherRandomCards')
+        : novos.slice().sort(COLETA.posicao);
     }
-    // NewCardSortOrder: reordena o lote já coletado.
+
+    // NewCardSortOrder: reordena o lote já coletado exatamente como o rslib.
     const sortNovos = cfgQ.newSortOrder || 'template';
     if (sortNovos === 'template') {
-      // Anki TEMPLATE: tipo/ordinal do card primeiro e coleta como desempate.
-      // Neste modelo, forward/cloze são o primeiro template e reverse o segundo.
-      const ordTemplate = c => c && c.template === 'reverse' ? 1 : 0;
-      novos.sort((a,b) => ordTemplate(a) - ordTemplate(b));
-    } else if (sortNovos === 'aleatoria') {
-      for (let i = novos.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        const t = novos[i]; novos[i] = novos[j]; novos[j] = t;
-      }
+      novos = (typeof AnkiParity !== 'undefined')
+        ? AnkiParity.stableNewSort(novos,'template')
+        : novos.slice().sort((a,b)=>ordTemplate(a)-ordTemplate(b));
+    } else if (sortNovos === 'templateRandom') {
+      if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'templateRandom');
+    } else if (sortNovos === 'randomNoteTemplate') {
+      if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'randomNoteTemplate');
+    } else if (sortNovos === 'randomCard') {
+      if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'randomCard');
     }
     /* ── ReviewCardOrder ──────────────────────────────────────────────────────
        Réplica das variantes do Anki que fazem sentido aqui. Ficaram de fora as
@@ -29391,11 +29429,14 @@ const CardsScreen = {
       retrievabilityDesc: (a, b) => R(b) - R(a) || cmpRnd(a, b),
       relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a) || cmpRnd(a, b),
       day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
+      dayThenDeck:        (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || rankDeck(a) - rankDeck(b) || cmpRnd(a, b),
+      deckThenDay:        (a, b) => rankDeck(a) - rankDeck(b) || String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
       intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || cmpRnd(a, b),
       intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || cmpRnd(a, b),
       easeAsc:            (a, b) => (a.d || 0) - (b.d || 0) || cmpRnd(a, b),     // no FSRS a dificuldade
       easeDesc:           (a, b) => (b.d || 0) - (a.d || 0) || cmpRnd(a, b),     // faz o papel do "ease"
       added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || cmpRnd(a, b),
+      reverseAdded:       (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || cmpRnd(a, b),
       random:             (a, b) => cmpRnd(a, b)
     };
     const cmp = ORDENADORES[ordemRev];
@@ -31282,6 +31323,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     { key: 'reviewOrder', label: '🔢 Ordem das revisões', type: 'select', value: cfg.reviewOrder || 'day',
       options: [
         { value: 'day',                label: 'Data de vencimento, depois aleatório (padrão Anki)' },
+        { value: 'dayThenDeck',        label: 'Data de vencimento, depois baralho' },
+        { value: 'deckThenDay',        label: 'Baralho, depois data de vencimento' },
         { value: 'retrievabilityAsc',  label: 'Mais perto de esquecer primeiro' },
         { value: 'retrievabilityDesc', label: 'Mais bem lembrado primeiro' },
         { value: 'relativeOverdueness',label: 'Atraso relativo ao intervalo' },
@@ -31289,19 +31332,21 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
         { value: 'intervalsDesc',      label: 'Intervalo maior primeiro' },
         { value: 'easeAsc',            label: 'Mais difíceis primeiro' },
         { value: 'easeDesc',           label: 'Mais fáceis primeiro' },
-        { value: 'added',              label: 'Ordem de criação' },
+        { value: 'added',              label: 'Mais antigos primeiro' },
+        { value: 'reverseAdded',       label: 'Mais recentes primeiro' },
         { value: 'random',             label: 'Aleatória' }
       ],
       hint: 'Com fila acumulada, isto muda muito o rendimento: revisar antes o que está prestes a sumir preserva mais memória por minuto. "Atraso relativo" prioriza quem passou mais tempo além do próprio intervalo — 3 dias de atraso num card de 3 dias é grave; num de 300, não.' },
     { key: 'newGatherOrder', label: '🆕 Quais cards novos entram primeiro', type: 'select', value: cfg.newGatherOrder || 'deck',
       options: [
-        { value: 'deck',           label: 'Baralho e posição (padrão Anki)' },
-        { value: 'posicao',        label: 'Posição na fila (ordem de inserção)' },
-        { value: 'posicaoDesc',    label: 'Posição invertida (mais recentes antes)' },
-        { value: 'criacao',        label: 'Data de criação' },
-        { value: 'materiaRodizio', label: 'Rodízio entre matérias' }
+        { value: 'deck',            label: 'Baralho, depois posição (padrão Anki)' },
+        { value: 'deckRandomNotes', label: 'Baralho, depois notas aleatórias' },
+        { value: 'posicao',         label: 'Posição crescente' },
+        { value: 'posicaoDesc',     label: 'Posição decrescente' },
+        { value: 'randomNotes',     label: 'Notas aleatórias' },
+        { value: 'randomCards',     label: 'Cards aleatórios' }
       ],
-      hint: 'O rodízio evita que colar 40 assuntos de uma matéria faça os próximos dias virarem monotemáticos.' },
+      hint: 'Espelha NewCardGatherPriority do Anki: decide quais novos entram antes do limite diário.' },
     { key: 'newInsertOrder', label: '🆕 Posição de um card recém-criado', type: 'select', value: cfg.newInsertOrder || 'sequencial',
       options: [
         { value: 'sequencial', label: 'No fim da fila (padrão)' },
@@ -31310,11 +31355,13 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Decidida no momento da criação. "Sorteada" faz um lote grande se intercalar com o que já esperava, em vez de virar um bloco no fim.' },
     { key: 'newSortOrder', label: '🆕 Ordem de exibição dos novos', type: 'select', value: cfg.newSortOrder || 'template',
       options: [
-        { value: 'template', label: 'Tipo do card, depois coleta (padrão Anki)' },
-        { value: 'coleta', label: 'Manter a ordem de coleta' },
-        { value: 'aleatoria', label: 'Embaralhar' }
+        { value: 'template',           label: 'Template, depois coleta (padrão Anki)' },
+        { value: 'coleta',             label: 'Manter a ordem de coleta' },
+        { value: 'templateRandom',     label: 'Template, depois aleatório' },
+        { value: 'randomNoteTemplate', label: 'Nota aleatória, depois template' },
+        { value: 'randomCard',         label: 'Card aleatório' }
       ],
-      hint: 'Só reordena o lote do dia; não muda quais entram.' },
+      hint: 'Espelha NewCardSortOrder do Anki; o aleatório é determinístico e estável ao reconstruir a fila.' },
     { key: 'newMix', label: '🔀 Onde entram os cards NOVOS', type: 'select', value: cfg.newMix || 'misturar',
       options: [
         { value: 'misturar', label: 'Misturados com as revisões (padrão Anki)' },
@@ -31395,12 +31442,13 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
          permitida: um select adulterado não pode injetar uma chave que depois
          quebraria a montagem da fila. */
-      reviewOrder: ['retrievabilityAsc','retrievabilityDesc','relativeOverdueness','day',
-                    'intervalsAsc','intervalsDesc','easeAsc','easeDesc','added','random']
+      reviewOrder: ['retrievabilityAsc','retrievabilityDesc','relativeOverdueness','day','dayThenDeck','deckThenDay',
+                    'intervalsAsc','intervalsDesc','easeAsc','easeDesc','added','reverseAdded','random']
                    .includes(v.reviewOrder) ? v.reviewOrder : 'day',
-      newGatherOrder: ['deck','posicao','posicaoDesc','criacao','materiaRodizio']
+      newGatherOrder: ['deck','deckRandomNotes','posicao','posicaoDesc','randomNotes','randomCards']
                    .includes(v.newGatherOrder) ? v.newGatherOrder : 'deck',
-      newSortOrder: ['template','coleta','aleatoria'].includes(v.newSortOrder) ? v.newSortOrder : 'template',
+      newSortOrder: ['template','coleta','templateRandom','randomNoteTemplate','randomCard']
+                   .includes(v.newSortOrder) ? v.newSortOrder : 'template',
       newInsertOrder: v.newInsertOrder === 'aleatoria' ? 'aleatoria' : 'sequencial',
       newMix: ['misturar','depois','antes'].includes(v.newMix) ? v.newMix : 'misturar',
       interdayMix: ['misturar','depois','antes'].includes(v.interdayMix) ? v.interdayMix : 'misturar',
@@ -31603,6 +31651,37 @@ const AnkiParity = {
     return h;
   },
   reviewTie(card){return BigInt.asIntN(64,this.fnvHashI64(this.cardId(card),this.mod(card)));},
+  daysElapsed(){
+    try{
+      const cards=DB.getCards();
+      const crt=(typeof AnkiExport!=='undefined'&&AnkiExport._collectionEpoch)?AnkiExport._collectionEpoch(cards):Math.floor(Date.now()/1000)-86400;
+      const now=Date.parse(todayCards()+'T00:00:00');
+      return Math.max(0,Math.round((now-crt*1000)/86400000));
+    }catch(_){return 0;}
+  },
+  knuthSalt(days){return (Math.imul(Number(days)>>>0,2654435761)>>>0);},
+  newCardHash(card,salt){
+    return BigInt.asIntN(64,this.fnvHashI64(this.cardId(card),Number(salt)>>>0));
+  },
+  newNoteHash(card,salt){
+    return BigInt.asIntN(64,this.fnvHashI64(this.noteId(card),Number(salt)>>>0));
+  },
+  cmpBig(a,b){return a<b?-1:(a>b?1:0);},
+  stableNewSort(cards,mode){
+    const xs=cards.slice(),days=this.daysElapsed(),salt=this.knuthSalt(days);
+    const ord=c=>{
+      const raw=Number(c&&c.ankiTemplateOrd);
+      return Number.isFinite(raw)?Math.max(0,raw):(c&&c.template==='reverse'?1:0);
+    };
+    const cid=c=>this.newCardHash(c,days),nid=c=>this.newNoteHash(c,days);
+    if(mode==='template')xs.sort((a,b)=>ord(a)-ord(b));
+    else if(mode==='templateRandom')xs.sort((a,b)=>ord(a)-ord(b)||this.cmpBig(cid(a),cid(b)));
+    else if(mode==='randomNoteTemplate')xs.sort((a,b)=>this.cmpBig(nid(a),nid(b))||ord(a)-ord(b));
+    else if(mode==='randomCard')xs.sort((a,b)=>this.cmpBig(cid(a),cid(b)));
+    else if(mode==='gatherRandomNotes')xs.sort((a,b)=>this.cmpBig(this.newNoteHash(a,salt),this.newNoteHash(b,salt))||ord(a)-ord(b));
+    else if(mode==='gatherRandomCards')xs.sort((a,b)=>this.cmpBig(this.newCardHash(a,salt),this.newCardHash(b,salt)));
+    return xs;
+  },
 
   configIdForDeck(deckId){
     if(deckId==null)return 'default';
@@ -31703,16 +31782,47 @@ const AnkiParity = {
         phase:'new',learnStep:0,s:null,d:null,dueTs:null,due:todayCards(),ease:2.5,intervalo:0,reps:0,lapses:0,status:'pendente',
         createdAt:now,updatedAt:now,ankiMod:Math.floor(Date.now()/1000)}));changed=true;
     });
-    const keep=new Set(ords),removed=[];
-    for(let i=all.length-1;i>=0;i--){const c=all[i];if(String(c.noteId||c.id)!==String(noteId)||c.kind!=='cloze')continue;
-      const o=Number(c.clozeOrd||((c.template||'').match(/^cloze:(\d+)$/)||[])[1]);if(o&&!keep.has(o)){removed.push(String(c.id));all.splice(i,1);changed=true;}}
+    /* O Anki NÃO apaga automaticamente um card Cloze cujo ordinal saiu da
+       nota. Ele o mantém como "empty card" até o usuário executar Empty Cards.
+       Isso preserva revlog/agendamento e evita perda silenciosa de histórico. */
     if(changed)DB.saveCards(all);
-    if(removed.length){
-      const set=new Set(removed);
-      try{DB.replaceRevlog(DB.getRevlog().filter(r=>!set.has(String(r.cardId))));}catch(e){_quiet(e,'cloze-remove-revlog');}
-      try{removed.forEach(id=>CardsConfig.forgetCardId(id));}catch(e){_quiet(e,'cloze-remove-daily');}
-    }
+    this.syncCanonicalNoteFromCard(base);
     return ords.length;
+  },
+  syncCanonicalNoteFromCard(card){
+    if(!card)return false;
+    try{
+      this.ensureIdentities();
+      const nid=this.noteId(card),note=this.getNote(nid);if(!note)return false;
+      const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt||!nt.stockKind)return false;
+      const sibs=DB.getCards().filter(c=>this.noteId(c)===nid),forward=sibs.find(c=>c.template!=='reverse')||card;
+      const fields=Object.assign({},note.fields||{});
+      if(nt.stockKind==='cloze'){fields.Text=forward.frente||'';fields['Back Extra']=forward.verso||'';}
+      else {fields.Front=forward.frente||'';fields.Back=forward.verso||'';}
+      this.saveNote(Object.assign({},note,{fields}));return true;
+    }catch(e){_quiet(e,'canonical-note-sync');return false;}
+  },
+  isEmptyGeneratedCard(card){
+    if(!card)return false;
+    try{
+      const note=this.getNote(this.noteId(card));if(!note)return false;
+      const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)return false;
+      const front=this.renderTemplate(nt,note,Number(card.ankiTemplateOrd)||0,'question',card,'');
+      return !this._fieldNonempty(front);
+    }catch(_){return false;}
+  },
+  emptyCardIds(){
+    // Coleções legadas podem ainda não ter a entidade Note/NoteType materializada.
+    // Empty Cards precisa funcionar nelas também, como manutenção de coleção.
+    try{this.ensureCanonicalNotes();}catch(e){_quiet(e,'empty-cards-canonical');}
+    return DB.getCards().filter(c=>this.isEmptyGeneratedCard(c)).map(c=>c.id);
+  },
+  deleteEmptyCards(){
+    const ids=new Set(this.emptyCardIds().map(String));if(!ids.size)return 0;
+    const cards=DB.getCards().filter(c=>!ids.has(String(c.id)));DB.saveCards(cards);
+    try{DB.replaceRevlog(DB.getRevlog().filter(r=>!ids.has(String(r.cardId))));}catch(e){_quiet(e,'empty-cards-revlog');}
+    try{ids.forEach(id=>CardsConfig.forgetCardId(id));}catch(e){_quiet(e,'empty-cards-daily');}
+    return ids.size;
   },
 
   autoBurySiblings(card){
@@ -31893,7 +32003,11 @@ AnkiParity._specialField=function(name,nt,note,tmpl,card){
   return null;
 };
 AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
-  nt=nt||{};note=note||{};card=card||{};const fields=note.fields||{},tmpl=(nt.templates||[])[Number(ord)||0]||{};
+  nt=nt||{};note=note||{};card=card||{};const fields=note.fields||{};
+  // Cloze tem um único template no NoteType; o ordinal do card identifica c1/c2/...
+  // e NÃO um índice de template distinto.
+  const templateOrd=(nt.kind==='cloze'||nt.stockKind==='cloze')?0:(Number(ord)||0);
+  const tmpl=(nt.templates||[])[templateOrd]||{};
   let src=String(side==='answer'?tmpl.afmt:tmpl.qfmt||'');
   src=this._renderConditionals(src,fields);
   src=src.replace(/\{\{FrontSide\}\}/g,String(frontSide||''));
@@ -34043,7 +34157,17 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('foco-undo', 'click', () => CardsScreen.undoAnswer());
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
-    on('cards-audit-export-btn', 'click', () => CardsScreen.exportAudit());
+  on('cards-empty-btn', 'click', async () => {
+    if (typeof AnkiParity === 'undefined') return;
+    const ids = AnkiParity.emptyCardIds();
+    if (!ids.length) { showToast('Nenhum card vazio ✓'); return; }
+    const ok = await UI.confirm('Foram encontrados ' + ids.length + ' card(s) vazio(s). Remover esses cards e o histórico deles?', { title:'🧹 Cards vazios', okText:'Remover', danger:true });
+    if (!ok) return;
+    const n = AnkiParity.deleteEmptyCards();
+    CardsScreen.render();
+    showToast(n + ' card(s) vazio(s) removido(s) ✓');
+  });
+  on('cards-audit-export-btn', 'click', () => CardsScreen.exportAudit());
   on('cards-import-btn', 'click', () => CardsScreen.openImportModal());
   // modal card
   on('card-modal-close', 'click', () => CardsScreen.fecharCardComAviso());
