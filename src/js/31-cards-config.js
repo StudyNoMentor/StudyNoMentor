@@ -193,9 +193,12 @@ const CardsConfig = {
     // O preset do baralho vem pelos mesmos caminhos não confiáveis da config
     // global (nuvem, backup, armazenamento editado): mesmo saneamento.
     const efetiva = this._sanear(Object.assign({}, base, ov));
-    // No Anki o liga/desliga do FSRS é GLOBAL. Parâmetros e retenção pertencem
-    // aos presets, mas um baralho não pode usar SM-2 enquanto outro usa FSRS.
+    // No Anki o liga/desliga do FSRS e o interruptor
+    // "new cards ignore review limit" são GLOBAIS. Parâmetros, retenção e
+    // ordenação pertencem ao preset, mas essas duas chaves nunca podem ser
+    // sobrescritas por um baralho.
     efetiva.algo = base.algo;
+    efetiva.newCardsIgnoreReviewLimit = base.newCardsIgnoreReviewLimit;
     return efetiva;
   },
   // Pesos salvos de antes (19 posições, FSRS-5) são migrados para 21 na leitura.
