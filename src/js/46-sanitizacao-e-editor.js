@@ -426,6 +426,8 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   // topo
   on('cards-algo-btn', 'click', () => CardsScreen.openAlgoConfig());
+  on('cards-custom-btn', 'click', () => CardsScreen.openCustomStudy());
+  on('cards-filtered-btn', 'click', () => CardsScreen.openFilteredDeckModal(null));
   // atalho 📊: pula direto para a aba Estatísticas
   on('cards-stats-btn', 'click', () => {
     CardsScreen.tab = 'stats';
@@ -469,6 +471,16 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('bancas-modal-done', 'click', () => $id('bancas-modal').style.display = 'none');
   on('banca-add-btn', 'click', () => CardsScreen.addBanca());
   on('banca-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addBanca(); });
+  // modal estudo personalizado / baralho filtrado
+  on('cards-custom-close', 'click', () => $id('cards-custom-modal').style.display = 'none');
+  on('cards-custom-cancel', 'click', () => $id('cards-custom-modal').style.display = 'none');
+  on('cards-custom-mode', 'change', () => CardsScreen.updateCustomStudyUI());
+  on('cards-custom-run', 'click', () => CardsScreen.runCustomStudy());
+  on('cards-filtered-close', 'click', () => $id('cards-filtered-modal').style.display = 'none');
+  on('cards-filtered-cancel', 'click', () => $id('cards-filtered-modal').style.display = 'none');
+  on('cards-filtered-reschedule', 'change', () => CardsScreen.updateFilteredDeckUI());
+  on('cards-filtered-save', 'click', () => CardsScreen.saveFilteredDeckModal());
+
   // modal exportar
   on('cards-export-close', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-cancel', 'click', () => $id('cards-export-modal').style.display = 'none');
