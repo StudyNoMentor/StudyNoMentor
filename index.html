@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v71d701e385">
+<meta name="diario-versao" content="v8bacbf3828">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -40472,6 +40472,15 @@ const RelationalStore = {
     const rpc=await this._rpcBundle('read_study_profile_core',{p_profile_id:profileId});
     if(!rpc.missing){
       if(!rpc.data||!rpc.data.profile){ const e=new Error('Perfil não encontrado na nuvem'); e.code='perfil-inexistente'; throw e; }
+      /* position deixou de ser identidade: dois dispositivos offline podem
+         produzir a mesma posição. A RPC histórica ordena só por position; o
+         desempate abaixo torna a projeção estável sem depender da ordem física
+         do PostgreSQL. */
+      if(Array.isArray(rpc.data.revlog)) rpc.data.revlog.sort((a,b)=>
+        String(a.plan_id||'').localeCompare(String(b.plan_id||'')) ||
+        (Number(a.position)||0)-(Number(b.position)||0) ||
+        (Number(a.ts)||0)-(Number(b.ts)||0) ||
+        (Number(a.review_pk)||0)-(Number(b.review_pk)||0));
       return rpc.data;
     }
     const profileQ=CloudStore.client.from('study_profiles')
