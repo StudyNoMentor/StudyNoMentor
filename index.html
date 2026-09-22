@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v10fc45f2c0">
+<meta name="diario-versao" content="vf0b19676c6">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -21665,6 +21665,35 @@ FSRS._loadOfficialOptimizer=async function(){
   try{return await this._officialOptimizerLoading;}
   finally{this._officialOptimizerLoading=null;}
 };
+FSRS.trainingCardsForScope=function(deckId,cfg){
+  cfg=cfg||CardsConfig.forDeck(deckId==null?null:deckId);
+  let cards=DB.getCards().slice();
+
+  // No escopo de um baralho, o Anki considera o baralho e seus filhos.
+  // Cards temporariamente em filtered decks continuam pertencendo ao home deck.
+  if(deckId!=null){
+    const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(deckId));
+    if(root){
+      const prefix=String(root.nome||'')+'::';
+      const ids=new Set(decks.filter(d=>{
+        const n=String(d.nome||'');
+        return String(d.id)===String(deckId)||n.startsWith(prefix);
+      }).map(d=>String(d.id)));
+      cards=cards.filter(card=>ids.has(String(card.originalDeckId||card.deckId)));
+    }else{
+      cards=cards.filter(card=>String(card.originalDeckId||card.deckId)===String(deckId));
+    }
+  }
+
+  // param_search é aplicado ANTES de montar as sequências do revlog, para que
+  // o modelo seja treinado apenas nos cards escolhidos pelo usuário/preset.
+  const search=String(cfg&&cfg.paramSearch||'').trim();
+  if(search&&typeof AnkiParity!=='undefined'&&AnkiParity.filteredSearchMatches){
+    cards=cards.filter(card=>AnkiParity.filteredSearchMatches(card,search));
+  }
+  return cards;
+};
+
 FSRS.optimizeOfficial=async function(revlog,opts){
   opts=opts||{};
   if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki não carregada');
@@ -21675,9 +21704,10 @@ FSRS.optimizeOfficial=async function(revlog,opts){
     const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');
     if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();
   }
+  const scopedCards=Array.isArray(opts.cards)?opts.cards:this.trainingCardsForScope(deckId,cfg);
   const data=AnkiParity.fsrsTrainingData(
     Array.isArray(revlog)?revlog:DB.getRevlog(),
-    {cards:opts.cards||DB.getCards(),nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs}
+    {cards:scopedCards,nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs}
   );
   if(!data.items.length)throw new Error('Dados insuficientes para otimizar parâmetros FSRS');
 
@@ -30305,6 +30335,20 @@ CardsScreen.zerarEstatisticas = function () {
       });
   });
 };
+CardsScreen.optimizeFsrsOfficial = async function (deckId) {
+  const globalCfg = CardsConfig.get();
+  if (globalCfg.algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
+  const cfg = CardsConfig.forDeck(deckId == null ? null : deckId);
+  if (!FSRS || typeof FSRS.optimizeOfficial !== 'function') throw new Error('Otimizador oficial FSRS indisponível.');
+
+  const out = await FSRS.optimizeOfficial(DB.getRevlog(), { deckId: deckId == null ? null : deckId, cfg });
+  const patch = { weights: out.params.slice(), lastOptim: new Date().toISOString() };
+  if (deckId != null) CardsConfig.setDeckPreset(deckId, patch);
+  else CardsConfig.set(patch);
+  CardEngine.invalidateDueCache();
+  return out;
+};
+
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
 CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
@@ -30506,10 +30550,35 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
     CardEngine.invalidateDueCache();
-    // Não chama ferramenta FSRS inexistente: otimização precisa usar o mesmo
-    // backend oficial do Anki/fsrs-rs antes de ser exposta como equivalente.
     if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
+
+  // O Anki expõe a otimização no próprio Deck Options. Aqui o botão usa o
+  // fsrs-rs 6.6.2 vendorado localmente e salva os 21 parâmetros no mesmo
+  // escopo (global/preset) que está sendo configurado.
+  if (g.algo === 'fsrs') setTimeout(() => {
+    const foot = document.querySelector('#ui-modal .cards-modal-foot');
+    if (!foot || document.getElementById('cards-optimize-fsrs-btn')) return;
+    const b = document.createElement('button');
+    b.id = 'cards-optimize-fsrs-btn'; b.type = 'button'; b.className = 'btn-secondary';
+    b.title = 'Treina os 21 parâmetros com o fsrs-rs 6.6.2 oficial, respeitando o histórico ignorado e o filtro de treino.';
+    b.textContent = '🧠 Otimizar FSRS';
+    b.addEventListener('click', async () => {
+      const old = b.textContent; b.disabled = true; b.textContent = '⏳ Otimizando…';
+      try {
+        const out = await CardsScreen.optimizeFsrsOfficial(deckId);
+        showToast('FSRS otimizado com ' + out.reviewCount.toLocaleString('pt-BR') + ' revisões de ' +
+          out.cardCount.toLocaleString('pt-BR') + ' card(s) ✓');
+        UI._submit(false);
+        setTimeout(() => CardsScreen.openAlgoConfigFor(deckId), 0);
+      } catch (e) {
+        b.disabled = false; b.textContent = old;
+        showToast('Não foi possível otimizar FSRS: ' + (e && e.message ? e.message : String(e)));
+      }
+    });
+    foot.insertBefore(b, foot.firstChild);
+  }, 60);
+
   // botão extra "restaurar herança" quando o baralho tem preset
   if (isDeck && hasPreset) setTimeout(() => {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
@@ -31298,7 +31367,29 @@ AnkiParity._filteredTermMatches=function(card,term){
   const m=term.match(/^([^:]+):(.*)$/),key=m?m[1].toLowerCase():'',raw=m?m[2]:'';
   const val=String(raw||'').replace(/^"(.*)"$/,'$1');
   const homeId=card.originalDeckId||card.deckId;
-  if(key==='deck'){
+  const lc=x=>String(x==null?'':x).toLowerCase();
+  const includes=(x,w)=>lc(x).includes(lc(w));
+  if(!m){
+    const bare=lc(term.replace(/^"|"$/g,''));
+    if(bare==='favorito'||bare==='favorite')return !!card.favorito;
+    if(bare==='suspenso'||bare==='suspended')return !!card.suspenso;
+    if(bare==='leech')return !!card.leech||this._noteTagsForCard(card).some(t=>lc(t)==='leech');
+  }
+  if(key==='materia'||key==='subject')return includes(card.materia,val)||includes(card.materiaTec,val);
+  if(key==='assunto'||key==='topic')return includes(card.assunto,val);
+  if(key==='tipo'||key==='type')return includes(card.tipo||card.kind,val);
+  if(key==='banca')return includes(card.banca,val);
+  if(key==='favorito'||key==='favorite'){
+    const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?!!card.favorito:!card.favorito;
+  }
+  if(key==='suspenso'||key==='suspended'){
+    const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?!!card.suspenso:!card.suspenso;
+  }
+  if(key==='leech'){
+    const hit=!!card.leech||this._noteTagsForCard(card).some(t=>lc(t)==='leech');
+    const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?hit:!hit;
+  }
+  if(key==='deck'||key==='baralho'){
     const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(homeId));
     if(!d)return false;const n=String(d.nome||'').toLowerCase(),want=val.toLowerCase();
     return n===want||n.startsWith(want+'::');
