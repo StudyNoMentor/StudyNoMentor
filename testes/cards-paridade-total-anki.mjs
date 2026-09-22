@@ -159,6 +159,10 @@ ok(AnkiParity.filteredSearchMatches(DB.getCard(tr1.id),'assunto:ICMS tipo:lei ba
 ok(!AnkiParity.filteredSearchMatches(DB.getCard(tr2.id),'-suspenso'),
    'param_search negativo exclui suspensos');
 ok(typeof CardsScreen.optimizeFsrsOfficial==='function','UI expõe otimizador oficial FSRS');
+CardsScreen._reviewStartedAt=1000;CardsScreen._answerShownAt=2500;
+eq(CardsScreen._reviewElapsedMs({stopTimerOnAnswer:true,capAnswerTimeToSecs:60}),1500,'timer para ao revelar resposta quando configurado');
+CardsScreen._reviewStartedAt=Date.now()-5000;CardsScreen._answerShownAt=null;
+eq(CardsScreen._reviewElapsedMs({stopTimerOnAnswer:false,capAnswerTimeToSecs:1}),1000,'tempo do revlog respeita o teto do preset');
 
 // ── Limites hierárquicos: pai/filhos + novos consomem review ──────────────
 A.reset({newPerDay:99,revPerDay:99,newCardsIgnoreReviewLimit:false,applyAllParentLimits:false});
@@ -199,6 +203,15 @@ ok(q.includes(direct.id),'filho direto ignora limite do pai por padrão');
 CardsConfig.set({applyAllParentLimits:true,newCardsIgnoreReviewLimit:true});
 q=CardsScreen.buildQueue();
 ok(!q.includes(direct.id),'applyAllParentLimits inclui o pai ao estudar o filho');
+
+// Custom Study: aumentar limite é Today Only, não mutação permanente do preset.
+A.reset({newPerDay:5,revPerDay:7});
+DB.saveDecks([{id:'today',nome:'Today',createdAt:new Date().toISOString()}]);
+eq(AnkiParity.customStudy({deckId:'today',kind:'newLimitDelta',delta:3}).limit,8,'Custom Study aumenta o limite atual');
+eq(CardsConfig.currentLimitForDeck('today','new'),8,'Today Only entra no limite efetivo de hoje');
+eq(CardsConfig.forDeck('today').newPerDay,5,'Today Only não altera o preset permanente');
+let dayState=CardsConfig._daily();dayState.date=CardEngine.addDays(A.hoje(),-1);CardsConfig._saveDaily(dayState);
+eq(CardsConfig.currentLimitForDeck('today','new'),5,'Today Only expira automaticamente na virada do dia');
 
 // ── Filtered Decks / Custom Study (Anki 26.09.2) ───────────────────────────
 A.reset({newPerDay:0,revPerDay:0});
@@ -244,6 +257,22 @@ const goodPreview=AnkiParity.previewFilteredAnswer(pcard,'bom');
 ok(goodPreview._filteredFinished,'Good com atraso 0 encerra preview');
 eq(goodPreview.deckId,'home','preview concluído volta ao home deck');
 eq(goodPreview.due,homeDue,'preview concluído restaura due original');
+
+// Busca dos filtered decks: operadores oficiais que já possuem dados locais.
+AnkiParity.emptyFilteredDeck(pv.deck.id);
+const searchCard=DB.getCard(fn.id);
+DB.updateCard(searchCard.id,{flag:3,phase:'review',intervalo:12,reps:4,lapses:2,ease:2.4,s:15,d:6,posicaoNova:9,firstReviewAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
+const sc=DB.getCard(searchCard.id),sn=AnkiParity.getNote(AnkiParity.noteId(sc));
+ok(AnkiParity.filteredSearchMatches(sc,'note:Basic'),'search note: resolve tipo de nota');
+ok(AnkiParity.filteredSearchMatches(sc,'card:1'),'search card: aceita ordinal');
+ok(AnkiParity.filteredSearchMatches(sc,'flag:3'),'search flag: usa bandeira');
+ok(AnkiParity.filteredSearchMatches(sc,'nid:'+String(sc.ankiNoteId||sc.noteId)),'search nid: usa identidade Anki');
+ok(AnkiParity.filteredSearchMatches(sc,'cid:'+String(sc.ankiId||sc.id)),'search cid: usa identidade Anki');
+ok(AnkiParity.filteredSearchMatches(sc,'prop:ivl>=12 prop:reps=4 prop:lapses=2 prop:s>10 prop:d>=6'),'search prop: cobre estado do scheduler');
+ok(AnkiParity.filteredSearchMatches(sc,'introduced:1 edited:1'),'search introduced:/edited: usa timestamps persistidos');
+ok(AnkiParity.filteredSearchMatches(sc,'re:novo'),'search re: aplica regex ao conteúdo');
+ok(sn&&AnkiParity.filteredSearchMatches(sc,'Front:novo'),'campo arbitrário do Note Type pode ser pesquisado');
 
 // Dois termos, ordem e exclusão de suspensos/buried.
 AnkiParity.emptyFilteredDeck(pv.deck.id);
@@ -312,6 +341,12 @@ ok(rs.every(x=>x.ankiNoteId===rs[0].ankiNoteId),'irmãos forward/reverse compart
 const rnote=AnkiParity.getNote(rs[0].ankiNoteId), rnt=AnkiParity.getNotetype(rs[0].notetypeId);
 eq(rnote.fields,{Front:'Q',Back:'A'},'nota reversa guarda conteúdo uma única vez');
 eq(rnt.stockKind,'basic_reversed','nota reversa usa note type de dois templates');
+const optNt=AnkiParity.stockNotetype('basic_optional_reversed');
+eq(optNt.fields.map(f=>f.name),['Front','Back','Add Reverse'],'Optional Reversed tem os três campos oficiais');
+const optNote=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:optNt.id,fields:{Front:'F',Back:'B','Add Reverse':'y'},tags:[]});
+eq(strip(AnkiParity.renderTemplate(optNt,optNote,1,'question',{ankiTemplateOrd:1},'')),'B','Optional Reversed gera verso quando Add Reverse está preenchido');
+const optOff=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:optNt.id,fields:{Front:'F',Back:'B','Add Reverse':''},tags:[]});
+eq(strip(AnkiParity.renderTemplate(optNt,optOff,1,'question',{ankiTemplateOrd:1},'')),'','Optional Reversed omite o segundo card quando Add Reverse está vazio');
 eq(rs.map(x=>x.ankiTemplateOrd).sort((a,b)=>a-b),[0,1],'cards irmãos apontam para ordinais 0/1');
 
 const cc=DB.getCards().find(x=>String(x.noteId)==='cl-note'), cnote=AnkiParity.getNote(cc.ankiNoteId), cnt=AnkiParity.getNotetype(cc.notetypeId);
