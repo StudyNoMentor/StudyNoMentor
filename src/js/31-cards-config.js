@@ -144,6 +144,7 @@ const CardsConfig = {
     c.newPerDay = Math.round(this._numValido(c.newPerDay, D.newPerDay, 0, 999999));
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
+    ['buryNew','buryReviews','buryInterdayLearning','applyAllParentLimits'].forEach(k => { if (typeof c[k] !== 'boolean') c[k] = !!D[k]; });
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
