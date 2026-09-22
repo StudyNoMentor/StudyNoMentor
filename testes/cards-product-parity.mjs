@@ -42,7 +42,7 @@ const ctx={
   document:{},window:{},navigator:{language:'pt-BR'}
 };ctx.globalThis=ctx;vm.createContext(ctx);
 vm.runInContext(readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8'),ctx,{filename:'44-anki-product-parity.js'});
-const P=ctx.AnkiProductParity;
+const P=vm.runInContext('AnkiProductParity',ctx);
 assert.ok(P,'camada de paridade deve ser exportada');
 
 // Reconcile: preserva o card ordinal 0/agendamento e cria somente o irmão ausente.
