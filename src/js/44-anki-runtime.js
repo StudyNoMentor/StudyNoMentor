@@ -39,9 +39,12 @@ const AnkiRuntime = {
       '</head><body class="card '+this._escAttr(side||'question')+'">'+body+bootstrap+'</body></html>';
   },
   renderFrame(nt, html, side, card, visible) {
+    // Iframe oculto ainda executaria JS/TTS. O Anki só executa o lado da
+    // resposta quando ela é revelada, então o lado invisível nem é criado.
+    if(!visible)return '<div class="cards-anki-frame-placeholder" aria-hidden="true"></div>';
     const id='anki-'+String(card&&(card.ankiId||card.id)||'')+'-'+String(side||'question');
     const srcdoc=this.buildSrcdoc(nt,html,side,card);
-    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:'+(visible?'block':'none')+';width:100%;min-height:96px;border:0;background:transparent"></iframe>';
+    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
   },
   init() {
     if(typeof window==='undefined'||!window.addEventListener)return;
