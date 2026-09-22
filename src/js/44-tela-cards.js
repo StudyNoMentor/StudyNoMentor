@@ -1933,6 +1933,8 @@ const CardsScreen = {
   // ---- importar ----
   openImportModal() {
     this._importParsed = null;
+    const textOpts=document.getElementById('cards-import-text-options');if(textOpts)textOpts.style.display='none';
+    const mapBox=document.getElementById('cards-import-field-mapping');if(mapBox)mapBox.innerHTML='';
     $id('cards-import-destino').innerHTML = this.destinoOptionsHtml('');
     $id('cards-import-preview').textContent = 'Aguardando arquivo...';
     $id('cards-import-preview').style.color = 'var(--text-faint)';
