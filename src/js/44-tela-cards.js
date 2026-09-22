@@ -711,6 +711,7 @@ const CardsScreen = {
         <div class="cards-review-progress"><span title="Posição atual na fila">Card ${done + 1} de ${total}</span>
           <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
           <span class="cards-limit-chip" title="Cards únicos respondidos hoje: novos / limite diário e revisões / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
+          ${cfgReview.showTimer?'<span class="cards-limit-chip" title="Tempo desta resposta (respeita o teto do preset)">⏱ <span id="cards-review-timer">0.0s</span></span>':''}
         </div>
         <div class="cards-review-meta">
           <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
@@ -2376,6 +2377,21 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'tag',
       options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (padrão Anki 26.09.2)' }],
       hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
+    { key: 'showTimer', label: '⏱️ Mostrar timer no reviewer', type: 'select', value: cfg.showTimer ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Espelha show_timer do Anki. O tempo gravado no revlog respeita o teto abaixo.' },
+    { key: 'capAnswerTimeToSecs', label: '⏲️ Tempo máximo contabilizado (s)', type: 'number', value: cfg.capAnswerTimeToSecs == null ? 60 : cfg.capAnswerTimeToSecs, min: 0, max: 86400,
+      hint: 'Padrão Anki: 60s. 0 = sem teto.' },
+    { key: 'stopTimerOnAnswer', label: '⏹️ Parar timer ao mostrar resposta', type: 'select', value: cfg.stopTimerOnAnswer ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Se ligado, o tempo salvo termina quando o verso é revelado; senão, termina ao avaliar.' },
+    { key: 'disableAutoplay', label: '🔇 Desativar reprodução automática', type: 'select', value: cfg.disableAutoplay ? '1' : '0',
+      options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
+      hint: 'Controla áudio/TTS automático de templates importados.' },
+    { key: 'secondsToShowQuestion', label: '⏭️ Mostrar resposta automaticamente após (s)', type: 'number', value: cfg.secondsToShowQuestion || 0, min: 0, max: 86400,
+      hint: '0 = desligado. Quando ativo, usa a ação configurada pelo preset do Anki.' },
+    { key: 'secondsToShowAnswer', label: '⏭️ Agir automaticamente na resposta após (s)', type: 'number', value: cfg.secondsToShowAnswer || 0, min: 0, max: 86400,
+      hint: '0 = desligado. A ação automática importada do Anki é preservada.' },
     { key: 'buryNew', label: '🫥 Enterrar irmãos novos', type: 'select', value: cfg.buryNew ? '1' : '0',
       options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
       hint: 'Depois de responder um card, esconde até amanhã os irmãos novos da mesma nota.' },
@@ -2508,6 +2524,11 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'suspend' ? 'suspend' : 'tag',
       buryNew: v.buryNew === '1', buryReviews: v.buryReviews === '1', buryInterdayLearning: v.buryInterdayLearning === '1',
+      showTimer: v.showTimer === '1',
+      capAnswerTimeToSecs: Math.max(0,Math.min(86400,parseInt(v.capAnswerTimeToSecs,10)||0)),
+      stopTimerOnAnswer: v.stopTimerOnAnswer === '1', disableAutoplay: v.disableAutoplay === '1',
+      secondsToShowQuestion: Math.max(0,Math.min(86400,Number(v.secondsToShowQuestion)||0)),
+      secondsToShowAnswer: Math.max(0,Math.min(86400,Number(v.secondsToShowAnswer)||0)),
       newPerDay: Math.max(0, parseInt(v.newPerDay, 10) || 0),
       revPerDay: Math.max(0, parseInt(v.revPerDay, 10) || 0),
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
