@@ -1239,17 +1239,22 @@ const DB = {
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
-  buryCard(id) {
+  buryCard(id, origem) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
+    // O Anki distingue enterro explícito do usuário (UserBuried) do enterro
+    // automático de irmãos (SchedBuried). A fila trata ambos como ocultos,
+    // mas a distinção importa para busca, diagnóstico e exportação fiel.
+    const buryKind = origem === 'scheduler' ? 'scheduler' : 'user';
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
-    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
+    this.updateCard(id, { enterradoAte: amanha, buryKind,
+      dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
     return amanha;
   },
   unburyCard(id) {
     const c = this.getCard(id); if (!c) return;
-    const patch = { enterradoAte: null };
+    const patch = { enterradoAte: null, buryKind: null };
     if (Object.prototype.hasOwnProperty.call(c, 'dueTsAntesEnterrar')) {
       patch.dueTs = c.dueTsAntesEnterrar;
       patch.dueTsAntesEnterrar = null;
@@ -1271,7 +1276,7 @@ const DB = {
     const n = Math.max(0, Math.round(Number(dias) || 0));
     const c = this.getCard(id); if (!c) return null;
     const data = CardEngine.addDays(todayCards(), n);
-    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null,
+    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null, buryKind: null,
       phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
     return data;
   },
