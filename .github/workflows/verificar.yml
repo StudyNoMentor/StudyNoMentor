@@ -63,6 +63,7 @@ jobs:
           node testes/cards-max-stats-media.mjs
           node testes/cards-10of10-final.mjs
           node testes/cards-total-parity.mjs
+          node testes/cards-practical-10.mjs
           node testes/cards-fsrs-optimizer-oficial.mjs
           node testes/cards-concorrencia-multidevice.mjs
 
