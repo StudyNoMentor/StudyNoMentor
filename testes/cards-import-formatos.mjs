@@ -24,6 +24,14 @@ for(const p of ['src/js/34-anki-export.js','src/js/35-anki-import.js']){
 vm.runInContext('globalThis.X=AnkiExport;globalThis.I=AnkiImport;',ctx);
 const X=ctx.X,I=ctx.I;
 
+
+// Pacote Anki moderno: collection.anki21b/21c usa Zstandard. O decoder local
+// precisa funcionar mesmo quando o navegador não oferece DecompressionStream('zstd').
+vm.runInContext(readFileSync(join(ROOT,'src/vendor/fzstd-0.1.1/fzstd.js'),'utf8'),ctx,{filename:'fzstd.js'});
+const zstdFixture=new Uint8Array([40,181,47,253,4,72,153,0,0,97,110,107,105,45,109,111,100,101,114,110,45,112,97,99,107,97,103,101,9,189,66,195]);
+const zstdDecoded=await I._zstd(zstdFixture);
+assert.equal(new TextDecoder().decode(zstdDecoded),'anki-modern-package');
+
 // Texto Anki: cabeçalhos, HTML e campo multilinha entre aspas não podem se perder.
 const txt='#separator:tab\n#html:true\n#columns:Front,Back,Tags,Deck,GUID\n#tags:global tag2\n"linha 1\n#isto continua no campo"\t"<details><summary>Dica</summary>R</details>"\ttagA\tFiscal\tg-1';
 const parsed=I.parseText(txt,'cards.txt');
@@ -92,4 +100,4 @@ assert.equal(mi.counts.notes,1);
 assert.equal(mi.counts.cards,1);
 assert.equal(mi.facts.length,2);
 
-console.log('IMPORT ANKI: texto completo, 6 delimitadores, APKG/COLPKG Legacy2 e Mnemosyne DB validados.');
+console.log('IMPORT ANKI: Zstandard, texto completo, 6 delimitadores, APKG/COLPKG Legacy2 e Mnemosyne DB validados.');
