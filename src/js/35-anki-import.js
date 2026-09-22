@@ -191,8 +191,8 @@ const AnkiImport = {
     const cards=this._rows(db,'select _fact_id as fact_id,fact_view_id,tags,next_rep,last_rep,easiness,(acq_reps+ret_reps) as reps,lapses from cards');
     db.close();return {kind:'mnemosyne',file,facts,cards,counts:{notes:new Set(facts.map(x=>x.id)).size,cards:cards.length,revlog:0}};
   },
-  parseText(text,name){
-    const src=String(text||'').replace(/^\uFEFF/,'');
+  parseText(text,name,overrides){
+    overrides=overrides||{};const src=String(text||'').replace(/^\uFEFF/,'');
     const raw=src.split(/\r?\n/),headers={},dataLines=[];let quoted=false;
     for(const line of raw){
       if(!quoted&&/^#/.test(line)){
@@ -203,7 +203,7 @@ const AnkiImport = {
       for(let i=0;i<line.length;i++)if(line[i]==='"'){if(quoted&&line[i+1]==='"')i++;else quoted=!quoted;}
     }
     const smap={tab:'\t',pipe:'|',semicolon:';',colon:':',comma:',',space:' '};
-    let delimiter=smap[String(headers.separator||'').toLowerCase()]||null;
+    let delimiter=overrides.delimiter||smap[String(headers.separator||'').toLowerCase()]||null;
     const data=dataLines.join('\n');
     const countOutside=(ch)=>{let n=0,q=false;for(let i=0;i<data.length;i++){if(data[i]==='"'){if(q&&data[i+1]==='"'){i++;continue;}q=!q;continue;}if(!q&&data[i]===ch)n++;}return n;};
     if(!delimiter){
@@ -415,7 +415,6 @@ const AnkiImport = {
     for(const ac of cards){
       const localNid=noteMap.get(String(ac.nid))||Number(ac.nid),note=AnkiParity.getNote(localNid);if(!note)continue;
       const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
-      const mappedOrd=(ntTemplateMaps.get(String((meta.models||{})[String(note.ankiNotetypeId||'')]||''))||[])[Number(ac.ord)];
       const sourceNote=this._rows(db,'select mid from notes where id=?',[ac.nid])[0]||{},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
       const stub={clozeOrd:Number(ac.ord)+1,ankiTemplateOrd:localOrd,deckId:deckMap.get(String(ac.did))||opts.deckId||null};
       const front=AnkiParity.renderTemplate(nt,note,localOrd,'question',stub,''),back=AnkiParity.renderTemplate(nt,note,localOrd,'answer',stub,front);
