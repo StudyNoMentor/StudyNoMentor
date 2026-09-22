@@ -61,9 +61,10 @@ assert.equal(advanced.deckColumn,3);assert.equal(advanced.tagsColumn,4);assert.e
 const forced=I.parseText('#separator:comma\nA,B','forced.txt',{delimiter:'|'});
 assert.equal(forced.delimiter,'|','force_delimiter precisa prevalecer sobre cabeçalho');
 
-const state={decks:[],cards:[],notes:new Map(),next:100};
+const state={decks:[],cards:[],notes:new Map(),types:[],next:100};
 const basic={id:1,ankiId:1,name:'Basic',kind:'normal',fields:[{name:'Front'},{name:'Back'}],
   templates:[{name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}<hr id=answer>{{Back}}'}]};
+state.types.push(basic);
 ctx.escapeHtml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 ctx.CardEngine={invalidateDueCache(){}};
 ctx.DB={
@@ -74,10 +75,11 @@ ctx.DB={
   updateCard(id,patch){const x=state.cards.find(c=>c.id===id);Object.assign(x,structuredClone(patch));return x;}
 };
 ctx.AnkiParity={
-  noteTypes:()=>[basic],
+  noteTypes:()=>state.types,
   stockNotetype:()=>basic,
   notes:()=>[...state.notes.values()],
   _allocId:()=>++state.next,
+  saveNotetype(nt){const x=structuredClone(nt),i=state.types.findIndex(t=>String(t.id)===String(x.id));if(i>=0)state.types[i]=x;else state.types.push(x);return x;},
   saveNote(n){const x=structuredClone(n);state.notes.set(String(x.id),x);return x;},
   renderTemplate(nt,note,ord,side,card,front){
     const t=nt.templates[ord]||nt.templates[0],fields=note.fields||{};
@@ -94,8 +96,9 @@ assert.equal(state.decks[0].nome,'Fiscal');
 
 // GUID existente sempre atualiza; opção Duplicate não cria uma segunda nota.
 const guidUpdate=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\n#guid column:4\nNova resposta|Pergunta|Fiscal|g-adv','x.txt');
-const gu=I.importText(guidUpdate,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'duplicate',forceIsHtml:true,isHtml:true});
+const gu=I.importText(guidUpdate,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'duplicate',forceIsHtml:true,isHtml:true,globalTags:['all'],updatedTags:['updated']});
 assert.equal(state.notes.size,1);assert.equal(gu.updated,1);assert.equal([...state.notes.values()][0].fields.Back,'Nova resposta');
+assert.deepEqual([...state.notes.values()][0].tags.slice().sort(),['all','tagA','updated'],'tags globais + tags de notas atualizadas devem seguir CsvMetadata');
 
 // Sem GUID, Duplicate cria nova nota; Preserve ignora; MatchScope inclui baralho.
 const noGuid=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\nR2|Pergunta|Fiscal','x.txt');
@@ -163,6 +166,10 @@ const fakeCol={...fake,name:'fixture.colpkg'};
 const inspectedCol=await I.inspectPackage(fakeCol);
 assert.equal(inspectedCol.format,'colpkg');
 assert.equal(inspectedCol.counts.cards,1);
+for(const name of ['collection.apkg','backup-2026-09-22.apkg']){
+  const special=await I.inspectPackage({...fake,name});
+  assert.equal(special.format,'colpkg',name+' deve restaurar a coleção como no Anki desktop');
+}
 
 // Mnemosyne: schema e consultas iguais ao importador oficial do Anki.
 const mn=new SQL.Database();
@@ -180,6 +187,20 @@ const mi=await I.inspectMnemosyne(mf);
 assert.equal(mi.counts.notes,1);
 assert.equal(mi.counts.cards,1);
 assert.equal(mi.facts.length,2);
+assert.equal(I._mnemoSpec('1.1').name,'Mnemosyne-FrontOnly');
+assert.equal(I._mnemoSpec('2.1').name,'Mnemosyne-FrontBack');
+assert.equal(I._mnemoSpec('3.1').name,'Mnemosyne-Vocabulary');
+assert.equal(I._mnemoSpec('5.1').name,'Mnemosyne-Cloze');
+assert.equal(I._mnemoMungeField('<latex>x</latex>\n<audio src="a.mp3"></audio>'),'[latex]x[/latex]<br>[sound:a.mp3]');
+assert.deepEqual(Array.from(I._mnemoTags([{tags:'dois termos, revisão'},{tags:'revisão'}])),['dois_termos','revisão']);
+const beforeMnCards=state.cards.length,beforeMnNotes=state.notes.size;
+const mres=I.importMnemosyne(mi,{});
+assert.equal(mres.notes,1);
+assert.equal(state.notes.size,beforeMnNotes+1);
+assert.equal(state.cards.length,beforeMnCards+2,'FrontBack do Mnemosyne deve gerar os dois templates oficiais');
+const mnNote=[...state.notes.values()].at(-1);
+assert.deepEqual(mnNote.tags,['tag']);
+assert.ok(state.types.some(t=>t.name==='Mnemosyne-FrontBack'&&t.templates.length===2));
 
 /* Mídia referenciada por templates/CSS também precisa ser materializada. */
 const mediaMap=new Map([
@@ -192,4 +213,4 @@ assert.match(richHtml,/src="data:text\/javascript;base64,/,'script do pacote dev
 assert.match(richHtml,/href="data:text\/css;base64,/,'stylesheet do pacote deve ser materializado');
 assert.match(richHtml,/url\("data:font\/woff2;base64,/,'fonte em CSS deve ser materializada');
 
-console.log('IMPORT ANKI: Zstandard, texto completo, 6 delimitadores, APKG/COLPKG Legacy2, mídia avançada e Mnemosyne DB validados.');
+console.log('IMPORT ANKI: formatos oficiais, collection packages legados, CsvMetadata completo, mídia avançada e Mnemosyne validados.');

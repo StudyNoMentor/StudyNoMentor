@@ -1963,6 +1963,8 @@ const CardsScreen = {
     this._importParsed = null;
     const textOpts=document.getElementById('cards-import-text-options');if(textOpts)textOpts.style.display='none';
     const mapBox=document.getElementById('cards-import-field-mapping');if(mapBox)mapBox.innerHTML='';
+    const globalTags=document.getElementById('cards-import-global-tags');if(globalTags)globalTags.value='';
+    const updatedTags=document.getElementById('cards-import-updated-tags');if(updatedTags)updatedTags.value='';
     $id('cards-import-destino').innerHTML = this.destinoOptionsHtml('');
     $id('cards-import-preview').textContent = 'Aguardando arquivo...';
     $id('cards-import-preview').style.color = 'var(--text-faint)';
@@ -1977,6 +1979,8 @@ const CardsScreen = {
   renderTextImportOptions(parsed) {
     const box=document.getElementById('cards-import-text-options'),ntSel=document.getElementById('cards-import-notetype'),mapBox=document.getElementById('cards-import-field-mapping');
     if(!box||!ntSel||!mapBox)return;box.style.display=parsed&&parsed.kind==='text'?'block':'none';if(!parsed||parsed.kind!=='text')return;
+    const globalTags=document.getElementById('cards-import-global-tags'),updatedTags=document.getElementById('cards-import-updated-tags');
+    if(globalTags)globalTags.value=(parsed.globalTags||[]).join(' ');if(updatedTags)updatedTags.value='';
     const types=typeof AnkiParity!=='undefined'?AnkiParity.noteTypes():[],labels=this._textColumnLabels(parsed);
     ntSel.innerHTML=types.map(nt=>'<option value="'+escapeHtml(String(nt.id))+'">'+escapeHtml(String(nt.name||'Tipo de nota'))+'</option>').join('');
     let wanted=String(parsed.globalNotetype||'').trim(),hit=types.find(nt=>String(nt.id)===wanted||String(nt.ankiId||'')===wanted||String(nt.name||'').toLowerCase()===wanted.toLowerCase());
@@ -2137,6 +2141,8 @@ const CardsScreen = {
     const isHtml = !!(document.getElementById('cards-import-html') || {}).checked;
     const delimiterName=(document.getElementById('cards-import-delimiter')||{}).value||'',delims={tab:'\t',pipe:'|',semicolon:';',colon:':',comma:',',space:' '};
     const dupeResolution=(document.getElementById('cards-import-dupe')||{}).value||'update',matchScope=(document.getElementById('cards-import-match-scope')||{}).value||'notetype';
+    const splitTags=id=>String((document.getElementById(id)||{}).value||'').trim().split(/\s+/).filter(Boolean);
+    const globalTags=splitTags('cards-import-global-tags'),updatedTags=splitTags('cards-import-updated-tags');
     const notetypeId=(document.getElementById('cards-import-notetype')||{}).value||null;
     const readCol=id=>Math.max(0,Number((document.getElementById(id)||{}).value)||0);
     const fieldColumns=[...document.querySelectorAll('.cards-import-field-col')].sort((a,b)=>Number(a.dataset.fieldOrd)-Number(b.dataset.fieldOrd)).map(x=>Number(x.value)||0);
@@ -2223,7 +2229,7 @@ const CardsScreen = {
     } else if (this._importParsed.kind === 'text') {
       let parsed=this._importParsed;
       if(delimiterName&&parsed.source)parsed=AnkiImport.parseText(parsed.source,'texto.txt',{delimiter:delims[delimiterName]});
-      const r = AnkiImport.importText(parsed, {deckId,materia,isHtml,forceIsHtml:true,notetypeId,dupeResolution,matchScope,
+      const r = AnkiImport.importText(parsed, {deckId,materia,isHtml,forceIsHtml:true,notetypeId,dupeResolution,matchScope,globalTags,updatedTags,
         fieldColumns,notetypeColumn:readCol('cards-import-col-notetype'),deckColumn:readCol('cards-import-col-deck'),tagsColumn:readCol('cards-import-col-tags'),guidColumn:readCol('cards-import-col-guid')});
       count = Number(r.notes+r.updated+r.preserved) || Number(r.cards) || 0;
     }
