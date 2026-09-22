@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8bacbf3828">
+<meta name="diario-versao" content="vffb17226cf">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16690,14 +16690,32 @@ const DB = {
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
   },
+  // A interface do Anki exclui a NOTA: todos os cards/template siblings
+  // derivados dela desaparecem juntos. deleteCard() continua disponível para
+  // rotinas técnicas que realmente operam em um card individual.
+  deleteNoteByCard(id) {
+    this.normalizeCardNotesInPlace();
+    const alvo = this.getCard(id); if (!alvo) return 0;
+    const noteId = String(alvo.noteId || alvo.id);
+    const ids = new Set(this.getCards()
+      .filter(c => String(c.noteId || c.id) === noteId)
+      .map(c => String(c.id)));
+    if (!ids.size) return 0;
+    if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
+    try {
+      this.replaceRevlog(this.getRevlog().filter(r => !ids.has(String(r.cardId))));
+    } catch (e) { _quiet(e, 'delete-note-revlog'); }
+    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
+    return ids.size;
+  },
   /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
      o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
      os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
   /* ══════════════════════════════════════════════════════════════════════════
      AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
      Implementadas aqui com o MESMO significado do original. Este app tem um
-     card por nota, então "enterrar nota" e "enterrar card" coincidem — no Anki
-     eles diferem só quando uma nota gera vários cards.
+     notas podem gerar irmãos (ex.: normal + invertido). Enterrar card continua
+     individual; operações explícitas de nota usam noteId para atingir os irmãos.
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
@@ -28650,8 +28668,12 @@ const CardsScreen = {
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
     liga('cards-act-del', () => {
-      UI.confirm('Excluir este card? Não há como desfazer.', { title: '🗑 Excluir card', okText: 'Excluir', danger: true })
-        .then(ok => { if (!ok) return; DB.deleteCard(c.id); proximo(); showToast('Card excluído'); });
+      const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
+      const msg = irmaos > 1
+        ? 'Excluir esta nota e seus ' + irmaos + ' cards? Não há como desfazer.'
+        : 'Excluir esta nota? Não há como desfazer.';
+      UI.confirm(msg, { title: '🗑 Excluir nota', okText: 'Excluir', danger: true })
+        .then(ok => { if (!ok) return; DB.deleteNoteByCard(c.id); proximo(); showToast('Nota excluída'); });
     });
     document.querySelectorAll('.cards-flag').forEach(b => b.addEventListener('click', () => {
       const n = Number(b.dataset.flag);
@@ -29398,8 +29420,11 @@ const CardsScreen = {
   },
   async deleteCard() {
     if (!this._editingId) return;
-    if (!await UI.confirm('Excluir este card?')) return;
-    DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
+    const c = DB.getCard(this._editingId);
+    const irmaos = c ? DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length : 1;
+    const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
+    if (!await UI.confirm(msg)) return;
+    DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');
   },
 
   // ---- baralhos ----
