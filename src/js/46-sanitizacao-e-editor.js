@@ -485,6 +485,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('cards-export-close', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-cancel', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-anki', 'click', () => CardsScreen.exportAnki());
+  on('cards-export-apkg', 'click', () => CardsScreen.exportApkg());
   on('cards-export-json', 'click', () => CardsScreen.exportJson());
   // modal importar
   on('cards-import-close', 'click', () => $id('cards-import-modal').style.display = 'none');
