@@ -326,7 +326,7 @@ const AnkiExport = {
     return {
       name: String(t && t.name || ('Card ' + (i + 1))), ord: i, qfmt: String(t && t.qfmt || ''),
       afmt: String(t && t.afmt || ''), bqfmt: String(t && t.bqfmt || ''), bafmt: String(t && t.bafmt || ''),
-      did: null, bfont: String(t && t.bfont || ''), bsize: Number(t && t.bsize) || 0, id: t && t.id != null ? Number(t.id) : null
+      did: t && t.did != null && t.did !== '' ? Number(t.did) : null, bfont: String(t && t.bfont || ''), bsize: Number(t && t.bsize) || 0, id: t && t.id != null ? Number(t.id) : null
     };
   },
   _reqFor(nt) {
@@ -346,7 +346,8 @@ const AnkiExport = {
     const id = Number(nt.ankiId || nt.id), fields = nt.fields || [], tmpls = nt.templates || [];
     return {
       id, name: String(nt.name || 'Note Type'), type: nt.kind === 'cloze' ? 1 : 0,
-      mod: this._mod(nt.updatedAt || nt.createdAt), usn: -1, sortf: 0, did: null,
+      mod: this._mod(nt.updatedAt || nt.createdAt), usn: -1, sortf: Math.max(0, Number(nt.sortf) || 0),
+      did: nt.did != null && nt.did !== '' ? Number(nt.did) : null,
       tmpls: tmpls.map((t, i) => this._templateSchema(t, i)),
       flds: fields.map((f, i) => this._fieldSchema(f, i)),
       css: String(nt.css || '.card { font-family: arial; font-size: 20px; text-align: center; }'),
