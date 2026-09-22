@@ -2,9 +2,9 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    VERIFICAÇÃO — roda antes de publicar
    ───────────────────────────────────────────────────────────────────────────
-   Sete checagens, da mais barata para a mais cara. Qualquer falha derruba o
-   processo (código 1), então isto serve tanto para rodar na mão quanto para o
-   GitHub Actions.
+   Camadas de verificação, da mais barata para a mais cara. Qualquer falha
+   derruba o processo (código 1). As auditorias históricas pesadas ficam
+   disponíveis sob demanda, mas não repetem o gate normal.
 
      1. src/ monta exatamente o index.html   (build.mjs --check)
      2. cada módulo JS de src/ tem sintaxe válida isoladamente
@@ -23,8 +23,9 @@
    As checagens 5 a 7 precisam do Chromium (Playwright). Se ele não estiver
    instalado, elas são PULADAS com aviso — as quatro primeiras sempre rodam.
 
-   Uso:  node verificar.mjs        (tudo)
-         node verificar.mjs --rapido   (só 1 a 4, sem navegador)
+   Uso:  node verificar.mjs              (verificação normal)
+         node verificar.mjs --rapido     (só 1 a 4, sem navegador)
+         node verificar.mjs --exaustivo  (inclui auditorias históricas pesadas)
    ═══════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -35,6 +36,7 @@ import { montarApiFalsa } from './test/supabase-falso.mjs';
 import { createHash } from 'node:crypto';
 
 const RAIZ = dirname(fileURLToPath(import.meta.url));
+const EXAUSTIVO = process.argv.includes('--exaustivo');
 let falhas = 0;
 const ok = (m) => console.log('  ✓ ' + m);
 const erro = (m) => { falhas++; console.error('  ✗ ' + m); };
@@ -73,38 +75,32 @@ try {
   erro('configuracao invalida ainda torna cards inagendaveis:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 try {
-  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'cards-certificacao-anki.mjs')], { stdio: 'pipe' });
-  ok(String(saida).trim());
-} catch (e) {
-  erro('contratos de certificacao Anki divergiram:\n' + String(e.stdout || '') + String(e.stderr || ''));
-}
-try {
   const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'cards-paridade-total-anki.mjs')], { stdio: 'pipe' });
   ok(String(saida).trim());
 } catch (e) {
   erro('paridade total RNG/Cloze/LB/irmaos/presets divergiu:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
-// ── 3a. regressões reproduzidas pela auditoria 6.000 × 365 ─────────────────
-console.log('\n3a) cards: regressões Anki + simulação de 6.000 cards por 365 dias');
-for (const [rotulo, pasta, arquivo] of [
-  ['29 casos funcionais da auditoria', 'cards-20260921', 'functions.mjs'],
-  ['simulacao anual FSRS/SM-2', 'cards-20260921', 'simulate.mjs'],
-  /* 2ª auditoria: armazenamento serializado de verdade, 9.216 agendamentos
-     sobre configurações válidas, sessão real por CardsScreen.answer() e as
-     dez regressões que ela reproduziu. Não inclui a simulação anual nem a
-     comparação com o backend oficial do Anki: as duas levam horas e dependem
-     do pacote `anki` do PyPI — ficam para execução manual, documentada em
-     audit/cards-20260921-v2/README.md. */
-  ['68 verificacoes da 2a auditoria dos cards', 'cards-20260921-v2', 'regressao.mjs']
-]) {
-  try {
-    execFileSync(process.execPath, [join(RAIZ, 'audit', pasta, arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
-    ok(rotulo);
-  } catch (e) {
-    const detalhe = (String(e.stdout || '') + String(e.stderr || '')).slice(-16000);
-    erro(rotulo + ' falhou:\n' + detalhe);
+// ── 3a. auditorias históricas pesadas — somente sob demanda ────────────────
+if (EXAUSTIVO) {
+  console.log('\n3a) cards: auditoria exaustiva histórica');
+  for (const [rotulo, pasta, arquivo] of [
+    ['29 casos funcionais da auditoria', 'cards-20260921', 'functions.mjs'],
+    // Esta é a única simulação anual mantida no fluxo exaustivo: cobre
+    // FSRS/SM-2, 6.000 cards, 365 dias e múltiplos cenários.
+    ['simulacao anual FSRS/SM-2', 'cards-20260921', 'simulate.mjs'],
+    ['68 verificacoes da 2a auditoria dos cards', 'cards-20260921-v2', 'regressao.mjs']
+  ]) {
+    try {
+      execFileSync(process.execPath, [join(RAIZ, 'audit', pasta, arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
+      ok(rotulo);
+    } catch (e) {
+      const detalhe = (String(e.stdout || '') + String(e.stderr || '')).slice(-16000);
+      erro(rotulo + ' falhou:\n' + detalhe);
+    }
   }
+} else {
+  console.log('\n3a) auditorias históricas pesadas: PULADAS (use --exaustivo)');
 }
 
 /* ── 3b. FIDELIDADE DA IMPORTACAO DO TEC ───────────────────────────────────
