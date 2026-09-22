@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8001bd08a9">
+<meta name="diario-versao" content="v10fc45f2c0">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -28407,16 +28407,21 @@ const CardsScreen = {
        vem da posição atribuída pelo filtro; preview repeats só reaparecem quando
        o dueTs vence. */
     if (selectedFilteredDeck) {
-      const ordered = due.slice().sort((a,b) =>
+      // Não dependa apenas do filtro visual para isolar um filtered deck.
+      // O scheduler do Anki trabalha sobre o baralho selecionado; portanto,
+      // mesmo em harness/headless ou chamadas programáticas, nenhum card do
+      // baralho de origem pode vazar para esta fila.
+      const inFilteredDeck = filtered.filter(c => String(c.deckId) === String(selectedDeckIdEarly));
+      const ordered = inFilteredDeck.filter(c => CardEngine.isDue(c)).sort((a,b) =>
         (Number(a.filteredPosition)||0) - (Number(b.filteredPosition)||0)
         || Number(a.dueTs||0) - Number(b.dueTs||0)
       );
-      const pending = filtered.filter(c => c.dueTs && c.dueTs > Date.now()).sort((a,b)=>a.dueTs-b.dueTs);
+      const pending = inFilteredDeck.filter(c => c.dueTs && c.dueTs > Date.now()).sort((a,b)=>a.dueTs-b.dueTs);
       this._queueMeta = {
         bloqueadosNovos:0,bloqueadosRev:0,
         proximoTs:pending.length?pending[0].dueTs:null,
         pendentes:pending.length,
-        suspensos:filtered.filter(c=>c.suspenso).length,
+        suspensos:inFilteredDeck.filter(c=>c.suspenso).length,
         filteredDeck:true
       };
       return ordered.map(c=>c.id);
