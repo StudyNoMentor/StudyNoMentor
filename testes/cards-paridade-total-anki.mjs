@@ -161,7 +161,7 @@ ok(!AnkiParity.filteredSearchMatches(DB.getCard(tr2.id),'-suspenso'),
 ok(typeof CardsScreen.optimizeFsrsOfficial==='function','UI expõe otimizador oficial FSRS');
 CardsScreen._reviewStartedAt=1000;CardsScreen._answerShownAt=2500;
 eq(CardsScreen._reviewElapsedMs({stopTimerOnAnswer:true,capAnswerTimeToSecs:60}),1500,'timer para ao revelar resposta quando configurado');
-CardsScreen._reviewStartedAt=Date.now()-5000;CardsScreen._answerShownAt=null;
+CardsScreen._reviewStartedAt=A.agora()-5000;CardsScreen._answerShownAt=null;
 eq(CardsScreen._reviewElapsedMs({stopTimerOnAnswer:false,capAnswerTimeToSecs:1}),1000,'tempo do revlog respeita o teto do preset');
 
 // ── Limites hierárquicos: pai/filhos + novos consomem review ──────────────
