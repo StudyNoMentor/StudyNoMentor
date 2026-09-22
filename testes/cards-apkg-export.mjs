@@ -96,6 +96,19 @@ const rewritten=X.extractMedia('<img src="data:image/png;base64,'+pixel+'"><img 
 assert.equal(mediaProbe.items.length,1,'mídia idêntica deve ser deduplicada');
 assert.ok(!rewritten.includes('data:image/'),'HTML exportado não deve carregar data URI dentro do SQLite');
 
+const buryBase={deckId:'d1',phase:'review',due:'2026-09-22',intervalo:3,reps:2,ease:2.5,enterradoAte:'2026-09-23'};
+assert.equal(X.cardSchedule({...buryBase,buryKind:'scheduler'},Math.floor(new Date(2026,7,31).getTime()/1000),1).queue,-2,
+  'enterro automático de irmãos deve exportar SchedBuried');
+assert.equal(X.cardSchedule({...buryBase,buryKind:'user'},Math.floor(new Date(2026,7,31).getTime()/1000),1).queue,-3,
+  'enterro manual deve exportar UserBuried');
+
+const sw=readFileSync(join(ROOT,'sw.js'),'utf8');
+for(const runtime of [
+  './src/vendor/fsrs-6.6.2/fsrs_optimizer.js',
+  './src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm',
+  './src/vendor/sqljs-1.2.1/sql-asm.js'
+]) assert.ok(sw.includes(runtime),'PWA deve pré-cachear runtime dinâmico: '+runtime);
+
 // Integração real: gera SQLite, ZIP e reabre o collection.anki2 com o MESMO sql.js vendorado.
 const pkg=await X.buildPackage();
 assert.equal(pkg.cards,2);
