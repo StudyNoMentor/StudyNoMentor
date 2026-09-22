@@ -1078,6 +1078,7 @@ const CardsScreen = {
             patch = AnkiParity.removeFromFilteredAfterReschedule(c, patch);
           }
         }
+        if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
