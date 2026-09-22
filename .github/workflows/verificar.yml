@@ -38,3 +38,11 @@ jobs:
 
       - name: Contrato central dos Cards
         run: node testes/cards-paridade-total-anki.mjs
+
+      - name: Interoperabilidade dos Cards
+        shell: bash
+        run: |
+          set -euo pipefail
+          node testes/cards-apkg-export.mjs
+          node testes/cards-import-formatos.mjs
+          node testes/cards-concorrencia-multidevice.mjs
