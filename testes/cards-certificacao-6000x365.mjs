@@ -95,15 +95,22 @@ for(let day=0;day<DAYS;day++){
   const newIds=new Set(news.map(c=>c.id));
   for(const c of due){if(newIds.has(c.id))continue;answer(c,gradeFor(c,day,seq++),day,seq);revDone++;reviewTotal++;}
 
-  // Passos intradiários: percorre cronologicamente até a próxima virada.
+  // Passos intradiários: fila incremental. Varremos a coleção UMA vez e,
+  // depois de cada resposta, recolocamos apenas o próprio card se ganhou
+  // outro passo antes da virada. A cobertura é idêntica sem O(cards×passos).
   const nextRollover=A.ctx.proximaViradaTs();let guard=0;
-  while(guard++<12000){
-    const pending=cards.filter(c=>!c.suspenso&&!isBuried(c)&&c.dueTs!=null&&Number(c.dueTs)<nextRollover).sort((a,b)=>Number(a.dueTs)-Number(b.dueTs));
-    if(!pending.length)break;
-    const c=pending[0],ts=Number(c.dueTs);if(ts>A.agora()){A.irPara(ts);initDueCache();}
+  const pending=cards.filter(c=>!c.suspenso&&!isBuried(c)&&c.dueTs!=null&&Number(c.dueTs)<nextRollover)
+    .sort((a,b)=>Number(a.dueTs)-Number(b.dueTs)||String(a.id).localeCompare(String(b.id)));
+  const insertPending=(c)=>{
+    if(c.suspenso||isBuried(c)||c.dueTs==null||Number(c.dueTs)>=nextRollover)return;
+    let lo=0,hi=pending.length,ts=Number(c.dueTs);
+    while(lo<hi){const mid=(lo+hi)>>1,m=Number(pending[mid].dueTs);if(m<=ts)lo=mid+1;else hi=mid;}pending.splice(lo,0,c);
+  };
+  while(pending.length&&guard++<12000){
+    const c=pending.shift(),ts=Number(c.dueTs);if(ts>A.agora()){A.irPara(ts);initDueCache();}
     const seen=(intraByCard.get(c.id)||0)+1;intraByCard.set(c.id,seen);
     if(seen>100)throw new Error('Card preso em passo intradiário: '+JSON.stringify({day,date:today,id:c.id,phase:c.phase,learnStep:c.learnStep,dueTs:c.dueTs,reps:c.reps,lapses:c.lapses,now:A.agora()}));
-    answer(c,gradeFor(c,day,seq++),day,seq);intra++;intradayTotal++;
+    answer(c,gradeFor(c,day,seq++),day,seq);intra++;intradayTotal++;insertPending(c);
   }
   if(guard>=12000){const top=[...intraByCard.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);throw new Error('Volume intradiário excedeu o teto de segurança: '+JSON.stringify({day,date:today,intra,top}));}
   assert.ok(newDone<=C.get().newPerDay,'limite diário de novos');
