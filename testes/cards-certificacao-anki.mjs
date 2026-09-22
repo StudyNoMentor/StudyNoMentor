@@ -198,3 +198,4 @@ ok(respostas > 50000, 'a simulação precisa exercitar dezenas de milhares de re
 ok(picoFila > 100, 'a simulação precisa produzir carga de revisão material');
 
 console.log(`CERTIFICAÇÃO ANKI: ${checks}/${checks} contratos válidos; longo prazo = ${respostas} respostas em 5.000 cards/365 dias.`);
+// Gate CI da PR #196: qualquer divergência acima bloqueia o merge.
