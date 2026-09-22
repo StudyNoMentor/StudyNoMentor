@@ -573,6 +573,35 @@ FSRS._loadOfficialOptimizer=async function(){
   try{return await this._officialOptimizerLoading;}
   finally{this._officialOptimizerLoading=null;}
 };
+FSRS.trainingCardsForScope=function(deckId,cfg){
+  cfg=cfg||CardsConfig.forDeck(deckId==null?null:deckId);
+  let cards=DB.getCards().slice();
+
+  // No escopo de um baralho, o Anki considera o baralho e seus filhos.
+  // Cards temporariamente em filtered decks continuam pertencendo ao home deck.
+  if(deckId!=null){
+    const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(deckId));
+    if(root){
+      const prefix=String(root.nome||'')+'::';
+      const ids=new Set(decks.filter(d=>{
+        const n=String(d.nome||'');
+        return String(d.id)===String(deckId)||n.startsWith(prefix);
+      }).map(d=>String(d.id)));
+      cards=cards.filter(card=>ids.has(String(card.originalDeckId||card.deckId)));
+    }else{
+      cards=cards.filter(card=>String(card.originalDeckId||card.deckId)===String(deckId));
+    }
+  }
+
+  // param_search é aplicado ANTES de montar as sequências do revlog, para que
+  // o modelo seja treinado apenas nos cards escolhidos pelo usuário/preset.
+  const search=String(cfg&&cfg.paramSearch||'').trim();
+  if(search&&typeof AnkiParity!=='undefined'&&AnkiParity.filteredSearchMatches){
+    cards=cards.filter(card=>AnkiParity.filteredSearchMatches(card,search));
+  }
+  return cards;
+};
+
 FSRS.optimizeOfficial=async function(revlog,opts){
   opts=opts||{};
   if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki não carregada');
@@ -583,9 +612,10 @@ FSRS.optimizeOfficial=async function(revlog,opts){
     const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');
     if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();
   }
+  const scopedCards=Array.isArray(opts.cards)?opts.cards:this.trainingCardsForScope(deckId,cfg);
   const data=AnkiParity.fsrsTrainingData(
     Array.isArray(revlog)?revlog:DB.getRevlog(),
-    {cards:opts.cards||DB.getCards(),nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs}
+    {cards:scopedCards,nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs}
   );
   if(!data.items.length)throw new Error('Dados insuficientes para otimizar parâmetros FSRS');
 
