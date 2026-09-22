@@ -74,6 +74,8 @@ jobs:
           git diff --exit-code -- index.html sw.js src/manifesto.json
       - name: Validar organizacao de Extras e do Motor
         run: node testes/ui-organizacao-extras-tec.mjs
+      - name: Certificar contratos Anki dos Cards
+        run: node testes/cards-certificacao-anki.mjs
       - name: Auditar higiene do repositorio
         run: node testes/repositorio-higiene.mjs
       - name: Instalar dependencias de teste

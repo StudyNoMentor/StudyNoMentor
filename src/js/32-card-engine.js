@@ -380,7 +380,7 @@ const CardEngine = {
       ease = Number(card.ease) || easeIni;
       intervalo = constr(easy ? gradEasy : gradGood, 1);
       return {
-        status: 'sei', grade, ease, intervalo, reps, lapses,
+        status: grade === 'errei' ? 'naosei' : 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
         dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
       };
@@ -396,7 +396,7 @@ const CardEngine = {
       const ivBom = constr(base, 1);
       intervalo = easy ? constr(base, ivBom + 1) : ivBom;
       return {
-        status: 'sei', grade, ease, intervalo, reps, lapses,
+        status: grade === 'errei' ? 'naosei' : 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
         dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
       };

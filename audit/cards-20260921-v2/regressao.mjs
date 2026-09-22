@@ -269,16 +269,18 @@ for (const algo of ['fsrs', 'sm2']) {
     q.filter((x) => x.startsWith('n')).length === 10, { novos: q.filter((x) => x.startsWith('n')).length });
 }
 {
-  // O piso de novos só se aplica quando o teto de revisões já está esgotado;
-  // com saldo de revisões sobrando, o limite de novos continua sendo newPerDay.
+  // O campo new_per_day_minimum continua existindo no formato do Anki por
+  // compatibilidade, mas o backend atual o marca como "not currently used".
+  // Portanto ele NÃO pode furar o teto de revisões; a exceção válida é
+  // exclusivamente newCardsIgnoreReviewLimit (coberta em D6).
   A.reset({ newPerDay: 50, revPerDay: 0, newPerDayMinimum: 4 });
   const hoje = A.hoje();
   DB.saveCards([...Array.from({ length: 10 }, (_, i) => ({ id: 'n' + i, phase: 'new', due: hoje, posicaoNova: i })),
                 ...Array.from({ length: 30 }, (_, i) => ({ id: 'r' + i, phase: 'review', due: hoje, intervalo: 10, s: 10, d: 5, reps: 4, lastReview: E.addDays(hoje, -10) }))]);
   E.invalidateDueCache();
   const q = S.buildQueue();
-  check('D7', 'newPerDayMinimum garante o piso de novos mesmo com acúmulo de revisões',
-    q.filter((x) => x.startsWith('n')).length === 4, { novos: q.filter((x) => x.startsWith('n')).length, esperado: 4 });
+  check('D7', 'newPerDayMinimum é legado e não altera a fila quando o teto de revisões está esgotado',
+    q.filter((x) => x.startsWith('n')).length === 0, { novos: q.filter((x) => x.startsWith('n')).length, esperado: 0 });
 }
 {
   A.reset({ newPerDay: 20, revPerDay: 200 });
