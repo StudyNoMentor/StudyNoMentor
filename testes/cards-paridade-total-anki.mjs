@@ -89,9 +89,15 @@ const s2=DB.addCard({noteId:note,template:'reverse',kind:'basic',frente:'A',vers
 const buried=AnkiParity.autoBurySiblings(s1);
 eq(Array.from(buried),[s2.id],'responder enterra irmão elegível');
 ok(CardEngine.estaEnterrado(DB.getCard(s2.id)),'irmão enterrado sai da fila');
+eq(DB.getCard(s2.id).buryKind,'scheduler','auto-bury de irmão preserva SchedBuried');
+DB.buryCard(s1.id);
+eq(DB.getCard(s1.id).buryKind,'user','enterro explícito preserva UserBuried');
+DB.unburyCard(s1.id);
+ok(!DB.getCard(s1.id).buryKind,'desenterrar limpa origem do bury');
 AnkiParity.suspendCard(s2.id);
 ok(DB.getCard(s2.id).suspenso,'suspender ativa suspensão');
 ok(!DB.getCard(s2.id).enterradoAte,'suspender remove bury como no Anki');
+ok(!DB.getCard(s2.id).buryKind,'suspender limpa tipo de bury');
 
 // ── Identidade Anki paralela e presets compartilhados ────────────────────
 A.reset();
