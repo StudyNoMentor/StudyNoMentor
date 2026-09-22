@@ -40,3 +40,13 @@
   #deck-list .deck-count{white-space:normal}
   .cards-more-group-label{position:sticky;top:-6px;background:var(--surface);z-index:1}
 }
+
+.anki-p10-hist,.anki-p10-answer-bars{height:150px;display:flex;align-items:flex-end;gap:6px;padding:14px 14px 30px}
+.anki-p10-hist>div,.anki-p10-answer-bars>div{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;position:relative;min-width:0}
+.anki-p10-hist i,.anki-p10-answer-bars i{display:block;width:68%;max-width:30px;background:var(--accent);border-radius:5px 5px 0 0}
+.anki-p10-hist span,.anki-p10-answer-bars span{position:absolute;bottom:-22px;font-size:var(--fs-3xs);color:var(--text-faint);white-space:nowrap}
+.anki-p10-answer-bars strong{font-size:var(--fs-2xs);margin-top:4px}
+.anki-p10-table-wrap{overflow:auto;padding:4px 12px 12px}
+.anki-p10-table{width:100%;border-collapse:collapse;font-size:var(--fs-xs)}
+.anki-p10-table th,.anki-p10-table td{padding:8px 7px;border-bottom:1px solid var(--border);text-align:right}
+.anki-p10-table th:first-child,.anki-p10-table td:first-child{text-align:left}
