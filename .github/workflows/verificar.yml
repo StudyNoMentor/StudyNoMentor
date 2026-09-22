@@ -64,6 +64,10 @@ jobs:
           node testes/cards-fsrs-optimizer-oficial.mjs
           node testes/cards-concorrencia-multidevice.mjs
 
+      - name: Certificacao anual — 6.000 cards x 365 dias
+        if: github.event_name != 'push'
+        run: node testes/cards-certificacao-6000x365.mjs
+
       - name: Round-trip com Anki oficial 26.09.2
         if: github.event_name != 'push'
         shell: bash
