@@ -249,5 +249,36 @@ cleanDb.close();
 assert.equal([...cleanFiles.keys()].filter(k=>/^\d+$/.test(k)).length,0,'withMedia=false não deve escrever blobs de mídia');
 assert.equal(typeof X.buildCollectionPackage,'function','.colpkg deve reutilizar o mesmo contêiner oficial validado');
 
-console.log('APKG/COLPKG/TEXTO ANKI: Legacy2 schema11 + Latest schema18, Zstd, mídia, opções e exports de texto validados.');
+/* ── ExportLimit oficial: deck inclui descendentes e exclui outros ───── */
+decks.push(
+  {id:'d2',ankiId:1700000000102,nome:'Fiscal::Sub',createdAt:'2026-09-03T12:00:00.000Z',configId:'default'},
+  {id:'d3',ankiId:1700000000103,nome:'Outra',createdAt:'2026-09-03T12:00:00.000Z',configId:'default'}
+);
+cards.push(
+  {id:'c3',ankiId:1700000000203,ankiNoteId:1700000000303,ankiTemplateOrd:0,deckId:'d2',phase:'new',due:'2026-09-22',intervalo:0,reps:0,lapses:0,ease:2.5,posicaoNova:8,createdAt:'2026-09-03T12:00:00.000Z'},
+  {id:'c4',ankiId:1700000000204,ankiNoteId:1700000000304,ankiTemplateOrd:0,deckId:'d3',phase:'new',due:'2026-09-22',intervalo:0,reps:0,lapses:0,ease:2.5,posicaoNova:9,createdAt:'2026-09-03T12:00:00.000Z'}
+);
+notes.set('1700000000303',{id:1700000000303,ankiId:1700000000303,notetypeId:1700000000401,guid:'g-sub',fields:{Front:'Sub',Back:'A'},tags:[]});
+notes.set('1700000000304',{id:1700000000304,ankiId:1700000000304,notetypeId:1700000000401,guid:'g-other',fields:{Front:'Other',Back:'A'},tags:[]});
+const limited=await X.buildPackage({legacy:true,limit:{deckId:'d1'}});
+assert.equal(limited.cards,3,'deck ExportLimit deve incluir pai + subdeck e excluir outros decks');
+const limFiles=unzipStored(limited.bytes),limDb=new SQL.Database(limFiles.get('collection.anki21'));
+assert.equal(limDb.exec('select count(*) from cards')[0].values[0][0],3);
+const limDecks=JSON.parse(limDb.exec('select decks from col where id=1')[0].values[0][0]);
+assert.ok(Object.values(limDecks).some(d=>d.name==='Fiscal::Sub'),'subdeck precisa viajar com o pai');
+assert.ok(!Object.values(limDecks).some(d=>d.name==='Outra'),'deck fora do ExportLimit não pode vazar');
+limDb.close();
+
+/* ── Collection Package: coleção inteira e scheduling/config sempre ────── */
+const colpkg=await X.buildCollectionPackage({legacy:false,withScheduling:false,withDeckConfigs:false,withMedia:false,limit:{deckId:'d1'}});
+assert.equal(colpkg.cards,4,'.colpkg sempre exporta a coleção inteira, ignorando ExportLimit');
+assert.equal(colpkg.withScheduling,true,'.colpkg sempre inclui scheduling');
+assert.equal(colpkg.withDeckConfigs,true,'.colpkg sempre inclui deck configs');
+const cpFiles=unzipStored(colpkg.bytes),cpDb=new SQL.Database(context.fzstd.decompress(cpFiles.get('collection.anki21b')));
+assert.equal(cpDb.exec('select count(*) from cards')[0].values[0][0],4);
+assert.equal(cpDb.exec('select count(*) from revlog')[0].values[0][0],3,'revlog não pode ser removido de collection package');
+assert.ok(cpDb.exec('select count(*) from deck_config')[0].values[0][0]>=1,'collection package precisa manter configs');
+cpDb.close();
+
+console.log('APKG/COLPKG/TEXTO ANKI: ExportLimit, coleção integral, Legacy2/schema11 + Latest/schema18, Zstd, mídia, opções e texto validados.');
 
