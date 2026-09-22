@@ -94,7 +94,7 @@ for(let day=0;day<DAYS;day++){
   while(guard++<12000){
     const pending=cards.filter(c=>!c.suspenso&&!isBuried(c)&&c.dueTs!=null&&Number(c.dueTs)<nextRollover).sort((a,b)=>Number(a.dueTs)-Number(b.dueTs));
     if(!pending.length)break;
-    const c=pending[0],ts=Number(c.dueTs);if(ts>A.agora())A.irPara(ts);
+    const c=pending[0],ts=Number(c.dueTs);if(ts>A.agora()){A.irPara(ts);initDueCache();}
     answer(c,gradeFor(c,day,seq++),day,seq);intra++;intradayTotal++;
   }
   assert.ok(guard<12000,'passos intradiários não podem entrar em loop infinito');
