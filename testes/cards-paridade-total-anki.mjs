@@ -326,6 +326,31 @@ const custom=AnkiParity.saveNotetype({
   fields:[{name:'Pergunta'},{name:'Resposta'},{name:'Obs'}],
   templates:[{name:'Card 1',qfmt:'{{Pergunta}}{{#Obs}} — {{Obs}}{{/Obs}}',afmt:'{{FrontSide}}<hr>{{Resposta}}{{^Obs}} sem obs{{/Obs}}'}]
 });
+const filterNt=AnkiParity.saveNotetype({
+  id:AnkiParity._allocId(),name:'Filtros',kind:'normal',
+  fields:[{name:'Reading'},{name:'Text'}],
+  templates:[{name:'Card 1',
+    qfmt:'{{kana:Reading}}|{{kanji:Reading}}|{{furigana:Reading}}|{{type:Text}}|{{tts en_US voices=Bob,Jane:Text}}|{{CardID}}',
+    afmt:'{{Text}}'}]
+});
+const filterNote=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:filterNt.id,fields:{Reading:'東京[とうきょう] test[sound:x.mp3]',Text:'hello'},tags:[]});
+const filterCard={id:'local-filter',ankiId:424242,deckId:null,ankiTemplateOrd:0};
+const renderedFilters=AnkiParity.renderTemplate(filterNt,filterNote,0,'question',filterCard,'');
+ok(renderedFilters.includes('とうきょう'),'filtro kana extrai leitura');
+ok(renderedFilters.includes('東京'),'filtro kanji preserva ideograma');
+ok(renderedFilters.includes('<ruby><rb>東京</rb><rt>とうきょう</rt></ruby>'),'filtro furigana gera ruby do Anki');
+ok(renderedFilters.includes('test[sound:x.mp3]'),'filtros japoneses não desmontam sound tag');
+ok(renderedFilters.includes('[[type:Text]]'),'filtro type usa marcador nativo do Anki');
+ok(renderedFilters.includes('[anki:tts lang=en_US voices=Bob,Jane]hello[/anki:tts]'),'filtro TTS preserva opções/capitalização');
+ok(renderedFilters.endsWith('424242'),'campo especial CardID é renderizado');
+
+const clozeTypeNt=AnkiParity.saveNotetype({
+  id:AnkiParity._allocId(),name:'Cloze type',kind:'cloze',
+  fields:[{name:'Text'}],templates:[{name:'Cloze',qfmt:'{{type:cloze:Text}}',afmt:'{{cloze:Text}}'}]
+});
+const clozeTypeNote=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:clozeTypeNt.id,fields:{Text:'{{c1::um}}'},tags:[]});
+eq(AnkiParity.renderTemplate(clozeTypeNt,clozeTypeNote,0,'question',{clozeOrd:1},''),'[[type:cloze:Text]]','type:cloze usa marcador oficial');
+
 const cn=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:custom.id,fields:{Pergunta:'P?',Resposta:'R!',Obs:'X'},tags:['fiscal']});
 eq(strip(AnkiParity.renderTemplate(custom,cn,0,'question',{},'')),'P? — X','template custom resolve campo + condicional');
 const qside=AnkiParity.renderTemplate(custom,cn,0,'question',{},'');
