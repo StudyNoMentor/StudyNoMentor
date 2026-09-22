@@ -141,7 +141,7 @@ ok(ui.includes("...(!isDeck ? [{\n      key: 'algo'"), 'seletor de algoritmo dev
 ok(!ui.includes("key: 'newPerDayMinimum'"), 'campo legado sem efeito não deve ser exposto ao usuário');
 ok(ui.includes("key: 'newCardsIgnoreReviewLimit'"), 'interruptor global oficial deve existir na UI');
 
-// ── 8) Longo prazo: 5.000 cards, 365 dias, fila + agendador reais ────────────
+// ── 8) Longo prazo: 6.000 cards, 365 dias, fila + agendador reais ────────────
 // Simulação diária em lote: buildQueue() e schedule() são os módulos reais; a
 // persistência é feita uma vez por dia para evitar transformar o teste em
 // benchmark de JSON. Sem passos intradiários, cada resposta fecha no próximo dia.
@@ -149,11 +149,11 @@ a.reset({
   algo: 'fsrs', retention: 0.9, loadBalance: false,
   learnSteps: [], relearnSteps: [],
   newPerDay: 20, revPerDay: 200,
-  newCardsIgnoreReviewLimit: false,
+  newCardsIgnoreReviewLimit: true,
   leechAction: 'tag'
 });
 DB.saveDecks([{ id: 'long', nome: 'Longo prazo', createdAt: '2026-01-01T00:00:00Z' }]);
-const iniciais = Array.from({ length: 5000 }, (_, i) => ({
+const iniciais = Array.from({ length: 6000 }, (_, i) => ({
   id: 'c' + i, noteId: 'c' + i, template: 'forward', deckId: 'long',
   materia: 'Auditoria', assunto: 'Longo prazo', tipo: 'Conceito',
   frente: 'F' + i, verso: 'V' + i, status: 'pendente',
@@ -191,11 +191,13 @@ for (let dia = 0; dia < 365; dia++) {
   a.avancar(86400000);
 }
 const finais = DB.getCards();
-eq(finais.length, 5000, 'nenhum card pode desaparecer após um ano');
-eq(finais.filter(c => (c.reps || 0) > 0).length, 5000,
-  'os 5.000 cards precisam ter sido introduzidos em 365 dias');
-ok(respostas > 50000, 'a simulação precisa exercitar dezenas de milhares de respostas reais');
+eq(finais.length, 6000, 'nenhum card pode desaparecer após um ano');
+eq(finais.filter(c => (c.reps || 0) > 0).length, 6000,
+  'os 6.000 cards precisam ter sido introduzidos em 365 dias');
+ok(finais.filter(c => (c.reps || 0) > 1).length > 1000,
+  'a simulação precisa revisar novamente uma parcela material da coleção');
+ok(respostas > 6000, 'a simulação precisa conter revisões além da primeira apresentação');
 ok(picoFila > 100, 'a simulação precisa produzir carga de revisão material');
 
-console.log(`CERTIFICAÇÃO ANKI: ${checks}/${checks} contratos válidos; longo prazo = ${respostas} respostas em 5.000 cards/365 dias.`);
+console.log(`CERTIFICAÇÃO ANKI: ${checks}/${checks} contratos válidos; longo prazo = ${respostas} respostas em 6.000 cards/365 dias.`);
 // Gate CI da PR #196: qualquer divergência acima bloqueia o merge.
