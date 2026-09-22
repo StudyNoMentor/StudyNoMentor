@@ -126,7 +126,7 @@ const AnkiParity = {
     }
     return h;
   },
-  reviewTie(card){return this.fnvHashI64(this.cardId(card),this.mod(card));},
+  reviewTie(card){return BigInt.asIntN(64,this.fnvHashI64(this.cardId(card),this.mod(card)));},
 
   configIdForDeck(deckId){
     if(deckId==null)return 'default';
@@ -176,20 +176,29 @@ const AnkiParity = {
   _parseOrdinals(raw){const s=new Set();String(raw||'').split(',').forEach(x=>{const n=Number(x);if(Number.isInteger(n)&&n>=0&&n<=65535)s.add(n);});return [...s].sort((a,b)=>a-b);},
   parseCloze(text){
     text=String(text||'');const root=[],stack=[];let i=0,plain='';
-    const target=()=>stack.length?stack[stack.length-1].nodes:root,flush=()=>{if(plain){target().push({type:'text',text:plain});plain='';}};
+    const activeNodes=()=>stack.length?stack[stack.length-1].nodes:root;
+    const flush=()=>{if(plain){activeNodes().push({type:'text',text:plain});plain='';}};
     while(i<text.length){
       if(text.startsWith('{{c',i)){
         const m=/^\{\{c([\d,]+)::/.exec(text.slice(i));
-        if(m){const ords=this._parseOrdinals(m[1]);if(ords.length&&stack.length<10){flush();const n={type:'cloze',ordinals:ords,nodes:[],hint:null};target().push(n);stack.push(n);i+=m[0].length;continue;}}
+        if(m){const ords=this._parseOrdinals(m[1]);if(ords.length&&stack.length<10){flush();stack.push({type:'cloze',ordinals:ords,nodes:[],hint:null});i+=m[0].length;continue;}}
       }
-      if(text.startsWith('}}',i)&&stack.length){flush();stack.pop();i+=2;continue;}
+      if(text.startsWith('}}',i)){
+        if(stack.length){
+          flush();const done=stack.pop();activeNodes().push(done);i+=2;continue;
+        }
+        plain+='}}';i+=2;continue;
+      }
       if(text.startsWith('::',i)&&stack.length&&stack[stack.length-1].hint==null){
-        flush();let j=i+2,h='';while(j<text.length&&!text.startsWith('}}',j)&&!text.startsWith('{{c',j))h+=text[j++];
+        flush();let j=i+2,h='';
+        while(j<text.length&&!text.startsWith('}}',j)&&!text.startsWith('{{c',j))h+=text[j++];
         if(j>i+2){stack[stack.length-1].hint=h;i=j;continue;}
       }
       plain+=text[i++];
     }
-    flush();return root;
+    // O Anki descarta aberturas Cloze não fechadas; texto top-level normal fica.
+    if(!stack.length)flush();
+    return root;
   },
   _clozeText(n){return !n||!n.nodes?'':n.nodes.map(x=>x.type==='text'?x.text:this._clozeText(x)).join('');},
   clozeOrdinals(text){const s=new Set(),walk=nodes=>nodes.forEach(n=>{if(n.type==='cloze'){n.ordinals.forEach(o=>{if(o!==0)s.add(o);});walk(n.nodes);}});walk(this.parseCloze(text));return [...s].sort((a,b)=>a-b);},
@@ -218,10 +227,16 @@ const AnkiParity = {
         phase:'new',learnStep:0,s:null,d:null,dueTs:null,due:todayCards(),ease:2.5,intervalo:0,reps:0,lapses:0,status:'pendente',
         createdAt:now,updatedAt:now,ankiMod:Math.floor(Date.now()/1000)}));changed=true;
     });
-    const keep=new Set(ords);
+    const keep=new Set(ords),removed=[];
     for(let i=all.length-1;i>=0;i--){const c=all[i];if(String(c.noteId||c.id)!==String(noteId)||c.kind!=='cloze')continue;
-      const o=Number(c.clozeOrd||((c.template||'').match(/^cloze:(\d+)$/)||[])[1]);if(o&&!keep.has(o)){all.splice(i,1);changed=true;}}
-    if(changed)DB.saveCards(all);return ords.length;
+      const o=Number(c.clozeOrd||((c.template||'').match(/^cloze:(\d+)$/)||[])[1]);if(o&&!keep.has(o)){removed.push(String(c.id));all.splice(i,1);changed=true;}}
+    if(changed)DB.saveCards(all);
+    if(removed.length){
+      const set=new Set(removed);
+      try{DB.replaceRevlog(DB.getRevlog().filter(r=>!set.has(String(r.cardId))));}catch(e){_quiet(e,'cloze-remove-revlog');}
+      try{removed.forEach(id=>CardsConfig.forgetCardId(id));}catch(e){_quiet(e,'cloze-remove-daily');}
+    }
+    return ords.length;
   },
 
   autoBurySiblings(card){
