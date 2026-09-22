@@ -179,6 +179,7 @@ const CardsScreen = {
   },
   // Monta a fila do dia respeitando os LIMITES diários (novos/revisões) — como o Anki.
   buildQueue() {
+    if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
     // cards suspensos (leech) ficam fora da fila, como no Anki
     const filtered = this.currentFilteredCards().filter(c => !c.suspenso);
     const due = filtered.filter(c => CardEngine.isDue(c));
@@ -273,37 +274,30 @@ const CardsScreen = {
       return (atraso + iv) / iv;                       // >1 = mais urgente
     };
     const ordemRev = cfgQ.reviewOrder || 'day';
-    // O backend do Anki sempre acrescenta fnvhash(id, mod) como desempate.
-    // IDs aqui são strings/UUIDs, então usamos FNV-1a sobre id + updatedAt:
-    // mesma propriedade importante — ordem pseudoaleatória, estável enquanto
-    // o card não muda — sem depender de Math.random() a cada remontagem.
-    const fnv32 = (txt) => {
-      let h = 0x811c9dc5;
-      for (let i = 0; i < String(txt).length; i++) {
-        h ^= String(txt).charCodeAt(i);
-        h = Math.imul(h, 0x01000193);
-      }
-      return h >>> 0;
-    };
+    // Desempate exato do backend: SQLite fnvhash(card.id, card.mod), FNV-1a
+    // 64-bit sobre os dois i64. ankiId/ankiMod preservam essa identidade sem
+    // substituir os UUIDs internos usados pela sincronização do Study.
     const rndCache = new Map();
     const rndRev = c => {
       const k = String(c && c.id || '');
       if (rndCache.has(k)) return rndCache.get(k);
-      const v = fnv32(k + '|' + String(c && (c.updatedAt || c.createdAt) || ''));
-      rndCache.set(k, v);
-      return v;
+      const v = (typeof AnkiParity !== 'undefined')
+        ? AnkiParity.reviewTie(c)
+        : BigInt(Math.max(0, Number(c && c.ankiId) || 0));
+      rndCache.set(k, v); return v;
     };
+    const cmpRnd = (a, b) => { const x=rndRev(a), y=rndRev(b); return x < y ? -1 : (x > y ? 1 : 0); };
     const ORDENADORES = {
-      retrievabilityAsc:  (a, b) => R(a) - R(b) || rndRev(a) - rndRev(b),
-      retrievabilityDesc: (a, b) => R(b) - R(a) || rndRev(a) - rndRev(b),
-      relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a) || rndRev(a) - rndRev(b),
-      day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || rndRev(a) - rndRev(b),
-      intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || rndRev(a) - rndRev(b),
-      intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || rndRev(a) - rndRev(b),
-      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0) || rndRev(a) - rndRev(b),     // no FSRS a dificuldade
-      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0) || rndRev(a) - rndRev(b),     // faz o papel do "ease"
-      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || rndRev(a) - rndRev(b),
-      random:             (a, b) => rndRev(a) - rndRev(b)
+      retrievabilityAsc:  (a, b) => R(a) - R(b) || cmpRnd(a, b),
+      retrievabilityDesc: (a, b) => R(b) - R(a) || cmpRnd(a, b),
+      relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a) || cmpRnd(a, b),
+      day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
+      intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || cmpRnd(a, b),
+      intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || cmpRnd(a, b),
+      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0) || cmpRnd(a, b),     // no FSRS a dificuldade
+      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0) || cmpRnd(a, b),     // faz o papel do "ease"
+      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || cmpRnd(a, b),
+      random:             (a, b) => cmpRnd(a, b)
     };
     const cmp = ORDENADORES[ordemRev];
     if (cmp) revisoes.sort(cmp);
@@ -673,7 +667,7 @@ const CardsScreen = {
     const liga = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener('click', fn); };
     liga('cards-act-mark', () => { DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box); showToast(c.favorito ? 'Desmarcada' : '★ Marcada'); });
     liga('cards-act-bury', () => { const d2 = DB.buryCard(c.id); proximo(); showToast('⤓ Enterrado até ' + formatDateShort(d2)); });
-    liga('cards-act-susp', () => { DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
+    liga('cards-act-susp', () => { if (typeof AnkiParity !== 'undefined') AnkiParity.suspendCard(c.id); else DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
     liga('cards-act-forget', () => {
       UI.confirm('Esquecer este card? Ele volta a ser um card novo e perde o histórico de agendamento.',
         { title: '↺ Esquecer card', okText: 'Esquecer', danger: true }).then(ok => {
@@ -716,8 +710,9 @@ const CardsScreen = {
     // Custo desprezível — é um card por vez, com memória de resultado.
     const cFrente = _sanCard(c.frente), cVerso = _sanCard(c.verso);
     if (c.kind === 'cloze') {
-      const front = CardEngine.clozeRender(cFrente, false);
-      const back = CardEngine.clozeRender(cFrente, true) + (CardEngine.plain(cVerso) ? `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">${cVerso}` : '');
+      const ord = Number(c.clozeOrd || ((c.template || '').match(/^cloze:(\\d+)$/) || [])[1]) || 1;
+      const front = CardEngine.clozeRender(cFrente, false, ord);
+      const back = CardEngine.clozeRender(cFrente, true, ord) + (CardEngine.plain(cVerso) ? `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">${cVerso}` : '');
       return `<div class="cards-face cards-front">${front || '<em>(vazio)</em>'}</div>
         <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${back}</div>`;
     }
@@ -893,6 +888,7 @@ const CardsScreen = {
     const u = (this._undoStack || []).pop();
     if (!u) { showToast('Nada para desfazer'); return; }
     DB.updateCard(u.id, u.antes);
+    (u.buriedSiblings || []).forEach(id => { try { DB.unburyCard(id); } catch (_) {} });
     CardEngine.invalidateDueCache();
     DB.removeRevlog(u.revTs);
     if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
@@ -975,7 +971,8 @@ const CardsScreen = {
         // remota pode terminar depois sem bloquear a próxima pergunta.
         DB.kickRevlogDuravel();
         CardEngine.invalidateDueCache();
-        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
+        const buriedSiblings = (typeof AnkiParity !== 'undefined') ? AnkiParity.autoBurySiblings(c) : [];
+        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings });
         if (this._undoStack.length > 50) this._undoStack.shift();
         if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
       }
@@ -1421,16 +1418,29 @@ const CardsScreen = {
     if (this._editingId) {
       // Editar uma das faces de "Básico + invertido" edita a NOTA: o irmão é
       // regenerado com frente/verso trocados, mas mantém seu agendamento próprio.
-      DB.updateCardNote(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
+      const editId = this._editingId;
+      DB.updateCardNote(editId, data);
+      if (typeof AnkiParity !== 'undefined') {
+        AnkiParity.ensureIdentities();
+        if (data.kind === 'cloze') AnkiParity.syncClozeSiblings(editId);
+      }
+      showToast('Card atualizado ✓'); this.closeCardModal();
     } else {
       if (reversed) {
         const noteId = DB._uid();
         const c = DB.addCard({ ...data, noteId, template: 'forward' });
         DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
+        if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
         showToast('2 cards criados (normal + invertido) ✓');
       } else {
-        DB.addCard(data);
-        showToast('Card criado ✓');
+        const c = DB.addCard(data);
+        if (typeof AnkiParity !== 'undefined') {
+          AnkiParity.ensureIdentities();
+          if (data.kind === 'cloze' && c) {
+            const n = AnkiParity.syncClozeSiblings(c.id);
+            showToast(n + ' card(s) Cloze criado(s) ✓');
+          } else showToast('Card criado ✓');
+        } else showToast('Card criado ✓');
       }
       if (closeAfter) this.closeCardModal();
       else {
