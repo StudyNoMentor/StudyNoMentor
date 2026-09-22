@@ -118,6 +118,13 @@ ok(CardEngine.estaEnterrado(DB.getCard(s2.id)),'irmão enterrado sai da fila');
 eq(DB.getCard(s2.id).buryKind,'scheduler','auto-bury de irmão preserva SchedBuried');
 DB.buryCard(s1.id);
 eq(DB.getCard(s1.id).buryKind,'user','enterro explícito preserva UserBuried');
+
+// Anki atual possui sete bandeiras; a barra compacta pode mostrar menos sem perder o estado.
+DB.setFlag(s1.id,7);
+eq(DB.getCard(s1.id).flag,7,'bandeira 7 precisa ser persistida');
+eq(DB.FLAGS[7].nome,'Roxa','metadados das sete bandeiras devem existir');
+DB.setFlag(s1.id,0);
+eq(DB.getCard(s1.id).flag,0,'flag 0 remove a bandeira');
 DB.unburyCard(s1.id);
 ok(!DB.getCard(s1.id).buryKind,'desenterrar limpa origem do bury');
 AnkiParity.suspendCard(s2.id);
