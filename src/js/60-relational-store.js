@@ -24,10 +24,10 @@ const RelationalStore = {
   },
   pendingCount() {
     let n = this._pending, profileId=null;
-    try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (_) {}
-    try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(profileId); } catch (_) {}
-    try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(profileId); } catch (_) {}
-    try { if (typeof GenericOutbox !== 'undefined' && GenericOutbox.pendingCount) n += GenericOutbox.pendingCount(profileId); } catch (_) {}
+    try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (e) { _quiet(e, 'pending-profile'); }
+    try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(profileId); } catch (e) { _quiet(e, 'pending-cards'); }
+    try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(profileId); } catch (e) { _quiet(e, 'pending-revlog'); }
+    try { if (typeof GenericOutbox !== 'undefined' && GenericOutbox.pendingCount) n += GenericOutbox.pendingCount(profileId); } catch (e) { _quiet(e, 'pending-generic'); }
     return n;
   },
 
@@ -109,7 +109,7 @@ const RelationalStore = {
         if(opts.preserveHeavy && this._isHeavyMemoryKey(profileId,k)) continue;
         keys.push(k);
       }
-      try { if (typeof CardStore !== 'undefined' && CardStore.invalidatePrefix) CardStore.invalidatePrefix(p); } catch (_) {}
+      try { if (typeof CardStore !== 'undefined' && CardStore.invalidatePrefix) CardStore.invalidatePrefix(p); } catch (e) { _quiet(e, 'cards-invalidate-profile'); }
       keys.forEach(k=>localStorage.removeItem(k));
     } finally { this._applying=false; }
   },
@@ -247,7 +247,7 @@ const RelationalStore = {
         if (rx.test(k.slice(p.length))) keys.push(k);
       }
       if (suffix === 'cards') {
-        try { keys.forEach(k => { if (typeof CardStore !== 'undefined' && CardStore.invalidateScope) CardStore.invalidateScope(k); }); } catch (_) {}
+        try { keys.forEach(k => { if (typeof CardStore !== 'undefined' && CardStore.invalidateScope) CardStore.invalidateScope(k); }); } catch (e) { _quiet(e, 'cards-invalidate-suffix'); }
       }
       keys.forEach(k => localStorage.removeItem(k));
     } finally { this._applying = false; }
@@ -507,7 +507,7 @@ const RelationalStore = {
   async flush() {
     try {
       let profileId=null;
-      try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (_) {}
+      try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (e) { _quiet(e, 'flush-profile'); }
       const jobs=[];
       if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll(profileId));
       if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll(profileId));
@@ -602,7 +602,7 @@ const RelationalStore = {
           if(typeof CardStore!=='undefined'&&CardStore.rebasePending) {
             CardStore.rebasePending(scope,id,remoteCard);
           }
-        } catch (_) {}
+        } catch (e) { _quiet(e, 'card-conflict-rebase'); }
       }
       target.updatedAt=new Date().toISOString();
       const row=this._cardRow(p.profileId,p.planId,target,mutation.position);
