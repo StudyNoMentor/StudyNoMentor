@@ -33,7 +33,7 @@ const zstdDecoded=await I._zstd(zstdFixture);
 assert.equal(new TextDecoder().decode(zstdDecoded),'anki-modern-package');
 
 // Texto Anki: cabeçalhos, HTML e campo multilinha entre aspas não podem se perder.
-const txt='#separator:tab\n#html:true\n#columns:Front,Back,Tags,Deck,GUID\n#tags:global tag2\n"linha 1\n#isto continua no campo"\t"<details><summary>Dica</summary>R</details>"\ttagA\tFiscal\tg-1';
+const txt='#separator:tab\n#html:true\n#columns:Front\tBack\tTags\tDeck\tGUID\n#tags:global tag2\n"linha 1\n#isto continua no campo"\t"<details><summary>Dica</summary>R</details>"\ttagA\tFiscal\tg-1';
 const parsed=I.parseText(txt,'cards.txt');
 assert.equal(parsed.delimiter,'\t');
 assert.equal(parsed.isHtml,true);
