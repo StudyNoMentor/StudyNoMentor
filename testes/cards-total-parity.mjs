@@ -17,7 +17,7 @@ const cards=[
   {id:'c2',noteId:'n2',deckId:'d1',phase:'new',due:'2026-09-22',createdAt:'2026-09-02'}
 ];
 const ctx={
-  console,globalThis:null,queueMicrotask:()=>{},
+  console,globalThis:null,queueMicrotask:()=>{},atob:globalThis.atob,btoa:globalThis.btoa,
   localStorage:{get length(){return store.size;},key:i=>[...store.keys()][i]||null,getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,String(v)),removeItem:k=>store.delete(k)},
   document:{getElementById:()=>null,querySelector:()=>null,addEventListener:()=>{}},
   window:{},
