@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readFileSync} from 'node:fs';
+import {dirname,join} from 'node:path';
+import {fileURLToPath} from 'node:url';
+
+const ROOT=dirname(dirname(fileURLToPath(import.meta.url)));
+const ctx={console,globalThis:null};ctx.globalThis=ctx;vm.createContext(ctx);
+vm.runInContext(readFileSync(join(ROOT,'src/js/44-anki-runtime.js'),'utf8'),ctx,{filename:'44-anki-runtime.js'});
+const R=ctx.AnkiRuntime;
+assert.ok(R,'runtime Anki deve ser exportado');
+const nt={css:'@font-face{font-family:X;src:url(data:font/woff2;base64,AA==)} .card{font-family:X;color:red}'};
+const html='<details open><summary>Dica</summary><b>Resposta</b></details><script>document.body.dataset.js="ok"<\/script>[anki:tts lang=pt-BR voices=Maria]Olá[/anki:tts]\\(x^2\\)';
+const doc=R.buildSrcdoc(nt,html,'question',{id:123});
+assert.match(doc,/@font-face/,'CSS do Note Type precisa entrar no documento do card');
+assert.match(doc,/<details open>/,'HTML expansível deve permanecer intacto');
+assert.match(doc,/<script>document\.body\.dataset\.js=/,'JavaScript do template deve ser preservado no sandbox');
+assert.match(doc,/data-anki-tts="lang=pt-BR voices=Maria"/,'marcador TTS deve virar elemento executável');
+assert.match(doc,/mathjax@3/,'MathJax deve ser carregado quando houver matemática TeX');
+const frame=R.renderFrame(nt,html,'question',{id:123},true);
+assert.match(frame,/sandbox="allow-scripts allow-forms allow-popups allow-modals"/);
+assert.doesNotMatch(frame,/allow-same-origin/,'sandbox nunca pode compartilhar a origem do Study');
+assert.match(frame,/srcdoc=/);
+const hidden=R.renderFrame(nt,html,'answer',{id:123},false);
+assert.doesNotMatch(hidden,/<iframe/,'lado oculto não pode executar JS/TTS antes do flip');
+console.log('RUNTIME ANKI: CSS, HTML expansível, JS sandboxado, TTS, MathJax e flip validados.');
