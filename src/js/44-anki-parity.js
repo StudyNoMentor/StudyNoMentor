@@ -378,5 +378,137 @@ AnkiParity.filterMatchesDeck=function(cardDeckId,selectedDeckId){
   return AnkiParity.deckDescendant(cardDeckId,selectedDeckId);
 };
 
+
+/* ── FSRS TRAINING SET: espelho de rslib/scheduler/fsrs/params.rs ──────────
+   O otimizador NÃO recebe "uma linha por revisão". O Anki transforma o
+   histórico em prefixos crescentes por card e depois ordena TODOS os prefixos
+   pelo RevlogId. Essa ordem e os card_ids alinhados fazem parte do treino. */
+AnkiParity._trainingKind=function(r){
+  const explicit=String(r&&(
+    r.ankiReviewKind!=null?r.ankiReviewKind:
+    r.reviewKind!=null?r.reviewKind:''
+  )).toLowerCase();
+  if(explicit==='filtered'||explicit==='cram'||explicit==='3')return 'filtered';
+  if(explicit==='manual'||explicit==='4')return 'manual';
+  if(explicit==='rescheduled'||explicit==='5')return 'rescheduled';
+  if(explicit==='reset'||explicit==='reset-card')return 'reset';
+  const ph=String(r&&r.phase||'').toLowerCase();
+  if(ph==='new'||ph==='learning'||ph==='learn')return 'learning';
+  if(ph==='relearning'||ph==='relearn')return 'relearning';
+  return 'review';
+};
+AnkiParity._trainingHasRating=function(r){
+  const g=Number(r&&r.grade);return Number.isInteger(g)&&g>=1&&g<=4;
+};
+AnkiParity._trainingAffectsScheduling=function(r){
+  const k=this._trainingKind(r);
+  return this._trainingHasRating(r)&&k!=='manual'&&k!=='rescheduled'&&k!=='reset'&&k!=='filtered';
+};
+AnkiParity._trainingInterval=function(r){
+  if(r&&r.ankiInterval!=null)return Number(r.ankiInterval)||0;
+  if(r&&r.intervalo!=null)return Number(r.intervalo)||0;
+  return 0;
+};
+AnkiParity._trainingDaysElapsed=function(tsMs,nextDayAtSec){
+  const sec=Math.floor((Number(tsMs)||0)/1000);
+  return Math.max(0,Math.floor((Number(nextDayAtSec)-sec)/86400));
+};
+AnkiParity._reviewsForFsrsTraining=function(entries,nextDayAtSec,ignoreBeforeMs){
+  const arr=(entries||[]).slice().sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
+  if(!arr.length)return null;
+  let firstOfLastLearn=null,firstUserGrade=null;
+
+  // Mesmo walk reverso de reviews_for_fsrs(..., training=true).
+  for(let index=arr.length-1;index>=0;index--){
+    const e=arr[index],kind=this._trainingKind(e);
+    if(kind==='filtered')continue;
+    const within=(Number(e.ts)||0)>Number(ignoreBeforeMs||0);
+    const user=this._trainingHasRating(e);
+    const iv=this._trainingInterval(e);
+    const interday=iv>=1||iv<=-86400;
+    if(user&&within&&interday)firstUserGrade=index;
+
+    if(user&&kind==='learning'){
+      firstOfLastLearn=index;
+    }else if(kind==='reset'){
+      if(firstOfLastLearn!=null)break;
+      if(firstUserGrade!=null)break;
+      return null;
+    }else if(firstOfLastLearn!=null){
+      break;
+    }
+  }
+
+  // Em treino, a learning inicial do último bloco tem de estar dentro do corte.
+  if(firstOfLastLearn!=null){
+    if((Number(arr[firstOfLastLearn].ts)||0)<Number(ignoreBeforeMs||0))return null;
+    if(firstOfLastLearn>0)arr.splice(0,firstOfLastLearn);
+  }else{
+    // O rslib não treina cards cujo histórico não contém learning.
+    return null;
+  }
+
+  const kept=arr.filter(e=>this._trainingAffectsScheduling(e));
+  if(kept.length<2)return null;
+
+  const delta=[];
+  for(let i=0;i<kept.length;i++){
+    if(i===0){delta.push(0);continue;}
+    const prev=this._trainingDaysElapsed(kept[i-1].ts,nextDayAtSec);
+    const cur=this._trainingDaysElapsed(kept[i].ts,nextDayAtSec);
+    delta.push(Math.max(0,prev-cur));
+  }
+
+  const prefixes=[],current=[];
+  for(let i=0;i<kept.length;i++){
+    current.push({rating:Number(kept[i].grade),delta_t:delta[i]});
+    if(i>=1&&delta[i]>0){
+      prefixes.push({
+        revlogId:Number(kept[i].ts)||0,
+        reviews:current.map(x=>({rating:x.rating,delta_t:x.delta_t}))
+      });
+    }
+  }
+  return prefixes.length?{prefixes,filteredRevlogs:kept}:null;
+};
+AnkiParity.fsrsTrainingData=function(revlog,opts){
+  opts=opts||{};
+  const nextDayAtSec=Number(opts.nextDayAtSec)||
+    Math.floor((typeof proximaViradaTs==='function'?proximaViradaTs():Date.now()+86400000)/1000);
+  const ignoreBeforeMs=Number(opts.ignoreBeforeMs)||0;
+  const cards=Array.isArray(opts.cards)?opts.cards:(typeof DB!=='undefined'?DB.getCards():[]);
+  const cardByStudyId=new Map((cards||[]).map(c=>[String(c.id),c]));
+  const grouped=new Map();
+  (revlog||[]).forEach(r=>{
+    if(!r||r.cardId==null)return;
+    const k=String(r.cardId);if(!grouped.has(k))grouped.set(k,[]);grouped.get(k).push(r);
+  });
+
+  const rows=[];let reviewCount=0;
+  grouped.forEach((entries,studyCardId)=>{
+    const built=this._reviewsForFsrsTraining(entries,nextDayAtSec,ignoreBeforeMs);
+    if(!built)return;
+    reviewCount+=built.filteredRevlogs.length;
+    const card=cardByStudyId.get(studyCardId);
+    const ankiCardId=card?this.cardId(card):this._validId(studyCardId);
+    if(!ankiCardId)return;
+    built.prefixes.forEach(p=>rows.push({
+      revlogId:p.revlogId,
+      cardId:ankiCardId,
+      item:{reviews:p.reviews}
+    }));
+  });
+
+  // Rust usa sort_by_key(RevlogId), estável; JS moderno também garante sort estável.
+  rows.sort((a,b)=>a.revlogId-b.revlogId);
+  return {
+    items:rows.map(x=>x.item),
+    cardIds:rows.map(x=>x.cardId),
+    reviewCount,
+    nextDayAtSec,
+    ignoreBeforeMs
+  };
+};
+
 AnkiParity.installConfigParity();
 try{if(typeof window!=='undefined')window.AnkiParity=AnkiParity;}catch(e){_quiet(e,'anki-parity-global');}
