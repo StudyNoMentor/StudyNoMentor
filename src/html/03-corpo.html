@@ -1187,7 +1187,25 @@
             <div class="field"><label for="cards-import-update-notetypes">Atualizar tipos de nota</label>
               <select id="cards-import-update-notetypes"><option value="if-newer">Se o arquivo for mais novo</option><option value="always">Sempre</option><option value="never">Nunca</option></select></div>
           </div>
-          <p class="hint" style="margin-top:8px;">Pacotes Anki preservam tipos de nota, campos, templates, tags, decks e mídia suportada. Em arquivos de texto, cabeçalhos #separator, #html e #columns são reconhecidos.</p>
+          <div id="cards-import-text-options" style="display:none;margin-top:10px;">
+            <div class="field-group">
+              <div class="field"><label for="cards-import-notetype">Tipo de nota</label><select id="cards-import-notetype"></select></div>
+              <div class="field"><label for="cards-import-delimiter">Separador</label><select id="cards-import-delimiter">
+                <option value="">Detectar automaticamente / cabeçalho</option><option value="tab">Tabulação</option><option value="pipe">Pipe |</option>
+                <option value="semicolon">Ponto e vírgula</option><option value="colon">Dois-pontos</option><option value="comma">Vírgula</option><option value="space">Espaço</option>
+              </select></div>
+            </div>
+            <div class="field-group" style="margin-top:10px;">
+              <div class="field"><label for="cards-import-dupe">Duplicatas</label><select id="cards-import-dupe">
+                <option value="update">Atualizar</option><option value="preserve">Preservar existentes</option><option value="duplicate">Importar duplicatas</option>
+              </select></div>
+              <div class="field"><label for="cards-import-match-scope">Escopo da correspondência</label><select id="cards-import-match-scope">
+                <option value="notetype">Tipo de nota</option><option value="notetype-and-deck">Tipo de nota + baralho</option>
+              </select></div>
+            </div>
+            <div id="cards-import-field-mapping" style="margin-top:10px;"></div>
+          </div>
+          <p class="hint" style="margin-top:8px;">Pacotes Anki preservam tipos de nota, campos, templates, tags, decks e mídia suportada. Texto suporta os 6 delimitadores, mapeamento de campos, GUID, tipo de nota/baralho/tags por coluna, duplicatas e Match Scope.</p>
         </details>
       </div>
       <div class="cards-modal-foot"><span style="flex:1"></span>
