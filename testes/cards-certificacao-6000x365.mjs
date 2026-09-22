@@ -35,10 +35,16 @@ let invalid=0,maxSeenIvl=0,lbCalls=0,fuzzCalls=0,introTotal=0,reviewTotal=0,intr
 const origLB=FSRS.loadBalance.bind(FSRS);FSRS.loadBalance=(...args)=>{lbCalls++;return origLB(...args);};
 const origLF=AnkiParity.learningFuzzSeconds.bind(AnkiParity);AnkiParity.learningFuzzSeconds=(...args)=>{fuzzCalls++;return origLF(...args);};
 
-function hash(s){return FSRS._hash(String(s))>>>0;}
-function gradeFor(c,day,seq){
-  const n=hash(c.id+'|'+day+'|'+(c.reps||0)+'|'+seq)%100;
-  if(n<8)return'errei';if(n<18)return'dificil';if(n>=93)return'facil';return'bom';
+// PRNG independente do RNG/fuzz do scheduler. Usar o próprio hash do FSRS
+// para simular o "aluno" correlacionava artificialmente nota e reps.
+let prngState=0x6d2b79f5;
+function random01(){
+  prngState^=prngState<<13;prngState^=prngState>>>17;prngState^=prngState<<5;
+  return (prngState>>>0)/4294967296;
+}
+function gradeFor(){
+  const u=random01();
+  if(u<.08)return'errei';if(u<.18)return'dificil';if(u>=.93)return'facil';return'bom';
 }
 function isBuried(c){return !!(c.enterradoAte&&String(c.enterradoAte)>A.hoje());}
 function reviewLike(c){return !c.suspenso&&!c.dueTs&&(c.phase==='review'||((c.reps||0)>0&&(c.intervalo||0)>0));}
