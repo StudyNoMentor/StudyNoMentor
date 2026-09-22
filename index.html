@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v1bab7aad99">
+<meta name="diario-versao" content="v8001bd08a9">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6649,6 +6649,8 @@ window.__relationalBoot = true;
         <div class="cards-more-menu" id="cards-more-menu" role="menu">
           <button type="button" role="menuitem" id="cards-stats-btn" title="Ver estatísticas (retenção, previsão, maturidade)">📊 Estatísticas</button>
           <button type="button" role="menuitem" id="cards-algo-btn" title="Algoritmo de repetição espaçada">⚙ Algoritmo</button>
+          <button type="button" role="menuitem" id="cards-custom-btn">🎯 Estudo personalizado</button>
+          <button type="button" role="menuitem" id="cards-filtered-btn">🔎 Baralho filtrado</button>
           <button type="button" role="menuitem" id="cards-import-btn">↑ Importar</button>
           <button type="button" role="menuitem" id="cards-export-btn">↓ Exportar p/ Anki</button>
           <button type="button" role="menuitem" id="cards-audit-export-btn" title="Exportar cards, histórico, configurações e diagnóstico do agendador">🩺 Exportar auditoria</button>
@@ -6827,6 +6829,87 @@ window.__relationalBoot = true;
       <div class="cards-modal-foot"><span style="flex:1"></span>
         <button type="button" class="btn-secondary" id="cards-import-cancel">Cancelar</button>
         <button type="button" class="btn-primary" id="cards-import-do">Importar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Estudo Personalizado (Custom Study do Anki) -->
+  <div id="cards-custom-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2>🎯 Estudo personalizado</h2><p class="sub">Mesmo contrato do Custom Study do Anki 26.09.2.</p></div>
+        <button type="button" class="icon-btn" id="cards-custom-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <div class="field"><label for="cards-custom-deck">Baralho de origem</label><select id="cards-custom-deck"></select></div>
+        <div class="field"><label for="cards-custom-mode">Modo</label>
+          <select id="cards-custom-mode">
+            <option value="newLimitDelta">Aumentar limite de novos de hoje</option>
+            <option value="reviewLimitDelta">Aumentar limite de revisões de hoje</option>
+            <option value="forgot">Repetir cards esquecidos recentemente</option>
+            <option value="ahead">Revisar antecipadamente</option>
+            <option value="preview">Pré-visualizar novos adicionados recentemente</option>
+            <option value="cram">Estudar por estado / tags</option>
+          </select>
+        </div>
+        <div class="field" id="cards-custom-days-field"><label for="cards-custom-value" id="cards-custom-delta-hint">Dias</label>
+          <input type="number" id="cards-custom-value" min="0" step="1" value="7"></div>
+        <div id="cards-custom-cram-fields" style="display:none;">
+          <div class="field-group">
+            <div class="field"><label for="cards-custom-cram-kind">Estado</label>
+              <select id="cards-custom-cram-kind">
+                <option value="due">Vencidos</option><option value="new">Novos</option>
+                <option value="review">Não novos</option><option value="all">Todos (preview)</option>
+              </select>
+            </div>
+            <div class="field"><label for="cards-custom-limit">Limite de cards</label><input type="number" id="cards-custom-limit" min="0" step="1" value="100"></div>
+          </div>
+          <div class="field"><label for="cards-custom-tags-in">Incluir tags <span class="opt">(separadas por vírgula)</span></label><input type="text" id="cards-custom-tags-in"></div>
+          <div class="field"><label for="cards-custom-tags-out">Excluir tags <span class="opt">(separadas por vírgula)</span></label><input type="text" id="cards-custom-tags-out"></div>
+        </div>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="cards-custom-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="cards-custom-run">Criar / aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Baralho Filtrado (Filtered Deck do Anki) -->
+  <div id="cards-filtered-modal" class="cards-modal" style="display:none;">
+    <div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head">
+        <div><h2>🔎 Baralho filtrado</h2><p class="sub">Até dois filtros, ordem, limite e opção de reagendamento.</p></div>
+        <button type="button" class="icon-btn" id="cards-filtered-close" aria-label="Fechar">✕</button>
+      </div>
+      <div class="cards-modal-body">
+        <input type="hidden" id="cards-filtered-id">
+        <div class="field"><label for="cards-filtered-name">Nome</label><input type="text" id="cards-filtered-name" value="Baralho filtrado"></div>
+        <div class="field"><label for="cards-filtered-search1">Filtro 1</label><input type="text" id="cards-filtered-search1" placeholder='Ex.: deck:"Contabilidade" is:due'></div>
+        <div class="field-group">
+          <div class="field"><label for="cards-filtered-limit1">Limite</label><input type="number" id="cards-filtered-limit1" min="0" step="1" value="100"></div>
+          <div class="field"><label for="cards-filtered-order1">Selecionar por</label><select id="cards-filtered-order1"></select></div>
+        </div>
+        <div class="field"><label for="cards-filtered-search2">Filtro 2 <span class="opt">(opcional)</span></label><input type="text" id="cards-filtered-search2"></div>
+        <div class="field-group">
+          <div class="field"><label for="cards-filtered-limit2">Limite</label><input type="number" id="cards-filtered-limit2" min="0" step="1" value="100"></div>
+          <div class="field"><label for="cards-filtered-order2">Selecionar por</label><select id="cards-filtered-order2"></select></div>
+        </div>
+        <label class="toggle-row"><input type="checkbox" id="cards-filtered-reschedule" checked>
+          <span><strong>Reagendar cards com base nas respostas</strong><small>Desligado = modo preview, sem alterar o agendamento original.</small></span>
+        </label>
+        <div id="cards-filtered-preview-fields" style="display:none;">
+          <div class="field-group">
+            <div class="field"><label for="cards-filtered-again">Errei (segundos)</label><input type="number" id="cards-filtered-again" min="0" value="60"></div>
+            <div class="field"><label for="cards-filtered-hard">Difícil (segundos)</label><input type="number" id="cards-filtered-hard" min="0" value="600"></div>
+            <div class="field"><label for="cards-filtered-good">Bom (segundos)</label><input type="number" id="cards-filtered-good" min="0" value="0"></div>
+          </div>
+          <p class="hint">0 devolve o card imediatamente ao baralho/agendamento original. “Fácil” sempre devolve, como no Anki.</p>
+        </div>
+      </div>
+      <div class="cards-modal-foot"><span style="flex:1"></span>
+        <button type="button" class="btn-secondary" id="cards-filtered-cancel">Cancelar</button>
+        <button type="button" class="btn-primary" id="cards-filtered-save">Salvar e reconstruir</button>
       </div>
     </div>
   </div>
@@ -32916,6 +32999,8 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   // topo
   on('cards-algo-btn', 'click', () => CardsScreen.openAlgoConfig());
+  on('cards-custom-btn', 'click', () => CardsScreen.openCustomStudy());
+  on('cards-filtered-btn', 'click', () => CardsScreen.openFilteredDeckModal(null));
   // atalho 📊: pula direto para a aba Estatísticas
   on('cards-stats-btn', 'click', () => {
     CardsScreen.tab = 'stats';
@@ -32959,6 +33044,16 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   on('bancas-modal-done', 'click', () => $id('bancas-modal').style.display = 'none');
   on('banca-add-btn', 'click', () => CardsScreen.addBanca());
   on('banca-new-input', 'keydown', (e) => { if (e.key === 'Enter') CardsScreen.addBanca(); });
+  // modal estudo personalizado / baralho filtrado
+  on('cards-custom-close', 'click', () => $id('cards-custom-modal').style.display = 'none');
+  on('cards-custom-cancel', 'click', () => $id('cards-custom-modal').style.display = 'none');
+  on('cards-custom-mode', 'change', () => CardsScreen.updateCustomStudyUI());
+  on('cards-custom-run', 'click', () => CardsScreen.runCustomStudy());
+  on('cards-filtered-close', 'click', () => $id('cards-filtered-modal').style.display = 'none');
+  on('cards-filtered-cancel', 'click', () => $id('cards-filtered-modal').style.display = 'none');
+  on('cards-filtered-reschedule', 'change', () => CardsScreen.updateFilteredDeckUI());
+  on('cards-filtered-save', 'click', () => CardsScreen.saveFilteredDeckModal());
+
   // modal exportar
   on('cards-export-close', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-cancel', 'click', () => $id('cards-export-modal').style.display = 'none');
