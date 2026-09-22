@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vfac8ffa475">
+<meta name="diario-versao" content="v9ad54dc65b">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -23093,7 +23093,9 @@ const AnkiExport = {
       { name: 'media', data: JSON.stringify(mediaMap) },
       ...mediaEntries
     ];
-    return Object.assign({ bytes: this.zipStore(entries) }, col);
+    // `col` também possui `bytes` (o SQLite cru). A composição precisa deixar
+    // o ZIP por último; do contrário o SQLite sobrescreve silenciosamente o .apkg.
+    return Object.assign({}, col, { bytes: this.zipStore(entries) });
   }
 };
 
