@@ -476,6 +476,7 @@ AnkiParity._specialField=function(name,nt,note,tmpl,card){
   if(n==='Deck')return String(deck&&deck.nome||'');
   if(n==='Subdeck'){const x=String(deck&&deck.nome||'').split('::');return x[x.length-1]||'';}
   if(n==='CardFlag')return Number(card&&card.flag)||0;
+  if(n==='CardID')return String(card&&card.ankiId||card&&card.id||'');
   return null;
 };
 AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
@@ -493,6 +494,14 @@ AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
     const parts=expr.split(':').map(x=>x.trim()),fieldName=parts.pop(),filters=parts;
     let value=this._specialField(fieldName,nt,note,tmpl,card);
     if(value==null)value=String(fields[fieldName]??'');
+    const lower=filters.map(x=>String(x).toLowerCase());
+    if(lower.includes('type')&&lower.includes('cloze'))return '[[type:cloze:'+fieldName+']]';
+    if(lower.includes('type')&&lower.includes('nc'))return '[[type:nc:'+fieldName+']]';
+    const ruby=(text,mode)=>String(text||'').replace(/&nbsp;/gi,' ').replace(/ ?([^ >]+?)\[(.+?)\]/g,(m,kanji,kana)=>{
+      if(String(kana).startsWith('sound:'))return m;
+      if(mode==='kana')return kana;if(mode==='kanji')return kanji;
+      return '<ruby><rb>'+kanji+'</rb><rt>'+kana+'</rt></ruby>';
+    });
     for(let i=filters.length-1;i>=0;i--){
       const filter=filters[i].toLowerCase();
       if(filter==='cloze'){
@@ -500,17 +509,22 @@ AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
         value=this.revealCloze(value,o,side!=='answer');
       }else if(filter==='cloze-only'){
         const o=Number(card.clozeOrd)||Number(card.ankiTemplateOrd)+1||1;
-        const rendered=this.revealCloze(value,o,side!=='answer');
-        value=this._stripHtml(rendered).replace(/^.*?\[|\].*$/g,'');
+        value=this.clozeOnly(value,o,side!=='answer');
       }else if(filter==='text'){
         value=this._stripHtml(value);
       }else if(filter==='hint'){
-        value=value?'<details class="hint"><summary>Mostrar dica</summary>'+value+'</details>':'';
+        value=String(value||'').trim()?'<details class="hint"><summary>'+this._escAttr(fieldName)+'</summary>'+value+'</details>':'';
       }else if(filter==='type'){
-        value=side==='answer'?value:'<span class="typeans" data-field="'+this._escAttr(fieldName)+'"></span>';
-      }else if(filter==='kanji'||filter==='kana'||filter==='furigana'){
-        // Mantém o conteúdo em vez de descartá-lo quando o filtro japonês não
-        // está disponível no navegador. Isso preserva informação e templates.
+        value='[[type:'+fieldName+']]';
+      }else if(filter==='kanji'){
+        value=ruby(value,'kanji');
+      }else if(filter==='kana'){
+        value=ruby(value,'kana');
+      }else if(filter==='furigana'){
+        value=ruby(value,'furigana');
+      }else if(filter.startsWith('tts ')){
+        value='[anki:tts lang='+filter.slice(4)+']'+value+'[/anki:tts]';
+      }else if(filter==='nc'){
         value=String(value);
       }
     }
