@@ -761,6 +761,16 @@ const CardsScreen = {
           const ord = Number(c.ankiTemplateOrd) || 0;
           const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
           const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
+          // Note Types importados do Anki podem conter CSS, JavaScript, fontes,
+          // MathJax, TTS e HTML arbitrário. Eles rodam dentro de um iframe
+          // sandboxado de origem opaca: mantém a compatibilidade sem dar ao
+          // conteúdo do card acesso ao DOM/storage/Supabase do Study.
+          if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
+            return '<div class="cards-face cards-front cards-anki-template">' +
+              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped) +
+              '</div><div class="cards-face cards-back cards-anki-template">' +
+              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped) + '</div>';
+          }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
           return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
             <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
