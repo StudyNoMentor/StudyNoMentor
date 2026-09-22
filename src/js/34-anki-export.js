@@ -457,6 +457,8 @@ const AnkiExport = {
       { name: 'media', data: JSON.stringify(mediaMap) },
       ...mediaEntries
     ];
-    return Object.assign({ bytes: this.zipStore(entries) }, col);
+    // `col` também possui `bytes` (o SQLite cru). A composição precisa deixar
+    // o ZIP por último; do contrário o SQLite sobrescreve silenciosamente o .apkg.
+    return Object.assign({}, col, { bytes: this.zipStore(entries) });
   }
 };
