@@ -134,6 +134,36 @@ assert.ok(union.notetype.fields.some(x=>x.name==='Back')&&union.notetype.fields.
   'merge por IDs deve preservar campos exclusivos dos dois lados');
 assert.equal(union.notetype.templates.length,2,'merge deve preservar template exclusivo');
 
+// Schema 18: Image Occlusion precisa preservar OriginalStockKind e tags estruturais.
+const ioNt={
+  id:9101,ankiId:9101,name:'Image Occlusion',kind:'cloze',originalStockKind:6,
+  fields:[
+    {name:'Occlusion',tag:0,preventDeletion:true},{name:'Image',tag:1,preventDeletion:true},
+    {name:'Header',tag:2,preventDeletion:true},{name:'Back Extra',tag:3,preventDeletion:true},
+    {name:'Comments',tag:4,preventDeletion:false}
+  ],
+  templates:[{name:'Image Occlusion',qfmt:'{{cloze:Occlusion}}{{Image}}',afmt:'{{cloze:Occlusion}}{{Image}}{{Back Extra}}'}],
+  css:'.card{}'
+};
+const ioModel=X.modelSchema(ioNt);
+assert.equal(ioModel.originalStockKind,6);
+const modernMetaDb=new SQL.Database();
+modernMetaDb.run('CREATE TABLE notetypes (id integer primary key,name text,config blob)');
+modernMetaDb.run('CREATE TABLE fields (ntid integer,ord integer,name text,config blob)');
+modernMetaDb.run('CREATE TABLE templates (ntid integer,ord integer,name text,config blob)');
+modernMetaDb.run('INSERT INTO notetypes VALUES (?,?,?)',[ioModel.id,ioModel.name,X._encodeNotetypeConfig(ioModel)]);
+for(const f of ioModel.flds)modernMetaDb.run('INSERT INTO fields VALUES (?,?,?,?)',[ioModel.id,f.ord,f.name,X._encodeFieldConfig(f)]);
+for(const t of ioModel.tmpls)modernMetaDb.run('INSERT INTO templates VALUES (?,?,?,?)',[ioModel.id,t.ord,t.name,X._encodeTemplateConfig(t)]);
+const ioMeta=I._modernMetadata(modernMetaDb).models[String(ioModel.id)];
+modernMetaDb.close();
+assert.equal(ioMeta.originalStockKind,6,'schema 18 deve preservar OriginalStockKind Image Occlusion');
+assert.deepEqual(Array.from(ioMeta.flds,f=>f.tag),[0,1,2,3,4],'tags dos campos estruturais devem sobreviver ao protobuf');
+assert.deepEqual(Array.from(ioMeta.flds,f=>f.preventDeletion),[true,true,true,true,false],'proteção dos campos estruturais deve sobreviver ao protobuf');
+const ioRound=I._toNotetype(ioMeta);
+assert.equal(ioRound.originalStockKind,6);
+assert.equal(ioRound.kind,'cloze');
+assert.deepEqual(Array.from(ioRound.fields,f=>f.tag),[0,1,2,3,4]);
+
 // Pacote Legacy2 real: ZIP -> collection.anki21 -> SQLite -> contagens/metadados.
 const db=new SQL.Database();
 db.run("CREATE TABLE col (id integer PRIMARY KEY, crt integer, ver integer, models text, decks text, dconf text)");
