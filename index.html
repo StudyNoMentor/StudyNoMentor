@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v01114f4882">
+<meta name="diario-versao" content="veff9a30823">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -15411,6 +15411,58 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
 }
 </style>
 
+<style id="anki-max-editor">
+/* Paridade máxima — editor avançado / Note Types. */
+.anki-nt-meta{margin:10px 0 4px}
+.anki-nt-meta>details,.anki-field-advanced,.anki-template-advanced{
+  border:1px solid var(--border);border-radius:10px;background:var(--surface-sunken);padding:7px 9px
+}
+.anki-nt-meta summary,.anki-field-advanced summary,.anki-template-advanced summary{cursor:pointer;font-weight:700;font-size:var(--fs-xs)}
+.anki-field-row-max{grid-template-columns:auto minmax(0,1fr) auto;align-items:start}
+.anki-field-main{min-width:0}
+.anki-field-main>.anki-field-name{width:100%;box-sizing:border-box}
+.anki-field-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+.anki-field-options>label:not(.check-label){display:flex;flex-direction:column;gap:4px;font-size:var(--fs-2xs);color:var(--text-soft)}
+.anki-field-options .check-label{align-self:end;min-height:34px}
+.anki-field-options .hint{grid-column:1/-1}
+.anki-template-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.anki-template-advanced{margin-top:9px}
+.anki-template-advanced .field-group{margin-top:9px}
+.anki-max-field{margin-bottom:12px}
+.anki-max-field>.hint{margin:2px 0 6px}
+.anki-max-rte .rte-area{min-height:110px;max-height:420px;overflow:auto}
+.anki-max-rte .anki-extra-media{display:flex;gap:4px}
+.anki-max-rte .anki-extra-media button{min-width:34px}
+.anki-field-collapsed .rte-toolbar{opacity:.92}
+.anki-field-collapsed .rte-area{min-height:72px}
+.anki-max-plain{width:100%;box-sizing:border-box;resize:vertical}
+#anki-nt-stock-kind{font-family:'Space Mono',ui-monospace,monospace;font-size:12px;background:var(--surface-sunken)}
+@media(max-width:760px){
+  .anki-field-options{grid-template-columns:1fr 1fr}
+  .anki-template-grid{grid-template-columns:1fr}
+}
+@media(max-width:520px){
+  .anki-field-options{grid-template-columns:1fr}
+}
+</style>
+
+<style id="anki-max-image-occlusion">
+/* Image Occlusion — ferramentas avançadas */
+.anki-io-max-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.anki-io-zoom{display:inline-flex;gap:4px;align-items:center}
+.anki-io-color{width:38px;height:36px;border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--surface-sunken);display:inline-flex;align-items:center;justify-content:center}
+.anki-io-color input{width:44px;height:44px;border:0;padding:0;background:transparent;cursor:pointer}
+#anki-io-opacity.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.anki-io-stage-editor{overflow:auto;align-items:flex-start;justify-content:flex-start}
+.anki-io-mask-list>div.is-selected{outline:2px solid var(--accent);background:var(--accent-soft)}
+#anki-io-canvas{transform-origin:top left}
+.anki-field-row-max [data-remove]:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:720px){
+  .anki-io-max-tools{width:100%}
+  .anki-io-max-tools>.btn-secondary{flex:1 1 auto}
+}
+</style>
+
 <script id="app-code" type="application/x-diario-inert">
 /* ═══════════════════════════════════════════════════════════════════════════
    DIÁRIO DE ESTUDOS — mapa do código
@@ -23219,7 +23271,7 @@ const AnkiExport = {
     return {
       name: String(t && t.name || ('Card ' + (i + 1))), ord: i, qfmt: String(t && t.qfmt || ''),
       afmt: String(t && t.afmt || ''), bqfmt: String(t && t.bqfmt || ''), bafmt: String(t && t.bafmt || ''),
-      did: null, bfont: String(t && t.bfont || ''), bsize: Number(t && t.bsize) || 0, id: t && t.id != null ? Number(t.id) : null
+      did: t && t.did != null && t.did !== '' ? Number(t.did) : null, bfont: String(t && t.bfont || ''), bsize: Number(t && t.bsize) || 0, id: t && t.id != null ? Number(t.id) : null
     };
   },
   _reqFor(nt) {
@@ -23239,7 +23291,8 @@ const AnkiExport = {
     const id = Number(nt.ankiId || nt.id), fields = nt.fields || [], tmpls = nt.templates || [];
     return {
       id, name: String(nt.name || 'Note Type'), type: nt.kind === 'cloze' ? 1 : 0,
-      mod: this._mod(nt.updatedAt || nt.createdAt), usn: -1, sortf: 0, did: null,
+      mod: this._mod(nt.updatedAt || nt.createdAt), usn: -1, sortf: Math.max(0, Number(nt.sortf) || 0),
+      did: nt.did != null && nt.did !== '' ? Number(nt.did) : null,
       tmpls: tmpls.map((t, i) => this._templateSchema(t, i)),
       flds: fields.map((f, i) => this._fieldSchema(f, i)),
       css: String(nt.css || '.card { font-family: arial; font-size: 20px; text-align: center; }'),
@@ -23985,7 +24038,7 @@ const AnkiImport = {
   _toNotetype(m){
     const fields=(m.flds||m.fields||[]).map((f,i)=>({name:f.name||('Field '+(i+1)),ord:i,sourceOrd:Number.isFinite(Number(f.ord))?Number(f.ord):i,id:f.id==null?null:Number(f.id),sticky:!!f.sticky,rtl:!!f.rtl,fontName:f.font||f.fontName||'Arial',fontSize:Number(f.size||f.fontSize)||20,description:f.description||'',plainText:!!f.plainText,collapsed:!!f.collapsed,excludeFromSearch:!!f.excludeFromSearch,tag:f.tag==null?null:Number(f.tag),preventDeletion:!!f.preventDeletion}));
     const templates=(m.tmpls||m.templates||[]).map((t,i)=>({name:t.name||('Card '+(i+1)),ord:i,sourceOrd:Number.isFinite(Number(t.ord))?Number(t.ord):i,qfmt:t.qfmt||'',afmt:t.afmt||'',bqfmt:t.bqfmt||'',bafmt:t.bafmt||'',did:t.did||null,bfont:t.bfont||'',bsize:Number(t.bsize)||0,id:t.id==null?null:Number(t.id)}));
-    return {id:Number(m.id),ankiId:Number(m.id),originalId:m.originalId==null?Number(m.id):Number(m.originalId),name:m.name||'Imported',kind:Number(m.type)===1?'cloze':'normal',css:m.css||'',fields,templates,latexPre:m.latexPre||'',latexPost:m.latexPost||'',latexsvg:!!m.latexsvg,originalStockKind:Number(m.originalStockKind)||0,updatedAt:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined,ankiMtime:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined};
+    return {id:Number(m.id),ankiId:Number(m.id),originalId:m.originalId==null?Number(m.id):Number(m.originalId),name:m.name||'Imported',kind:Number(m.type)===1?'cloze':'normal',sortf:Math.max(0,Number(m.sortf)||0),did:m.did==null?null:Number(m.did),css:m.css||'',fields,templates,latexPre:m.latexPre||'',latexPost:m.latexPost||'',latexsvg:!!m.latexsvg,originalStockKind:Number(m.originalStockKind)||0,updatedAt:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined,ankiMtime:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined};
   },
   _deckCfg(d){
     const w=Array.isArray(d.fsrsParams6)&&d.fsrsParams6.length===21?d.fsrsParams6:null;
@@ -35353,6 +35406,434 @@ const AnkiMaxParity = {
   replayOwnVoice(){if(!this._voiceUrl){showToast('Nenhuma gravação de voz nesta sessão');return;}try{new Audio(this._voiceUrl).play().catch(()=>showToast('Não foi possível reproduzir a gravação'));}catch(_){showToast('Não foi possível reproduzir a gravação');}}
 };
 queueMicrotask(()=>AnkiMaxParity.install());
+
+/* ============================================================
+   PARIDADE MÁXIMA — EDITOR / NOTE TYPES
+   Expõe metadados do schema moderno sem substituir o editor simples.
+   ============================================================ */
+const AnkiMaxEditor = {
+  _richEditingNote:null,_recorders:new Map(),
+
+  install(){
+    if(this._installed||typeof AnkiProductParity==='undefined'||typeof AnkiParity==='undefined')return;
+    this._installed=true;
+    this._patchNoteTypes();
+    this._patchNoteEditor();
+    this._patchAdvancedAdd();
+  },
+
+  esc(v){return AnkiProductParity.esc(v);},
+  _deckOptions(value){
+    const ds=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    return '<option value="">— padrão do template/baralho —</option>'+ds.map(d=>'<option value="'+this.esc(d.ankiId||d.id)+'" '+(String(value||'')===String(d.ankiId||d.id)?'selected':'')+'>'+this.esc(d.nome)+'</option>').join('');
+  },
+
+  /* ───────────────── NOTE TYPES ───────────────── */
+  _patchNoteTypes(){
+    const modal=document.getElementById('anki-nt-edit-modal');if(!modal)return;
+    const nameField=document.getElementById('anki-nt-name')&&document.getElementById('anki-nt-name').closest('.field');
+    if(nameField&&!document.getElementById('anki-nt-meta')){
+      const d=document.createElement('div');d.id='anki-nt-meta';d.className='anki-nt-meta';d.innerHTML=
+        '<div class="field-group"><div class="field"><label>Campo de ordenação</label><select id="anki-nt-sortf"></select></div>'+
+        '<div class="field"><label><input id="anki-nt-latexsvg" type="checkbox"> LaTeX em SVG</label><input id="anki-nt-stock-kind" type="text" readonly title="OriginalStockKind"></div></div>'+
+        '<details><summary>Configuração LaTeX</summary><div class="field"><label>Preâmbulo LaTeX</label><textarea id="anki-nt-latex-pre" class="anki-code-area"></textarea></div>'+
+        '<div class="field"><label>Pós-LaTeX</label><textarea id="anki-nt-latex-post" class="anki-code-area"></textarea></div></details>';
+      nameField.insertAdjacentElement('afterend',d);
+    }
+
+    AnkiProductParity._appendFieldRow=(field,source)=>{
+      const f=typeof field==='object'&&field?field:{name:String(field||'')},src=source==null?(f.name||''):source,d=document.createElement('div');
+      d.className='anki-field-row anki-field-row-max';d.dataset.source=src;d.dataset.preventDeletion=f.preventDeletion?'1':'0';
+      d.innerHTML=
+        '<span class="anki-drag-actions"><button type="button" class="icon-btn" data-move="up">↑</button><button type="button" class="icon-btn" data-move="down">↓</button></span>'+
+        '<div class="anki-field-main"><input class="anki-field-name" type="text" value="'+this.esc(f.name||'')+'" placeholder="Nome do campo">'+
+        '<details class="anki-field-advanced"><summary>Opções do campo</summary><div class="anki-field-options">'+
+        '<label>Descrição<input class="anki-field-description" type="text" value="'+this.esc(f.description||'')+'"></label>'+
+        '<label>Fonte<input class="anki-field-font" type="text" value="'+this.esc(f.fontName||f.font||'Arial')+'"></label>'+
+        '<label>Tamanho<input class="anki-field-size" type="number" min="1" max="200" value="'+this.esc(Number(f.fontSize||f.size)||20)+'"></label>'+
+        '<label class="check-label"><input class="anki-field-sticky" type="checkbox" '+(f.sticky?'checked':'')+'> Sticky</label>'+
+        '<label class="check-label"><input class="anki-field-rtl" type="checkbox" '+(f.rtl?'checked':'')+'> RTL</label>'+
+        '<label class="check-label"><input class="anki-field-plain" type="checkbox" '+(f.plainText?'checked':'')+'> Texto simples</label>'+
+        '<label class="check-label"><input class="anki-field-collapsed" type="checkbox" '+(f.collapsed?'checked':'')+'> Recolhido</label>'+
+        '<label class="check-label"><input class="anki-field-exclude" type="checkbox" '+(f.excludeFromSearch?'checked':'')+'> Excluir da busca</label>'+
+        '<label class="check-label"><input class="anki-field-protect" type="checkbox" '+(f.preventDeletion?'checked':'')+'> Proteger exclusão</label>'+
+        '<span class="hint">ID '+this.esc(f.id==null?'—':f.id)+' · tag '+this.esc(f.tag==null?'—':f.tag)+'</span>'+
+        '</div></details></div>'+
+        '<button type="button" class="icon-btn danger" data-remove '+(f.preventDeletion?'disabled title="Campo protegido pelo tipo de nota"':'')+'>×</button>';
+      d._ankiMeta=JSON.parse(JSON.stringify(f));document.getElementById('anki-nt-fields').appendChild(d);
+    };
+
+    AnkiProductParity._appendTemplateRow=(t,sourceOrd)=>{
+      t=t||{};const d=document.createElement('div');d.className='anki-template-editor anki-template-editor-max';d.dataset.sourceOrd=sourceOrd==null?'':sourceOrd;d._ankiMeta=JSON.parse(JSON.stringify(t));
+      d.innerHTML=
+        '<div class="anki-template-head"><input class="anki-template-name" type="text" value="'+this.esc(t.name||'Card')+'"><span><button type="button" class="icon-btn" data-move="up">↑</button><button type="button" class="icon-btn" data-move="down">↓</button><button type="button" class="icon-btn danger" data-remove>×</button></span></div>'+
+        '<div class="anki-template-grid"><div><label>Frente</label><textarea class="anki-code-area anki-qfmt" spellcheck="false">'+this.esc(t.qfmt||'')+'</textarea></div>'+
+        '<div><label>Verso</label><textarea class="anki-code-area anki-afmt" spellcheck="false">'+this.esc(t.afmt||'')+'</textarea></div></div>'+
+        '<details class="anki-template-advanced"><summary>Browser e propriedades avançadas</summary>'+
+        '<div class="anki-template-grid"><div><label>Browser Front</label><textarea class="anki-code-area anki-bqfmt" spellcheck="false">'+this.esc(t.bqfmt||'')+'</textarea></div>'+
+        '<div><label>Browser Back</label><textarea class="anki-code-area anki-bafmt" spellcheck="false">'+this.esc(t.bafmt||'')+'</textarea></div></div>'+
+        '<div class="field-group"><div class="field"><label>Deck override</label><select class="anki-template-did">'+this._deckOptions(t.did)+'</select></div>'+
+        '<div class="field"><label>Fonte no Browser</label><input class="anki-template-bfont" type="text" value="'+this.esc(t.bfont||'')+'"></div>'+
+        '<div class="field"><label>Tamanho no Browser</label><input class="anki-template-bsize" type="number" min="0" max="200" value="'+this.esc(Number(t.bsize)||0)+'"></div></div>'+
+        '<p class="hint">Template ID: '+this.esc(t.id==null?'—':t.id)+'</p></details>';
+      document.getElementById('anki-nt-templates').appendChild(d);
+    };
+
+    AnkiProductParity.openNotetypeEditor=(id)=>{
+      const nt=AnkiParity.getNotetype(id);if(!nt)return;AnkiProductParity._editingNtId=String(id);AnkiProductParity._editingNtOriginal=JSON.parse(JSON.stringify(nt));
+      document.getElementById('anki-nt-edit-sub').textContent=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length+' nota(s) usam este tipo';
+      document.getElementById('anki-nt-name').value=nt.name||'';
+      const fb=document.getElementById('anki-nt-fields');fb.innerHTML='';(nt.fields||[]).forEach(f=>AnkiProductParity._appendFieldRow(f,f.name));
+      const tb=document.getElementById('anki-nt-templates');tb.innerHTML='';(nt.templates||[]).forEach((t,i)=>AnkiProductParity._appendTemplateRow(t,t.ord==null?i:t.ord));
+      document.getElementById('anki-nt-css').value=nt.css||'';
+      const sort=document.getElementById('anki-nt-sortf');sort.innerHTML=(nt.fields||[]).map((f,i)=>'<option value="'+i+'">'+this.esc(f.name)+'</option>').join('');sort.value=String(Number(nt.sortf)||0);
+      document.getElementById('anki-nt-latex-pre').value=nt.latexPre||'';document.getElementById('anki-nt-latex-post').value=nt.latexPost||'';document.getElementById('anki-nt-latexsvg').checked=!!nt.latexsvg;
+      document.getElementById('anki-nt-stock-kind').value='OriginalStockKind: '+(Number(nt.originalStockKind)||0);
+      document.getElementById('anki-nt-edit-modal').style.display='flex';
+    };
+
+    AnkiProductParity.saveNotetypeEditor=()=>{
+      const old=AnkiProductParity._editingNtOriginal;if(!old)return;
+      const fieldRows=[...document.querySelectorAll('#anki-nt-fields .anki-field-row')],templateRows=[...document.querySelectorAll('#anki-nt-templates .anki-template-editor')];
+      const names=fieldRows.map(r=>String(r.querySelector('.anki-field-name').value||'').trim());
+      if(!names.length||names.some(x=>!x)){showToast('Todo tipo precisa de ao menos um campo com nome.');return;}
+      if(new Set(names.map(x=>x.toLowerCase())).size!==names.length){showToast('Os nomes dos campos precisam ser únicos.');return;}
+      if(!templateRows.length){showToast('Todo tipo precisa de ao menos um template.');return;}
+      const nt=JSON.parse(JSON.stringify(old));nt.name=String(document.getElementById('anki-nt-name').value||'').trim()||old.name;
+      nt.sortf=Math.max(0,Math.min(fieldRows.length-1,Number(document.getElementById('anki-nt-sortf').value)||0));
+      nt.latexPre=document.getElementById('anki-nt-latex-pre').value;nt.latexPost=document.getElementById('anki-nt-latex-post').value;nt.latexsvg=document.getElementById('anki-nt-latexsvg').checked;
+      nt.fields=fieldRows.map((r,i)=>{
+        const base=JSON.parse(JSON.stringify(r._ankiMeta||{}));
+        return Object.assign(base,{name:names[i],ord:i,_source:r.dataset.source||'',
+          description:r.querySelector('.anki-field-description').value,fontName:r.querySelector('.anki-field-font').value||'Arial',
+          fontSize:Math.max(1,Number(r.querySelector('.anki-field-size').value)||20),sticky:r.querySelector('.anki-field-sticky').checked,
+          rtl:r.querySelector('.anki-field-rtl').checked,plainText:r.querySelector('.anki-field-plain').checked,
+          collapsed:r.querySelector('.anki-field-collapsed').checked,excludeFromSearch:r.querySelector('.anki-field-exclude').checked,
+          preventDeletion:r.querySelector('.anki-field-protect').checked});
+      });
+      nt.templates=templateRows.map((r,i)=>{
+        const base=JSON.parse(JSON.stringify(r._ankiMeta||{})),did=r.querySelector('.anki-template-did').value;
+        return Object.assign(base,{name:String(r.querySelector('.anki-template-name').value||('Card '+(i+1))).trim(),ord:i,_sourceOrd:r.dataset.sourceOrd,
+          qfmt:r.querySelector('.anki-qfmt').value,afmt:r.querySelector('.anki-afmt').value,bqfmt:r.querySelector('.anki-bqfmt').value,bafmt:r.querySelector('.anki-bafmt').value,
+          did:did?Number(did)||did:null,bfont:r.querySelector('.anki-template-bfont').value,bsize:Math.max(0,Number(r.querySelector('.anki-template-bsize').value)||0)});
+      });
+      nt.css=document.getElementById('anki-nt-css').value;
+      const notes=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(nt.id)),removed=(old.fields||[]).filter(f=>!nt.fields.some(nf=>nf._source===f.name));
+      const dataLoss=removed.some(f=>notes.some(n=>AnkiParity._fieldNonempty(n.fields&&n.fields[f.name])));
+      const apply=()=>AnkiProductParity._applyNotetypeEdit(old,nt,notes);
+      if(dataLoss)UI.confirm('Há conteúdo em campo(s) removido(s). Salvar apagará esse conteúdo das notas que usam o tipo.',{title:'⚠ Campo com conteúdo',okText:'Salvar mesmo assim',danger:true}).then(ok=>{if(ok)apply();});else apply();
+    };
+  },
+
+  /* ───────────────── RICH NOTE EDITOR ───────────────── */
+  _fieldEditorHtml(f,value,prefix){
+    const id=prefix+'-'+String(f.ord==null?0:f.ord),style='font-family:'+this.esc(f.fontName||'Arial')+';font-size:'+this.esc(Number(f.fontSize)||20)+'px;'+(f.rtl?'direction:rtl;text-align:right;':'');
+    const hint=f.description?'<p class="hint">'+this.esc(f.description)+'</p>':'';
+    if(f.plainText)return '<div class="field anki-max-field" data-field="'+this.esc(f.name)+'"><label>'+this.esc(f.name)+(f.sticky?' · 📌':'')+'</label>'+hint+'<textarea id="'+id+'" class="anki-note-field anki-max-plain" data-field="'+this.esc(f.name)+'" rows="4" style="'+style+'">'+this.esc(value||'')+'</textarea></div>';
+    return '<div class="field anki-max-field '+(f.collapsed?'anki-field-collapsed':'')+'" data-field="'+this.esc(f.name)+'"><label>'+this.esc(f.name)+(f.sticky?' · 📌':'')+'</label>'+hint+
+      '<div class="rte anki-max-rte" data-target="'+id+'" data-start-collapsed="'+(f.collapsed?'1':'0')+'"><div class="rte-toolbar"></div><div class="rte-area anki-note-field" id="'+id+'" data-field="'+this.esc(f.name)+'" contenteditable="true" style="'+style+'">'+String(value||'')+'</div></div></div>';
+  },
+  _decorateRichEditors(root){
+    root.querySelectorAll('.anki-max-rte').forEach(rte=>{
+      try{if(typeof buildRteToolbar==='function')buildRteToolbar(rte);}catch(e){console.warn('RTE avançado',e);}
+      const tb=rte.querySelector('.rte-toolbar'),area=document.getElementById(rte.dataset.target);if(!tb||!area||tb.querySelector('.anki-extra-media'))return;
+      const grp=document.createElement('div');grp.className='rte-grp anki-extra-media';grp.innerHTML=
+        '<button type="button" data-anki-audio title="Inserir áudio">🔊</button><button type="button" data-anki-video title="Inserir vídeo">🎬</button>'+
+        '<button type="button" data-anki-record title="Gravar áudio">🎤</button><button type="button" data-anki-math title="Inserir MathJax">∑</button><button type="button" data-anki-html title="Editar HTML">&lt;/&gt;</button>';
+      tb.appendChild(grp);grp.querySelectorAll('button').forEach(b=>b.addEventListener('mousedown',e=>e.preventDefault()));
+      grp.querySelector('[data-anki-audio]').onclick=()=>this._pickMedia(area,'audio/*','audio');
+      grp.querySelector('[data-anki-video]').onclick=()=>this._pickMedia(area,'video/*','video');
+      grp.querySelector('[data-anki-math]').onclick=()=>UI.prompt([{key:'tex',label:'MathJax / LaTeX',type:'textarea',rows:4,value:''},{key:'display',label:'Modo',type:'select',value:'inline',options:[{value:'inline',label:'Inline'},{value:'display',label:'Bloco'}]}],{title:'∑ Inserir matemática',okText:'Inserir'}).then(v=>{if(!v||!v.tex)return;this._insertHtml(area,v.display==='display'?'\\['+this.esc(v.tex)+'\\]':'\\('+this.esc(v.tex)+'\\)');});
+      grp.querySelector('[data-anki-html]').onclick=()=>UI.prompt([{key:'html',label:'HTML do campo',type:'textarea',rows:12,value:area.innerHTML}],{title:'</> Editar HTML',okText:'Aplicar'}).then(v=>{if(v)area.innerHTML=String(v.html||'');});
+      grp.querySelector('[data-anki-record]').onclick=()=>this._toggleRecordInto(area,grp.querySelector('[data-anki-record]'));
+    });
+  },
+  _insertHtml(area,html){area.focus();try{document.execCommand('insertHTML',false,html);}catch(_){area.insertAdjacentHTML('beforeend',html);}},
+  _pickMedia(area,accept,tag){
+    const inp=document.createElement('input');inp.type='file';inp.accept=accept;inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),html=tag==='video'?'<video controls preload="metadata" src="'+this.esc(src)+'"></video>':'<audio controls preload="none" src="'+this.esc(src)+'"></audio>';this._insertHtml(area,html);};r.readAsDataURL(f);};inp.click();
+  },
+  async _toggleRecordInto(area,btn){
+    if(this._recorders.has(area)){
+      const x=this._recorders.get(area);if(x.rec.state!=='inactive')x.rec.stop();return;
+    }
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia||!window.MediaRecorder){showToast('Microfone indisponível');return;}
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({audio:true}),chunks=[],rec=new MediaRecorder(stream);this._recorders.set(area,{rec,stream,chunks});btn.textContent='■';btn.title='Parar gravação';
+      rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+      rec.onstop=()=>{stream.getTracks().forEach(t=>t.stop());this._recorders.delete(area);btn.textContent='🎤';btn.title='Gravar áudio';const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'}),fr=new FileReader();fr.onload=()=>this._insertHtml(area,'<audio controls preload="none" src="'+this.esc(String(fr.result||''))+'"></audio>');fr.readAsDataURL(blob);};
+      rec.start();
+    }catch(_){showToast('Não foi possível acessar o microfone');}
+  },
+
+  _patchNoteEditor(){
+    const save=document.getElementById('anki-note-save');if(save)save.addEventListener('click',e=>{if(!this._richEditingNote)return;e.preventDefault();e.stopImmediatePropagation();this._saveRichNote();},true);
+    AnkiProductParity.openNoteEditor=(id)=>{
+      const note=AnkiParity.getNote(id);if(!note)return;const nt=AnkiProductParity._typeFor(note);if(typeof AnkiImageOcclusion!=='undefined'&&AnkiImageOcclusion.isType(nt)){AnkiImageOcclusion.openEditor(id,(AnkiProductParity._cardsForNote(id).find(c=>c.deckId)||{}).deckId);return;}
+      this._richEditingNote=String(id);AnkiProductParity._editingNoteId=String(id);
+      document.getElementById('anki-note-edit-title').textContent='✎ Editar nota';document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+AnkiProductParity._cardsForNote(id).length+' card(s)';
+      const body=document.getElementById('anki-note-edit-body');
+      body.innerHTML=(nt&&nt.fields||[]).map((f,i)=>this._fieldEditorHtml(Object.assign({ord:i},f),note.fields&&note.fields[f.name]||'','anki-note-'+id)).join('')+
+        '<div class="field"><label>Tags</label><input id="anki-note-tags" type="text" value="'+this.esc((note.tags||[]).join(' '))+'" placeholder="tag1 tag2::subtag"></div>';
+      this._decorateRichEditors(body);document.getElementById('anki-note-edit-modal').style.display='flex';
+    };
+  },
+  _saveRichNote(){
+    const id=this._richEditingNote,note=AnkiParity.getNote(id);if(!note)return;const nt=AnkiProductParity._typeFor(note),fields={};
+    document.querySelectorAll('#anki-note-edit-body .anki-note-field').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
+    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean),saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}));
+    AnkiProductParity.reconcileNote(saved,nt);this._richEditingNote=null;document.getElementById('anki-note-edit-modal').style.display='none';AnkiProductParity.renderBrowser();AnkiProductParity.previewNote(saved.id);CardsScreen.render();showToast('Nota atualizada ✓');
+  },
+
+  /* ───────────────── ADVANCED ADD ───────────────── */
+  _stickyKey(nt){return 'snm-anki-sticky:'+String(nt&&nt.id||'');},
+  _stickyRead(nt){try{return JSON.parse(sessionStorage.getItem(this._stickyKey(nt))||'{}')||{};}catch(_){return {};}},
+  _stickyWrite(nt,fields){const o={};(nt.fields||[]).forEach(f=>{if(f.sticky)o[f.name]=fields[f.name]||'';});try{sessionStorage.setItem(this._stickyKey(nt),JSON.stringify(o));}catch(_){}},
+  _patchAdvancedAdd(){
+    const save=document.getElementById('anki-advanced-save');if(save)save.addEventListener('click',e=>{if(!document.querySelector('#anki-advanced-fields .anki-advanced-field-max'))return;e.preventDefault();e.stopImmediatePropagation();this._saveAdvancedRich();},true);
+    AnkiImageOcclusion._renderAdvancedFields=()=>{
+      const nt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value),box=document.getElementById('anki-advanced-fields');if(!nt)return;
+      if(AnkiImageOcclusion.isType(nt)){box.innerHTML='<div class="card" style="padding:12px"><strong>Oclusão de imagem</strong><p class="hint">Use o editor de máscaras para gerar cards independentes a partir da imagem.</p><button type="button" class="btn-primary" id="anki-advanced-open-io">Abrir editor de máscaras</button></div>';document.getElementById('anki-advanced-save').style.display='none';document.getElementById('anki-advanced-open-io').onclick=()=>{document.getElementById('anki-advanced-add-modal').style.display='none';AnkiImageOcclusion.openEditor(null,document.getElementById('anki-advanced-deck').value);};return;}
+      document.getElementById('anki-advanced-save').style.display='';const sticky=this._stickyRead(nt);
+      box.innerHTML=(nt.fields||[]).map((f,i)=>this._fieldEditorHtml(Object.assign({ord:i},f),f.sticky?sticky[f.name]||'':'','anki-advanced-'+nt.id).replace(/anki-note-field/g,'anki-note-field anki-advanced-field-max')).join('');
+      this._decorateRichEditors(box);
+    };
+  },
+  _saveAdvancedRich(){
+    const nt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!nt)return;const fields={};
+    document.querySelectorAll('#anki-advanced-fields .anki-advanced-field-max').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
+    if(nt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
+    const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean)});
+    AnkiProductParity.reconcileNote(note,nt);const deck=document.getElementById('anki-advanced-deck').value;AnkiProductParity._cardsForNote(note.id).forEach(c=>DB.updateCard(c.id,{deckId:deck||null}));this._stickyWrite(nt,fields);
+    document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+AnkiProductParity._cardsForNote(note.id).length+' card(s) ✓');
+  }
+};
+queueMicrotask(()=>AnkiMaxEditor.install());
+
+/* ============================================================
+   PARIDADE MÁXIMA — IMAGE OCCLUSION TOOLS
+   Seleção, mover/redimensionar, zoom, histórico, duplicar,
+   agrupar/desagrupar, alinhamento e opacidade.
+   ============================================================ */
+const AnkiMaxImageOcclusion = {
+  install(){
+    if(this._installed||typeof AnkiImageOcclusion==='undefined')return;
+    this._installed=true;
+    this._injectTools();
+    this._patchLifecycle();
+    this._patchPointerModel();
+    this._patchRender();
+    this._bindShortcuts();
+  },
+
+  _clone(v){return JSON.parse(JSON.stringify(v));},
+  _ensureState(){
+    const s=AnkiImageOcclusion.state;
+    if(!Array.isArray(s.selected))s.selected=[];
+    if(!Array.isArray(s.undoStack))s.undoStack=[];
+    if(!Array.isArray(s.redoStack))s.redoStack=[];
+    if(!(Number(s.zoom)>0))s.zoom=1;
+    if(s.translucent==null)s.translucent=false;
+    if(!s.maskColor)s.maskColor='#ff8e8e';
+    return s;
+  },
+  _snapshot(){
+    const s=this._ensureState();return {shapes:this._clone(s.shapes||[]),polygon:this._clone(s.polygon||[]),selected:(s.selected||[]).slice(),occludeInactive:!!s.occludeInactive,groupOrdinal:s.groupOrdinal||1};
+  },
+  _restore(x){
+    if(!x)return;const s=this._ensureState();s.shapes=this._clone(x.shapes||[]);s.polygon=this._clone(x.polygon||[]);s.selected=(x.selected||[]).filter(i=>i>=0&&i<s.shapes.length);s.occludeInactive=!!x.occludeInactive;s.groupOrdinal=x.groupOrdinal||1;
+    const oi=document.getElementById('anki-io-occlude-inactive');if(oi)oi.checked=s.occludeInactive;AnkiImageOcclusion._renderEditor();this._syncButtons();
+  },
+  _push(){
+    const s=this._ensureState();s.undoStack.push(this._snapshot());if(s.undoStack.length>60)s.undoStack.shift();s.redoStack=[];this._syncButtons();
+  },
+  undo(){
+    const s=this._ensureState();if(!s.undoStack.length)return;s.redoStack.push(this._snapshot());this._restore(s.undoStack.pop());
+  },
+  redo(){
+    const s=this._ensureState();if(!s.redoStack.length)return;s.undoStack.push(this._snapshot());this._restore(s.redoStack.pop());
+  },
+
+  _injectTools(){
+    const tb=document.querySelector('#anki-io-modal .anki-io-toolbar');if(!tb||document.getElementById('anki-io-select'))return;
+    const first=tb.firstElementChild;
+    const sel=document.createElement('button');sel.type='button';sel.className='btn-secondary io-tool';sel.id='anki-io-select';sel.dataset.tool='select';sel.textContent='↖ Selecionar';tb.insertBefore(sel,first);
+    const extra=document.createElement('div');extra.className='anki-io-max-tools';extra.innerHTML=
+      '<button type="button" class="btn-secondary" id="anki-io-redo" title="Refazer">↷</button>'+
+      '<button type="button" class="btn-secondary" id="anki-io-duplicate" title="Duplicar seleção">⧉</button>'+
+      '<button type="button" class="btn-secondary" id="anki-io-delete-selected" title="Excluir seleção">⌫</button>'+
+      '<button type="button" class="btn-secondary" id="anki-io-group" title="Agrupar máscaras no mesmo card">⛓ Agrupar</button>'+
+      '<button type="button" class="btn-secondary" id="anki-io-ungroup" title="Desagrupar máscaras">⛓‍💥</button>'+
+      '<button type="button" class="btn-secondary" id="anki-io-align" title="Alinhar seleção">≡ Alinhar</button>'+
+      '<button type="button" class="btn-secondary" id="anki-io-opacity" title="Alternar transparência">◐</button>'+
+      '<label class="anki-io-color" title="Cor das máscaras"><input id="anki-io-color" type="color" value="#ff8e8e"></label>'+
+      '<span class="anki-io-zoom"><button type="button" class="btn-secondary" id="anki-io-zoom-out">−</button><button type="button" class="btn-secondary" id="anki-io-zoom-reset">100%</button><button type="button" class="btn-secondary" id="anki-io-zoom-in">＋</button></span>';
+    tb.appendChild(extra);
+
+    document.getElementById('anki-io-redo').addEventListener('click',()=>this.redo());
+    document.getElementById('anki-io-duplicate').addEventListener('click',()=>this.duplicate());
+    document.getElementById('anki-io-delete-selected').addEventListener('click',()=>this.deleteSelected());
+    document.getElementById('anki-io-group').addEventListener('click',()=>this.group());
+    document.getElementById('anki-io-ungroup').addEventListener('click',()=>this.ungroup());
+    document.getElementById('anki-io-align').addEventListener('click',()=>this.alignPrompt());
+    document.getElementById('anki-io-opacity').addEventListener('click',()=>{const s=this._ensureState();s.translucent=!s.translucent;AnkiImageOcclusion._renderEditor();this._syncButtons();});
+    document.getElementById('anki-io-color').addEventListener('input',e=>{this._ensureState().maskColor=e.target.value;AnkiImageOcclusion._renderEditor();});
+    document.getElementById('anki-io-zoom-out').addEventListener('click',()=>this.zoomBy(1/1.2));
+    document.getElementById('anki-io-zoom-in').addEventListener('click',()=>this.zoomBy(1.2));
+    document.getElementById('anki-io-zoom-reset').addEventListener('click',()=>this.setZoom(1));
+
+    const undo=document.getElementById('anki-io-undo');if(undo){undo.textContent='↶ Desfazer';undo.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();this.undo();},true);}
+    const clear=document.getElementById('anki-io-clear');if(clear)clear.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const s=this._ensureState();if(!s.shapes.length)return;this._push();s.shapes=[];s.selected=[];s.polygon=[];AnkiImageOcclusion._renderEditor();},true);
+  },
+
+  _patchLifecycle(){
+    const oldOpen=AnkiImageOcclusion.openEditor.bind(AnkiImageOcclusion);
+    AnkiImageOcclusion.openEditor=(noteId,deckId)=>{
+      oldOpen(noteId,deckId);const s=this._ensureState();s.selected=[];s.undoStack=[];s.redoStack=[];s.zoom=1;s.translucent=false;s.maskColor='#ff8e8e';s.drag=null;
+      const c=document.getElementById('anki-io-color');if(c)c.value=s.maskColor;this._syncButtons();AnkiImageOcclusion._renderEditor();
+    };
+    const oldSelect=AnkiImageOcclusion._selectTool.bind(AnkiImageOcclusion);
+    AnkiImageOcclusion._selectTool=(tool)=>{
+      oldSelect(tool);const s=this._ensureState();if(tool!=='select')s.drag=null;this._syncButtons();
+    };
+    const oldFinish=AnkiImageOcclusion._finishPolygon.bind(AnkiImageOcclusion);
+    AnkiImageOcclusion._finishPolygon=()=>{const s=this._ensureState();if(s.polygon.length>=3)this._push();oldFinish();};
+  },
+
+  _bounds(shape){
+    if(!shape)return {left:0,top:0,right:0,bottom:0,width:0,height:0};
+    if(shape.type==='polygon'&&shape.points&&shape.points.length){
+      const xs=shape.points.map(p=>p.x),ys=shape.points.map(p=>p.y),left=Math.min(...xs),right=Math.max(...xs),top=Math.min(...ys),bottom=Math.max(...ys);return {left,top,right,bottom,width:right-left,height:bottom-top};
+    }
+    const left=Number(shape.left)||0,top=Number(shape.top)||0,width=Math.max(.005,Number(shape.width)||.02),height=Math.max(.005,Number(shape.height)||.02);
+    return {left,top,right:left+width,bottom:top+height,width,height};
+  },
+  _pointInPolygon(p,pts){
+    let inside=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+      const a=pts[i],b=pts[j],hit=((a.y>p.y)!==(b.y>p.y))&&(p.x<(b.x-a.x)*(p.y-a.y)/((b.y-a.y)||1e-9)+a.x);if(hit)inside=!inside;
+    }return inside;
+  },
+  _hit(p){
+    const shapes=this._ensureState().shapes||[];
+    for(let i=shapes.length-1;i>=0;i--){const s=shapes[i],b=this._bounds(s);
+      if(s.type==='polygon'){if(this._pointInPolygon(p,s.points||[]))return i;}
+      else if(p.x>=b.left&&p.x<=b.right&&p.y>=b.top&&p.y<=b.bottom)return i;
+    }return -1;
+  },
+  _nearResize(p,shape){
+    const b=this._bounds(shape),tol=.018/Math.max(.5,this._ensureState().zoom||1);return Math.abs(p.x-b.right)<=tol&&Math.abs(p.y-b.bottom)<=tol;
+  },
+  _shiftShape(shape,dx,dy){
+    if(shape.type==='polygon'&&shape.points)shape.points.forEach(p=>{p.x=Math.max(0,Math.min(1,p.x+dx));p.y=Math.max(0,Math.min(1,p.y+dy));});
+    else{shape.left=Math.max(0,Math.min(1-(shape.width||0),Number(shape.left||0)+dx));shape.top=Math.max(0,Math.min(1-(shape.height||0),Number(shape.top||0)+dy));}
+  },
+
+  _patchPointerModel(){
+    const oldDown=AnkiImageOcclusion._pointerDown.bind(AnkiImageOcclusion),oldMove=AnkiImageOcclusion._pointerMove.bind(AnkiImageOcclusion),oldUp=AnkiImageOcclusion._pointerUp.bind(AnkiImageOcclusion);
+    AnkiImageOcclusion._pointerDown=(e)=>{
+      const s=this._ensureState();if(!s.img)return;
+      if(s.tool!=='select'){
+        if(s.tool==='rect'||s.tool==='ellipse')this._push();
+        if(s.tool==='text'){
+          const p=AnkiImageOcclusion._canvasPoint(e);UI.prompt([{key:'txt',label:'Texto',type:'text',value:''}],{title:'Texto sobre a imagem',okText:'Adicionar'}).then(v=>{if(v&&v.txt){this._push();s.shapes.push({type:'text',ordinal:0,oi:false,left:p.x,top:p.y,width:.1,height:.05,text:v.txt});s.selected=[s.shapes.length-1];AnkiImageOcclusion._renderEditor();}});return;
+        }
+        return oldDown(e);
+      }
+      const p=AnkiImageOcclusion._canvasPoint(e),idx=this._hit(p);
+      if(idx<0){if(!e.shiftKey)s.selected=[];s.drag=null;AnkiImageOcclusion._renderEditor();return;}
+      if(e.shiftKey){const at=s.selected.indexOf(idx);if(at>=0)s.selected.splice(at,1);else s.selected.push(idx);AnkiImageOcclusion._renderEditor();return;}
+      if(!s.selected.includes(idx))s.selected=[idx];
+      this._push();
+      const primary=s.shapes[idx],resize=s.selected.length===1&&primary.type!=='polygon'&&this._nearResize(p,primary);
+      s.drag={mode:resize?'resize':'move',start:p,selected:s.selected.slice(),original:s.selected.map(i=>({i,shape:this._clone(s.shapes[i])}))};
+      e.currentTarget.setPointerCapture&&e.currentTarget.setPointerCapture(e.pointerId);AnkiImageOcclusion._renderEditor();
+    };
+    AnkiImageOcclusion._pointerMove=(e)=>{
+      const s=this._ensureState();if(s.tool!=='select'||!s.drag)return oldMove(e);
+      const p=AnkiImageOcclusion._canvasPoint(e),dx=p.x-s.drag.start.x,dy=p.y-s.drag.start.y;
+      s.drag.original.forEach(({i,shape})=>{s.shapes[i]=this._clone(shape);if(s.drag.mode==='move')this._shiftShape(s.shapes[i],dx,dy);else{const x=s.shapes[i];x.width=Math.max(.005,Math.min(1-(x.left||0),(Number(shape.width)||.02)+dx));x.height=Math.max(.005,Math.min(1-(x.top||0),(Number(shape.height)||.02)+dy));}});
+      AnkiImageOcclusion._renderEditor();
+    };
+    AnkiImageOcclusion._pointerUp=(e)=>{
+      const s=this._ensureState();if(s.tool!=='select'||!s.drag)return oldUp(e);s.drag=null;AnkiImageOcclusion._renderEditor();this._syncButtons();
+    };
+  },
+
+  _patchRender(){
+    const oldRender=AnkiImageOcclusion._renderEditor.bind(AnkiImageOcclusion);
+    AnkiImageOcclusion._drawShape=(ctx,s,w,h,preview)=>{
+      const st=this._ensureState();ctx.save();
+      const maskColor=preview?'rgba(78,136,255,.35)':(s.ordinal===0?'rgba(255,255,255,.72)':st.maskColor||'#ff8e8e');
+      ctx.globalAlpha=preview?1:(st.translucent?.4:1);ctx.fillStyle=maskColor;ctx.strokeStyle=s.ordinal===0?'#333':'#b22';ctx.lineWidth=Math.max(1,w/500);
+      if(s.type==='rect'||s.type==='ellipse'){
+        const x=s.left*w,y=s.top*h,ww=s.width*w,hh=s.height*h;ctx.beginPath();if(s.type==='ellipse')ctx.ellipse(x+ww/2,y+hh/2,ww/2,hh/2,0,0,Math.PI*2);else ctx.rect(x,y,ww,hh);ctx.fill();ctx.stroke();
+      }else if(s.type==='polygon'&&s.points&&s.points.length){
+        ctx.beginPath();s.points.forEach((p,i)=>(i?ctx.lineTo(p.x*w,p.y*h):ctx.moveTo(p.x*w,p.y*h)));ctx.closePath();ctx.fill();ctx.stroke();
+      }else if(s.type==='text'){
+        ctx.globalAlpha=1;ctx.fillStyle='#111';ctx.font=Math.max(12,w/35)+'px sans-serif';ctx.fillText(s.text||'',s.left*w,s.top*h);
+      }
+      ctx.restore();
+    };
+    AnkiImageOcclusion._renderEditor=()=>{
+      oldRender();const s=this._ensureState(),c=document.getElementById('anki-io-canvas');if(!c)return;
+      if(s.img){c.style.width=(100*s.zoom)+'%';c.style.maxWidth='none';const ctx=c.getContext('2d');ctx.save();ctx.strokeStyle='#2563eb';ctx.fillStyle='#2563eb';ctx.lineWidth=Math.max(2,c.width/450);ctx.setLineDash([6,4]);
+        (s.selected||[]).forEach(i=>{const sh=s.shapes[i];if(!sh)return;const b=this._bounds(sh),x=b.left*c.width,y=b.top*c.height,w=b.width*c.width,h=b.height*c.height;ctx.strokeRect(x,y,w,h);ctx.setLineDash([]);ctx.fillRect(x+w-5,y+h-5,10,10);ctx.setLineDash([6,4]);});
+        ctx.restore();
+      }
+      const list=document.getElementById('anki-io-mask-list');if(list)list.querySelectorAll('[data-io-del]').forEach((b,i)=>{const row=b.parentElement;if(row)row.classList.toggle('is-selected',(s.selected||[]).includes(i));});
+      this._syncButtons();
+    };
+  },
+
+  _syncButtons(){
+    const s=this._ensureState(),has=s.selected.length>0,multi=s.selected.length>1;
+    const set=(id,dis)=>{const b=document.getElementById(id);if(b)b.disabled=!!dis;};
+    set('anki-io-redo',!s.redoStack.length);set('anki-io-undo',!s.undoStack.length);set('anki-io-duplicate',!has);set('anki-io-delete-selected',!has);set('anki-io-group',!multi);set('anki-io-ungroup',!has);set('anki-io-align',!multi);
+    const op=document.getElementById('anki-io-opacity');if(op)op.classList.toggle('active',!!s.translucent);
+    const zr=document.getElementById('anki-io-zoom-reset');if(zr)zr.textContent=Math.round((s.zoom||1)*100)+'%';
+  },
+  setZoom(v){const s=this._ensureState();s.zoom=Math.max(.25,Math.min(4,Number(v)||1));AnkiImageOcclusion._renderEditor();},
+  zoomBy(f){this.setZoom(this._ensureState().zoom*f);},
+
+  duplicate(){
+    const s=this._ensureState();if(!s.selected.length)return;this._push();const added=[];
+    s.selected.forEach(i=>{const x=this._clone(s.shapes[i]);this._shiftShape(x,.015,.015);s.shapes.push(x);added.push(s.shapes.length-1);});s.selected=added;AnkiImageOcclusion._renderEditor();
+  },
+  deleteSelected(){
+    const s=this._ensureState();if(!s.selected.length)return;this._push();const bad=new Set(s.selected);s.shapes=s.shapes.filter((_,i)=>!bad.has(i));s.selected=[];AnkiImageOcclusion._renderEditor();
+  },
+  group(){
+    const s=this._ensureState(),ids=s.selected.filter(i=>s.shapes[i]&&s.shapes[i].type!=='text');if(ids.length<2)return;this._push();
+    const ords=ids.map(i=>Number(s.shapes[i].ordinal)).filter(n=>n>0),ord=ords.length?Math.min(...ords):AnkiImageOcclusion._nextOrdinal();ids.forEach(i=>s.shapes[i].ordinal=ord);AnkiImageOcclusion._renderEditor();
+  },
+  ungroup(){
+    const s=this._ensureState(),ids=s.selected.filter(i=>s.shapes[i]&&s.shapes[i].type!=='text');if(!ids.length)return;this._push();let next=AnkiImageOcclusion._nextOrdinal();ids.forEach(i=>s.shapes[i].ordinal=next++);AnkiImageOcclusion._renderEditor();
+  },
+  alignPrompt(){
+    UI.prompt([{key:'mode',label:'Alinhamento',type:'select',value:'left',options:[
+      {value:'left',label:'Esquerda'},{value:'hcenter',label:'Centro horizontal'},{value:'right',label:'Direita'},
+      {value:'top',label:'Topo'},{value:'vcenter',label:'Centro vertical'},{value:'bottom',label:'Base'}
+    ]}],{title:'≡ Alinhar máscaras',okText:'Alinhar'}).then(v=>{if(v)this.align(v.mode);});
+  },
+  align(mode){
+    const s=this._ensureState(),ids=s.selected.filter(i=>s.shapes[i]);if(ids.length<2)return;this._push();const bs=ids.map(i=>this._bounds(s.shapes[i])),all={left:Math.min(...bs.map(b=>b.left)),right:Math.max(...bs.map(b=>b.right)),top:Math.min(...bs.map(b=>b.top)),bottom:Math.max(...bs.map(b=>b.bottom))};all.cx=(all.left+all.right)/2;all.cy=(all.top+all.bottom)/2;
+    ids.forEach((id,k)=>{const sh=s.shapes[id],b=bs[k];let dx=0,dy=0;if(mode==='left')dx=all.left-b.left;if(mode==='right')dx=all.right-b.right;if(mode==='hcenter')dx=all.cx-(b.left+b.right)/2;if(mode==='top')dy=all.top-b.top;if(mode==='bottom')dy=all.bottom-b.bottom;if(mode==='vcenter')dy=all.cy-(b.top+b.bottom)/2;this._shiftShape(sh,dx,dy);});AnkiImageOcclusion._renderEditor();
+  },
+
+  _bindShortcuts(){
+    document.addEventListener('keydown',e=>{
+      const modal=document.getElementById('anki-io-modal');if(!modal||modal.style.display!=='flex')return;
+      const tag=String(e.target&&e.target.tagName||'').toLowerCase();if(tag==='input'||tag==='textarea'||tag==='select')return;
+      if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'&&!e.shiftKey){e.preventDefault();this.undo();return;}
+      if((e.ctrlKey||e.metaKey)&&(e.code==='KeyY'||(e.shiftKey&&e.code==='KeyZ'))){e.preventDefault();this.redo();return;}
+      if((e.ctrlKey||e.metaKey)&&e.code==='KeyD'){e.preventDefault();this.duplicate();return;}
+      if((e.ctrlKey||e.metaKey)&&e.code==='KeyG'&&!e.shiftKey){e.preventDefault();this.group();return;}
+      if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.code==='KeyG'){e.preventDefault();this.ungroup();return;}
+      if(e.code==='Delete'||e.code==='Backspace'){e.preventDefault();this.deleteSelected();return;}
+      if((e.ctrlKey||e.metaKey)&&e.code==='KeyA'){e.preventDefault();const s=this._ensureState();s.selected=s.shapes.map((_,i)=>i);AnkiImageOcclusion._selectTool('select');AnkiImageOcclusion._renderEditor();}
+    });
+  }
+};
+queueMicrotask(()=>AnkiMaxImageOcclusion.install());
 
 /* ═══════════════════════ SUÍTE DE AUTOTESTE ═══════════════════════════════
    O app não tinha teste nenhum versionado — toda refatoração era feita no
