@@ -1067,7 +1067,7 @@ const CardsScreen = {
   
         // snapshot para DESFAZER, antes de qualquer mutação.
         const antes = {};
-        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
+        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'firstReviewAt', 'algo', 'leech', 'suspenso']
           .forEach(k => { antes[k] = c[k]; });
   
         if (previewPatch) {
