@@ -649,8 +649,12 @@ const CardsScreen = {
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
     liga('cards-act-del', () => {
-      UI.confirm('Excluir este card? Não há como desfazer.', { title: '🗑 Excluir card', okText: 'Excluir', danger: true })
-        .then(ok => { if (!ok) return; DB.deleteCard(c.id); proximo(); showToast('Card excluído'); });
+      const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
+      const msg = irmaos > 1
+        ? 'Excluir esta nota e seus ' + irmaos + ' cards? Não há como desfazer.'
+        : 'Excluir esta nota? Não há como desfazer.';
+      UI.confirm(msg, { title: '🗑 Excluir nota', okText: 'Excluir', danger: true })
+        .then(ok => { if (!ok) return; DB.deleteNoteByCard(c.id); proximo(); showToast('Nota excluída'); });
     });
     document.querySelectorAll('.cards-flag').forEach(b => b.addEventListener('click', () => {
       const n = Number(b.dataset.flag);
@@ -1397,8 +1401,11 @@ const CardsScreen = {
   },
   async deleteCard() {
     if (!this._editingId) return;
-    if (!await UI.confirm('Excluir este card?')) return;
-    DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
+    const c = DB.getCard(this._editingId);
+    const irmaos = c ? DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length : 1;
+    const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
+    if (!await UI.confirm(msg)) return;
+    DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');
   },
 
   // ---- baralhos ----
