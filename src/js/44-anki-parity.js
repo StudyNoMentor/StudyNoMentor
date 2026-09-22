@@ -227,16 +227,44 @@ const AnkiParity = {
         phase:'new',learnStep:0,s:null,d:null,dueTs:null,due:todayCards(),ease:2.5,intervalo:0,reps:0,lapses:0,status:'pendente',
         createdAt:now,updatedAt:now,ankiMod:Math.floor(Date.now()/1000)}));changed=true;
     });
-    const keep=new Set(ords),removed=[];
-    for(let i=all.length-1;i>=0;i--){const c=all[i];if(String(c.noteId||c.id)!==String(noteId)||c.kind!=='cloze')continue;
-      const o=Number(c.clozeOrd||((c.template||'').match(/^cloze:(\d+)$/)||[])[1]);if(o&&!keep.has(o)){removed.push(String(c.id));all.splice(i,1);changed=true;}}
+    /* O Anki NÃO apaga automaticamente um card Cloze cujo ordinal saiu da
+       nota. Ele o mantém como "empty card" até o usuário executar Empty Cards.
+       Isso preserva revlog/agendamento e evita perda silenciosa de histórico. */
     if(changed)DB.saveCards(all);
-    if(removed.length){
-      const set=new Set(removed);
-      try{DB.replaceRevlog(DB.getRevlog().filter(r=>!set.has(String(r.cardId))));}catch(e){_quiet(e,'cloze-remove-revlog');}
-      try{removed.forEach(id=>CardsConfig.forgetCardId(id));}catch(e){_quiet(e,'cloze-remove-daily');}
-    }
+    this.syncCanonicalNoteFromCard(base);
     return ords.length;
+  },
+  syncCanonicalNoteFromCard(card){
+    if(!card)return false;
+    try{
+      this.ensureIdentities();
+      const nid=this.noteId(card),note=this.getNote(nid);if(!note)return false;
+      const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt||!nt.stockKind)return false;
+      const sibs=DB.getCards().filter(c=>this.noteId(c)===nid),forward=sibs.find(c=>c.template!=='reverse')||card;
+      const fields=Object.assign({},note.fields||{});
+      if(nt.stockKind==='cloze'){fields.Text=forward.frente||'';fields['Back Extra']=forward.verso||'';}
+      else {fields.Front=forward.frente||'';fields.Back=forward.verso||'';}
+      this.saveNote(Object.assign({},note,{fields}));return true;
+    }catch(e){_quiet(e,'canonical-note-sync');return false;}
+  },
+  isEmptyGeneratedCard(card){
+    if(!card)return false;
+    try{
+      const note=this.getNote(this.noteId(card));if(!note)return false;
+      const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)return false;
+      const front=this.renderTemplate(nt,note,Number(card.ankiTemplateOrd)||0,'question',card,'');
+      return !this._fieldNonempty(front);
+    }catch(_){return false;}
+  },
+  emptyCardIds(){
+    return DB.getCards().filter(c=>this.isEmptyGeneratedCard(c)).map(c=>c.id);
+  },
+  deleteEmptyCards(){
+    const ids=new Set(this.emptyCardIds().map(String));if(!ids.size)return 0;
+    const cards=DB.getCards().filter(c=>!ids.has(String(c.id)));DB.saveCards(cards);
+    try{DB.replaceRevlog(DB.getRevlog().filter(r=>!ids.has(String(r.cardId))));}catch(e){_quiet(e,'empty-cards-revlog');}
+    try{ids.forEach(id=>CardsConfig.forgetCardId(id));}catch(e){_quiet(e,'empty-cards-daily');}
+    return ids.size;
   },
 
   autoBurySiblings(card){
