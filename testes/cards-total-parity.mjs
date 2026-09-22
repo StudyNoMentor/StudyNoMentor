@@ -80,4 +80,13 @@ const state=T._browserState();
 assert.equal(state.query,'deck:x');
 assert.equal(state.mode,'notes');
 
+
+const menuSrc=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
+const menuCss=readFileSync(join(ROOT,'src/css/01-base.css'),'utf8');
+assert.match(menuSrc,/menu\.addEventListener\('click'/,'menu Mais deve fechar por delegação para alcançar itens injetados depois');
+assert.match(menuSrc,/btn\.setAttribute\('aria-expanded', 'false'\)/,'fechamento deve sincronizar aria-expanded');
+assert.match(menuSrc,/ArrowDown/,'menu Mais deve permitir navegação por setas');
+assert.match(menuSrc,/Home/,'menu Mais deve suportar Home/End');
+assert.match(menuCss,/\.cards-more-menu[\s\S]*?overflow-y:\s*auto/,'menu Mais deve rolar dentro do viewport');
+
 console.log('PARIDADE TOTAL: Browser profundo, Custom Scheduling seguro, integridade e codec de media sync validados.');

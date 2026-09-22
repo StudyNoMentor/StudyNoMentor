@@ -437,17 +437,64 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   on('cards-new-btn', 'click', () => CardsScreen.openCardModal(null));
   on('cards-foco-btn', 'click', () => CardsScreen.entrarFoco());
-  // menu "Mais" da barra de cards (abre/fecha; fecha ao escolher, clicar fora ou Esc)
+  // menu "Mais" da barra de cards.
+  // Delegação é obrigatória: várias ações Anki são injetadas por microtask
+  // depois deste arquivo ser avaliado. Um snapshot de querySelectorAll deixava
+  // esses botões fecharem só o painel, mantendo o gatilho visualmente "aberto"
+  // e aria-expanded=true.
   (function () {
     const btn = document.getElementById('cards-more-btn');
     const menu = document.getElementById('cards-more-menu');
     if (!btn || !menu) return;
-    const close = () => { menu.classList.remove('open'); btn.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); };
-    const toggle = () => { const open = menu.classList.contains('open'); if (open) close(); else { menu.classList.add('open'); btn.classList.add('open'); btn.setAttribute('aria-expanded', 'true'); } };
+
+    const items = () => [...menu.querySelectorAll('button[role="menuitem"]')]
+      .filter(x => !x.hidden && x.getAttribute('aria-hidden') !== 'true' && !x.disabled);
+
+    const close = (restoreFocus) => {
+      menu.classList.remove('open');
+      btn.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) btn.focus();
+    };
+    const open = () => {
+      menu.classList.add('open');
+      btn.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      requestAnimationFrame(() => {
+        const first = items()[0];
+        if (first) first.focus();
+      });
+    };
+    const toggle = () => menu.classList.contains('open') ? close(false) : open();
+
     btn.addEventListener('click', (e) => { e.stopPropagation(); toggle(); });
-    menu.querySelectorAll('button').forEach(b => b.addEventListener('click', close));
-    document.addEventListener('click', (e) => { if (!e.target.closest('#cards-more-menu') && !e.target.closest('#cards-more-btn')) close(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+
+    // Clique delegado também alcança itens adicionados depois por camadas Anki.
+    menu.addEventListener('click', (e) => {
+      if (e.target.closest('button[role="menuitem"]')) close(false);
+    });
+
+    menu.addEventListener('keydown', (e) => {
+      const list = items();
+      if (!list.length) return;
+      const current = list.indexOf(document.activeElement);
+      let next = -1;
+      if (e.key === 'ArrowDown') next = current < 0 ? 0 : (current + 1) % list.length;
+      else if (e.key === 'ArrowUp') next = current < 0 ? list.length - 1 : (current - 1 + list.length) % list.length;
+      else if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = list.length - 1;
+      else if (e.key === 'Escape') { e.preventDefault(); close(true); return; }
+      else return;
+      e.preventDefault();
+      list[next].focus();
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#cards-more-menu') && !e.target.closest('#cards-more-btn')) close(false);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && menu.classList.contains('open')) { e.preventDefault(); close(true); }
+    });
   })();
   on('foco-sair', 'click', () => CardsScreen.sairFoco());
   on('foco-undo', 'click', () => CardsScreen.undoAnswer());

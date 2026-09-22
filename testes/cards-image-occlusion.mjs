@@ -16,6 +16,19 @@ ctx.globalThis=ctx;vm.createContext(ctx);
 vm.runInContext(readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8'),ctx,{filename:'44-anki-image-occlusion.js'});
 const IO=vm.runInContext('AnkiImageOcclusion',ctx);
 
+
+const decks=[];
+ctx.escapeHtml=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ctx.AnkiParity.isFilteredDeck=()=>false;
+ctx.DB={
+  getDecks:()=>decks,
+  addDeck:nome=>{const d={id:'deck-padrao',nome};decks.push(d);return d;}
+};
+assert.match(IO._deckOptions(''),/value="__default__"/,'perfil sem baralho deve oferecer Padrão no editor avançado');
+assert.equal(IO._resolveDeck('__default__'),'deck-padrao','Padrão deve ser criado somente ao salvar');
+assert.equal(decks.length,1);
+assert.match(IO._deckOptions('deck-padrao'),/deck-padrao/,'após criar, o baralho real deve substituir o placeholder');
+
 const nt=IO.stockDef();
 assert.equal(nt.kind,'cloze');
 assert.equal(nt.originalStockKind,6,'Image Occlusion deve exportar OriginalStockKind oficial = 6');
