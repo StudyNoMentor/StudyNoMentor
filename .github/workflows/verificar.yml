@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   verificar:
@@ -34,15 +34,30 @@ jobs:
           node --check build.mjs
           for f in src/js/*.js; do node --check "$f"; done
           node build.mjs
-          git diff --exit-code -- index.html sw.js src/manifesto.json
 
       - name: Contrato central dos Cards
+        if: github.event_name != 'push'
         run: node testes/cards-paridade-total-anki.mjs
 
       - name: Interoperabilidade dos Cards
+        if: github.event_name != 'push'
         shell: bash
         run: |
           set -euo pipefail
           node testes/cards-apkg-export.mjs
           node testes/cards-import-formatos.mjs
           node testes/cards-concorrencia-multidevice.mjs
+
+      - name: Sincronizar artefatos gerados na main
+        if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html sw.js src/manifesto.json; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html sw.js src/manifesto.json
+          git commit -m "build: sincronizar artefatos gerados [skip ci]"
+          git push
