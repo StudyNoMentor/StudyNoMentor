@@ -1735,19 +1735,32 @@ const CardsScreen = {
 
   // ---- exportar ----
   openExportModal() {
-    const cards = DB.getCards();
-    const body = document.getElementById('cards-export-body');
-    if (cards.length === 0) { body.innerHTML = `<p class="hint">Você ainda não criou nenhum card.</p>`; }
-    else {
-      const st = CardEngine.stats(cards);
-      body.innerHTML = `<p style="font-size:14px;">Você tem <strong>${cards.length} card(s)</strong>. Escolha o formato:</p>
-        <ul style="font-size:13px; color:var(--text-soft); line-height:1.7; margin:8px 0 0; padding-left:18px;">
-          <li><strong>Anki completo (.apkg)</strong>: leva baralhos, notas, cards, agendamento, histórico, parâmetros/presets FSRS e imagens incorporadas.</li>
-          <li><strong>Anki simples (.txt)</strong>: leva apenas Frente, Verso e Tags; útil para uma importação limpa sem histórico.</li>
-          <li><strong>Backup (.json)</strong>: cópia completa para reimportar aqui depois.</li>
-        </ul>`;
+    const cards=DB.getCards(),body=document.getElementById('cards-export-body');
+    if(!cards.length){body.innerHTML=`<p class="hint">Você ainda não criou nenhum card.</p>`;}
+    else{
+      body.innerHTML=`
+        <p style="font-size:14px;margin-top:0;">Você tem <strong>${cards.length} card(s)</strong>. Os formatos abaixo seguem os exportadores atuais do Anki.</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px;">
+          <fieldset style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+            <legend style="font-weight:700;font-size:13px;">Pacote .apkg / .colpkg</legend>
+            <label class="check-label"><input type="checkbox" id="cards-export-scheduling" checked> Agendamento + histórico</label>
+            <label class="check-label"><input type="checkbox" id="cards-export-deckconfigs" checked> Presets/configurações</label>
+            <label class="check-label"><input type="checkbox" id="cards-export-media" checked> Mídia incorporada</label>
+            <label class="check-label" title="Use apenas para versões antigas do Anki"><input type="checkbox" id="cards-export-legacy"> Compatibilidade antiga (Legacy / schema 11)</label>
+            <p class="hint" style="margin:7px 0 0;">Desmarcado = pacote moderno do Anki: <code>collection.anki21b</code>, Zstandard e schema 18.</p>
+          </fieldset>
+          <fieldset style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;">
+            <legend style="font-weight:700;font-size:13px;">Texto .txt</legend>
+            <label class="check-label"><input type="checkbox" id="cards-export-html" checked> Manter HTML</label>
+            <label class="check-label"><input type="checkbox" id="cards-export-tags" checked> Tags (Notas)</label>
+            <label class="check-label"><input type="checkbox" id="cards-export-deck" checked> Baralho (Notas)</label>
+            <label class="check-label"><input type="checkbox" id="cards-export-notetype" checked> Tipo de nota (Notas)</label>
+            <label class="check-label"><input type="checkbox" id="cards-export-guid" checked> GUID (Notas)</label>
+          </fieldset>
+        </div>
+        <p class="hint" style="margin:10px 0 0;"><strong>.colpkg:</strong> representa a coleção inteira de Cards do StudyNoMentor; ao importar no Anki, esse formato é destinado à substituição/restauração da coleção.</p>`;
     }
-    $id('cards-export-modal').style.display = 'flex';
+    $id('cards-export-modal').style.display='flex';
   },
   _download(filename, content, mime) {
     const blob = new Blob([content], { type: mime });
@@ -1828,45 +1841,78 @@ const CardsScreen = {
       showToast('Não foi possível exportar. Detalhe: ' + (err && err.message ? err.message : 'erro desconhecido'));
     }
   },
-  exportAnki() {
-    const cards = DB.getCards();
-    if (cards.length === 0) { showToast('Nenhum card para exportar'); return; }
-    // TSV HTML do Anki: não achata o conteúdo rico. <img>, <audio>, cloze e
-    // formatação precisam sobreviver ao round-trip.
-    const campo = (html) => String(html || '').replace(/\t/g, ' ').replace(/\r?\n/g, '<br>');
-    const lines = cards.map(c => {
-      const front = campo(c.frente);
-      const back = campo(c.verso);
-      const tags = [this.materiaLabel(c).replace('📁 ', ''), c.assunto, c.materiaTec, c.banca, c.tipo].filter(Boolean).map(t => t.replace(/\s+/g, '_')).join(' ');
-      return `${front}\t${back}\t${tags}`;
-    });
-    const header = '#separator:tab\n#html:true\n#tags column:3\n';
-    this._download('cards-anki_' + todayLocal() + '.txt', header + lines.join('\n'), 'text/plain');
-    showToast('Arquivo do Anki exportado ✓');
-    $id('cards-export-modal').style.display = 'none';
+  _exportChecked(id, fallback) {
+    const el=document.getElementById(id);
+    return el ? !!el.checked : !!fallback;
   },
-  async exportApkg() {
-    const cards = DB.getCards();
-    if (!cards.length) { showToast('Nenhum card para exportar'); return; }
-    const btn = document.getElementById('cards-export-apkg');
-    const old = btn ? btn.textContent : '';
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando .apkg…'; }
-    try {
-      if (typeof AnkiExport === 'undefined' || typeof AnkiExport.buildPackage !== 'function') {
-        throw new Error('Exportador Anki completo indisponível');
-      }
-      const pkg = await AnkiExport.buildPackage();
-      this._download('cards-anki_' + todayLocal() + '.apkg', pkg.bytes, 'application/octet-stream');
-      showToast('Anki completo exportado: ' + pkg.cards.toLocaleString('pt-BR') + ' card(s), ' +
-        pkg.notes.toLocaleString('pt-BR') + ' nota(s) e ' + pkg.revlog.toLocaleString('pt-BR') + ' revisão(ões) ✓');
-      $id('cards-export-modal').style.display = 'none';
-    } catch (err) {
-      console.error('Falha ao exportar .apkg:', err);
-      showToast('Não foi possível gerar o .apkg. Detalhe: ' + (err && err.message ? err.message : String(err)));
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = old || 'Anki completo (.apkg)'; }
+  _ankiPackageOptions() {
+    return {
+      legacy:this._exportChecked('cards-export-legacy',false),
+      withScheduling:this._exportChecked('cards-export-scheduling',true),
+      withDeckConfigs:this._exportChecked('cards-export-deckconfigs',true),
+      withMedia:this._exportChecked('cards-export-media',true)
+    };
+  },
+  _ankiTextOptions() {
+    return {
+      withHtml:this._exportChecked('cards-export-html',true),
+      withTags:this._exportChecked('cards-export-tags',true),
+      withDeck:this._exportChecked('cards-export-deck',true),
+      withNotetype:this._exportChecked('cards-export-notetype',true),
+      withGuid:this._exportChecked('cards-export-guid',true)
+    };
+  },
+  exportAnkiNotes() {
+    if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
+    try{
+      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextNotes!=='function')throw new Error('Exportador de notas indisponível');
+      const out=AnkiExport.buildTextNotes(this._ankiTextOptions());
+      this._download('notas-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
+      showToast('Notas do Anki exportadas: '+out.notes.toLocaleString('pt-BR')+' ✓');
+      $id('cards-export-modal').style.display='none';
+    }catch(err){
+      console.error('Falha ao exportar notas Anki:',err);
+      showToast('Não foi possível exportar as notas. Detalhe: '+(err&&err.message?err.message:String(err)));
     }
   },
+  exportAnki() {
+    if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
+    try{
+      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextCards!=='function')throw new Error('Exportador de cards indisponível');
+      const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true)});
+      this._download('cards-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
+      showToast('Cards do Anki exportados: '+out.cards.toLocaleString('pt-BR')+' ✓');
+      $id('cards-export-modal').style.display='none';
+    }catch(err){
+      console.error('Falha ao exportar cards Anki:',err);
+      showToast('Não foi possível exportar os cards. Detalhe: '+(err&&err.message?err.message:String(err)));
+    }
+  },
+  async _exportAnkiPackage(kind) {
+    const cards=DB.getCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
+    kind=kind==='colpkg'?'colpkg':'apkg';
+    const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg');
+    const old=btn?btn.textContent:'';
+    if(btn){btn.disabled=true;btn.textContent='⏳ Gerando .'+kind+'…';}
+    try{
+      if(typeof AnkiExport==='undefined')throw new Error('Exportador Anki completo indisponível');
+      const fn=kind==='colpkg'?AnkiExport.buildCollectionPackage:AnkiExport.buildPackage;
+      if(typeof fn!=='function')throw new Error('Formato .'+kind+' indisponível');
+      const pkg=await fn.call(AnkiExport,this._ankiPackageOptions());
+      this._download('cards-anki_'+todayLocal()+'.'+kind,pkg.bytes,'application/octet-stream');
+      const formato=pkg.legacy?'Legacy/schema 11':'moderno/schema 18';
+      showToast('.'+kind+' '+formato+' exportado: '+pkg.cards.toLocaleString('pt-BR')+' card(s), '+
+        pkg.notes.toLocaleString('pt-BR')+' nota(s) e '+pkg.revlog.toLocaleString('pt-BR')+' revisão(ões) ✓');
+      $id('cards-export-modal').style.display='none';
+    }catch(err){
+      console.error('Falha ao exportar .'+kind+':',err);
+      showToast('Não foi possível gerar o .'+kind+'. Detalhe: '+(err&&err.message?err.message:String(err)));
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent=old||(kind==='colpkg'?'Coleção (.colpkg)':'Anki (.apkg)');}
+    }
+  },
+  exportApkg() { return this._exportAnkiPackage('apkg'); },
+  exportColpkg() { return this._exportAnkiPackage('colpkg'); },
   exportJson() {
     const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 2, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards(), revlog: DB.getRevlog() };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
