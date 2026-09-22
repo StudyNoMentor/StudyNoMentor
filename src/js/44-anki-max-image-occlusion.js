@@ -148,10 +148,19 @@ const AnkiMaxImageOcclusion = {
   },
 
   _patchRender(){
-    const oldDraw=AnkiImageOcclusion._drawShape.bind(AnkiImageOcclusion),oldRender=AnkiImageOcclusion._renderEditor.bind(AnkiImageOcclusion);
+    const oldRender=AnkiImageOcclusion._renderEditor.bind(AnkiImageOcclusion);
     AnkiImageOcclusion._drawShape=(ctx,s,w,h,preview)=>{
-      ctx.save();if(!preview){ctx.globalAlpha=this._ensureState().translucent?.4:1;const col=this._ensureState().maskColor;if(col&&s.ordinal>0){const prev=ctx.fillStyle;ctx.fillStyle=col;}}
-      oldDraw(ctx,s,w,h,preview);ctx.restore();
+      const st=this._ensureState();ctx.save();
+      const maskColor=preview?'rgba(78,136,255,.35)':(s.ordinal===0?'rgba(255,255,255,.72)':st.maskColor||'#ff8e8e');
+      ctx.globalAlpha=preview?1:(st.translucent?.4:1);ctx.fillStyle=maskColor;ctx.strokeStyle=s.ordinal===0?'#333':'#b22';ctx.lineWidth=Math.max(1,w/500);
+      if(s.type==='rect'||s.type==='ellipse'){
+        const x=s.left*w,y=s.top*h,ww=s.width*w,hh=s.height*h;ctx.beginPath();if(s.type==='ellipse')ctx.ellipse(x+ww/2,y+hh/2,ww/2,hh/2,0,0,Math.PI*2);else ctx.rect(x,y,ww,hh);ctx.fill();ctx.stroke();
+      }else if(s.type==='polygon'&&s.points&&s.points.length){
+        ctx.beginPath();s.points.forEach((p,i)=>(i?ctx.lineTo(p.x*w,p.y*h):ctx.moveTo(p.x*w,p.y*h)));ctx.closePath();ctx.fill();ctx.stroke();
+      }else if(s.type==='text'){
+        ctx.globalAlpha=1;ctx.fillStyle='#111';ctx.font=Math.max(12,w/35)+'px sans-serif';ctx.fillText(s.text||'',s.left*w,s.top*h);
+      }
+      ctx.restore();
     };
     AnkiImageOcclusion._renderEditor=()=>{
       oldRender();const s=this._ensureState(),c=document.getElementById('anki-io-canvas');if(!c)return;
