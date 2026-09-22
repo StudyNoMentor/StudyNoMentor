@@ -93,6 +93,19 @@ const AnkiExport = {
   _pbU32(field, n) {
     return this._concat([this._varint((Number(field) << 3) | 0), this._varint(Number(n) >>> 0)]);
   },
+  _pbVar(field, n) {
+    return this._concat([this._varint((Number(field) << 3) | 0), this._varint(n)]);
+  },
+  _pbFloat(field, n) {
+    const a=new Uint8Array(4);new DataView(a.buffer).setFloat32(0,Number(n)||0,true);
+    return this._concat([this._varint((Number(field)<<3)|5),a]);
+  },
+  _pbString(field, v) {
+    return this._pbBytes(field,this._enc.encode(String(v==null?'':v)));
+  },
+  _pbBool(field, v) {
+    return this._pbU32(field,v?1:0);
+  },
   _sha1Bytes(input) {
     const bytes = this._u8(input), ml = bytes.length * 8;
     const total = ((bytes.length + 9 + 63) >> 6) << 6, buf = new Uint8Array(total);
@@ -417,6 +430,170 @@ const AnkiExport = {
     return { decks: obj, dconf: p.configs };
   },
   _deckIdMap(decks) { const m = new Map(); for (const d of decks) m.set(String(d.id), Number(d.ankiId)); return m; },
+
+  _encodeNotetypeConfig(m) {
+    const parts=[
+      this._pbU32(1,Number(m.type)||0),
+      this._pbU32(2,Number(m.sortf)||0),
+      this._pbString(3,m.css||''),
+      this._pbString(5,m.latexPre||''),
+      this._pbString(6,m.latexPost||''),
+      this._pbBool(7,!!m.latexsvg)
+    ];
+    const kind={none:0,any:1,all:2};
+    for(const r of (m.req||[])){
+      const body=[this._pbU32(1,Number(r[0])||0),this._pbU32(2,kind[String(r[1]||'any')]??1)];
+      for(const o of (r[2]||[]))body.push(this._pbU32(3,Number(o)||0));
+      parts.push(this._pbBytes(8,this._concat(body)));
+    }
+    if(Number(m.originalStockKind))parts.push(this._pbU32(9,Number(m.originalStockKind)));
+    if(m.originalId!=null)parts.push(this._pbVar(10,Number(m.originalId)));
+    return this._concat(parts);
+  },
+  _encodeFieldConfig(f) {
+    const p=[
+      this._pbBool(1,!!f.sticky),this._pbBool(2,!!f.rtl),this._pbString(3,f.font||'Arial'),
+      this._pbU32(4,Number(f.size)||20),this._pbString(5,f.description||''),
+      this._pbBool(6,!!f.plainText),this._pbBool(7,!!f.collapsed),this._pbBool(8,!!f.excludeFromSearch)
+    ];
+    if(f.id!=null)p.push(this._pbVar(9,Number(f.id)));
+    if(f.tag!=null)p.push(this._pbU32(10,Number(f.tag)));
+    if(f.preventDeletion)p.push(this._pbBool(11,true));
+    return this._concat(p);
+  },
+  _encodeTemplateConfig(t) {
+    const p=[
+      this._pbString(1,t.qfmt||''),this._pbString(2,t.afmt||''),
+      this._pbString(3,t.bqfmt||''),this._pbString(4,t.bafmt||'')
+    ];
+    if(t.did!=null)p.push(this._pbVar(5,Number(t.did)));
+    if(t.bfont)p.push(this._pbString(6,t.bfont));
+    if(Number(t.bsize))p.push(this._pbU32(7,Number(t.bsize)));
+    if(t.id!=null)p.push(this._pbVar(8,Number(t.id)));
+    return this._concat(p);
+  },
+  _encodeDeckCommon(d) {
+    const p=[];
+    if(d.collapsed)p.push(this._pbBool(1,true));
+    if(d.browserCollapsed)p.push(this._pbBool(2,true));
+    return this._concat(p);
+  },
+  _encodeDeckKind(d) {
+    const normal=[
+      this._pbVar(1,Number(d.conf)||1),
+      this._pbU32(2,Number(d.extendNew)||0),
+      this._pbU32(3,Number(d.extendRev)||0),
+      this._pbString(4,d.desc||'')
+    ];
+    const dr=Number(d.desiredRetention);
+    if(Number.isFinite(dr)&&dr>0)normal.push(this._pbFloat(10,dr>1?dr/100:dr));
+    return this._pbBytes(1,this._concat(normal));
+  },
+  _encodeDeckConfig(c) {
+    const p=[],pushFloatList=(field,xs)=>{for(const x of (xs||[]))p.push(this._pbFloat(field,Number(x)||0));};
+    pushFloatList(1,c.new&&c.new.delays);
+    pushFloatList(2,c.lapse&&c.lapse.delays);
+    pushFloatList(4,c.easyDaysPercentages);
+    pushFloatList(6,c.fsrsParams6);
+    p.push(this._pbU32(9,Number(c.new&&c.new.perDay)||0));
+    p.push(this._pbU32(10,Number(c.rev&&c.rev.perDay)||0));
+    p.push(this._pbFloat(11,(Number(c.new&&c.new.initialFactor)||2500)/1000));
+    p.push(this._pbFloat(12,Number(c.rev&&c.rev.ease4)||1.3));
+    p.push(this._pbFloat(13,Number(c.rev&&c.rev.hardFactor)||1.2));
+    p.push(this._pbFloat(14,Number(c.lapse&&c.lapse.mult)||0));
+    p.push(this._pbFloat(15,Number(c.rev&&c.rev.ivlFct)||1));
+    p.push(this._pbU32(16,Number(c.rev&&c.rev.maxIvl)||36500));
+    p.push(this._pbU32(17,Number(c.lapse&&c.lapse.minInt)||1));
+    const ints=(c.new&&c.new.ints)||[];
+    p.push(this._pbU32(18,Number(ints[0])||1));
+    p.push(this._pbU32(19,Number(ints[1])||4));
+    p.push(this._pbU32(20,Number(c.new&&c.new.order)||0));
+    p.push(this._pbU32(21,Number(c.lapse&&c.lapse.leechAction)||0));
+    p.push(this._pbU32(22,Number(c.lapse&&c.lapse.leechFails)||8));
+    p.push(this._pbBool(27,!!(c.new&&c.new.bury)));
+    p.push(this._pbBool(28,!!(c.rev&&c.rev.bury)));
+    p.push(this._pbBool(29,!!c.buryInterdayLearning));
+    p.push(this._pbU32(30,Number(c.newMix)||0));
+    p.push(this._pbU32(31,Number(c.interdayLearningMix)||0));
+    p.push(this._pbU32(32,Number(c.newSortOrder)||0));
+    p.push(this._pbU32(33,Number(c.reviewOrder)||0));
+    p.push(this._pbU32(34,Number(c.newGatherPriority)||0));
+    p.push(this._pbU32(35,Number(c.newPerDayMinimum)||0));
+    p.push(this._pbFloat(37,Number(c.desiredRetention)||.9));
+    p.push(this._pbBool(38,!!c.stopTimerOnAnswer));
+    p.push(this._pbFloat(40,Number(c.sm2Retention)||.9));
+    p.push(this._pbFloat(41,Number(c.secondsToShowQuestion)||0));
+    p.push(this._pbFloat(42,Number(c.secondsToShowAnswer)||0));
+    p.push(this._pbU32(43,Number(c.answerAction)||0));
+    p.push(this._pbBool(44,c.waitForAudio!==false));
+    if(c.weightSearch)p.push(this._pbString(45,c.weightSearch));
+    if(c.ignoreRevlogsBeforeDate)p.push(this._pbString(46,c.ignoreRevlogsBeforeDate));
+    return this._concat(p);
+  },
+  _upgradeToSchema18(db, models, dj) {
+    db.run([
+      'CREATE TABLE deck_config (id integer PRIMARY KEY NOT NULL,name text NOT NULL,mtime_secs integer NOT NULL,usn integer NOT NULL,config blob NOT NULL);',
+      'CREATE TABLE config (key text NOT NULL PRIMARY KEY,usn integer NOT NULL,mtime_secs integer NOT NULL,val blob NOT NULL) WITHOUT ROWID;',
+      'CREATE TABLE tags (tag text NOT NULL PRIMARY KEY,usn integer NOT NULL) WITHOUT ROWID;',
+      'CREATE TABLE fields (ntid integer NOT NULL,ord integer NOT NULL,name text NOT NULL,config blob NOT NULL,PRIMARY KEY (ntid,ord)) WITHOUT ROWID;',
+      'CREATE UNIQUE INDEX idx_fields_name_ntid ON fields (name,ntid);',
+      'CREATE TABLE templates (ntid integer NOT NULL,ord integer NOT NULL,name text NOT NULL,mtime_secs integer NOT NULL,usn integer NOT NULL,config blob NOT NULL,PRIMARY KEY (ntid,ord)) WITHOUT ROWID;',
+      'CREATE UNIQUE INDEX idx_templates_name_ntid ON templates (name,ntid);',
+      'CREATE INDEX idx_templates_usn ON templates (usn);',
+      'CREATE TABLE notetypes (id integer NOT NULL PRIMARY KEY,name text NOT NULL,mtime_secs integer NOT NULL,usn integer NOT NULL,config blob NOT NULL);',
+      'CREATE UNIQUE INDEX idx_notetypes_name ON notetypes (name);',
+      'CREATE INDEX idx_notetypes_usn ON notetypes (usn);',
+      'CREATE TABLE decks (id integer PRIMARY KEY NOT NULL,name text NOT NULL,mtime_secs integer NOT NULL,usn integer NOT NULL,common blob NOT NULL,kind blob NOT NULL);',
+      'CREATE UNIQUE INDEX idx_decks_name ON decks (name);',
+      'CREATE INDEX idx_notes_mid ON notes (mid);',
+      'CREATE INDEX idx_cards_odid ON cards (odid) WHERE odid != 0;',
+      'ALTER TABLE graves RENAME TO graves_old;',
+      'CREATE TABLE graves (oid integer NOT NULL,type integer NOT NULL,usn integer NOT NULL,PRIMARY KEY (oid,type)) WITHOUT ROWID;',
+      'INSERT OR IGNORE INTO graves (oid,type,usn) SELECT oid,type,usn FROM graves_old;',
+      'DROP TABLE graves_old;',
+      'CREATE INDEX idx_graves_pending ON graves (usn);'
+    ].join('\n'));
+
+    const nt=db.prepare('INSERT INTO notetypes VALUES (?,?,?,?,?)');
+    const fld=db.prepare('INSERT INTO fields VALUES (?,?,?,?)');
+    const tmpl=db.prepare('INSERT INTO templates VALUES (?,?,?,?,?,?)');
+    for(const m of Object.values(models||{})){
+      nt.run([Number(m.id),String(m.name||'Note Type'),Number(m.mod)||0,Number(m.usn)||-1,this._encodeNotetypeConfig(m)]);
+      for(const f of (m.flds||[]))fld.run([Number(m.id),Number(f.ord)||0,String(f.name||''),this._encodeFieldConfig(f)]);
+      for(const t of (m.tmpls||[]))tmpl.run([Number(m.id),Number(t.ord)||0,String(t.name||''),Number(m.mod)||0,-1,this._encodeTemplateConfig(t)]);
+    }
+    nt.free();fld.free();tmpl.free();
+
+    const ds=db.prepare('INSERT INTO decks VALUES (?,?,?,?,?,?)');
+    for(const d of Object.values((dj&&dj.decks)||{})){
+      ds.run([Number(d.id),String(d.name||'Default'),Number(d.mod)||0,Number(d.usn)||-1,this._encodeDeckCommon(d),this._encodeDeckKind(d)]);
+    }
+    ds.free();
+
+    const dc=db.prepare('INSERT INTO deck_config VALUES (?,?,?,?,?)');
+    for(const c of Object.values((dj&&dj.dconf)||{})){
+      dc.run([Number(c.id),String(c.name||'Default'),Number(c.mod)||0,Number(c.usn)||-1,this._encodeDeckConfig(c)]);
+    }
+    dc.free();
+
+    // Schema 14 normalizou as preferências de col.conf em registros JSON.
+    let conf={};try{const row=db.exec('select conf from col where id=1');conf=JSON.parse(row[0]&&row[0].values[0]&&row[0].values[0][0]||'{}')||{};}catch(_){}
+    const cf=db.prepare('INSERT OR REPLACE INTO config VALUES (?,?,?,?)');
+    for(const [k,v] of Object.entries(conf))cf.run([k,0,0,this._enc.encode(JSON.stringify(v))]);
+    cf.free();
+
+    // A tabela normalizada de tags é índice auxiliar; as tags continuam também
+    // no campo notes.tags. Preenchê-la evita uma coleção estruturalmente vazia.
+    const allTags=new Set();
+    try{
+      const rows=db.exec('select tags from notes');
+      for(const row of (rows[0]&&rows[0].values||[]))for(const t of String(row[0]||'').trim().split(/\s+/))if(t)allTags.add(t);
+    }catch(_){}
+    const ts=db.prepare('INSERT OR IGNORE INTO tags VALUES (?,?)');
+    for(const tag of allTags)ts.run([tag,-1]);ts.free();
+
+    db.run("UPDATE col SET ver=18,conf='',models='',decks='',dconf='',tags='' WHERE id=1");
+  },
   _tagsFor(note, cards) {
     const tags = [].concat(note && Array.isArray(note.tags) ? note.tags : []);
     for (const c of cards || []) for (const v of [c.materia, c.assunto, c.materiaTec, c.banca, c.tipo, c.leech ? 'leech' : null, c.favorito ? 'marked' : null]) if (v) tags.push(String(v));
@@ -525,7 +702,8 @@ const AnkiExport = {
     return {text:'#separator:tab\n#html:'+String(!!options.withHtml)+'\n'+rows.join('\n'),cards:rows.length};
   },
 
-  async buildCollection() {
+  async buildCollection(options) {
+    options=Object.assign({schema:11},options||{});
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
     const cards = DB.getCards().slice(), allDecks = DB.getDecks().slice();
@@ -583,33 +761,45 @@ const AnkiExport = {
     const revRows = this._revRows(cards, DB.getRevlog());
     for (const row of revRows) rs.run(row);
     rs.free();
+    if(Number(options.schema)===18)this._upgradeToSchema18(db,models,dj);
     const bytes = db.export(); db.close();
-    return { bytes, media: media.items, cards: cards.length, notes: notesById.size, decks: decks.length, revlog: revRows.length };
+    return { bytes, schema:Number(options.schema)===18?18:11, media: media.items, cards: cards.length, notes: notesById.size, decks: decks.length, revlog: revRows.length };
   },
 
   async buildPackage(options) {
-    options=options||{};const legacy=options.legacy!==false;
-    const col = await this.buildCollection(), mediaMap = {}, mediaEntries = [];
-    col.media.forEach((m, i) => { mediaMap[String(i)] = m.name; });
+    options=Object.assign({legacy:true,withMedia:true},options||{});
+    const legacy=options.legacy!==false;
+    const col=await this.buildCollection({schema:legacy?11:18}),mediaMap={},mediaEntries=[];
+    const compatibility=legacy?col:await this.buildCollection({schema:11});
+    const exportedMedia=options.withMedia===false?[]:col.media;
+    exportedMedia.forEach((m,i)=>{mediaMap[String(i)]=m.name;});
     let entries;
     if(legacy){
-      col.media.forEach((m,i)=>mediaEntries.push({name:String(i),data:m.bytes}));
+      exportedMedia.forEach((m,i)=>mediaEntries.push({name:String(i),data:m.bytes}));
       entries=[
         {name:'meta',data:new Uint8Array([0x08,0x02])},
         {name:'collection.anki21',data:col.bytes},
+        {name:'collection.anki2',data:compatibility.bytes},
         {name:'media',data:JSON.stringify(mediaMap)},
         ...mediaEntries
       ];
     }else{
-      const mediaProto=this._mediaEntriesProto(col.media);
-      col.media.forEach((m,i)=>mediaEntries.push({name:String(i),data:this._zstdStore(m.bytes)}));
+      const mediaProto=this._mediaEntriesProto(exportedMedia);
+      exportedMedia.forEach((m,i)=>mediaEntries.push({name:String(i),data:this._zstdStore(m.bytes)}));
       entries=[
         {name:'meta',data:new Uint8Array([0x08,0x03])},
         {name:'collection.anki21b',data:this._zstdStore(col.bytes)},
+        {name:'collection.anki2',data:compatibility.bytes},
         {name:'media',data:this._zstdStore(mediaProto)},
         ...mediaEntries
       ];
     }
-    return Object.assign({},col,{bytes:this.zipStore(entries),legacy});
+    return Object.assign({},col,{bytes:this.zipStore(entries),legacy,withMedia:options.withMedia!==false});
+  },
+  async buildCollectionPackage(options) {
+    // No StudyNoMentor, a coleção de Cards inteira é o perfil exportável; o
+    // contêiner .colpkg usa o mesmo formato oficial de pacote, mas a UI avisa
+    // que sua importação no Anki substitui a coleção atual.
+    return this.buildPackage(options);
   }
 };
