@@ -183,6 +183,28 @@ const CardsScreen = {
     // cards suspensos (leech) ficam fora da fila, como no Anki
     const filtered = this.currentFilteredCards().filter(c => !c.suspenso);
     const due = filtered.filter(c => CardEngine.isDue(c));
+    const selectedDeckIdEarly = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
+    const selectedFilteredDeck = selectedDeckIdEarly && typeof AnkiParity !== 'undefined'
+      ? AnkiParity.isFilteredDeck(selectedDeckIdEarly) : false;
+    /* Baralho filtrado: o limite de cards foi aplicado ao CONSTRUIR o baralho.
+       O Anki não reaplica new/review-per-day do baralho de origem aqui. A ordem
+       vem da posição atribuída pelo filtro; preview repeats só reaparecem quando
+       o dueTs vence. */
+    if (selectedFilteredDeck) {
+      const ordered = due.slice().sort((a,b) =>
+        (Number(a.filteredPosition)||0) - (Number(b.filteredPosition)||0)
+        || Number(a.dueTs||0) - Number(b.dueTs||0)
+      );
+      const pending = filtered.filter(c => c.dueTs && c.dueTs > Date.now()).sort((a,b)=>a.dueTs-b.dueTs);
+      this._queueMeta = {
+        bloqueadosNovos:0,bloqueadosRev:0,
+        proximoTs:pending.length?pending[0].dueTs:null,
+        pendentes:pending.length,
+        suspensos:filtered.filter(c=>c.suspenso).length,
+        filteredDeck:true
+      };
+      return ordered.map(c=>c.id);
+    }
     const newRem = CardsConfig.newRemaining(), revRem = CardsConfig.revRemaining();
     /* `novos` precisa ser reatribuível: o modo 'materiaRodizio' constrói uma
        lista intercalada nova em vez de ordenar no lugar. Com `const` isso
@@ -942,20 +964,35 @@ const CardsScreen = {
            uma transação recuperável. Guardamos na outbox: revlog + estado final do
            card. Só então aplicamos a projeção local e liberamos a interface. */
         const bucketAntes = this._bucket(c);
+        const previewPatch = (typeof AnkiParity !== 'undefined') ? AnkiParity.previewFilteredAnswer(c, grade) : null;
+        const emFiltrado = !!c.originalDeckId;
         if (!this._seenThisSession) this._seenThisSession = new Set();
-        const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
+        // O Anki contabiliza a resposta no deck FILTRADO; ela não consome o
+        // limite diário do baralho de origem.
+        const primeiraVez = !emFiltrado && !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
   
         // snapshot para DESFAZER, antes de qualquer mutação.
         const antes = {};
-        ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
+        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
           .forEach(k => { antes[k] = c[k]; });
   
-        patch = CardEngine.schedule(c, grade);
+        if (previewPatch) {
+          patch = previewPatch;
+        } else {
+          patch = CardEngine.schedule(c, grade);
+          if (typeof AnkiParity !== 'undefined' && c.originalDeckId) {
+            patch = AnkiParity.removeFromFilteredAfterReschedule(c, patch);
+          }
+        }
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
         const revRow = await DB.addRevlogDurable(
-          { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
+          { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
+            phase: previewPatch ? 'filtered' : (c.phase || 'new'),
+            ankiReviewKind: previewPatch ? 'filtered' : undefined,
+            elapsed: previewPatch ? 0 : elapsed,
+            intervalo: previewPatch ? 0 : (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
           cardAfter, cardPosition
         );
         if (revRow === false) {
@@ -987,7 +1024,7 @@ const CardsScreen = {
       this._flipped = false;
       // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
       // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
-      if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
+      if (patch && (patch.phase === 'learning' || patch.phase === 'relearning' || (patch._filteredPreview && !patch._filteredFinished)) && !patch.suspenso) {
         const restam = this._reviewQueue.length - this._reviewIdx;
         const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
         const gap = curto ? Math.min(3, restam) : restam;
