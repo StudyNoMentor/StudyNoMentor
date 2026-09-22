@@ -416,6 +416,14 @@ AnkiParity._stockNotetypeDef=function(kind){
       {name:'Card 2',qfmt:'{{Back}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}'}
     ]
   };
+  if(kind==='basic_optional_reversed')return {
+    stockKind:'basic_optional_reversed',name:'Basic (optional reversed card)',kind:'normal',css,
+    fields:[{name:'Front'},{name:'Back'},{name:'Add Reverse'}],
+    templates:[
+      {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'},
+      {name:'Card 2',qfmt:'{{#Add Reverse}}{{Back}}{{/Add Reverse}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Front}}'}
+    ]
+  };
   if(kind==='typing')return {
     stockKind:'typing',name:'Basic (type in the answer)',kind:'normal',css,
     fields:[{name:'Front'},{name:'Back'}],
@@ -593,8 +601,10 @@ AnkiParity.limitState=function(selectedDeckId){
   const stats=(id,kind)=>usage.filter(e=>e.kind===kind&&(e.path||[]).includes(String(id))).length;
   decks.forEach(d=>{
     const cfg=CardsConfig.forDeck(d.id),newDone=stats(d.id,'new'),revDone=stats(d.id,'review');
-    let review=Math.max(0,(Number(cfg.revPerDay)||0)-revDone);
-    let news=Math.max(0,(Number(cfg.newPerDay)||0)-newDone);
+    const reviewCap=CardsConfig.currentLimitForDeck?CardsConfig.currentLimitForDeck(d.id,'review'):(Number(cfg.revPerDay)||0);
+    const newCap=CardsConfig.currentLimitForDeck?CardsConfig.currentLimitForDeck(d.id,'new'):(Number(cfg.newPerDay)||0);
+    let review=Math.max(0,reviewCap-revDone);
+    let news=Math.max(0,newCap-newDone);
     if(!ignore){review=Math.max(0,review-newDone);news=Math.min(news,review);}
     rem.set(String(d.id),{new:news,review,capNewToReview:!ignore});
   });
@@ -943,13 +953,63 @@ AnkiParity._filteredTermMatches=function(card,term){
     const want=val.toLowerCase();
     return this._noteTagsForCard(card).some(t=>{const x=t.toLowerCase();return x===want||x.startsWith(want+'::');});
   }
+  if(key==='note'){
+    const note=this.getNote(this.noteId(card)),nt=note&&this.getNotetype(note.notetypeId);
+    return !!nt&&includes(nt.name,val);
+  }
+  if(key==='card'){
+    const note=this.getNote(this.noteId(card)),nt=note&&this.getNotetype(note.notetypeId);
+    const ord=Number(card.ankiTemplateOrd)||0,tmpl=nt&&nt.templates&&nt.templates[ord];
+    const n=Number(val);return Number.isFinite(n)&&String(val).trim()!==''?ord===Math.max(0,n-1):!!tmpl&&includes(tmpl.name,val);
+  }
+  if(key==='flag')return Number(card.flag||0)===Number(val);
+  if(key==='edited'){
+    const days=Math.max(1,Number(val)||1),ts=Date.parse(card.updatedAt||'');
+    return Number.isFinite(ts)&&ts>=Date.now()-days*86400000;
+  }
+  if(key==='introduced'){
+    const days=Math.max(1,Number(val)||1),ts=Date.parse(card.firstReviewAt||card.createdAt||'');
+    return Number.isFinite(ts)&&ts>=Date.now()-days*86400000&&(Number(card.reps)||0)>0;
+  }
+  if(key==='nid'){
+    const ids=val.split(',').map(x=>x.trim()).filter(Boolean);
+    return ids.includes(String(card.ankiNoteId||card.noteId||''));
+  }
+  if(key==='cid'){
+    const ids=val.split(',').map(x=>x.trim()).filter(Boolean);
+    return ids.includes(String(card.ankiId||card.id||''));
+  }
+  if(key==='preset'){
+    const did=card.originalDeckId||card.deckId,cid=this.configIdForDeck(did),all=this.sharedPresets(),p=all[String(cid)];
+    const name=p&&p.name?String(p.name):String(cid||'default');
+    return includes(name,val);
+  }
+  if(key==='re'){
+    try{return new RegExp(val,'i').test([card.frente,card.verso,card.assunto,card.materia,card.materiaTec,card.banca].filter(Boolean).join(' '));}
+    catch(_){return false;}
+  }
   if(key==='prop'){
-    const pm=val.match(/^due\s*(<=|>=|=|<|>)\s*(-?\d+)$/i);
+    const pm=val.match(/^(due|ivl|reps|lapses|ease|pos|s|d|r)\s*(<=|>=|!=|=|<|>)\s*(-?\d+(?:\.\d+)?)$/i);
     if(pm){
-      const due=card.originalDue||card.due||todayCards(),delta=CardEngine._daysBetween(todayCards(),due);
-      const n=Number(pm[2]),op=pm[1];
-      return op==='<='?delta<=n:op==='>='?delta>=n:op==='<'?delta<n:op==='>'?delta>n:delta===n;
+      const prop=pm[1].toLowerCase(),n=Number(pm[3]),op=pm[2];
+      let actual;
+      if(prop==='due'){
+        const due=card.originalDue||card.due||todayCards();actual=CardEngine._daysBetween(todayCards(),due);
+      }else if(prop==='ivl')actual=Number(card.intervalo)||0;
+      else if(prop==='reps')actual=Number(card.reps)||0;
+      else if(prop==='lapses')actual=Number(card.lapses)||0;
+      else if(prop==='ease')actual=Number(card.ease)||0;
+      else if(prop==='pos')actual=Number(card.posicaoNova||card.ankiDue||0);
+      else if(prop==='s')actual=Number(card.s)||0;
+      else if(prop==='d')actual=Number(card.d)||0;
+      else actual=Number(CardEngine.retrievabilityDe(card,todayCards(),CardsConfig.weightsFor(card.originalDeckId||card.deckId)))||0;
+      return op==='<='?actual<=n:op==='>='?actual>=n:op==='!='?actual!==n:op==='<'?actual<n:op==='>'?actual>n:actual===n;
     }
+  }
+  if(m&&key&&!['materia','subject','assunto','topic','tipo','type','banca','favorito','favorite','suspenso','suspended','leech','deck','baralho','is','added','rated','tag','note','card','flag','edited','introduced','nid','cid','preset','re','prop'].includes(key)){
+    const note=this.getNote(this.noteId(card)),fields=note&&note.fields||{};
+    const hit=Object.keys(fields).find(k=>lc(k)===lc(key));
+    if(hit)return includes(fields[hit],val);
   }
   const needle=term.replace(/^"|"$/g,'').toLowerCase();
   const hay=[card.frente,card.verso,card.assunto,card.materia,card.materiaTec,card.banca].filter(Boolean).join(' ').replace(/<[^>]+>/g,' ').toLowerCase();
@@ -1058,11 +1118,12 @@ AnkiParity.customStudy=function(input){
   const name='Estudo Personalizado',kind=String(input.kind||''),days=Math.max(0,Number(input.days)||0);
   const esc=String(home.nome||'').replace(/"/g,'\\"');
   if(kind==='newLimitDelta'||kind==='reviewLimitDelta'){
-    const key=kind==='newLimitDelta'?'newPerDay':'revPerDay',delta=Number(input.delta)||0;
-    const cfg=CardsConfig.forDeck(deckId),next=Math.max(0,(Number(cfg[key])||0)+delta);
-    const existing=CardsConfig.getDeckPreset?CardsConfig.getDeckPreset(deckId):{};
-    CardsConfig.setDeckPreset(deckId,Object.assign({},existing||{},{[key]:next}));
-    return {ok:true,count:0,limitOnly:true};
+    const limitKind=kind==='newLimitDelta'?'new':'review',delta=Number(input.delta)||0;
+    const current=CardsConfig.currentLimitForDeck?CardsConfig.currentLimitForDeck(deckId,limitKind):
+      Number(CardsConfig.forDeck(deckId)[limitKind==='new'?'newPerDay':'revPerDay'])||0;
+    const next=Math.max(0,current+delta);
+    CardsConfig.setTodayLimit(deckId,limitKind,next);
+    return {ok:true,count:0,limitOnly:true,todayOnly:true,limit:next};
   }
   let cfg=this.filteredDefaults(),term={search:'deck:"'+esc+'"',limit:99999,order:this.FILTERED_ORDERS.RANDOM};
   if(kind==='forgot'){
