@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vf5fea8251a">
+<meta name="diario-versao" content="v6a2f0a71ee">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -30409,7 +30409,8 @@ const CardsScreen = {
       const st = CardEngine.stats(cards);
       body.innerHTML = `<p style="font-size:14px;">Você tem <strong>${cards.length} card(s)</strong>. Escolha o formato:</p>
         <ul style="font-size:13px; color:var(--text-soft); line-height:1.7; margin:8px 0 0; padding-left:18px;">
-          <li><strong>Anki (.txt)</strong>: importe no Anki (Arquivo → Importar). Cada linha = Frente[tab]Verso[tab]Tags.</li>
+          <li><strong>Anki completo (.apkg)</strong>: leva baralhos, notas, cards, agendamento, histórico, parâmetros/presets FSRS e imagens incorporadas.</li>
+          <li><strong>Anki simples (.txt)</strong>: leva apenas Frente, Verso e Tags; útil para uma importação limpa sem histórico.</li>
           <li><strong>Backup (.json)</strong>: cópia completa para reimportar aqui depois.</li>
         </ul>`;
     }
@@ -30510,6 +30511,28 @@ const CardsScreen = {
     this._download('cards-anki_' + todayLocal() + '.txt', header + lines.join('\n'), 'text/plain');
     showToast('Arquivo do Anki exportado ✓');
     $id('cards-export-modal').style.display = 'none';
+  },
+  async exportApkg() {
+    const cards = DB.getCards();
+    if (!cards.length) { showToast('Nenhum card para exportar'); return; }
+    const btn = document.getElementById('cards-export-apkg');
+    const old = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Gerando .apkg…'; }
+    try {
+      if (typeof AnkiExport === 'undefined' || typeof AnkiExport.buildPackage !== 'function') {
+        throw new Error('Exportador Anki completo indisponível');
+      }
+      const pkg = await AnkiExport.buildPackage();
+      this._download('cards-anki_' + todayLocal() + '.apkg', pkg.bytes, 'application/octet-stream');
+      showToast('Anki completo exportado: ' + pkg.cards.toLocaleString('pt-BR') + ' card(s), ' +
+        pkg.notes.toLocaleString('pt-BR') + ' nota(s) e ' + pkg.revlog.toLocaleString('pt-BR') + ' revisão(ões) ✓');
+      $id('cards-export-modal').style.display = 'none';
+    } catch (err) {
+      console.error('Falha ao exportar .apkg:', err);
+      showToast('Não foi possível gerar o .apkg. Detalhe: ' + (err && err.message ? err.message : String(err)));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = old || 'Anki completo (.apkg)'; }
+    }
   },
   exportJson() {
     const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 2, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards(), revlog: DB.getRevlog() };
