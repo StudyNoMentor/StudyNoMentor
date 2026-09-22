@@ -1,6 +1,6 @@
 /* ============================================================
    ANKI PACKAGE EXPORT — schema11 importável pelo Anki 26.09.2
-   Gera .apkg offline: collection.anki2 + media, sem CDN.
+   Gera .apkg offline no legado atual do Anki: meta + collection.anki21 + media, sem CDN.
    ============================================================ */
 const AnkiExport = {
   SCHEMA11: [
@@ -441,9 +441,22 @@ const AnkiExport = {
   },
 
   async buildPackage() {
-    const col = await this.buildCollection(), entries = [{ name: 'collection.anki2', data: col.bytes }], mediaMap = {};
-    col.media.forEach((m, i) => { mediaMap[String(i)] = m.name; entries.push({ name: String(i), data: m.bytes }); });
-    entries.splice(1, 0, { name: 'media', data: JSON.stringify(mediaMap) });
+    const col = await this.buildCollection(), mediaMap = {}, mediaEntries = [];
+    col.media.forEach((m, i) => {
+      mediaMap[String(i)] = m.name;
+      mediaEntries.push({ name: String(i), data: m.bytes });
+    });
+    /* Anki 26.09.2: Meta::new_legacy() = VERSION_LEGACY_2.
+       Em protobuf, PackageMetadata.version (campo 1) = 2 -> bytes 08 02.
+       O importador então lê collection.anki21 (schema11). Sem meta +
+       collection.anki2 seria o Legacy1 antigo, ainda aceito, mas não é o
+       formato legado que a versão-alvo produz hoje. */
+    const entries = [
+      { name: 'meta', data: new Uint8Array([0x08, 0x02]) },
+      { name: 'collection.anki21', data: col.bytes },
+      { name: 'media', data: JSON.stringify(mediaMap) },
+      ...mediaEntries
+    ];
     return Object.assign({ bytes: this.zipStore(entries) }, col);
   }
 };

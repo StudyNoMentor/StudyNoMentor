@@ -109,7 +109,7 @@ for(const runtime of [
   './src/vendor/sqljs-1.2.1/sql-asm.js'
 ]) assert.ok(sw.includes(runtime),'PWA deve pré-cachear runtime dinâmico: '+runtime);
 
-// Integração real: gera SQLite, ZIP e reabre o collection.anki2 com o MESMO sql.js vendorado.
+// Integração real: gera o Legacy2 do Anki 26.09.2 e reabre o collection.anki21 com o MESMO sql.js vendorado.
 const pkg=await X.buildPackage();
 assert.equal(pkg.cards,2);
 assert.equal(pkg.notes,2);
@@ -130,13 +130,15 @@ function unzipStored(bytes){
   return files;
 }
 const files=unzipStored(pkg.bytes);
-assert.ok(files.has('collection.anki2'),'APKG deve conter collection.anki2');
+assert.ok(files.has('meta'),'APKG Legacy2 deve declarar PackageMetadata');
+assert.deepEqual(Array.from(files.get('meta')),[0x08,0x02],'meta protobuf deve declarar VERSION_LEGACY_2');
+assert.ok(files.has('collection.anki21'),'APKG Legacy2 do Anki 26.09.2 deve conter collection.anki21');
 assert.ok(files.has('media'),'APKG deve conter media manifest');
 assert.ok(files.has('0'),'imagem incorporada deve virar arquivo de mídia numerado');
 const media=JSON.parse(new TextDecoder().decode(files.get('media')));
 assert.match(media['0'],/^studynomentor_[0-9a-f]{8}-\d+\.png$/);
 
-const db=new SQL.Database(files.get('collection.anki2'));
+const db=new SQL.Database(files.get('collection.anki21'));
 const scalar=sql=>db.exec(sql)[0].values[0][0];
 assert.equal(scalar('select count(*) from notes'),2);
 assert.equal(scalar('select count(*) from cards'),2);
@@ -172,4 +174,4 @@ assert.deepEqual(rev.map(r=>r[1]),[0,1,1],'tipos learning/review devem ser prese
 assert.equal(rev[1][2],1,'lastIvl deve vir do intervalo anterior registrado');
 
 db.close();
-console.log('APKG ANKI: ZIP, SQLite schema11, notas, cards, FSRS, revlog, presets/tags e mídia validados com sql.js real.');
+console.log('APKG ANKI: Legacy2 (meta + collection.anki21), SQLite schema11, notas, cards, FSRS, revlog, presets/tags e mídia validados com sql.js real.');
