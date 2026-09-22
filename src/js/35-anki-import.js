@@ -169,7 +169,7 @@ const AnkiImport = {
   _toNotetype(m){
     const fields=(m.flds||m.fields||[]).map((f,i)=>({name:f.name||('Field '+(i+1)),ord:i,sourceOrd:Number.isFinite(Number(f.ord))?Number(f.ord):i,id:f.id==null?null:Number(f.id),sticky:!!f.sticky,rtl:!!f.rtl,fontName:f.font||f.fontName||'Arial',fontSize:Number(f.size||f.fontSize)||20,description:f.description||'',plainText:!!f.plainText,collapsed:!!f.collapsed,excludeFromSearch:!!f.excludeFromSearch,tag:f.tag==null?null:Number(f.tag),preventDeletion:!!f.preventDeletion}));
     const templates=(m.tmpls||m.templates||[]).map((t,i)=>({name:t.name||('Card '+(i+1)),ord:i,sourceOrd:Number.isFinite(Number(t.ord))?Number(t.ord):i,qfmt:t.qfmt||'',afmt:t.afmt||'',bqfmt:t.bqfmt||'',bafmt:t.bafmt||'',did:t.did||null,bfont:t.bfont||'',bsize:Number(t.bsize)||0,id:t.id==null?null:Number(t.id)}));
-    return {id:Number(m.id),ankiId:Number(m.id),originalId:m.originalId==null?Number(m.id):Number(m.originalId),name:m.name||'Imported',kind:Number(m.type)===1?'cloze':'normal',css:m.css||'',fields,templates,latexPre:m.latexPre||'',latexPost:m.latexPost||'',latexsvg:!!m.latexsvg,originalStockKind:Number(m.originalStockKind)||0,updatedAt:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined};
+    return {id:Number(m.id),ankiId:Number(m.id),originalId:m.originalId==null?Number(m.id):Number(m.originalId),name:m.name||'Imported',kind:Number(m.type)===1?'cloze':'normal',css:m.css||'',fields,templates,latexPre:m.latexPre||'',latexPost:m.latexPost||'',latexsvg:!!m.latexsvg,originalStockKind:Number(m.originalStockKind)||0,updatedAt:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined,ankiMtime:m.mod?new Date(Number(m.mod)*1000).toISOString():undefined};
   },
   _deckCfg(d){
     const w=Array.isArray(d.fsrsParams6)&&d.fsrsParams6.length===21?d.fsrsParams6:null;
@@ -374,14 +374,14 @@ const AnkiImport = {
       let existing=currentTypes.find(x=>Number(x.id)===Number(m.id));
       if(!existing)existing=currentTypes.find(x=>Number(x.originalId)===Number(m.id)&&this._schemaEqual(x,incoming));
       if(existing&&opts.mergeNotetypes!==false){
-        const prefer=this._shouldUpdate(opts.updateNotetypes,Number(m.mod)||0,existing.updatedAt),merged=this._mergeNotetype(existing,incoming,prefer);
+        const prefer=this._shouldUpdate(opts.updateNotetypes,Number(m.mod)||0,existing.ankiMtime||existing.updatedAt),merged=this._mergeNotetype(existing,incoming,prefer);
         this._migrateNotesForMergedNotetype(existing,merged.notetype);
         AnkiParity.saveNotetype(merged.notetype);ntMap.set(sourceId,existing.id);ntFieldMaps.set(sourceId,merged.fieldNames);ntTemplateMaps.set(sourceId,merged.templateOrd);
       }else if(existing&&this._schemaEqual(existing,incoming)){
         ntMap.set(sourceId,existing.id);
         ntFieldMaps.set(sourceId,(incoming.fields||[]).map((f,i)=>(existing.fields||[])[i]&&existing.fields[i].name||f.name));
         ntTemplateMaps.set(sourceId,(incoming.templates||[]).map((_,i)=>i));
-        if(this._shouldUpdate(opts.updateNotetypes,Number(m.mod)||0,existing.updatedAt)){
+        if(this._shouldUpdate(opts.updateNotetypes,Number(m.mod)||0,existing.ankiMtime||existing.updatedAt)){
           incoming.id=existing.id;incoming.ankiId=existing.ankiId||existing.id;AnkiParity.saveNotetype(Object.assign({},existing,incoming));
         }
       }else{
@@ -400,13 +400,13 @@ const AnkiImport = {
       let existing=existingNotes.find(x=>String(x.guid||'')===String(n.guid||''))||existingNotes.find(x=>Number(x.ankiId||x.id)===Number(n.id));
       if(existing){
         noteMap.set(String(n.id),existing.id);
-        if(this._shouldUpdate(opts.updateNotes,Number(n.mod)||0,existing.updatedAt)){
+        if(this._shouldUpdate(opts.updateNotes,Number(n.mod)||0,existing.ankiMtime||existing.updatedAt)){
           const mergedFields=Object.assign({},existing.fields||{});
           for(const f of (nt.fields||[]))if(Object.prototype.hasOwnProperty.call(fields,f.name))mergedFields[f.name]=fields[f.name];
-          AnkiParity.saveNote(Object.assign({},existing,{notetypeId:localNtid,fields:mergedFields,tags:String(n.tags||'').trim().split(/\s+/).filter(Boolean),guid:n.guid,ankiId:existing.ankiId||Number(n.id),updatedAt:new Date(Number(n.mod||0)*1000).toISOString()}));
+          AnkiParity.saveNote(Object.assign({},existing,{notetypeId:localNtid,fields:mergedFields,tags:String(n.tags||'').trim().split(/\s+/).filter(Boolean),guid:n.guid,ankiId:existing.ankiId||Number(n.id),ankiMtime:new Date(Number(n.mod||0)*1000).toISOString()}));
         }
       }else{
-        const note=AnkiParity.saveNote({id:Number(n.id),ankiId:Number(n.id),guid:n.guid,notetypeId:localNtid,fields,tags:String(n.tags||'').trim().split(/\s+/).filter(Boolean),createdAt:new Date(Number(n.id)).toISOString(),updatedAt:new Date(Number(n.mod||0)*1000).toISOString()});
+        const note=AnkiParity.saveNote({id:Number(n.id),ankiId:Number(n.id),guid:n.guid,notetypeId:localNtid,fields,tags:String(n.tags||'').trim().split(/\s+/).filter(Boolean),createdAt:new Date(Number(n.id)).toISOString(),ankiMtime:new Date(Number(n.mod||0)*1000).toISOString()});
         existingNotes.push(note);noteMap.set(String(n.id),note.id);
       }
     }
