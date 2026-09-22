@@ -864,7 +864,7 @@ const CardsScreen = {
     this.renderReviewCard(document.getElementById('cards-content'));
     this.atualizarFoco();
   },
-  answer(grade) {
+  async answer(grade) {
     const id = this._reviewQueue[this._reviewIdx];
     const c = DB.getCard(id);
     /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
@@ -884,37 +884,47 @@ const CardsScreen = {
          do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
          separar card jovem de card maduro: a coluna "Maduros" ficava vazia
          para sempre, porque a linha do histórico não guardava essa informação. */
-      /* ── UMA RESPOSTA SÓ CONTA SE FOI GRAVADA ────────────────────────────
-         O armazenamento pode recusar a escrita (cota do navegador cheia, por
-         exemplo). Antes, a recusa virava um aviso e a fila seguia em frente:
-         o card aparecia como respondido, o índice avançava, o desfazer era
-         empilhado — e nada disso existia depois de recarregar a página. Agora
-         a resposta é abortada e o card continua onde estava, para ser
-         respondido de novo depois que o espaço for liberado. */
-      if (DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) }) === false) {
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-        return;
-      }
-      // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
+      /* ── COMMIT LOCAL DURÁVEL ANTES DE AVANÇAR ──────────────────────────
+         A matemática pode ser calculada antes, porque schedule() é pura para o
+         card recebido. O que NÃO pode acontecer é a fila avançar antes de haver
+         uma transação recuperável. Guardamos na outbox: revlog + estado final do
+         card. Só então aplicamos a projeção local e liberamos a interface. */
       const bucketAntes = this._bucket(c);
       if (!this._seenThisSession) this._seenThisSession = new Set();
       const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
-      if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
-      this._seenThisSession.add(id);
-      // snapshot para o DESFAZER — capturado ANTES de gravar (Anki: Ctrl+Z)
+
+      // snapshot para DESFAZER, antes de qualquer mutação.
       const antes = {};
       ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
         .forEach(k => { antes[k] = c[k]; });
+
       patch = CardEngine.schedule(c, grade);
+      const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
+      const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
+      const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
+      const revRow = await DB.addRevlogDurable(
+        { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
+        cardAfter, cardPosition
+      );
+      if (revRow === false) {
+        showToast('⚠ Não foi possível gravar esta revisão com segurança. Libere espaço e tente de novo.');
+        return false;
+      }
+
+      if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
+      this._seenThisSession.add(id);
       if (DB.updateCard(id, patch) === false) {
-        // O agendamento não foi gravado: desfaz o registro que acabou de entrar
-        // no histórico para os dois não ficarem em desacordo.
-        DB.removeRevlog(revTs);
+        // O card não entrou nem na projeção local: cancela o append antes de
+        // permitir qualquer replay na nuvem e devolve o contador.
+        await DB.cancelarRevlogDurable(revRow);
         if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
         this._seenThisSession.delete(id);
         showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-        return;
+        return false;
       }
+      // A partir daqui a resposta sobrevive a reload/offline. A sincronização
+      // remota pode terminar depois sem bloquear a próxima pergunta.
+      DB.kickRevlogDuravel();
       CardEngine.invalidateDueCache();
       (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
       if (this._undoStack.length > 50) this._undoStack.shift();
@@ -956,7 +966,7 @@ const CardsScreen = {
         this._reviewQueue = this._reviewQueue.concat(antecipados);
         this._skipNotDue();
         this.renderReviewCard(box);
-        return;
+        return true;
       }
       // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
       const distintos = new Set(this._reviewQueue).size;
@@ -968,9 +978,10 @@ const CardsScreen = {
       const prox = (this._queueMeta || {}).proximoTs;
       clearTimeout(this._etaTimer);
       if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
-      return;
+      return true;
     }
     this.renderReviewCard(box);
+    return true;
   },
   // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
@@ -1266,6 +1277,7 @@ const CardsScreen = {
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
     let destSel = '', assunto = '', materiaTec = '', banca = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
+      if (DB.normalizeCardNotesInPlace) DB.normalizeCardNotesInPlace();
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
       assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
@@ -1355,13 +1367,19 @@ const CardsScreen = {
     if (!data) return;
     const reversed = data._reversed; delete data._reversed;
     if (this._editingId) {
-      DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
+      // Editar uma das faces de "Básico + invertido" edita a NOTA: o irmão é
+      // regenerado com frente/verso trocados, mas mantém seu agendamento próprio.
+      DB.updateCardNote(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
     } else {
-      const c = DB.addCard(data);
       if (reversed) {
-        DB.addCard({ ...data, frente: data.verso, verso: data.frente, reversedOf: c.id });
+        const noteId = DB._uid();
+        const c = DB.addCard({ ...data, noteId, template: 'forward' });
+        DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
         showToast('2 cards criados (normal + invertido) ✓');
-      } else showToast('Card criado ✓');
+      } else {
+        DB.addCard(data);
+        showToast('Card criado ✓');
+      }
       if (closeAfter) this.closeCardModal();
       else {
         $id('card-frente').innerHTML = '';
