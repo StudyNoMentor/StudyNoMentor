@@ -127,6 +127,33 @@ const AnkiParity = {
     return h;
   },
   reviewTie(card){return BigInt.asIntN(64,this.fnvHashI64(this.cardId(card),this.mod(card)));},
+  daysElapsed(){
+    try{
+      const cards=DB.getCards();
+      const crt=(typeof AnkiExport!=='undefined'&&AnkiExport._collectionEpoch)?AnkiExport._collectionEpoch(cards):Math.floor(Date.now()/1000)-86400;
+      const now=Date.parse(todayCards()+'T00:00:00');
+      return Math.max(0,Math.round((now-crt*1000)/86400000));
+    }catch(_){return 0;}
+  },
+  knuthSalt(days){return (Math.imul(Number(days)>>>0,2654435761)>>>0);},
+  newCardHash(card,salt){
+    return BigInt.asIntN(64,this.fnvHashI64(this.cardId(card),Number(salt)>>>0));
+  },
+  newNoteHash(card,salt){
+    return BigInt.asIntN(64,this.fnvHashI64(this.noteId(card),Number(salt)>>>0));
+  },
+  cmpBig(a,b){return a<b?-1:(a>b?1:0);},
+  stableNewSort(cards,mode){
+    const xs=cards.slice(),days=this.daysElapsed(),salt=this.knuthSalt(days);
+    const ord=c=>Math.max(0,Number(c&&c.ankiTemplateOrd)!=null?Number(c.ankiTemplateOrd):(c&&c.template==='reverse'?1:0));
+    const cid=c=>this.newCardHash(c,days),nid=c=>this.newNoteHash(c,days);
+    if(mode==='templateRandom')xs.sort((a,b)=>ord(a)-ord(b)||this.cmpBig(cid(a),cid(b)));
+    else if(mode==='randomNoteTemplate')xs.sort((a,b)=>this.cmpBig(nid(a),nid(b))||ord(a)-ord(b));
+    else if(mode==='randomCard')xs.sort((a,b)=>this.cmpBig(cid(a),cid(b)));
+    else if(mode==='gatherRandomNotes')xs.sort((a,b)=>this.cmpBig(this.newNoteHash(a,salt),this.newNoteHash(b,salt))||ord(a)-ord(b));
+    else if(mode==='gatherRandomCards')xs.sort((a,b)=>this.cmpBig(this.newCardHash(a,salt),this.newCardHash(b,salt)));
+    return xs;
+  },
 
   configIdForDeck(deckId){
     if(deckId==null)return 'default';
