@@ -18,7 +18,7 @@ permissions:
 jobs:
   verificar:
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,6 +26,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        if: github.event_name != 'push'
+        with:
+          python-version: '3.13'
 
       - name: Build e sintaxe
         shell: bash
@@ -43,11 +47,36 @@ jobs:
       - name: Interoperabilidade dos Cards
         if: github.event_name != 'push'
         shell: bash
+        env:
+          SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
+          SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
+          SNM_COLPKG_OUT: ${{ runner.temp }}/snm-study.colpkg
         run: |
           set -euo pipefail
           node testes/cards-apkg-export.mjs
           node testes/cards-import-formatos.mjs
+          node testes/cards-runtime-anki.mjs
           node testes/cards-concorrencia-multidevice.mjs
+
+      - name: Round-trip com Anki oficial 26.09.2
+        if: github.event_name != 'push'
+        shell: bash
+        env:
+          SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
+          SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
+          SNM_ANKI_OFFICIAL_OUT: ${{ runner.temp }}/anki-oficial-latest.apkg
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --quiet 'anki==26.09.2'
+          python testes/anki-oficial-roundtrip.py
+          node testes/cards-import-anki-oficial.mjs
+
+      - name: Simulacao anual 6000 cards x 365 dias
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node audit/cards-20260921/simulate.mjs
 
       - name: Sincronizar artefatos gerados na main
         if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
