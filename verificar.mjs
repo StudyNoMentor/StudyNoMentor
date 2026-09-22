@@ -72,6 +72,12 @@ try {
 } catch (e) {
   erro('configuracao invalida ainda torna cards inagendaveis:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'cards-certificacao-anki.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim());
+} catch (e) {
+  erro('contratos de certificacao Anki divergiram:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
 
 // ── 3a. regressões reproduzidas pela auditoria 6.000 × 365 ─────────────────
 console.log('\n3a) cards: regressões Anki + simulação de 6.000 cards por 365 dias');
