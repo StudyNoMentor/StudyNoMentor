@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v6ee2c925eb">
+<meta name="diario-versao" content="vb664de33d5">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -17000,10 +17000,13 @@ const DB = {
       phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
     return data;
   },
-  // BANDEIRAS (Ctrl+1..4 / 0 remove) — mesmas cores e ordem do Anki
+  // BANDEIRAS do Anki atual: 1–7; a barra compacta do Study continua
+  // mostrando as quatro clássicas, e as adicionais ficam nas ações avançadas.
   FLAGS: [null, { nome: 'Vermelha', cor: '#e0393f' }, { nome: 'Laranja', cor: '#e07a1f' },
-          { nome: 'Verde', cor: '#0f9d63' }, { nome: 'Azul', cor: '#2563eb' }],
-  setFlag(id, n) { this.updateCard(id, { flag: (n >= 1 && n <= 4) ? n : 0 }); },
+          { nome: 'Verde', cor: '#0f9d63' }, { nome: 'Azul', cor: '#2563eb' },
+          { nome: 'Rosa', cor: '#d946ef' }, { nome: 'Turquesa', cor: '#0891b2' },
+          { nome: 'Roxa', cor: '#7c3aed' }],
+  setFlag(id, n) { n=Math.round(Number(n)||0); this.updateCard(id, { flag: (n >= 1 && n <= 7) ? n : 0 }); },
   zerarProgressoCards() {
     const cards = this.getCards();
     const nRev = this.getRevlog().length;
@@ -33907,6 +33910,7 @@ const AnkiProductParity = {
                   <button type="button" class="btn-secondary" id="anki-browser-type-btn" disabled>🧩 Mudar tipo</button>
                   <button type="button" class="btn-secondary" id="anki-browser-suspend-btn" disabled>⏸ Suspender/ativar</button>
                   <button type="button" class="btn-secondary" id="anki-browser-flag-btn" disabled>🚩 Bandeira</button>
+                  <button type="button" class="btn-secondary" id="anki-browser-actions-btn" disabled>⋯ Ações</button>
                   <button type="button" class="btn-danger" id="anki-browser-delete-btn" disabled>Excluir notas</button>
                 </div>
                 <div class="anki-browser-table-head"><span></span><span>Classificar campo</span><span>Tipo de nota</span><span>Cards</span><span>Etiquetas</span></div>
@@ -34010,10 +34014,16 @@ const AnkiProductParity = {
     const st=this.browser,types=AnkiParity.noteTypes(),typeMap=new Map(types.map(t=>[String(t.id),t]));
     let rows=AnkiParity.notes().map(note=>{
       const cards=this._cardsForNote(note.id),nt=typeMap.get(String(note.notetypeId));
-      return {note,cards,nt,field:this._sortField(note,nt),tags:(note.tags||[]).slice(),flag:cards.reduce((m,c)=>Math.max(m,Number(c.flag)||0),0),suspended:cards.some(c=>c.suspenso),marked:cards.some(c=>c.favorito)};
+      const tags=(note.tags||[]).slice(),marked=tags.some(t=>String(t).toLowerCase()==='marked')||cards.some(c=>c.favorito);
+      return {note,cards,nt,field:this._sortField(note,nt),tags,flag:cards.reduce((m,c)=>Math.max(m,Number(c.flag)||0),0),suspended:cards.some(c=>c.suspenso),marked};
     });
-    const q=st.query.trim().toLowerCase();
-    if(q)rows=rows.filter(r=>[r.field,r.nt&&r.nt.name,(r.tags||[]).join(' '),...Object.values(r.note.fields||{}).map(x=>this.plain(x))].join(' ').toLowerCase().includes(q));
+    const rawQuery=st.query.trim(),q=rawQuery.toLowerCase();
+    if(q)rows=rows.filter(r=>{
+      if(/[\w-]+:/.test(rawQuery)&&typeof AnkiParity.filteredSearchMatches==='function'){
+        return r.cards.some(c=>{try{return AnkiParity.filteredSearchMatches(c,rawQuery);}catch(_){return false;}});
+      }
+      return [r.field,r.nt&&r.nt.name,(r.tags||[]).join(' '),...Object.values(r.note.fields||{}).map(x=>this.plain(x))].join(' ').toLowerCase().includes(q);
+    });
     if(st.tag)rows=rows.filter(r=>r.tags.some(t=>String(t)===st.tag||String(t).startsWith(st.tag+'::')));
     if(st.flag!=='')rows=rows.filter(r=>Number(r.flag)===Number(st.flag));
     if(st.suspended==='yes')rows=rows.filter(r=>r.suspended);else if(st.suspended==='no')rows=rows.filter(r=>!r.suspended);
@@ -34066,7 +34076,7 @@ const AnkiProductParity = {
     const n=this.browser.selected.size,all=n&&n===rows.length;
     const sa=document.getElementById('anki-browser-select-all');sa.checked=!!all;sa.indeterminate=n>0&&!all;
     document.getElementById('anki-browser-selected').textContent=n?n+' selecionada(s)':'';
-    ['anki-browser-tags-btn','anki-browser-type-btn','anki-browser-suspend-btn','anki-browser-flag-btn','anki-browser-delete-btn'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!n;});
+    ['anki-browser-tags-btn','anki-browser-type-btn','anki-browser-suspend-btn','anki-browser-flag-btn','anki-browser-actions-btn','anki-browser-delete-btn'].forEach(id=>{const b=document.getElementById(id);if(b)b.disabled=!n;});
   },
 
   _bindBrowser(){
@@ -34085,6 +34095,7 @@ const AnkiProductParity = {
     by('anki-browser-type-btn').addEventListener('click',()=>this.openChangeType([...this.browser.selected]));
     by('anki-browser-suspend-btn').addEventListener('click',()=>this.toggleSuspend([...this.browser.selected]));
     by('anki-browser-flag-btn').addEventListener('click',()=>this.bulkFlag([...this.browser.selected]));
+    by('anki-browser-actions-btn').addEventListener('click',()=>this.browserBulkActions([...this.browser.selected]));
     by('anki-browser-delete-btn').addEventListener('click',()=>this.deleteNotes([...this.browser.selected]));
     by('anki-browser-notetypes').addEventListener('click',()=>this.openNotetypes());
   },
@@ -34170,7 +34181,11 @@ const AnkiProductParity = {
       for(const id of this._changeTypeIds||[]){
         const note=AnkiParity.getNote(id);if(!note)continue;const srcNt=this._typeFor(note),srcNames=(srcNt&&srcNt.fields||[]).map(f=>f.name),fields={};
         (target.fields||[]).forEach((f,i)=>{const explicit=map[f.name],src=explicit||(note.fields&&Object.prototype.hasOwnProperty.call(note.fields,f.name)?f.name:srcNames[i]);fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
-        if(target.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+::/.test(String(v||'')))){showToast('Para mudar para Cloze, a nota precisa conter ao menos uma omissão {{c1::…}}.');return;}
+        if(target.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Para mudar para Cloze, a nota precisa conter ao menos uma omissão {{c1::…}}.');return;}
+        if(Number(target.originalStockKind)===6||target.stockKind==='image_occlusion'){
+          const oc=(target.fields||[]).find(f=>Number(f.tag)===0),im=(target.fields||[]).find(f=>Number(f.tag)===1);
+          if(!oc||!im||!/image-occlusion:/.test(String(fields[oc.name]||''))||!AnkiParity._fieldNonempty(fields[im.name])){showToast('Use o editor de Oclusão de Imagem para criar ou converter este tipo de nota.');return;}
+        }
         const saved=AnkiParity.saveNote(Object.assign({},note,{notetypeId:target.id,fields}));this.reconcileNote(saved,target);changed++;
       }
       document.getElementById('anki-change-type-modal').style.display='none';document.getElementById('anki-note-edit-modal').style.display='none';this.renderBrowser();CardsScreen.render();showToast(changed+' nota(s) alterada(s) ✓');
@@ -34197,6 +34212,83 @@ const AnkiProductParity = {
     });
   },
 
+  browserBulkActions(ids){
+    if(!ids.length)return;
+    UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
+      {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},
+      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Esquecer / tornar novos'},
+      {value:'reposition',label:'🔢 Reposicionar cards novos'},{value:'replace',label:'🔁 Localizar e substituir nos campos'}
+    ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
+      if(!v)return;
+      if(v.action==='mark')this.bulkMark(ids);
+      else if(v.action==='deck')this.bulkMoveDeck(ids);
+      else if(v.action==='due')this.bulkSetDue(ids);
+      else if(v.action==='forget')this.bulkForget(ids);
+      else if(v.action==='reposition')this.bulkReposition(ids);
+      else if(v.action==='replace')this.bulkFindReplace(ids);
+    });
+  },
+
+  bulkMark(ids){
+    const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean);
+    const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
+    notes.forEach(n=>{
+      let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
+      if(shouldMark)tags.push('marked');
+      AnkiParity.saveNote(Object.assign({},n,{tags:[...new Set(tags)]}));
+    });
+    this.renderBrowser();CardsScreen.render();showToast(shouldMark?'Notas marcadas ✓':'Marcação removida ✓');
+  },
+
+  bulkMoveDeck(ids){
+    const decks=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    if(!decks.length){showToast('Crie um baralho antes de mover.');return;}
+    UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{
+      if(!v)return;let n=0;
+      ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>{
+        if(c.filteredDeckId||c.originalDeckId){DB.updateCard(c.id,{originalDeckId:v.deck});}
+        else DB.updateCard(c.id,{deckId:v.deck});
+        n++;
+      });
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(n+' card(s) movido(s) ✓');
+    });
+  },
+
+  bulkSetDue(ids){
+    UI.prompt([{key:'days',label:'Vencer daqui a quantos dias?',type:'number',value:'1',hint:'0 = hoje. Aplica a todos os cards das notas selecionadas.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const days=Math.max(0,Math.round(Number(v.days)||0));let n=0;
+      ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>{DB.setDueDays(c.id,days);n++;});
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(n+' card(s) reagendado(s) ✓');
+    });
+  },
+
+  bulkForget(ids){
+    const cards=ids.flatMap(id=>this._cardsForNote(id));UI.confirm('Esquecer '+cards.length+' card(s)? Eles voltam ao estado de novos; o conteúdo das notas é preservado.',{title:'↺ Esquecer cards',okText:'Esquecer',danger:true}).then(ok=>{
+      if(!ok)return;cards.forEach(c=>DB.forgetCard(c.id));CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram a ser novos ✓');
+    });
+  },
+
+  bulkReposition(ids){
+    const cards=ids.flatMap(id=>this._cardsForNote(id)).filter(c=>(c.phase||'new')==='new');
+    if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
+    UI.prompt([{key:'start',label:'Posição inicial',type:'number',value:'1'},{key:'step',label:'Passo',type:'number',value:'1'}],{title:'🔢 Reposicionar novos',okText:'Aplicar'}).then(v=>{
+      if(!v)return;const start=Math.max(0,Math.round(Number(v.start)||0)),step=Math.max(1,Math.round(Number(v.step)||1));
+      cards.sort((a,b)=>(Number(a.posicaoNova)||0)-(Number(b.posicaoNova)||0)||String(a.id).localeCompare(String(b.id))).forEach((c,i)=>DB.updateCard(c.id,{posicaoNova:start+i*step,ankiDue:start+i*step}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reposicionado(s) ✓');
+    });
+  },
+
+  bulkFindReplace(ids){
+    UI.prompt([{key:'find',label:'Localizar',type:'text',value:''},{key:'replace',label:'Substituir por',type:'text',value:''}],{title:'🔁 Localizar e substituir',okText:'Substituir'}).then(v=>{
+      if(!v||!String(v.find||''))return;const needle=String(v.find),replacement=String(v.replace||'');let notesChanged=0,fieldsChanged=0;
+      ids.forEach(id=>{const note=AnkiParity.getNote(id);if(!note)return;const fields=Object.assign({},note.fields||{});let changed=false;
+        Object.keys(fields).forEach(k=>{const before=String(fields[k]||'');if(before.includes(needle)){fields[k]=before.split(needle).join(replacement);fieldsChanged++;changed=true;}});
+        if(changed){const saved=AnkiParity.saveNote(Object.assign({},note,{fields}));this.reconcileNote(saved,this._typeFor(saved));notesChanged++;}
+      });
+      this.renderBrowser();CardsScreen.render();showToast(notesChanged+' nota(s), '+fieldsChanged+' campo(s) alterado(s) ✓');
+    });
+  },
+
   deleteNotes(ids){
     if(!ids.length)return;UI.confirm('Excluir '+ids.length+' nota(s) e todos os seus cards/históricos? Não há como desfazer.',{title:'🗑 Excluir notas',okText:'Excluir',danger:true}).then(ok=>{
       if(!ok)return;ids.forEach(id=>{const cards=this._cardsForNote(id);cards.forEach(c=>DB.deleteNoteByCard(c.id));try{localStorage.removeItem(AnkiParity._entityKey('note',id));}catch(_){};});
@@ -34213,7 +34305,7 @@ const AnkiProductParity = {
   _bindNotetypes(){
     document.getElementById('anki-nt-add').addEventListener('click',()=>{
       UI.prompt([{key:'base',label:'Base',type:'select',value:'basic',options:[
-        {value:'basic',label:'Básico'},{value:'basic_reversed',label:'Básico (e cartão invertido)'},{value:'basic_optional_reversed',label:'Básico (cartão invertido opcional)'},{value:'typing',label:'Básico (digite a resposta)'},{value:'cloze',label:'Omissão de palavras'}
+        {value:'basic',label:'Básico'},{value:'basic_reversed',label:'Básico (e cartão invertido)'},{value:'basic_optional_reversed',label:'Básico (cartão invertido opcional)'},{value:'typing',label:'Básico (digite a resposta)'},{value:'cloze',label:'Omissão de palavras'},{value:'image_occlusion',label:'Oclusão de imagem'}
       ]},{key:'name',label:'Nome',type:'text',value:'Novo tipo de nota'}],{title:'＋ Tipo de nota',okText:'Criar'}).then(v=>{
         if(!v)return;const def=JSON.parse(JSON.stringify(AnkiParity._stockNotetypeDef(v.base)));def.id=AnkiParity._allocId();def.name=String(v.name||'Novo tipo de nota').trim()||'Novo tipo de nota';def.sourceStockKind=def.stockKind;delete def.stockKind;AnkiParity.saveNotetype(def);this.renderNotetypes();showToast('Tipo criado ✓');
       });
@@ -34264,8 +34356,14 @@ const AnkiProductParity = {
     if(new Set(names.map(x=>x.toLowerCase())).size!==names.length){showToast('Os nomes dos campos precisam ser únicos.');return;}
     if(!templateRows.length){showToast('Todo tipo precisa de ao menos um template.');return;}
     const nt=JSON.parse(JSON.stringify(old));nt.name=String(document.getElementById('anki-nt-name').value||'').trim()||old.name;
-    nt.fields=fieldRows.map((r,i)=>({name:names[i],ord:i,_source:r.dataset.source||''}));
-    nt.templates=templateRows.map((r,i)=>({name:String(r.querySelector('.anki-template-name').value||('Card '+(i+1))).trim(),ord:i,qfmt:r.querySelector('.anki-qfmt').value,afmt:r.querySelector('.anki-afmt').value,_sourceOrd:r.dataset.sourceOrd}));
+    nt.fields=fieldRows.map((r,i)=>{
+      const source=r.dataset.source||'',base=(old.fields||[]).find(f=>f.name===source)||{};
+      return Object.assign({},JSON.parse(JSON.stringify(base)),{name:names[i],ord:i,_source:source});
+    });
+    nt.templates=templateRows.map((r,i)=>{
+      const sourceOrd=r.dataset.sourceOrd,base=(old.templates||[]).find((t,j)=>String(t.ord==null?j:t.ord)===String(sourceOrd))||{};
+      return Object.assign({},JSON.parse(JSON.stringify(base)),{name:String(r.querySelector('.anki-template-name').value||('Card '+(i+1))).trim(),ord:i,qfmt:r.querySelector('.anki-qfmt').value,afmt:r.querySelector('.anki-afmt').value,_sourceOrd:sourceOrd});
+    });
     nt.css=document.getElementById('anki-nt-css').value;
     const notes=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(nt.id));
     const removed=(old.fields||[]).filter(f=>!nt.fields.some(nf=>nf._source===f.name));
