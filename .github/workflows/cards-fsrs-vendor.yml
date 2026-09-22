@@ -1,0 +1,60 @@
+name: Cards FSRS 6.6.2 vendor
+
+on:
+  push:
+    branches:
+      - fix/cards-anki-26092-total-parity-20260922
+    paths:
+      - 'tools/cards-fsrs-wasm/**'
+      - '.github/workflows/cards-fsrs-vendor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/cards-anki-26092-total-parity-20260922
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen CLI
+        run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
+
+      - name: Build exact fsrs-rs 6.6.2 wrapper
+        working-directory: tools/cards-fsrs-wasm
+        run: cargo build --release
+
+      - name: Generate browser module
+        run: |
+          set -euxo pipefail
+          rm -rf src/vendor/fsrs-6.6.2
+          mkdir -p src/vendor/fsrs-6.6.2
+          wasm-bindgen \
+            tools/cards-fsrs-wasm/target/wasm32-unknown-unknown/release/study_cards_fsrs_wasm.wasm \
+            --target web \
+            --no-typescript \
+            --out-dir src/vendor/fsrs-6.6.2 \
+            --out-name fsrs_optimizer
+          sha256sum src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm | awk '{print $1}' > src/vendor/fsrs-6.6.2/SHA256
+          printf '%s\n' '{"fsrs_rs":"6.6.2","wasm_bindgen":"0.2.100","anki_reference":"26.09.2","training_epochs":8,"short_term":true}' > src/vendor/fsrs-6.6.2/version.json
+
+      - name: Commit reproducible vendor assets
+        run: |
+          set -euxo pipefail
+          git add src/vendor/fsrs-6.6.2
+          if git diff --cached --quiet; then
+            echo 'Vendor already up to date.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build(cards): vendor fsrs-rs 6.6.2 wasm'
+          git push origin HEAD:fix/cards-anki-26092-total-parity-20260922
