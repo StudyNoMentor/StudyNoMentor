@@ -767,9 +767,9 @@ const CardsScreen = {
           // conteúdo do card acesso ao DOM/storage/Supabase do Study.
           if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
             return '<div class="cards-face cards-front cards-anki-template">' +
-              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped) +
+              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note) +
               '</div><div class="cards-face cards-back cards-anki-template">' +
-              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped) + '</div>';
+              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note) + '</div>';
           }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
           return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
