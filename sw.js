@@ -51,6 +51,7 @@ const VERSAO = 'v34fcd52275';
      pior momento: logo depois de atualizar, com a rede já ocupada. */
 const CACHE_APP = VERSAO + '-app';
 const CACHE_CDN = 'cdn-imutavel-v1';
+const MATHJAX_ANKI = 'https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-chtml-full.js';
 const CDN_MAX = 60;               // teto de entradas do balde imutável
 
 const TIMEOUT_REDE = 3000;
@@ -147,6 +148,16 @@ async function precarregar() {
       if (r && r.ok) await c.put(recurso, r.clone());
     } catch (_) { /* recurso avançado: não impede instalar a casca principal */ }
   }
+
+  // O reviewer do Anki 26.09.2 usa MathJax 3.2.2. Guardamos exatamente o
+  // bundle usado pelos cards para que fórmulas continuem renderizando offline
+  // depois da instalação normal do app, sem depender da primeira revisão online.
+  try {
+    const cdn = await caches.open(CACHE_CDN);
+    const req = new Request(MATHJAX_ANKI, { cache: 'reload', mode: 'cors' });
+    const r = await fetch(req);
+    if (r && r.ok) await cdn.put(req, r.clone());
+  } catch (_) { /* matemática não impede a instalação da casca principal */ }
 }
 
 self.addEventListener('install', (evt) => {
