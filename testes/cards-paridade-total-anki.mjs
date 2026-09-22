@@ -108,4 +108,44 @@ eq(Array.from(AnkiParity.deckAncestors('d1'),d=>d.nome),[],'pai ausente não é 
 DB.saveDecks([{id:'p',nome:'Fiscal',createdAt:new Date().toISOString()},...DB.getDecks()]);
 eq(Array.from(AnkiParity.deckAncestors('d1'),d=>d.nome),['Fiscal'],'hierarquia :: encontra pai real');
 
-console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets válidos.');
+// ── Limites hierárquicos: pai/filhos + novos consomem review ──────────────
+A.reset({newPerDay:99,revPerDay:99,newCardsIgnoreReviewLimit:false,applyAllParentLimits:false});
+DB.saveDecks([
+  {id:'lp',nome:'Fiscal',createdAt:new Date().toISOString()},
+  {id:'lc1',nome:'Fiscal::Tributário',createdAt:new Date().toISOString()},
+  {id:'lc2',nome:'Fiscal::Contabilidade',createdAt:new Date().toISOString()}
+]);
+const pp=AnkiParity.createPreset('pai',{newPerDay:1,revPerDay:1});
+const pc=AnkiParity.createPreset('filhos',{newPerDay:10,revPerDay:10});
+AnkiParity.assignPreset('lp',pp);AnkiParity.assignPreset('lc1',pc);AnkiParity.assignPreset('lc2',pc);
+const ln1=DB.addCard({deckId:'lc1',frente:'n1',verso:'a1',phase:'new',due:A.hoje()});
+const ln2=DB.addCard({deckId:'lc2',frente:'n2',verso:'a2',phase:'new',due:A.hoje()});
+CardsScreen.filters.materias=new Set(['deck:lp']);
+let q=CardsScreen.buildQueue();
+eq(q.length,1,'estudar o pai: limite de 1 novo vale para a soma dos filhos');
+
+// O novo aceito consumiu também a única vaga de review do pai.
+const lr=DB.addCard({deckId:'lc1',frente:'r',verso:'a',phase:'review',due:A.hoje(),intervalo:5,reps:2,s:5,d:5});
+q=CardsScreen.buildQueue();
+ok(!q.includes(lr.id),'novo consome o limite de review quando ignore-review-limit=false');
+
+// Ao estudar DIRETAMENTE o filho, pais ficam fora por padrão.
+A.reset({newPerDay:99,revPerDay:99,newCardsIgnoreReviewLimit:true,applyAllParentLimits:false});
+DB.saveDecks([
+  {id:'lp',nome:'Fiscal',createdAt:new Date().toISOString()},
+  {id:'lc1',nome:'Fiscal::Tributário',createdAt:new Date().toISOString()}
+]);
+const pp0=AnkiParity.createPreset('pai-zero',{newPerDay:0,revPerDay:0});
+const pc9=AnkiParity.createPreset('filho-aberto',{newPerDay:9,revPerDay:9});
+AnkiParity.assignPreset('lp',pp0);AnkiParity.assignPreset('lc1',pc9);
+const direct=DB.addCard({deckId:'lc1',frente:'direto',verso:'ok',phase:'new',due:A.hoje()});
+CardsScreen.filters.materias=new Set(['deck:lc1']);
+q=CardsScreen.buildQueue();
+ok(q.includes(direct.id),'filho direto ignora limite do pai por padrão');
+
+// Com applyAllParentLimits, o mesmo pai zero bloqueia o filho.
+CardsConfig.set({applyAllParentLimits:true,newCardsIgnoreReviewLimit:true});
+q=CardsScreen.buildQueue();
+ok(!q.includes(direct.id),'applyAllParentLimits inclui o pai ao estudar o filho');
+
+console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites válidos.');
