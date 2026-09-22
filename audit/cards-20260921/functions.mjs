@@ -1,7 +1,7 @@
 import fs from 'node:fs';import vm from 'node:vm';
 const root=new URL('../../',import.meta.url),out=new URL('./',import.meta.url);let raw=new Map(),download;let n=0;
 const elem={value:'',style:{},innerHTML:'',addEventListener:()=>{}};
-const ctx={console,Date,Math,_quiet:()=>{},_sanCard:x=>String(x||''),todayCards:()=> '2026-09-21',todayLocal:()=> '2026-09-21',proximaViradaTs:()=>Date.now()+864e5,localStorage:{getItem:k=>raw.get(k)||null,setItem:(k,v)=>raw.set(k,v)},window:{},document:{getElementById:()=>elem},$id:()=>elem,showToast:()=>{}};vm.createContext(ctx);
+const ctx={console,Date,Math,_quiet:()=>{},_sanCard:x=>String(x||''),todayCards:()=> '2026-09-21',todayLocal:()=> '2026-09-21',proximaViradaTs:()=>Date.now()+864e5,localStorage:{getItem:k=>raw.get(k)||null,setItem:(k,v)=>raw.set(k,v)},window:{},document:{getElementById:()=>elem,querySelectorAll:()=>[]},$id:()=>elem,showToast:()=>{}};vm.createContext(ctx);
 for(const [file,name] of [['11-db.js','DB'],['30-fsrs.js','FSRS'],['31-cards-config.js','CardsConfig'],['32-card-engine.js','CardEngine'],['44-tela-cards.js','CardsScreen']])vm.runInContext(fs.readFileSync(new URL('src/js/'+file,root),'utf8')+'\nglobalThis.'+name+'='+name,ctx);
 const {DB:D,CardsConfig:C,CardEngine:E,CardsScreen:S}=ctx;const data=new Map();D._get=(k,def)=>data.get(k)||def;D._set=(k,v)=>data.set(k,v);D.setRaw=(k,v)=>raw.set(k,v);D._uid=()=> 'id'+(++n);S.render=()=>{};S._download=(file,content)=>{download={file,content};};let tests=[];
 const check=(name,pass,detail)=>tests.push({name,pass:!!pass,detail});
