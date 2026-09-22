@@ -28,7 +28,7 @@ const AnkiRuntime = {
   },
   _needsMath(html) {
     const s=String(html||'');
-    return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$')||/<anki-mathjax\b/i.test(s);
+    return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$$')||/<anki-mathjax\b/i.test(s);
   },
   _typeMarkup(html,side,card,note){
     const self=this,key=this._cardKey(card),fields=note&&note.fields||{};
