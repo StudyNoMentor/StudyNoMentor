@@ -2001,6 +2001,9 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) materia = dest.slice(4);
     const withScheduling = !!(document.getElementById('cards-import-scheduling') || {}).checked;
     const withDeckConfigs = !!(document.getElementById('cards-import-deck-configs') || {}).checked;
+    const mergeNotetypes = !!(document.getElementById('cards-import-merge-notetypes') || {}).checked;
+    const updateNotes = (document.getElementById('cards-import-update-notes') || {}).value || 'if-newer';
+    const updateNotetypes = (document.getElementById('cards-import-update-notetypes') || {}).value || 'if-newer';
     const isHtml = !!(document.getElementById('cards-import-html') || {}).checked;
     let count = 0;
     if (this._importParsed.kind === 'json') {
@@ -2076,7 +2079,7 @@ const CardsScreen = {
       count = this._importParsed.cards.length;
 
     else if (this._importParsed.kind === 'anki-package') {
-      const r = await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs });
+      const r = await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
       count = Number(r.cards) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
       const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
