@@ -82,7 +82,7 @@ const ReviewJournal = {
   },
   async count(profileId) { return (await this.list(profileId)).length; }
 };
-try { if (typeof window !== 'undefined') window.ReviewJournal = ReviewJournal; } catch (_) {}
+try { if (typeof window !== 'undefined') window.ReviewJournal = ReviewJournal; } catch (e) { _quiet(e, 'review-journal-global'); }
 
 const DB = {
   // ---- Camada de PERFIL: tudo é namespaced pelo perfil ativo (multi-usuário no dispositivo) ----
