@@ -157,12 +157,12 @@ for(const t of ioModel.tmpls)modernMetaDb.run('INSERT INTO templates VALUES (?,?
 const ioMeta=I._modernMetadata(modernMetaDb).models[String(ioModel.id)];
 modernMetaDb.close();
 assert.equal(ioMeta.originalStockKind,6,'schema 18 deve preservar OriginalStockKind Image Occlusion');
-assert.deepEqual(ioMeta.flds.map(f=>f.tag),[0,1,2,3,4],'tags dos campos estruturais devem sobreviver ao protobuf');
-assert.deepEqual(ioMeta.flds.map(f=>f.preventDeletion),[true,true,true,true,false],'proteção dos campos estruturais deve sobreviver ao protobuf');
+assert.deepEqual(Array.from(ioMeta.flds,f=>f.tag),[0,1,2,3,4],'tags dos campos estruturais devem sobreviver ao protobuf');
+assert.deepEqual(Array.from(ioMeta.flds,f=>f.preventDeletion),[true,true,true,true,false],'proteção dos campos estruturais deve sobreviver ao protobuf');
 const ioRound=I._toNotetype(ioMeta);
 assert.equal(ioRound.originalStockKind,6);
 assert.equal(ioRound.kind,'cloze');
-assert.deepEqual(ioRound.fields.map(f=>f.tag),[0,1,2,3,4]);
+assert.deepEqual(Array.from(ioRound.fields,f=>f.tag),[0,1,2,3,4]);
 
 // Pacote Legacy2 real: ZIP -> collection.anki21 -> SQLite -> contagens/metadados.
 const db=new SQL.Database();
