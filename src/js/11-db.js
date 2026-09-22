@@ -1204,14 +1204,32 @@ const DB = {
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
   },
+  // A interface do Anki exclui a NOTA: todos os cards/template siblings
+  // derivados dela desaparecem juntos. deleteCard() continua disponível para
+  // rotinas técnicas que realmente operam em um card individual.
+  deleteNoteByCard(id) {
+    this.normalizeCardNotesInPlace();
+    const alvo = this.getCard(id); if (!alvo) return 0;
+    const noteId = String(alvo.noteId || alvo.id);
+    const ids = new Set(this.getCards()
+      .filter(c => String(c.noteId || c.id) === noteId)
+      .map(c => String(c.id)));
+    if (!ids.size) return 0;
+    if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
+    try {
+      this.replaceRevlog(this.getRevlog().filter(r => !ids.has(String(r.cardId))));
+    } catch (e) { _quiet(e, 'delete-note-revlog'); }
+    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
+    return ids.size;
+  },
   /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
      o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
      os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
   /* ══════════════════════════════════════════════════════════════════════════
      AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
      Implementadas aqui com o MESMO significado do original. Este app tem um
-     card por nota, então "enterrar nota" e "enterrar card" coincidem — no Anki
-     eles diferem só quando uma nota gera vários cards.
+     notas podem gerar irmãos (ex.: normal + invertido). Enterrar card continua
+     individual; operações explícitas de nota usam noteId para atingir os irmãos.
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
