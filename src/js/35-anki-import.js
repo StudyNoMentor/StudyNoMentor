@@ -241,8 +241,10 @@ const AnkiImport = {
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   },
   _shouldUpdate(mode,incomingSec,existingIso){
-    mode=String(mode||'if-newer');if(mode==='always')return true;if(mode==='never')return false;
-    const old=Date.parse(existingIso||'')/1000;return !Number.isFinite(old)||Number(incomingSec||0)>old;
+    mode=String(mode||'if-newer');if(mode==='never')return false;
+    const old=Date.parse(existingIso||'')/1000,inc=Number(incomingSec)||0;
+    if(mode==='always')return !Number.isFinite(old)||old!==inc;
+    return !Number.isFinite(old)||inc>old;
   },
   _schemaEqual(a,b){
     if(!a||!b||a.kind!==b.kind)return false;
@@ -435,12 +437,23 @@ const AnkiImport = {
     const existingNotes=AnkiParity.notes(),notes=this._rows(db,'select id,guid,mid,mod,tags,flds from notes');
     for(const n of notes){
       const srcNt=(meta.models||{})[String(n.mid)]||{id:n.mid,name:'Imported',flds:[{name:'Front'},{name:'Back'}],tmpls:[{qfmt:'{{Front}}',afmt:'{{Back}}'}]};
-      const localNtid=ntMap.get(String(n.mid))||Number(n.mid),nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(localNtid))||this._toNotetype(srcNt);
+      const localNtid=ntMap.get(String(n.mid))||Number(n.mid);let nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(localNtid))||this._toNotetype(srcNt);
       const srcFields=(srcNt.flds||srcNt.fields||[]),vals=String(n.flds||'').split('\x1f'),fields={},mappedNames=ntFieldMaps.get(String(n.mid))||[];
       srcFields.forEach((f,i)=>fields[mappedNames[i]||f.name||('Field '+(i+1))]=this._replaceMedia(vals[i]||'',parsed.pkg.media));
       let existing=existingNotes.find(x=>String(x.guid||'')===String(n.guid||''))||existingNotes.find(x=>Number(x.ankiId||x.id)===Number(n.id));
       if(existing){
         noteMap.set(String(n.id),existing.id);
+        if(String(existing.notetypeId)!==String(localNtid)){
+          if(opts.mergeNotetypes===false)continue;
+          const targetNt=AnkiParity.noteTypes().find(x=>String(x.id)===String(existing.notetypeId));
+          if(targetNt){
+            if(targetNt.kind!==nt.kind)throw new Error('Conflito de tipo de nota: Cloze e Normal não podem ser mesclados.');
+            // O tipo incoming conserva sua identidade; campos/templates exclusivos do
+            // tipo já existente são incorporados antes de mover esta nota para ele.
+            const cross=this._mergeNotetype(nt,targetNt,false);
+            AnkiParity.saveNotetype(cross.notetype);nt=cross.notetype;
+          }
+        }
         if(this._shouldUpdate(opts.updateNotes,Number(n.mod)||0,existing.ankiMtime||existing.updatedAt)){
           const mergedFields=Object.assign({},existing.fields||{});
           for(const f of (nt.fields||[]))if(Object.prototype.hasOwnProperty.call(fields,f.name))mergedFields[f.name]=fields[f.name];
