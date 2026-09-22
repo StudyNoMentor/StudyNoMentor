@@ -503,7 +503,7 @@ AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
       return '<ruby><rb>'+kanji+'</rb><rt>'+kana+'</rt></ruby>';
     });
     for(let i=filters.length-1;i>=0;i--){
-      const filter=filters[i].toLowerCase();
+      const rawFilter=String(filters[i]||''),filter=rawFilter.toLowerCase();
       if(filter==='cloze'){
         const o=Number(card.clozeOrd)||Number(card.ankiTemplateOrd)+1||1;
         value=this.revealCloze(value,o,side!=='answer');
@@ -523,7 +523,7 @@ AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
       }else if(filter==='furigana'){
         value=ruby(value,'furigana');
       }else if(filter.startsWith('tts ')){
-        value='[anki:tts lang='+filter.slice(4)+']'+value+'[/anki:tts]';
+        value='[anki:tts lang='+rawFilter.slice(4)+']'+value+'[/anki:tts]';
       }else if(filter==='nc'){
         value=String(value);
       }
