@@ -104,8 +104,8 @@ const pid=AnkiParity.createPreset('Fiscal',{retention:.93,newPerDay:11,revPerDay
 AnkiParity.assignPreset('d1',pid);AnkiParity.assignPreset('d2',pid);
 eq(CardsConfig.forDeck('d1').retention,.93,'preset compartilhado deck 1');
 eq(CardsConfig.forDeck('d2').newPerDay,11,'preset compartilhado deck 2');
-eq(AnkiParity.deckAncestors('d1').map(d=>d.nome),[],'pai ausente não é inventado');
+eq(Array.from(AnkiParity.deckAncestors('d1'),d=>d.nome),[],'pai ausente não é inventado');
 DB.saveDecks([{id:'p',nome:'Fiscal',createdAt:new Date().toISOString()},...DB.getDecks()]);
-eq(AnkiParity.deckAncestors('d1').map(d=>d.nome),['Fiscal'],'hierarquia :: encontra pai real');
+eq(Array.from(AnkiParity.deckAncestors('d1'),d=>d.nome),['Fiscal'],'hierarquia :: encontra pai real');
 
 console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets válidos.');
