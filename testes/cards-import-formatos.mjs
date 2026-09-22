@@ -50,6 +50,63 @@ for(const [name,ch] of [['tab','\t'],['pipe','|'],['semicolon',';'],['colon',':'
   assert.deepEqual(Array.from(p.rows[0]),['A','B'],name);
 }
 
+// Contrato completo de CsvMetadata do Anki 26.09.2: colunas especiais,
+// mapeamento arbitrário, duplicatas, match scope e override de separador.
+const advanced=I.parseText(
+  '#separator:pipe\n#html:true\n#notetype:Basic\n#deck column:3\n#tags column:4\n#guid column:5\n#columns:Back|Front|Deck|Tags|GUID\nResposta|Pergunta|Fiscal|tagA|g-adv',
+  'advanced.txt'
+);
+assert.deepEqual(Array.from(advanced.columns),['Back','Front','Deck','Tags','GUID']);
+assert.equal(advanced.deckColumn,3);assert.equal(advanced.tagsColumn,4);assert.equal(advanced.guidColumn,5);
+const forced=I.parseText('#separator:comma\nA,B','forced.txt',{delimiter:'|'});
+assert.equal(forced.delimiter,'|','force_delimiter precisa prevalecer sobre cabeçalho');
+
+const state={decks:[],cards:[],notes:new Map(),next:100};
+const basic={id:1,ankiId:1,name:'Basic',kind:'normal',fields:[{name:'Front'},{name:'Back'}],
+  templates:[{name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}<hr id=answer>{{Back}}'}]};
+ctx.escapeHtml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+ctx.CardEngine={invalidateDueCache(){}};
+ctx.DB={
+  getDecks:()=>state.decks,
+  addDeck(nome){const d={id:'d'+(state.decks.length+1),nome:String(nome)};state.decks.push(d);return d;},
+  getCards:()=>state.cards,
+  addCard(data){const x={id:'c'+(++state.next),...structuredClone(data)};state.cards.push(x);return x;},
+  updateCard(id,patch){const x=state.cards.find(c=>c.id===id);Object.assign(x,structuredClone(patch));return x;}
+};
+ctx.AnkiParity={
+  noteTypes:()=>[basic],
+  stockNotetype:()=>basic,
+  notes:()=>[...state.notes.values()],
+  _allocId:()=>++state.next,
+  saveNote(n){const x=structuredClone(n);state.notes.set(String(x.id),x);return x;},
+  renderTemplate(nt,note,ord,side,card,front){
+    const t=nt.templates[ord]||nt.templates[0],fields=note.fields||{};
+    return String(side==='answer'?t.afmt:t.qfmt).replace(/\{\{FrontSide\}\}/g,String(front||'')).replace(/\{\{([^{}]+)\}\}/g,(_,k)=>String(fields[k]||''));
+  },
+  _fieldNonempty:v=>String(v||'').replace(/<[^>]+>/g,'').trim().length>0,
+  clozeOrdinals:()=>[]
+};
+const first=I.importText(advanced,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'update',matchScope:'notetype',forceIsHtml:true,isHtml:true});
+assert.equal(first.notes,1);assert.equal(state.notes.size,1);assert.equal(state.cards.length,1);
+const n1=[...state.notes.values()][0];
+assert.equal(n1.fields.Front,'Pergunta');assert.equal(n1.fields.Back,'Resposta');assert.deepEqual(n1.tags,['tagA']);
+assert.equal(state.decks[0].nome,'Fiscal');
+
+// GUID existente sempre atualiza; opção Duplicate não cria uma segunda nota.
+const guidUpdate=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\n#guid column:4\nNova resposta|Pergunta|Fiscal|g-adv','x.txt');
+const gu=I.importText(guidUpdate,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'duplicate',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,1);assert.equal(gu.updated,1);assert.equal([...state.notes.values()][0].fields.Back,'Nova resposta');
+
+// Sem GUID, Duplicate cria nova nota; Preserve ignora; MatchScope inclui baralho.
+const noGuid=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\nR2|Pergunta|Fiscal','x.txt');
+I.importText(noGuid,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'duplicate',matchScope:'notetype',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,2,'Duplicate deve criar nova nota quando o match é pelo primeiro campo');
+I.importText(noGuid,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'preserve',matchScope:'notetype',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,2,'Preserve deve manter a coleção sem nova duplicata');
+const otherDeck=I.parseText('#separator:pipe\n#notetype:Basic\n#deck column:3\nR3|Pergunta|Outro','x.txt');
+I.importText(otherDeck,{notetypeId:1,fieldColumns:[2,1],dupeResolution:'update',matchScope:'notetype-and-deck',forceIsHtml:true,isHtml:true});
+assert.equal(state.notes.size,3,'MatchScope NoteType+Deck não pode casar nota em outro baralho');
+
 // Pacote Legacy2 real: ZIP -> collection.anki21 -> SQLite -> contagens/metadados.
 const db=new SQL.Database();
 db.run("CREATE TABLE col (id integer PRIMARY KEY, crt integer, ver integer, models text, decks text, dconf text)");
