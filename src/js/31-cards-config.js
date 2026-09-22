@@ -12,28 +12,22 @@ const CardsConfig = {
     algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null,
     loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200,
     maxInterval: 36500, leechThreshold: 8, leechAction: 'tag', rolloverHour: 4,
-    /* Ordem em que as revisões vencidas são apresentadas. O padrão segue a
-       direção que o Anki sinalizou adotar: menor retrievability primeiro, ou
-       seja, revisar antes o que está mais perto de ser esquecido. Com fila em
-       dia a diferença é pequena; com acúmulo, é o que mais preserva memória.
-       Alternativas: 'vencimento' (mais atrasado antes) e 'aleatoria'. */
+    /* Ordem em que as revisões vencidas são apresentadas. No Anki 26.09.2 o
+       padrão é "Due date, then random": vence primeiro quem tem a menor data,
+       e empates são desfeitos por uma ordem pseudoaleatória estável. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
        Os nomes seguem os oficiais para a equivalência ser rastreável.
        Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
        TEMPLATES, que não existem neste app (cada card é independente). */
 
-    // ReviewCardOrder — em que ordem as revisões vencidas são apresentadas.
-    // Padrão 'retrievabilityAsc': o mais perto de ser esquecido vem primeiro.
-    // O Anki sinalizou que essa deve virar a escolha padrão com acúmulo.
-    reviewOrder: 'retrievabilityAsc',
+    // ReviewCardOrder — padrão do Anki 26.09.2: Due date, then random.
+    reviewOrder: 'day',
 
-    // NewCardGatherPriority — de onde os novos são COLETADOS antes do limite.
-    // 'posicao' = ordem de inserção (equivale a LOWEST_POSITION do Anki).
-    newGatherOrder: 'posicao',
+    // NewCardGatherPriority — padrão do Anki: DECK.
+    newGatherOrder: 'deck',
 
-    // NewCardSortOrder — como o lote coletado é ORDENADO antes de exibir.
-    // 'coleta' preserva a ordem de coleta (NO_SORT); 'aleatoria' = RANDOM_CARD.
-    newSortOrder: 'coleta',
+    // NewCardSortOrder — padrão do Anki: TEMPLATE (tipo do card, depois coleta).
+    newSortOrder: 'template',
 
     // NewCardInsertOrder — posição atribuída ao card ao ser CRIADO.
     newInsertOrder: 'sequencial',
@@ -198,7 +192,11 @@ const CardsConfig = {
     if (!ov) return base;
     // O preset do baralho vem pelos mesmos caminhos não confiáveis da config
     // global (nuvem, backup, armazenamento editado): mesmo saneamento.
-    return this._sanear(Object.assign({}, base, ov));
+    const efetiva = this._sanear(Object.assign({}, base, ov));
+    // No Anki o liga/desliga do FSRS é GLOBAL. Parâmetros e retenção pertencem
+    // aos presets, mas um baralho não pode usar SM-2 enquanto outro usa FSRS.
+    efetiva.algo = base.algo;
+    return efetiva;
   },
   // Pesos salvos de antes (19 posições, FSRS-5) são migrados para 21 na leitura.
   // Não reescrevemos o que está gravado: se você voltar para uma versão anterior
