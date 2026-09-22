@@ -246,11 +246,11 @@ const AnkiParity = {
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
       const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
       const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
-      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id);buried.push(s.id);}
+      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
     });return buried;
   },
   suspendCard(id){
-    const c=DB.getCard(id);if(!c)return false;const p={suspenso:true,enterradoAte:null};
+    const c=DB.getCard(id);if(!c)return false;const p={suspenso:true,enterradoAte:null,buryKind:null};
     if(Object.prototype.hasOwnProperty.call(c,'dueTsAntesEnterrar')){p.dueTs=c.dueTsAntesEnterrar;p.dueTsAntesEnterrar=null;}
     DB.updateCard(id,p);return true;
   }
