@@ -360,7 +360,13 @@ AnkiParity.limitState=function(selectedDeckId){
     path.forEach(id=>{
       const r=rem.get(id);if(!r)return;
       r[kind]=Math.max(0,r[kind]-1);
-      if(kind==='review'&&r.capNewToReview)r.new=Math.min(r.new,r.review);
+      // No Anki, quando "new cards ignore review limit" está desligado,
+      // INTRODUZIR um novo também consome uma vaga do limite de reviews.
+      // O estado inicial já desconta os novos vistos hoje; aqui descontamos
+      // os novos que entram NESTA fila para que os reviews seguintes vejam
+      // exatamente o saldo restante em cada nó da árvore.
+      if(kind==='new'&&r.capNewToReview)r.review=Math.max(0,r.review-1);
+      if(r.capNewToReview)r.new=Math.min(r.new,r.review);
     });
     return true;
   };
