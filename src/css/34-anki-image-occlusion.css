@@ -1,0 +1,30 @@
+/* Image Occlusion + criação avançada.
+   Camada isolada: não altera o editor simples nem o reviewer existentes. */
+.anki-io-box{max-width:min(1080px,97vw)}
+.anki-io-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.anki-io-toolbar .io-tool.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.anki-io-options{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--border);border-radius:11px;background:var(--surface-sunken);margin-bottom:10px}
+.anki-io-options>label{display:inline-flex;align-items:center;gap:7px;font-size:var(--fs-xs);color:var(--text-soft)}
+.anki-io-options select{min-width:185px}
+.anki-io-stage-editor{position:relative;min-height:320px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--border-strong);border-radius:14px;background:var(--surface-sunken);overflow:auto;padding:8px}
+#anki-io-canvas{display:block;max-width:100%;height:auto;cursor:crosshair;touch-action:none;border-radius:8px;background:var(--surface)}
+#anki-io-empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;pointer-events:none}
+.anki-io-mask-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:6px;margin:10px 0}
+.anki-io-mask-list>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:7px 9px;border:1px solid var(--border);border-radius:9px;background:var(--surface-sunken);font-size:var(--fs-xs)}
+.anki-io-mask-list>div span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#anki-advanced-fields>.field{margin-bottom:10px}
+#anki-advanced-add-modal .cards-modal-body{min-height:260px}
+.snm-io-header{margin-bottom:8px}
+.snm-io-back{margin-top:10px}
+.snm-io-toggle{border:1px solid var(--border);background:var(--surface-sunken);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer}
+
+@media(max-width:680px){
+  .anki-io-box{max-width:100%}
+  .anki-io-toolbar{display:grid;grid-template-columns:1fr 1fr}
+  .anki-io-toolbar .btn-secondary{width:100%;justify-content:center}
+  .anki-io-options{align-items:stretch}
+  .anki-io-options>label{width:100%;justify-content:space-between}
+  .anki-io-options select{min-width:0;max-width:56%}
+  .anki-io-stage-editor{min-height:260px;padding:5px}
+  .anki-io-mask-list{grid-template-columns:1fr}
+}
