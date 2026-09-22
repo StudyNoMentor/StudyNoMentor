@@ -49,6 +49,7 @@ const CardsConfig = {
     buryNew: false,
     buryReviews: false,
     buryInterdayLearning: false,
+    applyAllParentLimits: false,
 
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
