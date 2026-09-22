@@ -565,9 +565,8 @@ const AnkiExport = {
       'CREATE TABLE graves (oid integer NOT NULL,type integer NOT NULL,usn integer NOT NULL,PRIMARY KEY (oid,type)) WITHOUT ROWID;',
       'CREATE INDEX idx_graves_pending ON graves (usn);'
     ];
-    ddl.forEach((sql,i)=>{console.log('ANKI18 DDL '+i);db.run(sql);});
+    ddl.forEach(sql=>db.run(sql));
 
-    console.log('ANKI18: schema criado');
     const nt=db.prepare('INSERT INTO notetypes VALUES (?,?,?,?,?)');
     const fld=db.prepare('INSERT INTO fields VALUES (?,?,?,?)');
     const tmpl=db.prepare('INSERT INTO templates VALUES (?,?,?,?,?,?)');
@@ -577,28 +576,24 @@ const AnkiExport = {
       for(const t of (m.tmpls||[]))tmpl.run([Number(m.id),Number(t.ord)||0,String(t.name||''),Number(m.mod)||0,-1,this._encodeTemplateConfig(t)]);
     }
     nt.free();fld.free();tmpl.free();
-    console.log('ANKI18: notetypes/fields/templates gravados');
 
     const ds=db.prepare('INSERT INTO decks VALUES (?,?,?,?,?,?)');
     for(const d of Object.values((dj&&dj.decks)||{})){
       ds.run([Number(d.id),String(d.name||'Default'),Number(d.mod)||0,Number(d.usn)||-1,this._encodeDeckCommon(d),this._encodeDeckKind(d)]);
     }
     ds.free();
-    console.log('ANKI18: decks gravados');
 
     const dc=db.prepare('INSERT INTO deck_config VALUES (?,?,?,?,?)');
     for(const c of Object.values((dj&&dj.dconf)||{})){
       dc.run([Number(c.id),String(c.name||'Default'),Number(c.mod)||0,Number(c.usn)||-1,this._encodeDeckConfig(c)]);
     }
     dc.free();
-    console.log('ANKI18: deck_config gravado');
 
     // Schema 14 normalizou as preferências de col.conf em registros JSON.
     let conf={};try{const row=db.exec('select conf from col where id=1');conf=JSON.parse(row[0]&&row[0].values[0]&&row[0].values[0][0]||'{}')||{};}catch(_){}
     const cf=db.prepare('INSERT OR REPLACE INTO config VALUES (?,?,?,?)');
     for(const [k,v] of Object.entries(conf))cf.run([k,0,0,this._enc.encode(JSON.stringify(v))]);
     cf.free();
-    console.log('ANKI18: config gravado');
 
     // A tabela normalizada de tags é índice auxiliar; as tags continuam também
     // no campo notes.tags. Preenchê-la evita uma coleção estruturalmente vazia.
@@ -609,10 +604,8 @@ const AnkiExport = {
     }catch(_){}
     const ts=db.prepare('INSERT OR IGNORE INTO tags VALUES (?,?)');
     for(const tag of allTags)ts.run([tag,-1]);ts.free();
-    console.log('ANKI18: tags gravadas');
 
     db.run("UPDATE col SET ver=18,conf='',models='',decks='',dconf='',tags='' WHERE id=1");
-    console.log('ANKI18: col finalizada');
   },
   _tagsFor(note, cards, options) {
     options=options||{};
