@@ -288,6 +288,9 @@ const AnkiParity = {
     }catch(_){return false;}
   },
   emptyCardIds(){
+    // Coleções legadas podem ainda não ter a entidade Note/NoteType materializada.
+    // Empty Cards precisa funcionar nelas também, como manutenção de coleção.
+    try{this.ensureCanonicalNotes();}catch(e){_quiet(e,'empty-cards-canonical');}
     return DB.getCards().filter(c=>this.isEmptyGeneratedCard(c)).map(c=>c.id);
   },
   deleteEmptyCards(){
@@ -476,7 +479,11 @@ AnkiParity._specialField=function(name,nt,note,tmpl,card){
   return null;
 };
 AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
-  nt=nt||{};note=note||{};card=card||{};const fields=note.fields||{},tmpl=(nt.templates||[])[Number(ord)||0]||{};
+  nt=nt||{};note=note||{};card=card||{};const fields=note.fields||{};
+  // Cloze tem um único template no NoteType; o ordinal do card identifica c1/c2/...
+  // e NÃO um índice de template distinto.
+  const templateOrd=(nt.kind==='cloze'||nt.stockKind==='cloze')?0:(Number(ord)||0);
+  const tmpl=(nt.templates||[])[templateOrd]||{};
   let src=String(side==='answer'?tmpl.afmt:tmpl.qfmt||'');
   src=this._renderConditionals(src,fields);
   src=src.replace(/\{\{FrontSide\}\}/g,String(frontSide||''));
