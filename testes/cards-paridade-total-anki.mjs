@@ -108,6 +108,25 @@ eq(Array.from(AnkiParity.deckAncestors('d1'),d=>d.nome),[],'pai ausente não é 
 DB.saveDecks([{id:'p',nome:'Fiscal',createdAt:new Date().toISOString()},...DB.getDecks()]);
 eq(Array.from(AnkiParity.deckAncestors('d1'),d=>d.nome),['Fiscal'],'hierarquia :: encontra pai real');
 
+
+// ── Escopo e busca do otimizador oficial FSRS ────────────────────────────
+A.reset();
+DB.saveDecks([
+  {id:'root',nome:'Fiscal',createdAt:new Date().toISOString()},
+  {id:'child',nome:'Fiscal::Tributário',createdAt:new Date().toISOString()},
+  {id:'other',nome:'Outra',createdAt:new Date().toISOString()}
+]);
+const tr1=DB.addCard({deckId:'child',materia:'Direito Tributário',assunto:'ICMS',tipo:'lei',banca:'FCC',frente:'Q1',verso:'A1'});
+const tr2=DB.addCard({deckId:'child',materia:'Contabilidade',assunto:'Estoques',tipo:'conceito',frente:'Q2',verso:'A2',suspenso:true});
+DB.addCard({deckId:'other',materia:'Direito Tributário',assunto:'ICMS',tipo:'lei',frente:'Q3',verso:'A3'});
+eq(FSRS.trainingCardsForScope('root',{paramSearch:'materia:"Direito Tributário" -suspenso'}).map(c=>c.id),
+   [tr1.id],'otimizador respeita deck+filhos e param_search documentado');
+ok(AnkiParity.filteredSearchMatches(DB.getCard(tr1.id),'assunto:ICMS tipo:lei banca:FCC'),
+   'param_search aceita assunto/tipo/banca');
+ok(!AnkiParity.filteredSearchMatches(DB.getCard(tr2.id),'-suspenso'),
+   'param_search negativo exclui suspensos');
+ok(typeof CardsScreen.optimizeFsrsOfficial==='function','UI expõe otimizador oficial FSRS');
+
 // ── Limites hierárquicos: pai/filhos + novos consomem review ──────────────
 A.reset({newPerDay:99,revPerDay:99,newCardsIgnoreReviewLimit:false,applyAllParentLimits:false});
 DB.saveDecks([
