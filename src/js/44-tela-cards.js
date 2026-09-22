@@ -1945,9 +1945,18 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Teto de espera entre revisões. Padrão Anki: 36500 (100 anos).' },
     { key: 'leechThreshold', label: '🚫 Erros até marcar como problemático', type: 'number', value: cfg.leechThreshold != null ? cfg.leechThreshold : 8, min: 0, max: 99,
       hint: 'Padrão Anki: 8. Use 0 para desativar.' },
-    { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'suspend',
-      options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (continua aparecendo)' }],
-      hint: 'Suspenso some da revisão até você reativar em Meus cards.' }
+    { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'tag',
+      options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (padrão Anki 26.09.2)' }],
+      hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
+    { key: 'buryNew', label: '🫥 Enterrar irmãos novos', type: 'select', value: cfg.buryNew ? '1' : '0',
+      options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
+      hint: 'Depois de responder um card, esconde até amanhã os irmãos novos da mesma nota.' },
+    { key: 'buryReviews', label: '🫥 Enterrar irmãos em revisão', type: 'select', value: cfg.buryReviews ? '1' : '0',
+      options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
+      hint: 'Aplica o mesmo enterramento aos irmãos que já estão em revisão.' },
+    { key: 'buryInterdayLearning', label: '🫥 Enterrar irmãos em aprendizado entre dias', type: 'select', value: cfg.buryInterdayLearning ? '1' : '0',
+      options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
+      hint: 'Controla os irmãos em learning/relearning que atravessaram a virada do dia.' }
   ];
   /* ── ORDENAÇÃO E MISTURA — paridade com deck_config.proto ──────────────────
      Cada rótulo diz o que a opção FAZ, não só como se chama. São escolhas cujo
@@ -2004,9 +2013,9 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
         { value: 'antes',    label: 'Antes das revisões (padrão antigo)' }
       ],
       hint: 'Cards que você errou ontem e ficaram no meio do caminho.' },
-    { key: 'easyDays', label: '📅 Dias leves (% da carga, Dom→Sáb)', type: 'text',
-      value: (cfg.easyDays || [1,1,1,1,1,1,1]).map(x => Math.round(x * 100)).join(' '), placeholder: '100 100 100 100 100 100 100',
-      hint: 'Sete números de 0 a 100, começando no domingo. Ex.: "50 100 100 100 100 100 30" alivia domingo e sábado. Não é proibição: se não houver alternativa dentro da janela de dispersão, o dia ainda é usado.' },
+    { key: 'easyDays', label: '📅 Easy Days (Dom→Sáb: 100/50/0)', type: 'text',
+      value: (cfg.easyDays || [1,1,1,1,1,1,1]).map(x => x === 1 ? 100 : (x === 0 ? 0 : 50)).join(' '), placeholder: '100 100 100 100 100 100 100',
+      hint: 'Mesma semântica do Anki: 100 = Normal, 50 = Reduced e 0 = Minimum. Sete valores, começando no domingo.' },
     { key: 'ignoreRevlogsBefore', label: '📜 Ignorar revisões anteriores a', type: 'text', value: cfg.ignoreRevlogsBefore || '', placeholder: 'AAAA-MM-DD',
       hint: 'Descarta o histórico antigo ao otimizar. Útil se você mudou de método ou importou baralho de terceiros. Vazio = usar tudo.' },
     { key: 'historicalRetention', label: '🕰️ Retenção histórica presumida (%)', type: 'number', value: Math.round((cfg.historicalRetention || 0.9) * 100), min: 50, max: 99,
@@ -2038,14 +2047,19 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Padrão Anki: 4.' }
   );
 
-  // limites diários só no escopo global (no Anki também são por baralho, mas mantemos simples)
+  // No Anki, new/review per day pertencem ao preset; o interruptor que
+  // permite novos ignorarem o teto de revisões é global.
+  fields.push({ key: 'newPerDay', label: '🆕 Máx. de cards NOVOS por dia', type: 'number', value: cfg.newPerDay, min: 0, max: 999999, hint: 'Padrão Anki: 20. Faz parte do preset.' });
+  fields.push({ key: 'revPerDay', label: '🔄 Máx. de REVISÕES por dia', type: 'number', value: cfg.revPerDay, min: 0, max: 999999, hint: 'Padrão Anki: 200. Faz parte do preset.' });
   if (!isDeck) {
-    fields.push({ key: 'newPerDay', label: '🆕 Máx. de cards NOVOS por dia', type: 'number', value: g.newPerDay, min: 0, max: 999, hint: 'Padrão Anki: 20.' });
-    fields.push({ key: 'revPerDay', label: '🔄 Máx. de REVISÕES por dia', type: 'number', value: g.revPerDay, min: 0, max: 9999, hint: 'Padrão Anki: 200.' });
     fields.push({ key: 'newCardsIgnoreReviewLimit', label: '🆕 Novos ignoram o limite de revisões', type: 'select',
       value: g.newCardsIgnoreReviewLimit ? '1' : '0',
       options: [{ value: '0', label: 'Não (padrão Anki)' }, { value: '1', label: 'Sim' }],
       hint: 'Global, como no Anki. Desligado: ao esgotar o limite de revisões, nenhum novo entra. Ligado: novos continuam até o próprio limite diário.' });
+    fields.push({ key: 'applyAllParentLimits', label: '🗂 Limites começam do topo', type: 'select',
+      value: g.applyAllParentLimits ? '1' : '0',
+      options: [{ value:'0', label:'Não (padrão Anki)' }, { value:'1', label:'Sim' }],
+      hint: 'Se ligado, ao estudar diretamente um subbaralho também se aplicam os limites dos baralhos-pai acima dele.' });
   }
   const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
   UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
@@ -2058,7 +2072,10 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       loadBalance: v.lb === '1',
       maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval, 10) || 36500)),
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
-      leechAction: v.leechAction === 'tag' ? 'tag' : 'suspend',
+      leechAction: v.leechAction === 'suspend' ? 'suspend' : 'tag',
+      buryNew: v.buryNew === '1', buryReviews: v.buryReviews === '1', buryInterdayLearning: v.buryInterdayLearning === '1',
+      newPerDay: Math.max(0, parseInt(v.newPerDay, 10) || 0),
+      revPerDay: Math.max(0, parseInt(v.revPerDay, 10) || 0),
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
          permitida: um select adulterado não pode injetar uma chave que depois
          quebraria a montagem da fila. */
@@ -2075,9 +2092,9 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
          Qualquer entrada que não produza exatamente 7 valores volta ao neutro —
          melhor ignorar do que agendar com uma semana pela metade. */
       easyDays: (function () {
-        const a = String(v.easyDays || '').split(/[\s,]+/).map(x => parseFloat(x))
-          .filter(x => isFinite(x)).map(x => Math.min(1, Math.max(0, x / 100)));
-        return a.length === 7 ? a : [1, 1, 1, 1, 1, 1, 1];
+        const a = String(v.easyDays || '').split(/[\s,]+/).map(x => parseFloat(x)).filter(x => isFinite(x));
+        if (a.length !== 7) return [1,1,1,1,1,1,1];
+        return a.map(x => x <= 0 ? 0 : (x >= 100 ? 1 : 0.5));
       })(),
       // Data no formato ISO; qualquer outra coisa é descartada.
       ignoreRevlogsBefore: /^\d{4}-\d{2}-\d{2}$/.test(String(v.ignoreRevlogsBefore || '').trim())
@@ -2098,9 +2115,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     if (isDeck) { CardsConfig.setDeckPreset(deckId, patch); showToast('Preset do baralho "' + deckName + '" salvo ✓'); }
     else {
       patch.algo = v.algo === 'sm2' ? 'sm2' : 'fsrs';
-      patch.newPerDay = Math.max(0, parseInt(v.newPerDay, 10) || 0);
-      patch.revPerDay = Math.max(0, parseInt(v.revPerDay, 10) || 0);
       patch.newCardsIgnoreReviewLimit = v.newCardsIgnoreReviewLimit === '1';
+      patch.applyAllParentLimits = v.applyAllParentLimits === '1';
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
     CardEngine.invalidateDueCache();
