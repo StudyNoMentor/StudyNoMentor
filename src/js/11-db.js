@@ -1036,6 +1036,12 @@ const DB = {
     const id = this._uid();
     const card = {
       id,
+      // Identidade compatível com o Anki vive em paralelo ao UUID do Study.
+      // Os campos são opcionais durante bootstrap/importação e normalizados
+      // pela camada AnkiParity antes de a fila ser construída.
+      ankiId: data.ankiId || (typeof AnkiParity !== 'undefined' ? AnkiParity._allocId() : null),
+      ankiNoteId: data.ankiNoteId || null,
+      ankiMod: Math.floor(Date.now() / 1000),
       noteId: data.noteId || id,
       template: data.template || ((data.kind || 'basic') === 'cloze' ? 'cloze' : (data.reversedOf ? 'reverse' : 'forward')),
       deckId: data.deckId || null,
@@ -1108,7 +1114,7 @@ const DB = {
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
+    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); c.ankiMod = Math.floor(Date.now() / 1000); }
     // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
     // CardsScreen.answer). Card inexistente continua devolvendo null.
     return this.saveCards(list) === false ? false : c;
