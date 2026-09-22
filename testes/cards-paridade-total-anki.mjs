@@ -186,7 +186,7 @@ ok(pv.ok,'filtered preview é construído');
 let pcard=DB.getCard(fn.id), repsBefore=pcard.reps||0, homeDue=pcard.originalDue;
 const againPreview=AnkiParity.previewFilteredAnswer(pcard,'errei');
 ok(againPreview._filteredPreview&&!againPreview._filteredFinished,'Again em preview repete');
-ok(againPreview.dueTs>Date.now(),'Again em preview agenda atraso em segundos');
+ok(againPreview.dueTs>A.agora(),'Again em preview agenda atraso em segundos');
 eq(pcard.reps||0,repsBefore,'preview não incrementa reps');
 const goodPreview=AnkiParity.previewFilteredAnswer(pcard,'bom');
 ok(goodPreview._filteredFinished,'Good com atraso 0 encerra preview');
