@@ -636,4 +636,11 @@ FSRS.optimizeOfficial=async function(revlog,opts){
   return out;
 };
 
+// O otimizador histórico em JavaScript fica deliberadamente INACESSÍVEL em
+// produção. A única rota suportada é optimizeOfficial(), que usa o WASM
+// fsrs-rs 6.6.2 correspondente ao Anki 26.09.2.
+FSRS.optimize=function(){
+  throw new Error('Otimizador legado desativado. Use FSRS.optimizeOfficial() (fsrs-rs 6.6.2).');
+};
+
 // Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.
