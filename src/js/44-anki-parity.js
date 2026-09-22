@@ -240,4 +240,53 @@ const AnkiParity = {
     DB.updateCard(id,p);return true;
   }
 };
+
+/* Presets compartilhados e hierarquia de decks.
+   O armazenamento legado por-deck continua aceito, mas novos presets podem ser
+   compartilhados por vários decks como DeckConfig no Anki. */
+AnkiParity._presetKey=function(){try{return DB._profilePrefix()+'cards-shared-presets';}catch(_){return 'diario-estudos:cards-shared-presets';}};
+AnkiParity.sharedPresets=function(){
+  try{const v=JSON.parse(localStorage.getItem(this._presetKey())||'{}');return v&&typeof v==='object'?v:{};}catch(_){return {};}
+};
+AnkiParity._saveSharedPresets=function(v){DB.setRaw(this._presetKey(),JSON.stringify(v||{}));};
+AnkiParity.createPreset=function(name,patch){
+  const all=this.sharedPresets(),id=String(this._allocId());
+  all[id]={id,name:String(name||'Preset'),config:Object.assign({},patch||{})};this._saveSharedPresets(all);return id;
+};
+AnkiParity.updatePreset=function(id,patch){
+  const all=this.sharedPresets();if(!all[id])return false;all[id].config=Object.assign({},all[id].config||{},patch||{});this._saveSharedPresets(all);return true;
+};
+AnkiParity.assignPreset=function(deckId,configId){
+  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return false;
+  d.configId=String(configId||'default');DB.saveDecks(ds);return true;
+};
+AnkiParity.deckAncestors=function(deckId){
+  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [];
+  const parts=String(d.nome||'').split('::'),out=[];
+  for(let i=1;i<parts.length;i++){const name=parts.slice(0,i).join('::'),p=ds.find(x=>String(x.nome||'')===name);if(p)out.push(p);}
+  return out;
+};
+AnkiParity.deckDescendant=function(childId,parentId){
+  const ds=DB.getDecks(),c=ds.find(x=>String(x.id)===String(childId)),p=ds.find(x=>String(x.id)===String(parentId));
+  if(!c||!p)return false;const pn=String(p.nome||'');return String(c.nome||'').startsWith(pn+'::');
+};
+AnkiParity.installConfigParity=function(){
+  if(typeof CardsConfig==='undefined'||CardsConfig.__ankiParityInstalled)return;
+  CardsConfig.__ankiParityInstalled=true;
+  CardsConfig.DEFAULTS.applyAllParentLimits=false;
+  const originalForDeck=CardsConfig.forDeck.bind(CardsConfig);
+  CardsConfig.forDeck=function(deckId){
+    const base=originalForDeck(deckId);
+    if(!deckId)return base;
+    const d=DB.getDecks().find(x=>String(x.id)===String(deckId));
+    const cid=d&&d.configId;
+    if(!cid||cid==='default'||String(cid).startsWith('legacy:'))return base;
+    const p=AnkiParity.sharedPresets()[String(cid)];
+    if(!p||!p.config)return base;
+    const out=this._sanear(Object.assign({},this.get(),p.config));
+    out.algo=this.get().algo;out.newCardsIgnoreReviewLimit=this.get().newCardsIgnoreReviewLimit;
+    return out;
+  };
+};
+AnkiParity.installConfigParity();
 try{if(typeof window!=='undefined')window.AnkiParity=AnkiParity;}catch(e){_quiet(e,'anki-parity-global');}
