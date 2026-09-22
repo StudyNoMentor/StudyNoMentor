@@ -179,7 +179,7 @@ const AnkiImport = {
       for(const r of this._rows(db,'select id,name,config from notetypes')){
         const cm=this._proto(r.config||new Uint8Array()),fields=[],tmpls=[];
         if(this._has(db,'fields'))for(const f of this._rows(db,'select ord,name,config from fields where ntid=? order by ord',[r.id])){
-          const x=this._proto(f.config||new Uint8Array());fields.push({name:f.name,ord:Number(f.ord),sticky:!!this._pNum(x,1),rtl:!!this._pNum(x,2),font:this._pStr(x,3,'Arial'),size:this._pNum(x,4,20),description:this._pStr(x,5,''),plainText:!!this._pNum(x,6),collapsed:!!this._pNum(x,7),excludeFromSearch:!!this._pNum(x,8),id:this._pNum(x,9,0)||null,tag:this._pNum(x,10,0),preventDeletion:!!this._pNum(x,11)});
+          const x=this._proto(f.config||new Uint8Array());fields.push({name:f.name,ord:Number(f.ord),sticky:!!this._pNum(x,1),rtl:!!this._pNum(x,2),font:this._pStr(x,3,'Arial'),size:this._pNum(x,4,20),description:this._pStr(x,5,''),plainText:!!this._pNum(x,6),collapsed:!!this._pNum(x,7),excludeFromSearch:!!this._pNum(x,8),id:this._pNum(x,9,0)||null,tag:x[10]?this._pNum(x,10,0):null,preventDeletion:!!this._pNum(x,11)});
         }
         if(this._has(db,'templates'))for(const t of this._rows(db,'select ord,name,config from templates where ntid=? order by ord',[r.id])){
           const x=this._proto(t.config||new Uint8Array());tmpls.push({name:t.name,ord:Number(t.ord),qfmt:this._pStr(x,1,''),afmt:this._pStr(x,2,''),bqfmt:this._pStr(x,3,''),bafmt:this._pStr(x,4,''),did:this._pNum(x,5,0)||null,bfont:this._pStr(x,6,''),bsize:this._pNum(x,7,0),id:this._pNum(x,8,0)||null});
