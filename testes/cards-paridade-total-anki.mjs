@@ -148,6 +148,60 @@ CardsConfig.set({applyAllParentLimits:true,newCardsIgnoreReviewLimit:true});
 q=CardsScreen.buildQueue();
 ok(!q.includes(direct.id),'applyAllParentLimits inclui o pai ao estudar o filho');
 
+// ── Filtered Decks / Custom Study (Anki 26.09.2) ───────────────────────────
+A.reset({newPerDay:0,revPerDay:0});
+DB.saveDecks([{id:'home',nome:'Fiscal',createdAt:new Date().toISOString()}]);
+const fn=DB.addCard({deckId:'home',frente:'novo',verso:'n',phase:'new',due:A.hoje(),createdAt:new Date().toISOString()});
+const fr=DB.addCard({deckId:'home',frente:'review',verso:'r',phase:'review',due:CardEngine.addDays(A.hoje(),2),intervalo:10,reps:3,s:10,d:5,createdAt:new Date().toISOString()});
+const oldDue=DB.getCard(fr.id).due;
+let cs=AnkiParity.customStudy({deckId:'home',kind:'ahead',days:3});
+ok(cs.ok,'Custom Study review-ahead cria baralho filtrado');
+eq(cs.count,1,'review-ahead seleciona apenas review nos próximos N dias');
+let moved=DB.getCard(fr.id);
+eq(moved.originalDeckId,'home','card filtrado preserva home deck');
+eq(moved.originalDue,oldDue,'card filtrado preserva due original');
+eq(moved.deckId,cs.deck.id,'card entra no deck filtrado');
+CardsScreen.filters.materias=new Set(['deck:'+cs.deck.id]);
+q=CardsScreen.buildQueue();
+eq(q,[fr.id],'filtered deck ignora limites diários normais já aplicados na construção');
+
+const scheduled=CardEngine.schedule(moved,'bom');
+const returned=AnkiParity.removeFromFilteredAfterReschedule(moved,scheduled);
+eq(returned.deckId,'home','rescheduling filtered answer retorna ao home deck');
+ok(returned.originalDeckId==null,'rescheduling limpa originalDeckId depois da resposta');
+ok(returned.due!==oldDue,'rescheduling mantém o NOVO agendamento, não restaura o due antigo');
+
+// Preview: não altera memória/reps e Good devolve estado original.
+AnkiParity.emptyFilteredDeck(cs.deck.id);
+const pv=AnkiParity.saveFilteredDeck({nome:'Preview',config:{
+  reschedule:false,searchTerms:[{search:'deck:"Fiscal" is:new',limit:10,order:5}],
+  previewAgainSecs:60,previewHardSecs:600,previewGoodSecs:0
+},allowEmpty:false});
+ok(pv.ok,'filtered preview é construído');
+let pcard=DB.getCard(fn.id), repsBefore=pcard.reps||0, homeDue=pcard.originalDue;
+const againPreview=AnkiParity.previewFilteredAnswer(pcard,'errei');
+ok(againPreview._filteredPreview&&!againPreview._filteredFinished,'Again em preview repete');
+ok(againPreview.dueTs>Date.now(),'Again em preview agenda atraso em segundos');
+eq(pcard.reps||0,repsBefore,'preview não incrementa reps');
+const goodPreview=AnkiParity.previewFilteredAnswer(pcard,'bom');
+ok(goodPreview._filteredFinished,'Good com atraso 0 encerra preview');
+eq(goodPreview.deckId,'home','preview concluído volta ao home deck');
+eq(goodPreview.due,homeDue,'preview concluído restaura due original');
+
+// Dois termos, ordem e exclusão de suspensos/buried.
+AnkiParity.emptyFilteredDeck(pv.deck.id);
+DB.updateCard(fn.id,{suspenso:true});
+const fd=AnkiParity.saveFilteredDeck({nome:'Dois filtros',config:{
+  reschedule:true,
+  searchTerms:[
+    {search:'deck:"Fiscal" is:new',limit:10,order:5},
+    {search:'deck:"Fiscal" -is:new',limit:10,order:6}
+  ]
+},allowEmpty:true});
+eq(fd.count,1,'filtered deck exclui suspensos e combina até dois termos sem duplicar');
+eq(DB.getCard(fr.id).deckId,fd.deck.id,'segundo termo captura review elegível');
+DB.updateCard(fn.id,{suspenso:false});
+
 // ── Conversão oficial do revlog para FSRSItem ─────────────────────────────
 const NEXT_DAY_AT=86400*1000; // segundos; mesmo valor do teste do rslib
 const ago=(days)=>(NEXT_DAY_AT-days*86400)*1000;
@@ -220,4 +274,4 @@ eq(strip(AnkiParity.renderTemplate(custom,cn,0,'question',{},'')),'P? — X','te
 const qside=AnkiParity.renderTemplate(custom,cn,0,'question',{},'');
 eq(strip(AnkiParity.renderTemplate(custom,cn,0,'answer',{},qside)),'P? — XR!','FrontSide entra na resposta e inversa vazia não entra');
 
-console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites/treino-FSRS/notas válidos.');
+console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites/filtered/custom-study/treino-FSRS/notas válidos.');
