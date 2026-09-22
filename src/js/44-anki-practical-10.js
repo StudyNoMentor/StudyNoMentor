@@ -178,9 +178,9 @@ const AnkiPractical10 = {
   _installPreferences(){
     const menu=document.getElementById('cards-more-menu');if(!menu)return;
     if(!document.getElementById('cards-preferences-btn')){
-      const b=document.createElement('button');b.type='button';b.id='cards-preferences-btn';b.setAttribute('role','menuitem');b.textContent='⚙ Preferências dos Cards';b.onclick=()=>this.openPreferences();menu.appendChild(b);
+      const b=document.createElement('button');b.type='button';b.id='cards-preferences-btn';b.setAttribute('role','menuitem');b.textContent='⚙ Preferências dos Cards';b.onclick=()=>this.openPreferences();
+      const advanced=menu.querySelector('.cards-more-group[data-group="advanced"]');if(advanced)advanced.appendChild(b);else menu.appendChild(b);
     }
-    this._regroupLater();
   },
   openPreferences(){
     let m=document.getElementById('anki-cards-preferences');if(!m){
