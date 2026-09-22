@@ -87,6 +87,6 @@ assert.match(menuSrc,/menu\.addEventListener\('click'/,'menu Mais deve fechar po
 assert.match(menuSrc,/btn\.setAttribute\('aria-expanded', 'false'\)/,'fechamento deve sincronizar aria-expanded');
 assert.match(menuSrc,/ArrowDown/,'menu Mais deve permitir navegação por setas');
 assert.match(menuSrc,/Home/,'menu Mais deve suportar Home/End');
-assert.match(menuCss,/\.cards-more-menu[\\s\\S]*?overflow-y:\\s*auto/,'menu Mais deve rolar dentro do viewport');
+assert.match(menuCss,/\.cards-more-menu[\s\S]*?overflow-y:\s*auto/,'menu Mais deve rolar dentro do viewport');
 
 console.log('PARIDADE TOTAL: Browser profundo, Custom Scheduling seguro, integridade e codec de media sync validados.');
