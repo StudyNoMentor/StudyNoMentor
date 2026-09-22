@@ -20,5 +20,7 @@ for(let c=0;c<64;c++){
 const out=JSON.parse(mod.optimize_json(JSON.stringify({items,card_ids,current_params:W,num_relearning_steps:1})));
 assert.ok(Array.isArray(out.params)&&out.params.length===21,'WASM oficial deve devolver 21 parâmetros');
 assert.ok(out.params.every(Number.isFinite),'todos os parâmetros otimizados devem ser finitos');
-assert.ok(out.params.every(x=>x>0),'parâmetros retornados devem respeitar domínio positivo esperado');
+const LO=[0.001,0.001,0.001,0.001,1,0.001,0.001,0.001,0,0,0.001,0.001,0.001,0.001,0,0,1,0,0,0.01,0.1];
+const HI=[100,100,100,100,10,4,4,0.75,4.5,0.8,3.5,5,0.25,0.9,4,1,6,2,2,0.8,0.8];
+assert.ok(out.params.every((x,i)=>x>=LO[i]-1e-9&&x<=HI[i]+1e-9),'parâmetros devem permanecer dentro dos limites oficiais FSRS-6');
 console.log('OTIMIZADOR FSRS: WASM fsrs-rs 6.6.2 executou '+items.length+' itens e devolveu 21 parâmetros válidos.');
