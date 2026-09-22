@@ -79,7 +79,8 @@ const CardEngine = {
   },
   // ---- Agendador FSRS (com passos de aprendizado/reaprendizado em minutos, como o Anki) ----
   _scheduleFSRS(card, G) {
-    const cfg = CardsConfig.forDeck(card.deckId), w = CardsConfig.weightsFor(card.deckId), r = cfg.retention || 0.9;
+    const effectiveDeckId = card.originalDeckId || card.deckId;
+    const cfg = CardsConfig.forDeck(effectiveDeckId), w = CardsConfig.weightsFor(effectiveDeckId), r = cfg.retention || 0.9;
     const learn = cfg.learnSteps, relearn = cfg.relearnSteps;
     const maxIv = Math.max(1, cfg.maxInterval || 36500);
     const c = this._ensureFsrsState(card);
@@ -318,7 +319,7 @@ const CardEngine = {
 
      Também passou a usar os multiplicadores configuráveis em vez de constantes. */
   _scheduleSM2(card, grade) {
-    const cfg = CardsConfig.forDeck(card.deckId) || CardsConfig.get();
+    const cfg = CardsConfig.forDeck(card.originalDeckId || card.deckId) || CardsConfig.get();
     const easeIni = cfg.initialEase != null ? cfg.initialEase : 2.5;
     const fHard = cfg.hardMultiplier != null ? cfg.hardMultiplier : 1.2;
     const fEasy = cfg.easyMultiplier != null ? cfg.easyMultiplier : 1.3;
@@ -462,7 +463,7 @@ const CardEngine = {
   schedule(card, grade) {
     if (grade === 'sei') grade = 'bom';
     if (grade === 'naosei') grade = 'errei';
-    const cfg = CardsConfig.forDeck(card.deckId);
+    const cfg = CardsConfig.forDeck(card.originalDeckId || card.deckId);
     const patch = (cfg.algo === 'fsrs')
       ? this._scheduleFSRS(card, this.GRADE_NUM[grade] || 3)
       : this._scheduleSM2(card, grade);
