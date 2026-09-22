@@ -90,7 +90,7 @@ for (const [rotulo, pasta, arquivo] of [
      comparação com o backend oficial do Anki: as duas levam horas e dependem
      do pacote `anki` do PyPI — ficam para execução manual, documentada em
      audit/cards-20260921-v2/README.md. */
-  ['62 verificacoes da 2a auditoria dos cards', 'cards-20260921-v2', 'regressao.mjs']
+  ['68 verificacoes da 2a auditoria dos cards', 'cards-20260921-v2', 'regressao.mjs']
 ]) {
   try {
     execFileSync(process.execPath, [join(RAIZ, 'audit', pasta, arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
