@@ -1512,9 +1512,11 @@ const CardsScreen = {
     if (decks.length === 0) { box.innerHTML = `<p class="hint">Nenhum baralho ainda. Crie o primeiro acima.</p>`; return; }
     box.innerHTML = decks.map(d => {
       const n = DB.getCards().filter(c => c.deckId === d.id).length;
+      const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d);
       return `<div class="deck-row" data-id="${d.id}">
         <input type="text" class="deck-name" value="${escapeHtml(d.nome)}">
-        <span class="deck-count">${n} card(s)</span>
+        <span class="deck-count">${filtrado ? '🔎 ' : ''}${n} card(s)</span>
+        ${filtrado ? '<button type="button" class="icon-btn deck-filter-edit" title="Editar e reconstruir baralho filtrado" aria-label="Editar baralho filtrado">⚙</button>' : ''}
         <button type="button" class="icon-btn deck-ver" title="Ver os cards deste baralho" aria-label="Ver os cards deste baralho">👁</button>
         <button type="button" class="icon-btn deck-revisar" title="Revisar só este baralho" aria-label="Revisar só este baralho">▶</button>
         <button type="button" class="icon-btn danger deck-del" title="Excluir baralho" aria-label="Excluir baralho">×</button>
@@ -1523,10 +1525,17 @@ const CardsScreen = {
     box.querySelectorAll('.deck-row').forEach(row => {
       const id = row.dataset.id;
       row.querySelector('.deck-name').addEventListener('change', (e) => { DB.renameDeck(id, e.target.value); this.render(); });
+      const fed = row.querySelector('.deck-filter-edit');
+      if (fed) fed.addEventListener('click', () => this.openFilteredDeckModal(id));
       row.querySelector('.deck-ver').addEventListener('click', () => this.irParaBaralho(id, 'meus'));
       row.querySelector('.deck-revisar').addEventListener('click', () => this.irParaBaralho(id, 'revisar'));
       row.querySelector('.deck-del').addEventListener('click', async () => {
-        if (!await UI.confirm('Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).')) return;
+        const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(id);
+        const msg = filtrado
+          ? 'Excluir este baralho filtrado? Os cards voltarão aos baralhos e agendamentos de origem.'
+          : 'Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).';
+        if (!await UI.confirm(msg)) return;
+        if (filtrado) AnkiParity.emptyFilteredDeck(id);
         DB.deleteDeck(id); this.renderDeckList(); this.render();
       });
     });
@@ -1549,6 +1558,118 @@ const CardsScreen = {
     const d = DB.addDeck(inp.value);
     if (!d) { showToast('Digite um nome'); return; }
     inp.value = ''; this.renderDeckList(); this.render(); showToast('Baralho criado ✓');
+  },
+
+  // ---- Estudo Personalizado / Baralhos Filtrados (Anki 26.09.2) ----
+  _normalDeckOptions(selected) {
+    return DB.getDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
+      .map(d => '<option value="'+escapeHtml(String(d.id))+'"'+(String(selected)===String(d.id)?' selected':'')+'>'+escapeHtml(d.nome)+'</option>').join('');
+  },
+  openCustomStudy() {
+    const sel = document.getElementById('cards-custom-deck');
+    if (sel) sel.innerHTML = this._normalDeckOptions('');
+    const mode = document.getElementById('cards-custom-mode'); if (mode) mode.value='forgot';
+    const value = document.getElementById('cards-custom-value'); if (value) value.value='7';
+    const cram = document.getElementById('cards-custom-cram-kind'); if (cram) cram.value='due';
+    const limit = document.getElementById('cards-custom-limit'); if (limit) limit.value='100';
+    const inc = document.getElementById('cards-custom-tags-in'); if (inc) inc.value='';
+    const exc = document.getElementById('cards-custom-tags-out'); if (exc) exc.value='';
+    this.updateCustomStudyUI();
+    const modal=document.getElementById('cards-custom-modal');if(modal)modal.style.display='flex';
+  },
+  updateCustomStudyUI() {
+    const mode=(document.getElementById('cards-custom-mode')||{}).value||'forgot';
+    const cram=document.getElementById('cards-custom-cram-fields');
+    const days=document.getElementById('cards-custom-days-field');
+    const delta=document.getElementById('cards-custom-delta-hint');
+    if(cram)cram.style.display=mode==='cram'?'block':'none';
+    if(days)days.style.display=mode==='cram'?'none':'block';
+    if(delta)delta.textContent=(mode==='newLimitDelta'||mode==='reviewLimitDelta')?'Quantidade a acrescentar hoje':'Dias';
+  },
+  runCustomStudy() {
+    if(typeof AnkiParity==='undefined')return;
+    const deckId=(document.getElementById('cards-custom-deck')||{}).value;
+    const kind=(document.getElementById('cards-custom-mode')||{}).value;
+    if(!deckId){showToast('Escolha o baralho de origem');return;}
+    const value=Math.max(0,Number((document.getElementById('cards-custom-value')||{}).value)||0);
+    const input={deckId,kind};
+    if(kind==='cram'){
+      input.cramKind=(document.getElementById('cards-custom-cram-kind')||{}).value||'due';
+      input.limit=Math.max(0,Number((document.getElementById('cards-custom-limit')||{}).value)||0);
+      const tags=id=>String((document.getElementById(id)||{}).value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      input.includeTags=tags('cards-custom-tags-in');input.excludeTags=tags('cards-custom-tags-out');
+    }else if(kind==='newLimitDelta'||kind==='reviewLimitDelta')input.delta=value;
+    else input.days=value;
+    const result=AnkiParity.customStudy(input);
+    if(!result||!result.ok){
+      showToast(result&&result.error==='name-conflict'
+        ? 'Já existe um baralho normal chamado Estudo Personalizado'
+        : 'Nenhum card corresponde aos critérios');return;
+    }
+    document.getElementById('cards-custom-modal').style.display='none';
+    if(result.limitOnly){
+      this._reviewIdx=0;this.render();showToast('Limite de hoje atualizado ✓');return;
+    }
+    this.populateFilterOptions();
+    this.irParaBaralho(result.deck.id,'revisar');
+    showToast('Estudo Personalizado criado com '+result.count+' card(s) ✓');
+  },
+  _filteredOrderOptions(selected) {
+    const vals=[
+      [0,'Mais antigos revisados primeiro'],[1,'Aleatória'],[2,'Intervalo crescente'],
+      [3,'Intervalo decrescente'],[4,'Mais lapsos'],[5,'Adicionados primeiro'],
+      [6,'Vencimento'],[7,'Adicionados por último primeiro'],[8,'Menor recuperabilidade'],
+      [9,'Maior recuperabilidade'],[10,'Maior atraso relativo']
+    ];
+    return vals.map(x=>'<option value="'+x[0]+'"'+(Number(selected)===x[0]?' selected':'')+'>'+x[1]+'</option>').join('');
+  },
+  openFilteredDeckModal(deckId) {
+    if(typeof AnkiParity==='undefined')return;
+    const d=deckId?DB.getDecks().find(x=>String(x.id)===String(deckId)):null;
+    const cfg=d?AnkiParity.filteredConfig(d):AnkiParity.filteredDefaults();
+    document.getElementById('cards-filtered-id').value=d?d.id:'';
+    document.getElementById('cards-filtered-name').value=d?d.nome:'Baralho filtrado';
+    const t1=(cfg.searchTerms&&cfg.searchTerms[0])||{search:'',limit:100,order:1};
+    const t2=(cfg.searchTerms&&cfg.searchTerms[1])||{search:'',limit:100,order:1};
+    document.getElementById('cards-filtered-search1').value=t1.search||'';
+    document.getElementById('cards-filtered-limit1').value=t1.limit==null?100:t1.limit;
+    document.getElementById('cards-filtered-order1').innerHTML=this._filteredOrderOptions(t1.order);
+    document.getElementById('cards-filtered-search2').value=t2.search||'';
+    document.getElementById('cards-filtered-limit2').value=t2.limit==null?100:t2.limit;
+    document.getElementById('cards-filtered-order2').innerHTML=this._filteredOrderOptions(t2.order);
+    document.getElementById('cards-filtered-reschedule').checked=!!cfg.reschedule;
+    document.getElementById('cards-filtered-again').value=cfg.previewAgainSecs==null?60:cfg.previewAgainSecs;
+    document.getElementById('cards-filtered-hard').value=cfg.previewHardSecs==null?600:cfg.previewHardSecs;
+    document.getElementById('cards-filtered-good').value=cfg.previewGoodSecs==null?0:cfg.previewGoodSecs;
+    document.getElementById('cards-filtered-modal').style.display='flex';
+    this.updateFilteredDeckUI();
+  },
+  updateFilteredDeckUI() {
+    const res=!!(document.getElementById('cards-filtered-reschedule')||{}).checked;
+    const p=document.getElementById('cards-filtered-preview-fields');if(p)p.style.display=res?'none':'block';
+  },
+  saveFilteredDeckModal() {
+    if(typeof AnkiParity==='undefined')return;
+    const id=document.getElementById('cards-filtered-id').value||null;
+    const nome=document.getElementById('cards-filtered-name').value.trim();
+    if(!nome){showToast('Informe o nome do baralho');return;}
+    const term=(n)=>({
+      search:document.getElementById('cards-filtered-search'+n).value.trim(),
+      limit:Math.max(0,Number(document.getElementById('cards-filtered-limit'+n).value)||0),
+      order:Number(document.getElementById('cards-filtered-order'+n).value)||0
+    });
+    const t1=term(1),t2=term(2),terms=[t1];if(t2.search||t2.limit)terms.push(t2);
+    const cfg=AnkiParity.filteredDefaults();
+    cfg.reschedule=document.getElementById('cards-filtered-reschedule').checked;
+    cfg.searchTerms=terms;
+    cfg.previewAgainSecs=Math.max(0,Number(document.getElementById('cards-filtered-again').value)||0);
+    cfg.previewHardSecs=Math.max(0,Number(document.getElementById('cards-filtered-hard').value)||0);
+    cfg.previewGoodSecs=Math.max(0,Number(document.getElementById('cards-filtered-good').value)||0);
+    const result=AnkiParity.saveFilteredDeck({id,nome,config:cfg,allowEmpty:true});
+    if(!result||!result.ok){showToast('Não foi possível construir o baralho filtrado');return;}
+    document.getElementById('cards-filtered-modal').style.display='none';
+    this.populateFilterOptions();this.renderDeckList();this.irParaBaralho(result.deck.id,'revisar');
+    showToast('Baralho filtrado reconstruído: '+result.count+' card(s) ✓');
   },
 
   // ---- bancas (lista oferecida no seletor "Banca" da criação de card) ----
