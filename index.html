@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va580ea1c1a">
+<meta name="diario-versao" content="v7357a28b1d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -21561,6 +21561,58 @@ const FSRS = {
     if (best.reviewsPerDay > capacity) { const feas = curve.filter(c => c.reviewsPerDay <= capacity); if (feas.length) rec = feas[feas.length - 1].retention; }
     return { recommended: rec, optimal: best.retention, capacity: Math.round(capacity), curve };
   }
+};
+
+
+/* ── OTIMIZADOR OFICIAL ANKI 26.09.2 / fsrs-rs 6.6.2 ──────────────────────
+   Carregado sob demanda: o scheduler diário continua 100% síncrono e não paga
+   o custo do WASM. O arquivo é servido localmente pelo próprio PWA. */
+FSRS._officialOptimizerModule=null;
+FSRS._officialOptimizerLoading=null;
+FSRS._loadOfficialOptimizer=async function(){
+  if(this._officialOptimizerModule)return this._officialOptimizerModule;
+  if(this._officialOptimizerLoading)return this._officialOptimizerLoading;
+  this._officialOptimizerLoading=(async()=>{
+    const mod=await import('./src/vendor/fsrs-6.6.2/fsrs_optimizer.js');
+    if(typeof mod.default==='function')await mod.default();
+    if(typeof mod.optimize_json!=='function')throw new Error('Otimizador FSRS oficial indisponível');
+    this._officialOptimizerModule=mod;
+    return mod;
+  })();
+  try{return await this._officialOptimizerLoading;}
+  finally{this._officialOptimizerLoading=null;}
+};
+FSRS.optimizeOfficial=async function(revlog,opts){
+  opts=opts||{};
+  if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki não carregada');
+  const deckId=opts.deckId==null?null:opts.deckId;
+  const cfg=opts.cfg||CardsConfig.forDeck(deckId);
+  let ignoreBeforeMs=Number(opts.ignoreBeforeMs)||0;
+  if(!ignoreBeforeMs&&cfg.ignoreRevlogsBefore){
+    const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');
+    if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();
+  }
+  const data=AnkiParity.fsrsTrainingData(
+    Array.isArray(revlog)?revlog:DB.getRevlog(),
+    {cards:opts.cards||DB.getCards(),nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs}
+  );
+  if(!data.items.length)throw new Error('Dados insuficientes para otimizar parâmetros FSRS');
+
+  const current=Array.isArray(opts.currentParams)
+    ? this.migrarW(opts.currentParams)
+    : CardsConfig.weightsFor(deckId);
+  const mod=await this._loadOfficialOptimizer();
+  const out=JSON.parse(mod.optimize_json(JSON.stringify({
+    items:data.items,
+    card_ids:data.cardIds,
+    current_params:current||[],
+    num_relearning_steps:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0
+  })));
+  if(!out||!Array.isArray(out.params)||out.params.length!==21)throw new Error('Resposta inválida do fsrs-rs 6.6.2');
+  out.reviewCount=data.reviewCount;
+  out.cardCount=new Set(data.cardIds.map(String)).size;
+  out.nextDayAtSec=data.nextDayAtSec;
+  return out;
 };
 
 // Configuração dos Cards (algoritmo, retenção-alvo, passos de aprendizado) — global, por dispositivo.
