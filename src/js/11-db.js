@@ -1176,7 +1176,9 @@ const DB = {
       Object.assign(c, p); c.updatedAt = now;
     });
     if (this.saveCards(list) === false) return false;
-    return this.getCard(id);
+    const salvo=this.getCard(id);
+    try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){_quiet(e,'sync-canonical-note');}
+    return salvo;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
