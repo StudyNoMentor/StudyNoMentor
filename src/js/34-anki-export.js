@@ -81,6 +81,79 @@ const AnkiExport = {
     return this._concat(locals.concat([central, end]));
   },
 
+  _varint(n) {
+    let x = BigInt(Math.max(0, Number(n) || 0)), out = [];
+    do { let b = Number(x & 0x7fn); x >>= 7n; if (x) b |= 0x80; out.push(b); } while (x);
+    return Uint8Array.from(out);
+  },
+  _pbBytes(field, data) {
+    data = this._u8(data);
+    return this._concat([this._varint((Number(field) << 3) | 2), this._varint(data.length), data]);
+  },
+  _pbU32(field, n) {
+    return this._concat([this._varint((Number(field) << 3) | 0), this._varint(Number(n) >>> 0)]);
+  },
+  _sha1Bytes(input) {
+    const bytes = this._u8(input), ml = bytes.length * 8;
+    const total = ((bytes.length + 9 + 63) >> 6) << 6, buf = new Uint8Array(total);
+    buf.set(bytes); buf[bytes.length] = 0x80;
+    const dv = new DataView(buf.buffer);
+    dv.setUint32(total - 4, ml >>> 0, false);
+    dv.setUint32(total - 8, Math.floor(ml / 0x100000000), false);
+    let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476, h4 = 0xc3d2e1f0;
+    const w = new Uint32Array(80), rol = (x, n) => ((x << n) | (x >>> (32 - n))) >>> 0;
+    for (let off = 0; off < total; off += 64) {
+      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
+      for (let i = 16; i < 80; i++) w[i] = rol(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+      let a = h0, b = h1, c = h2, d = h3, e = h4;
+      for (let i = 0; i < 80; i++) {
+        let ff, k;
+        if (i < 20) { ff = (b & c) | ((~b) & d); k = 0x5a827999; }
+        else if (i < 40) { ff = b ^ c ^ d; k = 0x6ed9eba1; }
+        else if (i < 60) { ff = (b & c) | (b & d) | (c & d); k = 0x8f1bbcdc; }
+        else { ff = b ^ c ^ d; k = 0xca62c1d6; }
+        const t = (rol(a, 5) + ff + e + k + w[i]) >>> 0;
+        e = d; d = c; c = rol(b, 30); b = a; a = t;
+      }
+      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0;
+      h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
+    }
+    const out = new Uint8Array(20), odv = new DataView(out.buffer);
+    [h0,h1,h2,h3,h4].forEach((v,i)=>odv.setUint32(i*4,v,false));
+    return out;
+  },
+  // Encoder Zstandard mínimo e válido: frame single-segment + blocos RAW.
+  // O Anki aceita qualquer frame Zstd válido; não é necessário comprimir para
+  // obter interoperabilidade, e assim evitamos CDN/WASM/codec externo.
+  _zstdStore(input) {
+    const data = this._u8(input), n = data.length, head = [0x28,0xb5,0x2f,0xfd];
+    if (n < 256) head.push(0x20, n);
+    else if (n < 65792) { const v=n-256; head.push(0x60, v&255, (v>>>8)&255); }
+    else { head.push(0xa0, n&255, (n>>>8)&255, (n>>>16)&255, (n>>>24)&255); }
+    const blocks=[], MAX=128*1024;
+    if (!n) blocks.push(Uint8Array.from([1,0,0]));
+    for (let off=0; off<n; off+=MAX) {
+      const size=Math.min(MAX,n-off), last=(off+size>=n)?1:0, bh=(size<<3)|last;
+      blocks.push(this._concat([Uint8Array.from([bh&255,(bh>>>8)&255,(bh>>>16)&255]),data.slice(off,off+size)]));
+    }
+    return this._concat([Uint8Array.from(head),...blocks]);
+  },
+  _mediaEntriesProto(items) {
+    const rows=(items||[]).map(m=>{
+      const body=this._concat([
+        this._pbBytes(1,this._enc.encode(String(m.name||''))),
+        this._pbU32(2,(m.bytes||[]).length),
+        this._pbBytes(3,this._sha1Bytes(m.bytes||new Uint8Array()))
+      ]);
+      return this._pbBytes(1,body);
+    });
+    return this._concat(rows);
+  },
+  _tsvField(v) {
+    let x=String(v==null?'':v).replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    return /["\t\n]/.test(x) ? '"'+x.replace(/"/g,'""')+'"' : x;
+  },
+
   _base64Bytes(s) {
     if (typeof atob === 'function') {
       const bin = atob(String(s).replace(/\s+/g, '')), out = new Uint8Array(bin.length);
@@ -378,6 +451,59 @@ const AnkiExport = {
     return globalThis.initSqlJs();
   },
 
+  buildTextNotes(options) {
+    options=Object.assign({withHtml:true,withTags:true,withDeck:true,withNotetype:true,withGuid:true},options||{});
+    if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
+    AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
+    const cards=DB.getCards(),decks=DB.getDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
+    const notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),typeById=new Map(types.map(nt=>[String(nt.id),nt]));
+    const siblings=new Map();
+    cards.forEach(c=>{const nid=String(AnkiParity.noteId(c));if(!siblings.has(nid))siblings.set(nid,[]);siblings.get(nid).push(c);});
+    const maxFields=Math.max(0,...types.map(nt=>Array.isArray(nt.fields)?nt.fields.length:0));
+    const headers=['#separator:tab','#html:'+String(!!options.withHtml)];
+    let col=0;
+    if(options.withGuid)headers.push('#guid column:'+(++col));
+    if(options.withNotetype)headers.push('#notetype column:'+(++col));
+    if(options.withDeck)headers.push('#deck column:'+(++col));
+    const fieldStart=col+1; // documentação/depuração
+    col+=maxFields;
+    if(options.withTags)headers.push('#tags column:'+(++col));
+    const rows=[];
+    for(const note of notes){
+      const nt=typeById.get(String(note.notetypeId));if(!nt)continue;
+      const sib=siblings.get(String(note.id))||siblings.get(String(note.ankiId))||[];
+      const first=sib[0]||null,vals=[];
+      if(options.withGuid)vals.push(note.guid||('snm-'+Number(note.id).toString(36)));
+      if(options.withNotetype)vals.push(nt.name||'');
+      if(options.withDeck)vals.push(first?deckById.get(String(first.originalDeckId||first.deckId))||'':'');
+      const fields=Array.isArray(nt.fields)?nt.fields:[];
+      for(let i=0;i<maxFields;i++){
+        const name=fields[i]&&fields[i].name,raw=name&&note.fields?String(note.fields[name]??''):'';
+        vals.push(options.withHtml?raw:this._plain(raw));
+      }
+      if(options.withTags)vals.push((note.tags||[]).join(' '));
+      rows.push(vals.map(v=>this._tsvField(v)).join('\t'));
+    }
+    return {text:headers.join('\n')+'\n'+rows.join('\n'),notes:rows.length,fieldColumns:maxFields,fieldStart};
+  },
+  buildTextCards(options) {
+    options=Object.assign({withHtml:true},options||{});
+    if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
+    AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
+    const rows=[];
+    for(const card of DB.getCards()){
+      const note=AnkiParity.getNote(AnkiParity.noteId(card));if(!note)continue;
+      const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
+      const ord=Number(card.ankiTemplateOrd)||0;
+      const q=AnkiParity.renderTemplate(nt,note,ord,'question',card,'');
+      let a=AnkiParity.renderTemplate(nt,note,ord,'answer',card,q);
+      a=String(a).replace(/^.*?<hr\s+id=["']?answer["']?\s*\/?>\s*/is,'');
+      const vals=[q,a].map(v=>options.withHtml?String(v):this._plain(v));
+      rows.push(vals.map(v=>this._tsvField(v)).join('\t'));
+    }
+    return {text:'#separator:tab\n#html:'+String(!!options.withHtml)+'\n'+rows.join('\n'),cards:rows.length};
+  },
+
   async buildCollection() {
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
@@ -440,25 +566,29 @@ const AnkiExport = {
     return { bytes, media: media.items, cards: cards.length, notes: notesById.size, decks: decks.length, revlog: revRows.length };
   },
 
-  async buildPackage() {
+  async buildPackage(options) {
+    options=options||{};const legacy=options.legacy!==false;
     const col = await this.buildCollection(), mediaMap = {}, mediaEntries = [];
-    col.media.forEach((m, i) => {
-      mediaMap[String(i)] = m.name;
-      mediaEntries.push({ name: String(i), data: m.bytes });
-    });
-    /* Anki 26.09.2: Meta::new_legacy() = VERSION_LEGACY_2.
-       Em protobuf, PackageMetadata.version (campo 1) = 2 -> bytes 08 02.
-       O importador então lê collection.anki21 (schema11). Sem meta +
-       collection.anki2 seria o Legacy1 antigo, ainda aceito, mas não é o
-       formato legado que a versão-alvo produz hoje. */
-    const entries = [
-      { name: 'meta', data: new Uint8Array([0x08, 0x02]) },
-      { name: 'collection.anki21', data: col.bytes },
-      { name: 'media', data: JSON.stringify(mediaMap) },
-      ...mediaEntries
-    ];
-    // `col` também possui `bytes` (o SQLite cru). A composição precisa deixar
-    // o ZIP por último; do contrário o SQLite sobrescreve silenciosamente o .apkg.
-    return Object.assign({}, col, { bytes: this.zipStore(entries) });
+    col.media.forEach((m, i) => { mediaMap[String(i)] = m.name; });
+    let entries;
+    if(legacy){
+      col.media.forEach((m,i)=>mediaEntries.push({name:String(i),data:m.bytes}));
+      entries=[
+        {name:'meta',data:new Uint8Array([0x08,0x02])},
+        {name:'collection.anki21',data:col.bytes},
+        {name:'media',data:JSON.stringify(mediaMap)},
+        ...mediaEntries
+      ];
+    }else{
+      const mediaProto=this._mediaEntriesProto(col.media);
+      col.media.forEach((m,i)=>mediaEntries.push({name:String(i),data:this._zstdStore(m.bytes)}));
+      entries=[
+        {name:'meta',data:new Uint8Array([0x08,0x03])},
+        {name:'collection.anki21b',data:this._zstdStore(col.bytes)},
+        {name:'media',data:this._zstdStore(mediaProto)},
+        ...mediaEntries
+      ];
+    }
+    return Object.assign({},col,{bytes:this.zipStore(entries),legacy});
   }
 };
