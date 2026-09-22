@@ -148,4 +148,37 @@ CardsConfig.set({applyAllParentLimits:true,newCardsIgnoreReviewLimit:true});
 q=CardsScreen.buildQueue();
 ok(!q.includes(direct.id),'applyAllParentLimits inclui o pai ao estudar o filho');
 
-console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites válidos.');
+// ── Conversão oficial do revlog para FSRSItem ─────────────────────────────
+const NEXT_DAY_AT=86400*1000; // segundos; mesmo valor do teste do rslib
+const ago=(days)=>(NEXT_DAY_AT-days*86400)*1000;
+
+// Vetor oficial: [L-15, L-13, R-10, R-5] vira três prefixos,
+// com delta_t [0,2], [0,2,3], [0,2,3,5].
+let td=AnkiParity.fsrsTrainingData([
+  {cardId:'tc1',ts:ago(15),grade:3,phase:'learning',intervalo:0},
+  {cardId:'tc1',ts:ago(13),grade:3,phase:'learning',intervalo:0},
+  {cardId:'tc1',ts:ago(10),grade:3,phase:'review',intervalo:3},
+  {cardId:'tc1',ts:ago(5),grade:3,phase:'review',intervalo:5},
+],{cards:[{id:'tc1',ankiId:101}],nextDayAtSec:NEXT_DAY_AT});
+eq(td.items.map(x=>x.reviews.map(r=>r.delta_t)),[[0,2],[0,2,3],[0,2,3,5]],'FSRS treino replica prefixos/delta_t do rslib');
+eq(td.cardIds,[101,101,101],'card_ids ficam alinhados aos prefixos');
+eq(td.reviewCount,4,'review_count conta revlogs filtrados do card');
+
+td=AnkiParity.fsrsTrainingData([
+  {cardId:'ta',ts:ago(10),grade:3,phase:'learning',intervalo:0},
+  {cardId:'ta',ts:ago(7),grade:3,phase:'review',intervalo:3},
+  {cardId:'ta',ts:ago(1),grade:3,phase:'review',intervalo:6},
+  {cardId:'tb',ts:ago(9),grade:3,phase:'learning',intervalo:0},
+  {cardId:'tb',ts:ago(8),grade:3,phase:'review',intervalo:1},
+],{cards:[{id:'ta',ankiId:1},{id:'tb',ankiId:2}],nextDayAtSec:NEXT_DAY_AT});
+eq(td.cardIds,[2,1,1],'prefixos globais são ordenados por RevlogId como no Anki');
+eq(td.reviewCount,5,'review_count oficial soma os históricos aproveitados');
+
+// Histórico sem learning não entra no treino.
+td=AnkiParity.fsrsTrainingData([
+  {cardId:'tr',ts:ago(4),grade:3,phase:'review',intervalo:10},
+  {cardId:'tr',ts:ago(1),grade:3,phase:'review',intervalo:3},
+],{cards:[{id:'tr',ankiId:303}],nextDayAtSec:NEXT_DAY_AT});
+eq(td.items.length,0,'card sem learning é excluído do treino oficial');
+
+console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites/treino-FSRS válidos.');
