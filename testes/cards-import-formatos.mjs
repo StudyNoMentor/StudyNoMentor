@@ -136,13 +136,13 @@ assert.equal(union.notetype.templates.length,2,'merge deve preservar template ex
 
 // Schema 18: Image Occlusion precisa preservar OriginalStockKind e tags estruturais.
 const ioNt={
-  id:9101,ankiId:9101,name:'Image Occlusion',kind:'cloze',originalStockKind:6,
+  id:9101,ankiId:9101,name:'Image Occlusion',kind:'cloze',originalStockKind:6,sortf:2,
   fields:[
     {name:'Occlusion',tag:0,preventDeletion:true},{name:'Image',tag:1,preventDeletion:true},
     {name:'Header',tag:2,preventDeletion:true},{name:'Back Extra',tag:3,preventDeletion:true},
     {name:'Comments',tag:4,preventDeletion:false}
   ],
-  templates:[{name:'Image Occlusion',qfmt:'{{cloze:Occlusion}}{{Image}}',afmt:'{{cloze:Occlusion}}{{Image}}{{Back Extra}}'}],
+  templates:[{name:'Image Occlusion',qfmt:'{{cloze:Occlusion}}{{Image}}',afmt:'{{cloze:Occlusion}}{{Image}}{{Back Extra}}',did:4321,bqfmt:'{{Header}}',bafmt:'{{Back Extra}}',bfont:'Arial',bsize:15}],
   css:'.card{}'
 };
 const ioModel=X.modelSchema(ioNt);
@@ -157,11 +157,15 @@ for(const t of ioModel.tmpls)modernMetaDb.run('INSERT INTO templates VALUES (?,?
 const ioMeta=I._modernMetadata(modernMetaDb).models[String(ioModel.id)];
 modernMetaDb.close();
 assert.equal(ioMeta.originalStockKind,6,'schema 18 deve preservar OriginalStockKind Image Occlusion');
+assert.equal(ioModel.sortf,2,'sort field do Note Type deve sobreviver ao export');
+assert.equal(ioModel.tmpls[0].did,4321,'deck override do template deve sobreviver ao export');
 assert.deepEqual(Array.from(ioMeta.flds,f=>f.tag),[0,1,2,3,4],'tags dos campos estruturais devem sobreviver ao protobuf');
 assert.deepEqual(Array.from(ioMeta.flds,f=>f.preventDeletion),[true,true,true,true,false],'proteção dos campos estruturais deve sobreviver ao protobuf');
 const ioRound=I._toNotetype(ioMeta);
 assert.equal(ioRound.originalStockKind,6);
 assert.equal(ioRound.kind,'cloze');
+assert.equal(ioRound.sortf,2,'sort field deve sobreviver ao round-trip moderno');
+assert.equal(ioRound.templates[0].did,4321,'deck override deve sobreviver ao round-trip moderno');
 assert.deepEqual(Array.from(ioRound.fields,f=>f.tag),[0,1,2,3,4]);
 
 // Pacote Legacy2 real: ZIP -> collection.anki21 -> SQLite -> contagens/metadados.
