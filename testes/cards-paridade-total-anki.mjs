@@ -152,7 +152,8 @@ ok(!q.includes(direct.id),'applyAllParentLimits inclui o pai ao estudar o filho'
 A.reset({newPerDay:0,revPerDay:0});
 DB.saveDecks([{id:'home',nome:'Fiscal',createdAt:new Date().toISOString()}]);
 const fn=DB.addCard({deckId:'home',frente:'novo',verso:'n',phase:'new',due:A.hoje(),createdAt:new Date().toISOString()});
-const fr=DB.addCard({deckId:'home',frente:'review',verso:'r',phase:'review',due:CardEngine.addDays(A.hoje(),2),intervalo:10,reps:3,s:10,d:5,createdAt:new Date().toISOString()});
+const fr=DB.addCard({deckId:'home',frente:'review',verso:'r'});
+DB.updateCard(fr.id,{phase:'review',due:CardEngine.addDays(A.hoje(),2),intervalo:10,reps:3,s:10,d:5});
 const oldDue=DB.getCard(fr.id).due;
 let cs=AnkiParity.customStudy({deckId:'home',kind:'ahead',days:3});
 ok(cs.ok,'Custom Study review-ahead cria baralho filtrado');
