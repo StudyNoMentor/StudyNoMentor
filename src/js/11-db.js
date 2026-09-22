@@ -1,6 +1,89 @@
 /* ============================================================
    CAMADA DE DADOS — usada por todas as telas do app
    ============================================================ */
+/* ── JOURNAL DURÁVEL DE REVISÕES ────────────────────────────────────────────
+   Uma resposta de card é pequena, mas é dado de aprendizagem irrecuperável.
+   Antes de a fila avançar, registramos a intenção em IndexedDB. O registro só
+   sai daqui depois de a nuvem confirmar TANTO o revlog quanto o estado novo do
+   card. Assim reload, queda de rede ou fechamento da aba não perdem a resposta.
+   O localStorage continua apenas como fallback para navegadores sem IndexedDB. */
+const ReviewJournal = {
+  DB_NAME: 'studynomentor-review-journal',
+  STORE: 'review-ops',
+  VERSION: 1,
+  _openPromise: null,
+  _disabled: false,
+  _open() {
+    if (this._disabled || typeof indexedDB === 'undefined') return Promise.resolve(null);
+    if (this._openPromise) return this._openPromise;
+    this._openPromise = new Promise((resolve) => {
+      let req;
+      try { req = indexedDB.open(this.DB_NAME, this.VERSION); }
+      catch (_) { this._disabled = true; resolve(null); return; }
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(this.STORE)) {
+          const st = db.createObjectStore(this.STORE, { keyPath: 'id' });
+          st.createIndex('profileId', 'profileId', { unique: false });
+          st.createIndex('createdAt', 'createdAt', { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => { this._disabled = true; resolve(null); };
+      req.onblocked = () => { /* outra aba termina a atualização e o evento prossegue */ };
+    });
+    return this._openPromise;
+  },
+  async put(op) {
+    const db = await this._open();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      let tx;
+      try {
+        tx = db.transaction(this.STORE, 'readwrite');
+        tx.objectStore(this.STORE).put(op);
+      } catch (_) { resolve(false); return; }
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    });
+  },
+  async remove(id) {
+    const db = await this._open();
+    if (!db) return false;
+    return new Promise((resolve) => {
+      let tx;
+      try {
+        tx = db.transaction(this.STORE, 'readwrite');
+        tx.objectStore(this.STORE).delete(String(id));
+      } catch (_) { resolve(false); return; }
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    });
+  },
+  async list(profileId) {
+    const db = await this._open();
+    if (!db) return [];
+    return new Promise((resolve) => {
+      let tx, req;
+      try {
+        tx = db.transaction(this.STORE, 'readonly');
+        req = tx.objectStore(this.STORE).getAll();
+      } catch (_) { resolve([]); return; }
+      req.onsuccess = () => {
+        let rows = Array.isArray(req.result) ? req.result : [];
+        if (profileId) rows = rows.filter(x => !x.profileId || String(x.profileId) === String(profileId));
+        rows.sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
+        resolve(rows);
+      };
+      req.onerror = () => resolve([]);
+    });
+  },
+  async count(profileId) { return (await this.list(profileId)).length; }
+};
+try { if (typeof window !== 'undefined') window.ReviewJournal = ReviewJournal; } catch (e) { _quiet(e, 'review-journal-global'); }
+
 const DB = {
   // ---- Camada de PERFIL: tudo é namespaced pelo perfil ativo (multi-usuário no dispositivo) ----
   PROFILES_KEY: 'diario-estudos:profiles',
@@ -739,7 +822,26 @@ const DB = {
      Assim uma resposta escreve o tamanho do LOTE, não o do histórico.        */
   LOTE_REVLOG: 50,
   _revlogMem: new Map(),
-  _chaveRevisao(r) { return String(r && r.cardId) + '|' + String(r && r.ts) + '|' + String(r && r._position); },
+  _reviewIdLegado(r) {
+    const x = r || {};
+    return 'legacy:' + String(x.cardId == null ? '' : x.cardId) + '|' + String(x.ts == null ? '' : x.ts) + '|' + String(x._position == null ? '' : x._position);
+  },
+  _normalizarReviewId(r, novo) {
+    if (!r || typeof r !== 'object') return r;
+    if (!r.reviewId) r.reviewId = novo ? ('r:' + this._uid()) : this._reviewIdLegado(r);
+    return r;
+  },
+  _chaveRevisao(r) {
+    if (r && r.reviewId) return 'id:' + String(r.reviewId);
+    return String(r && r.cardId) + '|' + String(r && r.ts) + '|' + String(r && r._position);
+  },
+  _reviewContext(key) {
+    const k = String(key || this.KEYS.revlog);
+    let m = /^diario-estudos:u:([^:]+):p:([^:]+):revlog$/.exec(k);
+    if (m) return { profileId: m[1], planId: m[2] };
+    m = /^diario-estudos:p:([^:]+):revlog$/.exec(k);
+    return m ? { profileId: null, planId: m[1] } : { profileId: null, planId: null };
+  },
   _bancoRelacionalPronto() {
     try { return !!(typeof RelationalStore !== 'undefined' && RelationalStore && RelationalStore.enabled && RelationalStore.isReady()); }
     catch (_) { return false; }
@@ -783,6 +885,7 @@ const DB = {
      São operações raras e por definição O(n) — aqui a reescrita é legítima. */
   replaceRevlog(list) {
     const k = this.KEYS.revlog, v = Array.isArray(list) ? list : [];
+    v.forEach(r => this._normalizarReviewId(r, false));
     this._revlogMem.set(k, v);
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogReplace) RelationalStore.queueRevlogReplace(k, v);
@@ -799,23 +902,64 @@ const DB = {
     // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
-    const row = Object.assign({ _position: pos }, entry);
+    const row = this._normalizarReviewId(Object.assign({ _position: pos }, entry), true);
     l.push(row);
-    // 1) Banco relacional: UMA linha, não o histórico inteiro.
+    // Caminho legado/síncrono: mantém compatibilidade com importações e testes.
+    // A tela de revisão usa addRevlogDurable(), abaixo.
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
     } catch (e) { _quiet(e, 'revlog-append'); }
-    // 2) Rede de segurança local, do tamanho do lote.
     return this._guardarPendente(row);
+  },
+  async addRevlogDurable(entry, cardAfter, cardPosition) {
+    const l = this.getRevlog();
+    const last = l.length ? l[l.length - 1] : null;
+    const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
+    const row = this._normalizarReviewId(Object.assign({ _position: pos }, entry), true);
+    l.push(row);
+
+    const key = this.KEYS.revlog, ctx = this._reviewContext(key);
+    const op = {
+      id: row.reviewId + ':append', reviewId: row.reviewId, type: 'append',
+      key, profileId: ctx.profileId, planId: ctx.planId,
+      row: JSON.parse(JSON.stringify(row)),
+      cardAfter: cardAfter ? JSON.parse(JSON.stringify(cardAfter)) : null,
+      cardPosition: Number(cardPosition) || 1,
+      createdAt: Date.now()
+    };
+    let journaled = false;
+    try { journaled = await ReviewJournal.put(op); } catch (e) { _quiet(e, 'review-journal-put'); }
+    if (!journaled) {
+      // IndexedDB indisponível: fallback pequeno e síncrono em localStorage.
+      if (this._guardarPendente(row) === false) {
+        const i = l.findIndex(x => x && x.reviewId === row.reviewId);
+        if (i >= 0) l.splice(i, 1);
+        return false;
+      }
+    }
+    return row;
+  },
+  async cancelarRevlogDurable(row) {
+    if (!row) return true;
+    const l = this.getRevlog();
+    const i = l.findIndex(x => x && x.reviewId === row.reviewId);
+    if (i >= 0) l.splice(i, 1);
+    try { await ReviewJournal.remove(String(row.reviewId) + ':append'); } catch (e) { _quiet(e, 'review-journal-cancel'); }
+    this.confirmarRevlog(row.reviewId);
+    return true;
+  },
+  async kickRevlogDuravel() {
+    try {
+      if (this._bancoRelacionalPronto() && RelationalStore.replayReviewOutbox) {
+        RelationalStore.replayReviewOutbox().catch(e => _quiet(e, 'review-outbox-kick'));
+      }
+    } catch (e) { _quiet(e, 'review-outbox-kick'); }
   },
   _guardarPendente(row) {
     const pendentes = this._get(this.KEYS.revlogPendente, []);
     const lista = Array.isArray(pendentes) ? pendentes : [];
-    // Confirmado no banco: a rede de segurança não precisa mais dessas linhas.
-    if (this._bancoSemPendencias() && lista.length) {
-      if (!this._set(this.KEYS.revlogPendente, row ? [row] : [])) return false;
-      return true;
-    }
+    // Nunca inferimos confirmação por "fila vazia": fila vazia também pode ser
+    // consequência de erro. Só ACK explícito da nuvem remove uma linha.
     if (row) lista.push(row);
     if (lista.length < this.LOTE_REVLOG) return this._set(this.KEYS.revlogPendente, lista);
     // Lote cheio e sem banco para confirmar: arquiva o lote e recomeça. A
@@ -825,6 +969,34 @@ const DB = {
     if (!this._set(this.KEYS.revlogArquivo, n + 1)) return false;
     return this._set(this.KEYS.revlogPendente, []);
   },
+  confirmarRevlog(reviewId) {
+    const alvo = String(reviewId || '');
+    if (!alvo) return false;
+    let mudou = false;
+    const filtra = (arr) => (Array.isArray(arr) ? arr : []).filter(r => {
+      this._normalizarReviewId(r, false);
+      if (String(r.reviewId || '') === alvo) { mudou = true; return false; }
+      return true;
+    });
+    const pend = filtra(this._get(this.KEYS.revlogPendente, []));
+    if (mudou) this._set(this.KEYS.revlogPendente, pend);
+    const n = this._lotesArquivados();
+    for (let i = 0; i < n; i++) {
+      const k = this.KEYS.revlog + '-arquivo:' + i;
+      const antes = this._get(k, []), depois = filtra(antes);
+      if (depois.length !== (Array.isArray(antes) ? antes.length : 0)) this._set(k, depois);
+    }
+    return mudou;
+  },
+  getRevlogPendentes() {
+    const out = [];
+    const add = (arr) => (Array.isArray(arr) ? arr : []).forEach(r => { this._normalizarReviewId(r, false); out.push(r); });
+    const n = this._lotesArquivados();
+    for (let i = 0; i < n; i++) add(this._get(this.KEYS.revlog + '-arquivo:' + i, []));
+    add(this._get(this.KEYS.revlogPendente, []));
+    const seen = new Set();
+    return out.filter(r => { const k = String(r.reviewId); if (seen.has(k)) return false; seen.add(k); return true; });
+  },
   removeRevlog(ts) {
     const l = this.getRevlog();
     // Date.now() pode colidir em respostas muito próximas. Undo deve retirar a
@@ -833,7 +1005,18 @@ const DB = {
     for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
     if (i < 0) return true;
     const removida = l[i];
+    this._normalizarReviewId(removida, false);
     l.splice(i, 1);
+    // Undo também é durável: se o append ainda estiver na outbox, o delete vem
+    // depois dele; se já estiver na nuvem, remove pelo mesmo reviewId.
+    try {
+      const ctx = this._reviewContext(this.KEYS.revlog);
+      ReviewJournal.put({
+        id: removida.reviewId + ':delete', reviewId: removida.reviewId, type: 'delete',
+        key: this.KEYS.revlog, profileId: ctx.profileId, planId: ctx.planId,
+        row: JSON.parse(JSON.stringify(removida)), createdAt: Date.now()
+      }).catch(e => _quiet(e, 'review-journal-delete'));
+    } catch (e) { _quiet(e, 'review-journal-delete'); }
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
     } catch (e) { _quiet(e, 'revlog-delete'); }
@@ -850,8 +1033,11 @@ const DB = {
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
+    const id = this._uid();
     const card = {
-      id: this._uid(),
+      id,
+      noteId: data.noteId || id,
+      template: data.template || ((data.kind || 'basic') === 'cloze' ? 'cloze' : (data.reversedOf ? 'reverse' : 'forward')),
       deckId: data.deckId || null,
       materia: data.materia || null,
       assunto: (data.assunto || '').trim(),
@@ -927,6 +1113,65 @@ const DB = {
     // CardsScreen.answer). Card inexistente continua devolvendo null.
     return this.saveCards(list) === false ? false : c;
   },
+  /* Um "Basic (and reversed card)" do Anki é UMA nota com DOIS cards.
+     noteId liga os irmãos; template diz qual face é a derivada. O agendamento
+     continua individual por card. Para dados antigos, reversedOf permite
+     reconstruir a nota sem perder nenhum intervalo. */
+  normalizeCardNotesInPlace() {
+    try {
+      const list = this.getCards();
+      const byId = new Map(list.map(c => [String(c.id), c]));
+      let n = 0;
+      // Primeiro, pares legados reverse -> original.
+      list.forEach(c => {
+        if (!c || !c.reversedOf) return;
+        const original = byId.get(String(c.reversedOf));
+        const noteId = (original && original.noteId) || c.noteId || (original && original.id) || c.id;
+        if (original) {
+          if (!original.noteId) { original.noteId = noteId; n++; }
+          if (!original.template) { original.template = original.kind === 'cloze' ? 'cloze' : 'forward'; n++; }
+        }
+        if (!c.noteId) { c.noteId = noteId; n++; }
+        if (!c.template) { c.template = 'reverse'; n++; }
+      });
+      // Cards sem irmão também são notas de um card.
+      list.forEach(c => {
+        if (!c.noteId) { c.noteId = c.id; n++; }
+        if (!c.template) { c.template = c.kind === 'cloze' ? 'cloze' : 'forward'; n++; }
+      });
+      if (n && this.saveCards(list) === false) return 0;
+      return n;
+    } catch (e) { _quiet(e, 'normalize-card-notes'); return 0; }
+  },
+  updateCardNote(id, data) {
+    this.normalizeCardNotesInPlace();
+    const list = this.getCards(), atual = list.find(c => this._mesmoId(c.id, id));
+    if (!atual) return null;
+    const noteId = atual.noteId || atual.id;
+    const canonical = Object.assign({}, data || {});
+    if (atual.template === 'reverse') {
+      const f = canonical.frente; canonical.frente = canonical.verso; canonical.verso = f;
+    }
+    const camposComuns = ['deckId','materia','assunto','materiaTec','banca','kind'];
+    const now = new Date().toISOString();
+    list.forEach(c => {
+      if (String(c.noteId || c.id) !== String(noteId)) return;
+      const p = {};
+      camposComuns.forEach(k => { if (Object.prototype.hasOwnProperty.call(canonical, k)) p[k] = canonical[k]; });
+      if (Object.prototype.hasOwnProperty.call(canonical, 'frente') || Object.prototype.hasOwnProperty.call(canonical, 'verso')) {
+        if (c.template === 'reverse') {
+          if ('verso' in canonical) p.frente = _sanCard(canonical.verso);
+          if ('frente' in canonical) p.verso = _sanCard(canonical.frente);
+        } else {
+          if ('frente' in canonical) p.frente = _sanCard(canonical.frente);
+          if ('verso' in canonical) p.verso = _sanCard(canonical.verso);
+        }
+      }
+      Object.assign(c, p); c.updatedAt = now;
+    });
+    if (this.saveCards(list) === false) return false;
+    return this.getCard(id);
+  },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
   // escreve direto no localStorage e por isso não passa por addCard/updateCard.
   // Retorna quantos cards foram alterados (0 = arquivo estava limpo).
@@ -959,14 +1204,32 @@ const DB = {
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
   },
+  // A interface do Anki exclui a NOTA: todos os cards/template siblings
+  // derivados dela desaparecem juntos. deleteCard() continua disponível para
+  // rotinas técnicas que realmente operam em um card individual.
+  deleteNoteByCard(id) {
+    this.normalizeCardNotesInPlace();
+    const alvo = this.getCard(id); if (!alvo) return 0;
+    const noteId = String(alvo.noteId || alvo.id);
+    const ids = new Set(this.getCards()
+      .filter(c => String(c.noteId || c.id) === noteId)
+      .map(c => String(c.id)));
+    if (!ids.size) return 0;
+    if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
+    try {
+      this.replaceRevlog(this.getRevlog().filter(r => !ids.has(String(r.cardId))));
+    } catch (e) { _quiet(e, 'delete-note-revlog'); }
+    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
+    return ids.size;
+  },
   /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
      o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
      os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
   /* ══════════════════════════════════════════════════════════════════════════
      AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
      Implementadas aqui com o MESMO significado do original. Este app tem um
-     card por nota, então "enterrar nota" e "enterrar card" coincidem — no Anki
-     eles diferem só quando uma nota gera vários cards.
+     notas podem gerar irmãos (ex.: normal + invertido). Enterrar card continua
+     individual; operações explícitas de nota usam noteId para atingir os irmãos.
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.

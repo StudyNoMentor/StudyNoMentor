@@ -649,8 +649,12 @@ const CardsScreen = {
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
     liga('cards-act-del', () => {
-      UI.confirm('Excluir este card? Não há como desfazer.', { title: '🗑 Excluir card', okText: 'Excluir', danger: true })
-        .then(ok => { if (!ok) return; DB.deleteCard(c.id); proximo(); showToast('Card excluído'); });
+      const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
+      const msg = irmaos > 1
+        ? 'Excluir esta nota e seus ' + irmaos + ' cards? Não há como desfazer.'
+        : 'Excluir esta nota? Não há como desfazer.';
+      UI.confirm(msg, { title: '🗑 Excluir nota', okText: 'Excluir', danger: true })
+        .then(ok => { if (!ok) return; DB.deleteNoteByCard(c.id); proximo(); showToast('Nota excluída'); });
     });
     document.querySelectorAll('.cards-flag').forEach(b => b.addEventListener('click', () => {
       const n = Number(b.dataset.flag);
@@ -864,113 +868,130 @@ const CardsScreen = {
     this.renderReviewCard(document.getElementById('cards-content'));
     this.atualizarFoco();
   },
-  answer(grade) {
-    const id = this._reviewQueue[this._reviewIdx];
-    const c = DB.getCard(id);
-    /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
-       respondido com "Errei" volta em 1 minuto e PRECISA ser avaliado de novo —
-       é assim que os passos do Anki funcionam. A guarda baseada no histórico de
-       desfazer bloqueava justamente essa volta legítima.
-       A proteção real contra reavaliar a MESMA apresentação é estrutural: sem
-       "voltar" e sem "pular", não existe caminho para retornar a um card já
-       avaliado na mesma posição da fila — exatamente como no Anki. */
-    let patch = null;
-    if (c) {
-      // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
-      const G = CardEngine.GRADE_NUM[grade] || 3;
-      const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
-      const revTs = Date.now();
-      /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
-         do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
-         separar card jovem de card maduro: a coluna "Maduros" ficava vazia
-         para sempre, porque a linha do histórico não guardava essa informação. */
-      /* ── UMA RESPOSTA SÓ CONTA SE FOI GRAVADA ────────────────────────────
-         O armazenamento pode recusar a escrita (cota do navegador cheia, por
-         exemplo). Antes, a recusa virava um aviso e a fila seguia em frente:
-         o card aparecia como respondido, o índice avançava, o desfazer era
-         empilhado — e nada disso existia depois de recarregar a página. Agora
-         a resposta é abortada e o card continua onde estava, para ser
-         respondido de novo depois que o espaço for liberado. */
-      if (DB.addRevlog({ ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) }) === false) {
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-        return;
+  async answer(grade) {
+    if (this._answering) return false;
+    this._answering = true;
+    try {
+      const id = this._reviewQueue[this._reviewIdx];
+      const c = DB.getCard(id);
+      /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
+         respondido com "Errei" volta em 1 minuto e PRECISA ser avaliado de novo —
+         é assim que os passos do Anki funcionam. A guarda baseada no histórico de
+         desfazer bloqueava justamente essa volta legítima.
+         A proteção real contra reavaliar a MESMA apresentação é estrutural: sem
+         "voltar" e sem "pular", não existe caminho para retornar a um card já
+         avaliado na mesma posição da fila — exatamente como no Anki. */
+      let patch = null;
+      if (c) {
+        // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
+        const G = CardEngine.GRADE_NUM[grade] || 3;
+        const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
+        const revTs = Date.now();
+        /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
+           do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
+           separar card jovem de card maduro: a coluna "Maduros" ficava vazia
+           para sempre, porque a linha do histórico não guardava essa informação. */
+        /* ── COMMIT LOCAL DURÁVEL ANTES DE AVANÇAR ──────────────────────────
+           A matemática pode ser calculada antes, porque schedule() é pura para o
+           card recebido. O que NÃO pode acontecer é a fila avançar antes de haver
+           uma transação recuperável. Guardamos na outbox: revlog + estado final do
+           card. Só então aplicamos a projeção local e liberamos a interface. */
+        const bucketAntes = this._bucket(c);
+        if (!this._seenThisSession) this._seenThisSession = new Set();
+        const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
+  
+        // snapshot para DESFAZER, antes de qualquer mutação.
+        const antes = {};
+        ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
+          .forEach(k => { antes[k] = c[k]; });
+  
+        patch = CardEngine.schedule(c, grade);
+        const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
+        const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
+        const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
+        const revRow = await DB.addRevlogDurable(
+          { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1, phase: (c.phase || 'new'), elapsed, intervalo: (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
+          cardAfter, cardPosition
+        );
+        if (revRow === false) {
+          showToast('⚠ Não foi possível gravar esta revisão com segurança. Libere espaço e tente de novo.');
+          return false;
+        }
+  
+        if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
+        this._seenThisSession.add(id);
+        if (DB.updateCard(id, patch) === false) {
+          // O card não entrou nem na projeção local: cancela o append antes de
+          // permitir qualquer replay na nuvem e devolve o contador.
+          await DB.cancelarRevlogDurable(revRow);
+          if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
+          this._seenThisSession.delete(id);
+          showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
+          return false;
+        }
+        // A partir daqui a resposta sobrevive a reload/offline. A sincronização
+        // remota pode terminar depois sem bloquear a próxima pergunta.
+        DB.kickRevlogDuravel();
+        CardEngine.invalidateDueCache();
+        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
+        if (this._undoStack.length > 50) this._undoStack.shift();
+        if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
       }
-      // conta introdução no limite diário só na 1ª vez que o card aparece nesta sessão
-      const bucketAntes = this._bucket(c);
-      if (!this._seenThisSession) this._seenThisSession = new Set();
-      const primeiraVez = !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
-      if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
-      this._seenThisSession.add(id);
-      // snapshot para o DESFAZER — capturado ANTES de gravar (Anki: Ctrl+Z)
-      const antes = {};
-      ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
-        .forEach(k => { antes[k] = c[k]; });
-      patch = CardEngine.schedule(c, grade);
-      if (DB.updateCard(id, patch) === false) {
-        // O agendamento não foi gravado: desfaz o registro que acabou de entrar
-        // no histórico para os dois não ficarem em desacordo.
-        DB.removeRevlog(revTs);
-        if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
-        this._seenThisSession.delete(id);
-        showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-        return;
+      this._reviewIdx++;
+      this._flipped = false;
+      // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
+      // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
+      if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
+        const restam = this._reviewQueue.length - this._reviewIdx;
+        const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
+        const gap = curto ? Math.min(3, restam) : restam;
+        this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
       }
-      CardEngine.invalidateDueCache();
-      (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
-      if (this._undoStack.length > 50) this._undoStack.shift();
-      if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
-    }
-    this._reviewIdx++;
-    this._flipped = false;
-    // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
-    // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
-    if (patch && (patch.phase === 'learning' || patch.phase === 'relearning') && !patch.suspenso) {
-      const restam = this._reviewQueue.length - this._reviewIdx;
-      const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
-      const gap = curto ? Math.min(3, restam) : restam;
-      this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
-    }
-    // não mostra um card cujo passo ainda não venceu se houver outro disponível
-    this._skipNotDue();
-    this.atualizarFoco();
-    const box = document.getElementById('cards-content');
-    if (this._reviewIdx >= this._reviewQueue.length) {
-      /* ── FIDELIDADE AO ANKI: antecipados fazem parte da MESMA fila ───────────
-         No Anki (rslib/src/scheduler/queue/mod.rs) a ordem de apresentação é um
-         único iterador encadeado:
-             aprendizado vencido AGORA → revisões e novos → aprendizado ANTECIPADO
-         O "learn ahead" (padrão 1200s = 20 min) é o último elo desse mesmo
-         iterador — não uma fila separada. Por isso o Anki NUNCA diz "concluído"
-         para depois trazer os cards de volta: ele simplesmente continua.
-
-         Aqui os antecipados viviam fora da fila, então ela esvaziava, aparecia o
-         🎉 e os cards ressurgiam ao reabrir a tela. Mesma matemática, sensação
-         completamente diferente — e era isto que destoava do Anki.
-         Agora eles entram no fim da fila corrente, e o encerramento só acontece
-         quando não há mais nada dentro da janela de antecipação. */
-      const antecipados = (this._learnAheadQueue() || []).filter(id => {
-        const c = DB.getCard(id);
-        return c && !c.suspenso;
-      });
-      if (antecipados.length) {
-        this._reviewQueue = this._reviewQueue.concat(antecipados);
-        this._skipNotDue();
-        this.renderReviewCard(box);
-        return;
+      // não mostra um card cujo passo ainda não venceu se houver outro disponível
+      this._skipNotDue();
+      this.atualizarFoco();
+      const box = document.getElementById('cards-content');
+      if (this._reviewIdx >= this._reviewQueue.length) {
+        /* ── FIDELIDADE AO ANKI: antecipados fazem parte da MESMA fila ───────────
+           No Anki (rslib/src/scheduler/queue/mod.rs) a ordem de apresentação é um
+           único iterador encadeado:
+               aprendizado vencido AGORA → revisões e novos → aprendizado ANTECIPADO
+           O "learn ahead" (padrão 1200s = 20 min) é o último elo desse mesmo
+           iterador — não uma fila separada. Por isso o Anki NUNCA diz "concluído"
+           para depois trazer os cards de volta: ele simplesmente continua.
+  
+           Aqui os antecipados viviam fora da fila, então ela esvaziava, aparecia o
+           🎉 e os cards ressurgiam ao reabrir a tela. Mesma matemática, sensação
+           completamente diferente — e era isto que destoava do Anki.
+           Agora eles entram no fim da fila corrente, e o encerramento só acontece
+           quando não há mais nada dentro da janela de antecipação. */
+        const antecipados = (this._learnAheadQueue() || []).filter(id => {
+          const c = DB.getCard(id);
+          return c && !c.suspenso;
+        });
+        if (antecipados.length) {
+          this._reviewQueue = this._reviewQueue.concat(antecipados);
+          this._skipNotDue();
+          this.renderReviewCard(box);
+          return true;
+        }
+        // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
+        const distintos = new Set(this._reviewQueue).size;
+        box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
+        const rb = document.getElementById('cards-review-restart');
+        if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
+        this.updateFavCount();
+        // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
+        const prox = (this._queueMeta || {}).proximoTs;
+        clearTimeout(this._etaTimer);
+        if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
+        return true;
       }
-      // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
-      const distintos = new Set(this._reviewQueue).size;
-      box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
-      const rb = document.getElementById('cards-review-restart');
-      if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
-      this.updateFavCount();
-      // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
-      const prox = (this._queueMeta || {}).proximoTs;
-      clearTimeout(this._etaTimer);
-      if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
-      return;
+      this.renderReviewCard(box);
+      return true;
+    } finally {
+      this._answering = false;
     }
-    this.renderReviewCard(box);
   },
   // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
@@ -1266,6 +1287,7 @@ const CardsScreen = {
     $id('card-save-another').style.display = isEdit ? 'none' : 'inline-block';
     let destSel = '', assunto = '', materiaTec = '', banca = '', frente = '', verso = '', kind = 'basic';
     if (isEdit) {
+      if (DB.normalizeCardNotesInPlace) DB.normalizeCardNotesInPlace();
       const c = DB.getCard(id);
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
       assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
@@ -1355,13 +1377,19 @@ const CardsScreen = {
     if (!data) return;
     const reversed = data._reversed; delete data._reversed;
     if (this._editingId) {
-      DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
+      // Editar uma das faces de "Básico + invertido" edita a NOTA: o irmão é
+      // regenerado com frente/verso trocados, mas mantém seu agendamento próprio.
+      DB.updateCardNote(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
     } else {
-      const c = DB.addCard(data);
       if (reversed) {
-        DB.addCard({ ...data, frente: data.verso, verso: data.frente, reversedOf: c.id });
+        const noteId = DB._uid();
+        const c = DB.addCard({ ...data, noteId, template: 'forward' });
+        DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
         showToast('2 cards criados (normal + invertido) ✓');
-      } else showToast('Card criado ✓');
+      } else {
+        DB.addCard(data);
+        showToast('Card criado ✓');
+      }
       if (closeAfter) this.closeCardModal();
       else {
         $id('card-frente').innerHTML = '';
@@ -1373,8 +1401,11 @@ const CardsScreen = {
   },
   async deleteCard() {
     if (!this._editingId) return;
-    if (!await UI.confirm('Excluir este card?')) return;
-    DB.deleteCard(this._editingId); this.closeCardModal(); this.render(); showToast('Card excluído');
+    const c = DB.getCard(this._editingId);
+    const irmaos = c ? DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length : 1;
+    const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
+    if (!await UI.confirm(msg)) return;
+    DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');
   },
 
   // ---- baralhos ----
