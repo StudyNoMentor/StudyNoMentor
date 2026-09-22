@@ -559,10 +559,10 @@ const AnkiExport = {
       'CREATE UNIQUE INDEX idx_decks_name ON decks (name);',
       'CREATE INDEX idx_notes_mid ON notes (mid);',
       'CREATE INDEX idx_cards_odid ON cards (odid) WHERE odid != 0;',
-      'ALTER TABLE graves RENAME TO graves_old;',
+      // A coleção nasce nova: graves está vazia. Recriá-la diretamente evita
+      // ALTER TABLE RENAME, que quebra no sql.js 1.2.1 asm vendorado.
+      'DROP TABLE graves;',
       'CREATE TABLE graves (oid integer NOT NULL,type integer NOT NULL,usn integer NOT NULL,PRIMARY KEY (oid,type)) WITHOUT ROWID;',
-      'INSERT OR IGNORE INTO graves (oid,type,usn) SELECT oid,type,usn FROM graves_old;',
-      'DROP TABLE graves_old;',
       'CREATE INDEX idx_graves_pending ON graves (usn);'
     ];
     ddl.forEach((sql,i)=>{console.log('ANKI18 DDL '+i);db.run(sql);});
