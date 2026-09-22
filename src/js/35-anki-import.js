@@ -179,16 +179,39 @@ const AnkiImport = {
     db.close();return {kind:'mnemosyne',file,facts,cards,counts:{notes:new Set(facts.map(x=>x.id)).size,cards:cards.length,revlog:0}};
   },
   parseText(text,name){
-    const lines=String(text||'').replace(/^\uFEFF/,'').split(/\r?\n/),headers={},body=[];
-    while(lines.length&&/^#/.test(lines[0])){
-      const line=lines.shift().slice(1),i=line.indexOf(':');if(i>0)headers[line.slice(0,i).trim().toLowerCase()]=line.slice(i+1).trim();
+    const src=String(text||'').replace(/^\uFEFF/,'');
+    const raw=src.split(/\r?\n/),headers={},dataLines=[];let quoted=false;
+    for(const line of raw){
+      if(!quoted&&/^#/.test(line)){
+        const h=line.slice(1),i=h.indexOf(':');if(i>0)headers[h.slice(0,i).trim().toLowerCase()]=h.slice(i+1).trim();
+        continue;
+      }
+      dataLines.push(line);
+      for(let i=0;i<line.length;i++)if(line[i]==='"'){if(quoted&&line[i+1]==='"')i++;else quoted=!quoted;}
     }
-    const sep=headers.separator==='tab'?'\t':headers.separator==='semicolon'?';':headers.separator==='comma'?',':(String(name||'').toLowerCase().endsWith('.tsv')?'\t':null);
-    const delimiter=sep||((lines[0]||'').includes('\t')?'\t':((lines[0]||'').includes(';')?';':','));
-    const parse=(s)=>{const out=[];let cur='',q=false;for(let i=0;i<s.length;i++){const ch=s[i];if(ch==='"'){if(q&&s[i+1]==='"'){cur+='"';i++;}else q=!q;}else if(ch===delimiter&&!q){out.push(cur);cur='';}else cur+=ch;}out.push(cur);return out;};
-    lines.forEach(l=>{if(l.trim())body.push(parse(l));});
-    const cols=(headers.columns||'').split(',').map(s=>s.trim()).filter(Boolean);
-    return {kind:'text',headers,rows:body,columns:cols,delimiter,isHtml:/^(true|1)$/i.test(headers.html||'')};
+    const smap={tab:'\t',pipe:'|',semicolon:';',colon:':',comma:',',space:' '};
+    let delimiter=smap[String(headers.separator||'').toLowerCase()]||null;
+    const data=dataLines.join('\n');
+    const countOutside=(ch)=>{let n=0,q=false;for(let i=0;i<data.length;i++){if(data[i]==='"'){if(q&&data[i+1]==='"'){i++;continue;}q=!q;continue;}if(!q&&data[i]===ch)n++;}return n;};
+    if(!delimiter){
+      const cand=['\t','|',';',':',',',' '].map(ch=>[ch,countOutside(ch)]).sort((x,y)=>y[1]-x[1]);
+      delimiter=(cand[0]&&cand[0][1]>0)?cand[0][0]:(String(name||'').toLowerCase().endsWith('.tsv')?'\t':',');
+    }
+    const rows=[];let row=[],field='',q=false;
+    const push=()=>{row.push(field);field='';if(row.some(x=>String(x).length))rows.push(row);row=[];};
+    for(let i=0;i<data.length;i++){
+      const ch=data[i];
+      if(q){if(ch==='"'){if(data[i+1]==='"'){field+='"';i++;}else q=false;}else field+=ch;continue;}
+      if(ch==='"'&&field.length===0){q=true;continue;}
+      if(ch===delimiter){row.push(field);field='';continue;}
+      if(ch==='\n'){push();continue;}
+      if(ch!=='\r')field+=ch;
+    }
+    if(field.length||row.length)push();
+    const colRaw=String(headers.columns||'');
+    const columns=colRaw?colRaw.split(/[\t,;]/).map(s=>s.trim()).filter(Boolean):[];
+    return {kind:'text',headers,rows,columns,delimiter,isHtml:/^(true|1)$/i.test(headers.html||''),
+      globalTags:String(headers.tags||'').split(/\s+/).filter(Boolean),globalDeck:String(headers.deck||''),globalNotetype:String(headers.notetype||'')};
   },
   async inspectFile(file){
     const n=String(file&&file.name||'').toLowerCase();
