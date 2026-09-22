@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v6a2f0a71ee">
+<meta name="diario-versao" content="v9b82594ae3">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16809,17 +16809,22 @@ const DB = {
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
-  buryCard(id) {
+  buryCard(id, origem) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
+    // O Anki distingue enterro explícito do usuário (UserBuried) do enterro
+    // automático de irmãos (SchedBuried). A fila trata ambos como ocultos,
+    // mas a distinção importa para busca, diagnóstico e exportação fiel.
+    const buryKind = origem === 'scheduler' ? 'scheduler' : 'user';
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
-    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
+    this.updateCard(id, { enterradoAte: amanha, buryKind,
+      dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
     return amanha;
   },
   unburyCard(id) {
     const c = this.getCard(id); if (!c) return;
-    const patch = { enterradoAte: null };
+    const patch = { enterradoAte: null, buryKind: null };
     if (Object.prototype.hasOwnProperty.call(c, 'dueTsAntesEnterrar')) {
       patch.dueTs = c.dueTsAntesEnterrar;
       patch.dueTsAntesEnterrar = null;
@@ -16841,7 +16846,7 @@ const DB = {
     const n = Math.max(0, Math.round(Number(dias) || 0));
     const c = this.getCard(id); if (!c) return null;
     const data = CardEngine.addDays(todayCards(), n);
-    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null,
+    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null, buryKind: null,
       phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
     return data;
   },
@@ -22829,7 +22834,10 @@ const AnkiExport = {
       due = Number.isFinite(dueTs) ? Math.floor(dueTs / 1000) : this._dueDay(c.due, crtSec);
     }
     if (c.suspenso) queue = -1;
-    else if (c.enterradoAte && String(c.enterradoAte) >= String(todayCards())) queue = -2;
+    else if (c.enterradoAte && String(c.enterradoAte) >= String(todayCards())) {
+      // CardQueue moderno: SchedBuried=-2, UserBuried=-3.
+      queue = c.buryKind === 'user' ? -3 : -2;
+    }
     const cfg = CardsConfig.forDeck(c.deckId);
     const steps = phase === 'relearning' ? (cfg.relearnSteps || []) : (cfg.learnSteps || []);
     const left = (phase === 'learning' || phase === 'relearning') ? Math.max(0, steps.length - (Number(c.learnStep) || 0)) * 1000 : 0;
@@ -31307,11 +31315,11 @@ const AnkiParity = {
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
       const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
       const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
-      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id);buried.push(s.id);}
+      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
     });return buried;
   },
   suspendCard(id){
-    const c=DB.getCard(id);if(!c)return false;const p={suspenso:true,enterradoAte:null};
+    const c=DB.getCard(id);if(!c)return false;const p={suspenso:true,enterradoAte:null,buryKind:null};
     if(Object.prototype.hasOwnProperty.call(c,'dueTsAntesEnterrar')){p.dueTs=c.dueTsAntesEnterrar;p.dueTsAntesEnterrar=null;}
     DB.updateCard(id,p);return true;
   }
