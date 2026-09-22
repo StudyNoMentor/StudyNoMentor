@@ -72,5 +72,10 @@ assert.match(js,/cards-preferences-btn/,'preferências operacionais devem estar 
 assert.match(js,/reviewer:answer:before/,'API de extensões deve expor hook do reviewer');
 assert.match(css,/grid-template-columns:220px/,'Browser desktop deve reservar coluna para Sidebar');
 assert.match(css,/anki-deck-tools/,'Deck Manager deve ter ferramentas próprias');
+assert.match(js,/True Retention/,'estatísticas devem expor True Retention');
+assert.match(js,/Recuperabilidade/,'estatísticas devem expor Retrievability');
+assert.match(js,/Botões de resposta/,'estatísticas devem expor Answer Buttons');
+const hist=P._histBars([1,5,10,40,100,500],[1,7,30,90,365],['<1','1-7','7-30','30-90','90-365','>365']);
+assert.match(hist,/anki-p10-hist/);
 
 console.log('PARIDADE PRÁTICA 10/10: hierarquia de decks, Sidebar, preferências, menu semântico e hooks validados.');
