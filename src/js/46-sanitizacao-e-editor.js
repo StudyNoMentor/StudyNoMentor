@@ -495,7 +495,9 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   // modal exportar
   on('cards-export-close', 'click', () => $id('cards-export-modal').style.display = 'none');
   on('cards-export-cancel', 'click', () => $id('cards-export-modal').style.display = 'none');
+  on('cards-export-notes', 'click', () => CardsScreen.exportAnkiNotes());
   on('cards-export-anki', 'click', () => CardsScreen.exportAnki());
+  on('cards-export-colpkg', 'click', () => CardsScreen.exportColpkg());
   on('cards-export-apkg', 'click', () => CardsScreen.exportApkg());
   on('cards-export-json', 'click', () => CardsScreen.exportJson());
   // modal importar
