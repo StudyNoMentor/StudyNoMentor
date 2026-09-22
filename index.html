@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vffb17226cf">
+<meta name="diario-versao" content="vb7a3ff702f">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -15568,7 +15568,7 @@ const ReviewJournal = {
   },
   async count(profileId) { return (await this.list(profileId)).length; }
 };
-try { if (typeof window !== 'undefined') window.ReviewJournal = ReviewJournal; } catch (_) {}
+try { if (typeof window !== 'undefined') window.ReviewJournal = ReviewJournal; } catch (e) { _quiet(e, 'review-journal-global'); }
 
 const DB = {
   // ---- Camada de PERFIL: tudo é namespaced pelo perfil ativo (multi-usuário no dispositivo) ----
