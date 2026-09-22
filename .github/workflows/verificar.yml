@@ -21,10 +21,6 @@ jobs:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    permissions:
-      contents: write
-    outputs:
-      alterou: ${{ steps.sync.outputs.alterou }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,24 +28,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Sincronizar build derivado
-        id: sync
+      - name: Validar build derivado
         shell: bash
         run: |
           set -euo pipefail
           node --check build.mjs
           for f in src/js/*.js testes/*.mjs; do node --check "$f"; done
           node build.mjs
-          if git diff --quiet -- index.html sw.js src/manifesto.json; then
-            echo 'alterou=false' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git config user.name 'StudyNoMentor CI'
-          git config user.email 'actions@users.noreply.github.com'
-          git add index.html sw.js src/manifesto.json
-          git commit -m 'build: sincroniza artefatos gerados'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
-          echo 'alterou=true' >> "$GITHUB_OUTPUT"
+          git diff --exit-code -- index.html sw.js src/manifesto.json
 
   verificar:
     needs: [sincronizar-gerados]
