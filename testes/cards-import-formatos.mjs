@@ -181,4 +181,15 @@ assert.equal(mi.counts.notes,1);
 assert.equal(mi.counts.cards,1);
 assert.equal(mi.facts.length,2);
 
-console.log('IMPORT ANKI: Zstandard, texto completo, 6 delimitadores, APKG/COLPKG Legacy2 e Mnemosyne DB validados.');
+/* Mídia referenciada por templates/CSS também precisa ser materializada. */
+const mediaMap=new Map([
+  ['_card.js',new TextEncoder().encode('document.body.dataset.ok="1"')],
+  ['_font.woff2',new Uint8Array([0,1,2,3])],
+  ['_style.css',new TextEncoder().encode('.x{font-weight:bold}')]
+]);
+const richHtml=I._replaceMedia('<script src="_card.js"></script><link rel="stylesheet" href="_style.css"><style>@font-face{src:url(_font.woff2)}</style>',mediaMap);
+assert.match(richHtml,/src="data:text\/javascript;base64,/,'script do pacote deve ser materializado');
+assert.match(richHtml,/href="data:text\/css;base64,/,'stylesheet do pacote deve ser materializado');
+assert.match(richHtml,/url\("data:font\/woff2;base64,/,'fonte em CSS deve ser materializada');
+
+console.log('IMPORT ANKI: Zstandard, texto completo, 6 delimitadores, APKG/COLPKG Legacy2, mídia avançada e Mnemosyne DB validados.');

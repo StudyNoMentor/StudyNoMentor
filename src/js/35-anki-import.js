@@ -14,7 +14,10 @@ const AnkiImport = {
     const e=String(name||'').split('.').pop().toLowerCase();
     return ({png:'image/png',jpg:'image/jpeg',jpeg:'image/jpeg',gif:'image/gif',webp:'image/webp',bmp:'image/bmp',svg:'image/svg+xml',
       mp3:'audio/mpeg',ogg:'audio/ogg',wav:'audio/wav',m4a:'audio/mp4',aac:'audio/aac',flac:'audio/flac',
-      mp4:'video/mp4',webm:'video/webm'})[e]||'application/octet-stream';
+      mp4:'video/mp4',webm:'video/webm',ogv:'video/ogg',
+      css:'text/css',js:'text/javascript',mjs:'text/javascript',json:'application/json',
+      woff:'font/woff',woff2:'font/woff2',ttf:'font/ttf',otf:'font/otf',
+      pdf:'application/pdf'})[e]||'application/octet-stream';
   },
   _varint(bytes,pos){
     let x=0n,s=0n,i=pos;
@@ -127,15 +130,43 @@ const AnkiImport = {
   _has(db,name){
     try{return this._rows(db,"select 1 as x from sqlite_master where type='table' and name=?",[name]).length>0;}catch(_){return false;}
   },
-  _replaceMedia(html,media){
-    let s=String(html==null?'':html);if(!media||!media.size)return s;
-    const cache=new Map(),dataFor=(name)=>{
-      if(cache.has(name))return cache.get(name);const b=media.get(name);if(!b)return null;
+  _replaceMedia(content,media){
+    let s=String(content==null?'':content);if(!media||!media.size)return s;
+    const cache=new Map(),dataFor=(raw)=>{
+      let name=String(raw||'').trim();
+      if(/^data:|^https?:|^blob:|^#|^mailto:/i.test(name))return null;
+      try{name=decodeURIComponent(name);}catch(_){}
+      if(cache.has(name))return cache.get(name);
+      const b=media.get(name);if(!b)return null;
       const u='data:'+this._mime(name)+';base64,'+this._b64(b);cache.set(name,u);return u;
     };
-    s=s.replace(/(<(?:img|audio|video)\b[^>]*?\bsrc=["'])([^"']+)(["'][^>]*>)/gi,(m,a,n,z)=>a+(dataFor(n)||n)+z);
+    // Qualquer recurso estático do template: img/audio/video/source/script/link,
+    // poster e afins. A substituição é pelo NOME presente no media manifest.
+    s=s.replace(/\b(src|href|poster)=(["'])([^"']+)\2/gi,(m,attr,q,n)=>{
+      const u=dataFor(n);return u?attr+'='+q+u+q:m;
+    });
+    s=s.replace(/\bsrcset=(["'])([^"']+)\1/gi,(m,q,v)=>{
+      const parts=v.split(',').map(x=>{const a=x.trim().split(/\s+/),u=dataFor(a[0]);if(u)a[0]=u;return a.join(' ');});
+      return 'srcset='+q+parts.join(', ')+q;
+    });
+    // CSS de Note Type, inclusive @font-face e background-image.
+    s=s.replace(/url\(\s*(["']?)([^)"']+)\1\s*\)/gi,(m,q,n)=>{const u=dataFor(n);return u?'url("'+u+'")':m;});
+    s=s.replace(/@import\s+(["'])([^"']+)\1/gi,(m,q,n)=>{const u=dataFor(n);return u?'@import '+q+u+q:m;});
     s=s.replace(/\[sound:([^\]]+)\]/gi,(m,n)=>{const u=dataFor(n);return u?'<audio controls preload="none" src="'+u+'"></audio>':m;});
     return s;
+  },
+  _materializeNotetype(nt,media){
+    nt=Object.assign({},nt||{});
+    nt.css=this._replaceMedia(nt.css||'',media);
+    nt.latexPre=this._replaceMedia(nt.latexPre||'',media);
+    nt.latexPost=this._replaceMedia(nt.latexPost||'',media);
+    nt.fields=(nt.fields||[]).map(f=>Object.assign({},f));
+    nt.templates=(nt.templates||[]).map(t=>{
+      const x=Object.assign({},t);
+      for(const k of ['qfmt','afmt','bqfmt','bafmt'])x[k]=this._replaceMedia(x[k]||'',media);
+      return x;
+    });
+    return nt;
   },
   _legacyMetadata(db){
     const c=this._rows(db,'select ver,models,decks,dconf from col where id=1')[0]||{};
@@ -413,7 +444,7 @@ const AnkiImport = {
 
     const currentTypes=AnkiParity.noteTypes();
     for(const m of Object.values(meta.models||{})){
-      const incoming=this._toNotetype(m),sourceId=String(m.id);
+      const incoming=this._materializeNotetype(this._toNotetype(m),parsed.pkg.media),sourceId=String(m.id);
       let existing=currentTypes.find(x=>Number(x.id)===Number(m.id));
       if(!existing)existing=currentTypes.find(x=>Number(x.originalId)===Number(m.id)&&this._schemaEqual(x,incoming));
       if(existing&&opts.mergeNotetypes!==false){

@@ -14,8 +14,8 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 
 const ROOT = new URL('../../', import.meta.url);
-export const MODULOS = ['11-db.js', '30-fsrs.js', '31-cards-config.js', '32-card-engine.js', '44-tela-cards.js', '44-anki-parity.js'];
-const NOMES = { '11-db.js': 'DB', '30-fsrs.js': 'FSRS', '31-cards-config.js': 'CardsConfig', '32-card-engine.js': 'CardEngine', '44-tela-cards.js': 'CardsScreen', '44-anki-parity.js': 'AnkiParity' };
+export const MODULOS = ['11-db.js', '30-fsrs.js', '31-cards-config.js', '32-card-engine.js', '44-tela-cards.js', '44-anki-parity.js', '34-anki-export.js'];
+const NOMES = { '11-db.js': 'DB', '30-fsrs.js': 'FSRS', '31-cards-config.js': 'CardsConfig', '32-card-engine.js': 'CardEngine', '44-tela-cards.js': 'CardsScreen', '44-anki-parity.js': 'AnkiParity', '34-anki-export.js': 'AnkiExport' };
 
 export function criarAmbiente(opts = {}) {
   const estado = {
@@ -70,7 +70,7 @@ export function criarAmbiente(opts = {}) {
 
   const elemento = () => {
     const el = {
-      value: '', textContent: '', innerHTML: '', disabled: false, dataset: {},
+      value: '', checked: true, textContent: '', innerHTML: '', disabled: false, dataset: {},
       style: {}, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
       addEventListener() {}, removeEventListener() {},
       querySelectorAll: () => [], querySelector: () => null, appendChild() {}, focus() {}
@@ -87,7 +87,7 @@ export function criarAmbiente(opts = {}) {
 
   const ctx = {
     console,
-    Math, JSON, Object, Array, Number, String, Boolean, Set, Map, RegExp, Error, isFinite, isNaN, parseInt, parseFloat, performance,
+    Math, JSON, Object, Array, Number, String, Boolean, Set, Map, RegExp, Error, isFinite, isNaN, parseInt, parseFloat, performance, TextEncoder, TextDecoder,
     Date: Relogio,
     localStorage,
     window: { localStorage },

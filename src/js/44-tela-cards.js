@@ -356,6 +356,7 @@ const CardsScreen = {
        o teto de reviews quando a opção global do Anki assim exige. */
     const selectedDeckId = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
     const limitTree = (typeof AnkiParity !== 'undefined') ? AnkiParity.limitState(selectedDeckId) : null;
+    const fallbackTaken = new Map();
     const limitarPorArvore = (lista, limiteGlobal, kind) => {
       const out = [];
       for (const card of lista) {
@@ -363,13 +364,27 @@ const CardsScreen = {
         if (limitTree) {
           if (!limitTree.take(card, kind)) continue;
         } else {
-          // Fallback para carregamento isolado/legado sem a camada de paridade.
-          const remDeck = kind === 'new'
+          /* Fallback para carregamento isolado/legado sem a camada de paridade.
+             As consultas *RemainingForDeck() refletem apenas o que já foi
+             confirmado hoje; durante a construção da fila precisamos consumir
+             também as vagas aceitas nesta própria passagem. Sem esse saldo
+             local, um deck com limite 1 aceitava todos os seus cards porque cada
+             iteração continuava enxergando o mesmo "1 restante". */
+          const did = card.deckId == null ? '__sem_deck__' : String(card.deckId);
+          const key = kind + ':' + did;
+          const usados = fallbackTaken.get(key) || 0;
+          const remDeck = (kind === 'new'
             ? CardsConfig.newRemainingForDeck(card.deckId)
-            : CardsConfig.revRemainingForDeck(card.deckId);
+            : CardsConfig.revRemainingForDeck(card.deckId)) - usados;
           if (remDeck <= 0) continue;
-          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit
-              && CardsConfig.revRemainingForDeck(card.deckId) <= 0) continue;
+          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit) {
+            const revKey = 'review:' + did;
+            const revUsados = fallbackTaken.get(revKey) || 0;
+            const revRemDeck = CardsConfig.revRemainingForDeck(card.deckId) - revUsados;
+            if (revRemDeck <= 0) continue;
+            fallbackTaken.set(revKey, revUsados + 1);
+          }
+          fallbackTaken.set(key, usados + 1);
         }
         out.push(card);
       }
@@ -761,6 +776,16 @@ const CardsScreen = {
           const ord = Number(c.ankiTemplateOrd) || 0;
           const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
           const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
+          // Note Types importados do Anki podem conter CSS, JavaScript, fontes,
+          // MathJax, TTS e HTML arbitrário. Eles rodam dentro de um iframe
+          // sandboxado de origem opaca: mantém a compatibilidade sem dar ao
+          // conteúdo do card acesso ao DOM/storage/Supabase do Study.
+          if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
+            return '<div class="cards-face cards-front cards-anki-template">' +
+              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note) +
+              '</div><div class="cards-face cards-back cards-anki-template">' +
+              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note) + '</div>';
+          }
           const front = _sanCard(frontRaw), back = _sanCard(backRaw);
           return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
             <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
@@ -1051,6 +1076,9 @@ const CardsScreen = {
         (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings });
         if (this._undoStack.length > 50) this._undoStack.shift();
         if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
+        // O campo {{type:...}} pertence somente a esta apresentação. Limpa
+        // APÓS journal + projeção local terem sido confirmados.
+        if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.clearTyped) AnkiRuntime.clearTyped(c);
       }
       this._reviewIdx++;
       this._flipped = false;

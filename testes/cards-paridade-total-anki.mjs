@@ -356,4 +356,7 @@ eq(strip(AnkiParity.renderTemplate(custom,cn,0,'question',{},'')),'P? — X','te
 const qside=AnkiParity.renderTemplate(custom,cn,0,'question',{},'');
 eq(strip(AnkiParity.renderTemplate(custom,cn,0,'answer',{},qside)),'P? — XR!','FrontSide entra na resposta e inversa vazia não entra');
 
+assert.throws(()=>FSRS.optimize([],{}),/Otimizador legado desativado/,'rota antiga do otimizador não pode voltar a ser usada');
+ok(typeof FSRS.optimizeOfficial==='function','otimizador oficial fsrs-rs deve permanecer disponível');
+
 console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites/filtered/custom-study/treino-FSRS/notas válidos.');
