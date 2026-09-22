@@ -17,7 +17,8 @@ const AnkiRuntime = {
       .replace(/\[\$\]([\s\S]*?)\[\/\$\]/gi,(m,x)=>'\\\\('+x+'\\\\)');
   },
   _needsMath(html) {
-    return /(?:\\\\\(|\\\\\[|\$\$|\\\\begin\{|<anki-mathjax\b)/.test(String(html || ''));
+    const s=String(html||'');
+    return s.includes('\\\\(')||s.includes('\\\\[')||s.includes('$')||/\\\\begin\{/.test(s)||/<anki-mathjax\b/i.test(s);
   },
   buildSrcdoc(nt, html, side, card) {
     nt=nt||{}; card=card||{};
