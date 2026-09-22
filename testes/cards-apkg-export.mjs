@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
@@ -279,6 +279,20 @@ assert.equal(cpDb.exec('select count(*) from cards')[0].values[0][0],4);
 assert.equal(cpDb.exec('select count(*) from revlog')[0].values[0][0],3,'revlog não pode ser removido de collection package');
 assert.ok(cpDb.exec('select count(*) from deck_config')[0].values[0][0]>=1,'collection package precisa manter configs');
 cpDb.close();
+
+/* ── Round-trip de mídia avançada de templates ─────────────────────────── */
+const richMedia={items:[],byKey:new Map()};
+const js64=Buffer.from('document.body.dataset.ok="1"').toString('base64');
+const font64=Buffer.from([0,1,2,3,4,5]).toString('base64');
+const rich=X.extractMedia('<script src="data:text/javascript;base64,'+js64+'"></script><style>@font-face{src:url(data:font/woff2;base64,'+font64+')}</style>',richMedia);
+assert.equal(richMedia.items.length,2,'script e fonte embutidos precisam virar mídia do APKG');
+assert.doesNotMatch(rich,/data:(?:text\/javascript|font\/woff2)/,'data URI avançada não deve vazar para o SQLite exportado');
+assert.match(rich,/studynomentor_[0-9a-f]+-\d+\.js/,'script deve receber arquivo de mídia');
+assert.match(rich,/studynomentor_[0-9a-f]+-\d+\.woff2/,'fonte CSS deve receber arquivo de mídia');
+
+if(process.env.SNM_APKG_LEGACY_OUT)writeFileSync(process.env.SNM_APKG_LEGACY_OUT,Buffer.from(pkg.bytes));
+if(process.env.SNM_APKG_LATEST_OUT)writeFileSync(process.env.SNM_APKG_LATEST_OUT,Buffer.from(modern.bytes));
+if(process.env.SNM_COLPKG_OUT)writeFileSync(process.env.SNM_COLPKG_OUT,Buffer.from(colpkg.bytes));
 
 console.log('APKG/COLPKG/TEXTO ANKI: ExportLimit, coleção integral, Legacy2/schema11 + Latest/schema18, Zstd, mídia, opções e texto validados.');
 
