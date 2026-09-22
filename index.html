@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v201004163d">
+<meta name="diario-versao" content="va81818c814">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16194,10 +16194,20 @@ const DB = {
   },
   // Card: { id, deckId|null, materia|null, assunto, materiaTec, tipo, frente, verso, favorito,
   //         status:'pendente'|'sei'|'naosei', ease, intervalo(dias), due(YYYY-MM-DD), reps, lapses, createdAt, updatedAt }
-  getCards() { return this._get(this.KEYS.cards, []); },
-  // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
-  // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
-  saveCards(list) { return this._set(this.KEYS.cards, list); },
+  getCards() {
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.getCards) {
+      return CardStore.getCards(this.KEYS.cards, () => this._get(this.KEYS.cards, []));
+    }
+    return this._get(this.KEYS.cards, []);
+  },
+  // Substituição INTEIRA continua existindo para importação/restauração e
+  // operações em lote. O caminho diário (add/update/delete) usa uma linha.
+  saveCards(list) {
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.replaceAll) {
+      return CardStore.replaceAll(this.KEYS.cards, list, (arr) => this._set(this.KEYS.cards, arr));
+    }
+    return this._set(this.KEYS.cards, list);
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
@@ -16250,6 +16260,11 @@ const DB = {
     }
     const pendentes = this._get(this.KEYS.revlogPendente, []);
     if (Array.isArray(pendentes)) fora.push(...pendentes);
+    try {
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingRows) {
+        fora.push(...ReviewOutbox.pendingRows(this.KEYS.revlog));
+      }
+    } catch (e) { _quiet(e, 'revlog-outbox-read'); }
     if (!fora.length) return Array.isArray(base) ? base : [];
     const vistas = new Set((Array.isArray(base) ? base : []).map(r => this._chaveRevisao(r)));
     const extras = fora.filter(r => { const k = this._chaveRevisao(r); if (vistas.has(k)) return false; vistas.add(k); return true; });
@@ -16264,6 +16279,14 @@ const DB = {
   invalidarRevlogMemoria(prefixo) {
     const p = String(prefixo || '');
     for (const k of Array.from(this._revlogMem.keys())) if (!p || k.indexOf(p) === 0) this._revlogMem.delete(k);
+  },
+  rebaseRevlogPosition(key, eventId, position) {
+    const l = this._revlogMem.get(key);
+    if (!Array.isArray(l) || !eventId || !Number.isFinite(Number(position))) return false;
+    const r = l.find(x => x && String(x._eventId || '') === String(eventId));
+    if (!r) return false;
+    r._position = Number(position);
+    return true;
   },
   /* Substituição em bloco: excluir card, zerar estatísticas, restaurar backup.
      São operações raras e por definição O(n) — aqui a reescrita é legítima. */
@@ -16282,16 +16305,25 @@ const DB = {
   },
   addRevlog(entry) {
     const l = this.getRevlog();
-    // Posição monotônica em O(1): varrer o array a cada resposta seria O(n²).
+    // Posição local monotônica em O(1). Se dois aparelhos escolherem a mesma
+    // posição, queueRevlogAppend resolve a colisão atomicamente no PostgreSQL.
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
     const row = Object.assign({ _position: pos }, entry);
+    // WAL primeiro, RAM depois: fechar/recarregar a aba entre os dois não pode
+    // transformar uma resposta aceita em revisão perdida.
+    try {
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.append) {
+        if (!ReviewOutbox.append(this.KEYS.revlog, row)) return false;
+        l.push(row);
+        return true;
+      }
+    } catch (e) { _quiet(e, 'revlog-outbox-append'); return false; }
+    // Compatibilidade de emergência quando o módulo durável não carregou.
     l.push(row);
-    // 1) Banco relacional: UMA linha, não o histórico inteiro.
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogAppend) RelationalStore.queueRevlogAppend(this.KEYS.revlog, row);
     } catch (e) { _quiet(e, 'revlog-append'); }
-    // 2) Rede de segurança local, do tamanho do lote.
     return this._guardarPendente(row);
   },
   _guardarPendente(row) {
@@ -16319,12 +16351,17 @@ const DB = {
     for (let k = l.length - 1; k >= 0; k--) { if (l[k].ts === ts) { i = k; break; } }
     if (i < 0) return true;
     const removida = l[i];
+    try {
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.remove) {
+        if (!ReviewOutbox.remove(this.KEYS.revlog, removida)) return false;
+        l.splice(i, 1);
+        return true;
+      }
+    } catch (e) { _quiet(e, 'revlog-outbox-delete'); return false; }
     l.splice(i, 1);
     try {
       if (this._bancoRelacionalPronto() && RelationalStore.queueRevlogDelete) RelationalStore.queueRevlogDelete(this.KEYS.revlog, removida);
     } catch (e) { _quiet(e, 'revlog-delete'); }
-    // Desfazer costuma retirar justamente a última linha, que está nos
-    // pendentes: nesse caso a remoção é do tamanho do lote.
     const pendentes = this._get(this.KEYS.revlogPendente, []);
     const lista = Array.isArray(pendentes) ? pendentes : [];
     const alvo = this._chaveRevisao(removida);
@@ -16332,7 +16369,12 @@ const DB = {
     if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
     return this.replaceRevlog(l);
   },
-  getCard(id) { return this.getCards().find(c => c.id === id) || null; },
+  getCard(id) {
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.getCard) {
+      return CardStore.getCard(this.KEYS.cards, id, () => this._get(this.KEYS.cards, []));
+    }
+    return this.getCards().find(c => c.id === id) || null;
+  },
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
@@ -16345,6 +16387,7 @@ const DB = {
       banca: (data.banca || '').trim(),
       tipo: data.tipo || '',
       kind: data.kind || 'basic',      // 'basic' | 'cloze'
+      noteId: data.noteId || null,       // irmãos (frente/verso) compartilham a nota
       reversedOf: data.reversedOf || null, // id do card original (cartão invertido)
       // Higienizado na ENTRADA: cobre o editor, a importação de .tsv/.json e
       // qualquer outro caminho que crie card. Ver sanitizeCardHtml().
@@ -16379,7 +16422,11 @@ const DB = {
       })(),
       createdAt: now, updatedAt: now
     };
-    list.push(card); this.saveCards(list); return card;
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.upsert) {
+      const salvo = CardStore.upsert(this.KEYS.cards, card, null, card, list.length, { kind: 'create' });
+      return salvo === false ? null : salvo;
+    }
+    list.push(card); return this.saveCards(list) === false ? null : card;
   },
   /* Campos que o agendador devolve para a TELA usar na mesma resposta e que não
      são estado do card: o rótulo do botão (_kind/_val) e o aviso de leech
@@ -16398,19 +16445,22 @@ const DB = {
     }
     return copia || patch;
   },
-  updateCard(id, patch) {
+  updateCard(id, patch, context) {
     const list = this.getCards(); const c = list.find(x => x.id === id);
+    if (!c) return null;
     patch = this._semTransitorios(patch);
-    // Só sanea quando o texto do card está de fato no patch — a maioria das
-    // chamadas é agendamento do FSRS (due, s, d, reps) e não toca em frente/verso.
     if (patch && ('frente' in patch || 'verso' in patch)) {
       patch = { ...patch };
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); }
-    // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
-    // CardsScreen.answer). Card inexistente continua devolvendo null.
+    const base = JSON.parse(JSON.stringify(c));
+    const next = Object.assign({}, c, patch || {}, { updatedAt: new Date().toISOString() });
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.upsert) {
+      const idx = list.indexOf(c);
+      return CardStore.upsert(this.KEYS.cards, next, base, patch || {}, idx, context || null);
+    }
+    Object.assign(c, next);
     return this.saveCards(list) === false ? false : c;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
@@ -16438,12 +16488,54 @@ const DB = {
      deles e continuava consumindo a cota de 20 novos do dia — cards que nem
      existiam mais ocupavam vaga na fila. */
   deleteCard(id) {
-    this.saveCards(this.getCards().filter(c => c.id !== id));
+    const list = this.getCards();
+    const c = list.find(x => x.id === id);
+    if (!c) return true;
+    if (typeof CardStore !== 'undefined' && CardStore && CardStore.remove) {
+      if (CardStore.remove(this.KEYS.cards, id, JSON.parse(JSON.stringify(c)), list.indexOf(c), { kind: 'delete' }) === false) return false;
+    } else if (this.saveCards(list.filter(x => x.id !== id)) === false) return false;
     try {
       const l = this.getRevlog().filter(r => r.cardId !== id);
       this.replaceRevlog(l);
     } catch (_) { _quiet(_); }
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
+    return true;
+  },
+  siblingCards(id) {
+    const list = this.getCards(), c = list.find(x => x.id === id);
+    if (!c) return [];
+    if (c.noteId) return list.filter(x => x.id !== c.id && x.noteId === c.noteId);
+    const raiz = c.reversedOf || c.id;
+    return list.filter(x => x.id !== c.id && (x.id === raiz || x.reversedOf === raiz));
+  },
+  burySiblings(id) {
+    const sibs = this.siblingCards(id), snapshots = [];
+    for (const s of sibs) {
+      snapshots.push({
+        id: s.id,
+        antes: {
+          enterradoAte: s.enterradoAte == null ? null : s.enterradoAte,
+          dueTs: s.dueTs == null ? null : s.dueTs,
+          dueTsAntesEnterrar: s.dueTsAntesEnterrar == null ? null : s.dueTsAntesEnterrar
+        }
+      });
+      if (this.buryCard(s.id) === false) {
+        this.restoreSiblingBury(snapshots.slice(0, -1));
+        return false;
+      }
+    }
+    return snapshots;
+  },
+  restoreSiblingBury(snapshots) {
+    for (const s of (snapshots || [])) {
+      const p = {
+        enterradoAte: s.antes && s.antes.enterradoAte,
+        dueTs: s.antes && s.antes.dueTs,
+        dueTsAntesEnterrar: s.antes && s.antes.dueTsAntesEnterrar
+      };
+      if (this.updateCard(s.id, p, { kind: 'undo-sibling-bury' }) === false) return false;
+    }
+    return true;
   },
   /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
      o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
@@ -16451,8 +16543,8 @@ const DB = {
   /* ══════════════════════════════════════════════════════════════════════════
      AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
      Implementadas aqui com o MESMO significado do original. Este app tem um
-     card por nota, então "enterrar nota" e "enterrar card" coincidem — no Anki
-     eles diferem só quando uma nota gera vários cards.
+     pares frente↔verso podem compartilhar noteId; por isso enterrar irmãos
+     é tratado separadamente de enterrar apenas o card atual.
      ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
@@ -16461,8 +16553,8 @@ const DB = {
     const amanha = CardEngine.addDays(todayCards(), 1);
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
-    this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
-    return amanha;
+    const salvo = this.updateCard(id, { enterradoAte: amanha, dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null }, { kind: 'bury' });
+    return salvo === false ? false : amanha;
   },
   unburyCard(id) {
     const c = this.getCard(id); if (!c) return;
@@ -17447,6 +17539,731 @@ const DB = {
   }
 };
 
+
+/* ============================================================
+   DURABLE CARD STORE + OUTBOX
+   ------------------------------------------------------------
+   PostgreSQL continua sendo a fonte de verdade. Esta camada existe para duas
+   coisas apenas:
+   1) manter a API síncrona dos cards sem serializar a coleção inteira a cada
+      resposta;
+   2) garantir um WAL/outbox local pequeno e durável enquanto o PostgreSQL não
+      confirmou uma mutação.
+
+   O cache durável é por REGISTRO (IndexedDB). O localStorage nativo guarda só
+   envelopes pendentes, nunca a coleção completa. A fachada localStorage usada
+   pelo app continua sendo apenas memória.
+   ============================================================ */
+const DurableStudyStore = {
+  DB_NAME: 'studynomentor-card-safety-v1',
+  DB_VERSION: 1,
+  CARD_STORE: 'cards',
+  OUTBOX_STORE: 'outbox',
+  NATIVE_PREFIX: 'diario-estudos:__durable_outbox__:',
+  _dbp: null,
+  _pending: new Set(),
+
+  _native() {
+    try {
+      if (typeof window !== 'undefined' && window.__nativeLS) return window.__nativeLS;
+      return localStorage;
+    } catch (_) { return null; }
+  },
+
+  _pk(kind, scope, id) { return kind + '\u0000' + scope + '\u0000' + id; },
+  _nativeKey(kind, scope, id) {
+    return this.NATIVE_PREFIX + encodeURIComponent(kind) + ':' +
+      encodeURIComponent(scope) + ':' + encodeURIComponent(id);
+  },
+
+  _track(p) {
+    if (!p || typeof p.then !== 'function') return p;
+    this._pending.add(p);
+    p.finally(() => this._pending.delete(p)).catch(() => {});
+    return p;
+  },
+
+  async flush() {
+    const ps = Array.from(this._pending);
+    if (ps.length) await Promise.allSettled(ps);
+    return true;
+  },
+
+  _open() {
+    if (this._dbp) return this._dbp;
+    if (typeof indexedDB === 'undefined' || !indexedDB || !indexedDB.open) {
+      return Promise.resolve(null);
+    }
+    this._dbp = new Promise((resolve) => {
+      let req;
+      try { req = indexedDB.open(this.DB_NAME, this.DB_VERSION); }
+      catch (_) { resolve(null); return; }
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(this.CARD_STORE)) {
+          const s = db.createObjectStore(this.CARD_STORE, { keyPath: 'pk' });
+          s.createIndex('scope', 'scope', { unique: false });
+        }
+        if (!db.objectStoreNames.contains(this.OUTBOX_STORE)) {
+          const s = db.createObjectStore(this.OUTBOX_STORE, { keyPath: 'pk' });
+          s.createIndex('scope', 'scope', { unique: false });
+          s.createIndex('kind', 'kind', { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => resolve(null);
+      req.onblocked = () => resolve(null);
+    });
+    return this._dbp;
+  },
+
+  _nativePut(kind, scope, id, payload) {
+    const ls = this._native();
+    if (!ls) return false;
+    try {
+      ls.setItem(this._nativeKey(kind, scope, id), JSON.stringify(payload));
+      return true;
+    } catch (e) {
+      try { console.error('[durable-outbox] native put', e); } catch (_) {}
+      return false;
+    }
+  },
+
+  _nativeGet(kind, scope, id) {
+    const ls = this._native();
+    if (!ls) return null;
+    try {
+      const raw = ls.getItem(this._nativeKey(kind, scope, id));
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  },
+
+  _nativeDelete(kind, scope, id) {
+    const ls = this._native();
+    if (!ls) return;
+    try { ls.removeItem(this._nativeKey(kind, scope, id)); } catch (_) {}
+  },
+
+  _nativeList(kind, scope) {
+    const ls = this._native();
+    if (!ls) return [];
+    const out = [];
+    try {
+      for (let i = 0; i < ls.length; i++) {
+        const k = ls.key(i);
+        if (!k || k.indexOf(this.NATIVE_PREFIX) !== 0) continue;
+        let v = null;
+        try { v = JSON.parse(ls.getItem(k)); } catch (_) { v = null; }
+        if (!v) continue;
+        if (kind && v.kind !== kind) continue;
+        if (scope && v.scope !== scope) continue;
+        out.push(v);
+      }
+    } catch (_) {}
+    return out;
+  },
+
+  putOutbox(payload) {
+    if (!payload || !payload.kind || !payload.scope || !payload.id) return false;
+    payload.pk = this._pk(payload.kind, payload.scope, payload.id);
+    if (!this._nativePut(payload.kind, payload.scope, payload.id, payload)) return false;
+    this._track((async () => {
+      const db = await this._open(); if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(this.OUTBOX_STORE, 'readwrite');
+          tx.objectStore(this.OUTBOX_STORE).put(payload);
+          tx.oncomplete = () => resolve();
+          tx.onerror = tx.onabort = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    })());
+    return true;
+  },
+
+  deleteOutbox(kind, scope, id) {
+    this._nativeDelete(kind, scope, id);
+    this._track((async () => {
+      const db = await this._open(); if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(this.OUTBOX_STORE, 'readwrite');
+          tx.objectStore(this.OUTBOX_STORE).delete(this._pk(kind, scope, id));
+          tx.oncomplete = () => resolve();
+          tx.onerror = tx.onabort = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    })());
+  },
+
+  listOutbox(kind, scope) { return this._nativeList(kind, scope); },
+
+  putCard(scope, card, position) {
+    if (!scope || !card || !card.id) return;
+    const value = {
+      pk: this._pk('card-cache', scope, card.id), scope, id: String(card.id),
+      position: Number(position) || 0, card: JSON.parse(JSON.stringify(card)),
+      updatedAt: card.updatedAt || null
+    };
+    this._track((async () => {
+      const db = await this._open(); if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(this.CARD_STORE, 'readwrite');
+          tx.objectStore(this.CARD_STORE).put(value);
+          tx.oncomplete = () => resolve();
+          tx.onerror = tx.onabort = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    })());
+  },
+
+  deleteCard(scope, id) {
+    this._track((async () => {
+      const db = await this._open(); if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(this.CARD_STORE, 'readwrite');
+          tx.objectStore(this.CARD_STORE).delete(this._pk('card-cache', scope, id));
+          tx.oncomplete = () => resolve();
+          tx.onerror = tx.onabort = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    })());
+  },
+
+  replaceCards(scope, list) {
+    const arr = Array.isArray(list) ? list : [];
+    this._track((async () => {
+      const db = await this._open(); if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(this.CARD_STORE, 'readwrite');
+          const s = tx.objectStore(this.CARD_STORE);
+          const idx = s.index('scope');
+          const req = idx.getAllKeys(IDBKeyRange.only(scope));
+          req.onsuccess = () => {
+            (req.result || []).forEach(k => s.delete(k));
+            arr.forEach((card, i) => {
+              if (!card || !card.id) return;
+              s.put({
+                pk: this._pk('card-cache', scope, card.id), scope, id: String(card.id),
+                position: i, card: JSON.parse(JSON.stringify(card)),
+                updatedAt: card.updatedAt || null
+              });
+            });
+          };
+          tx.oncomplete = () => resolve();
+          tx.onerror = tx.onabort = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    })());
+  },
+
+  async readCards(scope) {
+    const db = await this._open(); if (!db) return [];
+    return new Promise((resolve) => {
+      try {
+        const tx = db.transaction(this.CARD_STORE, 'readonly');
+        const req = tx.objectStore(this.CARD_STORE).index('scope').getAll(IDBKeyRange.only(scope));
+        req.onsuccess = () => resolve((req.result || []).sort((a,b)=>(a.position||0)-(b.position||0)));
+        req.onerror = () => resolve([]);
+      } catch (_) { resolve([]); }
+    });
+  },
+
+  clearScopeOutbox(kind, scope) {
+    this._nativeList(kind, scope).forEach(x => this._nativeDelete(kind, scope, x.id));
+    this._track((async () => {
+      const db = await this._open(); if (!db) return;
+      await new Promise((resolve) => {
+        try {
+          const tx = db.transaction(this.OUTBOX_STORE, 'readwrite');
+          const s = tx.objectStore(this.OUTBOX_STORE);
+          const req = s.index('scope').getAll(IDBKeyRange.only(scope));
+          req.onsuccess = () => (req.result || []).forEach(x => {
+            if (!kind || x.kind === kind) s.delete(x.pk);
+          });
+          tx.oncomplete = () => resolve();
+          tx.onerror = tx.onabort = () => resolve();
+        } catch (_) { resolve(); }
+      });
+    })());
+  }
+};
+
+const CardStore = {
+  _scopes: new Map(),
+  _inflight: new Map(),
+  _opSeq: 0,
+
+  _clone(v) {
+    if (v == null) return v;
+    try { return JSON.parse(JSON.stringify(v)); } catch (_) { return v; }
+  },
+
+  _outbox(scope, id) { return DurableStudyStore._nativeGet('card', scope, String(id)); },
+
+  _scope(scope, fallback) {
+    let s = this._scopes.get(scope);
+    if (s) return s;
+    let base = [];
+    try { base = typeof fallback === 'function' ? fallback() : []; } catch (_) { base = []; }
+    base = Array.isArray(base) ? base : [];
+    s = { list: base, byId: new Map(), remoteApplied: false, idbLoading: false };
+    base.forEach(c => { if (c && c.id != null) s.byId.set(String(c.id), c); });
+    this._scopes.set(scope, s);
+    this._applyPendingToScope(scope, s);
+    this._hydrateIdb(scope, s);
+    return s;
+  },
+
+  _hydrateIdb(scope, s) {
+    if (s.idbLoading) return;
+    s.idbLoading = true;
+    DurableStudyStore.readCards(scope).then(rows => {
+      if (!rows.length || s.remoteApplied) return;
+      // IDB é cache de recuperação, nunca substitui snapshot SQL já recebido.
+      if (!s.list.length) {
+        s.list = rows.map(x => x.card).filter(Boolean);
+        s.byId = new Map(s.list.map(c => [String(c.id), c]));
+        this._applyPendingToScope(scope, s);
+        try {
+          if (typeof CardsScreen !== 'undefined' && CardsScreen.render) CardsScreen.render();
+        } catch (_) {}
+      }
+    }).catch(() => {}).finally(() => { s.idbLoading = false; });
+  },
+
+  _applyPendingToScope(scope, s) {
+    DurableStudyStore.listOutbox('card', scope).forEach(m => this._applyMutationToScope(s, m));
+  },
+
+  _applyMutationToScope(s, m) {
+    if (!m || !m.id) return;
+    const id = String(m.id);
+    if (m.action === 'delete') {
+      const old = s.byId.get(id);
+      if (old) {
+        const i = s.list.indexOf(old); if (i >= 0) s.list.splice(i, 1);
+        s.byId.delete(id);
+      }
+      return;
+    }
+    const card = this._clone(m.card);
+    if (!card) return;
+    const old = s.byId.get(id);
+    if (old) {
+      const i = s.list.indexOf(old);
+      if (i >= 0) s.list[i] = card;
+    } else {
+      const p = Math.max(0, Math.min(s.list.length, Number(m.position)));
+      if (Number.isFinite(p)) s.list.splice(p, 0, card); else s.list.push(card);
+    }
+    s.byId.set(id, card);
+  },
+
+  getCards(scope, fallback) { return this._scope(scope, fallback).list; },
+  getCard(scope, id, fallback) { return this._scope(scope, fallback).byId.get(String(id)) || null; },
+
+  replaceAll(scope, list, persistProjection) {
+    const arr = Array.isArray(list) ? list : [];
+    if (typeof persistProjection === 'function' && persistProjection(arr) === false) return false;
+    DurableStudyStore.clearScopeOutbox('card', scope);
+    const s = { list: arr, byId: new Map(), remoteApplied: false, idbLoading: false };
+    arr.forEach(c => { if (c && c.id != null) s.byId.set(String(c.id), c); });
+    this._scopes.set(scope, s);
+    DurableStudyStore.replaceCards(scope, arr);
+    return true;
+  },
+
+  _newOp(patch, context, updatedAt) {
+    return {
+      id: 'op-' + Date.now().toString(36) + '-' + (++this._opSeq).toString(36),
+      patch: this._clone(patch || {}),
+      context: this._clone(context || null),
+      updatedAt: updatedAt || new Date().toISOString()
+    };
+  },
+
+  _applyOps(base, ops) {
+    let card = this._clone(base) || {};
+    for (const op of (Array.isArray(ops) ? ops : [])) {
+      let patch = op.patch || {};
+      try {
+        if (op.context && op.context.kind === 'review' && op.context.grade &&
+            typeof CardEngine !== 'undefined' && CardEngine.schedule) {
+          patch = CardEngine.schedule(card, op.context.grade);
+          if (typeof DB !== 'undefined' && DB._semTransitorios) patch = DB._semTransitorios(patch);
+        }
+      } catch (_) {}
+      Object.assign(card, this._clone(patch || {}));
+      card.updatedAt = op.updatedAt || card.updatedAt || new Date().toISOString();
+    }
+    return card;
+  },
+
+  upsert(scope, card, base, patch, position, context) {
+    if (!card || card.id == null) return false;
+    const id = String(card.id);
+    const existing = this._outbox(scope, id);
+    const op = this._newOp(patch, context, card.updatedAt);
+    let m;
+    if (existing && existing.action === 'upsert') {
+      m = existing;
+      m.ops = Array.isArray(m.ops) ? m.ops : [];
+      m.ops.push(op);
+      m.card = this._clone(card);
+      m.position = Number(position) || 0;
+      m.updatedAt = new Date().toISOString();
+    } else {
+      m = {
+        kind: 'card', scope, id, action: 'upsert',
+        base: this._clone(base), ops: [op], card: this._clone(card),
+        position: Number(position) || 0, createdAt: new Date().toISOString()
+      };
+    }
+    if (!DurableStudyStore.putOutbox(m)) return false;
+    const s = this._scope(scope, () => []);
+    this._applyMutationToScope(s, m);
+    DurableStudyStore.putCard(scope, card, position);
+    this._sendCard(scope, id);
+    return s.byId.get(id) || card;
+  },
+
+  remove(scope, id, base, position, context) {
+    id = String(id);
+    const existing = this._outbox(scope, id);
+    const m = {
+      kind: 'card', scope, id, action: 'delete',
+      base: existing && existing.base !== undefined ? existing.base : this._clone(base),
+      position: Number(position) || 0,
+      context: this._clone(context || null),
+      createdAt: existing && existing.createdAt || new Date().toISOString()
+    };
+    if (!DurableStudyStore.putOutbox(m)) return false;
+    const s = this._scope(scope, () => []);
+    this._applyMutationToScope(s, m);
+    DurableStudyStore.deleteCard(scope, id);
+    this._sendCard(scope, id);
+    return true;
+  },
+
+  _relReady() {
+    try {
+      return typeof RelationalStore !== 'undefined' && RelationalStore &&
+        RelationalStore.queueCardMutation && RelationalStore.isReady && RelationalStore.isReady();
+    } catch (_) { return false; }
+  },
+
+  _sendCard(scope, id) {
+    const key = scope + '\u0000' + id;
+    if (this._inflight.has(key) || !this._relReady()) return null;
+    const current = this._outbox(scope, id);
+    if (!current) return null;
+    const snapshot = this._clone(current);
+    let p;
+    try { p = RelationalStore.queueCardMutation(scope, snapshot); }
+    catch (_) { return null; }
+    if (!p || typeof p.then !== 'function') return null;
+    let succeeded = false;
+    const tracked = p.then((ack) => {
+      succeeded = true;
+      const now = this._outbox(scope, id);
+      if (!now) return true;
+      if (snapshot.action === 'delete') {
+        if (now.action === 'delete') DurableStudyStore.deleteOutbox('card', scope, id);
+      } else if (now.action === 'upsert') {
+        const done = new Set((snapshot.ops || []).map(x => x.id));
+        now.ops = (now.ops || []).filter(x => !done.has(x.id));
+        const confirmed = ack && ack.card ? this._clone(ack.card) : this._clone(snapshot.card);
+        if (!now.ops.length) {
+          DurableStudyStore.deleteOutbox('card', scope, id);
+          if (confirmed) {
+            const s = this._scope(scope, () => []);
+            const m = { id, action:'upsert', card:confirmed, position:now.position };
+            this._applyMutationToScope(s, m);
+            DurableStudyStore.putCard(scope, confirmed, now.position);
+          }
+        } else {
+          now.base = confirmed;
+          now.card = this._applyOps(now.base, now.ops);
+          DurableStudyStore.putOutbox(now);
+          const s = this._scope(scope, () => []);
+          this._applyMutationToScope(s, now);
+          DurableStudyStore.putCard(scope, now.card, now.position);
+        }
+      }
+      return true;
+    }).catch(() => false).finally(() => {
+      this._inflight.delete(key);
+      // Só encadeia automaticamente mutações que surgiram ENQUANTO a anterior
+      // era confirmada. Em erro, o WAL fica parado para replay no próximo
+      // flush/foco/reconexão — sem loop de rede infinito.
+      const again = this._outbox(scope, id);
+      if (succeeded && again && this._relReady()) this._sendCard(scope, id);
+    });
+    this._inflight.set(key, tracked);
+    return tracked;
+  },
+
+  rebasePending(scope, id, remoteCard) {
+    const m = this._outbox(scope, id);
+    if (!m || m.action !== 'upsert') return null;
+    m.base = this._clone(remoteCard);
+    m.card = this._applyOps(m.base, m.ops);
+    DurableStudyStore.putOutbox(m);
+    const s = this._scope(scope, () => []);
+    this._applyMutationToScope(s, m);
+    DurableStudyStore.putCard(scope, m.card, m.position);
+    return this._clone(m);
+  },
+
+  applyRemoteSnapshot(scope, rows) {
+    const remote = (Array.isArray(rows) ? rows : []).map(x => this._clone(x));
+    const s = { list: remote, byId: new Map(), remoteApplied: true, idbLoading: false };
+    remote.forEach(c => { if (c && c.id != null) s.byId.set(String(c.id), c); });
+    this._applyPendingToScope(scope, s);
+    this._scopes.set(scope, s);
+    DurableStudyStore.replaceCards(scope, s.list);
+    return s.list;
+  },
+
+  invalidateScope(scope) { this._scopes.delete(scope); },
+  invalidatePrefix(prefix) {
+    for (const k of Array.from(this._scopes.keys())) if (String(k).indexOf(prefix) === 0) this._scopes.delete(k);
+  },
+  resetForTests() { this._scopes.clear(); this._inflight.clear(); },
+
+  replayAll(profileId) {
+    if (!this._relReady()) return Promise.resolve(false);
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    const pending = DurableStudyStore.listOutbox('card').filter(m => !marker || String(m.scope||'').includes(marker));
+    const ps = [];
+    pending.forEach(m => {
+      const p = this._sendCard(m.scope, m.id);
+      if (p && typeof p.then === 'function') ps.push(p);
+    });
+    return Promise.allSettled(ps).then(() => true);
+  },
+
+  pendingCount(profileId) {
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    return DurableStudyStore.listOutbox('card').filter(m => !marker || String(m.scope||'').includes(marker)).length;
+  }
+};
+
+const ReviewOutbox = {
+  _inflight: new Map(),
+  _seq: 0,
+
+  _id(row) {
+    if (row && row._eventId) return String(row._eventId);
+    const id = 'rev-' + Date.now().toString(36) + '-' + (++this._seq).toString(36) + '-' +
+      Math.random().toString(36).slice(2, 8);
+    if (row) row._eventId = id;
+    return id;
+  },
+
+  append(scope, row) {
+    const id = this._id(row);
+    const m = { kind:'revlog', scope, id, action:'append', row: JSON.parse(JSON.stringify(row)), createdAt:new Date().toISOString() };
+    if (!DurableStudyStore.putOutbox(m)) return false;
+    this._send(scope, id);
+    return true;
+  },
+
+  remove(scope, row) {
+    const id = this._id(row);
+    const existing = DurableStudyStore._nativeGet('revlog', scope, id);
+    if (existing && existing.action === 'append' && !this._inflight.has(scope + '\u0000' + id)) {
+      // Undo antes do envio: cancela o append; nada precisa ir ao servidor.
+      DurableStudyStore.deleteOutbox('revlog', scope, id);
+      return true;
+    }
+    const m = { kind:'revlog', scope, id, action:'delete', row: JSON.parse(JSON.stringify(row)), createdAt:new Date().toISOString() };
+    if (!DurableStudyStore.putOutbox(m)) return false;
+    this._send(scope, id);
+    return true;
+  },
+
+  _ready() {
+    try {
+      return typeof RelationalStore !== 'undefined' && RelationalStore &&
+        RelationalStore.isReady && RelationalStore.isReady() &&
+        RelationalStore.queueRevlogAppend && RelationalStore.queueRevlogDelete;
+    } catch (_) { return false; }
+  },
+
+  _send(scope, id) {
+    const k = scope + '\u0000' + id;
+    if (this._inflight.has(k) || !this._ready()) return null;
+    const m = DurableStudyStore._nativeGet('revlog', scope, id);
+    if (!m) return null;
+    let p;
+    try {
+      p = m.action === 'delete'
+        ? RelationalStore.queueRevlogDelete(scope, m.row)
+        : RelationalStore.queueRevlogAppend(scope, m.row);
+    } catch (_) { return null; }
+    if (!p || typeof p.then !== 'function') return null;
+    let succeeded = false;
+    const tracked = p.then((ack) => {
+      succeeded = true;
+      if (m.action === 'append' && ack && Number.isFinite(Number(ack.position))) {
+        try {
+          if (typeof DB !== 'undefined' && DB.rebaseRevlogPosition) {
+            DB.rebaseRevlogPosition(scope, id, Number(ack.position));
+          }
+        } catch (_) {}
+      }
+      const now = DurableStudyStore._nativeGet('revlog', scope, id);
+      if (now && now.action === m.action) DurableStudyStore.deleteOutbox('revlog', scope, id);
+      return true;
+    }).catch(() => false).finally(() => {
+      this._inflight.delete(k);
+      if (succeeded && DurableStudyStore._nativeGet('revlog', scope, id) && this._ready()) this._send(scope, id);
+    });
+    this._inflight.set(k, tracked);
+    return tracked;
+  },
+
+  replayAll(profileId) {
+    if (!this._ready()) return Promise.resolve(false);
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    const ps = [];
+    DurableStudyStore.listOutbox('revlog').filter(m => !marker || String(m.scope||'').includes(marker)).forEach(m => {
+      const p = this._send(m.scope, m.id);
+      if (p && typeof p.then === 'function') ps.push(p);
+    });
+    return Promise.allSettled(ps).then(() => true);
+  },
+
+  pendingRows(scope) {
+    return DurableStudyStore.listOutbox('revlog', scope)
+      .filter(m => m.action === 'append' && m.row).map(m => m.row);
+  },
+
+  pendingCount(profileId) {
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    return DurableStudyStore.listOutbox('revlog').filter(m => !marker || String(m.scope||'').includes(marker)).length;
+  }
+};
+
+const GenericOutbox = {
+  SCOPE: 'storage',
+  _inflight: new Map(),
+  _seq: 0,
+
+  _get(key) { return DurableStudyStore._nativeGet('storage', this.SCOPE, String(key)); },
+
+  put(key, oldRaw, newRaw) {
+    key=String(key||''); if(!key)return false;
+    const existing=this._get(key);
+    const payload={
+      kind:'storage', scope:this.SCOPE, id:key, key,
+      oldRaw:existing ? existing.oldRaw : oldRaw,
+      newRaw:newRaw,
+      version:'g-'+Date.now().toString(36)+'-'+(++this._seq).toString(36),
+      createdAt:existing&&existing.createdAt||new Date().toISOString(),
+      updatedAt:new Date().toISOString()
+    };
+    if(!DurableStudyStore.putOutbox(payload))return false;
+    this._send(key);
+    return true;
+  },
+
+  _ready() {
+    try {
+      return typeof RelationalStore!=='undefined'&&RelationalStore&&
+        RelationalStore.isReady&&RelationalStore.isReady()&&
+        RelationalStore.queueStorageMutation;
+    } catch (_) { return false; }
+  },
+
+  _send(key) {
+    key=String(key||'');
+    if(this._inflight.has(key)||!this._ready())return null;
+    const current=this._get(key); if(!current)return null;
+    const snapshot=JSON.parse(JSON.stringify(current));
+    let p;
+    try { p=RelationalStore.queueStorageMutation(snapshot); }
+    catch (_) { return null; }
+    if(!p||typeof p.then!=='function')return null;
+    let succeeded=false;
+    const tracked=p.then(()=>{
+      succeeded=true;
+      const now=this._get(key);
+      if(!now)return true;
+      if(now.version===snapshot.version){
+        DurableStudyStore.deleteOutbox('storage',this.SCOPE,key);
+      }else{
+        // O servidor agora está exatamente em snapshot.newRaw; isso vira a base
+        // correta do próximo diff, preservando a alteração feita durante o ACK.
+        now.oldRaw=snapshot.newRaw;
+        DurableStudyStore.putOutbox(now);
+      }
+      return true;
+    }).catch(()=>false).finally(()=>{
+      this._inflight.delete(key);
+      if(succeeded&&this._get(key)&&this._ready())this._send(key);
+    });
+    this._inflight.set(key,tracked);
+    return tracked;
+  },
+
+  replayAll(profileId) {
+    if(!this._ready())return Promise.resolve(false);
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    const ps=[];
+    DurableStudyStore.listOutbox('storage',this.SCOPE)
+      .filter(m=>{
+        const key=String(m.key||m.id||'');
+        if(!marker)return true;
+        return !key.includes(':u:') || key.includes(marker);
+      })
+      .forEach(m=>{
+        const p=this._send(m.key||m.id);
+        if(p&&typeof p.then==='function')ps.push(p);
+      });
+    return Promise.allSettled(ps).then(()=>true);
+  },
+
+  overlayPending(profileId) {
+    const prefix=profileId ? 'diario-estudos:u:'+profileId+':' : null;
+    const rows=DurableStudyStore.listOutbox('storage',this.SCOPE);
+    rows.forEach(m=>{
+      const key=String(m.key||m.id||'');
+      if(prefix&&key.indexOf(prefix)!==0)return;
+      try {
+        if(typeof RelationalStore!=='undefined'&&RelationalStore){
+          if(m.newRaw==null&&RelationalStore._memDel)RelationalStore._memDel(key);
+          else if(RelationalStore._memSet)RelationalStore._memSet(key,m.newRaw);
+        }
+      } catch (_) {}
+    });
+    return rows.length;
+  },
+
+  pendingCount(profileId) {
+    const marker=profileId ? ':u:'+profileId+':' : null;
+    return DurableStudyStore.listOutbox('storage',this.SCOPE).filter(m=>{
+      const key=String(m.key||m.id||'');
+      if(!marker)return true;
+      return !key.includes(':u:') || key.includes(marker);
+    }).length;
+  }
+};
+
+try {
+  if (typeof window !== 'undefined') {
+    window.DurableStudyStore = DurableStudyStore;
+    window.CardStore = CardStore;
+    window.ReviewOutbox = ReviewOutbox;
+    window.GenericOutbox = GenericOutbox;
+    window.__cardSafetyStore = true;
+  }
+} catch (_) {}
 
 /* ============================================================
    PLANEJAMENTOS — registro de espaços de trabalho (workspaces)
@@ -21321,8 +22138,8 @@ const CardsConfig = {
        Alternativas: 'vencimento' (mais atrasado antes) e 'aleatoria'. */
     /* ── ORDENAÇÃO E MISTURA (espelha deck_config.proto do Anki) ─────────────
        Os nomes seguem os oficiais para a equivalência ser rastreável.
-       Só ficaram de fora as variantes que dependem de NOTAS/IRMÃOS e de
-       TEMPLATES, que não existem neste app (cada card é independente). */
+       Pares frente↔verso agora compartilham uma nota (noteId), então o
+       enterro de irmãos também pode seguir a semântica do Anki. */
 
     // ReviewCardOrder — em que ordem as revisões vencidas são apresentadas.
     // Padrão 'retrievabilityAsc': o mais perto de ser esquecido vem primeiro.
@@ -21352,6 +22169,11 @@ const CardsConfig = {
     // Anki: por padrão, atingir o limite de revisões também bloqueia novos.
     // Pode ser habilitado explicitamente para ignorar esse bloqueio.
     newCardsIgnoreReviewLimit: false,
+
+    // Bury siblings: evita ver, no mesmo dia, outra direção/card da mesma nota.
+    buryNewSiblings: true,
+    buryReviewSiblings: true,
+    buryInterdayLearningSiblings: true,
 
     // easy_days_percentages — % da carga de revisão aceita por dia da semana
     // (índice 0 = domingo). O balanceador evita marcar em dias "leves".
@@ -21448,6 +22270,9 @@ const CardsConfig = {
     c.revPerDay = Math.round(this._numValido(c.revPerDay, D.revPerDay, 0, 999999));
     c.newPerDayMinimum = Math.round(this._numValido(c.newPerDayMinimum, D.newPerDayMinimum, 0, 999999));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    ['buryNewSiblings','buryReviewSiblings','buryInterdayLearningSiblings'].forEach((k) => {
+      if (typeof c[k] !== 'boolean') c[k] = D[k];
+    });
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
      'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {
@@ -28602,7 +29427,14 @@ const CardsScreen = {
   undoAnswer() {
     const u = (this._undoStack || []).pop();
     if (!u) { showToast('Nada para desfazer'); return; }
-    DB.updateCard(u.id, u.antes);
+    DB.updateCard(u.id, u.antes, { kind: 'undo-review' });
+    if (u.siblingBury && u.siblingBury.length) DB.restoreSiblingBury(u.siblingBury);
+    if (u.siblingQueueRemoved && u.siblingQueueRemoved.length) {
+      u.siblingQueueRemoved.slice().sort((a,b)=>a.index-b.index).forEach(x => {
+        const pos=Math.max(0,Math.min(this._reviewQueue.length,x.index));
+        if (this._reviewQueue.indexOf(x.id, pos) !== pos) this._reviewQueue.splice(pos,0,x.id);
+      });
+    }
     CardEngine.invalidateDueCache();
     DB.removeRevlog(u.revTs);
     if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
@@ -28662,7 +29494,7 @@ const CardsScreen = {
       ['phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'algo', 'leech', 'suspenso']
         .forEach(k => { antes[k] = c[k]; });
       patch = CardEngine.schedule(c, grade);
-      if (DB.updateCard(id, patch) === false) {
+      if (DB.updateCard(id, patch, { kind: 'review', grade }) === false) {
         // O agendamento não foi gravado: desfaz o registro que acabou de entrar
         // no histórico para os dois não ficarem em desacordo.
         DB.removeRevlog(revTs);
@@ -28671,8 +29503,44 @@ const CardsScreen = {
         showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
         return;
       }
+
+      /* Irmãos: frente↔verso da mesma nota não devem aparecer no mesmo dia.
+         A configuração segue a fase que o card TINHA ao ser respondido. */
+      const cfg = CardsConfig.forDeck ? CardsConfig.forDeck(c.deckId) : CardsConfig.get();
+      const faseAntes = c.phase || 'new';
+      const deveEnterrarIrmaos = faseAntes === 'new'
+        ? cfg.buryNewSiblings !== false
+        : (faseAntes === 'review'
+          ? cfg.buryReviewSiblings !== false
+          : ((c.dueTs == null) && cfg.buryInterdayLearningSiblings !== false));
+      let siblingBury = [], siblingQueueRemoved = [];
+      if (deveEnterrarIrmaos) {
+        const sb = DB.burySiblings(id);
+        if (sb === false) {
+          DB.updateCard(id, antes, { kind: 'undo-review' });
+          DB.removeRevlog(revTs);
+          if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
+          this._seenThisSession.delete(id);
+          showToast('⚠ Não foi possível proteger os cards irmãos. Tente novamente.');
+          return;
+        }
+        siblingBury = sb || [];
+        if (siblingBury.length) {
+          const idsIrmaos = new Set(siblingBury.map(x => x.id));
+          for (let qi = this._reviewQueue.length - 1; qi > this._reviewIdx; qi--) {
+            if (idsIrmaos.has(this._reviewQueue[qi])) {
+              siblingQueueRemoved.push({ id: this._reviewQueue[qi], index: qi });
+              this._reviewQueue.splice(qi, 1);
+            }
+          }
+        }
+      }
+
       CardEngine.invalidateDueCache();
-      (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx });
+      (this._undoStack = this._undoStack || []).push({
+        id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx,
+        siblingBury, siblingQueueRemoved
+      });
       if (this._undoStack.length > 50) this._undoStack.shift();
       if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
     }
@@ -29106,24 +29974,63 @@ const CardsScreen = {
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
     return data;
   },
-  saveCard(closeAfter) {
+  async saveCard(closeAfter) {
     const data = this._readCardForm();
     if (!data) return;
     const reversed = data._reversed; delete data._reversed;
-    if (this._editingId) {
-      DB.updateCard(this._editingId, data); showToast('Card atualizado ✓'); this.closeCardModal();
+    const editingId = this._editingId;
+    const savedIds = [];
+    let mensagem = '';
+
+    const res = await SaveGuard.run({
+      escrever: async () => {
+        if (editingId) {
+          const salvo = DB.updateCard(editingId, data, { kind: 'edit' });
+          if (salvo === false || !salvo) return false;
+          savedIds.push(editingId); mensagem = 'Card atualizado';
+          return true;
+        }
+
+        if (reversed) data.noteId = 'note-' + DB._uid();
+        const normal = DB.addCard(data);
+        if (!normal) return false;
+        savedIds.push(normal.id);
+        if (reversed) {
+          const invertido = DB.addCard({
+            ...data, frente: data.verso, verso: data.frente,
+            reversedOf: normal.id, noteId: data.noteId
+          });
+          if (!invertido) {
+            DB.deleteCard(normal.id);
+            return false;
+          }
+          savedIds.push(invertido.id);
+          mensagem = '2 cards criados (normal + invertido)';
+        } else mensagem = 'Card criado';
+        return true;
+      },
+      verificar: () => savedIds.length > 0 && savedIds.every(id => !!DB.getCard(id))
+    });
+
+    const pending = (() => {
+      try { return (CardStore.pendingCount ? CardStore.pendingCount() : 0) + (ReviewOutbox.pendingCount ? ReviewOutbox.pendingCount() : 0); }
+      catch (_) { return 0; }
+    })();
+
+    if (res && res.ok && res.cloud) {
+      showToast(mensagem + ' ✓');
+    } else if (savedIds.length && pending > 0) {
+      showToast('☁ ' + mensagem + ' neste dispositivo; sincronização pendente.');
     } else {
-      const c = DB.addCard(data);
-      if (reversed) {
-        DB.addCard({ ...data, frente: data.verso, verso: data.frente, reversedOf: c.id });
-        showToast('2 cards criados (normal + invertido) ✓');
-      } else showToast('Card criado ✓');
-      if (closeAfter) this.closeCardModal();
-      else {
-        $id('card-frente').innerHTML = '';
-        $id('card-verso').innerHTML = '';
-        $id('card-frente').focus();
-      }
+      showToast('⚠ O card não foi confirmado. Revise a conexão e tente novamente.');
+      return;
+    }
+
+    if (editingId || closeAfter) this.closeCardModal();
+    else {
+      $id('card-frente').innerHTML = '';
+      $id('card-verso').innerHTML = '';
+      $id('card-frente').focus();
     }
     this.render();
   },
@@ -39962,7 +40869,14 @@ const RelationalStore = {
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
-  pendingCount() { return this._pending; },
+  pendingCount() {
+    let n = this._pending, profileId=null;
+    try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (_) {}
+    try { if (typeof CardStore !== 'undefined' && CardStore.pendingCount) n += CardStore.pendingCount(profileId); } catch (_) {}
+    try { if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.pendingCount) n += ReviewOutbox.pendingCount(profileId); } catch (_) {}
+    try { if (typeof GenericOutbox !== 'undefined' && GenericOutbox.pendingCount) n += GenericOutbox.pendingCount(profileId); } catch (_) {}
+    return n;
+  },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -40001,7 +40915,16 @@ const RelationalStore = {
   _memSet(k, v) {
     this._applying = true;
     try {
-      localStorage.setItem(k, String(v));
+      let raw = String(v);
+      if (String(k).slice(-6) === ':cards') {
+        try {
+          if (typeof CardStore !== 'undefined' && CardStore.applyRemoteSnapshot) {
+            const remote = this._parse(raw, []);
+            raw = JSON.stringify(CardStore.applyRemoteSnapshot(k, remote));
+          }
+        } catch (e) { _quiet(e, 'cards-remote-overlay'); }
+      }
+      localStorage.setItem(k, raw);
       /* O histórico vive em RAM no DB. Quando a hidratação traz uma versão nova
          do banco, a projeção em memória precisa ser descartada — senão a
          sessão continua lendo a lista antiga e o que veio do banco fica
@@ -40033,6 +40956,7 @@ const RelationalStore = {
         if(opts.preserveHeavy && this._isHeavyMemoryKey(profileId,k)) continue;
         keys.push(k);
       }
+      try { if (typeof CardStore !== 'undefined' && CardStore.invalidatePrefix) CardStore.invalidatePrefix(p); } catch (_) {}
       keys.forEach(k=>localStorage.removeItem(k));
     } finally { this._applying=false; }
   },
@@ -40168,6 +41092,9 @@ const RelationalStore = {
         const k = localStorage.key(i);
         if (!k || k.indexOf(p) !== 0) continue;
         if (rx.test(k.slice(p.length))) keys.push(k);
+      }
+      if (suffix === 'cards') {
+        try { keys.forEach(k => { if (typeof CardStore !== 'undefined' && CardStore.invalidateScope) CardStore.invalidateScope(k); }); } catch (_) {}
       }
       keys.forEach(k => localStorage.removeItem(k));
     } finally { this._applying = false; }
@@ -40392,6 +41319,14 @@ const RelationalStore = {
     this._lastHydratedAt.set(profileId,Date.now());
     this._lastSyncAt=Date.now();this._lastError=null;
     this.subscribeProfile(profileId);
+    try {
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.overlayPending) GenericOutbox.overlayPending(profileId);
+      const jobs=[];
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll(profileId));
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll(profileId));
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll(profileId));
+      if(jobs.length)await Promise.allSettled(jobs);
+    } catch (e) { _quiet(e, 'durable-outbox-replay-hydrate'); }
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
     try{window.dispatchEvent(new CustomEvent('data:relational-hydrated',{detail:{profileId,reason:opts.reason||'open',phase:'core',heavyReady:this.isHeavyReady(profileId)}}));}catch(e){_quiet(e,'rel-hydrated-event');}
     if(opts.includeHeavy!==false)await this.ensureHeavyData(profileId,{reason:opts.reason||'hydrate',force:true});
@@ -40417,9 +41352,120 @@ const RelationalStore = {
     return p;
   },
   async flush() {
+    try {
+      let profileId=null;
+      try { profileId=typeof ProfileManager!=='undefined'&&ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null; } catch (_) {}
+      const jobs=[];
+      if (typeof CardStore !== 'undefined' && CardStore.replayAll) jobs.push(CardStore.replayAll(profileId));
+      if (typeof ReviewOutbox !== 'undefined' && ReviewOutbox.replayAll) jobs.push(ReviewOutbox.replayAll(profileId));
+      if (typeof GenericOutbox !== 'undefined' && GenericOutbox.replayAll) jobs.push(GenericOutbox.replayAll(profileId));
+      if(jobs.length)await Promise.allSettled(jobs);
+      if (typeof DurableStudyStore !== 'undefined' && DurableStudyStore.flush) await DurableStudyStore.flush();
+    } catch (e) { _quiet(e, 'durable-outbox-replay-flush'); }
     await this._tail;
     if (this._lastError) throw this._lastError;
     return true;
+  },
+
+  /* ── CARDS: UMA LINHA + CAS POR updated_at ───────────────────────────────
+     O array em memória continua existindo para a UI síncrona, mas a mutação
+     diária toca somente a linha do card. Em conflito, o patch/review pendente
+     é reexecutado sobre o estado remoto mais novo antes de tentar novamente. */
+  _cardRow(profileId, planId, x, position) {
+    x = x || {};
+    return {
+      profile_id:profileId, plan_id:planId, card_id:String(x.id),
+      deck_id:x.deckId==null?null:String(x.deckId), subject:x.materia||null,
+      topic:x.assunto||null, card_type:x.tipo||null, front:x.frente||'',
+      back:x.verso||'', favorite:!!x.favorito, status:x.status||null,
+      banca:x.banca||null, kind:x.kind||null, due:x.due==null?null:String(x.due),
+      due_ts:x.dueTs==null?null:Number(x.dueTs), ease:x.ease==null?null:Number(x.ease),
+      interval_value:x.intervalo==null?null:Number(x.intervalo),
+      lapses:x.lapses==null?null:Number(x.lapses), learn_step:x.learnStep==null?null:Number(x.learnStep),
+      reps:x.reps==null?null:Number(x.reps), phase:x.phase||null,
+      reversed_of:x.reversedOf==null?null:String(x.reversedOf),
+      d:x.d==null?null:Number(x.d), s:x.s==null?null:Number(x.s), algo:x.algo||null,
+      last_review:x.lastReview||null, created_at:x.createdAt||null,
+      updated_at:x.updatedAt||new Date().toISOString(), position:(Number(position)||0)+1,
+      extra:Object.fromEntries(Object.entries(x).filter(([k])=>![
+        'id','deckId','materia','assunto','tipo','frente','verso','favorito','status','banca','kind',
+        'due','dueTs','ease','intervalo','lapses','learnStep','reps','phase','reversedOf','d','s',
+        'algo','lastReview','createdAt','updatedAt'
+      ].includes(k)))
+    };
+  },
+  _cardFromRow(row) {
+    return this._coreGroupAppliers().cards.map(row);
+  },
+  async _fetchCardRow(profileId, planId, id) {
+    const {data,error}=await CloudStore.client.from('study_cards').select('*')
+      .eq('profile_id',profileId).eq('plan_id',planId).eq('card_id',String(id)).limit(1);
+    if(error)throw error;
+    return data&&data[0] ? data[0] : null;
+  },
+  async _applyCardMutation(scope, mutation) {
+    const p=this._keyParts(scope);
+    if(!p||p.scope!=='plan'||p.sub!=='cards'||!mutation||mutation.id==null) {
+      throw new Error('Mutação de card fora do escopo');
+    }
+    const id=String(mutation.id);
+    if(mutation.action==='delete'){
+      for(let tentativa=0;tentativa<6;tentativa++){
+        const remote=await this._fetchCardRow(p.profileId,p.planId,id);
+        if(!remote)return {deleted:true,id};
+        let q=CloudStore.client.from('study_cards').delete()
+          .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',id);
+        if(remote.updated_at!=null)q=q.eq('updated_at',remote.updated_at);
+        const {data,error}=await q.select('card_id,updated_at');
+        if(error)throw error;
+        if(data&&data.length)return {deleted:true,id};
+      }
+      const e=new Error('Conflito concorrente ao excluir card');e.code='card-conflict';throw e;
+    }
+
+    for(let tentativa=0;tentativa<6;tentativa++){
+      let remote=await this._fetchCardRow(p.profileId,p.planId,id);
+      if(!remote){
+        let target=mutation.card||{};
+        target=Object.assign({},target,{updatedAt:new Date().toISOString()});
+        const row=this._cardRow(p.profileId,p.planId,target,mutation.position);
+        const {data,error}=await CloudStore.client.from('study_cards').insert(row).select('*');
+        if(!error&&data&&data[0])return {card:this._cardFromRow(data[0]),inserted:true};
+        if(error&&String(error.code||'')!=='23505')throw error;
+        remote=await this._fetchCardRow(p.profileId,p.planId,id);
+        if(!remote)continue;
+      }
+
+      const remoteCard=this._cardFromRow(remote);
+      const baseTs=mutation.base&&mutation.base.updatedAt;
+      let target;
+      if(baseTs!=null&&String(baseTs)===String(remote.updated_at)){
+        target=Object.assign({},mutation.card||remoteCard);
+      }else{
+        target=(typeof CardStore!=='undefined'&&CardStore._applyOps)
+          ? CardStore._applyOps(remoteCard,mutation.ops||[])
+          : Object.assign({},remoteCard,mutation.card||{});
+        try {
+          if(typeof CardStore!=='undefined'&&CardStore.rebasePending) {
+            CardStore.rebasePending(scope,id,remoteCard);
+          }
+        } catch (_) {}
+      }
+      target.updatedAt=new Date().toISOString();
+      const row=this._cardRow(p.profileId,p.planId,target,mutation.position);
+      let q=CloudStore.client.from('study_cards').update(row)
+        .eq('profile_id',p.profileId).eq('plan_id',p.planId).eq('card_id',id);
+      if(remote.updated_at!=null)q=q.eq('updated_at',remote.updated_at);
+      const {data,error}=await q.select('*');
+      if(error)throw error;
+      if(data&&data.length)return {card:this._cardFromRow(data[0]),updated:true};
+      // Outra aba ganhou entre SELECT e UPDATE: refaz sobre o novo remoto.
+    }
+    const e=new Error('Conflito concorrente ao atualizar card');e.code='card-conflict';throw e;
+  },
+  queueCardMutation(scope, mutation) {
+    if(this._applying||!this.isReady())return false;
+    return this._queue('card:'+String(mutation&&mutation.id||''),()=>this._applyCardMutation(scope,mutation));
   },
 
   /* ── HISTÓRICO DE REVISÕES: CHAMADA DIRETA, NÃO DIFERENÇA DE BLOBS ────────
@@ -40447,32 +41493,41 @@ const RelationalStore = {
   queueRevlogAppend(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
-    this._queue('revlog:append', async () => {
-      const {error} = await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId, p.planId, row));
-      if(error) throw error;
+    return this._queue('revlog:append', async () => {
+      let pos=Math.max(1,Number(row._position)||1);
+      for(let tentativa=0;tentativa<8;tentativa++){
+        row._position=pos;
+        const {error}=await CloudStore.client.from('study_review_log').insert(this._revlogRow(p.profileId,p.planId,row,pos));
+        if(!error)return {position:pos};
+        if(String(error.code||'')!=='23505')throw error;
+        const {data,error:maxErr}=await CloudStore.client.from('study_review_log').select('position')
+          .eq('profile_id',p.profileId).eq('plan_id',p.planId)
+          .order('position',{ascending:false}).limit(1);
+        if(maxErr)throw maxErr;
+        pos=Math.max(pos+1,(Number(data&&data[0]&&data[0].position)||0)+1);
+      }
+      const e=new Error('Não foi possível reservar posição única no histórico');e.code='revlog-position-conflict';throw e;
     });
-    return true;
   },
   queueRevlogDelete(key, row) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p || !row) return false;
-    this._queue('revlog:delete', async () => {
+    return this._queue('revlog:delete', async () => {
       let q = CloudStore.client.from('study_review_log').delete().eq('profile_id',p.profileId).eq('plan_id',p.planId);
       if(row._position != null) q = q.eq('position', Number(row._position));
       if(row.ts != null) q = q.eq('ts', Number(row.ts));
       if(row.cardId != null) q = q.eq('card_id', String(row.cardId));
       const {error} = await q;
       if(error) throw error;
+      return {deleted:true};
     });
-    return true;
   },
   queueRevlogReplace(key, rows) {
     if(this._applying || !this.isReady()) return false;
     const p = this._revlogParts(key); if(!p) return false;
     const arr = Array.isArray(rows) ? rows : [];
-    this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
+    return this._queue('revlog:replace', () => this._replacePlanRows('study_review_log', p.profileId, p.planId,
       arr.map((x,i) => this._revlogRow(p.profileId, p.planId, x, i+1)), 'review_pk'));
-    return true;
   },
 
   _keyParts(key) {
@@ -40492,31 +41547,53 @@ const RelationalStore = {
        disponível. As linhas correspondentes já vão para `study_review_log` por
        queueRevlogAppend; persisti-las de novo criaria duplicata. */
     return sub.indexOf('__lixeira:') === 0
+        || sub === 'revlog'
         || sub === 'revlog-pendente'
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
   },
+  async _persistStorageMutation(payload) {
+    const key=payload&&payload.key, oldRaw=payload&&payload.oldRaw, newRaw=payload&&payload.newRaw;
+    const p=this._keyParts(key); if(!p)return true;
+    if(p.scope==='user'){
+      if(p.sub==='profiles'||p.sub==='active-profile')return true;
+      await this._persistUserPref(p.sub,newRaw); return true;
+    }
+    if(this._ignoreSub(p.sub))return true;
+    if(p.scope==='profile'){
+      if(p.sub==='planejamentos')await this._persistPlans(p.profileId,oldRaw,newRaw);
+      else if(p.sub==='active-plan')await this._persistActivePlan(p.profileId,newRaw);
+      else await this._persistProfileSetting(p.profileId,p.sub,newRaw);
+      return true;
+    }
+    await this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw);
+    return true;
+  },
+  queueStorageMutation(payload) {
+    if(this._applying||!this.isReady())return false;
+    return this._queue('storage:'+String(payload&&payload.key||''),()=>this._persistStorageMutation(payload));
+  },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
-    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
-       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
-       não viram falso erro de banco. Depois do login, isReady() permanece true
-       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
-    if(!this.isReady()) return;
-    const p=this._keyParts(key); if(!p) return;
-    if(p.scope==='user') {
-      if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
-      return;
-    }
-    if(this._ignoreSub(p.sub)) return;
-    if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw));
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw));
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw));
-      return;
-    }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw));
+    const p=this._keyParts(key); if(!p)return;
+    if(p.scope==='user'&&(p.sub==='profiles'||p.sub==='active-profile'))return;
+    if(this._ignoreSub(p.sub))return;
+
+    /* Offline também é uma mutação real. Em vez de descartá-la porque a sessão
+       não está pronta, guardamos o último estado por chave no WAL durável. */
+    try {
+      if(typeof GenericOutbox!=='undefined'&&GenericOutbox.put){
+        const ok=GenericOutbox.put(key,oldRaw,newRaw);
+        if(!ok){
+          const e=new Error('Não foi possível registrar a alteração no WAL local');
+          e.code='durable-outbox-failed'; this._lastError=e;
+        }
+        return;
+      }
+    } catch(e){this._lastError=e;return;}
+    // Fallback legado apenas se o módulo durável não carregou.
+    if(!this.isReady())return;
+    this._queue('storage:'+String(key),()=>this._persistStorageMutation({key,oldRaw,newRaw}));
   },
 
   async _persistUserPref(key, raw) {
@@ -46059,7 +47136,9 @@ else CloudStore.init();
 
 </script>
 
-<!-- ESTADO LOCAL: SOMENTE MEMÓRIA. Supabase relacional = fonte persistente. -->
+<!-- ESTADO LOCAL: projeção em memória. Supabase relacional = fonte de verdade.
+     Exceção de segurança: um outbox pequeno e IndexedDB por registro guardam
+     mutações ainda não confirmadas, sem virar fonte canônica. -->
 <script>
 (function () {
   'use strict';
@@ -46072,7 +47151,9 @@ else CloudStore.init();
 
   function invalidate() { keysCache = null; }
   function isStudyKey(k) { return String(k || '').indexOf('diario-estudos:') === 0; }
-  function isMemoryKey(k) { return isStudyKey(k) && k !== THEME; }
+  var DURABLE_PREFIX = 'diario-estudos:__durable_outbox__:';
+  function isSafetyKey(k) { return String(k || '').indexOf(DURABLE_PREFIX) === 0; }
+  function isMemoryKey(k) { return isStudyKey(k) && k !== THEME && !isSafetyKey(k); }
 
   /* A projeção de estudo começa VAZIA em toda abertura.
      Nenhuma chave antiga do navegador é adotada: depois da migração relacional,
@@ -46158,14 +47239,15 @@ else CloudStore.init();
   window.__idbFlush = function () { return Promise.resolve(); };
   window.__idbFlushStrict = function () { return Promise.resolve({ ok: true, relational: true, pending: 0 }); };
 
-  /* Limpa cópias persistentes antigas do namespace. O tema fica como cache visual. */
+  /* Limpa cópias persistentes antigas do namespace. O tema e o outbox WAL
+     ficam: o primeiro é cache visual; o segundo protege mutações sem ACK. */
   setTimeout(function () {
     if (!nativeLS) return;
     try {
       var apagar = [];
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i);
-        if (k && isStudyKey(k) && k !== THEME) apagar.push(k);
+        if (k && isStudyKey(k) && k !== THEME && !isSafetyKey(k)) apagar.push(k);
       }
       apagar.forEach(function (k) { try { nativeLS.removeItem(k); } catch (_) {} });
     } catch (_) {}
