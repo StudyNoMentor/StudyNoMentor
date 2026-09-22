@@ -64,12 +64,13 @@ const AnkiFinalParity = {
   },
   _eventShortcut(e){
     if(!e)return '';
-    let key='';
-    if(e.code&&/^Key[A-Z]$/.test(e.code))key=e.code.slice(3);
+    let key='',rawKey=String(e.key||'');
+    if(rawKey.length===1&&/^[^A-Za-z0-9]$/.test(rawKey))key=rawKey;
+    else if(e.code&&/^Key[A-Z]$/.test(e.code))key=e.code.slice(3);
     else if(e.code&&/^Digit[0-9]$/.test(e.code))key=e.code.slice(5);
     else if(e.code&&/^Numpad[0-9]$/.test(e.code))key=e.code;
     else if(['Space','Escape','Delete','Backspace','Enter','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code))key=e.code;
-    else if(typeof e.key==='string'&&e.key.length===1)key=/[a-z]/i.test(e.key)?e.key.toUpperCase():e.key;
+    else if(rawKey.length===1)key=/[a-z]/i.test(rawKey)?rawKey.toUpperCase():rawKey;
     else key=String(e.key||e.code||'');
     if(!key)return '';
     const symbol=/^[^A-Za-z0-9]$/.test(key);
