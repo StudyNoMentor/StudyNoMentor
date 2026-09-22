@@ -181,4 +181,43 @@ td=AnkiParity.fsrsTrainingData([
 ],{cards:[{id:'tr',ankiId:303}],nextDayAtSec:NEXT_DAY_AT});
 eq(td.items.length,0,'card sem learning é excluído do treino oficial');
 
-console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites/treino-FSRS válidos.');
+// ── Note types / Notes / Fields / Templates ───────────────────────────────
+A.reset();
+const nb=DB.addCard({frente:'Frente',verso:'Verso',kind:'basic'});
+const nr1=DB.addCard({noteId:'rev-note',template:'forward',kind:'basic',frente:'Q',verso:'A'});
+const nr2=DB.addCard({noteId:'rev-note',template:'reverse',kind:'basic',frente:'A',verso:'Q',reversedOf:nr1.id});
+const nc=DB.addCard({noteId:'cl-note',kind:'cloze',template:'cloze:1',clozeOrd:1,frente:'Lei {{c1::seca}}',verso:'extra'});
+AnkiParity.ensureIdentities();
+const norm=AnkiParity.ensureCanonicalNotes();
+eq(norm.notes,3,'três notas lógicas geram três entidades Note');
+const bcard=DB.getCard(nb.id), bnote=AnkiParity.getNote(bcard.ankiNoteId), bnt=AnkiParity.getNotetype(bcard.notetypeId);
+eq(bnote.fields,{Front:'Frente',Back:'Verso'},'Basic migra Front/Back para a Note');
+eq(bnt.stockKind,'basic','Basic aponta para stock notetype Basic');
+eq(bnt.templates[0].qfmt,'{{Front}}','template Basic preserva qfmt oficial');
+eq(bnt.templates[0].afmt,'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}','template Basic preserva afmt oficial');
+
+const rs=DB.getCards().filter(x=>String(x.noteId)==='rev-note');
+ok(rs.every(x=>x.ankiNoteId===rs[0].ankiNoteId),'irmãos forward/reverse compartilham Note');
+const rnote=AnkiParity.getNote(rs[0].ankiNoteId), rnt=AnkiParity.getNotetype(rs[0].notetypeId);
+eq(rnote.fields,{Front:'Q',Back:'A'},'nota reversa guarda conteúdo uma única vez');
+eq(rnt.stockKind,'basic_reversed','nota reversa usa note type de dois templates');
+eq(rs.map(x=>x.ankiTemplateOrd).sort((a,b)=>a-b),[0,1],'cards irmãos apontam para ordinais 0/1');
+
+const cc=DB.getCards().find(x=>String(x.noteId)==='cl-note'), cnote=AnkiParity.getNote(cc.ankiNoteId), cnt=AnkiParity.getNotetype(cc.notetypeId);
+eq(cnote.fields,{Text:'Lei {{c1::seca}}','Back Extra':'extra'},'Cloze migra Text/Back Extra para a Note');
+eq(cnt.stockKind,'cloze','Cloze usa note type Cloze');
+eq(cnt.templates[0].qfmt,'{{cloze:Text}}','template Cloze usa filtro cloze');
+eq(strip(AnkiParity.renderTemplate(cnt,cnote,0,'question',cc,'')),'Lei [...]','renderer usa ordinal do card Cloze');
+ok(strip(AnkiParity.renderTemplate(cnt,cnote,0,'answer',cc,'')).includes('Lei seca'),'renderer de resposta revela Cloze');
+
+const custom=AnkiParity.saveNotetype({
+  id:AnkiParity._allocId(),name:'Fiscal custom',kind:'normal',
+  fields:[{name:'Pergunta'},{name:'Resposta'},{name:'Obs'}],
+  templates:[{name:'Card 1',qfmt:'{{Pergunta}}{{#Obs}} — {{Obs}}{{/Obs}}',afmt:'{{FrontSide}}<hr>{{Resposta}}{{^Obs}} sem obs{{/Obs}}'}]
+});
+const cn=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:custom.id,fields:{Pergunta:'P?',Resposta:'R!',Obs:'X'},tags:['fiscal']});
+eq(strip(AnkiParity.renderTemplate(custom,cn,0,'question',{},'')),'P? — X','template custom resolve campo + condicional');
+const qside=AnkiParity.renderTemplate(custom,cn,0,'question',{},'');
+eq(strip(AnkiParity.renderTemplate(custom,cn,0,'answer',{},qside)),'P? — XR!','FrontSide entra na resposta e inversa vazia não entra');
+
+console.log('PARIDADE TOTAL ANKI: '+checks+'/'+checks+' contratos de RNG/Cloze/LB/irmãos/presets/limites/treino-FSRS/notas válidos.');
