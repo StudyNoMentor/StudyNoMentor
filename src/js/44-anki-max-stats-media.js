@@ -273,8 +273,9 @@ const AnkiMaxStatsMedia = {
       const cid=this._simNumericCardId(c,i);cardKey.set(String(c.id),cid);if(c.ankiId!=null)cardKey.set(String(c.ankiId),cid);
       const phase=String(c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new'));
       if(phase==='new'){newCards.push(c);return;}
-      const stability=Number(c.s),difficulty=Number(c.d);
-      if(!(stability>0)||!Number.isFinite(difficulty))return;
+      const stability=Number(c.s),difficulty=Number(c.d),hasMemory=stability>0&&Number.isFinite(difficulty),
+        easeRaw=Number(c.easeFactor!=null?c.easeFactor:(c.ease!=null?c.ease:2.5)),
+        easeFactor=Number.isFinite(easeRaw)?(easeRaw>10?easeRaw/1000:easeRaw):2.5;
       const interval=Math.max(0,Number(c.intervalo)||0);
       let due=0,lastDate=0;
       if(phase==='learning'||phase==='relearning'||c.dueTs){due=0;lastDate=0;}
@@ -282,9 +283,9 @@ const AnkiMaxStatsMedia = {
         due=this._simSignedDays(today,c.due||today);
         lastDate=Math.min(0,due-Math.max(0,interval));
       }
-      existing.push({id:cid,difficulty,stability,last_date:lastDate,due,interval,lapses:Math.max(0,Math.round(Number(c.lapses)||0))});
+      existing.push({id:cid,difficulty:hasMemory?difficulty:null,stability:hasMemory?stability:null,ease_factor:easeFactor,last_date:lastDate,due,interval,lapses:Math.max(0,Math.round(Number(c.lapses)||0))});
     });
-    const revlogs=[];
+    const revlogs=[],firstReviewDateByCard=new Map();
     this.statsRevlog(false).forEach((r,i)=>{
       const cid=cardKey.get(String(r.cardId==null?r.ankiCardId:r.cardId));if(cid==null)return;
       let id=Math.round(Number(r.ts)||Date.parse(String(r.date||'')+'T12:00:00')||Date.now());
@@ -294,12 +295,19 @@ const AnkiMaxStatsMedia = {
         ef=Math.max(0,Math.round((Number(r.easeFactor!=null?r.easeFactor:r.ease)||2.5)*(Number(r.easeFactor)>100?1:1000))),
         taken=Math.max(0,Math.round(Number(r.time!=null?r.time:r.takenMillis)||0));
       revlogs.push({id,cid,button_chosen:Math.max(1,Math.min(4,Math.round(Number(r.grade)||1))),interval:iv,last_interval:lastIv,ease_factor:ef,taken_millis:taken,review_kind:this._simReviewKind(r)});
+      const d=String(r.date||new Date(Number(r.ts)||0).toISOString().slice(0,10)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
+      if(d&&(!firstReviewDateByCard.has(k)||d<firstReviewDateByCard.get(k)))firstReviewDateByCard.set(k,d);
     });
-    const introducedToday=scoped.filter(c=>String(c.createdAt||'').slice(0,10)===today).length;
+    const introducedToday=scoped.filter(c=>{
+      const explicit=String(c.firstReviewAt||'').slice(0,10);
+      const inferred=firstReviewDateByCard.get(String(c.id))||firstReviewDateByCard.get(String(c.ankiId||''));
+      return (explicit||inferred||'')===today;
+    }).length;
     const mod=await FSRS._loadOfficialOptimizer();
     if(typeof mod.simulate_json!=='function')throw new Error('Simulador fsrs-rs 6.6.2 oficial indisponível');
     const raw=mod.simulate_json(JSON.stringify({
-      revlogs,next_day_at:this._simNextDayAtSec(cfg),params,desired_retention:retention,days_to_simulate:days,
+      revlogs,next_day_at:this._simNextDayAtSec(cfg),params,desired_retention:retention,
+      historical_retention:Math.max(.5,Math.min(.99,Number(cfg.historicalRetention)||.9)),days_to_simulate:days,
       new_card_count:newCards.length+additionalNew,introduced_today_count:introducedToday,
       new_limit:newLimit,review_limit:reviewLimit,max_interval:maxInterval,
       new_cards_ignore_review_limit:!!cfg.newCardsIgnoreReviewLimit,
