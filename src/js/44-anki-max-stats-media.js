@@ -238,6 +238,82 @@ const AnkiMaxStatsMedia = {
     }
   },
 
+  _simNumericCardId(card,index){
+    const raw=card&&card.ankiId!=null?Number(card.ankiId):NaN;
+    if(Number.isSafeInteger(raw)&&raw>0)return raw;
+    const key=String(card&&card.id!=null?card.id:index),h=typeof FSRS!=='undefined'&&FSRS._hash?FSRS._hash(key):index+1;
+    return 1000000000+(Number(h)>>>0);
+  },
+  _simSignedDays(a,b){
+    const x=new Date(String(a||'')+'T00:00:00'),y=new Date(String(b||'')+'T00:00:00');
+    const n=Math.round((y-x)/86400000);return Number.isFinite(n)?n:0;
+  },
+  _simNextDayAtSec(cfg){
+    const now=new Date(),cut=new Date(now),hour=Math.max(0,Math.min(23,Number(cfg&&cfg.rolloverHour)||4));
+    cut.setHours(hour,0,0,0);if(cut<=now)cut.setDate(cut.getDate()+1);
+    return Math.floor(cut.getTime()/1000);
+  },
+  _simReviewKind(row){
+    const p=String(row&&row.phase||row&&row.kind||'review').toLowerCase();
+    if(p==='learning')return 0;if(p==='relearning')return 2;if(p==='filtered'||p==='cram')return 3;if(p==='manual'||p==='rescheduled')return 4;return 1;
+  },
+  async simulateOfficial(days,retention,opts){
+    opts=opts||{};days=Math.max(1,Math.min(3650,Math.round(Number(days)||365)));retention=Math.max(.7,Math.min(.99,Number(retention)||.9));
+    const state=this._statsState||{},deckId=state.scope==='deck'?this._statsSelectedDeckId():null,
+      cfg=deckId?CardsConfig.forDeck(deckId):CardsConfig.get(),
+      scoped=this.statsCards().filter(c=>!c.suspenso),today=todayCards(),
+      w=(CardsConfig.weightsFor&&deckId)?CardsConfig.weightsFor(deckId):(cfg.weights&&FSRS.pesosValidos(cfg.weights)?cfg.weights:FSRS.DEFAULT_W),
+      params=FSRS.migrarW(w)||FSRS.DEFAULT_W.slice(),
+      newLimit=Math.max(0,Math.round(opts.newLimit==null?Number(cfg.newPerDay)||0:Number(opts.newLimit)||0)),
+      reviewLimit=Math.max(0,Math.round(opts.reviewLimit==null?Number(cfg.revPerDay)||0:Number(opts.reviewLimit)||0)),
+      maxInterval=Math.max(1,Math.min(36500,Math.round(opts.maxInterval==null?Number(cfg.maxInterval)||36500:Number(opts.maxInterval)||36500))),
+      additionalNew=Math.max(0,Math.round(Number(opts.additionalNew)||0);
+    const cardKey=new Map(),existing=[],newCards=[];
+    scoped.forEach((c,i)=>{
+      const cid=this._simNumericCardId(c,i);cardKey.set(String(c.id),cid);if(c.ankiId!=null)cardKey.set(String(c.ankiId),cid);
+      const phase=String(c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new'));
+      if(phase==='new'){newCards.push(c);return;}
+      const stability=Number(c.s),difficulty=Number(c.d);
+      if(!(stability>0)||!Number.isFinite(difficulty))return;
+      const interval=Math.max(0,Number(c.intervalo)||0);
+      let due=0,lastDate=0;
+      if(phase==='learning'||phase==='relearning'||c.dueTs){due=0;lastDate=0;}
+      else{
+        due=this._simSignedDays(today,c.due||today);
+        lastDate=Math.min(0,due-Math.max(0,interval));
+      }
+      existing.push({id:cid,difficulty,stability,last_date:lastDate,due,interval,lapses:Math.max(0,Math.round(Number(c.lapses)||0))});
+    });
+    const revlogs=[];
+    this.statsRevlog(false).forEach((r,i)=>{
+      const cid=cardKey.get(String(r.cardId==null?r.ankiCardId:r.cardId));if(cid==null)return;
+      let id=Math.round(Number(r.ts)||Date.parse(String(r.date||'')+'T12:00:00')||Date.now());
+      id+=i%1000;
+      const iv=Math.round(Number(r.intervalo!=null?r.intervalo:r.interval)||0),
+        lastIv=Math.round(Number(r.lastInterval!=null?r.lastInterval:r.last_interval)||0),
+        ef=Math.max(0,Math.round((Number(r.easeFactor!=null?r.easeFactor:r.ease)||2.5)*(Number(r.easeFactor)>100?1:1000))),
+        taken=Math.max(0,Math.round(Number(r.time!=null?r.time:r.takenMillis)||0));
+      revlogs.push({id,cid,button_chosen:Math.max(1,Math.min(4,Math.round(Number(r.grade)||1))),interval:iv,last_interval:lastIv,ease_factor:ef,taken_millis:taken,review_kind:this._simReviewKind(r)});
+    });
+    const introducedToday=scoped.filter(c=>String(c.createdAt||'').slice(0,10)===today).length;
+    const mod=await FSRS._loadOfficialOptimizer();
+    if(typeof mod.simulate_json!=='function')throw new Error('Simulador fsrs-rs 6.6.2 oficial indisponível');
+    const raw=mod.simulate_json(JSON.stringify({
+      revlogs,next_day_at:this._simNextDayAtSec(cfg),params,desired_retention:retention,days_to_simulate:days,
+      new_card_count:newCards.length+additionalNew,introduced_today_count:introducedToday,
+      new_limit:newLimit,review_limit:reviewLimit,max_interval:maxInterval,
+      new_cards_ignore_review_limit:!!cfg.newCardsIgnoreReviewLimit,
+      suspend_after_lapses:cfg.leechAction==='suspend'?Math.max(1,Math.round(Number(cfg.leechThreshold)||8)):null,
+      learning_step_count:Array.isArray(cfg.learnSteps)?cfg.learnSteps.length:0,
+      relearning_step_count:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0,
+      review_order:String(cfg.reviewOrder||'day'),cards:existing
+    }));
+    const out=JSON.parse(raw);
+    return {days,retention,reviews:out.reviews||[],news:out.news||[],time:out.time||[],memorized:out.memorized||[],
+      correct:out.correct||[],introducedByDay:out.introduced||[],introduced:(out.introduced||[]).at(-1)||0,
+      sample:scoped.length,scale:1,additionalNew,newLimit,reviewLimit,maxInterval,engine:'fsrs-rs '+String(out.fsrs_rs_version||'6.6.2')};
+  },
+
   _ratingModel(){
     const logs=DB.getRevlog().filter(r=>Number(r.grade)>=1&&Number(r.grade)<=4),first=[.1,.12,.68,.1],review=[.08,.1,.72,.1],cost=[8,8,8,8];
     const calc=(sub,fallback)=>{if(sub.length<20)return fallback;const n=[0,0,0,0];sub.forEach(r=>n[Number(r.grade)-1]++);return n.map(x=>x/sub.length);};
@@ -291,11 +367,16 @@ const AnkiMaxStatsMedia = {
   _simBars(arr,maxBars=90){
     const group=Math.max(1,Math.ceil(arr.length/maxBars)),xs=[];for(let i=0;i<arr.length;i+=group)xs.push(arr.slice(i,i+group).reduce((a,b)=>a+b,0)/Math.min(group,arr.length-i));const mx=Math.max(1,...xs);return '<div class="anki-sim-bars">'+xs.map((n,i)=>'<i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%" title="Período '+(i+1)+': '+Math.round(n)+'"></i>').join('')+'</div>';
   },
-  runSimulator(){
+  async runSimulator(){
     const days=Number(document.getElementById('anki-sim-days').value)||365,r=(Number(document.getElementById('anki-sim-retention').value)||90)/100,
       opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500,approximate:false},
-      sim=this.simulate(days,r,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
-    document.getElementById('anki-sim-result').innerHTML='<div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(total/days)+'</div><div class="stat-kpi-l">respostas/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+(secs/60/days).toFixed(1)+'m</div><div class="stat-kpi-l">tempo/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(sim.memorized.at(-1)||0)+'</div><div class="stat-kpi-l">memorizados ao final</div></div></div><h3>Carga projetada</h3>'+this._simBars(sim.reviews.map((x,i)=>x+sim.news[i]))+'<p class="hint">Simulação exata sobre os '+sim.sample+' card(s) ativos da coleção, sem amostragem/escalonamento. Usa S/D, parâmetros FSRS, retenção, limites e intervalo máximo atuais.</p>';
+      out=document.getElementById('anki-sim-result');
+    out.innerHTML='<p class="hint">Simulando no fsrs-rs 6.6.2 oficial…</p>';
+    try{
+      const sim=await this.simulateOfficial(days,r,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
+      out.innerHTML='<div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(total/days)+'</div><div class="stat-kpi-l">respostas/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+(secs/60/days).toFixed(1)+'m</div><div class="stat-kpi-l">tempo/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(sim.memorized.at(-1)||0)+'</div><div class="stat-kpi-l">memorizados ao final</div></div></div><h3>Carga projetada</h3>'+this._simBars(sim.reviews.map((x,i)=>x+sim.news[i]))+'<p class="hint">Motor oficial '+sim.engine+' sobre '+sim.sample+' card(s) ativos, sem amostragem/escalonamento. Usa os estados S/D, histórico, limites e parâmetros atuais.</p>';
+      return sim;
+    }catch(e){console.error(e);out.innerHTML='<p class="hint tone-bad">Falha ao executar o simulador oficial: '+AnkiProductParity.esc(e&&e.message||e)+'</p>';throw e;}
   },
   async runHelpMeDecide(){
     const out=document.getElementById('anki-sim-result');if(!out)return;
@@ -303,12 +384,12 @@ const AnkiMaxStatsMedia = {
       opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500,approximate:false},
       curve=[];out.innerHTML='<p class="hint">Calculando 70%–99% sobre a coleção completa…</p>';
     for(let p=70;p<=99;p++){
-      const sim=this.simulate(days,p/100,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
+      const sim=await this.simulateOfficial(days,p/100,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
       curve.push({retention:p,reviews:total/days,minutes:secs/60/days,memorized:sim.memorized.at(-1)||0});
       if(p%3===0)await new Promise(r=>setTimeout(r,0));
     }
     out.innerHTML='<h3>Help Me Decide</h3><p class="hint">Como no Anki experimental: compare a carga prevista em diferentes retenções. Clique numa linha para levar o valor ao simulador.</p><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Retenção</th><th>Respostas/dia</th><th>Min/dia</th><th>Memorizados</th></tr></thead><tbody>'+curve.map(x=>'<tr data-sim-ret="'+x.retention+'" tabindex="0"><td>'+x.retention+'%</td><td>'+Math.round(x.reviews)+'</td><td>'+x.minutes.toFixed(1)+'</td><td>'+Math.round(x.memorized)+'</td></tr>').join('')+'</tbody></table></div>';
-    out.querySelectorAll('[data-sim-ret]').forEach(row=>row.onclick=()=>{document.getElementById('anki-sim-retention').value=row.dataset.simRet;this.runSimulator();});
+    out.querySelectorAll('[data-sim-ret]').forEach(row=>row.onclick=()=>{document.getElementById('anki-sim-retention').value=row.dataset.simRet;void this.runSimulator();});
     return curve;
   },
 
