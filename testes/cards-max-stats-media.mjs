@@ -82,6 +82,8 @@ assert.match(statsSrc,/anki-sim-review-limit/,'simulador deve expor máximo de r
 assert.match(statsSrc,/approximate:false/,'simulador da UI deve usar coleção completa');
 assert.doesNotMatch(statsSrc,/_sampleCards\(/,'simulador legado amostrado não deve coexistir com o oficial');
 assert.doesNotMatch(statsSrc,/\bsimulate\(days,retention,opts\)/,'não deve existir segundo motor de simulação em JavaScript');
+assert.match(statsSrc,/r\.ankiInterval!=null\?r\.ankiInterval/,'simulador deve usar o intervalo pós-resposta do revlog Anki');
+assert.match(statsSrc,/r\.ankiLastInterval!=null\?r\.ankiLastInterval/,'simulador deve preservar o last_interval pré-resposta');
 assert.match(statsSrc,/for\(let p=70;p<=99;p\+\+\)/,'Help Me Decide deve avaliar integralmente 70%–99%');
 assert.match(statsSrc,/Help Me Decide/,'simulador deve expor Help Me Decide');
 assert.match(statsSrc,/Card Counts/,'estatísticas devem expor Card Counts');
