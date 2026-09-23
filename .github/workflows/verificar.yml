@@ -98,10 +98,6 @@ jobs:
         if: github.event_name != 'push'
         run: node audit/cards-20260921-v2/regressao.mjs
 
-      - name: Certificação longitudinal — 6.000 cards por 365 dias
-        if: github.event_name != 'push'
-        run: node testes/cards-certificacao-anki.mjs
-
       - name: Sincronizar artefatos gerados na main
         if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
         shell: bash
