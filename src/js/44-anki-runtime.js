@@ -28,7 +28,7 @@ const AnkiRuntime = {
   },
   _needsMath(html) {
     const s=String(html||'');
-    return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$')||/<anki-mathjax\b/i.test(s);
+    return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$$')||/<anki-mathjax\b/i.test(s);
   },
   _typeKey(v,ignoreDiacritics){
     let s=String(v==null?'':v).normalize('NFC');
