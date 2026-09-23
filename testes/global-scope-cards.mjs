@@ -59,7 +59,7 @@ const ctx={
   ReviewJournal:{put:async op=>{journal.push(op);return true;},remove:async()=>true},
   CardsConfig:{forgetCardId:()=>{},forDeck:()=>({buryNew:false,buryReviews:false,buryInterdayLearning:false})},
   CardEngine:{isDue:()=>true},_sanCard:x=>String(x??''),escapeHtml:x=>String(x??''),showToast:()=>{},_quiet:()=>{},
-  setTimeout:()=>{},CustomEvent:class{}
+  setTimeout:()=>{},CustomEvent:class{},addEventListener:()=>{}
 };
 ctx.window=ctx;
 vm.createContext(ctx);
