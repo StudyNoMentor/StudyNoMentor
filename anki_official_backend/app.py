@@ -965,8 +965,7 @@ def collection_graphs(
 ) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        request = stats_pb2.GraphsRequest(search=search, days=days)
-        return pb(item.col._backend.graphs(request))
+        return pb(item.col._backend.graphs(search=search, days=days))
 
 
 @app.post("/api/anki/fsrs/optimize")
@@ -981,7 +980,15 @@ def fsrs_optimize(
     except Exception as exc:
         raise HTTPException(400, f"Parâmetros FSRS inválidos: {exc}") from exc
     with item.lock:
-        return pb(item.col._backend.compute_fsrs_params(request))
+        return pb(
+            item.col._backend.compute_fsrs_params(
+                search=request.search,
+                current_params=list(request.current_params),
+                ignore_revlogs_before_ms=request.ignore_revlogs_before_ms,
+                num_of_relearning_steps=request.num_of_relearning_steps,
+                health_check=request.health_check,
+            )
+        )
 
 
 @app.post("/api/anki/fsrs/simulate")
@@ -997,11 +1004,29 @@ def fsrs_simulate(
     except Exception as exc:
         raise HTTPException(400, f"Simulação FSRS inválida: {exc}") from exc
     with item.lock:
+        kwargs = {
+            "params": list(request.params),
+            "desired_retention": request.desired_retention,
+            "deck_size": request.deck_size,
+            "days_to_simulate": request.days_to_simulate,
+            "new_limit": request.new_limit,
+            "review_limit": request.review_limit,
+            "max_interval": request.max_interval,
+            "search": request.search,
+            "new_cards_ignore_review_limit": request.new_cards_ignore_review_limit,
+            "easy_days_percentages": list(request.easy_days_percentages),
+            "review_order": request.review_order,
+            "historical_retention": request.historical_retention,
+            "learning_step_count": request.learning_step_count,
+            "relearning_step_count": request.relearning_step_count,
+        }
+        if request.HasField("suspend_after_lapse_count"):
+            kwargs["suspend_after_lapse_count"] = request.suspend_after_lapse_count
         if mode == "workload":
-            return pb(item.col._backend.simulate_fsrs_workload(request))
+            return pb(item.col._backend.simulate_fsrs_workload(**kwargs))
         if mode == "optimal":
-            return pb(item.col._backend.compute_optimal_retention(request))
-        return pb(item.col._backend.simulate_fsrs_review(request))
+            return pb(item.col._backend.compute_optimal_retention(**kwargs))
+        return pb(item.col._backend.simulate_fsrs_review(**kwargs))
 
 
 @app.get("/api/anki/custom-study/defaults/{deck_id}")
