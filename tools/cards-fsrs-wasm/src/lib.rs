@@ -367,6 +367,7 @@ fn review_kind_from_u8(kind: u8) -> RevlogReviewKind {
         1 => RevlogReviewKind::Review,
         2 => RevlogReviewKind::Relearning,
         3 => RevlogReviewKind::Filtered,
+        5 => RevlogReviewKind::Rescheduled,
         _ => RevlogReviewKind::Manual,
     }
 }
