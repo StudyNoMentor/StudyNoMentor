@@ -103,7 +103,7 @@ const AnkiImageOcclusion = {
         <div class="cards-modal-box anki-io-box">
           <div class="cards-modal-head"><div><h2>🖼 Oclusão de imagem</h2><p class="sub">Máscaras salvas no formato oficial <code>image-occlusion</code> do Anki.</p></div><button class="icon-btn" data-io-close="anki-io-modal">✕</button></div>
           <div class="cards-modal-body">
-            <div class="field-group"><div class="field"><label>Baralho</label><select id="anki-io-deck"></select></div><div class="field"><label>Imagem</label><input id="anki-io-file" type="file" accept="image/*"></div></div>
+            <div class="field-group"><div class="field"><label>Baralho</label><select id="anki-io-deck"></select></div><div class="field"><label>Imagem</label><input id="anki-io-file" type="file" accept="image/*"><p class="hint">Arquivo ou imagem colada da área de transferência (Ctrl/⌘+V).</p></div></div>
             <div class="anki-io-toolbar">
               <button class="btn-secondary io-tool active" data-tool="rect">▭ Retângulo</button>
               <button class="btn-secondary io-tool" data-tool="ellipse">◯ Elipse</button>
@@ -203,7 +203,14 @@ const AnkiImageOcclusion = {
   },
 
   _bindEditor(){
-    const file=document.getElementById('anki-io-file');file.addEventListener('change',()=>{const f=file.files&&file.files[0];if(!f)return;const r=new FileReader();r.onload=()=>this._loadImageSrc(String(r.result||''));r.readAsDataURL(f);});
+    const file=document.getElementById('anki-io-file');file.addEventListener('change',()=>{const f=file.files&&file.files[0];if(f)this._loadImageFile(f);});
+    const modal=document.getElementById('anki-io-modal');
+    modal.addEventListener('paste',e=>{
+      const dt=e.clipboardData;if(!dt)return;let img=null;
+      for(const item of [...(dt.items||[])]){if(String(item.type||'').startsWith('image/')){img=item.getAsFile();break;}}
+      if(!img)img=[...(dt.files||[])].find(x=>String(x.type||'').startsWith('image/'))||null;
+      if(!img)return;e.preventDefault();this._loadImageFile(img);showToast('Imagem colada ✓');
+    });
     document.querySelectorAll('.io-tool').forEach(b=>b.addEventListener('click',()=>this._selectTool(b.dataset.tool)));
     document.getElementById('anki-io-occlude-inactive').addEventListener('change',e=>{this.state.occludeInactive=e.target.checked;this.state.shapes.forEach(s=>s.oi=this.state.occludeInactive);this._renderEditor();});
     document.getElementById('anki-io-group-mode').addEventListener('change',e=>{this.state.groupMode=e.target.value;});
@@ -217,6 +224,10 @@ const AnkiImageOcclusion = {
     c.addEventListener('pointerdown',e=>this._pointerDown(e));c.addEventListener('pointermove',e=>this._pointerMove(e));c.addEventListener('pointerup',e=>this._pointerUp(e));c.addEventListener('pointercancel',()=>{this.state.drawing=null;});
   },
   _selectTool(tool){this.state.tool=tool;document.querySelectorAll('.io-tool').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));document.getElementById('anki-io-finish-poly').disabled=tool!=='polygon'||this.state.polygon.length<3;},
+  _loadImageFile(file){
+    if(!file||!String(file.type||'').startsWith('image/'))return false;
+    const r=new FileReader();r.onload=()=>this._loadImageSrc(String(r.result||''));r.readAsDataURL(file);return true;
+  },
   _loadImageSrc(src){this.state.imageData=src;const img=new Image();img.onload=()=>{this.state.img=img;this._renderEditor();};img.src=src;},
   _canvasPoint(e){const c=document.getElementById('anki-io-canvas'),r=c.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))};},
   _ordinalForNew(){if(this.state.tool==='text')return 0;if(this.state.groupMode==='same')return Math.max(1,this.state.groupOrdinal||1);return this._nextOrdinal();},
