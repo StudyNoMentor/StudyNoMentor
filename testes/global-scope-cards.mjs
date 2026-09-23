@@ -215,7 +215,8 @@ assert.equal(S.revlogForPlan('A').length,0,'revisão global não pode cair no pl
 assert.equal(journal[0].planId,'B','journal durável deve carregar planId de origem');
 
 ctx.DB.deleteCard('b1');
-assert.equal(parse(keysForPlan('B').cards,[]).length,0,'exclusão deve ocorrer na origem');
+assert.equal(parse(keysForPlan('B').cards,[]).some(x=>x.id==='b1'),false,'exclusão deve ocorrer na origem');
+assert.equal(parse(keysForPlan('B').cards,[]).some(x=>x.id===cardB2.id),true,'exclusão de um card não pode remover outro card da mesma origem');
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id==='a1'),true,'exclusão global não pode tocar card do plano ativo');
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'exclusão de card externo não pode tocar card novo do plano ativo');
 
