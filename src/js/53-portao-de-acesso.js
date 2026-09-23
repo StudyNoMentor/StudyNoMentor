@@ -97,10 +97,21 @@ const ProfileUI = {
       if (sub) sub.textContent = 'Entre para continuar seus estudos.';
       const st = document.getElementById('gate-conn-status');
       if (st) {
-        const s = CS ? CS.libStatus : 'pending';
-        if (s === 'ready') { st.innerHTML = '<span class="cdot ok"></span> Servidor conectado'; st.className = 'gate-conn ok'; }
-        else if (s === 'pending') { st.innerHTML = '<span class="cdot"></span> Conectando ao servidor...'; st.className = 'gate-conn'; }
-        else { st.innerHTML = '<span class="cdot bad"></span> Servidor indisponível — verifique a internet'; st.className = 'gate-conn bad'; }
+        const lib = CS ? CS.libStatus : 'pending';
+        const svc = CS ? (CS.serviceStatus || 'unknown') : 'unknown';
+        if (svc === 'restricted') {
+          st.innerHTML = '<span class="cdot bad"></span> Servidor restrito por cota';
+          st.className = 'gate-conn bad';
+        } else if (svc === 'offline' || (lib !== 'ready' && lib !== 'pending')) {
+          st.innerHTML = '<span class="cdot bad"></span> Servidor indisponível — verifique a internet';
+          st.className = 'gate-conn bad';
+        } else if (lib === 'ready' && svc === 'ok') {
+          st.innerHTML = '<span class="cdot ok"></span> Servidor conectado';
+          st.className = 'gate-conn ok';
+        } else {
+          st.innerHTML = '<span class="cdot"></span> Conectando ao servidor...';
+          st.className = 'gate-conn';
+        }
       }
     } else {
       // Logado. Se vamos ENTRAR DIRETO (perfil padrão), NÃO mostramos o seletor:
@@ -449,7 +460,17 @@ const ProfileUI = {
     }
   },
   _friendlyAuthError(err) {
-    const m = (err && err.message || '').toLowerCase();
+    const m = [
+      err && err.message, err && err.code, err && err.status,
+      err && err.error_description
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (m.includes('exceed_egress_quota') ||
+        m.includes('service for this project is restricted') ||
+        /\b402\b/.test(m)) {
+      try { if (window.CloudStore && CloudStore._setServiceStatus) CloudStore._setServiceStatus('restricted'); }
+      catch (e) { _quiet(e, 'auth-quota-status'); }
+      return 'Servidor restrito por cota do Supabase. O login volta quando a cota for liberada.';
+    }
     if (m.includes('invalid login')) return 'E-mail ou senha incorretos.';
     if (m.includes('email not confirmed')) return 'Confirme seu e-mail e tente novamente.';
     if (m.includes('already registered') || m.includes('already been registered')) return 'Este e-mail já tem conta. Use a aba "Entrar".';
