@@ -18,6 +18,26 @@ eq(CardEngine.hasContent('<div><br></div>'),false,'HTML estrutural vazio não po
 const telaSrc=A.source?A.source('src/js/44-tela-cards.js'):null;
 if(telaSrc) ok(telaSrc.includes('CardEngine.hasContent(frente)')&&telaSrc.includes('CardEngine.hasContent(verso)'),'salvamento simples deve validar mídia, não só texto');
 
+
+// ── Sessão do reviewer: cache de fila como Collection.state.card_queues ───
+A.reset({newPerDay:99,revPerDay:99});
+const rq1=DB.addCard({frente:'Q1',verso:'A1',phase:'new',due:A.hoje(),posicaoNova:1});
+DB.addCard({frente:'Q2',verso:'A2',phase:'new',due:A.hoje(),posicaoNova:2});
+const realBuild=CardsScreen.buildQueue.bind(CardsScreen);
+let queueBuilds=0;
+CardsScreen.buildQueue=()=>{queueBuilds++;return realBuild();};
+CardsScreen._reviewQueue=[];CardsScreen._reviewIdx=0;
+CardsScreen.renderRevisar({innerHTML:''});
+eq(queueBuilds,1,'primeira entrada no reviewer constrói a fila');
+eq(CardsScreen._reviewQueue[CardsScreen._reviewIdx],rq1.id,'primeiro card esperado fica no topo');
+CardsScreen.renderRevisar({innerHTML:''});
+eq(queueBuilds,1,'rerender com fila ativa não reconstrói CardQueues');
+eq(CardsScreen._reviewQueue[CardsScreen._reviewIdx],rq1.id,'rerender preserva exatamente o card atual');
+CardsScreen.invalidateReviewQueue();
+CardsScreen.renderRevisar({innerHTML:''});
+eq(queueBuilds,2,'invalidação explícita reconstrói a fila');
+CardsScreen.buildQueue=realBuild;
+
 // ── RNG oficial: rand_core seed_from_u64 + StdRng/ChaCha12 ────────────────
 for(const [seed,a,b] of [
   [0n,0xCD2C6F7F,0xBB2A3FB2],
