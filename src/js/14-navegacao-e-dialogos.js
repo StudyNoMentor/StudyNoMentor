@@ -78,8 +78,15 @@ $id('tabs').addEventListener('click', (e) => {
   const externalUrl = btn.dataset.externalUrl;
   if (externalUrl) {
     e.preventDefault();
-    const w = window.open(externalUrl, '_blank', 'noopener,noreferrer');
-    if (w) try { w.opener = null; } catch (_) { _quiet(_); }
+    /* No celular, entrega a navegação à própria interface responsiva do
+       AnkiWeb na mesma aba. No desktop, mantém o Study aberto e usa nova aba. */
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 860px)').matches;
+    if (isMobile) {
+      window.location.assign(externalUrl);
+    } else {
+      const w = window.open(externalUrl, '_blank', 'noopener,noreferrer');
+      if (w) try { w.opener = null; } catch (_) { _quiet(_); }
+    }
     return;
   }
   switchScreen(btn.dataset.screen);
