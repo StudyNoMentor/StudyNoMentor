@@ -1,0 +1,115 @@
+name: Certificacao final Cards Anki
+
+on:
+  push:
+    branches:
+      - fix/cards-fsrs-healthcheck-wasm-20260923
+  workflow_dispatch:
+
+concurrency:
+  group: cards-final-certification-fsrs
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  certificar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build, sintaxe e integridade do vendor
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check build.mjs
+          node --check verificar.mjs
+          for f in src/js/*.js; do node --check "$f"; done
+          node build.mjs
+          test -f tools/cards-fsrs-wasm/Cargo.lock
+          test "$(sha256sum src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm | awk '{print $1}')" = "$(tr -d '[:space:]' < src/vendor/fsrs-6.6.2/SHA256)"
+
+      - name: Contratos centrais
+        run: timeout 180s node testes/cards-paridade-total-anki.mjs
+
+      - name: Interoperabilidade completa
+        shell: bash
+        env:
+          SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
+          SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
+          SNM_COLPKG_OUT: ${{ runner.temp }}/snm-study.colpkg
+        run: |
+          set -euo pipefail
+          timeout 180s node testes/cards-apkg-export.mjs
+          timeout 180s node testes/cards-import-formatos.mjs
+          timeout 180s node testes/cards-runtime-anki.mjs
+          timeout 180s node testes/cards-product-parity.mjs
+          timeout 180s node testes/cards-max-reviewer-browser.mjs
+          timeout 180s node testes/cards-image-occlusion.mjs
+          timeout 180s node testes/cards-max-editor-io.mjs
+          timeout 180s node testes/cards-max-stats-media.mjs
+          timeout 180s node testes/cards-10of10-final.mjs
+          timeout 180s node testes/cards-total-parity.mjs
+          timeout 180s node testes/cards-practical-10.mjs
+          timeout 180s node testes/cards-fsrs-optimizer-oficial.mjs
+          timeout 180s node testes/cards-concorrencia-multidevice.mjs
+
+      - name: Oracle nativo do Health Check FSRS
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CARGO_TARGET_DIR="${RUNNER_TEMP}/fsrs-native-target"
+          timeout 360s cargo run \
+            --manifest-path tools/cards-fsrs-wasm/Cargo.toml \
+            --release \
+            --locked \
+            --target x86_64-unknown-linux-gnu \
+            --config 'build.rustflags=[]' \
+            --bin health_oracle \
+            > "${RUNNER_TEMP}/fsrs-health-native.json"
+          cat "${RUNNER_TEMP}/fsrs-health-native.json"
+          SNM_FSRS_HEALTH_EXPECTED="${RUNNER_TEMP}/fsrs-health-native.json" \
+            timeout 180s node testes/cards-fsrs-health-differential.mjs
+
+      - name: Diferenciais contra Anki oficial 26.09.2
+        shell: bash
+        env:
+          SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
+          SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
+          SNM_ANKI_OFFICIAL_OUT: ${{ runner.temp }}/anki-oficial-latest.apkg
+          SNM_ANKI_SEARCH_EXPECTED: ${{ runner.temp }}/anki-search-expected.json
+          SNM_ANKI_TYPEANSWER_EXPECTED: ${{ runner.temp }}/anki-typeanswer-expected.json
+        run: |
+          set -euo pipefail
+          timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 'anki==26.09.2'
+          timeout 180s python testes/anki-oficial-roundtrip.py
+          timeout 180s python testes/anki-oficial-search.py
+          timeout 180s node testes/cards-search-differential.mjs
+          timeout 180s python testes/anki-oficial-typeanswer.py
+          timeout 180s node testes/cards-typeanswer-differential.mjs
+          timeout 180s node testes/cards-import-anki-oficial.mjs
+
+      - name: Backend Anki oficial
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 -r anki_official_backend/requirements.txt
+          ANKI_DATA_DIR="${RUNNER_TEMP}/anki-official" timeout 180s python testes/anki-oficial-backend-smoke.py
+
+      - name: Regressões críticas
+        run: timeout 180s node audit/cards-20260921-v2/regressao.mjs
+
+      - name: Certificação longitudinal 6.000 cards x 365 dias
+        run: timeout 360s node testes/cards-certificacao-anki.mjs
