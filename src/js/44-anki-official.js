@@ -742,41 +742,31 @@ const AnkiOfficial = {
 
   async renderOptions() {
     const root=this.root(); if(!root) return;
-    try {
+    try{
       const decks=await this.request('/api/anki/decks');
       const did=Number(decks.current_deck_id);
       const current=(decks.decks||[]).find(d=>Number(d.id)===did);
       const data=await this.request('/api/anki/deck/'+did+'/options');
-      const presets=Array.isArray(data.all_config)?data.all_config.length:0;
       root.innerHTML=`
-        <div class="ankidroid-settings-page">
-          <div class="ankidroid-settings-title">Baralho atual</div>
-          <div class="ankidroid-settings-card">
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">▤</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">${this.esc(current&&current.name||'Baralho')}</div><div class="ankidroid-setting-desc">Configuração fornecida pelo backend oficial do Anki.</div></div>
-              <div class="ankidroid-setting-value">ID ${did}</div>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">◔</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">FSRS</div><div class="ankidroid-setting-desc">Estado do scheduler para este conjunto de opções.</div></div>
-              <div class="ankidroid-setting-value ${data.fsrs?'ankidroid-status-good':''}">${data.fsrs?'Ativado':'Desativado'}</div>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">⚙</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Presets</div><div class="ankidroid-setting-desc">Configurações retornadas por DeckConfigsForUpdate.</div></div>
-              <div class="ankidroid-setting-value">${presets}</div>
-            </div>
+        <section class="card anki-study-form-card">
+          <div class="card-header">
+            <div><h2>⚙ Opções do baralho</h2><p class="sub">${this.esc(current&&current.name||'Baralho')} · objeto DeckConfigsForUpdate do Anki oficial.</p></div>
           </div>
-          <details class="ankidroid-advanced">
-            <summary>Opções avançadas oficiais</summary>
-            <div class="ankidroid-advanced-body">
-              <p class="hint">Edição integral do objeto oficial. O Study não recalcula nem interpreta os parâmetros.</p>
-              <textarea class="anki-official-json" id="anki-options-json">${this.esc(JSON.stringify(data,null,2))}</textarea>
-              <div class="ankidroid-settings-actions"><button type="button" class="btn-primary" id="anki-options-save">Salvar no Anki oficial</button></div>
+          <div class="anki-study-form-body">
+            <div class="stat-kpis" style="margin-bottom:0">
+              <div class="stat-kpi"><div class="stat-kpi-v accent">${data.fsrs?'ON':'OFF'}</div><div class="stat-kpi-l">FSRS</div></div>
+              <div class="stat-kpi"><div class="stat-kpi-v">${Array.isArray(data.all_config)?data.all_config.length:0}</div><div class="stat-kpi-l">Presets</div></div>
+              <div class="stat-kpi"><div class="stat-kpi-v">${did}</div><div class="stat-kpi-l">Deck ID</div></div>
+              <div class="stat-kpi"><div class="stat-kpi-v good">Anki</div><div class="stat-kpi-l">Motor</div></div>
             </div>
-          </details>
-        </div>`;
+            <details>
+              <summary style="cursor:pointer;font-weight:700">Opções avançadas oficiais</summary>
+              <p class="hint">O Study apenas envia este objeto de volta ao backend. A interpretação dos parâmetros é do Anki.</p>
+              <textarea class="anki-study-options-json" id="anki-options-json">${this.esc(JSON.stringify(data,null,2))}</textarea>
+            </details>
+            <div class="submit-row"><button type="button" class="btn-primary" id="anki-options-save">Salvar no Anki oficial</button></div>
+          </div>
+        </section>`;
       document.getElementById('anki-options-save').onclick=async()=>{
         try{
           const payload=JSON.parse(document.getElementById('anki-options-json').value);
@@ -790,7 +780,7 @@ const AnkiOfficial = {
 
   async renderTools() {
     const root=this.root(); if(!root) return;
-    try {
+    try{
       const [st,media,cols]=await Promise.all([
         this.request('/api/anki/status'),
         this.request('/api/anki/media/check'),
@@ -799,62 +789,31 @@ const AnkiOfficial = {
       const missing=(media.missing||media.missing_files||[]).length||0;
       const unused=(media.unused||media.unused_files||[]).length||0;
       root.innerHTML=`
-        <div class="ankidroid-settings-page">
-          <div class="ankidroid-settings-title">Anki</div>
-          <div class="ankidroid-settings-card">
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">★</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Engine oficial</div><div class="ankidroid-setting-desc">Coleção ${this.esc(st.collection_path)} · ${st.cards} cards · ${st.notes} notas</div></div>
-              <div class="ankidroid-setting-value ankidroid-status-good">${this.esc(st.runtime_version)}</div>
+        <div class="anki-study-tools-grid">
+          <div class="anki-study-tool-card"><strong>${this.esc(st.runtime_version)}</strong><span>Engine Anki oficial</span></div>
+          <div class="anki-study-tool-card"><strong>${st.cards}</strong><span>Cards na coleção</span></div>
+          <div class="anki-study-tool-card"><strong>${st.notes}</strong><span>Notas na coleção</span></div>
+        </div>
+        <section class="card">
+          <div class="card-header"><div><h2>🧰 Ferramentas</h2><p class="sub">Operações executadas pela própria Collection do Anki.</p></div></div>
+          <div style="padding:0 22px 20px">
+            <div class="anki-study-tool-actions">
+              <button type="button" class="btn-secondary" id="anki-db-check">✓ Verificar banco</button>
+              <button type="button" class="btn-secondary" id="anki-db-optimize">↻ Otimizar coleção</button>
+              <button type="button" class="btn-secondary" id="anki-official-change-api">⌁ Servidor</button>
             </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">▧</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Navegador</div><div class="ankidroid-setting-desc">Colunas expostas pelo backend oficial.</div></div>
-              <div class="ankidroid-setting-value">${(cols.columns||[]).length}</div>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">♪</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Mídia</div><div class="ankidroid-setting-desc">Resultado do Check Media oficial.</div></div>
-              <div class="ankidroid-setting-value ${missing?'ankidroid-status-warn':'ankidroid-status-good'}">${missing} faltando · ${unused} sem uso</div>
-            </div>
+            <div class="section-divider"><span>Diagnóstico</span></div>
+            <p class="hint">Check Media: ${missing} faltando · ${unused} sem uso · ${(cols.columns||[]).length} colunas oficiais no navegador.</p>
           </div>
-
-          <div class="ankidroid-settings-title">Manutenção</div>
-          <div class="ankidroid-settings-card">
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">✓</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Verificar banco</div><div class="ankidroid-setting-desc">Executa o Check Database oficial e reconstrói caches quando necessário.</div></div>
-              <button type="button" class="btn-secondary" id="anki-db-check">Executar</button>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">↻</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Otimizar coleção</div><div class="ankidroid-setting-desc">Executa VACUUM/ANALYZE pela Collection oficial.</div></div>
-              <button type="button" class="btn-secondary" id="anki-db-optimize">Otimizar</button>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">⌁</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Servidor da engine</div><div class="ankidroid-setting-desc">${this.esc(this.apiBase())}</div></div>
-              <button type="button" class="btn-secondary" id="anki-official-change-api">Alterar</button>
-            </div>
-          </div>
-
-          <div class="anki-official-boundary">
-            <strong>Arquitetura web</strong>
-            Scheduler, FSRS, coleção, busca e operações são do Anki oficial. Recursos que dependem do processo Qt/PyQt do Desktop continuam fora desta interface web.
-          </div>
-        </div>`;
+        </section>`;
       document.getElementById('anki-official-change-api').onclick=()=>this.setApiUrl();
       document.getElementById('anki-db-check').onclick=async()=>{
-        try{
-          const out=await this.request('/api/anki/database/check',{method:'POST'});
-          this.alert((out.ok?'Banco íntegro. ':'Foram encontrados/reparados problemas. ')+(out.message||''));
-        }catch(e){this.alert(e.message,'error');}
+        try{const out=await this.request('/api/anki/database/check',{method:'POST'});this.alert((out.ok?'Banco íntegro. ':'Foram encontrados/reparados problemas. ')+(out.message||''));}
+        catch(e){this.alert(e.message,'error');}
       };
       document.getElementById('anki-db-optimize').onclick=async()=>{
-        try{
-          await this.request('/api/anki/database/optimize',{method:'POST'});
-          this.alert('Banco otimizado pelo Anki oficial.');
-        }catch(e){this.alert(e.message,'error');}
+        try{await this.request('/api/anki/database/optimize',{method:'POST'});this.alert('Banco otimizado pelo Anki oficial.');}
+        catch(e){this.alert(e.message,'error');}
       };
     }catch(e){this.alert(e.message,'error');}
   }
@@ -863,6 +822,6 @@ const AnkiOfficial = {
 window.AnkiOfficial = AnkiOfficial;
 window.addEventListener('screen:activated', (ev) => {
   const screen = ev.detail && ev.detail.screen;
-  document.body.classList.toggle('anki-mobile-immersive', screen === 'anki');
+  if (screen !== 'anki') document.body.classList.remove('anki-foco');
   if (screen === 'anki') void AnkiOfficial.activate();
 });
