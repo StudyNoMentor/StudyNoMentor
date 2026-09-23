@@ -6,7 +6,7 @@
 const AnkiOfficialSurfaces = {
   installed:false,
   A:null,
-  browser:{mode:'cards',selectedCards:new Set(),selectedNotes:new Set(),offset:0,limit:100,query:'',facets:null},
+  browser:{mode:'cards',selectedCards:new Set(),selectedNotes:new Set(),offset:0,limit:100,query:'',facets:null,columns:null,sortKey:'',reverse:false},
   shortcuts:null,
 
   esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');},
@@ -167,7 +167,7 @@ const AnkiOfficialSurfaces = {
     this.browser.selectedCards.clear();this.browser.selectedNotes.clear();
     root.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Abrindo navegador…</h3></div></div>';
     try{
-      const facets=await this.api('/api/anki/browser/facets');this.browser.facets=facets;
+      const [facets,columns]=await Promise.all([this.api('/api/anki/browser/facets'),this.api('/api/anki/browser/columns')]);this.browser.facets=facets;this.browser.columns=columns;
       root.innerHTML=`
         <section class="card anki-browser-advanced">
           <div class="card-header cards-filter-head">
@@ -175,6 +175,7 @@ const AnkiOfficialSurfaces = {
             <div class="anki-surface-inline-actions">
               <button type="button" class="btn-secondary active" id="anki-browser-mode-cards">Cards</button>
               <button type="button" class="btn-secondary" id="anki-browser-mode-notes">Notas</button>
+              <button type="button" class="btn-secondary" id="anki-browser-columns">⚙ Colunas</button>
               <button type="button" class="btn-secondary" id="anki-browser-dupes">Duplicatas</button>
             </div>
           </div>
@@ -185,6 +186,8 @@ const AnkiOfficialSurfaces = {
             <div class="field"><label>Tipo</label><select id="anki-browser-nt"><option value="">Todos</option>${(facets.notetypes||[]).map(n=>'<option>'+this.esc(n.name)+'</option>').join('')}</select></div>
             <div class="field"><label>Estado</label><select id="anki-browser-state"><option value="">Todos</option><option value="is:new">Novo</option><option value="is:learn">Aprendendo</option><option value="is:review">Revisão</option><option value="is:due">Vencido</option><option value="is:suspended">Suspenso</option><option value="is:buried">Enterrado</option></select></div>
             <div class="field"><label>Flag</label><select id="anki-browser-flag"><option value="">Todas</option>${[0,1,2,3,4,5,6,7].map(n=>'<option value="'+n+'">'+(n||'Sem flag')+'</option>').join('')}</select></div>
+            <div class="field"><label>Ordenar por</label><select id="anki-browser-sort"><option value="">Ordem oficial atual</option></select></div>
+            <button type="button" class="btn-secondary" id="anki-browser-reverse" title="Inverter ordenação">↕</button>
             <button type="button" class="btn-primary" id="anki-browser-run">Buscar</button>
           </div>
         </section>
@@ -201,15 +204,60 @@ const AnkiOfficialSurfaces = {
       document.getElementById('anki-browser-mode-cards').onclick=()=>{this.browser.mode='cards';this.browser.offset=0;this.syncBrowserMode();void this.runBrowserSearch();};
       document.getElementById('anki-browser-mode-notes').onclick=()=>{this.browser.mode='notes';this.browser.offset=0;this.syncBrowserMode();void this.runBrowserSearch();};
       document.getElementById('anki-browser-dupes').onclick=()=>void this.openDuplicates();
+      document.getElementById('anki-browser-columns').onclick=()=>void this.openBrowserColumns();
+      document.getElementById('anki-browser-sort').onchange=e=>{this.browser.sortKey=e.target.value;this.browser.offset=0;void this.runBrowserSearch();};
+      document.getElementById('anki-browser-reverse').onclick=()=>{this.browser.reverse=!this.browser.reverse;document.getElementById('anki-browser-reverse').classList.toggle('active',this.browser.reverse);this.browser.offset=0;void this.runBrowserSearch();};
       document.getElementById('anki-browser-select-all').onchange=e=>this.selectAllBrowser(e.target.checked);
       document.getElementById('anki-browser-bulk-action').onclick=()=>void this.openBulkActions();
       this.syncBrowserMode();await this.runBrowserSearch();
     }catch(e){this.toast(e.message,'error');}
   },
 
+  browserColumnLabel(col){
+    const notes=this.browser.mode==='notes';
+    return String((notes?(col.notes_mode_label??col.notesModeLabel):(col.cards_mode_label??col.cardsModeLabel))||col.label||col.key||'Coluna');
+  },
+  refreshBrowserSortControls(){
+    const sel=document.getElementById('anki-browser-sort');if(!sel)return;
+    const current=this.browser.sortKey||'';
+    const cols=(this.browser.columns?.columns||[]).filter(col=>{
+      const key=String(col.key||'');
+      if(!key||/^(question|answer)$/i.test(key))return false;
+      const flag=this.browser.mode==='notes'?(col.sorting_notes??col.sortingNotes):(col.sorting_cards??col.sortingCards);
+      return flag===undefined||flag===null||Number(flag)!==0;
+    });
+    sel.innerHTML='<option value="">Ordem oficial atual</option>'+cols.map(col=>'<option value="'+this.esc(col.key)+'">'+this.esc(this.browserColumnLabel(col))+'</option>').join('');
+    if(cols.some(x=>String(x.key)===current))sel.value=current;else{this.browser.sortKey='';sel.value='';}
+    document.getElementById('anki-browser-reverse')?.classList.toggle('active',this.browser.reverse);
+  },
+  async openBrowserColumns(){
+    const all=this.browser.columns?.columns||[];
+    const key=this.browser.mode==='notes'?'active_notes':'active_cards';
+    const active=[...(this.browser.columns?.[key]||[])].map(String);
+    const byKey=new Map(all.map(col=>[String(col.key),col]));
+    const order=active.concat(all.map(col=>String(col.key)).filter(k=>!active.includes(k)));
+    const rows=order.map(k=>{
+      const col=byKey.get(k);if(!col)return '';
+      return '<div class="anki-column-config-row" data-column-key="'+this.esc(k)+'"><label><input type="checkbox" '+(active.includes(k)?'checked':'')+'> <span>'+this.esc(this.browserColumnLabel(col))+'</span></label><div><button type="button" class="icon-btn" data-col-up>↑</button><button type="button" class="icon-btn" data-col-down>↓</button></div></div>';
+    }).join('');
+    this.modal('⚙ Colunas do navegador','Seleção e ordem gravadas nas preferências oficiais do Browser.', '<div id="anki-browser-column-list" class="anki-column-config-list">'+rows+'</div>','<button class="btn-secondary" id="anki-surface-cancel">Cancelar</button><span style="flex:1"></span><button class="btn-primary" id="anki-browser-columns-save">Salvar</button>');
+    document.getElementById('anki-surface-cancel').onclick=()=>this.closeModal();
+    const list=document.getElementById('anki-browser-column-list');
+    list.querySelectorAll('[data-col-up]').forEach(b=>b.onclick=()=>{const row=b.closest('[data-column-key]');const prev=row.previousElementSibling;if(prev)list.insertBefore(row,prev);});
+    list.querySelectorAll('[data-col-down]').forEach(b=>b.onclick=()=>{const row=b.closest('[data-column-key]');const next=row.nextElementSibling;if(next)list.insertBefore(next,row);});
+    document.getElementById('anki-browser-columns-save').onclick=async()=>{
+      const selected=[...list.querySelectorAll('[data-column-key]')].filter(row=>row.querySelector('input').checked).map(row=>row.dataset.columnKey);
+      if(!selected.length){this.toast('Selecione ao menos uma coluna.','warn');return;}
+      try{
+        const out=await this.api('/api/anki/browser/columns',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:this.browser.mode,columns:selected})});
+        this.browser.columns=Object.assign({},this.browser.columns,out);this.closeModal();this.toast('Colunas salvas pelo Browser oficial.');
+      }catch(e){this.toast(e.message,'error');}
+    };
+  },
   syncBrowserMode(){
     document.getElementById('anki-browser-mode-cards')?.classList.toggle('active',this.browser.mode==='cards');
     document.getElementById('anki-browser-mode-notes')?.classList.toggle('active',this.browser.mode==='notes');
+    this.refreshBrowserSortControls();
     this.browser.selectedCards.clear();this.browser.selectedNotes.clear();this.syncBrowserSelection();
   },
 
@@ -218,7 +266,7 @@ const AnkiOfficialSurfaces = {
     if(!append){results.innerHTML='<div class="anki-study-empty">Buscando…</div>';this.browser.offset=0;}
     const q=this.browserQuery();
     const endpoint=this.browser.mode==='notes'?'/api/anki/browser/notes':'/api/anki/browser/search';
-    const data=await this.api(endpoint+'?q='+encodeURIComponent(q)+'&limit='+this.browser.limit+'&offset='+this.browser.offset);
+    const data=await this.api(endpoint+'?q='+encodeURIComponent(q)+'&limit='+this.browser.limit+'&offset='+this.browser.offset+'&sort_key='+encodeURIComponent(this.browser.sortKey||'')+'&reverse='+(this.browser.reverse?'true':'false'));
     const rows=this.browser.mode==='notes'?(data.notes||[]):(data.cards||[]);
     if(!append)results.innerHTML='';
     if(this.browser.mode==='notes')results.insertAdjacentHTML('beforeend',rows.map(n=>this.noteRow(n)).join(''));
