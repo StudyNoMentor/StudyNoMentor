@@ -655,9 +655,10 @@ FSRS._predictTrainingItem=function(item,w){
   for(let i=0;i<reviews.length-1;i++){
     const r=reviews[i],g=Math.max(1,Math.min(4,Number(r.rating)||1)),dt=Math.max(0,Number(r.delta_t)||0);
     if(S==null){S=this.initS(g,w);D=this.initD(g,w);continue;}
-    D=this.nextD(D,g,w);
+    const oldD=D,D2=this.nextD(oldD,g,w);
     if(dt<1)S=this.nextS_short(S,g,w);
-    else{const R=this.R(dt,S,w);S=g===1?this.nextS_forget(D,S,R,w):this.nextS_recall(D,S,R,g,w);}
+    else{const R=this.R(dt,S,w);S=g===1?this.nextS_forget(oldD,S,R,w):this.nextS_recall(oldD,S,R,g,w);}
+    D=D2;
   }
   const cur=reviews[reviews.length-1],dt=Math.max(0,Number(cur.delta_t)||0);
   if(S==null){
