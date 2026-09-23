@@ -2403,6 +2403,60 @@ CardsScreen.optimizeFsrsOfficial = async function (deckId) {
   return out;
 };
 
+CardsScreen._fsrsCardsForPreset = function(deckId){
+  const cards=DB.getCards().filter(c=>!c.suspenso);
+  if(deckId!=null)return cards.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
+  return cards.filter(c=>{const did=c.originalDeckId||c.deckId;return !(did&&CardsConfig.hasDeckPreset(did));});
+};
+CardsScreen.optimizeAllFsrsPresets = async function(){
+  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes de otimizar parâmetros.');
+  const scopes=[null,...Object.keys(CardsConfig._getPresets?CardsConfig._getPresets():{})],results=[];
+  for(const deckId of scopes){
+    const cards=this._fsrsCardsForPreset(deckId);if(!cards.length){results.push({deckId,skipped:'empty'});continue;}
+    const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId);
+    try{
+      const out=await FSRS.optimizeOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+      const patch={weights:out.params.slice(),lastOptim:new Date().toISOString()};
+      if(deckId==null)CardsConfig.set(patch);else CardsConfig.setDeckPreset(deckId,patch);
+      results.push({deckId,reviewCount:out.reviewCount,cardCount:out.cardCount,ok:true});
+    }catch(e){results.push({deckId,ok:false,error:e&&e.message?e.message:String(e)});}
+    await new Promise(r=>setTimeout(r,0));
+  }
+  CardEngine.invalidateDueCache();return results;
+};
+CardsScreen.fsrsHealthCheck = async function(deckId){
+  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
+  const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
+  return FSRS.healthCheckOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+};
+CardsScreen._rescheduleFsrsCard = function(card,cfg,rows){
+  if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
+  const valid=(rows||[]).filter(r=>String(r.cardId)===String(card.id)&&AnkiParity._trainingAffectsScheduling(r)).sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
+  if(!valid.length||!card.lastReview)return null;
+  const reviews=valid.map(r=>({rating:Number(r.grade),delta_t:Math.max(0,Number(r.elapsed)||0)})),w=CardsConfig.weightsFor(card.originalDeckId||card.deckId),
+    state=FSRS._stateFromTrainingItem({reviews},w);if(!state)return null;
+  const retention=Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
+    dec=FSRS.decayOf(w),fac=FSRS.factorOf(w),raw=Math.max(1,(state.s/fac)*(Math.pow(retention,1/dec)-1)),
+    previous=Math.max(0,Number(valid[valid.length-1].intervalo!=null?valid[valid.length-1].intervalo:valid[valid.length-1].ankiInterval)||0),
+    min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),elapsed=Math.max(0,CardEngine._daysBetween(card.lastReview,todayCards())),
+    seed=AnkiParity.fuzzSeed(card,true);
+  let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
+  if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);
+  const due=CardEngine.addDays(card.lastReview,iv),patch={s:state.s,d:state.d,intervalo:iv,dueTs:null,updatedAt:new Date().toISOString()};
+  if(card.originalDeckId)patch.originalDue=due;else patch.due=due;
+  return {patch,interval:iv,previous,due};
+};
+CardsScreen.rescheduleFsrsScope = function(deckId){
+  const rows=DB.getRevlog()||[],all=DB.getCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
+  let changed=0;
+  for(const card of targets){
+    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),out=this._rescheduleFsrsCard(card,cfg,rows);if(!out)continue;
+    DB.addRevlog({ts:Date.now()+changed,date:todayCards(),cardId:card.id,grade:0,phase:'review',ankiReviewKind:'rescheduled',intervalo:Number(card.intervalo)||0,ankiInterval:Number(card.intervalo)||0,elapsed:0,time:0,s:card.s||null,d:card.d||null});
+    if(DB.updateCard(card.id,out.patch)!==false)changed++;
+  }
+  CardEngine.invalidateDueCache();return changed;
+};
+
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
 CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
@@ -2418,6 +2472,9 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     }] : []),
     { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 99,
       hint: 'Faixa do Anki/FSRS: 70–99%. Padrão: 90%. Valores muito altos aumentam bastante a carga.' },
+    { key: 'fsrsReschedule', label: '🔄 Reagendar cards ao salvar alterações FSRS', type: 'select', value: '0',
+      options: [{value:'0',label:'Não'},{value:'1',label:'Sim — Reschedule Cards on Change'}],
+      hint: 'Opção transitória como no Anki: recalcula S/D, intervalo e vencimento dos cards de revisão e grava uma entrada de histórico “rescheduled”.' },
     { key: 'learn', label: '⏱️ Passos de aprendizado (min)', type: 'text', value: cfg.learnSteps.join(' '), placeholder: '1 10',
       hint: 'Card novo: você o revê nesses minutos até fixar (ex.: 1 10).' },
     { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
@@ -2651,7 +2708,10 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       patch.applyAllParentLimits = v.applyAllParentLimits === '1';
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
+    const shouldReschedule=v.fsrsReschedule==='1'&&patch.algo!=='sm2'&&CardsConfig.get().algo==='fsrs';
+    const rescheduled=shouldReschedule?CardsScreen.rescheduleFsrsScope(deckId):0;
     CardEngine.invalidateDueCache();
+    if(rescheduled)showToast('🔄 '+rescheduled.toLocaleString('pt-BR')+' card(s) reagendado(s) com FSRS ✓');
     if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
 
@@ -2679,6 +2739,14 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       }
     });
     foot.insertBefore(b, foot.firstChild);
+    const health=document.createElement('button');health.id='cards-fsrs-health-btn';health.type='button';health.className='btn-secondary';health.textContent='🩺 Health Check';
+    health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check: dados insuficientes ('+h.fsrsItems+' itens; requer >300)');else showToast((h.passed?'✅':'⚠')+' Health Check '+(h.passed?'aprovado':'requer atenção')+' · loss '+h.adjustedLogLoss.toFixed(2)+' · RMSE '+h.adjustedRmse.toFixed(2));}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
+    foot.insertBefore(health,b.nextSibling);
+    if(!isDeck){
+      const all=document.createElement('button');all.id='cards-optimize-all-fsrs-btn';all.type='button';all.className='btn-secondary';all.textContent='🧠 Otimizar todos os presets';
+      all.addEventListener('click',async()=>{const old=all.textContent;all.disabled=true;all.textContent='⏳ Otimizando presets…';try{const rs=await CardsScreen.optimizeAllFsrsPresets(),ok=rs.filter(x=>x.ok).length,skip=rs.length-ok;showToast('FSRS: '+ok+' preset(s) otimizado(s)'+(skip?' · '+skip+' sem dados suficientes':'')+' ✓');}catch(e){showToast('Falha ao otimizar presets: '+(e&&e.message?e.message:String(e)));}finally{all.disabled=false;all.textContent=old;}});
+      foot.insertBefore(all,health.nextSibling);
+    }
   }, 60);
 
   // botão extra "restaurar herança" quando o baralho tem preset
