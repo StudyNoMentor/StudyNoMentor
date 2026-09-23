@@ -24,6 +24,26 @@ struct InputItem {
 }
 
 #[derive(Debug, Deserialize)]
+struct StartingSm2Input {
+    ease_factor: f32,
+    interval: f32,
+    historical_retention: f32,
+}
+
+#[derive(Debug, Deserialize)]
+struct MemoryStateJsonInput {
+    reviews: Vec<InputReview>,
+    params: Vec<f32>,
+    starting_sm2: Option<StartingSm2Input>,
+}
+
+#[derive(Debug, Serialize)]
+struct MemoryStateJsonOutput {
+    stability: f32,
+    difficulty: f32,
+}
+
+#[derive(Debug, Deserialize)]
 struct OptimizeInput {
     items: Vec<InputItem>,
     card_ids: Vec<i64>,
@@ -155,6 +175,46 @@ pub fn optimize_json(input_json: &str) -> Result<String, JsValue> {
         fsrs_rs_version: "6.6.2",
         training_epochs: 8,
         short_term_enabled: true,
+    })
+    .map_err(js_err)
+}
+
+/// Calcula o estado de memória pela mesma API de inferência do fsrs-rs usada
+/// pelo Anki ao atualizar memory_state. Para históricos truncados, recebe os
+/// dados SM-2 da primeira revisão preservada e os converte em starting_state.
+#[wasm_bindgen]
+pub fn memory_state_json(input_json: &str) -> Result<String, JsValue> {
+    let input: MemoryStateJsonInput = serde_json::from_str(input_json).map_err(js_err)?;
+    let params = check_and_fill_parameters(&input.params).map_err(js_err)?;
+    let fsrs = FSRS::new(&params).map_err(js_err)?;
+    let item = FSRSItem {
+        reviews: input
+            .reviews
+            .into_iter()
+            .map(|r| FSRSReview { rating: r.rating, delta_t: r.delta_t })
+            .collect(),
+    };
+    let starting_state = if let Some(s) = input.starting_sm2 {
+        let mut state = fsrs
+            .memory_state_from_sm2(
+                s.ease_factor,
+                s.interval.max(1.0),
+                s.historical_retention.clamp(0.5, 0.99),
+            )
+            .map_err(js_err)?;
+        // O Anki codifica dificuldade FSRS no ease_factor <= 1.1 quando o
+        // primeiro registro preservado já foi produzido pelo FSRS.
+        if s.ease_factor <= 1.1 {
+            state.difficulty = (s.ease_factor - 0.1) * 9.0 + 1.0;
+        }
+        Some(state)
+    } else {
+        None
+    };
+    let state = fsrs.memory_state(item, starting_state).map_err(js_err)?;
+    serde_json::to_string(&MemoryStateJsonOutput {
+        stability: state.stability,
+        difficulty: state.difficulty,
     })
     .map_err(js_err)
 }
