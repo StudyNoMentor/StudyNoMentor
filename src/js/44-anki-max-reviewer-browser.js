@@ -161,6 +161,12 @@ const AnkiMaxParity = {
     let cols=(Array.isArray(b.columns)?b.columns:[]).filter(c=>available.has(c));
     if(!cols.length)cols=this._defaultColumns(b.mode);return cols;
   },
+  _isSortableColumn(key){return key!=='question'&&key!=='answer';},
+  _reorderColumns(from,to){
+    const b=AnkiProductParity.browser,cols=this._selectedColumns(),a=cols.indexOf(String(from)),z=cols.indexOf(String(to));
+    if(a<0||z<0||a===z)return false;
+    const [moved]=cols.splice(a,1);cols.splice(z,0,moved);b.columns=cols;this._saveBrowserPrefs();AnkiProductParity.renderBrowser();return true;
+  },
   _deckName(card){const id=card&&(card.originalDeckId||card.deckId),d=DB.getDecks().find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
   _templateName(row){
     const c=row.card;if(!c||!row.nt)return '';const i=Number(c.ankiTemplateOrd)||0;return String(row.nt.templates&&row.nt.templates[i]&&row.nt.templates[i].name||('Card '+(i+1)));
@@ -225,8 +231,8 @@ const AnkiMaxParity = {
     const renderControls=()=>{
       const b=AnkiProductParity.browser,defs=this._columnDefs(),avail=this._availableColumns(b.mode),cols=new Set(this._selectedColumns());
       document.getElementById('anki-browser-mode').value=b.mode;
-      const sort=document.getElementById('anki-browser-sort');sort.innerHTML=avail.map(k=>'<option value="'+k+'">'+AnkiProductParity.esc(defs[k].label)+'</option>').join('');
-      if(!avail.includes(b.sort))b.sort=this._defaultColumns(b.mode)[0];sort.value=b.sort;
+      const sort=document.getElementById('anki-browser-sort'),sortable=avail.filter(k=>this._isSortableColumn(k));sort.innerHTML=sortable.map(k=>'<option value="'+k+'">'+AnkiProductParity.esc(defs[k].label)+'</option>').join('');
+      if(!sortable.includes(b.sort))b.sort=this._defaultColumns(b.mode).find(k=>this._isSortableColumn(k))||sortable[0]||'sortField';sort.value=b.sort;
       dir.textContent=b.sortDir==='desc'?'↓':'↑';dir.title=b.sortDir==='desc'?'Decrescente':'Crescente';
       document.getElementById('anki-browser-columns-menu').innerHTML=avail.map(k=>'<label><input type="checkbox" data-col="'+k+'" '+(cols.has(k)?'checked':'')+'> '+AnkiProductParity.esc(defs[k].label)+'</label>').join('');
       this._saveBrowserPrefs();
@@ -268,7 +274,7 @@ const AnkiMaxParity = {
       if(st.flag!=='')out=out.filter(r=>Number(r.flag)===Number(st.flag));
       if(st.suspended==='yes')out=out.filter(r=>r.suspended);else if(st.suspended==='no')out=out.filter(r=>!r.suspended);
       if(st.marked)out=out.filter(r=>r.marked);
-      const key=st.sort||this._defaultColumns(st.mode)[0],dir=st.sortDir==='desc'?-1:1;
+      const sortable=this._availableColumns(st.mode).filter(k=>this._isSortableColumn(k)),key=sortable.includes(st.sort)?st.sort:(this._defaultColumns(st.mode).find(k=>this._isSortableColumn(k))||sortable[0]),dir=st.sortDir==='desc'?-1:1;
       out.sort((a,b)=>{
         const av=this._colValue(a,key),bv=this._colValue(b,key);let z;
         if(typeof av==='number'&&typeof bv==='number')z=av-bv;else z=String(av).localeCompare(String(bv),'pt-BR',{numeric:true,sensitivity:'base'});
@@ -284,8 +290,15 @@ const AnkiMaxParity = {
       if(this._renderBrowserControls)this._renderBrowserControls();
       document.getElementById('anki-browser-summary').textContent=rows.length.toLocaleString('pt-BR')+' '+(b.mode==='cards'?'card(s)':'nota(s)')+' exibido(s)';
       const head=document.querySelector('.anki-browser-table-head'),grid='34px '+cols.map(()=> 'minmax(110px,1fr)').join(' ')+' 54px';
-      head.style.gridTemplateColumns=grid;head.innerHTML='<span></span>'+cols.map(k=>'<button type="button" class="anki-browser-col-head" data-sort-col="'+k+'">'+AnkiProductParity.esc(defs[k].label)+(b.sort===k?(b.sortDir==='desc'?' ↓':' ↑'):'')+'</button>').join('')+'<span></span>';
+      head.style.gridTemplateColumns=grid;head.innerHTML='<span></span>'+cols.map(k=>{const sortable=this._isSortableColumn(k);return '<button type="button" draggable="true" class="anki-browser-col-head '+(sortable?'':'is-unsortable')+'" data-col-drag="'+k+'" '+(sortable?'data-sort-col="'+k+'"':'aria-disabled="true"')+' title="'+(sortable?'Clique para ordenar · arraste para reordenar':'Arraste para reordenar · esta coluna não ordena no Anki')+'">'+AnkiProductParity.esc(defs[k].label)+(b.sort===k?(b.sortDir==='desc'?' ↓':' ↑'):'')+'</button>';}).join('')+'<span></span>';
       head.querySelectorAll('[data-sort-col]').forEach(x=>x.addEventListener('click',()=>{if(b.sort===x.dataset.sortCol)b.sortDir=b.sortDir==='desc'?'asc':'desc';else{b.sort=x.dataset.sortCol;b.sortDir='asc';}this._saveBrowserPrefs();AnkiProductParity.renderBrowser();}));
+      head.querySelectorAll('[data-col-drag]').forEach(x=>{
+        x.addEventListener('dragstart',e=>{this._dragColumn=x.dataset.colDrag;x.classList.add('is-dragging');if(e.dataTransfer){e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',this._dragColumn);}});
+        x.addEventListener('dragover',e=>{e.preventDefault();if(e.dataTransfer)e.dataTransfer.dropEffect='move';});
+        x.addEventListener('drop',e=>{e.preventDefault();const from=(e.dataTransfer&&e.dataTransfer.getData('text/plain'))||this._dragColumn;this._reorderColumns(from,x.dataset.colDrag);});
+        x.addEventListener('dragend',()=>{this._dragColumn=null;x.classList.remove('is-dragging');});
+        x.addEventListener('keydown',e=>{if(!e.altKey||(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'))return;const cs=this._selectedColumns(),i=cs.indexOf(x.dataset.colDrag),j=e.key==='ArrowLeft'?i-1:i+1;if(j<0||j>=cs.length)return;e.preventDefault();this._reorderColumns(cs[i],cs[j]);});
+      });
       list.innerHTML=shown.map(r=>{
         const sk=this._selectionKey(r),nid=String(r.note.id),sel=b.selected.has(sk),open=r.card?'data-card-open="'+AnkiProductParity.esc(r.card.id)+'"':'data-note-open="'+AnkiProductParity.esc(nid)+'"';
         const cells=cols.map((k,i)=>'<button type="button" class="anki-browser-cell '+(i===0?'anki-browser-field':'')+'" '+(i===0?open:'')+' title="'+AnkiProductParity.esc(this._formatCol(r,k))+'">'+AnkiProductParity.esc(this._formatCol(r,k))+'</button>').join('');
