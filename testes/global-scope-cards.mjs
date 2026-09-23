@@ -140,22 +140,23 @@ assert.ok(ankiCalls.some(x=>x.path==='/api/anki/decks/select'&&x.body.deck_id===
 
 assert.deepEqual(Array.from(S.allBy('entries'),x=>x.id),['eA','eB'],'registros realizados devem ser legíveis no perfil inteiro');
 assert.equal(ctx.DB.getEntry('eB')._planId,'B','registro antigo deve preservar a origem');
-ctx.DB.updateEntry('eB',{durationMin:50});
-assert.equal(parse(keysForPlan('B').entries,[])[0].durationMin,50,'edição de registro global deve voltar à origem');
-assert.equal(parse(keysForPlan('A').entries,[])[0].durationMin,30,'edição de registro global não pode vazar ao plano ativo');
+assert.equal(ctx.DB.updateEntry('eB',{durationMin:50}),null,'registro de outro planejamento deve ser somente leitura');
+assert.equal(parse(keysForPlan('B').entries,[])[0].durationMin,45,'bloqueio não pode alterar o registro de origem');
+ctx.DB.updateEntry('eA',{durationMin:35});
+assert.equal(parse(keysForPlan('A').entries,[])[0].durationMin,35,'registro do planejamento ativo continua editável');
 
 assert.deepEqual(Array.from(ctx.DB.getAllLeisTagged(),x=>x.id),['lA','lB'],'leis devem ser globais no perfil');
 assert.equal(ctx.DB.getLei('lB')._planId,'B','lei de outro plano deve ser encontrada');
-ctx.DB.updateLei('lB',{titulo:'Lei B editada'});
-assert.equal(parse(keysForPlan('B').leis,[])[0].titulo,'Lei B editada','edição de lei deve voltar à origem');
+assert.equal(ctx.DB.updateLei('lB',{titulo:'Lei B editada'}),null,'lei de outro planejamento deve ser somente leitura');
+assert.equal(parse(keysForPlan('B').leis,[])[0].titulo,'Lei B','lei externa não pode ser alterada');
 
 assert.deepEqual(Array.from(ctx.DB.getAllLinksTagged(),x=>x.id),['kA','kB'],'links devem ser globais no perfil');
-ctx.DB.updateLink('kB',{nome:'Link B editado'});
-assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B editado','edição de link deve voltar à origem');
+assert.equal(ctx.DB.updateLink('kB',{nome:'Link B editado'}),null,'link de outro planejamento deve ser somente leitura');
+assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B','link externo não pode ser alterado');
 
 assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'histórico TEC deve ser global');
-ctx.DB.updateTecSnapshot(2,{label:'Setembro'});
-assert.equal(parse(keysForPlan('B').tec,[])[0].label,'Setembro','edição de retrato TEC deve voltar à origem');
+assert.equal(ctx.DB.updateTecSnapshot(2,{label:'Setembro'}),null,'retrato TEC de outro planejamento deve ser somente leitura');
+assert.equal(parse(keysForPlan('B').tec,[])[0].label,undefined,'retrato externo não pode ser alterado');
 assert.equal(ctx.DB.tecOverlap('2026-09-15','2026-09-20').id,2,'sobreposição TEC deve considerar outros planejamentos');
 
 const b=ctx.DB.getCard('b1');
@@ -173,4 +174,4 @@ ctx.DB.deleteCard('b1');
 assert.equal(parse(keysForPlan('B').cards,[]).length,0,'exclusão deve ocorrer na origem');
 assert.equal(parse(keysForPlan('A').cards,[]).length,1,'exclusão global não pode tocar outro plano');
 
-console.log('OK: memória global do perfil, banca e roteamento de mutações/revisões por origem.');
+console.log('OK: memória global visível, edição local, banca e roteamento seguro por planejamento.');
