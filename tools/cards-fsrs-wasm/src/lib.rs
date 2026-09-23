@@ -1,10 +1,14 @@
 use fsrs::{
     check_and_fill_parameters, compute_parameters, extract_simulator_config, simulate, Card,
-    ComputeParametersInput, FSRSItem, FSRSReview, MemoryState, ReviewPriorityFn, RevlogEntry,
-    RevlogReviewKind, SimulatorConfig, TrainingConfig, DEFAULT_PARAMETERS, FSRS,
+    ComputeParametersInput, FSRSItem, FSRSReview, MemoryState, PostSchedulingFn, ReviewPriorityFn,
+    RevlogEntry, RevlogReviewKind, SimulatorConfig, TrainingConfig, DEFAULT_PARAMETERS, FSRS,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use rand::distr::weighted::WeightedIndex;
+use rand::distr::Distribution;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
@@ -195,6 +199,9 @@ struct SimulateInput {
     learning_step_count: usize,
     relearning_step_count: usize,
     review_order: String,
+    load_balance: bool,
+    easy_days: [f32; 7],
+    next_day_weekday_monday: usize,
     cards: Vec<SimCardInput>,
 }
 
@@ -218,6 +225,109 @@ fn review_kind_from_u8(kind: u8) -> RevlogReviewKind {
         3 => RevlogReviewKind::Filtered,
         _ => RevlogReviewKind::Manual,
     }
+}
+
+fn fuzz_delta(interval: f32) -> f32 {
+    if interval < 2.5 {
+        0.0
+    } else {
+        let mut delta = 1.0;
+        for (start, end, factor) in [
+            (2.5_f32, 7.0_f32, 0.15_f32),
+            (7.0, 20.0, 0.10),
+            (20.0, f32::INFINITY, 0.05),
+        ] {
+            delta += factor * (interval.min(end) - start).max(0.0);
+        }
+        delta
+    }
+}
+
+fn constrained_fuzz_bounds(interval: f32, minimum: u32, maximum: u32) -> (u32, u32) {
+    let minimum = minimum.min(maximum);
+    let interval = interval.clamp(minimum as f32, maximum as f32);
+    let delta = fuzz_delta(interval);
+    let mut lower = (interval - delta).round() as u32;
+    let mut upper = (interval + delta).round() as u32;
+    lower = lower.clamp(minimum, maximum);
+    upper = upper.clamp(minimum, maximum);
+    if upper == lower && upper > 2 && upper < maximum {
+        upper = lower + 1;
+    }
+    (lower, upper)
+}
+
+fn easy_load_modifier(value: f32) -> f32 {
+    if value == 1.0 { 1.0 } else if value == 0.0 { 0.0001 } else { 0.5 }
+}
+
+fn easy_days_modifiers(
+    easy_days: &[f32; 7],
+    weekdays: &[usize],
+    review_counts: &[usize],
+) -> Vec<f32> {
+    let total_review_count: usize = review_counts.iter().sum();
+    let total_percents: f32 = weekdays.iter().map(|&w| easy_load_modifier(easy_days[w])).sum();
+    weekdays.iter().zip(review_counts.iter()).map(|(&weekday, &count)| {
+        let value = easy_days[weekday];
+        if value != 0.0 && value != 1.0 {
+            let other_count = (total_review_count.saturating_sub(count)) as f32;
+            let other_percent = total_percents - 0.5;
+            let normalized = count as f32 / 0.5;
+            let threshold = if other_percent > 0.0 { other_count / other_percent } else { f32::INFINITY };
+            if normalized > threshold { 0.0001 } else { 1.0 }
+        } else {
+            easy_load_modifier(value)
+        }
+    }).collect()
+}
+
+fn simulator_post_schedule(
+    interval: f32,
+    max_interval: f32,
+    day_elapsed: usize,
+    due_counts_per_day: &[usize],
+    fuzz_seed: u64,
+    next_day_weekday_monday: usize,
+    easy_days: &[f32; 7],
+) -> f32 {
+    let (lower, upper) = constrained_fuzz_bounds(interval, 1, max_interval.max(1.0) as u32);
+    let mut review_counts = vec![0usize; upper as usize - lower as usize + 1];
+    let start = day_elapsed + lower as usize;
+    let end = (day_elapsed + upper as usize + 1).min(due_counts_per_day.len());
+    if start < due_counts_per_day.len() {
+        let copy_len = (end - start).min(review_counts.len());
+        review_counts[..copy_len].copy_from_slice(&due_counts_per_day[start..start + copy_len]);
+    }
+
+    let possible: Vec<u32> = (lower..=upper).collect();
+    let weekdays: Vec<usize> = possible
+        .iter()
+        .map(|&iv| (next_day_weekday_monday + day_elapsed + iv.saturating_sub(1) as usize) % 7)
+        .collect();
+    let modifiers = easy_days_modifiers(easy_days, &weekdays, &review_counts);
+
+    let choices: Vec<(u32, f32)> = possible
+        .into_iter()
+        .enumerate()
+        .map(|(i, target)| {
+            let count = review_counts[i];
+            let weight = if count == 0 {
+                1.0
+            } else {
+                (1.0 / count as f32).powf(2.15)
+                    * (1.0 / target.max(1) as f32).powi(3)
+                    * modifiers[i]
+            };
+            (target, weight)
+        })
+        .collect();
+
+    let Ok(dist) = WeightedIndex::new(choices.iter().map(|x| x.1)) else {
+        return interval.round().clamp(1.0, max_interval);
+    };
+    let mut rng = StdRng::seed_from_u64(fuzz_seed);
+    choices[dist.sample(&mut rng)].0 as f32
 }
 
 fn review_priority(order: &str) -> Option<ReviewPriorityFn> {
@@ -312,6 +422,24 @@ pub fn simulate_json(input_json: &str) -> Result<String, JsValue> {
         }).map_err(js_err)?);
     }
 
+    let post_scheduling_fn = if input.load_balance {
+        let easy_days = input.easy_days;
+        let next_day_weekday_monday = input.next_day_weekday_monday % 7;
+        Some(PostSchedulingFn::new(move |mut ctx| {
+            simulator_post_schedule(
+                ctx.card.interval,
+                ctx.max_interval,
+                ctx.today,
+                ctx.due_counts_per_day,
+                ctx.random_u64(),
+                next_day_weekday_monday,
+                &easy_days,
+            )
+        }))
+    } else {
+        None
+    };
+
     let config = SimulatorConfig {
         deck_size: cards.len(),
         learn_span: input.days_to_simulate,
@@ -323,7 +451,7 @@ pub fn simulate_json(input_json: &str) -> Result<String, JsValue> {
         review_limit: input.review_limit,
         new_cards_ignore_review_limit: input.new_cards_ignore_review_limit,
         suspend_after_lapses: input.suspend_after_lapses,
-        post_scheduling_fn: None,
+        post_scheduling_fn,
         review_priority_fn: review_priority(&input.review_order),
         learning_step_transitions: observed.learning_step_transitions,
         relearning_step_transitions: observed.relearning_step_transitions,
