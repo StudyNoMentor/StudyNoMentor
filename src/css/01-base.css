@@ -3413,7 +3413,8 @@
     box-shadow: -10px 0 10px -6px rgba(0,0,0,0.22);
   }
   /* no modo dos cards a barra da lei some, e vice-versa */
-  body.cards-foco #lei-foco-bar { display: none !important; }
+  body.cards-foco #lei-foco-bar,
+  body.cards-foco #anki-foco-bar { display: none !important; }
   body.leis-foco #foco-bar { display: none !important; }
 
   /* ═══ MODO FOCO — estudar só os cards, em tela cheia ═══════════════════════
@@ -3435,7 +3436,10 @@
   body.cards-foco .cards-face { font-size: var(--fs-xl); line-height: 1.6; }
   body.cards-foco .cards-review-card { min-height: 44vh; }
   .foco-bar { display: none; }
-  body.cards-foco .foco-bar {
+  /* No foco dos Cards só a barra #foco-bar pode aparecer. A regra genérica
+     ".foco-bar" também tornava visível #anki-foco-bar, que vem depois no DOM e
+     podia cobrir o botão de sair dos Cards no celular. */
+  body.cards-foco #foco-bar {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     position: fixed; top: 0; left: 0; right: 0; z-index: 70;
     padding: 8px 14px; background: var(--surface);
