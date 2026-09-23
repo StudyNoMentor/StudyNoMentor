@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v64dfb17fee">
+<meta name="diario-versao" content="v4798b68ea0">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -440,6 +440,9 @@ window.__relationalBoot = true;
   }
   .plan-switcher-item:hover { background: var(--surface-sunken); }
   .plan-switcher-item.active { background: var(--accent-soft); }
+  .plan-switcher-item.paused { opacity: .68; cursor: default; }
+  .plan-switcher-item.paused:hover { background: transparent; }
+  .plan-switcher-item.paused .psi-dot { background: var(--text-faint); }
   .psi-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
   .plan-switcher-item.active .psi-dot { background: var(--accent); }
   .psi-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -471,6 +474,8 @@ window.__relationalBoot = true;
     margin-bottom: 14px;
   }
   .plan-card.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .plan-card.is-paused { border-style: dashed; background: var(--surface-sunken); }
+  .plan-card.is-paused .plan-active-pill { background: var(--text-faint); }
   .plan-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
   .plan-card-title { display: flex; align-items: center; gap: 10px; }
   .plan-card-title .nome { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
@@ -16502,6 +16507,46 @@ const DB = {
     { key: 'rRev', legacy: 'pctRevisao', label: 'Revisão' }
   ],
 
+  /* ── CONGELAMENTO DE PLANEJAMENTO ────────────────────────────────────────
+     Um plano pausado fica somente leitura para o trabalho operacional. A única
+     exceção deliberada é a coleção Anki/Cards, que é patrimônio global do
+     perfil e continua revisável mesmo quando nasceu num plano antigo. */
+  _pausedWriteBypass: 0,
+  withPausedPlanWrite(fn) {
+    this._pausedWriteBypass++;
+    try { return fn(); }
+    finally { this._pausedWriteBypass = Math.max(0, this._pausedWriteBypass - 1); }
+  },
+  _planKeyParts(key) {
+    const prefix = this._profilePrefix() + 'p:';
+    const s = String(key || '');
+    if (!s.startsWith(prefix)) return null;
+    const rest = s.slice(prefix.length), cut = rest.indexOf(':');
+    if (cut <= 0) return null;
+    return { planId: rest.slice(0, cut), suffix: rest.slice(cut + 1) };
+  },
+  _pausedKnowledgeSuffix(suffix) {
+    suffix = String(suffix || '');
+    return suffix === 'cards' || suffix === 'decks' || suffix === 'bancas-cards'
+      || suffix === 'revlog' || suffix === 'revlog-pendente'
+      || suffix.startsWith('revlog-arquivo')
+      || suffix.startsWith('cards-');
+  },
+  _blockedByPlanPause(key) {
+    if (this._pausedWriteBypass > 0) return false;
+    const p = this._planKeyParts(key);
+    if (!p || this._pausedKnowledgeSuffix(p.suffix)) return false;
+    try {
+      return typeof PlanManager !== 'undefined' && PlanManager.isPaused && PlanManager.isPaused(p.planId);
+    } catch (_) { return false; }
+  },
+  _warnPausedWrite() {
+    const now = Date.now();
+    if (this._lastPausedWriteWarn && now - this._lastPausedWriteWarn < 2000) return;
+    this._lastPausedWriteWarn = now;
+    try { showToast('⏸ Planejamento pausado — dados operacionais estão somente leitura.'); } catch (_) {}
+  },
+
   _get(key, fallback) {
     try {
       const raw = localStorage.getItem(key);
@@ -16512,6 +16557,7 @@ const DB = {
     }
   },
   _set(key, value) {
+    if (this._blockedByPlanPause(key)) { this._warnPausedWrite(); return false; }
     try {
       const txt = JSON.stringify(value);
       /* ── ESVAZIAR É APAGAR, E APAGAR PASSA PELA LIXEIRA ─────────────────────
@@ -16543,6 +16589,7 @@ const DB = {
      projeção em RAM, cuja fachada encaminha a mutação imediatamente ao
      RelationalStore. */
   setRaw(key, value) {
+    if (this._blockedByPlanPause(key)) { this._warnPausedWrite(); return false; }
     try {
       const txt = String(value);
       // mesma regra do _set: esvaziar guarda o anterior na Lixeira antes
@@ -16559,6 +16606,7 @@ const DB = {
      Quem chama continua vendo o mesmo comportamento (a chave some), mas passa a
      haver 30 dias de arrependimento em Configurações → Recuperação de dados. */
   delRaw(key, motivo) {
+    if (this._blockedByPlanPause(key)) { this._warnPausedWrite(); return false; }
     try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
     this._esquecerRevlogSeForOCaso(key);
@@ -18501,14 +18549,18 @@ const DB = {
   getCycleHistoryForPlan(planId) { return this._get(this.keysForPlan(planId).cycleHistory, []); },
   getTracksForPlan(planId) { return this._get(this.keysForPlan(planId).tracks, {}); },
   // Todos os registros de todos os planejamentos, cada um marcado com o plano de origem
-  getAllEntriesTagged() {
-    return PlanManager.getPlans().flatMap(p =>
-      this.getEntriesForPlan(p.id).map(e => ({ ...e, _planId: p.id, _planNome: p.nome }))
+  getAllEntriesTagged(opts) {
+    const includePaused = !!(opts && opts.includePaused);
+    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    return plans.flatMap(p =>
+      this.getEntriesForPlan(p.id).map(e => ({ ...e, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
   },
-  getAllCycleHistoryTagged() {
-    return PlanManager.getPlans().flatMap(p =>
-      this.getCycleHistoryForPlan(p.id).map(w => ({ ...w, _planId: p.id, _planNome: p.nome }))
+  getAllCycleHistoryTagged(opts) {
+    const includePaused = !!(opts && opts.includePaused);
+    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    return plans.flatMap(p =>
+      this.getCycleHistoryForPlan(p.id).map(w => ({ ...w, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
   },
 
@@ -18561,12 +18613,60 @@ const DB = {
    Cada planejamento tem seu próprio namespace de dados (via DB.keysForPlan).
    ============================================================ */
 const PlanManager = {
-  // GK do perfil ativo (planejamentos e planejamento ativo namespaced por perfil)
-  get GK() { const p = DB._profilePrefix(); return { plans: p + 'planejamentos', active: p + 'active-plan' }; },
+  // GK do perfil ativo (planejamentos, planejamento ativo e estado de pausa).
+  // A pausa fica em profile setting separado para não exigir migração destrutiva
+  // da tabela study_plans e sincroniza pelo mesmo canal relacional já existente.
+  get GK() { const p = DB._profilePrefix(); return { plans: p + 'planejamentos', active: p + 'active-plan', pauses: p + 'plan-pauses-v1' }; },
   TIPOS: ['Pré-edital', 'Pós-edital', 'Outro'],
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
+  _pauseMap() {
+    const v = DB._get(this.GK.pauses, {});
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  },
+  _savePauseMap(v) { return DB._set(this.GK.pauses, v || {}); },
+  pauseInfo(id) {
+    const x = this._pauseMap()[String(id)] || null;
+    if (!x || !x.pausedAt || x.resumedAt) return null;
+    return x;
+  },
+  isPaused(id) { return !!this.pauseInfo(id); },
+  isActivePlanPaused() { return this.isPaused(this.getActivePlanId()); },
+  getOperationalPlans() { return this.getPlans().filter(p => !this.isPaused(p.id)); },
+  getPausedPlans() { return this.getPlans().filter(p => this.isPaused(p.id)); },
+  pausePlan(id) {
+    id = String(id || '');
+    const plans = this.getPlans(), p = plans.find(x => String(x.id) === id);
+    if (!p) return { ok: false, reason: 'not-found' };
+    if (this.isPaused(id)) return { ok: true, unchanged: true, info: this.pauseInfo(id) };
+    const outros = plans.filter(x => String(x.id) !== id && !this.isPaused(x.id));
+    if (!outros.length) return { ok: false, reason: 'last-operational' };
+    const now = new Date().toISOString(), map = this._pauseMap();
+    map[id] = { pausedAt: now, resumedAt: null };
+    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
+    let switchedTo = null;
+    if (String(this.getActivePlanId()) === id) {
+      switchedTo = outros[0].id;
+      DB.setRaw(this.GK.active, switchedTo);
+      try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-pause'); }
+    }
+    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: true, pausedAt: now, switchedTo } })); }
+    catch (e) { _quiet(e, 'planning-pause-event'); }
+    return { ok: true, pausedAt: now, switchedTo };
+  },
+  resumePlan(id) {
+    id = String(id || '');
+    if (!this.getPlans().some(x => String(x.id) === id)) return { ok: false, reason: 'not-found' };
+    const map = this._pauseMap(), old = map[id];
+    if (!old || !old.pausedAt || old.resumedAt) return { ok: true, unchanged: true };
+    const now = new Date().toISOString();
+    map[id] = Object.assign({}, old, { resumedAt: now });
+    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
+    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: false, resumedAt: now } })); }
+    catch (e) { _quiet(e, 'planning-resume-event'); }
+    return { ok: true, resumedAt: now };
+  },
   // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
   // vez todas as chaves do planejamento e as telas abririam vazias.
   getActivePlanId() { try { return DB._activePlanId(); } catch (e) { return null; } },
@@ -18574,9 +18674,11 @@ const PlanManager = {
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
   setActivePlan(id) {
+    if (this.isPaused(id)) return false;
     DB.setRaw(this.GK.active, id);
     // Idem: cada planejamento tem o seu histórico.
     try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem'); }
+    return true;
   },
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
@@ -18665,14 +18767,32 @@ const PlanManager = {
     this.savePlans(plans);
   },
   deletePlan(id) {
-    // apaga todos os dados namespaced do planejamento
+    id = String(id || '');
+    const atuais = this.getPlans();
+    const alvo = atuais.find(p => String(p.id) === id);
+    if (!alvo) return false;
+    /* Não deixa a exclusão criar um perfil que só tenha planejamentos pausados.
+       Nesse estado nenhuma tela operacional teria um destino seguro para novas
+       gravações. Reative outro antes de excluir o último operacional. */
+    if (!this.isPaused(id)) {
+      const outrosOperacionais = atuais.filter(p => String(p.id) !== id && !this.isPaused(p.id));
+      const outrosQuaisquer = atuais.filter(p => String(p.id) !== id);
+      if (!outrosOperacionais.length && outrosQuaisquer.length) return false;
+    }
+    // apaga todos os dados namespaced do planejamento. A exclusão explícita é
+    // a única operação administrativa que pode atravessar o congelamento.
     const k = DB.keysForPlan(id);
-    Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
+    const wipe = () => Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
+    if (DB.withPausedPlanWrite) DB.withPausedPlanWrite(wipe); else wipe();
     const plans = this.getPlans().filter(p => p.id !== id);
     this.savePlans(plans);
+    const map = this._pauseMap(); if (map[String(id)]) { delete map[String(id)]; this._savePauseMap(map); }
     if (this.getActivePlanId() === id) {
-      this.setActivePlan(plans[0] ? plans[0].id : this._ensureInitial());
+      const next = plans.find(p => !this.isPaused(p.id));
+      if (next) this.setActivePlan(next.id);
+      else if (!plans.length) this._ensureInitial();
     }
+    return true;
   },
 
   _ensureInitial() {
@@ -18695,9 +18815,18 @@ const PlanManager = {
       this._seedDefaults(id, { silent: true });
       try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active'); }
     }
-    // garante um planejamento ativo válido
-    if (!this.getActivePlan()) {
-      const id = this.getPlans()[0] && this.getPlans()[0].id;
+    // garante um planejamento ativo válido E operacional. Um planejamento
+    // pausado pode continuar existindo indefinidamente, mas nunca vira o
+    // contexto de escrita do app por acidente.
+    if (!this.getActivePlan() || this.isActivePlanPaused()) {
+      let p = this.getOperationalPlans()[0] || null;
+      if (!p && this.getPlans()[0]) {
+        // Estado impossível pela UI (o último operacional não pode ser pausado),
+        // mas saneia dados antigos/sincronização parcial reativando o primeiro.
+        this.resumePlan(this.getPlans()[0].id);
+        p = this.getPlans()[0];
+      }
+      const id = p && p.id;
       if (id) {
         if (bootstrap) { try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active2'); } }
         else this.setActivePlan(id);
@@ -26951,7 +27080,7 @@ const HistoricoScreen = {
     document.querySelectorAll('#hist-scope-toggle button[data-scope]').forEach(b =>
       b.classList.toggle('active', b.dataset.scope === this.scope));
     const consolidated = this.scope === 'all';
-    const history = (consolidated ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory()).slice().reverse();
+    const history = (consolidated ? DB.getAllCycleHistoryTagged({ includePaused: true }) : DB.getCycleHistory()).slice().reverse();
     const emptyEl = document.getElementById('historico-empty');
     const listEl = document.getElementById('historico-list');
 
@@ -26990,7 +27119,7 @@ const HistoricoScreen = {
       ? `<span class="status-badge ${toneFor(w.avgPerformancePct) === 'good' ? 'finalizada' : toneFor(w.avgPerformancePct) === 'warn' ? 'iniciada' : 'pendente'}">${formatPct(w.avgPerformancePct)}% acerto</span>`
       : '';
     const planBadge = consolidated && w._planNome
-      ? `<span class="plan-tag-badge">${escapeHtml(w._planNome)}</span>` : '';
+      ? `<span class="plan-tag-badge">${w._planPaused ? '⏸ ' : ''}${escapeHtml(w._planNome)}</span>` : '';
     const actions = consolidated ? '' : `
             <button type="button" class="reg-act-btn btn-edit-week" title="Editar semana" aria-label="Editar semana">✎</button>
             <button type="button" class="reg-act-btn danger btn-delete-week" title="Excluir semana" aria-label="Excluir semana">✕</button>`;
@@ -46562,6 +46691,14 @@ window.addEventListener('screen:activated', (e) => {
    TELA + SELETOR DE PLANEJAMENTOS (workspace)
    ============================================================ */
 const PlanUI = {
+  _fmtPause(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    } catch (_) { return String(iso); }
+  },
+
   // ---------- Seletor na sidebar ----------
   renderSidebar() {
     const active = PlanManager.getActivePlan();
@@ -46569,18 +46706,26 @@ const PlanUI = {
     const listEl = document.getElementById('plan-switcher-list');
     const plans = PlanManager.getPlans();
     const activeId = PlanManager.getActivePlanId();
-    listEl.innerHTML = plans.map(p => `
-      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''}" data-id="${p.id}">
+    listEl.innerHTML = plans.map(p => {
+      const paused = PlanManager.isPaused(p.id);
+      return `
+      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" aria-disabled="${paused ? 'true' : 'false'}">
         <span class="psi-dot"></span>
         <span class="psi-text">
           <span class="psi-name">${escapeHtml(p.nome)}</span>
-          <span class="psi-tipo">${escapeHtml(p.tipo)}</span>
+          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${escapeHtml(p.tipo)}</span>
         </span>
-        ${p.id === activeId ? '<span class="psi-check">✓</span>' : ''}
-      </button>`).join('');
+        ${p.id === activeId ? '<span class="psi-check">✓</span>' : paused ? '<span class="psi-check">⏸</span>' : ''}
+      </button>`;
+    }).join('');
     listEl.querySelectorAll('.plan-switcher-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.id;
+        if (PlanManager.isPaused(id)) {
+          showToast('⏸ Este planejamento está pausado. Reative-o em Planejamentos para voltar a usá-lo.');
+          this.closeMenu();
+          return;
+        }
         if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         PlanManager.setActivePlan(id);
         CloudStore.saveThenReload(); // salva na nuvem antes de recarregar
@@ -46602,7 +46747,7 @@ const PlanUI = {
     const sourceSel = document.getElementById('np-source');
     const plans = PlanManager.getPlans();
     sourceSel.innerHTML = `<option value="">— Começar do zero —</option>` +
-      plans.map(p => `<option value="${p.id}">${escapeHtml(p.nome)}</option>`).join('');
+      plans.map(p => `<option value="${p.id}">${PlanManager.isPaused(p.id) ? '⏸ ' : ''}${escapeHtml(p.nome)}</option>`).join('');
     this.updateCopyOptionsVisibility();
   },
   updateCopyOptionsVisibility() {
@@ -46620,13 +46765,16 @@ const PlanUI = {
       const totalMin = entries.reduce((a, e) => a + (e.durationMin || 0), 0);
       const weeks = DB.getCycleHistoryForPlan(p.id).length;
       const isActive = p.id === activeId;
+      const pause = PlanManager.pauseInfo(p.id);
+      const isPaused = !!pause;
       return `
-        <div class="plan-card ${isActive ? 'is-active' : ''}" data-id="${p.id}">
+        <div class="plan-card ${isActive ? 'is-active' : ''} ${isPaused ? 'is-paused' : ''}" data-id="${p.id}">
           <div class="plan-card-head">
             <div class="plan-card-title">
               <span class="nome">${escapeHtml(p.nome)}</span>
               <span class="plan-type-badge">${escapeHtml(p.tipo)}</span>
               ${isActive ? '<span class="plan-active-pill">ativo</span>' : ''}
+              ${isPaused ? '<span class="plan-active-pill">⏸ pausado</span>' : ''}
             </div>
             <div class="config-row-actions">
               <button type="button" class="icon-btn btn-rename-plan" title="Renomear">✎ Renomear</button>
@@ -46639,10 +46787,14 @@ const PlanUI = {
             <div class="plan-stat"><div class="value">${CycleEngine.fmtHM(totalMin)}</div><div class="label">estudado</div></div>
             <div class="plan-stat"><div class="value">${weeks}</div><div class="label">semanas no histórico</div></div>
           </div>
+          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki continuam globais.</div>` : ''}
           <div class="plan-card-actions">
-            ${isActive
-              ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
-              : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>'}
+            ${isPaused
+              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar planejamento</button>'
+              : (isActive
+                ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
+                : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>')}
+            ${isPaused ? '' : '<button type="button" class="btn-secondary btn-pause-plan">⏸ Pausar</button>'}
           </div>
         </div>`;
     }).join('');
@@ -46651,8 +46803,34 @@ const PlanUI = {
       const id = card.dataset.id;
       const openBtn = card.querySelector('.btn-open-plan');
       if (openBtn) openBtn.addEventListener('click', () => {
-        PlanManager.setActivePlan(id);
+        if (!PlanManager.setActivePlan(id)) { showToast('Planejamento pausado'); return; }
         CloudStore.saveThenReload();
+      });
+      const pauseBtn = card.querySelector('.btn-pause-plan');
+      if (pauseBtn) pauseBtn.addEventListener('click', async () => {
+        const p = PlanManager.getPlans().find(x => x.id === id);
+        const ok = await UI.confirm(
+          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki continuam disponíveis globalmente.`,
+          { title: '⏸ Pausar planejamento', okText: 'Pausar' }
+        );
+        if (!ok) return;
+        const r = PlanManager.pausePlan(id);
+        if (!r.ok) {
+          if (r.reason === 'last-operational') {
+            await UI.alert('É preciso manter pelo menos um planejamento ativo. Crie ou reative outro antes de pausar este.', { title: 'Não é possível pausar' });
+          } else showToast('Não foi possível pausar o planejamento');
+          return;
+        }
+        showToast('Planejamento pausado ✓');
+        if (r.switchedTo) { CloudStore.saveThenReload(); return; }
+        this.renderScreen(); this.renderSidebar();
+      });
+      const resumeBtn = card.querySelector('.btn-resume-plan');
+      if (resumeBtn) resumeBtn.addEventListener('click', () => {
+        const r = PlanManager.resumePlan(id);
+        if (!r.ok) { showToast('Não foi possível reativar'); return; }
+        showToast('Planejamento reativado ✓');
+        this.renderScreen(); this.renderSidebar();
       });
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
@@ -46677,7 +46855,11 @@ const PlanUI = {
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
-        PlanManager.deletePlan(id);
+        const apagou = PlanManager.deletePlan(id);
+        if (apagou === false) {
+          await UI.alert('Reative outro planejamento antes de excluir este. O perfil precisa manter pelo menos um planejamento operacional.', { title: 'Não é possível excluir' });
+          return;
+        }
         if (wasActive) { CloudStore.saveThenReload(); return; }
         this.renderScreen();
         this.renderSidebar();
@@ -47555,6 +47737,11 @@ const ReforcoFila = {
      execução/histórico; é essa separação que impede uma importação ou um F5 de
      reescrever a meta que a pessoa viu de manhã. */
   sincronizar() {
+    try {
+      if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
+        return { mudou: false, pausado: true };
+      }
+    } catch (_) {}
     if (this._rodando) return { mudou: false };
     this._rodando = true;
     let mudou = false;
@@ -48563,6 +48750,11 @@ window.ReforcoFila = ReforcoFila;
     },
     sincronizarHoje() {
       if (typeof DB === 'undefined' || typeof LawEngine === 'undefined') return { mudou: false, criadas: 0 };
+      try {
+        if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
+          return { mudou: false, criadas: 0, pausado: true };
+        }
+      } catch (_) {}
       const p = this.prefs(), hoje = todayLocal();
       if (!p.ativo || !this._diaPermitido(hoje, p)) return { mudou: false, criadas: 0 };
       let extras = DB.getExtras();
@@ -50819,6 +51011,27 @@ const RelationalStore = {
     if(active) this._memSet(pfx+'active-plan',active);
 
     (d.profileSettings||[]).forEach(r=>this._memSet(pfx+r.key,this._raw(r.value)));
+
+    /* O ponteiro ativo chega de study_profiles e a pausa chega de
+       study_profile_settings. Se outro dispositivo pausou justamente o plano
+       ativo, saneamos o contexto assim que ambos estão em memória para nenhum
+       motor/tela operacional abrir no workspace congelado. */
+    try {
+      const rawPause = localStorage.getItem(pfx + 'plan-pauses-v1');
+      const pauses = rawPause ? JSON.parse(rawPause) : {};
+      const paused = id => {
+        const x = pauses && pauses[String(id)];
+        return !!(x && x.pausedAt && !x.resumedAt);
+      };
+      if (active && paused(active)) {
+        const next = visiblePlans.find(p => !paused(p.plan_id));
+        if (next) {
+          active = next.plan_id;
+          this._memSet(pfx + 'active-plan', active);
+        }
+      }
+    } catch (e) { _quiet(e, 'rel-pause-active-sanitize'); }
+
     (d.planState||[]).forEach(r=>this._memSet(pfx+'p:'+r.plan_id+':'+r.key,this._raw(r.value)));
 
     const putGroups=(rows,suffix,map)=>{
@@ -51156,6 +51369,13 @@ const RelationalStore = {
        mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
     if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
+    if (p.scope === 'plan') {
+      try {
+        const pausado = typeof PlanManager !== 'undefined' && PlanManager.isPaused && PlanManager.isPaused(p.planId);
+        const conhecimento = typeof DB !== 'undefined' && DB._pausedKnowledgeSuffix && DB._pausedKnowledgeSuffix(p.sub);
+        if (pausado && !conhecimento) return;
+      } catch (e) { _quiet(e, 'rel-pause-write-guard'); }
+    }
     if(p.scope==='user') {
       if(p.sub==='profiles'||p.sub==='active-profile') return;
       this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
@@ -55966,6 +56186,12 @@ else CloudStore.init();
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
+      try {
+        if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
+          return { erro: 'plano-pausado', fase: p.fase, prefs: p, itens: [], todos: [], disciplinas: [], disciplinasTodas: [], disciplinasDisponiveis: [] };
+        }
+      } catch (_) {}
+
       const retratoOverride = opts && opts.retrato ? opts.retrato : null;
       delete p.retrato;
       p.disciplinasSel = Array.isArray(p.disciplinasSel) ? p.disciplinasSel.slice() : [];
@@ -56791,6 +57017,10 @@ else CloudStore.init();
       if (list.some(p => String(p.id) === String(active))) return list;
       return active ? [{ id: active, nome: 'Planejamento atual' }].concat(list) : list;
     },
+    operationalPlans() {
+      const list = this.plans();
+      return list.filter(p => !(PlanManager.isPaused && PlanManager.isPaused(p.id)));
+    },
     planName(id) {
       const p = this.plans().find(x => String(x.id) === String(id));
       return p ? (p.nome || p.name || String(id)) : String(id || '');
@@ -56832,6 +57062,11 @@ else CloudStore.init();
       this.plans().forEach(p => out.push(...this._tag(p.id, this._rows(p.id, suffix))));
       return out;
     },
+    operationalAllBy(suffix) {
+      const out = [];
+      this.operationalPlans().forEach(p => out.push(...this._tag(p.id, this._rows(p.id, suffix))));
+      return out;
+    },
     forScope(suffix, scope) {
       const sc = scope || this.cardsScope();
       return sc === 'all' ? this.allBy(suffix) : this._tag(this.activePlanId(), this._rows(this.activePlanId(), suffix));
@@ -56854,11 +57089,20 @@ else CloudStore.init();
         seen.add(k); return true;
       });
     },
-    extras(scope) { return this.forScope('extras', scope); },
+    extras(scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.operationalAllBy('extras') : this.forScope('extras', sc);
+    },
     laws(scope) { return this.forScope('leis', scope); },
     links(scope) { return this.forScope('links', scope); },
-    tec(scope) { return this.forScope('tec', scope); },
-    incidence(scope) { return this.forScope('incidencia', scope); },
+    tec(scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.operationalAllBy('tec') : this.forScope('tec', sc);
+    },
+    incidence(scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.operationalAllBy('incidencia') : this.forScope('incidencia', sc);
+    },
 
     findRecord(suffix, id) {
       const active = this.activePlanId();
@@ -57371,7 +57615,7 @@ else CloudStore.init();
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
-  DB.getAllExtrasTagged = () => S.allBy('extras');
+  DB.getAllExtrasTagged = () => S.operationalAllBy('extras');
   DB.getAllSavedGradesTagged = () => S.allBy('savedGrades');
   DB.copySavedGradeToActive = function(sourcePlanId, id) {
     const active = S.activePlanId();
@@ -57431,7 +57675,7 @@ else CloudStore.init();
   };
   DB.getAllTecSnapshotsTagged = () => {
     try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
-    return S.allBy('tec').map(s => {
+    return S.operationalAllBy('tec').map(s => {
       const x = Object.assign({}, s);
       if (!x.startDate) x.startDate = x.date || (typeof todayLocal === 'function' ? todayLocal() : '');
       if (!x.endDate) x.endDate = x.date || x.startDate;
@@ -57439,7 +57683,7 @@ else CloudStore.init();
     }).sort((a,b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
       || String(a.endDate || '').localeCompare(String(b.endDate || '')));
   };
-  DB.getAllIncidenciaTagged = () => S.allBy('incidencia');
+  DB.getAllIncidenciaTagged = () => S.operationalAllBy('incidencia');
 
   /* Memória realizada/conhecimento pertence ao PERFIL. A persistência continua
      separada por planejamento para compatibilidade e sincronização, mas leitura
