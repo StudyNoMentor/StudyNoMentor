@@ -165,6 +165,39 @@ export function optimize_json(input_json) {
 }
 
 /**
+ * Health Check oficial do Anki 26.09.2: a mesma validação temporal
+ * evaluate_with_time_series_splits() e os mesmos ajustes/limiares do rslib.
+ * @param {string} input_json
+ * @returns {string}
+ */
+export function health_check_json(input_json) {
+    let deferred3_0;
+    let deferred3_1;
+    try {
+        const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+        const ptr0 = passStringToWasm0(input_json, wasm.__wbindgen_export_1, wasm.__wbindgen_export_2);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.health_check_json(retptr, ptr0, len0);
+        var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+        var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+        var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+        var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+        var ptr2 = r0;
+        var len2 = r1;
+        if (r3) {
+            ptr2 = 0; len2 = 0;
+            throw takeObject(r2);
+        }
+        deferred3_0 = ptr2;
+        deferred3_1 = len2;
+        return getStringFromWasm0(ptr2, len2);
+    } finally {
+        wasm.__wbindgen_add_to_stack_pointer(16);
+        wasm.__wbindgen_export_3(deferred3_0, deferred3_1, 1);
+    }
+}
+
+/**
  * Calcula o estado de memória pela mesma API de inferência do fsrs-rs usada
  * pelo Anki ao atualizar memory_state. Para históricos truncados, recebe os
  * dados SM-2 da primeira revisão preservada e os converte em starting_state.
