@@ -200,6 +200,7 @@ assert.equal(journal[0].planId,'B','journal durável deve carregar planId de ori
 
 ctx.DB.deleteCard('b1');
 assert.equal(parse(keysForPlan('B').cards,[]).length,0,'exclusão deve ocorrer na origem');
-assert.equal(parse(keysForPlan('A').cards,[]).length,1,'exclusão global não pode tocar outro plano');
+assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id==='a1'),true,'exclusão global não pode tocar card do plano ativo');
+assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'exclusão de card externo não pode tocar card novo do plano ativo');
 
 console.log('OK: memória global, cópias explícitas de grade/lei e Cards globais sem duplicação física.');
