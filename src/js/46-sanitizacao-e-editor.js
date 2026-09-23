@@ -501,6 +501,11 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   })();
   on('foco-sair', 'click', () => CardsScreen.sairFoco());
   on('foco-undo', 'click', () => CardsScreen.undoAnswer());
+  // Segurança de navegação: se alguma ação programática trocar de tela enquanto
+  // o foco estiver ativo, a classe não pode sobreviver escondendo a interface.
+  window.addEventListener('screen:activated', (e) => {
+    if (!e.detail || e.detail.screen !== 'cards') document.body.classList.remove('cards-foco');
+  });
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
   on('cards-empty-btn', 'click', async () => {

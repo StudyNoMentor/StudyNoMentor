@@ -222,7 +222,12 @@ const AnkiOfficial = {
     const focus = document.getElementById('anki-foco-btn');
     if (focus && !focus.dataset.boundAnki) {
       focus.dataset.boundAnki='1';
-      focus.onclick=()=>{ this.setView('review'); document.body.classList.add('anki-foco'); void this.renderReviewer(); };
+      focus.onclick=()=>{
+        this.setView('review');
+        document.body.classList.remove('cards-foco','leis-foco');
+        document.body.classList.add('anki-foco');
+        void this.renderReviewer();
+      };
     }
     const focusExit = document.getElementById('anki-foco-sair');
     if (focusExit && !focusExit.dataset.boundAnki) {
