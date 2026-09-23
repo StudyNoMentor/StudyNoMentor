@@ -67,6 +67,19 @@ assert.equal(invalid.intervalo,10);
 assert.equal(invalid.due,'2026-09-22');
 assert.equal(invalid.dueTs,null);
 
+// Custom Scheduling atual do Anki: scripts recebem o objeto "states".
+const sched=(card,grade)=>({phase:'learning',due:'2026-09-22',dueTs:123,_kind:'min',_val:grade==='dificil'?10:5,intervalo:0,ease:2.5,status:'sei'});
+const bundle=T._buildSchedulingStates(cards[0],sched);
+assert.equal(bundle.states.hard.normal.learning.scheduledSecs,600);
+const filteredBundle=T._buildSchedulingStates({...cards[0],originalDeckId:'d1',filteredReschedule:true},sched);
+assert.equal(filteredBundle.states.hard.filtered.rescheduling.originalState.learning.scheduledSecs,600);
+store.set(T._customKey(),JSON.stringify({enabled:true,source:'if (states.hard.normal?.learning) states.hard.normal.learning.scheduledSecs = 123 * 60;'}));
+T._baseScheduler=sched;
+const custom=T._runCustomScheduling(cards[0],'dificil',sched(cards[0],'dificil'));
+assert.equal(custom._kind,'min');
+assert.equal(custom._val,123,'script no formato oficial states deve alterar o intervalo Hard');
+store.delete(T._customKey());
+
 const bytes=new Uint8Array([0,1,2,253,254,255]);
 assert.deepEqual([...T._b64ToBytes(T._bytesToB64(bytes))],[...bytes],'mídia mantém bytes no round-trip base64');
 
@@ -89,4 +102,4 @@ assert.match(menuSrc,/ArrowDown/,'menu Mais deve permitir navegação por setas'
 assert.match(menuSrc,/Home/,'menu Mais deve suportar Home/End');
 assert.match(menuCss,/\.cards-more-menu[\s\S]*?overflow-y:\s*auto/,'menu Mais deve rolar dentro do viewport');
 
-console.log('PARIDADE TOTAL: Browser profundo, Custom Scheduling seguro, integridade e codec de media sync validados.');
+console.log('PARIDADE TOTAL: Browser profundo, Custom Scheduling por states, integridade e codec de media sync validados.');
