@@ -676,14 +676,37 @@ const CardsScreen = {
     if(cap>0)ms=Math.min(ms,cap);
     return Math.round(ms);
   },
+  _resumeAutoAdvanceIfReady(){
+    const p=this._reviewAutoPending;if(!p||!this._autoAdvanceEnabled)return;
+    if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying())return;
+    const id=(this._reviewQueue||[])[this._reviewIdx];
+    if(String(id||'')!==String(p.cardId||'')){this._reviewAutoPending=null;return;}
+    this._reviewAutoPending=null;try{p.fn();}catch(e){_quiet(e,'auto-advance-resume');}
+  },
+  _runAutoAdvanceAction(c,cfg,fn){
+    if(!this._autoAdvanceEnabled)return;
+    if(cfg&&cfg.waitForAudio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
+      this._reviewAutoPending={cardId:c.id,fn};return;
+    }
+    fn();
+  },
+  toggleAutoAdvance(force){
+    const next=typeof force==='boolean'?force:!this._autoAdvanceEnabled;
+    this._autoAdvanceEnabled=next;this._reviewAutoPending=null;clearTimeout(this._reviewAutoTimer);
+    const id=(this._reviewQueue||[])[this._reviewIdx],c=id&&DB.getCard(id);
+    if(c&&next)this._armReviewerAutomation(c,CardsConfig.forDeck(c.deckId));
+    const b=document.getElementById('cards-auto-advance');if(b){b.classList.toggle('on',next);b.setAttribute('aria-pressed',next?'true':'false');b.textContent=next?'⏩ Auto ligado':'⏩ Auto';}
+    showToast(next?'⏩ Auto Advance ligado':'⏸ Auto Advance desligado');
+  },
   _armReviewerAutomation(c,cfg) {
-    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
+    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);this._reviewAutoPending=null;
     const tick=()=>{
       const el=document.getElementById('cards-review-timer');if(!el)return;
       el.textContent=(this._reviewElapsedMs(cfg)/1000).toFixed(1)+'s';
     };
     if(cfg&&cfg.showTimer){tick();this._reviewTimer=setInterval(tick,250);}
-    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))fn();},ms);};
+    if(!this._autoAdvanceEnabled)return;
+    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))this._runAutoAdvanceAction(c,cfg,fn);},ms);};
     if(!this._flipped&&cfg&&Number(cfg.secondsToShowQuestion)>0){
       const rem=Math.max(0,Number(cfg.secondsToShowQuestion)*1000-(Date.now()-(Number(this._reviewStartedAt)||Date.now())));
       run(rem,()=>{if(Number(cfg.questionAction)===0)this.flip(document.getElementById('cards-content'));else showToast('⏰ Tempo da pergunta concluído');});
@@ -735,6 +758,7 @@ const CardsScreen = {
           <button type="button" class="icon-btn" id="cards-act-forget" title="Esquecer: volta a ser card novo (Ctrl+Alt+N)">↺ Esquecer</button>
           <button type="button" class="icon-btn" id="cards-act-due" title="Definir data de vencimento (Ctrl+Shift+D)">📅 Data</button>
           <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
+          <button type="button" class="icon-btn ${this._autoAdvanceEnabled?'on':''}" id="cards-auto-advance" aria-pressed="${this._autoAdvanceEnabled?'true':'false'}" title="Alternar Auto Advance (Shift+A)">${this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto'}</button>
           <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)" aria-label="Excluir card (Ctrl+Del)">🗑</button>
           <span class="cards-flagbar" title="Bandeiras (Ctrl+1..4, Ctrl+0 remove)">
             ${[1,2,3,4].map(n => `<button type="button" class="cards-flag ${(c.flag||0)===n?'on':''}" data-flag="${n}" style="--fl:${DB.FLAGS[n].cor}" title="${DB.FLAGS[n].nome} (Ctrl+${n})"></button>`).join('')}
@@ -783,6 +807,7 @@ const CardsScreen = {
         });
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
+    liga('cards-auto-advance', () => this.toggleAutoAdvance());
     liga('cards-act-del', () => {
       const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
       const msg = irmaos > 1
@@ -932,6 +957,7 @@ const CardsScreen = {
     const clique = (bid) => { const b = document.getElementById(bid); if (b) b.click(); };
     if (e.code === 'KeyU' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.undoAnswer(); return; }   // u = desfazer
     if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); clique('cards-review-edit'); return; }
+    if (e.shiftKey && e.code === 'KeyA' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.toggleAutoAdvance(); return; }
     if (e.code === 'KeyI' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); clique('cards-act-info'); return; }
     if (e.key === '-') { e.preventDefault(); clique('cards-act-bury'); return; }
     if (e.key === '@' || (e.shiftKey && e.code === 'Digit2')) { e.preventDefault(); clique('cards-act-susp'); return; }
@@ -2390,8 +2416,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       options: [{ value: 'fsrs', label: 'FSRS-6 (recomendado — igual ao Anki atual)' }, { value: 'sm2', label: 'Clássico (SM-2)' }],
       hint: 'Como no Anki, esta escolha é global. Presets podem variar retenção e parâmetros, não o algoritmo ligado.'
     }] : []),
-    { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 97,
-      hint: 'Maior = revê mais e esquece menos. Padrão do Anki: 90%.' },
+    { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 99,
+      hint: 'Faixa do Anki/FSRS: 70–99%. Padrão: 90%. Valores muito altos aumentam bastante a carga.' },
     { key: 'learn', label: '⏱️ Passos de aprendizado (min)', type: 'text', value: cfg.learnSteps.join(' '), placeholder: '1 10',
       hint: 'Card novo: você o revê nesses minutos até fixar (ex.: 1 10).' },
     { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
@@ -2543,8 +2569,13 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
   const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
   UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
     if (!v) return;
-    const parseSteps = (s, def) => { const a = String(s).split(/[\s,]+/).map(x => parseFloat(x)).filter(x => x > 0); return a.length ? a : def; };
-    const ret = Math.min(0.97, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
+    const parseSteps = (s, def) => {
+      const raw=String(s==null?'':s).trim();
+      if(!raw)return []; // vazio é configuração válida no Anki/FSRS
+      const a=raw.split(/[\s,]+/).map(x=>parseFloat(x)).filter(x=>Number.isFinite(x)&&x>0);
+      return a.length?a:def;
+    };
+    const ret = Math.min(0.99, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
     const patch = {
       retention: ret,
       learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]),
