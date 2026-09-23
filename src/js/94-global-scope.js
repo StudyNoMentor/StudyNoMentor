@@ -107,6 +107,16 @@
     tec(scope) { return this.forScope('tec', scope); },
     incidence(scope) { return this.forScope('incidencia', scope); },
 
+    findRecord(suffix, id) {
+      const active = this.activePlanId();
+      const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
+      for (const pid of ids) {
+        const list = this._rows(pid, suffix);
+        const idx = list.findIndex(x => String(x && x.id) === String(id));
+        if (idx >= 0) return { planId: pid, list, index: idx, row: list[idx] };
+      }
+      return null;
+    },
     findCardRecord(id) {
       const active = this.activePlanId();
       const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
@@ -501,9 +511,126 @@
   DB.getAllRevlogTagged = () => S.revlog('all');
   DB.getAllExtrasTagged = () => S.allBy('extras');
   DB.getAllLeisTagged = () => S.allBy('leis');
-  DB.getAllLinksTagged = () => S.allBy('links');
-  DB.getAllTecSnapshotsTagged = () => S.allBy('tec');
+  DB.getAllLinksTagged = () => {
+    let out = S.allBy('links');
+    // Perfil realmente novo: preserva a semeadura dos atalhos padrão, mas só
+    // uma vez no planejamento ativo; depois a leitura passa a ser global.
+    if (!out.length && DB.getLinks) out = S._tag(S.activePlanId(), DB.getLinks());
+    return out;
+  };
+  DB.getAllTecSnapshotsTagged = () => {
+    try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
+    return S.allBy('tec').map(s => {
+      const x = Object.assign({}, s);
+      if (!x.startDate) x.startDate = x.date || (typeof todayLocal === 'function' ? todayLocal() : '');
+      if (!x.endDate) x.endDate = x.date || x.startDate;
+      return x;
+    }).sort((a,b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
+      || String(a.endDate || '').localeCompare(String(b.endDate || '')));
+  };
   DB.getAllIncidenciaTagged = () => S.allBy('incidencia');
+
+  /* Memória realizada/conhecimento pertence ao PERFIL. A persistência continua
+     separada por planejamento para compatibilidade e sincronização, mas leitura
+     global e mutações são roteadas de volta à origem. */
+
+  const EO = {
+    getEntry: DB.getEntry.bind(DB),
+    updateEntry: DB.updateEntry.bind(DB),
+    deleteEntry: DB.deleteEntry.bind(DB)
+  };
+  DB.getEntry = function(id) {
+    const local = EO.getEntry(id);
+    if (local) return local;
+    const r = S.findRecord('entries', id);
+    return r ? Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
+  };
+  DB.updateEntry = function(id, patch) {
+    if (EO.getEntry(id)) return EO.updateEntry(id, patch);
+    const r = S.findRecord('entries', id); if (!r) return null;
+    Object.assign(r.row, patch || {});
+    return DB._set(DB.keysForPlan(r.planId).entries, r.list) === false ? null
+      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+  };
+  DB.deleteEntry = function(id) {
+    if (EO.getEntry(id)) return EO.deleteEntry(id);
+    const r = S.findRecord('entries', id); if (!r) return false;
+    return DB._set(DB.keysForPlan(r.planId).entries,
+      r.list.filter(x => !DB._mesmoId ? String(x.id) !== String(id) : !DB._mesmoId(x.id, id))) !== false;
+  };
+
+  const LO = {
+    getLei: DB.getLei.bind(DB),
+    updateLei: DB.updateLei.bind(DB),
+    deleteLei: DB.deleteLei.bind(DB)
+  };
+  DB.getLei = function(id) {
+    const local = LO.getLei(id);
+    if (local) return local;
+    const r = S.findRecord('leis', id);
+    return r ? Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
+  };
+  DB.updateLei = function(id, patch) {
+    if (LO.getLei(id)) return LO.updateLei(id, patch);
+    const r = S.findRecord('leis', id); if (!r) return null;
+    Object.assign(r.row, patch || {});
+    r.row.updatedAt = new Date().toISOString();
+    return DB._set(DB.keysForPlan(r.planId).leis, r.list) === false ? null
+      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+  };
+  DB.deleteLei = function(id) {
+    if (LO.getLei(id)) return LO.deleteLei(id);
+    const r = S.findRecord('leis', id); if (!r) return false;
+    return DB._set(DB.keysForPlan(r.planId).leis,
+      r.list.filter(x => String(x.id) !== String(id))) !== false;
+  };
+
+  const LKO = {
+    updateLink: DB.updateLink.bind(DB),
+    deleteLink: DB.deleteLink.bind(DB)
+  };
+  DB.updateLink = function(id, patch) {
+    const active = S._rows(S.activePlanId(), 'links');
+    if (active.some(x => String(x.id) === String(id))) return LKO.updateLink(id, patch);
+    const r = S.findRecord('links', id); if (!r) return null;
+    Object.assign(r.row, patch || {});
+    if (patch && Object.prototype.hasOwnProperty.call(patch, 'url') && DB.urlSegura)
+      r.row.url = DB.urlSegura(r.row.url);
+    return DB._set(DB.keysForPlan(r.planId).links, r.list) === false ? null
+      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+  };
+  DB.deleteLink = function(id) {
+    const active = S._rows(S.activePlanId(), 'links');
+    if (active.some(x => String(x.id) === String(id))) return LKO.deleteLink(id);
+    const r = S.findRecord('links', id); if (!r) return false;
+    return DB._set(DB.keysForPlan(r.planId).links,
+      r.list.filter(x => String(x.id) !== String(id))) !== false;
+  };
+
+  const TO = {
+    deleteTecSnapshot: DB.deleteTecSnapshot.bind(DB),
+    updateTecSnapshot: DB.updateTecSnapshot.bind(DB),
+    tecOverlap: DB.tecOverlap.bind(DB)
+  };
+  DB.deleteTecSnapshot = function(id) {
+    const active = S._rows(S.activePlanId(), 'tec');
+    if (active.some(x => String(x.id) === String(id))) return TO.deleteTecSnapshot(id);
+    const r = S.findRecord('tec', id); if (!r) return false;
+    return DB._set(DB.keysForPlan(r.planId).tec,
+      r.list.filter(x => String(x.id) !== String(id))) !== false;
+  };
+  DB.updateTecSnapshot = function(id, patch) {
+    const active = S._rows(S.activePlanId(), 'tec');
+    if (active.some(x => String(x.id) === String(id))) return TO.updateTecSnapshot(id, patch);
+    const r = S.findRecord('tec', id); if (!r) return null;
+    Object.assign(r.row, patch || {});
+    return DB._set(DB.keysForPlan(r.planId).tec, r.list) === false ? null
+      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+  };
+  DB.tecOverlap = function(start, end, ignoreId) {
+    return (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : []).find(s =>
+      String(s.id) !== String(ignoreId) && start <= s.endDate && end >= s.startDate) || null;
+  };
 
   /* Roteamento de card global para o planejamento onde ele nasceu. */
   const O = {
