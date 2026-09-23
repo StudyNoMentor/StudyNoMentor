@@ -1211,22 +1211,28 @@ const CardsScreen = {
         }
         if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
-        const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
+        const cardAfter = Object.assign({}, c, cleanPatch || {}, {
+          updatedAt: new Date(revTs).toISOString(), ankiMod: Math.floor(revTs / 1000)
+        });
         const cardPosition = Math.max(1, (window.StudyGlobalScope && StudyGlobalScope.cardPosition ? StudyGlobalScope.cardPosition(id) : DB.getCards().findIndex(x => String(x.id) === String(id)) + 1));
-        const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
-        const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
+        const meta=(typeof AnkiParity!=='undefined'&&AnkiParity.revlogMeta)
+          ? AnkiParity.revlogMeta(c,patch,{preview:!!previewPatch,grade,revTs})
+          : {interval:Number(patch&&patch.intervalo)||0,lastInterval:Number(c.intervalo)||0,easeFactor:0,reviewKind:previewPatch?'filtered':(c.phase||'new')};
+        const preInterval=previewPatch?0:(Number(c.intervalo)||0);
         const revRow = await DB.addRevlogDurable(
           { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
             phase: previewPatch ? 'filtered' : (c.phase || 'new'),
-            ankiReviewKind: previewPatch ? 'filtered' : undefined,
+            ankiReviewKind: meta.reviewKind,
             elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
-            // Compatibilidade: `intervalo` continua sendo o intervalo pré-resposta
-            // usado pelas estatísticas antigas; os campos Anki explícitos removem
-            // qualquer ambiguidade para FSRS/import/export daqui em diante.
-            intervalo: preInterval, lastInterval: preInterval, ankiLastInterval: preInterval,
-            ankiInterval: postInterval, easeFactor,
-            s: (c.s || null), d: (c.d || null) },
-          cardAfter, cardPosition
+            // `intervalo` fica como compatibilidade interna. Os campos anki*
+            // seguem literalmente o revlog: segundos intradiários são negativos.
+            intervalo: preInterval, lastInterval: meta.lastInterval, ankiLastInterval: meta.lastInterval,
+            ankiInterval: meta.interval, easeFactor: meta.easeFactor,
+            s: (c.s == null ? null : c.s), d: (c.d == null ? null : c.d),
+            postS: (cardAfter.s == null ? null : cardAfter.s), postD: (cardAfter.d == null ? null : cardAfter.d),
+            postPhase: cardAfter.phase || null, postReps: Number(cardAfter.reps)||0,
+            postLapses: Number(cardAfter.lapses)||0 },
+          cardAfter, cardPosition, c
         );
         if (revRow === false) {
           showToast('⚠ Não foi possível gravar esta revisão com segurança. Libere espaço e tente de novo.');
@@ -1235,7 +1241,10 @@ const CardsScreen = {
   
         if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
         this._seenThisSession.add(id);
-        if (DB.updateCard(id, patch) === false) {
+        const aplicaLocal=()=>DB.updateCard(id, patch);
+        const localResult=(window.RelationalStore&&RelationalStore.applyReviewProjection)
+          ? RelationalStore.applyReviewProjection(aplicaLocal) : aplicaLocal();
+        if (localResult === false) {
           // O card não entrou nem na projeção local: cancela o append antes de
           // permitir qualquer replay na nuvem e devolve o contador.
           await DB.cancelarRevlogDurable(revRow);
@@ -2040,9 +2049,40 @@ const CardsScreen = {
     });
     const anomalies = [];
     cards.forEach(c => {
+      const cardPlanId=c._planId||activePlanId||null;
+      const logs=revlog.filter(r=>String(r.cardId)===String(c.id)
+        &&(!r._planId||!cardPlanId||String(r._planId)===String(cardPlanId)))
+        .sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
+      const sched=logs.filter(r=>{
+        const g=Number(r.grade),k=String(r.ankiReviewKind||r.phase||'');
+        return g>=1&&g<=4&&!['filtered','manual','rescheduled','reset'].includes(k);
+      });
       if ((c.phase === 'learning' || c.phase === 'relearning') && !c.dueTs && !c.due) anomalies.push({cardId:c.id,type:'learning_without_due'});
       if (c.dueTs && Number(c.dueTs) < 0) anomalies.push({cardId:c.id,type:'negative_dueTs'});
-      if ((c.reps||0) > 0 && !revlog.some(r => r.cardId === c.id)) anomalies.push({cardId:c.id,type:'reps_without_revlog',reps:c.reps});
+      if ((c.reps||0) > 0 && !logs.length) anomalies.push({cardId:c.id,type:'reps_without_revlog',reps:c.reps});
+      // No Anki, cada resposta normal incrementa reps UMA vez. Diferença aqui
+      // significa estado perdido ou reset sem entrada correspondente no revlog.
+      if(Number(c.reps||0)!==sched.length) anomalies.push({
+        cardId:c.id,type:'reps_revlog_mismatch',reps:Number(c.reps||0),schedulingReviews:sched.length,
+        detalhe:'O estado do card e o histórico não representam a mesma sequência de respostas.'
+      });
+      for(let i=1;i<sched.length;i++){
+        if(String(sched[i].phase)==='new'&&String(sched[i-1].phase)==='new'){
+          anomalies.push({cardId:c.id,type:'new_phase_repeated_without_reset',
+            previousReviewId:sched[i-1].reviewId||null,reviewId:sched[i].reviewId||null});
+          break;
+        }
+      }
+      logs.forEach(r=>{
+        if(r.postD!=null&&r.easeFactor!=null&&typeof AnkiParity!=='undefined'&&AnkiParity._difficultyShifted){
+          const shifted=AnkiParity._difficultyShifted(r.postD);
+          const esperado=shifted==null?0:Math.round(shifted*1000);
+          if(Number(r.easeFactor)!==esperado) anomalies.push({
+            cardId:c.id,type:'fsrs_revlog_factor_mismatch',reviewId:r.reviewId||null,
+            stored:Number(r.easeFactor),expected:esperado
+          });
+        }
+      });
       if (c.phase === 'review' && !(c.intervalo > 0)) anomalies.push({cardId:c.id,type:'review_sem_intervalo'});
       if (typeof c.s === 'number' && (!isFinite(c.s) || c.s < 0.001 || c.s > 36500)) anomalies.push({cardId:c.id,type:'s_fora_de_faixa',s:c.s});
       if (typeof c.d === 'number' && (!isFinite(c.d) || c.d < 1 || c.d > 10)) anomalies.push({cardId:c.id,type:'d_fora_de_faixa',d:c.d});
@@ -2063,8 +2103,9 @@ const CardsScreen = {
     }
     const planIds = [...new Set(cards.map(c => c._planId).filter(Boolean))];
     const payload = {
-      schema:'diario-estudos-cards-audit', version:2, exportedAt:now.toISOString(), appDate:todayCards(),
-      purpose:'Diagnóstico do agendador de cards, limites diários e possíveis repetições em loop.',
+      schema:'diario-estudos-cards-audit', version:3, exportedAt:now.toISOString(), appDate:todayCards(),
+      reference:{product:'Anki',version:'26.09.3',scheduler:'v3',fsrs:'6.6.2'},
+      purpose:'Diagnóstico diferencial do agendador, revlog, persistência e limites dos Cards contra o Anki oficial.',
       scope:{
         mode:scope,
         label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento',
