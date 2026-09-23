@@ -5,9 +5,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     ANKI_DATA_DIR=/data/anki-official
 
 WORKDIR /app
-COPY requirements.txt .
+COPY anki_official_backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py .
+COPY anki_official_backend/app.py ./app.py
 
 RUN mkdir -p /data/anki-official
 VOLUME ["/data"]
