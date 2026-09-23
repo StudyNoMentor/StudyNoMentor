@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v750e9216be">
+<meta name="diario-versao" content="ve6211793b4">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -23441,8 +23441,34 @@ const CardEngine = {
     if (dias < 365) { const mo = Math.round(dias / 30 * 10) / 10; return mo === 1 ? '1 mês' : mo + ' meses'; }
     const an = Math.round(dias / 365 * 10) / 10; return an === 1 ? '1 ano' : an + ' anos';
   },
-  // ---- Cloze / Omissão de palavras: {{texto}} ou {{c1::texto}} ----
-  hasCloze(text) { return (typeof AnkiParity !== 'undefined') ? AnkiParity.clozeOrdinals(text).length > 0 : /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
+  // ---- Cloze / Omissão de palavras: aceita o atalho {{texto}}, mas
+  // persiste sempre no formato canônico do Anki: {{c1::texto}}.
+  clozeOrdinals(text) {
+    const s = String(text || '');
+    if (typeof AnkiParity !== 'undefined') return AnkiParity.clozeOrdinals(s);
+    const out = new Set();
+    s.replace(/\{\{c([\d,]+)::[\s\S]*?\}\}/gi, (_m, raw) => {
+      String(raw || '').split(',').forEach(x => {
+        const n = Number(x);
+        if (Number.isInteger(n) && n > 0) out.add(n);
+      });
+      return _m;
+    });
+    return [...out].sort((a, b) => a - b);
+  },
+  nextClozeOrdinal(text) {
+    const ords = this.clozeOrdinals(text);
+    return ords.length ? Math.max(...ords) + 1 : 1;
+  },
+  normalizeCloze(text) {
+    let next = this.nextClozeOrdinal(text);
+    return String(text || '').replace(/\{\{(?!c[\d,]+::)([\s\S]*?)\}\}/gi, (m, inner) => {
+      // {{ }} vazio continua inválido; só atalhos com conteúdo viram Cloze.
+      if (!this.plain(inner)) return m;
+      return '{{c' + (next++) + '::' + inner + '}}';
+    });
+  },
+  hasCloze(text) { return this.clozeOrdinals(this.normalizeCloze(text)).length > 0; },
   // reveal=false => mostra [ ... ] no lugar; reveal=true => revela destacado
   clozeRender(html, reveal, ordinal) {
     if (typeof AnkiParity !== 'undefined') return AnkiParity.revealCloze(html, Number(ordinal) || 1, !reveal);
@@ -32291,10 +32317,13 @@ const CardsScreen = {
       dest = 'deck:' + deck.id;
     }
     const kind = $id('card-kind').value;
-    const frente = $id('card-frente').innerHTML.trim();
+    let frente = $id('card-frente').innerHTML.trim();
     const verso = $id('card-verso').innerHTML.trim();
     if (!dest) { showToast('Escolha o baralho'); return null; }
     if (kind === 'cloze') {
+      // Compatibilidade do editor: {{texto}} é um atalho aceito pela UI,
+      // mas o backend/Anki trabalha com {{cN::texto}}.
+      frente = CardEngine.normalizeCloze(frente);
       if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
       if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
     } else {
@@ -40907,8 +40936,11 @@ function buildRteToolbar(rte) {
     area.focus();
     const t = window.getSelection ? String(window.getSelection()).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    try { document.execCommand('insertText', false, '{{' + t + '}}'); }
-    catch (e) { document.execCommand('insertHTML', false, '{{' + t + '}}'); }
+    const ord = (typeof CardEngine !== 'undefined' && CardEngine.nextClozeOrdinal)
+      ? CardEngine.nextClozeOrdinal(area.innerHTML) : 1;
+    const token = '{{c' + ord + '::' + t + '}}';
+    try { document.execCommand('insertText', false, token); }
+    catch (e) { document.execCommand('insertHTML', false, token); }
   });
   // colar: imagem direto (Ctrl+V) ou HTML já higienizado
   area.addEventListener('paste', (e) => {
