@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve6211793b4">
+<meta name="diario-versao" content="v2f89a16e7f">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -7400,6 +7400,24 @@ window.__relationalBoot = true;
         <div class="config-add-row">
           <input type="text" id="new-mode-input" placeholder="Ex.: Revisão por questões">
           <button class="btn-secondary" id="btn-add-mode" type="button">Adicionar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div>
+          <h2>🧭 Navegação</h2>
+          <p class="sub">Escolha quais módulos opcionais aparecem no menu principal.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:18px;">
+          <div>
+            <strong style="display:block; margin-bottom:4px;">Anki Oficial</strong>
+            <p class="hint" style="margin:0;">Mostra ou oculta o menu Anki. Desativar aqui não apaga cards, coleção, histórico nem configurações do Anki.</p>
+          </div>
+          <button type="button" class="toggle-switch on" id="config-anki-menu-toggle" role="switch" aria-checked="true" aria-label="Desativar menu Anki" title="Ocultar o Anki Oficial do menu"></button>
         </div>
       </div>
     </section>
@@ -42640,6 +42658,35 @@ window.addEventListener('screen:activated', (e) => {
 /* ============================================================
    TELA: CONFIGURAÇÕES
    ============================================================ */
+const MenuPreferences = {
+  _ankiKey() {
+    return DB._profilePrefix() + 'ui:show-anki-menu';
+  },
+  isAnkiVisible() {
+    try { return localStorage.getItem(this._ankiKey()) !== '0'; }
+    catch (_) { return true; }
+  },
+  apply() {
+    const visible = this.isAnkiVisible();
+    const tab = document.querySelector('#tabs .tab[data-screen="anki"]');
+    if (tab) {
+      tab.hidden = !visible;
+      tab.style.display = visible ? '' : 'none';
+      tab.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+    const screen = document.getElementById('screen-anki');
+    if (!visible && screen && screen.classList.contains('active')) {
+      try { switchScreen('config'); } catch (_) { _quiet(_); }
+    }
+    return visible;
+  },
+  setAnkiVisible(visible) {
+    DB.setRaw(this._ankiKey(), visible ? '1' : '0');
+    return this.apply();
+  }
+};
+window.MenuPreferences = MenuPreferences;
+
 const ConfigScreen = {
   render() {
     this.renderSubjects();
@@ -42647,6 +42694,28 @@ const ConfigScreen = {
     this.renderPhases();
     this.renderStatuses();
     this.renderModes();
+    this.renderMenuPreferences();
+  },
+
+  // ---------- Preferências de navegação ----------
+  renderMenuPreferences() {
+    const toggle = document.getElementById('config-anki-menu-toggle');
+    if (!toggle) return;
+    const sync = () => {
+      const visible = MenuPreferences.apply();
+      toggle.classList.toggle('on', visible);
+      toggle.setAttribute('aria-checked', visible ? 'true' : 'false');
+      toggle.setAttribute('aria-label', visible ? 'Desativar menu Anki' : 'Ativar menu Anki');
+      toggle.title = visible ? 'Ocultar o Anki Oficial do menu' : 'Mostrar o Anki Oficial no menu';
+      return visible;
+    };
+    sync();
+    toggle.onclick = () => {
+      const next = toggle.getAttribute('aria-checked') !== 'true';
+      const actual = MenuPreferences.setAnkiVisible(next);
+      sync();
+      showToast(actual ? 'Menu Anki ativado' : 'Menu Anki desativado');
+    };
   },
 
   // ---------- Matérias ----------
@@ -43037,7 +43106,9 @@ $id('new-phase-input').addEventListener('keydown', (e) => { if (e.key === 'Enter
 $id('new-status-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') ConfigScreen.addStatus(); });
 $id('new-mode-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') ConfigScreen.addMode(); });
 
+MenuPreferences.apply();
 window.addEventListener('screen:activated', (e) => {
+  MenuPreferences.apply();
   if (e.detail.screen === 'config') ConfigScreen.render();
 });
 
@@ -51310,7 +51381,7 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   function montar() {
     const atual = document.querySelector('.screen.active');
     const ativa = atual ? atual.id.replace('screen-', '') : '';
-    grid.innerHTML = [...document.querySelectorAll('.tab[data-screen]')].map(t => {
+    grid.innerHTML = [...document.querySelectorAll('.tab[data-screen]')].filter(t => !t.hidden && t.getAttribute('aria-hidden') !== 'true').map(t => {
       const ico = t.querySelector('.tab-icon');
       const lbl = t.querySelector('.tab-label');
       const tela = t.dataset.screen;
