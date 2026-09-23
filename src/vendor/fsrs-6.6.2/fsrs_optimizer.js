@@ -165,8 +165,9 @@ export function optimize_json(input_json) {
 }
 
 /**
- * Health Check oficial do Anki 26.09.2: a mesma validação temporal
- * evaluate_with_time_series_splits() e os mesmos ajustes/limiares do rslib.
+ * Health Check oficial do Anki 26.09.2: mesmos 5 folds, treinamento,
+ * métricas ajustadas e limiares do rslib. No WASM, os folds são executados
+ * sequencialmente para evitar o rayon::spawn do upstream sem worker pool.
  * @param {string} input_json
  * @returns {string}
  */
