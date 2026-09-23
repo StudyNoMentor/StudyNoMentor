@@ -79,7 +79,8 @@ const AnkiMaxStatsMedia = {
   statsRevlog(applyHistory=true){
     let rows=DB.getRevlog()||[];const st=this._statsState||{},scope=st.scope||'deck';
     if(scope!=='collection'){
-      const ids=new Set(this.statsCards().map(c=>String(c.id)));
+      const ids=new Set();
+      for(const c of this.statsCards()){if(c&&c.id!=null)ids.add(String(c.id));if(c&&c.ankiId!=null)ids.add(String(c.ankiId));}
       rows=rows.filter(r=>ids.has(String(r.cardId==null?r.ankiCardId:r.cardId)));
     }
     if(applyHistory&&st.history!=='all'){
