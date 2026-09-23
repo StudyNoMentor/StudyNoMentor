@@ -414,11 +414,18 @@ def browser_search(
     q: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    sort_key: str = Query(default=""),
+    reverse: bool = Query(default=False),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        all_ids = list(item.col.find_cards(q, order=True))
+        order = True
+        if sort_key:
+            order = item.col.get_browser_column(sort_key)
+            if order is None:
+                raise HTTPException(400, f"Coluna de ordenação desconhecida: {sort_key}")
+        all_ids = list(item.col.find_cards(q, order=order, reverse=reverse))
         ids = all_ids[offset:offset + limit]
         rows = []
         for cid in ids:
@@ -555,7 +562,41 @@ def deck_options(deck_id: int, user: dict[str, Any] = Depends(current_user)) -> 
 def browser_columns(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        return {"columns": [pb(column) for column in item.col.all_browser_columns()]}
+        return {
+            "columns": [pb(column) for column in item.col.all_browser_columns()],
+            "active_cards": list(item.col.load_browser_card_columns()),
+            "active_notes": list(item.col.load_browser_note_columns()),
+        }
+
+
+@app.put("/api/anki/browser/columns")
+def set_browser_columns(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    mode = str(payload.get("mode", "cards")).strip().lower()
+    columns = [str(x) for x in payload.get("columns", []) if str(x).strip()]
+    if mode not in {"cards", "notes"}:
+        raise HTTPException(400, "Modo do navegador deve ser cards ou notes.")
+    if not columns:
+        raise HTTPException(400, "Selecione ao menos uma coluna.")
+    with item.lock:
+        valid = {str(column.key) for column in item.col.all_browser_columns()}
+        invalid = [key for key in columns if key not in valid]
+        if invalid:
+            raise HTTPException(400, f"Colunas desconhecidas: {', '.join(invalid)}")
+        if mode == "notes":
+            item.col.set_browser_note_columns(columns)
+        else:
+            item.col.set_browser_card_columns(columns)
+        return {
+            "ok": True,
+            "mode": mode,
+            "columns": columns,
+            "active_cards": list(item.col.load_browser_card_columns()),
+            "active_notes": list(item.col.load_browser_note_columns()),
+        }
 
 
 @app.put("/api/anki/deck/{deck_id}/options")
@@ -606,6 +647,29 @@ def media_check(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
         return pb(item.col.media.check())
+
+
+@app.post("/api/anki/editor/media")
+async def editor_media(
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    data = await file.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, "Arquivo de mídia excede o limite configurado.")
+    item = uc_for(user)
+    with item.lock:
+        desired = os.path.basename(file.filename or "media")
+        desired = item.col.media.add_extension_based_on_mime(
+            desired,
+            file.content_type or "application/octet-stream",
+        )
+        stored = item.col.media.write_data(desired, data)
+        return {
+            "ok": True,
+            "filename": stored,
+            "content_type": file.content_type or "application/octet-stream",
+        }
 
 
 @app.get("/api/anki/media/{filename:path}")
@@ -807,11 +871,18 @@ def browser_notes(
     q: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
+    sort_key: str = Query(default=""),
+    reverse: bool = Query(default=False),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        all_ids = list(item.col.find_notes(q, order=True))
+        order = True
+        if sort_key:
+            order = item.col.get_browser_column(sort_key)
+            if order is None:
+                raise HTTPException(400, f"Coluna de ordenação desconhecida: {sort_key}")
+        all_ids = list(item.col.find_notes(q, order=order, reverse=reverse))
         ids = all_ids[offset:offset + limit]
         rows = []
         for nid in ids:
