@@ -266,8 +266,12 @@ const AnkiMaxStatsMedia = {
     return Math.floor(cut.getTime()/1000);
   },
   _simReviewKind(row){
+    const explicit=row&&(row.ankiReviewKind!=null?row.ankiReviewKind:row.reviewKind);
+    if(Number.isInteger(Number(explicit))&&Number(explicit)>=0&&Number(explicit)<=5)return Number(explicit);
+    const k=String(explicit==null?'':explicit).toLowerCase();
+    if(k==='learning')return 0;if(k==='review')return 1;if(k==='relearning')return 2;if(k==='filtered'||k==='cram')return 3;if(k==='manual')return 4;if(k==='rescheduled')return 5;
     const p=String(row&&row.phase||row&&row.kind||'review').toLowerCase();
-    if(p==='learning')return 0;if(p==='relearning')return 2;if(p==='filtered'||p==='cram')return 3;if(p==='manual'||p==='rescheduled')return 4;return 1;
+    if(p==='learning')return 0;if(p==='relearning')return 2;if(p==='filtered'||p==='cram')return 3;if(p==='manual')return 4;if(p==='rescheduled')return 5;return 1;
   },
   async simulateOfficial(days,retention,opts){
     opts=opts||{};days=Math.max(1,Math.min(3650,Math.round(Number(days)||365)));retention=Math.max(.7,Math.min(.99,Number(retention)||.9));
