@@ -17,6 +17,7 @@ const keyFor=(pid,s)=>pfx+'p:'+pid+':'+s;
 const keysForPlan=pid=>({
   cards:keyFor(pid,'cards'),decks:keyFor(pid,'decks'),bancasCards:keyFor(pid,'bancas-cards'),
   revlog:keyFor(pid,'revlog'),revlogPendente:keyFor(pid,'revlog-pendente'),revlogArquivo:keyFor(pid,'revlog-arquivo'),
+  entries:keyFor(pid,'entries'),cycleHistory:keyFor(pid,'cycle-history'),
   extras:keyFor(pid,'extras'),leis:keyFor(pid,'leis'),links:keyFor(pid,'links'),tec:keyFor(pid,'tec'),incidencia:keyFor(pid,'incidencia')
 });
 const put=(k,v)=>ls.setItem(k,JSON.stringify(v));
@@ -28,6 +29,14 @@ put(keysForPlan('A').revlog,[]);
 put(keysForPlan('B').revlog,[]);
 put(keysForPlan('A').bancasCards,['FGV']);
 put(keysForPlan('B').bancasCards,['CEBRASPE']);
+put(keysForPlan('A').entries,[{id:'eA',date:'2026-09-20',subject:'A',durationMin:30}]);
+put(keysForPlan('B').entries,[{id:'eB',date:'2026-09-21',subject:'B',durationMin:45}]);
+put(keysForPlan('A').leis,[{id:'lA',titulo:'Lei A',updatedAt:'2026-09-20'}]);
+put(keysForPlan('B').leis,[{id:'lB',titulo:'Lei B',updatedAt:'2026-09-21'}]);
+put(keysForPlan('A').links,[{id:'kA',nome:'Link A',url:'https://a.test'}]);
+put(keysForPlan('B').links,[{id:'kB',nome:'Link B',url:'https://b.test'}]);
+put(keysForPlan('A').tec,[{id:1,startDate:'2026-08-01',endDate:'2026-08-31'}]);
+put(keysForPlan('B').tec,[{id:2,startDate:'2026-09-01',endDate:'2026-09-30'}]);
 
 let seq=0;
 const parse=(k,d)=>{try{const x=ls.getItem(k);return x==null?d:JSON.parse(x);}catch{return d;}};
@@ -40,6 +49,22 @@ const DB={
   _normalizarReviewId:(r,novo)=>{if(!r.reviewId)r.reviewId='rv_'+(++seq);return r;},
   _chaveRevisao:r=>String(r.reviewId||r.ts||''),
   _reviewContext:key=>({profileId:'p1',planId:(key.match(/p:([^:]+):/)||[])[1]||active}),
+  _mesmoId:(a,b)=>String(a)===String(b),
+  getEntries(){return parse(keysForPlan(active).entries,[])},
+  getEntry(id){return this.getEntries().find(x=>String(x.id)===String(id))||null},
+  updateEntry(id,patch){const l=this.getEntries(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).entries,l);return x},
+  deleteEntry(id){return this._set(keysForPlan(active).entries,this.getEntries().filter(x=>String(x.id)!==String(id)))},
+  getLeis(){return parse(keysForPlan(active).leis,[])},
+  getLei(id){return this.getLeis().find(x=>String(x.id)===String(id))||null},
+  updateLei(id,patch){const l=this.getLeis(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).leis,l);return x},
+  deleteLei(id){return this._set(keysForPlan(active).leis,this.getLeis().filter(x=>String(x.id)!==String(id)))},
+  getLinks(){return parse(keysForPlan(active).links,[])},
+  updateLink(id,patch){const l=this.getLinks(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).links,l);return x},
+  deleteLink(id){return this._set(keysForPlan(active).links,this.getLinks().filter(x=>String(x.id)!==String(id)))},
+  urlSegura:u=>String(u||''),
+  deleteTecSnapshot(id){return this._set(keysForPlan(active).tec,parse(keysForPlan(active).tec,[]).filter(x=>String(x.id)!==String(id)))},
+  updateTecSnapshot(id,patch){const l=parse(keysForPlan(active).tec,[]),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).tec,l);return x},
+  tecOverlap(start,end,ignoreId=null){return parse(keysForPlan(active).tec,[]).find(s=>String(s.id)!==String(ignoreId)&&start<=s.endDate&&end>=s.startDate)||null},
   getCards(){return parse(keysForPlan(active).cards,[])},
   saveCards(v){return this._set(keysForPlan(active).cards,v)},
   getCard(id){return this.getCards().find(x=>String(x.id)===String(id))||null},
@@ -113,6 +138,26 @@ await S.applyAnkiBankFilter(false);
 assert.ok(ankiCalls.some(x=>x.path==='/api/anki/filtered-deck/99/empty'),'limpar banca deve esvaziar o baralho filtrado');
 assert.ok(ankiCalls.some(x=>x.path==='/api/anki/decks/select'&&x.body.deck_id===42),'limpar banca deve restaurar o baralho anterior');
 
+assert.deepEqual(Array.from(S.allBy('entries'),x=>x.id),['eA','eB'],'registros realizados devem ser legíveis no perfil inteiro');
+assert.equal(ctx.DB.getEntry('eB')._planId,'B','registro antigo deve preservar a origem');
+ctx.DB.updateEntry('eB',{durationMin:50});
+assert.equal(parse(keysForPlan('B').entries,[])[0].durationMin,50,'edição de registro global deve voltar à origem');
+assert.equal(parse(keysForPlan('A').entries,[])[0].durationMin,30,'edição de registro global não pode vazar ao plano ativo');
+
+assert.deepEqual(Array.from(ctx.DB.getAllLeisTagged(),x=>x.id),['lA','lB'],'leis devem ser globais no perfil');
+assert.equal(ctx.DB.getLei('lB')._planId,'B','lei de outro plano deve ser encontrada');
+ctx.DB.updateLei('lB',{titulo:'Lei B editada'});
+assert.equal(parse(keysForPlan('B').leis,[])[0].titulo,'Lei B editada','edição de lei deve voltar à origem');
+
+assert.deepEqual(Array.from(ctx.DB.getAllLinksTagged(),x=>x.id),['kA','kB'],'links devem ser globais no perfil');
+ctx.DB.updateLink('kB',{nome:'Link B editado'});
+assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B editado','edição de link deve voltar à origem');
+
+assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'histórico TEC deve ser global');
+ctx.DB.updateTecSnapshot(2,{label:'Setembro'});
+assert.equal(parse(keysForPlan('B').tec,[])[0].label,'Setembro','edição de retrato TEC deve voltar à origem');
+assert.equal(ctx.DB.tecOverlap('2026-09-15','2026-09-20').id,2,'sobreposição TEC deve considerar outros planejamentos');
+
 const b=ctx.DB.getCard('b1');
 assert.equal(b._planId,'B','card de outro planejamento precisa manter origem');
 ctx.DB.updateCard('b1',{favorito:true});
@@ -128,4 +173,4 @@ ctx.DB.deleteCard('b1');
 assert.equal(parse(keysForPlan('B').cards,[]).length,0,'exclusão deve ocorrer na origem');
 assert.equal(parse(keysForPlan('A').cards,[]).length,1,'exclusão global não pode tocar outro plano');
 
-console.log('OK: coleção global, filtro de banca e roteamento de mutações/revisões por origem.');
+console.log('OK: memória global do perfil, banca e roteamento de mutações/revisões por origem.');
