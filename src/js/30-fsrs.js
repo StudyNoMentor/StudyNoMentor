@@ -637,6 +637,18 @@ FSRS.optimizeOfficial=async function(revlog,opts){
 };
 
 
+FSRS._stateFromTrainingItem=function(item,w){
+  const reviews=(item&&item.reviews)||[];let S=null,D=null;
+  for(let i=0;i<reviews.length;i++){
+    const r=reviews[i],g=Math.max(1,Math.min(4,Number(r.rating)||1)),dt=Math.max(0,Number(r.delta_t)||0);
+    if(S==null){S=this.initS(g,w);D=this.initD(g,w);continue;}
+    const oldD=D,D2=this.nextD(oldD,g,w);
+    if(dt<1)S=this.nextS_short(S,g,w);
+    else{const R=this.R(dt,S,w);S=g===1?this.nextS_forget(oldD,S,R,w):this.nextS_recall(oldD,S,R,g,w);}
+    D=D2;
+  }
+  return S==null?null:{s:S,d:D};
+};
 FSRS._predictTrainingItem=function(item,w){
   const reviews=(item&&item.reviews)||[];if(!reviews.length)return null;
   let S=null,D=null;
