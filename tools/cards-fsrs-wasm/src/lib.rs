@@ -175,8 +175,9 @@ struct SimRevlogInput {
 #[derive(Debug, Deserialize)]
 struct SimCardInput {
     id: i64,
-    difficulty: f32,
-    stability: f32,
+    difficulty: Option<f32>,
+    stability: Option<f32>,
+    ease_factor: f32,
     last_date: f32,
     due: f32,
     interval: f32,
@@ -189,6 +190,7 @@ struct SimulateInput {
     next_day_at: i64,
     params: Vec<f32>,
     desired_retention: f32,
+    historical_retention: f32,
     days_to_simulate: usize,
     new_card_count: usize,
     introduced_today_count: usize,
@@ -378,20 +380,34 @@ pub fn simulate_json(input_json: &str) -> Result<String, JsValue> {
         .collect();
 
     let observed = extract_simulator_config(revlogs, input.next_day_at, true);
+    let fsrs = FSRS::new(&params).map_err(js_err)?;
     let mut cards: Vec<Card> = input
         .cards
         .into_iter()
-        .filter(|c| c.stability > 1e-9)
-        .map(|c| Card {
-            id: c.id,
-            difficulty: c.difficulty,
-            stability: c.stability,
-            last_date: c.last_date,
-            due: c.due,
-            interval: c.interval,
-            lapses: c.lapses,
-            desired_retention: input.desired_retention,
-            parameters: shared_params.clone(),
+        .filter_map(|c| {
+            let memory = match (c.stability, c.difficulty) {
+                (Some(stability), Some(difficulty)) if stability > 1e-9 && difficulty.is_finite() => {
+                    MemoryState { stability, difficulty }
+                }
+                _ => fsrs
+                    .memory_state_from_sm2(
+                        c.ease_factor,
+                        c.interval,
+                        input.historical_retention.clamp(0.5, 0.99),
+                    )
+                    .ok()?,
+            };
+            Some(Card {
+                id: c.id,
+                difficulty: memory.difficulty,
+                stability: memory.stability,
+                last_date: c.last_date,
+                due: c.due,
+                interval: c.interval,
+                lapses: c.lapses,
+                desired_retention: input.desired_retention,
+                parameters: shared_params.clone(),
+            })
         })
         .collect();
 
