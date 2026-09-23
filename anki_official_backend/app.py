@@ -1152,3 +1152,180 @@ def change_notetype(
         raise HTTPException(400, f"Mudança de tipo inválida: {exc}") from exc
     with item.lock:
         return {"ok": True, "changes": pb(item.col.models.change_notetype_of_notes(request))}
+
+
+@app.post("/api/anki/import/csv/metadata")
+async def csv_metadata(
+    package: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    data = await package.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, "Arquivo excede o limite configurado.")
+    suffix = Path(package.filename or "import.csv").suffix or ".csv"
+    fd, tmp = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    Path(tmp).write_bytes(data)
+    item = uc_for(user)
+    try:
+        with item.lock:
+            return pb(item.col.get_csv_metadata(tmp, None))
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+@app.post("/api/anki/import/csv")
+async def import_csv(
+    package: UploadFile = File(...),
+    metadata_json: str | None = Form(default=None),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    data = await package.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, "Arquivo excede o limite configurado.")
+    suffix = Path(package.filename or "import.csv").suffix or ".csv"
+    fd, tmp = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    Path(tmp).write_bytes(data)
+    item = uc_for(user)
+    try:
+        with item.lock:
+            metadata = item.col.get_csv_metadata(tmp, None)
+            if metadata_json:
+                try:
+                    raw = json.loads(metadata_json)
+                    ParseDict(raw, metadata, ignore_unknown_fields=False)
+                except Exception as exc:
+                    raise HTTPException(400, f"Metadata CSV inválida: {exc}") from exc
+            request = import_export_pb2.ImportCsvRequest(path=tmp, metadata=metadata)
+            return pb(item.col.import_csv(request))
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+@app.get("/api/anki/export/notes.csv")
+def export_notes_csv(
+    html: bool = Query(default=True),
+    tags: bool = Query(default=True),
+    deck: bool = Query(default=True),
+    notetype: bool = Query(default=True),
+    guid: bool = Query(default=True),
+    user: dict[str, Any] = Depends(current_user),
+):
+    item = uc_for(user)
+    fd, tmp = tempfile.mkstemp(suffix=".txt")
+    os.close(fd)
+    with item.lock:
+        item.col.export_note_csv(
+            out_path=tmp,
+            limit=None,
+            with_html=html,
+            with_tags=tags,
+            with_deck=deck,
+            with_notetype=notetype,
+            with_guid=guid,
+        )
+    return FileResponse(
+        tmp,
+        filename="StudyNoMentor-Anki-notes.txt",
+        media_type="text/plain; charset=utf-8",
+        background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
+    )
+
+
+@app.get("/api/anki/export/cards.csv")
+def export_cards_csv(
+    html: bool = Query(default=True),
+    user: dict[str, Any] = Depends(current_user),
+):
+    item = uc_for(user)
+    fd, tmp = tempfile.mkstemp(suffix=".txt")
+    os.close(fd)
+    with item.lock:
+        item.col.export_card_csv(out_path=tmp, limit=None, with_html=html)
+    return FileResponse(
+        tmp,
+        filename="StudyNoMentor-Anki-cards.txt",
+        media_type="text/plain; charset=utf-8",
+        background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
+    )
+
+
+@app.post("/api/anki/image-occlusion/setup")
+def image_occlusion_setup(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        item.col.add_image_occlusion_notetype()
+        matches = []
+        for nt in item.col.models.all():
+            stock = int(nt.get("originalStockKind", nt.get("original_stock_kind", 0)) or 0)
+            if stock == 6:
+                matches.append({"id": int(nt["id"]), "name": nt.get("name", "Image Occlusion")})
+        return {"ok": True, "notetypes": matches}
+
+
+@app.post("/api/anki/image-occlusion/image")
+async def image_occlusion_image(
+    image: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    data = await image.read(MAX_IMPORT_BYTES + 1)
+    if len(data) > MAX_IMPORT_BYTES:
+        raise HTTPException(413, "Imagem excede o limite configurado.")
+    item = uc_for(user)
+    safe_name = os.path.basename(image.filename or "image.png")
+    with item.lock:
+        stored = item.col.media.write_data(safe_name, data)
+        return {"ok": True, "filename": stored}
+
+
+@app.post("/api/anki/image-occlusion/note")
+def add_image_occlusion_note(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        out = item.col.add_image_occlusion_note(
+            notetype_id=int(payload.get("notetype_id") or 0),
+            image_path=str(payload.get("image_path") or ""),
+            occlusions=str(payload.get("occlusions") or ""),
+            header=str(payload.get("header") or ""),
+            back_extra=str(payload.get("back_extra") or ""),
+            tags=[str(x) for x in payload.get("tags", [])],
+        )
+        return {"ok": True, "changes": pb(out)}
+
+
+@app.get("/api/anki/image-occlusion/note/{note_id}")
+def get_image_occlusion_note(
+    note_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return pb(item.col.get_image_occlusion_note(note_id))
+
+
+@app.put("/api/anki/image-occlusion/note/{note_id}")
+def update_image_occlusion_note(
+    note_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        out = item.col.update_image_occlusion_note(
+            note_id=note_id,
+            occlusions=payload.get("occlusions"),
+            header=payload.get("header"),
+            back_extra=payload.get("back_extra"),
+            tags=[str(x) for x in payload.get("tags", [])] if "tags" in payload else None,
+        )
+        return {"ok": True, "changes": pb(out)}
