@@ -1012,9 +1012,15 @@ const CardsScreen = {
     const anyModalOpen = ['card-modal', 'deck-modal', 'cards-import-modal', 'cards-export-modal']
       .some(id => { const m = document.getElementById(id); return m && m.style.display === 'flex'; });
     if (anyModalOpen) return;
-    if (!this._reviewQueue || this._reviewIdx >= this._reviewQueue.length) return;
     const tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || e.target.isContentEditable) return;
+    // Sair do foco é uma ação de navegação, não uma ação da fila. Precisa
+    // funcionar mesmo quando o planejamento novo ainda não tem cards, quando a
+    // fila terminou ou quando os filtros deixaram zero itens.
+    if ((e.key === 'Escape' || e.code === 'Escape') && this.emFoco()) {
+      e.preventDefault(); this.sairFoco(); return;
+    }
+    if (!this._reviewQueue || this._reviewIdx >= this._reviewQueue.length) return;
     const box = document.getElementById('cards-content');
     // Undo/Redo do reviewer, como Anki/AnkiDroid.
     if ((e.ctrlKey || e.metaKey) && (e.code === 'KeyY' || (e.shiftKey && e.code === 'KeyZ'))) {
@@ -1039,7 +1045,6 @@ const CardsScreen = {
       if (idAtual) { const n = Number(e.code.slice(5)); DB.setFlag(idAtual, n); this.renderReviewCard(document.getElementById('cards-content')); }
       return;
     }
-    if (e.code === 'Escape' && this.emFoco()) { e.preventDefault(); this.sairFoco(); return; }
     if (e.code === 'Space') {
       e.preventDefault();
       if (!this._flipped) this.flip(box);
@@ -1071,6 +1076,9 @@ const CardsScreen = {
   entrarFoco() {
     this.tab = 'revisar';
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
+    // Modos foco são mutuamente exclusivos. Uma classe antiga do Anki Oficial
+    // ou da Lei Seca não pode deixar duas barras sobrepostas capturando o toque.
+    document.body.classList.remove('anki-foco', 'leis-foco');
     document.body.classList.add('cards-foco');
     this.renderContent();
     this.atualizarFoco();
@@ -1985,17 +1993,31 @@ const CardsScreen = {
   },
   exportAudit() {
     try {
-    const cards = DB.getCards();
-    const revlog = DB.getRevlog();
+    const scope = (window.StudyGlobalScope && StudyGlobalScope.cardsScope)
+      ? StudyGlobalScope.cardsScope() : 'plan';
+    // A auditoria segue exatamente o mesmo escopo que o usuário está vendo em
+    // Cards. "Todos" une a memória dos planejamentos; "Este planejamento"
+    // mantém o recorte local. Os helpers preservam _planId/_planNome.
+    const cards = this.collectionCards();
+    const revlog = this._statsRevlog(false);
     const cfg = CardsConfig.get();
     const daily = CardsConfig._daily();
-    const decks = DB.getDecks();
+    const decks = this.collectionDecks();
+    const activePlan = (typeof PlanManager !== 'undefined' && PlanManager.getActivePlan)
+      ? PlanManager.getActivePlan() : null;
+    const activePlanId = activePlan ? activePlan.id : null;
     const now = new Date();
     const byCard = {};
     cards.forEach(c => {
-      const logs = revlog.filter(r => r.cardId === c.id).sort((a,b) => (a.ts||0) - (b.ts||0));
+      const cardPlanId = c._planId || activePlanId || null;
+      const cardPlanName = c._planNome || (cardPlanId && window.StudyGlobalScope && StudyGlobalScope.planName
+        ? StudyGlobalScope.planName(cardPlanId) : (activePlan && activePlan.nome) || null);
+      const logs = revlog.filter(r => String(r.cardId) === String(c.id)
+        && (!r._planId || !cardPlanId || String(r._planId) === String(cardPlanId)))
+        .sort((a,b) => (a.ts||0) - (b.ts||0));
       byCard[c.id] = {
-        id:c.id, deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
+        id:c.id, planId:cardPlanId, planName:cardPlanName,
+        deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
         createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
         due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
         ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
@@ -2039,16 +2061,28 @@ const CardsScreen = {
               + 'O mesmo desempenho gera intervalos diferentes conforme a época do card. '
               + 'Use Configurações → Cards → "Recalcular memória pelo histórico" para uniformizar.' });
     }
+    const planIds = [...new Set(cards.map(c => c._planId).filter(Boolean))];
     const payload = {
-      schema:'diario-estudos-cards-audit', version:1, exportedAt:now.toISOString(), appDate:todayCards(),
+      schema:'diario-estudos-cards-audit', version:2, exportedAt:now.toISOString(), appDate:todayCards(),
       purpose:'Diagnóstico do agendador de cards, limites diários e possíveis repetições em loop.',
+      scope:{
+        mode:scope,
+        label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento',
+        activePlanId:activePlanId,
+        activePlanName:activePlan ? activePlan.nome : null,
+        includedPlanIds:planIds
+      },
       environment:{ userAgent:navigator.userAgent, language:navigator.language, timezone:Intl.DateTimeFormat().resolvedOptions().timeZone, online:navigator.onLine },
+      // Configuração e contadores diários pertencem ao planejamento ativo; cards,
+      // baralhos e histórico obedecem ao escopo acima.
+      configurationScope:'active-plan',
       configuration:cfg, dailyCounters:daily, decks,
       summary:{cards:cards.length, revisionEntries:revlog.length, newCards:cards.filter(c=>CardsScreen._bucket(c)==='new').length, learningCards:cards.filter(c=>CardsScreen._bucket(c)==='learn').length, reviewCards:cards.filter(c=>CardsScreen._bucket(c)==='review').length, anomalies:anomalies.length},
       queueSnapshot:{generatedAt:now.toISOString(), cardIds:(CardsScreen._reviewQueue || []).slice(), position:CardsScreen._reviewIdx, newRemaining:CardsConfig.newRemaining(), reviewRemaining:CardsConfig.revRemaining()},
       cards:byCard, rawReviewLog:revlog, detectedAnomalies:anomalies
     };
-    this._download('auditoria-cards_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
+    const sufixo = scope === 'all' ? 'todos-planejamentos' : 'planejamento-atual';
+    this._download('auditoria-cards_' + sufixo + '_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Arquivo de auditoria exportado ✓');
     } catch (err) {
       console.error('Falha ao exportar auditoria dos cards:', err);
