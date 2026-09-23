@@ -57,4 +57,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'build(cards): vendor fsrs-rs 6.6.2 wasm'
+          # O build leva alguns segundos; a branch pode avançar enquanto isso.
+          # Rebase preserva as alterações intermediárias e evita push rejeitado.
+          git pull --rebase origin fix/cards-anki-perfect-parity-20260923
           git push origin HEAD:fix/cards-anki-perfect-parity-20260923
