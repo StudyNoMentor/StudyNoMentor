@@ -710,6 +710,8 @@ const CardsScreen = {
   },
   _runAutoAdvanceAction(c,cfg,fn){
     if(!this._autoAdvanceEnabled)return;
+    if(typeof document!=='undefined'&&document.hasFocus&&!document.hasFocus()){this._disableAutoAdvanceSilently();return;}
+    if(this.tab!=='revisar'){this._disableAutoAdvanceSilently();return;}
     if(cfg&&cfg.waitForAudio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
       this._reviewAutoPending={cardId:c.id,fn};return;
     }
