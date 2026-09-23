@@ -44,6 +44,10 @@ jobs:
         if: github.event_name != 'push'
         run: timeout 30s node testes/supabase-egress.mjs
 
+      - name: Pausa de planejamento
+        if: github.event_name != 'push'
+        run: timeout 30s node testes/planning-pause.mjs
+
       - name: Contrato central dos Cards
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-paridade-total-anki.mjs

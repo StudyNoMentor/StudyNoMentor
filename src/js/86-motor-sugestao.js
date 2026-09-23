@@ -553,6 +553,12 @@
 
     calcular(opts) {
       const p = Object.assign(this.prefs(), opts || {});
+      try {
+        if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
+          return { erro: 'plano-pausado', fase: p.fase, prefs: p, itens: [], todos: [], disciplinas: [], disciplinasTodas: [], disciplinasDisponiveis: [] };
+        }
+      } catch (_) {}
+
       const retratoOverride = opts && opts.retrato ? opts.retrato : null;
       delete p.retrato;
       p.disciplinasSel = Array.isArray(p.disciplinasSel) ? p.disciplinasSel.slice() : [];

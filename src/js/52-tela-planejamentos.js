@@ -2,6 +2,14 @@
    TELA + SELETOR DE PLANEJAMENTOS (workspace)
    ============================================================ */
 const PlanUI = {
+  _fmtPause(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    } catch (_) { return String(iso); }
+  },
+
   // ---------- Seletor na sidebar ----------
   renderSidebar() {
     const active = PlanManager.getActivePlan();
@@ -9,18 +17,26 @@ const PlanUI = {
     const listEl = document.getElementById('plan-switcher-list');
     const plans = PlanManager.getPlans();
     const activeId = PlanManager.getActivePlanId();
-    listEl.innerHTML = plans.map(p => `
-      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''}" data-id="${p.id}">
+    listEl.innerHTML = plans.map(p => {
+      const paused = PlanManager.isPaused(p.id);
+      return `
+      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" aria-disabled="${paused ? 'true' : 'false'}">
         <span class="psi-dot"></span>
         <span class="psi-text">
           <span class="psi-name">${escapeHtml(p.nome)}</span>
-          <span class="psi-tipo">${escapeHtml(p.tipo)}</span>
+          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${escapeHtml(p.tipo)}</span>
         </span>
-        ${p.id === activeId ? '<span class="psi-check">✓</span>' : ''}
-      </button>`).join('');
+        ${p.id === activeId ? '<span class="psi-check">✓</span>' : paused ? '<span class="psi-check">⏸</span>' : ''}
+      </button>`;
+    }).join('');
     listEl.querySelectorAll('.plan-switcher-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.id;
+        if (PlanManager.isPaused(id)) {
+          showToast('⏸ Este planejamento está pausado. Reative-o em Planejamentos para voltar a usá-lo.');
+          this.closeMenu();
+          return;
+        }
         if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         PlanManager.setActivePlan(id);
         CloudStore.saveThenReload(); // salva na nuvem antes de recarregar
@@ -42,7 +58,7 @@ const PlanUI = {
     const sourceSel = document.getElementById('np-source');
     const plans = PlanManager.getPlans();
     sourceSel.innerHTML = `<option value="">— Começar do zero —</option>` +
-      plans.map(p => `<option value="${p.id}">${escapeHtml(p.nome)}</option>`).join('');
+      plans.map(p => `<option value="${p.id}">${PlanManager.isPaused(p.id) ? '⏸ ' : ''}${escapeHtml(p.nome)}</option>`).join('');
     this.updateCopyOptionsVisibility();
   },
   updateCopyOptionsVisibility() {
@@ -60,13 +76,16 @@ const PlanUI = {
       const totalMin = entries.reduce((a, e) => a + (e.durationMin || 0), 0);
       const weeks = DB.getCycleHistoryForPlan(p.id).length;
       const isActive = p.id === activeId;
+      const pause = PlanManager.pauseInfo(p.id);
+      const isPaused = !!pause;
       return `
-        <div class="plan-card ${isActive ? 'is-active' : ''}" data-id="${p.id}">
+        <div class="plan-card ${isActive ? 'is-active' : ''} ${isPaused ? 'is-paused' : ''}" data-id="${p.id}">
           <div class="plan-card-head">
             <div class="plan-card-title">
               <span class="nome">${escapeHtml(p.nome)}</span>
               <span class="plan-type-badge">${escapeHtml(p.tipo)}</span>
               ${isActive ? '<span class="plan-active-pill">ativo</span>' : ''}
+              ${isPaused ? '<span class="plan-active-pill">⏸ pausado</span>' : ''}
             </div>
             <div class="config-row-actions">
               <button type="button" class="icon-btn btn-rename-plan" title="Renomear">✎ Renomear</button>
@@ -79,10 +98,14 @@ const PlanUI = {
             <div class="plan-stat"><div class="value">${CycleEngine.fmtHM(totalMin)}</div><div class="label">estudado</div></div>
             <div class="plan-stat"><div class="value">${weeks}</div><div class="label">semanas no histórico</div></div>
           </div>
+          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki continuam globais.</div>` : ''}
           <div class="plan-card-actions">
-            ${isActive
-              ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
-              : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>'}
+            ${isPaused
+              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar planejamento</button>'
+              : (isActive
+                ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
+                : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>')}
+            ${isPaused ? '' : '<button type="button" class="btn-secondary btn-pause-plan">⏸ Pausar</button>'}
           </div>
         </div>`;
     }).join('');
@@ -91,8 +114,34 @@ const PlanUI = {
       const id = card.dataset.id;
       const openBtn = card.querySelector('.btn-open-plan');
       if (openBtn) openBtn.addEventListener('click', () => {
-        PlanManager.setActivePlan(id);
+        if (!PlanManager.setActivePlan(id)) { showToast('Planejamento pausado'); return; }
         CloudStore.saveThenReload();
+      });
+      const pauseBtn = card.querySelector('.btn-pause-plan');
+      if (pauseBtn) pauseBtn.addEventListener('click', async () => {
+        const p = PlanManager.getPlans().find(x => x.id === id);
+        const ok = await UI.confirm(
+          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki continuam disponíveis globalmente.`,
+          { title: '⏸ Pausar planejamento', okText: 'Pausar' }
+        );
+        if (!ok) return;
+        const r = PlanManager.pausePlan(id);
+        if (!r.ok) {
+          if (r.reason === 'last-operational') {
+            await UI.alert('É preciso manter pelo menos um planejamento ativo. Crie ou reative outro antes de pausar este.', { title: 'Não é possível pausar' });
+          } else showToast('Não foi possível pausar o planejamento');
+          return;
+        }
+        showToast('Planejamento pausado ✓');
+        if (r.switchedTo) { CloudStore.saveThenReload(); return; }
+        this.renderScreen(); this.renderSidebar();
+      });
+      const resumeBtn = card.querySelector('.btn-resume-plan');
+      if (resumeBtn) resumeBtn.addEventListener('click', () => {
+        const r = PlanManager.resumePlan(id);
+        if (!r.ok) { showToast('Não foi possível reativar'); return; }
+        showToast('Planejamento reativado ✓');
+        this.renderScreen(); this.renderSidebar();
       });
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
@@ -117,7 +166,11 @@ const PlanUI = {
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
-        PlanManager.deletePlan(id);
+        const apagou = PlanManager.deletePlan(id);
+        if (apagou === false) {
+          await UI.alert('Reative outro planejamento antes de excluir este. O perfil precisa manter pelo menos um planejamento operacional.', { title: 'Não é possível excluir' });
+          return;
+        }
         if (wasActive) { CloudStore.saveThenReload(); return; }
         this.renderScreen();
         this.renderSidebar();

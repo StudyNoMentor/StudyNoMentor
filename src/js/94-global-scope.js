@@ -38,6 +38,10 @@
       if (list.some(p => String(p.id) === String(active))) return list;
       return active ? [{ id: active, nome: 'Planejamento atual' }].concat(list) : list;
     },
+    operationalPlans() {
+      const list = this.plans();
+      return list.filter(p => !(PlanManager.isPaused && PlanManager.isPaused(p.id)));
+    },
     planName(id) {
       const p = this.plans().find(x => String(x.id) === String(id));
       return p ? (p.nome || p.name || String(id)) : String(id || '');
@@ -79,6 +83,11 @@
       this.plans().forEach(p => out.push(...this._tag(p.id, this._rows(p.id, suffix))));
       return out;
     },
+    operationalAllBy(suffix) {
+      const out = [];
+      this.operationalPlans().forEach(p => out.push(...this._tag(p.id, this._rows(p.id, suffix))));
+      return out;
+    },
     forScope(suffix, scope) {
       const sc = scope || this.cardsScope();
       return sc === 'all' ? this.allBy(suffix) : this._tag(this.activePlanId(), this._rows(this.activePlanId(), suffix));
@@ -101,11 +110,20 @@
         seen.add(k); return true;
       });
     },
-    extras(scope) { return this.forScope('extras', scope); },
+    extras(scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.operationalAllBy('extras') : this.forScope('extras', sc);
+    },
     laws(scope) { return this.forScope('leis', scope); },
     links(scope) { return this.forScope('links', scope); },
-    tec(scope) { return this.forScope('tec', scope); },
-    incidence(scope) { return this.forScope('incidencia', scope); },
+    tec(scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.operationalAllBy('tec') : this.forScope('tec', sc);
+    },
+    incidence(scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.operationalAllBy('incidencia') : this.forScope('incidencia', sc);
+    },
 
     findRecord(suffix, id) {
       const active = this.activePlanId();
@@ -618,7 +636,7 @@
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
-  DB.getAllExtrasTagged = () => S.allBy('extras');
+  DB.getAllExtrasTagged = () => S.operationalAllBy('extras');
   DB.getAllSavedGradesTagged = () => S.allBy('savedGrades');
   DB.copySavedGradeToActive = function(sourcePlanId, id) {
     const active = S.activePlanId();
@@ -678,7 +696,7 @@
   };
   DB.getAllTecSnapshotsTagged = () => {
     try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
-    return S.allBy('tec').map(s => {
+    return S.operationalAllBy('tec').map(s => {
       const x = Object.assign({}, s);
       if (!x.startDate) x.startDate = x.date || (typeof todayLocal === 'function' ? todayLocal() : '');
       if (!x.endDate) x.endDate = x.date || x.startDate;
@@ -686,7 +704,7 @@
     }).sort((a,b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
       || String(a.endDate || '').localeCompare(String(b.endDate || '')));
   };
-  DB.getAllIncidenciaTagged = () => S.allBy('incidencia');
+  DB.getAllIncidenciaTagged = () => S.operationalAllBy('incidencia');
 
   /* Memória realizada/conhecimento pertence ao PERFIL. A persistência continua
      separada por planejamento para compatibilidade e sincronização, mas leitura

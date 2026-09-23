@@ -171,6 +171,11 @@
     },
     sincronizarHoje() {
       if (typeof DB === 'undefined' || typeof LawEngine === 'undefined') return { mudou: false, criadas: 0 };
+      try {
+        if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
+          return { mudou: false, criadas: 0, pausado: true };
+        }
+      } catch (_) {}
       const p = this.prefs(), hoje = todayLocal();
       if (!p.ativo || !this._diaPermitido(hoje, p)) return { mudou: false, criadas: 0 };
       let extras = DB.getExtras();

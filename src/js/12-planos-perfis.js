@@ -3,12 +3,60 @@
    Cada planejamento tem seu próprio namespace de dados (via DB.keysForPlan).
    ============================================================ */
 const PlanManager = {
-  // GK do perfil ativo (planejamentos e planejamento ativo namespaced por perfil)
-  get GK() { const p = DB._profilePrefix(); return { plans: p + 'planejamentos', active: p + 'active-plan' }; },
+  // GK do perfil ativo (planejamentos, planejamento ativo e estado de pausa).
+  // A pausa fica em profile setting separado para não exigir migração destrutiva
+  // da tabela study_plans e sincroniza pelo mesmo canal relacional já existente.
+  get GK() { const p = DB._profilePrefix(); return { plans: p + 'planejamentos', active: p + 'active-plan', pauses: p + 'plan-pauses-v1' }; },
   TIPOS: ['Pré-edital', 'Pós-edital', 'Outro'],
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
+  _pauseMap() {
+    const v = DB._get(this.GK.pauses, {});
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+  },
+  _savePauseMap(v) { return DB._set(this.GK.pauses, v || {}); },
+  pauseInfo(id) {
+    const x = this._pauseMap()[String(id)] || null;
+    if (!x || !x.pausedAt || x.resumedAt) return null;
+    return x;
+  },
+  isPaused(id) { return !!this.pauseInfo(id); },
+  isActivePlanPaused() { return this.isPaused(this.getActivePlanId()); },
+  getOperationalPlans() { return this.getPlans().filter(p => !this.isPaused(p.id)); },
+  getPausedPlans() { return this.getPlans().filter(p => this.isPaused(p.id)); },
+  pausePlan(id) {
+    id = String(id || '');
+    const plans = this.getPlans(), p = plans.find(x => String(x.id) === id);
+    if (!p) return { ok: false, reason: 'not-found' };
+    if (this.isPaused(id)) return { ok: true, unchanged: true, info: this.pauseInfo(id) };
+    const outros = plans.filter(x => String(x.id) !== id && !this.isPaused(x.id));
+    if (!outros.length) return { ok: false, reason: 'last-operational' };
+    const now = new Date().toISOString(), map = this._pauseMap();
+    map[id] = { pausedAt: now, resumedAt: null };
+    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
+    let switchedTo = null;
+    if (String(this.getActivePlanId()) === id) {
+      switchedTo = outros[0].id;
+      DB.setRaw(this.GK.active, switchedTo);
+      try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-pause'); }
+    }
+    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: true, pausedAt: now, switchedTo } })); }
+    catch (e) { _quiet(e, 'planning-pause-event'); }
+    return { ok: true, pausedAt: now, switchedTo };
+  },
+  resumePlan(id) {
+    id = String(id || '');
+    if (!this.getPlans().some(x => String(x.id) === id)) return { ok: false, reason: 'not-found' };
+    const map = this._pauseMap(), old = map[id];
+    if (!old || !old.pausedAt || old.resumedAt) return { ok: true, unchanged: true };
+    const now = new Date().toISOString();
+    map[id] = Object.assign({}, old, { resumedAt: now });
+    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
+    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: false, resumedAt: now } })); }
+    catch (e) { _quiet(e, 'planning-resume-event'); }
+    return { ok: true, resumedAt: now };
+  },
   // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
   // vez todas as chaves do planejamento e as telas abririam vazias.
   getActivePlanId() { try { return DB._activePlanId(); } catch (e) { return null; } },
@@ -16,9 +64,11 @@ const PlanManager = {
   // Trocar de planejamento é uma alteração do perfil como qualquer outra: passa
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
   setActivePlan(id) {
+    if (this.isPaused(id)) return false;
     DB.setRaw(this.GK.active, id);
     // Idem: cada planejamento tem o seu histórico.
     try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem'); }
+    return true;
   },
 
   // Semeia formas de estudo e fases padrão para um planejamento novo,
@@ -107,14 +157,32 @@ const PlanManager = {
     this.savePlans(plans);
   },
   deletePlan(id) {
-    // apaga todos os dados namespaced do planejamento
+    id = String(id || '');
+    const atuais = this.getPlans();
+    const alvo = atuais.find(p => String(p.id) === id);
+    if (!alvo) return false;
+    /* Não deixa a exclusão criar um perfil que só tenha planejamentos pausados.
+       Nesse estado nenhuma tela operacional teria um destino seguro para novas
+       gravações. Reative outro antes de excluir o último operacional. */
+    if (!this.isPaused(id)) {
+      const outrosOperacionais = atuais.filter(p => String(p.id) !== id && !this.isPaused(p.id));
+      const outrosQuaisquer = atuais.filter(p => String(p.id) !== id);
+      if (!outrosOperacionais.length && outrosQuaisquer.length) return false;
+    }
+    // apaga todos os dados namespaced do planejamento. A exclusão explícita é
+    // a única operação administrativa que pode atravessar o congelamento.
     const k = DB.keysForPlan(id);
-    Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
+    const wipe = () => Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
+    if (DB.withPausedPlanWrite) DB.withPausedPlanWrite(wipe); else wipe();
     const plans = this.getPlans().filter(p => p.id !== id);
     this.savePlans(plans);
+    const map = this._pauseMap(); if (map[String(id)]) { delete map[String(id)]; this._savePauseMap(map); }
     if (this.getActivePlanId() === id) {
-      this.setActivePlan(plans[0] ? plans[0].id : this._ensureInitial());
+      const next = plans.find(p => !this.isPaused(p.id));
+      if (next) this.setActivePlan(next.id);
+      else if (!plans.length) this._ensureInitial();
     }
+    return true;
   },
 
   _ensureInitial() {
@@ -137,9 +205,18 @@ const PlanManager = {
       this._seedDefaults(id, { silent: true });
       try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active'); }
     }
-    // garante um planejamento ativo válido
-    if (!this.getActivePlan()) {
-      const id = this.getPlans()[0] && this.getPlans()[0].id;
+    // garante um planejamento ativo válido E operacional. Um planejamento
+    // pausado pode continuar existindo indefinidamente, mas nunca vira o
+    // contexto de escrita do app por acidente.
+    if (!this.getActivePlan() || this.isActivePlanPaused()) {
+      let p = this.getOperationalPlans()[0] || null;
+      if (!p && this.getPlans()[0]) {
+        // Estado impossível pela UI (o último operacional não pode ser pausado),
+        // mas saneia dados antigos/sincronização parcial reativando o primeiro.
+        this.resumePlan(this.getPlans()[0].id);
+        p = this.getPlans()[0];
+      }
+      const id = p && p.id;
       if (id) {
         if (bootstrap) { try { localStorage.setItem(this.GK.active, id); } catch (e) { _quiet(e, 'plan-bootstrap-active2'); } }
         else this.setActivePlan(id);
