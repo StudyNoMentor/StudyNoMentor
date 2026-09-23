@@ -1624,10 +1624,13 @@ const CardsScreen = {
       dest = 'deck:' + deck.id;
     }
     const kind = $id('card-kind').value;
-    const frente = $id('card-frente').innerHTML.trim();
+    let frente = $id('card-frente').innerHTML.trim();
     const verso = $id('card-verso').innerHTML.trim();
     if (!dest) { showToast('Escolha o baralho'); return null; }
     if (kind === 'cloze') {
+      // Aceita a notação amigável {{texto}} mostrada pela própria UI, mas
+      // persiste no formato canônico do Anki para validação/render/export.
+      frente = CardEngine.normalizeCloze(frente);
       if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
       if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
     } else {
