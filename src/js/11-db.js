@@ -191,6 +191,46 @@ const DB = {
     { key: 'rRev', legacy: 'pctRevisao', label: 'Revisão' }
   ],
 
+  /* ── CONGELAMENTO DE PLANEJAMENTO ────────────────────────────────────────
+     Um plano pausado fica somente leitura para o trabalho operacional. A única
+     exceção deliberada é a coleção Anki/Cards, que é patrimônio global do
+     perfil e continua revisável mesmo quando nasceu num plano antigo. */
+  _pausedWriteBypass: 0,
+  withPausedPlanWrite(fn) {
+    this._pausedWriteBypass++;
+    try { return fn(); }
+    finally { this._pausedWriteBypass = Math.max(0, this._pausedWriteBypass - 1); }
+  },
+  _planKeyParts(key) {
+    const prefix = this._profilePrefix() + 'p:';
+    const s = String(key || '');
+    if (!s.startsWith(prefix)) return null;
+    const rest = s.slice(prefix.length), cut = rest.indexOf(':');
+    if (cut <= 0) return null;
+    return { planId: rest.slice(0, cut), suffix: rest.slice(cut + 1) };
+  },
+  _pausedKnowledgeSuffix(suffix) {
+    suffix = String(suffix || '');
+    return suffix === 'cards' || suffix === 'decks' || suffix === 'bancas-cards'
+      || suffix === 'revlog' || suffix === 'revlog-pendente'
+      || suffix.startsWith('revlog-arquivo')
+      || suffix.startsWith('cards-');
+  },
+  _blockedByPlanPause(key) {
+    if (this._pausedWriteBypass > 0) return false;
+    const p = this._planKeyParts(key);
+    if (!p || this._pausedKnowledgeSuffix(p.suffix)) return false;
+    try {
+      return typeof PlanManager !== 'undefined' && PlanManager.isPaused && PlanManager.isPaused(p.planId);
+    } catch (_) { return false; }
+  },
+  _warnPausedWrite() {
+    const now = Date.now();
+    if (this._lastPausedWriteWarn && now - this._lastPausedWriteWarn < 2000) return;
+    this._lastPausedWriteWarn = now;
+    try { showToast('⏸ Planejamento pausado — dados operacionais estão somente leitura.'); } catch (_) {}
+  },
+
   _get(key, fallback) {
     try {
       const raw = localStorage.getItem(key);
@@ -201,6 +241,7 @@ const DB = {
     }
   },
   _set(key, value) {
+    if (this._blockedByPlanPause(key)) { this._warnPausedWrite(); return false; }
     try {
       const txt = JSON.stringify(value);
       /* ── ESVAZIAR É APAGAR, E APAGAR PASSA PELA LIXEIRA ─────────────────────
@@ -232,6 +273,7 @@ const DB = {
      projeção em RAM, cuja fachada encaminha a mutação imediatamente ao
      RelationalStore. */
   setRaw(key, value) {
+    if (this._blockedByPlanPause(key)) { this._warnPausedWrite(); return false; }
     try {
       const txt = String(value);
       // mesma regra do _set: esvaziar guarda o anterior na Lixeira antes
@@ -248,6 +290,7 @@ const DB = {
      Quem chama continua vendo o mesmo comportamento (a chave some), mas passa a
      haver 30 dias de arrependimento em Configurações → Recuperação de dados. */
   delRaw(key, motivo) {
+    if (this._blockedByPlanPause(key)) { this._warnPausedWrite(); return false; }
     try { Lixeira.guardar(key, motivo || 'apagada pelo app'); } catch (e) { _quiet(e, 'delRaw-lixeira'); }
     try { localStorage.removeItem(key); } catch (e) { _quiet(e, 'delRaw'); return false; }
     this._esquecerRevlogSeForOCaso(key);
@@ -2190,14 +2233,18 @@ const DB = {
   getCycleHistoryForPlan(planId) { return this._get(this.keysForPlan(planId).cycleHistory, []); },
   getTracksForPlan(planId) { return this._get(this.keysForPlan(planId).tracks, {}); },
   // Todos os registros de todos os planejamentos, cada um marcado com o plano de origem
-  getAllEntriesTagged() {
-    return PlanManager.getPlans().flatMap(p =>
-      this.getEntriesForPlan(p.id).map(e => ({ ...e, _planId: p.id, _planNome: p.nome }))
+  getAllEntriesTagged(opts) {
+    const includePaused = !!(opts && opts.includePaused);
+    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    return plans.flatMap(p =>
+      this.getEntriesForPlan(p.id).map(e => ({ ...e, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
   },
-  getAllCycleHistoryTagged() {
-    return PlanManager.getPlans().flatMap(p =>
-      this.getCycleHistoryForPlan(p.id).map(w => ({ ...w, _planId: p.id, _planNome: p.nome }))
+  getAllCycleHistoryTagged(opts) {
+    const includePaused = !!(opts && opts.includePaused);
+    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    return plans.flatMap(p =>
+      this.getCycleHistoryForPlan(p.id).map(w => ({ ...w, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
   },
 
