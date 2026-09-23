@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vbbbda53ea7">
+<meta name="diario-versao" content="v604a791147">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6351,7 +6351,7 @@ window.__relationalBoot = true;
       <div class="siglas-modal-head">
         <div>
           <h2>💾 Grades salvas</h2>
-          <p class="sub">Guarde a grade atual sob um nome. Ao mudar de planejamento ou de meta, você pode restaurar exatamente a grade de antes.</p>
+          <p class="sub">As grades continuam pertencendo ao planejamento em que foram salvas. Grades de outros planejamentos podem ser copiadas para o atual sem alterar a original.</p>
         </div>
         <button type="button" class="icon-btn" id="saved-grades-close" title="Fechar" aria-label="Fechar">✕</button>
       </div>
@@ -6363,7 +6363,7 @@ window.__relationalBoot = true;
             <button class="btn-primary" id="btn-save-current-grade" type="button">Salvar grade atual</button>
           </div>
         </div>
-        <p class="section-label" style="margin:18px 0 8px;">Suas grades salvas</p>
+        <p class="section-label" style="margin:18px 0 8px;">Grades disponíveis</p>
         <div id="saved-grades-list" class="saved-grades-list"></div>
       </div>
       <div class="siglas-modal-foot">
@@ -6505,6 +6505,7 @@ window.__relationalBoot = true;
           <span id="lei-reader-meta" class="leis-reader-meta"></span>
         </div>
         <div class="leis-reader-actions">
+          <button type="button" class="btn-secondary" id="lei-copy-btn" style="display:none;" title="Criar uma cópia independente desta lei no planejamento atual">⧉ Copiar para este planejamento</button>
           <button type="button" class="reg-act-btn" id="lei-edit-btn" title="Editar dados da lei" aria-label="Editar dados da lei">✎</button>
           <button type="button" class="reg-act-btn danger" id="lei-del-btn" title="Excluir lei" aria-label="Excluir lei">✕</button>
         </div>
@@ -26554,19 +26555,26 @@ function planCycleMode() {
   function renderSavedGradesList() {
     const box = document.getElementById('saved-grades-list');
     if (!box) return;
-    const list = DB.getSavedGrades();
-    if (!list.length) {
+    const active = DB._activePlanId();
+    const local = DB.getSavedGrades().map(s => Object.assign({}, s, { _planId: active, _planNome: 'Este planejamento' }));
+    const all = DB.getAllSavedGradesTagged ? DB.getAllSavedGradesTagged() : local;
+    const externos = all.filter(s => String(s._planId || active) !== String(active));
+    if (!local.length && !externos.length) {
       box.innerHTML = `<p class="sg-empty">Nenhuma grade salva ainda. Dê um nome acima e clique em <strong>Salvar grade atual</strong>.</p>`;
       return;
     }
-    box.innerHTML = list.slice().reverse().map(s => {
+    const meta = s => {
       let ocupadas = 0;
       DIAS_SEMANA.forEach(d => (s.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
       const dt = s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-BR') : '';
-      return `<div class="sg-item" data-id="${s.id}">
+      return `${ocupadas} matéria(s) · ${s.sessions || 3} sessões${dt ? ' · ' + dt : ''}`;
+    };
+    const localHtml = local.length ? `
+      <div class="sg-group-label">Neste planejamento</div>
+      ${local.slice().reverse().map(s => `<div class="sg-item" data-id="${s.id}">
         <div class="sg-info">
           <div class="sg-name">${escapeHtml(s.nome)}</div>
-          <div class="sg-meta">${ocupadas} matéria(s) · ${s.sessions || 3} sessões${dt ? ' · ' + dt : ''}</div>
+          <div class="sg-meta">${meta(s)}</div>
         </div>
         <div class="sg-actions">
           <button type="button" class="btn-secondary" data-sg-load="${s.id}" title="Substituir a grade atual por esta">↺ Restaurar</button>
@@ -26574,8 +26582,21 @@ function planCycleMode() {
           <button type="button" class="btn-secondary" data-sg-ren="${s.id}" title="Renomear" aria-label="Renomear">✎</button>
           <button type="button" class="btn-secondary" data-sg-del="${s.id}" title="Excluir" aria-label="Excluir">🗑️</button>
         </div>
-      </div>`;
-    }).join('');
+      </div>`).join('')}` : '';
+
+    const extHtml = externos.length ? `
+      <div class="sg-group-label" style="margin-top:14px;">De outros planejamentos</div>
+      ${externos.slice().reverse().map(s => `<div class="sg-item" data-id="${s.id}" data-plan="${escapeHtml(String(s._planId || ''))}">
+        <div class="sg-info">
+          <div class="sg-name">${escapeHtml(s.nome)}</div>
+          <div class="sg-meta">${meta(s)} · ${escapeHtml(s._planNome || 'Outro planejamento')} · somente leitura</div>
+        </div>
+        <div class="sg-actions">
+          <button type="button" class="btn-secondary" data-sg-copy="${s.id}" data-plan="${escapeHtml(String(s._planId || ''))}" title="Criar uma cópia independente no planejamento atual">⧉ Copiar para cá</button>
+        </div>
+      </div>`).join('')}` : '';
+    box.innerHTML = localHtml + extHtml;
+
     box.querySelectorAll('[data-sg-load]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgLoad;
       const s = DB.getSavedGrades().find(x => x.id === id);
@@ -26612,6 +26633,17 @@ function planCycleMode() {
       DB.deleteSavedGrade(id);
       renderSavedGradesList();
       showToast('Grade salva excluída');
+    }));
+    box.querySelectorAll('[data-sg-copy]').forEach(b => b.addEventListener('click', async () => {
+      const sourcePlan = b.dataset.plan, id = b.dataset.sgCopy;
+      const s = all.find(x => String(x._planId) === String(sourcePlan) && String(x.id) === String(id));
+      if (!s) return;
+      if (!await UI.confirm(`Copiar a grade "${s.nome}" de "${s._planNome || 'outro planejamento'}" para este planejamento? A original continuará intacta.`,
+        { title:'⧉ Copiar grade', okText:'Copiar' })) return;
+      const copia = DB.copySavedGradeToActive ? DB.copySavedGradeToActive(sourcePlan, id) : null;
+      if (!copia) { showToast('Não foi possível copiar a grade'); return; }
+      renderSavedGradesList();
+      showToast('Grade copiada ✓ Agora você pode restaurá-la neste planejamento.');
     }));
   }
   function openSavedGrades() {
@@ -29769,6 +29801,14 @@ const LeisScreen = {
       else if (el.id === 'lei-auto-master') el.disabled = false;
       else el.disabled = master ? !master.checked : false;
     });
+    const copyBtn = document.getElementById('lei-copy-btn');
+    if (copyBtn) {
+      copyBtn.style.display = readonly ? '' : 'none';
+      copyBtn.disabled = !readonly;
+      copyBtn.title = readonly
+        ? 'Criar uma cópia independente no planejamento atual; a original permanece intacta'
+        : '';
+    }
     const meta = document.getElementById('lei-reader-meta');
     if (meta && readonly) meta.insertAdjacentHTML('beforeend',
       ' <span class="plan-tag-badge">🔒 ' + escapeHtml(lei._planNome || 'Outro planejamento') + '</span>');
@@ -30625,6 +30665,21 @@ const LeisScreen = {
     this._prefSet('font-step', this.fontStep);
     this._pintarFonte();
   },
+  async copyCurrentToPlan() {
+    const lei = this.currentId ? DB.getLei(this.currentId) : null;
+    if (!lei) return;
+    if (this._leiLocal(lei)) { showToast('Esta lei já pertence ao planejamento atual'); return; }
+    const origem = lei._planNome || 'outro planejamento';
+    if (!await UI.confirm(
+      `Copiar "${lei.titulo}" de "${origem}" para este planejamento?\n\nA original continuará intacta. A cópia poderá ser editada, marcada e incluída em rodízio ou atividade extra.`,
+      { title:'⧉ Copiar lei seca', okText:'Copiar para este planejamento' }
+    )) return;
+    const copia = DB.copyLawToActive ? DB.copyLawToActive(lei._planId, lei.id) : null;
+    if (!copia) { showToast('Não foi possível copiar a lei'); return; }
+    this.renderCards();
+    this.openReader(copia.id);
+    showToast(copia._alreadyCopied ? 'Esta lei já havia sido copiada para este planejamento' : 'Lei copiada ✓ Agora ela é independente neste planejamento.');
+  },
   editCurrent() {
     if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
@@ -30670,6 +30725,7 @@ window.LeisScreen = LeisScreen;
   if (fm) fm.addEventListener('click', (e) => { if (e.target === fm) fm.style.display = 'none'; });
   // leitor
   on('lei-back-btn', 'click', () => LeisScreen.showList());
+  on('lei-copy-btn', 'click', () => LeisScreen.copyCurrentToPlan());
   on('lei-edit-btn', 'click', () => LeisScreen.editCurrent());
   on('lei-del-btn', 'click', () => LeisScreen.deleteCurrent());
   // ferramentas de marcação: marca-texto e borracha (modos)
@@ -50665,7 +50721,7 @@ const RelationalStore = {
     if(sub==='decks')return this._syncById('study_decks',profileId,planId,'deck_id',oldA,newA,(x,i)=>Object.assign(base(),{deck_id:String(x.id),name:x.nome||'',created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,deck_id');
     if(sub==='cards')return this._syncById('study_cards',profileId,planId,'card_id',oldA,newA,
       (x,i)=>this._cardRow(profileId,planId,x,i+1),'profile_id,plan_id,card_id');
-    if(sub==='leis')return this._syncById('study_laws',profileId,planId,'law_id',oldA,newA,(x,i)=>Object.assign(base(),{law_id:String(x.id),title:x.titulo||null,reference:x.referencia||null,subject:x.materia||null,body:x.texto||'',bookmarked:x.bookmark==null?null:!!x.bookmark,bookmark_text:x.bookmarkTxt||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,options:x.opts||{},markings:x.marcacoes||[],suppressed:x.suppressed==null?null:x.suppressed,rotation:x.rodizio==null?null:x.rodizio,position:i+1,extra:{}}),'profile_id,plan_id,law_id');
+    if(sub==='leis')return this._syncById('study_laws',profileId,planId,'law_id',oldA,newA,(x,i)=>Object.assign(base(),{law_id:String(x.id),title:x.titulo||null,reference:x.referencia||null,subject:x.materia||null,body:x.texto||'',bookmarked:x.bookmark==null?null:!!x.bookmark,bookmark_text:x.bookmarkTxt||null,created_at:x.createdAt||null,updated_at:x.updatedAt||null,options:x.opts||{},markings:x.marcacoes||[],suppressed:x.suppressed==null?null:x.suppressed,rotation:x.rodizio==null?null:x.rodizio,position:i+1,extra:{origemCopia:x.origemCopia||null}}),'profile_id,plan_id,law_id');
     if(sub==='links')return this._syncById('study_links',profileId,planId,'link_id',oldA,newA,(x,i)=>Object.assign(base(),{link_id:String(x.id),name:x.nome||'',category:x.categoria||null,url:x.url||'',color:x.cor||null,logo:x.logo||null,created_at:x.createdAt||null,position:i+1}),'profile_id,plan_id,link_id');
     if(sub==='custom-siglas')return this._syncById('study_custom_siglas',profileId,planId,'sigla_id',oldA,newA,(x,i)=>Object.assign(base(),{sigla_id:String(x.id),name:x.nome||null,sigla:x.sigla||'',color:x.color||null,position:i+1}),'profile_id,plan_id,sigla_id');
     if(sub==='cycle-history')return this._syncById('study_cycle_history',profileId,planId,'cycle_id',oldA,newA,(x,i)=>Object.assign(base(),{cycle_id:String(x.id),start_date:x.startDate||null,end_date:x.endDate||null,closed_at:x.closedAt||null,sessions:x.sessions==null?null:Number(x.sessions),weekly_hours:x.weeklyHours==null?null:Number(x.weeklyHours),completed_subjects:x.finalizadas==null?null:Number(x.finalizadas),completion_pct:x.pctCumprido==null?null:Number(x.pctCumprido),total_subjects:x.totalSubjects==null?null:Number(x.totalSubjects),total_target_min:x.totalTargetMin==null?null:Number(x.totalTargetMin),total_studied_min:x.totalStudiedMin==null?null:Number(x.totalStudiedMin),avg_performance_pct:x.avgPerformancePct==null?null:Number(x.avgPerformancePct),avg_performance_legacy:x.avgPerformancePctLegado==null?null:Number(x.avgPerformancePctLegado),grade:x.grade||null,subjects:x.subjects||null,extra:{},position:i+1}),'profile_id,plan_id,cycle_id');
@@ -56665,7 +56721,56 @@ else CloudStore.init();
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
   DB.getAllExtrasTagged = () => S.allBy('extras');
+  DB.getAllSavedGradesTagged = () => S.allBy('savedGrades');
+  DB.copySavedGradeToActive = function(sourcePlanId, id) {
+    const active = S.activePlanId();
+    if (!sourcePlanId || String(sourcePlanId) === String(active)) return null;
+    const src = S._rows(sourcePlanId, 'savedGrades').find(x => String(x && x.id) === String(id));
+    if (!src) return null;
+    const list = DB.getSavedGrades();
+    const item = {
+      id: DB._uid(),
+      nome: String(src.nome || 'Grade salva').slice(0, 40),
+      grade: clone(src.grade || {}),
+      sessions: Number(src.sessions) || 3,
+      createdAt: new Date().toISOString()
+    };
+    list.push(item);
+    if (DB.saveSavedGrades(list) === false) return false;
+    return Object.assign({}, item, { _planId: active, _planNome: S.planName(active) });
+  };
   DB.getAllLeisTagged = () => S.allBy('leis');
+  DB.copyLawToActive = function(sourcePlanId, id) {
+    const active = S.activePlanId();
+    if (!sourcePlanId || String(sourcePlanId) === String(active)) return DB.getLei(id);
+    const src = S._rows(sourcePlanId, 'leis').find(x => String(x && x.id) === String(id));
+    if (!src) return null;
+    const origem = { planId: String(sourcePlanId), lawId: String(id) };
+    const existente = DB.getLeis().find(x => x && x.origemCopia
+      && String(x.origemCopia.planId) === origem.planId
+      && String(x.origemCopia.lawId) === origem.lawId);
+    if (existente) return Object.assign({}, existente, { _alreadyCopied: true });
+    const now = new Date().toISOString();
+    const item = {
+      id: DB._uid(),
+      titulo: src.titulo || 'Sem título',
+      referencia: src.referencia || '',
+      materia: src.materia || '',
+      texto: src.texto || '',
+      marcacoes: clone(src.marcacoes || []),
+      suppressed: clone(src.suppressed || []),
+      opts: clone(src.opts || { ressalvas:true, restricoes:true, competencias:true, prazos:true, efeitos:true, relacoes:true }),
+      bookmark: src.bookmark == null ? null : src.bookmark,
+      bookmarkTxt: src.bookmarkTxt || null,
+      origemCopia: origem,
+      createdAt: now,
+      updatedAt: now
+    };
+    const list = DB.getLeis();
+    list.push(item);
+    if (DB.saveLeis(list) === false) return false;
+    return item;
+  };
   DB.getAllLinksTagged = () => {
     let out = S.allBy('links');
     // Perfil realmente novo: preserva a semeadura dos atalhos padrão, mas só
