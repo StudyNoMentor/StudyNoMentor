@@ -174,7 +174,7 @@
       const p = this.prefs(), hoje = todayLocal();
       if (!p.ativo || !this._diaPermitido(hoje, p)) return { mudou: false, criadas: 0 };
       let extras = DB.getExtras();
-      const leis = DB.getLeis();
+      const leis = DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis();
       const porId = new Map(leis.map(l => [l.id, l]));
       let mudou = false;
 
@@ -275,7 +275,7 @@
     },
     statusHoje() {
       const hoje = todayLocal(), p = this.prefs();
-      const leis = DB.getLeis();
+      const leis = DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis();
       const aptas = leis.filter(l => this.cfgLei(l).apta).length;
       const missoes = DB.getExtras().filter(e => this.eExtra(e) && ((e.origemLei && e.origemLei.agendadoPara === hoje) || (e.datas || []).includes(hoje))).length;
       return { aptas, missoes, permitido: this._diaPermitido(hoje, p), prefs: p };
