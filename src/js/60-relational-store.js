@@ -476,9 +476,19 @@ const RelationalStore = {
     this._pending++;
     const run = async()=>{
       let last;
+      if(window.CloudStore&&CloudStore.serviceStatus==='restricted'){
+        const e=new Error('Banco restrito por cota do Supabase');
+        e.code='quota-restricted';this._lastError=e;throw e;
+      }
       for(let i=0;i<3;i++){
         try { const r=await task(); this._lastError=null; this._lastSyncAt=Date.now(); return r; }
-        catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
+        catch(e){
+          last=e;
+          /* 402 de cota não melhora repetindo a mesma operação. O fetch global
+             marca o serviço após a primeira resposta e a fila para de martelar. */
+          if(window.CloudStore&&CloudStore.serviceStatus==='restricted')break;
+          if(i<2) await new Promise(res=>setTimeout(res,[250,900][i]));
+        }
       }
       this._lastError=last; throw last;
     };
@@ -674,6 +684,9 @@ const RelationalStore = {
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
+    /* Reaplicar exatamente o mesmo valor não é uma mutação persistente.
+       Evita UPSERTs disparados por renderizações/reativações de tela. */
+    if(oldRaw===newRaw) return;
     /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
        Essas escritas de UI são apenas projeção efêmera; não entram em fila e
        não viram falso erro de banco. Depois do login, isReady() permanece true
@@ -981,7 +994,8 @@ const RelationalStore = {
         if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
           if(this._channel===ch)this._channel=null;
           clearTimeout(this._resubTimer);
-          this._resubTimer=setTimeout(()=>this.subscribeProfile(profileId),1200);
+          if(window.CloudStore&&CloudStore.serviceStatus==='restricted')return;
+          this._resubTimer=setTimeout(()=>this.subscribeProfile(profileId),5000);
         }
       });
     this._channel=ch;

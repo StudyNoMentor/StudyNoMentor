@@ -16,7 +16,13 @@ const CloudUI = {
       const slotField = document.getElementById('cloud-slot-name'); if (slotField && slotField.closest('.field')) slotField.closest('.field').style.display = 'none';
       const auto = document.getElementById('cloud-autosync'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
-      this.setStatus('ok', 'Sincronização automática ativa');
+      if (CloudStore.serviceStatus === 'restricted') {
+        this.setStatus('error', 'Banco restrito por cota do Supabase');
+      } else if (CloudStore.serviceStatus === 'offline') {
+        this.setStatus('error', 'Sem conexão com o banco');
+      } else {
+        this.setStatus('ok', 'Sincronização automática ativa');
+      }
       this.renderQueue();
     }
   },
@@ -116,6 +122,10 @@ const CloudUI = {
     if (!tone) {
       if (!CS || !CS.isReady()) {
         tone = 'error'; text = 'Banco indisponível';
+      } else if (CS.serviceStatus === 'restricted') {
+        tone = 'error'; text = 'Banco restrito por cota do Supabase';
+      } else if (CS.serviceStatus === 'offline') {
+        tone = 'error'; text = 'Sem conexão com o banco';
       } else if (!CS.isLoggedIn()) {
         tone = 'off'; text = 'Entre para acessar o banco';
       } else if (RS && RS._lastError) {
@@ -440,19 +450,21 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
   window.addEventListener('online', () => {
     if (window.CloudUI) CloudUI.refreshSyncBtn();
-    CloudStore.syncOnFocus();
+    CloudStore.syncOnFocus({ force: true });
   });
   window.addEventListener('offline', () => {
     if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão com o banco');
   });
 
-  /* Realtime acelera. Este pulso é a rede de segurança contra qualquer evento
-     WebSocket perdido: consulta a cópia canônica no SQL enquanto a aba está ativa. */
+  /* Realtime continua sendo o caminho normal e imediato. O pulso abaixo é
+     somente uma rede de segurança para um raro evento WebSocket perdido.
+     Antes rodava a cada 30 s e gerava milhares de SELECTs por dia mesmo sem
+     mudança; 10 min preservam a recuperação sem transformar o SQL em polling. */
   setInterval(() => {
     try {
       if (document.visibilityState === 'visible' && window.CloudStore) CloudStore.syncOnFocus();
     } catch (_) { _quiet(_); }
-  }, 30000);
+  }, 10 * 60 * 1000);
 
   setInterval(() => {
     try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }

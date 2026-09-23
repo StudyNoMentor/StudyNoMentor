@@ -18,8 +18,16 @@ const CloudStore = {
   _cfgMode: 'signin',
   _lastSyncAt: null,
   _syncing: false,
+  serviceStatus: 'unknown',
+  _serviceStatusChangedAt: 0,
+  _prefsHydratedUid: null,
+  _prefsHydratePromise: null,
+  _prefsHydratingUid: null,
+  _focusSyncPromise: null,
+  _lastFocusSyncAt: 0,
 
   FETCH_TETO_MS: 25000,
+  FOCUS_SYNC_MIN_MS: 60 * 1000,
   TOKEN_RETENTATIVAS: 2,
   TOKEN_ESPERA_MS: 1500,
 
@@ -42,13 +50,13 @@ const CloudStore = {
       this.client.auth.getSession()
         .then(({ data }) => {
           this.session = (data && data.session) || null;
-          this.onAuth();
+          this.onAuth('SESSION_INIT');
         })
         .catch(e => console.warn('getSession', e));
 
       this.client.auth.onAuthStateChange((evento, session) => {
         this.session = session;
-        this.onAuth();
+        this.onAuth(evento);
         if (evento === 'PASSWORD_RECOVERY' &&
             window.ProfileUI && ProfileUI.promptNewPasswordAfterRecovery) {
           setTimeout(() => ProfileUI.promptNewPasswordAfterRecovery(), 300);
@@ -65,6 +73,29 @@ const CloudStore = {
   isLoggedIn() { return !!this.session; },
   userEmail() { return this.session && this.session.user ? this.session.user.email : null; },
 
+  _setServiceStatus(next) {
+    const status = ['unknown','ok','restricted','offline'].includes(next) ? next : 'unknown';
+    if (this.serviceStatus === status) return;
+    const prev = this.serviceStatus;
+    this.serviceStatus = status;
+    this._serviceStatusChangedAt = Date.now();
+    try {
+      window.dispatchEvent(new CustomEvent('cloud:service-status', { detail: { status, previous: prev } }));
+    } catch (e) { _quiet(e, 'cloud-service-status-event'); }
+    try {
+      if (window.ProfileUI && ProfileUI.isGateOpen && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+    } catch (e) { _quiet(e, 'cloud-service-status-gate'); }
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); }
+    catch (e) { _quiet(e, 'cloud-service-status-ui'); }
+    if (status === 'ok' && prev === 'restricted' && this.isLoggedIn()) {
+      try {
+        const id = window.ProfileManager && ProfileManager.getActiveProfileId
+          ? ProfileManager.getActiveProfileId() : null;
+        if (id && window.RelationalStore) RelationalStore.subscribeProfile(id);
+      } catch (e) { _quiet(e, 'cloud-service-status-resubscribe'); }
+    }
+  },
+
   _buscarComTeto(url, opcoes) {
     const o = opcoes || {};
     if (typeof AbortController === 'undefined') return fetch(url, o);
@@ -76,7 +107,15 @@ const CloudStore = {
       else externo.addEventListener('abort', propagar, { once: true });
     }
     const t = setTimeout(propagar, this.FETCH_TETO_MS);
-    return fetch(url, { ...o, signal: ac.signal }).finally(() => clearTimeout(t));
+    return fetch(url, { ...o, signal: ac.signal })
+      .then(res => {
+        this._setServiceStatus(res.status === 402 ? 'restricted' : 'ok');
+        return res;
+      }, err => {
+        this._setServiceStatus('offline');
+        throw err;
+      })
+      .finally(() => clearTimeout(t));
   },
 
   _withTimeout(p, ms, label) {
@@ -143,24 +182,42 @@ const CloudStore = {
     finally { this._applying = antes; }
   },
 
-  onAuth() {
+  onAuth(evento) {
     try { if (window.ProfileUI) ProfileUI.onAuthChanged(); } catch (e) { _quiet(e, 'auth-ui'); }
     try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (e) { _quiet(e, 'auth-sync-ui'); }
 
     if (!this.isLoggedIn()) {
+      this._prefsHydratedUid = null;
+      this._prefsHydratingUid = null;
+      this._prefsHydratePromise = null;
       this._unsub();
       return;
     }
 
     this.subscribeRealtime();
 
+    /* INITIAL_SESSION, SIGNED_IN e TOKEN_REFRESHED podem apontar para a mesma
+       sessão. Preferências globais só precisam ser lidas uma vez por usuário;
+       reler em todo evento de auth multiplicava SELECTs sem trazer dado novo. */
     try {
-      if (window.RelationalStore) {
-        RelationalStore.hydrateUserPreferences().catch(e => _quiet(e, 'rel-user-prefs'));
+      const uid = this.session && this.session.user && this.session.user.id;
+      if (uid && window.RelationalStore &&
+          this._prefsHydratedUid !== uid &&
+          this._prefsHydratingUid !== uid) {
+        this._prefsHydratingUid = uid;
+        const p = RelationalStore.hydrateUserPreferences()
+          .then(() => { this._prefsHydratedUid = uid; })
+          .catch(e => {
+            if (this._prefsHydratedUid === uid) this._prefsHydratedUid = null;
+            _quiet(e, 'rel-user-prefs');
+          })
+          .finally(() => {
+            if (this._prefsHydratingUid === uid) this._prefsHydratingUid = null;
+            if (this._prefsHydratePromise === p) this._prefsHydratePromise = null;
+          });
+        this._prefsHydratePromise = p;
       }
     } catch (e) { _quiet(e, 'rel-user-prefs-start'); }
-    try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
-    catch (e) { _quiet(e, 'profile-stage-login'); }
   },
 
   async signUp(email, password) {
@@ -283,20 +340,38 @@ const CloudStore = {
     /* Não existe dado de estudo persistente no navegador para descarregar. */
   },
 
-  async syncOnFocus() {
+  async syncOnFocus(opts) {
     if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
+    if (this.serviceStatus === 'restricted') return false;
     const id = window.ProfileManager && ProfileManager.getActiveProfileId
       ? ProfileManager.getActiveProfileId() : null;
     if (!id) return false;
-    try {
-      await RelationalStore.flush();
-      await RelationalStore.catchUp(id, 'focus');
-      this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
-      return true;
-    } catch (e) {
-      _quiet(e, 'rel-sync-focus');
-      return false;
-    }
+
+    const force = !!(opts && opts.force);
+    const now = Date.now();
+    if (this._focusSyncPromise) return this._focusSyncPromise;
+    if (!force && this._lastFocusSyncAt && now - this._lastFocusSyncAt < this.FOCUS_SYNC_MIN_MS) return false;
+
+    this._lastFocusSyncAt = now;
+    const job = (async () => {
+      try {
+        /* Se o websocket tiver sido encerrado enquanto a aba estava em segundo
+           plano, o foco restabelece o realtime antes do catch-up de segurança. */
+        try { RelationalStore.subscribeProfile(id); } catch (e) { _quiet(e, 'rel-sync-focus-subscribe'); }
+        await RelationalStore.flush();
+        await RelationalStore.catchUp(id, 'focus');
+        this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
+        return true;
+      } catch (e) {
+        this._lastFocusSyncAt = 0; // permite nova tentativa real após falha
+        _quiet(e, 'rel-sync-focus');
+        return false;
+      }
+    })();
+    this._focusSyncPromise = job.finally(() => {
+      if (this._focusSyncPromise) this._focusSyncPromise = null;
+    });
+    return this._focusSyncPromise;
   },
 
   async syncNow() {
