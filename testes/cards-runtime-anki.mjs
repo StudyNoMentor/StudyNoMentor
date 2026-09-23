@@ -30,6 +30,7 @@ R._typedAnswers.set('123|Front','Correta');
 const typedA=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
 assert.match(typedA,/is-correct/,'resposta digitada precisa sobreviver ao flip e ser comparada');
 assert.match(typedA,/typeGood/,'resposta correta usa a classe oficial typeGood');
+assert.match(typedA,/<code id="typeans"/,'comparação deve usar code#typeans como o Anki');
 R._typedAnswers.set('123|Front','Coreta');
 const typedDiff=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
 assert.match(typedDiff,/typeBad/,'caractere digitado incorreto deve ser destacado');
