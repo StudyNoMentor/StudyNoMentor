@@ -21,7 +21,7 @@ from anki.collection import (
     ImportAnkiPackageRequest,
 )
 from anki.cards import Card
-from anki.decks import DeckId
+from anki.decks import DeckId, DeckCollapseScope
 from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
 from anki.sound import SoundOrVideoTag, TTSTag
@@ -783,7 +783,7 @@ def manage_deck(
             item.col.decks.set_collapsed(
                 deck_id,
                 bool(payload.get("collapsed", True)),
-                deck_config_pb2.DECK_COLLAPSE_SCOPE_REVIEWER,
+                DeckCollapseScope.REVIEWER,
             )
         elif action == "unbury":
             item.col.sched.unbury_deck(deck_id)
