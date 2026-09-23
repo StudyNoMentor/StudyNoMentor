@@ -301,69 +301,88 @@ const AnkiOfficial = {
 
   async renderDecks() {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Carregando baralhos…</span></div>';
+    root.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Carregando baralhos…</h3></div></div>';
     try {
       const data=await this.request('/api/anki/decks');
       const tree=data.deck_tree||{};
       const roots=(Number(tree.deck_id||0)>0) ? [tree] : (tree.children||[]);
       const fallback=(data.decks||[]).map(d=>({
         deck_id:d.id,name:d.name,level:0,children:[],
-        new_count:null,learn_count:null,review_count:null,filtered:false,collapsed:false
+        new_count:0,learn_count:0,review_count:0,filtered:false,collapsed:false
       }));
       const nodes=roots.length?roots:fallback;
-      const totalNew=nodes.reduce((s,d)=>s+Number(d.new_count||0),0);
-      const totalLearn=nodes.reduce((s,d)=>s+Number(d.learn_count||0),0);
-      const totalReview=nodes.reduce((s,d)=>s+Number(d.review_count||0),0);
-      const totalDue=totalNew+totalLearn+totalReview;
+      const flatten=(arr)=>arr.flatMap(x=>[x,...flatten(x.children||[])]);
+      const flat=flatten(nodes);
+      const totalNew=flat.reduce((s,d)=>s+Number(d.new_count||0),0);
+      const totalLearn=flat.reduce((s,d)=>s+Number(d.learn_count||0),0);
+      const totalReview=flat.reduce((s,d)=>s+Number(d.review_count||0),0);
 
       const renderNode=(d,depth=0)=>{
         const id=Number(d.deck_id||d.id||0);
         const children=d.children||[];
         const hasChildren=children.length>0;
         const current=id===Number(data.current_deck_id);
-        const count=(value,kind)=>value==null?'':`<span class="ankidroid-count ${kind}">${Number(value)}</span>`;
         return `
-          <div class="ankidroid-deck-node" data-deck-node="${id}">
-            <div class="ankidroid-deck-row ${current?'current':''}" style="--deck-level:${Math.max(0,Number(d.level??depth))}">
-              <button type="button" class="ankidroid-deck-expander" data-deck-expand="${id}" aria-expanded="${hasChildren && !d.collapsed?'true':'false'}" ${hasChildren?'':'disabled'} aria-label="${hasChildren?'Expandir ou recolher baralho':'Sem subbaralhos'}">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7z"/></svg>
-              </button>
-              <button type="button" class="ankidroid-deck-main" data-anki-deck="${id}">
-                <span class="ankidroid-deck-name">${this.esc(d.name||'Baralho')}</span>
-                ${d.filtered?'<span class="ankidroid-deck-filtered">filtrado</span>':''}
-              </button>
-              <button type="button" class="ankidroid-deck-counts" data-anki-deck="${id}" aria-label="Estudar este baralho">
-                ${count(d.new_count,'new')}${count(d.learn_count,'learn')}${count(d.review_count,'review')}
-              </button>
+          <div class="anki-study-deck-node" data-deck-node="${id}">
+            <div class="deck-row anki-study-deck-row ${current?'current':''}" style="--deck-depth:${Math.max(0,Number(d.level??depth))}">
+              <button type="button" class="anki-study-deck-toggle ${hasChildren && !d.collapsed?'open':''}" data-deck-expand="${id}" ${hasChildren?'':'disabled'} title="${hasChildren?'Expandir/recolher':'Sem subbaralhos'}">›</button>
+              <button type="button" class="anki-study-deck-name" data-anki-deck="${id}">${this.esc(d.name||'Baralho')}${d.filtered?' · filtrado':''}</button>
+              <span class="anki-study-deck-counts">
+                <span class="anki-study-count-new" title="Novos">${Number(d.new_count||0)}</span>
+                <span class="anki-study-count-learn" title="Aprendendo">${Number(d.learn_count||0)}</span>
+                <span class="anki-study-count-review" title="Revisão">${Number(d.review_count||0)}</span>
+              </span>
+              <button type="button" class="btn-secondary anki-study-deck-study" data-anki-deck="${id}">Estudar</button>
             </div>
-            ${hasChildren?`<div class="ankidroid-deck-children" ${d.collapsed?'hidden':''}>${children.map(ch=>renderNode(ch,depth+1)).join('')}</div>`:''}
+            ${hasChildren?`<div class="anki-study-deck-children" ${d.collapsed?'hidden':''}>${children.map(ch=>renderNode(ch,depth+1)).join('')}</div>`:''}
           </div>`;
       };
 
       root.innerHTML=`
-        <div class="ankidroid-decks-head">
-          <strong>${totalDue?this.esc(totalDue+' cartões para hoje'):'Baralhos'}</strong>
-          <span><span class="ankidroid-count new">${totalNew}</span>&nbsp;&nbsp;<span class="ankidroid-count learn">${totalLearn}</span>&nbsp;&nbsp;<span class="ankidroid-count review">${totalReview}</span></span>
-        </div>
-        <div class="ankidroid-deck-list">${nodes.length?nodes.map(n=>renderNode(n)).join(''):'<div class="ankidroid-deck-empty"><strong>Nenhum baralho</strong>Importe um pacote ou adicione sua primeira nota.</div>'}</div>`;
+        <section class="card anki-study-decks-card">
+          <div class="card-header">
+            <div>
+              <h2>📁 Baralhos</h2>
+              <p class="sub">Hierarquia e contagens fornecidas pelo scheduler oficial do Anki.</p>
+            </div>
+            <button type="button" class="btn-primary" id="anki-create-deck">＋ Criar baralho</button>
+          </div>
+          <div class="anki-study-deck-summary" style="padding:0 18px 14px">
+            <span>Novos <b class="anki-study-count-new">${totalNew}</b></span>
+            <span>Aprendendo <b class="anki-study-count-learn">${totalLearn}</b></span>
+            <span>Revisão <b class="anki-study-count-review">${totalReview}</b></span>
+          </div>
+          <div class="anki-study-deck-list">${nodes.length?nodes.map(n=>renderNode(n)).join(''):'<div class="anki-study-empty">Nenhum baralho. Importe um pacote ou crie o primeiro baralho.</div>'}</div>
+        </section>`;
 
-      const study=async(btn)=>{
-        try {
-          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(btn.dataset.ankiDeck)})});
+      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=async()=>{
+        try{
+          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(b.dataset.ankiDeck)})});
+          this._sessionAnswered=0;this._sessionStartTotal=null;
           this.setView('review');
           await this.renderReviewer();
-        } catch(e){ this.alert(e.message,'error'); }
-      };
-      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=()=>void study(b));
-      root.querySelectorAll('[data-deck-expand]').forEach(b=>b.onclick=()=>{
-        const node=b.closest('.ankidroid-deck-node');
-        const box=node&&node.querySelector(':scope > .ankidroid-deck-children');
-        if(!box) return;
-        const open=box.hidden;
-        box.hidden=!open;
-        b.setAttribute('aria-expanded',open?'true':'false');
+        }catch(e){this.alert(e.message,'error');}
       });
+      root.querySelectorAll('[data-deck-expand]').forEach(b=>b.onclick=()=>{
+        const node=b.closest('.anki-study-deck-node');
+        const box=node&&node.querySelector(':scope > .anki-study-deck-children');
+        if(!box)return;
+        box.hidden=!box.hidden;
+        b.classList.toggle('open',!box.hidden);
+      });
+      const create=document.getElementById('anki-create-deck');
+      if(create) create.onclick=()=>void this.createDeck();
     } catch(e){ this.alert(e.message,'error'); }
+  },
+
+  async createDeck() {
+    const name=prompt('Nome do novo baralho:');
+    if(name==null||!name.trim()) return;
+    try{
+      await this.request('/api/anki/decks/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})});
+      this.alert('Baralho criado pelo Anki oficial.');
+      await this.renderDecks();
+    }catch(e){this.alert(e.message,'error');}
   },
 
   async renderReviewer(data) {
