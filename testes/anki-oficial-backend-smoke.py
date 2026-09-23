@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory() as tmp:
     import app
 
     health = app.health()
-    assert health["pinned_version"] == "26.09.2"
+    assert health["pinned_version"] == "26.09.3"
     assert health["engine"] == "anki"
 
     user = app.pool.get("smoke-user")
@@ -171,4 +171,4 @@ assert 'class="cards-topbar anki-cards-topbar"' in html
 assert 'class="cards-tabs anki-cards-tabs"' in html
 assert 'id="anki-foco-btn"' in html
 
-print("OK: Anki 26.09.2 oficial + UI Cards avançada validados em scheduler, browser, stats, custom study, filtered deck, tipos, IO, mídia e exportação.")
+print("OK: Anki 26.09.3 oficial + UI Cards avançada validados em scheduler, browser, stats, custom study, filtered deck, tipos, IO, mídia e exportação.")

@@ -1,9 +1,9 @@
 /* ============================================================
-   ANKI 26.09.2 — CAMADA DE PARIDADE DOS CARDS
-   Implementação independente dos contratos observáveis do Anki 26.09.2.
+   ANKI 26.09.3 — CAMADA DE PARIDADE DOS CARDS
+   Implementação independente dos contratos observáveis do Anki 26.09.3.
    ============================================================ */
 const AnkiParity = {
-  VERSION: 'anki-26.09.2',
+  VERSION: 'anki-26.09.3',
   _idKey() { try { return DB._profilePrefix() + 'cards-anki-last-id'; } catch (_) { return 'diario-estudos:cards-anki-last-id'; } },
   _allocId() {
     let last = 0;
@@ -115,6 +115,92 @@ const AnkiParity = {
     const s=Math.max(0,Math.round(Number(seconds)||0)),max=Math.floor(Math.min(s*0.25,300));
     if(max<=0)return s;
     return s+this.randomRangeU32(this.rng(this.fuzzSeed(card)),0,max);
+  },
+
+  /* ── REVLOG OFICIAL (Anki 26.09.3) ────────────────────────────────────────
+     rslib/scheduler/answering/revlog.rs grava:
+       • dias como inteiros POSITIVOS;
+       • passos intradiários como segundos NEGATIVOS;
+       • factor FSRS = difficulty_shifted() * 1000 do estado PÓS-resposta.
+     O Study mantinha 0 nos passos e 2500 no FSRS, que serviam para a UI antiga
+     mas não eram o revlog do Anki. Estes helpers são o contrato único usado
+     tanto pelo reviewer quanto pelos testes diferenciais. */
+  _revlogMaybeAsDays(seconds, secsUntilRollover) {
+    const secs=Math.max(0,Math.round(Number(seconds)||0));
+    const rollover=Math.max(0,Math.round(Number(secsUntilRollover)||0));
+    if(secs>=rollover){
+      return Math.floor((secs-rollover)/86400)+1;
+    }
+    return -secs;
+  },
+  _currentStepSeconds(card,cfg) {
+    if(!card)return 0;
+    const phase=String(card.phase||'new');
+    const steps=phase==='relearning'?(cfg.relearnSteps||[]):(cfg.learnSteps||[]);
+    if(phase!=='learning'&&phase!=='relearning')return 0;
+    if(!steps.length)return 0;
+    const idx=Math.max(0,Math.min(Number(card.learnStep)||0,steps.length-1));
+    return Math.max(0,Math.round(Number(steps[idx])||0)*60);
+  },
+  _difficultyShifted(d) {
+    const v=Number(d);
+    if(!Number.isFinite(v))return null;
+    return ((Math.min(10,Math.max(1,v))-1)/9)+0.1;
+  },
+  revlogMeta(card,patch,opts) {
+    opts=opts||{};card=card||{};patch=patch||{};
+    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId)||CardsConfig.get();
+    const revTs=Number(opts.revTs)||Date.now();
+    const nextDay=(typeof proximaViradaTs==='function')?Number(proximaViradaTs()):revTs+86400000;
+    const secsUntil=Math.max(0,Math.round((nextDay-revTs)/1000));
+    const phase=String(card.phase||'new');
+    const preview=!!opts.preview;
+    let lastInterval=0,interval=0,kind='learning',factor=0;
+
+    if(preview){
+      const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId));
+      const fc=this.filteredConfig(deck)||this.filteredDefaults();
+      const again=Math.max(0,Number(fc.previewAgainSecs)||0);
+      lastInterval=this._revlogMaybeAsDays(again,secsUntil);
+      const grade=String(opts.grade||'bom');
+      const nextSecs=grade==='errei'||grade==='naosei'?Number(fc.previewAgainSecs)||0:
+        grade==='dificil'?Number(fc.previewHardSecs)||0:
+        grade==='bom'||grade==='sei'?Number(fc.previewGoodSecs)||0:0;
+      interval=this._revlogMaybeAsDays(Math.max(0,nextSecs),secsUntil);
+      kind='filtered';factor=0;
+    }else{
+      if(phase==='review'){
+        lastInterval=Math.max(0,Math.round(Number(card.intervalo)||0));
+        kind='review';
+      }else if(phase==='relearning'){
+        lastInterval=this._revlogMaybeAsDays(this._currentStepSeconds(card,cfg),secsUntil);
+        kind='relearning';
+      }else if(phase==='learning'){
+        lastInterval=this._revlogMaybeAsDays(this._currentStepSeconds(card,cfg),secsUntil);
+        kind='learning';
+      }else{
+        lastInterval=0;kind='learning';
+      }
+
+      const nextPhase=String(patch.phase||phase);
+      if(nextPhase==='learning'||nextPhase==='relearning'){
+        const mins=Number(patch._val);
+        const secs=Number.isFinite(mins)?Math.max(0,Math.round(mins*60)):
+          this._currentStepSeconds(Object.assign({},card,patch),cfg);
+        interval=this._revlogMaybeAsDays(secs,secsUntil);
+      }else if(nextPhase==='review'){
+        interval=Math.max(0,Math.round(Number(patch.intervalo)||0));
+      }else interval=0;
+
+      if(String(cfg.algo||'fsrs')==='fsrs'){
+        const shifted=this._difficultyShifted(patch.d);
+        factor=shifted==null?0:Math.round(shifted*1000);
+      }else if(phase==='review'||phase==='relearning'){
+        const e=Number(patch.ease!=null?patch.ease:card.ease);
+        factor=Math.round((Number.isFinite(e)&&e>0?e:Number(cfg.initialEase)||2.5)*1000);
+      }else factor=0;
+    }
+    return {interval,lastInterval,easeFactor:factor,reviewKind:kind};
   },
 
   // SQLite fnvhash(id, mod): FNV-1a de i64 little-endian.
@@ -910,7 +996,7 @@ AnkiParity.fsrsTrainingData=function(revlog,opts){
 };
 
 
-/* ── FILTERED DECKS / CUSTOM STUDY (Anki 26.09.2) ─────────────────────────
+/* ── FILTERED DECKS / CUSTOM STUDY (Anki 26.09.3) ─────────────────────────
    Contratos espelhados de rslib/src/scheduler/filtered/{mod,card,custom_study}.rs.
    Um card levado a um baralho filtrado guarda o baralho/vencimento de origem.
    Com reschedule=true, a primeira resposta o devolve ao baralho original com o

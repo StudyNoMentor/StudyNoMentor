@@ -41,8 +41,15 @@ function builder(table){
   return b;
 }
 
+const atomicCalls=[];let atomicStatus='committed';
 const CloudStore={
-  client:{from:table=>builder(table)},
+  client:{
+    from:table=>builder(table),
+    async rpc(name,args){
+      atomicCalls.push({name,args:structuredClone(args)});
+      return {data:{status:atomicStatus},error:null};
+    }
+  },
   isLoggedIn:()=>true,
   session:{user:{id:'u1'}}
 };
@@ -92,7 +99,34 @@ assert.equal(cardWrites.length,1,'snapshot local mais novo deve atualizar a proj
 assert.equal(cardWrites[0].row.card_id,'c1');
 assert.equal(cardWrites[0].opts.onConflict,'profile_id,plan_id,card_id');
 
-// 4) Empates de position entre aparelhos têm ordenação determinística.
+// 4) Resposta moderna usa UM RPC atômico: predecessor + review + sucessor.
+{
+  const before={id:'c-atomic',phase:'new',reps:0,lapses:0,learnStep:0,intervalo:0,due:'2026-09-22',updatedAt:'2026-09-22T12:00:00.000Z'};
+  const after={...before,phase:'learning',reps:1,s:.212,d:6.4133,dueTs:12345,updatedAt:'2026-09-22T12:00:01.000Z'};
+  atomicStatus='committed';
+  await R._commitReviewOutboxOp({
+    profileId:'p1',planId:'pl1',type:'append',
+    row:{reviewId:'atomic-1',cardId:'c-atomic',ts:3000,date:'2026-09-22',grade:1,_position:3},
+    cardBefore:before,cardAfter:after,cardPosition:3
+  });
+  assert.equal(atomicCalls.at(-1).name,'commit_study_review_atomic','reviewer moderno deve usar RPC atômico');
+  assert.equal(atomicCalls.at(-1).args.p_card_before.reps,0);
+  assert.equal(atomicCalls.at(-1).args.p_card_after.reps,1);
+
+  atomicStatus='conflict';
+  await assert.rejects(
+    R._commitReviewOutboxOp({
+      profileId:'p1',planId:'pl1',type:'append',
+      row:{reviewId:'atomic-stale',cardId:'c-atomic',ts:3001,date:'2026-09-22',grade:3,_position:4},
+      cardBefore:before,cardAfter:after,cardPosition:3
+    }),
+    /Conflito de estado/,
+    'estado predecessor divergente deve abortar a revisão, nunca gravar meia transação'
+  );
+  atomicStatus='committed';
+}
+
+// 5) Empates de position entre aparelhos têm ordenação determinística.
 R._rpcBundle=async()=>({missing:false,data:{
   profile:{id:'p1'},
   revlog:[

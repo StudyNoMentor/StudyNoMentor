@@ -23,6 +23,14 @@ const RelationalStore = {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
   pendingCount() { return this._pending; },
+  /* Uma resposta do reviewer é persistida pela outbox atômica (revlog+card).
+     A projeção local precisa mudar imediatamente, mas NÃO pode criar uma segunda
+     escrita genérica de study_cards concorrendo com a outbox. */
+  applyReviewProjection(fn) {
+    const prev=this._applying;this._applying=true;
+    try{return typeof fn==='function'?fn():null;}
+    finally{this._applying=prev;}
+  },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -576,13 +584,33 @@ const RelationalStore = {
       return true;
     }
     const rr = this._revlogRow(p.profileId,p.planId,op.row,op.row&&op.row._position);
+
+    /* Caminho do reviewer moderno: o Anki grava estado do card + revlog na mesma
+       transação. O caso real de 23/09 provou que duas escritas separadas deixam
+       uma janela onde o histórico avança e o card volta ao estado anterior.
+       O RPC usa lock + comparação do predecessor e só confirma os dois juntos. */
+    if(op.cardBefore&&op.cardBefore.id!=null&&op.cardAfter&&op.cardAfter.id!=null){
+      const before=this._cardRow(p.profileId,p.planId,op.cardBefore,op.cardPosition);
+      const after=this._cardRow(p.profileId,p.planId,op.cardAfter,op.cardPosition);
+      const {data,error}=await CloudStore.client.rpc('commit_study_review_atomic',{
+        p_review:rr,p_card_before:before,p_card_after:after
+      });
+      if(error)throw error;
+      const result=Array.isArray(data)?data[0]:data;
+      if(result&&result.status==='conflict'){
+        const err=new Error('Conflito de estado do card durante a revisão; sincronize e tente novamente.');
+        err.code='review_state_conflict';err.detail=result;throw err;
+      }
+      return true;
+    }
+
+    /* Compatibilidade com operações antigas/fallback que ainda não carregam o
+       predecessor. Mantém o caminho legado apenas para elas; novas respostas
+       nunca passam por aqui. */
     const {error:revErr} = await CloudStore.client.from('study_review_log')
       .upsert(rr,{onConflict:'profile_id,plan_id,review_id',ignoreDuplicates:true});
     if(revErr) throw revErr;
-
     if (op.cardAfter && op.cardAfter.id != null) {
-      // Não deixa um replay antigo sobrescrever uma revisão/edição mais nova
-      // feita em outro dispositivo enquanto este estava offline.
       let pode = true;
       const {data:remote,error:readErr} = await CloudStore.client.from('study_cards')
         .select('updated_at').eq('profile_id',p.profileId).eq('plan_id',p.planId)
@@ -605,6 +633,9 @@ const RelationalStore = {
     if(!this.isReady()) return false;
     if(this._reviewReplay) return this._reviewReplay;
     this._reviewReplay=(async()=>{
+      // Nunca deixa uma mutação genérica de cards, enfileirada antes da resposta,
+      // executar DEPOIS do commit da revisão e ressuscitar estado antigo.
+      await this.flush();
       let ops=[];
       try { if (typeof ReviewJournal !== 'undefined' && ReviewJournal.list) ops = await ReviewJournal.list(profileId); } catch (e) { _quiet(e, 'review-journal-list'); }
 

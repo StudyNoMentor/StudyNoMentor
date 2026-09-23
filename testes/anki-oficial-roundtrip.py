@@ -27,7 +27,7 @@ for key in ('SNM_APKG_LEGACY_OUT','SNM_APKG_LATEST_OUT'):
     assert p and os.path.exists(p), f'{key} ausente'
     import_and_assert(p)
 
-# Gera uma fixture pelo próprio backend oficial 26.09.2 para o importador Study.
+# Gera uma fixture pelo próprio backend oficial 26.09.3 para o importador Study.
 out=os.environ['SNM_ANKI_OFFICIAL_OUT']
 db=tempfile.mktemp(suffix='.anki2')
 col=Collection(db)
@@ -49,4 +49,4 @@ finally:
     col.close()
 
 assert os.path.getsize(out)>0
-print('ANKI OFICIAL 26.09.2: importou APKG Study Legacy/Latest e gerou fixture Latest avançada.')
+print('ANKI OFICIAL 26.09.3: importou APKG Study Legacy/Latest e gerou fixture Latest avançada.')

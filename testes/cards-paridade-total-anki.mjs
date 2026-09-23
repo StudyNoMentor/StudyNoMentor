@@ -35,6 +35,23 @@ if(telaSrc) ok(telaSrc.includes('CardEngine.hasContent(frente)')&&telaSrc.includ
 }
 
 
+// ── Revlog Anki: segundos negativos + factor FSRS pós-resposta ────────────
+{
+  A.reset({algo:'fsrs',learnSteps:[1,10],relearnSteps:[10],retention:.9});
+  const base={id:'revlog-meta',ankiId:123456789,phase:'new',reps:0,lapses:0,learnStep:0,intervalo:0,due:A.hoje(),s:null,d:null,ease:2.5};
+  const p1=CardEngine.schedule(base,'errei');
+  const m1=AnkiParity.revlogMeta(base,p1,{grade:'errei',revTs:A.agora()});
+  eq(m1.lastInterval,0,'New entra no revlog com lastIvl=0');
+  eq(m1.interval,-60,'Again no primeiro passo 1m entra como ivl=-60');
+  eq(m1.easeFactor,701,'FSRS factor usa difficulty_shifted pós-resposta, não 2500');
+  const c1={...base,...p1},p2=CardEngine.schedule(c1,'bom');
+  const m2=AnkiParity.revlogMeta(c1,p2,{grade:'bom',revTs:A.agora()+90000});
+  eq(m2.lastInterval,-60,'Learning no primeiro passo entra com lastIvl=-60');
+  eq(m2.interval,-600,'Good avança ao passo 10m como ivl=-600');
+  eq(p2.reps,2,'segunda resposta normal incrementa reps para 2');
+  eq(p2.phase,'learning','Good no primeiro passo continua em learning');
+}
+
 // ── Sessão do reviewer: cache de fila como Collection.state.card_queues ───
 A.reset({newPerDay:99,revPerDay:99});
 const rq1=DB.addCard({frente:'Q1',verso:'A1',phase:'new',due:A.hoje(),posicaoNova:1});

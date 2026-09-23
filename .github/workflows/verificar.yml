@@ -72,7 +72,7 @@ jobs:
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-concorrencia-multidevice.mjs
 
-      - name: Round-trip com Anki oficial 26.09.2
+      - name: Round-trip com Anki oficial 26.09.3
         if: github.event_name != 'push'
         shell: bash
         env:
@@ -81,10 +81,13 @@ jobs:
           SNM_ANKI_OFFICIAL_OUT: ${{ runner.temp }}/anki-oficial-latest.apkg
           SNM_ANKI_SEARCH_EXPECTED: ${{ runner.temp }}/anki-search-expected.json
           SNM_ANKI_TYPEANSWER_EXPECTED: ${{ runner.temp }}/anki-typeanswer-expected.json
+          SNM_ANKI_SCHEDULER_EXPECTED: ${{ runner.temp }}/anki-scheduler-expected.json
         run: |
           set -euo pipefail
-          timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 'anki==26.09.2'
+          timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 'anki==26.09.3'
           timeout 120s python testes/anki-oficial-roundtrip.py
+          timeout 120s python testes/anki-oficial-scheduler-oracle.py
+          timeout 120s node testes/cards-scheduler-differential.mjs
           timeout 120s python testes/anki-oficial-search.py
           timeout 120s node testes/cards-search-differential.mjs
           timeout 120s python testes/anki-oficial-typeanswer.py
