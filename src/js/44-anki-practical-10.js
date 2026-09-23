@@ -420,12 +420,13 @@ const AnkiPractical10 = {
     const value=sel.value||'basic';
     const defs=[
       ['basic','Básico (frente e verso)'],
-      ['basic_reversed','Básico + cartão invertido'],
-      ['basic_optional_reversed','Básico + invertido opcional'],
+      ['basic_reversed','Básico (e cartão invertido)'],
+      ['basic_optional_reversed','Básico (cartão invertido opcional)'],
       ['typing','Básico (digitar a resposta)'],
       ['cloze','Cloze — omissão de palavras {{ }}'],
       ['image_occlusion','Oclusão de imagem']
     ];
+    const label=sel.closest('.field')&&sel.closest('.field').querySelector('label[for="card-kind"]');if(label)label.textContent='Tipo de nota';
     const sig=defs.map(x=>x[0]).join('|');
     if(sel.dataset.ankiKindsSig!==sig){
       sel.innerHTML=defs.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('');
