@@ -55,6 +55,20 @@ assert.equal(R._needsMath('Preço: R$ 100'),false,'valor monetário não deve ca
 const hidden=R.renderFrame(nt,html,'answer',{id:123},false);
 assert.doesNotMatch(hidden,/<iframe/,'lado oculto não pode executar JS/TTS antes do flip');
 
+// Regressão de tema: templates Anki rodam num iframe isolado e não herdam o
+// data-theme do Study. No escuro, o runtime deve aplicar a classe oficial
+// nightMode e neutralizar o branco/preto padrão quando o template não possui
+// uma implementação noturna própria.
+ctx.document={documentElement:{getAttribute:(name)=>name==='data-theme'?'dark':null}};
+const darkDoc=R.buildSrcdoc({css:'.card{background-color:white;color:black}'},'Pergunta','question',{id:124});
+assert.match(darkDoc,/<html class="nightMode">/,'tema escuro do Study deve chegar ao documento isolado do card');
+assert.match(darkDoc,/class="card question nightMode"/,'body do card deve receber a classe nightMode compatível com Anki');
+assert.match(darkDoc,/html\.nightMode body\.card\{background:transparent;color:#e8eaed\}/,'template sem nightMode deve usar fallback escuro transparente');
+assert.match(darkDoc,/snm-anki-theme/,'iframe deve aceitar atualização de tema sem recarregar a sessão');
+const customNight=R.buildSrcdoc({css:'.card{background:white;color:black}.nightMode{background:#111;color:#eee}'},'Pergunta','question',{id:125});
+assert.doesNotMatch(customNight,/html\.nightMode body\.card\{background:transparent;color:#e8eaed\}/,'CSS nightMode do próprio template deve prevalecer');
+delete ctx.document;
+
 // Regressão visual do reviewer: no flip, a frente precisa sair do layout e o
 // verso ocupar seu lugar. Antes, o iframe sumia mas o contêiner da frente
 // continuava visível como um retângulo vazio acima da resposta.
