@@ -75,6 +75,10 @@ const LinksScreen = {
     }
   },
   openModal(id) {
+    if (id) {
+      const alvo = this.collection().find(x => String(x.id) === String(id));
+      if (alvo && !this.local(alvo)) { showToast('Somente leitura neste planejamento'); return; }
+    }
     this._editingId = id || null;
     const isEdit = !!id;
     $id('link-modal-title').textContent = isEdit ? '✎ Editar link' : '＋ Novo link';
@@ -140,6 +144,7 @@ const LinksScreen = {
   async deleteCurrent() {
     if (!this._editingId) return;
     const l = this.collection().find(x => x.id === this._editingId);
+    if (l && !this.local(l)) { showToast('Somente leitura neste planejamento'); return; }
     if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
     DB.deleteLink(this._editingId); this.closeModal(); this.renderGrid();
     if ($id('link-manage-modal').style.display === 'flex') this.renderManageList();
@@ -157,8 +162,10 @@ const LinksScreen = {
           <div class="link-manage-name">${escapeHtml(l.nome)}</div>
           <div class="link-manage-url">${escapeHtml(this.hostname(l.url))}</div>
         </div>
-        <button type="button" class="icon-btn link-manage-edit" title="Editar" aria-label="Editar">✎</button>
-        <button type="button" class="icon-btn danger link-manage-del" title="Excluir" aria-label="Excluir">×</button>
+        ${this.local(l) ? `
+          <button type="button" class="icon-btn link-manage-edit" title="Editar" aria-label="Editar">✎</button>
+          <button type="button" class="icon-btn danger link-manage-del" title="Excluir" aria-label="Excluir">×</button>
+        ` : `<span class="hint" title="Somente leitura — ${escapeHtml(l._planNome || 'outro planejamento')}">🔒</span>`}
       </div>`).join('');
     box.querySelectorAll('.link-manage-row').forEach(row => {
       const id = row.dataset.id;
