@@ -120,14 +120,15 @@ const AnkiOfficial = {
     if (!root) return;
     const detail = error ? '<p class="hint">' + this.esc(error.message || error) + '</p>' : '';
     root.innerHTML = `
-      <div class="card"><div class="card-body">
-        <h3>Anki 26.09.2 oficial</h3>
-        <p>O módulo está instalado no Study, mas precisa do serviço nativo Python/Rust para abrir a coleção <code>.anki2</code>.</p>
+      <div class="ankidroid-empty-state">
+        <div class="ankidroid-empty-icon">↯</div>
+        <h3>Não foi possível abrir a coleção</h3>
+        <p>O Anki oficial precisa do serviço Python/Rust para acessar sua coleção <code>.anki2</code>.</p>
         ${detail}
-        <button type="button" class="btn-primary" id="anki-official-set-api">Configurar URL do backend</button>
+        <button type="button" class="btn-primary" id="anki-official-set-api">Configurar servidor</button>
         <div class="anki-official-boundary">
-          <strong>Sem fallback.</strong>
-          Enquanto o backend oficial não estiver disponível, esta área não usa o scheduler, FSRS ou banco de Cards do Study.
+          <strong>Sem fallback</strong>
+          O Study não substitui o scheduler oficial quando a engine está indisponível.
         </div>
       </div>`;
     const b = document.getElementById('anki-official-set-api');
@@ -154,8 +155,28 @@ const AnkiOfficial = {
     }
   },
 
+  setView(view) {
+    this.view = view || 'decks';
+    document.querySelectorAll('[data-anki-view]').forEach(x => {
+      x.classList.toggle('active', x.dataset.ankiView === this.view);
+    });
+    const fab = document.querySelector('#screen-anki .ankidroid-fab');
+    if (fab) fab.hidden = this.view !== 'decks';
+    const subtitle = document.querySelector('#screen-anki .ankidroid-subtitle');
+    const labels = {
+      decks: 'coleção oficial 26.09.2',
+      review: 'estudo',
+      browser: 'navegador de cards',
+      add: 'adicionar nota',
+      options: 'opções do baralho',
+      tools: 'ferramentas'
+    };
+    if (subtitle) subtitle.textContent = labels[this.view] || labels.decks;
+  },
+
   async activate() {
     this.bindStatic();
+    this.setView(this.view);
     if (!await this.ensureStatus()) return;
     await this.renderView();
   },
@@ -165,12 +186,17 @@ const AnkiOfficial = {
       if (btn.dataset.boundAnki) return;
       btn.dataset.boundAnki = '1';
       btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-anki-view]').forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        this.view = btn.dataset.ankiView || 'decks';
+        this.setView(btn.dataset.ankiView || 'decks');
         void this.renderView();
       });
     });
+    const exit = document.getElementById('anki-study-exit');
+    if (exit && !exit.dataset.boundAnki) {
+      exit.dataset.boundAnki = '1';
+      exit.onclick = () => {
+        if (typeof switchScreen === 'function') switchScreen('cards');
+      };
+    }
     const input = document.getElementById('anki-official-import');
     if (input && !input.dataset.boundAnki) {
       input.dataset.boundAnki = '1';
@@ -220,6 +246,7 @@ const AnkiOfficial = {
 
   async renderView() {
     this.alert('');
+    this.setView(this.view);
     if (this.view === 'review') return this.renderReviewer();
     if (this.view === 'browser') return this.renderBrowser();
     if (this.view === 'add') return this.renderAdd();
@@ -230,66 +257,119 @@ const AnkiOfficial = {
 
   async renderDecks() {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="card"><div class="card-body">Carregando baralhos do Anki…</div></div>';
+    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Carregando baralhos…</span></div>';
     try {
       const data=await this.request('/api/anki/decks');
-      const list=(data.decks||[]).map(d=>`
-        <div class="anki-official-deck ${Number(d.id)===Number(data.current_deck_id)?'current':''}">
-          <div class="anki-official-deck-name">${this.esc(d.name)}</div>
-          <button type="button" class="btn-secondary" data-anki-deck="${this.esc(d.id)}">Estudar</button>
-        </div>`).join('');
-      root.innerHTML=`<div class="anki-official-grid">${list || '<div class="card"><div class="card-body">Nenhum baralho.</div></div>'}</div>`;
-      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=async()=>{
+      const tree=data.deck_tree||{};
+      const roots=(Number(tree.deck_id||0)>0) ? [tree] : (tree.children||[]);
+      const fallback=(data.decks||[]).map(d=>({
+        deck_id:d.id,name:d.name,level:0,children:[],
+        new_count:null,learn_count:null,review_count:null,filtered:false,collapsed:false
+      }));
+      const nodes=roots.length?roots:fallback;
+      const totalNew=nodes.reduce((s,d)=>s+Number(d.new_count||0),0);
+      const totalLearn=nodes.reduce((s,d)=>s+Number(d.learn_count||0),0);
+      const totalReview=nodes.reduce((s,d)=>s+Number(d.review_count||0),0);
+      const totalDue=totalNew+totalLearn+totalReview;
+
+      const renderNode=(d,depth=0)=>{
+        const id=Number(d.deck_id||d.id||0);
+        const children=d.children||[];
+        const hasChildren=children.length>0;
+        const current=id===Number(data.current_deck_id);
+        const count=(value,kind)=>value==null?'':`<span class="ankidroid-count ${kind}">${Number(value)}</span>`;
+        return `
+          <div class="ankidroid-deck-node" data-deck-node="${id}">
+            <div class="ankidroid-deck-row ${current?'current':''}" style="--deck-level:${Math.max(0,Number(d.level??depth))}">
+              <button type="button" class="ankidroid-deck-expander" data-deck-expand="${id}" aria-expanded="${hasChildren && !d.collapsed?'true':'false'}" ${hasChildren?'':'disabled'} aria-label="${hasChildren?'Expandir ou recolher baralho':'Sem subbaralhos'}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7z"/></svg>
+              </button>
+              <button type="button" class="ankidroid-deck-main" data-anki-deck="${id}">
+                <span class="ankidroid-deck-name">${this.esc(d.name||'Baralho')}</span>
+                ${d.filtered?'<span class="ankidroid-deck-filtered">filtrado</span>':''}
+              </button>
+              <button type="button" class="ankidroid-deck-counts" data-anki-deck="${id}" aria-label="Estudar este baralho">
+                ${count(d.new_count,'new')}${count(d.learn_count,'learn')}${count(d.review_count,'review')}
+              </button>
+            </div>
+            ${hasChildren?`<div class="ankidroid-deck-children" ${d.collapsed?'hidden':''}>${children.map(ch=>renderNode(ch,depth+1)).join('')}</div>`:''}
+          </div>`;
+      };
+
+      root.innerHTML=`
+        <div class="ankidroid-decks-head">
+          <strong>${totalDue?this.esc(totalDue+' cartões para hoje'):'Baralhos'}</strong>
+          <span><span class="ankidroid-count new">${totalNew}</span>&nbsp;&nbsp;<span class="ankidroid-count learn">${totalLearn}</span>&nbsp;&nbsp;<span class="ankidroid-count review">${totalReview}</span></span>
+        </div>
+        <div class="ankidroid-deck-list">${nodes.length?nodes.map(n=>renderNode(n)).join(''):'<div class="ankidroid-deck-empty"><strong>Nenhum baralho</strong>Importe um pacote ou adicione sua primeira nota.</div>'}</div>`;
+
+      const study=async(btn)=>{
         try {
-          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(b.dataset.ankiDeck)})});
-          this.view='review';
-          document.querySelectorAll('[data-anki-view]').forEach(x=>x.classList.toggle('active',x.dataset.ankiView==='review'));
+          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(btn.dataset.ankiDeck)})});
+          this.setView('review');
           await this.renderReviewer();
         } catch(e){ this.alert(e.message,'error'); }
+      };
+      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=()=>void study(b));
+      root.querySelectorAll('[data-deck-expand]').forEach(b=>b.onclick=()=>{
+        const node=b.closest('.ankidroid-deck-node');
+        const box=node&&node.querySelector(':scope > .ankidroid-deck-children');
+        if(!box) return;
+        const open=box.hidden;
+        box.hidden=!open;
+        b.setAttribute('aria-expanded',open?'true':'false');
       });
     } catch(e){ this.alert(e.message,'error'); }
   },
 
   async renderReviewer(data) {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="card"><div class="card-body">Consultando a fila oficial…</div></div>';
+    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Preparando revisão…</span></div>';
     try {
       const q=data || await this.request('/api/anki/reviewer/next');
       this.review=q; this.reviewStartedAt=Date.now();
       if(q.finished){
-        root.innerHTML=`<div class="card anki-official-finished"><div class="card-body"><h3>Parabéns!</h3><p>A fila oficial deste baralho terminou.</p></div></div>`;
+        root.innerHTML=`<div class="anki-official-finished"><h3>Parabéns!</h3><p>Você concluiu os cards disponíveis deste baralho.</p><button type="button" class="btn-primary" data-anki-view="decks">Voltar aos baralhos</button></div>`;
+        const back=root.querySelector('[data-anki-view="decks"]');
+        if(back) back.onclick=()=>{this.setView('decks');void this.renderDecks();};
         return;
       }
-      const c=q.card;
-      const srcdoc=await this.htmlWithMedia(c.question);
+      const card=q.card;
+      const srcdoc=await this.htmlWithMedia(card.question);
       root.innerHTML=`
         <div class="anki-official-review-shell">
-          <div class="anki-official-counts"><span>Novos: ${q.counts.new}</span><span>Aprendendo: ${q.counts.learning}</span><span>Revisão: ${q.counts.review}</span></div>
-          <iframe class="anki-official-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
-          <button type="button" class="btn-primary anki-official-reveal" id="anki-official-show-answer">Mostrar resposta</button>
-          <div class="anki-official-review-actions" id="anki-official-answer-buttons" hidden></div>
-          <div class="anki-official-card-tools">
-            <button type="button" class="btn-secondary" data-anki-card-action="bury">Enterrar</button>
-            <button type="button" class="btn-secondary" data-anki-card-action="suspend">Suspender</button>
-            <button type="button" class="btn-secondary" data-anki-card-action="forget">Esquecer</button>
+          <div class="ankidroid-review-top">
+            <div class="anki-official-counts" aria-label="Contadores do estudo">
+              <span class="new" title="Novos">${q.counts.new}</span>
+              <span class="learn" title="Aprendendo">${q.counts.learning}</span>
+              <span class="review" title="Revisão">${q.counts.review}</span>
+            </div>
+            <div class="anki-official-card-tools">
+              <button type="button" data-anki-card-action="bury" title="Enterrar" aria-label="Enterrar">⌄</button>
+              <button type="button" data-anki-card-action="suspend" title="Suspender" aria-label="Suspender">⏸</button>
+              <button type="button" data-anki-card-action="forget" title="Redefinir progresso" aria-label="Redefinir progresso">↺</button>
+            </div>
           </div>
+          <iframe class="anki-official-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
+          <button type="button" class="anki-official-reveal" id="anki-official-show-answer">Mostrar resposta</button>
+          <div class="anki-official-review-actions" id="anki-official-answer-buttons" hidden></div>
         </div>`;
       const frame=document.getElementById('anki-official-card-frame'); if(frame) frame.srcdoc=srcdoc;
-      void this.playAv(c.question_av_tags||[]);
+      void this.playAv(card.question_av_tags||[]);
       const show=document.getElementById('anki-official-show-answer');
       if(show) show.onclick=async()=>{
-        const answerDoc=await this.htmlWithMedia(c.answer);
+        const answerDoc=await this.htmlWithMedia(card.answer);
         if(frame) frame.srcdoc=answerDoc;
         show.hidden=true;
         const box=document.getElementById('anki-official-answer-buttons');
         if(box){
           box.hidden=false;
-          box.innerHTML=(c.buttons||[]).map(b=>`<button type="button" class="btn-secondary" data-rating="${b.rating}"><strong>${['Novamente','Difícil','Bom','Fácil'][b.rating-1]||b.rating}</strong><br><small>${this.esc(b.label)}</small></button>`).join('');
+          box.innerHTML=(card.buttons||[]).map(b=>`<button type="button" data-rating="${b.rating}"><small>${this.esc(b.label)}</small><strong>${['Novamente','Difícil','Bom','Fácil'][b.rating-1]||b.rating}</strong></button>`).join('');
           box.querySelectorAll('[data-rating]').forEach(btn=>btn.onclick=()=>void this.answer(Number(btn.dataset.rating)));
         }
-        void this.playAv(c.answer_av_tags||[]);
+        void this.playAv(card.answer_av_tags||[]);
       };
-      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,c.id));
+      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,card.id));
     } catch(e){ this.alert(e.message,'error'); }
   },
 
@@ -408,17 +488,44 @@ const AnkiOfficial = {
     try {
       const decks=await this.request('/api/anki/decks');
       const did=Number(decks.current_deck_id);
+      const current=(decks.decks||[]).find(d=>Number(d.id)===did);
       const data=await this.request('/api/anki/deck/'+did+'/options');
+      const presets=Array.isArray(data.all_config)?data.all_config.length:0;
       root.innerHTML=`
-        <p class="hint">Objeto oficial <code>DeckConfigsForUpdate</code> do Anki. Alterações são enviadas ao <code>update_deck_configs()</code> oficial.</p>
-        <textarea class="anki-official-json" id="anki-options-json">${this.esc(JSON.stringify(data,null,2))}</textarea>
-        <div style="margin-top:10px"><button type="button" class="btn-primary" id="anki-options-save">Salvar no Anki oficial</button></div>`;
+        <div class="ankidroid-settings-page">
+          <div class="ankidroid-settings-title">Baralho atual</div>
+          <div class="ankidroid-settings-card">
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">▤</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">${this.esc(current&&current.name||'Baralho')}</div><div class="ankidroid-setting-desc">Configuração fornecida pelo backend oficial do Anki.</div></div>
+              <div class="ankidroid-setting-value">ID ${did}</div>
+            </div>
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">◔</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">FSRS</div><div class="ankidroid-setting-desc">Estado do scheduler para este conjunto de opções.</div></div>
+              <div class="ankidroid-setting-value ${data.fsrs?'ankidroid-status-good':''}">${data.fsrs?'Ativado':'Desativado'}</div>
+            </div>
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">⚙</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Presets</div><div class="ankidroid-setting-desc">Configurações retornadas por DeckConfigsForUpdate.</div></div>
+              <div class="ankidroid-setting-value">${presets}</div>
+            </div>
+          </div>
+          <details class="ankidroid-advanced">
+            <summary>Opções avançadas oficiais</summary>
+            <div class="ankidroid-advanced-body">
+              <p class="hint">Edição integral do objeto oficial. O Study não recalcula nem interpreta os parâmetros.</p>
+              <textarea class="anki-official-json" id="anki-options-json">${this.esc(JSON.stringify(data,null,2))}</textarea>
+              <div class="ankidroid-settings-actions"><button type="button" class="btn-primary" id="anki-options-save">Salvar no Anki oficial</button></div>
+            </div>
+          </details>
+        </div>`;
       document.getElementById('anki-options-save').onclick=async()=>{
         try{
           const payload=JSON.parse(document.getElementById('anki-options-json').value);
           const saved=await this.request('/api/anki/deck/'+did+'/options',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
           document.getElementById('anki-options-json').value=JSON.stringify(saved,null,2);
-          this.alert('Deck Options salvas pelo Anki oficial.');
+          this.alert('Opções salvas pelo Anki oficial.');
         }catch(e){this.alert(e.message,'error');}
       };
     }catch(e){this.alert(e.message,'error');}
@@ -432,22 +539,52 @@ const AnkiOfficial = {
         this.request('/api/anki/media/check'),
         this.request('/api/anki/browser/columns')
       ]);
+      const missing=(media.missing||media.missing_files||[]).length||0;
+      const unused=(media.unused||media.unused_files||[]).length||0;
       root.innerHTML=`
-        <div class="anki-official-grid">
-          <div class="card"><div class="card-body"><h3>Engine</h3>
-            <dl class="anki-official-kv"><dt>Versão</dt><dd>${this.esc(st.runtime_version)}</dd><dt>Cards</dt><dd>${st.cards}</dd><dt>Notas</dt><dd>${st.notes}</dd><dt>Coleção</dt><dd>${this.esc(st.collection_path)}</dd></dl>
-          </div></div>
-          <div class="card"><div class="card-body"><h3>Check Media oficial</h3><pre class="hint" style="white-space:pre-wrap">${this.esc(JSON.stringify(media,null,2))}</pre></div></div>
-          <div class="card"><div class="card-body"><h3>Browser oficial</h3><p>${(cols.columns||[]).length} colunas expostas pelo backend do Anki.</p></div></div>
-        </div>
-        <div class="anki-official-actions">
-          <button type="button" class="btn-secondary" id="anki-db-check">Check Database oficial</button>
-          <button type="button" class="btn-secondary" id="anki-db-optimize">Otimizar banco</button>
-          <button type="button" class="btn-secondary" id="anki-official-change-api">Configurar URL do backend</button>
-        </div>
-        <div class="anki-official-boundary">
-          <strong>Limite real desta arquitetura web</strong>
-          O backend/scheduler/coleção são oficiais. A GUI Qt/PyQt do Anki Desktop, seu player TTS nativo e add-ons Python/Qt tradicionais só existem dentro de um processo Anki Desktop; não podem ser executados diretamente por uma página web sem rodar o Desktop real.
+        <div class="ankidroid-settings-page">
+          <div class="ankidroid-settings-title">Anki</div>
+          <div class="ankidroid-settings-card">
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">★</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Engine oficial</div><div class="ankidroid-setting-desc">Coleção ${this.esc(st.collection_path)} · ${st.cards} cards · ${st.notes} notas</div></div>
+              <div class="ankidroid-setting-value ankidroid-status-good">${this.esc(st.runtime_version)}</div>
+            </div>
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">▧</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Navegador</div><div class="ankidroid-setting-desc">Colunas expostas pelo backend oficial.</div></div>
+              <div class="ankidroid-setting-value">${(cols.columns||[]).length}</div>
+            </div>
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">♪</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Mídia</div><div class="ankidroid-setting-desc">Resultado do Check Media oficial.</div></div>
+              <div class="ankidroid-setting-value ${missing?'ankidroid-status-warn':'ankidroid-status-good'}">${missing} faltando · ${unused} sem uso</div>
+            </div>
+          </div>
+
+          <div class="ankidroid-settings-title">Manutenção</div>
+          <div class="ankidroid-settings-card">
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">✓</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Verificar banco</div><div class="ankidroid-setting-desc">Executa o Check Database oficial e reconstrói caches quando necessário.</div></div>
+              <button type="button" class="btn-secondary" id="anki-db-check">Executar</button>
+            </div>
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">↻</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Otimizar coleção</div><div class="ankidroid-setting-desc">Executa VACUUM/ANALYZE pela Collection oficial.</div></div>
+              <button type="button" class="btn-secondary" id="anki-db-optimize">Otimizar</button>
+            </div>
+            <div class="ankidroid-setting-row">
+              <div class="ankidroid-setting-icon">⌁</div>
+              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Servidor da engine</div><div class="ankidroid-setting-desc">${this.esc(this.apiBase())}</div></div>
+              <button type="button" class="btn-secondary" id="anki-official-change-api">Alterar</button>
+            </div>
+          </div>
+
+          <div class="anki-official-boundary">
+            <strong>Arquitetura web</strong>
+            Scheduler, FSRS, coleção, busca e operações são do Anki oficial. Recursos que dependem do processo Qt/PyQt do Desktop continuam fora desta interface web.
+          </div>
         </div>`;
       document.getElementById('anki-official-change-api').onclick=()=>this.setApiUrl();
       document.getElementById('anki-db-check').onclick=async()=>{
@@ -468,5 +605,7 @@ const AnkiOfficial = {
 
 window.AnkiOfficial = AnkiOfficial;
 window.addEventListener('screen:activated', (ev) => {
-  if (ev.detail && ev.detail.screen === 'anki') void AnkiOfficial.activate();
+  const screen = ev.detail && ev.detail.screen;
+  document.body.classList.toggle('anki-mobile-immersive', screen === 'anki');
+  if (screen === 'anki') void AnkiOfficial.activate();
 });
