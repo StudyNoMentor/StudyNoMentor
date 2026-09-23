@@ -40,6 +40,10 @@ jobs:
           for f in src/js/*.js; do node --check "$f"; done
           node build.mjs
 
+      - name: Egress Supabase
+        if: github.event_name != 'push'
+        run: timeout 30s node testes/supabase-egress.mjs
+
       - name: Contrato central dos Cards
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-paridade-total-anki.mjs
