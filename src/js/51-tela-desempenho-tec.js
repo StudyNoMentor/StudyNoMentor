@@ -374,7 +374,7 @@ const DesempenhoTecScreen = {
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
   rangeStart: null, rangeEnd: null, // (modo 'range')
   snapshots() {
-    return DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : this.snapshots();
+    return DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
   },
   // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
   _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },
