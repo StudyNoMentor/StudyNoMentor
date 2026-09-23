@@ -1091,11 +1091,12 @@ const DesempenhoTecScreen = {
       const tot = TecEngine.totais(s);
       const checked = this.selectedSnapIds.has(s.id);
       const lbl = s.label ? ` · ${escapeHtml(s.label)}` : '';
+      const local = !s._planId || String(s._planId) === String(DB._activePlanId());
       return `<label class="tec-snap-pick" data-id="${s.id}">
         <input type="checkbox" data-snap="${s.id}" ${checked ? 'checked' : ''}>
-        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}</span>
+        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}${s._planNome ? `<small>${escapeHtml(s._planNome)}${local ? '' : ' · somente leitura'}</small>` : ''}</span>
         <span class="tsp-stats">${tot.questoes} q · ${tot.pct}%</span>
-        <button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>
+        ${local ? `<button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>` : `<span title="Somente leitura">🔒</span>`}
       </label>`;
     }).join('');
     const todos = snaps.length > 0 && this.selectedSnapIds.size === snaps.length;
