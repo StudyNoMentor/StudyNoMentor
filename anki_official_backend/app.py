@@ -413,11 +413,13 @@ def card_action(body: CardActionBody, user: dict[str, Any] = Depends(current_use
 def browser_search(
     q: str = Query(default=""),
     limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        ids = list(item.col.find_cards(q, order=True))[:limit]
+        all_ids = list(item.col.find_cards(q, order=True))
+        ids = all_ids[offset:offset + limit]
         rows = []
         for cid in ids:
             card = item.col.get_card(cid)
@@ -445,7 +447,14 @@ def browser_search(
                     "flag": int(card.user_flag()),
                 }
             )
-        return {"query": q, "count": len(rows), "cards": rows}
+        return {
+            "query": q,
+            "count": len(rows),
+            "total": len(all_ids),
+            "offset": offset,
+            "limit": limit,
+            "cards": rows,
+        }
 
 
 @app.get("/api/anki/notetypes")
