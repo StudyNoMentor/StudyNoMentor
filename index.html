@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v982597e5ef">
+<meta name="diario-versao" content="ve5c7043284">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -22888,10 +22888,12 @@ const CardsConfig = {
       // snapshot passa a ser gravado na resposta seguinte e sobrevive a
       // renome/reparent do deck, como os contadores internos do Anki.
       d.usage = [];
-      const cards = new Map(DB.getCards().map(c => [String(c.id), c]));
+      const sourceCards = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) ? StudyGlobalScope.cards('all') : DB.getCards();
+      const cards = new Map(sourceCards.map(c => [String(c.id), c]));
       const pathFor = (card) => {
         if (!card || card.deckId == null) return [];
-        const decks = DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
+        const pid = card._planId || (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard ? StudyGlobalScope.sourcePlanForCard(card.id) : null);
+        const decks = pid && DB.getDecksForPlan ? DB.getDecksForPlan(pid) : DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
         if (!deck) return [String(card.deckId)];
         const parts = String(deck.nome || '').split('::'), path = [];
         for (let i = 1; i <= parts.length; i++) {
@@ -22927,7 +22929,8 @@ const CardsConfig = {
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   _deckPathForCard(card) {
     if (!card || card.deckId == null) return [];
-    const decks = DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
+    const pid = card._planId || (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard ? StudyGlobalScope.sourcePlanForCard(card.id) : null);
+    const decks = pid && DB.getDecksForPlan ? DB.getDecksForPlan(pid) : DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
     if (!deck) return [String(card.deckId)];
     const parts = String(deck.nome || '').split('::'), path = [];
     for (let i = 1; i <= parts.length; i++) {
@@ -22982,7 +22985,8 @@ const CardsConfig = {
     const alvo = deckId == null ? null : String(deckId);
     const usage=(d.usage||[]).filter(x=>x.kind===(kind==='new'?'new':'review'));
     if (usage.length) return usage.filter(x => alvo == null ? x.deckId == null : (x.path||[]).includes(alvo)).length;
-    const mapa = new Map(DB.getCards().map(c => [String(c.id), c]));
+    const sourceCards = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) ? StudyGlobalScope.cards('all') : DB.getCards();
+    const mapa = new Map(sourceCards.map(c => [String(c.id), c]));
     let n = 0;
     ids.forEach(id => {
       const c = mapa.get(String(id)); if (!c) return;
@@ -23045,15 +23049,17 @@ const CardEngine = {
   invalidateDueCache() { this._dueCache = null; },
   _dueCountInDays(n) {
     try {
-      if (!this._dueCache || this._dueCache.day !== todayCards()) {
+      const scope = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cardsScope) ? StudyGlobalScope.cardsScope() : 'plan';
+      if (!this._dueCache || this._dueCache.day !== todayCards() || this._dueCache.scope !== scope) {
         const map = {};
-        DB.getCards().forEach(c => {
+        const source = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) ? StudyGlobalScope.cards() : DB.getCards();
+        source.forEach(c => {
           if (c.suspenso) return;
           if (c.dueTs) return;
           if (!(c.phase === 'review' || ((c.reps || 0) > 0 && (c.intervalo || 0) > 0))) return;
           const k = c.due || ''; map[k] = (map[k] || 0) + 1;
         });
-        this._dueCache = { day: todayCards(), map };
+        this._dueCache = { day: todayCards(), scope, map };
       }
       return this._dueCache.map[this.addDays(todayCards(), n)] || 0;
     } catch (_) { return 0; }
@@ -24288,10 +24294,23 @@ const AnkiExport = {
     return globalThis.initSqlJs();
   },
 
+  _sourceCards() {
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    return DB.getCards();
+  },
+  _sourceDecks() {
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    return DB.getDecks();
+  },
+  _sourceRevlog() {
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) {}
+    return DB.getRevlog();
+  },
+
   _cardsForLimit(options) {
-    options=options||{};const all=DB.getCards().slice(),limit=options.limit||{};
+    options=options||{};const all=this._sourceCards().slice(),limit=options.limit||{};
     if(limit.deckId!=null){
-      const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(limit.deckId));
+      const decks=this._sourceDecks(),root=decks.find(d=>String(d.id)===String(limit.deckId));
       if(!root)return [];
       const prefix=String(root.nome||'')+'::',ids=new Set(decks.filter(d=>String(d.id)===String(root.id)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
       return all.filter(c=>ids.has(String(c.originalDeckId||c.deckId)));
@@ -24318,7 +24337,7 @@ const AnkiExport = {
     options=Object.assign({withHtml:true,withTags:true,withDeck:true,withNotetype:true,withGuid:true},options||{});
     if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
-    const cards=this._cardsForLimit(options),decks=DB.getDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
+    const cards=this._cardsForLimit(options),decks=this._sourceDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
     const noteIds=new Set(cards.map(c=>String(AnkiParity.noteId(c)))),notes=AnkiParity.notes().filter(n=>noteIds.has(String(n.id))||noteIds.has(String(n.ankiId))),types=AnkiParity.noteTypes(),typeById=new Map(types.map(nt=>[String(nt.id),nt]));
     const siblings=new Map();
     cards.forEach(c=>{const nid=String(AnkiParity.noteId(c));if(!siblings.has(nid))siblings.set(nid,[]);siblings.get(nid).push(c);});
@@ -24372,7 +24391,7 @@ const AnkiExport = {
     options=Object.assign({schema:11,withScheduling:true,withDeckConfigs:true},options||{});
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
-    const cards = this._cardsForLimit(options), allDecks = DB.getDecks().slice();
+    const cards = this._cardsForLimit(options), allDecks = this._sourceDecks().slice();
     const decks = this._decksForCards(cards,allDecks), crt = this._collectionEpoch(cards);
     const deckMap=this._deckIdMap(decks),dj=this._deckJson(decks,options),media={items:[],byKey:new Map()};
     const notesById = new Map(), siblings = new Map(), usedNt = new Set();
@@ -24436,7 +24455,7 @@ const AnkiExport = {
     cs.free();
 
     const rs=db.prepare('INSERT INTO revlog VALUES (?,?,?,?,?,?,?,?,?)');
-    const revRows=options.withScheduling===false?[]:this._revRows(cards,DB.getRevlog());
+    const revRows=options.withScheduling===false?[]:this._revRows(cards,this._sourceRevlog());
     for (const row of revRows) rs.run(row);
     rs.free();
     if(Number(options.schema)===18)this._upgradeToSchema18(db,models,dj);
@@ -31183,7 +31202,7 @@ const CardsScreen = {
      quer intercalá-los com os que já estavam esperando, em vez de empurrar
      todos para o fim. */
   reposicionarNovos(modo, escopo) {
-    const cards = DB.getCards().filter(c => this._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
+    const cards = this.collectionCards().filter(c => this._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
     if (!cards.length) return 0;
     let ordem = cards.slice();
     if (modo === 'aleatoria') {
@@ -31300,7 +31319,7 @@ const CardsScreen = {
     const posDe = (c) => (typeof c.posicaoNova === 'number' ? c.posicaoNova : Number.MAX_SAFE_INTEGER);
     const criacaoDe = (c) => String(c.createdAt || '');
     const cfgQ = this._queueConfig();
-    const decksOrdenados = DB.getDecks().slice().sort((a,b) =>
+    const decksOrdenados = this.collectionDecks().slice().sort((a,b) =>
       String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
     const ordemDeck = new Map(decksOrdenados.map((d,i) => [String(d.id), i]));
     const rankDeck = (c) => c && c.deckId != null
@@ -32462,10 +32481,16 @@ const CardsScreen = {
     btnMover.addEventListener('click', () => {
       const qtd = sel.size;
       if (!qtd) return;
-      const decks = DB.getDecks();
-      if (!decks.length) { showToast('Crie um baralho primeiro em 📁 Criar baralho'); return; }
+      const selecionados=this.collectionCards().filter(c=>sel.has(c.id));
+      const origins=new Set(selecionados.map(c=>c._planId||
+        (window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):null)||
+        (window.PlanManager&&PlanManager.getActivePlanId?PlanManager.getActivePlanId():null)).filter(Boolean).map(String));
+      if(origins.size>1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
+      const sourcePlanId=origins.size?[...origins][0]:null;
+      const decks=this.destinationDecks(sourcePlanId);
+      if (!decks.length) { showToast('Crie um baralho primeiro no planejamento de origem'); return; }
       const opts = [{ value: '__nenhum__', label: '— Sem baralho —' }]
-        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome })));
+        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') })));
       UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
         { title: '📁 Mover para baralho', okText: 'Mover' }
       ).then((v) => {
@@ -32935,7 +32960,7 @@ const CardsScreen = {
     const bancas = DB.getCardBancas();
     if (bancas.length === 0) { box.innerHTML = `<p class="hint">Nenhuma banca cadastrada. Adicione a primeira acima.</p>`; return; }
     box.innerHTML = bancas.map(b => {
-      const n = DB.getCards().filter(c => c.banca === b).length;
+      const n = this.collectionCards().filter(c => c.banca === b).length;
       return `<div class="deck-row" data-nome="${escapeHtml(b)}">
         <span class="deck-name" style="padding:8px 10px;border-radius:8px;">${escapeHtml(b)}</span>
         <span class="deck-count">${n} card(s)</span>
@@ -32959,13 +32984,13 @@ const CardsScreen = {
 
   // ---- exportar ----
   openExportModal() {
-    const cards=DB.getCards(),decks=DB.getDecks(),body=document.getElementById('cards-export-body');
+    const cards=this.collectionCards(),decks=this.collectionDecks(),body=document.getElementById('cards-export-body');
     if(!cards.length){body.innerHTML=`<p class="hint">Você ainda não criou nenhum card.</p>`;}
     else{
       body.innerHTML=`
         <p style="font-size:14px;margin-top:0;">Você tem <strong>${cards.length} card(s)</strong>. Os formatos abaixo seguem os exportadores atuais do Anki.</p>
         <div class="field" style="margin:8px 0 12px;"><label for="cards-export-scope">Escopo de .apkg e texto</label>
-          <select id="cards-export-scope"><option value="all">Coleção inteira</option>${decks.filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))).map(d=>'<option value="deck:'+escapeHtml(String(d.id))+'">'+escapeHtml(String(d.nome||'Baralho'))+'</option>').join('')}</select>
+          <select id="cards-export-scope"><option value="all">Coleção inteira</option>${decks.filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))).map(d=>'<option value="deck:'+escapeHtml(String(d.id))+'">'+escapeHtml(String(d.nome||'Baralho')+(d._planNome?' · '+d._planNome:''))+'</option>').join('')}</select>
           <p class="hint" style="margin:4px 0 0;">Ao escolher um baralho, o .apkg inclui esse baralho e todos os subbaralhos, como o ExportLimit do Anki. .colpkg sempre representa a coleção inteira.</p>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px;">
@@ -33123,7 +33148,7 @@ const CardsScreen = {
     };
   },
   exportAnkiNotes() {
-    if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
+    if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
       if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextNotes!=='function')throw new Error('Exportador de notas indisponível');
       const out=AnkiExport.buildTextNotes(this._ankiTextOptions());
@@ -33136,7 +33161,7 @@ const CardsScreen = {
     }
   },
   exportAnki() {
-    if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
+    if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
       if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextCards!=='function')throw new Error('Exportador de cards indisponível');
       const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
@@ -33149,7 +33174,7 @@ const CardsScreen = {
     }
   },
   async _exportAnkiPackage(kind) {
-    const cards=DB.getCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
+    const cards=this.collectionCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
     kind=kind==='colpkg'?'colpkg':'apkg';
     const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg');
     const old=btn?btn.textContent:'';
@@ -33174,7 +33199,8 @@ const CardsScreen = {
   exportApkg() { return this._exportAnkiPackage('apkg'); },
   exportColpkg() { return this._exportAnkiPackage('colpkg'); },
   exportJson() {
-    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 2, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards(), revlog: DB.getRevlog() };
+    const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 3, exportedAt: new Date().toISOString(), scope, decks: this.collectionDecks(), cards: this.collectionCards(), revlog: this._statsRevlog(false) };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Backup exportado ✓');
     $id('cards-export-modal').style.display = 'none';
@@ -33487,14 +33513,17 @@ CardsScreen.openAlgoConfig = function () {
    Duas confirmações de propósito: a primeira explica o que vai acontecer, a
    segunda exige digitar ZERAR. É irreversível e não passa pelo desfazer. */
 CardsScreen.zerarEstatisticas = function () {
-  const nCards = DB.getCards().length;
-  const nRev = DB.getRevlog().length;
+  const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
+  const nCards = CardsScreen.collectionCards().length;
+  const nRev = CardsScreen._statsRevlog(false).length;
+  const scopeLabel=scope==='all'?'todos os planejamentos':'este planejamento';
   UI.confirm(
     'Isto vai:\n\n' +
     '• apagar as ' + nRev.toLocaleString('pt-BR') + ' entrada(s) do histórico de revisões\n' +
     '• devolver os ' + nCards.toLocaleString('pt-BR') + ' card(s) ao estado "novo"\n' +
     '• zerar os contadores de hoje (novos/revisões)\n' +
     '• limpar resíduos de cards já excluídos\n\n' +
+    'Escopo: ' + scopeLabel + '.\n' +
     'O conteúdo dos cards NÃO é apagado — frente, verso, matéria e baralho continuam.\n' +
     'Não há como desfazer.',
     { title: '🧹 Zerar estatísticas dos cards', okText: 'Continuar', danger: true }
@@ -33507,7 +33536,8 @@ CardsScreen.zerarEstatisticas = function () {
           showToast('Cancelado — nada foi alterado');
           return;
         }
-        const r = DB.zerarProgressoCards();
+        const r = (window.StudyGlobalScope&&StudyGlobalScope.zeroCardsProgress)
+          ? StudyGlobalScope.zeroCardsProgress(scope) : DB.zerarProgressoCards();
         CardEngine.invalidateDueCache();
         CardsScreen._meusMostrando = 0;
         CardsScreen.invalidateReviewQueue();
@@ -33523,7 +33553,7 @@ CardsScreen.optimizeFsrsOfficial = async function (deckId) {
   const cfg = CardsConfig.forDeck(deckId == null ? null : deckId);
   if (!FSRS || typeof FSRS.optimizeOfficial !== 'function') throw new Error('Otimizador oficial FSRS indisponível.');
 
-  const out = await FSRS.optimizeOfficial(DB.getRevlog(), { deckId: deckId == null ? null : deckId, cfg });
+  const out = await FSRS.optimizeOfficial(this._statsRevlog(false), { deckId: deckId == null ? null : deckId, cfg, cards:this._fsrsCardsForPreset(deckId) });
   const patch = { weights: out.params.slice(), lastOptim: new Date().toISOString() };
   if (deckId != null) CardsConfig.setDeckPreset(deckId, patch);
   else CardsConfig.set(patch);
@@ -33532,7 +33562,7 @@ CardsScreen.optimizeFsrsOfficial = async function (deckId) {
 };
 
 CardsScreen._fsrsCardsForPreset = function(deckId){
-  const cards=DB.getCards().filter(c=>!c.suspenso);
+  const cards=this.collectionCards().filter(c=>!c.suspenso);
   if(deckId!=null)return cards.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
   return cards.filter(c=>{const did=c.originalDeckId||c.deckId;return !(did&&CardsConfig.hasDeckPreset(did));});
 };
@@ -33543,7 +33573,7 @@ CardsScreen.optimizeAllFsrsPresets = async function(){
     const cards=this._fsrsCardsForPreset(deckId);if(!cards.length){results.push({deckId,skipped:'empty'});continue;}
     const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId);
     try{
-      const out=await FSRS.optimizeOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+      const out=await FSRS.optimizeOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
       const patch={weights:out.params.slice(),lastOptim:new Date().toISOString()};
       if(deckId==null)CardsConfig.set(patch);else CardsConfig.setDeckPreset(deckId,patch);
       results.push({deckId,reviewCount:out.reviewCount,cardCount:out.cardCount,ok:true});
@@ -33555,7 +33585,7 @@ CardsScreen.optimizeAllFsrsPresets = async function(){
 CardsScreen.fsrsHealthCheck = async function(deckId){
   if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
   const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
-  return FSRS.healthCheckOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+  return FSRS.healthCheckOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
 };
 CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
   if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
@@ -33577,7 +33607,7 @@ CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
   return {patch,interval:iv,previous,due};
 };
 CardsScreen.rescheduleFsrsScope = async function(deckId){
-  const rows=DB.getRevlog()||[],all=DB.getCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
+  const rows=this._statsRevlog(false)||[],all=this.collectionCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
     mod=await FSRS._loadOfficialOptimizer();
   let changed=0;
   for(const card of targets){
@@ -33593,7 +33623,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
   const g = CardsConfig.get();
   const cfg = isDeck ? CardsConfig.forDeck(deckId) : g;
-  const deckName = isDeck ? ((DB.getDecks().find(d => d.id === deckId) || {}).nome || 'baralho') : null;
+  const deckName = isDeck ? ((CardsScreen.collectionDecks().find(d => String(d.id) === String(deckId)) || {}).nome || 'baralho') : null;
   const hasPreset = isDeck && CardsConfig.hasDeckPreset(deckId);
   const fields = [
     ...(!isDeck ? [{
@@ -33912,6 +33942,38 @@ const AnkiParity = {
   _validId(v) { const n=Number(v); return Number.isSafeInteger(n)&&n>0?n:null; },
   cardId(card) { return card ? (this._validId(card.ankiId)||this._validId(card.id)||0) : 0; },
   noteId(card) { return card ? (this._validId(card.ankiNoteId)||this.cardId(card)) : 0; },
+  _scopeCards() {
+    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    return DB.getCards();
+  },
+  _scopeDecks() {
+    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    return DB.getDecks();
+  },
+  _scopeRevlog() {
+    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) {}
+    return DB.getRevlog();
+  },
+  _planIdForCard(card) {
+    try { if (card && card._planId) return card._planId; if (window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard) return StudyGlobalScope.sourcePlanForCard(card&&card.id); } catch (_) {}
+    return null;
+  },
+  _cardsForCardPlan(card) {
+    const pid=this._planIdForCard(card);
+    return pid&&DB.getCardsForPlan?DB.getCardsForPlan(pid):DB.getCards();
+  },
+  _decksForCardPlan(card) {
+    const pid=this._planIdForCard(card);
+    return pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks();
+  },
+  _decksForDeckId(deckId) {
+    try {
+      if (typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord) {
+        const r=StudyGlobalScope.deckRecord(deckId);if(r&&DB.getDecksForPlan)return DB.getDecksForPlan(r.planId);
+      }
+    } catch (_) {}
+    return DB.getDecks();
+  },
   mod(card) {
     const m=this._validId(card&&card.ankiMod); if(m)return m;
     const ms=Date.parse(card&&card.updatedAt||card&&card.createdAt||'');
@@ -34026,7 +34088,7 @@ const AnkiParity = {
   reviewTie(card){return BigInt.asIntN(64,this.fnvHashI64(this.cardId(card),this.mod(card)));},
   daysElapsed(){
     try{
-      const cards=DB.getCards();
+      const cards=this._scopeCards();
       const crt=(typeof AnkiExport!=='undefined'&&AnkiExport._collectionEpoch)?AnkiExport._collectionEpoch(cards):Math.floor(Date.now()/1000)-86400;
       const now=Date.parse(todayCards()+'T00:00:00');
       return Math.max(0,Math.round((now-crt*1000)/86400000));
@@ -34058,7 +34120,7 @@ const AnkiParity = {
 
   configIdForDeck(deckId){
     if(deckId==null)return 'default';
-    try{const d=DB.getDecks().find(x=>String(x.id)===String(deckId));return d&&d.configId?String(d.configId):((CardsConfig.hasDeckPreset&&CardsConfig.hasDeckPreset(deckId))?'legacy:'+deckId:'default');}
+    try{const d=this._decksForDeckId(deckId).find(x=>String(x.id)===String(deckId));return d&&d.configId?String(d.configId):((CardsConfig.hasDeckPreset&&CardsConfig.hasDeckPreset(deckId))?'legacy:'+deckId:'default');}
     catch(_){return 'default';}
   },
   cfgForCard(card){return CardsConfig.forDeck(card&&card.deckId);},
@@ -34079,7 +34141,7 @@ const AnkiParity = {
   _siblingModifiers(card,lo,hi){
     const out=Array.from({length:hi-lo+1},()=>1);if(!card||!card.noteId)return out;
     const nid=String(card.noteId),days=new Set(),steps=[-5,-4,-3,-2,-1,0,1,2,3,4,5],mods=[1,.8,.6,.4,.2,.000001,.2,.4,.6,.8,1];
-    DB.getCards().forEach(c=>{
+    this._cardsForCardPlan(card).forEach(c=>{
       if(String(c.id)===String(card.id)||String(c.noteId||c.id)!==nid||c.dueTs||!c.due)return;
       const d=CardEngine._daysBetween(todayCards(),c.due);if(d>=0&&d<99)days.add(d);
     });
@@ -34091,7 +34153,7 @@ const AnkiParity = {
     if(iv>90||minimum>90)return null;
     const b=FSRS.constrainedFuzzBounds(iv,minimum,maximum),lo=b[0],hi=b[1],ints=[];for(let d=lo;d<=hi;d++)ints.push(d);
     const preset=this.configIdForDeck(card&&card.deckId);
-    const counts=ints.map(d=>{let n=0;DB.getCards().forEach(c=>{
+    const counts=ints.map(d=>{let n=0;this._scopeCards().forEach(c=>{
       if(c.suspenso||c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
       if(ph!=='review'||this.configIdForDeck(c.deckId)!==preset)return;if(CardEngine._daysBetween(todayCards(),c.due)===d)n++;
     });return n;});
@@ -34105,13 +34167,13 @@ const AnkiParity = {
     if(hi<elapsed)return null; // oficial cai para fuzz normal se toda a janela ficou no passado
     const lo=Math.max(rawLo,elapsed),ints=[];for(let d=lo;d<=hi;d++)ints.push(d);
     if(!ints.length)return null;
-    const preset=this.configIdForDeck(card&&(card.originalDeckId||card.deckId)),today=todayCards(),all=DB.getCards();
+    const preset=this.configIdForDeck(card&&(card.originalDeckId||card.deckId)),today=todayCards(),all=this._scopeCards();
     const dueToday=all.filter(c=>{
       if(c.suspenso||c.dueTs||!c.due)return false;
       const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
       return ph==='review'&&this.configIdForDeck(c.originalDeckId||c.deckId)===preset&&String(c.due)<=today;
     }).length;
-    const reviewedToday=(DB.getRevlog()||[]).filter(r=>{
+    const reviewedToday=(this._scopeRevlog()||[]).filter(r=>{
       if(String(r.date||'').slice(0,10)!==today)return false;const x=DB.getCard(r.cardId);
       return x&&this.configIdForDeck(x.originalDeckId||x.deckId)===preset&&Number(r.grade)>=1&&Number(r.grade)<=4;
     }).length;
@@ -34173,7 +34235,9 @@ const AnkiParity = {
     walk(this.parseCloze(text));return out.join(', ');
   },
   syncClozeSiblings(noteCardId){
-    const all=DB.getCards(),base=all.find(c=>String(c.id)===String(noteCardId));if(!base||base.kind!=='cloze')return 0;
+    const routed=DB.getCard(noteCardId);if(!routed||routed.kind!=='cloze')return 0;
+    const pid=this._planIdForCard(routed),all=this._cardsForCardPlan(routed),
+      base=all.find(c=>String(c.id)===String(noteCardId))||routed;
     const noteId=base.noteId||base.id,sibs=all.filter(c=>String(c.noteId||c.id)===String(noteId)),ords=this.clozeOrdinals(base.frente),existing=new Map();
     sibs.forEach(c=>{const o=Number(c.clozeOrd||((c.template||'').match(/^cloze:(\d+)$/)||[])[1]);if(o)existing.set(o,c);});
     let changed=false;
@@ -34187,7 +34251,9 @@ const AnkiParity = {
     /* O Anki NÃO apaga automaticamente um card Cloze cujo ordinal saiu da
        nota. Ele o mantém como "empty card" até o usuário executar Empty Cards.
        Isso preserva revlog/agendamento e evita perda silenciosa de histórico. */
-    if(changed)DB.saveCards(all);
+    if(changed){
+      if(pid&&DB.saveCardsForPlan)DB.saveCardsForPlan(pid,all);else DB.saveCards(all);
+    }
     this.syncCanonicalNoteFromCard(base);
     return ords.length;
   },
@@ -34197,7 +34263,7 @@ const AnkiParity = {
       this.ensureIdentities();
       const nid=this.noteId(card),note=this.getNote(nid);if(!note)return false;
       const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt||!nt.stockKind)return false;
-      const sibs=DB.getCards().filter(c=>this.noteId(c)===nid),forward=sibs.find(c=>c.template!=='reverse')||card;
+      const sibs=this._cardsForCardPlan(card).filter(c=>this.noteId(c)===nid),forward=sibs.find(c=>c.template!=='reverse')||card;
       const fields=Object.assign({},note.fields||{});
       if(nt.stockKind==='cloze'){fields.Text=forward.frente||'';fields['Back Extra']=forward.verso||'';}
       else {fields.Front=forward.frente||'';fields.Back=forward.verso||'';}
@@ -34217,12 +34283,11 @@ const AnkiParity = {
     // Coleções legadas podem ainda não ter a entidade Note/NoteType materializada.
     // Empty Cards precisa funcionar nelas também, como manutenção de coleção.
     try{this.ensureCanonicalNotes();}catch(e){_quiet(e,'empty-cards-canonical');}
-    return DB.getCards().filter(c=>this.isEmptyGeneratedCard(c)).map(c=>c.id);
+    return this._scopeCards().filter(c=>this.isEmptyGeneratedCard(c)).map(c=>c.id);
   },
   deleteEmptyCards(){
     const ids=new Set(this.emptyCardIds().map(String));if(!ids.size)return 0;
-    const cards=DB.getCards().filter(c=>!ids.has(String(c.id)));DB.saveCards(cards);
-    try{DB.replaceRevlog(DB.getRevlog().filter(r=>!ids.has(String(r.cardId))));}catch(e){_quiet(e,'empty-cards-revlog');}
+    ids.forEach(id=>DB.deleteCard(id));
     try{ids.forEach(id=>CardsConfig.forgetCardId(id));}catch(e){_quiet(e,'empty-cards-daily');}
     return ids.size;
   },
@@ -34230,7 +34295,7 @@ const AnkiParity = {
   autoBurySiblings(card){
     if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),nid=String(card.noteId);let n=0;
     const buried=[];
-    DB.getCards().forEach(s=>{
+    this._cardsForCardPlan(card).forEach(s=>{
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
       const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
       const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
@@ -34260,17 +34325,23 @@ AnkiParity.updatePreset=function(id,patch){
   const all=this.sharedPresets();if(!all[id])return false;all[id].config=Object.assign({},all[id].config||{},patch||{});this._saveSharedPresets(all);return true;
 };
 AnkiParity.assignPreset=function(deckId,configId){
-  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return false;
-  d.configId=String(configId||'default');DB.saveDecks(ds);return true;
+  const ds=this._decksForDeckId(deckId),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return false;
+  d.configId=String(configId||'default');
+  try{
+    if(window.StudyGlobalScope&&StudyGlobalScope.deckRecord&&DB.saveDecksForPlan){
+      const r=StudyGlobalScope.deckRecord(deckId);if(r)return DB.saveDecksForPlan(r.planId,ds)!==false;
+    }
+  }catch(_){}
+  DB.saveDecks(ds);return true;
 };
 AnkiParity.deckAncestors=function(deckId){
-  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [];
+  const ds=this._decksForDeckId(deckId),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [];
   const parts=String(d.nome||'').split('::'),out=[];
   for(let i=1;i<parts.length;i++){const name=parts.slice(0,i).join('::'),p=ds.find(x=>String(x.nome||'')===name);if(p)out.push(p);}
   return out;
 };
 AnkiParity.deckDescendant=function(childId,parentId){
-  const ds=DB.getDecks(),c=ds.find(x=>String(x.id)===String(childId)),p=ds.find(x=>String(x.id)===String(parentId));
+  const ds=this._decksForDeckId(childId),c=ds.find(x=>String(x.id)===String(childId)),p=ds.find(x=>String(x.id)===String(parentId));
   if(!c||!p)return false;const pn=String(p.nome||'');return String(c.nome||'').startsWith(pn+'::');
 };
 AnkiParity.installConfigParity=function(){
@@ -34281,7 +34352,7 @@ AnkiParity.installConfigParity=function(){
   CardsConfig.forDeck=function(deckId){
     const base=originalForDeck(deckId);
     if(!deckId)return base;
-    const d=DB.getDecks().find(x=>String(x.id)===String(deckId));
+    const d=AnkiParity._decksForDeckId(deckId).find(x=>String(x.id)===String(deckId));
     const cid=d&&d.configId;
     if(!cid||cid==='default'||String(cid).startsWith('legacy:'))return base;
     const p=AnkiParity.sharedPresets()[String(cid)];
@@ -34505,7 +34576,7 @@ AnkiParity.ensureCanonicalNotes=function(cards){
 /* ── LIMIT TREE: equivalente a rslib/decks/limits.rs ───────────────────── */
 AnkiParity.deckPath=function(deckId){
   if(deckId==null)return [];
-  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [String(deckId)];
+  const ds=this._decksForDeckId(deckId),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [String(deckId)];
   const parts=String(d.nome||'').split('::'),out=[];
   for(let i=1;i<=parts.length;i++){
     const name=parts.slice(0,i).join('::'),hit=ds.find(x=>String(x.nome||'')===name);
@@ -34522,7 +34593,7 @@ AnkiParity.selectedDeckId=function(){
 };
 AnkiParity.limitState=function(selectedDeckId){
   const global=CardsConfig.get(),ignore=!!global.newCardsIgnoreReviewLimit,applyParents=!!global.applyAllParentLimits;
-  const decks=DB.getDecks(),byId=new Map(decks.map(d=>[String(d.id),d])),daily=CardsConfig._daily(),usage=daily.usage||[];
+  const decks=this._scopeDecks(),byId=new Map(decks.map(d=>[String(d.id),d])),daily=CardsConfig._daily(),usage=daily.usage||[];
   const rem=new Map();
   const stats=(id,kind)=>usage.filter(e=>e.kind===kind&&(e.path||[]).includes(String(id))).length;
   decks.forEach(d=>{
@@ -34874,7 +34945,7 @@ AnkiParity.emptyFilteredDeck=function(deckId){
 };
 AnkiParity.removeFromFilteredAfterReschedule=function(card,patch){
   if(!card||!card.originalDeckId)return patch||{};
-  const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId));
+  const deck=this._decksForCardPlan(card).find(d=>String(d.id)===String(card.deckId));
   const cfg=this.filteredConfig(deck);
   if(!cfg||!cfg.reschedule)return patch||{};
   const out=Object.assign({},patch||{},{deckId:card.originalDeckId});
@@ -34946,7 +35017,7 @@ AnkiParity._filteredTermMatches=function(card,term){
     const v=lc(val);return v===''||v==='1'||v==='true'||v==='sim'?hit:!hit;
   }
   if(key==='deck'||key==='baralho'){
-    const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(homeId));
+    const ds=this._decksForCardPlan(card),d=ds.find(x=>String(x.id)===String(homeId));
     if(!d)return false;const n=String(d.nome||'').toLowerCase(),want=val.toLowerCase();
     return n===want||n.startsWith(want+'::');
   }
@@ -34969,7 +35040,7 @@ AnkiParity._filteredTermMatches=function(card,term){
   if(key==='rated'){
     const bits=val.split(':'),days=Math.max(0,Number(bits[0])||0),grade=bits.length>1?Number(bits[1]):null;
     const cutoff=Date.now()-days*86400000;
-    return DB.getRevlog().some(r=>String(r.cardId)===String(card.id)&&(Number(r.ts)||0)>=cutoff&&(grade==null||Number(r.grade)===grade));
+    return this._scopeRevlog().some(r=>String(r.cardId)===String(card.id)&&(Number(r.ts)||0)>=cutoff&&(grade==null||Number(r.grade)===grade));
   }
   if(key==='tag'){
     const want=val.toLowerCase();
@@ -35047,7 +35118,7 @@ AnkiParity.filteredSearchMatches=function(card,expr){
 };
 AnkiParity._filteredSort=function(cards,order){
   const xs=cards.slice(),lastReview=(c)=>{
-    let max=0;DB.getRevlog().forEach(r=>{if(String(r.cardId)===String(c.id))max=Math.max(max,Number(r.ts)||0);});return max;
+    let max=0;this._scopeRevlog().forEach(r=>{if(String(r.cardId)===String(c.id))max=Math.max(max,Number(r.ts)||0);});return max;
   };
   const overdue=(c)=>{
     const iv=Math.max(1,Number(c.intervalo)||1),due=c.originalDue||c.due||todayCards();
@@ -35121,7 +35192,7 @@ AnkiParity.saveFilteredDeck=function(input){
 };
 AnkiParity.previewFilteredAnswer=function(card,grade){
   if(!card||!card.originalDeckId)return null;
-  const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId)),cfg=this.filteredConfig(deck);
+  const deck=this._decksForCardPlan(card).find(d=>String(d.id)===String(card.deckId)),cfg=this.filteredConfig(deck);
   if(!cfg||cfg.reschedule)return null;
   const g=String(grade||'bom');
   const secs=g==='errei'||g==='naosei'?Number(cfg.previewAgainSecs)||0:
@@ -35625,7 +35696,7 @@ const AnkiProductParity = {
     else showToast('Baixe o .apkg no AnkiWeb e use ↑ Importar no Study.');
   },
 
-  _cardsForNote(id){ const k=String(id);return DB.getCards().filter(c=>this.noteId(c)===k); },
+  _cardsForNote(id){ const k=String(id),cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();return cards.filter(c=>this.noteId(c)===k); },
   _typeFor(note){ return AnkiParity.noteTypes().find(t=>String(t.id)===String(note&&note.notetypeId))||null; },
   _sortField(note,nt){ const f=(nt&&nt.fields||[])[Number(nt&&nt.sortf)||0]||(nt&&nt.fields||[])[0];return this.plain(note&&note.fields&&f?note.fields[f.name]:''); },
 
@@ -35755,7 +35826,10 @@ const AnkiProductParity = {
 
   reconcileNote(note,nt){
     if(!note||!nt)return {created:0,updated:0,emptied:0};
-    const existing=this._cardsForNote(note.id),deckId=(existing.find(c=>c.deckId)||{}).deckId||(DB.getDecks()[0]||{}).id||null;
+    const existing=this._cardsForNote(note.id),planId=note._planId||(existing[0]&&existing[0]._planId)||
+      (existing[0]&&window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(existing[0].id):null),
+      sourceDecks=planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):(AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks()),
+      deckId=(existing.find(c=>c.deckId)||{}).deckId||(sourceDecks[0]||{}).id||null;
     const desired=[];let created=0,updated=0,emptied=0;
     if(nt.kind==='cloze'){
       const ords=new Set();Object.values(note.fields||{}).forEach(v=>AnkiParity.clozeOrdinals(v).forEach(o=>ords.add(o)));
@@ -35767,7 +35841,8 @@ const AnkiProductParity = {
     for(const d of desired){
       let card=existing.find(c=>nt.kind==='cloze'?Number(c.clozeOrd||0)===d.cloze:Number(c.ankiTemplateOrd||0)===d.ord);
       if(!card){
-        card=DB.addCard({deckId,noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+d.cloze:(d.ord===1?'reverse':'forward'),clozeOrd:d.cloze||null,ankiTemplateOrd:d.ord,frente:'',verso:''});created++;
+        const data={deckId,noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+d.cloze:(d.ord===1?'reverse':'forward'),clozeOrd:d.cloze||null,ankiTemplateOrd:d.ord,frente:'',verso:''};
+        card=planId&&DB.addCardForPlan?DB.addCardForPlan(planId,data):DB.addCard(data);created++;
       }
       used.add(String(card.id));
       const q=AnkiParity.renderTemplate(nt,note,d.tmpl,'question',card,''),a=AnkiParity.renderTemplate(nt,note,d.tmpl,'answer',card,q);
@@ -35778,8 +35853,13 @@ const AnkiProductParity = {
   },
 
   openChangeType(ids){
-    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;this._changeTypeIds=ids;
-    const types=AnkiParity.noteTypes(),sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
+    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;
+    const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
+    if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
+    this._changeTypeIds=ids;this._changeTypePlanId=origins.size?[...origins][0]:null;
+    const types=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
+      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : AnkiParity.noteTypes(),
+      sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
     const first=AnkiParity.getNote(ids[0]);if(first)sel.value=String(first.notetypeId);
     const render=()=>this._renderTypeMap(types.find(t=>String(t.id)===String(sel.value)));sel.onchange=render;render();
     document.getElementById('anki-change-type-modal').style.display='flex';
@@ -35861,7 +35941,10 @@ const AnkiProductParity = {
   },
 
   bulkMoveDeck(ids){
-    const decks=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    const cards=ids.flatMap(id=>this._cardsForNote(id)),origins=new Set(cards.map(c=>String(c._planId||
+      (window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
+    if(origins.size>1){showToast('Para mover em lote, selecione notas do mesmo planejamento de origem.');return;}
+    const pid=origins.size?[...origins][0]:null,decks=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
     if(!decks.length){showToast('Crie um baralho antes de mover.');return;}
     UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{
       if(!v)return;let n=0;
@@ -36006,11 +36089,16 @@ const AnkiProductParity = {
 
   deleteNotetype(id){
     const used=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length;if(used){showToast('Este tipo ainda é usado por '+used+' nota(s). Mude o tipo delas antes de excluir.');return;}
-    UI.confirm('Excluir este tipo de nota sem uso?',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{if(!ok)return;localStorage.removeItem(AnkiParity._entityKey('notetype',id));this.renderNotetypes();showToast('Tipo excluído');});
+    UI.confirm('Excluir este tipo de nota sem uso?',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{if(!ok)return;
+      const nt=AnkiParity.getNotetype(id),key=(nt&&nt._planId&&window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan)
+        ? StudyGlobalScope.entityKeyForPlan(nt._planId,'notetype',id):AnkiParity._entityKey('notetype',id);
+      localStorage.removeItem(key);this.renderNotetypes();showToast('Tipo excluído');});
   },
 
   scanCollection(){
-    this.ensure();const cards=DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),decks=DB.getDecks(),rev=DB.getRevlog(),noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
+    this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
+      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
+      noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
     const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
     cards.forEach(c=>{
       const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
@@ -36048,8 +36136,15 @@ const AnkiProductParity = {
   _bindCheck(){
     document.getElementById('anki-check-safe').addEventListener('click',()=>{
       this.ensure();const x=this.scanCollection();let fixed=0;
-      DB.getCards().forEach(c=>{const n=AnkiParity.getNote(this.noteId(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){DB.updateCard(c.id,{notetypeId:n.notetypeId});fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null});fixed++;}});
-      if(x.orphanRevlog.length){const ids=new Set(DB.getCards().map(c=>String(c.id)));DB.replaceRevlog(DB.getRevlog().filter(r=>ids.has(String(r.cardId))));fixed+=x.orphanRevlog.length;}
+      const scopedCards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();
+      scopedCards.forEach(c=>{const n=AnkiParity.getNote(this.noteId(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){DB.updateCard(c.id,{notetypeId:n.notetypeId});fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null});fixed++;}});
+      if(x.orphanRevlog.length){
+        const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
+        fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
+        if(!(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)){
+          const ids=new Set(DB.getCards().map(c=>String(c.id))),before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>ids.has(String(r.cardId))));fixed+=before.length-DB.getRevlog().length;
+        }
+      }
       CardEngine.invalidateDueCache();this.renderCheck();CardsScreen.render();showToast(fixed?fixed+' reparo(s) seguro(s) aplicado(s) ✓':'Nada para reparar');
     });
     document.getElementById('anki-check-empty').addEventListener('click',()=>{
@@ -36311,16 +36406,16 @@ const AnkiImageOcclusion = {
     ['basic','basic_reversed','basic_optional_reversed','typing','cloze','image_occlusion'].forEach(k=>AnkiParity.stockNotetype(k));
     return AnkiParity.noteTypes();
   },
-  _normalDecks(){return DB.getDecks().filter(d=>!AnkiParity.isFilteredDeck(d));},
-  _deckOptions(sel){
-    const decks=this._normalDecks();
+  _normalDecks(planId){return (planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):DB.getDecks()).filter(d=>!AnkiParity.isFilteredDeck(d));},
+  _deckOptions(sel,planId){
+    const decks=this._normalDecks(planId);
     if(!decks.length)return '<option value="__default__" selected>📁 Padrão</option>';
     return decks.map(d=>'<option value="'+escapeHtml(String(d.id))+'" '+(String(sel||'')===String(d.id)?'selected':'')+'>'+escapeHtml(d.nome)+'</option>').join('');
   },
-  _resolveDeck(value){
+  _resolveDeck(value,planId){
     if(value&&value!=='__default__')return String(value);
-    const first=this._normalDecks()[0];if(first)return String(first.id);
-    const created=DB.addDeck('Padrão');
+    const first=this._normalDecks(planId)[0];if(first)return String(first.id);
+    const created=planId&&DB.addDeckForPlan?DB.addDeckForPlan(planId,'Padrão'):DB.addDeck('Padrão');
     return created&&created.id!=null?String(created.id):null;
   },
 
@@ -36350,15 +36445,19 @@ const AnkiImageOcclusion = {
   },
 
   openEditor(noteId,deckId){
-    const nt=AnkiParity.stockNotetype('image_occlusion');this.state={noteId:noteId?String(noteId):null,deckId:deckId||null,imageData:'',img:null,shapes:[],tool:'rect',drawing:null,polygon:[],occludeInactive:false,groupMode:'each',groupOrdinal:1};
-    document.getElementById('anki-io-deck').innerHTML=this._deckOptions(deckId||(this._normalDecks()[0]||{}).id);
+    const existing=noteId?AnkiParity.getNote(noteId):null;
+    let planId=existing&&existing._planId||null;
+    if(!planId&&deckId&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord){const r=StudyGlobalScope.deckRecord(deckId);if(r)planId=r.planId;}
+    const nt=(existing&&AnkiProductParity._typeFor(existing))||AnkiParity.stockNotetype('image_occlusion',planId);
+    this.state={noteId:noteId?String(noteId):null,planId:planId||null,deckId:deckId||null,imageData:'',img:null,shapes:[],tool:'rect',drawing:null,polygon:[],occludeInactive:false,groupMode:'each',groupOrdinal:1};
+    document.getElementById('anki-io-deck').innerHTML=this._deckOptions(deckId||(this._normalDecks(planId)[0]||{}).id,planId);
     document.getElementById('anki-io-header').value='';document.getElementById('anki-io-back').value='';document.getElementById('anki-io-comments').value='';document.getElementById('anki-io-tags').value='';document.getElementById('anki-io-file').value='';
     if(noteId){
       const note=AnkiParity.getNote(noteId),type=AnkiProductParity._typeFor(note)||nt;if(note){
         const occ=this._fieldByTag(type,note,0,0),image=this._fieldByTag(type,note,1,1);this.state.shapes=this.parse(occ).map(s=>this._shapeFromParsed(s));this.state.occludeInactive=this.state.shapes.some(s=>s.oi);
         document.getElementById('anki-io-header').value=this._fieldByTag(type,note,2,2);document.getElementById('anki-io-back').value=this._fieldByTag(type,note,3,3);document.getElementById('anki-io-comments').value=this._fieldByTag(type,note,4,4);document.getElementById('anki-io-tags').value=(note.tags||[]).join(' ');
         const cards=AnkiProductParity._cardsForNote(noteId),d=cards.find(c=>c.deckId);if(d)this.state.deckId=d.deckId;
-        document.getElementById('anki-io-deck').innerHTML=this._deckOptions(this.state.deckId);
+        document.getElementById('anki-io-deck').innerHTML=this._deckOptions(this.state.deckId,this.state.planId);
         const m=/\bsrc=["']([^"']+)["']/i.exec(image);if(m)this._loadImageSrc(m[1]);
       }
     }
@@ -36443,12 +36542,14 @@ const AnkiImageOcclusion = {
 
   save(){
     if(!this.state.imageData){showToast('Escolha uma imagem');return;}if(!this.state.shapes.some(s=>Number(s.ordinal)>0)){showToast('Desenhe ao menos uma máscara');return;}
-    const nt=AnkiParity.stockNotetype('image_occlusion'),byTag=(tag,fallback)=>(nt.fields||[]).find(f=>Number(f.tag)===tag)||(nt.fields||[])[fallback],fields={};
+    const oldNote=this.state.noteId?AnkiParity.getNote(this.state.noteId):null,
+      nt=(oldNote&&AnkiProductParity._typeFor(oldNote))||AnkiParity.stockNotetype('image_occlusion',this.state.planId),
+      byTag=(tag,fallback)=>(nt.fields||[]).find(f=>Number(f.tag)===tag)||(nt.fields||[])[fallback],fields={};
     fields[byTag(0,0).name]=this.serialize();fields[byTag(1,1).name]='<img src="'+AnkiParity._escAttr(this.state.imageData)+'">';fields[byTag(2,2).name]=document.getElementById('anki-io-header').value;fields[byTag(3,3).name]=document.getElementById('anki-io-back').value;fields[byTag(4,4).name]=document.getElementById('anki-io-comments').value;
-    const tags=String(document.getElementById('anki-io-tags').value||'').split(/\s+/).filter(Boolean),deck=this._resolveDeck(document.getElementById('anki-io-deck').value);let note;
+    const tags=String(document.getElementById('anki-io-tags').value||'').split(/\s+/).filter(Boolean),deck=this._resolveDeck(document.getElementById('anki-io-deck').value,this.state.planId);let note;
     if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
-    if(this.state.noteId){const old=AnkiParity.getNote(this.state.noteId);note=AnkiParity.saveNote(Object.assign({},old,{notetypeId:nt.id,fields,tags}));}
-    else{const id=AnkiParity._allocId();note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-io-'+Number(id).toString(36),notetypeId:nt.id,fields,tags});}
+    if(this.state.noteId){note=AnkiParity.saveNote(Object.assign({},oldNote,{notetypeId:nt.id,fields,tags}));}
+    else{const id=AnkiParity._allocId();note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-io-'+Number(id).toString(36),notetypeId:nt.id,fields,tags,_planId:this.state.planId||undefined});}
     AnkiProductParity.reconcileNote(note,nt);AnkiProductParity._cardsForNote(note.id).forEach(c=>DB.updateCard(c.id,{deckId:deck}));document.getElementById('anki-io-modal').style.display='none';CardsScreen.render();showToast('Oclusão salva · '+AnkiProductParity._cardsForNote(note.id).filter(c=>AnkiParity._fieldNonempty(c.frente)).length+' card(s) ✓');
   },
 
@@ -36630,7 +36731,7 @@ const AnkiMaxParity = {
     if(a<0||z<0||a===z)return false;
     const [moved]=cols.splice(a,1);cols.splice(z,0,moved);b.columns=cols;this._saveBrowserPrefs();AnkiProductParity.renderBrowser();return true;
   },
-  _deckName(card){const id=card&&(card.originalDeckId||card.deckId),d=DB.getDecks().find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
+  _deckName(card){const id=card&&(card.originalDeckId||card.deckId),ds=AnkiParity._decksForCardPlan?AnkiParity._decksForCardPlan(card):DB.getDecks(),d=ds.find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
   _templateName(row){
     const c=row.card||(row.cards&&row.cards[0]);if(!c||!row.nt)return '';const i=Number(c.ankiTemplateOrd)||0;return String(row.nt.templates&&row.nt.templates[i]&&row.nt.templates[i].name||('Card '+(i+1)));
   },
@@ -36853,7 +36954,10 @@ const AnkiMaxParity = {
     };
   },
   _bulkCardsMove(ids){
-    const cards=this._resolveSelection(ids).cards,decks=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));if(!cards.length||!decks.length)return;
+    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
+    const origins=new Set(cards.map(c=>String(c._planId||(window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
+    if(origins.size>1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
+    const pid=origins.size?[...origins][0]:null,decks=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));if(!decks.length)return;
     UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{if(!v)return;cards.forEach(c=>DB.updateCard(c.id,c.originalDeckId?{originalDeckId:v.deck}:{deckId:v.deck}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) movido(s) ✓');});
   },
   _bulkCardsDue(ids){
@@ -37008,7 +37112,8 @@ const AnkiMaxEditor = {
 
   esc(v){return AnkiProductParity.esc(v);},
   _deckOptions(value){
-    const ds=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    const pid=AnkiProductParity._editingNtOriginal&&AnkiProductParity._editingNtOriginal._planId;
+    const ds=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
     return '<option value="">— padrão do template/baralho —</option>'+ds.map(d=>'<option value="'+this.esc(d.ankiId||d.id)+'" '+(String(value||'')===String(d.ankiId||d.id)?'selected':'')+'>'+this.esc(d.nome)+'</option>').join('');
   },
 
@@ -37473,6 +37578,9 @@ const AnkiMaxStatsMedia = {
   },
 
   _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
+  _cardsSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.cards)return StudyGlobalScope.cards();}catch(_){}return DB.getCards();},
+  _decksSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.decks)return StudyGlobalScope.decks();}catch(_){}return DB.getDecks();},
+  _revlogSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.revlog)return StudyGlobalScope.revlog();}catch(_){}return DB.getRevlog();},
   _statsSelectedDeckId(){
     const explicit=this._statsState&&this._statsState.deckId;
     if(explicit!=null&&explicit!=='')return String(explicit);
@@ -37481,12 +37589,12 @@ const AnkiMaxStatsMedia = {
   },
   _statsDeckIds(rootId){
     if(!rootId)return null;
-    const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(rootId));if(!root)return new Set([String(rootId)]);
+    const decks=this._decksSource(),root=decks.find(d=>String(d.id)===String(rootId));if(!root)return new Set([String(rootId)]);
     const name=String(root.nome||''),prefix=name+'::';
     return new Set(decks.filter(d=>String(d.id)===String(rootId)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
   },
   statsCards(){
-    let cards=DB.getCards();
+    let cards=this._cardsSource();
     const st=this._statsState||{},scope=st.scope||'deck';
     if(scope==='deck'){
       const ids=this._statsDeckIds(this._statsSelectedDeckId());
@@ -37498,7 +37606,7 @@ const AnkiMaxStatsMedia = {
     return cards;
   },
   statsRevlog(applyHistory=true){
-    let rows=DB.getRevlog()||[];const st=this._statsState||{},scope=st.scope||'deck';
+    let rows=this._revlogSource()||[];const st=this._statsState||{},scope=st.scope||'deck';
     if(scope!=='collection'){
       const ids=new Set();
       for(const c of this.statsCards()){if(c&&c.id!=null)ids.add(String(c.id));if(c&&c.ankiId!=null)ids.add(String(c.ankiId));}
@@ -37517,7 +37625,7 @@ const AnkiMaxStatsMedia = {
     return Math.max(1,Math.min(36500,CardEngine._daysBetween(earliest,today)+1));
   },
   _statsControlsHtml(){
-    const st=this._statsState||{},decks=DB.getDecks().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')),
+    const st=this._statsState||{},decks=this._decksSource().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')),
       selected=this._statsSelectedDeckId(),esc=(v)=>typeof AnkiProductParity!=='undefined'&&AnkiProductParity.esc?AnkiProductParity.esc(v):String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     return '<div class="card stat-card anki-stats-controls"><div class="card-header"><div><h2>Escopo das estatísticas</h2><p class="sub">Mesmo modelo de escopo do Anki: baralho, coleção ou pesquisa; últimos 12 meses ou todo o histórico.</p></div></div>'+
       '<div class="field-group"><div class="field"><label>Escopo</label><select id="anki-stats-scope"><option value="deck"'+(st.scope==='deck'?' selected':'')+'>Baralho</option><option value="collection"'+(st.scope==='collection'?' selected':'')+'>Coleção</option><option value="search"'+(st.scope==='search'?' selected':'')+'>Pesquisa</option></select></div>'+
@@ -37813,7 +37921,7 @@ const AnkiMaxStatsMedia = {
     AnkiProductParity.renderCheck=()=>{old();this.renderExtendedCheck();};
   },
   structuralIssues(){
-    const cards=DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),deckIds=new Set(DB.getDecks().map(d=>String(d.id))),cardAnki=new Map(),orphanNotes=[],badOrd=[],badFiltered=[],badTypes=[];
+    const cards=this._cardsSource(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),deckIds=new Set(this._decksSource().map(d=>String(d.id))),cardAnki=new Map(),orphanNotes=[],badOrd=[],badFiltered=[],badTypes=[];
     cards.forEach(c=>{const k=String(c.ankiId||'');if(k){if(!cardAnki.has(k))cardAnki.set(k,[]);cardAnki.get(k).push(c.id);}const n=AnkiParity.getNote(AnkiProductParity.noteId(c)),nt=n&&AnkiProductParity._typeFor(n);if(nt&&nt.kind!=='cloze'&&(Number(c.ankiTemplateOrd)||0)>=(nt.templates||[]).length)badOrd.push(c.id);if(c.originalDeckId&&!deckIds.has(String(c.originalDeckId)))badFiltered.push(c.id);});
     const used=new Set(cards.map(c=>String(AnkiProductParity.noteId(c))));notes.forEach(n=>{if(!used.has(String(n.id)))orphanNotes.push(n.id);});
     types.forEach(t=>{const names=(t.fields||[]).map(f=>String(f.name||'').toLowerCase()),dup=names.length!==new Set(names).size;if(!(t.fields||[]).length||!(t.templates||[]).length||dup)badTypes.push(t.id);});
@@ -38242,7 +38350,7 @@ const AnkiTotalParity = {
     const max=Math.max(1,...out);return '<div class="anki-total-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
   },
   _extraStatsHtml(){
-    const cards=DB.getCards(),logs=DB.getRevlog(),now=new Date(),months=[];
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),now=new Date(),months=[];
     for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');months.push({k,label:String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2),n:0});}
     cards.forEach(c=>{const k=String(c.createdAt||'').slice(0,7),m=months.find(x=>x.k===k);if(m)m.n++;});
     const maxAdded=Math.max(1,...months.map(x=>x.n));
@@ -38267,7 +38375,8 @@ const AnkiTotalParity = {
 
   /* ───────────────── CHECK COLLECTION MAIS PROFUNDO ───────────────── */
   deepIssues(){
-    const cards=DB.getCards(),logs=DB.getRevlog(),decks=DB.getDecks(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes();
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
+      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes();
     const cardIds=new Set(cards.map(c=>String(c.id))),deckIds=new Set(decks.map(d=>String(d.id))),noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id)));
     const missingNotes=cards.filter(c=>!noteIds.has(String(AnkiParity.noteId(c)))).map(c=>c.id);
     const missingDeck=cards.filter(c=>c.deckId!=null&&!deckIds.has(String(c.deckId))).map(c=>c.id);
@@ -38608,7 +38717,8 @@ const AnkiPractical10 = {
   },
   _renderBrowserSidebar(){
     const a=document.getElementById('anki-browser-sidebar');if(!a||typeof AnkiParity==='undefined')return;
-    const cards=DB.getCards(),notes=AnkiParity.notes(),decks=DB.getDecks(),types=AnkiParity.noteTypes();
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),
+      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),types=AnkiParity.noteTypes();
     const saved=typeof AnkiTotalParity!=='undefined'?AnkiTotalParity._savedSearches():[];
     const tags=new Map();notes.forEach(n=>(n.tags||[]).forEach(t=>tags.set(String(t),(tags.get(String(t))||0)+1)));
     const deckItems=decks.filter(d=>!AnkiParity.isFilteredDeck(d)).sort((x,y)=>String(x.nome).localeCompare(String(y.nome),'pt-BR')).map(d=>({kind:'deck',value:d.nome,label:'📁 '+d.nome,count:cards.filter(c=>String(c.deckId)===String(d.id)).length}));
@@ -38939,7 +39049,9 @@ const AnkiPractical10 = {
     const el=document.getElementById('card-destino');let dest=String(el&&el.value||'');
     if(!dest){showToast('Escolha o baralho');return null;}
     if(dest.startsWith('novo:')){
-      const nome=dest.slice(5),existing=DB.getDecks().find(d=>d.nome===nome),deck=existing||DB.addDeck(nome);
+      const nome=dest.slice(5),pid=CardsScreen._editingPlanId||null,
+        decks=pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks(),
+        existing=decks.find(d=>d.nome===nome),deck=existing||(pid&&DB.addDeckForPlan?DB.addDeckForPlan(pid,nome):DB.addDeck(nome));
       dest='deck:'+deck.id;if(el)el.value=dest;
     }
     return {raw:dest,deckId:dest.startsWith('deck:')?dest.slice(5):null,materia:dest.startsWith('sub:')?dest.slice(4):null};
@@ -38994,7 +39106,7 @@ const AnkiPractical10 = {
     }).join('');
   },
   _completeStatsHtml(){
-    const cards=DB.getCards(),logs=DB.getRevlog();
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog();
     const intervals=cards.map(c=>Number(c.intervalo)||0).filter(x=>x>0);
     const retr=cards.map(c=>{try{return c.s!=null?Number(CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId))):NaN;}catch(_){return NaN;}}).filter(Number.isFinite).map(x=>x*100);
     const grades=[1,2,3,4].map(g=>logs.filter(r=>Number(r.grade)===g).length),gmax=Math.max(1,...grades);
@@ -56614,6 +56726,56 @@ else CloudStore.init();
       return any ? Object.assign({}, any.deck, { _planId: any.planId, _planNome: this.planName(any.planId) }) : null;
     },
 
+    planIdsForScope(scope) {
+      const sc = scope || this.cardsScope(), active = this.activePlanId();
+      if (sc !== 'all') return active ? [active] : [];
+      return this.plans().map(p => p.id).filter((id, i, a) => id && a.findIndex(x => String(x) === String(id)) === i);
+    },
+    entityKeyForPlan(planId, kind, id) {
+      return DB._profilePrefix() + 'p:' + String(planId) + ':cards-' + String(kind) + ':' + String(id == null ? '' : id);
+    },
+    _entityRows(planId, kind) {
+      const prefix = this.entityKeyForPlan(planId, kind, ''), out = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i); if (!k || !String(k).startsWith(prefix)) continue;
+          try {
+            const v = JSON.parse(localStorage.getItem(k) || 'null');
+            if (v && typeof v === 'object') out.push(Object.assign({}, v, { _planId: planId, _planNome: this.planName(planId) }));
+          } catch (_) {}
+        }
+      } catch (_) {}
+      return out;
+    },
+    ankiEntities(kind, scope) {
+      const out = [];
+      this.planIdsForScope(scope).forEach(pid => out.push(...this._entityRows(pid, kind)));
+      const seen = new Set();
+      return out.filter(x => {
+        const k = String(x._planId) + '|' + String(x.id);
+        if (seen.has(k)) return false; seen.add(k); return true;
+      });
+    },
+    ankiEntity(kind, id, planId) {
+      const ids = planId != null ? [planId] : [this.activePlanId()].concat(this.plans().map(p => p.id));
+      const seen = new Set();
+      for (const pid of ids) {
+        if (!pid || seen.has(String(pid))) continue; seen.add(String(pid));
+        const row = this._entityRows(pid, kind).find(x => String(x.id) === String(id) || String(x.ankiId) === String(id));
+        if (row) return row;
+      }
+      return null;
+    },
+    ankiEntityEntries(planId) {
+      const prefix = DB._profilePrefix() + 'p:' + String(planId) + ':cards-', rows = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i); if (k && String(k).startsWith(prefix)) rows.push([k, localStorage.getItem(k)]);
+        }
+      } catch (_) {}
+      return rows;
+    },
+
     bankCatalog() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) {}
@@ -56771,6 +56933,39 @@ else CloudStore.init();
       if (skipped && typeof showToast === 'function')
         showToast(moved + ' card(s) movido(s); ' + skipped + ' mantido(s) porque o baralho pertence a outro planejamento.');
       return { moved, skipped };
+    },
+
+    zeroCardsProgress(scope) {
+      const pids=this.planIdsForScope(scope),targetIds=new Set(),out={cards:0,revlog:0};
+      pids.forEach(pid=>{
+        const cards=this._rows(pid,'cards'),rows=this._revlogForPlan(pid);out.cards+=cards.length;out.revlog+=rows.length;
+        cards.forEach(c=>{
+          targetIds.add(String(c.id));c.phase='new';c.learnStep=0;c.due=todayCards();c.dueTs=null;
+          c.intervalo=0;c.reps=0;c.lapses=0;c.ease=2.5;c.s=null;c.d=null;c.lastReview=null;
+          c.status='pendente';c.leech=false;c.suspenso=false;c.enterradoAte=null;c.buryKind=null;c.updatedAt=new Date().toISOString();
+        });
+        DB._set(DB.keysForPlan(pid).cards,cards);this.replaceRevlogPlan(pid,[]);
+      });
+      try {
+        const d=CardsConfig._daily();
+        if((scope||this.cardsScope())==='all'){d.newIds=[];d.revIds=[];d.usage=[];}
+        else{
+          d.newIds=(d.newIds||[]).filter(id=>!targetIds.has(String(id)));
+          d.revIds=(d.revIds||[]).filter(id=>!targetIds.has(String(id)));
+          d.usage=(d.usage||[]).filter(x=>!targetIds.has(String(x&&x.id)));
+        }
+        CardsConfig._saveDaily(d);
+      } catch (_) {}
+      return out;
+    },
+    cleanOrphanRevlog(scope) {
+      let removed=0;
+      this.planIdsForScope(scope).forEach(pid=>{
+        const ids=new Set(this._rows(pid,'cards').map(c=>String(c.id)));
+        const before=this._revlogForPlan(pid),after=before.filter(r=>ids.has(String(r.cardId)));
+        removed+=before.length-after.length;if(after.length!==before.length)this.replaceRevlogPlan(pid,after);
+      });
+      return removed;
     },
 
     _ankiState() {
@@ -56966,6 +57161,32 @@ else CloudStore.init();
   DB.getCardsForPlan = id => S._tag(id, S._rows(id, 'cards'));
   DB.getDecksForPlan = id => S._tag(id, S._rows(id, 'decks'));
   DB.getRevlogForPlan = id => S._revlogForPlan(id);
+  DB.addDeckForPlan = function(id, nome) {
+    if (!id || String(id) === String(S.activePlanId())) return O.addDeck(nome);
+    const prevGet=DB.getDecks,prevSave=DB.saveDecks;
+    DB.getDecks=()=>S._rows(id,'decks');
+    DB.saveDecks=list=>DB._set(DB.keysForPlan(id).decks,(list||[]).map(x=>{const d=clone(x);delete d._planId;delete d._planNome;return d;}));
+    try {
+      const d=O.addDeck(nome);
+      return d?Object.assign({},d,{_planId:id,_planNome:S.planName(id)}):d;
+    } finally { DB.getDecks=prevGet;DB.saveDecks=prevSave; }
+  };
+  DB.addCardForPlan = function(id, data) {
+    if (!id || String(id) === String(S.activePlanId())) return O.addCard(data || {});
+    const prevGet=DB.getCards,prevSave=DB.saveCards;
+    DB.getCards=()=>S._rows(id,'cards');
+    DB.saveCards=list=>DB._set(DB.keysForPlan(id).cards,(list||[]).map(x=>{const c=clone(x);delete c._planId;delete c._planNome;return c;}));
+    try {
+      const c=O.addCard(data||{});
+      return c?Object.assign({},c,{_planId:id,_planNome:S.planName(id)}):c;
+    } finally { DB.getCards=prevGet;DB.saveCards=prevSave; }
+  };
+  DB.saveCardsForPlan = (id, list) => DB._set(DB.keysForPlan(id).cards, (list || []).map(x => {
+    const c=clone(x);if(c){delete c._planId;delete c._planNome;}return c;
+  }));
+  DB.saveDecksForPlan = (id, list) => DB._set(DB.keysForPlan(id).decks, (list || []).map(x => {
+    const d=clone(x);if(d){delete d._planId;delete d._planNome;}return d;
+  }));
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
@@ -57130,8 +57351,28 @@ else CloudStore.init();
     deleteNoteByCard: DB.deleteNoteByCard.bind(DB),
     addRevlogDurable: DB.addRevlogDurable.bind(DB),
     cancelarRevlogDurable: DB.cancelarRevlogDurable.bind(DB),
-    removeRevlog: DB.removeRevlog.bind(DB)
+    removeRevlog: DB.removeRevlog.bind(DB),
+    addRevlog: DB.addRevlog.bind(DB),
+    renameDeck: DB.renameDeck.bind(DB),
+    deleteDeck: DB.deleteDeck.bind(DB),
+    addCard: DB.addCard.bind(DB),
+    addDeck: DB.addDeck.bind(DB)
   };
+  DB.renameDeck = function(id, nome) {
+    if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.renameDeck(id,nome);
+    const r=S.deckRecord(id);if(!r)return null;
+    const list=S._rows(r.planId,'decks'),d=list.find(x=>String(x.id)===String(id));if(!d)return null;
+    d.nome=String(nome||'').trim();
+    return DB._set(DB.keysForPlan(r.planId).decks,list)===false?false:d;
+  };
+  DB.deleteDeck = function(id) {
+    if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.deleteDeck(id);
+    const r=S.deckRecord(id);if(!r)return;
+    const decks=S._rows(r.planId,'decks').filter(d=>String(d.id)!==String(id));
+    const cards=S._rows(r.planId,'cards');cards.forEach(c=>{if(String(c.deckId)===String(id)){c.deckId=null;c.updatedAt=new Date().toISOString();}});
+    DB._set(DB.keysForPlan(r.planId).decks,decks);DB._set(DB.keysForPlan(r.planId).cards,cards);
+  };
+
   DB.getCard = function(id) {
     const local = O.getCard(id); if (local) return local;
     const r = S.findCardRecord(id); return r ? Object.assign({}, r.card, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
@@ -57191,6 +57432,25 @@ else CloudStore.init();
     return ids.size;
   };
 
+  DB.addRevlog = function(entry) {
+    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlog(entry);
+    const l = S._revlogForPlan(pid), last = l.length ? l[l.length - 1] : null;
+    const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
+    const row = DB._normalizarReviewId(Object.assign({ _position: pos }, entry), true);
+    l.push(row);
+    const key = DB.keysForPlan(pid).revlog;
+    try {
+      if (DB._bancoRelacionalPronto && DB._bancoRelacionalPronto() && window.RelationalStore && RelationalStore.queueRevlogAppend)
+        RelationalStore.queueRevlogAppend(key, row);
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'global-revlog-append'); }
+    if (S._savePending(pid, row) === false) {
+      const i = l.findIndex(x => x && x.reviewId === row.reviewId); if (i >= 0) l.splice(i, 1);
+      return false;
+    }
+    return row;
+  };
+
   DB.addRevlogDurable = async function(entry, cardAfter, cardPosition) {
     const pid = S.sourcePlanForCard(entry && entry.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition);
@@ -57248,8 +57508,141 @@ else CloudStore.init();
     };
   }
 
+  /* Notes/NoteTypes continuam persistidos por planejamento para compatibilidade
+     com sync/backup, mas passam a formar uma coleção virtual única quando Cards
+     está em "Todos os planejamentos". Escritas retornam sempre à origem. */
+  S.installAnkiEntityScope = function() {
+    const AP = window.AnkiParity;
+    if (!AP || AP.__globalEntityScope) return;
+    AP.__globalEntityScope = true;
+    const old = {
+      planPrefix: AP._planPrefix,
+      getNote: AP.getNote, saveNote: AP.saveNote, notes: AP.notes,
+      getNotetype: AP.getNotetype, saveNotetype: AP.saveNotetype, noteTypes: AP.noteTypes,
+      stockNotetype: AP.stockNotetype, ensureCanonicalNotes: AP.ensureCanonicalNotes,
+      ensureIdentities: AP.ensureIdentities, specialField: AP._specialField
+    };
+    const withPrefix = (pid, fn) => {
+      const prev = AP._planPrefix;
+      AP._planPrefix = () => DB._profilePrefix() + 'p:' + String(pid) + ':';
+      try { return fn(); } finally { AP._planPrefix = prev; }
+    };
+    const withOriginalEntities = (pid, fn) => {
+      const names=['getNote','saveNote','notes','getNotetype','saveNotetype','noteTypes','stockNotetype'];
+      const prev={}; names.forEach(n=>{prev[n]=AP[n];AP[n]=old[n];});
+      try { return withPrefix(pid, fn); } finally { names.forEach(n=>{AP[n]=prev[n];}); }
+    };
+    const clean = x => { const y=clone(x); if (y) { delete y._planId; delete y._planNome; } return y; };
+
+    AP.getNote = function(id, planId) {
+      if (planId != null) return withPrefix(planId, () => {
+        const x=old.getNote.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
+      });
+      return S.ankiEntity('note', id);
+    };
+    AP.getNotetype = function(id, planId) {
+      if (planId != null) return withPrefix(planId, () => {
+        const x=old.getNotetype.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
+      });
+      return S.ankiEntity('notetype', id);
+    };
+    AP.notes = function(){ return S.ankiEntities('note'); };
+    AP.noteTypes = function(){ return S.ankiEntities('notetype').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))); };
+    AP.saveNote = function(note) {
+      const pid=(note&&note._planId)||S.activePlanId(), x=clean(note);
+      const saved=withOriginalEntities(pid,()=>old.saveNote.call(AP,x));
+      return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
+    };
+    AP.saveNotetype = function(nt) {
+      const pid=(nt&&nt._planId)||S.activePlanId(), x=clean(nt);
+      const saved=withOriginalEntities(pid,()=>old.saveNotetype.call(AP,x));
+      return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
+    };
+    AP.stockNotetype = function(kind, planId) {
+      const pid=planId||S.activePlanId();
+      const saved=withOriginalEntities(pid,()=>old.stockNotetype.call(AP,kind));
+      return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
+    };
+    AP.ensureCanonicalNotes = function(cards) {
+      const source=Array.isArray(cards)?cards:S.cards(), groups=new Map();
+      source.forEach(c=>{
+        const pid=c&&c._planId||S.sourcePlanForCard(c&&c.id)||S.activePlanId();
+        if(!pid)return;if(!groups.has(String(pid)))groups.set(String(pid),{pid,rows:[]});
+        groups.get(String(pid)).rows.push(clean(c));
+      });
+      let notes=0,created=0,changed=false;
+      groups.forEach(g=>{
+        const prevSave=DB.saveCards;
+        DB.saveCards=list=>DB._set(DB.keysForPlan(g.pid).cards,(list||[]).map(clean));
+        try {
+          const r=withOriginalEntities(g.pid,()=>old.ensureCanonicalNotes.call(AP,g.rows))||{};
+          notes+=Number(r.notes)||0;created+=Number(r.created)||0;changed=changed||!!r.cardsChanged;
+        } finally { DB.saveCards=prevSave; }
+      });
+      return {notes,created,cardsChanged:changed};
+    };
+    AP.ensureIdentities = function() {
+      let cards=false,decks=false;
+      S.planIdsForScope().forEach(pid=>{
+        const prev={getCards:DB.getCards,getDecks:DB.getDecks,saveCards:DB.saveCards,saveDecks:DB.saveDecks};
+        DB.getCards=()=>S._rows(pid,'cards');DB.getDecks=()=>S._rows(pid,'decks');
+        DB.saveCards=list=>DB._set(DB.keysForPlan(pid).cards,(list||[]).map(clean));
+        DB.saveDecks=list=>DB._set(DB.keysForPlan(pid).decks,(list||[]).map(clean));
+        try { const r=old.ensureIdentities.call(AP)||{};cards=cards||!!r.cards;decks=decks||!!r.decks; }
+        finally { Object.assign(DB,prev); }
+      });
+      return {cards,decks};
+    };
+    AP._specialField = function(name,nt,note,tmpl,card) {
+      const n=String(name||'').trim();
+      if ((n==='Deck'||n==='Subdeck') && card) {
+        const d=S.deckForCard(card); if(!d)return '';
+        if(n==='Deck')return String(d.nome||'');
+        const p=String(d.nome||'').split('::');return p[p.length-1]||'';
+      }
+      return old.specialField.call(AP,name,nt,note,tmpl,card);
+    };
+
+    if (window.AnkiProductParity && !AnkiProductParity.__globalCardsForNote) {
+      AnkiProductParity.__globalCardsForNote=true;
+      AnkiProductParity._cardsForNote=function(id){
+        const k=String(id);return S.cards().filter(c=>String(AP.noteId(c))===k);
+      };
+    }
+
+    if (window.AnkiTotalParity && !AnkiTotalParity.__globalUndoScope) {
+      const T=AnkiTotalParity, oldSnapshot=T._snapshot.bind(T), oldRestore=T._restoreSnapshot.bind(T);
+      T.__globalUndoScope=true;
+      T._snapshot=function(label){
+        if(S.cardsScope()!=='all')return oldSnapshot(label);
+        return {label:String(label||'Ação'),ts:Date.now(),globalScope:true,plans:S.planIdsForScope('all').map(pid=>({
+          planId:pid,cards:clone(S._rows(pid,'cards')),decks:clone(S._rows(pid,'decks')),
+          revlog:clone(S._revlogForPlan(pid)),entities:S.ankiEntityEntries(pid)
+        }))};
+      };
+      T._restoreSnapshot=function(snap){
+        if(!snap||!snap.globalScope)return oldRestore(snap);
+        this._restoring=true;
+        try{
+          (snap.plans||[]).forEach(p=>{
+            DB._set(DB.keysForPlan(p.planId).cards,clone(p.cards||[]));
+            DB._set(DB.keysForPlan(p.planId).decks,clone(p.decks||[]));
+            S.replaceRevlogPlan(p.planId,clone(p.revlog||[]));
+            const prefix=DB._profilePrefix()+'p:'+String(p.planId)+':cards-',kill=[];
+            for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&String(k).startsWith(prefix))kill.push(k);}
+            kill.forEach(k=>localStorage.removeItem(k));(p.entities||[]).forEach(([k,v])=>localStorage.setItem(k,v));
+          });
+          CardEngine.invalidateDueCache();
+          if(window.CardsScreen&&CardsScreen.render)CardsScreen.render();
+          if(window.AnkiProductParity&&document.getElementById('anki-browser-modal')&&document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
+          return true;
+        }finally{this._restoring=false;this._syncUndoButtons();}
+      };
+    }
+  };
+
   const boot = () => {
-    S.installStyle(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+    S.installAnkiEntityScope(); S.installStyle(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
