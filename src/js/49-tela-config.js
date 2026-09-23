@@ -40,6 +40,27 @@ const ConfigScreen = {
     this.renderMenuPreferences();
   },
 
+  // ---------- Preferências de navegação ----------
+  renderMenuPreferences() {
+    const toggle = document.getElementById('config-anki-menu-toggle');
+    if (!toggle) return;
+    const sync = () => {
+      const visible = MenuPreferences.apply();
+      toggle.classList.toggle('on', visible);
+      toggle.setAttribute('aria-checked', visible ? 'true' : 'false');
+      toggle.setAttribute('aria-label', visible ? 'Desativar menu Anki' : 'Ativar menu Anki');
+      toggle.title = visible ? 'Ocultar o Anki Oficial do menu' : 'Mostrar o Anki Oficial no menu';
+      return visible;
+    };
+    sync();
+    toggle.onclick = () => {
+      const next = toggle.getAttribute('aria-checked') !== 'true';
+      const actual = MenuPreferences.setAnkiVisible(next);
+      sync();
+      showToast(actual ? 'Menu Anki ativado' : 'Menu Anki desativado');
+    };
+  },
+
   // ---------- Matérias ----------
   renderSubjects() {
     const container = document.getElementById('config-subjects-list');
