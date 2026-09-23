@@ -329,30 +329,81 @@ const AnkiTotalParity = {
   _customCfg(){try{return Object.assign({enabled:false,source:''},JSON.parse(localStorage.getItem(this._customKey())||'{}')||{});}catch(_){return {enabled:false,source:''};}},
   _saveCustomCfg(v){try{DB.setRaw(this._customKey(),JSON.stringify(v));}catch(_){localStorage.setItem(this._customKey(),JSON.stringify(v));}},
   _validateSchedulePatch(base,out){
-    if(!out||typeof out!=='object')return base;const p=Object.assign({},base),allowed=['due','dueTs','intervalo','_kind','_val','customData','status'];
+    if(!out||typeof out!=='object')return base;const p=Object.assign({},base),allowed=['due','dueTs','intervalo','_kind','_val','customData','status','ease'];
     for(const k of allowed)if(Object.prototype.hasOwnProperty.call(out,k))p[k]=out[k];
     if(p.dueTs!=null&&!Number.isFinite(Number(p.dueTs)))p.dueTs=base.dueTs;
     if(p.intervalo!=null&&!Number.isFinite(Number(p.intervalo)))p.intervalo=base.intervalo;
     if(p._val!=null&&!Number.isFinite(Number(p._val)))p._val=base._val;
+    if(p.ease!=null&&(!Number.isFinite(Number(p.ease))||Number(p.ease)<1.3))p.ease=base.ease;
     if(p.due&&!/^\d{4}-\d{2}-\d{2}$/.test(String(p.due)))p.due=base.due;
     return p;
+  },
+  _customGradeKey(grade){
+    const g=String(grade||'bom').toLowerCase();return g==='errei'||g==='naosei'?'again':g==='dificil'?'hard':g==='facil'?'easy':'good';
+  },
+  _customPhase(card,patch){
+    const p=String(patch&&patch.phase||card&&card.phase||'review').toLowerCase();
+    if(p==='new')return 'new';if(p==='learning')return 'learning';if(p==='relearning')return 'relearning';return 'review';
+  },
+  _stateLeaf(card,patch){
+    patch=patch||{};const kind=patch._kind||((patch.dueTs!=null)?'min':'day'),val=Number(patch._val!=null?patch._val:patch.intervalo)||0;
+    const leaf={customData:patch.customData==null?(card&&card.customData||''):patch.customData};
+    if(kind==='min')leaf.scheduledSecs=Math.max(0,Math.round(val*60));
+    else leaf.scheduledDays=Math.max(0,Math.round(val));
+    const ease=Number(patch.ease!=null?patch.ease:card&&card.ease);if(Number.isFinite(ease))leaf.easeFactor=ease;
+    if(card&&card.s!=null&&card.d!=null)leaf.memoryState={stability:Number(card.s),difficulty:Number(card.d)};
+    return leaf;
+  },
+  _buildSchedulingStates(card,scheduler){
+    const defs=[['again','errei'],['hard','dificil'],['good','bom'],['easy','facil']],states={},patches={};
+    for(const [key,grade] of defs){
+      const patch=scheduler(card,grade),phase=this._customPhase(card,patch),leaf=this._stateLeaf(card,patch);patches[key]=patch;
+      if(card&&card.originalDeckId){
+        states[key]={filtered:(card.filteredReschedule===false?{previewing:{[phase]:leaf}}:{rescheduling:{originalState:{[phase]:leaf}}})};
+      }else states[key]={normal:{[phase]:leaf}};
+    }
+    return {states,patches};
+  },
+  _stateLeafFor(states,key,card,phase){
+    const root=states&&states[key];if(!root)return null;
+    if(card&&card.originalDeckId){
+      if(root.filtered&&root.filtered.rescheduling&&root.filtered.rescheduling.originalState)return root.filtered.rescheduling.originalState[phase]||Object.values(root.filtered.rescheduling.originalState)[0]||null;
+      if(root.filtered&&root.filtered.previewing)return root.filtered.previewing[phase]||Object.values(root.filtered.previewing)[0]||null;
+    }
+    return root.normal&&(root.normal[phase]||Object.values(root.normal)[0])||null;
+  },
+  _applyStateLeaf(base,leaf){
+    if(!leaf||typeof leaf!=='object')return base;const out=Object.assign({},base),now=Date.now(),today=(typeof todayCards==='function'?todayCards():String(base.due||'').slice(0,10));
+    if(Number.isFinite(Number(leaf.scheduledSecs))){
+      const secs=Math.max(0,Number(leaf.scheduledSecs));out.dueTs=now+Math.round(secs*1000);out.due=today;out._kind='min';out._val=secs/60;
+    }else if(Number.isFinite(Number(leaf.scheduledDays))){
+      const days=Math.max(0,Math.round(Number(leaf.scheduledDays)));out.intervalo=days;out.dueTs=null;out.due=CardEngine.addDays(today,days);out._kind='day';out._val=days;
+    }
+    if(Number.isFinite(Number(leaf.easeFactor)))out.ease=Number(leaf.easeFactor);
+    if(Object.prototype.hasOwnProperty.call(leaf,'customData'))out.customData=leaf.customData;
+    return this._validateSchedulePatch(base,out);
   },
   _runCustomScheduling(card,grade,patch){
     const cfg=this._customCfg();if(!cfg.enabled||!String(cfg.source||'').trim())return patch;
     try{
-      const fn=new Function('card','grade','patch','config','"use strict";\n'+String(cfg.source));
-      const out=fn(this.clone(card),grade,this.clone(patch),this.clone(CardsConfig.forDeck(card.originalDeckId||card.deckId)));
-      return this._validateSchedulePatch(patch,out);
+      const bundle=this._buildSchedulingStates(card,this._baseScheduler||((c,g)=>patch)),states=bundle.states,key=this._customGradeKey(grade),phase=this._customPhase(card,patch);
+      const fn=new Function('states','card','grade','patch','config','"use strict";\n'+String(cfg.source||'')+'\n;return states;');
+      const out=fn(states,this.clone(card),grade,this.clone(patch),this.clone(CardsConfig.forDeck(card.originalDeckId||card.deckId)));
+      // Compatibilidade com scripts antigos do Study que retornavam um patch.
+      if(out&&typeof out==='object'&&!out.again&&!out.hard&&!out.good&&!out.easy)return this._validateSchedulePatch(patch,out);
+      const finalStates=(out&&typeof out==='object')?out:states,leaf=this._stateLeafFor(finalStates,key,card,phase);
+      return this._applyStateLeaf(patch,leaf);
     }catch(e){if(!this._customSchedulingErrorShown){this._customSchedulingErrorShown=true;console.warn('Custom Scheduling',e);showToast('Custom Scheduling falhou; o agendamento padrão foi preservado.');}return patch;}
   },
   _installCustomScheduling(){
     if(typeof CardEngine==='undefined'||typeof CardEngine.schedule!=='function'||CardEngine.schedule.__ankiCustom)return;
-    const old=CardEngine.schedule.bind(CardEngine),self=this;CardEngine.schedule=function(card,grade){let p=old(card,grade);p=window.AnkiStudyExtensions?window.AnkiStudyExtensions.filter('schedule:after',p,{card,grade,config:CardsConfig.forDeck(card.originalDeckId||card.deckId)}):p;return self._runCustomScheduling(card,grade,p);};CardEngine.schedule.__ankiCustom=true;
+    const old=CardEngine.schedule.bind(CardEngine),self=this;this._baseScheduler=old;
+    CardEngine.schedule=function(card,grade){let p=old(card,grade);p=window.AnkiStudyExtensions?window.AnkiStudyExtensions.filter('schedule:after',p,{card,grade,config:CardsConfig.forDeck(card.originalDeckId||card.deckId)}):p;return self._runCustomScheduling(card,grade,p);};CardEngine.schedule.__ankiCustom=true;
   },
   openCustomScheduling(){
     const c=this._customCfg();UI.prompt([
-      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'Executa apenas o código salvo por você. Em erro ou saída inválida, o scheduler oficial do Study é preservado.'},
-      {key:'source',label:'Código JavaScript',type:'textarea',rows:14,value:c.source||'',hint:'Recebe card, grade, patch e config. Retorne somente campos que deseja substituir. Ex.: return { intervalo: Math.max(1, patch.intervalo), _val: Math.max(1, patch._val) };'}
+      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'Compatível com a variável states do Custom Scheduling atual do Anki. Em erro ou saída inválida, o agendamento padrão é preservado.'},
+      {key:'source',label:'Código JavaScript',type:'textarea',rows:14,value:c.source||'',hint:'Ex.: if (states.hard.normal?.learning) states.hard.normal.learning.scheduledSecs = 123 * 60; Também aceita o formato legado do Study com return { intervalo, _val, due... }.'}
     ],{title:'🧪 Custom Scheduling',okText:'Salvar'}).then(v=>{if(!v)return;this._saveCustomCfg({enabled:v.enabled==='1',source:String(v.source||'')});this._customSchedulingErrorShown=false;showToast('Custom Scheduling salvo');});
   },
 
