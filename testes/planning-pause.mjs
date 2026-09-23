@@ -75,6 +75,8 @@ assert.equal(P.getActivePlanId(),'A','pausar o ativo deve migrar para outro oper
 r=P.pausePlan('A');
 assert.equal(r.ok,false);
 assert.equal(r.reason,'last-operational','nunca pode deixar o perfil sem planejamento operacional');
+assert.equal(P.deletePlan('A'),false,'não pode excluir o último operacional enquanto só restarem pausados');
+assert.equal(P.getActivePlanId(),'A','proteção de exclusão deve preservar o contexto operacional');
 
 // Contrato transversal: operação congela; conhecimento Anki continua global.
 const db=read('src/js/11-db.js');
