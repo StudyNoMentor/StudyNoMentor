@@ -589,9 +589,13 @@ const DB = {
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
   saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
   clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
+  // leituras cruzadas são somente leitura: permitem reaproveitar um ciclo de outro
+  // planejamento sem trocar o namespace ativo nem criar vínculo entre origem/destino.
+  getCurrentCycleForPlan(planId) { return this._get(this.keysForPlan(planId).currentCycle, null); },
   // memória do último ciclo montado (para pré-preencher a próxima semana) — por planejamento
   getLastCycleSetup() { return this._get(this.KEYS.lastCycleSetup, null); },
   saveLastCycleSetup(setup) { this._set(this.KEYS.lastCycleSetup, setup); },
+  getLastCycleSetupForPlan(planId) { return this._get(this.keysForPlan(planId).lastCycleSetup, null); },
 
   // ---- Modelo de grade (rotina semanal persistente, reutilizada entre ciclos) ----
   // Estrutura: { grade: { Segunda:[celulas], ... }, sessions: N }
