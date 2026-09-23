@@ -213,6 +213,7 @@ def queued_payload(col: Collection) -> dict[str, Any]:
     labels = list(col.sched.describe_next_states(q.states))
     note = card.note()
     note_type = note.note_type() or {}
+    conf = col.decks.config_dict_for_deck_id(card.current_deck_id())
     return {
         "finished": False,
         "counts": counts,
@@ -230,6 +231,16 @@ def queued_payload(col: Collection) -> dict[str, Any]:
             "answer": card.answer(),
             "question_av_tags": av_tags(card, False),
             "answer_av_tags": av_tags(card, True),
+            "auto_advance": {
+                "seconds_to_show_question": float(conf.get("secondsToShowQuestion", 0) or 0),
+                "seconds_to_show_answer": float(conf.get("secondsToShowAnswer", 0) or 0),
+                "question_action": int(conf.get("questionAction", 0) or 0),
+                "answer_action": int(conf.get("answerAction", 0) or 0),
+                "wait_for_audio": bool(conf.get("waitForAudio", False)),
+                "show_timer": bool(conf.get("timer", False)),
+                "stop_timer_on_answer": bool(conf.get("stopTimerOnAnswer", False)),
+                "max_answer_seconds": int(conf.get("maxTaken", 0) or 0),
+            },
             "states": pb(q.states),
             "buttons": [
                 {"rating": idx + 1, "label": label}
