@@ -520,6 +520,17 @@
         </div>
       </div>
       <div style="padding: 20px 28px 28px;">
+        <div id="cycle-import-wrap" style="display:none; margin-bottom:18px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface-soft, var(--surface));">
+          <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <div class="field" style="margin:0; flex:1 1 260px;">
+              <label for="cycle-import-plan">Usar ciclo de outro planejamento</label>
+              <select id="cycle-import-plan"></select>
+            </div>
+            <button class="btn-secondary" id="btn-import-cycle" type="button" disabled>Usar como sugestão</button>
+          </div>
+          <p class="hint" id="cycle-import-status" style="margin:8px 0 0;">Copia carga horária, matérias e tempos como ponto de partida. Datas, histórico e grade não são copiados, e o planejamento de origem não é alterado.</p>
+        </div>
+
         <div class="field-group">
           <div class="field">
             <label>Carga horária semanal</label>
