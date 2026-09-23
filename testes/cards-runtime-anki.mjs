@@ -40,6 +40,9 @@ const typedNc=R.buildSrcdoc(nt,'[[type:nc:Front]]','answer',{id:123},{fields:{Fr
 assert.match(typedNc,/is-correct/,'type:nc deve ignorar diacríticos');
 assert.doesNotMatch(typedNc,/<span class="typeBad">/,'diferença apenas de diacrítico não pode ser marcada como erro');
 assert.match(typedQ,/snm-anki-show-answer/,'Enter no campo digitado deve revelar a resposta');
+assert.match(typedQ,/window\.pycmd/,'template sandbox deve expor bridge pycmd compatível');
+assert.match(typedQ,/playQueue\(avNodes\(\)\)/,'runtime deve reproduzir fila AV inteira em ordem');
+assert.match(typedQ,/snm-anki-av-state/,'runtime deve reportar estado AV ao Auto Advance');
 R.clearTyped({id:123});
 assert.equal(R._typedAnswers.has('123|Front'),false,'resposta digitada deve ser limpa ao avançar o card');
 assert.equal(R._needsMath('Preço: R$ 100'),false,'valor monetário não deve carregar MathJax');
