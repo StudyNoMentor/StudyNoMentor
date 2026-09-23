@@ -9,6 +9,7 @@ use rand::distr::weighted::WeightedIndex;
 use rand::distr::Distribution;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rand::Rng;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
@@ -330,7 +331,7 @@ fn simulator_post_schedule(
     choices[dist.sample(&mut rng)].0 as f32
 }
 
-fn review_priority(order: &str) -> Option<ReviewPriorityFn> {
+fn review_priority(order: &str, deck_size: usize) -> Option<ReviewPriorityFn> {
     match order {
         "easeAsc" => Some(ReviewPriorityFn::new(|c: &Card| -(c.difficulty * 100.0) as i32)),
         "easeDesc" => Some(ReviewPriorityFn::new(|c: &Card| (c.difficulty * 100.0) as i32)),
@@ -339,6 +340,8 @@ fn review_priority(order: &str) -> Option<ReviewPriorityFn> {
         "retrievabilityAsc" => Some(ReviewPriorityFn::new(|c: &Card| (c.retrievability() * 1000.0) as i32)),
         "retrievabilityDesc" => Some(ReviewPriorityFn::new(|c: &Card| -(c.retrievability() * 1000.0) as i32)),
         "day" | "dayThenDeck" | "deckThenDay" => Some(ReviewPriorityFn::new(|c: &Card| c.scheduled_due() as i32)),
+        "random" => Some(ReviewPriorityFn::new(move |_c: &Card| rand::rng().random_range(0..deck_size.max(1)) as i32)),
+        // O próprio Anki ainda não implementa Added/ReverseAdded/RelativeOverdueness no simulador.
         _ => None,
     }
 }
@@ -452,7 +455,7 @@ pub fn simulate_json(input_json: &str) -> Result<String, JsValue> {
         new_cards_ignore_review_limit: input.new_cards_ignore_review_limit,
         suspend_after_lapses: input.suspend_after_lapses,
         post_scheduling_fn,
-        review_priority_fn: review_priority(&input.review_order),
+        review_priority_fn: review_priority(&input.review_order, cards.len()),
         learning_step_transitions: observed.learning_step_transitions,
         relearning_step_transitions: observed.relearning_step_transitions,
         state_rating_costs: observed.state_rating_costs,
