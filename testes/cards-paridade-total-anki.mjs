@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { criarAmbiente } from '../audit/cards-20260921-v2/harness.mjs';
 
 let checks=0;
@@ -17,6 +18,21 @@ ok(CardEngine.hasContent('<div style="background-image:url(img.png)"></div>'),'b
 eq(CardEngine.hasContent('<div><br></div>'),false,'HTML estrutural vazio não pode contar como conteúdo');
 const telaSrc=A.source?A.source('src/js/44-tela-cards.js'):null;
 if(telaSrc) ok(telaSrc.includes('CardEngine.hasContent(frente)')&&telaSrc.includes('CardEngine.hasContent(verso)'),'salvamento simples deve validar mídia, não só texto');
+
+// ── Modo foco + auditoria multi-planejamento ────────────────────────────────
+{
+  const src=fs.readFileSync('src/js/44-tela-cards.js','utf8');
+  const css=fs.readFileSync('src/css/01-base.css','utf8');
+  const esc=src.indexOf("if ((e.key === 'Escape' || e.code === 'Escape') && this.emFoco())");
+  const guard=src.indexOf("if (!this._reviewQueue || this._reviewIdx >= this._reviewQueue.length) return;");
+  ok(esc>=0&&guard>=0&&esc<guard,'Esc do modo foco deve sair antes de qualquer guarda da fila');
+  ok(css.includes('body.cards-foco #foco-bar {'),'foco dos Cards deve exibir apenas a barra #foco-bar');
+  ok(!css.includes('body.cards-foco .foco-bar {'),'seletor genérico não pode exibir também a barra do Anki Oficial');
+  ok(src.includes('const cards = this.collectionCards();')&&src.includes('const revlog = this._statsRevlog(false);')&&src.includes('const decks = this.collectionDecks();'),
+    'auditoria deve respeitar o escopo atual dos Cards em cards/revlog/baralhos');
+  ok(src.includes("label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento'"),
+    'auditoria deve declarar no JSON qual escopo foi exportado');
+}
 
 
 // ── Sessão do reviewer: cache de fila como Collection.state.card_queues ───
