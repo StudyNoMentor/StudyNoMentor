@@ -12,7 +12,8 @@ const AnkiOfficial = {
   _blobUrls: [],
 
   apiBase() {
-    const raw = (window.ANKI_OFFICIAL_API_URL || localStorage.getItem('ankiOfficialApiUrl') || '').trim();
+    const fallback = 'https://anki-official-production.up.railway.app';
+    const raw = (window.ANKI_OFFICIAL_API_URL || localStorage.getItem('ankiOfficialApiUrl') || fallback).trim();
     return raw.replace(/\/$/, '');
   },
 
