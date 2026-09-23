@@ -359,26 +359,45 @@ const AnkiOfficial = {
     const root=this.root(); if(!root) return;
     try {
       const [decks,nts]=await Promise.all([this.request('/api/anki/decks'),this.request('/api/anki/notetypes')]);
+      const notetypes=nts.notetypes||[];
       root.innerHTML=`
         <div class="anki-official-form">
           <div class="field"><label>Baralho</label><select id="anki-add-deck">${(decks.decks||[]).map(d=>`<option value="${d.id}" ${Number(d.id)===Number(decks.current_deck_id)?'selected':''}>${this.esc(d.name)}</option>`).join('')}</select></div>
-          <div class="field"><label>Tipo de nota</label><select id="anki-add-nt">${(nts.notetypes||[]).map(n=>`<option value="${n.id}">${this.esc(n.name)}</option>`).join('')}</select></div>
-          <div class="field"><label>Frente</label><textarea id="anki-add-front"></textarea></div>
-          <div class="field"><label>Verso</label><textarea id="anki-add-back"></textarea></div>
+          <div class="field"><label>Tipo de nota</label><select id="anki-add-nt">${notetypes.map(n=>`<option value="${n.id}">${this.esc(n.name)}</option>`).join('')}</select></div>
+          <div id="anki-add-fields"></div>
           <div class="field"><label>Tags</label><input id="anki-add-tags" placeholder="tag1 tag2"></div>
           <button type="button" class="btn-primary" id="anki-add-save">Adicionar com o Anki oficial</button>
         </div>`;
+
+      const ntSelect=document.getElementById('anki-add-nt');
+      const fieldsBox=document.getElementById('anki-add-fields');
+      const renderFields=()=>{
+        const nt=notetypes.find(n=>String(n.id)===String(ntSelect.value)) || notetypes[0];
+        const fields=(nt&&nt.fields)||[];
+        fieldsBox.innerHTML=fields.map((name,i)=>`
+          <div class="field">
+            <label>${this.esc(name)}</label>
+            <textarea data-anki-add-field="${i}" data-anki-field-name="${this.esc(name)}"></textarea>
+          </div>`).join('') || '<p class="hint">Este tipo de nota não expôs campos editáveis.</p>';
+      };
+      ntSelect.addEventListener('change', renderFields);
+      renderFields();
+
       document.getElementById('anki-add-save').onclick=async()=>{
         try{
+          const fields={};
+          fieldsBox.querySelectorAll('[data-anki-field-name]').forEach(el=>{
+            fields[el.dataset.ankiFieldName]=el.value;
+          });
           const body={
             deck_id:Number(document.getElementById('anki-add-deck').value),
-            notetype_id:Number(document.getElementById('anki-add-nt').value),
-            fields:{Front:document.getElementById('anki-add-front').value,Back:document.getElementById('anki-add-back').value},
+            notetype_id:Number(ntSelect.value),
+            fields,
             tags:(document.getElementById('anki-add-tags').value||'').split(/\s+/).filter(Boolean)
           };
           await this.request('/api/anki/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
           this.alert('Nota adicionada pelo backend oficial do Anki.');
-          document.getElementById('anki-add-front').value=''; document.getElementById('anki-add-back').value='';
+          fieldsBox.querySelectorAll('textarea').forEach(el=>{el.value='';});
         }catch(e){this.alert(e.message,'error');}
       };
     } catch(e){this.alert(e.message,'error');}
