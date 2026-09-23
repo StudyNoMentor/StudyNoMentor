@@ -8,6 +8,11 @@ const AnkiOfficialSurfaces = {
   A:null,
   browser:{mode:'cards',selectedCards:new Set(),selectedNotes:new Set(),offset:0,limit:100,query:'',facets:null,columns:null,sortKey:'',reverse:false},
   shortcuts:null,
+  autoAdvanceEnabled:false,
+  autoTimer:null,
+  reviewTimer:null,
+  _lastAudioPromise:Promise.resolve(),
+  _typedAnswer:'',
 
   esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');},
   plain(v){try{return new DOMParser().parseFromString(String(v||''),'text/html').body.textContent.replace(/\s+/g,' ').trim();}catch(_){return String(v||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();}},
@@ -375,8 +380,38 @@ const AnkiOfficialSurfaces = {
   },
 
   patchReviewer(){
+    const oldPlay=this.A.playAv.bind(this.A);
+    this.A.playAv=(tags)=>{
+      const promise=Promise.resolve(oldPlay(tags));
+      this._lastAudioPromise=promise.catch(()=>{});
+      return promise;
+    };
+    this.A.openEditNote=(cardId)=>this.openRichEditNote(cardId);
+
+    const oldShow=this.A.showAnswer.bind(this.A);
+    this.A.showAnswer=async()=>{
+      const card=this.A.review&&this.A.review.card;if(!card||this.A._answerShown)return;
+      clearTimeout(this.autoTimer);this.autoTimer=null;
+      const typed=document.getElementById('anki-type-answer-input');
+      this._typedAnswer=typed?typed.value:this._typedAnswer||'';
+      let originalAnswer=null;
+      try{
+        if(card.type_answer&&card.type_answer.enabled){
+          const out=await this.api('/api/anki/reviewer/type-answer/'+card.id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provided:this._typedAnswer})});
+          if(out&&out.answer_html){originalAnswer=card.answer;card.answer=out.answer_html;}
+        }
+        await oldShow();
+      }finally{
+        if(originalAnswer!==null)card.answer=originalAnswer;
+      }
+      if(card.auto_advance?.stop_timer_on_answer&&this.reviewTimer){clearInterval(this.reviewTimer);this.reviewTimer=null;}
+      void this.armAutoAdvance('answer',card);
+    };
+
     const old=this.A.renderReviewer.bind(this.A);
     this.A.renderReviewer=async(data)=>{
+      this.clearReviewerTimers();
+      this._typedAnswer='';
       await old(data);
       const root=this.A.root(),card=this.A.review&&this.A.review.card;if(!root||!card)return;
       const nav=root.querySelector('.anki-study-review-nav-left');if(!nav)return;
@@ -385,7 +420,106 @@ const AnkiOfficialSurfaces = {
       add('anki-review-replay','🔊 Mídia',()=>void this.A.playAv(this.A._answerShown?card.answer_av_tags:card.question_av_tags));
       add('anki-review-whiteboard','✎ Rascunho',()=>this.openWhiteboard());
       add('anki-review-voice','🎙 Voz',()=>this.openVoiceRecorder());
+      add('anki-review-auto',this.autoAdvanceEnabled?'⏩ Auto ON':'⏩ Auto',()=>this.toggleAutoAdvance());
+
+      if(card.type_answer){
+        const frame=document.getElementById('anki-official-card-frame');
+        if(frame&&card.type_answer.question_html&&frame.srcdoc){
+          frame.srcdoc=frame.srcdoc.replace(/\\[\\[type:.+?\\]\\]/g,'');
+        }
+        if(card.type_answer.enabled){
+          const actions=document.getElementById('anki-official-answer-buttons');
+          const show=document.getElementById('anki-official-show-answer');
+          if(actions&&show&&!document.getElementById('anki-type-answer-input')){
+            const box=document.createElement('div');box.className='anki-type-answer-box';
+            box.innerHTML='<label for="anki-type-answer-input">Digite a resposta</label><input id="anki-type-answer-input" type="text" autocomplete="off" spellcheck="false">';
+            actions.insertBefore(box,show);
+            const input=document.getElementById('anki-type-answer-input');
+            input.style.fontFamily=card.type_answer.font||'inherit';input.style.fontSize=Math.max(12,Number(card.type_answer.size||20))+'px';
+            input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();void this.A.showAnswer();}};
+            setTimeout(()=>input.focus(),0);
+          }
+        }
+      }
+
+      this.startReviewerTimer(card);
+      if(this.autoAdvanceEnabled)void this.armAutoAdvance('question',card);
     };
+  },
+  clearReviewerTimers(){
+    if(this.autoTimer){clearTimeout(this.autoTimer);this.autoTimer=null;}
+    if(this.reviewTimer){clearInterval(this.reviewTimer);this.reviewTimer=null;}
+  },
+  startReviewerTimer(card){
+    if(!card.auto_advance?.show_timer)return;
+    const meta=this.A.root()?.querySelector('.cards-review-meta');if(!meta)return;
+    const chip=document.createElement('span');chip.id='anki-review-elapsed';chip.className='cards-limit-chip';meta.insertBefore(chip,meta.querySelector('.anki-study-review-meta-spacer'));
+    const started=this.A.reviewStartedAt,max=Math.max(0,Number(card.auto_advance.max_answer_seconds||0));
+    const tick=()=>{let sec=Math.max(0,Math.floor((Date.now()-started)/1000));if(max)sec=Math.min(sec,max);chip.textContent='⏱ '+sec+'s';};
+    tick();this.reviewTimer=setInterval(tick,1000);
+  },
+  toggleAutoAdvance(){
+    this.autoAdvanceEnabled=!this.autoAdvanceEnabled;
+    const b=document.getElementById('anki-review-auto');if(b){b.textContent=this.autoAdvanceEnabled?'⏩ Auto ON':'⏩ Auto';b.classList.toggle('active',this.autoAdvanceEnabled);}
+    clearTimeout(this.autoTimer);this.autoTimer=null;
+    const card=this.A.review&&this.A.review.card;
+    if(this.autoAdvanceEnabled&&card)void this.armAutoAdvance(this.A._answerShown?'answer':'question',card);
+    this.toast(this.autoAdvanceEnabled?'Auto Advance ativado nesta sessão.':'Auto Advance desativado.');
+  },
+  async armAutoAdvance(phase,card){
+    clearTimeout(this.autoTimer);this.autoTimer=null;
+    if(!this.autoAdvanceEnabled||!card)return;
+    const cfg=card.auto_advance||{};
+    const seconds=Number(phase==='question'?cfg.seconds_to_show_question:cfg.seconds_to_show_answer)||0;
+    if(seconds<=0)return;
+    const cardId=Number(card.id);
+    const fire=async()=>{
+      if(!this.autoAdvanceEnabled||Number(this.A.review?.card?.id)!==cardId)return;
+      if(cfg.wait_for_audio&&this._lastAudioPromise)await this._lastAudioPromise;
+      if(!this.autoAdvanceEnabled||Number(this.A.review?.card?.id)!==cardId)return;
+      if(phase==='question'){
+        if(Number(cfg.question_action||0)===0)await this.A.showAnswer();
+        else this.toast('Tempo da pergunta encerrado.');
+        return;
+      }
+      switch(Number(cfg.answer_action||0)){
+        case 1: await this.A.answer(1);break;
+        case 2: await this.A.answer(3);break;
+        case 3: await this.A.answer(2);break;
+        case 4: this.toast('Tempo da resposta encerrado.');break;
+        default: await this.A.cardAction('bury',cardId,true);break;
+      }
+    };
+    this.autoTimer=setTimeout(()=>void fire(),Math.max(50,seconds*1000));
+  },
+  wrapSelection(textarea,before,after){
+    const start=textarea.selectionStart??0,end=textarea.selectionEnd??start,value=textarea.value;
+    textarea.value=value.slice(0,start)+before+value.slice(start,end)+after+value.slice(end);
+    textarea.focus();textarea.selectionStart=start+before.length;textarea.selectionEnd=end+before.length;
+    textarea.dispatchEvent(new Event('input',{bubbles:true}));
+  },
+  async uploadEditorMedia(file){
+    const fd=new FormData();fd.append('file',file,file.name);
+    return this.api('/api/anki/editor/media',{method:'POST',body:fd});
+  },
+  async openRichEditNote(cardId){
+    try{
+      const detail=await this.api('/api/anki/card/'+cardId+'/detail');
+      const fields=Object.entries(detail.fields||{}).map(([name,value])=>'<div class="field anki-rich-field"><label>'+this.esc(name)+'</label><div class="anki-rich-toolbar"><button type="button" data-rich-wrap="b" title="Negrito"><b>B</b></button><button type="button" data-rich-wrap="i" title="Itálico"><i>I</i></button><button type="button" data-rich-wrap="u" title="Sublinhado"><u>U</u></button><button type="button" data-rich-media="image">🖼 Imagem</button><button type="button" data-rich-media="audio">🔊 Áudio</button></div><textarea data-anki-rich-field="'+this.esc(name)+'">'+this.esc(value)+'</textarea></div>').join('');
+      this.modal('✎ Editar nota',detail.notetype_name||'Anki Oficial','<div class="anki-study-modal-fields">'+fields+'<div class="field"><label>Tags</label><input id="anki-rich-tags" value="'+this.esc((detail.tags||[]).join(' '))+'"></div><input type="file" id="anki-rich-media-file" hidden></div>','<button class="btn-secondary" id="anki-surface-cancel">Cancelar</button><span style="flex:1"></span><button class="btn-primary" id="anki-rich-save">Salvar no Anki</button>');
+      document.getElementById('anki-surface-cancel').onclick=()=>this.closeModal();
+      let active=document.querySelector('[data-anki-rich-field]');
+      document.querySelectorAll('[data-anki-rich-field]').forEach(el=>{el.onfocus=()=>active=el;});
+      document.querySelectorAll('[data-rich-wrap]').forEach(b=>b.onclick=()=>{if(active)this.wrapSelection(active,'<'+b.dataset.richWrap+'>','</'+b.dataset.richWrap+'>');});
+      const picker=document.getElementById('anki-rich-media-file');let mediaKind='image';
+      document.querySelectorAll('[data-rich-media]').forEach(b=>b.onclick=()=>{if(!active)return;mediaKind=b.dataset.richMedia;picker.accept=mediaKind==='image'?'image/*':'audio/*';picker.click();});
+      picker.onchange=async()=>{const file=picker.files&&picker.files[0];if(!file||!active)return;try{const out=await this.uploadEditorMedia(file);const snippet=mediaKind==='image'?'<img src="'+out.filename+'">':'[sound:'+out.filename+']';this.wrapSelection(active,snippet,'');this.toast('Mídia adicionada pelo MediaManager oficial.');}catch(e){this.toast(e.message,'error');}picker.value='';};
+      document.getElementById('anki-rich-save').onclick=async()=>{
+        const values={};document.querySelectorAll('[data-anki-rich-field]').forEach(el=>values[el.dataset.ankiRichField]=el.value);
+        const tags=(document.getElementById('anki-rich-tags').value||'').split(/\\s+/).filter(Boolean);
+        try{await this.api('/api/anki/note/'+detail.note_id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:values,tags})});this.closeModal();this.toast('Nota atualizada pelo Anki oficial.');if(this.A.view==='review')await this.A.renderReviewer();else await this.renderBrowser();}catch(e){this.toast(e.message,'error');}
+      };
+    }catch(e){this.toast(e.message,'error');}
   },
   async bulkSingle(action,card){
     await this.api('/api/anki/browser/bulk',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,card_ids:[card.id],note_ids:[card.note_id]})});
