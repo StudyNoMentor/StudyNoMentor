@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2f89a16e7f">
+<meta name="diario-versao" content="ve0dcbf2f9d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -8213,6 +8213,8 @@ window.__relationalBoot = true;
     <div class="report-dialog-foot"><button type="button" class="btn-secondary" id="study-report-cancel">Cancelar</button><button type="button" class="btn-secondary" id="study-report-preview">Visualizar</button><button type="button" class="btn-primary" id="study-report-generate">Gerar PDF</button></div>
   </div>
 </div>
+
+</style>
 
 <style id="ux-base">
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -27197,7 +27199,7 @@ const ConquistasEngine = {
       d.min += (e.durationMin || 0); d.q += (e.total || 0); d.ac += (e.correct || 0);
     });
     try {
-      (DB.getRevlog() || []).forEach(r => { if (r.date) get(r.date).cards++; });
+      ((DB.getAllRevlogTagged ? DB.getAllRevlogTagged() : DB.getRevlog()) || []).forEach(r => { if (r.date) get(r.date).cards++; });
     } catch (_) { _quiet(_); }
     /* As Atividades Extras só entram AQUI se entrarem também na Evolução: o
        interruptor global ("Atividades marcadas entram nas métricas") e o
@@ -27206,7 +27208,7 @@ const ConquistasEngine = {
        descontar as horas e as Conquistas continuarem contando com elas. */
     try {
       if (DB.extrasCountGlobal()) {
-        (DB.getExtras() || []).forEach(x => {
+        ((DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras()) || []).forEach(x => {
           if (!x.contaMetricas) return;
           (x.historico || []).forEach(h => {
             if (!h.data) return;
@@ -27320,14 +27322,14 @@ const ConquistasEngine = {
     const vals = Object.values(dias);
     const hoje = todayLocal();
     const g = (fn, d) => { try { return fn(); } catch (_) { return d; } };
-    const cards = g(() => DB.getCards(), []);
-    const revlog = g(() => DB.getRevlog(), []);
-    const leis = g(() => DB.getLeis(), []);
-    const extras = g(() => DB.getExtras(), []);
-    const decks = g(() => DB.getDecks(), []);
-    const tec = g(() => DB.getTecSnapshots(), []);
-    const incid = g(() => DB.getIncidencia(), []);
-    const ciclos = g(() => DB.getCycleHistory(), []);
+    const cards = g(() => DB.getAllCardsTagged ? DB.getAllCardsTagged() : DB.getCards(), []);
+    const revlog = g(() => DB.getAllRevlogTagged ? DB.getAllRevlogTagged() : DB.getRevlog(), []);
+    const leis = g(() => DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis(), []);
+    const extras = g(() => DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras(), []);
+    const decks = g(() => DB.getAllDecksTagged ? DB.getAllDecksTagged() : DB.getDecks(), []);
+    const tec = g(() => DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots(), []);
+    const incid = g(() => DB.getAllIncidenciaTagged ? DB.getAllIncidenciaTagged() : DB.getIncidencia(), []);
+    const ciclos = g(() => DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory(), []);
     const ent = entries || [];
 
     // semanas e meses ativos
@@ -27675,7 +27677,8 @@ const EvolucaoScreen = {
     if (!DB.extrasCountGlobal()) return [];
     const methodByTipo = { anki: 'Revisão Teórica', leitura: 'Leitura', questoes: 'Questões', revisao: 'Revisão Teórica', video: 'Videoaula', livre: 'Outro' };
     const out = [];
-    DB.getExtras().forEach(x => {
+    const extras = this.scope === 'all' && DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras();
+    extras.forEach(x => {
       if (!x.contaMetricas) return;
       (x.historico || []).forEach((h, i) => {
         const min = Math.max(0, h.minutos || (x.tipo === 'video' ? h.quantidade : 0) || 0);
@@ -28499,7 +28502,7 @@ const EvolucaoScreen = {
   // ------- Evolução no TecConcursos (retratos importados) -------
   renderTecChart() {
     const card = document.getElementById('evolucao-tec-card');
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.scope === 'all' && DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
     const container = document.getElementById('evolucao-tec-chart');
     const legend = document.getElementById('evolucao-tec-legend');
     const sel = document.getElementById('evo-tec-disc');
@@ -30725,9 +30728,22 @@ const CardsScreen = {
     this.updateFavCount();
   },
   // ---- opções de filtro (matérias + baralhos, tópicos, tipos) ----
+  collectionCards() {
+    try { if (window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    return DB.getCards();
+  },
+  collectionDecks() {
+    try { if (window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    return DB.getDecks();
+  },
   materiaOptionsHtml(selectedValue) {
-    const subs = DB.getActiveSubjects().map(s => `<option value="${escapeHtml(s.nome)}"${selectedValue === s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
-    const decks = DB.getDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    const cards = this.collectionCards();
+    const nomes = [...new Set([].concat(
+      DB.getActiveSubjects().map(s => s.nome),
+      cards.map(c => c.materia).filter(Boolean)
+    ))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const subs = nomes.map(nome => `<option value="${escapeHtml(nome)}"${selectedValue === nome ? ' selected' : ''}>${escapeHtml(nome)}</option>`).join('');
+    const decks = this.collectionDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome ? ' · ' + escapeHtml(d._planNome) : ''}</option>`).join('');
     return { subs, decks };
   },
   populateFilterOptions() {
@@ -30736,7 +30752,7 @@ const CardsScreen = {
     const { subs, decks } = this.materiaOptionsHtml(cur);
     mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
     // tópicos existentes nos cards
-    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
@@ -30763,21 +30779,25 @@ const CardsScreen = {
     return `<option value="">Escolha onde este card fica...</option>` + legadoOpt + deckOpts;
   },
   currentFilteredCards() {
-    return CardEngine.applyFilters(DB.getCards(), this.filters);
+    let out = CardEngine.applyFilters(this.collectionCards(), this.filters);
+    try { if (window.StudyGlobalScope && StudyGlobalScope.filterCardsByBanca) out = StudyGlobalScope.filterCardsByBanca(out); } catch (_) {}
+    return out;
   },
   updateFavCount() {
-    const n = DB.getCards().filter(c => c.favorito).length;
+    const n = this.collectionCards().filter(c => c.favorito).length;
     const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
   },
 
   _statsCards() {
     try {
+      if (window.StudyGlobalScope && StudyGlobalScope.cardsScope && StudyGlobalScope.cardsScope() === 'all') return this.collectionCards();
       if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
     } catch (_) {}
-    return DB.getCards();
+    return this.collectionCards();
   },
   _statsRevlog(applyHistory) {
     try {
+      if (window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog();
       if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
     } catch (_) {}
     return DB.getRevlog() || [];
@@ -30889,7 +30909,12 @@ const CardsScreen = {
     this._flipped = false;
   },
   materiaLabel(c) {
-    if (c.deckId) { const d = DB.getDecks().find(x => x.id === c.deckId); return d ? '📁 ' + d.nome : '📁 (baralho removido)'; }
+    if (c.deckId) {
+      let d = null;
+      try { d = window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null; } catch (_) {}
+      if (!d) d = DB.getDecks().find(x => x.id === c.deckId);
+      return d ? '📁 ' + d.nome : '📁 (baralho removido)';
+    }
     return c.materia || 'Sem disciplina';
   },
   // classifica um card para os limites diários
@@ -31217,7 +31242,7 @@ const CardsScreen = {
       .map(c => c.id);
   },
   renderRevisar(box) {
-    if (DB.getCards().length === 0) {
+    if (this.collectionCards().length === 0) {
       box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
@@ -31553,7 +31578,7 @@ const CardsScreen = {
     liga('cards-act-info', () => this.cardInfo(c.id));
     liga('cards-auto-advance', () => this.toggleAutoAdvance());
     liga('cards-act-del', () => {
-      const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
+      const irmaos = this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length;
       const msg = irmaos > 1
         ? 'Excluir esta nota e seus ' + irmaos + ' cards? Não há como desfazer.'
         : 'Excluir esta nota? Não há como desfazer.';
@@ -31648,7 +31673,8 @@ const CardsScreen = {
      estado atual, memória do FSRS e o histórico completo de revisões. */
   cardInfo(id) {
     const c = DB.getCard(id); if (!c) return;
-    const log = DB.getRevlog().filter(r => r.cardId === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const baseLog = (window.StudyGlobalScope && StudyGlobalScope.revlogForCard) ? StudyGlobalScope.revlogForCard(id) : DB.getRevlog();
+    const log = baseLog.filter(r => r.cardId === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
     const NOTA = { 1: '✗ Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
     const FASE = { new: 'Novo', learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
     const linha = (r, v) => `<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">${r}</td><td style="padding:4px 0;font-family:'Space Mono',monospace">${v}</td></tr>`;
@@ -31763,7 +31789,7 @@ const CardsScreen = {
     if (!el) return;
     const total = (this._reviewQueue || []).length;
     const c = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
-    const onde = c ? (c.materia || (DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
+    const onde = c ? (c.materia || ((window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null) || DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
     el.textContent = total
       ? `${Math.min(this._reviewIdx + 1, total)} de ${total}${onde ? ' · ' + onde : ''}`
       : 'Nada para revisar agora';
@@ -31879,7 +31905,7 @@ const CardsScreen = {
         if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
-        const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
+        const cardPosition = Math.max(1, (window.StudyGlobalScope && StudyGlobalScope.cardPosition ? StudyGlobalScope.cardPosition(id) : DB.getCards().findIndex(x => String(x.id) === String(id)) + 1));
         const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
         const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
         const revRow = await DB.addRevlogDurable(
@@ -32023,7 +32049,7 @@ const CardsScreen = {
   },
   renderMeus(box) {
     const filtered = this.currentFilteredCards().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-    if (DB.getCards().length === 0) {
+    if (this.collectionCards().length === 0) {
       box.innerHTML = this.emptyState('Você ainda não criou nenhum card', 'Clique em <strong>＋ Criar card</strong> no topo pra começar.');
       return;
     }
@@ -32109,8 +32135,8 @@ const CardsScreen = {
       ).then((ok) => {
         if (!ok) return;
         const ids = new Set(sel);
-        const restantes = DB.getCards().filter(c => !ids.has(c.id));
-        DB.saveCards(restantes);
+        if (window.StudyGlobalScope && StudyGlobalScope.deleteCards) StudyGlobalScope.deleteCards(ids);
+        else DB.saveCards(DB.getCards().filter(c => !ids.has(c.id)));
         CardEngine.invalidateDueCache();
         sel.clear();
         this._meusMostrando = 0;
@@ -32133,9 +32159,12 @@ const CardsScreen = {
         if (!v) return;
         const ids = new Set(sel);
         const deckId = v.deck === '__nenhum__' ? null : v.deck;
-        const list = DB.getCards();
-        list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
-        DB.saveCards(list);
+        if (window.StudyGlobalScope && StudyGlobalScope.moveCards) StudyGlobalScope.moveCards(ids, deckId);
+        else {
+          const list = DB.getCards();
+          list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
+          DB.saveCards(list);
+        }
         CardEngine.invalidateDueCache();
         sel.clear();
         this._meusMostrando = 0;
@@ -32219,7 +32248,7 @@ const CardsScreen = {
     if (!host) return;
     const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const cadastradas = DB.getCardBancas();
-    const usadas = DB.getCards().map(c => c.banca).filter(Boolean);
+    const usadas = this.collectionCards().map(c => c.banca).filter(Boolean);
     const extra = (valorAtual && !cadastradas.includes(valorAtual)) ? [valorAtual] : [];
     const opcoes = [...new Set([...cadastradas, ...usadas, ...extra])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     host.innerHTML = `
@@ -32283,12 +32312,12 @@ const CardsScreen = {
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
     $id('card-assunto').value = assunto;
-    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Matéria (Tec): sugere as disciplinas já importadas na Incidência + as já usadas em outros cards
     $id('card-materia-tec').value = materiaTec;
     const discImport = (DB.getIncidencia ? [...new Set(DB.getIncidencia().map(r => r.disciplina).filter(Boolean))] : []);
-    const materiaTecCards = DB.getCards().map(c => c.materiaTec).filter(Boolean);
+    const materiaTecCards = this.collectionCards().map(c => c.materiaTec).filter(Boolean);
     const materiaTecOpts = [...new Set([...discImport, ...materiaTecCards])].sort();
     $id('card-materia-tec-list').innerHTML = materiaTecOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Banca: seletor único com busca, entre as cadastradas em ⚙ Algoritmo → Gerenciar bancas
@@ -32405,7 +32434,7 @@ const CardsScreen = {
   async deleteCard() {
     if (!this._editingId) return;
     const c = DB.getCard(this._editingId);
-    const irmaos = c ? DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length : 1;
+    const irmaos = c ? this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length : 1;
     const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
     if (!await UI.confirm(msg)) return;
     DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');
@@ -44729,7 +44758,7 @@ const DesempenhoTecScreen = {
     if (fase) {
       const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
       fase.innerHTML = b('pre', 'Pré-edital', 'Maior lacuna até a meta primeiro')
-        + b('pos', 'Pós-edital', 'Mesma lacuna; incidência desempata');
+        + b('pos', 'Pós-edital', 'Lacuna × incidência histórica da banca');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
     /* A folha de Ajustes do Motor existe no DOM o tempo todo, só escondida — mas
@@ -44796,7 +44825,7 @@ const DesempenhoTecScreen = {
             <b>${escapeHtml(x.disciplina)}</b>
             <span>${fmt1(x.disciplinaTaxa)}% geral</span>
             <span>lacuna ${fmt1(x.disciplinaLacuna)}pp</span>
-            ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
+            ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' · prioridade ' + fmt1(x.disciplinaPrioridade) + '</span>' : ''}
           </div>
           <div class="ms-suggestion-metrics">
             <span><b>${fmt1(x.taxa)}%</b><i>Acerto</i></span>
@@ -44840,7 +44869,7 @@ const DesempenhoTecScreen = {
           : '—';
       return `<li><span>${emoji({ taxaErro: d.taxaErro })}</span><div>
         <b>${i + 1}. ${escapeHtml(d.nome)}</b>
-        <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''}</small>
+        <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) + ' · prioridade ' + fmt1(d.score) : ''}</small>
         <small>entrada: ${entrada} · ${(d.fila || []).length} frente(s) na fila</small>
       </div></li>`;
     }).join('');
@@ -44875,14 +44904,16 @@ const DesempenhoTecScreen = {
       </div>
 
       <section class="ms-stage ms-stage-action">
-        <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor ordena as matérias pela distância simples até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente. Não há score oculto nem mistura global de tópicos.</small></div></header>
+        <header><span>1</span><div><b>Rodada recomendada agora</b><small>${r.fase === 'pos'
+          ? 'No pós-edital, o Motor usa uma conta curta e visível: lacuna pessoal × relevância histórica da banca. Depois entra em cada matéria pela frente fraca mais relevante para essa banca.'
+          : 'No pré-edital, o Motor ordena somente pela distância até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente.'}</small></div></header>
         <div class="ms-suggestion-list">${linhas}</div>
         <p class="ms-round-total">🏁 Se executar a rodada inteira: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s), ${r.prefs.alvoQuestoes} por atividade.</p>
       </section>
 
       <div class="ms-rankings">
         <details class="ms-rank-panel">
-          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i class="ms-chevron"></i></summary>
+          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna × relevância histórica da banca' : 'ranking por lacuna simples'}</small><i class="ms-chevron"></i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details class="ms-rank-panel">
@@ -44890,7 +44921,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">📐 Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
+      <p class="hint ms-nota">📐 Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável.${r.fase === 'pos' ? ' A incidência é normalizada dentro da banca selecionada e multiplica a lacuna; sem regressão, intervalo de confiança ou fórmula estatística difícil.' : ''} O Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
@@ -54716,12 +54747,13 @@ else CloudStore.init();
      4) subtópico pequeno: forma quantos grupos locais forem necessários,
         sempre dos piores para os melhores e sem misturar ramos já fortes;
         só sobe um nível quando não existir mais frente granular executável;
-     5) pós-edital: a incidência da banca apenas desempata matérias com a mesma
-        lacuna; ela não multiplica nem cria um score escondido.
+     5) pós-edital: cruza duas coisas que importam perto da prova — o tamanho
+        da lacuna pessoal e a incidência histórica da banca. A conta continua
+        simples: lacuna × relevância relativa da banca.
 
-   Não há intervalo de confiança, margem, "déficit seguro" nem multiplicação
-   pelo volume histórico. Questões resolvidas servem para validar o recorte,
-   não para dar mais prioridade a quem já foi mais praticado.
+   Não há intervalo de confiança, regressão, margem, "déficit seguro" nem
+   estatística escondida. Questões resolvidas servem para validar o recorte;
+   incidência serve somente para dizer onde uma lacuna vale mais na prova.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__motorSugestao) return;
@@ -55168,17 +55200,19 @@ else CloudStore.init();
       return casado ? num(mapa[casado]) : 0;
     },
 
-    /* A ordem da matéria é a conta que o aluno faria de cabeça:
-       meta - aproveitamento. Volume não multiplica prioridade. No pós-edital,
-       incidência só desempata lacunas iguais. */
+    /* Pré-edital: só lacuna. Pós-edital: lacuna × relevância da banca.
+       A incidência é normalizada pelo maior valor do recorte, então o score é
+       legível: 20pp de lacuna × 0,50 de relevância = prioridade 10. */
     _compararDisciplinas(a, b, p) {
       const A = a || {}, B = b || {};
+      if ((p && p.fase) === 'pos') {
+        const porPrioridade = num(B.score) - num(A.score);
+        if (porPrioridade) return porPrioridade;
+      }
       const porLacuna = num(B.lacunaDisc) - num(A.lacunaDisc);
       if (porLacuna) return porLacuna;
-      if ((p && p.fase) === 'pos') {
-        const porIncidencia = num(B.incidenciaDisc) - num(A.incidenciaDisc);
-        if (porIncidencia) return porIncidencia;
-      }
+      const porIncidencia = num(B.incidenciaDisc) - num(A.incidenciaDisc);
+      if (porIncidencia) return porIncidencia;
       return num(A.taxa, 100) - num(B.taxa, 100)
         || String(A.nome || '').localeCompare(String(B.nome || ''), 'pt-BR');
     },
@@ -55299,9 +55333,20 @@ else CloudStore.init();
 
       const disciplinasTodas = forest.map(d => {
         const fila = this._filaDisciplina(d, p);
-        fila.forEach(x => {
-          x.peso = this._peso(x, p.fase, incMap); // explicação; não vira score
-        });
+        fila.forEach(x => { x.peso = this._peso(x, p.fase, incMap); });
+        if (p.fase === 'pos' && fila.length) {
+          const maiorIncTopico = Math.max(0, ...fila.map(x => num(x.peso)));
+          fila.forEach(x => {
+            x.relevanciaBanca = maiorIncTopico > 0 ? num(x.peso) / maiorIncTopico : 0;
+            x.prioridade = x.gapMeta * x.relevanciaBanca;
+            x.score = x.prioridade;
+          });
+          fila.sort((a, b) => num(b.prioridade) - num(a.prioridade)
+            || num(b.gapMeta) - num(a.gapMeta)
+            || num(b.peso) - num(a.peso)
+            || num(a.ordemNaDisciplina) - num(b.ordemNaDisciplina));
+          fila.forEach((x, i) => { x.ordemNaDisciplina = i + 1; });
+        }
 
         const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
         const taxa = q > 0 ? ac / q * 100 : null;
@@ -55323,12 +55368,21 @@ else CloudStore.init();
           incidenciaDisc,
           fila,
           melhorTopico: melhor,
-          score: lacunaDisc
+          score: lacunaDisc,
+          relevanciaBanca: p.fase === 'pos' ? 0 : null
         };
       });
 
+      if (p.fase === 'pos') {
+        const maiorIncDisc = Math.max(0, ...disciplinasTodas.map(d => num(d.incidenciaDisc)));
+        disciplinasTodas.forEach(d => {
+          d.relevanciaBanca = maiorIncDisc > 0 ? num(d.incidenciaDisc) / maiorIncDisc : 0;
+          d.score = d.lacunaDisc * d.relevanciaBanca;
+        });
+      }
+
       const disciplinas = disciplinasTodas.filter(d =>
-        d.lacunaDisc > 0 && (p.fase !== 'pos' || d.incidenciaDisc > 0)
+        d.lacunaDisc > 0 && (p.fase !== 'pos' || (d.incidenciaDisc > 0 && d.score > 0))
       ).sort((a, b) => this._compararDisciplinas(a, b, p));
 
       disciplinas.forEach((d, i) => {
@@ -55346,7 +55400,9 @@ else CloudStore.init();
         disciplinaTaxa: d.taxa,
         disciplinaLacuna: d.lacunaDisc,
         disciplinaAmostraValida: d.amostraValida,
-        disciplinaIncidencia: d.incidenciaDisc
+        disciplinaIncidencia: d.incidenciaDisc,
+        disciplinaRelevanciaBanca: d.relevanciaBanca,
+        disciplinaPrioridade: d.score
       }));
       itens.forEach(x => { x.dose = this._dose(x, p); });
 
@@ -55357,7 +55413,7 @@ else CloudStore.init();
         fase: p.fase, prefs: p, erro: null,
         banca: p.fase === 'pos' ? banca : null,
         criterioDisciplinas: p.fase === 'pos'
-          ? 'maior lacuna para a meta; incidência desempata'
+          ? 'lacuna × relevância histórica da banca'
           : 'maior lacuna para a meta',
         itens, disciplinas, disciplinasAcionaveis, disciplinasTodas, todos, disciplinasDisponiveis,
         filtroDisciplinas: p.disciplinasSel.slice()
@@ -56017,6 +56073,653 @@ else CloudStore.init();
   window.UXHierarchy = U;
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => U.init(), { once: true });
   else U.init();
+})();
+
+/* ============================================================================
+   ESCOPO GLOBAL DO PERFIL
+   ----------------------------------------------------------------------------
+   Planejamento = estratégia. Histórico/conhecimento = memória do perfil.
+
+   A persistência antiga continua intacta e plan-scoped para não fazer migração
+   destrutiva. Esta camada agrega os dados do perfil e conserva _planId/_planNome
+   para rotear qualquer mutação ao planejamento de origem.
+
+   Primeiro uso real: Cards de Revisão (coleção global + filtro por banca).
+   Histórico/Evolução já possuem "Este planejamento / Todos os planejamentos".
+   ============================================================================ */
+(() => {
+  if (typeof window === 'undefined' || window.__studyGlobalScopeV1) return;
+  if (typeof DB === 'undefined' || typeof PlanManager === 'undefined') return;
+  window.__studyGlobalScopeV1 = true;
+
+  const norm = (s) => String(s == null ? '' : s)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/\s+/g, ' ').trim();
+  const clone = (x) => {
+    try { return JSON.parse(JSON.stringify(x)); } catch (_) { return Object.assign({}, x); }
+  };
+
+  const S = {
+    KEY: 'study-global-scope-v1',
+    BANKS_KEY: 'cards-bancas-global-v1',
+    ANKI_KEY: 'anki-bank-filter-v1',
+    defaults: Object.freeze({ cardsScope: 'all', cardsBancas: [] }),
+
+    _key() { return DB._profilePrefix() + this.KEY; },
+    _banksKey() { return DB._profilePrefix() + this.BANKS_KEY; },
+    _ankiKey() { return DB._profilePrefix() + this.ANKI_KEY; },
+    activePlanId() { return PlanManager.getActivePlanId() || DB._activePlanId(); },
+    plans() {
+      const list = PlanManager.getPlans() || [];
+      const active = this.activePlanId();
+      if (list.some(p => String(p.id) === String(active))) return list;
+      return active ? [{ id: active, nome: 'Planejamento atual' }].concat(list) : list;
+    },
+    planName(id) {
+      const p = this.plans().find(x => String(x.id) === String(id));
+      return p ? (p.nome || p.name || String(id)) : String(id || '');
+    },
+    prefs() {
+      let p = null;
+      try { p = JSON.parse(localStorage.getItem(this._key()) || 'null'); } catch (_) {}
+      p = Object.assign({}, this.defaults, p && typeof p === 'object' ? p : {});
+      p.cardsScope = p.cardsScope === 'plan' ? 'plan' : 'all';
+      if (!Array.isArray(p.cardsBancas)) p.cardsBancas = [];
+      p.cardsBancas = [...new Set(p.cardsBancas.map(x => String(x || '').trim()).filter(Boolean))];
+      return p;
+    },
+    save(patch) {
+      const next = Object.assign({}, this.prefs(), patch || {});
+      if (next.cardsScope !== 'plan' && next.cardsScope !== 'all') next.cardsScope = 'all';
+      if (!Array.isArray(next.cardsBancas)) next.cardsBancas = [];
+      next.cardsBancas = [...new Set(next.cardsBancas.map(x => String(x || '').trim()).filter(Boolean))];
+      DB.setRaw(this._key(), JSON.stringify(next));
+      return next;
+    },
+    cardsScope() { return this.prefs().cardsScope; },
+    setCardsScope(v) { return this.save({ cardsScope: v === 'plan' ? 'plan' : 'all' }); },
+    selectedBanks() { return this.prefs().cardsBancas; },
+    setSelectedBanks(v) { return this.save({ cardsBancas: Array.isArray(v) ? v : [] }); },
+
+    _rows(planId, suffix) {
+      const k = DB.keysForPlan(planId);
+      return DB._get(k[suffix], []);
+    },
+    _tag(planId, rows) {
+      const nome = this.planName(planId);
+      return (Array.isArray(rows) ? rows : []).map(x => Object.assign({}, x, {
+        _planId: planId, _planNome: nome
+      }));
+    },
+    allBy(suffix) {
+      const out = [];
+      this.plans().forEach(p => out.push(...this._tag(p.id, this._rows(p.id, suffix))));
+      return out;
+    },
+    forScope(suffix, scope) {
+      const sc = scope || this.cardsScope();
+      return sc === 'all' ? this.allBy(suffix) : this._tag(this.activePlanId(), this._rows(this.activePlanId(), suffix));
+    },
+    cards(scope) {
+      const rows = this.forScope('cards', scope);
+      const seen = new Set();
+      return rows.filter(c => {
+        const k = String(c && c.id);
+        if (!k || seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+    },
+    decks(scope) {
+      const rows = this.forScope('decks', scope);
+      const seen = new Set();
+      return rows.filter(d => {
+        const k = String(d && d.id);
+        if (!k || seen.has(k)) return false;
+        seen.add(k); return true;
+      });
+    },
+    extras(scope) { return this.forScope('extras', scope); },
+    laws(scope) { return this.forScope('leis', scope); },
+    links(scope) { return this.forScope('links', scope); },
+    tec(scope) { return this.forScope('tec', scope); },
+    incidence(scope) { return this.forScope('incidencia', scope); },
+
+    findCardRecord(id) {
+      const active = this.activePlanId();
+      const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
+      for (const pid of ids) {
+        const list = this._rows(pid, 'cards');
+        const idx = list.findIndex(c => String(c.id) === String(id));
+        if (idx >= 0) return { planId: pid, list, index: idx, card: list[idx] };
+      }
+      return null;
+    },
+    sourcePlanForCard(id) {
+      const r = this.findCardRecord(id);
+      return r ? r.planId : null;
+    },
+    cardPosition(id) {
+      const r = this.findCardRecord(id);
+      return r ? r.index + 1 : 1;
+    },
+    deckRecord(id) {
+      for (const p of this.plans()) {
+        const list = this._rows(p.id, 'decks');
+        const d = list.find(x => String(x.id) === String(id));
+        if (d) return { planId: p.id, deck: d };
+      }
+      return null;
+    },
+    deckForCard(card) {
+      if (!card || !card.deckId) return null;
+      const pid = card._planId || this.sourcePlanForCard(card.id);
+      if (pid) {
+        const d = this._rows(pid, 'decks').find(x => String(x.id) === String(card.deckId));
+        if (d) return Object.assign({}, d, { _planId: pid, _planNome: this.planName(pid) });
+      }
+      const any = this.deckRecord(card.deckId);
+      return any ? Object.assign({}, any.deck, { _planId: any.planId, _planNome: this.planName(any.planId) }) : null;
+    },
+
+    bankCatalog() {
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) {}
+      if (Array.isArray(saved) && saved.length) return saved;
+      const all = [];
+      (DB.DEFAULT_BANCAS_CARDS || []).forEach(x => all.push(x));
+      this.plans().forEach(p => {
+        this._rows(p.id, 'bancasCards').forEach(x => all.push(x));
+        this._rows(p.id, 'cards').forEach(c => { if (c && c.banca) all.push(c.banca); });
+      });
+      const clean = [...new Set(all.map(x => String(x || '').trim()).filter(Boolean))]
+        .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+      DB.setRaw(this._banksKey(), JSON.stringify(clean));
+      return clean;
+    },
+    saveBankCatalog(list) {
+      const clean = [...new Set((list || []).map(x => String(x || '').trim()).filter(Boolean))]
+        .sort((a,b)=>a.localeCompare(b,'pt-BR'));
+      DB.setRaw(this._banksKey(), JSON.stringify(clean));
+      return clean;
+    },
+    filterCardsByBanca(cards) {
+      const banks = this.selectedBanks();
+      if (!banks.length) return cards || [];
+      const set = new Set(banks.map(norm));
+      return (cards || []).filter(c => set.has(norm(c && c.banca)));
+    },
+
+    _revlogForPlan(planId) {
+      const keys = DB.keysForPlan(planId), k = keys.revlog;
+      if (DB._revlogMem && DB._revlogMem.has(k)) return DB._revlogMem.get(k);
+      const base = DB._get(k, []);
+      const fora = [];
+      const n = Math.max(0, Number(DB._get(keys.revlogArquivo, 0)) || 0);
+      for (let i = 0; i < n; i++) {
+        const lote = DB._get(k + '-arquivo:' + i, []);
+        if (Array.isArray(lote)) fora.push(...lote);
+      }
+      const pend = DB._get(keys.revlogPendente, []);
+      if (Array.isArray(pend)) fora.push(...pend);
+      const out = Array.isArray(base) ? base.slice() : [];
+      const seen = new Set(out.map(r => DB._chaveRevisao(r)));
+      fora.forEach(r => {
+        const x = DB._normalizarReviewId(r, false), key = DB._chaveRevisao(x);
+        if (!seen.has(key)) { seen.add(key); out.push(x); }
+      });
+      out.forEach(r => DB._normalizarReviewId(r, false));
+      if (DB._revlogMem) DB._revlogMem.set(k, out);
+      return out;
+    },
+    revlogForPlan(planId) { return this._revlogForPlan(planId); },
+    revlog(scope) {
+      const sc = scope || this.cardsScope();
+      if (sc !== 'all') return this._revlogForPlan(this.activePlanId());
+      const out = [];
+      this.plans().forEach(p => this._revlogForPlan(p.id).forEach(r => out.push(Object.assign({}, r, {
+        _planId: p.id, _planNome: this.planName(p.id)
+      }))));
+      return out;
+    },
+    revlogForCard(id) {
+      const pid = this.sourcePlanForCard(id);
+      return pid ? this._revlogForPlan(pid) : [];
+    },
+    _savePending(planId, row) {
+      const keys = DB.keysForPlan(planId), list = DB._get(keys.revlogPendente, []);
+      const pend = Array.isArray(list) ? list : [];
+      if (row) pend.push(row);
+      if (pend.length < (DB.LOTE_REVLOG || 50)) return DB._set(keys.revlogPendente, pend);
+      const n = Math.max(0, Number(DB._get(keys.revlogArquivo, 0)) || 0);
+      if (!DB._set(keys.revlog + '-arquivo:' + n, pend)) return false;
+      if (!DB._set(keys.revlogArquivo, n + 1)) return false;
+      return DB._set(keys.revlogPendente, []);
+    },
+    confirmReview(planId, reviewId) {
+      const alvo = String(reviewId || ''); if (!alvo) return false;
+      const keys = DB.keysForPlan(planId);
+      let changed = false;
+      const filt = arr => (Array.isArray(arr) ? arr : []).filter(r => {
+        DB._normalizarReviewId(r, false);
+        if (String(r.reviewId || '') === alvo) { changed = true; return false; }
+        return true;
+      });
+      const pend = filt(DB._get(keys.revlogPendente, []));
+      if (changed) DB._set(keys.revlogPendente, pend);
+      const n = Math.max(0, Number(DB._get(keys.revlogArquivo, 0)) || 0);
+      for (let i = 0; i < n; i++) {
+        const kk = keys.revlog + '-arquivo:' + i, before = DB._get(kk, []), after = filt(before);
+        if (after.length !== (Array.isArray(before) ? before.length : 0)) DB._set(kk, after);
+      }
+      return changed;
+    },
+    replaceRevlogPlan(planId, list) {
+      const keys = DB.keysForPlan(planId), k = keys.revlog, v = Array.isArray(list) ? list : [];
+      v.forEach(r => DB._normalizarReviewId(r, false));
+      if (DB._revlogMem) DB._revlogMem.set(k, v);
+      try {
+        if (DB._bancoRelacionalPronto && DB._bancoRelacionalPronto() && window.RelationalStore && RelationalStore.queueRevlogReplace)
+          RelationalStore.queueRevlogReplace(k, v);
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'global-revlog-replace'); }
+      const n = Math.max(0, Number(DB._get(keys.revlogArquivo, 0)) || 0);
+      for (let i = 0; i < n; i++) DB.delRaw(k + '-arquivo:' + i);
+      DB._set(keys.revlogArquivo, 0); DB._set(keys.revlogPendente, []);
+      return DB._set(k, v);
+    },
+    removeRevlogPlan(planId, ts) {
+      const l = this._revlogForPlan(planId);
+      let idx = -1;
+      for (let i = l.length - 1; i >= 0; i--) if (l[i].ts === ts) { idx = i; break; }
+      if (idx < 0) return true;
+      const row = l[idx]; DB._normalizarReviewId(row, false); l.splice(idx, 1);
+      const key = DB.keysForPlan(planId).revlog;
+      try {
+        const ctx = DB._reviewContext(key);
+        ReviewJournal.put({
+          id: row.reviewId + ':delete', reviewId: row.reviewId, type: 'delete',
+          key, profileId: ctx.profileId, planId: ctx.planId,
+          row: clone(row), createdAt: Date.now()
+        }).catch(e => { if (typeof _quiet === 'function') _quiet(e, 'global-review-journal-delete'); });
+      } catch (_) {}
+      try {
+        if (DB._bancoRelacionalPronto && DB._bancoRelacionalPronto() && window.RelationalStore && RelationalStore.queueRevlogDelete)
+          RelationalStore.queueRevlogDelete(key, row);
+      } catch (_) {}
+      const keys = DB.keysForPlan(planId), pend = DB._get(keys.revlogPendente, []);
+      const target = DB._chaveRevisao(row), arr = Array.isArray(pend) ? pend : [];
+      const pi = arr.map(r => DB._chaveRevisao(r)).lastIndexOf(target);
+      if (pi >= 0) { arr.splice(pi, 1); return DB._set(keys.revlogPendente, arr); }
+      return this.replaceRevlogPlan(planId, l);
+    },
+
+    deleteCards(ids) {
+      const set = ids instanceof Set ? ids : new Set(ids || []);
+      const notes = new Set();
+      set.forEach(id => {
+        const r = this.findCardRecord(id); if (!r) return;
+        const nk = String(r.planId) + '|' + String(r.card.noteId || r.card.id);
+        if (notes.has(nk)) return; notes.add(nk);
+        DB.deleteNoteByCard(id);
+      });
+    },
+    moveCards(ids, deckId) {
+      const set = ids instanceof Set ? ids : new Set(ids || []);
+      const target = deckId ? this.deckRecord(deckId) : null;
+      let moved = 0, skipped = 0;
+      set.forEach(id => {
+        const r = this.findCardRecord(id); if (!r) return;
+        if (target && String(target.planId) !== String(r.planId)) { skipped++; return; }
+        if (DB.updateCard(id, { deckId: deckId || null }) !== false) moved++;
+      });
+      if (skipped && typeof showToast === 'function')
+        showToast(moved + ' card(s) movido(s); ' + skipped + ' mantido(s) porque o baralho pertence a outro planejamento.');
+      return { moved, skipped };
+    },
+
+    _ankiState() {
+      try { return Object.assign({ filteredDeckId: null, previousDeckId: null }, JSON.parse(localStorage.getItem(this._ankiKey()) || '{}')); }
+      catch (_) { return { filteredDeckId: null, previousDeckId: null }; }
+    },
+    _saveAnkiState(v) { DB.setRaw(this._ankiKey(), JSON.stringify(v || {})); },
+    _ankiTag(b) { return String(b || '').trim().replace(/\s+/g, '_').replace(/"/g, ''); },
+    async applyAnkiBankFilter(refresh) {
+      if (!window.AnkiOfficial || !AnkiOfficial.request || !AnkiOfficial.token || !AnkiOfficial.token()) return false;
+      const banks = this.selectedBanks();
+      const st = this._ankiState();
+      const decks = await AnkiOfficial.request('/api/anki/decks');
+      const current = Number(decks.current_deck_id || 0);
+      if (!banks.length) {
+        if (st.filteredDeckId) {
+          try { await AnkiOfficial.request('/api/anki/filtered-deck/' + Number(st.filteredDeckId) + '/empty', { method: 'POST' }); } catch (_) {}
+          const back = Number(st.previousDeckId || 0);
+          if (back && back !== Number(st.filteredDeckId)) {
+            try {
+              await AnkiOfficial.request('/api/anki/decks/select', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ deck_id: back })
+              });
+            } catch (_) {}
+          }
+        }
+        this._saveAnkiState({ filteredDeckId: st.filteredDeckId || null, previousDeckId: null });
+        if (refresh && AnkiOfficial.view === 'review') await AnkiOfficial.renderReviewer();
+        return true;
+      }
+
+      const fdId = Number(st.filteredDeckId || 0);
+      const data = await AnkiOfficial.request('/api/anki/filtered-deck/' + fdId);
+      const deck = data.deck || {}, cfg = deck.config || {};
+      const query = '(' + ['is:due','is:new','is:learn'].join(' OR ') + ') (' +
+        banks.map(b => 'tag:"' + this._ankiTag(b) + '"').join(' OR ') + ')';
+      const payload = {
+        id: Number(deck.id || fdId || 0),
+        name: 'Study · Bancas',
+        config: Object.assign({}, cfg, {
+          reschedule: true,
+          search_terms: [{ search: query, limit: 999999, order: 0 }]
+        }),
+        allow_empty: true
+      };
+      const saved = await AnkiOfficial.request('/api/anki/filtered-deck/' + Number(deck.id || fdId || 0), {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      const did = Number(saved.deck_id || deck.id || 0);
+      await AnkiOfficial.request('/api/anki/filtered-deck/' + did + '/rebuild', { method: 'POST' });
+      await AnkiOfficial.request('/api/anki/decks/select', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deck_id: did })
+      });
+      this._saveAnkiState({
+        filteredDeckId: did,
+        previousDeckId: (current && current !== did) ? current : (st.previousDeckId || null)
+      });
+      if (refresh && AnkiOfficial.view === 'review') await AnkiOfficial.renderReviewer();
+      return true;
+    },
+
+    refreshCards() {
+      try {
+        if (!window.CardsScreen) return;
+        CardsScreen.invalidateReviewQueue();
+        CardsScreen.populateFilterOptions();
+        CardsScreen.renderContent();
+        CardsScreen.updateFavCount();
+      } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'global-cards-refresh'); }
+    },
+    bankLabel() {
+      const s = this.selectedBanks();
+      if (!s.length) return 'Todas as bancas';
+      if (s.length === 1) return s[0];
+      return s.length + ' bancas selecionadas';
+    },
+    renderBankPicker(host, opts) {
+      if (!host) return;
+      const catalog = this.bankCatalog(), selected = new Set(this.selectedBanks().map(norm));
+      host.innerHTML = '<button type="button" class="banca-pick-btn global-bank-btn" aria-expanded="false"><span>🏛️ ' +
+        escapeHtml(this.bankLabel()) + '</span><span class="chev">▾</span></button>' +
+        '<div class="banca-pick-panel global-bank-panel" hidden>' +
+          '<button type="button" class="banca-pick-all ' + (!selected.size ? 'is-active' : '') + '" data-global-bank-all>' +
+            '<span class="banca-pick-all-mark">✓</span><span><b>Todas as bancas</b><small>Não restringir a revisão</small></span></button>' +
+          '<label class="global-bank-search"><span>⌕</span><input type="search" placeholder="Buscar banca" autocomplete="off"></label>' +
+          '<div class="global-bank-list">' + catalog.map(b => '<label class="global-bank-item" data-bank-n="' + escapeHtml(norm(b)) + '">' +
+            '<input type="checkbox" value="' + escapeHtml(b) + '" ' + (selected.has(norm(b)) ? 'checked' : '') + '><span>' + escapeHtml(b) + '</span></label>').join('') + '</div>' +
+          '<p class="hint global-bank-hint">Vazio = todas. A seleção vale para Cards e Anki Oficial.</p>' +
+        '</div>';
+      const btn = host.querySelector('.global-bank-btn'), panel = host.querySelector('.global-bank-panel');
+      const search = host.querySelector('.global-bank-search input');
+      const close = () => { panel.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); };
+      btn.onclick = e => {
+        e.stopPropagation();
+        const open = panel.hasAttribute('hidden');
+        document.querySelectorAll('.global-bank-panel').forEach(x => x.setAttribute('hidden',''));
+        if (open) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); if (search) setTimeout(()=>search.focus(),20); }
+        else close();
+      };
+      panel.onclick = e => e.stopPropagation();
+      if (search) search.oninput = () => {
+        const q = norm(search.value);
+        host.querySelectorAll('.global-bank-item').forEach(x => x.style.display = !q || (x.dataset.bankN || '').includes(q) ? '' : 'none');
+      };
+      const apply = () => {
+        const vals = [...host.querySelectorAll('.global-bank-item input:checked')].map(x => x.value);
+        this.setSelectedBanks(vals);
+        document.querySelectorAll('[data-global-bank-host]').forEach(h => this.renderBankPicker(h, { anki: h.dataset.globalBankHost === 'anki' }));
+        this.refreshCards();
+        if (document.getElementById('screen-anki') && document.getElementById('screen-anki').classList.contains('active')) {
+          this.applyAnkiBankFilter(true).catch(e => {
+            if (window.AnkiOfficial && AnkiOfficial.alert) AnkiOfficial.alert('Filtro de banca: ' + (e.message || e), 'error');
+          });
+        }
+      };
+      host.querySelectorAll('.global-bank-item input').forEach(x => x.onchange = apply);
+      const all = host.querySelector('[data-global-bank-all]');
+      if (all) all.onclick = () => { host.querySelectorAll('.global-bank-item input').forEach(x => x.checked = false); apply(); };
+    },
+
+    installCardsUi() {
+      const body = document.getElementById('cards-filter-body');
+      if (!body || document.getElementById('cards-global-scope-row')) return;
+      const row = document.createElement('div');
+      row.id = 'cards-global-scope-row';
+      row.className = 'global-scope-row';
+      row.innerHTML = '<div class="field global-scope-field"><label>Escopo dos cards</label>' +
+        '<div class="scope-toggle" id="cards-scope-toggle">' +
+          '<button type="button" data-scope="plan">Este planejamento</button>' +
+          '<button type="button" data-scope="all">Todos os planejamentos</button>' +
+        '</div></div>' +
+        '<div class="field global-scope-field"><label>Banca da revisão</label><div class="global-bank-host" data-global-bank-host="cards"></div></div>';
+      const fg = body.querySelector('.field-group');
+      if (fg) body.insertBefore(row, fg); else body.prepend(row);
+      const sync = () => row.querySelectorAll('#cards-scope-toggle [data-scope]').forEach(b =>
+        b.classList.toggle('active', b.dataset.scope === this.cardsScope()));
+      row.querySelectorAll('#cards-scope-toggle [data-scope]').forEach(b => b.onclick = () => {
+        this.setCardsScope(b.dataset.scope); sync(); this.refreshCards();
+      });
+      sync();
+      this.renderBankPicker(row.querySelector('[data-global-bank-host="cards"]'));
+    },
+
+    installAnkiUi() {
+      const root = document.getElementById('anki-official-alert');
+      const screen = document.getElementById('screen-anki');
+      if (!root || !screen || document.getElementById('anki-global-bank-card')) return;
+      const card = document.createElement('div');
+      card.id = 'anki-global-bank-card';
+      card.className = 'card anki-global-bank-card';
+      card.innerHTML = '<div class="global-anki-bank-row"><div><b>🏛️ Bancas na revisão</b><span>O filtro usa as tags de banca da coleção e mantém o scheduler oficial.</span></div>' +
+        '<div class="global-bank-host" data-global-bank-host="anki"></div></div>';
+      screen.insertBefore(card, root);
+      this.renderBankPicker(card.querySelector('[data-global-bank-host="anki"]'), { anki: true });
+    },
+
+    installStyle() {
+      if (document.getElementById('study-global-scope-style')) return;
+      const st = document.createElement('style'); st.id = 'study-global-scope-style';
+      st.textContent = [
+        '.global-scope-row{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:14px;margin:10px 0 14px}',
+        '.global-scope-field{margin:0}.global-bank-host{position:relative}',
+        '.global-bank-panel{min-width:min(360px,88vw);max-height:360px;overflow:auto;z-index:80}',
+        '.global-bank-search{display:flex;align-items:center;gap:7px;padding:7px 8px;position:sticky;top:0;background:var(--surface);z-index:2}',
+        '.global-bank-search input{width:100%}.global-bank-list{display:grid;gap:2px;padding:4px 6px 8px}',
+        '.global-bank-item{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer}',
+        '.global-bank-item:hover{background:var(--surface-2)}.global-bank-item input{accent-color:var(--accent)}',
+        '.global-bank-hint{padding:6px 10px 10px;margin:0}',
+        '.anki-global-bank-card{margin-bottom:14px}.global-anki-bank-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px}',
+        '.global-anki-bank-row>div:first-child{display:flex;flex-direction:column;gap:2px}.global-anki-bank-row span{font-size:12px;color:var(--text-faint)}',
+        '@media(max-width:680px){.global-scope-row{grid-template-columns:1fr}.global-anki-bank-row{align-items:stretch;flex-direction:column}.global-bank-btn{width:100%}}'
+      ].join('');
+      document.head.appendChild(st);
+    }
+  };
+
+  window.StudyGlobalScope = S;
+
+  /* Catálogo de bancas passa a ser do perfil, não do planejamento. */
+  const oldGetBancas = DB.getCardBancas ? DB.getCardBancas.bind(DB) : null;
+  DB.getCardBancas = () => S.bankCatalog();
+  DB.saveCardBancas = list => S.saveBankCatalog(list);
+  DB.addCardBanca = nome => {
+    const n = String(nome || '').trim(); if (!n) return null;
+    const list = S.bankCatalog(); if (list.some(x => norm(x) === norm(n))) return null;
+    list.push(n); S.saveBankCatalog(list); return n;
+  };
+  DB.removeCardBanca = nome => S.saveBankCatalog(S.bankCatalog().filter(x => norm(x) !== norm(nome)));
+
+  /* Helpers públicos de leitura global. Mantêm o padrão já usado por Histórico
+     e Evolução: o caller escolhe atual ou todos; o dado nunca é duplicado. */
+  DB.getCardsForPlan = id => S._tag(id, S._rows(id, 'cards'));
+  DB.getDecksForPlan = id => S._tag(id, S._rows(id, 'decks'));
+  DB.getRevlogForPlan = id => S._revlogForPlan(id);
+  DB.getAllCardsTagged = () => S.cards('all');
+  DB.getAllDecksTagged = () => S.decks('all');
+  DB.getAllRevlogTagged = () => S.revlog('all');
+  DB.getAllExtrasTagged = () => S.allBy('extras');
+  DB.getAllLeisTagged = () => S.allBy('leis');
+  DB.getAllLinksTagged = () => S.allBy('links');
+  DB.getAllTecSnapshotsTagged = () => S.allBy('tec');
+  DB.getAllIncidenciaTagged = () => S.allBy('incidencia');
+
+  /* Roteamento de card global para o planejamento onde ele nasceu. */
+  const O = {
+    getCard: DB.getCard.bind(DB),
+    updateCard: DB.updateCard.bind(DB),
+    updateCardNote: DB.updateCardNote.bind(DB),
+    deleteCard: DB.deleteCard.bind(DB),
+    deleteNoteByCard: DB.deleteNoteByCard.bind(DB),
+    addRevlogDurable: DB.addRevlogDurable.bind(DB),
+    cancelarRevlogDurable: DB.cancelarRevlogDurable.bind(DB),
+    removeRevlog: DB.removeRevlog.bind(DB)
+  };
+  DB.getCard = function(id) {
+    const local = O.getCard(id); if (local) return local;
+    const r = S.findCardRecord(id); return r ? Object.assign({}, r.card, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
+  };
+  DB.updateCard = function(id, patch) {
+    if (O.getCard(id)) return O.updateCard(id, patch);
+    const r = S.findCardRecord(id); if (!r) return null;
+    let p = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
+    if (p && ('frente' in p || 'verso' in p)) {
+      p = Object.assign({}, p);
+      if ('frente' in p) p.frente = _sanCard(p.frente);
+      if ('verso' in p) p.verso = _sanCard(p.verso);
+    }
+    const c = r.list[r.index];
+    Object.assign(c, p || {}); c.updatedAt = new Date().toISOString(); c.ankiMod = Math.floor(Date.now()/1000);
+    return DB._set(DB.keysForPlan(r.planId).cards, r.list) === false ? false
+      : Object.assign({}, c, { _planId: r.planId, _planNome: S.planName(r.planId) });
+  };
+  DB.updateCardNote = function(id, data) {
+    if (O.getCard(id)) return O.updateCardNote(id, data);
+    const r = S.findCardRecord(id); if (!r) return null;
+    const atual = r.card, noteId = atual.noteId || atual.id, canonical = Object.assign({}, data || {});
+    if (atual.template === 'reverse') { const f = canonical.frente; canonical.frente = canonical.verso; canonical.verso = f; }
+    const comuns = ['deckId','materia','assunto','materiaTec','banca','kind'], now = new Date().toISOString();
+    r.list.forEach(c => {
+      if (String(c.noteId || c.id) !== String(noteId)) return;
+      const p = {}; comuns.forEach(k => { if (Object.prototype.hasOwnProperty.call(canonical,k)) p[k]=canonical[k]; });
+      if ('frente' in canonical || 'verso' in canonical) {
+        if (c.template === 'reverse') {
+          if ('verso' in canonical) p.frente = _sanCard(canonical.verso);
+          if ('frente' in canonical) p.verso = _sanCard(canonical.frente);
+        } else {
+          if ('frente' in canonical) p.frente = _sanCard(canonical.frente);
+          if ('verso' in canonical) p.verso = _sanCard(canonical.verso);
+        }
+      }
+      Object.assign(c,p); c.updatedAt=now; c.ankiMod=Math.floor(Date.now()/1000);
+    });
+    if (DB._set(DB.keysForPlan(r.planId).cards, r.list) === false) return false;
+    return DB.getCard(id);
+  };
+  DB.deleteCard = function(id) {
+    if (O.getCard(id)) return O.deleteCard(id);
+    const r = S.findCardRecord(id); if (!r) return;
+    DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(id)));
+    S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => String(x.cardId) !== String(id)));
+    try { CardsConfig.forgetCardId(id); } catch (_) {}
+  };
+  DB.deleteNoteByCard = function(id) {
+    if (O.getCard(id)) return O.deleteNoteByCard(id);
+    const r = S.findCardRecord(id); if (!r) return 0;
+    const nid = String(r.card.noteId || r.card.id);
+    const ids = new Set(r.list.filter(c => String(c.noteId || c.id) === nid).map(c => String(c.id)));
+    if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => !ids.has(String(c.id)))) === false) return false;
+    S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => !ids.has(String(x.cardId))));
+    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (_) {}
+    return ids.size;
+  };
+
+  DB.addRevlogDurable = async function(entry, cardAfter, cardPosition) {
+    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition);
+    const l = S._revlogForPlan(pid), last = l.length ? l[l.length-1] : null;
+    const pos = Math.max(l.length, Number(last && last._position)||0) + 1;
+    const row = DB._normalizarReviewId(Object.assign({ _position: pos }, entry), true);
+    l.push(row);
+    const key = DB.keysForPlan(pid).revlog, ctx = DB._reviewContext(key);
+    const after = cardAfter ? clone(cardAfter) : null;
+    if (after) { delete after._planId; delete after._planNome; }
+    const op = {
+      id: row.reviewId + ':append', reviewId: row.reviewId, type: 'append',
+      key, profileId: ctx.profileId, planId: ctx.planId, row: clone(row),
+      cardAfter: after, cardPosition: Number(cardPosition)||1, createdAt: Date.now()
+    };
+    let journaled = false;
+    try { journaled = await ReviewJournal.put(op); } catch (_) {}
+    if (!journaled && S._savePending(pid, row) === false) {
+      const i = l.findIndex(x => x && x.reviewId === row.reviewId); if (i >= 0) l.splice(i,1);
+      return false;
+    }
+    return row;
+  };
+  DB.cancelarRevlogDurable = async function(row) {
+    const pid = S.sourcePlanForCard(row && row.cardId);
+    if (!pid || String(pid) === String(S.activePlanId())) return O.cancelarRevlogDurable(row);
+    const l = S._revlogForPlan(pid), i = l.findIndex(x => x && x.reviewId === row.reviewId);
+    if (i >= 0) l.splice(i,1);
+    try { await ReviewJournal.remove(String(row.reviewId)+':append'); } catch (_) {}
+    S.confirmReview(pid,row.reviewId); return true;
+  };
+  DB.removeRevlog = function(ts) {
+    const active = DB.getRevlog();
+    if (active.some(r => r.ts === ts)) return O.removeRevlog(ts);
+    for (const p of S.plans()) {
+      if (String(p.id) === String(S.activePlanId())) continue;
+      if (S._revlogForPlan(p.id).some(r => r.ts === ts)) return S.removeRevlogPlan(p.id, ts);
+    }
+    return true;
+  };
+
+  /* Enterrar irmãos precisa olhar os irmãos do MESMO planejamento de origem. */
+  if (window.AnkiParity && AnkiParity.autoBurySiblings) {
+    AnkiParity.autoBurySiblings = function(card) {
+      if (!card || !card.noteId) return [];
+      const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId), nid=String(card.noteId), buried=[];
+      const pid=card._planId||S.sourcePlanForCard(card.id), cards=pid?S._tag(pid,S._rows(pid,'cards')):DB.getCards();
+      cards.forEach(s=>{
+        if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
+        const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
+        const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
+        if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
+      });
+      return buried;
+    };
+  }
+
+  const boot = () => {
+    S.installStyle(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
+  else boot();
+  window.addEventListener('screen:activated', e => {
+    const s = e && e.detail && e.detail.screen;
+    if (s === 'cards') { S.installCardsUi(); S.refreshCards(); }
+    if (s === 'anki') {
+      S.installAnkiUi();
+      if (S.selectedBanks().length) S.applyAnkiBankFilter(false).catch(err => {
+        if (window.AnkiOfficial && AnkiOfficial.alert) AnkiOfficial.alert('Filtro de banca: ' + (err.message || err), 'error');
+      });
+    }
+  });
 })();
 
 </script>

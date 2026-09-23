@@ -19,7 +19,7 @@ const TecEngine={buildTree(snap){
 
 let scoped=null;
 const mem=new Map();
-const ctx={console,TecEngine,ReforcoEngine:{norm,incidenceMap:()=>({}),incidPorDisciplina:()=>({})},
+const ctx={console,TecEngine,ReforcoEngine:{norm,incidenceMap:()=>({}),incidPorDisciplina:()=>({}),incidenciaDe:(map,nome,disc)=>({valor:Number(map[disc+'|'+nome]??map[nome]??0)})},
   DB:{_profilePrefix:()=> 'p:t:',setRaw:(k,v)=>mem.set(k,v),getTecSnapshots:()=>[]},
   DesempenhoTecScreen:{scopedSnapshot:()=>scoped,activeSnapshots:()=>[],bancaFiltro:()=>'__todas__'},
   localStorage:{getItem:k=>mem.get(k)??null,setItem:(k,v)=>mem.set(k,String(v))},
@@ -88,4 +88,22 @@ r=M.calcular({minAmostra:20,metaAcerto:90,maxFrentes:3});
 assert.equal(r.disciplinas.length,1);assert.equal(r.disciplinas[0].nome,'Pouca amostra');
 assert.equal(r.disciplinas[0].amostraMinima,false);assert.equal(r.itens.length,0);
 
-console.log('OK: período, ranking percentual, agrupamento múltiplo e subida rara do Motor protegidos.');
+// Pós-edital continua simples, mas deixa a incidência realmente mudar a ordem.
+// A tem a maior lacuna (40pp), porém incidência 10/100 => prioridade 4.
+// B tem lacuna 20pp e incidência 100/100 => prioridade 20, portanto vem antes.
+// No pré-edital, a mesma fotografia continua ordenada só pela lacuna: A antes B.
+scoped={id:'pos',startDate:'2026-04-01',endDate:'2026-04-30',rows:[
+  D('A',40,20),T('A','TA',40,20),
+  D('B',40,28),T('B','TB',40,28)
+]};
+r=M.calcular({fase:'pre',minAmostra:20,metaAcerto:90,maxFrentes:2});
+assert.deepEqual(Array.from(r.disciplinas,x=>x.nome),['A','B'],'pré-edital não pode ganhar peso de banca');
+ctx.ReforcoEngine.incidPorDisciplina=()=>({A:10,B:100});
+ctx.ReforcoEngine.incidenceMap=()=>({'A|TA':10,'B|TB':100});
+r=M.calcular({fase:'pos',minAmostra:20,metaAcerto:90,maxFrentes:2});
+assert.deepEqual(Array.from(r.disciplinas,x=>x.nome),['B','A'],'pós-edital deve cruzar lacuna com incidência relativa');
+assert.equal(r.disciplinas[0].score,20);
+assert.equal(r.disciplinas[1].score,4);
+assert.equal(r.criterioDisciplinas,'lacuna × relevância histórica da banca');
+
+console.log('OK: pré-edital puro + pós-edital lacuna × incidência, agrupamento e subida rara protegidos.');

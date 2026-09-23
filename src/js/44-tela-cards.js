@@ -14,9 +14,22 @@ const CardsScreen = {
     this.updateFavCount();
   },
   // ---- opções de filtro (matérias + baralhos, tópicos, tipos) ----
+  collectionCards() {
+    try { if (window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    return DB.getCards();
+  },
+  collectionDecks() {
+    try { if (window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    return DB.getDecks();
+  },
   materiaOptionsHtml(selectedValue) {
-    const subs = DB.getActiveSubjects().map(s => `<option value="${escapeHtml(s.nome)}"${selectedValue === s.nome ? ' selected' : ''}>${escapeHtml(s.nome)}</option>`).join('');
-    const decks = DB.getDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    const cards = this.collectionCards();
+    const nomes = [...new Set([].concat(
+      DB.getActiveSubjects().map(s => s.nome),
+      cards.map(c => c.materia).filter(Boolean)
+    ))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    const subs = nomes.map(nome => `<option value="${escapeHtml(nome)}"${selectedValue === nome ? ' selected' : ''}>${escapeHtml(nome)}</option>`).join('');
+    const decks = this.collectionDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome ? ' · ' + escapeHtml(d._planNome) : ''}</option>`).join('');
     return { subs, decks };
   },
   populateFilterOptions() {
@@ -25,7 +38,7 @@ const CardsScreen = {
     const { subs, decks } = this.materiaOptionsHtml(cur);
     mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
     // tópicos existentes nos cards
-    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
@@ -52,21 +65,25 @@ const CardsScreen = {
     return `<option value="">Escolha onde este card fica...</option>` + legadoOpt + deckOpts;
   },
   currentFilteredCards() {
-    return CardEngine.applyFilters(DB.getCards(), this.filters);
+    let out = CardEngine.applyFilters(this.collectionCards(), this.filters);
+    try { if (window.StudyGlobalScope && StudyGlobalScope.filterCardsByBanca) out = StudyGlobalScope.filterCardsByBanca(out); } catch (_) {}
+    return out;
   },
   updateFavCount() {
-    const n = DB.getCards().filter(c => c.favorito).length;
+    const n = this.collectionCards().filter(c => c.favorito).length;
     const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
   },
 
   _statsCards() {
     try {
+      if (window.StudyGlobalScope && StudyGlobalScope.cardsScope && StudyGlobalScope.cardsScope() === 'all') return this.collectionCards();
       if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
     } catch (_) {}
-    return DB.getCards();
+    return this.collectionCards();
   },
   _statsRevlog(applyHistory) {
     try {
+      if (window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog();
       if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
     } catch (_) {}
     return DB.getRevlog() || [];
@@ -178,7 +195,12 @@ const CardsScreen = {
     this._flipped = false;
   },
   materiaLabel(c) {
-    if (c.deckId) { const d = DB.getDecks().find(x => x.id === c.deckId); return d ? '📁 ' + d.nome : '📁 (baralho removido)'; }
+    if (c.deckId) {
+      let d = null;
+      try { d = window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null; } catch (_) {}
+      if (!d) d = DB.getDecks().find(x => x.id === c.deckId);
+      return d ? '📁 ' + d.nome : '📁 (baralho removido)';
+    }
     return c.materia || 'Sem disciplina';
   },
   // classifica um card para os limites diários
@@ -506,7 +528,7 @@ const CardsScreen = {
       .map(c => c.id);
   },
   renderRevisar(box) {
-    if (DB.getCards().length === 0) {
+    if (this.collectionCards().length === 0) {
       box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
@@ -842,7 +864,7 @@ const CardsScreen = {
     liga('cards-act-info', () => this.cardInfo(c.id));
     liga('cards-auto-advance', () => this.toggleAutoAdvance());
     liga('cards-act-del', () => {
-      const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
+      const irmaos = this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length;
       const msg = irmaos > 1
         ? 'Excluir esta nota e seus ' + irmaos + ' cards? Não há como desfazer.'
         : 'Excluir esta nota? Não há como desfazer.';
@@ -937,7 +959,8 @@ const CardsScreen = {
      estado atual, memória do FSRS e o histórico completo de revisões. */
   cardInfo(id) {
     const c = DB.getCard(id); if (!c) return;
-    const log = DB.getRevlog().filter(r => r.cardId === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const baseLog = (window.StudyGlobalScope && StudyGlobalScope.revlogForCard) ? StudyGlobalScope.revlogForCard(id) : DB.getRevlog();
+    const log = baseLog.filter(r => r.cardId === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
     const NOTA = { 1: '✗ Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
     const FASE = { new: 'Novo', learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
     const linha = (r, v) => `<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">${r}</td><td style="padding:4px 0;font-family:'Space Mono',monospace">${v}</td></tr>`;
@@ -1052,7 +1075,7 @@ const CardsScreen = {
     if (!el) return;
     const total = (this._reviewQueue || []).length;
     const c = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
-    const onde = c ? (c.materia || (DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
+    const onde = c ? (c.materia || ((window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null) || DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
     el.textContent = total
       ? `${Math.min(this._reviewIdx + 1, total)} de ${total}${onde ? ' · ' + onde : ''}`
       : 'Nada para revisar agora';
@@ -1168,7 +1191,7 @@ const CardsScreen = {
         if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
-        const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
+        const cardPosition = Math.max(1, (window.StudyGlobalScope && StudyGlobalScope.cardPosition ? StudyGlobalScope.cardPosition(id) : DB.getCards().findIndex(x => String(x.id) === String(id)) + 1));
         const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
         const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
         const revRow = await DB.addRevlogDurable(
@@ -1312,7 +1335,7 @@ const CardsScreen = {
   },
   renderMeus(box) {
     const filtered = this.currentFilteredCards().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-    if (DB.getCards().length === 0) {
+    if (this.collectionCards().length === 0) {
       box.innerHTML = this.emptyState('Você ainda não criou nenhum card', 'Clique em <strong>＋ Criar card</strong> no topo pra começar.');
       return;
     }
@@ -1398,8 +1421,8 @@ const CardsScreen = {
       ).then((ok) => {
         if (!ok) return;
         const ids = new Set(sel);
-        const restantes = DB.getCards().filter(c => !ids.has(c.id));
-        DB.saveCards(restantes);
+        if (window.StudyGlobalScope && StudyGlobalScope.deleteCards) StudyGlobalScope.deleteCards(ids);
+        else DB.saveCards(DB.getCards().filter(c => !ids.has(c.id)));
         CardEngine.invalidateDueCache();
         sel.clear();
         this._meusMostrando = 0;
@@ -1422,9 +1445,12 @@ const CardsScreen = {
         if (!v) return;
         const ids = new Set(sel);
         const deckId = v.deck === '__nenhum__' ? null : v.deck;
-        const list = DB.getCards();
-        list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
-        DB.saveCards(list);
+        if (window.StudyGlobalScope && StudyGlobalScope.moveCards) StudyGlobalScope.moveCards(ids, deckId);
+        else {
+          const list = DB.getCards();
+          list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
+          DB.saveCards(list);
+        }
         CardEngine.invalidateDueCache();
         sel.clear();
         this._meusMostrando = 0;
@@ -1508,7 +1534,7 @@ const CardsScreen = {
     if (!host) return;
     const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
     const cadastradas = DB.getCardBancas();
-    const usadas = DB.getCards().map(c => c.banca).filter(Boolean);
+    const usadas = this.collectionCards().map(c => c.banca).filter(Boolean);
     const extra = (valorAtual && !cadastradas.includes(valorAtual)) ? [valorAtual] : [];
     const opcoes = [...new Set([...cadastradas, ...usadas, ...extra])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     host.innerHTML = `
@@ -1572,12 +1598,12 @@ const CardsScreen = {
     }
     $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
     $id('card-assunto').value = assunto;
-    const tops = [...new Set(DB.getCards().map(c => c.assunto).filter(Boolean))].sort();
+    const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Matéria (Tec): sugere as disciplinas já importadas na Incidência + as já usadas em outros cards
     $id('card-materia-tec').value = materiaTec;
     const discImport = (DB.getIncidencia ? [...new Set(DB.getIncidencia().map(r => r.disciplina).filter(Boolean))] : []);
-    const materiaTecCards = DB.getCards().map(c => c.materiaTec).filter(Boolean);
+    const materiaTecCards = this.collectionCards().map(c => c.materiaTec).filter(Boolean);
     const materiaTecOpts = [...new Set([...discImport, ...materiaTecCards])].sort();
     $id('card-materia-tec-list').innerHTML = materiaTecOpts.map(t => `<option value="${escapeHtml(t)}">`).join('');
     // Banca: seletor único com busca, entre as cadastradas em ⚙ Algoritmo → Gerenciar bancas
@@ -1694,7 +1720,7 @@ const CardsScreen = {
   async deleteCard() {
     if (!this._editingId) return;
     const c = DB.getCard(this._editingId);
-    const irmaos = c ? DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length : 1;
+    const irmaos = c ? this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length : 1;
     const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
     if (!await UI.confirm(msg)) return;
     DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');

@@ -44,6 +44,14 @@ jobs:
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-paridade-total-anki.mjs
 
+      - name: Escopo global e motor pós-edital
+        if: github.event_name != 'push'
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 30s node testes/global-scope-cards.mjs
+          timeout 30s node testes/motor-sugestao-regra.mjs
+
       - name: Exportação de pacotes
         if: github.event_name != 'push'
         env:
