@@ -59,6 +59,19 @@ const CardsScreen = {
     const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
   },
 
+  _statsCards() {
+    try {
+      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
+    } catch (_) {}
+    return DB.getCards();
+  },
+  _statsRevlog(applyHistory) {
+    try {
+      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
+    } catch (_) {}
+    return DB.getRevlog() || [];
+  },
+
   /* ── TRUE RETENTION ───────────────────────────────────────────────────────
      A estatística que responde "a retenção que eu realmente tenho bate com a
      meta que configurei?". O Anki a separa por MATURIDADE porque as duas contam
@@ -67,7 +80,7 @@ const CardsScreen = {
      Só contam revisões de LONGO PRAZO — repetir um card no mesmo dia não diz
      nada sobre esquecimento. */
   trueRetention(dias) {
-    const revlog = DB.getRevlog() || [];
+    const revlog = this._statsRevlog();
     // O Anki conta somente a PRIMEIRA revisão do card em cada dia.
     // "Hoje" é apenas hoje; uma janela N inclui hoje + N-1 dias anteriores.
     const limite = dias ? CardEngine.addDays(todayCards(), -(Math.max(1, Number(dias)) - 1)) : null;
@@ -113,7 +126,7 @@ const CardsScreen = {
     const mapa = {};
     for (let i = 0; i <= dias; i++) mapa[CardEngine.addDays(hoje, i)] = 0;
     let atrasados = 0;
-    DB.getCards().forEach(c => {
+    this._statsCards().forEach(c => {
       if (c.suspenso || !c.due) return;
       if (this._bucket(c) === 'new') return;
       if (c.due < hoje) { atrasados++; return; }
@@ -151,16 +164,13 @@ const CardsScreen = {
   // ---- conteúdo (revisar ou meus cards) ----
   renderContent() {
     const box = document.getElementById('cards-content');
+    if (this.tab !== 'revisar' && this._autoAdvanceEnabled) this._disableAutoAdvanceSilently();
     if (this.tab === 'revisar') this.renderRevisar(box);
     else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
   },
-  /* O Anki 26.09.2 mantém Collection.state.card_queues em RAM e só a limpa
-     quando uma operação exige rebuild. A fila do reviewer, portanto, NÃO deve
-     ser remontada em cada render. Esta função é o equivalente local de
-     clear_study_queues(): use somente quando mudou algo que afeta elegibilidade,
-     ordem, limites ou o baralho selecionado. Reload completo da página já zera
-     naturalmente este estado em memória, como reiniciar o Anki. */
+  /* O Anki 26.09.2 mantém CardQueues em memória e só reconstrói a fila
+     quando uma operação altera elegibilidade, ordem, limites ou o deck. */
   invalidateReviewQueue() {
     this._reviewQueue = [];
     this._reviewIdx = 0;
@@ -500,10 +510,8 @@ const CardsScreen = {
       box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
-    /* Igual ao CardQueues do Anki: enquanto há uma fila ativa válida, ela é
-       reaproveitada. Re-render, editar texto, abrir/fechar painel ou sair e
-       voltar ao reviewer não reembaralham o restante da rodada. Se a página
-       foi recarregada, a fila começa vazia e é reconstruída normalmente. */
+    /* Igual ao CardQueues do Anki: enquanto existe uma fila ativa válida,
+       rerenders e alternância de UI não reembaralham a rodada restante. */
     const cachedId = this._reviewQueue && this._reviewQueue[this._reviewIdx];
     const cacheValido = !!(cachedId && DB.getCard(cachedId));
     if (!cacheValido) {
@@ -542,10 +550,10 @@ const CardsScreen = {
   },
   // ===== Painel de estatísticas FSRS (retenção real, previsão, maturidade) =====
   renderStats(box) {
-    const cards = DB.getCards();
+    const cards = this._statsCards();
     if (cards.length === 0) { box.innerHTML = this.emptyState('Sem estatísticas ainda', 'Crie e revise alguns cards para ver seus dados.'); return; }
     const cfg = CardsConfig.get();
-    const revlog = DB.getRevlog();
+    const revlog = this._statsRevlog();
     /* Os KPIs de retenção e a tabela "Retenção real" abaixo leem a MESMA
        função. Antes cada um tinha sua conta e os dois números apareciam lado a
        lado, com o mesmo rótulo e valores diferentes. */
@@ -632,7 +640,7 @@ const CardsScreen = {
      "Errei" em revisão significa intervalos longos demais; muito "Fácil"
      significa o contrário — e a retenção-alvo deveria mudar, não os cards. */
   _statBotoes() {
-    const revlog = DB.getRevlog() || [];
+    const revlog = this._statsRevlog();
     if (revlog.length < 5) return '';
     const NOMES = { 1: 'Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
     const TONS = { 1: 'bad', 2: 'warn', 3: 'accent', 4: 'good' };
@@ -664,7 +672,7 @@ const CardsScreen = {
      modelo de memória. Uma massa concentrada em dificuldade alta indica material
      mal formulado — card difícil demais costuma ser card mal escrito. */
   _statDistribuicao() {
-    const cards = DB.getCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
+    const cards = this._statsCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
     if (cards.length < 5) return '';
     const FAIXAS_S = [[0, 1, '< 1d'], [1, 7, '1–7d'], [7, 21, '7–21d'], [21, 90, '21–90d'], [90, 365, '90d–1a'], [365, Infinity, '> 1a']];
     const FAIXAS_D = [[1, 3, 'Muito fácil'], [3, 5, 'Fácil'], [5, 7, 'Médio'], [7, 9, 'Difícil'], [9, 10.01, 'Muito difícil']];
@@ -693,14 +701,45 @@ const CardsScreen = {
     if(cap>0)ms=Math.min(ms,cap);
     return Math.round(ms);
   },
+  _resumeAutoAdvanceIfReady(){
+    const p=this._reviewAutoPending;if(!p||!this._autoAdvanceEnabled)return;
+    if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying())return;
+    const id=(this._reviewQueue||[])[this._reviewIdx];
+    if(String(id||'')!==String(p.cardId||'')){this._reviewAutoPending=null;return;}
+    this._reviewAutoPending=null;try{p.fn();}catch(e){_quiet(e,'auto-advance-resume');}
+  },
+  _runAutoAdvanceAction(c,cfg,fn){
+    if(!this._autoAdvanceEnabled)return;
+    if(typeof document!=='undefined'&&document.hasFocus&&!document.hasFocus()){this._disableAutoAdvanceSilently();return;}
+    if(this.tab!=='revisar'){this._disableAutoAdvanceSilently();return;}
+    if(cfg&&cfg.waitForAudio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
+      this._reviewAutoPending={cardId:c.id,fn};return;
+    }
+    fn();
+  },
+  _disableAutoAdvanceSilently(){
+    this._autoAdvanceEnabled=false;this._reviewAutoPending=null;
+    clearTimeout(this._reviewAutoTimer);clearInterval(this._reviewTimer);
+    const b=document.getElementById('cards-auto-advance');if(b){b.classList.remove('on');b.setAttribute('aria-pressed','false');b.textContent='⏩ Auto';}
+  },
+  toggleAutoAdvance(force){
+    const next=typeof force==='boolean'?force:!this._autoAdvanceEnabled;
+    if(!next){this._disableAutoAdvanceSilently();showToast('⏸ Auto Advance desligado');return;}
+    this._autoAdvanceEnabled=true;this._reviewAutoPending=null;clearTimeout(this._reviewAutoTimer);
+    const id=(this._reviewQueue||[])[this._reviewIdx],c=id&&DB.getCard(id);
+    if(c)this._armReviewerAutomation(c,CardsConfig.forDeck(c.deckId));
+    const b=document.getElementById('cards-auto-advance');if(b){b.classList.add('on');b.setAttribute('aria-pressed','true');b.textContent='⏩ Auto ligado';}
+    showToast('⏩ Auto Advance ligado');
+  },
   _armReviewerAutomation(c,cfg) {
-    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
+    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);this._reviewAutoPending=null;
     const tick=()=>{
       const el=document.getElementById('cards-review-timer');if(!el)return;
       el.textContent=(this._reviewElapsedMs(cfg)/1000).toFixed(1)+'s';
     };
     if(cfg&&cfg.showTimer){tick();this._reviewTimer=setInterval(tick,250);}
-    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))fn();},ms);};
+    if(!this._autoAdvanceEnabled)return;
+    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))this._runAutoAdvanceAction(c,cfg,fn);},ms);};
     if(!this._flipped&&cfg&&Number(cfg.secondsToShowQuestion)>0){
       const rem=Math.max(0,Number(cfg.secondsToShowQuestion)*1000-(Date.now()-(Number(this._reviewStartedAt)||Date.now())));
       run(rem,()=>{if(Number(cfg.questionAction)===0)this.flip(document.getElementById('cards-content'));else showToast('⏰ Tempo da pergunta concluído');});
@@ -752,6 +791,7 @@ const CardsScreen = {
           <button type="button" class="icon-btn" id="cards-act-forget" title="Esquecer: volta a ser card novo (Ctrl+Alt+N)">↺ Esquecer</button>
           <button type="button" class="icon-btn" id="cards-act-due" title="Definir data de vencimento (Ctrl+Shift+D)">📅 Data</button>
           <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
+          <button type="button" class="icon-btn ${this._autoAdvanceEnabled?'on':''}" id="cards-auto-advance" aria-pressed="${this._autoAdvanceEnabled?'true':'false'}" title="Alternar Auto Advance (Shift+A)">${this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto'}</button>
           <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)" aria-label="Excluir card (Ctrl+Del)">🗑</button>
           <span class="cards-flagbar" title="Bandeiras (Ctrl+1..4, Ctrl+0 remove)">
             ${[1,2,3,4].map(n => `<button type="button" class="cards-flag ${(c.flag||0)===n?'on':''}" data-flag="${n}" style="--fl:${DB.FLAGS[n].cor}" title="${DB.FLAGS[n].nome} (Ctrl+${n})"></button>`).join('')}
@@ -800,6 +840,7 @@ const CardsScreen = {
         });
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
+    liga('cards-auto-advance', () => this.toggleAutoAdvance());
     liga('cards-act-del', () => {
       const irmaos = DB.getCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id)).length;
       const msg = irmaos > 1
@@ -949,6 +990,7 @@ const CardsScreen = {
     const clique = (bid) => { const b = document.getElementById(bid); if (b) b.click(); };
     if (e.code === 'KeyU' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.undoAnswer(); return; }   // u = desfazer
     if (e.code === 'KeyE' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); clique('cards-review-edit'); return; }
+    if (e.shiftKey && e.code === 'KeyA' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); this.toggleAutoAdvance(); return; }
     if (e.code === 'KeyI' && !e.ctrlKey && !e.metaKey) { e.preventDefault(); clique('cards-act-info'); return; }
     if (e.key === '-') { e.preventDefault(); clique('cards-act-bury'); return; }
     if (e.key === '@' || (e.shiftKey && e.code === 'Digit2')) { e.preventDefault(); clique('cards-act-susp'); return; }
@@ -1127,12 +1169,19 @@ const CardsScreen = {
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
+        const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
+        const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
         const revRow = await DB.addRevlogDurable(
           { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
             phase: previewPatch ? 'filtered' : (c.phase || 'new'),
             ankiReviewKind: previewPatch ? 'filtered' : undefined,
             elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
-            intervalo: previewPatch ? 0 : (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
+            // Compatibilidade: `intervalo` continua sendo o intervalo pré-resposta
+            // usado pelas estatísticas antigas; os campos Anki explícitos removem
+            // qualquer ambiguidade para FSRS/import/export daqui em diante.
+            intervalo: preInterval, lastInterval: preInterval, ankiLastInterval: preInterval,
+            ankiInterval: postInterval, easeFactor,
+            s: (c.s || null), d: (c.d || null) },
           cardAfter, cardPosition
         );
         if (revRow === false) {
@@ -2393,6 +2442,63 @@ CardsScreen.optimizeFsrsOfficial = async function (deckId) {
   return out;
 };
 
+CardsScreen._fsrsCardsForPreset = function(deckId){
+  const cards=DB.getCards().filter(c=>!c.suspenso);
+  if(deckId!=null)return cards.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
+  return cards.filter(c=>{const did=c.originalDeckId||c.deckId;return !(did&&CardsConfig.hasDeckPreset(did));});
+};
+CardsScreen.optimizeAllFsrsPresets = async function(){
+  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes de otimizar parâmetros.');
+  const scopes=[null,...Object.keys(CardsConfig._getPresets?CardsConfig._getPresets():{})],results=[];
+  for(const deckId of scopes){
+    const cards=this._fsrsCardsForPreset(deckId);if(!cards.length){results.push({deckId,skipped:'empty'});continue;}
+    const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId);
+    try{
+      const out=await FSRS.optimizeOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+      const patch={weights:out.params.slice(),lastOptim:new Date().toISOString()};
+      if(deckId==null)CardsConfig.set(patch);else CardsConfig.setDeckPreset(deckId,patch);
+      results.push({deckId,reviewCount:out.reviewCount,cardCount:out.cardCount,ok:true});
+    }catch(e){results.push({deckId,ok:false,error:e&&e.message?e.message:String(e)});}
+    await new Promise(r=>setTimeout(r,0));
+  }
+  CardEngine.invalidateDueCache();return results;
+};
+CardsScreen.fsrsHealthCheck = async function(deckId){
+  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
+  const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
+  return FSRS.healthCheckOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+};
+CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
+  if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
+  const entries=(rows||[]).filter(r=>String(r.cardId)===String(card.id)).sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
+  if(!entries.length)return null;
+  let ignoreBeforeMs=0;if(cfg.ignoreRevlogsBefore){const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();}
+  const data=AnkiParity.fsrsMemoryStateData(entries,null,ignoreBeforeMs,cfg.historicalRetention,card);
+  if(!data||!data.lastReviewedAtMs)return null;
+  const w=CardsConfig.weightsFor(card.originalDeckId||card.deckId),retention=Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),
+    state=FSRS.memoryStateOfficialWithModule(mod,data,w,retention),raw=state.interval,maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
+    previous=data.previousInterval==null?0:Math.max(0,Number(data.previousInterval)||0),
+    min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),
+    lastDate=new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
+    elapsed=Math.max(0,CardEngine._daysBetween(lastDate,todayCards())),seed=AnkiParity.fuzzSeed(card,true);
+  let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
+  if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);
+  const due=CardEngine.addDays(lastDate,iv),patch={s:state.s,d:state.d,intervalo:iv,dueTs:null,updatedAt:new Date().toISOString()};
+  if(card.originalDeckId)patch.originalDue=due;else patch.due=due;
+  return {patch,interval:iv,previous,due};
+};
+CardsScreen.rescheduleFsrsScope = async function(deckId){
+  const rows=DB.getRevlog()||[],all=DB.getCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
+    mod=await FSRS._loadOfficialOptimizer();
+  let changed=0;
+  for(const card of targets){
+    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),out=this._rescheduleFsrsCard(card,cfg,rows,mod);if(!out)continue;
+    DB.addRevlog({ts:Date.now()+changed,date:todayCards(),cardId:card.id,grade:0,phase:'review',ankiReviewKind:'rescheduled',intervalo:Number(card.intervalo)||0,lastInterval:Number(card.intervalo)||0,ankiLastInterval:Number(card.intervalo)||0,ankiInterval:Number(out.interval)||0,elapsed:0,time:0,s:card.s||null,d:card.d||null});
+    if(DB.updateCard(card.id,out.patch)!==false)changed++;
+  }
+  CardEngine.invalidateDueCache();return changed;
+};
+
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
 CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
@@ -2406,8 +2512,11 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       options: [{ value: 'fsrs', label: 'FSRS-6 (recomendado — igual ao Anki atual)' }, { value: 'sm2', label: 'Clássico (SM-2)' }],
       hint: 'Como no Anki, esta escolha é global. Presets podem variar retenção e parâmetros, não o algoritmo ligado.'
     }] : []),
-    { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 97,
-      hint: 'Maior = revê mais e esquece menos. Padrão do Anki: 90%.' },
+    { key: 'retention', label: '🎯 Retenção-alvo (%) — só FSRS', type: 'number', value: Math.round(cfg.retention * 100), min: 70, max: 99,
+      hint: 'Faixa do Anki/FSRS: 70–99%. Padrão: 90%. Valores muito altos aumentam bastante a carga.' },
+    { key: 'fsrsReschedule', label: '🔄 Reagendar cards ao salvar alterações FSRS', type: 'select', value: '0',
+      options: [{value:'0',label:'Não'},{value:'1',label:'Sim — Reschedule Cards on Change'}],
+      hint: 'Opção transitória como no Anki: recalcula S/D, intervalo e vencimento dos cards de revisão e grava uma entrada de histórico “rescheduled”.' },
     { key: 'learn', label: '⏱️ Passos de aprendizado (min)', type: 'text', value: cfg.learnSteps.join(' '), placeholder: '1 10',
       hint: 'Card novo: você o revê nesses minutos até fixar (ex.: 1 10).' },
     { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
@@ -2437,6 +2546,18 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: '0 = desligado. Quando ativo, usa a ação configurada pelo preset do Anki.' },
     { key: 'secondsToShowAnswer', label: '⏭️ Agir automaticamente na resposta após (s)', type: 'number', value: cfg.secondsToShowAnswer || 0, min: 0, max: 86400,
       hint: '0 = desligado. A ação automática importada do Anki é preservada.' },
+    { key: 'questionAction', label: '⏭️ Ação ao terminar o tempo da pergunta', type: 'select', value: String(Number(cfg.questionAction)||0),
+      options: [{value:'0',label:'Mostrar resposta'},{value:'1',label:'Mostrar lembrete'}],
+      hint: 'Usada somente quando Auto Advance está ligado no reviewer.' },
+    { key: 'answerAction', label: '⏭️ Ação ao terminar o tempo da resposta', type: 'select', value: String(Number(cfg.answerAction)||0),
+      options: [{value:'0',label:'Enterrar card'},{value:'1',label:'Responder Errei'},{value:'2',label:'Responder Bom'},{value:'3',label:'Responder Difícil'},{value:'4',label:'Mostrar lembrete'}],
+      hint: 'Mesma enumeração do reviewer atual do Anki.' },
+    { key: 'waitForAudio', label: '🔊 Auto Advance aguarda o áudio', type: 'select', value: cfg.waitForAudio?'1':'0',
+      options: [{value:'1',label:'Sim'},{value:'0',label:'Não'}],
+      hint: 'Quando ligado, o timer pode expirar, mas a ação só ocorre quando a fila de áudio/TTS termina.' },
+    { key: 'skipQuestionWhenReplayingAnswer', label: '🔁 Ao repetir no verso, pular áudio da pergunta', type: 'select', value: cfg.skipQuestionWhenReplayingAnswer?'1':'0',
+      options: [{value:'0',label:'Não'},{value:'1',label:'Sim'}],
+      hint: 'Controla se Repetir mídia no lado da resposta inclui também o áudio da pergunta.' },
     { key: 'buryNew', label: '🫥 Enterrar irmãos novos', type: 'select', value: cfg.buryNew ? '1' : '0',
       options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
       hint: 'Depois de responder um card, esconde até amanhã os irmãos novos da mesma nota.' },
@@ -2557,10 +2678,15 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Se ligado, ao estudar diretamente um subbaralho também se aplicam os limites dos baralhos-pai acima dele.' });
   }
   const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
-  UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
+  UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(async v => {
     if (!v) return;
-    const parseSteps = (s, def) => { const a = String(s).split(/[\s,]+/).map(x => parseFloat(x)).filter(x => x > 0); return a.length ? a : def; };
-    const ret = Math.min(0.97, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
+    const parseSteps = (s, def) => {
+      const raw=String(s==null?'':s).trim();
+      if(!raw)return []; // vazio é configuração válida no Anki/FSRS
+      const a=raw.split(/[\s,]+/).map(x=>parseFloat(x)).filter(x=>Number.isFinite(x)&&x>0);
+      return a.length?a:def;
+    };
+    const ret = Math.min(0.99, Math.max(0.70, (parseFloat(v.retention) || 90) / 100));
     const patch = {
       retention: ret,
       learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]),
@@ -2574,6 +2700,10 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       stopTimerOnAnswer: v.stopTimerOnAnswer === '1', disableAutoplay: v.disableAutoplay === '1',
       secondsToShowQuestion: Math.max(0,Math.min(86400,Number(v.secondsToShowQuestion)||0)),
       secondsToShowAnswer: Math.max(0,Math.min(86400,Number(v.secondsToShowAnswer)||0)),
+      questionAction: Math.max(0,Math.min(1,Math.round(Number(v.questionAction)||0))),
+      answerAction: Math.max(0,Math.min(4,Math.round(Number(v.answerAction)||0))),
+      waitForAudio: v.waitForAudio !== '0',
+      skipQuestionWhenReplayingAnswer: v.skipQuestionWhenReplayingAnswer === '1',
       newPerDay: Math.max(0, parseInt(v.newPerDay, 10) || 0),
       revPerDay: Math.max(0, parseInt(v.revPerDay, 10) || 0),
       /* Novas opções de ordenação/mistura. Cada valor é validado contra a lista
@@ -2620,7 +2750,10 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       patch.applyAllParentLimits = v.applyAllParentLimits === '1';
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
+    const shouldReschedule=v.fsrsReschedule==='1'&&patch.algo!=='sm2'&&CardsConfig.get().algo==='fsrs';
+    const rescheduled=shouldReschedule?await CardsScreen.rescheduleFsrsScope(deckId):0;
     CardEngine.invalidateDueCache();
+    if(rescheduled)showToast('🔄 '+rescheduled.toLocaleString('pt-BR')+' card(s) reagendado(s) com FSRS ✓');
     if (CardsScreen.tab === 'revisar') {
       CardsScreen.invalidateReviewQueue();
       CardsScreen.renderContent();
@@ -2651,6 +2784,17 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       }
     });
     foot.insertBefore(b, foot.firstChild);
+    const health=document.createElement('button');health.id='cards-fsrs-health-btn';health.type='button';health.className='btn-secondary';health.textContent='🩺 Health Check';
+    health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check: dados insuficientes ('+h.fsrsItems+' itens; requer >300)');else showToast((h.passed?'✅':'⚠')+' Health Check '+(h.passed?'aprovado':'requer atenção')+' · loss '+h.adjustedLogLoss.toFixed(2)+' · RMSE '+h.adjustedRmse.toFixed(2));}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
+    foot.insertBefore(health,b.nextSibling);
+    const decide=document.createElement('button');decide.id='cards-fsrs-help-decide-btn';decide.type='button';decide.className='btn-secondary';decide.textContent='🤔 Help Me Decide';
+    decide.addEventListener('click',()=>{try{UI._submit(false);}catch(_){};setTimeout(()=>{if(typeof AnkiMaxStatsMedia!=='undefined'&&AnkiMaxStatsMedia.openSimulator){AnkiMaxStatsMedia.openSimulator();const x=document.getElementById('anki-sim-help');if(x)x.click();}else showToast('Simulador FSRS indisponível');},0);});
+    foot.insertBefore(decide,health.nextSibling);
+    if(!isDeck){
+      const all=document.createElement('button');all.id='cards-optimize-all-fsrs-btn';all.type='button';all.className='btn-secondary';all.textContent='🧠 Otimizar todos os presets';
+      all.addEventListener('click',async()=>{const old=all.textContent;all.disabled=true;all.textContent='⏳ Otimizando presets…';try{const rs=await CardsScreen.optimizeAllFsrsPresets(),ok=rs.filter(x=>x.ok).length,skip=rs.length-ok;showToast('FSRS: '+ok+' preset(s) otimizado(s)'+(skip?' · '+skip+' sem dados suficientes':'')+' ✓');}catch(e){showToast('Falha ao otimizar presets: '+(e&&e.message?e.message:String(e)));}finally{all.disabled=false;all.textContent=old;}});
+      foot.insertBefore(all,health.nextSibling);
+    }
   }, 60);
 
   // botão extra "restaurar herança" quando o baralho tem preset

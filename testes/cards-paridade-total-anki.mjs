@@ -18,6 +18,7 @@ eq(CardEngine.hasContent('<div><br></div>'),false,'HTML estrutural vazio não po
 const telaSrc=A.source?A.source('src/js/44-tela-cards.js'):null;
 if(telaSrc) ok(telaSrc.includes('CardEngine.hasContent(frente)')&&telaSrc.includes('CardEngine.hasContent(verso)'),'salvamento simples deve validar mídia, não só texto');
 
+
 // ── Sessão do reviewer: cache de fila como Collection.state.card_queues ───
 A.reset({newPerDay:99,revPerDay:99});
 const rq1=DB.addCard({frente:'Q1',verso:'A1',phase:'new',due:A.hoje(),posicaoNova:1});
@@ -36,6 +37,15 @@ CardsScreen.invalidateReviewQueue();
 CardsScreen.renderRevisar({innerHTML:''});
 eq(queueBuilds,2,'invalidação explícita reconstrói a fila');
 CardsScreen.buildQueue=realBuild;
+
+// ── FSRS-6 short-term: semântica exata do fsrs-rs 6.6.2 ─────────────────
+{
+  const w=FSRS.DEFAULT_W,S=.2;
+  const hard=FSRS.nextS_short(S,2,w),good=FSRS.nextS_short(S,3,w),easy=FSRS.nextS_short(S,4,w);
+  ok(hard<S,'Hard pode reduzir estabilidade curta quando o multiplicador FSRS-6 é < 1');
+  ok(good>=S,'Good nunca pode reduzir estabilidade curta');
+  ok(easy>=S,'Easy nunca pode reduzir estabilidade curta');
+}
 
 // ── RNG oficial: rand_core seed_from_u64 + StdRng/ChaCha12 ────────────────
 for(const [seed,a,b] of [

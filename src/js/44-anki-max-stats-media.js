@@ -51,6 +51,60 @@ const AnkiMaxStatsMedia = {
     this._installed=true;this._patchImportExport();this._patchStats();this._patchCheck();this._injectSimulator();
   },
 
+  _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
+  _statsSelectedDeckId(){
+    const explicit=this._statsState&&this._statsState.deckId;
+    if(explicit!=null&&explicit!=='')return String(explicit);
+    try{if(typeof AnkiParity!=='undefined'&&AnkiParity.selectedDeckId)return String(AnkiParity.selectedDeckId()||'');}catch(_){}
+    return '';
+  },
+  _statsDeckIds(rootId){
+    if(!rootId)return null;
+    const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(rootId));if(!root)return new Set([String(rootId)]);
+    const name=String(root.nome||''),prefix=name+'::';
+    return new Set(decks.filter(d=>String(d.id)===String(rootId)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
+  },
+  statsCards(){
+    let cards=DB.getCards();
+    const st=this._statsState||{},scope=st.scope||'deck';
+    if(scope==='deck'){
+      const ids=this._statsDeckIds(this._statsSelectedDeckId());
+      if(ids)cards=cards.filter(c=>ids.has(String(c.deckId)));
+    }else if(scope==='search'&&String(st.search||'').trim()){
+      const q=String(st.search).trim();
+      if(typeof AnkiParity!=='undefined'&&AnkiParity.filteredSearchMatches)cards=cards.filter(c=>{try{return AnkiParity.filteredSearchMatches(c,q);}catch(_){return false;}});
+    }
+    return cards;
+  },
+  statsRevlog(applyHistory=true){
+    let rows=DB.getRevlog()||[];const st=this._statsState||{},scope=st.scope||'deck';
+    if(scope!=='collection'){
+      const ids=new Set();
+      for(const c of this.statsCards()){if(c&&c.id!=null)ids.add(String(c.id));if(c&&c.ankiId!=null)ids.add(String(c.ankiId));}
+      rows=rows.filter(r=>ids.has(String(r.cardId==null?r.ankiCardId:r.cardId)));
+    }
+    if(applyHistory&&st.history!=='all'){
+      const cut=CardEngine.addDays(todayCards(),-364);
+      rows=rows.filter(r=>{const d=this._revDate(r);return !d||d>=cut;});
+    }
+    return rows;
+  },
+  _statsHistoryDays(){
+    if((this._statsState||{}).history!=='all')return 365;
+    const rows=this.statsRevlog(false),today=todayCards();let earliest=today;
+    for(const r of rows){const d=this._revDate(r);if(d&&d<earliest)earliest=d;}
+    return Math.max(1,Math.min(36500,CardEngine._daysBetween(earliest,today)+1));
+  },
+  _statsControlsHtml(){
+    const st=this._statsState||{},decks=DB.getDecks().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')),
+      selected=this._statsSelectedDeckId(),esc=(v)=>typeof AnkiProductParity!=='undefined'&&AnkiProductParity.esc?AnkiProductParity.esc(v):String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+    return '<div class="card stat-card anki-stats-controls"><div class="card-header"><div><h2>Escopo das estatísticas</h2><p class="sub">Mesmo modelo de escopo do Anki: baralho, coleção ou pesquisa; últimos 12 meses ou todo o histórico.</p></div></div>'+
+      '<div class="field-group"><div class="field"><label>Escopo</label><select id="anki-stats-scope"><option value="deck"'+(st.scope==='deck'?' selected':'')+'>Baralho</option><option value="collection"'+(st.scope==='collection'?' selected':'')+'>Coleção</option><option value="search"'+(st.scope==='search'?' selected':'')+'>Pesquisa</option></select></div>'+
+      '<div class="field"><label>Histórico</label><select id="anki-stats-history"><option value="year"'+(st.history!=='all'?' selected':'')+'>Últimos 12 meses</option><option value="all"'+(st.history==='all'?' selected':'')+'>Todo o histórico</option></select></div></div>'+
+      '<div class="field-group"><div class="field"><label>Baralho</label><select id="anki-stats-deck"><option value="">Baralho selecionado</option>'+decks.map(d=>'<option value="'+esc(d.id)+'"'+(String(d.id)===selected?' selected':'')+'>'+esc(d.nome)+'</option>').join('')+'</select></div>'+
+      '<div class="field"><label>Pesquisa</label><input id="anki-stats-search" type="text" value="'+esc(st.search||'')+'" placeholder="Ex.: tag:fiscal -is:suspended"></div></div></div>';
+  },
+
   /* ───────────────── MEDIA STORE / ROUND-TRIP ───────────────── */
   _patchImportExport(){
     if(typeof AnkiImport!=='undefined'&&!AnkiImport.__mediaStorePatched){
@@ -109,78 +163,184 @@ const AnkiMaxStatsMedia = {
   },
   _revDate(r){if(r&&/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||'')))return String(r.date);const ts=Number(r&&r.ts)||0;return ts?new Date(ts).toISOString().slice(0,10):'';},
   _dayMap(days){
-    const m=new Map(),today=todayCards();for(let i=days-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),{count:0,time:0,learning:0,review:0,relearning:0,filtered:0,good:0,total:0});
-    for(const r of DB.getRevlog()){const d=this._revDate(r),x=m.get(d);if(!x)continue;x.count++;x.time+=Math.max(0,Number(r.time)||0);const ph=String(r.phase||'review');if(ph==='learning')x.learning++;else if(ph==='relearning')x.relearning++;else if(Number(r.ankiReviewKind)===3)x.filtered++;else x.review++;if(Number(r.grade)>=2)x.good++;x.total++;}
+    const span=Math.max(1,Number(days)||this._statsHistoryDays()),m=new Map(),today=todayCards();for(let i=span-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),{count:0,time:0,learning:0,review:0,relearning:0,filtered:0,good:0,total:0});
+    for(const r of this.statsRevlog()){const d=this._revDate(r),x=m.get(d);if(!x)continue;x.count++;x.time+=Math.max(0,Number(r.time)||0);const ph=String(r.phase||'review');if(ph==='learning')x.learning++;else if(ph==='relearning')x.relearning++;else if(Number(r.ankiReviewKind)===3)x.filtered++;else x.review++;if(Number(r.grade)>=2)x.good++;x.total++;}
     return m;
   },
   _calendarHtml(){
-    const m=this._dayMap(365),vals=[...m.entries()],max=Math.max(1,...vals.map(x=>x[1].count));
-    return '<div class="card stat-card anki-max-calendar"><div class="card-header"><div><h2>🗓 Calendário</h2><p class="sub">Atividade de revisão nos últimos 365 dias</p></div></div><div class="anki-calendar-grid">'+vals.map(([d,x])=>{const lvl=x.count?Math.max(1,Math.ceil(x.count/max*4)):0;return '<span class="anki-cal-day l'+lvl+'" title="'+d+': '+x.count+' revisão(ões)"></span>';}).join('')+'</div></div>';
+    const span=this._statsHistoryDays(),m=this._dayMap(span),vals=[...m.entries()],max=Math.max(1,...vals.map(x=>x[1].count));
+    return '<div class="card stat-card anki-max-calendar"><div class="card-header"><div><h2>🗓 Calendário</h2><p class="sub">Atividade de revisão no período selecionado</p></div></div><div class="anki-calendar-grid">'+vals.map(([d,x])=>{const lvl=x.count?Math.max(1,Math.ceil(x.count/max*4)):0;return '<span class="anki-cal-day l'+lvl+'" title="'+d+': '+x.count+' revisão(ões)"></span>';}).join('')+'</div></div>';
   },
   _hourlyHtml(){
-    const h=Array.from({length:24},()=>({n:0,ok:0,time:0}));for(const r of DB.getRevlog()){const ts=Number(r.ts)||0;if(!ts)continue;const d=new Date(ts),x=h[d.getHours()];x.n++;x.time+=Number(r.time)||0;if(Number(r.grade)>=2)x.ok++;}
+    const h=Array.from({length:24},()=>({n:0,ok:0,time:0}));for(const r of this.statsRevlog()){const ts=Number(r.ts)||0;if(!ts)continue;const d=new Date(ts),x=h[d.getHours()];x.n++;x.time+=Number(r.time)||0;if(Number(r.grade)>=2)x.ok++;}
     const max=Math.max(1,...h.map(x=>x.n));
     return '<div class="card stat-card"><div class="card-header"><div><h2>🕒 Distribuição por hora</h2><p class="sub">Quantidade e retenção por horário das revisões registradas</p></div></div><div class="anki-hourly">'+h.map((x,i)=>'<div class="anki-hour" title="'+i+'h · '+x.n+' revisões · '+(x.n?Math.round(x.ok/x.n*100):0)+'% acerto"><div class="anki-hour-fill" style="height:'+Math.max(x.n?4:0,Math.round(x.n/max*100))+'%"></div><span>'+String(i).padStart(2,'0')+'</span></div>').join('')+'</div></div>';
   },
   _reviewsHtml(){
-    const m=this._dayMap(30),xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1].count));
-    return '<div class="card stat-card"><div class="card-header"><div><h2>📚 Revisões</h2><p class="sub">30 dias · learning, review, relearning e filtradas</p></div></div><div class="anki-review-bars">'+xs.map(([d,x])=>{const H=Math.round(x.count/max*100),part=k=>x.count?Math.round(x[k]/x.count*H):0;return '<div class="anki-review-day" title="'+d+' · '+x.count+'"><div class="anki-stack"><i class="learn" style="height:'+part('learning')+'%"></i><i class="review" style="height:'+part('review')+'%"></i><i class="relearn" style="height:'+part('relearning')+'%"></i><i class="filtered" style="height:'+part('filtered')+'%"></i></div></div>';}).join('')+'</div><div class="anki-stat-legend"><span>Aprendendo</span><span>Revisão</span><span>Reaprendendo</span><span>Filtrado</span></div></div>';
+    const span=this._statsHistoryDays(),m=this._dayMap(span),xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1].count));
+    return '<div class="card stat-card"><div class="card-header"><div><h2>📚 Revisões</h2><p class="sub">Período selecionado · learning, review, relearning e filtradas</p></div></div><div class="anki-review-bars">'+xs.map(([d,x])=>{const H=Math.round(x.count/max*100),part=k=>x.count?Math.round(x[k]/x.count*H):0;return '<div class="anki-review-day" title="'+d+' · '+x.count+'"><div class="anki-stack"><i class="learn" style="height:'+part('learning')+'%"></i><i class="review" style="height:'+part('review')+'%"></i><i class="relearn" style="height:'+part('relearning')+'%"></i><i class="filtered" style="height:'+part('filtered')+'%"></i></div></div>';}).join('')+'</div><div class="anki-stat-legend"><span>Aprendendo</span><span>Revisão</span><span>Reaprendendo</span><span>Filtrado</span></div></div>';
   },
   _futureHtml(){
-    const cards=DB.getCards().filter(c=>!c.suspenso&&(c.phase||'new')!=='new'&&!c.dueTs),today=todayCards(),weeks=Array.from({length:13},()=>0),backlog=cards.filter(c=>String(c.due||today)<today).length;
+    const cards=this.statsCards().filter(c=>!c.suspenso&&(c.phase||'new')!=='new'&&!c.dueTs),today=todayCards(),weeks=Array.from({length:13},()=>0),backlog=cards.filter(c=>String(c.due||today)<today).length;
     cards.forEach(c=>{const n=CardEngine._daysBetween(today,c.due||today);if(String(c.due||today)<today)return;const w=Math.floor(n/7);if(w>=0&&w<weeks.length)weeks[w]++;});
     const max=Math.max(1,...weeks);
     return '<div class="card stat-card"><div class="card-header"><div><h2>📅 Vencimentos futuros</h2><p class="sub">Próximos 90 dias por semana'+(backlog?' · '+backlog+' atrasado(s)':'')+'</p></div></div><div class="anki-future-bars">'+weeks.map((n,i)=>'<div title="Semana '+(i+1)+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+(i+1)+'</span></div>').join('')+'</div></div>';
   },
   _memoryHtml(){
-    const cards=DB.getCards().filter(c=>Number.isFinite(Number(c.s))&&Number(c.s)>0),rBins=[0,0,0,0,0],iBins=[0,0,0,0,0,0],today=todayCards();
+    const cards=this.statsCards().filter(c=>Number.isFinite(Number(c.s))&&Number(c.s)>0),rBins=[0,0,0,0,0],iBins=[0,0,0,0,0,0],today=todayCards();
     cards.forEach(c=>{const R=CardEngine.retrievabilityDe(c,today,CardsConfig.weightsFor(c.originalDeckId||c.deckId)),ri=Math.min(4,Math.max(0,Math.floor(R*5)));rBins[ri]++;const iv=Number(c.intervalo)||0,ii=iv<1?0:iv<7?1:iv<30?2:iv<90?3:iv<365?4:5;iBins[ii]++;});
     const bars=(arr,labels)=>{const mx=Math.max(1,...arr);return '<div class="anki-mini-hist">'+arr.map((n,i)=>'<div title="'+labels[i]+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+labels[i]+'</span></div>').join('')+'</div>';};
     return '<div class="stat-grid anki-memory-grid"><div class="card stat-card"><div class="card-header"><div><h2>🧠 Recuperabilidade</h2><p class="sub">'+cards.length+' cards FSRS</p></div></div>'+bars(rBins,['0–20','20–40','40–60','60–80','80–100'])+'</div><div class="card stat-card"><div class="card-header"><div><h2>↔ Intervalos</h2></div></div>'+bars(iBins,['<1d','1–7','7–30','30–90','90–365','>1a'])+'</div></div>';
   },
-  statsHtml(){
-    return '<div class="anki-max-stats">'+this._calendarHtml()+'<div class="stat-grid">'+this._reviewsHtml()+this._hourlyHtml()+'</div><div class="stat-grid">'+this._futureHtml()+'<div class="card stat-card anki-sim-card"><div class="card-header"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Projeta carga usando os estados S/D reais, parâmetros e retenção desejada.</p></div></div><button type="button" class="btn-primary" id="anki-open-simulator">Abrir simulador</button></div></div>'+this._memoryHtml()+'</div>';
+  _todayHtml(){
+    const today=todayCards(),logs=this.statsRevlog(false).filter(r=>this._revDate(r)===today),again=logs.filter(r=>Number(r.grade)===1).length,
+      phase={learning:0,review:0,relearning:0,filtered:0},ms=logs.reduce((a,r)=>a+Math.max(0,Number(r.time)||0),0);
+    logs.forEach(r=>{const p=String(r.phase||'review');if(p==='learning')phase.learning++;else if(p==='relearning')phase.relearning++;else if(p==='filtered'||Number(r.ankiReviewKind)===3)phase.filtered++;else phase.review++;});
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Hoje</h2><p class="sub">Resumo da sessão diária no formato das estatísticas do Anki</p></div></div><div class="stat-kpis">'+
+      '<div class="stat-kpi"><div class="stat-kpi-v">'+logs.length+'</div><div class="stat-kpi-l">Respostas</div></div>'+
+      '<div class="stat-kpi"><div class="stat-kpi-v">'+again+'</div><div class="stat-kpi-l">Again</div></div>'+
+      '<div class="stat-kpi"><div class="stat-kpi-v">'+(ms/60000).toFixed(1)+'m</div><div class="stat-kpi-l">Tempo</div></div></div>'+
+      '<p class="hint">Learn '+phase.learning+' · Review '+phase.review+' · Relearn '+phase.relearning+' · Filtered '+phase.filtered+'</p></div>';
   },
-  _bindStatsUi(){const b=document.getElementById('anki-open-simulator');if(b)b.onclick=()=>this.openSimulator();},
-
-  _ratingModel(){
-    const logs=DB.getRevlog().filter(r=>Number(r.grade)>=1&&Number(r.grade)<=4),first=[.1,.12,.68,.1],review=[.08,.1,.72,.1],cost=[8,8,8,8];
-    const calc=(sub,fallback)=>{if(sub.length<20)return fallback;const n=[0,0,0,0];sub.forEach(r=>n[Number(r.grade)-1]++);return n.map(x=>x/sub.length);};
-    const reviewLogs=logs.filter(r=>String(r.phase||'review')==='review'),firstLogs=logs.filter(r=>String(r.phase||'')==='learning');
-    for(let g=1;g<=4;g++){const xs=logs.filter(r=>Number(r.grade)===g&&Number(r.time)>0);if(xs.length)cost[g-1]=xs.reduce((a,r)=>a+Number(r.time),0)/xs.length/1000;}
-    return {first:calc(firstLogs,first),review:calc(reviewLogs,review),cost};
+  _cardCountsHtml(){
+    const cards=this.statsCards(),counts={new:0,learn:0,relearn:0,young:0,mature:0,suspended:0,buried:0};
+    cards.forEach(c=>{if(c.suspenso){counts.suspended++;return;}if(CardEngine.estaEnterrado(c)){counts.buried++;return;}const ph=String(c.phase||'new');if(ph==='new')counts.new++;else if(ph==='learning')counts.learn++;else if(ph==='relearning')counts.relearn++;else if((Number(c.intervalo)||0)>=21)counts.mature++;else counts.young++;});
+    const items=[['New',counts.new],['Learning',counts.learn],['Relearning',counts.relearn],['Young',counts.young],['Mature',counts.mature],['Suspended',counts.suspended],['Buried',counts.buried]],mx=Math.max(1,...items.map(x=>x[1]));
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Card Counts</h2><p class="sub">Estado atual dos cards</p></div></div><div class="anki-mini-hist">'+items.map(([k,n])=>'<div title="'+k+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+k+'</span></div>').join('')+'</div></div>';
   },
-  _rnd(seed){let x=FSRS._hash(String(seed))>>>0;x^=x<<13;x^=x>>>17;x^=x<<5;return (x>>>0)/4294967296;},
-  _pick(probs,u){let a=0;for(let i=0;i<probs.length;i++){a+=probs[i];if(u<a)return i+1;}return 3;},
-  _sampleCards(max=1500){const all=DB.getCards().filter(c=>!c.suspenso);if(all.length<=max)return all.map(c=>structuredClone(c));const step=all.length/max,out=[];for(let i=0;i<max;i++)out.push(structuredClone(all[Math.floor(i*step)]));return out;},
-  simulate(days,retention,opts){
-    opts=opts||{};days=Math.max(1,Math.min(3650,Math.round(Number(days)||365)));retention=Math.max(.7,Math.min(.99,Number(retention)||.9));
-    const live=DB.getCards().filter(c=>!c.suspenso),allCount=live.length,sample=this._sampleCards(opts.sample||1500);
-    const scale=allCount&&sample.length?allCount/sample.length:1,model=this._ratingModel(),today=todayCards(),
-      w=CardsConfig.get().weights&&FSRS.pesosValidos(CardsConfig.get().weights)?CardsConfig.get().weights:FSRS.DEFAULT_W,
-      maxIvl=Math.max(1,Math.round(opts.maxInterval==null?(Number(CardsConfig.get().maxInterval)||36500):Number(opts.maxInterval)||36500));
-    const newLimit=Math.max(0,Math.round(opts.newLimit==null?CardsConfig.get().newPerDay:Number(opts.newLimit))),
-      reviewLimit=Math.max(0,Math.round(opts.reviewLimit==null?CardsConfig.get().revPerDay:Number(opts.reviewLimit))),
-      additionalNew=Math.max(0,Math.round(Number(opts.additionalNew)||0));
-    let pendingNew=sample.filter(c=>(c.phase||'new')==='new'),
-      active=sample.filter(c=>(c.phase||'new')!=='new').map(c=>({id:c.id,s:Number(c.s)||Math.max(1,Number(c.intervalo)||1),d:Number(c.d)||5,last:-(Math.max(0,Number(c.intervalo)||1)),due:Math.max(0,String(c.due||today)<today?0:CardEngine._daysBetween(today,c.due||today)),lapses:Number(c.lapses)||0}));
-    const synthetic=Math.ceil(additionalNew/Math.max(1,scale));
-    for(let i=0;i<synthetic;i++)pendingNew.push({id:'__sim_new_'+i,phase:'new'});
-    const reviews=[],news=[],time=[],memorized=[];let introduced=0;
-    for(let day=0;day<days;day++){
-      const add=Math.min(pendingNew.length,Math.ceil(newLimit/Math.max(1,scale))),todayNew=pendingNew.splice(0,add);let nNew=0,nRev=0,sec=0;
-      for(const c of todayNew){const G=this._pick(model.first,this._rnd('n:'+c.id+':'+day)),s=FSRS.initS(G,w),d=FSRS.initD(G,w),iv=Math.max(1,Math.min(maxIvl,FSRS.interval(s,retention,w)));active.push({id:c.id,s,d,last:day,due:day+iv,lapses:0});nNew++;sec+=model.cost[G-1]*Math.max(1,(CardsConfig.get().learnSteps||[]).length||1);introduced++;}
-      const due=active.filter(c=>c.due<=day).sort((a,b)=>a.due-b.due).slice(0,Math.ceil(reviewLimit/Math.max(1,scale)));
-      for(const c of due){
-        const elapsed=Math.max(0,day-c.last),R=FSRS.R(elapsed,c.s,w),forgot=this._rnd('r:'+c.id+':'+day+':'+c.lapses)>R;let G;
-        if(forgot)G=1;else{const ok=model.review.slice();ok[0]=0;const z=ok.reduce((a,b)=>a+b,0)||1;G=this._pick(ok.map(x=>x/z),this._rnd('g:'+c.id+':'+day));if(G===1)G=3;}
-        const oldS=c.s;c.s=G===1?FSRS.nextS_forget(c.d,oldS,R,w):FSRS.nextS_recall(c.d,oldS,R,G,w);c.d=FSRS.nextD(c.d,G===1?1:G,w);c.last=day;if(G===1)c.lapses++;
-        const iv=Math.max(1,Math.min(maxIvl,FSRS.interval(c.s,retention,w)));c.due=day+iv;nRev++;sec+=model.cost[G-1]*(G===1?Math.max(1,(CardsConfig.get().relearnSteps||[]).length+1):1);
-      }
-      reviews.push(Math.round(nRev*scale));news.push(Math.round(nNew*scale));time.push(sec*scale);
-      let mem=0;for(const c of active)mem+=FSRS.R(Math.max(0,day-c.last),c.s,w);memorized.push(mem*scale);
+  _reviewTimeHtml(){
+    const span=this._statsHistoryDays(),m=this._dayMap(span),xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1].time));
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Review Time</h2><p class="sub">Tempo de revisão no período selecionado</p></div></div><div class="anki-review-bars">'+xs.map(([d,x])=>'<div class="anki-review-day" title="'+d+' · '+(x.time/60000).toFixed(1)+' min"><div class="anki-stack"><i class="review" style="height:'+Math.max(x.time?3:0,Math.round(x.time/max*100))+'%"></i></div></div>').join('')+'</div></div>';
+  },
+  _addedHtml(){
+    const span=this._statsHistoryDays(),today=todayCards(),m=new Map();
+    for(let i=span-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),0);
+    for(const card of this.statsCards()){
+      const raw=card.createdAt||card.created_at||'',d=raw?new Date(raw):null;
+      if(!d||!Number.isFinite(d.getTime()))continue;
+      const key=d.toISOString().slice(0,10);if(m.has(key))m.set(key,(m.get(key)||0)+1);
     }
-    return {days,retention,reviews,news,time,memorized,introduced:Math.round(introduced*scale),sample:sample.length,scale,additionalNew,newLimit,reviewLimit,maxInterval:maxIvl};
+    const xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1]));
+    return '<div class="card stat-card" data-anki-stat-graph="added"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards adicionados no período selecionado</p></div></div><div class="anki-review-bars">'+xs.map(([d,n])=>'<div class="anki-review-day" title="'+d+' · '+n+' card(s)"><div class="anki-stack"><i class="learn" style="height:'+Math.max(n?3:0,Math.round(n/max*100))+'%"></i></div></div>').join('')+'</div></div>';
+  },
+
+  _easeHtml(){
+    const xs=this.statsCards().filter(c=>Number.isFinite(Number(c.ease))&&Number(c.ease)>0),bins=[0,0,0,0,0,0];
+    xs.forEach(c=>{const e=Number(c.ease);let i=e<1.5?0:e<2?1:e<2.5?2:e<3?3:e<3.5?4:5;bins[i]++;});
+    const labels=['<150%','150–199','200–249','250–299','300–349','≥350%'],mx=Math.max(1,...bins);
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Card Ease</h2><p class="sub">Facilidade dos cards no scheduler clássico/importado</p></div></div><div class="anki-mini-hist">'+bins.map((n,i)=>'<div title="'+labels[i]+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+labels[i]+'</span></div>').join('')+'</div></div>';
+  },
+  statsHtml(){
+    return '<div class="anki-max-stats">'+this._statsControlsHtml()+this._todayHtml()+this._calendarHtml()+
+      '<div class="stat-grid">'+this._reviewsHtml()+this._reviewTimeHtml()+'</div>'+
+      '<div class="stat-grid">'+this._cardCountsHtml()+this._hourlyHtml()+'</div>'+
+      '<div class="stat-grid">'+this._futureHtml()+this._easeHtml()+'</div>'+
+      '<div class="card stat-card anki-sim-card"><div class="card-header"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Projeta carga usando os estados S/D reais, parâmetros e retenção desejada.</p></div></div><button type="button" class="btn-primary" id="anki-open-simulator">Abrir simulador</button></div>'+
+      this._memoryHtml()+this._addedHtml()+'</div>';
+  },
+  _bindStatsUi(){
+    const b=document.getElementById('anki-open-simulator');if(b)b.onclick=()=>this.openSimulator();
+    const rerender=()=>{if(typeof CardsScreen!=='undefined'&&CardsScreen.renderContent)CardsScreen.renderContent();};
+    const scope=document.getElementById('anki-stats-scope');if(scope)scope.onchange=()=>{this._statsState.scope=scope.value;rerender();};
+    const history=document.getElementById('anki-stats-history');if(history)history.onchange=()=>{this._statsState.history=history.value;rerender();};
+    const deck=document.getElementById('anki-stats-deck');if(deck)deck.onchange=()=>{this._statsState.deckId=deck.value||null;this._statsState.scope='deck';rerender();};
+    const search=document.getElementById('anki-stats-search');if(search){
+      const apply=()=>{this._statsState.search=search.value||'';if(this._statsState.search.trim())this._statsState.scope='search';rerender();};
+      search.onchange=apply;search.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();apply();}};
+    }
+  },
+
+  _simNumericCardId(card,index){
+    const raw=card&&card.ankiId!=null?Number(card.ankiId):NaN;
+    if(Number.isSafeInteger(raw)&&raw>0)return raw;
+    const key=String(card&&card.id!=null?card.id:index),h=typeof FSRS!=='undefined'&&FSRS._hash?FSRS._hash(key):index+1;
+    return 1000000000+(Number(h)>>>0);
+  },
+  _simSignedDays(a,b){
+    const x=new Date(String(a||'')+'T00:00:00'),y=new Date(String(b||'')+'T00:00:00');
+    const n=Math.round((y-x)/86400000);return Number.isFinite(n)?n:0;
+  },
+  _simNextDayAtSec(cfg){
+    const now=new Date(),cut=new Date(now),hour=Math.max(0,Math.min(23,Number(cfg&&cfg.rolloverHour)||4));
+    cut.setHours(hour,0,0,0);if(cut<=now)cut.setDate(cut.getDate()+1);
+    return Math.floor(cut.getTime()/1000);
+  },
+  _simReviewKind(row){
+    const explicit=row&&(row.ankiReviewKind!=null?row.ankiReviewKind:row.reviewKind);
+    if(Number.isInteger(Number(explicit))&&Number(explicit)>=0&&Number(explicit)<=5)return Number(explicit);
+    const k=String(explicit==null?'':explicit).toLowerCase();
+    if(k==='learning')return 0;if(k==='review')return 1;if(k==='relearning')return 2;if(k==='filtered'||k==='cram')return 3;if(k==='manual')return 4;if(k==='rescheduled')return 5;
+    const p=String(row&&row.phase||row&&row.kind||'review').toLowerCase();
+    if(p==='learning')return 0;if(p==='relearning')return 2;if(p==='filtered'||p==='cram')return 3;if(p==='manual')return 4;if(p==='rescheduled')return 5;return 1;
+  },
+  async simulateOfficial(days,retention,opts){
+    opts=opts||{};days=Math.max(1,Math.min(3650,Math.round(Number(days)||365)));retention=Math.max(.7,Math.min(.99,Number(retention)||.9));
+    const state=this._statsState||{},deckId=state.scope==='deck'?this._statsSelectedDeckId():null,
+      cfg=deckId?CardsConfig.forDeck(deckId):CardsConfig.get(),
+      scoped=this.statsCards().filter(c=>!c.suspenso),today=todayCards(),
+      w=(CardsConfig.weightsFor&&deckId)?CardsConfig.weightsFor(deckId):(cfg.weights&&FSRS.pesosValidos(cfg.weights)?cfg.weights:FSRS.DEFAULT_W),
+      params=FSRS.migrarW(w)||FSRS.DEFAULT_W.slice(),
+      newLimit=Math.max(0,Math.round(opts.newLimit==null?Number(cfg.newPerDay)||0:Number(opts.newLimit)||0)),
+      reviewLimit=Math.max(0,Math.round(opts.reviewLimit==null?Number(cfg.revPerDay)||0:Number(opts.reviewLimit)||0)),
+      maxInterval=Math.max(1,Math.min(36500,Math.round(opts.maxInterval==null?Number(cfg.maxInterval)||36500:Number(opts.maxInterval)||36500))),
+      additionalNew=Math.max(0,Math.round(Number(opts.additionalNew)||0));
+    const cardKey=new Map(),existing=[],newCards=[];
+    scoped.forEach((c,i)=>{
+      const cid=this._simNumericCardId(c,i);cardKey.set(String(c.id),cid);if(c.ankiId!=null)cardKey.set(String(c.ankiId),cid);
+      const phase=String(c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new'));
+      if(phase==='new'){newCards.push(c);return;}
+      const stability=Number(c.s),difficulty=Number(c.d),hasMemory=stability>0&&Number.isFinite(difficulty),
+        easeRaw=Number(c.easeFactor!=null?c.easeFactor:(c.ease!=null?c.ease:2.5)),
+        easeFactor=Number.isFinite(easeRaw)?(easeRaw>10?easeRaw/1000:easeRaw):2.5;
+      const interval=Math.max(0,Number(c.intervalo)||0);
+      let due=0,lastDate=0;
+      if(phase==='learning'||phase==='relearning'||c.dueTs){due=0;lastDate=0;}
+      else{
+        due=this._simSignedDays(today,c.due||today);
+        lastDate=Math.min(0,due-Math.max(0,interval));
+      }
+      existing.push({id:cid,difficulty:hasMemory?difficulty:null,stability:hasMemory?stability:null,ease_factor:easeFactor,last_date:lastDate,due,interval,lapses:Math.max(0,Math.round(Number(c.lapses)||0))});
+    });
+    const revlogs=[],firstReviewDateByCard=new Map();
+    this.statsRevlog(false).forEach((r,i)=>{
+      const cid=cardKey.get(String(r.cardId==null?r.ankiCardId:r.cardId));if(cid==null)return;
+      let id=Math.round(Number(r.ts)||Date.parse(String(r.date||'')+'T12:00:00')||Date.now());
+      id+=i%1000;
+      const iv=Math.round(Number(r.ankiInterval!=null?r.ankiInterval:(r.interval!=null?r.interval:r.intervalo))||0),
+        lastIv=Math.round(Number(r.ankiLastInterval!=null?r.ankiLastInterval:(r.lastInterval!=null?r.lastInterval:(r.last_interval!=null?r.last_interval:r.intervalo)))||0),
+        efRaw=Number(r.easeFactor!=null?r.easeFactor:r.ease),
+        ef=Math.max(0,Math.round((Number.isFinite(efRaw)&&efRaw>0?efRaw:2.5)*(efRaw>100?1:1000))),
+        taken=Math.max(0,Math.round(Number(r.time!=null?r.time:r.takenMillis)||0));
+      revlogs.push({id,cid,button_chosen:Math.max(1,Math.min(4,Math.round(Number(r.grade)||1))),interval:iv,last_interval:lastIv,ease_factor:ef,taken_millis:taken,review_kind:this._simReviewKind(r)});
+      const d=String(r.date||new Date(Number(r.ts)||0).toISOString().slice(0,10)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
+      if(d&&(!firstReviewDateByCard.has(k)||d<firstReviewDateByCard.get(k)))firstReviewDateByCard.set(k,d);
+    });
+    const introducedToday=scoped.filter(c=>{
+      const explicit=String(c.firstReviewAt||'').slice(0,10);
+      const inferred=firstReviewDateByCard.get(String(c.id))||firstReviewDateByCard.get(String(c.ankiId||''));
+      return (explicit||inferred||'')===today;
+    }).length;
+    const mod=await FSRS._loadOfficialOptimizer();
+    if(typeof mod.simulate_json!=='function')throw new Error('Simulador fsrs-rs 6.6.2 oficial indisponível');
+    const raw=mod.simulate_json(JSON.stringify({
+      revlogs,next_day_at:this._simNextDayAtSec(cfg),params,desired_retention:retention,
+      historical_retention:Math.max(.5,Math.min(.99,Number(cfg.historicalRetention)||.9)),days_to_simulate:days,
+      new_card_count:newCards.length+additionalNew,introduced_today_count:introducedToday,
+      new_limit:newLimit,review_limit:reviewLimit,max_interval:maxInterval,
+      new_cards_ignore_review_limit:!!cfg.newCardsIgnoreReviewLimit,
+      suspend_after_lapses:cfg.leechAction==='suspend'?Math.max(1,Math.round(Number(cfg.leechThreshold)||8)):null,
+      learning_step_count:Array.isArray(cfg.learnSteps)?cfg.learnSteps.length:0,
+      relearning_step_count:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0,
+      review_order:String(cfg.reviewOrder||'day'),
+      load_balance:cfg.loadBalance!==false,
+      easy_days:(()=>{const a=Array.isArray(cfg.easyDays)&&cfg.easyDays.length===7?cfg.easyDays:[1,1,1,1,1,1,1];return [a[1],a[2],a[3],a[4],a[5],a[6],a[0]].map(x=>x===0?0:(x===1?1:.5));})(),
+      next_day_weekday_monday:(()=>{const d=new Date(this._simNextDayAtSec(cfg)*1000);return (d.getDay()+6)%7;})(),
+      cards:existing
+    }));
+    const out=JSON.parse(raw);
+    return {days,retention,reviews:out.reviews||[],news:out.news||[],time:out.time||[],memorized:out.memorized||[],
+      correct:out.correct||[],introducedByDay:out.introduced||[],introduced:(out.introduced||[]).at(-1)||0,
+      sample:scoped.length,scale:1,additionalNew,newLimit,reviewLimit,maxInterval,engine:'fsrs-rs '+String(out.fsrs_rs_version||'6.6.2')};
   },
 
   _injectSimulator(){
@@ -188,18 +348,37 @@ const AnkiMaxStatsMedia = {
       '<div class="field-group"><div class="field"><label>Dias a simular</label><input id="anki-sim-days" type="number" min="1" max="3650" value="365"></div><div class="field"><label>Retenção desejada (%)</label><input id="anki-sim-retention" type="number" min="70" max="99" value="'+Math.round((cfg.retention||.9)*100)+'"></div></div>'+
       '<div class="field-group"><div class="field"><label>Cards novos adicionais</label><input id="anki-sim-additional" type="number" min="0" max="1000000" value="0"></div><div class="field"><label>Novos por dia</label><input id="anki-sim-new-limit" type="number" min="0" max="999999" value="'+Math.max(0,Number(cfg.newPerDay)||0)+'"></div></div>'+
       '<div class="field-group"><div class="field"><label>Máximo de revisões/dia</label><input id="anki-sim-review-limit" type="number" min="0" max="999999" value="'+Math.max(0,Number(cfg.revPerDay)||0)+'"></div><div class="field"><label>Intervalo máximo (dias)</label><input id="anki-sim-max-interval" type="number" min="1" max="36500" value="'+Math.max(1,Number(cfg.maxInterval)||36500)+'"></div></div>'+
-      '<div class="anki-sim-actions"><button class="btn-primary" id="anki-sim-run">Simular</button></div><div id="anki-sim-result"></div></div></div></div>';document.body.appendChild(d);
-    document.getElementById('anki-sim-close').onclick=()=>document.getElementById('anki-fsrs-simulator').style.display='none';document.getElementById('anki-sim-run').onclick=()=>this.runSimulator();
+      '<div class="anki-sim-actions"><button class="btn-primary" id="anki-sim-run">Simular</button><button class="btn-secondary" id="anki-sim-help">Help Me Decide</button></div><div id="anki-sim-result"></div></div></div></div>';document.body.appendChild(d);
+    document.getElementById('anki-sim-close').onclick=()=>document.getElementById('anki-fsrs-simulator').style.display='none';document.getElementById('anki-sim-run').onclick=()=>this.runSimulator();document.getElementById('anki-sim-help').onclick=()=>this.runHelpMeDecide();
   },
   openSimulator(){document.getElementById('anki-fsrs-simulator').style.display='flex';},
   _simBars(arr,maxBars=90){
     const group=Math.max(1,Math.ceil(arr.length/maxBars)),xs=[];for(let i=0;i<arr.length;i+=group)xs.push(arr.slice(i,i+group).reduce((a,b)=>a+b,0)/Math.min(group,arr.length-i));const mx=Math.max(1,...xs);return '<div class="anki-sim-bars">'+xs.map((n,i)=>'<i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%" title="Período '+(i+1)+': '+Math.round(n)+'"></i>').join('')+'</div>';
   },
-  runSimulator(){
+  async runSimulator(){
     const days=Number(document.getElementById('anki-sim-days').value)||365,r=(Number(document.getElementById('anki-sim-retention').value)||90)/100,
-      opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500},
-      sim=this.simulate(days,r,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
-    document.getElementById('anki-sim-result').innerHTML='<div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(total/days)+'</div><div class="stat-kpi-l">respostas/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+(secs/60/days).toFixed(1)+'m</div><div class="stat-kpi-l">tempo/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(sim.memorized.at(-1)||0)+'</div><div class="stat-kpi-l">memorizados ao final</div></div></div><h3>Carga projetada</h3>'+this._simBars(sim.reviews.map((x,i)=>x+sim.news[i]))+'<p class="hint">Usa estados reais de dificuldade/estabilidade, parâmetros FSRS, retenção desejada, novos/dia, revisões/dia, intervalo máximo e cards adicionais. A projeção usa amostragem determinística de '+sim.sample+' card(s) quando a coleção é grande.</p>';
+      opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500,approximate:false},
+      out=document.getElementById('anki-sim-result');
+    out.innerHTML='<p class="hint">Simulando no fsrs-rs 6.6.2 oficial…</p>';
+    try{
+      const sim=await this.simulateOfficial(days,r,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
+      out.innerHTML='<div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(total/days)+'</div><div class="stat-kpi-l">respostas/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+(secs/60/days).toFixed(1)+'m</div><div class="stat-kpi-l">tempo/dia</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+Math.round(sim.memorized.at(-1)||0)+'</div><div class="stat-kpi-l">memorizados ao final</div></div></div><h3>Carga projetada</h3>'+this._simBars(sim.reviews.map((x,i)=>x+sim.news[i]))+'<p class="hint">Motor oficial '+sim.engine+' sobre '+sim.sample+' card(s) ativos, sem amostragem/escalonamento. Usa os estados S/D, histórico, limites e parâmetros atuais.</p>';
+      return sim;
+    }catch(e){console.error(e);out.innerHTML='<p class="hint tone-bad">Falha ao executar o simulador oficial: '+AnkiProductParity.esc(e&&e.message||e)+'</p>';throw e;}
+  },
+  async runHelpMeDecide(){
+    const out=document.getElementById('anki-sim-result');if(!out)return;
+    const days=Number(document.getElementById('anki-sim-days').value)||365,
+      opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500,approximate:false},
+      curve=[];out.innerHTML='<p class="hint">Calculando 70%–99% sobre a coleção completa…</p>';
+    for(let p=70;p<=99;p++){
+      const sim=await this.simulateOfficial(days,p/100,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
+      curve.push({retention:p,reviews:total/days,minutes:secs/60/days,memorized:sim.memorized.at(-1)||0});
+      if(p%3===0)await new Promise(r=>setTimeout(r,0));
+    }
+    out.innerHTML='<h3>Help Me Decide</h3><p class="hint">Como no Anki experimental: compare a carga prevista em diferentes retenções. Clique numa linha para levar o valor ao simulador.</p><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Retenção</th><th>Respostas/dia</th><th>Min/dia</th><th>Memorizados</th></tr></thead><tbody>'+curve.map(x=>'<tr data-sim-ret="'+x.retention+'" tabindex="0"><td>'+x.retention+'%</td><td>'+Math.round(x.reviews)+'</td><td>'+x.minutes.toFixed(1)+'</td><td>'+Math.round(x.memorized)+'</td></tr>').join('')+'</tbody></table></div>';
+    out.querySelectorAll('[data-sim-ret]').forEach(row=>row.onclick=()=>{document.getElementById('anki-sim-retention').value=row.dataset.simRet;void this.runSimulator();});
+    return curve;
   },
 
   /* ───────────────── CHECK DATABASE / MEDIA ───────────────── */

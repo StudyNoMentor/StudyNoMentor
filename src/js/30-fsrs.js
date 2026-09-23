@@ -124,11 +124,10 @@ const FSRS = {
     const S0 = this._S(S);
     const w17 = w[17], w18 = w[18], w19 = (w.length > 19 && isFinite(w[19])) ? w[19] : 0;
     let sInc = Math.exp(w17 * (G - 3 + w18)) * Math.pow(S0, -w19);
-    // Trava: Difícil, Bom e Fácil (G >= 2) não podem REDUZIR a estabilidade.
-    // A wiki do projeto diz "G >= 3", mas tanto a implementação de referência
-    // (py-fsrs) quanto o Rust que o Anki roda usam G >= 2. Seguimos o código,
-    // que é o que define o comportamento real do Anki.
-    if (G >= 2) sInc = Math.max(1, sInc);
+    // fsrs-rs 6.6.2 (a versão fixada pelo Anki 26.09.2) aplica
+    // a trava apenas a Good/Easy. Hard pode reduzir a estabilidade no curto
+    // prazo; impedir isso cria divergência objetiva contra o backend oficial.
+    if (G >= 3) sInc = Math.max(1, sInc);
     return this.clampS(S0 * sInc);
   },
 
@@ -635,6 +634,85 @@ FSRS.optimizeOfficial=async function(revlog,opts){
   out.nextDayAtSec=data.nextDayAtSec;
   return out;
 };
+
+
+FSRS.memoryStateOfficialWithModule=function(mod,data,w,retention){
+  if(!mod||typeof mod.memory_state_json!=='function')throw new Error('Inferência oficial de memory state indisponível');
+  const params=this.migrarW(w)||this.DEFAULT_W.slice();
+  const out=JSON.parse(mod.memory_state_json(JSON.stringify({
+    reviews:(data&&Array.isArray(data.reviews))?data.reviews:[],
+    params,
+    starting_sm2:data&&data.startingSm2?data.startingSm2:null,
+    desired_retention:Math.max(.7,Math.min(.99,Number(retention)||.9))
+  })));
+  if(!out||!(Number(out.stability)>0)||!Number.isFinite(Number(out.difficulty))||!(Number(out.next_interval)>0))throw new Error('Memory state FSRS inválido');
+  return {s:Number(out.stability),d:Number(out.difficulty),interval:Number(out.next_interval)};
+};
+
+FSRS._stateFromTrainingItem=function(item,w){
+  const reviews=(item&&item.reviews)||[];let S=null,D=null;
+  for(let i=0;i<reviews.length;i++){
+    const r=reviews[i],g=Math.max(1,Math.min(4,Number(r.rating)||1)),dt=Math.max(0,Number(r.delta_t)||0);
+    if(S==null){S=this.initS(g,w);D=this.initD(g,w);continue;}
+    const oldD=D,D2=this.nextD(oldD,g,w);
+    if(dt<1)S=this.nextS_short(S,g,w);
+    else{const R=this.R(dt,S,w);S=g===1?this.nextS_forget(oldD,S,R,w):this.nextS_recall(oldD,S,R,g,w);}
+    D=D2;
+  }
+  return S==null?null:{s:S,d:D};
+};
+FSRS._predictTrainingItem=function(item,w){
+  const reviews=(item&&item.reviews)||[];if(!reviews.length)return null;
+  let S=null,D=null;
+  for(let i=0;i<reviews.length-1;i++){
+    const r=reviews[i],g=Math.max(1,Math.min(4,Number(r.rating)||1)),dt=Math.max(0,Number(r.delta_t)||0);
+    if(S==null){S=this.initS(g,w);D=this.initD(g,w);continue;}
+    const oldD=D,D2=this.nextD(oldD,g,w);
+    if(dt<1)S=this.nextS_short(S,g,w);
+    else{const R=this.R(dt,S,w);S=g===1?this.nextS_forget(oldD,S,R,w):this.nextS_recall(oldD,S,R,g,w);}
+    D=D2;
+  }
+  const cur=reviews[reviews.length-1],dt=Math.max(0,Number(cur.delta_t)||0);
+  if(S==null){
+    // Itens válidos de treino do fsrs-rs possuem histórico antes do alvo.
+    // Mantém fallback finito para coleções legadas/incompletas.
+    const g=Math.max(1,Math.min(4,Number(cur.rating)||1));S=this.initS(g,w);D=this.initD(g,w);
+  }
+  return Math.min(1-1e-7,Math.max(1e-7,this.R(dt,S,w)));
+};
+FSRS._rMatrixKey=function(item){
+  const reviews=(item&&item.reviews)||[],cur=reviews[reviews.length-1]||{delta_t:1},dt=Math.max(1e-9,Number(cur.delta_t)||0);
+  const deltaBin=Math.round(2.48*Math.pow(3.62,Math.floor(Math.log(dt)/Math.log(3.62)))*100);
+  const longCnt=reviews.filter(r=>Number(r.delta_t)>=1).length,length=longCnt+1;
+  const lengthBin=Math.round(1.99*Math.pow(1.89,Math.floor(Math.log(length)/Math.log(1.89))));
+  const hist=reviews.slice(0,-1),lapses=hist.filter(r=>Number(r.rating)===1&&Number(r.delta_t)>=1).length;
+  const lapseBin=lapses===0?0:Math.round(1.65*Math.pow(1.73,Math.floor(Math.log(lapses)/Math.log(1.73))));
+  return deltaBin+'|'+lengthBin+'|'+lapseBin;
+};
+FSRS.healthCheckOfficial=async function(revlog,opts){
+  opts=opts||{};if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki não carregada');
+  const deckId=opts.deckId==null?null:opts.deckId,cfg=opts.cfg||CardsConfig.forDeck(deckId);
+  let ignoreBeforeMs=Number(opts.ignoreBeforeMs)||0;
+  if(!ignoreBeforeMs&&cfg.ignoreRevlogsBefore){const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();}
+  const cards=Array.isArray(opts.cards)?opts.cards:this.trainingCardsForScope(deckId,cfg);
+  const data=AnkiParity.fsrsTrainingData(Array.isArray(revlog)?revlog:DB.getRevlog(),{cards,nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs});
+  const mod=await this._loadOfficialOptimizer();
+  if(typeof mod.health_check_json!=='function')throw new Error('Health Check oficial indisponível no fsrs-rs');
+  const out=JSON.parse(mod.health_check_json(JSON.stringify({
+    items:data.items||[],
+    card_ids:data.cardIds||[],
+    num_relearning_steps:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0
+  })));
+  return {
+    passed:out.passed==null?null:!!out.passed,
+    fsrsItems:Number(out.fsrs_items)||0,
+    reason:out.passed==null?'not-enough-data':undefined,
+    logLoss:out.log_loss==null?null:Number(out.log_loss),
+    rmseBins:out.rmse_bins==null?null:Number(out.rmse_bins),
+    adjustedLogLoss:out.adjusted_log_loss==null?null:Number(out.adjusted_log_loss),
+    adjustedRmse:out.adjusted_rmse==null?null:Number(out.adjusted_rmse)
+  };
+}
 
 // O otimizador histórico em JavaScript fica deliberadamente INACESSÍVEL em
 // produção. A única rota suportada é optimizeOfficial(), que usa o WASM
