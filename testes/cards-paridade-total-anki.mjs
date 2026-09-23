@@ -111,6 +111,24 @@ eq(CardsConfig.get().newGatherOrder,'deck','modo legado de gather volta ao defau
 
 // ── Cloze oficial: ordinais, múltiplos, hints e aninhamento ───────────────
 const strip=s=>String(s).replace(/<[^>]+>/g,'');
+
+// Compatibilidade da criação simples do Study: a UI ensina {{texto}}, mas a
+// persistência precisa chegar ao parser oficial como {{c1::texto}}.
+eq(CardEngine.normalizeCloze('Art. 10. fato no {{fornecimento}}'),'Art. 10. fato no {{c1::fornecimento}}','{{texto}} deve ser normalizado para c1');
+eq(CardEngine.normalizeCloze('A {{c2::um}} B'),'A {{c2::um}} B','Cloze canônico não pode ser reescrito');
+eq(Array.from(AnkiParity.clozeOrdinals(CardEngine.normalizeCloze('A {{um}} B {{dois}}'))),[1],'duas omissões simples pertencem ao mesmo card c1');
+ok(telaSrc&&telaSrc.includes('frente = CardEngine.normalizeCloze(frente)'),'salvar Cloze deve normalizar antes da validação');
+
+A.reset();
+const legacySimple=DB.addCard({kind:'cloze',frente:'Art. 10. no {{fornecimento}}',verso:'',deckId:null});
+AnkiParity.ensureIdentities();
+AnkiParity.ensureCanonicalNotes();
+const migratedSimple=DB.getCard(legacySimple.id);
+eq(migratedSimple.frente,'Art. 10. no {{c1::fornecimento}}','card Cloze legado deve migrar para sintaxe canônica');
+const migratedNote=AnkiParity.getNote(AnkiParity.noteId(migratedSimple));
+eq(migratedNote.fields.Text,'Art. 10. no {{c1::fornecimento}}','nota canônica deve acompanhar a migração do card legado');
+eq(Array.from(AnkiParity.clozeOrdinals(migratedNote.fields.Text)),[1],'Cloze legado migrado deve gerar ordinal oficial');
+
 eq(Array.from(AnkiParity.clozeOrdinals('test')),[],'sem cloze');
 eq(Array.from(AnkiParity.clozeOrdinals('{{c2::te}}{{c1::s}}t{{')),[1,2],'ordinais fora de ordem');
 eq(Array.from(AnkiParity.clozeOrdinals('{{c0::te}}s{{c2::t}}s')),[2],'c0 não gera card');
