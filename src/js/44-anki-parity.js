@@ -996,7 +996,7 @@ AnkiParity.fsrsTrainingData=function(revlog,opts){
 };
 
 
-/* ── FILTERED DECKS / CUSTOM STUDY (Anki 26.09.2) ─────────────────────────
+/* ── FILTERED DECKS / CUSTOM STUDY (Anki 26.09.3) ─────────────────────────
    Contratos espelhados de rslib/src/scheduler/filtered/{mod,card,custom_study}.rs.
    Um card levado a um baralho filtrado guarda o baralho/vencimento de origem.
    Com reschedule=true, a primeira resposta o devolve ao baralho original com o
