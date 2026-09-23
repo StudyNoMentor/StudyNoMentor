@@ -78,6 +78,41 @@ assert.ok(banks.includes('FGV')&&banks.includes('CEBRASPE')&&banks.includes('FCC
 S.setSelectedBanks(['CEBRASPE']);
 assert.deepEqual(Array.from(S.filterCardsByBanca(S.cards()),x=>x.id),['b1'],'filtro de banca deve restringir a coleção global');
 
+// Anki Oficial: a mesma seleção de banca vira um baralho filtrado oficial,
+// preservando o baralho anterior e restaurando-o quando o filtro é limpo.
+const ankiCalls=[];
+ctx.AnkiOfficial={
+  view:'review',token:()=> 'token',
+  request:async (path,opts={})=>{
+    const body=opts.body?JSON.parse(opts.body):null;
+    ankiCalls.push({path,method:opts.method||'GET',body});
+    if(path==='/api/anki/decks') return {current_deck_id: ankiCalls.some(x=>x.path==='/api/anki/decks/select')?99:42};
+    if(path==='/api/anki/filtered-deck/0') return {deck:{id:99,name:'',config:{reschedule:true,search_terms:[]}}};
+    if(path==='/api/anki/filtered-deck/99'&&opts.method==='PUT') return {ok:true,deck_id:99};
+    return {ok:true};
+  },
+  renderReviewer:async()=>true,
+  alert:()=>{}
+};
+await S.applyAnkiBankFilter(false);
+const putFilter=ankiCalls.find(x=>x.path==='/api/anki/filtered-deck/99'&&x.method==='PUT');
+assert.ok(putFilter,'filtro de banca deve configurar baralho filtrado oficial');
+assert.match(putFilter.body.config.search_terms[0].search,/tag:"CEBRASPE"/,'query oficial deve conter a banca selecionada');
+assert.ok(ankiCalls.some(x=>x.path==='/api/anki/filtered-deck/99/rebuild'),'baralho filtrado deve ser reconstruído');
+assert.ok(ankiCalls.some(x=>x.path==='/api/anki/decks/select'&&x.body.deck_id===99),'baralho de banca deve virar o selecionado');
+
+S.setSelectedBanks([]);
+ankiCalls.length=0;
+ctx.AnkiOfficial.request=async (path,opts={})=>{
+  const body=opts.body?JSON.parse(opts.body):null;
+  ankiCalls.push({path,method:opts.method||'GET',body});
+  if(path==='/api/anki/decks') return {current_deck_id:99};
+  return {ok:true};
+};
+await S.applyAnkiBankFilter(false);
+assert.ok(ankiCalls.some(x=>x.path==='/api/anki/filtered-deck/99/empty'),'limpar banca deve esvaziar o baralho filtrado');
+assert.ok(ankiCalls.some(x=>x.path==='/api/anki/decks/select'&&x.body.deck_id===42),'limpar banca deve restaurar o baralho anterior');
+
 const b=ctx.DB.getCard('b1');
 assert.equal(b._planId,'B','card de outro planejamento precisa manter origem');
 ctx.DB.updateCard('b1',{favorito:true});
