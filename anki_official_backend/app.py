@@ -1036,7 +1036,23 @@ def custom_study_defaults(
 ) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        return pb(item.col.sched.custom_study_defaults(DeckId(deck_id)))
+        out = item.col.sched.custom_study_defaults(DeckId(deck_id))
+        return {
+            "tags": [
+                {
+                    "name": str(tag.name),
+                    "include": bool(tag.include),
+                    "exclude": bool(tag.exclude),
+                }
+                for tag in out.tags
+            ],
+            "extend_new": int(out.extend_new),
+            "extend_review": int(out.extend_review),
+            "available_new": int(out.available_new),
+            "available_review": int(out.available_review),
+            "available_new_in_children": int(out.available_new_in_children),
+            "available_review_in_children": int(out.available_review_in_children),
+        }
 
 
 @app.post("/api/anki/custom-study")
