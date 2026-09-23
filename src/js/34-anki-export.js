@@ -685,10 +685,23 @@ const AnkiExport = {
     return globalThis.initSqlJs();
   },
 
+  _sourceCards() {
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    return DB.getCards();
+  },
+  _sourceDecks() {
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    return DB.getDecks();
+  },
+  _sourceRevlog() {
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) {}
+    return DB.getRevlog();
+  },
+
   _cardsForLimit(options) {
-    options=options||{};const all=DB.getCards().slice(),limit=options.limit||{};
+    options=options||{};const all=this._sourceCards().slice(),limit=options.limit||{};
     if(limit.deckId!=null){
-      const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(limit.deckId));
+      const decks=this._sourceDecks(),root=decks.find(d=>String(d.id)===String(limit.deckId));
       if(!root)return [];
       const prefix=String(root.nome||'')+'::',ids=new Set(decks.filter(d=>String(d.id)===String(root.id)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
       return all.filter(c=>ids.has(String(c.originalDeckId||c.deckId)));
@@ -715,7 +728,7 @@ const AnkiExport = {
     options=Object.assign({withHtml:true,withTags:true,withDeck:true,withNotetype:true,withGuid:true},options||{});
     if(typeof AnkiParity==='undefined')throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
-    const cards=this._cardsForLimit(options),decks=DB.getDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
+    const cards=this._cardsForLimit(options),decks=this._sourceDecks(),deckById=new Map(decks.map(d=>[String(d.id),String(d.nome||'')]));
     const noteIds=new Set(cards.map(c=>String(AnkiParity.noteId(c)))),notes=AnkiParity.notes().filter(n=>noteIds.has(String(n.id))||noteIds.has(String(n.ankiId))),types=AnkiParity.noteTypes(),typeById=new Map(types.map(nt=>[String(nt.id),nt]));
     const siblings=new Map();
     cards.forEach(c=>{const nid=String(AnkiParity.noteId(c));if(!siblings.has(nid))siblings.set(nid,[]);siblings.get(nid).push(c);});
@@ -769,7 +782,7 @@ const AnkiExport = {
     options=Object.assign({schema:11,withScheduling:true,withDeckConfigs:true},options||{});
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
-    const cards = this._cardsForLimit(options), allDecks = DB.getDecks().slice();
+    const cards = this._cardsForLimit(options), allDecks = this._sourceDecks().slice();
     const decks = this._decksForCards(cards,allDecks), crt = this._collectionEpoch(cards);
     const deckMap=this._deckIdMap(decks),dj=this._deckJson(decks,options),media={items:[],byKey:new Map()};
     const notesById = new Map(), siblings = new Map(), usedNt = new Set();
@@ -833,7 +846,7 @@ const AnkiExport = {
     cs.free();
 
     const rs=db.prepare('INSERT INTO revlog VALUES (?,?,?,?,?,?,?,?,?)');
-    const revRows=options.withScheduling===false?[]:this._revRows(cards,DB.getRevlog());
+    const revRows=options.withScheduling===false?[]:this._revRows(cards,this._sourceRevlog());
     for (const row of revRows) rs.run(row);
     rs.free();
     if(Number(options.schema)===18)this._upgradeToSchema18(db,models,dj);
