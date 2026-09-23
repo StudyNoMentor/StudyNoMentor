@@ -138,8 +138,39 @@ const AnkiMaxStatsMedia = {
     const bars=(arr,labels)=>{const mx=Math.max(1,...arr);return '<div class="anki-mini-hist">'+arr.map((n,i)=>'<div title="'+labels[i]+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+labels[i]+'</span></div>').join('')+'</div>';};
     return '<div class="stat-grid anki-memory-grid"><div class="card stat-card"><div class="card-header"><div><h2>🧠 Recuperabilidade</h2><p class="sub">'+cards.length+' cards FSRS</p></div></div>'+bars(rBins,['0–20','20–40','40–60','60–80','80–100'])+'</div><div class="card stat-card"><div class="card-header"><div><h2>↔ Intervalos</h2></div></div>'+bars(iBins,['<1d','1–7','7–30','30–90','90–365','>1a'])+'</div></div>';
   },
+  _todayHtml(){
+    const today=todayCards(),logs=DB.getRevlog().filter(r=>this._revDate(r)===today),again=logs.filter(r=>Number(r.grade)===1).length,
+      phase={learning:0,review:0,relearning:0,filtered:0},ms=logs.reduce((a,r)=>a+Math.max(0,Number(r.time)||0),0);
+    logs.forEach(r=>{const p=String(r.phase||'review');if(p==='learning')phase.learning++;else if(p==='relearning')phase.relearning++;else if(p==='filtered'||Number(r.ankiReviewKind)===3)phase.filtered++;else phase.review++;});
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Hoje</h2><p class="sub">Resumo da sessão diária no formato das estatísticas do Anki</p></div></div><div class="stat-kpis">'+
+      '<div class="stat-kpi"><div class="stat-kpi-v">'+logs.length+'</div><div class="stat-kpi-l">Respostas</div></div>'+
+      '<div class="stat-kpi"><div class="stat-kpi-v">'+again+'</div><div class="stat-kpi-l">Again</div></div>'+
+      '<div class="stat-kpi"><div class="stat-kpi-v">'+(ms/60000).toFixed(1)+'m</div><div class="stat-kpi-l">Tempo</div></div></div>'+
+      '<p class="hint">Learn '+phase.learning+' · Review '+phase.review+' · Relearn '+phase.relearning+' · Filtered '+phase.filtered+'</p></div>';
+  },
+  _cardCountsHtml(){
+    const cards=DB.getCards(),counts={new:0,learn:0,relearn:0,young:0,mature:0,suspended:0,buried:0};
+    cards.forEach(c=>{if(c.suspenso){counts.suspended++;return;}if(CardEngine.estaEnterrado(c)){counts.buried++;return;}const ph=String(c.phase||'new');if(ph==='new')counts.new++;else if(ph==='learning')counts.learn++;else if(ph==='relearning')counts.relearn++;else if((Number(c.intervalo)||0)>=21)counts.mature++;else counts.young++;});
+    const items=[['New',counts.new],['Learning',counts.learn],['Relearning',counts.relearn],['Young',counts.young],['Mature',counts.mature],['Suspended',counts.suspended],['Buried',counts.buried]],mx=Math.max(1,...items.map(x=>x[1]));
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Card Counts</h2><p class="sub">Estado atual dos cards</p></div></div><div class="anki-mini-hist">'+items.map(([k,n])=>'<div title="'+k+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+k+'</span></div>').join('')+'</div></div>';
+  },
+  _reviewTimeHtml(){
+    const m=this._dayMap(30),xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1].time));
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Review Time</h2><p class="sub">Tempo de revisão nos últimos 30 dias</p></div></div><div class="anki-review-bars">'+xs.map(([d,x])=>'<div class="anki-review-day" title="'+d+' · '+(x.time/60000).toFixed(1)+' min"><div class="anki-stack"><i class="review" style="height:'+Math.max(x.time?3:0,Math.round(x.time/max*100))+'%"></i></div></div>').join('')+'</div></div>';
+  },
+  _easeHtml(){
+    const xs=DB.getCards().filter(c=>Number.isFinite(Number(c.ease))&&Number(c.ease)>0),bins=[0,0,0,0,0,0];
+    xs.forEach(c=>{const e=Number(c.ease);let i=e<1.5?0:e<2?1:e<2.5?2:e<3?3:e<3.5?4:5;bins[i]++;});
+    const labels=['<150%','150–199','200–249','250–299','300–349','≥350%'],mx=Math.max(1,...bins);
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Card Ease</h2><p class="sub">Facilidade dos cards no scheduler clássico/importado</p></div></div><div class="anki-mini-hist">'+bins.map((n,i)=>'<div title="'+labels[i]+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+labels[i]+'</span></div>').join('')+'</div></div>';
+  },
   statsHtml(){
-    return '<div class="anki-max-stats">'+this._calendarHtml()+'<div class="stat-grid">'+this._reviewsHtml()+this._hourlyHtml()+'</div><div class="stat-grid">'+this._futureHtml()+'<div class="card stat-card anki-sim-card"><div class="card-header"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Projeta carga usando os estados S/D reais, parâmetros e retenção desejada.</p></div></div><button type="button" class="btn-primary" id="anki-open-simulator">Abrir simulador</button></div></div>'+this._memoryHtml()+'</div>';
+    return '<div class="anki-max-stats">'+this._todayHtml()+this._calendarHtml()+
+      '<div class="stat-grid">'+this._reviewsHtml()+this._reviewTimeHtml()+'</div>'+
+      '<div class="stat-grid">'+this._cardCountsHtml()+this._hourlyHtml()+'</div>'+
+      '<div class="stat-grid">'+this._futureHtml()+this._easeHtml()+'</div>'+
+      '<div class="card stat-card anki-sim-card"><div class="card-header"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Projeta carga usando os estados S/D reais, parâmetros e retenção desejada.</p></div></div><button type="button" class="btn-primary" id="anki-open-simulator">Abrir simulador</button></div>'+
+      this._memoryHtml()+'</div>';
   },
   _bindStatsUi(){const b=document.getElementById('anki-open-simulator');if(b)b.onclick=()=>this.openSimulator();},
 
