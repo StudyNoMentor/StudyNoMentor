@@ -546,17 +546,13 @@
     return r ? Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
   };
   DB.updateEntry = function(id, patch) {
-    if (EO.getEntry(id)) return EO.updateEntry(id, patch);
-    const r = S.findRecord('entries', id); if (!r) return null;
-    Object.assign(r.row, patch || {});
-    return DB._set(DB.keysForPlan(r.planId).entries, r.list) === false ? null
-      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+    // Registros de outro planejamento são somente leitura no contexto atual.
+    if (!EO.getEntry(id)) return null;
+    return EO.updateEntry(id, patch);
   };
   DB.deleteEntry = function(id) {
-    if (EO.getEntry(id)) return EO.deleteEntry(id);
-    const r = S.findRecord('entries', id); if (!r) return false;
-    return DB._set(DB.keysForPlan(r.planId).entries,
-      r.list.filter(x => !DB._mesmoId ? String(x.id) !== String(id) : !DB._mesmoId(x.id, id))) !== false;
+    if (!EO.getEntry(id)) return false;
+    return EO.deleteEntry(id);
   };
 
   const LO = {
@@ -571,18 +567,12 @@
     return r ? Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
   };
   DB.updateLei = function(id, patch) {
-    if (LO.getLei(id)) return LO.updateLei(id, patch);
-    const r = S.findRecord('leis', id); if (!r) return null;
-    Object.assign(r.row, patch || {});
-    r.row.updatedAt = new Date().toISOString();
-    return DB._set(DB.keysForPlan(r.planId).leis, r.list) === false ? null
-      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+    if (!LO.getLei(id)) return null;
+    return LO.updateLei(id, patch);
   };
   DB.deleteLei = function(id) {
-    if (LO.getLei(id)) return LO.deleteLei(id);
-    const r = S.findRecord('leis', id); if (!r) return false;
-    return DB._set(DB.keysForPlan(r.planId).leis,
-      r.list.filter(x => String(x.id) !== String(id))) !== false;
+    if (!LO.getLei(id)) return false;
+    return LO.deleteLei(id);
   };
 
   const LKO = {
@@ -591,20 +581,13 @@
   };
   DB.updateLink = function(id, patch) {
     const active = S._rows(S.activePlanId(), 'links');
-    if (active.some(x => String(x.id) === String(id))) return LKO.updateLink(id, patch);
-    const r = S.findRecord('links', id); if (!r) return null;
-    Object.assign(r.row, patch || {});
-    if (patch && Object.prototype.hasOwnProperty.call(patch, 'url') && DB.urlSegura)
-      r.row.url = DB.urlSegura(r.row.url);
-    return DB._set(DB.keysForPlan(r.planId).links, r.list) === false ? null
-      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+    if (!active.some(x => String(x.id) === String(id))) return null;
+    return LKO.updateLink(id, patch);
   };
   DB.deleteLink = function(id) {
     const active = S._rows(S.activePlanId(), 'links');
-    if (active.some(x => String(x.id) === String(id))) return LKO.deleteLink(id);
-    const r = S.findRecord('links', id); if (!r) return false;
-    return DB._set(DB.keysForPlan(r.planId).links,
-      r.list.filter(x => String(x.id) !== String(id))) !== false;
+    if (!active.some(x => String(x.id) === String(id))) return false;
+    return LKO.deleteLink(id);
   };
 
   const TO = {
@@ -614,18 +597,13 @@
   };
   DB.deleteTecSnapshot = function(id) {
     const active = S._rows(S.activePlanId(), 'tec');
-    if (active.some(x => String(x.id) === String(id))) return TO.deleteTecSnapshot(id);
-    const r = S.findRecord('tec', id); if (!r) return false;
-    return DB._set(DB.keysForPlan(r.planId).tec,
-      r.list.filter(x => String(x.id) !== String(id))) !== false;
+    if (!active.some(x => String(x.id) === String(id))) return false;
+    return TO.deleteTecSnapshot(id);
   };
   DB.updateTecSnapshot = function(id, patch) {
     const active = S._rows(S.activePlanId(), 'tec');
-    if (active.some(x => String(x.id) === String(id))) return TO.updateTecSnapshot(id, patch);
-    const r = S.findRecord('tec', id); if (!r) return null;
-    Object.assign(r.row, patch || {});
-    return DB._set(DB.keysForPlan(r.planId).tec, r.list) === false ? null
-      : Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) });
+    if (!active.some(x => String(x.id) === String(id))) return null;
+    return TO.updateTecSnapshot(id, patch);
   };
   DB.tecOverlap = function(start, end, ignoreId) {
     return (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : []).find(s =>
