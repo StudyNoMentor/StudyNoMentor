@@ -57,7 +57,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
         # Deck picker Android usa a árvore oficial do scheduler, com contagens.
         tree = col.sched.deck_due_tree()
-        tree_json = app.pb(tree)
+        tree_json = app.deck_tree_payload(tree)
         assert "children" in tree_json
         assert tree_json["children"]
         first_deck = tree_json["children"][0]
