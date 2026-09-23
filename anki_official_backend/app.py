@@ -802,6 +802,60 @@ def manage_deck(
         return {"ok": True, "decks": decks(user)}
 
 
+@app.get("/api/anki/browser/notes")
+def browser_notes(
+    q: str = Query(default=""),
+    limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        all_ids = list(item.col.find_notes(q, order=True))
+        ids = all_ids[offset:offset + limit]
+        rows = []
+        for nid in ids:
+            note = item.col.get_note(nid)
+            nt = note.note_type() or {}
+            cids = [int(x) for x in item.col.card_ids_of_note(nid)]
+            cards = []
+            for cid in cids:
+                card = item.col.get_card(cid)
+                cards.append(
+                    {
+                        "card_id": int(card.id),
+                        "deck_id": int(card.did),
+                        "deck_name": item.col.decks.name(card.did),
+                        "queue": int(card.queue),
+                        "type": int(card.type),
+                        "due": int(card.due),
+                        "interval": int(card.ivl),
+                        "reps": int(card.reps),
+                        "lapses": int(card.lapses),
+                        "flag": int(card.user_flag()),
+                    }
+                )
+            rows.append(
+                {
+                    "note_id": int(note.id),
+                    "notetype_id": int(nt.get("id", 0) or 0),
+                    "notetype_name": str(nt.get("name", "")),
+                    "fields": dict(note.items()),
+                    "tags": list(note.tags),
+                    "marked": "marked" in note.tags,
+                    "cards": cards,
+                }
+            )
+        return {
+            "query": q,
+            "count": len(rows),
+            "total": len(all_ids),
+            "offset": offset,
+            "limit": limit,
+            "notes": rows,
+        }
+
+
 @app.get("/api/anki/browser/facets")
 def browser_facets(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
