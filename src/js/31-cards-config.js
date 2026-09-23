@@ -270,10 +270,12 @@ const CardsConfig = {
       // snapshot passa a ser gravado na resposta seguinte e sobrevive a
       // renome/reparent do deck, como os contadores internos do Anki.
       d.usage = [];
-      const cards = new Map(DB.getCards().map(c => [String(c.id), c]));
+      const sourceCards = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) ? StudyGlobalScope.cards('all') : DB.getCards();
+      const cards = new Map(sourceCards.map(c => [String(c.id), c]));
       const pathFor = (card) => {
         if (!card || card.deckId == null) return [];
-        const decks = DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
+        const pid = card._planId || (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard ? StudyGlobalScope.sourcePlanForCard(card.id) : null);
+        const decks = pid && DB.getDecksForPlan ? DB.getDecksForPlan(pid) : DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
         if (!deck) return [String(card.deckId)];
         const parts = String(deck.nome || '').split('::'), path = [];
         for (let i = 1; i <= parts.length; i++) {
@@ -309,7 +311,8 @@ const CardsConfig = {
   newDoneToday() { return this._daily().newIds.length; }, revDoneToday() { return this._daily().revIds.length; },
   _deckPathForCard(card) {
     if (!card || card.deckId == null) return [];
-    const decks = DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
+    const pid = card._planId || (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard ? StudyGlobalScope.sourcePlanForCard(card.id) : null);
+    const decks = pid && DB.getDecksForPlan ? DB.getDecksForPlan(pid) : DB.getDecks(), deck = decks.find(x => String(x.id) === String(card.deckId));
     if (!deck) return [String(card.deckId)];
     const parts = String(deck.nome || '').split('::'), path = [];
     for (let i = 1; i <= parts.length; i++) {
@@ -364,7 +367,8 @@ const CardsConfig = {
     const alvo = deckId == null ? null : String(deckId);
     const usage=(d.usage||[]).filter(x=>x.kind===(kind==='new'?'new':'review'));
     if (usage.length) return usage.filter(x => alvo == null ? x.deckId == null : (x.path||[]).includes(alvo)).length;
-    const mapa = new Map(DB.getCards().map(c => [String(c.id), c]));
+    const sourceCards = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) ? StudyGlobalScope.cards('all') : DB.getCards();
+    const mapa = new Map(sourceCards.map(c => [String(c.id), c]));
     let n = 0;
     ids.forEach(id => {
       const c = mapa.get(String(id)); if (!c) return;
