@@ -655,8 +655,10 @@
     return TO.updateTecSnapshot(id, patch);
   };
   DB.tecOverlap = function(start, end, ignoreId) {
-    return (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : []).find(s =>
-      String(s.id) !== String(ignoreId) && start <= s.endDate && end >= s.startDate) || null;
+    // Sobreposição só é conflito dentro do MESMO planejamento. Dois planos
+    // podem representar recortes diferentes (ex.: multibanca e CESGRANRIO)
+    // nas mesmas datas sem um bloquear a importação do outro.
+    return TO.tecOverlap(start, end, ignoreId);
   };
 
   /* Roteamento de card global para o planejamento onde ele nasceu. */
