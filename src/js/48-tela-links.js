@@ -3,6 +3,7 @@
    ============================================================ */
 const LinksScreen = {
   collection() { return DB.getAllLinksTagged ? DB.getAllLinksTagged() : DB.getLinks(); },
+  local(l) { return !!l && (!l._planId || String(l._planId) === String(DB._activePlanId())); },
   _editingId: null,
   _draftLogo: null,
   _draftCor: '#4f46e5',
@@ -38,7 +39,9 @@ const LinksScreen = {
           <div class="link-card-host">${escapeHtml(this.hostname(l.url))}</div>
           ${l.categoria ? `<span class="link-card-cat">${escapeHtml(l.categoria)}</span>` : ''}
         </div>
-        <button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar" aria-label="Editar">✎</button>
+        ${this.local(l)
+          ? `<button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar" aria-label="Editar">✎</button>`
+          : `<span class="link-card-edit" title="Somente leitura — ${escapeHtml(l._planNome || 'outro planejamento')}">🔒</span>`}
       </a>`).join('');
     grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.openModal(b.dataset.edit);
@@ -159,8 +162,10 @@ const LinksScreen = {
       </div>`).join('');
     box.querySelectorAll('.link-manage-row').forEach(row => {
       const id = row.dataset.id;
-      row.querySelector('.link-manage-edit').addEventListener('click', () => this.openModal(id));
-      row.querySelector('.link-manage-del').addEventListener('click', async () => {
+      const editBtn = row.querySelector('.link-manage-edit');
+      if (editBtn) editBtn.addEventListener('click', () => this.openModal(id));
+      const delBtn = row.querySelector('.link-manage-del');
+      if (delBtn) delBtn.addEventListener('click', async () => {
         const l = this.collection().find(x => x.id === id);
         if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
         DB.deleteLink(id); this.renderManageList(); this.renderGrid(); showToast('Link excluído');
