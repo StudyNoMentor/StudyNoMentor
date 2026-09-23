@@ -507,9 +507,25 @@ const CardEngine = {
     const an = Math.round(dias / 365 * 10) / 10; return an === 1 ? '1 ano' : an + ' anos';
   },
   // ---- Cloze / Omissão de palavras: {{texto}} ou {{c1::texto}} ----
-  hasCloze(text) { return (typeof AnkiParity !== 'undefined') ? AnkiParity.clozeOrdinals(text).length > 0 : /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
+  // O editor simples do Study sempre aceitou {{texto}}. A camada Anki, porém,
+  // trabalha com a sintaxe canônica {{cN::texto}}. Normalize na borda para
+  // manter a UX antiga sem alimentar o parser oficial com um formato inválido.
+  normalizeCloze(text) {
+    const src = String(text || '');
+    return src.replace(/\{\{(?!c\d+(?:,\d+)*::)([\s\S]*?)\}\}/g, (m, inner) => {
+      const meaningful = String(inner || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+      return meaningful ? '{{c1::' + inner + '}}' : m;
+    });
+  },
+  hasCloze(text) {
+    const normalized = this.normalizeCloze(text);
+    return (typeof AnkiParity !== 'undefined')
+      ? AnkiParity.clozeOrdinals(normalized).length > 0
+      : /\{\{c\d+(?:,\d+)*::[\s\S]+?\}\}/.test(normalized);
+  },
   // reveal=false => mostra [ ... ] no lugar; reveal=true => revela destacado
   clozeRender(html, reveal, ordinal) {
+    html = this.normalizeCloze(html);
     if (typeof AnkiParity !== 'undefined') return AnkiParity.revealCloze(html, Number(ordinal) || 1, !reveal);
     return String(html || '').replace(/\{\{(?:c\d+::)?([\s\S]*?)\}\}/g, (m, inner) => {
       const k = inner.indexOf('::');
