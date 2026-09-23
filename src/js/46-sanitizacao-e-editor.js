@@ -366,8 +366,11 @@ function buildRteToolbar(rte) {
     area.focus();
     const t = window.getSelection ? String(window.getSelection()).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    try { document.execCommand('insertText', false, '{{' + t + '}}'); }
-    catch (e) { document.execCommand('insertHTML', false, '{{' + t + '}}'); }
+    const ord = (typeof CardEngine !== 'undefined' && CardEngine.nextClozeOrdinal)
+      ? CardEngine.nextClozeOrdinal(area.innerHTML) : 1;
+    const token = '{{c' + ord + '::' + t + '}}';
+    try { document.execCommand('insertText', false, token); }
+    catch (e) { document.execCommand('insertHTML', false, token); }
   });
   // colar: imagem direto (Ctrl+V) ou HTML já higienizado
   area.addEventListener('paste', (e) => {
