@@ -55,4 +55,4 @@ if(fail.length){
   console.error(JSON.stringify(fail.slice(0,30),null,2));
   assert.fail('Busca Study divergiu do Anki oficial em '+fail.length+' / '+oracle.queries.length+' consultas');
 }
-console.log('BUSCA DIFERENCIAL ANKI 26.09.2: '+oracle.queries.length+' consultas idênticas, 0 divergências.');
+console.log('BUSCA DIFERENCIAL ANKI 26.09.3: '+oracle.queries.length+' consultas idênticas, 0 divergências.');
