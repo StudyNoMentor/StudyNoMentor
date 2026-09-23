@@ -59,6 +59,19 @@ const CardsScreen = {
     const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
   },
 
+  _statsCards() {
+    try {
+      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
+    } catch (_) {}
+    return DB.getCards();
+  },
+  _statsRevlog(applyHistory) {
+    try {
+      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
+    } catch (_) {}
+    return DB.getRevlog() || [];
+  },
+
   /* ── TRUE RETENTION ───────────────────────────────────────────────────────
      A estatística que responde "a retenção que eu realmente tenho bate com a
      meta que configurei?". O Anki a separa por MATURIDADE porque as duas contam
@@ -67,7 +80,7 @@ const CardsScreen = {
      Só contam revisões de LONGO PRAZO — repetir um card no mesmo dia não diz
      nada sobre esquecimento. */
   trueRetention(dias) {
-    const revlog = DB.getRevlog() || [];
+    const revlog = this._statsRevlog();
     // O Anki conta somente a PRIMEIRA revisão do card em cada dia.
     // "Hoje" é apenas hoje; uma janela N inclui hoje + N-1 dias anteriores.
     const limite = dias ? CardEngine.addDays(todayCards(), -(Math.max(1, Number(dias)) - 1)) : null;
@@ -113,7 +126,7 @@ const CardsScreen = {
     const mapa = {};
     for (let i = 0; i <= dias; i++) mapa[CardEngine.addDays(hoje, i)] = 0;
     let atrasados = 0;
-    DB.getCards().forEach(c => {
+    this._statsCards().forEach(c => {
       if (c.suspenso || !c.due) return;
       if (this._bucket(c) === 'new') return;
       if (c.due < hoje) { atrasados++; return; }
@@ -525,10 +538,10 @@ const CardsScreen = {
   },
   // ===== Painel de estatísticas FSRS (retenção real, previsão, maturidade) =====
   renderStats(box) {
-    const cards = DB.getCards();
+    const cards = this._statsCards();
     if (cards.length === 0) { box.innerHTML = this.emptyState('Sem estatísticas ainda', 'Crie e revise alguns cards para ver seus dados.'); return; }
     const cfg = CardsConfig.get();
-    const revlog = DB.getRevlog();
+    const revlog = this._statsRevlog();
     /* Os KPIs de retenção e a tabela "Retenção real" abaixo leem a MESMA
        função. Antes cada um tinha sua conta e os dois números apareciam lado a
        lado, com o mesmo rótulo e valores diferentes. */
@@ -615,7 +628,7 @@ const CardsScreen = {
      "Errei" em revisão significa intervalos longos demais; muito "Fácil"
      significa o contrário — e a retenção-alvo deveria mudar, não os cards. */
   _statBotoes() {
-    const revlog = DB.getRevlog() || [];
+    const revlog = this._statsRevlog();
     if (revlog.length < 5) return '';
     const NOMES = { 1: 'Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
     const TONS = { 1: 'bad', 2: 'warn', 3: 'accent', 4: 'good' };
@@ -647,7 +660,7 @@ const CardsScreen = {
      modelo de memória. Uma massa concentrada em dificuldade alta indica material
      mal formulado — card difícil demais costuma ser card mal escrito. */
   _statDistribuicao() {
-    const cards = DB.getCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
+    const cards = this._statsCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
     if (cards.length < 5) return '';
     const FAIXAS_S = [[0, 1, '< 1d'], [1, 7, '1–7d'], [7, 21, '7–21d'], [21, 90, '21–90d'], [90, 365, '90d–1a'], [365, Infinity, '> 1a']];
     const FAIXAS_D = [[1, 3, 'Muito fácil'], [3, 5, 'Fácil'], [5, 7, 'Médio'], [7, 9, 'Difícil'], [9, 10.01, 'Muito difícil']];
