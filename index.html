@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve0dcbf2f9d">
+<meta name="diario-versao" content="ve9a57a3878">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -8213,8 +8213,6 @@ window.__relationalBoot = true;
     <div class="report-dialog-foot"><button type="button" class="btn-secondary" id="study-report-cancel">Cancelar</button><button type="button" class="btn-secondary" id="study-report-preview">Visualizar</button><button type="button" class="btn-primary" id="study-report-generate">Gerar PDF</button></div>
   </div>
 </div>
-
-</style>
 
 <style id="ux-base">
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -56224,16 +56222,20 @@ else CloudStore.init();
     bankCatalog() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) {}
-      if (Array.isArray(saved) && saved.length) return saved;
-      const all = [];
+      const hadSaved = Array.isArray(saved);
+      const all = hadSaved ? saved.slice() : [];
       (DB.DEFAULT_BANCAS_CARDS || []).forEach(x => all.push(x));
       this.plans().forEach(p => {
-        this._rows(p.id, 'bancasCards').forEach(x => all.push(x));
+        // A lista antiga de cada planejamento é usada só na primeira migração.
+        // Depois disso o catálogo global manda; bancas novas continuam entrando
+        // automaticamente quando algum card efetivamente as usa.
+        if (!hadSaved) this._rows(p.id, 'bancasCards').forEach(x => all.push(x));
         this._rows(p.id, 'cards').forEach(c => { if (c && c.banca) all.push(c.banca); });
       });
       const clean = [...new Set(all.map(x => String(x || '').trim()).filter(Boolean))]
         .sort((a,b)=>a.localeCompare(b,'pt-BR'));
-      DB.setRaw(this._banksKey(), JSON.stringify(clean));
+      if (!hadSaved || JSON.stringify(saved) !== JSON.stringify(clean))
+        DB.setRaw(this._banksKey(), JSON.stringify(clean));
       return clean;
     },
     saveBankCatalog(list) {
