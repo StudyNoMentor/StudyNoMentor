@@ -356,6 +356,27 @@ const RelationalStore = {
     if(active) this._memSet(pfx+'active-plan',active);
 
     (d.profileSettings||[]).forEach(r=>this._memSet(pfx+r.key,this._raw(r.value)));
+
+    /* O ponteiro ativo chega de study_profiles e a pausa chega de
+       study_profile_settings. Se outro dispositivo pausou justamente o plano
+       ativo, saneamos o contexto assim que ambos estão em memória para nenhum
+       motor/tela operacional abrir no workspace congelado. */
+    try {
+      const rawPause = localStorage.getItem(pfx + 'plan-pauses-v1');
+      const pauses = rawPause ? JSON.parse(rawPause) : {};
+      const paused = id => {
+        const x = pauses && pauses[String(id)];
+        return !!(x && x.pausedAt && !x.resumedAt);
+      };
+      if (active && paused(active)) {
+        const next = visiblePlans.find(p => !paused(p.plan_id));
+        if (next) {
+          active = next.plan_id;
+          this._memSet(pfx + 'active-plan', active);
+        }
+      }
+    } catch (e) { _quiet(e, 'rel-pause-active-sanitize'); }
+
     (d.planState||[]).forEach(r=>this._memSet(pfx+'p:'+r.plan_id+':'+r.key,this._raw(r.value)));
 
     const putGroups=(rows,suffix,map)=>{
@@ -693,6 +714,13 @@ const RelationalStore = {
        mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
     if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
+    if (p.scope === 'plan') {
+      try {
+        const pausado = typeof PlanManager !== 'undefined' && PlanManager.isPaused && PlanManager.isPaused(p.planId);
+        const conhecimento = typeof DB !== 'undefined' && DB._pausedKnowledgeSuffix && DB._pausedKnowledgeSuffix(p.sub);
+        if (pausado && !conhecimento) return;
+      } catch (e) { _quiet(e, 'rel-pause-write-guard'); }
+    }
     if(p.scope==='user') {
       if(p.sub==='profiles'||p.sub==='active-profile') return;
       this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
