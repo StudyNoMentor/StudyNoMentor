@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory() as tmp:
         queue = app.queued_payload(col)
         assert queue["finished"] is False
         assert set(queue["counts"]) == {"new", "learning", "review"}
+        assert {"seconds_to_show_question", "seconds_to_show_answer", "question_action", "answer_action", "wait_for_audio"} <= set(queue["card"]["auto_advance"])
 
         queued = col.sched.get_queued_cards(fetch_limit=1)
         q = queued.cards[0]
@@ -65,6 +66,7 @@ with tempfile.TemporaryDirectory() as tmp:
         detail = app.card_detail(int(card.id), user_ctx)
         assert detail["deck_name"]
         assert detail["note_id"] == int(note.id)
+        assert app.type_answer_context(col, card) is None
 
         updated_fields = dict(detail["fields"])
         updated_fields[keys[0]] = "Pergunta editada oficialmente"
@@ -86,8 +88,10 @@ with tempfile.TemporaryDirectory() as tmp:
         # Browser Cards/Notes + facets e bulk usam Search/Tags/Scheduler oficiais.
         facets = app.browser_facets(user_ctx)
         assert facets["decks"] and facets["notetypes"]
-        notes_mode = app.browser_notes("Pergunta editada oficialmente", 100, 0, user_ctx)
+        notes_mode = app.browser_notes("Pergunta editada oficialmente", 100, 0, "", False, user_ctx)
         assert notes_mode["notes"] and notes_mode["notes"][0]["note_id"] == int(note.id)
+        browser_cols = app.browser_columns(user_ctx)
+        assert browser_cols["columns"] and browser_cols["active_cards"] and browser_cols["active_notes"]
         app.browser_bulk({"action": "tags_add", "note_ids": [int(note.id)], "card_ids": [], "tags": "bulk-smoke"}, user_ctx)
         assert "bulk-smoke" in col.get_note(note.id).tags
 
@@ -155,9 +159,12 @@ js2 = (ROOT / "src" / "js" / "45-anki-official-surfaces.js").read_text(encoding=
 html = (ROOT / "src" / "html" / "03-corpo.html").read_text(encoding="utf-8")
 assert "anki-study-review-card" in css and "anki-study-deck-row" in css
 assert "anki-browser-row-advanced" in css2 and "anki-io-stage" in css2
+assert "anki-type-answer-box" in css2 and "anki-column-config-row" in css2
 assert "cards-review-wrap" in js and "cards-ans4" in js
 assert "renderStats" in js2 and "openCustomStudy" in js2 and "openFilteredDeck" in js2
 assert "openFsrsTools" in js2 and "openNotetypes" in js2 and "openImageOcclusion" in js2
+assert "openBrowserColumns" in js2 and "openRichEditNote" in js2 and "toggleAutoAdvance" in js2
+assert "Shift+A" not in js2 or "KeyA" in js2
 assert "CardEngine." not in js and "CardsConfig." not in js
 assert "CardEngine." not in js2 and "CardsConfig." not in js2
 assert 'class="cards-topbar anki-cards-topbar"' in html
