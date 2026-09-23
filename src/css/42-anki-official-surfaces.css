@@ -79,3 +79,26 @@
   .anki-study-deck-row{grid-template-columns:26px minmax(0,1fr) auto auto!important}
   .anki-deck-manage{display:inline-grid}
 }
+
+
+/* Browser oficial: colunas configuráveis e ordenação */
+.anki-column-config-list{display:grid;gap:6px;max-height:58vh;overflow:auto}
+.anki-column-config-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface)}
+.anki-column-config-row label{display:flex;align-items:center;gap:8px;min-width:0}
+.anki-column-config-row>div{display:flex;gap:4px}
+#anki-browser-reverse.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+
+/* Reviewer oficial: Type in the Answer / Auto Advance / editor HTML seguro */
+.anki-type-answer-box{display:flex;flex-direction:column;gap:6px;flex:1 1 100%;max-width:720px;margin:0 auto 8px}
+.anki-type-answer-box label{font-size:var(--fs-xs);font-weight:750;color:var(--text-soft)}
+.anki-type-answer-box input{width:100%;min-height:46px;text-align:center}
+#anki-review-auto.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.anki-rich-field{border:1px solid var(--border);border-radius:var(--r-md);padding:10px;background:var(--surface)}
+.anki-rich-toolbar{display:flex;gap:5px;flex-wrap:wrap;margin:5px 0 7px}
+.anki-rich-toolbar button{border:1px solid var(--border);background:var(--surface-raised);color:var(--text);border-radius:var(--r-sm);padding:5px 8px;cursor:pointer}
+.anki-rich-field textarea{width:100%;min-height:130px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:var(--fs-xs);resize:vertical}
+
+@media (max-width:760px){
+  .anki-type-answer-box{max-width:100%}
+  .anki-column-config-row{padding:7px 8px}
+}
