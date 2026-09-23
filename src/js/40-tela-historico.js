@@ -3,9 +3,11 @@
    ============================================================ */
 const HistoricoScreen = {
   editingId: null,
-  scope: 'plan', // 'plan' = só o planejamento ativo | 'all' = todos (somente leitura)
+  scope: 'all', // memória realizada é global; 'plan' continua disponível como filtro
 
   render() {
+    document.querySelectorAll('#hist-scope-toggle button[data-scope]').forEach(b =>
+      b.classList.toggle('active', b.dataset.scope === this.scope));
     const consolidated = this.scope === 'all';
     const history = (consolidated ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory()).slice().reverse();
     const emptyEl = document.getElementById('historico-empty');
@@ -424,6 +426,15 @@ const HistoricoScreen = {
     });
   }
 };
+
+const _histScope = document.getElementById('hist-scope-toggle');
+if (_histScope) _histScope.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-scope]');
+  if (!btn) return;
+  HistoricoScreen.scope = btn.dataset.scope === 'plan' ? 'plan' : 'all';
+  HistoricoScreen.editingId = null;
+  HistoricoScreen.render();
+});
 
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'historico') HistoricoScreen.render();
