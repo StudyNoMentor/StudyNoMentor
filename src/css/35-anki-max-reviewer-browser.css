@@ -19,9 +19,13 @@
 .anki-browser-table-head,.anki-browser-row{min-width:max-content}
 .anki-browser-table-head{overflow:visible}
 .anki-browser-col-head{
-  appearance:none;border:0;background:transparent;color:var(--text-faint);padding:0;text-align:left;cursor:pointer;
+  appearance:none;border:0;background:transparent;color:var(--text-faint);padding:0;text-align:left;cursor:grab;
   font:inherit;font-weight:800;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap
 }
+.anki-browser-col-head:active{cursor:grabbing}
+.anki-browser-col-head.is-dragging{opacity:.45}
+.anki-browser-col-head.is-unsortable{font-style:italic}
+.anki-browser-col-head.is-unsortable::after{content:' ↔';font-style:normal;opacity:.55}
 .anki-browser-cell{
   appearance:none;border:0;background:transparent;color:var(--text-soft);padding:0;text-align:left;cursor:pointer;
   font:inherit;font-size:var(--fs-xs);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0
