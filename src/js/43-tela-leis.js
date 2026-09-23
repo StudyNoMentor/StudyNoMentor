@@ -3,6 +3,31 @@
    ============================================================ */
 const LeisScreen = {
   currentId: null,
+  _leiLocal(lei) {
+    return !!lei && (!lei._planId || String(lei._planId) === String(DB._activePlanId()));
+  },
+  _somenteLeituraAtual() {
+    const lei = this.currentId ? DB.getLei(this.currentId) : null;
+    return !!lei && !this._leiLocal(lei);
+  },
+  _aplicarSomenteLeitura(lei) {
+    const readonly = !!lei && !this._leiLocal(lei);
+    const ids = ['lei-edit-btn','lei-del-btn','lei-mark-btn','lei-unmark-btn','lei-goto-mark-btn','lei-foco-mark','lei-foco-erase','lei-foco-marcar'];
+    ids.forEach(id => {
+      const el = document.getElementById(id); if (!el) return;
+      el.disabled = readonly;
+      if (readonly) el.title = 'Somente leitura — pertence a ' + (lei._planNome || 'outro planejamento');
+    });
+    const master = document.getElementById('lei-auto-master');
+    document.querySelectorAll('#lei-hl-toggles input').forEach(el => {
+      if (readonly) el.disabled = true;
+      else if (el.id === 'lei-auto-master') el.disabled = false;
+      else el.disabled = master ? !master.checked : false;
+    });
+    const meta = document.getElementById('lei-reader-meta');
+    if (meta && readonly) meta.insertAdjacentHTML('beforeend',
+      ' <span class="plan-tag-badge">🔒 ' + escapeHtml(lei._planNome || 'Outro planejamento') + '</span>');
+  },
   fontStep: 0, // -2..+4
   // Preferências do leitor: por PERFIL e sincronizadas (antes eram chaves globais do navegador)
   _prefKey(nome) { try { return DB._profilePrefix() + 'lei-' + nome; } catch (_) { return 'diario-estudos:lei-' + nome; } },
@@ -90,7 +115,7 @@ const LeisScreen = {
   renderCards() {
     const wrap = document.getElementById('leis-cards');
     if (!wrap) return;
-    const todas = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const todas = (DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis()).slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     // A busca só aparece quando há leis o bastante para valer a pena procurar.
     const barra = document.querySelector('.leis-busca');
     if (barra) barra.hidden = todas.length < 4;
@@ -151,6 +176,7 @@ const LeisScreen = {
               <span class="lei-estado"><i aria-hidden="true">${estado.ic}</i>${escapeHtml(estado.rot)}</span>
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
               ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+              ${l._planNome ? `<span class="lei-tag ref">${escapeHtml(l._planNome)}${this._leiLocal(l) ? '' : ' · somente leitura'}</span>` : ''}
             </span>
             <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
             <span class="lei-card-stats">
@@ -201,6 +227,7 @@ const LeisScreen = {
     if (!lei) { this.showList(); return; }
     this.currentId = id;
     this.hlMode = null; // reseta a ferramenta ativa ao abrir
+    setTimeout(() => this._aplicarSomenteLeitura(lei), 0);
     ['lei-mark-btn', 'lei-unmark-btn', 'lei-foco-mark', 'lei-foco-erase'].forEach(bid => { const b = document.getElementById(bid); if (b) b.classList.remove('active'); });
     this._esconderFab();
     $id('leis-list-view').style.display = 'none';
@@ -342,6 +369,7 @@ const LeisScreen = {
   },
   // clicar no NÚMERO da linha → fixa/retira o pin "onde parei"
   onLineNumClick(ln, semRolar) {
+    if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     if (ln == null || !isFinite(ln)) return;
     const cur = DB.getLei(this.currentId);
     if (!cur) return;
@@ -622,6 +650,7 @@ const LeisScreen = {
     this._esconderFab();
   },
   applyMark(txt, linha, offset) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const marks = (lei.marcacoes || []).slice();
@@ -642,6 +671,7 @@ const LeisScreen = {
   // Borracha: remove destaque MANUAL e suprime os automáticos daquele trecho — só na LINHA
   // em que você apagou (quando conhecida), não na lei inteira.
   applyErase(txt, linha) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const key = txt.toLowerCase();
@@ -673,6 +703,7 @@ const LeisScreen = {
   },
   // remove uma marcação específica (manual) OU suprime um automático, pelo texto exato
   eraseHighlight(text, linha) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     const key = (text || '').trim().toLowerCase();
     if (!lei || !key) return;
@@ -691,6 +722,7 @@ const LeisScreen = {
   },
   // restaura todos os destaques automáticos suprimidos
   restoreAuto() {
+    if (this._somenteLeituraAtual()) return;
     if (!this.currentId) return;
     DB.updateLei(this.currentId, { suppressed: [] });
     this.renderBody(); this.renderMarks();
@@ -822,6 +854,7 @@ const LeisScreen = {
     if (s && s.removeAllRanges) s.removeAllRanges();
   },
   toggleCategory(cat, on) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const opts = Object.assign({}, lei.opts || {});
@@ -831,6 +864,7 @@ const LeisScreen = {
   },
   // Interruptor mestre: liga/desliga TODO o destaque automático desta lei
   setAutoMaster(on) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const opts = Object.assign({}, lei.opts || {});
@@ -847,6 +881,7 @@ const LeisScreen = {
     this._pintarFonte();
   },
   editCurrent() {
+    if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     UI.prompt([
@@ -867,6 +902,7 @@ const LeisScreen = {
     });
   },
   async deleteCurrent() {
+    if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;

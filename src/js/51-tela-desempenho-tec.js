@@ -373,6 +373,9 @@ const DesempenhoTecScreen = {
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
   rangeStart: null, rangeEnd: null, // (modo 'range')
+  snapshots() {
+    return DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
+  },
   // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
   _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },
   _loadPrefs() {
@@ -396,7 +399,7 @@ const DesempenhoTecScreen = {
     // trabalho repetido. A fotografia dura somente este render.
     DB._tecReadSnapshot = null;
     this._scopeSigC = new WeakMap();
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     DB._tecReadSnapshot = snaps;
     const emptyEl = document.getElementById('tec-empty');
     const importEl = document.getElementById('tec-import');
@@ -600,7 +603,7 @@ const DesempenhoTecScreen = {
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
   // Retorna os retratos ativos conforme o escopo selecionado (ordenados por período)
   activeSnapshots() {
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     if (this.scopeMode === 'select') {
       return snaps.filter(s => this.selectedSnapIds.has(s.id));
     }
@@ -767,7 +770,7 @@ const DesempenhoTecScreen = {
   aplicarMudancaEscopo(opcoes) {
     const opts = opcoes || {};
     this._invalidarEscopo();
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     const pintar = () => {
       if (opts.preservarLista && this.scopeMode === 'select') {
         this._sincronizarScopeSelectState(snaps);
@@ -804,7 +807,7 @@ const DesempenhoTecScreen = {
     const importEl = document.getElementById('tec-import');
     importEl.style.display = 'block';
     // por padrão sugere o dia seguinte ao último período importado, para não sobrepor
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     const defStart = snaps.length ? this.addDays(snaps[snaps.length - 1].endDate, 1) : todayLocal();
     $id('tec-import-start').value = defStart;
     $id('tec-import-end').value = todayLocal() >= defStart ? todayLocal() : defStart;
@@ -1088,11 +1091,12 @@ const DesempenhoTecScreen = {
       const tot = TecEngine.totais(s);
       const checked = this.selectedSnapIds.has(s.id);
       const lbl = s.label ? ` · ${escapeHtml(s.label)}` : '';
+      const local = !s._planId || String(s._planId) === String(DB._activePlanId());
       return `<label class="tec-snap-pick" data-id="${s.id}">
         <input type="checkbox" data-snap="${s.id}" ${checked ? 'checked' : ''}>
-        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}</span>
+        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}${s._planNome ? `<small>${escapeHtml(s._planNome)}${local ? '' : ' · somente leitura'}</small>` : ''}</span>
         <span class="tsp-stats">${tot.questoes} q · ${tot.pct}%</span>
-        <button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>
+        ${local ? `<button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>` : `<span title="Somente leitura">🔒</span>`}
       </label>`;
     }).join('');
     const todos = snaps.length > 0 && this.selectedSnapIds.size === snaps.length;
@@ -1126,7 +1130,7 @@ const DesempenhoTecScreen = {
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
       const id = parseInt(btn.closest('.tec-snap-pick').dataset.id, 10);
-      const s = DB.getTecSnapshots().find(x => x.id === id);
+      const s = this.snapshots().find(x => x.id === id);
       if (!s) return;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
@@ -1167,7 +1171,7 @@ const DesempenhoTecScreen = {
     const active = this.activeSnapshots();
     if (!active.length) return null;
     if (active.length >= 2) return active[active.length - 2];
-    const all = DB.getTecSnapshots();
+    const all = this.snapshots();
     const idx = all.findIndex(s => s.id === active[0].id);
     return idx > 0 ? all[idx - 1] : null;
   },
@@ -2453,7 +2457,7 @@ $id('tec-scope-toggle').addEventListener('click', (e) => {
 });
 // atalhos de intervalo (últimos N meses / tudo)
 document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListener('click', () => {
-  const snaps = DB.getTecSnapshots();
+  const snaps = DesempenhoTecScreen.snapshots();
   if (snaps.length === 0) return;
   const r = btn.dataset.range;
   if (r === 'all') {

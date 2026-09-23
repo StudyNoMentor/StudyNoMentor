@@ -365,6 +365,10 @@
       wrap.querySelectorAll('.lei-card').forEach(card => {
         if (card.closest('.lr-law-wrap')) return;
         const lei = DB.getLei(card.dataset.id); if (!lei) return;
+        if (lei._planId && String(lei._planId) !== String(DB._activePlanId())) {
+          card.classList.add('lr-law-readonly');
+          return;
+        }
         const cfg = this.cfgLei(lei), p = this.prefs(), linha = this._bookmark(lei);
         const holder = document.createElement('div'); holder.className = 'lr-law-wrap';
         card.parentNode.insertBefore(holder, card); holder.appendChild(card);

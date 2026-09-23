@@ -2,6 +2,8 @@
    TELA: LINKS ÚTEIS
    ============================================================ */
 const LinksScreen = {
+  collection() { return DB.getAllLinksTagged ? DB.getAllLinksTagged() : DB.getLinks(); },
+  local(l) { return !!l && (!l._planId || String(l._planId) === String(DB._activePlanId())); },
   _editingId: null,
   _draftLogo: null,
   _draftCor: '#4f46e5',
@@ -24,7 +26,7 @@ const LinksScreen = {
   },
   renderGrid() {
     const grid = document.getElementById('links-grid');
-    const links = DB.getLinks();
+    const links = this.collection();
     if (links.length === 0) {
       grid.innerHTML = `<div class="card"><div class="empty-state" style="padding:40px 20px;"><div class="big">🔗</div><h3 style="margin:4px 0;">Nenhum link ainda</h3><p style="color:var(--text-faint)">Clique em <strong>＋ Novo link</strong> para adicionar seus atalhos.</p></div></div>`;
       return;
@@ -37,7 +39,9 @@ const LinksScreen = {
           <div class="link-card-host">${escapeHtml(this.hostname(l.url))}</div>
           ${l.categoria ? `<span class="link-card-cat">${escapeHtml(l.categoria)}</span>` : ''}
         </div>
-        <button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar" aria-label="Editar">✎</button>
+        ${this.local(l)
+          ? `<button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar" aria-label="Editar">✎</button>`
+          : `<span class="link-card-edit" title="Somente leitura — ${escapeHtml(l._planNome || 'outro planejamento')}">🔒</span>`}
       </a>`).join('');
     grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.openModal(b.dataset.edit);
@@ -45,7 +49,7 @@ const LinksScreen = {
   },
 
   fillCategoryDatalist() {
-    const cats = [...new Set(DB.getLinks().map(l => l.categoria).filter(Boolean))].sort();
+    const cats = [...new Set(this.collection().map(l => l.categoria).filter(Boolean))].sort();
     $id('link-cat-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
   },
   renderColorSwatches() {
@@ -71,6 +75,10 @@ const LinksScreen = {
     }
   },
   openModal(id) {
+    if (id) {
+      const alvo = this.collection().find(x => String(x.id) === String(id));
+      if (alvo && !this.local(alvo)) { showToast('Somente leitura neste planejamento'); return; }
+    }
     this._editingId = id || null;
     const isEdit = !!id;
     $id('link-modal-title').textContent = isEdit ? '✎ Editar link' : '＋ Novo link';
@@ -78,7 +86,7 @@ const LinksScreen = {
     let nome = '', url = '', categoria = '';
     this._draftLogo = null; this._draftCor = this.PALETTE[Math.floor(Math.random() * 4)];
     if (isEdit) {
-      const l = DB.getLinks().find(x => x.id === id);
+      const l = this.collection().find(x => x.id === id);
       if (l) { nome = l.nome; url = l.url; categoria = l.categoria || ''; this._draftLogo = l.logo || null; this._draftCor = l.cor || '#4f46e5'; }
     }
     $id('link-nome').value = nome;
@@ -135,7 +143,8 @@ const LinksScreen = {
   },
   async deleteCurrent() {
     if (!this._editingId) return;
-    const l = DB.getLinks().find(x => x.id === this._editingId);
+    const l = this.collection().find(x => x.id === this._editingId);
+    if (l && !this.local(l)) { showToast('Somente leitura neste planejamento'); return; }
     if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
     DB.deleteLink(this._editingId); this.closeModal(); this.renderGrid();
     if ($id('link-manage-modal').style.display === 'flex') this.renderManageList();
@@ -144,7 +153,7 @@ const LinksScreen = {
   openManage() { this.renderManageList(); $id('link-manage-modal').style.display = 'flex'; },
   renderManageList() {
     const box = document.getElementById('link-manage-list');
-    const links = DB.getLinks();
+    const links = this.collection();
     if (links.length === 0) { box.innerHTML = `<p class="hint">Nenhum link cadastrado.</p>`; return; }
     box.innerHTML = links.map(l => `
       <div class="link-manage-row" data-id="${l.id}">
@@ -153,14 +162,18 @@ const LinksScreen = {
           <div class="link-manage-name">${escapeHtml(l.nome)}</div>
           <div class="link-manage-url">${escapeHtml(this.hostname(l.url))}</div>
         </div>
-        <button type="button" class="icon-btn link-manage-edit" title="Editar" aria-label="Editar">✎</button>
-        <button type="button" class="icon-btn danger link-manage-del" title="Excluir" aria-label="Excluir">×</button>
+        ${this.local(l) ? `
+          <button type="button" class="icon-btn link-manage-edit" title="Editar" aria-label="Editar">✎</button>
+          <button type="button" class="icon-btn danger link-manage-del" title="Excluir" aria-label="Excluir">×</button>
+        ` : `<span class="hint" title="Somente leitura — ${escapeHtml(l._planNome || 'outro planejamento')}">🔒</span>`}
       </div>`).join('');
     box.querySelectorAll('.link-manage-row').forEach(row => {
       const id = row.dataset.id;
-      row.querySelector('.link-manage-edit').addEventListener('click', () => this.openModal(id));
-      row.querySelector('.link-manage-del').addEventListener('click', async () => {
-        const l = DB.getLinks().find(x => x.id === id);
+      const editBtn = row.querySelector('.link-manage-edit');
+      if (editBtn) editBtn.addEventListener('click', () => this.openModal(id));
+      const delBtn = row.querySelector('.link-manage-del');
+      if (delBtn) delBtn.addEventListener('click', async () => {
+        const l = this.collection().find(x => x.id === id);
         if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
         DB.deleteLink(id); this.renderManageList(); this.renderGrid(); showToast('Link excluído');
       });
