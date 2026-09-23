@@ -68,6 +68,28 @@ def pb(msg: Any) -> dict[str, Any]:
     )
 
 
+def deck_tree_payload(node: Any) -> dict[str, Any]:
+    """Shape estável para a UI: apenas serializa os valores do DeckTreeNode oficial.
+
+    Protobuf omite escalares no valor zero em JSON. O deck picker Android precisa
+    distinguir "zero" de "campo inexistente", então explicitamos os zeros aqui,
+    sem recalcular qualquer contagem.
+    """
+    return {
+        "deck_id": int(node.deck_id),
+        "name": str(node.name),
+        "level": int(node.level),
+        "collapsed": bool(node.collapsed),
+        "review_count": int(node.review_count),
+        "learn_count": int(node.learn_count),
+        "new_count": int(node.new_count),
+        "total_in_deck": int(node.total_in_deck),
+        "total_including_children": int(node.total_including_children),
+        "filtered": bool(node.filtered),
+        "children": [deck_tree_payload(child) for child in node.children],
+    }
+
+
 @dataclass
 class UserCollection:
     user_id: str
@@ -185,6 +207,8 @@ def queued_payload(col: Collection) -> dict[str, Any]:
     q = queued.cards[0]
     card = col.get_card(q.card.id)
     labels = list(col.sched.describe_next_states(q.states))
+    note = card.note()
+    note_type = note.note_type() or {}
     return {
         "finished": False,
         "counts": counts,
@@ -194,6 +218,10 @@ def queued_payload(col: Collection) -> dict[str, Any]:
             "id": int(card.id),
             "note_id": int(card.nid),
             "deck_id": int(card.did),
+            "deck_name": col.decks.name(card.did),
+            "notetype_name": str(note_type.get("name", "")),
+            "marked": "marked" in note.tags,
+            "flag": int(card.user_flag()),
             "question": card.question(),
             "answer": card.answer(),
             "question_av_tags": av_tags(card, False),
@@ -209,6 +237,15 @@ def queued_payload(col: Collection) -> dict[str, Any]:
 
 class SelectDeckBody(BaseModel):
     deck_id: int
+
+
+class CreateDeckBody(BaseModel):
+    name: str
+
+
+class NoteUpdateBody(BaseModel):
+    fields: dict[str, str]
+    tags: list[str] = []
 
 
 class AnswerBody(BaseModel):
@@ -265,13 +302,28 @@ def decks(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
         values = item.col.decks.all_names_and_ids()
+        due_tree = item.col.sched.deck_due_tree()
         return {
             "current_deck_id": int(item.col.decks.get_current_id()),
             "decks": [
                 {"id": int(getattr(d, "id", 0)), "name": d.name}
                 for d in values
             ],
+            # A mesma árvore que abastece a lista de decks do Anki: hierarquia,
+            # estado collapsed e contagens já submetidas aos limites do scheduler.
+            "deck_tree": deck_tree_payload(due_tree),
         }
+
+
+@app.post("/api/anki/decks/create")
+def create_deck(body: CreateDeckBody, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Informe o nome do baralho.")
+    with item.lock:
+        out = item.col.decks.add_normal_deck_with_name(name)
+        return {"ok": True, "deck_id": int(out.id), "name": name}
 
 
 @app.post("/api/anki/decks/select")
@@ -338,7 +390,15 @@ def card_action(body: CardActionBody, user: dict[str, Any] = Depends(current_use
             flag = int(body.value or 0)
             if flag < 0 or flag > 7:
                 raise HTTPException(400, "Flag deve estar entre 0 e 7.")
-            item.col.set_user_flag_for_cards(ids, flag)
+            item.col.set_user_flag_for_cards(flag, ids)
+        elif body.action == "mark":
+            for cid in ids:
+                note = item.col.get_card(cid).note()
+                if "marked" in note.tags:
+                    note.tags = [tag for tag in note.tags if tag != "marked"]
+                else:
+                    note.tags.append("marked")
+                item.col.update_note(note)
         elif body.action == "delete_notes":
             item.col.remove_notes_by_card(ids)
         else:
@@ -359,15 +419,19 @@ def browser_search(
         for cid in ids:
             card = item.col.get_card(cid)
             note = card.note()
+            note_type = note.note_type() or {}
             rows.append(
                 {
                     "card_id": int(card.id),
                     "note_id": int(card.nid),
                     "deck_id": int(card.did),
+                    "deck_name": item.col.decks.name(card.did),
+                    "notetype_name": str(note_type.get("name", "")),
                     "question": card.question(browser=True),
                     "answer": card.answer(),
                     "fields": dict(note.items()),
                     "tags": list(note.tags),
+                    "marked": "marked" in note.tags,
                     "queue": int(card.queue),
                     "type": int(card.type),
                     "due": int(card.due),
@@ -375,6 +439,7 @@ def browser_search(
                     "reps": int(card.reps),
                     "lapses": int(card.lapses),
                     "flags": int(card.flags),
+                    "flag": int(card.user_flag()),
                 }
             )
         return {"query": q, "count": len(rows), "cards": rows}
@@ -418,6 +483,46 @@ def add_note(body: AddNoteBody, user: dict[str, Any] = Depends(current_user)) ->
         did = DeckId(body.deck_id or int(item.col.decks.get_current_id()))
         changes = item.col.add_note(note, did)
         return {"ok": True, "note_id": int(note.id), "changes": pb(changes)}
+
+
+@app.get("/api/anki/card/{card_id}/detail")
+def card_detail(card_id: int, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        card = item.col.get_card(card_id)
+        note = card.note()
+        note_type = note.note_type() or {}
+        return {
+            "card_id": int(card.id),
+            "note_id": int(note.id),
+            "deck_id": int(card.did),
+            "deck_name": item.col.decks.name(card.did),
+            "notetype_name": str(note_type.get("name", "")),
+            "fields": dict(note.items()),
+            "tags": list(note.tags),
+            "flag": int(card.user_flag()),
+            "marked": "marked" in note.tags,
+            "queue": int(card.queue),
+            "type": int(card.type),
+            "due": int(card.due),
+            "interval": int(card.ivl),
+            "reps": int(card.reps),
+            "lapses": int(card.lapses),
+        }
+
+
+@app.put("/api/anki/note/{note_id}")
+def update_note(note_id: int, body: NoteUpdateBody, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        note = item.col.get_note(note_id)
+        valid = set(note.keys())
+        for name, value in body.fields.items():
+            if name in valid:
+                note[name] = value
+        note.tags = list(body.tags)
+        item.col.update_note(note)
+        return {"ok": True, "note_id": int(note.id)}
 
 
 @app.get("/api/anki/card/{card_id}/stats")
