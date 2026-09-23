@@ -397,18 +397,22 @@ def type_answer_context(col: Collection, card: Card) -> dict[str, Any] | None:
     }
 
 
+def reviewer_payload(col: Collection) -> dict[str, Any]:
+    out = queued_payload(col)
+    if not out.get("finished"):
+        card = col.get_card(int(out["card"]["id"]))
+        ctx = type_answer_context(col, card)
+        if ctx:
+            safe = {k: v for k, v in ctx.items() if k != "expected"}
+            out["card"]["type_answer"] = safe
+    return out
+
+
 @app.get("/api/anki/reviewer/next")
 def reviewer_next(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        out = queued_payload(item.col)
-        if not out.get("finished"):
-            card = item.col.get_card(int(out["card"]["id"]))
-            ctx = type_answer_context(item.col, card)
-            if ctx:
-                safe = {k: v for k, v in ctx.items() if k != "expected"}
-                out["card"]["type_answer"] = safe
-        return out
+        return reviewer_payload(item.col)
 
 
 @app.post("/api/anki/reviewer/type-answer/{card_id}")
@@ -476,7 +480,7 @@ def reviewer_answer(body: AnswerBody, user: dict[str, Any] = Depends(current_use
         answer = item.col.sched.build_answer(card=card, states=q.states, rating=rating)
         answer.milliseconds_taken = body.milliseconds_taken
         item.col.sched.answer_card(answer)
-        return queued_payload(item.col)
+        return reviewer_payload(item.col)
 
 
 @app.post("/api/anki/cards/action")
