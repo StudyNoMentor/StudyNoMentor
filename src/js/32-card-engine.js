@@ -555,6 +555,17 @@ const CardEngine = {
     });
     return s;
   },
+  // Conteúdo significativo de um campo rico. No Anki, uma imagem/mídia
+  // sozinha é conteúdo válido mesmo quando o texto puro fica vazio.
+  hasContent(html) {
+    const s = String(html || '');
+    if (this.plain(s)) return true;
+    if (/\[sound:[^\]]+\]/i.test(s)) return true;
+    if (/<(?:img|picture|audio|video|svg|canvas|object|embed|iframe|math)\b/i.test(s)) return true;
+    // Também preserva campos visuais feitos só com CSS inline/background.
+    if (/\b(?:src|poster)\s*=\s*["'][^"']+["']/i.test(s) || /url\(\s*["']?[^)"']+/i.test(s)) return true;
+    return false;
+  },
   // texto puro (sem HTML) para exportação/preview
   plain(html) {
     return String(html || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|li)>/gi, '\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();

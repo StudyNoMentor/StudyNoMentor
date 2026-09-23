@@ -492,14 +492,14 @@ const AnkiPractical10 = {
     const dst=this._simpleDestination();if(!dst)return false;
     const front=document.getElementById('card-frente'),back=document.getElementById('card-verso');
     const frente=String(front&&front.innerHTML||'').trim(),verso=String(back&&back.innerHTML||'').trim();
-    if(!CardEngine.plain(frente)){showToast('Preencha a frente');return false;}
-    if(!CardEngine.plain(verso)){showToast('Preencha o verso');return false;}
+    if(!CardEngine.hasContent(frente)){showToast('Preencha a frente');return false;}
+    if(!CardEngine.hasContent(verso)){showToast('Preencha o verso');return false;}
     const nt=AnkiParity.stockNotetype(kind),fields={Front:frente,Back:verso};
     if(kind==='basic_optional_reversed')fields['Add Reverse']=document.getElementById('card-add-reverse')?.checked?'1':'';
     const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:[]});
     const result=AnkiProductParity.reconcileNote(note,nt),patch=this._simpleMetadataPatch(dst),cards=AnkiProductParity._cardsForNote(note.id);
     cards.forEach(c=>DB.updateCard(c.id,patch));CardEngine.invalidateDueCache();
-    const n=cards.filter(c=>CardEngine.plain(c.frente)).length||Number(result&&result.created)||cards.length;
+    const n=cards.filter(c=>CardEngine.hasContent(c.frente)).length||Number(result&&result.created)||cards.length;
     showToast((n||1)+' card(s) criado(s) · '+nt.name+' ✓');
     if(closeAfter)CardsScreen.closeCardModal();
     else{

@@ -1534,9 +1534,7 @@ const CardsScreen = {
   cardTemConteudo() {
     const rico = (id) => {
       const e = document.getElementById(id);
-      if (!e) return false;
-      const html = (e.innerHTML || '').replace(/<br\s*\/?>|&nbsp;|\s/gi, '').replace(/<div><\/div>/gi, '');
-      return html.length > 0;
+      return !!(e && CardEngine.hasContent(e.innerHTML || ''));
     };
     const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
     return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-materia-tec') || campo('card-banca');
@@ -1568,8 +1566,8 @@ const CardsScreen = {
       if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
       if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
     } else {
-      if (!CardEngine.plain(frente)) { showToast('Preencha a frente'); return null; }
-      if (!CardEngine.plain(verso)) { showToast('Preencha o verso'); return null; }
+      if (!CardEngine.hasContent(frente)) { showToast('Preencha a frente'); return null; }
+      if (!CardEngine.hasContent(verso)) { showToast('Preencha o verso'); return null; }
     }
     const data = {
       assunto: $id('card-assunto').value,

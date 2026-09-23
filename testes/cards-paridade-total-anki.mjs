@@ -8,6 +8,16 @@ const ok=(v,m)=>{checks++;assert.ok(v,m);};
 const A=criarAmbiente().reset();
 const {DB,CardsConfig,CardEngine,CardsScreen,AnkiParity,FSRS}=A;
 
+// ── Campos ricos: mídia sem texto continua sendo conteúdo válido ──────────
+ok(CardEngine.hasContent('<img src="data:image/png;base64,AA==">'),'imagem sozinha deve contar como conteúdo');
+ok(CardEngine.hasContent('<audio src="a.mp3"></audio>'),'áudio sozinho deve contar como conteúdo');
+ok(CardEngine.hasContent('<svg viewBox="0 0 1 1"></svg>'),'SVG sozinho deve contar como conteúdo');
+ok(CardEngine.hasContent('[sound:voz.mp3]'),'tag [sound:] deve contar como conteúdo');
+ok(CardEngine.hasContent('<div style="background-image:url(img.png)"></div>'),'background visual deve contar como conteúdo');
+eq(CardEngine.hasContent('<div><br></div>'),false,'HTML estrutural vazio não pode contar como conteúdo');
+const telaSrc=A.source?A.source('src/js/44-tela-cards.js'):null;
+if(telaSrc) ok(telaSrc.includes('CardEngine.hasContent(frente)')&&telaSrc.includes('CardEngine.hasContent(verso)'),'salvamento simples deve validar mídia, não só texto');
+
 // ── RNG oficial: rand_core seed_from_u64 + StdRng/ChaCha12 ────────────────
 for(const [seed,a,b] of [
   [0n,0xCD2C6F7F,0xBB2A3FB2],
