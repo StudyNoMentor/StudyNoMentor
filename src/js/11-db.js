@@ -915,7 +915,7 @@ const DB = {
     } catch (e) { _quiet(e, 'revlog-append'); }
     return this._guardarPendente(row);
   },
-  async addRevlogDurable(entry, cardAfter, cardPosition) {
+  async addRevlogDurable(entry, cardAfter, cardPosition, cardBefore) {
     const l = this.getRevlog();
     const last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
@@ -927,6 +927,7 @@ const DB = {
       id: row.reviewId + ':append', reviewId: row.reviewId, type: 'append',
       key, profileId: ctx.profileId, planId: ctx.planId,
       row: JSON.parse(JSON.stringify(row)),
+      cardBefore: cardBefore ? JSON.parse(JSON.stringify(cardBefore)) : null,
       cardAfter: cardAfter ? JSON.parse(JSON.stringify(cardAfter)) : null,
       cardPosition: Number(cardPosition) || 1,
       createdAt: Date.now()
