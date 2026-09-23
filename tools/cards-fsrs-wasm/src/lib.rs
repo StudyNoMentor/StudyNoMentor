@@ -1,5 +1,5 @@
 use fsrs::{
-    check_and_fill_parameters, compute_parameters, extract_simulator_config, simulate, Card,
+    check_and_fill_parameters, compute_parameters, current_retrievability, extract_simulator_config, simulate, Card,
     ComputeParametersInput, FSRSItem, FSRSReview, MemoryState, PostSchedulingFn, ReviewPriorityFn,
     RevlogEntry, RevlogReviewKind, SimulatorConfig, TrainingConfig, DEFAULT_PARAMETERS, FSRS,
 };
@@ -10,6 +10,7 @@ use rand::distr::Distribution;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rand::RngExt;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
@@ -198,8 +199,163 @@ pub fn optimize_json(input_json: &str) -> Result<String, JsValue> {
     .map_err(js_err)
 }
 
-/// Health Check oficial do Anki 26.09.2: a mesma validação temporal
-/// evaluate_with_time_series_splits() e os mesmos ajustes/limiares do rslib.
+#[derive(Default)]
+struct HealthRMatrixValue {
+    predicted: f32,
+    actual: f32,
+    count: f32,
+    weight: f32,
+}
+
+/// Mesmo índice de bins de fsrs-rs 6.6.2::FSRSItem::r_matrix_index().
+fn health_r_matrix_index(item: &FSRSItem) -> Result<(u32, u32, u32), JsValue> {
+    let Some(current) = item.reviews.last() else {
+        return Err(js_err("FSRS Health Check: item sem revisões"));
+    };
+    let delta_t = current.delta_t as f64;
+    let delta_t_bin =
+        (2.48 * 3.62f64.powf(delta_t.log(3.62).floor()) * 100.0).round() as u32;
+    let length = item.reviews.iter().filter(|review| review.delta_t > 0).count() as f64 + 1.0;
+    let length_bin = (1.99 * 1.89f64.powf(length.log(1.89).floor())).round() as u32;
+    let history_len = item.reviews.len().saturating_sub(1);
+    let lapse = item.reviews[..history_len]
+        .iter()
+        .filter(|review| review.rating == 1 && review.delta_t > 0)
+        .count();
+    if lapse == 0 {
+        return Ok((delta_t_bin, length_bin, 0));
+    }
+    let lapse_bin =
+        (1.65 * 1.73f64.powf((lapse as f64).log(1.73).floor())).round() as u32;
+    Ok((delta_t_bin, length_bin, lapse_bin))
+}
+
+/// Mesmo predict_retrievability() do fsrs-rs, expresso apenas com APIs públicas
+/// para que o Health Check possa rodar sem rayon no target WASM.
+fn health_predict_retrievability(
+    fsrs: &FSRS,
+    params: &[f32],
+    item: &FSRSItem,
+) -> Result<f32, JsValue> {
+    let Some(current) = item.reviews.last() else {
+        return Err(js_err("FSRS Health Check: item sem revisões"));
+    };
+    let history_len = item.reviews.len().saturating_sub(1);
+    let state = if history_len == 0 {
+        MemoryState {
+            stability: 0.0,
+            difficulty: 0.0,
+        }
+    } else {
+        fsrs.memory_state(
+            FSRSItem {
+                reviews: item.reviews[..history_len].to_vec(),
+            },
+            None,
+        )
+        .map_err(js_err)?
+    };
+    let decay = params.get(20).copied().unwrap_or(DEFAULT_PARAMETERS[20]);
+    let retrievability = current_retrievability(state, current.delta_t as f32, decay);
+    if retrievability.is_finite() {
+        Ok(retrievability)
+    } else {
+        Err(js_err("FSRS Health Check: retrievability inválida"))
+    }
+}
+
+/// Equivalente sequencial de fsrs-rs 6.6.2::evaluate_with_time_series_splits().
+///
+/// O upstream executa os cinco folds com rayon::spawn. Em wasm32-unknown-unknown
+/// sem um pool de threads inicializado, essa espera pode bloquear indefinidamente.
+/// Os folds são independentes e TrainingConfig usa seed determinística; executá-los
+/// na mesma ordem, sequencialmente, preserva a matemática e evita deadlock no browser.
+fn evaluate_time_series_sequential(
+    items: &[FSRSItem],
+    card_ids: &[i64],
+    num_relearning_steps: usize,
+) -> Result<(f32, f32), JsValue> {
+    if items.is_empty() || items.len() != card_ids.len() {
+        return Err(js_err("FSRS Health Check: conjunto temporal inválido"));
+    }
+    const SPLITS: usize = 5;
+    let segment_size = items.len() / (SPLITS + 1);
+    if segment_size == 0 {
+        return Err(js_err("FSRS Health Check: dados insuficientes para 5 folds"));
+    }
+
+    let mut predictions = Vec::<f32>::new();
+    let mut labels = Vec::<f32>::new();
+    let mut r_matrix = HashMap::<(u32, u32, u32), HealthRMatrixValue>::new();
+
+    for i in 0..SPLITS {
+        let test_start = (i + 1) * segment_size;
+        let test_end = if i == SPLITS - 1 {
+            items.len()
+        } else {
+            (i + 2) * segment_size
+        };
+        let params = compute_parameters(ComputeParametersInput {
+            train_set: items[..test_start].to_vec(),
+            card_ids: Some(card_ids[..test_start].to_vec()),
+            progress: None,
+            enable_short_term: true,
+            num_relearning_steps: Some(num_relearning_steps),
+            training_config: Some(TrainingConfig {
+                num_epochs: 8,
+                ..Default::default()
+            }),
+        })
+        .map_err(js_err)?;
+        let fsrs = FSRS::new(&params).map_err(js_err)?;
+
+        for item in &items[test_start..test_end] {
+            let pred = health_predict_retrievability(&fsrs, &params, item)?;
+            let label = f32::from(item.reviews.last().map(|x| x.rating).unwrap_or(0) > 1);
+            let bin = health_r_matrix_index(item)?;
+            let value = r_matrix.entry(bin).or_default();
+            value.predicted += pred;
+            value.actual += label;
+            value.count += 1.0;
+            value.weight += 1.0;
+            predictions.push(pred);
+            labels.push(label);
+        }
+    }
+
+    if predictions.is_empty() {
+        return Err(js_err("FSRS Health Check: avaliação temporal vazia"));
+    }
+    let mut loss = 0.0f32;
+    for (&retrievability, &label) in predictions.iter().zip(labels.iter()) {
+        loss += label * retrievability.ln()
+            + (1.0 - label) * (1.0 - retrievability).ln();
+    }
+    let log_loss = -loss / predictions.len() as f32;
+    let weight_sum = r_matrix.values().map(|v| v.weight).sum::<f32>();
+    if weight_sum <= 0.0 {
+        return Err(js_err("FSRS Health Check: bins vazios"));
+    }
+    let rmse_bins = (r_matrix
+        .values()
+        .map(|v| {
+            let pred = v.predicted / v.count;
+            let real = v.actual / v.count;
+            (pred - real).powi(2) * v.weight
+        })
+        .sum::<f32>()
+        / weight_sum)
+        .sqrt();
+
+    if !log_loss.is_finite() || !rmse_bins.is_finite() {
+        return Err(js_err("FSRS Health Check: métricas inválidas"));
+    }
+    Ok((log_loss, rmse_bins))
+}
+
+/// Health Check oficial do Anki 26.09.2: mesmos 5 folds, treinamento,
+/// métricas ajustadas e limiares do rslib. No WASM, os folds são executados
+/// sequencialmente para evitar o rayon::spawn do upstream sem worker pool.
 #[wasm_bindgen]
 pub fn health_check_json(input_json: &str) -> Result<String, JsValue> {
     let input: HealthCheckInput = serde_json::from_str(input_json).map_err(js_err)?;
@@ -218,20 +374,8 @@ pub fn health_check_json(input_json: &str) -> Result<String, JsValue> {
         }).map_err(js_err);
     }
     let items: Vec<FSRSItem> = input.items.into_iter().map(item_from_input).collect();
-    let eval = fsrs::evaluate_with_time_series_splits(
-        ComputeParametersInput {
-            train_set: items.clone(),
-            card_ids: Some(input.card_ids),
-            progress: None,
-            enable_short_term: true,
-            num_relearning_steps: Some(input.num_relearning_steps),
-            training_config: Some(TrainingConfig {
-                num_epochs: 8,
-                ..Default::default()
-            }),
-        },
-        |_| true,
-    ).map_err(js_err)?;
+    let (log_loss, rmse_bins) =
+        evaluate_time_series_sequential(&items, &input.card_ids, input.num_relearning_steps)?;
 
     let r = items.iter().fold(0usize, |acc, item| {
         acc + usize::from(item.reviews.last().map(|x| x.rating).unwrap_or(0) > 1)
@@ -240,15 +384,15 @@ pub fn health_check_json(input_json: &str) -> Result<String, JsValue> {
     let rmse_adj = 0.0135 / (r.powf(0.504) - 1.14)
         + 0.176 / (((n as f32 / 1000.0).powf(0.825)) + 2.22)
         + 0.101;
-    let adjusted_log_loss = eval.log_loss / log_adj;
-    let adjusted_rmse = eval.rmse_bins / rmse_adj;
+    let adjusted_log_loss = log_loss / log_adj;
+    let adjusted_rmse = rmse_bins / rmse_adj;
     let passed = adjusted_log_loss <= 1.11 || adjusted_rmse <= 1.53;
 
     serde_json::to_string(&HealthCheckOutput {
         fsrs_items: n,
         passed: Some(passed),
-        log_loss: Some(eval.log_loss),
-        rmse_bins: Some(eval.rmse_bins),
+        log_loss: Some(log_loss),
+        rmse_bins: Some(rmse_bins),
         adjusted_log_loss: Some(adjusted_log_loss),
         adjusted_rmse: Some(adjusted_rmse),
     }).map_err(js_err)
