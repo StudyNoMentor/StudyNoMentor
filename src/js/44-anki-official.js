@@ -440,12 +440,28 @@ const AnkiOfficial = {
           <div class="card"><div class="card-body"><h3>Check Media oficial</h3><pre class="hint" style="white-space:pre-wrap">${this.esc(JSON.stringify(media,null,2))}</pre></div></div>
           <div class="card"><div class="card-body"><h3>Browser oficial</h3><p>${(cols.columns||[]).length} colunas expostas pelo backend do Anki.</p></div></div>
         </div>
+        <div class="anki-official-actions">
+          <button type="button" class="btn-secondary" id="anki-db-check">Check Database oficial</button>
+          <button type="button" class="btn-secondary" id="anki-db-optimize">Otimizar banco</button>
+          <button type="button" class="btn-secondary" id="anki-official-change-api">Configurar URL do backend</button>
+        </div>
         <div class="anki-official-boundary">
           <strong>Limite real desta arquitetura web</strong>
           O backend/scheduler/coleção são oficiais. A GUI Qt/PyQt do Anki Desktop, seu player TTS nativo e add-ons Python/Qt tradicionais só existem dentro de um processo Anki Desktop; não podem ser executados diretamente por uma página web sem rodar o Desktop real.
-        </div>
-        <div style="margin-top:12px"><button type="button" class="btn-secondary" id="anki-official-change-api">Configurar URL do backend</button></div>`;
+        </div>`;
       document.getElementById('anki-official-change-api').onclick=()=>this.setApiUrl();
+      document.getElementById('anki-db-check').onclick=async()=>{
+        try{
+          const out=await this.request('/api/anki/database/check',{method:'POST'});
+          this.alert((out.ok?'Banco íntegro. ':'Foram encontrados/reparados problemas. ')+(out.message||''));
+        }catch(e){this.alert(e.message,'error');}
+      };
+      document.getElementById('anki-db-optimize').onclick=async()=>{
+        try{
+          await this.request('/api/anki/database/optimize',{method:'POST'});
+          this.alert('Banco otimizado pelo Anki oficial.');
+        }catch(e){this.alert(e.message,'error');}
+      };
     }catch(e){this.alert(e.message,'error');}
   }
 };
