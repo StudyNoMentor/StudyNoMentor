@@ -306,7 +306,11 @@ const AnkiMaxStatsMedia = {
       suspend_after_lapses:cfg.leechAction==='suspend'?Math.max(1,Math.round(Number(cfg.leechThreshold)||8)):null,
       learning_step_count:Array.isArray(cfg.learnSteps)?cfg.learnSteps.length:0,
       relearning_step_count:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0,
-      review_order:String(cfg.reviewOrder||'day'),cards:existing
+      review_order:String(cfg.reviewOrder||'day'),
+      load_balance:cfg.loadBalance!==false,
+      easy_days:(()=>{const a=Array.isArray(cfg.easyDays)&&cfg.easyDays.length===7?cfg.easyDays:[1,1,1,1,1,1,1];return [a[1],a[2],a[3],a[4],a[5],a[6],a[0]].map(x=>x===0?0:(x===1?1:.5));})(),
+      next_day_weekday_monday:(()=>{const d=new Date(this._simNextDayAtSec(cfg)*1000);return (d.getDay()+6)%7;})(),
+      cards:existing
     }));
     const out=JSON.parse(raw);
     return {days,retention,reviews:out.reviews||[],news:out.news||[],time:out.time||[],memorized:out.memorized||[],
