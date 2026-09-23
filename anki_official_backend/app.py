@@ -440,9 +440,35 @@ def update_deck_options(
 ) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
+        # A UI edita o mesmo objeto retornado por DeckConfigsForUpdate. O
+        # backend oficial, porém, recebe UpdateDeckConfigsRequest. Convertemos
+        # apenas a forma da mensagem; os valores continuam sendo interpretados
+        # e aplicados exclusivamente pelo Anki.
+        if "all_config" in payload:
+            request_payload = {
+                "target_deck_id": deck_id,
+                "configs": [
+                    entry.get("config", {})
+                    for entry in payload.get("all_config", [])
+                    if isinstance(entry, dict) and entry.get("config")
+                ],
+                "removed_config_ids": payload.get("removed_config_ids", []),
+                "mode": payload.get("mode", 0),
+                "card_state_customizer": payload.get("card_state_customizer", ""),
+                "limits": (payload.get("current_deck") or {}).get("limits", {}),
+                "new_cards_ignore_review_limit": payload.get("new_cards_ignore_review_limit", False),
+                "fsrs": payload.get("fsrs", False),
+                "apply_all_parent_limits": payload.get("apply_all_parent_limits", False),
+                "fsrs_reschedule": payload.get("fsrs_reschedule", False),
+                "fsrs_health_check": payload.get("fsrs_health_check", False),
+            }
+        else:
+            request_payload = dict(payload)
+            request_payload.setdefault("target_deck_id", deck_id)
+
         request = deck_config_pb2.UpdateDeckConfigsRequest()
         try:
-            ParseDict(payload, request, ignore_unknown_fields=False)
+            ParseDict(request_payload, request, ignore_unknown_fields=False)
         except Exception as exc:
             raise HTTPException(400, f"Deck Options inválidas: {exc}") from exc
         item.col.decks.update_deck_configs(request)
