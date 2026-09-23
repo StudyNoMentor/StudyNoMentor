@@ -30,6 +30,7 @@ const simInput={
   next_day_at:1893456000,
   params:W,
   desired_retention:.9,
+  historical_retention:.9,
   days_to_simulate:90,
   new_card_count:40,
   introduced_today_count:0,
@@ -55,6 +56,17 @@ for(const key of ['memorized','reviews','news','time','correct','introduced']){
 assert.deepEqual(simA,simB,'simulador oficial deve ser determinístico com a semente padrão do fsrs-rs');
 assert.ok(simA.news.reduce((a,b)=>a+b,0)>0,'simulador deve introduzir cards novos');
 assert.ok(simA.reviews.reduce((a,b)=>a+b,0)>0,'simulador deve produzir revisões futuras');
+
+const migrated=JSON.parse(mod.simulate_json(JSON.stringify({
+  ...simInput,
+  days_to_simulate:30,
+  new_card_count:0,
+  new_limit:0,
+  cards:[{id:900001,difficulty:null,stability:null,ease_factor:2.5,last_date:-10,due:0,interval:10,lapses:0}]
+})));
+assert.equal(migrated.simulated_cards,1,'card SM-2/importado sem S/D deve ser convertido para memory state como no Anki, não descartado');
+assert.ok(migrated.memorized.some(Number.isFinite),'card convertido deve participar da projeção oficial');
+
 const version=JSON.parse(readFileSync(join(ROOT,'src/vendor/fsrs-6.6.2/version.json'),'utf8'));
 assert.equal(version.simulator,'fsrs::simulate','vendor deve declarar o motor oficial de simulação');
 
