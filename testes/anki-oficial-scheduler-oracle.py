@@ -52,6 +52,7 @@ try:
 
     # Exact sequence from the corrupted real log: New/Again, then Good on the
     # learning card. The Study must never see the second answer as New again.
+    card.start_timer()
     col.sched.answerCard(card, 1)
     card = col.get_card(cid)
     after_again = {
@@ -61,6 +62,7 @@ try:
         "state": msg_dict(col._backend.get_scheduling_states(card.id).current),
     }
 
+    card.start_timer()
     col.sched.answerCard(card, 3)
     card = col.get_card(cid)
     after_good = {
