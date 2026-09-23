@@ -419,15 +419,19 @@ def browser_search(
         for cid in ids:
             card = item.col.get_card(cid)
             note = card.note()
+            note_type = note.note_type() or {}
             rows.append(
                 {
                     "card_id": int(card.id),
                     "note_id": int(card.nid),
                     "deck_id": int(card.did),
+                    "deck_name": item.col.decks.name(card.did),
+                    "notetype_name": str(note_type.get("name", "")),
                     "question": card.question(browser=True),
                     "answer": card.answer(),
                     "fields": dict(note.items()),
                     "tags": list(note.tags),
+                    "marked": "marked" in note.tags,
                     "queue": int(card.queue),
                     "type": int(card.type),
                     "due": int(card.due),
@@ -435,6 +439,7 @@ def browser_search(
                     "reps": int(card.reps),
                     "lapses": int(card.lapses),
                     "flags": int(card.flags),
+                    "flag": int(card.user_flag()),
                 }
             )
         return {"query": q, "count": len(rows), "cards": rows}
