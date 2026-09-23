@@ -58,7 +58,7 @@
 #screen-cards .cards-anki-template,
 #screen-cards .cards-anki-frame{min-width:0;max-width:100%;box-sizing:border-box}
 #screen-cards .cards-face{overflow-x:auto;overflow-y:hidden}
-#screen-cards .cards-face>img,
+#screen-cards .cards-face img,
 #screen-cards .mini-card-front img{max-width:100%!important;height:auto!important;object-fit:contain}
 #screen-cards .cards-anki-frame{width:100%!important;overflow:auto}
 
