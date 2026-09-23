@@ -78,7 +78,7 @@ const AnkiRuntime = {
       correct=self._plain(correct);
       if(side!=='answer')return '<input id="typeans" class="snm-anki-type-input" data-anki-type-key="'+self._escAttr(key)+'" data-anki-type-field="'+self._escAttr(field)+'" autocomplete="off" spellcheck="false" value="'+self._escAttr(typed)+'">';
       const ignoreDiacritics=typeMode==='nc',same=self._typeKey(typed.trim(),ignoreDiacritics)===self._typeKey(correct.trim(),ignoreDiacritics);
-      return '<div id="typeans" class="snm-anki-type-result '+(same?'is-correct':'is-different')+'">'+self._typeDiff(typed,correct,ignoreDiacritics)+'</div>';
+      return '<code id="typeans" class="snm-anki-type-result '+(same?'is-correct':'is-different')+'">'+self._typeDiff(typed,correct,ignoreDiacritics)+'</code>';
     });
   },
   buildSrcdoc(nt, html, side, card, note, options) {
@@ -102,7 +102,7 @@ const AnkiRuntime = {
     const csp="default-src data: blob: https:; img-src data: blob: https:; media-src data: blob: https:; font-src data: blob: https:; style-src 'unsafe-inline' data: blob: https:; script-src 'unsafe-inline' data: blob: https:; connect-src https:; frame-src data: blob: https:";
     return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
       '<meta http-equiv="Content-Security-Policy" content="'+this._escAttr(csp)+'"><base target="_blank">'+
-      '<style>html,body{margin:0;padding:0;background:transparent;color:inherit}body{overflow-wrap:anywhere}.snm-anki-tts{cursor:pointer}.snm-anki-type-input{box-sizing:border-box;max-width:100%;padding:.4em .55em;font:inherit}.snm-anki-type-result{margin:.5em 0;text-align:left;white-space:pre-wrap}.snm-anki-type-result.is-correct{outline:1px solid currentColor;padding:.4em}.typeGood{color:#0a0}.typeBad{color:#c62828;text-decoration:line-through}.typeMissed{color:#c62828;text-decoration:underline}</style><style>'+css+'</style>'+math+
+      '<style>html,body{margin:0;padding:0;background:transparent;color:inherit}body{overflow-wrap:anywhere}.snm-anki-tts{cursor:pointer}.snm-anki-type-input{box-sizing:border-box;max-width:100%;padding:.4em .55em;font:inherit}.snm-anki-type-result{display:block;margin:.5em 0;text-align:left;white-space:pre-wrap;font-family:monospace}.snm-anki-type-result.is-correct{outline:1px solid currentColor;padding:.4em}.typeGood{color:#0a0}.typeBad{color:#c62828;text-decoration:line-through}.typeMissed{color:#c62828;text-decoration:underline}</style><style>'+css+'</style>'+math+
       '</head><body class="card '+this._escAttr(side||'question')+'">'+body+bootstrap+'</body></html>';
   },
   renderFrame(nt, html, side, card, visible, note, options) {
