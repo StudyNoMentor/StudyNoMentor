@@ -306,9 +306,10 @@ const AnkiMaxStatsMedia = {
       const cid=cardKey.get(String(r.cardId==null?r.ankiCardId:r.cardId));if(cid==null)return;
       let id=Math.round(Number(r.ts)||Date.parse(String(r.date||'')+'T12:00:00')||Date.now());
       id+=i%1000;
-      const iv=Math.round(Number(r.intervalo!=null?r.intervalo:r.interval)||0),
-        lastIv=Math.round(Number(r.lastInterval!=null?r.lastInterval:r.last_interval)||0),
-        ef=Math.max(0,Math.round((Number(r.easeFactor!=null?r.easeFactor:r.ease)||2.5)*(Number(r.easeFactor)>100?1:1000))),
+      const iv=Math.round(Number(r.ankiInterval!=null?r.ankiInterval:(r.interval!=null?r.interval:r.intervalo))||0),
+        lastIv=Math.round(Number(r.ankiLastInterval!=null?r.ankiLastInterval:(r.lastInterval!=null?r.lastInterval:(r.last_interval!=null?r.last_interval:r.intervalo)))||0),
+        efRaw=Number(r.easeFactor!=null?r.easeFactor:r.ease),
+        ef=Math.max(0,Math.round((Number.isFinite(efRaw)&&efRaw>0?efRaw:2.5)*(efRaw>100?1:1000))),
         taken=Math.max(0,Math.round(Number(r.time!=null?r.time:r.takenMillis)||0));
       revlogs.push({id,cid,button_chosen:Math.max(1,Math.min(4,Math.round(Number(r.grade)||1))),interval:iv,last_interval:lastIv,ease_factor:ef,taken_millis:taken,review_kind:this._simReviewKind(r)});
       const d=String(r.date||new Date(Number(r.ts)||0).toISOString().slice(0,10)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
