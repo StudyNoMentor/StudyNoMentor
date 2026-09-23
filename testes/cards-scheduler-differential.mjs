@@ -33,7 +33,7 @@ const base={
   due:A.hoje(),dueTs:null,ease:2.5,s:null,d:null,algo:'fsrs'
 };
 
-const t=Date.now();
+const t=A.agora();
 const p1=E.schedule(base,'errei');
 const m1=P.revlogMeta(base,p1,{grade:'errei',revTs:t});
 const c1={...base,...p1};
