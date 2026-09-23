@@ -696,34 +696,23 @@ FSRS.healthCheckOfficial=async function(revlog,opts){
   if(!ignoreBeforeMs&&cfg.ignoreRevlogsBefore){const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();}
   const cards=Array.isArray(opts.cards)?opts.cards:this.trainingCardsForScope(deckId,cfg);
   const data=AnkiParity.fsrsTrainingData(Array.isArray(revlog)?revlog:DB.getRevlog(),{cards,nextDayAtSec:opts.nextDayAtSec,ignoreBeforeMs});
-  const items=data.items||[],ids=data.cardIds||[],n=items.length;
-  if(n<=300)return {passed:null,fsrsItems:n,reason:'not-enough-data'};
-  const seg=Math.floor(n/6);if(seg<1)return {passed:null,fsrsItems:n,reason:'not-enough-data'};
-  const mod=await this._loadOfficialOptimizer(),pred=[],labels=[],bins=new Map();
-  for(let fold=0;fold<5;fold++){
-    const testStart=(fold+1)*seg,testEnd=fold===4?n:(fold+2)*seg;
-    const trainItems=items.slice(0,testStart),trainIds=ids.slice(0,testStart),testItems=items.slice(testStart,testEnd);
-    const trained=JSON.parse(mod.optimize_json(JSON.stringify({
-      items:trainItems,card_ids:trainIds,current_params:[],
-      num_relearning_steps:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0
-    })));
-    const w=this.migrarW(trained&&trained.params);if(!w)throw new Error('Health Check: parâmetros inválidos');
-    for(const item of testItems){
-      const p=this._predictTrainingItem(item,w);if(!Number.isFinite(p))continue;
-      const cur=item.reviews[item.reviews.length-1],y=Number(cur.rating)>1?1:0;pred.push(p);labels.push(y);
-      const key=this._rMatrixKey(item),b=bins.get(key)||{pred:0,actual:0,count:0,weight:0};b.pred+=p;b.actual+=y;b.count++;b.weight++;bins.set(key,b);
-    }
-    await new Promise(r=>setTimeout(r,0));
-  }
-  if(!pred.length)return {passed:null,fsrsItems:n,reason:'not-enough-data'};
-  let loss=0;for(let i=0;i<pred.length;i++){const p=Math.min(1-1e-7,Math.max(1e-7,pred[i])),y=labels[i];loss+=-(y*Math.log(p)+(1-y)*Math.log(1-p));}loss/=pred.length;
-  let num=0,den=0;for(const b of bins.values()){const pm=b.pred/b.count,rm=b.actual/b.count;num+=(pm-rm)*(pm-rm)*b.weight;den+=b.weight;}const rmse=Math.sqrt(num/Math.max(1,den));
-  const r=labels.reduce((a,x)=>a+x,0)/labels.length;
-  const logAdj=0.623*Math.pow(Math.max(1e-9,4*r*(1-r)),0.738);
-  const rmseAdj=0.0135/(Math.pow(Math.max(1e-9,r),0.504)-1.14)+0.176/(Math.pow(n/1000,0.825)+2.22)+0.101;
-  const adjustedLogLoss=loss/logAdj,adjustedRmse=rmse/rmseAdj,passed=adjustedLogLoss<=1.11||adjustedRmse<=1.53;
-  return {passed,fsrsItems:n,logLoss:loss,rmseBins:rmse,adjustedLogLoss,adjustedRmse,predictions:pred.length};
-};
+  const mod=await this._loadOfficialOptimizer();
+  if(typeof mod.health_check_json!=='function')throw new Error('Health Check oficial indisponível no fsrs-rs');
+  const out=JSON.parse(mod.health_check_json(JSON.stringify({
+    items:data.items||[],
+    card_ids:data.cardIds||[],
+    num_relearning_steps:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.length:0
+  })));
+  return {
+    passed:out.passed==null?null:!!out.passed,
+    fsrsItems:Number(out.fsrs_items)||0,
+    reason:out.passed==null?'not-enough-data':undefined,
+    logLoss:out.log_loss==null?null:Number(out.log_loss),
+    rmseBins:out.rmse_bins==null?null:Number(out.rmse_bins),
+    adjustedLogLoss:out.adjusted_log_loss==null?null:Number(out.adjusted_log_loss),
+    adjustedRmse:out.adjusted_rmse==null?null:Number(out.adjusted_rmse)
+  };
+}
 
 // O otimizador histórico em JavaScript fica deliberadamente INACESSÍVEL em
 // produção. A única rota suportada é optimizeOfficial(), que usa o WASM
