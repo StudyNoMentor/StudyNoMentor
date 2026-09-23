@@ -66,7 +66,7 @@ const ConquistasEngine = {
       d.min += (e.durationMin || 0); d.q += (e.total || 0); d.ac += (e.correct || 0);
     });
     try {
-      (DB.getRevlog() || []).forEach(r => { if (r.date) get(r.date).cards++; });
+      ((DB.getAllRevlogTagged ? DB.getAllRevlogTagged() : DB.getRevlog()) || []).forEach(r => { if (r.date) get(r.date).cards++; });
     } catch (_) { _quiet(_); }
     /* As Atividades Extras só entram AQUI se entrarem também na Evolução: o
        interruptor global ("Atividades marcadas entram nas métricas") e o
@@ -75,7 +75,7 @@ const ConquistasEngine = {
        descontar as horas e as Conquistas continuarem contando com elas. */
     try {
       if (DB.extrasCountGlobal()) {
-        (DB.getExtras() || []).forEach(x => {
+        ((DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras()) || []).forEach(x => {
           if (!x.contaMetricas) return;
           (x.historico || []).forEach(h => {
             if (!h.data) return;
@@ -189,14 +189,14 @@ const ConquistasEngine = {
     const vals = Object.values(dias);
     const hoje = todayLocal();
     const g = (fn, d) => { try { return fn(); } catch (_) { return d; } };
-    const cards = g(() => DB.getCards(), []);
-    const revlog = g(() => DB.getRevlog(), []);
-    const leis = g(() => DB.getLeis(), []);
-    const extras = g(() => DB.getExtras(), []);
-    const decks = g(() => DB.getDecks(), []);
-    const tec = g(() => DB.getTecSnapshots(), []);
-    const incid = g(() => DB.getIncidencia(), []);
-    const ciclos = g(() => DB.getCycleHistory(), []);
+    const cards = g(() => DB.getAllCardsTagged ? DB.getAllCardsTagged() : DB.getCards(), []);
+    const revlog = g(() => DB.getAllRevlogTagged ? DB.getAllRevlogTagged() : DB.getRevlog(), []);
+    const leis = g(() => DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis(), []);
+    const extras = g(() => DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras(), []);
+    const decks = g(() => DB.getAllDecksTagged ? DB.getAllDecksTagged() : DB.getDecks(), []);
+    const tec = g(() => DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots(), []);
+    const incid = g(() => DB.getAllIncidenciaTagged ? DB.getAllIncidenciaTagged() : DB.getIncidencia(), []);
+    const ciclos = g(() => DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory(), []);
     const ent = entries || [];
 
     // semanas e meses ativos
@@ -544,7 +544,8 @@ const EvolucaoScreen = {
     if (!DB.extrasCountGlobal()) return [];
     const methodByTipo = { anki: 'Revisão Teórica', leitura: 'Leitura', questoes: 'Questões', revisao: 'Revisão Teórica', video: 'Videoaula', livre: 'Outro' };
     const out = [];
-    DB.getExtras().forEach(x => {
+    const extras = this.scope === 'all' && DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras();
+    extras.forEach(x => {
       if (!x.contaMetricas) return;
       (x.historico || []).forEach((h, i) => {
         const min = Math.max(0, h.minutos || (x.tipo === 'video' ? h.quantidade : 0) || 0);
@@ -1368,7 +1369,7 @@ const EvolucaoScreen = {
   // ------- Evolução no TecConcursos (retratos importados) -------
   renderTecChart() {
     const card = document.getElementById('evolucao-tec-card');
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.scope === 'all' && DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
     const container = document.getElementById('evolucao-tec-chart');
     const legend = document.getElementById('evolucao-tec-legend');
     const sel = document.getElementById('evo-tec-disc');
