@@ -363,6 +363,30 @@
       return { moved, skipped };
     },
 
+    zeroCardsProgress(scope) {
+      const pids=this.planIdsForScope(scope),targetIds=new Set(),out={cards:0,revlog:0};
+      pids.forEach(pid=>{
+        const cards=this._rows(pid,'cards'),rows=this._revlogForPlan(pid);out.cards+=cards.length;out.revlog+=rows.length;
+        cards.forEach(c=>{
+          targetIds.add(String(c.id));c.phase='new';c.learnStep=0;c.due=todayCards();c.dueTs=null;
+          c.intervalo=0;c.reps=0;c.lapses=0;c.ease=2.5;c.s=null;c.d=null;c.lastReview=null;
+          c.status='pendente';c.leech=false;c.suspenso=false;c.enterradoAte=null;c.buryKind=null;c.updatedAt=new Date().toISOString();
+        });
+        DB._set(DB.keysForPlan(pid).cards,cards);this.replaceRevlogPlan(pid,[]);
+      });
+      try {
+        const d=CardsConfig._daily();
+        if((scope||this.cardsScope())==='all'){d.newIds=[];d.revIds=[];d.usage=[];}
+        else{
+          d.newIds=(d.newIds||[]).filter(id=>!targetIds.has(String(id)));
+          d.revIds=(d.revIds||[]).filter(id=>!targetIds.has(String(id)));
+          d.usage=(d.usage||[]).filter(x=>!targetIds.has(String(x&&x.id)));
+        }
+        CardsConfig._saveDaily(d);
+      } catch (_) {}
+      return out;
+    },
+
     _ankiState() {
       try { return Object.assign({ filteredDeckId: null, previousDeckId: null }, JSON.parse(localStorage.getItem(this._ankiKey()) || '{}')); }
       catch (_) { return { filteredDeckId: null, previousDeckId: null }; }
@@ -721,8 +745,24 @@
     addRevlogDurable: DB.addRevlogDurable.bind(DB),
     cancelarRevlogDurable: DB.cancelarRevlogDurable.bind(DB),
     removeRevlog: DB.removeRevlog.bind(DB),
-    addRevlog: DB.addRevlog.bind(DB)
+    addRevlog: DB.addRevlog.bind(DB),
+    renameDeck: DB.renameDeck.bind(DB),
+    deleteDeck: DB.deleteDeck.bind(DB)
   };
+  DB.renameDeck = function(id, nome) {
+    if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.renameDeck(id,nome);
+    const r=S.deckRecord(id);if(!r)return null;
+    const d=r.deck;d.nome=String(nome||'').trim();
+    return DB._set(DB.keysForPlan(r.planId).decks,r.planId===S.activePlanId()?DB.getDecks():S._rows(r.planId,'decks'))===false?false:d;
+  };
+  DB.deleteDeck = function(id) {
+    if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.deleteDeck(id);
+    const r=S.deckRecord(id);if(!r)return;
+    const decks=S._rows(r.planId,'decks').filter(d=>String(d.id)!==String(id));
+    const cards=S._rows(r.planId,'cards');cards.forEach(c=>{if(String(c.deckId)===String(id)){c.deckId=null;c.updatedAt=new Date().toISOString();}});
+    DB._set(DB.keysForPlan(r.planId).decks,decks);DB._set(DB.keysForPlan(r.planId).cards,cards);
+  };
+
   DB.getCard = function(id) {
     const local = O.getCard(id); if (local) return local;
     const r = S.findCardRecord(id); return r ? Object.assign({}, r.card, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
