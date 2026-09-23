@@ -41,4 +41,4 @@ assert.match(basic.templates[0].qfmt,/<details open>/,'details/summary do templa
 assert.match(basic.templates[0].qfmt,/src="data:text\/javascript;base64,/,'script de mídia oficial precisa ser materializado');
 const anyImage=[...state.notes.values()].some(n=>Object.values(n.fields||{}).some(v=>/data:image\/svg\+xml;base64,/.test(String(v))));assert.ok(anyImage,'imagem da fixture oficial precisa virar data URI');
 assert.ok(state.types.some(t=>t.kind==='cloze'),'Cloze oficial precisa manter note type');
-console.log('IMPORT OFICIAL: APKG Latest gerado pelo Anki 26.09.2 entrou no Study com CSS/fonte/JS/details/mídia/Cloze.');
+console.log('IMPORT OFICIAL: APKG Latest gerado pelo Anki 26.09.3 entrou no Study com CSS/fonte/JS/details/mídia/Cloze.');
