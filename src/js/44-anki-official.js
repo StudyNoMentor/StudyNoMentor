@@ -230,66 +230,120 @@ const AnkiOfficial = {
 
   async renderDecks() {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="card"><div class="card-body">Carregando baralhos do Anki…</div></div>';
+    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Carregando baralhos…</span></div>';
     try {
       const data=await this.request('/api/anki/decks');
-      const list=(data.decks||[]).map(d=>`
-        <div class="anki-official-deck ${Number(d.id)===Number(data.current_deck_id)?'current':''}">
-          <div class="anki-official-deck-name">${this.esc(d.name)}</div>
-          <button type="button" class="btn-secondary" data-anki-deck="${this.esc(d.id)}">Estudar</button>
-        </div>`).join('');
-      root.innerHTML=`<div class="anki-official-grid">${list || '<div class="card"><div class="card-body">Nenhum baralho.</div></div>'}</div>`;
-      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=async()=>{
+      const tree=data.deck_tree||{};
+      const roots=(Number(tree.deck_id||0)>0) ? [tree] : (tree.children||[]);
+      const fallback=(data.decks||[]).map(d=>({
+        deck_id:d.id,name:d.name,level:0,children:[],
+        new_count:null,learn_count:null,review_count:null,filtered:false,collapsed:false
+      }));
+      const nodes=roots.length?roots:fallback;
+      const totalNew=nodes.reduce((s,d)=>s+Number(d.new_count||0),0);
+      const totalLearn=nodes.reduce((s,d)=>s+Number(d.learn_count||0),0);
+      const totalReview=nodes.reduce((s,d)=>s+Number(d.review_count||0),0);
+      const totalDue=totalNew+totalLearn+totalReview;
+
+      const renderNode=(d,depth=0)=>{
+        const id=Number(d.deck_id||d.id||0);
+        const children=d.children||[];
+        const hasChildren=children.length>0;
+        const current=id===Number(data.current_deck_id);
+        const count=(value,kind)=>value==null?'':`<span class="ankidroid-count ${kind}">${Number(value)}</span>`;
+        return `
+          <div class="ankidroid-deck-node" data-deck-node="${id}">
+            <div class="ankidroid-deck-row ${current?'current':''}" style="--deck-level:${Math.max(0,Number(d.level??depth))}">
+              <button type="button" class="ankidroid-deck-expander" data-deck-expand="${id}" aria-expanded="${hasChildren && !d.collapsed?'true':'false'}" ${hasChildren?'':'disabled'} aria-label="${hasChildren?'Expandir ou recolher baralho':'Sem subbaralhos'}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7z"/></svg>
+              </button>
+              <button type="button" class="ankidroid-deck-main" data-anki-deck="${id}">
+                <span class="ankidroid-deck-name">${this.esc(d.name||'Baralho')}</span>
+                ${d.filtered?'<span class="ankidroid-deck-filtered">filtrado</span>':''}
+              </button>
+              <button type="button" class="ankidroid-deck-counts" data-anki-deck="${id}" aria-label="Estudar este baralho">
+                ${count(d.new_count,'new')}${count(d.learn_count,'learn')}${count(d.review_count,'review')}
+              </button>
+            </div>
+            ${hasChildren?`<div class="ankidroid-deck-children" ${d.collapsed?'hidden':''}>${children.map(ch=>renderNode(ch,depth+1)).join('')}</div>`:''}
+          </div>`;
+      };
+
+      root.innerHTML=`
+        <div class="ankidroid-decks-head">
+          <strong>${totalDue?this.esc(totalDue+' cartões para hoje'):'Baralhos'}</strong>
+          <span><span class="ankidroid-count new">${totalNew}</span>&nbsp;&nbsp;<span class="ankidroid-count learn">${totalLearn}</span>&nbsp;&nbsp;<span class="ankidroid-count review">${totalReview}</span></span>
+        </div>
+        <div class="ankidroid-deck-list">${nodes.length?nodes.map(n=>renderNode(n)).join(''):'<div class="ankidroid-deck-empty"><strong>Nenhum baralho</strong>Importe um pacote ou adicione sua primeira nota.</div>'}</div>`;
+
+      const study=async(btn)=>{
         try {
-          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(b.dataset.ankiDeck)})});
+          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(btn.dataset.ankiDeck)})});
           this.view='review';
           document.querySelectorAll('[data-anki-view]').forEach(x=>x.classList.toggle('active',x.dataset.ankiView==='review'));
           await this.renderReviewer();
         } catch(e){ this.alert(e.message,'error'); }
+      };
+      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=()=>void study(b));
+      root.querySelectorAll('[data-deck-expand]').forEach(b=>b.onclick=()=>{
+        const node=b.closest('.ankidroid-deck-node');
+        const box=node&&node.querySelector(':scope > .ankidroid-deck-children');
+        if(!box) return;
+        const open=box.hidden;
+        box.hidden=!open;
+        b.setAttribute('aria-expanded',open?'true':'false');
       });
     } catch(e){ this.alert(e.message,'error'); }
   },
 
   async renderReviewer(data) {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="card"><div class="card-body">Consultando a fila oficial…</div></div>';
+    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Preparando revisão…</span></div>';
     try {
       const q=data || await this.request('/api/anki/reviewer/next');
       this.review=q; this.reviewStartedAt=Date.now();
       if(q.finished){
-        root.innerHTML=`<div class="card anki-official-finished"><div class="card-body"><h3>Parabéns!</h3><p>A fila oficial deste baralho terminou.</p></div></div>`;
+        root.innerHTML=`<div class="anki-official-finished"><h3>Parabéns!</h3><p>Você concluiu os cards disponíveis deste baralho.</p><button type="button" class="btn-primary" data-anki-view="decks">Voltar aos baralhos</button></div>`;
+        const back=root.querySelector('[data-anki-view="decks"]');
+        if(back) back.onclick=()=>{this.view='decks';document.querySelectorAll('[data-anki-view]').forEach(x=>x.classList.toggle('active',x.dataset.ankiView==='decks'));void this.renderDecks();};
         return;
       }
-      const c=q.card;
-      const srcdoc=await this.htmlWithMedia(c.question);
+      const card=q.card;
+      const srcdoc=await this.htmlWithMedia(card.question);
       root.innerHTML=`
         <div class="anki-official-review-shell">
-          <div class="anki-official-counts"><span>Novos: ${q.counts.new}</span><span>Aprendendo: ${q.counts.learning}</span><span>Revisão: ${q.counts.review}</span></div>
-          <iframe class="anki-official-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
-          <button type="button" class="btn-primary anki-official-reveal" id="anki-official-show-answer">Mostrar resposta</button>
-          <div class="anki-official-review-actions" id="anki-official-answer-buttons" hidden></div>
-          <div class="anki-official-card-tools">
-            <button type="button" class="btn-secondary" data-anki-card-action="bury">Enterrar</button>
-            <button type="button" class="btn-secondary" data-anki-card-action="suspend">Suspender</button>
-            <button type="button" class="btn-secondary" data-anki-card-action="forget">Esquecer</button>
+          <div class="ankidroid-review-top">
+            <div class="anki-official-counts" aria-label="Contadores do estudo">
+              <span class="new" title="Novos">${q.counts.new}</span>
+              <span class="learn" title="Aprendendo">${q.counts.learning}</span>
+              <span class="review" title="Revisão">${q.counts.review}</span>
+            </div>
+            <div class="anki-official-card-tools">
+              <button type="button" data-anki-card-action="bury" title="Enterrar" aria-label="Enterrar">⌄</button>
+              <button type="button" data-anki-card-action="suspend" title="Suspender" aria-label="Suspender">⏸</button>
+              <button type="button" data-anki-card-action="forget" title="Redefinir progresso" aria-label="Redefinir progresso">↺</button>
+            </div>
           </div>
+          <iframe class="anki-official-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
+          <button type="button" class="anki-official-reveal" id="anki-official-show-answer">Mostrar resposta</button>
+          <div class="anki-official-review-actions" id="anki-official-answer-buttons" hidden></div>
         </div>`;
       const frame=document.getElementById('anki-official-card-frame'); if(frame) frame.srcdoc=srcdoc;
-      void this.playAv(c.question_av_tags||[]);
+      void this.playAv(card.question_av_tags||[]);
       const show=document.getElementById('anki-official-show-answer');
       if(show) show.onclick=async()=>{
-        const answerDoc=await this.htmlWithMedia(c.answer);
+        const answerDoc=await this.htmlWithMedia(card.answer);
         if(frame) frame.srcdoc=answerDoc;
         show.hidden=true;
         const box=document.getElementById('anki-official-answer-buttons');
         if(box){
           box.hidden=false;
-          box.innerHTML=(c.buttons||[]).map(b=>`<button type="button" class="btn-secondary" data-rating="${b.rating}"><strong>${['Novamente','Difícil','Bom','Fácil'][b.rating-1]||b.rating}</strong><br><small>${this.esc(b.label)}</small></button>`).join('');
+          box.innerHTML=(card.buttons||[]).map(b=>`<button type="button" data-rating="${b.rating}"><small>${this.esc(b.label)}</small><strong>${['Novamente','Difícil','Bom','Fácil'][b.rating-1]||b.rating}</strong></button>`).join('');
           box.querySelectorAll('[data-rating]').forEach(btn=>btn.onclick=()=>void this.answer(Number(btn.dataset.rating)));
         }
-        void this.playAv(c.answer_av_tags||[]);
+        void this.playAv(card.answer_av_tags||[]);
       };
-      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,c.id));
+      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,card.id));
     } catch(e){ this.alert(e.message,'error'); }
   },
 
