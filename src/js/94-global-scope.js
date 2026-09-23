@@ -386,6 +386,15 @@
       } catch (_) {}
       return out;
     },
+    cleanOrphanRevlog(scope) {
+      let removed=0;
+      this.planIdsForScope(scope).forEach(pid=>{
+        const ids=new Set(this._rows(pid,'cards').map(c=>String(c.id)));
+        const before=this._revlogForPlan(pid),after=before.filter(r=>ids.has(String(r.cardId)));
+        removed+=before.length-after.length;if(after.length!==before.length)this.replaceRevlogPlan(pid,after);
+      });
+      return removed;
+    },
 
     _ankiState() {
       try { return Object.assign({ filteredDeckId: null, previousDeckId: null }, JSON.parse(localStorage.getItem(this._ankiKey()) || '{}')); }
@@ -580,6 +589,16 @@
   DB.getCardsForPlan = id => S._tag(id, S._rows(id, 'cards'));
   DB.getDecksForPlan = id => S._tag(id, S._rows(id, 'decks'));
   DB.getRevlogForPlan = id => S._revlogForPlan(id);
+  DB.addCardForPlan = function(id, data) {
+    if (!id || String(id) === String(S.activePlanId())) return O.addCard(data || {});
+    const prevGet=DB.getCards,prevSave=DB.saveCards;
+    DB.getCards=()=>S._rows(id,'cards');
+    DB.saveCards=list=>DB._set(DB.keysForPlan(id).cards,(list||[]).map(x=>{const c=clone(x);delete c._planId;delete c._planNome;return c;}));
+    try {
+      const c=O.addCard(data||{});
+      return c?Object.assign({},c,{_planId:id,_planNome:S.planName(id)}):c;
+    } finally { DB.getCards=prevGet;DB.saveCards=prevSave; }
+  };
   DB.saveCardsForPlan = (id, list) => DB._set(DB.keysForPlan(id).cards, (list || []).map(x => {
     const c=clone(x);if(c){delete c._planId;delete c._planNome;}return c;
   }));
@@ -753,7 +772,8 @@
     removeRevlog: DB.removeRevlog.bind(DB),
     addRevlog: DB.addRevlog.bind(DB),
     renameDeck: DB.renameDeck.bind(DB),
-    deleteDeck: DB.deleteDeck.bind(DB)
+    deleteDeck: DB.deleteDeck.bind(DB),
+    addCard: DB.addCard.bind(DB)
   };
   DB.renameDeck = function(id, nome) {
     if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.renameDeck(id,nome);
