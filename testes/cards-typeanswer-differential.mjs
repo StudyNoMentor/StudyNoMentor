@@ -21,4 +21,4 @@ for(const row of rows){
   if(canon(actual)!==canon(row.html))fail.push({...row,actual,actualCanon:canon(actual),expectedCanon:canon(row.html)});
 }
 if(fail.length){console.error(JSON.stringify(fail.slice(0,20),null,2));assert.fail('Type Answer divergiu do Anki oficial em '+fail.length+' / '+rows.length+' casos');}
-console.log('TYPE ANSWER DIFERENCIAL ANKI 26.09.2: '+rows.length+' casos, 0 divergências.');
+console.log('TYPE ANSWER DIFERENCIAL ANKI 26.09.3: '+rows.length+' casos, 0 divergências.');
