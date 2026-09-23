@@ -5,10 +5,13 @@
    do Study. Toda mutação acadêmica passa pelo backend oficial do Anki.
    ═══════════════════════════════════════════════════════════════════════════ */
 const AnkiOfficial = {
-  view: 'decks',
+  view: 'review',
   status: null,
   review: null,
   reviewStartedAt: 0,
+  _sessionAnswered: 0,
+  _sessionStartTotal: null,
+  _answerShown: false,
   _blobUrls: [],
 
   apiBase() {
@@ -114,21 +117,19 @@ const AnkiOfficial = {
     const root = this.root();
     const badge = this.badge();
     if (badge) {
-      badge.textContent = 'Engine: não conectada';
+      badge.textContent = 'Engine não conectada';
       badge.classList.remove('ok'); badge.classList.add('bad');
     }
     if (!root) return;
     const detail = error ? '<p class="hint">' + this.esc(error.message || error) + '</p>' : '';
     root.innerHTML = `
-      <div class="ankidroid-empty-state">
-        <div class="ankidroid-empty-icon">↯</div>
-        <h3>Não foi possível abrir a coleção</h3>
-        <p>O Anki oficial precisa do serviço Python/Rust para acessar sua coleção <code>.anki2</code>.</p>
-        ${detail}
-        <button type="button" class="btn-primary" id="anki-official-set-api">Configurar servidor</button>
-        <div class="anki-official-boundary">
-          <strong>Sem fallback</strong>
-          O Study não substitui o scheduler oficial quando a engine está indisponível.
+      <div class="card">
+        <div class="cards-review-done">
+          <div class="big">⚠</div>
+          <h3>Não foi possível abrir o Anki Oficial</h3>
+          <p>O Study não usa um motor alternativo nesta área. A coleção precisa ser aberta pelo backend oficial.</p>
+          ${detail}
+          <button type="button" class="btn-primary" id="anki-official-set-api">Configurar servidor</button>
         </div>
       </div>`;
     const b = document.getElementById('anki-official-set-api');
@@ -156,22 +157,20 @@ const AnkiOfficial = {
   },
 
   setView(view) {
-    this.view = view || 'decks';
-    document.querySelectorAll('[data-anki-view]').forEach(x => {
+    this.view = view || 'review';
+    document.querySelectorAll('#screen-anki .cards-tab[data-anki-view]').forEach(x => {
       x.classList.toggle('active', x.dataset.ankiView === this.view);
     });
-    const fab = document.querySelector('#screen-anki .ankidroid-fab');
-    if (fab) fab.hidden = this.view !== 'decks';
-    const subtitle = document.querySelector('#screen-anki .ankidroid-subtitle');
+    const sub = document.querySelector('#screen-anki .page-subtitle');
     const labels = {
-      decks: 'coleção oficial 26.09.2',
-      review: 'estudo',
-      browser: 'navegador de cards',
-      add: 'adicionar nota',
-      options: 'opções do baralho',
-      tools: 'ferramentas'
+      review: 'Revise com o scheduler oficial do Anki 26.09.2.',
+      browser: 'Pesquise e edite sua coleção real com a busca oficial do Anki.',
+      decks: 'Escolha o baralho e veja as contagens calculadas pelo scheduler oficial.',
+      add: 'Adicione uma nota diretamente à coleção Anki.',
+      options: 'Edite as opções do baralho fornecidas pelo backend oficial.',
+      tools: 'Ferramentas de manutenção e diagnóstico da coleção oficial.'
     };
-    if (subtitle) subtitle.textContent = labels[this.view] || labels.decks;
+    if (sub) sub.textContent = labels[this.view] || labels.review;
   },
 
   async activate() {
@@ -182,38 +181,83 @@ const AnkiOfficial = {
   },
 
   bindStatic() {
-    document.querySelectorAll('[data-anki-view]').forEach(btn => {
+    document.querySelectorAll('#screen-anki [data-anki-view]').forEach(btn => {
       if (btn.dataset.boundAnki) return;
       btn.dataset.boundAnki = '1';
       btn.addEventListener('click', () => {
-        this.setView(btn.dataset.ankiView || 'decks');
+        this.closeMore();
+        this.setView(btn.dataset.ankiView || 'review');
         void this.renderView();
       });
     });
-    const exit = document.getElementById('anki-study-exit');
-    if (exit && !exit.dataset.boundAnki) {
-      exit.dataset.boundAnki = '1';
-      exit.onclick = () => {
-        if (typeof switchScreen === 'function') switchScreen('cards');
-      };
-    }
+
     const input = document.getElementById('anki-official-import');
     if (input && !input.dataset.boundAnki) {
       input.dataset.boundAnki = '1';
       input.addEventListener('change', () => {
-        const f = input.files && input.files[0];
-        if (f) void this.importPackage(f);
+        const file = input.files && input.files[0];
+        if (file) void this.importPackage(file);
         input.value = '';
       });
     }
+    const importTrigger = document.getElementById('anki-import-trigger');
+    if (importTrigger && !importTrigger.dataset.boundAnki) {
+      importTrigger.dataset.boundAnki='1';
+      importTrigger.onclick=()=>{ this.closeMore(); if(input) input.click(); };
+    }
+
+    const more = document.getElementById('anki-more-btn');
+    const menu = document.getElementById('anki-more-menu');
+    if (more && !more.dataset.boundAnki) {
+      more.dataset.boundAnki='1';
+      more.onclick=(e)=>{
+        e.stopPropagation();
+        const open=!menu.classList.contains('open');
+        menu.classList.toggle('open',open);
+        more.classList.toggle('open',open);
+        more.setAttribute('aria-expanded',open?'true':'false');
+      };
+    }
+
+    const focus = document.getElementById('anki-foco-btn');
+    if (focus && !focus.dataset.boundAnki) {
+      focus.dataset.boundAnki='1';
+      focus.onclick=()=>{ this.setView('review'); document.body.classList.add('anki-foco'); void this.renderReviewer(); };
+    }
+    const focusExit = document.getElementById('anki-foco-sair');
+    if (focusExit && !focusExit.dataset.boundAnki) {
+      focusExit.dataset.boundAnki='1';
+      focusExit.onclick=()=>document.body.classList.remove('anki-foco');
+    }
+    const focusUndo = document.getElementById('anki-foco-undo');
+    if (focusUndo && !focusUndo.dataset.boundAnki) {
+      focusUndo.dataset.boundAnki='1';
+      focusUndo.onclick=()=>void this.simplePost('/api/anki/undo');
+    }
+
     const apkg = document.getElementById('anki-official-export-apkg');
-    if (apkg && !apkg.dataset.boundAnki) { apkg.dataset.boundAnki='1'; apkg.onclick=()=>void this.download('/api/anki/export/apkg','StudyNoMentor-Anki.apkg'); }
+    if (apkg && !apkg.dataset.boundAnki) { apkg.dataset.boundAnki='1'; apkg.onclick=()=>{this.closeMore();void this.download('/api/anki/export/apkg','StudyNoMentor-Anki.apkg');}; }
     const colpkg = document.getElementById('anki-official-export-colpkg');
-    if (colpkg && !colpkg.dataset.boundAnki) { colpkg.dataset.boundAnki='1'; colpkg.onclick=()=>void this.download('/api/anki/export/colpkg','StudyNoMentor-Anki.colpkg'); }
+    if (colpkg && !colpkg.dataset.boundAnki) { colpkg.dataset.boundAnki='1'; colpkg.onclick=()=>{this.closeMore();void this.download('/api/anki/export/colpkg','StudyNoMentor-Anki.colpkg');}; }
     const undo = document.getElementById('anki-official-undo');
-    if (undo && !undo.dataset.boundAnki) { undo.dataset.boundAnki='1'; undo.onclick=()=>void this.simplePost('/api/anki/undo'); }
+    if (undo && !undo.dataset.boundAnki) { undo.dataset.boundAnki='1'; undo.onclick=()=>{this.closeMore();void this.simplePost('/api/anki/undo');}; }
     const redo = document.getElementById('anki-official-redo');
-    if (redo && !redo.dataset.boundAnki) { redo.dataset.boundAnki='1'; redo.onclick=()=>void this.simplePost('/api/anki/redo'); }
+    if (redo && !redo.dataset.boundAnki) { redo.dataset.boundAnki='1'; redo.onclick=()=>{this.closeMore();void this.simplePost('/api/anki/redo');}; }
+
+    if (!this._docBound) {
+      this._docBound=true;
+      document.addEventListener('click', e=>{
+        if (!e.target.closest('#screen-anki .cards-more-wrap')) this.closeMore();
+      });
+      document.addEventListener('keydown', e=>this.onKey(e));
+    }
+  },
+
+  closeMore() {
+    const menu=document.getElementById('anki-more-menu');
+    const btn=document.getElementById('anki-more-btn');
+    if(menu) menu.classList.remove('open');
+    if(btn){btn.classList.remove('open');btn.setAttribute('aria-expanded','false');}
   },
 
   async simplePost(path) {
