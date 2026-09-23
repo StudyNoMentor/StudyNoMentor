@@ -157,6 +157,18 @@ const PlanManager = {
     this.savePlans(plans);
   },
   deletePlan(id) {
+    id = String(id || '');
+    const atuais = this.getPlans();
+    const alvo = atuais.find(p => String(p.id) === id);
+    if (!alvo) return false;
+    /* Não deixa a exclusão criar um perfil que só tenha planejamentos pausados.
+       Nesse estado nenhuma tela operacional teria um destino seguro para novas
+       gravações. Reative outro antes de excluir o último operacional. */
+    if (!this.isPaused(id)) {
+      const outrosOperacionais = atuais.filter(p => String(p.id) !== id && !this.isPaused(p.id));
+      const outrosQuaisquer = atuais.filter(p => String(p.id) !== id);
+      if (!outrosOperacionais.length && outrosQuaisquer.length) return false;
+    }
     // apaga todos os dados namespaced do planejamento. A exclusão explícita é
     // a única operação administrativa que pode atravessar o congelamento.
     const k = DB.keysForPlan(id);
@@ -167,8 +179,10 @@ const PlanManager = {
     const map = this._pauseMap(); if (map[String(id)]) { delete map[String(id)]; this._savePauseMap(map); }
     if (this.getActivePlanId() === id) {
       const next = plans.find(p => !this.isPaused(p.id));
-      this.setActivePlan(next ? next.id : (plans[0] ? plans[0].id : this._ensureInitial()));
+      if (next) this.setActivePlan(next.id);
+      else if (!plans.length) this._ensureInitial();
     }
+    return true;
   },
 
   _ensureInitial() {
