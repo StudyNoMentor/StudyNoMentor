@@ -11,10 +11,12 @@ from typing import Any
 
 import anki.buildinfo
 import httpx
-from anki import deck_config_pb2, import_export_pb2
+from anki import deck_config_pb2, import_export_pb2, scheduler_pb2
 from anki.collection import (
     Collection,
     ExportAnkiPackageOptions,
+    CardIdsLimit,
+    NoteIdsLimit,
     ImportAnkiPackageOptions,
     ImportAnkiPackageRequest,
 )
