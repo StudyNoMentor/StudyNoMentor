@@ -580,6 +580,12 @@
   DB.getCardsForPlan = id => S._tag(id, S._rows(id, 'cards'));
   DB.getDecksForPlan = id => S._tag(id, S._rows(id, 'decks'));
   DB.getRevlogForPlan = id => S._revlogForPlan(id);
+  DB.saveCardsForPlan = (id, list) => DB._set(DB.keysForPlan(id).cards, (list || []).map(x => {
+    const c=clone(x);if(c){delete c._planId;delete c._planNome;}return c;
+  }));
+  DB.saveDecksForPlan = (id, list) => DB._set(DB.keysForPlan(id).decks, (list || []).map(x => {
+    const d=clone(x);if(d){delete d._planId;delete d._planNome;}return d;
+  }));
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
