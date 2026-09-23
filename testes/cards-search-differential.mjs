@@ -22,7 +22,7 @@ const byMarker=new Map();
 function addNote(marker,text,back,tags,deck,kind='basic'){
   const nt=kind==='cloze'?cloze:basic,id=AnkiParity._allocId(),fields=kind==='cloze'?{Text:marker+' '+text,'Back Extra':back}:{Front:marker+' '+text,Back:back};
   AnkiParity.saveNote({id,notetypeId:nt.id,fields,tags});
-  const make=(ord,extra={})=>DB.addCard({noteId:id,ankiNoteId:id,notetypeId:nt.id,ankiTemplateOrd:ord,deckId:deck.id,kind:kind==='cloze'?'cloze':'basic',clozeOrd:kind==='cloze'?ord+1:null,frente:fields[kind==='cloze'?'Text':'Front'],verso:back,phase:'new',due:A.hoje(),...extra});
+  const make=(ord,extra={})=>{const c=DB.addCard({noteId:id,ankiNoteId:id,notetypeId:nt.id,deckId:deck.id,kind:kind==='cloze'?'cloze':'basic',frente:fields[kind==='cloze'?'Text':'Front'],verso:back,phase:'new',due:A.hoje(),...extra});DB.updateCard(c.id,{ankiTemplateOrd:ord,clozeOrd:kind==='cloze'?ord+1:null});return DB.getCard(c.id);};
   const cards=kind==='cloze'?[make(0),make(1)]:[make(0)];byMarker.set(marker,cards);return cards;
 }
 addNote('A_PARIS','Paris capital France','Seine',['geo','lang::fr'],alpha);
