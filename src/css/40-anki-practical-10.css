@@ -50,3 +50,93 @@
 .anki-p10-table{width:100%;border-collapse:collapse;font-size:var(--fs-xs)}
 .anki-p10-table th,.anki-p10-table td{padding:8px 7px;border-bottom:1px solid var(--border);text-align:right}
 .anki-p10-table th:first-child,.anki-p10-table td:first-child{text-align:left}
+
+
+/* ── Reviewer mobile: mídia íntegra + Mais ações direto ─────────────────── */
+#screen-cards .cards-review-wrap,
+#screen-cards .cards-face,
+#screen-cards .cards-anki-template,
+#screen-cards .cards-anki-frame{min-width:0;max-width:100%;box-sizing:border-box}
+#screen-cards .cards-face{overflow-x:auto;overflow-y:hidden}
+#screen-cards .cards-face>img,
+#screen-cards .mini-card-front img{max-width:100%!important;height:auto!important;object-fit:contain}
+#screen-cards .cards-anki-frame{width:100%!important;overflow:auto}
+
+.anki-review-action-sheet{
+  position:fixed;inset:0;z-index:10050;display:none;align-items:flex-end;justify-content:center;
+  padding:0;isolation:isolate
+}
+.anki-review-action-sheet.open{display:flex}
+.anki-review-action-scrim{
+  position:absolute;inset:0;z-index:-1;border:0;border-radius:0;background:rgba(10,12,18,.54);
+  backdrop-filter:blur(2px);cursor:pointer
+}
+.anki-review-action-panel{
+  width:min(100%,720px);max-height:min(82dvh,760px);display:flex;flex-direction:column;
+  overflow:hidden;background:var(--surface);color:var(--text);
+  border:1px solid var(--border);border-radius:22px 22px 0 0;
+  box-shadow:0 -14px 42px rgba(0,0,0,.25)
+}
+.anki-review-action-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:17px 18px 14px;border-bottom:1px solid var(--border);flex:0 0 auto
+}
+.anki-review-action-head h2{margin:0;font-size:var(--fs-lg)}
+.anki-review-action-head .sub{margin:3px 0 0;color:var(--text-faint);font-size:var(--fs-xs)}
+.anki-review-action-close{flex:0 0 auto}
+.anki-review-flag-row{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:11px 18px;
+  border-bottom:1px solid var(--border);background:var(--surface-sunken)
+}
+.anki-review-flag-row>span{font-size:var(--fs-xs);font-weight:800;color:var(--text-soft);margin-right:2px}
+.anki-review-flag-row button{
+  width:26px;height:26px;flex:0 0 26px;border:2px solid var(--border);border-radius:50%;
+  background:var(--surface);padding:0;cursor:pointer
+}
+.anki-review-flag-row button[data-review-flag]:not([data-review-flag="0"]){background:var(--fl)}
+.anki-review-flag-row button.on{box-shadow:0 0 0 3px var(--accent-ring);border-color:var(--text)}
+.anki-review-flag-row button[data-review-flag="0"]{font-size:17px;line-height:1;color:var(--text-soft)}
+.anki-review-action-list{
+  min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:8px 10px max(14px,env(safe-area-inset-bottom))
+}
+.anki-review-action-group{
+  padding:10px 9px 6px;color:var(--text-faint);font-size:var(--fs-3xs);font-weight:800;
+  letter-spacing:.07em;text-transform:uppercase
+}
+.anki-review-action-item{
+  width:100%;min-height:48px;display:flex;align-items:center;text-align:left;
+  padding:11px 12px;margin:0 0 4px;border:1px solid transparent;border-radius:11px;
+  background:transparent;color:var(--text);font:inherit;font-size:var(--fs-sm);font-weight:650;cursor:pointer
+}
+.anki-review-action-item:hover,.anki-review-action-item:focus-visible{
+  outline:none;background:var(--accent-soft);border-color:var(--accent);color:var(--accent)
+}
+.anki-review-action-item.danger{color:var(--bad)}
+.anki-review-action-item.danger:hover,.anki-review-action-item.danger:focus-visible{
+  background:var(--bad-soft);border-color:var(--bad);color:var(--bad)
+}
+html.anki-review-sheet-open{overflow:hidden}
+
+/* ── Criador simples: seis tipos padrão do Anki ─────────────────────────── */
+.anki-simple-extra-field,.anki-simple-io-launch{
+  border:1px solid var(--border);border-radius:12px;padding:12px 13px;background:var(--surface-sunken);
+  margin:0 0 15px
+}
+.anki-simple-check{display:flex;align-items:center;gap:9px;margin:0;cursor:pointer}
+.anki-simple-check input{width:20px;height:20px;flex:0 0 20px;margin:0}
+.anki-simple-io-launch strong{display:block;margin-bottom:4px}
+.anki-simple-io-launch .btn-primary{margin-top:10px}
+
+@media (min-width:700px){
+  .anki-review-action-sheet{align-items:center;padding:24px}
+  .anki-review-action-panel{border-radius:18px;max-height:min(82dvh,760px)}
+  .anki-review-action-list{display:grid;grid-template-columns:1fr 1fr;column-gap:8px}
+  .anki-review-action-group{grid-column:1/-1}
+}
+@media (max-width:640px){
+  #screen-cards .cards-review-wrap{padding-left:12px;padding-right:12px}
+  #screen-cards .cards-face{padding-left:10px;padding-right:10px}
+  .anki-review-action-panel{max-height:84dvh}
+  .anki-review-action-head{padding-left:16px;padding-right:14px}
+  .anki-review-action-list{padding-left:8px;padding-right:8px}
+}
