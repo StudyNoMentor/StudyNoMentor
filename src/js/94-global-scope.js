@@ -589,6 +589,16 @@
   DB.getCardsForPlan = id => S._tag(id, S._rows(id, 'cards'));
   DB.getDecksForPlan = id => S._tag(id, S._rows(id, 'decks'));
   DB.getRevlogForPlan = id => S._revlogForPlan(id);
+  DB.addDeckForPlan = function(id, nome) {
+    if (!id || String(id) === String(S.activePlanId())) return O.addDeck(nome);
+    const prevGet=DB.getDecks,prevSave=DB.saveDecks;
+    DB.getDecks=()=>S._rows(id,'decks');
+    DB.saveDecks=list=>DB._set(DB.keysForPlan(id).decks,(list||[]).map(x=>{const d=clone(x);delete d._planId;delete d._planNome;return d;}));
+    try {
+      const d=O.addDeck(nome);
+      return d?Object.assign({},d,{_planId:id,_planNome:S.planName(id)}):d;
+    } finally { DB.getDecks=prevGet;DB.saveDecks=prevSave; }
+  };
   DB.addCardForPlan = function(id, data) {
     if (!id || String(id) === String(S.activePlanId())) return O.addCard(data || {});
     const prevGet=DB.getCards,prevSave=DB.saveCards;
@@ -773,7 +783,8 @@
     addRevlog: DB.addRevlog.bind(DB),
     renameDeck: DB.renameDeck.bind(DB),
     deleteDeck: DB.deleteDeck.bind(DB),
-    addCard: DB.addCard.bind(DB)
+    addCard: DB.addCard.bind(DB),
+    addDeck: DB.addDeck.bind(DB)
   };
   DB.renameDeck = function(id, nome) {
     if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.renameDeck(id,nome);
