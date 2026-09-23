@@ -42,15 +42,17 @@ const CardEngine = {
   invalidateDueCache() { this._dueCache = null; },
   _dueCountInDays(n) {
     try {
-      if (!this._dueCache || this._dueCache.day !== todayCards()) {
+      const scope = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cardsScope) ? StudyGlobalScope.cardsScope() : 'plan';
+      if (!this._dueCache || this._dueCache.day !== todayCards() || this._dueCache.scope !== scope) {
         const map = {};
-        DB.getCards().forEach(c => {
+        const source = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) ? StudyGlobalScope.cards() : DB.getCards();
+        source.forEach(c => {
           if (c.suspenso) return;
           if (c.dueTs) return;
           if (!(c.phase === 'review' || ((c.reps || 0) > 0 && (c.intervalo || 0) > 0))) return;
           const k = c.due || ''; map[k] = (map[k] || 0) + 1;
         });
-        this._dueCache = { day: todayCards(), map };
+        this._dueCache = { day: todayCards(), scope, map };
       }
       return this._dueCache.map[this.addDays(todayCards(), n)] || 0;
     } catch (_) { return 0; }
