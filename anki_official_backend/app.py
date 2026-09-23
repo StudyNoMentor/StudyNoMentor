@@ -11,7 +11,7 @@ from typing import Any
 
 import anki.buildinfo
 import httpx
-from anki import import_export_pb2
+from anki import deck_config_pb2, import_export_pb2
 from anki.cards import Card
 from anki.collection import (
     Collection,
@@ -26,7 +26,7 @@ from anki.sound import SoundOrVideoTag, TTSTag
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from google.protobuf.json_format import MessageToDict
+from google.protobuf.json_format import MessageToDict, ParseDict
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
@@ -420,6 +420,30 @@ def card_stats(card_id: int, user: dict[str, Any] = Depends(current_user)) -> di
 def deck_options(deck_id: int, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
+        return pb(item.col.decks.get_deck_configs_for_update(DeckId(deck_id)))
+
+
+@app.get("/api/anki/browser/columns")
+def browser_columns(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return {"columns": [pb(column) for column in item.col.all_browser_columns()]}
+
+
+@app.put("/api/anki/deck/{deck_id}/options")
+def update_deck_options(
+    deck_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        request = deck_config_pb2.UpdateDeckConfigsRequest()
+        try:
+            ParseDict(payload, request, ignore_unknown_fields=False)
+        except Exception as exc:
+            raise HTTPException(400, f"Deck Options inválidas: {exc}") from exc
+        item.col.decks.update_deck_configs(request)
         return pb(item.col.decks.get_deck_configs_for_update(DeckId(deck_id)))
 
 
