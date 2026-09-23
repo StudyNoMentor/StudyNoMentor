@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v604a791147">
+<meta name="diario-versao" content="vd27855bde2">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6180,6 +6180,17 @@ window.__relationalBoot = true;
         </div>
       </div>
       <div style="padding: 20px 28px 28px;">
+        <div id="cycle-import-wrap" style="display:none; margin-bottom:18px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface-soft, var(--surface));">
+          <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+            <div class="field" style="margin:0; flex:1 1 260px;">
+              <label for="cycle-import-plan">Usar ciclo de outro planejamento</label>
+              <select id="cycle-import-plan"></select>
+            </div>
+            <button class="btn-secondary" id="btn-import-cycle" type="button" disabled>Usar como sugestão</button>
+          </div>
+          <p class="hint" id="cycle-import-status" style="margin:8px 0 0;">Copia carga horária, matérias e tempos como ponto de partida. Datas, histórico e grade não são copiados, e o planejamento de origem não é alterado.</p>
+        </div>
+
         <div class="field-group">
           <div class="field">
             <label>Carga horária semanal</label>
@@ -16884,9 +16895,13 @@ const DB = {
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
   saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
   clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
+  // leituras cruzadas são somente leitura: permitem reaproveitar um ciclo de outro
+  // planejamento sem trocar o namespace ativo nem criar vínculo entre origem/destino.
+  getCurrentCycleForPlan(planId) { return this._get(this.keysForPlan(planId).currentCycle, null); },
   // memória do último ciclo montado (para pré-preencher a próxima semana) — por planejamento
   getLastCycleSetup() { return this._get(this.KEYS.lastCycleSetup, null); },
   saveLastCycleSetup(setup) { this._set(this.KEYS.lastCycleSetup, setup); },
+  getLastCycleSetupForPlan(planId) { return this._get(this.keysForPlan(planId).lastCycleSetup, null); },
 
   // ---- Modelo de grade (rotina semanal persistente, reutilizada entre ciclos) ----
   // Estrutura: { grade: { Segunda:[celulas], ... }, sessions: N }
@@ -25153,6 +25168,81 @@ function planCycleMode() {
   });
 
   let pendingCycle = null; // rascunho entre "calcular sugestão" e "confirmar"
+  let importedCycleSource = null; // cópia transitória: nunca cria vínculo com o planejamento de origem
+
+  function cloneCycleData(v) {
+    return v == null ? v : JSON.parse(JSON.stringify(v));
+  }
+
+  // Escolhe a melhor referência disponível de outro planejamento. O ciclo ativo
+  // é preferido; em seguida vem a memória do último ciclo montado e, para dados
+  // legados, a última semana fechada do histórico.
+  function cycleSuggestionForPlan(planId) {
+    if (!planId) return null;
+    const current = DB.getCurrentCycleForPlan ? DB.getCurrentCycleForPlan(planId) : null;
+    if (current && Array.isArray(current.subjects) && current.subjects.length) {
+      return {
+        kind: 'ciclo atual',
+        weeklyHours: current.weeklyHours,
+        mode: current.mode,
+        subjects: cloneCycleData(current.subjects)
+      };
+    }
+    const last = DB.getLastCycleSetupForPlan ? DB.getLastCycleSetupForPlan(planId) : null;
+    if (last && Array.isArray(last.subjects) && last.subjects.length) {
+      return {
+        kind: 'último ciclo montado',
+        weeklyHours: last.weeklyHours,
+        mode: last.mode,
+        subjects: cloneCycleData(last.subjects)
+      };
+    }
+    const hist = DB.getCycleHistoryForPlan ? DB.getCycleHistoryForPlan(planId) : [];
+    const latest = Array.isArray(hist) && hist.length ? hist[hist.length - 1] : null;
+    if (latest && Array.isArray(latest.subjects) && latest.subjects.length) {
+      return {
+        kind: 'última semana fechada',
+        weeklyHours: latest.weeklyHours,
+        mode: latest.mode,
+        subjects: cloneCycleData(latest.subjects)
+      };
+    }
+    return null;
+  }
+
+  function defaultCycleImportStatus() {
+    return 'Copia carga horária, matérias e tempos como ponto de partida. Datas, histórico e grade não são copiados, e o planejamento de origem não é alterado.';
+  }
+
+  function refreshCycleImportPlans() {
+    const wrap = document.getElementById('cycle-import-wrap');
+    const sel = document.getElementById('cycle-import-plan');
+    const btn = document.getElementById('btn-import-cycle');
+    const status = document.getElementById('cycle-import-status');
+    if (!wrap || !sel || !btn) return;
+
+    const activeId = PlanManager.getActivePlanId();
+    const options = (PlanManager.getPlans() || [])
+      .filter(p => p && p.id !== activeId)
+      .map(p => ({ plan: p, source: cycleSuggestionForPlan(p.id) }))
+      .filter(x => x.source)
+      .sort((a, b) => String(a.plan.nome || '').localeCompare(String(b.plan.nome || ''), 'pt-BR', { sensitivity: 'base' }));
+
+    wrap.style.display = options.length ? 'block' : 'none';
+    if (!options.length) {
+      sel.innerHTML = '';
+      btn.disabled = true;
+      if (status) status.textContent = defaultCycleImportStatus();
+      return;
+    }
+
+    const previous = sel.value;
+    sel.innerHTML = '<option value="">Escolha um planejamento…</option>' +
+      options.map(x => `<option value="${escapeHtml(x.plan.id)}">${escapeHtml(x.plan.nome)} · ${escapeHtml(x.source.kind)}</option>`).join('');
+    if (previous && options.some(x => x.plan.id === previous)) sel.value = previous;
+    btn.disabled = !sel.value;
+    if (status && !importedCycleSource) status.textContent = defaultCycleImportStatus();
+  }
 
   // Monta o <select> de matéria puxando as disciplinas cadastradas em Configurações.
   // Mantém a matéria já escolhida (mesmo que tenha sido desativada) e oferece "outra".
@@ -25353,14 +25443,73 @@ function planCycleMode() {
       ? prefill.subjects
       : DB.getActiveSubjects().length ? DB.getActiveSubjects() : [null, null, null];
     renderSetupSubjects(subjectsForCycle.length ? subjectsForCycle : [null]);
+    refreshCycleImportPlans();
     $id('cycle-subject-list').innerHTML =
       DB.getActiveSubjects().slice().sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }))
         .map(s => `<option value="${escapeHtml(s.nome)}">`).join('');
     showState('setup');
   }
 
-  on('btn-start-cycle', 'click', () => openSetup(null));
+  on('btn-start-cycle', 'click', () => {
+    importedCycleSource = null;
+    openSetup(null);
+  });
+
+  on('cycle-import-plan', 'change', () => {
+    const sel = document.getElementById('cycle-import-plan');
+    const btn = document.getElementById('btn-import-cycle');
+    if (btn) btn.disabled = !(sel && sel.value);
+  });
+
+  on('btn-import-cycle', 'click', () => {
+    const sel = document.getElementById('cycle-import-plan');
+    const status = document.getElementById('cycle-import-status');
+    const planId = sel && sel.value;
+    if (!planId) return;
+
+    const source = cycleSuggestionForPlan(planId);
+    const plan = (PlanManager.getPlans() || []).find(p => p.id === planId);
+    if (!source || !plan) {
+      showToast('Não encontrei um ciclo reutilizável nesse planejamento.');
+      refreshCycleImportPlans();
+      return;
+    }
+
+    // Importar é iniciar um NOVO rascunho a partir da origem. Isso evita que os
+    // tempos do ciclo que estava sendo editado no destino sobrescrevam a cópia.
+    pendingCycle = null;
+    const definedByName = {};
+    (source.subjects || []).forEach(s => {
+      if (!s || !s.nome) return;
+      const v = s.definidoMin != null ? s.definidoMin : s.sugeridoMin;
+      if (v != null) definedByName[CycleEngine.normKey(s.nome)] = Number(v) || 0;
+    });
+    importedCycleSource = {
+      planId,
+      planName: plan.nome,
+      kind: source.kind,
+      mode: source.mode || null,
+      definedByName
+    };
+
+    writeWeeklyHours(source.weeklyHours || 20);
+    renderSetupSubjects(source.subjects || []);
+
+    const activeKeys = new Set(DB.getActiveSubjects().map(s => CycleEngine.normKey(s.nome)));
+    const novos = (source.subjects || []).filter(s => s && s.nome && !activeKeys.has(CycleEngine.normKey(s.nome))).length;
+    const modeChanged = source.mode && source.mode !== planCycleMode();
+    if (status) {
+      status.textContent =
+        `Sugestão copiada de "${plan.nome}" (${source.kind}): ${source.subjects.length} matéria(s)` +
+        (novos ? ` · ${novos} nova(s) neste planejamento` : '') +
+        '. Datas, histórico e grade ficaram no planejamento de origem.' +
+        (modeChanged ? ' Os parâmetros serão recalculados conforme o tipo do planejamento atual.' : '');
+    }
+    showToast('Ciclo carregado como sugestão. Revise antes de confirmar.');
+  });
+
   on('btn-cancel-cycle', 'click', () => {
+    importedCycleSource = null;
     const existing = DB.getCurrentCycle();
     showState(existing ? 'active' : 'empty');
   });
@@ -25422,7 +25571,14 @@ function planCycleMode() {
         });
       }
     }
-    // 2) rascunho em edição (tem prioridade sobre a memória)
+    // 2) tempos trazidos de outro planejamento: são ponto de partida e
+    // sobrescrevem a memória local, mas continuam editáveis na revisão.
+    if (importedCycleSource && importedCycleSource.definedByName) {
+      Object.keys(importedCycleSource.definedByName).forEach(k => {
+        prevDefined[k] = importedCycleSource.definedByName[k];
+      });
+    }
+    // 3) rascunho em edição (tem prioridade máxima)
     if (pendingCycle && Array.isArray(pendingCycle.subjects)) {
       pendingCycle.subjects.forEach(s => {
         if (s && s.nome != null && s.definidoMin != null) prevDefined[CycleEngine.normKey(s.nome)] = s.definidoMin;
@@ -25592,6 +25748,7 @@ function planCycleMode() {
         minimoPct: s.minimoPct, definidoMin: s.definidoMin
       }))
     });
+    importedCycleSource = null;
     showToast('Ciclo confirmado ✓');
     renderActiveCycle();
     showState('active');
