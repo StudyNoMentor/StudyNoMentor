@@ -124,7 +124,7 @@ const FSRS = {
     const S0 = this._S(S);
     const w17 = w[17], w18 = w[18], w19 = (w.length > 19 && isFinite(w[19])) ? w[19] : 0;
     let sInc = Math.exp(w17 * (G - 3 + w18)) * Math.pow(S0, -w19);
-    // fsrs-rs 6.6.2 (a versão fixada pelo Anki 26.09.2) aplica
+    // fsrs-rs 6.6.2 (a versão fixada pelo Anki 26.09.3) aplica
     // a trava apenas a Good/Easy. Hard pode reduzir a estabilidade no curto
     // prazo; impedir isso cria divergência objetiva contra o backend oficial.
     if (G >= 3) sInc = Math.max(1, sInc);
@@ -499,7 +499,7 @@ const FSRS = {
   // sorteava um dia independente com Math.random() — a prévia podia divergir
   // do que era gravado, e a ordem Difícil<Bom<Fácil podia furar na tela.
   loadBalance(iv, dueCountByDay, maxIv, minIv, seed, card) {
-    // Caminho de paridade: reproduz o LoadBalancer do Anki 26.09.2 por
+    // Caminho de paridade: reproduz o LoadBalancer do Anki 26.09.3 por
     // deck-config/preset, Easy Days, irmãos e WeightedIndex f32. Quando o
     // balanceador oficial não se aplica (>90d), o Anki volta ao fuzz normal.
     if (typeof AnkiParity !== 'undefined' && seed != null) {
@@ -554,7 +554,7 @@ const FSRS = {
 };
 
 
-/* ── OTIMIZADOR OFICIAL ANKI 26.09.2 / fsrs-rs 6.6.2 ──────────────────────
+/* ── OTIMIZADOR OFICIAL ANKI 26.09.3 / fsrs-rs 6.6.2 ──────────────────────
    Carregado sob demanda: o scheduler diário continua 100% síncrono e não paga
    o custo do WASM. O arquivo é servido localmente pelo próprio PWA. */
 FSRS._officialOptimizerModule=null;
@@ -716,7 +716,7 @@ FSRS.healthCheckOfficial=async function(revlog,opts){
 
 // O otimizador histórico em JavaScript fica deliberadamente INACESSÍVEL em
 // produção. A única rota suportada é optimizeOfficial(), que usa o WASM
-// fsrs-rs 6.6.2 correspondente ao Anki 26.09.2.
+// fsrs-rs 6.6.2 correspondente ao Anki 26.09.3.
 FSRS.optimize=function(){
   throw new Error('Otimizador legado desativado. Use FSRS.optimizeOfficial() (fsrs-rs 6.6.2).');
 };
