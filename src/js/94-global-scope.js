@@ -752,8 +752,9 @@
   DB.renameDeck = function(id, nome) {
     if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.renameDeck(id,nome);
     const r=S.deckRecord(id);if(!r)return null;
-    const d=r.deck;d.nome=String(nome||'').trim();
-    return DB._set(DB.keysForPlan(r.planId).decks,r.planId===S.activePlanId()?DB.getDecks():S._rows(r.planId,'decks'))===false?false:d;
+    const list=S._rows(r.planId,'decks'),d=list.find(x=>String(x.id)===String(id));if(!d)return null;
+    d.nome=String(nome||'').trim();
+    return DB._set(DB.keysForPlan(r.planId).decks,list)===false?false:d;
   };
   DB.deleteDeck = function(id) {
     if (DB.getDecks().some(d=>String(d.id)===String(id))) return O.deleteDeck(id);
