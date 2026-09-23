@@ -636,16 +636,17 @@ FSRS.optimizeOfficial=async function(revlog,opts){
 };
 
 
-FSRS.memoryStateOfficialWithModule=function(mod,data,w){
+FSRS.memoryStateOfficialWithModule=function(mod,data,w,retention){
   if(!mod||typeof mod.memory_state_json!=='function')throw new Error('Inferência oficial de memory state indisponível');
   const params=this.migrarW(w)||this.DEFAULT_W.slice();
   const out=JSON.parse(mod.memory_state_json(JSON.stringify({
     reviews:(data&&Array.isArray(data.reviews))?data.reviews:[],
     params,
-    starting_sm2:data&&data.startingSm2?data.startingSm2:null
+    starting_sm2:data&&data.startingSm2?data.startingSm2:null,
+    desired_retention:Math.max(.7,Math.min(.99,Number(retention)||.9))
   })));
-  if(!out||!(Number(out.stability)>0)||!Number.isFinite(Number(out.difficulty)))throw new Error('Memory state FSRS inválido');
-  return {s:Number(out.stability),d:Number(out.difficulty)};
+  if(!out||!(Number(out.stability)>0)||!Number.isFinite(Number(out.difficulty))||!(Number(out.next_interval)>0))throw new Error('Memory state FSRS inválido');
+  return {s:Number(out.stability),d:Number(out.difficulty),interval:Number(out.next_interval)};
 };
 
 FSRS._stateFromTrainingItem=function(item,w){
