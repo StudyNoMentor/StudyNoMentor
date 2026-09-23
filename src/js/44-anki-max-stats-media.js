@@ -212,6 +212,18 @@ const AnkiMaxStatsMedia = {
     const span=this._statsHistoryDays(),m=this._dayMap(span),xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1].time));
     return '<div class="card stat-card"><div class="card-header"><div><h2>Review Time</h2><p class="sub">Tempo de revisão no período selecionado</p></div></div><div class="anki-review-bars">'+xs.map(([d,x])=>'<div class="anki-review-day" title="'+d+' · '+(x.time/60000).toFixed(1)+' min"><div class="anki-stack"><i class="review" style="height:'+Math.max(x.time?3:0,Math.round(x.time/max*100))+'%"></i></div></div>').join('')+'</div></div>';
   },
+  _addedHtml(){
+    const span=this._statsHistoryDays(),today=todayCards(),m=new Map();
+    for(let i=span-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),0);
+    for(const card of this.statsCards()){
+      const raw=card.createdAt||card.created_at||'',d=raw?new Date(raw):null;
+      if(!d||!Number.isFinite(d.getTime()))continue;
+      const key=d.toISOString().slice(0,10);if(m.has(key))m.set(key,(m.get(key)||0)+1);
+    }
+    const xs=[...m.entries()],max=Math.max(1,...xs.map(x=>x[1]));
+    return '<div class="card stat-card" data-anki-stat-graph="added"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards adicionados no período selecionado</p></div></div><div class="anki-review-bars">'+xs.map(([d,n])=>'<div class="anki-review-day" title="'+d+' · '+n+' card(s)"><div class="anki-stack"><i class="learn" style="height:'+Math.max(n?3:0,Math.round(n/max*100))+'%"></i></div></div>').join('')+'</div></div>';
+  },
+
   _easeHtml(){
     const xs=this.statsCards().filter(c=>Number.isFinite(Number(c.ease))&&Number(c.ease)>0),bins=[0,0,0,0,0,0];
     xs.forEach(c=>{const e=Number(c.ease);let i=e<1.5?0:e<2?1:e<2.5?2:e<3?3:e<3.5?4:5;bins[i]++;});
@@ -224,7 +236,7 @@ const AnkiMaxStatsMedia = {
       '<div class="stat-grid">'+this._cardCountsHtml()+this._hourlyHtml()+'</div>'+
       '<div class="stat-grid">'+this._futureHtml()+this._easeHtml()+'</div>'+
       '<div class="card stat-card anki-sim-card"><div class="card-header"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Projeta carga usando os estados S/D reais, parâmetros e retenção desejada.</p></div></div><button type="button" class="btn-primary" id="anki-open-simulator">Abrir simulador</button></div>'+
-      this._memoryHtml()+'</div>';
+      this._memoryHtml()+this._addedHtml()+'</div>';
   },
   _bindStatsUi(){
     const b=document.getElementById('anki-open-simulator');if(b)b.onclick=()=>this.openSimulator();
