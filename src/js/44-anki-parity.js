@@ -368,7 +368,7 @@ const AnkiParity = {
   autoBurySiblings(card){
     if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),nid=String(card.noteId);let n=0;
     const buried=[];
-    DB.getCards().forEach(s=>{
+    this._cardsForCardPlan(card).forEach(s=>{
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
       const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
       const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
@@ -398,8 +398,14 @@ AnkiParity.updatePreset=function(id,patch){
   const all=this.sharedPresets();if(!all[id])return false;all[id].config=Object.assign({},all[id].config||{},patch||{});this._saveSharedPresets(all);return true;
 };
 AnkiParity.assignPreset=function(deckId,configId){
-  const ds=DB.getDecks(),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return false;
-  d.configId=String(configId||'default');DB.saveDecks(ds);return true;
+  const ds=this._decksForDeckId(deckId),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return false;
+  d.configId=String(configId||'default');
+  try{
+    if(window.StudyGlobalScope&&StudyGlobalScope.deckRecord&&DB.saveDecksForPlan){
+      const r=StudyGlobalScope.deckRecord(deckId);if(r)return DB.saveDecksForPlan(r.planId,ds)!==false;
+    }
+  }catch(_){}
+  DB.saveDecks(ds);return true;
 };
 AnkiParity.deckAncestors=function(deckId){
   const ds=this._decksForDeckId(deckId),d=ds.find(x=>String(x.id)===String(deckId));if(!d)return [];
@@ -1012,7 +1018,7 @@ AnkiParity.emptyFilteredDeck=function(deckId){
 };
 AnkiParity.removeFromFilteredAfterReschedule=function(card,patch){
   if(!card||!card.originalDeckId)return patch||{};
-  const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId));
+  const deck=this._decksForCardPlan(card).find(d=>String(d.id)===String(card.deckId));
   const cfg=this.filteredConfig(deck);
   if(!cfg||!cfg.reschedule)return patch||{};
   const out=Object.assign({},patch||{},{deckId:card.originalDeckId});
@@ -1259,7 +1265,7 @@ AnkiParity.saveFilteredDeck=function(input){
 };
 AnkiParity.previewFilteredAnswer=function(card,grade){
   if(!card||!card.originalDeckId)return null;
-  const deck=DB.getDecks().find(d=>String(d.id)===String(card.deckId)),cfg=this.filteredConfig(deck);
+  const deck=this._decksForCardPlan(card).find(d=>String(d.id)===String(card.deckId)),cfg=this.filteredConfig(deck);
   if(!cfg||cfg.reschedule)return null;
   const g=String(grade||'bom');
   const secs=g==='errei'||g==='naosei'?Number(cfg.previewAgainSecs)||0:
