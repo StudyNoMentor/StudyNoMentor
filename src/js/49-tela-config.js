@@ -1,6 +1,35 @@
 /* ============================================================
    TELA: CONFIGURAÇÕES
    ============================================================ */
+const MenuPreferences = {
+  _ankiKey() {
+    return DB._profilePrefix() + 'ui:show-anki-menu';
+  },
+  isAnkiVisible() {
+    try { return localStorage.getItem(this._ankiKey()) !== '0'; }
+    catch (_) { return true; }
+  },
+  apply() {
+    const visible = this.isAnkiVisible();
+    const tab = document.querySelector('#tabs .tab[data-screen="anki"]');
+    if (tab) {
+      tab.hidden = !visible;
+      tab.style.display = visible ? '' : 'none';
+      tab.setAttribute('aria-hidden', visible ? 'false' : 'true');
+    }
+    const screen = document.getElementById('screen-anki');
+    if (!visible && screen && screen.classList.contains('active')) {
+      try { switchScreen('config'); } catch (_) { _quiet(_); }
+    }
+    return visible;
+  },
+  setAnkiVisible(visible) {
+    DB.setRaw(this._ankiKey(), visible ? '1' : '0');
+    return this.apply();
+  }
+};
+window.MenuPreferences = MenuPreferences;
+
 const ConfigScreen = {
   render() {
     this.renderSubjects();
@@ -8,6 +37,28 @@ const ConfigScreen = {
     this.renderPhases();
     this.renderStatuses();
     this.renderModes();
+    this.renderMenuPreferences();
+  },
+
+  // ---------- Preferências de navegação ----------
+  renderMenuPreferences() {
+    const toggle = document.getElementById('config-anki-menu-toggle');
+    if (!toggle) return;
+    const sync = () => {
+      const visible = MenuPreferences.apply();
+      toggle.classList.toggle('on', visible);
+      toggle.setAttribute('aria-checked', visible ? 'true' : 'false');
+      toggle.setAttribute('aria-label', visible ? 'Desativar menu Anki' : 'Ativar menu Anki');
+      toggle.title = visible ? 'Ocultar o Anki Oficial do menu' : 'Mostrar o Anki Oficial no menu';
+      return visible;
+    };
+    sync();
+    toggle.onclick = () => {
+      const next = toggle.getAttribute('aria-checked') !== 'true';
+      const actual = MenuPreferences.setAnkiVisible(next);
+      sync();
+      showToast(actual ? 'Menu Anki ativado' : 'Menu Anki desativado');
+    };
   },
 
   // ---------- Matérias ----------
@@ -398,7 +449,9 @@ $id('new-phase-input').addEventListener('keydown', (e) => { if (e.key === 'Enter
 $id('new-status-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') ConfigScreen.addStatus(); });
 $id('new-mode-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') ConfigScreen.addMode(); });
 
+MenuPreferences.apply();
 window.addEventListener('screen:activated', (e) => {
+  MenuPreferences.apply();
   if (e.detail.screen === 'config') ConfigScreen.render();
 });
 
