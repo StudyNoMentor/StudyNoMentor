@@ -124,11 +124,10 @@ const FSRS = {
     const S0 = this._S(S);
     const w17 = w[17], w18 = w[18], w19 = (w.length > 19 && isFinite(w[19])) ? w[19] : 0;
     let sInc = Math.exp(w17 * (G - 3 + w18)) * Math.pow(S0, -w19);
-    // Trava: Difícil, Bom e Fácil (G >= 2) não podem REDUZIR a estabilidade.
-    // A wiki do projeto diz "G >= 3", mas tanto a implementação de referência
-    // (py-fsrs) quanto o Rust que o Anki roda usam G >= 2. Seguimos o código,
-    // que é o que define o comportamento real do Anki.
-    if (G >= 2) sInc = Math.max(1, sInc);
+    // fsrs-rs 6.6.2 (a versão fixada pelo Anki 26.09.2) aplica
+    // a trava apenas a Good/Easy. Hard pode reduzir a estabilidade no curto
+    // prazo; impedir isso cria divergência objetiva contra o backend oficial.
+    if (G >= 3) sInc = Math.max(1, sInc);
     return this.clampS(S0 * sInc);
   },
 
