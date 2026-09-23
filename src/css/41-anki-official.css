@@ -458,3 +458,12 @@
 .ankidroid-advanced .anki-official-json{margin:0;max-width:none;min-height:360px}
 .ankidroid-status-good{color:var(--ad-review)!important;font-weight:700}
 .ankidroid-status-warn{color:var(--ad-hard)!important;font-weight:700}
+
+.ankidroid-study-exit{margin-left:-5px;flex:0 0 42px}
+@media (max-width:860px){
+  body.anki-mobile-immersive #tabs{display:none!important}
+  body.anki-mobile-immersive .nav-sheet,
+  body.anki-mobile-immersive .nav-scrim{display:none!important}
+  body.anki-mobile-immersive .main-content{padding-bottom:0!important}
+  body.anki-mobile-immersive #screen-anki{margin-bottom:0!important}
+}
