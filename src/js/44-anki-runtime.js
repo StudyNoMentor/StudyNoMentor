@@ -17,6 +17,59 @@ const AnkiRuntime = {
     if(question){this._postFrame(question,{type:'snm-anki-replay'});return true;}return false;
   },
   controlVisible(type,value){for(const f of document.querySelectorAll('iframe[data-anki-frame-id]'))this._postFrame(f,{type,value});},
+  _parentAvToken:0,_parentAudio:null,_parentUtterance:null,
+  _setParentAv(active){
+    if(active)this._avActive.add('__parent');else this._avActive.delete('__parent');
+    if(!this._avActive.size)try{if(typeof CardsScreen!=='undefined'&&CardsScreen._resumeAutoAdvanceIfReady)CardsScreen._resumeAutoAdvanceIfReady();}catch(_){}
+  },
+  stopParentAv(){
+    this._parentAvToken++;try{if(this._parentAudio){this._parentAudio.pause();this._parentAudio=null;}}catch(_){}
+    try{if(typeof speechSynthesis!=='undefined')speechSynthesis.cancel();}catch(_){}
+    this._parentUtterance=null;this._setParentAv(false);
+  },
+  _collectMarkupAv(html){
+    if(typeof DOMParser==='undefined')return [];
+    const doc=new DOMParser().parseFromString('<body>'+this._ttsMarkup(String(html||''))+'</body>','text/html'),out=[];
+    for(const el of doc.body.querySelectorAll('[data-anki-tts],audio,video')){
+      if(el.matches('[data-anki-tts]'))out.push({kind:'tts',text:el.textContent||'',spec:el.getAttribute('data-anki-tts')||''});
+      else{
+        const src=el.getAttribute('src')||(el.querySelector('source')&&el.querySelector('source').getAttribute('src'))||'';
+        if(src)out.push({kind:'media',src});
+      }
+    }
+    return out;
+  },
+  _playParentTts(item,token){
+    return new Promise(resolve=>{
+      if(token!==this._parentAvToken||typeof speechSynthesis==='undefined'||typeof SpeechSynthesisUtterance==='undefined')return resolve();
+      const u=new SpeechSynthesisUtterance(item.text||''),spec=String(item.spec||''),lm=spec.match(/(?:^|\s)lang=([^\s]+)/i);
+      if(lm)u.lang=lm[1];const vm=spec.match(/voices=([^\s]+)/i);
+      if(vm&&speechSynthesis.getVoices){const want=vm[1].split(',').map(x=>x.trim().toLowerCase());const v=speechSynthesis.getVoices().find(x=>want.includes(String(x.name||'').toLowerCase()));if(v)u.voice=v;}
+      u.onend=u.onerror=()=>{if(this._parentUtterance===u)this._parentUtterance=null;resolve();};this._parentUtterance=u;
+      try{speechSynthesis.speak(u);}catch(_){resolve();}
+    });
+  },
+  _playParentMedia(item,token){
+    return new Promise(resolve=>{
+      if(token!==this._parentAvToken||typeof Audio==='undefined')return resolve();
+      let a;try{a=new Audio(item.src);}catch(_){return resolve();}this._parentAudio=a;
+      const done=()=>{try{a.removeEventListener('ended',done);a.removeEventListener('error',done);a.removeEventListener('abort',done);}catch(_){}if(this._parentAudio===a)this._parentAudio=null;resolve();};
+      a.addEventListener('ended',done,{once:true});a.addEventListener('error',done,{once:true});a.addEventListener('abort',done,{once:true});
+      try{const p=a.play();if(p&&p.catch)p.catch(done);}catch(_){done();}
+    });
+  },
+  async playMarkupQueue(markups){
+    const items=(Array.isArray(markups)?markups:[markups]).flatMap(x=>this._collectMarkupAv(x));
+    this.stopParentAv();if(!items.length)return false;const token=++this._parentAvToken;this._setParentAv(true);
+    for(const item of items){if(token!==this._parentAvToken)break;if(item.kind==='tts')await this._playParentTts(item,token);else await this._playParentMedia(item,token);}
+    if(token===this._parentAvToken)this._setParentAv(false);return true;
+  },
+  pauseAv(){
+    this.controlVisible('snm-anki-pause');try{if(this._parentAudio)this._parentAudio.paused?this._parentAudio.play():this._parentAudio.pause();else if(typeof speechSynthesis!=='undefined')speechSynthesis.paused?speechSynthesis.resume():speechSynthesis.pause();}catch(_){}
+  },
+  seekAv(seconds){
+    this.controlVisible('snm-anki-seek',Number(seconds)||0);try{if(this._parentAudio)this._parentAudio.currentTime=Math.max(0,(this._parentAudio.currentTime||0)+(Number(seconds)||0));}catch(_){}
+  },
   _cardKey(card){return String(card&&(card.ankiId||card.id)||'');},
   clearTyped(card){
     const prefix=this._cardKey(card)+'|';
