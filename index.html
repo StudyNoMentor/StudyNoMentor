@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vdd1e454973">
+<meta name="diario-versao" content="vd9e329d096">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -5926,6 +5926,7 @@ window.__relationalBoot = true;
       <button class="tab" data-screen="estudonovo" data-short="Novo"><span class="tab-icon" aria-hidden="true">▥</span><span class="tab-label">Estudo Novo</span></button>
       <button class="tab" data-screen="leis" data-short="Leis"><span class="tab-icon" aria-hidden="true">§</span><span class="tab-label">Leis Secas</span></button>
       <button class="tab" data-screen="cards" data-primary data-short="Cards"><span class="tab-icon" aria-hidden="true">🗂️</span><span class="tab-label">Cards de Revisão</span></button>
+      <button class="tab" type="button" data-external-url="https://ankiweb.net/" data-short="Anki" title="Abrir o AnkiWeb oficial em uma nova aba"><span class="tab-icon" aria-hidden="true">A</span><span class="tab-label">Anki Oficial</span></button>
       <button class="tab" data-screen="extras" data-short="Extras"><span class="tab-icon" aria-hidden="true">✅</span><span class="tab-label">Atividades Extras</span></button>
       <button class="tab" data-screen="links" data-short="Links"><span class="tab-icon" aria-hidden="true">🔗</span><span class="tab-label">Links Úteis</span></button>
       <button class="tab" data-screen="historico" data-short="Histórico"><span class="tab-icon" aria-hidden="true">▤</span><span class="tab-label">Histórico</span></button>
@@ -18779,6 +18780,23 @@ function switchScreen(name) {
 $id('tabs').addEventListener('click', (e) => {
   const btn = e.target.closest('.tab');
   if (!btn) return;
+  /* Links externos ficam completamente fora do Study. O caso principal é
+     "Anki Oficial": não há login, token, coleção, scheduler, sync ou fallback
+     local aqui. O clique apenas entrega o usuário ao serviço oficial. */
+  const externalUrl = btn.dataset.externalUrl;
+  if (externalUrl) {
+    e.preventDefault();
+    /* No celular, entrega a navegação à própria interface responsiva do
+       AnkiWeb na mesma aba. No desktop, mantém o Study aberto e usa nova aba. */
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 860px)').matches;
+    if (isMobile) {
+      window.location.assign(externalUrl);
+    } else {
+      const w = window.open(externalUrl, '_blank', 'noopener,noreferrer');
+      if (w) try { w.opener = null; } catch (_) { _quiet(_); }
+    }
+    return;
+  }
   switchScreen(btn.dataset.screen);
 });
 
