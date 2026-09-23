@@ -182,6 +182,11 @@ const ReforcoFila = {
      execução/histórico; é essa separação que impede uma importação ou um F5 de
      reescrever a meta que a pessoa viu de manhã. */
   sincronizar() {
+    try {
+      if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
+        return { mudou: false, pausado: true };
+      }
+    } catch (_) {}
     if (this._rodando) return { mudou: false };
     this._rodando = true;
     let mudou = false;
