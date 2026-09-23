@@ -326,47 +326,6 @@ const AnkiMaxStatsMedia = {
       sample:scoped.length,scale:1,additionalNew,newLimit,reviewLimit,maxInterval,engine:'fsrs-rs '+String(out.fsrs_rs_version||'6.6.2')};
   },
 
-  _ratingModel(){
-    const logs=DB.getRevlog().filter(r=>Number(r.grade)>=1&&Number(r.grade)<=4),first=[.1,.12,.68,.1],review=[.08,.1,.72,.1],cost=[8,8,8,8];
-    const calc=(sub,fallback)=>{if(sub.length<20)return fallback;const n=[0,0,0,0];sub.forEach(r=>n[Number(r.grade)-1]++);return n.map(x=>x/sub.length);};
-    const reviewLogs=logs.filter(r=>String(r.phase||'review')==='review'),firstLogs=logs.filter(r=>String(r.phase||'')==='learning');
-    for(let g=1;g<=4;g++){const xs=logs.filter(r=>Number(r.grade)===g&&Number(r.time)>0);if(xs.length)cost[g-1]=xs.reduce((a,r)=>a+Number(r.time),0)/xs.length/1000;}
-    return {first:calc(firstLogs,first),review:calc(reviewLogs,review),cost};
-  },
-  _rnd(seed){let x=FSRS._hash(String(seed))>>>0;x^=x<<13;x^=x>>>17;x^=x<<5;return (x>>>0)/4294967296;},
-  _pick(probs,u){let a=0;for(let i=0;i<probs.length;i++){a+=probs[i];if(u<a)return i+1;}return 3;},
-  _sampleCards(max=1500){const all=DB.getCards().filter(c=>!c.suspenso);if(all.length<=max)return all.map(c=>structuredClone(c));const step=all.length/max,out=[];for(let i=0;i<max;i++)out.push(structuredClone(all[Math.floor(i*step)]));return out;},
-  simulate(days,retention,opts){
-    opts=opts||{};days=Math.max(1,Math.min(3650,Math.round(Number(days)||365)));retention=Math.max(.7,Math.min(.99,Number(retention)||.9));
-    const live=DB.getCards().filter(c=>!c.suspenso),allCount=live.length,
-      sample=opts.approximate===true?this._sampleCards(opts.sample||1500):live.map(c=>structuredClone(c));
-    const scale=opts.approximate===true&&allCount&&sample.length?allCount/sample.length:1,model=this._ratingModel(),today=todayCards(),
-      w=CardsConfig.get().weights&&FSRS.pesosValidos(CardsConfig.get().weights)?CardsConfig.get().weights:FSRS.DEFAULT_W,
-      maxIvl=Math.max(1,Math.round(opts.maxInterval==null?(Number(CardsConfig.get().maxInterval)||36500):Number(opts.maxInterval)||36500));
-    const newLimit=Math.max(0,Math.round(opts.newLimit==null?CardsConfig.get().newPerDay:Number(opts.newLimit))),
-      reviewLimit=Math.max(0,Math.round(opts.reviewLimit==null?CardsConfig.get().revPerDay:Number(opts.reviewLimit))),
-      additionalNew=Math.max(0,Math.round(Number(opts.additionalNew)||0));
-    let pendingNew=sample.filter(c=>(c.phase||'new')==='new'),
-      active=sample.filter(c=>(c.phase||'new')!=='new').map(c=>({id:c.id,s:Number(c.s)||Math.max(1,Number(c.intervalo)||1),d:Number(c.d)||5,last:-(Math.max(0,Number(c.intervalo)||1)),due:Math.max(0,String(c.due||today)<today?0:CardEngine._daysBetween(today,c.due||today)),lapses:Number(c.lapses)||0}));
-    const synthetic=Math.ceil(additionalNew/Math.max(1,scale));
-    for(let i=0;i<synthetic;i++)pendingNew.push({id:'__sim_new_'+i,phase:'new'});
-    const reviews=[],news=[],time=[],memorized=[];let introduced=0;
-    for(let day=0;day<days;day++){
-      const add=Math.min(pendingNew.length,Math.ceil(newLimit/Math.max(1,scale))),todayNew=pendingNew.splice(0,add);let nNew=0,nRev=0,sec=0;
-      for(const c of todayNew){const G=this._pick(model.first,this._rnd('n:'+c.id+':'+day)),s=FSRS.initS(G,w),d=FSRS.initD(G,w),iv=Math.max(1,Math.min(maxIvl,FSRS.interval(s,retention,w)));active.push({id:c.id,s,d,last:day,due:day+iv,lapses:0});nNew++;sec+=model.cost[G-1]*Math.max(1,(CardsConfig.get().learnSteps||[]).length||1);introduced++;}
-      const due=active.filter(c=>c.due<=day).sort((a,b)=>a.due-b.due).slice(0,Math.ceil(reviewLimit/Math.max(1,scale)));
-      for(const c of due){
-        const elapsed=Math.max(0,day-c.last),R=FSRS.R(elapsed,c.s,w),forgot=this._rnd('r:'+c.id+':'+day+':'+c.lapses)>R;let G;
-        if(forgot)G=1;else{const ok=model.review.slice();ok[0]=0;const z=ok.reduce((a,b)=>a+b,0)||1;G=this._pick(ok.map(x=>x/z),this._rnd('g:'+c.id+':'+day));if(G===1)G=3;}
-        const oldS=c.s;c.s=G===1?FSRS.nextS_forget(c.d,oldS,R,w):FSRS.nextS_recall(c.d,oldS,R,G,w);c.d=FSRS.nextD(c.d,G===1?1:G,w);c.last=day;if(G===1)c.lapses++;
-        const iv=Math.max(1,Math.min(maxIvl,FSRS.interval(c.s,retention,w)));c.due=day+iv;nRev++;sec+=model.cost[G-1]*(G===1?Math.max(1,(CardsConfig.get().relearnSteps||[]).length+1):1);
-      }
-      reviews.push(Math.round(nRev*scale));news.push(Math.round(nNew*scale));time.push(sec*scale);
-      let mem=0;for(const c of active)mem+=FSRS.R(Math.max(0,day-c.last),c.s,w);memorized.push(mem*scale);
-    }
-    return {days,retention,reviews,news,time,memorized,introduced:Math.round(introduced*scale),sample:sample.length,scale,additionalNew,newLimit,reviewLimit,maxInterval:maxIvl};
-  },
-
   _injectSimulator(){
     if(document.getElementById('anki-fsrs-simulator'))return;const cfg=CardsConfig.get(),d=document.createElement('div');d.innerHTML='<div id="anki-fsrs-simulator" class="cards-modal anki-product-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Estimativa de carga com os mesmos controles documentados no Anki atual.</p></div><button class="icon-btn" id="anki-sim-close">✕</button></div><div class="cards-modal-body">'+
       '<div class="field-group"><div class="field"><label>Dias a simular</label><input id="anki-sim-days" type="number" min="1" max="3650" value="365"></div><div class="field"><label>Retenção desejada (%)</label><input id="anki-sim-retention" type="number" min="70" max="99" value="'+Math.round((cfg.retention||.9)*100)+'"></div></div>'+
