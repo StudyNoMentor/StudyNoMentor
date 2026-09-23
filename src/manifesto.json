@@ -322,186 +322,186 @@
  {
   "arquivo": "js/44-anki-total-parity.js",
   "de": 38155,
-  "ate": 38573
+  "ate": 38632
  },
  {
   "arquivo": "js/44-anki-practical-10.js",
-  "de": 38575,
-  "ate": 39145
+  "de": 38634,
+  "ate": 39204
  },
  {
   "arquivo": "js/44-anki-official.js",
-  "de": 39147,
-  "ate": 39978
+  "de": 39206,
+  "ate": 40037
  },
  {
   "arquivo": "js/45-autoteste.js",
-  "de": 39980,
-  "ate": 41079
+  "de": 40039,
+  "ate": 41138
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 41081,
-  "ate": 41690
+  "de": 41140,
+  "ate": 41749
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 41692,
-  "ate": 42958
+  "de": 41751,
+  "ate": 43017
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 42960,
-  "ate": 43166
+  "de": 43019,
+  "ate": 43225
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 43168,
-  "ate": 43633
+  "de": 43227,
+  "ate": 43692
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 43635,
-  "ate": 43866
+  "de": 43694,
+  "ate": 43925
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 43868,
-  "ate": 46500
+  "de": 43927,
+  "ate": 46559
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 46502,
-  "ate": 46685
+  "de": 46561,
+  "ate": 46744
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 46687,
-  "ate": 47292
+  "de": 46746,
+  "ate": 47372
  },
  {
   "arquivo": "js/54-reforco-fila.js",
-  "de": 47294,
-  "ate": 47924
+  "de": 47374,
+  "ate": 48004
  },
  {
   "arquivo": "js/55-extras-ui-moderna.js",
-  "de": 47926,
-  "ate": 48311
+  "de": 48006,
+  "ate": 48391
  },
  {
   "arquivo": "js/56-leis-rodizio.js",
-  "de": 48313,
-  "ate": 48771
+  "de": 48393,
+  "ate": 48851
  },
  {
   "arquivo": "js/57-extras-lei-fonte.js",
-  "de": 48773,
-  "ate": 48850
+  "de": 48853,
+  "ate": 48930
  },
  {
   "arquivo": "js/58-extras-governanca.js",
-  "de": 48852,
-  "ate": 49002
+  "de": 48932,
+  "ate": 49082
  },
  {
   "arquivo": "js/59-tec-premium.js",
-  "de": 49004,
-  "ate": 49107
+  "de": 49084,
+  "ate": 49187
  },
  {
   "arquivo": "js/59-extras-central-ui.js",
-  "de": 49109,
-  "ate": 49379
+  "de": 49189,
+  "ate": 49459
  },
  {
   "arquivo": "js/59-extras-stability.js",
-  "de": 49381,
-  "ate": 49514
+  "de": 49461,
+  "ate": 49594
  },
  {
   "arquivo": "js/59-interaction-feedback.js",
-  "de": 49516,
-  "ate": 49682
+  "de": 49596,
+  "ate": 49762
  },
  {
   "arquivo": "js/59-extras-ux100.js",
-  "de": 49684,
-  "ate": 49921
+  "de": 49764,
+  "ate": 50001
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 49923,
-  "ate": 50307
+  "de": 50003,
+  "ate": 50462
  },
  {
   "arquivo": "js/60-relational-store.js",
-  "de": 50309,
-  "ate": 51310
+  "de": 50464,
+  "ate": 51479
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 51312,
-  "ate": 51804
+  "de": 51481,
+  "ate": 51985
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 51806,
-  "ate": 52046
+  "de": 51987,
+  "ate": 52227
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 52048,
-  "ate": 52832
+  "de": 52229,
+  "ate": 53013
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 52834,
-  "ate": 53089
+  "de": 53015,
+  "ate": 53270
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 53091,
-  "ate": 53626
+  "de": 53272,
+  "ate": 53807
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 53628,
-  "ate": 54705
+  "de": 53809,
+  "ate": 54886
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 54707,
-  "ate": 55000
+  "de": 54888,
+  "ate": 55181
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 55001,
-  "ate": 55231
+  "de": 55182,
+  "ate": 55412
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 55233,
-  "ate": 55921
+  "de": 55414,
+  "ate": 56102
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 55923,
-  "ate": 56226
+  "de": 56104,
+  "ate": 56407
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 56228,
-  "ate": 56571
+  "de": 56409,
+  "ate": 56752
  },
  {
   "arquivo": "js/94-global-scope.js",
-  "de": 56573,
-  "ate": 57659
+  "de": 56754,
+  "ate": 57840
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 57661,
-  "ate": 57853
+  "de": 57842,
+  "ate": 58034
  }
 ]

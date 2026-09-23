@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve5c7043284">
+<meta name="diario-versao" content="v64dfb17fee">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -38167,6 +38167,8 @@ const AnkiTotalParity = {
   _restoring:false,
   _mediaApplying:false,
   _mediaSyncing:false,
+  _mediaSyncAt:new Map(),
+  MEDIA_SYNC_MIN_MS:5*60*1000,
   _customSchedulingErrorShown:false,
 
   install(){
@@ -38414,26 +38416,83 @@ const AnkiTotalParity = {
     const row={profile_id:ctx.profile,plan_id:ctx.plan,media_name:String(rec.name||''),mime:String(rec.mime||''),fingerprint:String(rec.fingerprint||''),size_bytes:AnkiMediaStore._u8(rec.bytes||[]).length,content_b64:rec.trashedAt?null:this._bytesToB64(rec.bytes||[]),deleted_at:rec.trashedAt?new Date(rec.trashedAt).toISOString():null,updated_at:new Date(Number(rec.updatedAt)||Date.now()).toISOString()};
     const {error}=await CloudStore.client.from('study_anki_media').upsert(row,{onConflict:'profile_id,plan_id,media_name'});if(error)throw error;return true;
   },
-  async syncMedia(show){
-    if(this._mediaSyncing)return false;const ctx=this._mediaContext();if(!ctx){if(show)showToast('Entre na conta para sincronizar mídia');return false;}
+  async syncMedia(show,force){
+    if(this._mediaSyncing)return false;
+    const ctx=this._mediaContext();
+    if(!ctx){if(show)showToast('Entre na conta para sincronizar mídia');return false;}
+    if(typeof CloudStore!=='undefined'&&CloudStore.serviceStatus==='restricted'){
+      if(show)showToast('Banco restrito por cota; mídia não foi consultada');
+      return false;
+    }
+    const syncKey=ctx.profile+'|'+ctx.plan,now=Date.now(),last=this._mediaSyncAt.get(syncKey)||0;
+    if(!show&&!force&&last&&now-last<this.MEDIA_SYNC_MIN_MS)return false;
+
     this._mediaSyncing=true;
     try{
-      const {data,error}=await CloudStore.client.from('study_anki_media').select('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,content_b64,deleted_at,updated_at').eq('profile_id',ctx.profile).eq('plan_id',ctx.plan);
-      if(error)throw error;const remote=new Map((data||[]).map(x=>[String(x.media_name),x])),local=await AnkiMediaStore.all(true),localMap=new Map(local.map(x=>[String(x.name),x]));
-      for(const l of local){const r=remote.get(String(l.name));if(!r||Number(l.updatedAt||0)>Date.parse(r.updated_at||0)+500)await this._pushMedia(l);}
+      /* Primeiro baixa SOMENTE metadados. O payload base64 pode ser muito maior
+         que o restante do perfil e antes era transferido inteiro a cada foco. */
+      const metaRes=await CloudStore.client.from('study_anki_media')
+        .select('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,deleted_at,updated_at')
+        .eq('profile_id',ctx.profile).eq('plan_id',ctx.plan);
+      if(metaRes.error)throw metaRes.error;
+      const meta=metaRes.data||[],remote=new Map(meta.map(x=>[String(x.media_name),x]));
+      const local=await AnkiMediaStore.all(true),localMap=new Map(local.map(x=>[String(x.name),x]));
+
+      /* Upload continua incremental: só o arquivo local ausente/remotamente
+         mais antigo é enviado. */
+      for(const l of local){
+        const r=remote.get(String(l.name));
+        if(!r||Number(l.updatedAt||0)>Date.parse(r.updated_at||0)+500)await this._pushMedia(l);
+      }
+
+      const needContent=[];
       this._mediaApplying=true;
       try{
-        for(const r of (data||[])){
-          const l=localMap.get(String(r.media_name)),rt=Date.parse(r.updated_at||0),lt=Number(l&&l.updatedAt||0);if(l&&lt>rt+500)continue;
-          if(r.deleted_at){if(l&&!l.trashedAt)await AnkiMediaStore._setTrash(r.media_name,true);continue;}
-          if(!r.content_b64)continue;
-          const bytes=this._b64ToBytes(r.content_b64),fp=AnkiMediaStore.fingerprint(bytes);
-          if(!l||l.fingerprint!==fp||l.trashedAt){const rec=await AnkiMediaStore.put(r.media_name,bytes,r.mime||'');rec.updatedAt=rt||Date.now();const db=await AnkiMediaStore._open();if(db)await new Promise(resolve=>{const tx=db.transaction(AnkiMediaStore.STORE,'readwrite');tx.objectStore(AnkiMediaStore.STORE).put(rec);tx.oncomplete=()=>resolve();tx.onerror=()=>resolve();});}
+        for(const r of meta){
+          const name=String(r.media_name),l=localMap.get(name);
+          const rt=Date.parse(r.updated_at||0),lt=Number(l&&l.updatedAt||0);
+          if(l&&lt>rt+500)continue;
+          if(r.deleted_at){
+            if(l&&!l.trashedAt)await AnkiMediaStore._setTrash(name,true);
+            continue;
+          }
+          if(!l||l.fingerprint!==String(r.fingerprint||'')||l.trashedAt)needContent.push(name);
+        }
+
+        /* Conteúdo binário só é buscado para nomes realmente novos/alterados.
+           O lote limitado evita URLs enormes em uma primeira sincronização. */
+        for(let i=0;i<needContent.length;i+=50){
+          const names=needContent.slice(i,i+50);
+          const fullRes=await CloudStore.client.from('study_anki_media')
+            .select('media_name,mime,fingerprint,content_b64,deleted_at,updated_at')
+            .eq('profile_id',ctx.profile).eq('plan_id',ctx.plan).in('media_name',names);
+          if(fullRes.error)throw fullRes.error;
+          for(const r of (fullRes.data||[])){
+            if(r.deleted_at||!r.content_b64)continue;
+            const bytes=this._b64ToBytes(r.content_b64),fp=AnkiMediaStore.fingerprint(bytes);
+            const l=localMap.get(String(r.media_name));
+            if(!l||l.fingerprint!==fp||l.trashedAt){
+              const rec=await AnkiMediaStore.put(r.media_name,bytes,r.mime||'');
+              rec.updatedAt=Date.parse(r.updated_at||0)||Date.now();
+              const db=await AnkiMediaStore._open();
+              if(db)await new Promise(resolve=>{
+                const tx=db.transaction(AnkiMediaStore.STORE,'readwrite');
+                tx.objectStore(AnkiMediaStore.STORE).put(rec);
+                tx.oncomplete=()=>resolve();tx.onerror=()=>resolve();
+              });
+            }
+          }
         }
       }finally{this._mediaApplying=false;}
-      if(show)showToast('Mídia sincronizada ✓');return true;
-    }catch(e){console.warn('Media sync',e);if(show)showToast('Falha ao sincronizar mídia');return false;}
-    finally{this._mediaSyncing=false;}
+
+      this._mediaSyncAt.set(syncKey,Date.now());
+      if(show)showToast(needContent.length?'Mídia sincronizada ✓':'Mídia já estava atualizada ✓');
+      return true;
+    }catch(e){
+      console.warn('Media sync',e);
+      if(show)showToast('Falha ao sincronizar mídia');
+      return false;
+    }finally{this._mediaSyncing=false;}
   },
   _installMediaSync(){
     if(typeof AnkiMediaStore==='undefined')return;
@@ -38441,7 +38500,7 @@ const AnkiTotalParity = {
     const oldTrash=AnkiMediaStore._setTrash.bind(AnkiMediaStore);AnkiMediaStore._setTrash=async(name,value)=>{const ok=await oldTrash(name,value);if(ok&&!this._mediaApplying){const rec=(await AnkiMediaStore.all(true)).find(x=>x.name===String(name));if(rec)this._pushMedia(rec).catch(e=>console.warn('Media tombstone',e));}return ok;};
     queueMicrotask(()=>{
       if(typeof CloudStore==='undefined')return;
-      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const old=CloudStore.syncNow.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false);return ok;};CloudStore.syncNow.__ankiMedia=true;}
+      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const old=CloudStore.syncNow.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false,true);return ok;};CloudStore.syncNow.__ankiMedia=true;}
       if(typeof CloudStore.syncOnFocus==='function'&&!CloudStore.syncOnFocus.__ankiMedia){const old=CloudStore.syncOnFocus.bind(CloudStore);const self=this;CloudStore.syncOnFocus=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false);return ok;};CloudStore.syncOnFocus.__ankiMedia=true;}
       setTimeout(()=>this.syncMedia(false),1200);
     });
@@ -46783,10 +46842,21 @@ const ProfileUI = {
       if (sub) sub.textContent = 'Entre para continuar seus estudos.';
       const st = document.getElementById('gate-conn-status');
       if (st) {
-        const s = CS ? CS.libStatus : 'pending';
-        if (s === 'ready') { st.innerHTML = '<span class="cdot ok"></span> Servidor conectado'; st.className = 'gate-conn ok'; }
-        else if (s === 'pending') { st.innerHTML = '<span class="cdot"></span> Conectando ao servidor...'; st.className = 'gate-conn'; }
-        else { st.innerHTML = '<span class="cdot bad"></span> Servidor indisponível — verifique a internet'; st.className = 'gate-conn bad'; }
+        const lib = CS ? CS.libStatus : 'pending';
+        const svc = CS ? (CS.serviceStatus || 'unknown') : 'unknown';
+        if (svc === 'restricted') {
+          st.innerHTML = '<span class="cdot bad"></span> Servidor restrito por cota';
+          st.className = 'gate-conn bad';
+        } else if (svc === 'offline' || (lib !== 'ready' && lib !== 'pending')) {
+          st.innerHTML = '<span class="cdot bad"></span> Servidor indisponível — verifique a internet';
+          st.className = 'gate-conn bad';
+        } else if (lib === 'ready' && svc === 'ok') {
+          st.innerHTML = '<span class="cdot ok"></span> Servidor conectado';
+          st.className = 'gate-conn ok';
+        } else {
+          st.innerHTML = '<span class="cdot"></span> Conectando ao servidor...';
+          st.className = 'gate-conn';
+        }
       }
     } else {
       // Logado. Se vamos ENTRAR DIRETO (perfil padrão), NÃO mostramos o seletor:
@@ -47135,7 +47205,17 @@ const ProfileUI = {
     }
   },
   _friendlyAuthError(err) {
-    const m = (err && err.message || '').toLowerCase();
+    const m = [
+      err && err.message, err && err.code, err && err.status,
+      err && err.error_description
+    ].filter(Boolean).join(' ').toLowerCase();
+    if (m.includes('exceed_egress_quota') ||
+        m.includes('service for this project is restricted') ||
+        /\b402\b/.test(m)) {
+      try { if (window.CloudStore && CloudStore._setServiceStatus) CloudStore._setServiceStatus('restricted'); }
+      catch (e) { _quiet(e, 'auth-quota-status'); }
+      return 'Servidor restrito por cota do Supabase. O login volta quando a cota for liberada.';
+    }
     if (m.includes('invalid login')) return 'E-mail ou senha incorretos.';
     if (m.includes('email not confirmed')) return 'Confirme seu e-mail e tente novamente.';
     if (m.includes('already registered') || m.includes('already been registered')) return 'Este e-mail já tem conta. Use a aba "Entrar".';
@@ -49940,8 +50020,16 @@ const CloudStore = {
   _cfgMode: 'signin',
   _lastSyncAt: null,
   _syncing: false,
+  serviceStatus: 'unknown',
+  _serviceStatusChangedAt: 0,
+  _prefsHydratedUid: null,
+  _prefsHydratePromise: null,
+  _prefsHydratingUid: null,
+  _focusSyncPromise: null,
+  _lastFocusSyncAt: 0,
 
   FETCH_TETO_MS: 25000,
+  FOCUS_SYNC_MIN_MS: 60 * 1000,
   TOKEN_RETENTATIVAS: 2,
   TOKEN_ESPERA_MS: 1500,
 
@@ -49964,13 +50052,13 @@ const CloudStore = {
       this.client.auth.getSession()
         .then(({ data }) => {
           this.session = (data && data.session) || null;
-          this.onAuth();
+          this.onAuth('SESSION_INIT');
         })
         .catch(e => console.warn('getSession', e));
 
       this.client.auth.onAuthStateChange((evento, session) => {
         this.session = session;
-        this.onAuth();
+        this.onAuth(evento);
         if (evento === 'PASSWORD_RECOVERY' &&
             window.ProfileUI && ProfileUI.promptNewPasswordAfterRecovery) {
           setTimeout(() => ProfileUI.promptNewPasswordAfterRecovery(), 300);
@@ -49987,6 +50075,29 @@ const CloudStore = {
   isLoggedIn() { return !!this.session; },
   userEmail() { return this.session && this.session.user ? this.session.user.email : null; },
 
+  _setServiceStatus(next) {
+    const status = ['unknown','ok','restricted','offline'].includes(next) ? next : 'unknown';
+    if (this.serviceStatus === status) return;
+    const prev = this.serviceStatus;
+    this.serviceStatus = status;
+    this._serviceStatusChangedAt = Date.now();
+    try {
+      window.dispatchEvent(new CustomEvent('cloud:service-status', { detail: { status, previous: prev } }));
+    } catch (e) { _quiet(e, 'cloud-service-status-event'); }
+    try {
+      if (window.ProfileUI && ProfileUI.isGateOpen && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+    } catch (e) { _quiet(e, 'cloud-service-status-gate'); }
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(); }
+    catch (e) { _quiet(e, 'cloud-service-status-ui'); }
+    if (status === 'ok' && prev === 'restricted' && this.isLoggedIn()) {
+      try {
+        const id = window.ProfileManager && ProfileManager.getActiveProfileId
+          ? ProfileManager.getActiveProfileId() : null;
+        if (id && window.RelationalStore) RelationalStore.subscribeProfile(id);
+      } catch (e) { _quiet(e, 'cloud-service-status-resubscribe'); }
+    }
+  },
+
   _buscarComTeto(url, opcoes) {
     const o = opcoes || {};
     if (typeof AbortController === 'undefined') return fetch(url, o);
@@ -49998,7 +50109,15 @@ const CloudStore = {
       else externo.addEventListener('abort', propagar, { once: true });
     }
     const t = setTimeout(propagar, this.FETCH_TETO_MS);
-    return fetch(url, { ...o, signal: ac.signal }).finally(() => clearTimeout(t));
+    return fetch(url, { ...o, signal: ac.signal })
+      .then(res => {
+        this._setServiceStatus(res.status === 402 ? 'restricted' : 'ok');
+        return res;
+      }, err => {
+        this._setServiceStatus('offline');
+        throw err;
+      })
+      .finally(() => clearTimeout(t));
   },
 
   _withTimeout(p, ms, label) {
@@ -50065,24 +50184,42 @@ const CloudStore = {
     finally { this._applying = antes; }
   },
 
-  onAuth() {
+  onAuth(evento) {
     try { if (window.ProfileUI) ProfileUI.onAuthChanged(); } catch (e) { _quiet(e, 'auth-ui'); }
     try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (e) { _quiet(e, 'auth-sync-ui'); }
 
     if (!this.isLoggedIn()) {
+      this._prefsHydratedUid = null;
+      this._prefsHydratingUid = null;
+      this._prefsHydratePromise = null;
       this._unsub();
       return;
     }
 
     this.subscribeRealtime();
 
+    /* INITIAL_SESSION, SIGNED_IN e TOKEN_REFRESHED podem apontar para a mesma
+       sessão. Preferências globais só precisam ser lidas uma vez por usuário;
+       reler em todo evento de auth multiplicava SELECTs sem trazer dado novo. */
     try {
-      if (window.RelationalStore) {
-        RelationalStore.hydrateUserPreferences().catch(e => _quiet(e, 'rel-user-prefs'));
+      const uid = this.session && this.session.user && this.session.user.id;
+      if (uid && window.RelationalStore &&
+          this._prefsHydratedUid !== uid &&
+          this._prefsHydratingUid !== uid) {
+        this._prefsHydratingUid = uid;
+        const p = RelationalStore.hydrateUserPreferences()
+          .then(() => { this._prefsHydratedUid = uid; })
+          .catch(e => {
+            if (this._prefsHydratedUid === uid) this._prefsHydratedUid = null;
+            _quiet(e, 'rel-user-prefs');
+          })
+          .finally(() => {
+            if (this._prefsHydratingUid === uid) this._prefsHydratingUid = null;
+            if (this._prefsHydratePromise === p) this._prefsHydratePromise = null;
+          });
+        this._prefsHydratePromise = p;
       }
     } catch (e) { _quiet(e, 'rel-user-prefs-start'); }
-    try { if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage(); }
-    catch (e) { _quiet(e, 'profile-stage-login'); }
   },
 
   async signUp(email, password) {
@@ -50205,20 +50342,38 @@ const CloudStore = {
     /* Não existe dado de estudo persistente no navegador para descarregar. */
   },
 
-  async syncOnFocus() {
+  async syncOnFocus(opts) {
     if (!this.isReady() || !this.isLoggedIn() || !window.RelationalStore) return false;
+    if (this.serviceStatus === 'restricted') return false;
     const id = window.ProfileManager && ProfileManager.getActiveProfileId
       ? ProfileManager.getActiveProfileId() : null;
     if (!id) return false;
-    try {
-      await RelationalStore.flush();
-      await RelationalStore.catchUp(id, 'focus');
-      this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
-      return true;
-    } catch (e) {
-      _quiet(e, 'rel-sync-focus');
-      return false;
-    }
+
+    const force = !!(opts && opts.force);
+    const now = Date.now();
+    if (this._focusSyncPromise) return this._focusSyncPromise;
+    if (!force && this._lastFocusSyncAt && now - this._lastFocusSyncAt < this.FOCUS_SYNC_MIN_MS) return false;
+
+    this._lastFocusSyncAt = now;
+    const job = (async () => {
+      try {
+        /* Se o websocket tiver sido encerrado enquanto a aba estava em segundo
+           plano, o foco restabelece o realtime antes do catch-up de segurança. */
+        try { RelationalStore.subscribeProfile(id); } catch (e) { _quiet(e, 'rel-sync-focus-subscribe'); }
+        await RelationalStore.flush();
+        await RelationalStore.catchUp(id, 'focus');
+        this._lastSyncAt = RelationalStore._lastSyncAt || Date.now();
+        return true;
+      } catch (e) {
+        this._lastFocusSyncAt = 0; // permite nova tentativa real após falha
+        _quiet(e, 'rel-sync-focus');
+        return false;
+      }
+    })();
+    this._focusSyncPromise = job.finally(() => {
+      if (this._focusSyncPromise) this._focusSyncPromise = null;
+    });
+    return this._focusSyncPromise;
   },
 
   async syncNow() {
@@ -50784,9 +50939,19 @@ const RelationalStore = {
     this._pending++;
     const run = async()=>{
       let last;
+      if(window.CloudStore&&CloudStore.serviceStatus==='restricted'){
+        const e=new Error('Banco restrito por cota do Supabase');
+        e.code='quota-restricted';this._lastError=e;throw e;
+      }
       for(let i=0;i<3;i++){
         try { const r=await task(); this._lastError=null; this._lastSyncAt=Date.now(); return r; }
-        catch(e){ last=e; if(i<2) await new Promise(res=>setTimeout(res,[250,900][i])); }
+        catch(e){
+          last=e;
+          /* 402 de cota não melhora repetindo a mesma operação. O fetch global
+             marca o serviço após a primeira resposta e a fila para de martelar. */
+          if(window.CloudStore&&CloudStore.serviceStatus==='restricted')break;
+          if(i<2) await new Promise(res=>setTimeout(res,[250,900][i]));
+        }
       }
       this._lastError=last; throw last;
     };
@@ -50982,6 +51147,9 @@ const RelationalStore = {
   },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
+    /* Reaplicar exatamente o mesmo valor não é uma mutação persistente.
+       Evita UPSERTs disparados por renderizações/reativações de tela. */
+    if(oldRaw===newRaw) return;
     /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
        Essas escritas de UI são apenas projeção efêmera; não entram em fila e
        não viram falso erro de banco. Depois do login, isReady() permanece true
@@ -51289,7 +51457,8 @@ const RelationalStore = {
         if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED'){
           if(this._channel===ch)this._channel=null;
           clearTimeout(this._resubTimer);
-          this._resubTimer=setTimeout(()=>this.subscribeProfile(profileId),1200);
+          if(window.CloudStore&&CloudStore.serviceStatus==='restricted')return;
+          this._resubTimer=setTimeout(()=>this.subscribeProfile(profileId),5000);
         }
       });
     this._channel=ch;
@@ -51327,7 +51496,13 @@ const CloudUI = {
       const slotField = document.getElementById('cloud-slot-name'); if (slotField && slotField.closest('.field')) slotField.closest('.field').style.display = 'none';
       const auto = document.getElementById('cloud-autosync'); if (auto && auto.closest('label')) auto.closest('label').style.display = 'none';
       const slots = document.getElementById('cloud-slots-list'); if (slots) slots.innerHTML = '<p class="hint">A sincronização é automática. Use os botões acima só para forçar envio/baixa manual.</p>';
-      this.setStatus('ok', 'Sincronização automática ativa');
+      if (CloudStore.serviceStatus === 'restricted') {
+        this.setStatus('error', 'Banco restrito por cota do Supabase');
+      } else if (CloudStore.serviceStatus === 'offline') {
+        this.setStatus('error', 'Sem conexão com o banco');
+      } else {
+        this.setStatus('ok', 'Sincronização automática ativa');
+      }
       this.renderQueue();
     }
   },
@@ -51427,6 +51602,10 @@ const CloudUI = {
     if (!tone) {
       if (!CS || !CS.isReady()) {
         tone = 'error'; text = 'Banco indisponível';
+      } else if (CS.serviceStatus === 'restricted') {
+        tone = 'error'; text = 'Banco restrito por cota do Supabase';
+      } else if (CS.serviceStatus === 'offline') {
+        tone = 'error'; text = 'Sem conexão com o banco';
       } else if (!CS.isLoggedIn()) {
         tone = 'off'; text = 'Entre para acessar o banco';
       } else if (RS && RS._lastError) {
@@ -51751,19 +51930,21 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   window.addEventListener('focus', () => CloudStore.syncOnFocus());
   window.addEventListener('online', () => {
     if (window.CloudUI) CloudUI.refreshSyncBtn();
-    CloudStore.syncOnFocus();
+    CloudStore.syncOnFocus({ force: true });
   });
   window.addEventListener('offline', () => {
     if (window.CloudUI) CloudUI.setStatus('error', 'Sem conexão com o banco');
   });
 
-  /* Realtime acelera. Este pulso é a rede de segurança contra qualquer evento
-     WebSocket perdido: consulta a cópia canônica no SQL enquanto a aba está ativa. */
+  /* Realtime continua sendo o caminho normal e imediato. O pulso abaixo é
+     somente uma rede de segurança para um raro evento WebSocket perdido.
+     Antes rodava a cada 30 s e gerava milhares de SELECTs por dia mesmo sem
+     mudança; 10 min preservam a recuperação sem transformar o SQL em polling. */
   setInterval(() => {
     try {
       if (document.visibilityState === 'visible' && window.CloudStore) CloudStore.syncOnFocus();
     } catch (_) { _quiet(_); }
-  }, 30000);
+  }, 10 * 60 * 1000);
 
   setInterval(() => {
     try { if (window.CloudUI) CloudUI.refreshSyncBtn(); } catch (_) { _quiet(_); }
