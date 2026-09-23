@@ -140,18 +140,20 @@ const AnkiMaxParity = {
     const b=AnkiProductParity.browser;try{localStorage.setItem(this._browserPrefsKey(),JSON.stringify({mode:b.mode,columns:b.columns,sort:b.sort,sortDir:b.sortDir}));}catch(_){}
   },
   _columnDefs(){
+    const both=['notes','cards'];
     return {
-      sortField:{label:'Classificar campo',modes:['notes','cards']},
-      question:{label:'Pergunta',modes:['cards']},answer:{label:'Resposta',modes:['cards']},
-      deck:{label:'Baralho',modes:['cards']},notetype:{label:'Tipo de nota',modes:['notes','cards']},
-      template:{label:'Tipo de card',modes:['cards']},due:{label:'Vencimento',modes:['cards']},
-      interval:{label:'Intervalo',modes:['cards']},ease:{label:'Facilidade',modes:['cards']},
-      stability:{label:'Estabilidade',modes:['cards']},difficulty:{label:'Dificuldade',modes:['cards']},
-      retrievability:{label:'Recuperabilidade',modes:['cards']},reps:{label:'Revisões',modes:['cards']},
-      lapses:{label:'Lapsos',modes:['cards']},position:{label:'Posição',modes:['cards']},
-      flag:{label:'Bandeira',modes:['cards']},tags:{label:'Etiquetas',modes:['notes','cards']},
-      cards:{label:'Cards',modes:['notes']},created:{label:'Criada',modes:['notes','cards']},
-      modified:{label:'Modificada',modes:['notes','cards']},noteId:{label:'ID nota',modes:['notes','cards']},cardId:{label:'ID card',modes:['cards']}
+      sortField:{label:'Classificar campo',modes:both},
+      question:{label:'Pergunta',modes:both},answer:{label:'Resposta',modes:both},
+      deck:{label:'Baralho',modes:both},notetype:{label:'Tipo de nota',modes:both},
+      template:{label:'Card(s)',modes:both},due:{label:'Vencimento',modes:both},
+      interval:{label:'(Méd.) Intervalo',modes:both},ease:{label:'(Méd.) Facilidade',modes:both},
+      stability:{label:'(Méd.) Estabilidade',modes:both},difficulty:{label:'(Méd.) Dificuldade',modes:both},
+      retrievability:{label:'(Méd.) Recuperabilidade',modes:both},reps:{label:'Revisões',modes:both},
+      lapses:{label:'Lapsos',modes:both},position:{label:'Posição',modes:both},
+      flag:{label:'Bandeira',modes:both},tags:{label:'Etiquetas',modes:both},
+      cards:{label:'Cards',modes:both},created:{label:'Criada',modes:both},
+      modified:{label:'Nota modificada',modes:both},cardModified:{label:'Card modificado',modes:both},
+      noteId:{label:'ID nota',modes:both},cardId:{label:'ID card',modes:both}
     };
   },
   _defaultColumns(mode){return mode==='cards'?['question','deck','due','interval','stability','difficulty']:['sortField','notetype','cards','tags'];},
@@ -169,43 +171,77 @@ const AnkiMaxParity = {
   },
   _deckName(card){const id=card&&(card.originalDeckId||card.deckId),d=DB.getDecks().find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
   _templateName(row){
-    const c=row.card;if(!c||!row.nt)return '';const i=Number(c.ankiTemplateOrd)||0;return String(row.nt.templates&&row.nt.templates[i]&&row.nt.templates[i].name||('Card '+(i+1)));
+    const c=row.card||(row.cards&&row.cards[0]);if(!c||!row.nt)return '';const i=Number(c.ankiTemplateOrd)||0;return String(row.nt.templates&&row.nt.templates[i]&&row.nt.templates[i].name||('Card '+(i+1)));
   },
   _renderSides(row){
     const c=row.card||(row.cards&&row.cards[0]);if(!c||!row.note||!row.nt)return {q:'',a:''};
-    try{const q=AnkiParity.renderTemplate(row.nt,row.note,Number(c.ankiTemplateOrd)||0,'question',c,''),a=AnkiParity.renderTemplate(row.nt,row.note,Number(c.ankiTemplateOrd)||0,'answer',c,q);return {q:this.plain(q),a:this.plain(a)};}catch(_){return {q:'',a:''};}
+    try{
+      const q=AnkiProductParity.plain(AnkiParity.renderTemplate(row.nt,row.note,Number(c.ankiTemplateOrd)||0,'question',c,''));
+      let a=AnkiProductParity.plain(AnkiParity.renderTemplate(row.nt,row.note,Number(c.ankiTemplateOrd)||0,'answer',c,q));
+      // Igual ao Browser do Anki: se a resposta começa repetindo a pergunta,
+      // a coluna Answer mostra somente o trecho adicional.
+      if(q&&a.startsWith(q))a=a.slice(q.length).trim();
+      return {q,a};
+    }catch(_){return {q:'',a:''};}
   },
   plain(v){return AnkiProductParity.plain(v);},
+  _eligibleNoteCards(row){return (row.cards||[]).filter(c=>!c.suspenso&&!CardEngine.estaEnterrado(c)&&!c.originalDeckId);},
+  _avgCard(row,fn,filter){
+    const xs=(row.cards||[]).filter(c=>!filter||filter(c)).map(fn).map(Number).filter(Number.isFinite);
+    return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:0;
+  },
   _colValue(row,key){
-    const c=row.card||(row.cards&&row.cards[0]),sides=(key==='question'||key==='answer')?this._renderSides(row):null;
+    const noteMode=AnkiProductParity.browser.mode==='notes',cards=row.cards||[],c=row.card||cards[0],sides=(key==='question'||key==='answer')?this._renderSides(row):null;
     if(key==='sortField')return row.field||'';
     if(key==='question')return sides.q;if(key==='answer')return sides.a;
-    if(key==='deck')return this._deckName(c);if(key==='notetype')return String(row.nt&&row.nt.name||'');
-    if(key==='template')return this._templateName(row);
-    if(key==='due')return c?(c.dueTs?new Date(c.dueTs).toISOString():String(c.due||'')):'';
-    if(key==='interval')return Number(c&&c.intervalo)||0;if(key==='ease')return Number(c&&c.ease)||0;
-    if(key==='stability')return Number(c&&c.s)||0;if(key==='difficulty')return Number(c&&c.d)||0;
-    if(key==='retrievability'){
-      if(!c)return 0;try{return Number(CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId)))||0;}catch(_){return 0;}
+    if(key==='deck'){
+      if(!noteMode)return this._deckName(c);
+      const names=[...new Set(cards.map(x=>this._deckName(x)).filter(Boolean))];return names.length===1?names[0]:names.length;
     }
-    if(key==='reps')return Number(c&&c.reps)||0;if(key==='lapses')return Number(c&&c.lapses)||0;
-    if(key==='position')return Number(c&&(c.posicaoNova||c.ankiDue))||0;if(key==='flag')return Number(c&&c.flag)||0;
-    if(key==='tags')return (row.tags||[]).join(' ');if(key==='cards')return row.cards?row.cards.length:1;
+    if(key==='notetype')return String(row.nt&&row.nt.name||'');
+    if(key==='template')return noteMode?cards.length:this._templateName(row);
+    if(key==='cards')return noteMode?cards.length:this._templateName(row);
+    if(key==='due'){
+      if(!noteMode)return c?(c.dueTs?Number(c.dueTs):String(c.due||'')):'';
+      const eligible=this._eligibleNoteCards(row).filter(x=>(x.phase||'new')!=='new');
+      if(!eligible.length)return '';
+      const score=x=>x.dueTs!=null?Number(x.dueTs):(Date.parse(String(x.due||'')+'T00:00:00')||Infinity);
+      return eligible.slice().sort((a,b)=>score(a)-score(b))[0].dueTs||eligible.slice().sort((a,b)=>score(a)-score(b))[0].due||'';
+    }
+    if(key==='interval')return noteMode?this._avgCard(row,x=>x.intervalo,x=>['review','relearning'].includes(String(x.phase||''))):Number(c&&c.intervalo)||0;
+    if(key==='ease')return noteMode?this._avgCard(row,x=>x.ease,x=>String(x.phase||'new')!=='new'):Number(c&&c.ease)||0;
+    if(key==='stability')return noteMode?this._avgCard(row,x=>x.s,x=>x.s!=null):Number(c&&c.s)||0;
+    if(key==='difficulty')return noteMode?this._avgCard(row,x=>x.d,x=>x.d!=null):Number(c&&c.d)||0;
+    if(key==='retrievability'){
+      const rv=x=>{try{return Number(CardEngine.retrievabilityDe(x,todayCards(),CardsConfig.weightsFor(x.originalDeckId||x.deckId)))||0;}catch(_){return 0;}};
+      return noteMode?this._avgCard(row,rv,x=>x.s!=null):(c?rv(c):0);
+    }
+    if(key==='reps')return noteMode?cards.reduce((n,x)=>n+(Number(x.reps)||0),0):Number(c&&c.reps)||0;
+    if(key==='lapses')return noteMode?cards.reduce((n,x)=>n+(Number(x.lapses)||0),0):Number(c&&c.lapses)||0;
+    if(key==='position'){
+      if(!noteMode)return Number(c&&(c.posicaoNova||c.ankiDue))||0;
+      const ns=cards.filter(x=>String(x.phase||'new')==='new').map(x=>Number(x.posicaoNova||x.ankiDue)).filter(Number.isFinite);return ns.length?Math.min(...ns):0;
+    }
+    if(key==='flag')return noteMode?cards.reduce((m,x)=>Math.max(m,Number(x.flag)||0),0):Number(c&&c.flag)||0;
+    if(key==='tags')return (row.tags||[]).join(' ');
     if(key==='created')return String((row.note&&row.note.createdAt)||(c&&c.createdAt)||'');
-    if(key==='modified')return String((row.note&&row.note.updatedAt)||(c&&c.updatedAt)||'');
+    if(key==='modified')return String(row.note&&row.note.updatedAt||'');
+    if(key==='cardModified')return noteMode?cards.reduce((m,x)=>String(x.updatedAt||'')>m?String(x.updatedAt||''):m,''):String(c&&c.updatedAt||'');
     if(key==='noteId')return String(row.note&&row.note.id||'');if(key==='cardId')return String(c&&c.id||'');return '';
   },
   _formatCol(row,key){
-    const v=this._colValue(row,key),c=row.card;
-    if(key==='due'&&c)return c.dueTs?new Date(c.dueTs).toLocaleString('pt-BR'):String(c.due||'—');
-    if(key==='interval')return v?String(v)+'d':'—';if(key==='ease')return v?Number(v).toFixed(2):'—';
-    if(key==='stability')return c&&c.s!=null?Number(c.s).toFixed(2)+'d':'—';
-    if(key==='difficulty')return c&&c.d!=null?Number(c.d).toFixed(2):'—';
-    if(key==='retrievability')return c&&c.s!=null?(Number(v)*100).toFixed(1)+'%':'—';
+    const v=this._colValue(row,key),c=row.card||(row.cards&&row.cards[0]);
+    if(key==='due'&&v){if(typeof v==='number')return new Date(v).toLocaleString('pt-BR');return String(v);}
+    if(key==='interval')return v?Number(v).toFixed(AnkiProductParity.browser.mode==='notes'?1:0)+'d':'—';
+    if(key==='ease')return v?Number(v).toFixed(2):'—';
+    if(key==='stability')return v?Number(v).toFixed(2)+'d':'—';
+    if(key==='difficulty')return v?Number(v).toFixed(2):'—';
+    if(key==='retrievability')return v?(Number(v)*100).toFixed(1)+'%':'—';
     if(key==='flag')return v&&DB.FLAGS[v]?'● '+DB.FLAGS[v].nome:'—';
-    if(key==='created'||key==='modified')return v?String(v).slice(0,10):'—';
+    if(key==='created'||key==='modified'||key==='cardModified')return v?String(v).slice(0,10):'—';
     return String(v==null||v===''?'—':v);
   },
+
   _selectionKey(row){return (AnkiProductParity.browser.mode==='cards'?'c:':'n:')+String(row.card?row.card.id:row.note.id);},
   _resolveSelection(ids){
     const cards=[],noteIds=new Set();
