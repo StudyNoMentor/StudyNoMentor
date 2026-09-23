@@ -75,31 +75,23 @@ assert.equal(M.statsCards().length,4,'escopo coleção deve incluir todos os car
 assert.equal(M.statsRevlog().length,3,'todo o histórico deve incluir revisões antigas');
 M._statsState={scope:'collection',deckId:null,search:'',history:'year'};
 
-const sim1=M.simulate(60,.9,{sample:100}),sim2=M.simulate(60,.9,{sample:100});
-assert.equal(sim1.reviews.length,60);
-assert.equal(sim1.news.length,60);
-assert.deepEqual(JSON.parse(JSON.stringify(sim1.reviews)),JSON.parse(JSON.stringify(sim2.reviews)),'simulação deve ser determinística');
-assert.ok(sim1.reviews.every(Number.isFinite));
-assert.ok(sim1.time.every(x=>Number.isFinite(x)&&x>=0));
-
-const simOpts=M.simulate(30,.91,{sample:100,additionalNew:50,newLimit:7,reviewLimit:25,maxInterval:180});
-assert.equal(simOpts.additionalNew,50);
-assert.equal(simOpts.newLimit,7);
-assert.equal(simOpts.reviewLimit,25);
-assert.equal(simOpts.maxInterval,180);
 const statsSrc=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
 assert.doesNotMatch(statsSrc,/Calcular retenção mínima recomendada/,'CMRR removido do Anki 25.07 não deve continuar exposto na UI atual');
 assert.match(statsSrc,/anki-sim-additional/,'simulador deve expor cards novos adicionais');
 assert.match(statsSrc,/anki-sim-review-limit/,'simulador deve expor máximo de revisões por dia');
 assert.match(statsSrc,/approximate:false/,'simulador da UI deve usar coleção completa');
+assert.doesNotMatch(statsSrc,/_sampleCards\(/,'simulador legado amostrado não deve coexistir com o oficial');
+assert.doesNotMatch(statsSrc,/\bsimulate\(days,retention,opts\)/,'não deve existir segundo motor de simulação em JavaScript');
+assert.match(statsSrc,/for\(let p=70;p<=99;p\+\+\)/,'Help Me Decide deve avaliar integralmente 70%–99%');
 assert.match(statsSrc,/Help Me Decide/,'simulador deve expor Help Me Decide');
 assert.match(statsSrc,/Card Counts/,'estatísticas devem expor Card Counts');
 assert.match(statsSrc,/Review Time/,'estatísticas devem expor Review Time');
 assert.match(statsSrc,/Card Ease/,'estatísticas devem expor Card Ease');
+assert.match(statsSrc,/Adicionados/,'estatísticas devem expor o gráfico Added do Anki 26.09.2');
 assert.match(statsSrc,/anki-stats-scope/,'estatísticas devem expor seletor de baralho\/coleção\/pesquisa');
 assert.match(statsSrc,/Últimos 12 meses/,'estatísticas devem expor histórico padrão de 12 meses');
 assert.match(statsSrc,/Todo o histórico/,'estatísticas devem expor todo o histórico');
 
 const structure=M.structuralIssues();
 assert.equal(Array.isArray(structure.badOrd),true);
-console.log('PARIDADE MÁXIMA STATS/MEDIA: inventário, lixeira, simulação determinística e controles atuais do Anki validados.');
+console.log('PARIDADE MÁXIMA STATS/MEDIA: inventário, lixeira, 14 famílias de estatísticas e simulador oficial atual do Anki validados.');
