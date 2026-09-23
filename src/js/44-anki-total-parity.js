@@ -13,6 +13,8 @@ const AnkiTotalParity = {
   _restoring:false,
   _mediaApplying:false,
   _mediaSyncing:false,
+  _mediaSyncAt:new Map(),
+  MEDIA_SYNC_MIN_MS:5*60*1000,
   _customSchedulingErrorShown:false,
 
   install(){
@@ -260,26 +262,83 @@ const AnkiTotalParity = {
     const row={profile_id:ctx.profile,plan_id:ctx.plan,media_name:String(rec.name||''),mime:String(rec.mime||''),fingerprint:String(rec.fingerprint||''),size_bytes:AnkiMediaStore._u8(rec.bytes||[]).length,content_b64:rec.trashedAt?null:this._bytesToB64(rec.bytes||[]),deleted_at:rec.trashedAt?new Date(rec.trashedAt).toISOString():null,updated_at:new Date(Number(rec.updatedAt)||Date.now()).toISOString()};
     const {error}=await CloudStore.client.from('study_anki_media').upsert(row,{onConflict:'profile_id,plan_id,media_name'});if(error)throw error;return true;
   },
-  async syncMedia(show){
-    if(this._mediaSyncing)return false;const ctx=this._mediaContext();if(!ctx){if(show)showToast('Entre na conta para sincronizar mídia');return false;}
+  async syncMedia(show,force){
+    if(this._mediaSyncing)return false;
+    const ctx=this._mediaContext();
+    if(!ctx){if(show)showToast('Entre na conta para sincronizar mídia');return false;}
+    if(typeof CloudStore!=='undefined'&&CloudStore.serviceStatus==='restricted'){
+      if(show)showToast('Banco restrito por cota; mídia não foi consultada');
+      return false;
+    }
+    const syncKey=ctx.profile+'|'+ctx.plan,now=Date.now(),last=this._mediaSyncAt.get(syncKey)||0;
+    if(!show&&!force&&last&&now-last<this.MEDIA_SYNC_MIN_MS)return false;
+
     this._mediaSyncing=true;
     try{
-      const {data,error}=await CloudStore.client.from('study_anki_media').select('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,content_b64,deleted_at,updated_at').eq('profile_id',ctx.profile).eq('plan_id',ctx.plan);
-      if(error)throw error;const remote=new Map((data||[]).map(x=>[String(x.media_name),x])),local=await AnkiMediaStore.all(true),localMap=new Map(local.map(x=>[String(x.name),x]));
-      for(const l of local){const r=remote.get(String(l.name));if(!r||Number(l.updatedAt||0)>Date.parse(r.updated_at||0)+500)await this._pushMedia(l);}
+      /* Primeiro baixa SOMENTE metadados. O payload base64 pode ser muito maior
+         que o restante do perfil e antes era transferido inteiro a cada foco. */
+      const metaRes=await CloudStore.client.from('study_anki_media')
+        .select('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,deleted_at,updated_at')
+        .eq('profile_id',ctx.profile).eq('plan_id',ctx.plan);
+      if(metaRes.error)throw metaRes.error;
+      const meta=metaRes.data||[],remote=new Map(meta.map(x=>[String(x.media_name),x]));
+      const local=await AnkiMediaStore.all(true),localMap=new Map(local.map(x=>[String(x.name),x]));
+
+      /* Upload continua incremental: só o arquivo local ausente/remotamente
+         mais antigo é enviado. */
+      for(const l of local){
+        const r=remote.get(String(l.name));
+        if(!r||Number(l.updatedAt||0)>Date.parse(r.updated_at||0)+500)await this._pushMedia(l);
+      }
+
+      const needContent=[];
       this._mediaApplying=true;
       try{
-        for(const r of (data||[])){
-          const l=localMap.get(String(r.media_name)),rt=Date.parse(r.updated_at||0),lt=Number(l&&l.updatedAt||0);if(l&&lt>rt+500)continue;
-          if(r.deleted_at){if(l&&!l.trashedAt)await AnkiMediaStore._setTrash(r.media_name,true);continue;}
-          if(!r.content_b64)continue;
-          const bytes=this._b64ToBytes(r.content_b64),fp=AnkiMediaStore.fingerprint(bytes);
-          if(!l||l.fingerprint!==fp||l.trashedAt){const rec=await AnkiMediaStore.put(r.media_name,bytes,r.mime||'');rec.updatedAt=rt||Date.now();const db=await AnkiMediaStore._open();if(db)await new Promise(resolve=>{const tx=db.transaction(AnkiMediaStore.STORE,'readwrite');tx.objectStore(AnkiMediaStore.STORE).put(rec);tx.oncomplete=()=>resolve();tx.onerror=()=>resolve();});}
+        for(const r of meta){
+          const name=String(r.media_name),l=localMap.get(name);
+          const rt=Date.parse(r.updated_at||0),lt=Number(l&&l.updatedAt||0);
+          if(l&&lt>rt+500)continue;
+          if(r.deleted_at){
+            if(l&&!l.trashedAt)await AnkiMediaStore._setTrash(name,true);
+            continue;
+          }
+          if(!l||l.fingerprint!==String(r.fingerprint||'')||l.trashedAt)needContent.push(name);
+        }
+
+        /* Conteúdo binário só é buscado para nomes realmente novos/alterados.
+           O lote limitado evita URLs enormes em uma primeira sincronização. */
+        for(let i=0;i<needContent.length;i+=50){
+          const names=needContent.slice(i,i+50);
+          const fullRes=await CloudStore.client.from('study_anki_media')
+            .select('media_name,mime,fingerprint,content_b64,deleted_at,updated_at')
+            .eq('profile_id',ctx.profile).eq('plan_id',ctx.plan).in('media_name',names);
+          if(fullRes.error)throw fullRes.error;
+          for(const r of (fullRes.data||[])){
+            if(r.deleted_at||!r.content_b64)continue;
+            const bytes=this._b64ToBytes(r.content_b64),fp=AnkiMediaStore.fingerprint(bytes);
+            const l=localMap.get(String(r.media_name));
+            if(!l||l.fingerprint!==fp||l.trashedAt){
+              const rec=await AnkiMediaStore.put(r.media_name,bytes,r.mime||'');
+              rec.updatedAt=Date.parse(r.updated_at||0)||Date.now();
+              const db=await AnkiMediaStore._open();
+              if(db)await new Promise(resolve=>{
+                const tx=db.transaction(AnkiMediaStore.STORE,'readwrite');
+                tx.objectStore(AnkiMediaStore.STORE).put(rec);
+                tx.oncomplete=()=>resolve();tx.onerror=()=>resolve();
+              });
+            }
+          }
         }
       }finally{this._mediaApplying=false;}
-      if(show)showToast('Mídia sincronizada ✓');return true;
-    }catch(e){console.warn('Media sync',e);if(show)showToast('Falha ao sincronizar mídia');return false;}
-    finally{this._mediaSyncing=false;}
+
+      this._mediaSyncAt.set(syncKey,Date.now());
+      if(show)showToast(needContent.length?'Mídia sincronizada ✓':'Mídia já estava atualizada ✓');
+      return true;
+    }catch(e){
+      console.warn('Media sync',e);
+      if(show)showToast('Falha ao sincronizar mídia');
+      return false;
+    }finally{this._mediaSyncing=false;}
   },
   _installMediaSync(){
     if(typeof AnkiMediaStore==='undefined')return;
@@ -287,7 +346,7 @@ const AnkiTotalParity = {
     const oldTrash=AnkiMediaStore._setTrash.bind(AnkiMediaStore);AnkiMediaStore._setTrash=async(name,value)=>{const ok=await oldTrash(name,value);if(ok&&!this._mediaApplying){const rec=(await AnkiMediaStore.all(true)).find(x=>x.name===String(name));if(rec)this._pushMedia(rec).catch(e=>console.warn('Media tombstone',e));}return ok;};
     queueMicrotask(()=>{
       if(typeof CloudStore==='undefined')return;
-      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const old=CloudStore.syncNow.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false);return ok;};CloudStore.syncNow.__ankiMedia=true;}
+      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const old=CloudStore.syncNow.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false,true);return ok;};CloudStore.syncNow.__ankiMedia=true;}
       if(typeof CloudStore.syncOnFocus==='function'&&!CloudStore.syncOnFocus.__ankiMedia){const old=CloudStore.syncOnFocus.bind(CloudStore);const self=this;CloudStore.syncOnFocus=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false);return ok;};CloudStore.syncOnFocus.__ankiMedia=true;}
       setTimeout(()=>this.syncMedia(false),1200);
     });
