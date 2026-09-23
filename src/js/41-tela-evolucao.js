@@ -451,7 +451,7 @@ const EvolucaoScreen = {
   filterStart: null,
   filterEnd: null,
   activeShortcut: 'all', // '7d' | '30d' | 'all' | null (null = intervalo personalizado)
-  scope: 'plan', // 'plan' = só o planejamento ativo | 'all' = todos somados
+  scope: 'all', // trajetória realizada é global; 'plan' continua disponível como filtro
   evoLineMode: 'week', // 'week' = % por semana | 'cum' = média acumulada
   evoLineSubjects: null, // Set de disciplinas selecionadas (null = ainda não inicializado)
 
