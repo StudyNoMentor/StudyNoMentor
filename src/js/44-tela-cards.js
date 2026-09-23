@@ -164,6 +164,7 @@ const CardsScreen = {
   // ---- conteúdo (revisar ou meus cards) ----
   renderContent() {
     const box = document.getElementById('cards-content');
+    if (this.tab !== 'revisar' && this._autoAdvanceEnabled) this._disableAutoAdvanceSilently();
     if (this.tab === 'revisar') this.renderRevisar(box);
     else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
@@ -714,13 +715,19 @@ const CardsScreen = {
     }
     fn();
   },
+  _disableAutoAdvanceSilently(){
+    this._autoAdvanceEnabled=false;this._reviewAutoPending=null;
+    clearTimeout(this._reviewAutoTimer);clearInterval(this._reviewTimer);
+    const b=document.getElementById('cards-auto-advance');if(b){b.classList.remove('on');b.setAttribute('aria-pressed','false');b.textContent='⏩ Auto';}
+  },
   toggleAutoAdvance(force){
     const next=typeof force==='boolean'?force:!this._autoAdvanceEnabled;
-    this._autoAdvanceEnabled=next;this._reviewAutoPending=null;clearTimeout(this._reviewAutoTimer);
+    if(!next){this._disableAutoAdvanceSilently();showToast('⏸ Auto Advance desligado');return;}
+    this._autoAdvanceEnabled=true;this._reviewAutoPending=null;clearTimeout(this._reviewAutoTimer);
     const id=(this._reviewQueue||[])[this._reviewIdx],c=id&&DB.getCard(id);
-    if(c&&next)this._armReviewerAutomation(c,CardsConfig.forDeck(c.deckId));
-    const b=document.getElementById('cards-auto-advance');if(b){b.classList.toggle('on',next);b.setAttribute('aria-pressed',next?'true':'false');b.textContent=next?'⏩ Auto ligado':'⏩ Auto';}
-    showToast(next?'⏩ Auto Advance ligado':'⏸ Auto Advance desligado');
+    if(c)this._armReviewerAutomation(c,CardsConfig.forDeck(c.deckId));
+    const b=document.getElementById('cards-auto-advance');if(b){b.classList.add('on');b.setAttribute('aria-pressed','true');b.textContent='⏩ Auto ligado';}
+    showToast('⏩ Auto Advance ligado');
   },
   _armReviewerAutomation(c,cfg) {
     clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);this._reviewAutoPending=null;
