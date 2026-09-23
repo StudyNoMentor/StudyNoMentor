@@ -636,6 +636,18 @@ FSRS.optimizeOfficial=async function(revlog,opts){
 };
 
 
+FSRS.memoryStateOfficialWithModule=function(mod,data,w){
+  if(!mod||typeof mod.memory_state_json!=='function')throw new Error('Inferência oficial de memory state indisponível');
+  const params=this.migrarW(w)||this.DEFAULT_W.slice();
+  const out=JSON.parse(mod.memory_state_json(JSON.stringify({
+    reviews:(data&&Array.isArray(data.reviews))?data.reviews:[],
+    params,
+    starting_sm2:data&&data.startingSm2?data.startingSm2:null
+  })));
+  if(!out||!(Number(out.stability)>0)||!Number.isFinite(Number(out.difficulty)))throw new Error('Memory state FSRS inválido');
+  return {s:Number(out.stability),d:Number(out.difficulty)};
+};
+
 FSRS._stateFromTrainingItem=function(item,w){
   const reviews=(item&&item.reviews)||[];let S=null,D=null;
   for(let i=0;i<reviews.length;i++){
