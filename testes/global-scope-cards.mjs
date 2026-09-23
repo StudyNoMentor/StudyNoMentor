@@ -71,6 +71,11 @@ const DB={
   deleteTecSnapshot(id){return this._set(keysForPlan(active).tec,parse(keysForPlan(active).tec,[]).filter(x=>String(x.id)!==String(id)))},
   updateTecSnapshot(id,patch){const l=parse(keysForPlan(active).tec,[]),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).tec,l);return x},
   tecOverlap(start,end,ignoreId=null){return parse(keysForPlan(active).tec,[]).find(s=>String(s.id)!==String(ignoreId)&&start<=s.endDate&&end>=s.startDate)||null},
+  getDecks(){return parse(keysForPlan(active).decks,[])},
+  saveDecks(v){return this._set(keysForPlan(active).decks,v)},
+  addDeck(nome){const l=this.getDecks(),x={id:'d'+(++seq),nome:String(nome||'').trim()};l.push(x);this.saveDecks(l);return x},
+  renameDeck(id,nome){const l=this.getDecks(),x=l.find(d=>String(d.id)===String(id));if(x)x.nome=String(nome||'').trim();this.saveDecks(l);return x||null},
+  deleteDeck(id){this.saveDecks(this.getDecks().filter(d=>String(d.id)!==String(id)));const c=this.getCards();c.forEach(x=>{if(String(x.deckId)===String(id))x.deckId=null});this.saveCards(c)},
   getCards(){return parse(keysForPlan(active).cards,[])},
   saveCards(v){return this._set(keysForPlan(active).cards,v)},
   addCard(data){const l=this.getCards();const x=Object.assign({id:'n'+(++seq)},data||{});l.push(x);this.saveCards(l);return x},
@@ -80,6 +85,7 @@ const DB={
   deleteCard(id){this.saveCards(this.getCards().filter(x=>x.id!==id))},
   deleteNoteByCard(id){this.deleteCard(id);return 1},
   getRevlog(){return parse(keysForPlan(active).revlog,[])},
+  addRevlog(r){const l=this.getRevlog();l.push(Object.assign({reviewId:'rv_'+(++seq)},r));this._set(keysForPlan(active).revlog,l);return r},
   addRevlogDurable:async r=>r,cancelarRevlogDurable:async()=>true,removeRevlog:()=>true,
   getCardBancas(){return parse(keysForPlan(active).bancasCards,[])},saveCardBancas(v){return this._set(keysForPlan(active).bancasCards,v)}
 };
@@ -89,8 +95,8 @@ const ctx={
   console,DB,localStorage:ls,document,
   PlanManager:{getActivePlanId:()=>active,getPlans:()=>[{id:'A',nome:'Plano A'},{id:'B',nome:'Plano B'}]},
   ReviewJournal:{put:async op=>{journal.push(op);return true;},remove:async()=>true},
-  CardsConfig:{forgetCardId:()=>{},forDeck:()=>({buryNew:false,buryReviews:false,buryInterdayLearning:false})},
-  CardEngine:{isDue:()=>true},_sanCard:x=>String(x??''),escapeHtml:x=>String(x??''),showToast:()=>{},_quiet:()=>{},
+  CardsConfig:{DKEY:'u:cards-daily',forgetCardId:()=>{},forDeck:()=>({buryNew:false,buryReviews:false,buryInterdayLearning:false}),_daily:()=>({date:'2026-09-23',newIds:[],revIds:[],usage:[]}),_saveDaily:()=>{}},
+  CardEngine:{isDue:()=>true,invalidateDueCache:()=>{}},todayCards:()=> '2026-09-23',_sanCard:x=>String(x??''),escapeHtml:x=>String(x??''),showToast:()=>{},_quiet:()=>{},
   setTimeout:()=>{},CustomEvent:class{},addEventListener:()=>{}
 };
 ctx.window=ctx;
@@ -183,6 +189,14 @@ assert.equal(parse(keysForPlan('B').tec,[])[0].label,undefined,'retrato externo 
 assert.equal(ctx.DB.tecOverlap('2026-09-15','2026-09-20'),null,'sobreposição TEC de outro planejamento não pode bloquear a importação atual');
 assert.equal(ctx.DB.tecOverlap('2026-08-15','2026-08-20').id,1,'sobreposição TEC continua valendo dentro do planejamento ativo');
 assert.deepEqual(Array.from(ctx.DB.getDecksForPlan('B'),d=>d.id),['db'],'editor global deve conseguir recuperar os baralhos do plano de origem');
+const deckB2=ctx.DB.addDeckForPlan('B','Deck B2');
+assert.equal(deckB2._planId,'B','baralho criado por origem deve carregar a origem');
+assert.equal(parse(keysForPlan('B').decks,[]).some(d=>d.id===deckB2.id),true,'novo baralho deve ser persistido no planejamento de origem');
+ctx.DB.renameDeck(deckB2.id,'Deck B2 editado');
+assert.equal(parse(keysForPlan('B').decks,[]).find(d=>d.id===deckB2.id).nome,'Deck B2 editado','renome de baralho externo deve voltar à origem');
+const cardB2=ctx.DB.addCardForPlan('B',{deckId:deckB2.id,frente:'B2',verso:'2'});
+assert.equal(cardB2._planId,'B','card criado explicitamente na origem deve vir marcado');
+assert.equal(parse(keysForPlan('B').cards,[]).some(c=>c.id===cardB2.id),true,'card derivado deve nascer no planejamento de origem');
 
 const novo=ctx.DB.addCard({frente:'Novo',verso:'Card'});
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'card novo deve ser salvo somente no planejamento ativo');
