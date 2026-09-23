@@ -177,7 +177,7 @@ const CardsScreen = {
      quer intercalá-los com os que já estavam esperando, em vez de empurrar
      todos para o fim. */
   reposicionarNovos(modo, escopo) {
-    const cards = DB.getCards().filter(c => this._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
+    const cards = this.collectionCards().filter(c => this._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
     if (!cards.length) return 0;
     let ordem = cards.slice();
     if (modo === 'aleatoria') {
@@ -294,7 +294,7 @@ const CardsScreen = {
     const posDe = (c) => (typeof c.posicaoNova === 'number' ? c.posicaoNova : Number.MAX_SAFE_INTEGER);
     const criacaoDe = (c) => String(c.createdAt || '');
     const cfgQ = this._queueConfig();
-    const decksOrdenados = DB.getDecks().slice().sort((a,b) =>
+    const decksOrdenados = this.collectionDecks().slice().sort((a,b) =>
       String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
     const ordemDeck = new Map(decksOrdenados.map((d,i) => [String(d.id), i]));
     const rankDeck = (c) => c && c.deckId != null
@@ -1456,10 +1456,16 @@ const CardsScreen = {
     btnMover.addEventListener('click', () => {
       const qtd = sel.size;
       if (!qtd) return;
-      const decks = DB.getDecks();
-      if (!decks.length) { showToast('Crie um baralho primeiro em 📁 Criar baralho'); return; }
+      const selecionados=this.collectionCards().filter(c=>sel.has(c.id));
+      const origins=new Set(selecionados.map(c=>c._planId||
+        (window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):null)||
+        (window.PlanManager&&PlanManager.getActivePlanId?PlanManager.getActivePlanId():null)).filter(Boolean).map(String));
+      if(origins.size>1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
+      const sourcePlanId=origins.size?[...origins][0]:null;
+      const decks=this.destinationDecks(sourcePlanId);
+      if (!decks.length) { showToast('Crie um baralho primeiro no planejamento de origem'); return; }
       const opts = [{ value: '__nenhum__', label: '— Sem baralho —' }]
-        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome })));
+        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') })));
       UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
         { title: '📁 Mover para baralho', okText: 'Mover' }
       ).then((v) => {
@@ -1929,7 +1935,7 @@ const CardsScreen = {
     const bancas = DB.getCardBancas();
     if (bancas.length === 0) { box.innerHTML = `<p class="hint">Nenhuma banca cadastrada. Adicione a primeira acima.</p>`; return; }
     box.innerHTML = bancas.map(b => {
-      const n = DB.getCards().filter(c => c.banca === b).length;
+      const n = this.collectionCards().filter(c => c.banca === b).length;
       return `<div class="deck-row" data-nome="${escapeHtml(b)}">
         <span class="deck-name" style="padding:8px 10px;border-radius:8px;">${escapeHtml(b)}</span>
         <span class="deck-count">${n} card(s)</span>
@@ -1953,13 +1959,13 @@ const CardsScreen = {
 
   // ---- exportar ----
   openExportModal() {
-    const cards=DB.getCards(),decks=DB.getDecks(),body=document.getElementById('cards-export-body');
+    const cards=this.collectionCards(),decks=this.collectionDecks(),body=document.getElementById('cards-export-body');
     if(!cards.length){body.innerHTML=`<p class="hint">Você ainda não criou nenhum card.</p>`;}
     else{
       body.innerHTML=`
         <p style="font-size:14px;margin-top:0;">Você tem <strong>${cards.length} card(s)</strong>. Os formatos abaixo seguem os exportadores atuais do Anki.</p>
         <div class="field" style="margin:8px 0 12px;"><label for="cards-export-scope">Escopo de .apkg e texto</label>
-          <select id="cards-export-scope"><option value="all">Coleção inteira</option>${decks.filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))).map(d=>'<option value="deck:'+escapeHtml(String(d.id))+'">'+escapeHtml(String(d.nome||'Baralho'))+'</option>').join('')}</select>
+          <select id="cards-export-scope"><option value="all">Coleção inteira</option>${decks.filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))).map(d=>'<option value="deck:'+escapeHtml(String(d.id))+'">'+escapeHtml(String(d.nome||'Baralho')+(d._planNome?' · '+d._planNome:''))+'</option>').join('')}</select>
           <p class="hint" style="margin:4px 0 0;">Ao escolher um baralho, o .apkg inclui esse baralho e todos os subbaralhos, como o ExportLimit do Anki. .colpkg sempre representa a coleção inteira.</p>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:12px;">
@@ -2117,7 +2123,7 @@ const CardsScreen = {
     };
   },
   exportAnkiNotes() {
-    if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
+    if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
       if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextNotes!=='function')throw new Error('Exportador de notas indisponível');
       const out=AnkiExport.buildTextNotes(this._ankiTextOptions());
@@ -2130,7 +2136,7 @@ const CardsScreen = {
     }
   },
   exportAnki() {
-    if(!DB.getCards().length){showToast('Nenhum card para exportar');return;}
+    if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
       if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextCards!=='function')throw new Error('Exportador de cards indisponível');
       const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
@@ -2143,7 +2149,7 @@ const CardsScreen = {
     }
   },
   async _exportAnkiPackage(kind) {
-    const cards=DB.getCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
+    const cards=this.collectionCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
     kind=kind==='colpkg'?'colpkg':'apkg';
     const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg');
     const old=btn?btn.textContent:'';
@@ -2168,7 +2174,8 @@ const CardsScreen = {
   exportApkg() { return this._exportAnkiPackage('apkg'); },
   exportColpkg() { return this._exportAnkiPackage('colpkg'); },
   exportJson() {
-    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 2, exportedAt: new Date().toISOString(), decks: DB.getDecks(), cards: DB.getCards(), revlog: DB.getRevlog() };
+    const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 3, exportedAt: new Date().toISOString(), scope, decks: this.collectionDecks(), cards: this.collectionCards(), revlog: this._statsRevlog(false) };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Backup exportado ✓');
     $id('cards-export-modal').style.display = 'none';
@@ -2481,14 +2488,17 @@ CardsScreen.openAlgoConfig = function () {
    Duas confirmações de propósito: a primeira explica o que vai acontecer, a
    segunda exige digitar ZERAR. É irreversível e não passa pelo desfazer. */
 CardsScreen.zerarEstatisticas = function () {
-  const nCards = DB.getCards().length;
-  const nRev = DB.getRevlog().length;
+  const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
+  const nCards = CardsScreen.collectionCards().length;
+  const nRev = CardsScreen._statsRevlog(false).length;
+  const scopeLabel=scope==='all'?'todos os planejamentos':'este planejamento';
   UI.confirm(
     'Isto vai:\n\n' +
     '• apagar as ' + nRev.toLocaleString('pt-BR') + ' entrada(s) do histórico de revisões\n' +
     '• devolver os ' + nCards.toLocaleString('pt-BR') + ' card(s) ao estado "novo"\n' +
     '• zerar os contadores de hoje (novos/revisões)\n' +
     '• limpar resíduos de cards já excluídos\n\n' +
+    'Escopo: ' + scopeLabel + '.\n' +
     'O conteúdo dos cards NÃO é apagado — frente, verso, matéria e baralho continuam.\n' +
     'Não há como desfazer.',
     { title: '🧹 Zerar estatísticas dos cards', okText: 'Continuar', danger: true }
@@ -2501,7 +2511,8 @@ CardsScreen.zerarEstatisticas = function () {
           showToast('Cancelado — nada foi alterado');
           return;
         }
-        const r = DB.zerarProgressoCards();
+        const r = (window.StudyGlobalScope&&StudyGlobalScope.zeroCardsProgress)
+          ? StudyGlobalScope.zeroCardsProgress(scope) : DB.zerarProgressoCards();
         CardEngine.invalidateDueCache();
         CardsScreen._meusMostrando = 0;
         CardsScreen.invalidateReviewQueue();
@@ -2517,7 +2528,7 @@ CardsScreen.optimizeFsrsOfficial = async function (deckId) {
   const cfg = CardsConfig.forDeck(deckId == null ? null : deckId);
   if (!FSRS || typeof FSRS.optimizeOfficial !== 'function') throw new Error('Otimizador oficial FSRS indisponível.');
 
-  const out = await FSRS.optimizeOfficial(DB.getRevlog(), { deckId: deckId == null ? null : deckId, cfg });
+  const out = await FSRS.optimizeOfficial(this._statsRevlog(false), { deckId: deckId == null ? null : deckId, cfg, cards:this._fsrsCardsForPreset(deckId) });
   const patch = { weights: out.params.slice(), lastOptim: new Date().toISOString() };
   if (deckId != null) CardsConfig.setDeckPreset(deckId, patch);
   else CardsConfig.set(patch);
@@ -2526,7 +2537,7 @@ CardsScreen.optimizeFsrsOfficial = async function (deckId) {
 };
 
 CardsScreen._fsrsCardsForPreset = function(deckId){
-  const cards=DB.getCards().filter(c=>!c.suspenso);
+  const cards=this.collectionCards().filter(c=>!c.suspenso);
   if(deckId!=null)return cards.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
   return cards.filter(c=>{const did=c.originalDeckId||c.deckId;return !(did&&CardsConfig.hasDeckPreset(did));});
 };
@@ -2537,7 +2548,7 @@ CardsScreen.optimizeAllFsrsPresets = async function(){
     const cards=this._fsrsCardsForPreset(deckId);if(!cards.length){results.push({deckId,skipped:'empty'});continue;}
     const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId);
     try{
-      const out=await FSRS.optimizeOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+      const out=await FSRS.optimizeOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
       const patch={weights:out.params.slice(),lastOptim:new Date().toISOString()};
       if(deckId==null)CardsConfig.set(patch);else CardsConfig.setDeckPreset(deckId,patch);
       results.push({deckId,reviewCount:out.reviewCount,cardCount:out.cardCount,ok:true});
@@ -2549,7 +2560,7 @@ CardsScreen.optimizeAllFsrsPresets = async function(){
 CardsScreen.fsrsHealthCheck = async function(deckId){
   if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
   const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
-  return FSRS.healthCheckOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
+  return FSRS.healthCheckOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
 };
 CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
   if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
@@ -2571,7 +2582,7 @@ CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
   return {patch,interval:iv,previous,due};
 };
 CardsScreen.rescheduleFsrsScope = async function(deckId){
-  const rows=DB.getRevlog()||[],all=DB.getCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
+  const rows=this._statsRevlog(false)||[],all=this.collectionCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
     mod=await FSRS._loadOfficialOptimizer();
   let changed=0;
   for(const card of targets){
@@ -2587,7 +2598,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
   const g = CardsConfig.get();
   const cfg = isDeck ? CardsConfig.forDeck(deckId) : g;
-  const deckName = isDeck ? ((DB.getDecks().find(d => d.id === deckId) || {}).nome || 'baralho') : null;
+  const deckName = isDeck ? ((CardsScreen.collectionDecks().find(d => String(d.id) === String(deckId)) || {}).nome || 'baralho') : null;
   const hasPreset = isDeck && CardsConfig.hasDeckPreset(deckId);
   const fields = [
     ...(!isDeck ? [{
