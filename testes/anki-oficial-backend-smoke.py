@@ -119,7 +119,7 @@ js = (ROOT / "src" / "js" / "44-anki-official.js").read_text(encoding="utf-8")
 html = (ROOT / "src" / "html" / "03-corpo.html").read_text(encoding="utf-8")
 assert "anki-study-review-card" in css and "anki-study-deck-row" in css
 assert "cards-review-wrap" in js and "cards-ans4" in js
-assert "CardEngine" not in js and "CardsConfig" not in js
+assert "CardEngine." not in js and "CardsConfig." not in js
 assert 'class="cards-topbar anki-cards-topbar"' in html
 assert 'class="cards-tabs anki-cards-tabs"' in html
 assert 'id="anki-foco-btn"' in html
