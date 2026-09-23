@@ -85,6 +85,8 @@ const screen=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
 assert.match(screen,/if\(!raw\)return \[\]/,'Deck Options deve preservar steps vazios');
 assert.match(screen,/max: 99/,'Desired Retention deve permitir 99%');
 assert.match(screen,/toggleAutoAdvance\(force\)/,'Auto Advance deve ser opt-in por sessão');
+assert.match(screen,/document\.hasFocus&&!document\.hasFocus\(\)/,'Auto Advance deve se desligar quando o reviewer perde foco, como no Anki');
+assert.match(screen,/this\.tab!==['"]revisar['"]\)\{this\._disableAutoAdvanceSilently\(\);return;\}/,'Auto Advance deve parar fora do contexto de revisão');
 assert.match(screen,/cfg&&cfg\.waitForAudio/,'Auto Advance deve aguardar a fila AV');
 assert.match(screen,/skipQuestionWhenReplayingAnswer/,'replay do verso deve respeitar a opção do Anki');
 assert.match(screen,/Reschedule Cards on Change/,'Deck Options deve expor reagendamento FSRS transitório');
