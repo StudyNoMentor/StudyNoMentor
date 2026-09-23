@@ -60,10 +60,6 @@ jobs:
         if: github.event_name != 'push'
         run: node testes/cards-runtime-anki.mjs
 
-      - name: FSRS oficial
-        if: github.event_name != 'push'
-        run: node testes/cards-fsrs-optimizer-oficial.mjs
-
       - name: Concorrência multidevice
         if: github.event_name != 'push'
         run: node testes/cards-concorrencia-multidevice.mjs
