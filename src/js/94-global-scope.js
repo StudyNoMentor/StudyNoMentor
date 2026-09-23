@@ -731,20 +731,22 @@
     return ids.size;
   };
 
-  DB.addRevlogDurable = async function(entry, cardAfter, cardPosition) {
+  DB.addRevlogDurable = async function(entry, cardAfter, cardPosition, cardBefore) {
     const pid = S.sourcePlanForCard(entry && entry.cardId);
-    if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition);
+    if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition, cardBefore);
     const l = S._revlogForPlan(pid), last = l.length ? l[l.length-1] : null;
     const pos = Math.max(l.length, Number(last && last._position)||0) + 1;
     const row = DB._normalizarReviewId(Object.assign({ _position: pos }, entry), true);
     l.push(row);
     const key = DB.keysForPlan(pid).revlog, ctx = DB._reviewContext(key);
+    const before = cardBefore ? clone(cardBefore) : null;
     const after = cardAfter ? clone(cardAfter) : null;
+    if (before) { delete before._planId; delete before._planNome; }
     if (after) { delete after._planId; delete after._planNome; }
     const op = {
       id: row.reviewId + ':append', reviewId: row.reviewId, type: 'append',
       key, profileId: ctx.profileId, planId: ctx.planId, row: clone(row),
-      cardAfter: after, cardPosition: Number(cardPosition)||1, createdAt: Date.now()
+      cardBefore: before, cardAfter: after, cardPosition: Number(cardPosition)||1, createdAt: Date.now()
     };
     let journaled = false;
     try { journaled = await ReviewJournal.put(op); } catch (_) {}
