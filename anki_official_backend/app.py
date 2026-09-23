@@ -503,6 +503,22 @@ def media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     return FileResponse(path)
 
 
+@app.post("/api/anki/database/check")
+def check_database(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        message, ok = item.col.fix_integrity()
+        return {"ok": ok, "message": message}
+
+
+@app.post("/api/anki/database/optimize")
+def optimize_database(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        item.col.optimize()
+        return {"ok": True}
+
+
 @app.post("/api/anki/undo")
 def undo(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
