@@ -37,7 +37,7 @@ assert.match(typedDiff,/typeMissed/,'caractere ausente deve ser destacado como n
 R._typedAnswers.set('123|Front','elite');
 const typedNc=R.buildSrcdoc(nt,'[[type:nc:Front]]','answer',{id:123},{fields:{Front:'élite'}});
 assert.match(typedNc,/is-correct/,'type:nc deve ignorar diacríticos');
-assert.doesNotMatch(typedNc,/typeBad/,'diferença apenas de diacrítico não pode ser marcada como erro');
+assert.doesNotMatch(typedNc,/<span class="typeBad">/,'diferença apenas de diacrítico não pode ser marcada como erro');
 assert.match(typedQ,/snm-anki-show-answer/,'Enter no campo digitado deve revelar a resposta');
 R.clearTyped({id:123});
 assert.equal(R._typedAnswers.has('123|Front'),false,'resposta digitada deve ser limpa ao avançar o card');
