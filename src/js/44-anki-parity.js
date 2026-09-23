@@ -574,7 +574,9 @@ AnkiParity._inferLegacyNote=function(siblings){
   siblings=(siblings||[]).slice();const first=siblings[0]||{};
   let stock='basic',fields={Front:first.frente||'',Back:first.verso||''};
   if(siblings.some(c=>c.kind==='cloze')){
-    stock='cloze';fields={Text:first.frente||'', 'Back Extra':first.verso||''};
+    const text=(typeof CardEngine!=='undefined'&&CardEngine.normalizeCloze)
+      ? CardEngine.normalizeCloze(first.frente||'') : (first.frente||'');
+    stock='cloze';fields={Text:text, 'Back Extra':first.verso||''};
   }else if(siblings.some(c=>c.template==='reverse'||c.reversedOf)){
     stock='basic_reversed';
     const f=siblings.find(c=>c.template==='forward')||siblings.find(c=>c.template!=='reverse')||first;
@@ -586,10 +588,29 @@ AnkiParity.ensureCanonicalNotes=function(cards){
   cards=Array.isArray(cards)?cards:DB.getCards();const groups=new Map();let changed=false,created=0;
   cards.forEach(c=>{const nid=this.noteId(c);if(!nid)return;const k=String(nid);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(c);});
   groups.forEach((sibs,key)=>{
+    // Migração compatível para cards criados antes da camada Anki: o Study
+    // guardava {{texto}}, enquanto o parser canônico exige {{cN::texto}}.
+    let clozeMigrated=false;
+    if(typeof CardEngine!=='undefined'&&CardEngine.normalizeCloze&&sibs.some(c=>c.kind==='cloze')){
+      sibs.forEach(c=>{
+        if(c.kind!=='cloze')return;
+        const normalized=CardEngine.normalizeCloze(c.frente||'');
+        if(normalized!==String(c.frente||'')){c.frente=normalized;changed=true;clozeMigrated=true;}
+      });
+    }
     let note=this.getNote(key);
     if(!note){
       const inf=this._inferLegacyNote(sibs),nt=this.stockNotetype(inf.stock);
       note=this.saveNote({id:Number(key),notetypeId:nt.id,fields:inf.fields,tags:[]});created++;
+    }else if(clozeMigrated){
+      const nt=this.getNotetype(note.notetypeId);
+      if(nt&&(nt.kind==='cloze'||nt.stockKind==='cloze')){
+        const source=sibs.find(c=>c.kind==='cloze')||sibs[0],fields=Object.assign({},note.fields||{});
+        if(fields.Text!==String(source.frente||'')){
+          fields.Text=String(source.frente||'');
+          note=this.saveNote(Object.assign({},note,{fields}));
+        }
+      }
     }
     sibs.forEach((c,i)=>{
       if(c.notetypeId!==note.notetypeId){c.notetypeId=note.notetypeId;changed=true;}
