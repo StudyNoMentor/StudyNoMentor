@@ -12,13 +12,13 @@ from typing import Any
 import anki.buildinfo
 import httpx
 from anki import deck_config_pb2, import_export_pb2
-from anki.cards import Card
 from anki.collection import (
     Collection,
     ExportAnkiPackageOptions,
     ImportAnkiPackageOptions,
     ImportAnkiPackageRequest,
 )
+from anki.cards import Card
 from anki.decks import DeckId
 from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
