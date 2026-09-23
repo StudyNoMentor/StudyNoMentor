@@ -9,7 +9,7 @@ const HistoricoScreen = {
     document.querySelectorAll('#hist-scope-toggle button[data-scope]').forEach(b =>
       b.classList.toggle('active', b.dataset.scope === this.scope));
     const consolidated = this.scope === 'all';
-    const history = (consolidated ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory()).slice().reverse();
+    const history = (consolidated ? DB.getAllCycleHistoryTagged({ includePaused: true }) : DB.getCycleHistory()).slice().reverse();
     const emptyEl = document.getElementById('historico-empty');
     const listEl = document.getElementById('historico-list');
 
@@ -48,7 +48,7 @@ const HistoricoScreen = {
       ? `<span class="status-badge ${toneFor(w.avgPerformancePct) === 'good' ? 'finalizada' : toneFor(w.avgPerformancePct) === 'warn' ? 'iniciada' : 'pendente'}">${formatPct(w.avgPerformancePct)}% acerto</span>`
       : '';
     const planBadge = consolidated && w._planNome
-      ? `<span class="plan-tag-badge">${escapeHtml(w._planNome)}</span>` : '';
+      ? `<span class="plan-tag-badge">${w._planPaused ? '⏸ ' : ''}${escapeHtml(w._planNome)}</span>` : '';
     const actions = consolidated ? '' : `
             <button type="button" class="reg-act-btn btn-edit-week" title="Editar semana" aria-label="Editar semana">✎</button>
             <button type="button" class="reg-act-btn danger btn-delete-week" title="Excluir semana" aria-label="Excluir semana">✕</button>`;
