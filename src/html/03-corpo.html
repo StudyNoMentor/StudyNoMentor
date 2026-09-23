@@ -1048,57 +1048,51 @@
   </section>
 
   <!-- ============ TELA: ANKI OFICIAL ============ -->
-  <section role="region" tabindex="-1" class="screen ankidroid-screen" id="screen-anki">
-    <div class="page-header anki-study-header">
-      <div class="anki-study-heading">
-        <span class="anki-study-logo" aria-hidden="true">
-          <img src="https://raw.githubusercontent.com/ankitects/anki/26.09.2/docs-site/media/anki-logo.svg" alt="" width="28" height="28">
-        </span>
-        <div>
-          <div class="anki-study-eyebrow">Motor oficial</div>
-          <h2 class="page-title">Anki</h2>
-          <p class="page-subtitle ankidroid-subtitle">coleção oficial 26.09.2</p>
-        </div>
+  <div class="foco-bar anki-foco-bar" id="anki-foco-bar">
+    <span class="foco-info" id="anki-foco-info">Anki Oficial · modo foco</span>
+    <span class="foco-acoes">
+      <button type="button" class="btn-secondary" id="anki-foco-undo" title="Desfazer última ação">↶</button>
+      <button type="button" class="btn-secondary" id="anki-foco-sair" title="Sair do modo foco">✕ Sair</button>
+    </span>
+  </div>
+
+  <section role="region" tabindex="-1" class="screen" id="screen-anki">
+    <div class="page-header anki-cards-header">
+      <div>
+        <h2 class="page-title"><span class="anki-title-icon" aria-hidden="true"><img src="https://raw.githubusercontent.com/ankitects/anki/26.09.2/docs-site/media/anki-logo.svg" alt="" width="26" height="26"></span> Anki Oficial</h2>
+        <p class="page-subtitle">A experiência visual dos Cards do Study, usando a coleção, fila, scheduler, busca e operações do Anki 26.09.2 oficial.</p>
       </div>
-      <div class="anki-study-header-actions">
-        <div class="anki-official-engine-badge" id="anki-official-engine-badge" title="Estado da engine oficial">Conectando…</div>
-        <details class="ankidroid-overflow anki-study-more">
-          <summary class="btn-secondary anki-study-more-btn" aria-label="Mais ações">Mais ▾</summary>
-          <div class="ankidroid-overflow-menu">
-            <label class="ankidroid-menu-item anki-file-btn">
-              <span class="ankidroid-menu-icon">↑</span><span>Importar pacote</span>
-              <input type="file" id="anki-official-import" accept=".apkg,.colpkg" hidden>
-            </label>
-            <button type="button" class="ankidroid-menu-item" id="anki-official-export-apkg"><span class="ankidroid-menu-icon">↓</span><span>Exportar .apkg</span></button>
-            <button type="button" class="ankidroid-menu-item" id="anki-official-export-colpkg"><span class="ankidroid-menu-icon">⇩</span><span>Exportar .colpkg</span></button>
-            <div class="ankidroid-menu-separator"></div>
-            <button type="button" class="ankidroid-menu-item" id="anki-official-undo"><span class="ankidroid-menu-icon">↶</span><span>Desfazer</span></button>
-            <button type="button" class="ankidroid-menu-item" id="anki-official-redo"><span class="ankidroid-menu-icon">↷</span><span>Refazer</span></button>
-          </div>
-        </details>
-      </div>
+      <div class="anki-official-engine-badge" id="anki-official-engine-badge" title="Estado da engine oficial">Conectando…</div>
     </div>
 
-    <div class="anki-study-commandbar card">
-      <nav class="anki-official-toolbar ankidroid-bottom-nav" role="tablist" aria-label="Áreas do Anki">
-        <button type="button" class="ankidroid-nav-item active" data-anki-view="decks"><span class="anki-study-nav-ico">▤</span><span>Baralhos</span></button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="review"><span class="anki-study-nav-ico">◔</span><span>Revisar</span></button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="browser"><span class="anki-study-nav-ico">⌕</span><span>Navegador</span></button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="options"><span class="anki-study-nav-ico">☷</span><span>Opções</span></button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="tools"><span class="anki-study-nav-ico">⚙</span><span>Ferramentas</span></button>
-      </nav>
-      <button type="button" class="btn-primary ankidroid-fab anki-study-add" data-anki-view="add" aria-label="Adicionar nota">＋ Adicionar</button>
+    <div class="cards-topbar anki-cards-topbar">
+      <button type="button" class="btn-primary" id="anki-new-btn" data-anki-view="add">＋ Adicionar nota</button>
+      <button type="button" class="btn-primary" id="anki-foco-btn" title="Estudar sem distrações">🎯 Modo foco</button>
+      <button type="button" class="btn-secondary" id="anki-decks-btn" data-anki-view="decks">📁 Baralhos</button>
+      <div class="cards-more-wrap">
+        <button type="button" class="btn-secondary cards-more-btn" id="anki-more-btn" aria-expanded="false" aria-haspopup="true">⋯ Mais</button>
+        <div class="cards-more-menu" id="anki-more-menu" role="menu">
+          <button type="button" role="menuitem" data-anki-view="options">⚙ Opções do baralho</button>
+          <button type="button" role="menuitem" data-anki-view="tools">🧰 Ferramentas</button>
+          <button type="button" role="menuitem" id="anki-import-trigger">↑ Importar pacote</button>
+          <button type="button" role="menuitem" id="anki-official-export-apkg">↓ Exportar .apkg</button>
+          <button type="button" role="menuitem" id="anki-official-export-colpkg">⇩ Exportar .colpkg</button>
+          <button type="button" role="menuitem" id="anki-official-undo">↶ Desfazer</button>
+          <button type="button" role="menuitem" id="anki-official-redo">↷ Refazer</button>
+        </div>
+      </div>
+      <input type="file" id="anki-official-import" accept=".apkg,.colpkg" hidden>
+    </div>
+
+    <div class="cards-tabs anki-cards-tabs">
+      <button type="button" class="cards-tab active" data-anki-view="review">🎴 Revisar</button>
+      <button type="button" class="cards-tab" data-anki-view="browser">🗃️ Meus cards</button>
+      <button type="button" class="cards-tab" data-anki-view="decks">📁 Baralhos</button>
     </div>
 
     <div id="anki-official-alert" class="anki-official-alert" hidden></div>
-
-    <div class="anki-study-surface card">
-      <main class="ankidroid-content" id="anki-official-root">
-        <div class="ankidroid-loading">
-          <div class="ankidroid-spinner" aria-hidden="true"></div>
-          <span>Conectando ao Anki…</span>
-        </div>
-      </main>
+    <div id="anki-official-root">
+      <div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Conectando ao Anki…</h3><p>Abrindo sua coleção oficial.</p></div></div>
     </div>
   </section>
 
