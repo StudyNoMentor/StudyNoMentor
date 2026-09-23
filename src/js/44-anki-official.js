@@ -652,75 +652,92 @@ const AnkiOfficial = {
   async renderBrowser() {
     const root=this.root(); if(!root) return;
     root.innerHTML=`
-      <div class="anki-official-browser-head">
-        <input id="anki-official-search" type="search" placeholder="Busca oficial do Anki: deck:, tag:, is:due, prop:…">
-        <button type="button" class="btn-primary" id="anki-official-search-btn">Buscar</button>
-      </div>
-      <div class="anki-official-browser-list" id="anki-official-browser-list"></div>`;
+      <section class="card anki-study-browser-filter">
+        <div class="card-header cards-filter-head">
+          <div><h2>🔎 Buscar e filtrar</h2><p class="sub">Use a gramática oficial do Anki: <code>deck:</code>, <code>tag:</code>, <code>is:due</code>, <code>prop:</code>…</p></div>
+        </div>
+        <div style="padding:14px 24px 20px">
+          <div class="field"><label for="anki-official-search">Buscar</label>
+            <div style="display:flex;gap:8px"><input id="anki-official-search" type="search" placeholder="Ex.: deck:Tributário is:due" style="flex:1"><button type="button" class="btn-primary" id="anki-official-search-btn">Buscar</button></div>
+          </div>
+        </div>
+      </section>
+      <div class="cards-count-bar" id="anki-browser-count">Carregando…</div>
+      <div class="cards-grid" id="anki-official-browser-list"></div>`;
+
     const run=async()=>{
       const q=document.getElementById('anki-official-search').value||'';
-      try {
+      try{
         const data=await this.request('/api/anki/browser/search?q='+encodeURIComponent(q)+'&limit=200');
         const list=document.getElementById('anki-official-browser-list');
-        list.innerHTML=(data.cards||[]).map(c=>`
-          <div class="anki-official-browser-row">
-            <div><div class="anki-official-browser-question">${this.esc((new DOMParser().parseFromString(c.question||'','text/html').body.textContent||'').trim())}</div>
-            <div class="hint">Card ${c.card_id} · Nota ${c.note_id}</div></div>
-            <div class="anki-official-browser-meta">ivl ${c.interval} · reps ${c.reps} · lapses ${c.lapses}</div>
-          </div>`).join('') || '<div class="card"><div class="card-body">Nenhum resultado.</div></div>';
-      } catch(e){ this.alert(e.message,'error'); }
+        const count=document.getElementById('anki-browser-count');
+        if(count)count.textContent=(data.cards||[]).length+' card(s) encontrados';
+        list.innerHTML=(data.cards||[]).map(card=>{
+          const txt=(new DOMParser().parseFromString(card.question||'','text/html').body.textContent||'').trim();
+          return `
+            <article class="mini-card anki-study-mini-card" data-card-id="${card.card_id}">
+              <div class="mini-card-top">
+                <div class="mini-card-badges">
+                  <span class="cards-type-tag">📁 ${this.esc(card.deck_name||card.deck_id)}</span>
+                  ${card.notetype_name?`<span class="cards-type-tag">${this.esc(card.notetype_name)}</span>`:''}
+                </div>
+                <span class="cards-fav-star ${card.marked?'on':''}">${card.marked?'★':'☆'}</span>
+              </div>
+              <div class="mini-card-front">${this.esc(txt||'(sem texto)')}</div>
+              <div class="mini-card-foot">
+                <span class="anki-study-mini-meta">ivl ${card.interval} · reps ${card.reps} · lapses ${card.lapses}</span>
+                <span>
+                  <button type="button" class="icon-btn" data-browser-info="${card.card_id}">ℹ</button>
+                  <button type="button" class="icon-btn" data-browser-edit="${card.card_id}">✎</button>
+                </span>
+              </div>
+            </article>`;
+        }).join('') || '<div class="card"><div class="cards-review-done"><div class="big">🔎</div><h3>Nenhum resultado</h3><p>Tente outra busca do Anki.</p></div></div>';
+        list.querySelectorAll('[data-browser-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();void this.openEditNote(Number(b.dataset.browserEdit));});
+        list.querySelectorAll('[data-browser-info]').forEach(b=>b.onclick=e=>{e.stopPropagation();void this.showCardInfo(Number(b.dataset.browserInfo));});
+      }catch(e){this.alert(e.message,'error');}
     };
     document.getElementById('anki-official-search-btn').onclick=()=>void run();
-    document.getElementById('anki-official-search').addEventListener('keydown',e=>{if(e.key==='Enter') void run();});
+    document.getElementById('anki-official-search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();void run();}});
     void run();
   },
 
   async renderAdd() {
     const root=this.root(); if(!root) return;
-    try {
+    try{
       const [decks,nts]=await Promise.all([this.request('/api/anki/decks'),this.request('/api/anki/notetypes')]);
       const notetypes=nts.notetypes||[];
       root.innerHTML=`
-        <div class="anki-official-form">
-          <div class="field"><label>Baralho</label><select id="anki-add-deck">${(decks.decks||[]).map(d=>`<option value="${d.id}" ${Number(d.id)===Number(decks.current_deck_id)?'selected':''}>${this.esc(d.name)}</option>`).join('')}</select></div>
-          <div class="field"><label>Tipo de nota</label><select id="anki-add-nt">${notetypes.map(n=>`<option value="${n.id}">${this.esc(n.name)}</option>`).join('')}</select></div>
-          <div id="anki-add-fields"></div>
-          <div class="field"><label>Tags</label><input id="anki-add-tags" placeholder="tag1 tag2"></div>
-          <button type="button" class="btn-primary" id="anki-add-save">Adicionar com o Anki oficial</button>
-        </div>`;
-
+        <section class="card anki-study-form-card">
+          <div class="card-header"><div><h2>＋ Adicionar nota</h2><p class="sub">A nota é criada diretamente na coleção oficial do Anki.</p></div></div>
+          <div class="anki-study-form-body">
+            <div class="field-group">
+              <div class="field"><label>Baralho</label><select id="anki-add-deck">${(decks.decks||[]).map(d=>`<option value="${d.id}" ${Number(d.id)===Number(decks.current_deck_id)?'selected':''}>${this.esc(d.name)}</option>`).join('')}</select></div>
+              <div class="field"><label>Tipo de nota</label><select id="anki-add-nt">${notetypes.map(n=>`<option value="${n.id}">${this.esc(n.name)}</option>`).join('')}</select></div>
+            </div>
+            <div id="anki-add-fields"></div>
+            <div class="field"><label>Tags</label><input id="anki-add-tags" placeholder="tag1 tag2"></div>
+            <div class="submit-row"><button type="button" class="btn-primary" id="anki-add-save">Adicionar ao Anki</button></div>
+          </div>
+        </section>`;
       const ntSelect=document.getElementById('anki-add-nt');
       const fieldsBox=document.getElementById('anki-add-fields');
       const renderFields=()=>{
-        const nt=notetypes.find(n=>String(n.id)===String(ntSelect.value)) || notetypes[0];
+        const nt=notetypes.find(n=>String(n.id)===String(ntSelect.value))||notetypes[0];
         const fields=(nt&&nt.fields)||[];
-        fieldsBox.innerHTML=fields.map((name,i)=>`
-          <div class="field">
-            <label>${this.esc(name)}</label>
-            <textarea data-anki-add-field="${i}" data-anki-field-name="${this.esc(name)}"></textarea>
-          </div>`).join('') || '<p class="hint">Este tipo de nota não expôs campos editáveis.</p>';
+        fieldsBox.innerHTML=fields.map(name=>`<div class="field"><label>${this.esc(name)}</label><textarea data-anki-add-field="${this.esc(name)}"></textarea></div>`).join('')||'<p class="hint">Este tipo de nota não expôs campos editáveis.</p>';
       };
-      ntSelect.addEventListener('change', renderFields);
-      renderFields();
-
+      ntSelect.addEventListener('change',renderFields);renderFields();
       document.getElementById('anki-add-save').onclick=async()=>{
+        const fields={};fieldsBox.querySelectorAll('[data-anki-add-field]').forEach(el=>fields[el.dataset.ankiAddField]=el.value);
+        const body={deck_id:Number(document.getElementById('anki-add-deck').value),notetype_id:Number(ntSelect.value),fields,tags:(document.getElementById('anki-add-tags').value||'').split(/\s+/).filter(Boolean)};
         try{
-          const fields={};
-          fieldsBox.querySelectorAll('[data-anki-field-name]').forEach(el=>{
-            fields[el.dataset.ankiFieldName]=el.value;
-          });
-          const body={
-            deck_id:Number(document.getElementById('anki-add-deck').value),
-            notetype_id:Number(ntSelect.value),
-            fields,
-            tags:(document.getElementById('anki-add-tags').value||'').split(/\s+/).filter(Boolean)
-          };
           await this.request('/api/anki/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-          this.alert('Nota adicionada pelo backend oficial do Anki.');
-          fieldsBox.querySelectorAll('textarea').forEach(el=>{el.value='';});
+          this.alert('Nota adicionada pelo Anki oficial.');
+          fieldsBox.querySelectorAll('textarea').forEach(el=>el.value='');
         }catch(e){this.alert(e.message,'error');}
       };
-    } catch(e){this.alert(e.message,'error');}
+    }catch(e){this.alert(e.message,'error');}
   },
 
   async renderOptions() {
