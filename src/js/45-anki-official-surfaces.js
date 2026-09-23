@@ -290,6 +290,7 @@ const AnkiOfficialSurfaces = {
       {value:'flag',label:'🚩 Definir bandeira'},
       {value:'reposition',label:'↕ Reposicionar novos'},
       {value:'find_replace',label:'🔁 Localizar e substituir'},
+      {value:'change_notetype',label:'🧩 Mudar tipo de nota'},
       {value:'delete_notes',label:'🗑 Excluir notas'}
     ]}],{title:'Ações em massa — Anki oficial',okText:'Continuar'});
     if(!v)return;
@@ -306,6 +307,11 @@ const AnkiOfficialSurfaces = {
       const x=await this.ask([{key:'starting_from',label:'Começar em',type:'number',value:1},{key:'step_size',label:'Passo',type:'number',value:1},{key:'randomize',label:'Aleatorizar',type:'select',value:'0',options:[{value:'0',label:'Não'},{value:'1',label:'Sim'}]},{key:'shift_existing',label:'Deslocar existentes',type:'select',value:'1',options:[{value:'1',label:'Sim'},{value:'0',label:'Não'}]}],{title:'Reposicionar novos',okText:'Aplicar'});if(!x)return;Object.assign(body,{starting_from:Number(x.starting_from),step_size:Number(x.step_size),randomize:x.randomize==='1',shift_existing:x.shift_existing==='1'});
     }else if(v.action==='find_replace'){
       const x=await this.ask([{key:'search',label:'Localizar',type:'text',value:''},{key:'replacement',label:'Substituir por',type:'text',value:''},{key:'field_name',label:'Campo (vazio = todos)',type:'text',value:''},{key:'regex',label:'Regex',type:'select',value:'0',options:[{value:'0',label:'Não'},{value:'1',label:'Sim'}]}],{title:'Localizar e substituir',okText:'Substituir'});if(!x)return;Object.assign(body,{search:x.search,replacement:x.replacement,field_name:x.field_name,regex:x.regex==='1'});
+    }else if(v.action==='change_notetype'){
+      if(!notes.length){this.toast('Selecione notas para mudar o tipo.','warn');return;}
+      const facets=this.browser.facets||await this.api('/api/anki/browser/facets');
+      const x=await this.ask([{key:'target_notetype_id',label:'Novo tipo',type:'select',options:(facets.notetypes||[]).map(n=>({value:String(n.id),label:n.name}))}],{title:'Mudar tipo de nota',okText:'Mudar'});if(!x)return;
+      body.target_notetype_id=Number(x.target_notetype_id);
     }else if(v.action==='delete_notes'){
       if(!await this.confirm('Excluir as notas selecionadas da coleção Anki?',{title:'Excluir notas',danger:true,okText:'Excluir'}))return;
     }
@@ -483,11 +489,25 @@ const AnkiOfficialSurfaces = {
     const row=rows.find(x=>Number(x.notetype.id)===id);if(!row)return;const nt=structuredClone(row.notetype);
     const fieldRows=()=> (nt.flds||[]).map((f,i)=>'<div class="anki-nt-field"><input data-nt-field="'+i+'" value="'+this.esc(f.name)+'"><button class="icon-btn" data-nt-field-del="'+i+'">🗑</button></div>').join('');
     const templates=()=> (nt.tmpls||[]).map((t,i)=>'<details class="anki-nt-template"><summary>'+this.esc(t.name||('Template '+(i+1)))+'</summary><div class="field"><label>Nome</label><input data-nt-t-name="'+i+'" value="'+this.esc(t.name||'')+'"></div><div class="field"><label>Frente (qfmt)</label><textarea data-nt-qfmt="'+i+'" class="anki-code-area">'+this.esc(t.qfmt||'')+'</textarea></div><div class="field"><label>Verso (afmt)</label><textarea data-nt-afmt="'+i+'" class="anki-code-area">'+this.esc(t.afmt||'')+'</textarea></div></details>').join('');
-    const body='<div class="field"><label>Nome</label><input id="anki-nt-name" value="'+this.esc(nt.name)+'"></div><div class="section-divider"><span>Campos</span></div><div id="anki-nt-fields">'+fieldRows()+'</div><button class="btn-secondary" id="anki-nt-add-field">＋ Campo</button><div class="section-divider"><span>Templates</span></div><div id="anki-nt-templates">'+templates()+'</div><div class="section-divider"><span>CSS</span></div><textarea id="anki-nt-css" class="anki-code-area">'+this.esc(nt.css||'')+'</textarea>';
+    const body='<div class="field"><label>Nome</label><input id="anki-nt-name" value="'+this.esc(nt.name)+'"></div><div class="section-divider"><span>Campos</span></div><div id="anki-nt-fields">'+fieldRows()+'</div><button class="btn-secondary" id="anki-nt-add-field">＋ Campo</button><div class="section-divider"><span>Templates</span></div><div id="anki-nt-templates">'+templates()+'</div><button class="btn-secondary" id="anki-nt-add-template">＋ Template</button><div class="section-divider"><span>CSS</span></div><textarea id="anki-nt-css" class="anki-code-area">'+this.esc(nt.css||'')+'</textarea>';
     this.modal('Editar tipo de nota','Alterações de schema passam pelo NotetypeManager oficial.',body,'<button class="btn-secondary" id="anki-surface-cancel">Cancelar</button><span style="flex:1"></span><button class="btn-primary" id="anki-nt-save">Salvar</button>');
     document.getElementById('anki-surface-cancel').onclick=()=>this.closeModal();
-    document.getElementById('anki-nt-add-field').onclick=()=>{nt.flds=nt.flds||[];nt.flds.push({name:'Campo '+(nt.flds.length+1),ord:nt.flds.length});document.getElementById('anki-nt-fields').innerHTML=fieldRows();};
-    document.getElementById('anki-nt-save').onclick=async()=>{
+    document.getElementById('anki-nt-add-field').onclick=async()=>{
+      const x=await this.ask([{key:'name',label:'Nome do novo campo',type:'text',value:'Campo '+((nt.flds||[]).length+1)}],{title:'Adicionar campo',okText:'Adicionar'});if(!x)return;
+      try{
+        const out=await this.api('/api/anki/notetypes/'+id+'/schema',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add_field',name:x.name})});
+        this.closeModal();this.toast('Campo adicionado pelo NotetypeManager oficial.');await this.openNotetypes();
+      }catch(e){this.toast(e.message,'error');}
+    };
+    document.querySelectorAll('[data-nt-field-del]').forEach(b=>b.onclick=async()=>{
+      if(!await this.confirm('Remover este campo? O Anki validará a alteração de schema.',{title:'Remover campo',danger:true,okText:'Remover'}))return;
+      try{await this.api('/api/anki/notetypes/'+id+'/schema',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove_field',ordinal:Number(b.dataset.ntFieldDel)})});this.closeModal();this.toast('Campo removido.');await this.openNotetypes();}catch(e){this.toast(e.message,'error');}
+    });
+    document.getElementById('anki-nt-add-template').onclick=async()=>{
+      const x=await this.ask([{key:'name',label:'Nome do template',type:'text',value:'Card '+((nt.tmpls||[]).length+1)}],{title:'Adicionar template',okText:'Adicionar'});if(!x)return;
+      try{await this.api('/api/anki/notetypes/'+id+'/schema',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add_template',name:x.name})});this.closeModal();this.toast('Template adicionado pelo Anki oficial.');await this.openNotetypes();}catch(e){this.toast(e.message,'error');}
+    };
+        document.getElementById('anki-nt-save').onclick=async()=>{
       nt.name=document.getElementById('anki-nt-name').value;nt.css=document.getElementById('anki-nt-css').value;
       document.querySelectorAll('[data-nt-field]').forEach(x=>{const i=Number(x.dataset.ntField);if(nt.flds[i])nt.flds[i].name=x.value;});
       document.querySelectorAll('[data-nt-t-name]').forEach(x=>{const i=Number(x.dataset.ntTName);if(nt.tmpls[i])nt.tmpls[i].name=x.value;});
