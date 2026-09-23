@@ -3,7 +3,7 @@ name: Cards FSRS 6.6.2 vendor
 on:
   push:
     branches:
-      - fix/cards-anki-perfect-parity-20260923
+      - fix/cards-fsrs-healthcheck-wasm-20260923
     paths:
       - 'tools/cards-fsrs-wasm/**'
       - '.github/workflows/cards-fsrs-vendor.yml'
@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/cards-anki-perfect-parity-20260923
+          ref: fix/cards-fsrs-healthcheck-wasm-20260923
           fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
@@ -46,10 +46,13 @@ jobs:
           sha256sum src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm | awk '{print $1}' > src/vendor/fsrs-6.6.2/SHA256
           printf '%s\n' '{"fsrs_rs":"6.6.2","wasm_bindgen":"0.2.100","anki_reference":"26.09.2","training_epochs":8,"short_term":true,"simulator":"fsrs::simulate"}' > src/vendor/fsrs-6.6.2/version.json
 
+      - name: Validate generated FSRS vendor
+        run: timeout 180s node testes/cards-fsrs-optimizer-oficial.mjs
+
       - name: Commit reproducible vendor assets
         run: |
           set -euxo pipefail
-          git add src/vendor/fsrs-6.6.2
+          git add src/vendor/fsrs-6.6.2 tools/cards-fsrs-wasm/Cargo.lock
           if git diff --cached --quiet; then
             echo 'Vendor already up to date.'
             exit 0
@@ -59,5 +62,5 @@ jobs:
           git commit -m 'build(cards): vendor fsrs-rs 6.6.2 wasm'
           # O build leva alguns segundos; a branch pode avançar enquanto isso.
           # Rebase preserva as alterações intermediárias e evita push rejeitado.
-          git pull --rebase origin fix/cards-anki-perfect-parity-20260923
-          git push origin HEAD:fix/cards-anki-perfect-parity-20260923
+          git pull --rebase origin fix/cards-fsrs-healthcheck-wasm-20260923
+          git push origin HEAD:fix/cards-fsrs-healthcheck-wasm-20260923
