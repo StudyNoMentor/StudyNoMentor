@@ -155,6 +155,18 @@ const CardsScreen = {
     else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
   },
+  /* O Anki 26.09.2 mantém Collection.state.card_queues em RAM e só a limpa
+     quando uma operação exige rebuild. A fila do reviewer, portanto, NÃO deve
+     ser remontada em cada render. Esta função é o equivalente local de
+     clear_study_queues(): use somente quando mudou algo que afeta elegibilidade,
+     ordem, limites ou o baralho selecionado. Reload completo da página já zera
+     naturalmente este estado em memória, como reiniciar o Anki. */
+  invalidateReviewQueue() {
+    this._reviewQueue = [];
+    this._reviewIdx = 0;
+    this._reviewCardId = null;
+    this._flipped = false;
+  },
   materiaLabel(c) {
     if (c.deckId) { const d = DB.getDecks().find(x => x.id === c.deckId); return d ? '📁 ' + d.nome : '📁 (baralho removido)'; }
     return c.materia || 'Sem disciplina';
@@ -488,9 +500,16 @@ const CardsScreen = {
       box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
-    if (this._reviewIdx === 0) { this._seenThisSession = new Set(); this._undoStack = []; } // nova sessão
-    const atualId = this._reviewQueue && this._reviewQueue[this._reviewIdx];
-    this._reviewQueue = this.buildQueue();
+    /* Igual ao CardQueues do Anki: enquanto há uma fila ativa válida, ela é
+       reaproveitada. Re-render, editar texto, abrir/fechar painel ou sair e
+       voltar ao reviewer não reembaralham o restante da rodada. Se a página
+       foi recarregada, a fila começa vazia e é reconstruída normalmente. */
+    const cachedId = this._reviewQueue && this._reviewQueue[this._reviewIdx];
+    const cacheValido = !!(cachedId && DB.getCard(cachedId));
+    if (!cacheValido) {
+      this._reviewQueue = this.buildQueue();
+      this._reviewIdx = 0;
+    }
     const m = this._queueMeta || {};
     if (this._reviewQueue.length === 0) {
       // "Learn ahead" do Anki: se só restam passos de aprendizado, antecipa os que estão
@@ -516,9 +535,7 @@ const CardsScreen = {
         return;
       }
     }
-    // mantém o card que estava na tela quando a fila é remontada (ex.: após editar um card)
-    const iAtual = atualId ? this._reviewQueue.indexOf(atualId) : -1;
-    this._reviewIdx = iAtual >= 0 ? iAtual : Math.min(this._reviewIdx, this._reviewQueue.length - 1);
+    this._reviewIdx = Math.min(this._reviewIdx, this._reviewQueue.length - 1);
     this._flipped = false;
     this.renderReviewCard(box);
     this.atualizarFoco();
@@ -977,7 +994,6 @@ const CardsScreen = {
     this.tab = 'revisar';
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
     document.body.classList.add('cards-foco');
-    this._reviewIdx = 0;
     this.renderContent();
     this.atualizarFoco();
     window.scrollTo({ top: 0 });
@@ -1192,12 +1208,12 @@ const CardsScreen = {
         const distintos = new Set(this._reviewQueue).size;
         box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
         const rb = document.getElementById('cards-review-restart');
-        if (rb) rb.addEventListener('click', () => { this._reviewIdx = 0; this.renderContent(); });
+        if (rb) rb.addEventListener('click', () => { this.invalidateReviewQueue(); this.renderContent(); });
         this.updateFavCount();
         // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
         const prox = (this._queueMeta || {}).proximoTs;
         clearTimeout(this._etaTimer);
-        if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this._reviewIdx = 0; this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
+        if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this.invalidateReviewQueue(); this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
         return true;
       }
       this.renderReviewCard(box);
@@ -1675,7 +1691,7 @@ const CardsScreen = {
     this.tab = aba;
     this.filters.materias = new Set(['deck:' + deckId]);
     this._meusMostrando = 0;
-    this._reviewIdx = 0;
+    this.invalidateReviewQueue();
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === aba));
     this.render();
     const mSel = document.getElementById('cards-f-materia');
@@ -1736,7 +1752,7 @@ const CardsScreen = {
     }
     document.getElementById('cards-custom-modal').style.display='none';
     if(result.limitOnly){
-      this._reviewIdx=0;this.render();showToast('Limite de hoje atualizado ✓');return;
+      this.invalidateReviewQueue();this.render();showToast('Limite de hoje atualizado ✓');return;
     }
     this.populateFilterOptions();
     this.irParaBaralho(result.deck.id,'revisar');
@@ -2356,7 +2372,7 @@ CardsScreen.zerarEstatisticas = function () {
         const r = DB.zerarProgressoCards();
         CardEngine.invalidateDueCache();
         CardsScreen._meusMostrando = 0;
-        CardsScreen._reviewQueue = []; CardsScreen._reviewIdx = 0;
+        CardsScreen.invalidateReviewQueue();
         CardsScreen._undoStack = []; CardsScreen._seenThisSession = new Set();
         CardsScreen.render();
         showToast('🧹 Zerado: ' + r.revlog + ' revisão(ões) e ' + r.cards + ' card(s) reiniciado(s)');
@@ -2605,7 +2621,10 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
     CardEngine.invalidateDueCache();
-    if (CardsScreen.tab === 'revisar' || CardsScreen.tab === 'stats') CardsScreen.renderContent();
+    if (CardsScreen.tab === 'revisar') {
+      CardsScreen.invalidateReviewQueue();
+      CardsScreen.renderContent();
+    } else if (CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
 
   // O Anki expõe a otimização no próprio Deck Options. Aqui o botão usa o
