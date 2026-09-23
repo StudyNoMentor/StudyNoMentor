@@ -1,0 +1,143 @@
+name: Cleanup obsolete branches
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-obsolete-branches.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete audited obsolete branches
+        shell: bash
+        run: |
+          set -u
+          branches=(
+            "audit/cards-anki-longterm-certification-20260921"
+            "audit/cards-final-certification-20260923"
+            "audit/integracao-tec-fast-safe"
+            "audit/integracao-tec-fast-safe-final"
+            "audit/integracao-tec-final"
+            "audit/integracao-tec-one-commit"
+            "audit/integracao-tec-review"
+            "audit/integracao-tec-total"
+            "audit/integracao-tec-total-fast-ci"
+            "audit/integracao-tec-total-fast-ci-atomic"
+            "audit/integracao-tec-total-pr"
+            "audit/integracao-tec-v14"
+            "audit/site-visual-total"
+            "cards-10of10-paridade-total-20260922"
+            "cards-paridade-10of10-total-20260922"
+            "cards-paridade-pratica-10of10-20260922"
+            "claude/affectionate-davinci-qic1me"
+            "claude/auto-logout-inactivity-9egzb9"
+            "claude/bold-cannon-4ky7s2"
+            "claude/magical-meitner-gslw25"
+            "claude/meus-card-anki-0ktxhg"
+            "claude/mobile-ui-layout-fixes-vcnsw8"
+            "claude/plane-pull-window-layout-06mha1"
+            "claude/shared-chat-review-nvx392"
+            "claude/study-capabilities-0en5i1"
+            "claude/youthful-brown-m517p5"
+            "cleanup/auditoria-fina-legados-main"
+            "cleanup/cards-verificacao-enxuta-20260922"
+            "cleanup/deep-relational-legacy-20260919"
+            "cleanup/remove-assuntos-abaixo-regua"
+            "cleanup/remove-pre-relational-legacy"
+            "cleanup/remove-relational-legacy"
+            "feat/anki-android-layout-20260923"
+            "feat/anki-official-engine-20260923"
+            "feat/anki-official-full-surface-20260923"
+            "feat/anki-oficial-launcher-20260922"
+            "feat/cards-anki-ui-parity-safe-20260922"
+            "feat/cards-final-product-parity-20260922"
+            "feat/cards-image-occlusion-stock-parity-20260922"
+            "feat/cards-paridade-maxima-editor-io-20260922"
+            "feat/cards-paridade-maxima-reviewer-browser-20260922"
+            "feat/cards-paridade-maxima-stats-media-20260922"
+            "feat/cards-product-parity-polish-20260922"
+            "feat/extras-reforco-tempo-minutos-20260921"
+            "feat/sync-v2-stage2-server-authority"
+            "feat/tec-import-manager-completo"
+            "feat/tec-integrated-workspace"
+            "feat/tec-motor-cards-legacy-style"
+            "feat/tec-panorama-motores-compacto"
+            "feat/tec-reconstrucao-caderno"
+            "fix/anki-android-native-launcher-20260922"
+            "fix/anki-official-engine-connect-20260923"
+            "fix/anki-study-native-layout-20260923"
+            "fix/cards-anki-10of10-20260922"
+            "fix/cards-anki-26092-total-parity-20260922"
+            "fix/cards-anki-export-parity-20260922"
+            "fix/cards-anki-final-parity-20260922"
+            "fix/cards-anki-perfect-parity-20260923"
+            "fix/cards-cloze-shorthand-save-20260923"
+            "fix/cards-durable-outbox-concurrency-20260921"
+            "fix/cards-durable-outbox-sync-20260921"
+            "fix/cards-final-parity-10of10-20260923"
+            "fix/cards-image-only-content-20260922"
+            "fix/cards-import-export-final-parity-20260922"
+            "fix/cards-import-parity-20260922"
+            "fix/cards-mais-menu-a11y-export-20260922"
+            "fix/cards-mobile-parity-10of10-20260922"
+            "fix/cards-parity-hardening-20260922"
+            "fix/cards-reviewer-empty-front-20260922"
+            "fix/cards-reviewer-session-parity-20260922"
+            "fix/cloud-authoritative-study-entries"
+            "fix/cloud-sync-button"
+            "fix/deploy-consistency-self-heal-v1"
+            "fix/final-relational-cleanup-20260919"
+            "fix/mobile-entry-sync-conflict"
+            "fix/motor-real-data-audit-v3"
+            "fix/motor-simples-lacunas-v4"
+            "fix/motor-sugestao-auditoria-refinamento"
+            "fix/relational-startup-performance"
+            "fix/relational-ui-refresh-after-hydrate"
+            "fix/startup-auth-persistence-hardening-v1"
+            "fix/sw-skipwaiting-duravel"
+            "fix/sync-button-build"
+            "fix/sync-v2-stage1-hardening"
+            "fix/tec-ajustes-ci-verde"
+            "fix/tec-analise-multifiltro-motor-hierarquia"
+            "fix/tec-final-audit-cleanup"
+            "fix/tec-historico-validacao-total"
+            "fix/tec-motor-hierarquia-ux-v2"
+            "fix/tec-motores-oculta-plano-legado"
+            "fix/tec-reconstruction-stability-v2"
+            "fix/tec-single-question-retry-diagnostics"
+            "fix/update-cloud-reconcile"
+            "fix/ux-hierarquia-prontidao-ci"
+            "hotfix/drain-outbox-on-session-handoff"
+            "hotfix/mobile-stale-fastpath"
+            "hotfix/sync-integrity-session-realtime"
+            "refactor/motor-sugestao-unico-v5"
+            "sync-v2-stage2-canonical-sections"
+            "sync-v2-stage3-session-entry-barrier"
+            "test/cards-certificacao-10of10-6000x365-20260922"
+          )
+          failed=()
+          deleted=0
+          for b in "${branches[@]}"; do
+            if git ls-remote --exit-code --heads origin "refs/heads/$b" >/dev/null 2>&1; then
+              echo "Deleting $b"
+              if git push origin --delete "$b"; then
+                deleted=$((deleted+1))
+              else
+                failed+=("$b")
+              fi
+            else
+              echo "Already absent: $b"
+            fi
+          done
+          echo "Deleted: $deleted"
+          if (("${#failed[@]}" > 0)); then
+            printf 'Failed: %s\n' "${failed[@]}"
+            exit 1
+          fi
