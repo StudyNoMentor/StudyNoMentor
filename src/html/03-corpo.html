@@ -266,6 +266,7 @@
       <button class="tab" data-screen="estudonovo" data-short="Novo"><span class="tab-icon" aria-hidden="true">▥</span><span class="tab-label">Estudo Novo</span></button>
       <button class="tab" data-screen="leis" data-short="Leis"><span class="tab-icon" aria-hidden="true">§</span><span class="tab-label">Leis Secas</span></button>
       <button class="tab" data-screen="cards" data-primary data-short="Cards"><span class="tab-icon" aria-hidden="true">🗂️</span><span class="tab-label">Cards de Revisão</span></button>
+      <button class="tab" type="button" data-screen="anki" data-short="Anki" title="Anki 26.09.2 oficial dentro do Study"><span class="tab-icon anki-official-tab-icon" aria-hidden="true"><img src="https://raw.githubusercontent.com/ankitects/anki/26.09.2/docs-site/media/anki-logo.svg" alt="" width="20" height="20" loading="lazy"></span><span class="tab-label">Anki Oficial</span></button>
       <button class="tab" data-screen="extras" data-short="Extras"><span class="tab-icon" aria-hidden="true">✅</span><span class="tab-label">Atividades Extras</span></button>
       <button class="tab" data-screen="links" data-short="Links"><span class="tab-icon" aria-hidden="true">🔗</span><span class="tab-label">Links Úteis</span></button>
       <button class="tab" data-screen="historico" data-short="Histórico"><span class="tab-icon" aria-hidden="true">▤</span><span class="tab-label">Histórico</span></button>
@@ -1044,6 +1045,44 @@
 
     <!-- Área de conteúdo (revisar OU meus cards) -->
     <div id="cards-content"></div>
+  </section>
+
+  <!-- ============ TELA: ANKI OFICIAL ============ -->
+  <section role="region" tabindex="-1" class="screen" id="screen-anki">
+    <div class="page-header anki-official-header">
+      <div class="anki-official-title-row">
+        <img class="anki-official-logo" src="https://raw.githubusercontent.com/ankitects/anki/26.09.2/docs-site/media/anki-logo.svg" alt="" width="34" height="34">
+        <div>
+          <h2 class="page-title">Anki Oficial</h2>
+          <p class="page-subtitle">Interface do Study sobre o backend original do Anki 26.09.2. Scheduler, FSRS, fila, busca, coleção e import/export não usam o motor de Cards do Study.</p>
+        </div>
+      </div>
+      <div class="anki-official-engine-badge" id="anki-official-engine-badge">Engine: verificando…</div>
+    </div>
+
+    <div class="anki-official-toolbar" role="tablist" aria-label="Áreas do Anki Oficial">
+      <button type="button" class="btn-secondary active" data-anki-view="decks">Baralhos</button>
+      <button type="button" class="btn-secondary" data-anki-view="review">Revisar</button>
+      <button type="button" class="btn-secondary" data-anki-view="browser">Navegador</button>
+      <button type="button" class="btn-secondary" data-anki-view="add">Adicionar</button>
+      <button type="button" class="btn-secondary" data-anki-view="options">Opções</button>
+      <button type="button" class="btn-secondary" data-anki-view="tools">Ferramentas</button>
+    </div>
+
+    <div class="anki-official-actions">
+      <label class="btn-secondary anki-file-btn">↑ Importar .apkg/.colpkg
+        <input type="file" id="anki-official-import" accept=".apkg,.colpkg" hidden>
+      </label>
+      <button type="button" class="btn-secondary" id="anki-official-export-apkg">↓ Exportar .apkg</button>
+      <button type="button" class="btn-secondary" id="anki-official-export-colpkg">↓ Exportar .colpkg</button>
+      <button type="button" class="btn-secondary" id="anki-official-undo">↶ Desfazer</button>
+      <button type="button" class="btn-secondary" id="anki-official-redo">↷ Refazer</button>
+    </div>
+
+    <div id="anki-official-alert" class="anki-official-alert" hidden></div>
+    <div id="anki-official-root" class="anki-official-root">
+      <div class="card"><div class="card-body">Conectando ao backend oficial do Anki…</div></div>
+    </div>
   </section>
 
   <!-- Modal: resumo/anotação de uma aula do Estudo Novo -->
