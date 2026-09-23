@@ -9,7 +9,7 @@ use rand::distr::weighted::WeightedIndex;
 use rand::distr::Distribution;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rand::Rng;
+use rand::RngExt;
 use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
