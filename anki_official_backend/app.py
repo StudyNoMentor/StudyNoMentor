@@ -237,6 +237,8 @@ def health() -> dict[str, Any]:
         "engine": "anki",
         "pinned_version": ANKI_VERSION,
         "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+        "build": "railpack",
+        "data_dir": str(DATA_DIR),
     }
 
 
