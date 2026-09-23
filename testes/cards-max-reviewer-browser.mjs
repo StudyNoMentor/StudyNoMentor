@@ -52,6 +52,10 @@ assert.equal(sel.cards.length,1);assert.deepEqual(Array.from(sel.noteIds),['n1']
 assert.equal(M._isSortableColumn('question'),false,'Anki não permite ordenar pela coluna Pergunta');
 assert.equal(M._isSortableColumn('answer'),false,'Anki não permite ordenar pela coluna Resposta');
 assert.equal(M._isSortableColumn('due'),true);
+const defs=M._columnDefs();
+for(const [key,def] of Object.entries(defs)) {
+  assert.equal(def.modes.includes('cards')&&def.modes.includes('notes'),true,'coluna '+key+' deve existir em Cards e Notes');
+}
 const browserSrc=readFileSync(join(ROOT,'src/js/44-anki-max-reviewer-browser.js'),'utf8');
 assert.match(browserSrc,/draggable="true"/,'cabeçalhos devem ser arrastáveis para reordenar colunas');
 assert.match(browserSrc,/data-col-drag/,'reordenação de colunas deve ser persistida pelo Browser');
