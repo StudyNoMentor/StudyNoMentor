@@ -59,6 +59,21 @@ try:
             queries.append(f"{a} {b}")
             queries.append(f"({a} OR {b})")
             queries.append(f"{a} -{b}")
+
+    # Auditoria diferencial massiva: combina três átomos com agrupamento,
+    # precedência e negação. Isso pega regressões que uma lista curta de
+    # exemplos não detecta e executa exatamente a mesma consulta nos dois
+    # mecanismos (Anki oficial e Study).
+    for a in atoms:
+        for b in atoms:
+            if b==a: continue
+            for c in atoms:
+                if c==a or c==b: continue
+                queries.append(f"{a} {b} {c}")
+                queries.append(f"({a} OR {b}) {c}")
+                queries.append(f"{a} ({b} OR {c})")
+                queries.append(f"({a} OR {b} OR {c})")
+                queries.append(f"{a} -{b} {c}")
     seen=set(); rows=[]
     for q in queries:
         if q in seen: continue
