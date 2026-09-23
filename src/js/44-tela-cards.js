@@ -5,6 +5,7 @@ const CardsScreen = {
   tab: 'revisar',
   filters: { busca: '', materias: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
   _editingId: null,
+  _editingPlanId: null, // origem do card global em edição; novo card usa o plano ativo
   _reviewQueue: [], _reviewIdx: 0, _flipped: false,
   _importParsed: null,
 
@@ -42,11 +43,23 @@ const CardsScreen = {
     $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   },
-  destinoOptionsHtml(selected) {
+  destinationDecks(planId) {
+    // Card global continua pertencendo ao planejamento onde nasceu. Ao editá-lo
+    // de outra visão, o seletor precisa enxergar os baralhos DA ORIGEM; usar
+    // DB.getDecks() aqui mostrava somente o plano atual e fazia o destino sumir.
+    if (planId && DB.getDecksForPlan) {
+      const list = DB.getDecksForPlan(planId);
+      if (Array.isArray(list)) return list;
+    }
+    return DB.getDecks();
+  },
+  destinoOptionsHtml(selected, planId) {
     // O destino de um card novo é sempre um baralho ("deck:id") — a disciplina
     // ficou pro campo Matéria (Tec), texto livre, sem duplicar o que já é feito
-    // aqui pelo baralho.
-    const deckOpts = DB.getDecks().map(d => `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}</option>`).join('');
+    // aqui pelo baralho. Em edição global, usa o catálogo do plano de origem.
+    const deckOpts = this.destinationDecks(planId).map(d =>
+      `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome && String(d._planId) !== String(PlanManager.getActivePlanId()) ? ' · ' + escapeHtml(d._planNome) : ''}</option>`
+    ).join('');
     // Cards antigos podiam ter uma disciplina como destino, sem baralho nenhum
     // ("sub:Nome"). Editar um desses não pode fazer o destino atual sumir da
     // lista sozinho — mantém só essa opção, sem reoferecer as outras disciplinas.
@@ -1585,6 +1598,7 @@ const CardsScreen = {
   },
   openCardModal(id) {
     this._editingId = id || null;
+    this._editingPlanId = null;
     const isEdit = !!id;
     $id('card-modal-title').textContent = isEdit ? '✎ Editar card' : '＋ Criar card';
     $id('card-del-btn').style.display = isEdit ? 'inline-block' : 'none';
@@ -1593,10 +1607,16 @@ const CardsScreen = {
     if (isEdit) {
       if (DB.normalizeCardNotesInPlace) DB.normalizeCardNotesInPlace();
       const c = DB.getCard(id);
+      if (!c) { showToast('Card não encontrado'); this._editingId = null; return; }
+      try {
+        this._editingPlanId = c._planId ||
+          (window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard ? StudyGlobalScope.sourcePlanForCard(c.id) : null) ||
+          PlanManager.getActivePlanId();
+      } catch (_) { this._editingPlanId = PlanManager.getActivePlanId(); }
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
       assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
-    $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel);
+    $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel, this._editingPlanId);
     $id('card-assunto').value = assunto;
     const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
@@ -1618,7 +1638,7 @@ const CardsScreen = {
     $id('card-modal').style.display = 'flex';
     setTimeout(() => $id('card-destino').focus(), 50);
   },
-  closeCardModal() { $id('card-modal').style.display = 'none'; this._editingId = null; },
+  closeCardModal() { $id('card-modal').style.display = 'none'; this._editingId = null; this._editingPlanId = null; },
   // Há algo que se perderia ao fechar? Para as áreas ricas olha o innerHTML, não o
   // innerText: um card com apenas uma IMAGEM colada tem texto vazio e seria
   // descartado como se estivesse em branco.
