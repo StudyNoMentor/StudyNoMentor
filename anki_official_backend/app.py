@@ -385,12 +385,21 @@ def notetypes(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
         values = item.col.models.all_names_and_ids()
-        return {
-            "notetypes": [
-                {"id": int(getattr(n, "id", 0)), "name": n.name}
-                for n in values
-            ]
-        }
+        out = []
+        for n in values:
+            nt = item.col.models.get(int(getattr(n, "id", 0)))
+            out.append(
+                {
+                    "id": int(getattr(n, "id", 0)),
+                    "name": n.name,
+                    "fields": [
+                        field.get("name", "")
+                        for field in (nt or {}).get("flds", [])
+                        if field.get("name")
+                    ],
+                }
+            )
+        return {"notetypes": out}
 
 
 @app.post("/api/anki/notes")
