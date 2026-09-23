@@ -29,6 +29,16 @@ assert.match(typedQ,/snm-anki-type-input/,'type:Field precisa virar campo de dig
 R._typedAnswers.set('123|Front','Correta');
 const typedA=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
 assert.match(typedA,/is-correct/,'resposta digitada precisa sobreviver ao flip e ser comparada');
+assert.match(typedA,/typeGood/,'resposta correta usa a classe oficial typeGood');
+R._typedAnswers.set('123|Front','Coreta');
+const typedDiff=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
+assert.match(typedDiff,/typeBad/,'caractere digitado incorreto deve ser destacado');
+assert.match(typedDiff,/typeMissed/,'caractere ausente deve ser destacado como no Anki');
+R._typedAnswers.set('123|Front','elite');
+const typedNc=R.buildSrcdoc(nt,'[[type:nc:Front]]','answer',{id:123},{fields:{Front:'élite'}});
+assert.match(typedNc,/is-correct/,'type:nc deve ignorar diacríticos');
+assert.doesNotMatch(typedNc,/typeBad/,'diferença apenas de diacrítico não pode ser marcada como erro');
+assert.match(typedQ,/snm-anki-show-answer/,'Enter no campo digitado deve revelar a resposta');
 R.clearTyped({id:123});
 assert.equal(R._typedAnswers.has('123|Front'),false,'resposta digitada deve ser limpa ao avançar o card');
 assert.equal(R._needsMath('Preço: R$ 100'),false,'valor monetário não deve carregar MathJax');
