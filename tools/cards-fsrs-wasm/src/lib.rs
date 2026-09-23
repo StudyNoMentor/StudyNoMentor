@@ -287,13 +287,11 @@ pub fn memory_state_json(input_json: &str) -> Result<String, JsValue> {
         None
     };
     let state = fsrs.memory_state(item, starting_state).map_err(js_err)?;
-    let next_interval = fsrs
-        .next_interval(
-            Some(state.stability),
-            input.desired_retention.clamp(0.7, 0.99),
-            0,
-        )
-        .map_err(js_err)?;
+    let next_interval = fsrs.next_interval(
+        Some(state.stability),
+        input.desired_retention.clamp(0.7, 0.99),
+        0,
+    );
     serde_json::to_string(&MemoryStateJsonOutput {
         stability: state.stability,
         difficulty: state.difficulty,
