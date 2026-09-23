@@ -1169,12 +1169,19 @@ const CardsScreen = {
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, DB.getCards().findIndex(x => String(x.id) === String(id)) + 1);
+        const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
+        const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
         const revRow = await DB.addRevlogDurable(
           { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
             phase: previewPatch ? 'filtered' : (c.phase || 'new'),
             ankiReviewKind: previewPatch ? 'filtered' : undefined,
             elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
-            intervalo: previewPatch ? 0 : (c.intervalo || 0), s: (c.s || null), d: (c.d || null) },
+            // Compatibilidade: `intervalo` continua sendo o intervalo pré-resposta
+            // usado pelas estatísticas antigas; os campos Anki explícitos removem
+            // qualquer ambiguidade para FSRS/import/export daqui em diante.
+            intervalo: preInterval, lastInterval: preInterval, ankiLastInterval: preInterval,
+            ankiInterval: postInterval, easeFactor,
+            s: (c.s || null), d: (c.d || null) },
           cardAfter, cardPosition
         );
         if (revRow === false) {
@@ -2461,29 +2468,32 @@ CardsScreen.fsrsHealthCheck = async function(deckId){
   const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
   return FSRS.healthCheckOfficial(DB.getRevlog(),{deckId:null,cfg,cards});
 };
-CardsScreen._rescheduleFsrsCard = function(card,cfg,rows){
+CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
   if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
-  const valid=(rows||[]).filter(r=>String(r.cardId)===String(card.id)&&AnkiParity._trainingAffectsScheduling(r)).sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
-  if(!valid.length||!card.lastReview)return null;
-  const reviews=valid.map(r=>({rating:Number(r.grade),delta_t:Math.max(0,Number(r.elapsed)||0)})),w=CardsConfig.weightsFor(card.originalDeckId||card.deckId),
-    state=FSRS._stateFromTrainingItem({reviews},w);if(!state)return null;
-  const retention=Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
-    dec=FSRS.decayOf(w),fac=FSRS.factorOf(w),raw=Math.max(1,(state.s/fac)*(Math.pow(retention,1/dec)-1)),
-    previous=Math.max(0,Number(valid[valid.length-1].intervalo!=null?valid[valid.length-1].intervalo:valid[valid.length-1].ankiInterval)||0),
-    min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),elapsed=Math.max(0,CardEngine._daysBetween(card.lastReview,todayCards())),
-    seed=AnkiParity.fuzzSeed(card,true);
+  const entries=(rows||[]).filter(r=>String(r.cardId)===String(card.id)).sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
+  if(!entries.length)return null;
+  let ignoreBeforeMs=0;if(cfg.ignoreRevlogsBefore){const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();}
+  const data=AnkiParity.fsrsMemoryStateData(entries,null,ignoreBeforeMs,cfg.historicalRetention,card);
+  if(!data||!data.lastReviewedAtMs)return null;
+  const w=CardsConfig.weightsFor(card.originalDeckId||card.deckId),retention=Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),
+    state=FSRS.memoryStateOfficialWithModule(mod,data,w,retention),raw=state.interval,maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
+    previous=data.previousInterval==null?0:Math.max(0,Number(data.previousInterval)||0),
+    min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),
+    lastDate=new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
+    elapsed=Math.max(0,CardEngine._daysBetween(lastDate,todayCards())),seed=AnkiParity.fuzzSeed(card,true);
   let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
   if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);
-  const due=CardEngine.addDays(card.lastReview,iv),patch={s:state.s,d:state.d,intervalo:iv,dueTs:null,updatedAt:new Date().toISOString()};
+  const due=CardEngine.addDays(lastDate,iv),patch={s:state.s,d:state.d,intervalo:iv,dueTs:null,updatedAt:new Date().toISOString()};
   if(card.originalDeckId)patch.originalDue=due;else patch.due=due;
   return {patch,interval:iv,previous,due};
 };
-CardsScreen.rescheduleFsrsScope = function(deckId){
-  const rows=DB.getRevlog()||[],all=DB.getCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
+CardsScreen.rescheduleFsrsScope = async function(deckId){
+  const rows=DB.getRevlog()||[],all=DB.getCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
+    mod=await FSRS._loadOfficialOptimizer();
   let changed=0;
   for(const card of targets){
-    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),out=this._rescheduleFsrsCard(card,cfg,rows);if(!out)continue;
-    DB.addRevlog({ts:Date.now()+changed,date:todayCards(),cardId:card.id,grade:0,phase:'review',ankiReviewKind:'rescheduled',intervalo:Number(card.intervalo)||0,ankiInterval:Number(card.intervalo)||0,elapsed:0,time:0,s:card.s||null,d:card.d||null});
+    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),out=this._rescheduleFsrsCard(card,cfg,rows,mod);if(!out)continue;
+    DB.addRevlog({ts:Date.now()+changed,date:todayCards(),cardId:card.id,grade:0,phase:'review',ankiReviewKind:'rescheduled',intervalo:Number(card.intervalo)||0,lastInterval:Number(card.intervalo)||0,ankiLastInterval:Number(card.intervalo)||0,ankiInterval:Number(out.interval)||0,elapsed:0,time:0,s:card.s||null,d:card.d||null});
     if(DB.updateCard(card.id,out.patch)!==false)changed++;
   }
   CardEngine.invalidateDueCache();return changed;
@@ -2668,7 +2678,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Se ligado, ao estudar diretamente um subbaralho também se aplicam os limites dos baralhos-pai acima dele.' });
   }
   const title = isDeck ? ('⚙ Baralho: ' + deckName) : '⚙ Configuração Global';
-  UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(v => {
+  UI.prompt(fields, { title, okText: 'Salvar', sub: isDeck ? (hasPreset ? 'Este baralho usa um preset próprio.' : 'Salvar aqui cria um preset só para este baralho.') : '' }).then(async v => {
     if (!v) return;
     const parseSteps = (s, def) => {
       const raw=String(s==null?'':s).trim();
@@ -2741,7 +2751,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
     const shouldReschedule=v.fsrsReschedule==='1'&&patch.algo!=='sm2'&&CardsConfig.get().algo==='fsrs';
-    const rescheduled=shouldReschedule?CardsScreen.rescheduleFsrsScope(deckId):0;
+    const rescheduled=shouldReschedule?await CardsScreen.rescheduleFsrsScope(deckId):0;
     CardEngine.invalidateDueCache();
     if(rescheduled)showToast('🔄 '+rescheduled.toLocaleString('pt-BR')+' card(s) reagendado(s) com FSRS ✓');
     if (CardsScreen.tab === 'revisar') {
