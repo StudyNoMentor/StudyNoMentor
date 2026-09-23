@@ -68,28 +68,31 @@ const CardsScreen = {
      nada sobre esquecimento. */
   trueRetention(dias) {
     const revlog = DB.getRevlog() || [];
-    const limite = dias ? CardEngine.addDays(todayCards(), -dias) : null;
+    // O Anki conta somente a PRIMEIRA revisão do card em cada dia.
+    // "Hoje" é apenas hoje; uma janela N inclui hoje + N-1 dias anteriores.
+    const limite = dias ? CardEngine.addDays(todayCards(), -(Math.max(1, Number(dias)) - 1)) : null;
     const acc = {
       jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 },
       todos: { total: 0, acertos: 0 }, mesmoDia: 0
     };
-    revlog.forEach(r => {
-      if (!r || !r.grade) return;
-      /* Só respostas dadas em REVISÃO, como no Anki (revlog do tipo Review) —
-         e como o KPI "Retenção real" do topo desta mesma tela, que filtrava
-         phase === 'review' enquanto esta tabela não filtrava nada. Os dois
-         cartões diziam "retenção real" e mostravam números diferentes. */
-      if ((r.phase || 'review') !== 'review') return;
-      if (limite && String(r.date || '') < limite) return;
-      if ((r.elapsed || 0) < 1) { acc.mesmoDia++; return; }   // intradiária: fora da conta
-      /* Maturidade pelo intervalo que o card tinha na hora (≥ 21 dias = maduro).
-         Revisões antigas não guardavam esse campo: para elas usamos o tempo
-         realmente decorrido desde a última revisão, que é a melhor aproximação
-         disponível — melhor que jogar todo o histórico na coluna "Jovens". */
-      const ivl = (r.intervalo != null) ? r.intervalo : (r.elapsed || 0);
+    const rows = revlog.map((r, i) => ({ r, i, ts: Number(r && r.ts) || 0 }))
+      .filter(x => x.r && Number(x.r.grade) >= 1 && Number(x.r.grade) <= 4 && (x.r.phase || 'review') === 'review')
+      .sort((a, b) => (a.ts || a.i) - (b.ts || b.i));
+    const seen = new Set();
+    rows.forEach(({ r }) => {
+      const data = String(r.date || '').slice(0, 10);
+      if (limite && data && data < limite) return;
+      const cardKey = String(r.cardId == null ? (r.ankiCardId == null ? '' : r.ankiCardId) : r.cardId);
+      const dailyKey = cardKey + '|' + data;
+      if (seen.has(dailyKey)) { acc.mesmoDia++; return; }
+      seen.add(dailyKey);
+
+      /* Maturidade usa o intervalo que o card tinha ANTES desta revisão.
+         Logs antigos podem não ter esse campo; elapsed é o fallback histórico. */
+      const ivl = (r.intervalo != null) ? Number(r.intervalo) : Number(r.elapsed || 0);
       const alvo = ivl >= 21 ? acc.maduro : acc.jovem;
       alvo.total++; acc.todos.total++;
-      if (r.grade >= 2) { alvo.acertos++; acc.todos.acertos++; }
+      if (Number(r.grade) > 1) { alvo.acertos++; acc.todos.acertos++; }
     });
     const pct = (o) => o.total ? Math.round((o.acertos / o.total) * 1000) / 10 : null;
     return {
@@ -602,7 +605,7 @@ const CardsScreen = {
     const meta = this.trueRetention(null).meta;
     return `<div class="card stat-card" style="margin-top:14px">
       <div class="card-header"><div><h2>🎯 Retenção real (True Retention)</h2>
-      <p class="sub">Acertos ÷ revisões de longo prazo. Meta configurada: ${meta}%. Revisões do mesmo dia não entram.</p></div></div>
+      <p class="sub">Primeira revisão de cada card por dia. Again = falha; Hard/Good/Easy = acerto. Meta configurada: ${meta}%.</p></div></div>
       <div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
     </div>`;
   },
