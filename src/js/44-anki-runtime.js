@@ -94,12 +94,14 @@ const AnkiRuntime = {
     const s=String(html||'');
     return /\\(?:\(|\[|begin\{)/.test(s)||s.includes('$$')||/<anki-mathjax\b/i.test(s);
   },
-  _typeExpected(v){
+  _typeExpected(v,preserveCombiningOrder){
     let s=String(v==null?'':v);
     s=s.replace(/\[sound:[^\]]+\]/gi,'').replace(/\[anki:tts[^\]]*\][\s\S]*?\[\/anki:tts\]/gi,'');
     s=s.replace(/(?:\r?\n|<br\s*\/?>|<\/?div\b[^>]*>)+/gi,' ');
     s=this._plain(s).replace(/\s+$/,'').replace(/^\s+/,'');
-    return s.normalize('NFC');
+    // O comparador oficial ignora marcas combinantes no modo :nc, mas preserva
+    // a ordem visual original dessas marcas ao renderizar a resposta correta.
+    return preserveCombiningOrder?s:s.normalize('NFC');
   },
   _typeUnitsOfficial(v,ignoreCombining,isExpected){
     const source=String(v==null?'':v);
@@ -164,7 +166,7 @@ const AnkiRuntime = {
     return '<span class="'+kind+'">'+this._escAttr(s)+'</span>';
   },
   _typeCompareHtml(expected,typed,ignoreCombining){
-    const exp=this._typeExpected(expected),provided=String(typed==null?'':typed);
+    const exp=this._typeExpected(expected,!!ignoreCombining),provided=String(typed==null?'':typed);
     if(!provided)return '<code id="typeans">'+this._escAttr(exp)+'</code>';
     const a=this._typeUnitsOfficial(provided,ignoreCombining,false),b=this._typeUnitsOfficial(exp,ignoreCombining,true);
     if(a.map(x=>x.key).join('')===b.map(x=>x.key).join(''))
