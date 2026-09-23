@@ -390,7 +390,7 @@ def card_action(body: CardActionBody, user: dict[str, Any] = Depends(current_use
             flag = int(body.value or 0)
             if flag < 0 or flag > 7:
                 raise HTTPException(400, "Flag deve estar entre 0 e 7.")
-            item.col.set_user_flag_for_cards(ids, flag)
+            item.col.set_user_flag_for_cards(flag, ids)
         elif body.action == "mark":
             for cid in ids:
                 note = item.col.get_card(cid).note()
