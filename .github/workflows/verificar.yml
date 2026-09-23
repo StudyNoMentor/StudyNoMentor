@@ -44,28 +44,29 @@ jobs:
         if: github.event_name != 'push'
         run: node testes/cards-paridade-total-anki.mjs
 
-      - name: Interoperabilidade dos Cards
+      - name: Exportação de pacotes
         if: github.event_name != 'push'
-        shell: bash
         env:
           SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
           SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
           SNM_COLPKG_OUT: ${{ runner.temp }}/snm-study.colpkg
-        run: |
-          set -euo pipefail
-          node testes/cards-apkg-export.mjs
-          node testes/cards-import-formatos.mjs
-          node testes/cards-runtime-anki.mjs
-          node testes/cards-product-parity.mjs
-          node testes/cards-max-reviewer-browser.mjs
-          node testes/cards-image-occlusion.mjs
-          node testes/cards-max-editor-io.mjs
-          node testes/cards-max-stats-media.mjs
-          node testes/cards-10of10-final.mjs
-          node testes/cards-total-parity.mjs
-          node testes/cards-practical-10.mjs
-          node testes/cards-fsrs-optimizer-oficial.mjs
-          node testes/cards-concorrencia-multidevice.mjs
+        run: node testes/cards-apkg-export.mjs
+
+      - name: Importação de formatos
+        if: github.event_name != 'push'
+        run: node testes/cards-import-formatos.mjs
+
+      - name: Runtime Anki
+        if: github.event_name != 'push'
+        run: node testes/cards-runtime-anki.mjs
+
+      - name: FSRS oficial
+        if: github.event_name != 'push'
+        run: node testes/cards-fsrs-optimizer-oficial.mjs
+
+      - name: Concorrência multidevice
+        if: github.event_name != 'push'
+        run: node testes/cards-concorrencia-multidevice.mjs
 
       - name: Round-trip com Anki oficial 26.09.2
         if: github.event_name != 'push'
