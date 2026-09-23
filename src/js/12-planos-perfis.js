@@ -56,7 +56,8 @@ const PlanManager = {
     return id;
   },
 
-  // Cria um planejamento novo aproveitando a ESTRUTURA de outro (nunca os registros/ciclos/histórico).
+  // Cria um planejamento novo aproveitando a ESTRUTURA de outro. Registros, ciclos e semanas
+  // fechadas nunca viajam; o histórico TEC só viaja quando o usuário pede explicitamente.
   duplicateFrom(sourceId, opts) {
     const id = this.createPlan({ nome: opts.nome, tipo: opts.tipo }); // já semeia padrões
     const sk = DB.keysForPlan(sourceId);
