@@ -166,7 +166,11 @@ const PlanUI = {
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
-        PlanManager.deletePlan(id);
+        const apagou = PlanManager.deletePlan(id);
+        if (apagou === false) {
+          await UI.alert('Reative outro planejamento antes de excluir este. O perfil precisa manter pelo menos um planejamento operacional.', { title: 'Não é possível excluir' });
+          return;
+        }
         if (wasActive) { CloudStore.saveThenReload(); return; }
         this.renderScreen();
         this.renderSidebar();
