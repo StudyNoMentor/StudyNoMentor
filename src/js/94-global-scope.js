@@ -154,6 +154,56 @@
       return any ? Object.assign({}, any.deck, { _planId: any.planId, _planNome: this.planName(any.planId) }) : null;
     },
 
+    planIdsForScope(scope) {
+      const sc = scope || this.cardsScope(), active = this.activePlanId();
+      if (sc !== 'all') return active ? [active] : [];
+      return this.plans().map(p => p.id).filter((id, i, a) => id && a.findIndex(x => String(x) === String(id)) === i);
+    },
+    entityKeyForPlan(planId, kind, id) {
+      return DB._profilePrefix() + 'p:' + String(planId) + ':cards-' + String(kind) + ':' + String(id == null ? '' : id);
+    },
+    _entityRows(planId, kind) {
+      const prefix = this.entityKeyForPlan(planId, kind, ''), out = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i); if (!k || !String(k).startsWith(prefix)) continue;
+          try {
+            const v = JSON.parse(localStorage.getItem(k) || 'null');
+            if (v && typeof v === 'object') out.push(Object.assign({}, v, { _planId: planId, _planNome: this.planName(planId) }));
+          } catch (_) {}
+        }
+      } catch (_) {}
+      return out;
+    },
+    ankiEntities(kind, scope) {
+      const out = [];
+      this.planIdsForScope(scope).forEach(pid => out.push(...this._entityRows(pid, kind)));
+      const seen = new Set();
+      return out.filter(x => {
+        const k = String(x._planId) + '|' + String(x.id);
+        if (seen.has(k)) return false; seen.add(k); return true;
+      });
+    },
+    ankiEntity(kind, id, planId) {
+      const ids = planId != null ? [planId] : [this.activePlanId()].concat(this.plans().map(p => p.id));
+      const seen = new Set();
+      for (const pid of ids) {
+        if (!pid || seen.has(String(pid))) continue; seen.add(String(pid));
+        const row = this._entityRows(pid, kind).find(x => String(x.id) === String(id) || String(x.ankiId) === String(id));
+        if (row) return row;
+      }
+      return null;
+    },
+    ankiEntityEntries(planId) {
+      const prefix = DB._profilePrefix() + 'p:' + String(planId) + ':cards-', rows = [];
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i); if (k && String(k).startsWith(prefix)) rows.push([k, localStorage.getItem(k)]);
+        }
+      } catch (_) {}
+      return rows;
+    },
+
     bankCatalog() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) {}
@@ -670,7 +720,8 @@
     deleteNoteByCard: DB.deleteNoteByCard.bind(DB),
     addRevlogDurable: DB.addRevlogDurable.bind(DB),
     cancelarRevlogDurable: DB.cancelarRevlogDurable.bind(DB),
-    removeRevlog: DB.removeRevlog.bind(DB)
+    removeRevlog: DB.removeRevlog.bind(DB),
+    addRevlog: DB.addRevlog.bind(DB)
   };
   DB.getCard = function(id) {
     const local = O.getCard(id); if (local) return local;
@@ -731,6 +782,25 @@
     return ids.size;
   };
 
+  DB.addRevlog = function(entry) {
+    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlog(entry);
+    const l = S._revlogForPlan(pid), last = l.length ? l[l.length - 1] : null;
+    const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
+    const row = DB._normalizarReviewId(Object.assign({ _position: pos }, entry), true);
+    l.push(row);
+    const key = DB.keysForPlan(pid).revlog;
+    try {
+      if (DB._bancoRelacionalPronto && DB._bancoRelacionalPronto() && window.RelationalStore && RelationalStore.queueRevlogAppend)
+        RelationalStore.queueRevlogAppend(key, row);
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'global-revlog-append'); }
+    if (S._savePending(pid, row) === false) {
+      const i = l.findIndex(x => x && x.reviewId === row.reviewId); if (i >= 0) l.splice(i, 1);
+      return false;
+    }
+    return row;
+  };
+
   DB.addRevlogDurable = async function(entry, cardAfter, cardPosition) {
     const pid = S.sourcePlanForCard(entry && entry.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition);
@@ -788,8 +858,141 @@
     };
   }
 
+  /* Notes/NoteTypes continuam persistidos por planejamento para compatibilidade
+     com sync/backup, mas passam a formar uma coleção virtual única quando Cards
+     está em "Todos os planejamentos". Escritas retornam sempre à origem. */
+  S.installAnkiEntityScope = function() {
+    const AP = window.AnkiParity;
+    if (!AP || AP.__globalEntityScope) return;
+    AP.__globalEntityScope = true;
+    const old = {
+      planPrefix: AP._planPrefix,
+      getNote: AP.getNote, saveNote: AP.saveNote, notes: AP.notes,
+      getNotetype: AP.getNotetype, saveNotetype: AP.saveNotetype, noteTypes: AP.noteTypes,
+      stockNotetype: AP.stockNotetype, ensureCanonicalNotes: AP.ensureCanonicalNotes,
+      ensureIdentities: AP.ensureIdentities, specialField: AP._specialField
+    };
+    const withPrefix = (pid, fn) => {
+      const prev = AP._planPrefix;
+      AP._planPrefix = () => DB._profilePrefix() + 'p:' + String(pid) + ':';
+      try { return fn(); } finally { AP._planPrefix = prev; }
+    };
+    const withOriginalEntities = (pid, fn) => {
+      const names=['getNote','saveNote','notes','getNotetype','saveNotetype','noteTypes','stockNotetype'];
+      const prev={}; names.forEach(n=>{prev[n]=AP[n];AP[n]=old[n];});
+      try { return withPrefix(pid, fn); } finally { names.forEach(n=>{AP[n]=prev[n];}); }
+    };
+    const clean = x => { const y=clone(x); if (y) { delete y._planId; delete y._planNome; } return y; };
+
+    AP.getNote = function(id, planId) {
+      if (planId != null) return withPrefix(planId, () => {
+        const x=old.getNote.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
+      });
+      return S.ankiEntity('note', id);
+    };
+    AP.getNotetype = function(id, planId) {
+      if (planId != null) return withPrefix(planId, () => {
+        const x=old.getNotetype.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
+      });
+      return S.ankiEntity('notetype', id);
+    };
+    AP.notes = function(){ return S.ankiEntities('note'); };
+    AP.noteTypes = function(){ return S.ankiEntities('notetype').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))); };
+    AP.saveNote = function(note) {
+      const pid=(note&&note._planId)||S.activePlanId(), x=clean(note);
+      const saved=withOriginalEntities(pid,()=>old.saveNote.call(AP,x));
+      return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
+    };
+    AP.saveNotetype = function(nt) {
+      const pid=(nt&&nt._planId)||S.activePlanId(), x=clean(nt);
+      const saved=withOriginalEntities(pid,()=>old.saveNotetype.call(AP,x));
+      return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
+    };
+    AP.stockNotetype = function(kind, planId) {
+      const pid=planId||S.activePlanId();
+      const saved=withOriginalEntities(pid,()=>old.stockNotetype.call(AP,kind));
+      return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
+    };
+    AP.ensureCanonicalNotes = function(cards) {
+      const source=Array.isArray(cards)?cards:S.cards(), groups=new Map();
+      source.forEach(c=>{
+        const pid=c&&c._planId||S.sourcePlanForCard(c&&c.id)||S.activePlanId();
+        if(!pid)return;if(!groups.has(String(pid)))groups.set(String(pid),{pid,rows:[]});
+        groups.get(String(pid)).rows.push(clean(c));
+      });
+      let notes=0,created=0,changed=false;
+      groups.forEach(g=>{
+        const prevSave=DB.saveCards;
+        DB.saveCards=list=>DB._set(DB.keysForPlan(g.pid).cards,(list||[]).map(clean));
+        try {
+          const r=withOriginalEntities(g.pid,()=>old.ensureCanonicalNotes.call(AP,g.rows))||{};
+          notes+=Number(r.notes)||0;created+=Number(r.created)||0;changed=changed||!!r.cardsChanged;
+        } finally { DB.saveCards=prevSave; }
+      });
+      return {notes,created,cardsChanged:changed};
+    };
+    AP.ensureIdentities = function() {
+      let cards=false,decks=false;
+      S.planIdsForScope().forEach(pid=>{
+        const prev={getCards:DB.getCards,getDecks:DB.getDecks,saveCards:DB.saveCards,saveDecks:DB.saveDecks};
+        DB.getCards=()=>S._rows(pid,'cards');DB.getDecks=()=>S._rows(pid,'decks');
+        DB.saveCards=list=>DB._set(DB.keysForPlan(pid).cards,(list||[]).map(clean));
+        DB.saveDecks=list=>DB._set(DB.keysForPlan(pid).decks,(list||[]).map(clean));
+        try { const r=old.ensureIdentities.call(AP)||{};cards=cards||!!r.cards;decks=decks||!!r.decks; }
+        finally { Object.assign(DB,prev); }
+      });
+      return {cards,decks};
+    };
+    AP._specialField = function(name,nt,note,tmpl,card) {
+      const n=String(name||'').trim();
+      if ((n==='Deck'||n==='Subdeck') && card) {
+        const d=S.deckForCard(card); if(!d)return '';
+        if(n==='Deck')return String(d.nome||'');
+        const p=String(d.nome||'').split('::');return p[p.length-1]||'';
+      }
+      return old.specialField.call(AP,name,nt,note,tmpl,card);
+    };
+
+    if (window.AnkiProductParity && !AnkiProductParity.__globalCardsForNote) {
+      AnkiProductParity.__globalCardsForNote=true;
+      AnkiProductParity._cardsForNote=function(id){
+        const k=String(id);return S.cards().filter(c=>String(AP.noteId(c))===k);
+      };
+    }
+
+    if (window.AnkiTotalParity && !AnkiTotalParity.__globalUndoScope) {
+      const T=AnkiTotalParity, oldSnapshot=T._snapshot.bind(T), oldRestore=T._restoreSnapshot.bind(T);
+      T.__globalUndoScope=true;
+      T._snapshot=function(label){
+        if(S.cardsScope()!=='all')return oldSnapshot(label);
+        return {label:String(label||'Ação'),ts:Date.now(),globalScope:true,plans:S.planIdsForScope('all').map(pid=>({
+          planId:pid,cards:clone(S._rows(pid,'cards')),decks:clone(S._rows(pid,'decks')),
+          revlog:clone(S._revlogForPlan(pid)),entities:S.ankiEntityEntries(pid)
+        }))};
+      };
+      T._restoreSnapshot=function(snap){
+        if(!snap||!snap.globalScope)return oldRestore(snap);
+        this._restoring=true;
+        try{
+          (snap.plans||[]).forEach(p=>{
+            DB._set(DB.keysForPlan(p.planId).cards,clone(p.cards||[]));
+            DB._set(DB.keysForPlan(p.planId).decks,clone(p.decks||[]));
+            S.replaceRevlogPlan(p.planId,clone(p.revlog||[]));
+            const prefix=DB._profilePrefix()+'p:'+String(p.planId)+':cards-',kill=[];
+            for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&String(k).startsWith(prefix))kill.push(k);}
+            kill.forEach(k=>localStorage.removeItem(k));(p.entities||[]).forEach(([k,v])=>localStorage.setItem(k,v));
+          });
+          CardEngine.invalidateDueCache();
+          if(window.CardsScreen&&CardsScreen.render)CardsScreen.render();
+          if(window.AnkiProductParity&&document.getElementById('anki-browser-modal')&&document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
+          return true;
+        }finally{this._restoring=false;this._syncUndoButtons();}
+      };
+    }
+  };
+
   const boot = () => {
-    S.installStyle(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+    S.installAnkiEntityScope(); S.installStyle(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
