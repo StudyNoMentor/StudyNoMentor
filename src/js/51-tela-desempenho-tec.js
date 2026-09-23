@@ -1372,7 +1372,7 @@ const DesempenhoTecScreen = {
     if (fase) {
       const b = (k, rot, sub) => `<button type="button" data-fase="${k}" class="${p.fase === k ? 'active' : ''}" aria-pressed="${p.fase === k}"><b>${rot}</b><span>${sub}</span></button>`;
       fase.innerHTML = b('pre', 'Pré-edital', 'Maior lacuna até a meta primeiro')
-        + b('pos', 'Pós-edital', 'Mesma lacuna; incidência desempata');
+        + b('pos', 'Pós-edital', 'Lacuna × incidência histórica da banca');
     }
     try { TecAjustes.sincronizar('motor'); } catch (e) { _quiet(e, 'motor-resumo'); }
     /* A folha de Ajustes do Motor existe no DOM o tempo todo, só escondida — mas
@@ -1439,7 +1439,7 @@ const DesempenhoTecScreen = {
             <b>${escapeHtml(x.disciplina)}</b>
             <span>${fmt1(x.disciplinaTaxa)}% geral</span>
             <span>lacuna ${fmt1(x.disciplinaLacuna)}pp</span>
-            ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' (desempate)</span>' : ''}
+            ${r.fase === 'pos' ? '<span>incidência ' + fmt1(x.disciplinaIncidencia) + ' · prioridade ' + fmt1(x.disciplinaPrioridade) + '</span>' : ''}
           </div>
           <div class="ms-suggestion-metrics">
             <span><b>${fmt1(x.taxa)}%</b><i>Acerto</i></span>
@@ -1483,7 +1483,7 @@ const DesempenhoTecScreen = {
           : '—';
       return `<li><span>${emoji({ taxaErro: d.taxaErro })}</span><div>
         <b>${i + 1}. ${escapeHtml(d.nome)}</b>
-        <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) : ''}</small>
+        <small>${fmt1(d.taxa)}% geral · lacuna ${fmt1(d.lacunaDisc)}pp · ${statusAmostra}${r.fase === 'pos' ? ' · incidência ' + fmt1(d.incidenciaDisc) + ' · prioridade ' + fmt1(d.score) : ''}</small>
         <small>entrada: ${entrada} · ${(d.fila || []).length} frente(s) na fila</small>
       </div></li>`;
     }).join('');
@@ -1518,14 +1518,16 @@ const DesempenhoTecScreen = {
       </div>
 
       <section class="ms-stage ms-stage-action">
-        <header><span>1</span><div><b>Rodada recomendada agora</b><small>Primeiro o Motor ordena as matérias pela distância simples até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente. Não há score oculto nem mistura global de tópicos.</small></div></header>
+        <header><span>1</span><div><b>Rodada recomendada agora</b><small>${r.fase === 'pos'
+          ? 'No pós-edital, o Motor usa uma conta curta e visível: lacuna pessoal × relevância histórica da banca. Depois entra em cada matéria pela frente fraca mais relevante para essa banca.'
+          : 'No pré-edital, o Motor ordena somente pela distância até a meta. Depois entra em cada matéria pelo pior tópico que tenha amostra suficiente.'}</small></div></header>
         <div class="ms-suggestion-list">${linhas}</div>
         <p class="ms-round-total">🏁 Se executar a rodada inteira: <b>${somaDose} questões</b> em ${r.itens.length} matéria(s), ${r.prefs.alvoQuestoes} por atividade.</p>
       </section>
 
       <div class="ms-rankings">
         <details class="ms-rank-panel">
-          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna simples; incidência desempata' : 'ranking por lacuna simples'}</small><i class="ms-chevron"></i></summary>
+          <summary><span>📊 Por que estas matérias?</span><small>${r.fase === 'pos' ? 'lacuna × relevância histórica da banca' : 'ranking por lacuna simples'}</small><i class="ms-chevron"></i></summary>
           <ol class="ms-rank-list">${discRank}</ol>
         </details>
         <details class="ms-rank-panel">
@@ -1533,7 +1535,7 @@ const DesempenhoTecScreen = {
           <div class="ms-queue-wrap">${filas}</div>
         </details>
       </div>
-      <p class="hint ms-nota">📐 Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável. O histórico é consolidado por identidade semântica, os irmãos mais fracos formam quantos blocos forem necessários e o Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
+      <p class="hint ms-nota">📐 Regra estrutural: percentual simples do período selecionado + piso de amostra apenas para a frente executável.${r.fase === 'pos' ? ' A incidência é normalizada dentro da banca selecionada e multiplica a lacuna; sem regressão, intervalo de confiança ou fórmula estatística difícil.' : ''} O Motor só sobe ao pai quando não resta alternativa granular suficiente.</p>`;
 
     this._bindMotorDiscFilter(host);
     host.querySelectorAll('[data-motor-extra]').forEach(b => b.addEventListener('click', () => {
