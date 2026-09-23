@@ -120,14 +120,15 @@ const AnkiOfficial = {
     if (!root) return;
     const detail = error ? '<p class="hint">' + this.esc(error.message || error) + '</p>' : '';
     root.innerHTML = `
-      <div class="card"><div class="card-body">
-        <h3>Anki 26.09.2 oficial</h3>
-        <p>O módulo está instalado no Study, mas precisa do serviço nativo Python/Rust para abrir a coleção <code>.anki2</code>.</p>
+      <div class="ankidroid-empty-state">
+        <div class="ankidroid-empty-icon">↯</div>
+        <h3>Não foi possível abrir a coleção</h3>
+        <p>O Anki oficial precisa do serviço Python/Rust para acessar sua coleção <code>.anki2</code>.</p>
         ${detail}
-        <button type="button" class="btn-primary" id="anki-official-set-api">Configurar URL do backend</button>
+        <button type="button" class="btn-primary" id="anki-official-set-api">Configurar servidor</button>
         <div class="anki-official-boundary">
-          <strong>Sem fallback.</strong>
-          Enquanto o backend oficial não estiver disponível, esta área não usa o scheduler, FSRS ou banco de Cards do Study.
+          <strong>Sem fallback</strong>
+          O Study não substitui o scheduler oficial quando a engine está indisponível.
         </div>
       </div>`;
     const b = document.getElementById('anki-official-set-api');
@@ -154,8 +155,28 @@ const AnkiOfficial = {
     }
   },
 
+  setView(view) {
+    this.view = view || 'decks';
+    document.querySelectorAll('[data-anki-view]').forEach(x => {
+      x.classList.toggle('active', x.dataset.ankiView === this.view);
+    });
+    const fab = document.querySelector('#screen-anki .ankidroid-fab');
+    if (fab) fab.hidden = this.view !== 'decks';
+    const subtitle = document.querySelector('#screen-anki .ankidroid-subtitle');
+    const labels = {
+      decks: 'coleção oficial 26.09.2',
+      review: 'estudo',
+      browser: 'navegador de cards',
+      add: 'adicionar nota',
+      options: 'opções do baralho',
+      tools: 'ferramentas'
+    };
+    if (subtitle) subtitle.textContent = labels[this.view] || labels.decks;
+  },
+
   async activate() {
     this.bindStatic();
+    this.setView(this.view);
     if (!await this.ensureStatus()) return;
     await this.renderView();
   },
@@ -165,9 +186,7 @@ const AnkiOfficial = {
       if (btn.dataset.boundAnki) return;
       btn.dataset.boundAnki = '1';
       btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-anki-view]').forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        this.view = btn.dataset.ankiView || 'decks';
+        this.setView(btn.dataset.ankiView || 'decks');
         void this.renderView();
       });
     });
@@ -220,6 +239,7 @@ const AnkiOfficial = {
 
   async renderView() {
     this.alert('');
+    this.setView(this.view);
     if (this.view === 'review') return this.renderReviewer();
     if (this.view === 'browser') return this.renderBrowser();
     if (this.view === 'add') return this.renderAdd();
@@ -279,8 +299,7 @@ const AnkiOfficial = {
       const study=async(btn)=>{
         try {
           await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(btn.dataset.ankiDeck)})});
-          this.view='review';
-          document.querySelectorAll('[data-anki-view]').forEach(x=>x.classList.toggle('active',x.dataset.ankiView==='review'));
+          this.setView('review');
           await this.renderReviewer();
         } catch(e){ this.alert(e.message,'error'); }
       };
@@ -305,7 +324,7 @@ const AnkiOfficial = {
       if(q.finished){
         root.innerHTML=`<div class="anki-official-finished"><h3>Parabéns!</h3><p>Você concluiu os cards disponíveis deste baralho.</p><button type="button" class="btn-primary" data-anki-view="decks">Voltar aos baralhos</button></div>`;
         const back=root.querySelector('[data-anki-view="decks"]');
-        if(back) back.onclick=()=>{this.view='decks';document.querySelectorAll('[data-anki-view]').forEach(x=>x.classList.toggle('active',x.dataset.ankiView==='decks'));void this.renderDecks();};
+        if(back) back.onclick=()=>{this.setView('decks');void this.renderDecks();};
         return;
       }
       const card=q.card;
