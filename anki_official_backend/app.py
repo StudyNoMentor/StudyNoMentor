@@ -265,12 +265,16 @@ def decks(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
         values = item.col.decks.all_names_and_ids()
+        due_tree = item.col.sched.deck_due_tree()
         return {
             "current_deck_id": int(item.col.decks.get_current_id()),
             "decks": [
                 {"id": int(getattr(d, "id", 0)), "name": d.name}
                 for d in values
             ],
+            # A mesma árvore que abastece a lista de decks do Anki: hierarquia,
+            # estado collapsed e contagens já submetidas aos limites do scheduler.
+            "deck_tree": pb(due_tree),
         }
 
 
