@@ -18,7 +18,12 @@ const LeisScreen = {
       el.disabled = readonly;
       if (readonly) el.title = 'Somente leitura — pertence a ' + (lei._planNome || 'outro planejamento');
     });
-    document.querySelectorAll('#lei-hl-toggles input').forEach(el => { el.disabled = readonly; });
+    const master = document.getElementById('lei-auto-master');
+    document.querySelectorAll('#lei-hl-toggles input').forEach(el => {
+      if (readonly) el.disabled = true;
+      else if (el.id === 'lei-auto-master') el.disabled = false;
+      else el.disabled = master ? !master.checked : false;
+    });
     const meta = document.getElementById('lei-reader-meta');
     if (meta && readonly) meta.insertAdjacentHTML('beforeend',
       ' <span class="plan-tag-badge">🔒 ' + escapeHtml(lei._planNome || 'Outro planejamento') + '</span>');
