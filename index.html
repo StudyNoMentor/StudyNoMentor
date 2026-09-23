@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd37e66f729">
+<meta name="diario-versao" content="v66b4d3085d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6708,76 +6708,51 @@ window.__relationalBoot = true;
   </section>
 
   <!-- ============ TELA: ANKI OFICIAL ============ -->
-  <section role="region" tabindex="-1" class="screen ankidroid-screen" id="screen-anki">
-    <div class="ankidroid-app">
-      <header class="ankidroid-topbar">
-        <div class="ankidroid-brand">
-          <button type="button" class="ankidroid-icon-btn ankidroid-study-exit" id="anki-study-exit" aria-label="Voltar ao Study" title="Voltar ao Study">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.42-1.41L7.83 13H20z"/></svg>
-          </button>
-          <img class="ankidroid-brand-logo" src="https://raw.githubusercontent.com/ankitects/anki/26.09.2/docs-site/media/anki-logo.svg" alt="" width="34" height="34">
-          <div class="ankidroid-title-block">
-            <div class="ankidroid-title">Anki</div>
-            <div class="ankidroid-subtitle">coleção oficial 26.09.2</div>
-          </div>
+  <div class="foco-bar anki-foco-bar" id="anki-foco-bar">
+    <span class="foco-info" id="anki-foco-info">Anki Oficial · modo foco</span>
+    <span class="foco-acoes">
+      <button type="button" class="btn-secondary" id="anki-foco-undo" title="Desfazer última ação">↶</button>
+      <button type="button" class="btn-secondary" id="anki-foco-sair" title="Sair do modo foco">✕ Sair</button>
+    </span>
+  </div>
+
+  <section role="region" tabindex="-1" class="screen" id="screen-anki">
+    <div class="page-header anki-cards-header">
+      <div>
+        <h2 class="page-title"><span class="anki-title-icon" aria-hidden="true"><img src="https://raw.githubusercontent.com/ankitects/anki/26.09.2/docs-site/media/anki-logo.svg" alt="" width="26" height="26"></span> Anki Oficial</h2>
+        <p class="page-subtitle">A experiência visual dos Cards do Study, usando a coleção, fila, scheduler, busca e operações do Anki 26.09.2 oficial.</p>
+      </div>
+      <div class="anki-official-engine-badge" id="anki-official-engine-badge" title="Estado da engine oficial">Conectando…</div>
+    </div>
+
+    <div class="cards-topbar anki-cards-topbar">
+      <button type="button" class="btn-primary" id="anki-new-btn" data-anki-view="add">＋ Adicionar nota</button>
+      <button type="button" class="btn-primary" id="anki-foco-btn" title="Estudar sem distrações">🎯 Modo foco</button>
+      <button type="button" class="btn-secondary" id="anki-decks-btn" data-anki-view="decks">📁 Baralhos</button>
+      <div class="cards-more-wrap">
+        <button type="button" class="btn-secondary cards-more-btn" id="anki-more-btn" aria-expanded="false" aria-haspopup="true">⋯ Mais</button>
+        <div class="cards-more-menu" id="anki-more-menu" role="menu">
+          <button type="button" role="menuitem" data-anki-view="options">⚙ Opções do baralho</button>
+          <button type="button" role="menuitem" data-anki-view="tools">🧰 Ferramentas</button>
+          <button type="button" role="menuitem" id="anki-import-trigger">↑ Importar pacote</button>
+          <button type="button" role="menuitem" id="anki-official-export-apkg">↓ Exportar .apkg</button>
+          <button type="button" role="menuitem" id="anki-official-export-colpkg">⇩ Exportar .colpkg</button>
+          <button type="button" role="menuitem" id="anki-official-undo">↶ Desfazer</button>
+          <button type="button" role="menuitem" id="anki-official-redo">↷ Refazer</button>
         </div>
+      </div>
+      <input type="file" id="anki-official-import" accept=".apkg,.colpkg" hidden>
+    </div>
 
-        <div class="ankidroid-top-actions">
-          <div class="anki-official-engine-badge" id="anki-official-engine-badge" title="Estado da engine oficial">Conectando…</div>
-          <details class="ankidroid-overflow">
-            <summary class="ankidroid-icon-btn" aria-label="Mais opções" title="Mais opções">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
-            </summary>
-            <div class="ankidroid-overflow-menu">
-              <label class="ankidroid-menu-item anki-file-btn">
-                <span class="ankidroid-menu-icon">↥</span><span>Importar pacote</span>
-                <input type="file" id="anki-official-import" accept=".apkg,.colpkg" hidden>
-              </label>
-              <button type="button" class="ankidroid-menu-item" id="anki-official-export-apkg"><span class="ankidroid-menu-icon">↧</span><span>Exportar .apkg</span></button>
-              <button type="button" class="ankidroid-menu-item" id="anki-official-export-colpkg"><span class="ankidroid-menu-icon">⇩</span><span>Exportar .colpkg</span></button>
-              <div class="ankidroid-menu-separator"></div>
-              <button type="button" class="ankidroid-menu-item" id="anki-official-undo"><span class="ankidroid-menu-icon">↶</span><span>Desfazer</span></button>
-              <button type="button" class="ankidroid-menu-item" id="anki-official-redo"><span class="ankidroid-menu-icon">↷</span><span>Refazer</span></button>
-            </div>
-          </details>
-        </div>
-      </header>
+    <div class="cards-tabs anki-cards-tabs">
+      <button type="button" class="cards-tab active" data-anki-view="review">🎴 Revisar</button>
+      <button type="button" class="cards-tab" data-anki-view="browser">🗃️ Meus cards</button>
+      <button type="button" class="cards-tab" data-anki-view="decks">📁 Baralhos</button>
+    </div>
 
-      <div id="anki-official-alert" class="anki-official-alert" hidden></div>
-
-      <main class="ankidroid-content" id="anki-official-root">
-        <div class="ankidroid-loading">
-          <div class="ankidroid-spinner" aria-hidden="true"></div>
-          <span>Conectando ao Anki…</span>
-        </div>
-      </main>
-
-      <button type="button" class="ankidroid-fab" data-anki-view="add" aria-label="Adicionar nota" title="Adicionar nota">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></svg>
-      </button>
-
-      <nav class="anki-official-toolbar ankidroid-bottom-nav" role="tablist" aria-label="Áreas do Anki">
-        <button type="button" class="ankidroid-nav-item active" data-anki-view="decks">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h13A1.5 1.5 0 0 1 20 5.5v2A1.5 1.5 0 0 1 18.5 9h-13A1.5 1.5 0 0 1 4 7.5zM4 11.5A1.5 1.5 0 0 1 5.5 10h13a1.5 1.5 0 0 1 1.5 1.5v2a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 13.5zM4 17.5A1.5 1.5 0 0 1 5.5 16h13a1.5 1.5 0 0 1 1.5 1.5v1A1.5 1.5 0 0 1 18.5 20h-13A1.5 1.5 0 0 1 4 18.5z"/></svg>
-          <span>Baralhos</span>
-        </button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="review">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.2 4.45L19 8.15l-3.5 3.4.83 4.8L12 14.1l-4.33 2.25.83-4.8L5 8.15l4.8-.7z"/></svg>
-          <span>Estudar</span>
-        </button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="browser">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4a6 6 0 1 0 3.82 10.63L19.2 20 20.6 18.6l-5.37-5.37A6 6 0 0 0 10 4m0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8"/></svg>
-          <span>Procurar</span>
-        </button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="options">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9v2H4zm0 8h5v2H4zm13-9h3v4h-3zm-4 8h7v2h-7zM15 5h2v6h-2zm-4 8h2v6h-2z"/></svg>
-          <span>Opções</span>
-        </button>
-        <button type="button" class="ankidroid-nav-item" data-anki-view="tools">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94a7.5 7.5 0 0 0 .05-.94 7.5 7.5 0 0 0-.05-.94l2.03-1.58-1.92-3.32-2.39.96a7.4 7.4 0 0 0-1.63-.94L14.87 3h-3.74l-.36 3.18c-.58.24-1.13.56-1.63.94l-2.39-.96-1.92 3.32 2.03 1.58c-.03.31-.05.63-.05.94s.02.63.05.94l-2.03 1.58 1.92 3.32 2.39-.96c.5.38 1.05.7 1.63.94l.36 3.18h3.74l.36-3.18c.58-.24 1.13-.56 1.63-.94l2.39.96 1.92-3.32zM13 15.5A3.5 3.5 0 1 1 13 8a3.5 3.5 0 0 1 0 7.5"/></svg>
-          <span>Mais</span>
-        </button>
-      </nav>
+    <div id="anki-official-alert" class="anki-official-alert" hidden></div>
+    <div id="anki-official-root">
+      <div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Conectando ao Anki…</h3><p>Abrindo sua coleção oficial.</p></div></div>
     </div>
   </section>
 
@@ -15787,473 +15762,161 @@ html.anki-review-sheet-open{overflow:hidden}
 
 <style id="anki-official">
 /* ═══════════════════════════════════════════════════════════════════════════
-   ANKI OFICIAL — casca web inspirada no AnkiDroid 2.24.x
-   Motor/coleção continuam no backend oficial Anki 26.09.2.
+   ANKI OFICIAL — usa a linguagem visual da tela Cards do Study.
+   Scheduler, coleção e operações continuam no backend oficial Anki 26.09.2.
    ═══════════════════════════════════════════════════════════════════════════ */
 .anki-official-tab-icon{display:inline-flex;align-items:center;justify-content:center}
 .anki-official-tab-icon img{width:20px;height:20px;display:block;object-fit:contain}
 
-.ankidroid-screen{
-  --ad-primary:#08a3df;
-  --ad-primary-dark:#0788bd;
-  --ad-surface:#f7f7f9;
-  --ad-surface-2:#fff;
-  --ad-text:#202124;
-  --ad-muted:#6f7479;
-  --ad-divider:#e6e8eb;
-  --ad-new:#3777d6;
-  --ad-learn:#df4b4b;
-  --ad-review:#3a9b53;
-  --ad-again:#d84a4a;
-  --ad-hard:#e18a2d;
-  --ad-good:#41965c;
-  --ad-easy:#3d78c7;
-  padding:0!important;
-}
+.anki-cards-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.anki-title-icon{display:inline-flex;vertical-align:-5px;margin-right:5px}
+.anki-title-icon img{width:26px;height:26px;object-fit:contain}
 
-.ankidroid-app{
-  position:relative;
-  min-height:clamp(620px,calc(100vh - 96px),980px);
-  background:var(--ad-surface);
-  color:var(--ad-text);
-  border:1px solid color-mix(in srgb,var(--border,#dfe3e7) 80%,transparent);
-  border-radius:20px;
-  overflow:clip;
-  box-shadow:0 12px 36px rgba(15,23,42,.08);
-}
-
-.ankidroid-topbar{
-  position:sticky;top:0;z-index:30;
-  min-height:64px;
-  padding:10px 12px 10px 16px;
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  background:linear-gradient(180deg,var(--ad-primary),color-mix(in srgb,var(--ad-primary) 90%,#0077aa));
-  color:#fff;
-  box-shadow:0 2px 6px rgba(0,0,0,.18);
-}
-
-.ankidroid-brand{display:flex;align-items:center;gap:11px;min-width:0}
-.ankidroid-brand-logo{
-  width:38px;height:38px;flex:0 0 38px;object-fit:contain;
-  filter:drop-shadow(0 1px 1px rgba(0,0,0,.18));
-}
-.ankidroid-title-block{min-width:0}
-.ankidroid-title{font-size:21px;line-height:1.12;font-weight:650;letter-spacing:.1px}
-.ankidroid-subtitle{font-size:12px;line-height:1.2;opacity:.88;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-
-.ankidroid-top-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto}
 .anki-official-engine-badge{
-  border:1px solid rgba(255,255,255,.38);
-  background:rgba(255,255,255,.14);
-  color:#fff;
-  border-radius:999px;
-  padding:5px 9px;
-  font-size:11px;font-weight:700;line-height:1;
-  max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;
+  min-height:34px;padding:0 10px;border:1px solid var(--border);
+  border-radius:var(--r-pill);background:var(--surface);color:var(--text-soft);
+  font-size:var(--fs-2xs);font-weight:750;box-shadow:var(--shadow-sm);white-space:nowrap
 }
-.anki-official-engine-badge.ok::before{content:"●";font-size:8px;margin-right:5px;color:#b7f7c4}
-.anki-official-engine-badge.bad::before{content:"●";font-size:8px;margin-right:5px;color:#ffd0d0}
-
-.ankidroid-icon-btn{
-  width:42px;height:42px;border:0;border-radius:50%;padding:9px;
-  display:grid;place-items:center;cursor:pointer;color:#fff;background:transparent;
-  list-style:none;transition:background .15s ease,transform .15s ease;
-}
-.ankidroid-icon-btn::-webkit-details-marker{display:none}
-.ankidroid-icon-btn:hover{background:rgba(255,255,255,.14)}
-.ankidroid-icon-btn:active{transform:scale(.94)}
-.ankidroid-icon-btn svg{width:24px;height:24px;fill:currentColor}
-
-.ankidroid-overflow{position:relative}
-.ankidroid-overflow-menu{
-  position:absolute;right:0;top:48px;z-index:60;
-  width:min(270px,calc(100vw - 40px));
-  padding:7px;
-  border-radius:14px;
-  background:var(--ad-surface-2);
-  color:var(--ad-text);
-  border:1px solid var(--ad-divider);
-  box-shadow:0 14px 38px rgba(0,0,0,.22);
-}
-.ankidroid-menu-item{
-  width:100%;min-height:46px;border:0;background:transparent;color:inherit;
-  padding:8px 10px;border-radius:10px;display:flex;align-items:center;gap:12px;
-  font:inherit;font-size:14px;text-align:left;cursor:pointer;
-}
-.ankidroid-menu-item:hover{background:#eef2f5}
-.ankidroid-menu-icon{width:24px;text-align:center;font-size:19px;color:#555}
-.ankidroid-menu-separator{height:1px;background:var(--ad-divider);margin:5px 4px}
-.anki-file-btn{cursor:pointer}
+.anki-official-engine-badge::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--text-faint)}
+.anki-official-engine-badge.ok{color:var(--good-text);border-color:color-mix(in srgb,var(--good) 35%,var(--border));background:var(--good-soft)}
+.anki-official-engine-badge.ok::before{background:var(--good)}
+.anki-official-engine-badge.bad{color:var(--bad-text);border-color:color-mix(in srgb,var(--bad) 35%,var(--border));background:var(--bad-soft)}
+.anki-official-engine-badge.bad::before{background:var(--bad)}
 
 .anki-official-alert{
-  position:relative;z-index:20;
-  margin:10px 12px 0;padding:10px 12px;
-  border-radius:12px;border:1px solid #cfd7de;background:#f5f8fb;
-  color:#34414c;font-size:13px;
+  margin:0 0 12px;padding:11px 13px;border-radius:var(--r-md);
+  border:1px solid var(--border);background:var(--surface-sunken);
+  color:var(--text-soft);font-size:var(--fs-xs)
 }
-.anki-official-alert.error{border-color:#ef9b9b;background:#fff2f2;color:#8f2929}
-.anki-official-alert.warn{border-color:#e8bf72;background:#fff9ea;color:#785512}
+.anki-official-alert.error{border-color:color-mix(in srgb,var(--bad) 35%,var(--border));background:var(--bad-soft);color:var(--bad-text)}
+.anki-official-alert.warn{border-color:color-mix(in srgb,var(--warn) 35%,var(--border));background:var(--warn-soft);color:var(--warn-text)}
 
-.ankidroid-content{
-  min-height:500px;
-  padding:0 0 98px;
-  background:var(--ad-surface);
+#screen-anki .cards-more-menu label.anki-file-btn{
+  display:flex;align-items:center;gap:8px;width:100%;padding:9px 11px;border-radius:8px;
+  font-size:var(--fs-sm);font-weight:600;color:var(--text);cursor:pointer
 }
+#screen-anki .cards-more-menu label.anki-file-btn:hover{background:var(--surface-sunken);color:var(--accent)}
 
-.ankidroid-loading{
-  min-height:360px;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:14px;color:var(--ad-muted);font-size:14px
+/* Baralhos — estrutura oficial, aparência de Cards */
+.anki-study-decks-card{overflow:hidden}
+.anki-study-deck-summary{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-2xs);color:var(--text-faint)
 }
-.ankidroid-spinner{
-  width:34px;height:34px;border-radius:50%;
-  border:3px solid #d7e6ee;border-top-color:var(--ad-primary);
-  animation:ankidroid-spin .8s linear infinite
+.anki-study-deck-list{padding:0 18px 18px}
+.anki-study-deck-node{display:block}
+.anki-study-deck-children[hidden]{display:none}
+.anki-study-deck-row{
+  --deck-depth:0;
+  grid-template-columns:30px minmax(0,1fr) auto auto!important;
+  padding-left:calc(5px + var(--deck-depth)*16px)!important
 }
-@keyframes ankidroid-spin{to{transform:rotate(360deg)}}
+.anki-study-deck-row.current{border-color:var(--accent);background:var(--accent-soft)}
+.anki-study-deck-toggle{
+  width:28px;height:34px;border:0;border-radius:var(--r-sm);background:transparent;color:var(--text-faint);
+  display:grid;place-items:center;cursor:pointer;font-size:15px
+}
+.anki-study-deck-toggle:hover{background:var(--surface)}
+.anki-study-deck-toggle:disabled{opacity:0;pointer-events:none}
+.anki-study-deck-toggle.open{transform:rotate(90deg)}
+.anki-study-deck-name{
+  min-width:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;
+  text-align:left;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.anki-study-deck-counts{
+  display:flex;align-items:center;gap:7px;
+  font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-3xs);font-weight:700;white-space:nowrap
+}
+.anki-study-count-new{color:var(--info-text)}
+.anki-study-count-learn{color:var(--warn-text)}
+.anki-study-count-review{color:var(--good-text)}
+.anki-study-deck-study{white-space:nowrap}
 
-/* Deck picker */
-.ankidroid-decks-head{
-  min-height:52px;padding:12px 18px 8px;
+/* Reviewer — herda cards-review-* do módulo Cards */
+.anki-study-review-card{overflow:hidden}
+.anki-study-review-face{padding:0!important;overflow:hidden;min-height:260px}
+.anki-study-card-frame{
+  width:100%;min-height:330px;border:0;background:transparent;display:block
+}
+.anki-study-review-face.cards-back{margin-top:0}
+.anki-study-review-meta-spacer{flex:1 1 auto}
+.anki-study-review-nav-left,.anki-study-review-nav-right{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.anki-study-flag{
+  width:19px;height:19px;border-radius:50%;cursor:pointer;padding:0;
+  border:2px solid var(--border-strong);background:transparent
+}
+.anki-study-flag.on{background:var(--fl);border-color:var(--fl);box-shadow:0 0 0 3px color-mix(in srgb,var(--fl) 24%,transparent)}
+.anki-study-review-actions .cards-ans4 small{
+  font-size:var(--fs-3xs);font-weight:600;opacity:.8;
+  font-family:'Space Mono',ui-monospace,monospace
+}
+.anki-study-review-actions .cards-ans4 strong{font-size:var(--fs-sm)}
+.anki-study-review-actions .cards-flip{min-height:48px}
+.anki-study-review-actions kbd{font-family:'Space Mono',ui-monospace,monospace}
+
+/* Meus cards — reaproveita mini-card/cards-grid */
+.anki-study-browser-filter{margin-bottom:14px}
+.anki-study-browser-filter .field{margin:0}
+.anki-study-mini-card{cursor:pointer}
+.anki-study-mini-card .mini-card-front{max-height:112px}
+.anki-study-mini-card .mini-card-foot{justify-content:space-between}
+.anki-study-mini-meta{font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-3xs);color:var(--text-faint)}
+.anki-study-empty{padding:44px 20px;text-align:center;color:var(--text-faint)}
+
+/* Editor/opções/ferramentas */
+.anki-study-form-card{max-width:840px;margin:0 auto}
+.anki-study-form-body{padding:18px 22px 22px;display:grid;gap:13px}
+.anki-study-form-body .field{margin:0}
+.anki-study-form-body textarea{min-height:110px;resize:vertical}
+.anki-study-options-json{
+  width:100%;min-height:390px;font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-xs)
+}
+.anki-study-tools-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.anki-study-tool-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:16px;box-shadow:var(--shadow-sm)}
+.anki-study-tool-card strong{display:block;font-size:var(--fs-lg);margin-bottom:4px}
+.anki-study-tool-card span{font-size:var(--fs-xs);color:var(--text-faint)}
+.anki-study-tool-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+
+/* Modais do reviewer oficial usam o mesmo padrão dos Cards */
+.anki-study-modal-fields{display:grid;gap:12px}
+.anki-study-modal-fields textarea{min-height:100px;resize:vertical}
+.anki-study-info-grid{display:grid;grid-template-columns:minmax(120px,.4fr) 1fr;gap:8px 14px}
+.anki-study-info-grid dt{font-size:var(--fs-xs);font-weight:700;color:var(--text-soft)}
+.anki-study-info-grid dd{margin:0;font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-xs);overflow-wrap:anywhere}
+
+/* Modo foco específico do Anki Oficial */
+body.anki-foco .sidebar,
+body.anki-foco .tabs,
+body.anki-foco .nav-sheet,
+body.anki-foco .nav-scrim,
+body.anki-foco #screen-anki > .page-header,
+body.anki-foco #screen-anki > .cards-topbar,
+body.anki-foco #screen-anki > .cards-tabs,
+body.anki-foco .screen:not(#screen-anki){display:none!important}
+body.anki-foco .app-shell{display:block}
+body.anki-foco .main-content{padding:0!important;max-width:none}
+body.anki-foco .content-wrap{max-width:none;padding:0}
+body.anki-foco #anki-official-alert{display:none!important}
+body.anki-foco #anki-official-root{max-width:780px;margin:0 auto;padding:64px 18px 30px}
+body.anki-foco #anki-foco-bar{
   display:flex;align-items:center;justify-content:space-between;gap:12px;
-  color:var(--ad-muted);font-size:13px
+  position:fixed;top:0;left:0;right:0;z-index:70;padding:8px 14px;
+  background:var(--surface);border-bottom:1px solid var(--border);box-shadow:var(--shadow-sm)
 }
-.ankidroid-decks-head strong{font-size:15px;color:var(--ad-text);font-weight:650}
-.ankidroid-deck-list{
-  background:var(--ad-surface-2);
-  border-top:1px solid var(--ad-divider);
-  border-bottom:1px solid var(--ad-divider)
-}
-.ankidroid-deck-node{display:block}
-.ankidroid-deck-children[hidden]{display:none}
-.ankidroid-deck-row{
-  min-height:58px;
-  display:grid;grid-template-columns:42px minmax(0,1fr) auto;
-  align-items:center;
-  padding-left:calc(4px + (var(--deck-level,0) * 18px));
-  padding-right:10px;
-  border-bottom:1px solid var(--ad-divider);
-  background:var(--ad-surface-2);
-}
-.ankidroid-deck-node:last-child>.ankidroid-deck-row{border-bottom:0}
-.ankidroid-deck-row.current{background:#eef8fd}
-.ankidroid-deck-expander{
-  width:42px;height:52px;border:0;background:transparent;color:#353a3f;
-  display:grid;place-items:center;cursor:pointer;border-radius:50%;
-}
-.ankidroid-deck-expander:hover{background:#eef2f5}
-.ankidroid-deck-expander[disabled]{opacity:0;pointer-events:none}
-.ankidroid-deck-expander svg{width:22px;height:22px;fill:currentColor;transition:transform .14s ease}
-.ankidroid-deck-expander[aria-expanded="true"] svg{transform:rotate(90deg)}
-.ankidroid-deck-main{
-  min-height:57px;border:0;background:transparent;color:inherit;
-  display:flex;align-items:center;min-width:0;padding:4px 8px 4px 0;
-  font:inherit;text-align:left;cursor:pointer;
-}
-.ankidroid-deck-name{
-  display:block;min-width:0;
-  font-size:18px;font-weight:650;line-height:1.2;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
-}
-.ankidroid-deck-filtered{
-  margin-left:7px;font-size:11px;font-weight:700;color:var(--ad-muted);
-  border:1px solid var(--ad-divider);border-radius:99px;padding:2px 6px
-}
-.ankidroid-deck-counts{
-  min-height:52px;border:0;background:transparent;
-  display:grid;grid-template-columns:repeat(3,minmax(22px,auto));gap:4px;align-items:center;
-  padding:0 2px 0 8px;font:inherit;cursor:pointer
-}
-.ankidroid-count{font-size:13px;text-align:right;font-variant-numeric:tabular-nums}
-.ankidroid-count.new{color:var(--ad-new)}
-.ankidroid-count.learn{color:var(--ad-learn)}
-.ankidroid-count.review{color:var(--ad-review)}
-.ankidroid-deck-empty{padding:48px 24px;text-align:center;color:var(--ad-muted)}
-.ankidroid-deck-empty strong{display:block;color:var(--ad-text);font-size:18px;margin-bottom:6px}
+body.anki-foco .anki-study-card-frame{min-height:46vh}
 
-/* Reviewer */
-.anki-official-review-shell{
-  min-height:calc(100vh - 250px);
-  padding:10px 10px 0;
-  display:flex;flex-direction:column
-}
-.ankidroid-review-top{
-  min-height:46px;display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:0 4px 8px
-}
-.anki-official-counts{
-  display:flex;align-items:center;gap:8px;
-  font-size:13px;font-weight:650;font-variant-numeric:tabular-nums
-}
-.anki-official-counts span{padding:0;border:0;background:transparent;border-radius:0}
-.anki-official-counts .new{color:var(--ad-new)}
-.anki-official-counts .learn{color:var(--ad-learn)}
-.anki-official-counts .review{color:var(--ad-review)}
-.anki-official-card-tools{display:flex;align-items:center;gap:4px;margin:0}
-.anki-official-card-tools button{
-  width:40px;height:40px;border:0;border-radius:50%;background:transparent;color:var(--ad-muted);
-  display:grid;place-items:center;font-size:17px;cursor:pointer
-}
-.anki-official-card-tools button:hover{background:#e9edf0;color:var(--ad-text)}
-
-.anki-official-card-frame{
-  width:100%;flex:1 1 auto;min-height:410px;
-  border:1px solid #dde1e5;border-radius:13px;
-  background:#fff;overflow:hidden;
-  box-shadow:0 1px 3px rgba(0,0,0,.07)
-}
-.anki-official-reveal{
-  width:100%;min-height:56px;margin:10px 0 0;
-  border:0;border-radius:11px;
-  background:#e4e8ec;color:#222;
-  font-weight:650;font-size:15px;cursor:pointer
-}
-.anki-official-reveal:hover{background:#dce2e7}
-
-.anki-official-review-actions{
-  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:6px;margin:10px 0 0
-}
-.anki-official-review-actions button{
-  min-height:62px;border:0;border-radius:10px;padding:7px 3px;
-  color:#fff;font:inherit;cursor:pointer;
-  box-shadow:0 1px 2px rgba(0,0,0,.12)
-}
-.anki-official-review-actions button small{
-  display:block;font-size:11px;font-weight:600;line-height:1.1;opacity:.92;margin-bottom:4px
-}
-.anki-official-review-actions button strong{
-  display:block;font-size:13px;line-height:1.15;font-weight:700
-}
-.anki-official-review-actions button[data-rating="1"]{background:var(--ad-again)}
-.anki-official-review-actions button[data-rating="2"]{background:var(--ad-hard)}
-.anki-official-review-actions button[data-rating="3"]{background:var(--ad-good)}
-.anki-official-review-actions button[data-rating="4"]{background:var(--ad-easy)}
-.anki-official-finished{
-  margin:48px 18px;padding:42px 24px;border-radius:18px;background:var(--ad-surface-2);
-  text-align:center;border:1px solid var(--ad-divider)
-}
-.anki-official-finished h3{font-size:22px;margin:0 0 8px}
-
-/* Browser */
-.anki-official-browser-head{
-  position:sticky;top:64px;z-index:15;
-  padding:10px 12px;margin:0;
-  display:flex;gap:8px;align-items:center;
-  background:var(--ad-surface)
-}
-.anki-official-browser-head input{
-  flex:1 1 auto;min-height:46px;border:1px solid #d7dce1;border-radius:24px;
-  background:#eef2f5;padding:0 17px;font-size:14px;outline:0
-}
-.anki-official-browser-head input:focus{border-color:var(--ad-primary);background:#fff;box-shadow:0 0 0 3px rgba(8,163,223,.12)}
-.anki-official-browser-head button{min-height:44px;border-radius:22px}
-.anki-official-browser-list{
-  background:var(--ad-surface-2);border-top:1px solid var(--ad-divider)
-}
-.anki-official-browser-row{
-  min-height:66px;margin:0;padding:10px 16px;
-  border:0;border-bottom:1px solid var(--ad-divider);border-radius:0;background:transparent;
-  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center
-}
-.anki-official-browser-question{font-size:15px;font-weight:550;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.anki-official-browser-row .hint{font-size:11px;margin-top:4px;color:var(--ad-muted)}
-.anki-official-browser-meta{font-size:11px;color:var(--ad-muted);white-space:nowrap;font-variant-numeric:tabular-nums}
-
-/* Editor / options / tools */
-.anki-official-form{
-  max-width:760px;margin:0 auto;padding:16px 14px 110px;
-  display:grid;gap:13px
-}
-.anki-official-form .field{margin:0}
-.anki-official-form label{display:block;margin:0 0 5px;font-size:12px;font-weight:650;color:var(--ad-muted)}
-.anki-official-form input,.anki-official-form select,.anki-official-form textarea,
-.anki-official-json{
-  width:100%;border:1px solid #d8dde2;border-radius:12px;background:var(--ad-surface-2);
-  color:var(--ad-text);padding:11px 12px;outline:0
-}
-.anki-official-form textarea{min-height:110px;resize:vertical}
-.anki-official-form input:focus,.anki-official-form select:focus,.anki-official-form textarea:focus,.anki-official-json:focus{
-  border-color:var(--ad-primary);box-shadow:0 0 0 3px rgba(8,163,223,.11)
-}
-.anki-official-form .btn-primary{min-height:48px;border-radius:24px;background:var(--ad-primary)}
-.anki-official-json{
-  display:block;max-width:900px;margin:14px auto 0;min-height:430px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.45
-}
-.anki-official-root>.hint,.ankidroid-content>.hint{padding:12px 16px;color:var(--ad-muted)}
-.anki-official-kv{
-  display:grid;grid-template-columns:minmax(120px,.35fr) minmax(0,1fr);gap:6px 14px;
-  padding:9px 0;border-bottom:1px solid var(--ad-divider)
-}
-.anki-official-kv:last-child{border-bottom:0}
-.anki-official-kv dt{font-weight:650}.anki-official-kv dd{margin:0;overflow-wrap:anywhere}
-.anki-official-grid{
-  padding:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px
-}
-.anki-official-grid>.card{
-  border:1px solid var(--ad-divider);border-radius:16px;background:var(--ad-surface-2);
-  box-shadow:none
-}
-.anki-official-boundary{
-  margin:14px;padding:12px 14px;border:1px dashed #cdd3d9;border-radius:13px;
-  background:#fafbfc;font-size:12px;color:var(--ad-muted)
-}
-.anki-official-boundary strong{display:block;color:var(--ad-text);margin-bottom:4px}
-
-/* Bottom navigation and FAB */
-.ankidroid-bottom-nav{
-  position:absolute;left:0;right:0;bottom:0;z-index:25;
-  height:72px;margin:0!important;padding:4px 8px calc(4px + env(safe-area-inset-bottom));
-  display:grid!important;grid-template-columns:repeat(5,1fr);gap:2px!important;
-  background:rgba(255,255,255,.96);border-top:1px solid var(--ad-divider);
-  box-shadow:0 -3px 12px rgba(0,0,0,.06);backdrop-filter:blur(10px)
-}
-.ankidroid-nav-item{
-  min-width:0;border:0!important;background:transparent!important;color:#6b7177!important;
-  box-shadow:none!important;border-radius:12px!important;
-  display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-  padding:4px 2px!important;font-size:11px!important;font-weight:600!important;cursor:pointer
-}
-.ankidroid-nav-item svg{width:22px;height:22px;fill:currentColor}
-.ankidroid-nav-item.active{color:var(--ad-primary-dark)!important;background:#e4f4fb!important}
-.ankidroid-fab{
-  position:absolute;right:18px;bottom:88px;z-index:27;
-  width:58px;height:58px;border:0;border-radius:18px;
-  display:grid;place-items:center;background:var(--ad-primary);color:#fff;cursor:pointer;
-  box-shadow:0 7px 18px rgba(0,105,155,.3);
-  transition:transform .16s ease,box-shadow .16s ease
-}
-.ankidroid-fab:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(0,105,155,.32)}
-.ankidroid-fab:active{transform:scale(.96)}
-.ankidroid-fab svg{width:28px;height:28px;fill:currentColor}
-.ankidroid-fab.active{background:var(--ad-primary-dark)}
-
-/* Desktop: vira uma pequena navigation rail, como AnkiDroid em telas largas. */
-@media (min-width:1000px){
-  .ankidroid-app{padding-left:82px;min-height:720px}
-  .ankidroid-topbar{margin-left:-82px;padding-left:18px}
-  .ankidroid-bottom-nav{
-    top:64px;bottom:0;left:0;right:auto;width:82px;height:auto;
-    grid-template-columns:1fr;grid-auto-rows:72px;
-    padding:10px 6px;border-top:0;border-right:1px solid var(--ad-divider);
-    box-shadow:2px 0 8px rgba(0,0,0,.04)
-  }
-  .ankidroid-fab{right:24px;bottom:24px}
-  .ankidroid-content{padding-bottom:24px}
-}
-
-/* Mobile: full-bleed e proporções do Android. */
-@media (max-width:860px){
-  .ankidroid-app{
-    min-height:calc(100vh - 116px);
-    border-radius:0;border-left:0;border-right:0;
-    box-shadow:none
-  }
-  .ankidroid-topbar{min-height:60px;padding:8px 8px 8px 13px}
-  .ankidroid-brand-logo{width:34px;height:34px;flex-basis:34px}
-  .ankidroid-title{font-size:20px}
-  .ankidroid-subtitle{font-size:11px}
-  .anki-official-engine-badge{max-width:104px;padding:5px 7px;font-size:10px}
-  .ankidroid-content{padding-bottom:84px}
-  .ankidroid-decks-head{padding-inline:14px}
-  .ankidroid-deck-row{
-    grid-template-columns:38px minmax(0,1fr) auto;
-    padding-left:calc(1px + (var(--deck-level,0) * 14px));padding-right:6px
-  }
-  .ankidroid-deck-expander{width:38px}
-  .ankidroid-deck-name{font-size:17px}
-  .ankidroid-deck-counts{grid-template-columns:repeat(3,minmax(18px,auto));gap:3px;padding-left:4px}
-  .ankidroid-count{font-size:12px}
-  .anki-official-review-shell{padding:7px 7px 0;min-height:calc(100vh - 210px)}
-  .anki-official-card-frame{min-height:48vh;border-radius:10px}
-  .anki-official-review-actions{gap:4px}
-  .anki-official-review-actions button{min-height:58px;border-radius:8px;padding-inline:2px}
-  .anki-official-review-actions button strong{font-size:12px}
-  .anki-official-review-actions button small{font-size:10px}
-  .anki-official-browser-head{top:60px;padding:8px}
-  .anki-official-browser-head button{padding-inline:12px}
-  .anki-official-browser-row{grid-template-columns:1fr;padding:10px 13px}
-  .anki-official-browser-meta{white-space:normal}
-  .anki-official-kv{grid-template-columns:1fr;gap:2px}
-  .ankidroid-fab{right:16px;bottom:86px;width:56px;height:56px;border-radius:17px}
-  .ankidroid-bottom-nav{height:68px}
-}
-
-/* Respeita o tema escuro do dispositivo sem alterar o HTML dos cards. */
-@media (prefers-color-scheme:dark){
-  .ankidroid-screen{
-    --ad-surface:#17191c;
-    --ad-surface-2:#202327;
-    --ad-text:#f0f1f2;
-    --ad-muted:#aeb4ba;
-    --ad-divider:#34383d;
-  }
-  .ankidroid-app{box-shadow:none}
-  .ankidroid-bottom-nav{background:rgba(31,34,38,.96)}
-  .ankidroid-nav-item.active{background:#173e50!important;color:#7fd7fb!important}
-  .ankidroid-deck-row.current{background:#17303a}
-  .ankidroid-deck-expander{color:#e5e7e9}
-  .ankidroid-deck-expander:hover,.anki-official-card-tools button:hover,.ankidroid-menu-item:hover{background:#2a2e33}
-  .anki-official-reveal{background:#33383e;color:#f1f3f4}
-  .anki-official-reveal:hover{background:#3a4047}
-  .ankidroid-overflow-menu{background:#24272b}
-  .ankidroid-menu-icon{color:#c7cbd0}
-  .anki-official-browser-head input{background:#25292e;border-color:#3a4046;color:#f2f3f4}
-  .anki-official-browser-head input:focus{background:#202327}
-  .anki-official-form input,.anki-official-form select,.anki-official-form textarea,.anki-official-json{background:#202327;border-color:#3a4046;color:#f2f3f4}
-  .anki-official-boundary{background:#1c1f22;border-color:#3b4146}
-}
-
-/* Empty state + settings surfaces */
-.ankidroid-empty-state{
-  max-width:560px;margin:0 auto;padding:72px 22px 120px;text-align:center;color:var(--ad-muted)
-}
-.ankidroid-empty-state h3{margin:12px 0 8px;color:var(--ad-text);font-size:21px}
-.ankidroid-empty-state p{margin:0 auto 16px;max-width:460px;line-height:1.55}
-.ankidroid-empty-state .btn-primary{min-height:46px;border-radius:23px}
-.ankidroid-empty-icon{
-  width:70px;height:70px;margin:0 auto;border-radius:22px;display:grid;place-items:center;
-  background:#e7f6fc;color:var(--ad-primary-dark);font-size:34px;font-weight:700
-}
-.ankidroid-settings-page{padding:12px 12px 110px;max-width:860px;margin:0 auto}
-.ankidroid-settings-title{font-size:13px;font-weight:750;color:var(--ad-primary-dark);padding:10px 8px 7px;text-transform:uppercase;letter-spacing:.04em}
-.ankidroid-settings-card{
-  overflow:hidden;border:1px solid var(--ad-divider);border-radius:15px;background:var(--ad-surface-2)
-}
-.ankidroid-setting-row{
-  min-height:64px;padding:10px 14px;display:grid;grid-template-columns:42px minmax(0,1fr) auto;
-  align-items:center;gap:10px;border-bottom:1px solid var(--ad-divider)
-}
-.ankidroid-setting-row:last-child{border-bottom:0}
-.ankidroid-setting-icon{
-  width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
-  background:#e9f5fb;color:var(--ad-primary-dark);font-size:18px
-}
-.ankidroid-setting-main{min-width:0}
-.ankidroid-setting-name{font-size:15px;font-weight:650;color:var(--ad-text)}
-.ankidroid-setting-desc{font-size:12px;color:var(--ad-muted);margin-top:3px;line-height:1.35}
-.ankidroid-setting-value{font-size:13px;color:var(--ad-muted);text-align:right}
-.ankidroid-settings-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.ankidroid-settings-actions .btn-primary,.ankidroid-settings-actions .btn-secondary{border-radius:22px;min-height:44px}
-.ankidroid-advanced{margin-top:14px;border:1px solid var(--ad-divider);border-radius:15px;background:var(--ad-surface-2);overflow:hidden}
-.ankidroid-advanced>summary{
-  cursor:pointer;list-style:none;padding:15px 16px;font-weight:650;color:var(--ad-text)
-}
-.ankidroid-advanced>summary::-webkit-details-marker{display:none}
-.ankidroid-advanced>summary::after{content:"⌄";float:right;color:var(--ad-muted)}
-.ankidroid-advanced[open]>summary::after{content:"⌃"}
-.ankidroid-advanced-body{padding:0 12px 14px}
-.ankidroid-advanced .anki-official-json{margin:0;max-width:none;min-height:360px}
-.ankidroid-status-good{color:var(--ad-review)!important;font-weight:700}
-.ankidroid-status-warn{color:var(--ad-hard)!important;font-weight:700}
-
-.ankidroid-study-exit{margin-left:-5px;flex:0 0 42px}
-@media (max-width:860px){
-  body.anki-mobile-immersive #tabs{display:none!important}
-  body.anki-mobile-immersive .nav-sheet,
-  body.anki-mobile-immersive .nav-scrim{display:none!important}
-  body.anki-mobile-immersive .main-content{padding-bottom:0!important}
-  body.anki-mobile-immersive #screen-anki{margin-bottom:0!important}
+@media (max-width:760px){
+  .anki-cards-header{flex-direction:column}
+  .anki-official-engine-badge{align-self:flex-start}
+  .anki-study-tools-grid{grid-template-columns:1fr}
+  .anki-study-deck-row{grid-template-columns:26px minmax(0,1fr) auto!important;padding-left:calc(2px + var(--deck-depth)*10px)!important}
+  .anki-study-deck-study{display:none}
+  .anki-study-deck-counts{gap:4px}
+  .anki-study-review-card.cards-review-wrap{padding:14px 12px 16px}
+  .anki-study-card-frame{min-height:44vh}
+  .anki-study-info-grid{grid-template-columns:1fr}
+  body.anki-foco #anki-official-root{padding:58px 10px 20px}
 }
 
 </style>
@@ -38235,10 +37898,13 @@ queueMicrotask(()=>AnkiPractical10.install());
    do Study. Toda mutação acadêmica passa pelo backend oficial do Anki.
    ═══════════════════════════════════════════════════════════════════════════ */
 const AnkiOfficial = {
-  view: 'decks',
+  view: 'review',
   status: null,
   review: null,
   reviewStartedAt: 0,
+  _sessionAnswered: 0,
+  _sessionStartTotal: null,
+  _answerShown: false,
   _blobUrls: [],
 
   apiBase() {
@@ -38344,21 +38010,19 @@ const AnkiOfficial = {
     const root = this.root();
     const badge = this.badge();
     if (badge) {
-      badge.textContent = 'Engine: não conectada';
+      badge.textContent = 'Engine não conectada';
       badge.classList.remove('ok'); badge.classList.add('bad');
     }
     if (!root) return;
     const detail = error ? '<p class="hint">' + this.esc(error.message || error) + '</p>' : '';
     root.innerHTML = `
-      <div class="ankidroid-empty-state">
-        <div class="ankidroid-empty-icon">↯</div>
-        <h3>Não foi possível abrir a coleção</h3>
-        <p>O Anki oficial precisa do serviço Python/Rust para acessar sua coleção <code>.anki2</code>.</p>
-        ${detail}
-        <button type="button" class="btn-primary" id="anki-official-set-api">Configurar servidor</button>
-        <div class="anki-official-boundary">
-          <strong>Sem fallback</strong>
-          O Study não substitui o scheduler oficial quando a engine está indisponível.
+      <div class="card">
+        <div class="cards-review-done">
+          <div class="big">⚠</div>
+          <h3>Não foi possível abrir o Anki Oficial</h3>
+          <p>O Study não usa um motor alternativo nesta área. A coleção precisa ser aberta pelo backend oficial.</p>
+          ${detail}
+          <button type="button" class="btn-primary" id="anki-official-set-api">Configurar servidor</button>
         </div>
       </div>`;
     const b = document.getElementById('anki-official-set-api');
@@ -38386,22 +38050,20 @@ const AnkiOfficial = {
   },
 
   setView(view) {
-    this.view = view || 'decks';
-    document.querySelectorAll('[data-anki-view]').forEach(x => {
+    this.view = view || 'review';
+    document.querySelectorAll('#screen-anki .cards-tab[data-anki-view]').forEach(x => {
       x.classList.toggle('active', x.dataset.ankiView === this.view);
     });
-    const fab = document.querySelector('#screen-anki .ankidroid-fab');
-    if (fab) fab.hidden = this.view !== 'decks';
-    const subtitle = document.querySelector('#screen-anki .ankidroid-subtitle');
+    const sub = document.querySelector('#screen-anki .page-subtitle');
     const labels = {
-      decks: 'coleção oficial 26.09.2',
-      review: 'estudo',
-      browser: 'navegador de cards',
-      add: 'adicionar nota',
-      options: 'opções do baralho',
-      tools: 'ferramentas'
+      review: 'Revise com o scheduler oficial do Anki 26.09.2.',
+      browser: 'Pesquise e edite sua coleção real com a busca oficial do Anki.',
+      decks: 'Escolha o baralho e veja as contagens calculadas pelo scheduler oficial.',
+      add: 'Adicione uma nota diretamente à coleção Anki.',
+      options: 'Edite as opções do baralho fornecidas pelo backend oficial.',
+      tools: 'Ferramentas de manutenção e diagnóstico da coleção oficial.'
     };
-    if (subtitle) subtitle.textContent = labels[this.view] || labels.decks;
+    if (sub) sub.textContent = labels[this.view] || labels.review;
   },
 
   async activate() {
@@ -38412,38 +38074,83 @@ const AnkiOfficial = {
   },
 
   bindStatic() {
-    document.querySelectorAll('[data-anki-view]').forEach(btn => {
+    document.querySelectorAll('#screen-anki [data-anki-view]').forEach(btn => {
       if (btn.dataset.boundAnki) return;
       btn.dataset.boundAnki = '1';
       btn.addEventListener('click', () => {
-        this.setView(btn.dataset.ankiView || 'decks');
+        this.closeMore();
+        this.setView(btn.dataset.ankiView || 'review');
         void this.renderView();
       });
     });
-    const exit = document.getElementById('anki-study-exit');
-    if (exit && !exit.dataset.boundAnki) {
-      exit.dataset.boundAnki = '1';
-      exit.onclick = () => {
-        if (typeof switchScreen === 'function') switchScreen('cards');
-      };
-    }
+
     const input = document.getElementById('anki-official-import');
     if (input && !input.dataset.boundAnki) {
       input.dataset.boundAnki = '1';
       input.addEventListener('change', () => {
-        const f = input.files && input.files[0];
-        if (f) void this.importPackage(f);
+        const file = input.files && input.files[0];
+        if (file) void this.importPackage(file);
         input.value = '';
       });
     }
+    const importTrigger = document.getElementById('anki-import-trigger');
+    if (importTrigger && !importTrigger.dataset.boundAnki) {
+      importTrigger.dataset.boundAnki='1';
+      importTrigger.onclick=()=>{ this.closeMore(); if(input) input.click(); };
+    }
+
+    const more = document.getElementById('anki-more-btn');
+    const menu = document.getElementById('anki-more-menu');
+    if (more && !more.dataset.boundAnki) {
+      more.dataset.boundAnki='1';
+      more.onclick=(e)=>{
+        e.stopPropagation();
+        const open=!menu.classList.contains('open');
+        menu.classList.toggle('open',open);
+        more.classList.toggle('open',open);
+        more.setAttribute('aria-expanded',open?'true':'false');
+      };
+    }
+
+    const focus = document.getElementById('anki-foco-btn');
+    if (focus && !focus.dataset.boundAnki) {
+      focus.dataset.boundAnki='1';
+      focus.onclick=()=>{ this.setView('review'); document.body.classList.add('anki-foco'); void this.renderReviewer(); };
+    }
+    const focusExit = document.getElementById('anki-foco-sair');
+    if (focusExit && !focusExit.dataset.boundAnki) {
+      focusExit.dataset.boundAnki='1';
+      focusExit.onclick=()=>document.body.classList.remove('anki-foco');
+    }
+    const focusUndo = document.getElementById('anki-foco-undo');
+    if (focusUndo && !focusUndo.dataset.boundAnki) {
+      focusUndo.dataset.boundAnki='1';
+      focusUndo.onclick=()=>void this.simplePost('/api/anki/undo');
+    }
+
     const apkg = document.getElementById('anki-official-export-apkg');
-    if (apkg && !apkg.dataset.boundAnki) { apkg.dataset.boundAnki='1'; apkg.onclick=()=>void this.download('/api/anki/export/apkg','StudyNoMentor-Anki.apkg'); }
+    if (apkg && !apkg.dataset.boundAnki) { apkg.dataset.boundAnki='1'; apkg.onclick=()=>{this.closeMore();void this.download('/api/anki/export/apkg','StudyNoMentor-Anki.apkg');}; }
     const colpkg = document.getElementById('anki-official-export-colpkg');
-    if (colpkg && !colpkg.dataset.boundAnki) { colpkg.dataset.boundAnki='1'; colpkg.onclick=()=>void this.download('/api/anki/export/colpkg','StudyNoMentor-Anki.colpkg'); }
+    if (colpkg && !colpkg.dataset.boundAnki) { colpkg.dataset.boundAnki='1'; colpkg.onclick=()=>{this.closeMore();void this.download('/api/anki/export/colpkg','StudyNoMentor-Anki.colpkg');}; }
     const undo = document.getElementById('anki-official-undo');
-    if (undo && !undo.dataset.boundAnki) { undo.dataset.boundAnki='1'; undo.onclick=()=>void this.simplePost('/api/anki/undo'); }
+    if (undo && !undo.dataset.boundAnki) { undo.dataset.boundAnki='1'; undo.onclick=()=>{this.closeMore();void this.simplePost('/api/anki/undo');}; }
     const redo = document.getElementById('anki-official-redo');
-    if (redo && !redo.dataset.boundAnki) { redo.dataset.boundAnki='1'; redo.onclick=()=>void this.simplePost('/api/anki/redo'); }
+    if (redo && !redo.dataset.boundAnki) { redo.dataset.boundAnki='1'; redo.onclick=()=>{this.closeMore();void this.simplePost('/api/anki/redo');}; }
+
+    if (!this._docBound) {
+      this._docBound=true;
+      document.addEventListener('click', e=>{
+        if (!e.target.closest('#screen-anki .cards-more-wrap')) this.closeMore();
+      });
+      document.addEventListener('keydown', e=>this.onKey(e));
+    }
+  },
+
+  closeMore() {
+    const menu=document.getElementById('anki-more-menu');
+    const btn=document.getElementById('anki-more-btn');
+    if(menu) menu.classList.remove('open');
+    if(btn){btn.classList.remove('open');btn.setAttribute('aria-expanded','false');}
   },
 
   async simplePost(path) {
@@ -38487,120 +38194,201 @@ const AnkiOfficial = {
 
   async renderDecks() {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Carregando baralhos…</span></div>';
+    root.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Carregando baralhos…</h3></div></div>';
     try {
       const data=await this.request('/api/anki/decks');
       const tree=data.deck_tree||{};
       const roots=(Number(tree.deck_id||0)>0) ? [tree] : (tree.children||[]);
       const fallback=(data.decks||[]).map(d=>({
         deck_id:d.id,name:d.name,level:0,children:[],
-        new_count:null,learn_count:null,review_count:null,filtered:false,collapsed:false
+        new_count:0,learn_count:0,review_count:0,filtered:false,collapsed:false
       }));
       const nodes=roots.length?roots:fallback;
-      const totalNew=nodes.reduce((s,d)=>s+Number(d.new_count||0),0);
-      const totalLearn=nodes.reduce((s,d)=>s+Number(d.learn_count||0),0);
-      const totalReview=nodes.reduce((s,d)=>s+Number(d.review_count||0),0);
-      const totalDue=totalNew+totalLearn+totalReview;
+      const flatten=(arr)=>arr.flatMap(x=>[x,...flatten(x.children||[])]);
+      const flat=flatten(nodes);
+      const totalNew=flat.reduce((s,d)=>s+Number(d.new_count||0),0);
+      const totalLearn=flat.reduce((s,d)=>s+Number(d.learn_count||0),0);
+      const totalReview=flat.reduce((s,d)=>s+Number(d.review_count||0),0);
 
       const renderNode=(d,depth=0)=>{
         const id=Number(d.deck_id||d.id||0);
         const children=d.children||[];
         const hasChildren=children.length>0;
         const current=id===Number(data.current_deck_id);
-        const count=(value,kind)=>value==null?'':`<span class="ankidroid-count ${kind}">${Number(value)}</span>`;
         return `
-          <div class="ankidroid-deck-node" data-deck-node="${id}">
-            <div class="ankidroid-deck-row ${current?'current':''}" style="--deck-level:${Math.max(0,Number(d.level??depth))}">
-              <button type="button" class="ankidroid-deck-expander" data-deck-expand="${id}" aria-expanded="${hasChildren && !d.collapsed?'true':'false'}" ${hasChildren?'':'disabled'} aria-label="${hasChildren?'Expandir ou recolher baralho':'Sem subbaralhos'}">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7z"/></svg>
-              </button>
-              <button type="button" class="ankidroid-deck-main" data-anki-deck="${id}">
-                <span class="ankidroid-deck-name">${this.esc(d.name||'Baralho')}</span>
-                ${d.filtered?'<span class="ankidroid-deck-filtered">filtrado</span>':''}
-              </button>
-              <button type="button" class="ankidroid-deck-counts" data-anki-deck="${id}" aria-label="Estudar este baralho">
-                ${count(d.new_count,'new')}${count(d.learn_count,'learn')}${count(d.review_count,'review')}
-              </button>
+          <div class="anki-study-deck-node" data-deck-node="${id}">
+            <div class="deck-row anki-study-deck-row ${current?'current':''}" style="--deck-depth:${Math.max(0,Number(d.level??depth))}">
+              <button type="button" class="anki-study-deck-toggle ${hasChildren && !d.collapsed?'open':''}" data-deck-expand="${id}" ${hasChildren?'':'disabled'} title="${hasChildren?'Expandir/recolher':'Sem subbaralhos'}">›</button>
+              <button type="button" class="anki-study-deck-name" data-anki-deck="${id}">${this.esc(d.name||'Baralho')}${d.filtered?' · filtrado':''}</button>
+              <span class="anki-study-deck-counts">
+                <span class="anki-study-count-new" title="Novos">${Number(d.new_count||0)}</span>
+                <span class="anki-study-count-learn" title="Aprendendo">${Number(d.learn_count||0)}</span>
+                <span class="anki-study-count-review" title="Revisão">${Number(d.review_count||0)}</span>
+              </span>
+              <button type="button" class="btn-secondary anki-study-deck-study" data-anki-deck="${id}">Estudar</button>
             </div>
-            ${hasChildren?`<div class="ankidroid-deck-children" ${d.collapsed?'hidden':''}>${children.map(ch=>renderNode(ch,depth+1)).join('')}</div>`:''}
+            ${hasChildren?`<div class="anki-study-deck-children" ${d.collapsed?'hidden':''}>${children.map(ch=>renderNode(ch,depth+1)).join('')}</div>`:''}
           </div>`;
       };
 
       root.innerHTML=`
-        <div class="ankidroid-decks-head">
-          <strong>${totalDue?this.esc(totalDue+' cartões para hoje'):'Baralhos'}</strong>
-          <span><span class="ankidroid-count new">${totalNew}</span>&nbsp;&nbsp;<span class="ankidroid-count learn">${totalLearn}</span>&nbsp;&nbsp;<span class="ankidroid-count review">${totalReview}</span></span>
-        </div>
-        <div class="ankidroid-deck-list">${nodes.length?nodes.map(n=>renderNode(n)).join(''):'<div class="ankidroid-deck-empty"><strong>Nenhum baralho</strong>Importe um pacote ou adicione sua primeira nota.</div>'}</div>`;
+        <section class="card anki-study-decks-card">
+          <div class="card-header">
+            <div>
+              <h2>📁 Baralhos</h2>
+              <p class="sub">Hierarquia e contagens fornecidas pelo scheduler oficial do Anki.</p>
+            </div>
+            <button type="button" class="btn-primary" id="anki-create-deck">＋ Criar baralho</button>
+          </div>
+          <div class="anki-study-deck-summary" style="padding:0 18px 14px">
+            <span>Novos <b class="anki-study-count-new">${totalNew}</b></span>
+            <span>Aprendendo <b class="anki-study-count-learn">${totalLearn}</b></span>
+            <span>Revisão <b class="anki-study-count-review">${totalReview}</b></span>
+          </div>
+          <div class="anki-study-deck-list">${nodes.length?nodes.map(n=>renderNode(n)).join(''):'<div class="anki-study-empty">Nenhum baralho. Importe um pacote ou crie o primeiro baralho.</div>'}</div>
+        </section>`;
 
-      const study=async(btn)=>{
-        try {
-          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(btn.dataset.ankiDeck)})});
+      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=async()=>{
+        try{
+          await this.request('/api/anki/decks/select',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(b.dataset.ankiDeck)})});
+          this._sessionAnswered=0;this._sessionStartTotal=null;
           this.setView('review');
           await this.renderReviewer();
-        } catch(e){ this.alert(e.message,'error'); }
-      };
-      root.querySelectorAll('[data-anki-deck]').forEach(b=>b.onclick=()=>void study(b));
-      root.querySelectorAll('[data-deck-expand]').forEach(b=>b.onclick=()=>{
-        const node=b.closest('.ankidroid-deck-node');
-        const box=node&&node.querySelector(':scope > .ankidroid-deck-children');
-        if(!box) return;
-        const open=box.hidden;
-        box.hidden=!open;
-        b.setAttribute('aria-expanded',open?'true':'false');
+        }catch(e){this.alert(e.message,'error');}
       });
+      root.querySelectorAll('[data-deck-expand]').forEach(b=>b.onclick=()=>{
+        const node=b.closest('.anki-study-deck-node');
+        const box=node&&node.querySelector(':scope > .anki-study-deck-children');
+        if(!box)return;
+        box.hidden=!box.hidden;
+        b.classList.toggle('open',!box.hidden);
+      });
+      const create=document.getElementById('anki-create-deck');
+      if(create) create.onclick=()=>void this.createDeck();
     } catch(e){ this.alert(e.message,'error'); }
+  },
+
+  async createDeck() {
+    const name=prompt('Nome do novo baralho:');
+    if(name==null||!name.trim()) return;
+    try{
+      await this.request('/api/anki/decks/create',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name.trim()})});
+      this.alert('Baralho criado pelo Anki oficial.');
+      await this.renderDecks();
+    }catch(e){this.alert(e.message,'error');}
   },
 
   async renderReviewer(data) {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Preparando revisão…</span></div>';
+    root.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão…</h3><p>Consultando a fila oficial do Anki.</p></div></div>';
     try {
       const q=data || await this.request('/api/anki/reviewer/next');
-      this.review=q; this.reviewStartedAt=Date.now();
+      this.review=q; this.reviewStartedAt=Date.now(); this._answerShown=false;
       if(q.finished){
-        root.innerHTML=`<div class="anki-official-finished"><h3>Parabéns!</h3><p>Você concluiu os cards disponíveis deste baralho.</p><button type="button" class="btn-primary" data-anki-view="decks">Voltar aos baralhos</button></div>`;
-        const back=root.querySelector('[data-anki-view="decks"]');
+        root.innerHTML=`<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards disponíveis neste baralho agora.</p><button type="button" class="btn-secondary" id="anki-review-decks">Ver baralhos</button></div></div>`;
+        const back=document.getElementById('anki-review-decks');
         if(back) back.onclick=()=>{this.setView('decks');void this.renderDecks();};
         return;
       }
+
       const card=q.card;
+      const remaining=Number(q.counts.new||0)+Number(q.counts.learning||0)+Number(q.counts.review||0);
+      if(this._sessionStartTotal==null) this._sessionStartTotal=Math.max(1,remaining);
+      this._sessionStartTotal=Math.max(this._sessionStartTotal,this._sessionAnswered+remaining);
+      const pct=Math.max(0,Math.min(100,Math.round((this._sessionAnswered/Math.max(1,this._sessionStartTotal))*100)));
       const srcdoc=await this.htmlWithMedia(card.question);
+      const flagColors=['','#e0393f','#d97a12','#0f9d63','#2563eb','#7c3aed','#db2777','#06b6d4'];
+      const flags=[1,2,3,4,5,6,7].map(n=>`<button type="button" class="anki-study-flag ${Number(card.flag)===n?'on':''}" data-anki-flag="${n}" style="--fl:${flagColors[n]}" title="Bandeira ${n}"></button>`).join('');
+
       root.innerHTML=`
-        <div class="anki-official-review-shell">
-          <div class="ankidroid-review-top">
-            <div class="anki-official-counts" aria-label="Contadores do estudo">
-              <span class="new" title="Novos">${q.counts.new}</span>
-              <span class="learn" title="Aprendendo">${q.counts.learning}</span>
-              <span class="review" title="Revisão">${q.counts.review}</span>
-            </div>
-            <div class="anki-official-card-tools">
-              <button type="button" data-anki-card-action="bury" title="Enterrar" aria-label="Enterrar">⌄</button>
-              <button type="button" data-anki-card-action="suspend" title="Suspender" aria-label="Suspender">⏸</button>
-              <button type="button" data-anki-card-action="forget" title="Redefinir progresso" aria-label="Redefinir progresso">↺</button>
-            </div>
+        <div class="card cards-review-wrap anki-study-review-card">
+          <div class="cards-review-progress">
+            <span>${this._sessionAnswered} respondidos</span>
+            <div class="cards-review-bar"><div style="width:${pct}%"></div></div>
+            <span class="cards-limit-chip" title="Contagens da fila oficial">🆕 ${q.counts.new} · ⏳ ${q.counts.learning} · 🔄 ${q.counts.review}</span>
           </div>
-          <iframe class="anki-official-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
-          <button type="button" class="anki-official-reveal" id="anki-official-show-answer">Mostrar resposta</button>
-          <div class="anki-official-review-actions" id="anki-official-answer-buttons" hidden></div>
+
+          <div class="cards-review-meta">
+            <span class="cards-type-tag">📁 ${this.esc(card.deck_name||('Deck '+card.deck_id))}</span>
+            ${card.notetype_name?`<span class="cards-type-tag">${this.esc(card.notetype_name)}</span>`:''}
+            <span class="anki-study-review-meta-spacer"></span>
+            <button type="button" class="cards-fav-star ${card.marked?'on':''}" id="anki-review-mark" title="Marcar/desmarcar nota">${card.marked?'★':'☆'}</button>
+          </div>
+
+          <div class="cards-face cards-front anki-study-review-face" id="anki-study-review-face">
+            <iframe class="anki-study-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
+          </div>
+
+          <div class="cards-review-actions anki-study-review-actions" id="anki-official-answer-buttons">
+            <button type="button" class="btn-primary cards-flip" id="anki-official-show-answer">Mostrar resposta <kbd>Espaço</kbd></button>
+          </div>
+
+          <div class="cards-review-nav">
+            <div class="anki-study-review-nav-left">
+              <button type="button" class="icon-btn" id="anki-review-edit">✎ Editar</button>
+              <button type="button" class="icon-btn" data-anki-card-action="bury">⤓ Enterrar</button>
+              <button type="button" class="icon-btn" data-anki-card-action="suspend">🚫 Suspender</button>
+              <button type="button" class="icon-btn" data-anki-card-action="forget">↺ Esquecer</button>
+              <button type="button" class="icon-btn" id="anki-review-due">📅 Data</button>
+              <button type="button" class="icon-btn" id="anki-review-info">ℹ Info</button>
+              <button type="button" class="icon-btn" id="anki-review-delete">🗑</button>
+            </div>
+            <span class="cards-flagbar" title="Bandeiras do Anki">${flags}</span>
+          </div>
+
+          <div class="cards-kbd-hint-row">
+            <span class="cards-kbd-hint">
+              <kbd>Espaço</kbd> resposta · <kbd>1</kbd>–<kbd>4</kbd> avaliar ·
+              <kbd>E</kbd> editar · <kbd>-</kbd> enterrar · <kbd>@</kbd> suspender ·
+              <kbd>*</kbd> marcar · <kbd>I</kbd> info · <kbd>Ctrl+Z</kbd> desfazer
+            </span>
+          </div>
         </div>`;
-      const frame=document.getElementById('anki-official-card-frame'); if(frame) frame.srcdoc=srcdoc;
+
+      const face=document.getElementById('anki-study-review-face');
+      const frame=document.getElementById('anki-official-card-frame');
+      if(frame) frame.srcdoc=srcdoc;
+      const focusInfo=document.getElementById('anki-foco-info');
+      if(focusInfo) focusInfo.textContent='Anki Oficial · '+(card.deck_name||'Revisão');
       void this.playAv(card.question_av_tags||[]);
+
       const show=document.getElementById('anki-official-show-answer');
-      if(show) show.onclick=async()=>{
-        const answerDoc=await this.htmlWithMedia(card.answer);
-        if(frame) frame.srcdoc=answerDoc;
-        show.hidden=true;
-        const box=document.getElementById('anki-official-answer-buttons');
-        if(box){
-          box.hidden=false;
-          box.innerHTML=(card.buttons||[]).map(b=>`<button type="button" data-rating="${b.rating}"><small>${this.esc(b.label)}</small><strong>${['Novamente','Difícil','Bom','Fácil'][b.rating-1]||b.rating}</strong></button>`).join('');
-          box.querySelectorAll('[data-rating]').forEach(btn=>btn.onclick=()=>void this.answer(Number(btn.dataset.rating)));
-        }
-        void this.playAv(card.answer_av_tags||[]);
-      };
-      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,card.id));
+      if(show) show.onclick=()=>void this.showAnswer();
+
+      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,card.id,true));
+      root.querySelectorAll('[data-anki-flag]').forEach(btn=>btn.onclick=()=>void this.setFlag(card.id,Number(btn.dataset.ankiFlag)));
+      const mark=document.getElementById('anki-review-mark'); if(mark) mark.onclick=()=>void this.toggleMark(card.id);
+      const edit=document.getElementById('anki-review-edit'); if(edit) edit.onclick=()=>void this.openEditNote(card.id);
+      const due=document.getElementById('anki-review-due'); if(due) due.onclick=()=>void this.setDue(card.id);
+      const info=document.getElementById('anki-review-info'); if(info) info.onclick=()=>void this.showCardInfo(card.id);
+      const del=document.getElementById('anki-review-delete'); if(del) del.onclick=()=>void this.deleteCard(card.id);
     } catch(e){ this.alert(e.message,'error'); }
+  },
+
+  async showAnswer() {
+    if(!this.review||!this.review.card||this._answerShown) return;
+    const card=this.review.card;
+    const frame=document.getElementById('anki-official-card-frame');
+    const face=document.getElementById('anki-study-review-face');
+    const actions=document.getElementById('anki-official-answer-buttons');
+    try{
+      const answerDoc=await this.htmlWithMedia(card.answer);
+      if(frame) frame.srcdoc=answerDoc;
+      if(face){face.classList.remove('cards-front');face.classList.add('cards-back');}
+      this._answerShown=true;
+      if(actions){
+        const names=['Errei','Difícil','Bom','Fácil'];
+        const classes=['a-errei','a-dificil','a-bom','a-facil'];
+        actions.innerHTML=(card.buttons||[]).map(b=>`
+          <button type="button" class="cards-ans4 ${classes[b.rating-1]||''}" data-rating="${b.rating}">
+            <span class="a-kbd">${b.rating}</span>
+            <strong>${names[b.rating-1]||b.rating}</strong>
+            <small>${this.esc(b.label||'')}</small>
+          </button>`).join('');
+        actions.querySelectorAll('[data-rating]').forEach(btn=>btn.onclick=()=>void this.answer(Number(btn.dataset.rating)));
+      }
+      void this.playAv(card.answer_av_tags||[]);
+    }catch(e){this.alert(e.message,'error');}
   },
 
   async answer(rating) {
@@ -38610,15 +38398,130 @@ const AnkiOfficial = {
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({card_id:this.review.card.id,rating,milliseconds_taken:Math.max(0,Date.now()-this.reviewStartedAt)})
       });
+      this._sessionAnswered++;
       await this.renderReviewer(next);
     } catch(e){ this.alert(e.message,'error'); }
   },
 
-  async cardAction(action, cardId) {
+  async cardAction(action, cardId, advance) {
     try {
       await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,card_ids:[cardId]})});
-      await this.renderReviewer();
+      if(advance) await this.renderReviewer();
+      else if(this.review) await this.renderReviewer(this.review);
     } catch(e){ this.alert(e.message,'error'); }
+  },
+
+  async toggleMark(cardId) {
+    try{
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mark',card_ids:[cardId]})});
+      if(this.review&&this.review.card){this.review.card.marked=!this.review.card.marked;await this.renderReviewer(this.review);}
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async setFlag(cardId, flag) {
+    try{
+      const current=this.review&&this.review.card?Number(this.review.card.flag||0):0;
+      const value=current===flag?0:flag;
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'flag',card_ids:[cardId],value})});
+      if(this.review&&this.review.card){this.review.card.flag=value;await this.renderReviewer(this.review);}
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async setDue(cardId) {
+    const value=prompt('Nova data relativa do Anki (ex.: 5 ou 5-7):','5');
+    if(value==null||!value.trim())return;
+    try{
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_due',card_ids:[cardId],value:value.trim()})});
+      this.alert('Data atualizada pelo scheduler oficial.');
+      await this.renderReviewer();
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async deleteCard(cardId) {
+    if(!confirm('Excluir a nota deste card da coleção Anki?')) return;
+    try{
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete_notes',card_ids:[cardId]})});
+      this.alert('Nota excluída da coleção Anki.');
+      await this.renderReviewer();
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  openModal(title, subtitle, bodyHtml, footHtml) {
+    this.closeModal();
+    const modal=document.createElement('div');
+    modal.className='cards-modal';
+    modal.id='anki-study-modal';
+    modal.innerHTML=`<div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head"><div><h2>${this.esc(title)}</h2><p class="sub">${this.esc(subtitle||'')}</p></div><button type="button" class="icon-btn" id="anki-modal-close">✕</button></div>
+      <div class="cards-modal-body">${bodyHtml}</div>
+      <div class="cards-modal-foot">${footHtml||'<button type="button" class="btn-secondary" id="anki-modal-ok">Fechar</button>'}</div>
+    </div>`;
+    document.body.appendChild(modal);
+    const close=()=>this.closeModal();
+    document.getElementById('anki-modal-close').onclick=close;
+    const ok=document.getElementById('anki-modal-ok');if(ok)ok.onclick=close;
+    modal.addEventListener('click',e=>{if(e.target===modal)close();});
+    return modal;
+  },
+
+  closeModal() {
+    const m=document.getElementById('anki-study-modal');if(m)m.remove();
+  },
+
+  async openEditNote(cardId) {
+    try{
+      const detail=await this.request('/api/anki/card/'+cardId+'/detail');
+      const fields=Object.entries(detail.fields||{}).map(([name,value])=>`<div class="field"><label>${this.esc(name)}</label><textarea data-anki-edit-field="${this.esc(name)}">${this.esc(value)}</textarea></div>`).join('');
+      this.openModal('Editar nota',detail.notetype_name||'Anki Oficial',
+        `<div class="anki-study-modal-fields">${fields}<div class="field"><label>Tags</label><input id="anki-edit-tags" value="${this.esc((detail.tags||[]).join(' '))}"></div></div>`,
+        '<button type="button" class="btn-secondary" id="anki-edit-cancel">Cancelar</button><button type="button" class="btn-primary" id="anki-edit-save">Salvar</button>');
+      document.getElementById('anki-edit-cancel').onclick=()=>this.closeModal();
+      document.getElementById('anki-edit-save').onclick=async()=>{
+        const values={};
+        document.querySelectorAll('#anki-study-modal [data-anki-edit-field]').forEach(el=>values[el.dataset.ankiEditField]=el.value);
+        const tags=(document.getElementById('anki-edit-tags').value||'').split(/\s+/).filter(Boolean);
+        try{
+          await this.request('/api/anki/note/'+detail.note_id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:values,tags})});
+          this.closeModal();this.alert('Nota atualizada pelo Anki oficial.');
+          if(this.view==='review') await this.renderReviewer(); else await this.renderBrowser();
+        }catch(e){this.alert(e.message,'error');}
+      };
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async showCardInfo(cardId) {
+    try{
+      const [detail,stats]=await Promise.all([
+        this.request('/api/anki/card/'+cardId+'/detail'),
+        this.request('/api/anki/card/'+cardId+'/stats')
+      ]);
+      const rows=[
+        ['Card',detail.card_id],['Nota',detail.note_id],['Baralho',detail.deck_name],
+        ['Tipo',detail.notetype_name],['Intervalo',detail.interval],['Repetições',detail.reps],
+        ['Lapses',detail.lapses],['Due',detail.due],['Fila',detail.queue],['Flag',detail.flag||0]
+      ].map(([k,v])=>`<dt>${this.esc(k)}</dt><dd>${this.esc(v)}</dd>`).join('');
+      this.openModal('Informações do card','Dados lidos diretamente da coleção Anki',
+        `<dl class="anki-study-info-grid">${rows}</dl><details style="margin-top:14px"><summary>Dados oficiais completos</summary><pre class="hint" style="white-space:pre-wrap">${this.esc(JSON.stringify(stats,null,2))}</pre></details>`);
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  onKey(e) {
+    const screen=document.getElementById('screen-anki');
+    if(!screen||!screen.classList.contains('active')) return;
+    if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if(e.key==='Escape'&&document.body.classList.contains('anki-foco')){e.preventDefault();document.body.classList.remove('anki-foco');return;}
+    if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){e.preventDefault();void this.simplePost('/api/anki/undo');return;}
+    if(this.view!=='review'||!this.review||!this.review.card)return;
+    const click=id=>{const b=document.getElementById(id);if(b)b.click();};
+    if(e.code==='Space'){e.preventDefault();if(!this._answerShown)click('anki-official-show-answer');return;}
+    if(this._answerShown&&/^Digit[1-4]$/.test(e.code)){
+      e.preventDefault();const b=document.querySelector('#anki-official-answer-buttons [data-rating="'+e.code.slice(5)+'"]');if(b)b.click();return;
+    }
+    if(e.code==='KeyE'){e.preventDefault();click('anki-review-edit');return;}
+    if(e.code==='KeyI'){e.preventDefault();click('anki-review-info');return;}
+    if(e.key==='-'){e.preventDefault();const b=document.querySelector('#anki-official-root [data-anki-card-action="bury"]');if(b)b.click();return;}
+    if(e.key==='@'||(e.shiftKey&&e.code==='Digit2')){e.preventDefault();const b=document.querySelector('#anki-official-root [data-anki-card-action="suspend"]');if(b)b.click();return;}
+    if(e.key==='*'||(e.shiftKey&&e.code==='Digit8')){e.preventDefault();click('anki-review-mark');}
   },
 
   async playAv(tags) {
@@ -38642,114 +38545,121 @@ const AnkiOfficial = {
   async renderBrowser() {
     const root=this.root(); if(!root) return;
     root.innerHTML=`
-      <div class="anki-official-browser-head">
-        <input id="anki-official-search" type="search" placeholder="Busca oficial do Anki: deck:, tag:, is:due, prop:…">
-        <button type="button" class="btn-primary" id="anki-official-search-btn">Buscar</button>
-      </div>
-      <div class="anki-official-browser-list" id="anki-official-browser-list"></div>`;
+      <section class="card anki-study-browser-filter">
+        <div class="card-header cards-filter-head">
+          <div><h2>🔎 Buscar e filtrar</h2><p class="sub">Use a gramática oficial do Anki: <code>deck:</code>, <code>tag:</code>, <code>is:due</code>, <code>prop:</code>…</p></div>
+        </div>
+        <div style="padding:14px 24px 20px">
+          <div class="field"><label for="anki-official-search">Buscar</label>
+            <div style="display:flex;gap:8px"><input id="anki-official-search" type="search" placeholder="Ex.: deck:Tributário is:due" style="flex:1"><button type="button" class="btn-primary" id="anki-official-search-btn">Buscar</button></div>
+          </div>
+        </div>
+      </section>
+      <div class="cards-count-bar" id="anki-browser-count">Carregando…</div>
+      <div class="cards-grid" id="anki-official-browser-list"></div>`;
+
     const run=async()=>{
       const q=document.getElementById('anki-official-search').value||'';
-      try {
+      try{
         const data=await this.request('/api/anki/browser/search?q='+encodeURIComponent(q)+'&limit=200');
         const list=document.getElementById('anki-official-browser-list');
-        list.innerHTML=(data.cards||[]).map(c=>`
-          <div class="anki-official-browser-row">
-            <div><div class="anki-official-browser-question">${this.esc((new DOMParser().parseFromString(c.question||'','text/html').body.textContent||'').trim())}</div>
-            <div class="hint">Card ${c.card_id} · Nota ${c.note_id}</div></div>
-            <div class="anki-official-browser-meta">ivl ${c.interval} · reps ${c.reps} · lapses ${c.lapses}</div>
-          </div>`).join('') || '<div class="card"><div class="card-body">Nenhum resultado.</div></div>';
-      } catch(e){ this.alert(e.message,'error'); }
+        const count=document.getElementById('anki-browser-count');
+        if(count)count.textContent=(data.cards||[]).length+' card(s) encontrados';
+        list.innerHTML=(data.cards||[]).map(card=>{
+          const txt=(new DOMParser().parseFromString(card.question||'','text/html').body.textContent||'').trim();
+          return `
+            <article class="mini-card anki-study-mini-card" data-card-id="${card.card_id}">
+              <div class="mini-card-top">
+                <div class="mini-card-badges">
+                  <span class="cards-type-tag">📁 ${this.esc(card.deck_name||card.deck_id)}</span>
+                  ${card.notetype_name?`<span class="cards-type-tag">${this.esc(card.notetype_name)}</span>`:''}
+                </div>
+                <span class="cards-fav-star ${card.marked?'on':''}">${card.marked?'★':'☆'}</span>
+              </div>
+              <div class="mini-card-front">${this.esc(txt||'(sem texto)')}</div>
+              <div class="mini-card-foot">
+                <span class="anki-study-mini-meta">ivl ${card.interval} · reps ${card.reps} · lapses ${card.lapses}</span>
+                <span>
+                  <button type="button" class="icon-btn" data-browser-info="${card.card_id}">ℹ</button>
+                  <button type="button" class="icon-btn" data-browser-edit="${card.card_id}">✎</button>
+                </span>
+              </div>
+            </article>`;
+        }).join('') || '<div class="card"><div class="cards-review-done"><div class="big">🔎</div><h3>Nenhum resultado</h3><p>Tente outra busca do Anki.</p></div></div>';
+        list.querySelectorAll('[data-browser-edit]').forEach(b=>b.onclick=e=>{e.stopPropagation();void this.openEditNote(Number(b.dataset.browserEdit));});
+        list.querySelectorAll('[data-browser-info]').forEach(b=>b.onclick=e=>{e.stopPropagation();void this.showCardInfo(Number(b.dataset.browserInfo));});
+      }catch(e){this.alert(e.message,'error');}
     };
     document.getElementById('anki-official-search-btn').onclick=()=>void run();
-    document.getElementById('anki-official-search').addEventListener('keydown',e=>{if(e.key==='Enter') void run();});
+    document.getElementById('anki-official-search').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();void run();}});
     void run();
   },
 
   async renderAdd() {
     const root=this.root(); if(!root) return;
-    try {
+    try{
       const [decks,nts]=await Promise.all([this.request('/api/anki/decks'),this.request('/api/anki/notetypes')]);
       const notetypes=nts.notetypes||[];
       root.innerHTML=`
-        <div class="anki-official-form">
-          <div class="field"><label>Baralho</label><select id="anki-add-deck">${(decks.decks||[]).map(d=>`<option value="${d.id}" ${Number(d.id)===Number(decks.current_deck_id)?'selected':''}>${this.esc(d.name)}</option>`).join('')}</select></div>
-          <div class="field"><label>Tipo de nota</label><select id="anki-add-nt">${notetypes.map(n=>`<option value="${n.id}">${this.esc(n.name)}</option>`).join('')}</select></div>
-          <div id="anki-add-fields"></div>
-          <div class="field"><label>Tags</label><input id="anki-add-tags" placeholder="tag1 tag2"></div>
-          <button type="button" class="btn-primary" id="anki-add-save">Adicionar com o Anki oficial</button>
-        </div>`;
-
+        <section class="card anki-study-form-card">
+          <div class="card-header"><div><h2>＋ Adicionar nota</h2><p class="sub">A nota é criada diretamente na coleção oficial do Anki.</p></div></div>
+          <div class="anki-study-form-body">
+            <div class="field-group">
+              <div class="field"><label>Baralho</label><select id="anki-add-deck">${(decks.decks||[]).map(d=>`<option value="${d.id}" ${Number(d.id)===Number(decks.current_deck_id)?'selected':''}>${this.esc(d.name)}</option>`).join('')}</select></div>
+              <div class="field"><label>Tipo de nota</label><select id="anki-add-nt">${notetypes.map(n=>`<option value="${n.id}">${this.esc(n.name)}</option>`).join('')}</select></div>
+            </div>
+            <div id="anki-add-fields"></div>
+            <div class="field"><label>Tags</label><input id="anki-add-tags" placeholder="tag1 tag2"></div>
+            <div class="submit-row"><button type="button" class="btn-primary" id="anki-add-save">Adicionar ao Anki</button></div>
+          </div>
+        </section>`;
       const ntSelect=document.getElementById('anki-add-nt');
       const fieldsBox=document.getElementById('anki-add-fields');
       const renderFields=()=>{
-        const nt=notetypes.find(n=>String(n.id)===String(ntSelect.value)) || notetypes[0];
+        const nt=notetypes.find(n=>String(n.id)===String(ntSelect.value))||notetypes[0];
         const fields=(nt&&nt.fields)||[];
-        fieldsBox.innerHTML=fields.map((name,i)=>`
-          <div class="field">
-            <label>${this.esc(name)}</label>
-            <textarea data-anki-add-field="${i}" data-anki-field-name="${this.esc(name)}"></textarea>
-          </div>`).join('') || '<p class="hint">Este tipo de nota não expôs campos editáveis.</p>';
+        fieldsBox.innerHTML=fields.map(name=>`<div class="field"><label>${this.esc(name)}</label><textarea data-anki-add-field="${this.esc(name)}"></textarea></div>`).join('')||'<p class="hint">Este tipo de nota não expôs campos editáveis.</p>';
       };
-      ntSelect.addEventListener('change', renderFields);
-      renderFields();
-
+      ntSelect.addEventListener('change',renderFields);renderFields();
       document.getElementById('anki-add-save').onclick=async()=>{
+        const fields={};fieldsBox.querySelectorAll('[data-anki-add-field]').forEach(el=>fields[el.dataset.ankiAddField]=el.value);
+        const body={deck_id:Number(document.getElementById('anki-add-deck').value),notetype_id:Number(ntSelect.value),fields,tags:(document.getElementById('anki-add-tags').value||'').split(/\s+/).filter(Boolean)};
         try{
-          const fields={};
-          fieldsBox.querySelectorAll('[data-anki-field-name]').forEach(el=>{
-            fields[el.dataset.ankiFieldName]=el.value;
-          });
-          const body={
-            deck_id:Number(document.getElementById('anki-add-deck').value),
-            notetype_id:Number(ntSelect.value),
-            fields,
-            tags:(document.getElementById('anki-add-tags').value||'').split(/\s+/).filter(Boolean)
-          };
           await this.request('/api/anki/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-          this.alert('Nota adicionada pelo backend oficial do Anki.');
-          fieldsBox.querySelectorAll('textarea').forEach(el=>{el.value='';});
+          this.alert('Nota adicionada pelo Anki oficial.');
+          fieldsBox.querySelectorAll('textarea').forEach(el=>el.value='');
         }catch(e){this.alert(e.message,'error');}
       };
-    } catch(e){this.alert(e.message,'error');}
+    }catch(e){this.alert(e.message,'error');}
   },
 
   async renderOptions() {
     const root=this.root(); if(!root) return;
-    try {
+    try{
       const decks=await this.request('/api/anki/decks');
       const did=Number(decks.current_deck_id);
       const current=(decks.decks||[]).find(d=>Number(d.id)===did);
       const data=await this.request('/api/anki/deck/'+did+'/options');
-      const presets=Array.isArray(data.all_config)?data.all_config.length:0;
       root.innerHTML=`
-        <div class="ankidroid-settings-page">
-          <div class="ankidroid-settings-title">Baralho atual</div>
-          <div class="ankidroid-settings-card">
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">▤</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">${this.esc(current&&current.name||'Baralho')}</div><div class="ankidroid-setting-desc">Configuração fornecida pelo backend oficial do Anki.</div></div>
-              <div class="ankidroid-setting-value">ID ${did}</div>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">◔</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">FSRS</div><div class="ankidroid-setting-desc">Estado do scheduler para este conjunto de opções.</div></div>
-              <div class="ankidroid-setting-value ${data.fsrs?'ankidroid-status-good':''}">${data.fsrs?'Ativado':'Desativado'}</div>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">⚙</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Presets</div><div class="ankidroid-setting-desc">Configurações retornadas por DeckConfigsForUpdate.</div></div>
-              <div class="ankidroid-setting-value">${presets}</div>
-            </div>
+        <section class="card anki-study-form-card">
+          <div class="card-header">
+            <div><h2>⚙ Opções do baralho</h2><p class="sub">${this.esc(current&&current.name||'Baralho')} · objeto DeckConfigsForUpdate do Anki oficial.</p></div>
           </div>
-          <details class="ankidroid-advanced">
-            <summary>Opções avançadas oficiais</summary>
-            <div class="ankidroid-advanced-body">
-              <p class="hint">Edição integral do objeto oficial. O Study não recalcula nem interpreta os parâmetros.</p>
-              <textarea class="anki-official-json" id="anki-options-json">${this.esc(JSON.stringify(data,null,2))}</textarea>
-              <div class="ankidroid-settings-actions"><button type="button" class="btn-primary" id="anki-options-save">Salvar no Anki oficial</button></div>
+          <div class="anki-study-form-body">
+            <div class="stat-kpis" style="margin-bottom:0">
+              <div class="stat-kpi"><div class="stat-kpi-v accent">${data.fsrs?'ON':'OFF'}</div><div class="stat-kpi-l">FSRS</div></div>
+              <div class="stat-kpi"><div class="stat-kpi-v">${Array.isArray(data.all_config)?data.all_config.length:0}</div><div class="stat-kpi-l">Presets</div></div>
+              <div class="stat-kpi"><div class="stat-kpi-v">${did}</div><div class="stat-kpi-l">Deck ID</div></div>
+              <div class="stat-kpi"><div class="stat-kpi-v good">Anki</div><div class="stat-kpi-l">Motor</div></div>
             </div>
-          </details>
-        </div>`;
+            <details>
+              <summary style="cursor:pointer;font-weight:700">Opções avançadas oficiais</summary>
+              <p class="hint">O Study apenas envia este objeto de volta ao backend. A interpretação dos parâmetros é do Anki.</p>
+              <textarea class="anki-study-options-json" id="anki-options-json">${this.esc(JSON.stringify(data,null,2))}</textarea>
+            </details>
+            <div class="submit-row"><button type="button" class="btn-primary" id="anki-options-save">Salvar no Anki oficial</button></div>
+          </div>
+        </section>`;
       document.getElementById('anki-options-save').onclick=async()=>{
         try{
           const payload=JSON.parse(document.getElementById('anki-options-json').value);
@@ -38763,7 +38673,7 @@ const AnkiOfficial = {
 
   async renderTools() {
     const root=this.root(); if(!root) return;
-    try {
+    try{
       const [st,media,cols]=await Promise.all([
         this.request('/api/anki/status'),
         this.request('/api/anki/media/check'),
@@ -38772,62 +38682,31 @@ const AnkiOfficial = {
       const missing=(media.missing||media.missing_files||[]).length||0;
       const unused=(media.unused||media.unused_files||[]).length||0;
       root.innerHTML=`
-        <div class="ankidroid-settings-page">
-          <div class="ankidroid-settings-title">Anki</div>
-          <div class="ankidroid-settings-card">
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">★</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Engine oficial</div><div class="ankidroid-setting-desc">Coleção ${this.esc(st.collection_path)} · ${st.cards} cards · ${st.notes} notas</div></div>
-              <div class="ankidroid-setting-value ankidroid-status-good">${this.esc(st.runtime_version)}</div>
+        <div class="anki-study-tools-grid">
+          <div class="anki-study-tool-card"><strong>${this.esc(st.runtime_version)}</strong><span>Engine Anki oficial</span></div>
+          <div class="anki-study-tool-card"><strong>${st.cards}</strong><span>Cards na coleção</span></div>
+          <div class="anki-study-tool-card"><strong>${st.notes}</strong><span>Notas na coleção</span></div>
+        </div>
+        <section class="card">
+          <div class="card-header"><div><h2>🧰 Ferramentas</h2><p class="sub">Operações executadas pela própria Collection do Anki.</p></div></div>
+          <div style="padding:0 22px 20px">
+            <div class="anki-study-tool-actions">
+              <button type="button" class="btn-secondary" id="anki-db-check">✓ Verificar banco</button>
+              <button type="button" class="btn-secondary" id="anki-db-optimize">↻ Otimizar coleção</button>
+              <button type="button" class="btn-secondary" id="anki-official-change-api">⌁ Servidor</button>
             </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">▧</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Navegador</div><div class="ankidroid-setting-desc">Colunas expostas pelo backend oficial.</div></div>
-              <div class="ankidroid-setting-value">${(cols.columns||[]).length}</div>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">♪</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Mídia</div><div class="ankidroid-setting-desc">Resultado do Check Media oficial.</div></div>
-              <div class="ankidroid-setting-value ${missing?'ankidroid-status-warn':'ankidroid-status-good'}">${missing} faltando · ${unused} sem uso</div>
-            </div>
+            <div class="section-divider"><span>Diagnóstico</span></div>
+            <p class="hint">Check Media: ${missing} faltando · ${unused} sem uso · ${(cols.columns||[]).length} colunas oficiais no navegador.</p>
           </div>
-
-          <div class="ankidroid-settings-title">Manutenção</div>
-          <div class="ankidroid-settings-card">
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">✓</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Verificar banco</div><div class="ankidroid-setting-desc">Executa o Check Database oficial e reconstrói caches quando necessário.</div></div>
-              <button type="button" class="btn-secondary" id="anki-db-check">Executar</button>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">↻</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Otimizar coleção</div><div class="ankidroid-setting-desc">Executa VACUUM/ANALYZE pela Collection oficial.</div></div>
-              <button type="button" class="btn-secondary" id="anki-db-optimize">Otimizar</button>
-            </div>
-            <div class="ankidroid-setting-row">
-              <div class="ankidroid-setting-icon">⌁</div>
-              <div class="ankidroid-setting-main"><div class="ankidroid-setting-name">Servidor da engine</div><div class="ankidroid-setting-desc">${this.esc(this.apiBase())}</div></div>
-              <button type="button" class="btn-secondary" id="anki-official-change-api">Alterar</button>
-            </div>
-          </div>
-
-          <div class="anki-official-boundary">
-            <strong>Arquitetura web</strong>
-            Scheduler, FSRS, coleção, busca e operações são do Anki oficial. Recursos que dependem do processo Qt/PyQt do Desktop continuam fora desta interface web.
-          </div>
-        </div>`;
+        </section>`;
       document.getElementById('anki-official-change-api').onclick=()=>this.setApiUrl();
       document.getElementById('anki-db-check').onclick=async()=>{
-        try{
-          const out=await this.request('/api/anki/database/check',{method:'POST'});
-          this.alert((out.ok?'Banco íntegro. ':'Foram encontrados/reparados problemas. ')+(out.message||''));
-        }catch(e){this.alert(e.message,'error');}
+        try{const out=await this.request('/api/anki/database/check',{method:'POST'});this.alert((out.ok?'Banco íntegro. ':'Foram encontrados/reparados problemas. ')+(out.message||''));}
+        catch(e){this.alert(e.message,'error');}
       };
       document.getElementById('anki-db-optimize').onclick=async()=>{
-        try{
-          await this.request('/api/anki/database/optimize',{method:'POST'});
-          this.alert('Banco otimizado pelo Anki oficial.');
-        }catch(e){this.alert(e.message,'error');}
+        try{await this.request('/api/anki/database/optimize',{method:'POST'});this.alert('Banco otimizado pelo Anki oficial.');}
+        catch(e){this.alert(e.message,'error');}
       };
     }catch(e){this.alert(e.message,'error');}
   }
@@ -38836,7 +38715,7 @@ const AnkiOfficial = {
 window.AnkiOfficial = AnkiOfficial;
 window.addEventListener('screen:activated', (ev) => {
   const screen = ev.detail && ev.detail.screen;
-  document.body.classList.toggle('anki-mobile-immersive', screen === 'anki');
+  if (screen !== 'anki') document.body.classList.remove('anki-foco');
   if (screen === 'anki') void AnkiOfficial.activate();
 });
 
