@@ -147,16 +147,20 @@
     bankCatalog() {
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) {}
-      if (Array.isArray(saved) && saved.length) return saved;
-      const all = [];
+      const hadSaved = Array.isArray(saved);
+      const all = hadSaved ? saved.slice() : [];
       (DB.DEFAULT_BANCAS_CARDS || []).forEach(x => all.push(x));
       this.plans().forEach(p => {
-        this._rows(p.id, 'bancasCards').forEach(x => all.push(x));
+        // A lista antiga de cada planejamento é usada só na primeira migração.
+        // Depois disso o catálogo global manda; bancas novas continuam entrando
+        // automaticamente quando algum card efetivamente as usa.
+        if (!hadSaved) this._rows(p.id, 'bancasCards').forEach(x => all.push(x));
         this._rows(p.id, 'cards').forEach(c => { if (c && c.banca) all.push(c.banca); });
       });
       const clean = [...new Set(all.map(x => String(x || '').trim()).filter(Boolean))]
         .sort((a,b)=>a.localeCompare(b,'pt-BR'));
-      DB.setRaw(this._banksKey(), JSON.stringify(clean));
+      if (!hadSaved || JSON.stringify(saved) !== JSON.stringify(clean))
+        DB.setRaw(this._banksKey(), JSON.stringify(clean));
       return clean;
     },
     saveBankCatalog(list) {
