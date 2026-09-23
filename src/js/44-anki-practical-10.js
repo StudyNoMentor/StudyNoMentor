@@ -521,12 +521,11 @@ const AnkiPractical10 = {
     values.forEach(raw=>{const v=Number(raw);if(!Number.isFinite(v))return;let i=0;while(i<bins.length&&v>=bins[i])i++;out[Math.min(i,out.length-1)]++;});
     const max=Math.max(1,...out);return '<div class="anki-p10-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
   },
-  _trueRetentionRows(logs){
-    const now=Date.now(),day=86400000,windows=[['Hoje',1],['7 dias',7],['30 dias',30],['1 ano',365]];
+  _trueRetentionRows(){
+    const windows=[['Hoje',1],['7 dias',7],['30 dias',30],['1 ano',365],['Tudo',null]];
     return windows.map(([label,n])=>{
-      const xs=logs.filter(r=>{const ts=Number(r.ts)||Date.parse(r.date||'');return Number.isFinite(ts)&&ts>=now-n*day&&Number(r.grade)>=1&&Number(r.grade)<=4;});
-      const pass=xs.filter(r=>Number(r.grade)>1).length,rate=xs.length?pass/xs.length:0;
-      return '<tr><td>'+label+'</td><td>'+xs.length.toLocaleString('pt-BR')+'</td><td>'+pass.toLocaleString('pt-BR')+'</td><td>'+(xs.length?(rate*100).toFixed(1)+'%':'—')+'</td></tr>';
+      const t=CardsScreen.trueRetention(n),xs=t.todos||{total:0,acertos:0,pct:null};
+      return '<tr><td>'+label+'</td><td>'+xs.total.toLocaleString('pt-BR')+'</td><td>'+xs.acertos.toLocaleString('pt-BR')+'</td><td>'+(xs.total?Number(xs.pct).toFixed(1)+'%':'—')+'</td></tr>';
     }).join('');
   },
   _completeStatsHtml(){
@@ -541,7 +540,7 @@ const AnkiPractical10 = {
       this._histBars(retr,[50,70,80,90,95],['<50%','50–70','70–80','80–90','90–95','>95%'])+'</div></div>'+
       '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>◉ Botões de resposta</h2><p class="sub">Again / Hard / Good / Easy</p></div></div><div class="anki-p10-answer-bars">'+
       ['Again','Hard','Good','Easy'].map((x,i)=>'<div><i style="height:'+Math.max(grades[i]?5:0,Math.round(grades[i]/gmax*100))+'%"></i><strong>'+grades[i].toLocaleString('pt-BR')+'</strong><span>'+x+'</span></div>').join('')+
-      '</div></div><div class="card stat-card"><div class="card-header"><div><h2>✓ True Retention</h2><p class="sub">Respostas corretas entre revisões registradas</p></div></div><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Período</th><th>Respostas</th><th>Corretas</th><th>Retenção</th></tr></thead><tbody>'+this._trueRetentionRows(logs)+'</tbody></table></div></div></div></div>';
+      '</div></div><div class="card stat-card"><div class="card-header"><div><h2>✓ True Retention</h2><p class="sub">Primeira revisão de cada card por dia · Again falha, Hard/Good/Easy passam</p></div></div><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Período</th><th>Respostas</th><th>Corretas</th><th>Retenção</th></tr></thead><tbody>'+this._trueRetentionRows()+'</tbody></table></div></div></div></div>';
   },
   _installStatsCompleteness(){
     if(typeof AnkiMaxStatsMedia==='undefined'||typeof AnkiMaxStatsMedia.statsHtml!=='function'||AnkiMaxStatsMedia.statsHtml.__p10)return;
