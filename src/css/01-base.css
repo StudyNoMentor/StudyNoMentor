@@ -344,6 +344,9 @@
   }
   .plan-switcher-item:hover { background: var(--surface-sunken); }
   .plan-switcher-item.active { background: var(--accent-soft); }
+  .plan-switcher-item.paused { opacity: .68; cursor: default; }
+  .plan-switcher-item.paused:hover { background: transparent; }
+  .plan-switcher-item.paused .psi-dot { background: var(--text-faint); }
   .psi-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border-strong); flex-shrink: 0; }
   .plan-switcher-item.active .psi-dot { background: var(--accent); }
   .psi-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
@@ -375,6 +378,8 @@
     margin-bottom: 14px;
   }
   .plan-card.is-active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
+  .plan-card.is-paused { border-style: dashed; background: var(--surface-sunken); }
+  .plan-card.is-paused .plan-active-pill { background: var(--text-faint); }
   .plan-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
   .plan-card-title { display: flex; align-items: center; gap: 10px; }
   .plan-card-title .nome { font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
