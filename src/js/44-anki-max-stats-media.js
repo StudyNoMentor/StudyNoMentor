@@ -267,7 +267,7 @@ const AnkiMaxStatsMedia = {
       newLimit=Math.max(0,Math.round(opts.newLimit==null?Number(cfg.newPerDay)||0:Number(opts.newLimit)||0)),
       reviewLimit=Math.max(0,Math.round(opts.reviewLimit==null?Number(cfg.revPerDay)||0:Number(opts.reviewLimit)||0)),
       maxInterval=Math.max(1,Math.min(36500,Math.round(opts.maxInterval==null?Number(cfg.maxInterval)||36500:Number(opts.maxInterval)||36500))),
-      additionalNew=Math.max(0,Math.round(Number(opts.additionalNew)||0);
+      additionalNew=Math.max(0,Math.round(Number(opts.additionalNew)||0));
     const cardKey=new Map(),existing=[],newCards=[];
     scoped.forEach((c,i)=>{
       const cid=this._simNumericCardId(c,i);cardKey.set(String(c.id),cid);if(c.ankiId!=null)cardKey.set(String(c.ankiId),cid);
