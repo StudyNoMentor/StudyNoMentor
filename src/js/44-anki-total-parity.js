@@ -196,7 +196,7 @@ const AnkiTotalParity = {
     const max=Math.max(1,...out);return '<div class="anki-total-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
   },
   _extraStatsHtml(){
-    const cards=DB.getCards(),logs=DB.getRevlog(),now=new Date(),months=[];
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),now=new Date(),months=[];
     for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');months.push({k,label:String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2),n:0});}
     cards.forEach(c=>{const k=String(c.createdAt||'').slice(0,7),m=months.find(x=>x.k===k);if(m)m.n++;});
     const maxAdded=Math.max(1,...months.map(x=>x.n));
@@ -221,7 +221,8 @@ const AnkiTotalParity = {
 
   /* ───────────────── CHECK COLLECTION MAIS PROFUNDO ───────────────── */
   deepIssues(){
-    const cards=DB.getCards(),logs=DB.getRevlog(),decks=DB.getDecks(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes();
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
+      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes();
     const cardIds=new Set(cards.map(c=>String(c.id))),deckIds=new Set(decks.map(d=>String(d.id))),noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id)));
     const missingNotes=cards.filter(c=>!noteIds.has(String(AnkiParity.noteId(c)))).map(c=>c.id);
     const missingDeck=cards.filter(c=>c.deckId!=null&&!deckIds.has(String(c.deckId))).map(c=>c.id);
