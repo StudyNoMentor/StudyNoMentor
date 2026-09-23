@@ -56,7 +56,8 @@ const PlanManager = {
     return id;
   },
 
-  // Cria um planejamento novo aproveitando a ESTRUTURA de outro (nunca os registros/ciclos/histórico).
+  // Cria um planejamento novo aproveitando a ESTRUTURA de outro. Registros, ciclos e semanas
+  // fechadas nunca viajam; o histórico TEC só viaja quando o usuário pede explicitamente.
   duplicateFrom(sourceId, opts) {
     const id = this.createPlan({ nome: opts.nome, tipo: opts.tipo }); // já semeia padrões
     const sk = DB.keysForPlan(sourceId);
@@ -73,6 +74,22 @@ const PlanManager = {
     if (opts.copyTracks) {
       const st = clone(sk.statuses); if (st) DB._set(dk.statuses, st);
       const v = clone(sk.tracks);    if (v) DB._set(dk.tracks, v);
+    }
+    // Histórico TEC é contexto estratégico, não herança automática. Só via
+    // opção explícita na criação; a cópia recebe IDs próprios para continuar
+    // independente da origem (excluir/reimportar aqui nunca toca o outro plano).
+    if (opts.copyTec) {
+      const v = clone(sk.tec);
+      if (Array.isArray(v) && v.length) {
+        const stamp = Date.now().toString(36);
+        v.forEach((s, i) => {
+          const originalId = s.id;
+          s.id = 'tec_' + stamp + '_' + i + '_' + Math.random().toString(36).slice(2, 6);
+          s.copiedFrom = { planId: sourceId, snapshotId: originalId };
+          s.importedAt = new Date().toISOString();
+        });
+        DB._set(dk.tec, v);
+      }
     }
     return id;
   },

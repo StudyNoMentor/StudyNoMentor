@@ -374,7 +374,12 @@ const DesempenhoTecScreen = {
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
   rangeStart: null, rangeEnd: null, // (modo 'range')
   snapshots() {
-    return DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
+    /* TEC é sinal estratégico do planejamento, não memória global automática.
+       Um pós-edital focado numa banca precisa poder trabalhar só com aquele
+       recorte sem misturar o multibanca antigo. A visão consolidada continua
+       disponível por DB.getAllTecSnapshotsTagged() para telas que a peçam
+       explicitamente; esta tela e o Motor usam somente o plano ativo. */
+    return DB.getTecSnapshots();
   },
   // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
   _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },

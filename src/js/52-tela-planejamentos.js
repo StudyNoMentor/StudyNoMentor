@@ -137,7 +137,8 @@ const PlanUI = {
         copySubjects: $id('np-copy-subjects').checked,
         copyTracks: $id('np-copy-tracks').checked,
         copyMethods: $id('np-copy-methods').checked,
-        copyPhases: $id('np-copy-phases').checked
+        copyPhases: $id('np-copy-phases').checked,
+        copyTec: $id('np-copy-tec').checked
       });
     } else {
       newId = PlanManager.createPlan({ nome, tipo });

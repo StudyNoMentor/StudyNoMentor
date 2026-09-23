@@ -177,10 +177,12 @@ assert.deepEqual(Array.from(ctx.DB.getAllLinksTagged(),x=>x.id),['kA','kB'],'lin
 assert.equal(ctx.DB.updateLink('kB',{nome:'Link B editado'}),null,'link de outro planejamento deve ser somente leitura');
 assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B','link externo não pode ser alterado');
 
-assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'histórico TEC deve ser global');
+assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'consulta consolidada do TEC deve continuar disponível');
 assert.equal(ctx.DB.updateTecSnapshot(2,{label:'Setembro'}),null,'retrato TEC de outro planejamento deve ser somente leitura');
 assert.equal(parse(keysForPlan('B').tec,[])[0].label,undefined,'retrato externo não pode ser alterado');
-assert.equal(ctx.DB.tecOverlap('2026-09-15','2026-09-20').id,2,'sobreposição TEC deve considerar outros planejamentos');
+assert.equal(ctx.DB.tecOverlap('2026-09-15','2026-09-20'),null,'sobreposição TEC de outro planejamento não pode bloquear a importação atual');
+assert.equal(ctx.DB.tecOverlap('2026-08-15','2026-08-20').id,1,'sobreposição TEC continua valendo dentro do planejamento ativo');
+assert.deepEqual(Array.from(ctx.DB.getDecksForPlan('B'),d=>d.id),['db'],'editor global deve conseguir recuperar os baralhos do plano de origem');
 
 const novo=ctx.DB.addCard({frente:'Novo',verso:'Card'});
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'card novo deve ser salvo somente no planejamento ativo');
@@ -203,4 +205,4 @@ assert.equal(parse(keysForPlan('B').cards,[]).length,0,'exclusão deve ocorrer n
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id==='a1'),true,'exclusão global não pode tocar card do plano ativo');
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'exclusão de card externo não pode tocar card novo do plano ativo');
 
-console.log('OK: memória global, cópias explícitas de grade/lei e Cards globais sem duplicação física.');
+console.log('OK: memória global, TEC estratégico por plano e Cards globais preservando a origem.');
