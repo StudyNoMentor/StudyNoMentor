@@ -759,6 +759,7 @@ const AnkiOfficialSurfaces = {
     document.addEventListener('keydown',e=>{
       if(!document.getElementById('screen-anki')?.classList.contains('active'))return;
       if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName))return;
+      if(this.A.view==='review'&&e.shiftKey&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&e.code==='KeyA'){e.preventDefault();this.toggleAutoAdvance();return;}
       const sig=[e.ctrlKey?'Ctrl':'',e.altKey?'Alt':'',e.shiftKey?'Shift':'',e.metaKey?'Meta':'',e.code].filter(Boolean).join('+');
       const action=Object.keys(this.shortcuts||{}).find(k=>this.shortcuts[k]===sig);if(!action)return;
       const map={stats:()=>{this.A.setView('stats');void this.A.renderView();},browser:()=>{this.A.setView('browser');void this.A.renderView();},add:()=>{this.A.setView('add');void this.A.renderView();},custom:()=>void this.openCustomStudy(),filtered:()=>void this.openFilteredDeck(),fsrs:()=>void this.openFsrsTools()};
