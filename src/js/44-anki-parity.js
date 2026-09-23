@@ -308,8 +308,9 @@ const AnkiParity = {
     walk(this.parseCloze(text));return out.join(', ');
   },
   syncClozeSiblings(noteCardId){
-    const base=DB.getCard(noteCardId);if(!base||base.kind!=='cloze')return 0;
-    const pid=this._planIdForCard(base),all=this._cardsForCardPlan(base);
+    const routed=DB.getCard(noteCardId);if(!routed||routed.kind!=='cloze')return 0;
+    const pid=this._planIdForCard(routed),all=this._cardsForCardPlan(routed),
+      base=all.find(c=>String(c.id)===String(noteCardId))||routed;
     const noteId=base.noteId||base.id,sibs=all.filter(c=>String(c.noteId||c.id)===String(noteId)),ords=this.clozeOrdinals(base.frente),existing=new Map();
     sibs.forEach(c=>{const o=Number(c.clozeOrd||((c.template||'').match(/^cloze:(\d+)$/)||[])[1]);if(o)existing.set(o,c);});
     let changed=false;
