@@ -9,7 +9,7 @@
      por um recurso real do app (não há origem "solta"):
        • script-src  : o próprio app (inline, exigido pelo padrão #app-code) +
                        os CDNs do Supabase (jsDelivr) e do SheetJS sob demanda.
-       • connect-src : Supabase (REST https + realtime wss) e os CDNs.
+       • connect-src : Supabase (REST https + realtime wss), backend Anki Oficial e os CDNs.
        • style-src   : estilos inline do app + Google Fonts.
        • font-src    : os .woff2 do Google Fonts.
        • img-src     : imagens do usuário (data:/blob:) e https.
@@ -22,7 +22,7 @@
      enviar `Content-Security-Policy: frame-ancestors 'none'`. Em hospedagem
      estática sem cabeçalhos (GitHub Pages), quem protege é a trava anti-moldura
      em JavaScript logo abaixo — essa, sim, funciona. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'none'; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://anki-official-production.up.railway.app https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'self' blob:; manifest-src 'self'">
 <script>
 /* ── TRAVA ANTI-MOLDURA (clickjacking) ────────────────────────────────────
    Sem cabeçalho HTTP não há frame-ancestors, e o app trata dados de estudo,

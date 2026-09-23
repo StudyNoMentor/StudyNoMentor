@@ -77,4 +77,9 @@ with tempfile.TemporaryDirectory() as tmp:
 
     app.pool.close_all()
 
+header = (ROOT / "src" / "html" / "00-cabecalho.html").read_text(encoding="utf-8")
+assert "https://anki-official-production.up.railway.app" in header
+assert "frame-src 'self' blob:" in header
+assert "media-src 'self' data: blob: https:" in header
+
 print("OK: Anki 26.09.2 oficial validado em coleção, busca, fila, resposta, Deck Options, mídia e exportação.")
