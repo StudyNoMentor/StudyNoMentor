@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -257,6 +258,10 @@ class AnswerBody(BaseModel):
     milliseconds_taken: int = Field(default=0, ge=0, le=86_400_000)
 
 
+class TypeAnswerBody(BaseModel):
+    provided: str = ""
+
+
 class CardActionBody(BaseModel):
     action: str
     card_ids: list[int]
@@ -337,11 +342,117 @@ def select_deck(body: SelectDeckBody, user: dict[str, Any] = Depends(current_use
         return {"ok": True, "current_deck_id": int(item.col.decks.get_current_id())}
 
 
+TYPE_ANSWER_PATTERN = re.compile(r"\\[\\[type:(.+?)\\]\\]")
+
+
+def type_answer_context(col: Collection, card: Card) -> dict[str, Any] | None:
+    question = card.question()
+    match = TYPE_ANSWER_PATTERN.search(question)
+    if not match:
+        return None
+
+    pattern = match.group(1)
+    field_name = pattern
+    combining = True
+    cloze_idx: int | None = None
+    if field_name.startswith("cloze:"):
+        cloze_idx = int(card.ord) + 1
+        field_name = field_name.split(":", 1)[1]
+    if field_name.startswith("nc:"):
+        combining = False
+        field_name = field_name.split(":", 1)[1]
+
+    note = card.note()
+    note_type = card.note_type()
+    field = next((f for f in note_type.get("flds", []) if f.get("name") == field_name), None)
+    if not field:
+        return {
+            "enabled": False,
+            "pattern": pattern,
+            "question_html": TYPE_ANSWER_PATTERN.sub(
+                f"[campo de resposta desconhecido: {field_name}]", question, count=1
+            ),
+        }
+
+    expected = note[field_name]
+    if cloze_idx is not None:
+        expected = col.extract_cloze_for_typing(expected, cloze_idx) or ""
+
+    if not expected:
+        return {
+            "enabled": False,
+            "pattern": pattern,
+            "question_html": TYPE_ANSWER_PATTERN.sub("", question, count=1),
+        }
+
+    return {
+        "enabled": True,
+        "pattern": pattern,
+        "field_name": field_name,
+        "expected": expected,
+        "combining": combining,
+        "font": str(field.get("font", "")),
+        "size": int(field.get("size", 20) or 20),
+        "question_html": TYPE_ANSWER_PATTERN.sub("", question, count=1),
+    }
+
+
 @app.get("/api/anki/reviewer/next")
 def reviewer_next(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        return queued_payload(item.col)
+        out = queued_payload(item.col)
+        if not out.get("finished"):
+            card = item.col.get_card(int(out["card"]["id"]))
+            ctx = type_answer_context(item.col, card)
+            if ctx:
+                safe = {k: v for k, v in ctx.items() if k != "expected"}
+                out["card"]["type_answer"] = safe
+        return out
+
+
+@app.post("/api/anki/reviewer/type-answer/{card_id}")
+def reviewer_type_answer(
+    card_id: int,
+    body: TypeAnswerBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        card = item.col.get_card(card_id)
+        ctx = type_answer_context(item.col, card)
+        if not ctx or not ctx.get("enabled"):
+            return {
+                "enabled": False,
+                "answer_html": TYPE_ANSWER_PATTERN.sub("", card.answer()),
+            }
+
+        comparison = item.col.compare_answer(
+            str(ctx["expected"]),
+            body.provided,
+            bool(ctx["combining"]),
+        )
+        answer_html = card.answer()
+        had_separator = '<hr id=answer>' in answer_html
+        stripped = answer_html.replace('<hr id=answer>', '')
+        replacement = (
+            f'<div class="anki-type-answer-comparison" '
+            f'style="font-family:{ctx["font"]};font-size:{ctx["size"]}px">'
+            f'{comparison}</div>'
+        )
+        if had_separator:
+            replacement = '<hr id=answer>' + replacement
+
+        if TYPE_ANSWER_PATTERN.search(stripped):
+            answer_html = TYPE_ANSWER_PATTERN.sub(replacement, stripped, count=1)
+        else:
+            answer_html = card.answer()
+
+        return {
+            "enabled": True,
+            "answer_html": answer_html,
+            "comparison": comparison,
+        }
 
 
 @app.post("/api/anki/reviewer/answer")
