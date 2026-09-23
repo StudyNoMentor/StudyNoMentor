@@ -17,7 +17,7 @@ assert.match(doc,/@font-face/,'CSS do Note Type precisa entrar no documento do c
 assert.match(doc,/<details open>/,'HTML expansível deve permanecer intacto');
 assert.match(doc,/<script>document\.body\.dataset\.js=/,'JavaScript do template deve ser preservado no sandbox');
 assert.match(doc,/data-anki-tts="lang=pt-BR voices=Maria"/,'marcador TTS deve virar elemento executável');
-assert.match(doc,/mathjax@3\.2\.2\/es5\/tex-chtml-full\.js/,'MathJax deve usar o mesmo 3.2.2/bundle do Anki 26.09.2');
+assert.match(doc,/mathjax@3\.2\.2\/es5\/tex-chtml-full\.js/,'MathJax deve usar o mesmo 3.2.2/bundle do Anki 26.09.3');
 const noAuto=R.buildSrcdoc(nt,html,'question',{id:123},null,{disableAutoplay:true});
 assert.match(noAuto,/const AUTO_PLAY=false/,'preset com autoplay desativado deve chegar ao runtime do card');
 const frame=R.renderFrame(nt,html,'question',{id:123},true);
@@ -38,7 +38,7 @@ R._typedAnswers.set('123|Front','elite');
 const typedNc=R.buildSrcdoc(nt,'[[type:nc:Front]]','answer',{id:123},{fields:{Front:'élite'}});
 assert.match(typedNc,/<span class="typeGood">élite<\/span>/,'type:nc deve ignorar diacríticos e preservar os sinais na resposta esperada');
 assert.doesNotMatch(typedNc,/<span class="typeBad">/,'diferença apenas de diacrítico não pode ser marcada como erro');
-// Vetores copiados dos testes do rslib/src/typeanswer.rs do Anki 26.09.2.
+// Vetores copiados dos testes do rslib/src/typeanswer.rs do Anki 26.09.3.
 assert.equal(R._typeCompareHtml('123','',false),'<code id="typeans">123</code>');
 assert.equal(R._typeCompareHtml('123','123',false),'<code id="typeans"><span class="typeGood">123</span></code>');
 assert.equal(R._typeCompareHtml('123','1123',false),'<code id="typeans"><span class="typeBad">1</span><span class="typeGood">123</span><br><span id="typearrow">&darr;</span><br><span class="typeGood">123</span></code>');
