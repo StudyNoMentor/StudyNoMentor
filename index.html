@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve9a57a3878">
+<meta name="diario-versao" content="vbbbda53ea7">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -7107,8 +7107,8 @@ window.__relationalBoot = true;
     <div style="display:flex; align-items:center; gap: 10px; margin: 18px 0 4px; flex-wrap: wrap;">
       <span class="section-label" style="margin:0;">Escopo</span>
       <div class="scope-toggle" id="hist-scope-toggle">
-        <button type="button" data-scope="plan" class="active">Este planejamento</button>
-        <button type="button" data-scope="all">Todos os planejamentos</button>
+        <button type="button" data-scope="plan">Este planejamento</button>
+        <button type="button" data-scope="all" class="active">Todos os planejamentos</button>
       </div>
     </div>
     <div id="historico-empty" class="empty-state" style="display:none;">
@@ -7150,8 +7150,8 @@ window.__relationalBoot = true;
         <div id="evo-scope-body" style="margin-top:14px;">
           <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
             <div class="scope-toggle" id="evo-scope-toggle">
-              <button type="button" data-scope="plan" class="active">Este planejamento</button>
-              <button type="button" data-scope="all">Todos os planejamentos</button>
+              <button type="button" data-scope="plan">Este planejamento</button>
+              <button type="button" data-scope="all" class="active">Todos os planejamentos</button>
             </div>
           </div>
           <div style="display:flex; align-items:flex-end; gap: 14px; flex-wrap: wrap;">
@@ -20568,6 +20568,9 @@ const ReforcoEngine = {
   let tblFilters = { subject: '', lesson: '', method: '', date: '' };
   let tblSort = { key: 'date', dir: 'desc' };
   let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
+  const entryIsLocal = (e) => !e || !e._planId || String(e._planId) === String(DB._activePlanId());
+  const entryPlanBadge = (e) => (e && e._planNome)
+    ? `<span class="meta-badge badge-plan" title="Planejamento de origem">${escapeHtml(e._planNome)}</span>` : '';
 
   dateInput.value = todayLocal();
   gaugeFill.style.strokeDasharray = CIRC;
@@ -20733,7 +20736,7 @@ const ReforcoEngine = {
   cancelEditBtn.addEventListener('click', exitEditMode);
 
   function renderRecent() {
-    const allEntries = DB.getEntries();
+    const allEntries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
     if (allEntries.length === 0) {
       recentSection.style.display = 'none';
       return;
@@ -20783,6 +20786,7 @@ const ReforcoEngine = {
       const mins = e.durationMin % 60;
       const timeStr = (hours > 0 ? hours + 'h ' : '') + (mins > 0 || hours === 0 ? mins + 'min' : '');
       const [y, m, d] = e.date.split('-');
+      const editable = entryIsLocal(e);
       return `
         <div class="recent-item" data-id="${e.id}">
           <div class="recent-date-block">
@@ -20796,6 +20800,7 @@ const ReforcoEngine = {
               <span class="meta-badge badge-duration">${timeStr}</span>
               ${progressBadgeHtml(e)}
               ${e.lesson ? `<span class="meta-badge badge-lesson">${escapeHtml(e.lesson)}</span>` : ''}
+              ${entryPlanBadge(e)}
             </div>
             ${e.comment ? `<div class="comment">${escapeHtml(e.comment)}</div>` : ''}
           </div>
@@ -20806,8 +20811,10 @@ const ReforcoEngine = {
             </div>
           ` : '<div class="recent-pct-block is-empty"></div>'}
           <div class="recent-actions">
-            <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
-            <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+            ${editable ? `
+              <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
+              <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+            ` : `<span class="reg-readonly" title="Registro de outro planejamento — somente leitura">🔒</span>`}
           </div>
         </div>
       `;
@@ -20823,6 +20830,8 @@ const ReforcoEngine = {
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
       // NaN e os botões parariam de funcionar sem erro visível.
       const id = row.dataset.id;
+      const visible = (DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries()).find(e => DB._mesmoId ? DB._mesmoId(e.id, id) : String(e.id) === String(id));
+      if (visible && !entryIsLocal(visible)) return;
       const eb = row.querySelector('.btn-edit-entry');
       const db = row.querySelector('.btn-delete-entry');
       if (eb) eb.addEventListener('click', () => {
@@ -20971,10 +20980,11 @@ const ReforcoEngine = {
         ? `<span class="reg-pct-badge tone-${tone}">${medalHtml(pct)}${formatPct(pct)}%</span>`
         : '<span class="reg-empty">—</span>';
       const obs = e.comment ? escapeHtml(e.comment) : '';
+      const editable = entryIsLocal(e);
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
-          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span></th>
+          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
           <td class="reg-c reg-c-lesson" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-method" title="${meth}"><span class="reg-method-chip">${meth}</span></td>
           <td class="reg-c reg-c-num reg-c-time">${timeStr}</td>
@@ -20982,8 +20992,10 @@ const ReforcoEngine = {
           <td class="reg-c reg-c-pct">${pctBadge}</td>
           <td class="reg-c reg-c-act">
             <div class="reg-act-group">
-              <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
-              <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+              ${editable ? `
+                <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
+                <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+              ` : `<span class="reg-readonly" title="Registro de outro planejamento — somente leitura">🔒</span>`}
             </div>
           </td>
           <td class="reg-c reg-c-obs" title="${obs}">${obs ? `<span class="reg-obs-txt">${obs}</span>` : '<span class="reg-empty">—</span>'}</td>
@@ -26703,9 +26715,11 @@ function planCycleMode() {
    ============================================================ */
 const HistoricoScreen = {
   editingId: null,
-  scope: 'plan', // 'plan' = só o planejamento ativo | 'all' = todos (somente leitura)
+  scope: 'all', // memória realizada é global; 'plan' continua disponível como filtro
 
   render() {
+    document.querySelectorAll('#hist-scope-toggle button[data-scope]').forEach(b =>
+      b.classList.toggle('active', b.dataset.scope === this.scope));
     const consolidated = this.scope === 'all';
     const history = (consolidated ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory()).slice().reverse();
     const emptyEl = document.getElementById('historico-empty');
@@ -27124,6 +27138,15 @@ const HistoricoScreen = {
     });
   }
 };
+
+const _histScope = document.getElementById('hist-scope-toggle');
+if (_histScope) _histScope.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-scope]');
+  if (!btn) return;
+  HistoricoScreen.scope = btn.dataset.scope === 'plan' ? 'plan' : 'all';
+  HistoricoScreen.editingId = null;
+  HistoricoScreen.render();
+});
 
 window.addEventListener('screen:activated', (e) => {
   if (e.detail.screen === 'historico') HistoricoScreen.render();
@@ -27582,7 +27605,7 @@ const EvolucaoScreen = {
   filterStart: null,
   filterEnd: null,
   activeShortcut: 'all', // '7d' | '30d' | 'all' | null (null = intervalo personalizado)
-  scope: 'plan', // 'plan' = só o planejamento ativo | 'all' = todos somados
+  scope: 'all', // trajetória realizada é global; 'plan' continua disponível como filtro
   evoLineMode: 'week', // 'week' = % por semana | 'cum' = média acumulada
   evoLineSubjects: null, // Set de disciplinas selecionadas (null = ainda não inicializado)
 
@@ -29725,6 +29748,31 @@ window.addEventListener('screen:activated', (e) => {
    ============================================================ */
 const LeisScreen = {
   currentId: null,
+  _leiLocal(lei) {
+    return !!lei && (!lei._planId || String(lei._planId) === String(DB._activePlanId()));
+  },
+  _somenteLeituraAtual() {
+    const lei = this.currentId ? DB.getLei(this.currentId) : null;
+    return !!lei && !this._leiLocal(lei);
+  },
+  _aplicarSomenteLeitura(lei) {
+    const readonly = !!lei && !this._leiLocal(lei);
+    const ids = ['lei-edit-btn','lei-del-btn','lei-mark-btn','lei-unmark-btn','lei-goto-mark-btn','lei-foco-mark','lei-foco-erase','lei-foco-marcar'];
+    ids.forEach(id => {
+      const el = document.getElementById(id); if (!el) return;
+      el.disabled = readonly;
+      if (readonly) el.title = 'Somente leitura — pertence a ' + (lei._planNome || 'outro planejamento');
+    });
+    const master = document.getElementById('lei-auto-master');
+    document.querySelectorAll('#lei-hl-toggles input').forEach(el => {
+      if (readonly) el.disabled = true;
+      else if (el.id === 'lei-auto-master') el.disabled = false;
+      else el.disabled = master ? !master.checked : false;
+    });
+    const meta = document.getElementById('lei-reader-meta');
+    if (meta && readonly) meta.insertAdjacentHTML('beforeend',
+      ' <span class="plan-tag-badge">🔒 ' + escapeHtml(lei._planNome || 'Outro planejamento') + '</span>');
+  },
   fontStep: 0, // -2..+4
   // Preferências do leitor: por PERFIL e sincronizadas (antes eram chaves globais do navegador)
   _prefKey(nome) { try { return DB._profilePrefix() + 'lei-' + nome; } catch (_) { return 'diario-estudos:lei-' + nome; } },
@@ -29812,7 +29860,7 @@ const LeisScreen = {
   renderCards() {
     const wrap = document.getElementById('leis-cards');
     if (!wrap) return;
-    const todas = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const todas = (DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis()).slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     // A busca só aparece quando há leis o bastante para valer a pena procurar.
     const barra = document.querySelector('.leis-busca');
     if (barra) barra.hidden = todas.length < 4;
@@ -29873,6 +29921,7 @@ const LeisScreen = {
               <span class="lei-estado"><i aria-hidden="true">${estado.ic}</i>${escapeHtml(estado.rot)}</span>
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
               ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
+              ${l._planNome ? `<span class="lei-tag ref">${escapeHtml(l._planNome)}${this._leiLocal(l) ? '' : ' · somente leitura'}</span>` : ''}
             </span>
             <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
             <span class="lei-card-stats">
@@ -29923,6 +29972,7 @@ const LeisScreen = {
     if (!lei) { this.showList(); return; }
     this.currentId = id;
     this.hlMode = null; // reseta a ferramenta ativa ao abrir
+    setTimeout(() => this._aplicarSomenteLeitura(lei), 0);
     ['lei-mark-btn', 'lei-unmark-btn', 'lei-foco-mark', 'lei-foco-erase'].forEach(bid => { const b = document.getElementById(bid); if (b) b.classList.remove('active'); });
     this._esconderFab();
     $id('leis-list-view').style.display = 'none';
@@ -30064,6 +30114,7 @@ const LeisScreen = {
   },
   // clicar no NÚMERO da linha → fixa/retira o pin "onde parei"
   onLineNumClick(ln, semRolar) {
+    if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     if (ln == null || !isFinite(ln)) return;
     const cur = DB.getLei(this.currentId);
     if (!cur) return;
@@ -30344,6 +30395,7 @@ const LeisScreen = {
     this._esconderFab();
   },
   applyMark(txt, linha, offset) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const marks = (lei.marcacoes || []).slice();
@@ -30364,6 +30416,7 @@ const LeisScreen = {
   // Borracha: remove destaque MANUAL e suprime os automáticos daquele trecho — só na LINHA
   // em que você apagou (quando conhecida), não na lei inteira.
   applyErase(txt, linha) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const key = txt.toLowerCase();
@@ -30395,6 +30448,7 @@ const LeisScreen = {
   },
   // remove uma marcação específica (manual) OU suprime um automático, pelo texto exato
   eraseHighlight(text, linha) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     const key = (text || '').trim().toLowerCase();
     if (!lei || !key) return;
@@ -30413,6 +30467,7 @@ const LeisScreen = {
   },
   // restaura todos os destaques automáticos suprimidos
   restoreAuto() {
+    if (this._somenteLeituraAtual()) return;
     if (!this.currentId) return;
     DB.updateLei(this.currentId, { suppressed: [] });
     this.renderBody(); this.renderMarks();
@@ -30544,6 +30599,7 @@ const LeisScreen = {
     if (s && s.removeAllRanges) s.removeAllRanges();
   },
   toggleCategory(cat, on) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const opts = Object.assign({}, lei.opts || {});
@@ -30553,6 +30609,7 @@ const LeisScreen = {
   },
   // Interruptor mestre: liga/desliga TODO o destaque automático desta lei
   setAutoMaster(on) {
+    if (this._somenteLeituraAtual()) return;
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     const opts = Object.assign({}, lei.opts || {});
@@ -30569,6 +30626,7 @@ const LeisScreen = {
     this._pintarFonte();
   },
   editCurrent() {
+    if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     UI.prompt([
@@ -30589,6 +30647,7 @@ const LeisScreen = {
     });
   },
   async deleteCurrent() {
+    if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
     if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;
@@ -42491,6 +42550,8 @@ window.addEventListener('screen:activated', (e) => {
    TELA: LINKS ÚTEIS
    ============================================================ */
 const LinksScreen = {
+  collection() { return DB.getAllLinksTagged ? DB.getAllLinksTagged() : DB.getLinks(); },
+  local(l) { return !!l && (!l._planId || String(l._planId) === String(DB._activePlanId())); },
   _editingId: null,
   _draftLogo: null,
   _draftCor: '#4f46e5',
@@ -42513,7 +42574,7 @@ const LinksScreen = {
   },
   renderGrid() {
     const grid = document.getElementById('links-grid');
-    const links = DB.getLinks();
+    const links = this.collection();
     if (links.length === 0) {
       grid.innerHTML = `<div class="card"><div class="empty-state" style="padding:40px 20px;"><div class="big">🔗</div><h3 style="margin:4px 0;">Nenhum link ainda</h3><p style="color:var(--text-faint)">Clique em <strong>＋ Novo link</strong> para adicionar seus atalhos.</p></div></div>`;
       return;
@@ -42526,7 +42587,9 @@ const LinksScreen = {
           <div class="link-card-host">${escapeHtml(this.hostname(l.url))}</div>
           ${l.categoria ? `<span class="link-card-cat">${escapeHtml(l.categoria)}</span>` : ''}
         </div>
-        <button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar" aria-label="Editar">✎</button>
+        ${this.local(l)
+          ? `<button type="button" class="link-card-edit" data-edit="${l.id}" title="Editar" aria-label="Editar">✎</button>`
+          : `<span class="link-card-edit" title="Somente leitura — ${escapeHtml(l._planNome || 'outro planejamento')}">🔒</span>`}
       </a>`).join('');
     grid.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation(); this.openModal(b.dataset.edit);
@@ -42534,7 +42597,7 @@ const LinksScreen = {
   },
 
   fillCategoryDatalist() {
-    const cats = [...new Set(DB.getLinks().map(l => l.categoria).filter(Boolean))].sort();
+    const cats = [...new Set(this.collection().map(l => l.categoria).filter(Boolean))].sort();
     $id('link-cat-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
   },
   renderColorSwatches() {
@@ -42560,6 +42623,10 @@ const LinksScreen = {
     }
   },
   openModal(id) {
+    if (id) {
+      const alvo = this.collection().find(x => String(x.id) === String(id));
+      if (alvo && !this.local(alvo)) { showToast('Somente leitura neste planejamento'); return; }
+    }
     this._editingId = id || null;
     const isEdit = !!id;
     $id('link-modal-title').textContent = isEdit ? '✎ Editar link' : '＋ Novo link';
@@ -42567,7 +42634,7 @@ const LinksScreen = {
     let nome = '', url = '', categoria = '';
     this._draftLogo = null; this._draftCor = this.PALETTE[Math.floor(Math.random() * 4)];
     if (isEdit) {
-      const l = DB.getLinks().find(x => x.id === id);
+      const l = this.collection().find(x => x.id === id);
       if (l) { nome = l.nome; url = l.url; categoria = l.categoria || ''; this._draftLogo = l.logo || null; this._draftCor = l.cor || '#4f46e5'; }
     }
     $id('link-nome').value = nome;
@@ -42624,7 +42691,8 @@ const LinksScreen = {
   },
   async deleteCurrent() {
     if (!this._editingId) return;
-    const l = DB.getLinks().find(x => x.id === this._editingId);
+    const l = this.collection().find(x => x.id === this._editingId);
+    if (l && !this.local(l)) { showToast('Somente leitura neste planejamento'); return; }
     if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
     DB.deleteLink(this._editingId); this.closeModal(); this.renderGrid();
     if ($id('link-manage-modal').style.display === 'flex') this.renderManageList();
@@ -42633,7 +42701,7 @@ const LinksScreen = {
   openManage() { this.renderManageList(); $id('link-manage-modal').style.display = 'flex'; },
   renderManageList() {
     const box = document.getElementById('link-manage-list');
-    const links = DB.getLinks();
+    const links = this.collection();
     if (links.length === 0) { box.innerHTML = `<p class="hint">Nenhum link cadastrado.</p>`; return; }
     box.innerHTML = links.map(l => `
       <div class="link-manage-row" data-id="${l.id}">
@@ -42642,14 +42710,18 @@ const LinksScreen = {
           <div class="link-manage-name">${escapeHtml(l.nome)}</div>
           <div class="link-manage-url">${escapeHtml(this.hostname(l.url))}</div>
         </div>
-        <button type="button" class="icon-btn link-manage-edit" title="Editar" aria-label="Editar">✎</button>
-        <button type="button" class="icon-btn danger link-manage-del" title="Excluir" aria-label="Excluir">×</button>
+        ${this.local(l) ? `
+          <button type="button" class="icon-btn link-manage-edit" title="Editar" aria-label="Editar">✎</button>
+          <button type="button" class="icon-btn danger link-manage-del" title="Excluir" aria-label="Excluir">×</button>
+        ` : `<span class="hint" title="Somente leitura — ${escapeHtml(l._planNome || 'outro planejamento')}">🔒</span>`}
       </div>`).join('');
     box.querySelectorAll('.link-manage-row').forEach(row => {
       const id = row.dataset.id;
-      row.querySelector('.link-manage-edit').addEventListener('click', () => this.openModal(id));
-      row.querySelector('.link-manage-del').addEventListener('click', async () => {
-        const l = DB.getLinks().find(x => x.id === id);
+      const editBtn = row.querySelector('.link-manage-edit');
+      if (editBtn) editBtn.addEventListener('click', () => this.openModal(id));
+      const delBtn = row.querySelector('.link-manage-del');
+      if (delBtn) delBtn.addEventListener('click', async () => {
+        const l = this.collection().find(x => x.id === id);
         if (!await UI.confirm(`Excluir o link "${l ? l.nome : ''}"?`)) return;
         DB.deleteLink(id); this.renderManageList(); this.renderGrid(); showToast('Link excluído');
       });
@@ -43757,6 +43829,9 @@ const DesempenhoTecScreen = {
   scopeMode: 'consolidado',
   selectedSnapIds: null, // Set de ids marcados (modo 'select')
   rangeStart: null, rangeEnd: null, // (modo 'range')
+  snapshots() {
+    return DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
+  },
   // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
   _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },
   _loadPrefs() {
@@ -43780,7 +43855,7 @@ const DesempenhoTecScreen = {
     // trabalho repetido. A fotografia dura somente este render.
     DB._tecReadSnapshot = null;
     this._scopeSigC = new WeakMap();
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     DB._tecReadSnapshot = snaps;
     const emptyEl = document.getElementById('tec-empty');
     const importEl = document.getElementById('tec-import');
@@ -43984,7 +44059,7 @@ const DesempenhoTecScreen = {
   _nk(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim(); },
   // Retorna os retratos ativos conforme o escopo selecionado (ordenados por período)
   activeSnapshots() {
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     if (this.scopeMode === 'select') {
       return snaps.filter(s => this.selectedSnapIds.has(s.id));
     }
@@ -44151,7 +44226,7 @@ const DesempenhoTecScreen = {
   aplicarMudancaEscopo(opcoes) {
     const opts = opcoes || {};
     this._invalidarEscopo();
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     const pintar = () => {
       if (opts.preservarLista && this.scopeMode === 'select') {
         this._sincronizarScopeSelectState(snaps);
@@ -44188,7 +44263,7 @@ const DesempenhoTecScreen = {
     const importEl = document.getElementById('tec-import');
     importEl.style.display = 'block';
     // por padrão sugere o dia seguinte ao último período importado, para não sobrepor
-    const snaps = DB.getTecSnapshots();
+    const snaps = this.snapshots();
     const defStart = snaps.length ? this.addDays(snaps[snaps.length - 1].endDate, 1) : todayLocal();
     $id('tec-import-start').value = defStart;
     $id('tec-import-end').value = todayLocal() >= defStart ? todayLocal() : defStart;
@@ -44472,11 +44547,12 @@ const DesempenhoTecScreen = {
       const tot = TecEngine.totais(s);
       const checked = this.selectedSnapIds.has(s.id);
       const lbl = s.label ? ` · ${escapeHtml(s.label)}` : '';
+      const local = !s._planId || String(s._planId) === String(DB._activePlanId());
       return `<label class="tec-snap-pick" data-id="${s.id}">
         <input type="checkbox" data-snap="${s.id}" ${checked ? 'checked' : ''}>
-        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}</span>
+        <span class="tsp-main"><b>${this.rangeLabel(s)}</b>${lbl}${s._planNome ? `<small>${escapeHtml(s._planNome)}${local ? '' : ' · somente leitura'}</small>` : ''}</span>
         <span class="tsp-stats">${tot.questoes} q · ${tot.pct}%</span>
-        <button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>
+        ${local ? `<button type="button" class="icon-btn danger tsp-del" title="Excluir este retrato" aria-label="Excluir este retrato">×</button>` : `<span title="Somente leitura">🔒</span>`}
       </label>`;
     }).join('');
     const todos = snaps.length > 0 && this.selectedSnapIds.size === snaps.length;
@@ -44510,7 +44586,7 @@ const DesempenhoTecScreen = {
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
       const id = parseInt(btn.closest('.tec-snap-pick').dataset.id, 10);
-      const s = DB.getTecSnapshots().find(x => x.id === id);
+      const s = this.snapshots().find(x => x.id === id);
       if (!s) return;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
@@ -44551,7 +44627,7 @@ const DesempenhoTecScreen = {
     const active = this.activeSnapshots();
     if (!active.length) return null;
     if (active.length >= 2) return active[active.length - 2];
-    const all = DB.getTecSnapshots();
+    const all = this.snapshots();
     const idx = all.findIndex(s => s.id === active[0].id);
     return idx > 0 ? all[idx - 1] : null;
   },
@@ -45837,7 +45913,7 @@ $id('tec-scope-toggle').addEventListener('click', (e) => {
 });
 // atalhos de intervalo (últimos N meses / tudo)
 document.querySelectorAll('.tec-range-quick').forEach(btn => btn.addEventListener('click', () => {
-  const snaps = DB.getTecSnapshots();
+  const snaps = DesempenhoTecScreen.snapshots();
   if (snaps.length === 0) return;
   const r = btn.dataset.range;
   if (r === 'all') {
@@ -48184,6 +48260,10 @@ window.ReforcoFila = ReforcoFila;
       wrap.querySelectorAll('.lei-card').forEach(card => {
         if (card.closest('.lr-law-wrap')) return;
         const lei = DB.getLei(card.dataset.id); if (!lei) return;
+        if (lei._planId && String(lei._planId) !== String(DB._activePlanId())) {
+          card.classList.add('lr-law-readonly');
+          return;
+        }
         const cfg = this.cfgLei(lei), p = this.prefs(), linha = this._bookmark(lei);
         const holder = document.createElement('div'); holder.className = 'lr-law-wrap';
         card.parentNode.insertBefore(holder, card); holder.appendChild(card);
@@ -56182,6 +56262,16 @@ else CloudStore.init();
     tec(scope) { return this.forScope('tec', scope); },
     incidence(scope) { return this.forScope('incidencia', scope); },
 
+    findRecord(suffix, id) {
+      const active = this.activePlanId();
+      const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
+      for (const pid of ids) {
+        const list = this._rows(pid, suffix);
+        const idx = list.findIndex(x => String(x && x.id) === String(id));
+        if (idx >= 0) return { planId: pid, list, index: idx, row: list[idx] };
+      }
+      return null;
+    },
     findCardRecord(id) {
       const active = this.activePlanId();
       const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
@@ -56576,9 +56666,104 @@ else CloudStore.init();
   DB.getAllRevlogTagged = () => S.revlog('all');
   DB.getAllExtrasTagged = () => S.allBy('extras');
   DB.getAllLeisTagged = () => S.allBy('leis');
-  DB.getAllLinksTagged = () => S.allBy('links');
-  DB.getAllTecSnapshotsTagged = () => S.allBy('tec');
+  DB.getAllLinksTagged = () => {
+    let out = S.allBy('links');
+    // Perfil realmente novo: preserva a semeadura dos atalhos padrão, mas só
+    // uma vez no planejamento ativo; depois a leitura passa a ser global.
+    if (!out.length && DB.getLinks) out = S._tag(S.activePlanId(), DB.getLinks());
+    return out;
+  };
+  DB.getAllTecSnapshotsTagged = () => {
+    try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
+    return S.allBy('tec').map(s => {
+      const x = Object.assign({}, s);
+      if (!x.startDate) x.startDate = x.date || (typeof todayLocal === 'function' ? todayLocal() : '');
+      if (!x.endDate) x.endDate = x.date || x.startDate;
+      return x;
+    }).sort((a,b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
+      || String(a.endDate || '').localeCompare(String(b.endDate || '')));
+  };
   DB.getAllIncidenciaTagged = () => S.allBy('incidencia');
+
+  /* Memória realizada/conhecimento pertence ao PERFIL. A persistência continua
+     separada por planejamento para compatibilidade e sincronização, mas leitura
+     global e mutações são roteadas de volta à origem. */
+
+  const EO = {
+    getEntry: DB.getEntry.bind(DB),
+    updateEntry: DB.updateEntry.bind(DB),
+    deleteEntry: DB.deleteEntry.bind(DB)
+  };
+  DB.getEntry = function(id) {
+    const local = EO.getEntry(id);
+    if (local) return local;
+    const r = S.findRecord('entries', id);
+    return r ? Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
+  };
+  DB.updateEntry = function(id, patch) {
+    // Registros de outro planejamento são somente leitura no contexto atual.
+    if (!EO.getEntry(id)) return null;
+    return EO.updateEntry(id, patch);
+  };
+  DB.deleteEntry = function(id) {
+    if (!EO.getEntry(id)) return false;
+    return EO.deleteEntry(id);
+  };
+
+  const LO = {
+    getLei: DB.getLei.bind(DB),
+    updateLei: DB.updateLei.bind(DB),
+    deleteLei: DB.deleteLei.bind(DB)
+  };
+  DB.getLei = function(id) {
+    const local = LO.getLei(id);
+    if (local) return local;
+    const r = S.findRecord('leis', id);
+    return r ? Object.assign({}, r.row, { _planId: r.planId, _planNome: S.planName(r.planId) }) : null;
+  };
+  DB.updateLei = function(id, patch) {
+    if (!LO.getLei(id)) return null;
+    return LO.updateLei(id, patch);
+  };
+  DB.deleteLei = function(id) {
+    if (!LO.getLei(id)) return false;
+    return LO.deleteLei(id);
+  };
+
+  const LKO = {
+    updateLink: DB.updateLink.bind(DB),
+    deleteLink: DB.deleteLink.bind(DB)
+  };
+  DB.updateLink = function(id, patch) {
+    const active = S._rows(S.activePlanId(), 'links');
+    if (!active.some(x => String(x.id) === String(id))) return null;
+    return LKO.updateLink(id, patch);
+  };
+  DB.deleteLink = function(id) {
+    const active = S._rows(S.activePlanId(), 'links');
+    if (!active.some(x => String(x.id) === String(id))) return false;
+    return LKO.deleteLink(id);
+  };
+
+  const TO = {
+    deleteTecSnapshot: DB.deleteTecSnapshot.bind(DB),
+    updateTecSnapshot: DB.updateTecSnapshot.bind(DB),
+    tecOverlap: DB.tecOverlap.bind(DB)
+  };
+  DB.deleteTecSnapshot = function(id) {
+    const active = S._rows(S.activePlanId(), 'tec');
+    if (!active.some(x => String(x.id) === String(id))) return false;
+    return TO.deleteTecSnapshot(id);
+  };
+  DB.updateTecSnapshot = function(id, patch) {
+    const active = S._rows(S.activePlanId(), 'tec');
+    if (!active.some(x => String(x.id) === String(id))) return null;
+    return TO.updateTecSnapshot(id, patch);
+  };
+  DB.tecOverlap = function(start, end, ignoreId) {
+    return (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : []).find(s =>
+      String(s.id) !== String(ignoreId) && start <= s.endDate && end >= s.startDate) || null;
+  };
 
   /* Roteamento de card global para o planejamento onde ele nasceu. */
   const O = {
