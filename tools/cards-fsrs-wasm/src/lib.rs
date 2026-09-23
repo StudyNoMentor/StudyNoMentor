@@ -53,6 +53,23 @@ struct OptimizeInput {
     num_relearning_steps: usize,
 }
 
+#[derive(Debug, Deserialize)]
+struct HealthCheckInput {
+    items: Vec<InputItem>,
+    card_ids: Vec<i64>,
+    num_relearning_steps: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct HealthCheckOutput {
+    fsrs_items: usize,
+    passed: Option<bool>,
+    log_loss: Option<f32>,
+    rmse_bins: Option<f32>,
+    adjusted_log_loss: Option<f32>,
+    adjusted_rmse: Option<f32>,
+}
+
 #[derive(Debug, Serialize)]
 struct OptimizeOutput {
     params: Vec<f32>,
@@ -179,6 +196,62 @@ pub fn optimize_json(input_json: &str) -> Result<String, JsValue> {
         short_term_enabled: true,
     })
     .map_err(js_err)
+}
+
+/// Health Check oficial do Anki 26.09.2: a mesma validação temporal
+/// evaluate_with_time_series_splits() e os mesmos ajustes/limiares do rslib.
+#[wasm_bindgen]
+pub fn health_check_json(input_json: &str) -> Result<String, JsValue> {
+    let input: HealthCheckInput = serde_json::from_str(input_json).map_err(js_err)?;
+    if input.items.len() != input.card_ids.len() {
+        return Err(js_err("FSRS Health Check: card_ids desalinhados"));
+    }
+    let n = input.items.len();
+    if n <= 300 {
+        return serde_json::to_string(&HealthCheckOutput {
+            fsrs_items: n,
+            passed: None,
+            log_loss: None,
+            rmse_bins: None,
+            adjusted_log_loss: None,
+            adjusted_rmse: None,
+        }).map_err(js_err);
+    }
+    let items: Vec<FSRSItem> = input.items.into_iter().map(item_from_input).collect();
+    let eval = fsrs::evaluate_with_time_series_splits(
+        ComputeParametersInput {
+            train_set: items.clone(),
+            card_ids: Some(input.card_ids),
+            progress: None,
+            enable_short_term: true,
+            num_relearning_steps: Some(input.num_relearning_steps),
+            training_config: Some(TrainingConfig {
+                num_epochs: 8,
+                ..Default::default()
+            }),
+        },
+        |_| true,
+    ).map_err(js_err)?;
+
+    let r = items.iter().fold(0usize, |acc, item| {
+        acc + usize::from(item.reviews.last().map(|x| x.rating).unwrap_or(0) > 1)
+    }) as f32 / n as f32;
+    let log_adj = 0.623 * (4.0 * r * (1.0 - r)).powf(0.738);
+    let rmse_adj = 0.0135 / (r.powf(0.504) - 1.14)
+        + 0.176 / (((n as f32 / 1000.0).powf(0.825)) + 2.22)
+        + 0.101;
+    let adjusted_log_loss = eval.log_loss / log_adj;
+    let adjusted_rmse = eval.rmse_bins / rmse_adj;
+    let passed = adjusted_log_loss <= 1.11 || adjusted_rmse <= 1.53;
+
+    serde_json::to_string(&HealthCheckOutput {
+        fsrs_items: n,
+        passed: Some(passed),
+        log_loss: Some(eval.log_loss),
+        rmse_bins: Some(eval.rmse_bins),
+        adjusted_log_loss: Some(adjusted_log_loss),
+        adjusted_rmse: Some(adjusted_rmse),
+    }).map_err(js_err)
 }
 
 /// Calcula o estado de memória pela mesma API de inferência do fsrs-rs usada
