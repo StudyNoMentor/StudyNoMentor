@@ -387,53 +387,115 @@ const AnkiOfficial = {
 
   async renderReviewer(data) {
     const root=this.root(); if(!root) return;
-    root.innerHTML='<div class="ankidroid-loading"><div class="ankidroid-spinner" aria-hidden="true"></div><span>Preparando revisão…</span></div>';
+    root.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão…</h3><p>Consultando a fila oficial do Anki.</p></div></div>';
     try {
       const q=data || await this.request('/api/anki/reviewer/next');
-      this.review=q; this.reviewStartedAt=Date.now();
+      this.review=q; this.reviewStartedAt=Date.now(); this._answerShown=false;
       if(q.finished){
-        root.innerHTML=`<div class="anki-official-finished"><h3>Parabéns!</h3><p>Você concluiu os cards disponíveis deste baralho.</p><button type="button" class="btn-primary" data-anki-view="decks">Voltar aos baralhos</button></div>`;
-        const back=root.querySelector('[data-anki-view="decks"]');
+        root.innerHTML=`<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards disponíveis neste baralho agora.</p><button type="button" class="btn-secondary" id="anki-review-decks">Ver baralhos</button></div></div>`;
+        const back=document.getElementById('anki-review-decks');
         if(back) back.onclick=()=>{this.setView('decks');void this.renderDecks();};
         return;
       }
+
       const card=q.card;
+      const remaining=Number(q.counts.new||0)+Number(q.counts.learning||0)+Number(q.counts.review||0);
+      if(this._sessionStartTotal==null) this._sessionStartTotal=Math.max(1,remaining);
+      this._sessionStartTotal=Math.max(this._sessionStartTotal,this._sessionAnswered+remaining);
+      const pct=Math.max(0,Math.min(100,Math.round((this._sessionAnswered/Math.max(1,this._sessionStartTotal))*100)));
       const srcdoc=await this.htmlWithMedia(card.question);
+      const flagColors=['','#e0393f','#d97a12','#0f9d63','#2563eb','#7c3aed','#db2777','#06b6d4'];
+      const flags=[1,2,3,4,5,6,7].map(n=>`<button type="button" class="anki-study-flag ${Number(card.flag)===n?'on':''}" data-anki-flag="${n}" style="--fl:${flagColors[n]}" title="Bandeira ${n}"></button>`).join('');
+
       root.innerHTML=`
-        <div class="anki-official-review-shell">
-          <div class="ankidroid-review-top">
-            <div class="anki-official-counts" aria-label="Contadores do estudo">
-              <span class="new" title="Novos">${q.counts.new}</span>
-              <span class="learn" title="Aprendendo">${q.counts.learning}</span>
-              <span class="review" title="Revisão">${q.counts.review}</span>
-            </div>
-            <div class="anki-official-card-tools">
-              <button type="button" data-anki-card-action="bury" title="Enterrar" aria-label="Enterrar">⌄</button>
-              <button type="button" data-anki-card-action="suspend" title="Suspender" aria-label="Suspender">⏸</button>
-              <button type="button" data-anki-card-action="forget" title="Redefinir progresso" aria-label="Redefinir progresso">↺</button>
-            </div>
+        <div class="card cards-review-wrap anki-study-review-card">
+          <div class="cards-review-progress">
+            <span>${this._sessionAnswered} respondidos</span>
+            <div class="cards-review-bar"><div style="width:${pct}%"></div></div>
+            <span class="cards-limit-chip" title="Contagens da fila oficial">🆕 ${q.counts.new} · ⏳ ${q.counts.learning} · 🔄 ${q.counts.review}</span>
           </div>
-          <iframe class="anki-official-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
-          <button type="button" class="anki-official-reveal" id="anki-official-show-answer">Mostrar resposta</button>
-          <div class="anki-official-review-actions" id="anki-official-answer-buttons" hidden></div>
+
+          <div class="cards-review-meta">
+            <span class="cards-type-tag">📁 ${this.esc(card.deck_name||('Deck '+card.deck_id))}</span>
+            ${card.notetype_name?`<span class="cards-type-tag">${this.esc(card.notetype_name)}</span>`:''}
+            <span class="anki-study-review-meta-spacer"></span>
+            <button type="button" class="cards-fav-star ${card.marked?'on':''}" id="anki-review-mark" title="Marcar/desmarcar nota">${card.marked?'★':'☆'}</button>
+          </div>
+
+          <div class="cards-face cards-front anki-study-review-face" id="anki-study-review-face">
+            <iframe class="anki-study-card-frame" id="anki-official-card-frame" sandbox="allow-scripts" title="Card Anki"></iframe>
+          </div>
+
+          <div class="cards-review-actions anki-study-review-actions" id="anki-official-answer-buttons">
+            <button type="button" class="btn-primary cards-flip" id="anki-official-show-answer">Mostrar resposta <kbd>Espaço</kbd></button>
+          </div>
+
+          <div class="cards-review-nav">
+            <div class="anki-study-review-nav-left">
+              <button type="button" class="icon-btn" id="anki-review-edit">✎ Editar</button>
+              <button type="button" class="icon-btn" data-anki-card-action="bury">⤓ Enterrar</button>
+              <button type="button" class="icon-btn" data-anki-card-action="suspend">🚫 Suspender</button>
+              <button type="button" class="icon-btn" data-anki-card-action="forget">↺ Esquecer</button>
+              <button type="button" class="icon-btn" id="anki-review-due">📅 Data</button>
+              <button type="button" class="icon-btn" id="anki-review-info">ℹ Info</button>
+              <button type="button" class="icon-btn" id="anki-review-delete">🗑</button>
+            </div>
+            <span class="cards-flagbar" title="Bandeiras do Anki">${flags}</span>
+          </div>
+
+          <div class="cards-kbd-hint-row">
+            <span class="cards-kbd-hint">
+              <kbd>Espaço</kbd> resposta · <kbd>1</kbd>–<kbd>4</kbd> avaliar ·
+              <kbd>E</kbd> editar · <kbd>-</kbd> enterrar · <kbd>@</kbd> suspender ·
+              <kbd>*</kbd> marcar · <kbd>I</kbd> info · <kbd>Ctrl+Z</kbd> desfazer
+            </span>
+          </div>
         </div>`;
-      const frame=document.getElementById('anki-official-card-frame'); if(frame) frame.srcdoc=srcdoc;
+
+      const face=document.getElementById('anki-study-review-face');
+      const frame=document.getElementById('anki-official-card-frame');
+      if(frame) frame.srcdoc=srcdoc;
+      const focusInfo=document.getElementById('anki-foco-info');
+      if(focusInfo) focusInfo.textContent='Anki Oficial · '+(card.deck_name||'Revisão');
       void this.playAv(card.question_av_tags||[]);
+
       const show=document.getElementById('anki-official-show-answer');
-      if(show) show.onclick=async()=>{
-        const answerDoc=await this.htmlWithMedia(card.answer);
-        if(frame) frame.srcdoc=answerDoc;
-        show.hidden=true;
-        const box=document.getElementById('anki-official-answer-buttons');
-        if(box){
-          box.hidden=false;
-          box.innerHTML=(card.buttons||[]).map(b=>`<button type="button" data-rating="${b.rating}"><small>${this.esc(b.label)}</small><strong>${['Novamente','Difícil','Bom','Fácil'][b.rating-1]||b.rating}</strong></button>`).join('');
-          box.querySelectorAll('[data-rating]').forEach(btn=>btn.onclick=()=>void this.answer(Number(btn.dataset.rating)));
-        }
-        void this.playAv(card.answer_av_tags||[]);
-      };
-      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,card.id));
+      if(show) show.onclick=()=>void this.showAnswer();
+
+      root.querySelectorAll('[data-anki-card-action]').forEach(btn=>btn.onclick=()=>void this.cardAction(btn.dataset.ankiCardAction,card.id,true));
+      root.querySelectorAll('[data-anki-flag]').forEach(btn=>btn.onclick=()=>void this.setFlag(card.id,Number(btn.dataset.ankiFlag)));
+      const mark=document.getElementById('anki-review-mark'); if(mark) mark.onclick=()=>void this.toggleMark(card.id);
+      const edit=document.getElementById('anki-review-edit'); if(edit) edit.onclick=()=>void this.openEditNote(card.id);
+      const due=document.getElementById('anki-review-due'); if(due) due.onclick=()=>void this.setDue(card.id);
+      const info=document.getElementById('anki-review-info'); if(info) info.onclick=()=>void this.showCardInfo(card.id);
+      const del=document.getElementById('anki-review-delete'); if(del) del.onclick=()=>void this.deleteCard(card.id);
     } catch(e){ this.alert(e.message,'error'); }
+  },
+
+  async showAnswer() {
+    if(!this.review||!this.review.card||this._answerShown) return;
+    const card=this.review.card;
+    const frame=document.getElementById('anki-official-card-frame');
+    const face=document.getElementById('anki-study-review-face');
+    const actions=document.getElementById('anki-official-answer-buttons');
+    try{
+      const answerDoc=await this.htmlWithMedia(card.answer);
+      if(frame) frame.srcdoc=answerDoc;
+      if(face){face.classList.remove('cards-front');face.classList.add('cards-back');}
+      this._answerShown=true;
+      if(actions){
+        const names=['Errei','Difícil','Bom','Fácil'];
+        const classes=['a-errei','a-dificil','a-bom','a-facil'];
+        actions.innerHTML=(card.buttons||[]).map(b=>`
+          <button type="button" class="cards-ans4 ${classes[b.rating-1]||''}" data-rating="${b.rating}">
+            <span class="a-kbd">${b.rating}</span>
+            <strong>${names[b.rating-1]||b.rating}</strong>
+            <small>${this.esc(b.label||'')}</small>
+          </button>`).join('');
+        actions.querySelectorAll('[data-rating]').forEach(btn=>btn.onclick=()=>void this.answer(Number(btn.dataset.rating)));
+      }
+      void this.playAv(card.answer_av_tags||[]);
+    }catch(e){this.alert(e.message,'error');}
   },
 
   async answer(rating) {
@@ -443,15 +505,130 @@ const AnkiOfficial = {
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({card_id:this.review.card.id,rating,milliseconds_taken:Math.max(0,Date.now()-this.reviewStartedAt)})
       });
+      this._sessionAnswered++;
       await this.renderReviewer(next);
     } catch(e){ this.alert(e.message,'error'); }
   },
 
-  async cardAction(action, cardId) {
+  async cardAction(action, cardId, advance) {
     try {
       await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,card_ids:[cardId]})});
-      await this.renderReviewer();
+      if(advance) await this.renderReviewer();
+      else if(this.review) await this.renderReviewer(this.review);
     } catch(e){ this.alert(e.message,'error'); }
+  },
+
+  async toggleMark(cardId) {
+    try{
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mark',card_ids:[cardId]})});
+      if(this.review&&this.review.card){this.review.card.marked=!this.review.card.marked;await this.renderReviewer(this.review);}
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async setFlag(cardId, flag) {
+    try{
+      const current=this.review&&this.review.card?Number(this.review.card.flag||0):0;
+      const value=current===flag?0:flag;
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'flag',card_ids:[cardId],value})});
+      if(this.review&&this.review.card){this.review.card.flag=value;await this.renderReviewer(this.review);}
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async setDue(cardId) {
+    const value=prompt('Nova data relativa do Anki (ex.: 5 ou 5-7):','5');
+    if(value==null||!value.trim())return;
+    try{
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_due',card_ids:[cardId],value:value.trim()})});
+      this.alert('Data atualizada pelo scheduler oficial.');
+      await this.renderReviewer();
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async deleteCard(cardId) {
+    if(!confirm('Excluir a nota deste card da coleção Anki?')) return;
+    try{
+      await this.request('/api/anki/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete_notes',card_ids:[cardId]})});
+      this.alert('Nota excluída da coleção Anki.');
+      await this.renderReviewer();
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  openModal(title, subtitle, bodyHtml, footHtml) {
+    this.closeModal();
+    const modal=document.createElement('div');
+    modal.className='cards-modal';
+    modal.id='anki-study-modal';
+    modal.innerHTML=`<div class="cards-modal-box cards-modal-lg">
+      <div class="cards-modal-head"><div><h2>${this.esc(title)}</h2><p class="sub">${this.esc(subtitle||'')}</p></div><button type="button" class="icon-btn" id="anki-modal-close">✕</button></div>
+      <div class="cards-modal-body">${bodyHtml}</div>
+      <div class="cards-modal-foot">${footHtml||'<button type="button" class="btn-secondary" id="anki-modal-ok">Fechar</button>'}</div>
+    </div>`;
+    document.body.appendChild(modal);
+    const close=()=>this.closeModal();
+    document.getElementById('anki-modal-close').onclick=close;
+    const ok=document.getElementById('anki-modal-ok');if(ok)ok.onclick=close;
+    modal.addEventListener('click',e=>{if(e.target===modal)close();});
+    return modal;
+  },
+
+  closeModal() {
+    const m=document.getElementById('anki-study-modal');if(m)m.remove();
+  },
+
+  async openEditNote(cardId) {
+    try{
+      const detail=await this.request('/api/anki/card/'+cardId+'/detail');
+      const fields=Object.entries(detail.fields||{}).map(([name,value])=>`<div class="field"><label>${this.esc(name)}</label><textarea data-anki-edit-field="${this.esc(name)}">${this.esc(value)}</textarea></div>`).join('');
+      this.openModal('Editar nota',detail.notetype_name||'Anki Oficial',
+        `<div class="anki-study-modal-fields">${fields}<div class="field"><label>Tags</label><input id="anki-edit-tags" value="${this.esc((detail.tags||[]).join(' '))}"></div></div>`,
+        '<button type="button" class="btn-secondary" id="anki-edit-cancel">Cancelar</button><button type="button" class="btn-primary" id="anki-edit-save">Salvar</button>');
+      document.getElementById('anki-edit-cancel').onclick=()=>this.closeModal();
+      document.getElementById('anki-edit-save').onclick=async()=>{
+        const values={};
+        document.querySelectorAll('#anki-study-modal [data-anki-edit-field]').forEach(el=>values[el.dataset.ankiEditField]=el.value);
+        const tags=(document.getElementById('anki-edit-tags').value||'').split(/\s+/).filter(Boolean);
+        try{
+          await this.request('/api/anki/note/'+detail.note_id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:values,tags})});
+          this.closeModal();this.alert('Nota atualizada pelo Anki oficial.');
+          if(this.view==='review') await this.renderReviewer(); else await this.renderBrowser();
+        }catch(e){this.alert(e.message,'error');}
+      };
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  async showCardInfo(cardId) {
+    try{
+      const [detail,stats]=await Promise.all([
+        this.request('/api/anki/card/'+cardId+'/detail'),
+        this.request('/api/anki/card/'+cardId+'/stats')
+      ]);
+      const rows=[
+        ['Card',detail.card_id],['Nota',detail.note_id],['Baralho',detail.deck_name],
+        ['Tipo',detail.notetype_name],['Intervalo',detail.interval],['Repetições',detail.reps],
+        ['Lapses',detail.lapses],['Due',detail.due],['Fila',detail.queue],['Flag',detail.flag||0]
+      ].map(([k,v])=>`<dt>${this.esc(k)}</dt><dd>${this.esc(v)}</dd>`).join('');
+      this.openModal('Informações do card','Dados lidos diretamente da coleção Anki',
+        `<dl class="anki-study-info-grid">${rows}</dl><details style="margin-top:14px"><summary>Dados oficiais completos</summary><pre class="hint" style="white-space:pre-wrap">${this.esc(JSON.stringify(stats,null,2))}</pre></details>`);
+    }catch(e){this.alert(e.message,'error');}
+  },
+
+  onKey(e) {
+    const screen=document.getElementById('screen-anki');
+    if(!screen||!screen.classList.contains('active')) return;
+    if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if(e.key==='Escape'&&document.body.classList.contains('anki-foco')){e.preventDefault();document.body.classList.remove('anki-foco');return;}
+    if((e.ctrlKey||e.metaKey)&&e.code==='KeyZ'){e.preventDefault();void this.simplePost('/api/anki/undo');return;}
+    if(this.view!=='review'||!this.review||!this.review.card)return;
+    const click=id=>{const b=document.getElementById(id);if(b)b.click();};
+    if(e.code==='Space'){e.preventDefault();if(!this._answerShown)click('anki-official-show-answer');return;}
+    if(this._answerShown&&/^Digit[1-4]$/.test(e.code)){
+      e.preventDefault();const b=document.querySelector('#anki-official-answer-buttons [data-rating="'+e.code.slice(5)+'"]');if(b)b.click();return;
+    }
+    if(e.code==='KeyE'){e.preventDefault();click('anki-review-edit');return;}
+    if(e.code==='KeyI'){e.preventDefault();click('anki-review-info');return;}
+    if(e.key==='-'){e.preventDefault();const b=document.querySelector('#anki-official-root [data-anki-card-action="bury"]');if(b)b.click();return;}
+    if(e.key==='@'||(e.shiftKey&&e.code==='Digit2')){e.preventDefault();const b=document.querySelector('#anki-official-root [data-anki-card-action="suspend"]');if(b)b.click();return;}
+    if(e.key==='*'||(e.shiftKey&&e.code==='Digit8')){e.preventDefault();click('anki-review-mark');}
   },
 
   async playAv(tags) {
