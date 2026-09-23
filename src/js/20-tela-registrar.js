@@ -65,6 +65,9 @@
   let tblFilters = { subject: '', lesson: '', method: '', date: '' };
   let tblSort = { key: 'date', dir: 'desc' };
   let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
+  const entryIsLocal = (e) => !e || !e._planId || String(e._planId) === String(DB._activePlanId());
+  const entryPlanBadge = (e) => (e && e._planNome)
+    ? `<span class="meta-badge badge-plan" title="Planejamento de origem">${escapeHtml(e._planNome)}</span>` : '';
 
   dateInput.value = todayLocal();
   gaugeFill.style.strokeDasharray = CIRC;
@@ -280,6 +283,7 @@
       const mins = e.durationMin % 60;
       const timeStr = (hours > 0 ? hours + 'h ' : '') + (mins > 0 || hours === 0 ? mins + 'min' : '');
       const [y, m, d] = e.date.split('-');
+      const editable = entryIsLocal(e);
       return `
         <div class="recent-item" data-id="${e.id}">
           <div class="recent-date-block">
@@ -293,6 +297,7 @@
               <span class="meta-badge badge-duration">${timeStr}</span>
               ${progressBadgeHtml(e)}
               ${e.lesson ? `<span class="meta-badge badge-lesson">${escapeHtml(e.lesson)}</span>` : ''}
+              ${entryPlanBadge(e)}
             </div>
             ${e.comment ? `<div class="comment">${escapeHtml(e.comment)}</div>` : ''}
           </div>
@@ -303,8 +308,10 @@
             </div>
           ` : '<div class="recent-pct-block is-empty"></div>'}
           <div class="recent-actions">
-            <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
-            <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+            ${editable ? `
+              <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
+              <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+            ` : `<span class="reg-readonly" title="Registro de outro planejamento — somente leitura">🔒</span>`}
           </div>
         </div>
       `;
@@ -320,6 +327,8 @@
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
       // NaN e os botões parariam de funcionar sem erro visível.
       const id = row.dataset.id;
+      const visible = (DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries()).find(e => DB._mesmoId ? DB._mesmoId(e.id, id) : String(e.id) === String(id));
+      if (visible && !entryIsLocal(visible)) return;
       const eb = row.querySelector('.btn-edit-entry');
       const db = row.querySelector('.btn-delete-entry');
       if (eb) eb.addEventListener('click', () => {
@@ -468,10 +477,11 @@
         ? `<span class="reg-pct-badge tone-${tone}">${medalHtml(pct)}${formatPct(pct)}%</span>`
         : '<span class="reg-empty">—</span>';
       const obs = e.comment ? escapeHtml(e.comment) : '';
+      const editable = entryIsLocal(e);
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
-          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span></th>
+          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
           <td class="reg-c reg-c-lesson" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-method" title="${meth}"><span class="reg-method-chip">${meth}</span></td>
           <td class="reg-c reg-c-num reg-c-time">${timeStr}</td>
@@ -479,8 +489,10 @@
           <td class="reg-c reg-c-pct">${pctBadge}</td>
           <td class="reg-c reg-c-act">
             <div class="reg-act-group">
-              <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
-              <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+              ${editable ? `
+                <button type="button" class="reg-act-btn btn-edit-entry" title="Editar registro" aria-label="Editar registro">✎</button>
+                <button type="button" class="reg-act-btn danger btn-delete-entry" title="Excluir registro" aria-label="Excluir registro">✕</button>
+              ` : `<span class="reg-readonly" title="Registro de outro planejamento — somente leitura">🔒</span>`}
             </div>
           </td>
           <td class="reg-c reg-c-obs" title="${obs}">${obs ? `<span class="reg-obs-txt">${obs}</span>` : '<span class="reg-empty">—</span>'}</td>
