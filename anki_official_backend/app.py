@@ -68,6 +68,28 @@ def pb(msg: Any) -> dict[str, Any]:
     )
 
 
+def deck_tree_payload(node: Any) -> dict[str, Any]:
+    """Shape estável para a UI: apenas serializa os valores do DeckTreeNode oficial.
+
+    Protobuf omite escalares no valor zero em JSON. O deck picker Android precisa
+    distinguir "zero" de "campo inexistente", então explicitamos os zeros aqui,
+    sem recalcular qualquer contagem.
+    """
+    return {
+        "deck_id": int(node.deck_id),
+        "name": str(node.name),
+        "level": int(node.level),
+        "collapsed": bool(node.collapsed),
+        "review_count": int(node.review_count),
+        "learn_count": int(node.learn_count),
+        "new_count": int(node.new_count),
+        "total_in_deck": int(node.total_in_deck),
+        "total_including_children": int(node.total_including_children),
+        "filtered": bool(node.filtered),
+        "children": [deck_tree_payload(child) for child in node.children],
+    }
+
+
 @dataclass
 class UserCollection:
     user_id: str
@@ -274,7 +296,7 @@ def decks(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
             ],
             # A mesma árvore que abastece a lista de decks do Anki: hierarquia,
             # estado collapsed e contagens já submetidas aos limites do scheduler.
-            "deck_tree": pb(due_tree),
+            "deck_tree": deck_tree_payload(due_tree),
         }
 
 
