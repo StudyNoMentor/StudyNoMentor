@@ -10,12 +10,13 @@
      4) subtópico pequeno: forma quantos grupos locais forem necessários,
         sempre dos piores para os melhores e sem misturar ramos já fortes;
         só sobe um nível quando não existir mais frente granular executável;
-     5) pós-edital: a incidência da banca apenas desempata matérias com a mesma
-        lacuna; ela não multiplica nem cria um score escondido.
+     5) pós-edital: cruza duas coisas que importam perto da prova — o tamanho
+        da lacuna pessoal e a incidência histórica da banca. A conta continua
+        simples: lacuna × relevância relativa da banca.
 
-   Não há intervalo de confiança, margem, "déficit seguro" nem multiplicação
-   pelo volume histórico. Questões resolvidas servem para validar o recorte,
-   não para dar mais prioridade a quem já foi mais praticado.
+   Não há intervalo de confiança, regressão, margem, "déficit seguro" nem
+   estatística escondida. Questões resolvidas servem para validar o recorte;
+   incidência serve somente para dizer onde uma lacuna vale mais na prova.
    ============================================================================ */
 (() => {
   if (typeof window === 'undefined' || window.__motorSugestao) return;
@@ -462,17 +463,19 @@
       return casado ? num(mapa[casado]) : 0;
     },
 
-    /* A ordem da matéria é a conta que o aluno faria de cabeça:
-       meta - aproveitamento. Volume não multiplica prioridade. No pós-edital,
-       incidência só desempata lacunas iguais. */
+    /* Pré-edital: só lacuna. Pós-edital: lacuna × relevância da banca.
+       A incidência é normalizada pelo maior valor do recorte, então o score é
+       legível: 20pp de lacuna × 0,50 de relevância = prioridade 10. */
     _compararDisciplinas(a, b, p) {
       const A = a || {}, B = b || {};
+      if ((p && p.fase) === 'pos') {
+        const porPrioridade = num(B.score) - num(A.score);
+        if (porPrioridade) return porPrioridade;
+      }
       const porLacuna = num(B.lacunaDisc) - num(A.lacunaDisc);
       if (porLacuna) return porLacuna;
-      if ((p && p.fase) === 'pos') {
-        const porIncidencia = num(B.incidenciaDisc) - num(A.incidenciaDisc);
-        if (porIncidencia) return porIncidencia;
-      }
+      const porIncidencia = num(B.incidenciaDisc) - num(A.incidenciaDisc);
+      if (porIncidencia) return porIncidencia;
       return num(A.taxa, 100) - num(B.taxa, 100)
         || String(A.nome || '').localeCompare(String(B.nome || ''), 'pt-BR');
     },
@@ -593,9 +596,20 @@
 
       const disciplinasTodas = forest.map(d => {
         const fila = this._filaDisciplina(d, p);
-        fila.forEach(x => {
-          x.peso = this._peso(x, p.fase, incMap); // explicação; não vira score
-        });
+        fila.forEach(x => { x.peso = this._peso(x, p.fase, incMap); });
+        if (p.fase === 'pos' && fila.length) {
+          const maiorIncTopico = Math.max(0, ...fila.map(x => num(x.peso)));
+          fila.forEach(x => {
+            x.relevanciaBanca = maiorIncTopico > 0 ? num(x.peso) / maiorIncTopico : 0;
+            x.prioridade = x.gapMeta * x.relevanciaBanca;
+            x.score = x.prioridade;
+          });
+          fila.sort((a, b) => num(b.prioridade) - num(a.prioridade)
+            || num(b.gapMeta) - num(a.gapMeta)
+            || num(b.peso) - num(a.peso)
+            || num(a.ordemNaDisciplina) - num(b.ordemNaDisciplina));
+          fila.forEach((x, i) => { x.ordemNaDisciplina = i + 1; });
+        }
 
         const q = num(d.questoes), ac = Math.max(0, Math.min(q, num(d.acertos)));
         const taxa = q > 0 ? ac / q * 100 : null;
@@ -617,12 +631,21 @@
           incidenciaDisc,
           fila,
           melhorTopico: melhor,
-          score: lacunaDisc
+          score: lacunaDisc,
+          relevanciaBanca: p.fase === 'pos' ? 0 : null
         };
       });
 
+      if (p.fase === 'pos') {
+        const maiorIncDisc = Math.max(0, ...disciplinasTodas.map(d => num(d.incidenciaDisc)));
+        disciplinasTodas.forEach(d => {
+          d.relevanciaBanca = maiorIncDisc > 0 ? num(d.incidenciaDisc) / maiorIncDisc : 0;
+          d.score = d.lacunaDisc * d.relevanciaBanca;
+        });
+      }
+
       const disciplinas = disciplinasTodas.filter(d =>
-        d.lacunaDisc > 0 && (p.fase !== 'pos' || d.incidenciaDisc > 0)
+        d.lacunaDisc > 0 && (p.fase !== 'pos' || (d.incidenciaDisc > 0 && d.score > 0))
       ).sort((a, b) => this._compararDisciplinas(a, b, p));
 
       disciplinas.forEach((d, i) => {
@@ -640,7 +663,9 @@
         disciplinaTaxa: d.taxa,
         disciplinaLacuna: d.lacunaDisc,
         disciplinaAmostraValida: d.amostraValida,
-        disciplinaIncidencia: d.incidenciaDisc
+        disciplinaIncidencia: d.incidenciaDisc,
+        disciplinaRelevanciaBanca: d.relevanciaBanca,
+        disciplinaPrioridade: d.score
       }));
       itens.forEach(x => { x.dose = this._dose(x, p); });
 
@@ -651,7 +676,7 @@
         fase: p.fase, prefs: p, erro: null,
         banca: p.fase === 'pos' ? banca : null,
         criterioDisciplinas: p.fase === 'pos'
-          ? 'maior lacuna para a meta; incidência desempata'
+          ? 'lacuna × relevância histórica da banca'
           : 'maior lacuna para a meta',
         itens, disciplinas, disciplinasAcionaveis, disciplinasTodas, todos, disciplinasDisponiveis,
         filtroDisciplinas: p.disciplinasSel.slice()
