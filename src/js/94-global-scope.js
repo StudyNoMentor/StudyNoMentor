@@ -510,7 +510,56 @@
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
   DB.getAllExtrasTagged = () => S.allBy('extras');
+  DB.getAllSavedGradesTagged = () => S.allBy('savedGrades');
+  DB.copySavedGradeToActive = function(sourcePlanId, id) {
+    const active = S.activePlanId();
+    if (!sourcePlanId || String(sourcePlanId) === String(active)) return null;
+    const src = S._rows(sourcePlanId, 'savedGrades').find(x => String(x && x.id) === String(id));
+    if (!src) return null;
+    const list = DB.getSavedGrades();
+    const item = {
+      id: DB._uid(),
+      nome: String(src.nome || 'Grade salva').slice(0, 40),
+      grade: clone(src.grade || {}),
+      sessions: Number(src.sessions) || 3,
+      createdAt: new Date().toISOString()
+    };
+    list.push(item);
+    if (DB.saveSavedGrades(list) === false) return false;
+    return Object.assign({}, item, { _planId: active, _planNome: S.planName(active) });
+  };
   DB.getAllLeisTagged = () => S.allBy('leis');
+  DB.copyLawToActive = function(sourcePlanId, id) {
+    const active = S.activePlanId();
+    if (!sourcePlanId || String(sourcePlanId) === String(active)) return DB.getLei(id);
+    const src = S._rows(sourcePlanId, 'leis').find(x => String(x && x.id) === String(id));
+    if (!src) return null;
+    const origem = { planId: String(sourcePlanId), lawId: String(id) };
+    const existente = DB.getLeis().find(x => x && x.origemCopia
+      && String(x.origemCopia.planId) === origem.planId
+      && String(x.origemCopia.lawId) === origem.lawId);
+    if (existente) return Object.assign({}, existente, { _alreadyCopied: true });
+    const now = new Date().toISOString();
+    const item = {
+      id: DB._uid(),
+      titulo: src.titulo || 'Sem título',
+      referencia: src.referencia || '',
+      materia: src.materia || '',
+      texto: src.texto || '',
+      marcacoes: clone(src.marcacoes || []),
+      suppressed: clone(src.suppressed || []),
+      opts: clone(src.opts || { ressalvas:true, restricoes:true, competencias:true, prazos:true, efeitos:true, relacoes:true }),
+      bookmark: src.bookmark == null ? null : src.bookmark,
+      bookmarkTxt: src.bookmarkTxt || null,
+      origemCopia: origem,
+      createdAt: now,
+      updatedAt: now
+    };
+    const list = DB.getLeis();
+    list.push(item);
+    if (DB.saveLeis(list) === false) return false;
+    return item;
+  };
   DB.getAllLinksTagged = () => {
     let out = S.allBy('links');
     // Perfil realmente novo: preserva a semeadura dos atalhos padrão, mas só

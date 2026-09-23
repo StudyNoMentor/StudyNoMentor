@@ -24,6 +24,14 @@ const LeisScreen = {
       else if (el.id === 'lei-auto-master') el.disabled = false;
       else el.disabled = master ? !master.checked : false;
     });
+    const copyBtn = document.getElementById('lei-copy-btn');
+    if (copyBtn) {
+      copyBtn.style.display = readonly ? '' : 'none';
+      copyBtn.disabled = !readonly;
+      copyBtn.title = readonly
+        ? 'Criar uma cópia independente no planejamento atual; a original permanece intacta'
+        : '';
+    }
     const meta = document.getElementById('lei-reader-meta');
     if (meta && readonly) meta.insertAdjacentHTML('beforeend',
       ' <span class="plan-tag-badge">🔒 ' + escapeHtml(lei._planNome || 'Outro planejamento') + '</span>');
@@ -880,6 +888,21 @@ const LeisScreen = {
     this._prefSet('font-step', this.fontStep);
     this._pintarFonte();
   },
+  async copyCurrentToPlan() {
+    const lei = this.currentId ? DB.getLei(this.currentId) : null;
+    if (!lei) return;
+    if (this._leiLocal(lei)) { showToast('Esta lei já pertence ao planejamento atual'); return; }
+    const origem = lei._planNome || 'outro planejamento';
+    if (!await UI.confirm(
+      `Copiar "${lei.titulo}" de "${origem}" para este planejamento?\n\nA original continuará intacta. A cópia poderá ser editada, marcada e incluída em rodízio ou atividade extra.`,
+      { title:'⧉ Copiar lei seca', okText:'Copiar para este planejamento' }
+    )) return;
+    const copia = DB.copyLawToActive ? DB.copyLawToActive(lei._planId, lei.id) : null;
+    if (!copia) { showToast('Não foi possível copiar a lei'); return; }
+    this.renderCards();
+    this.openReader(copia.id);
+    showToast(copia._alreadyCopied ? 'Esta lei já havia sido copiada para este planejamento' : 'Lei copiada ✓ Agora ela é independente neste planejamento.');
+  },
   editCurrent() {
     if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
@@ -925,6 +948,7 @@ window.LeisScreen = LeisScreen;
   if (fm) fm.addEventListener('click', (e) => { if (e.target === fm) fm.style.display = 'none'; });
   // leitor
   on('lei-back-btn', 'click', () => LeisScreen.showList());
+  on('lei-copy-btn', 'click', () => LeisScreen.copyCurrentToPlan());
   on('lei-edit-btn', 'click', () => LeisScreen.editCurrent());
   on('lei-del-btn', 'click', () => LeisScreen.deleteCurrent());
   // ferramentas de marcação: marca-texto e borracha (modos)

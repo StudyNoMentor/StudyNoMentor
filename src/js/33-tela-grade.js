@@ -1447,19 +1447,26 @@ function planCycleMode() {
   function renderSavedGradesList() {
     const box = document.getElementById('saved-grades-list');
     if (!box) return;
-    const list = DB.getSavedGrades();
-    if (!list.length) {
+    const active = DB._activePlanId();
+    const local = DB.getSavedGrades().map(s => Object.assign({}, s, { _planId: active, _planNome: 'Este planejamento' }));
+    const all = DB.getAllSavedGradesTagged ? DB.getAllSavedGradesTagged() : local;
+    const externos = all.filter(s => String(s._planId || active) !== String(active));
+    if (!local.length && !externos.length) {
       box.innerHTML = `<p class="sg-empty">Nenhuma grade salva ainda. Dê um nome acima e clique em <strong>Salvar grade atual</strong>.</p>`;
       return;
     }
-    box.innerHTML = list.slice().reverse().map(s => {
+    const meta = s => {
       let ocupadas = 0;
       DIAS_SEMANA.forEach(d => (s.grade[d] || []).forEach(c => { if (normalizeCell(c)) ocupadas++; }));
       const dt = s.createdAt ? new Date(s.createdAt).toLocaleDateString('pt-BR') : '';
-      return `<div class="sg-item" data-id="${s.id}">
+      return `${ocupadas} matéria(s) · ${s.sessions || 3} sessões${dt ? ' · ' + dt : ''}`;
+    };
+    const localHtml = local.length ? `
+      <div class="sg-group-label">Neste planejamento</div>
+      ${local.slice().reverse().map(s => `<div class="sg-item" data-id="${s.id}">
         <div class="sg-info">
           <div class="sg-name">${escapeHtml(s.nome)}</div>
-          <div class="sg-meta">${ocupadas} matéria(s) · ${s.sessions || 3} sessões${dt ? ' · ' + dt : ''}</div>
+          <div class="sg-meta">${meta(s)}</div>
         </div>
         <div class="sg-actions">
           <button type="button" class="btn-secondary" data-sg-load="${s.id}" title="Substituir a grade atual por esta">↺ Restaurar</button>
@@ -1467,8 +1474,21 @@ function planCycleMode() {
           <button type="button" class="btn-secondary" data-sg-ren="${s.id}" title="Renomear" aria-label="Renomear">✎</button>
           <button type="button" class="btn-secondary" data-sg-del="${s.id}" title="Excluir" aria-label="Excluir">🗑️</button>
         </div>
-      </div>`;
-    }).join('');
+      </div>`).join('')}` : '';
+
+    const extHtml = externos.length ? `
+      <div class="sg-group-label" style="margin-top:14px;">De outros planejamentos</div>
+      ${externos.slice().reverse().map(s => `<div class="sg-item" data-id="${s.id}" data-plan="${escapeHtml(String(s._planId || ''))}">
+        <div class="sg-info">
+          <div class="sg-name">${escapeHtml(s.nome)}</div>
+          <div class="sg-meta">${meta(s)} · ${escapeHtml(s._planNome || 'Outro planejamento')} · somente leitura</div>
+        </div>
+        <div class="sg-actions">
+          <button type="button" class="btn-secondary" data-sg-copy="${s.id}" data-plan="${escapeHtml(String(s._planId || ''))}" title="Criar uma cópia independente no planejamento atual">⧉ Copiar para cá</button>
+        </div>
+      </div>`).join('')}` : '';
+    box.innerHTML = localHtml + extHtml;
+
     box.querySelectorAll('[data-sg-load]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgLoad;
       const s = DB.getSavedGrades().find(x => x.id === id);
@@ -1505,6 +1525,17 @@ function planCycleMode() {
       DB.deleteSavedGrade(id);
       renderSavedGradesList();
       showToast('Grade salva excluída');
+    }));
+    box.querySelectorAll('[data-sg-copy]').forEach(b => b.addEventListener('click', async () => {
+      const sourcePlan = b.dataset.plan, id = b.dataset.sgCopy;
+      const s = all.find(x => String(x._planId) === String(sourcePlan) && String(x.id) === String(id));
+      if (!s) return;
+      if (!await UI.confirm(`Copiar a grade "${s.nome}" de "${s._planNome || 'outro planejamento'}" para este planejamento? A original continuará intacta.`,
+        { title:'⧉ Copiar grade', okText:'Copiar' })) return;
+      const copia = DB.copySavedGradeToActive ? DB.copySavedGradeToActive(sourcePlan, id) : null;
+      if (!copia) { showToast('Não foi possível copiar a grade'); return; }
+      renderSavedGradesList();
+      showToast('Grade copiada ✓ Agora você pode restaurá-la neste planejamento.');
     }));
   }
   function openSavedGrades() {

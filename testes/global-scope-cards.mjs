@@ -18,7 +18,8 @@ const keysForPlan=pid=>({
   cards:keyFor(pid,'cards'),decks:keyFor(pid,'decks'),bancasCards:keyFor(pid,'bancas-cards'),
   revlog:keyFor(pid,'revlog'),revlogPendente:keyFor(pid,'revlog-pendente'),revlogArquivo:keyFor(pid,'revlog-arquivo'),
   entries:keyFor(pid,'entries'),cycleHistory:keyFor(pid,'cycle-history'),
-  extras:keyFor(pid,'extras'),leis:keyFor(pid,'leis'),links:keyFor(pid,'links'),tec:keyFor(pid,'tec'),incidencia:keyFor(pid,'incidencia')
+  extras:keyFor(pid,'extras'),leis:keyFor(pid,'leis'),links:keyFor(pid,'links'),tec:keyFor(pid,'tec'),incidencia:keyFor(pid,'incidencia'),
+  savedGrades:keyFor(pid,'saved-grades')
 });
 const put=(k,v)=>ls.setItem(k,JSON.stringify(v));
 put(keysForPlan('A').cards,[{id:'a1',deckId:'da',banca:'FGV',frente:'A',verso:'1'}]);
@@ -31,8 +32,10 @@ put(keysForPlan('A').bancasCards,['FGV']);
 put(keysForPlan('B').bancasCards,['CEBRASPE']);
 put(keysForPlan('A').entries,[{id:'eA',date:'2026-09-20',subject:'A',durationMin:30}]);
 put(keysForPlan('B').entries,[{id:'eB',date:'2026-09-21',subject:'B',durationMin:45}]);
-put(keysForPlan('A').leis,[{id:'lA',titulo:'Lei A',updatedAt:'2026-09-20'}]);
-put(keysForPlan('B').leis,[{id:'lB',titulo:'Lei B',updatedAt:'2026-09-21'}]);
+put(keysForPlan('A').leis,[{id:'lA',titulo:'Lei A',texto:'A',marcacoes:[],updatedAt:'2026-09-20'}]);
+put(keysForPlan('B').leis,[{id:'lB',titulo:'Lei B',texto:'B',materia:'Direito',marcacoes:[{start:1,end:2}],bookmark:7,rodizio:{apta:true},updatedAt:'2026-09-21'}]);
+put(keysForPlan('A').savedGrades,[{id:'gA',nome:'Grade A',sessions:3,grade:{Segunda:['A']},createdAt:'2026-09-20'}]);
+put(keysForPlan('B').savedGrades,[{id:'gB',nome:'Grade B',sessions:4,grade:{Segunda:['B']},createdAt:'2026-09-21'}]);
 put(keysForPlan('A').links,[{id:'kA',nome:'Link A',url:'https://a.test'}]);
 put(keysForPlan('B').links,[{id:'kB',nome:'Link B',url:'https://b.test'}]);
 put(keysForPlan('A').tec,[{id:1,startDate:'2026-08-01',endDate:'2026-08-31'}]);
@@ -55,9 +58,12 @@ const DB={
   updateEntry(id,patch){const l=this.getEntries(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).entries,l);return x},
   deleteEntry(id){return this._set(keysForPlan(active).entries,this.getEntries().filter(x=>String(x.id)!==String(id)))},
   getLeis(){return parse(keysForPlan(active).leis,[])},
+  saveLeis(v){return this._set(keysForPlan(active).leis,v)},
   getLei(id){return this.getLeis().find(x=>String(x.id)===String(id))||null},
   updateLei(id,patch){const l=this.getLeis(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).leis,l);return x},
   deleteLei(id){return this._set(keysForPlan(active).leis,this.getLeis().filter(x=>String(x.id)!==String(id)))},
+  getSavedGrades(){return parse(keysForPlan(active).savedGrades,[])},
+  saveSavedGrades(v){return this._set(keysForPlan(active).savedGrades,v)},
   getLinks(){return parse(keysForPlan(active).links,[])},
   updateLink(id,patch){const l=this.getLinks(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).links,l);return x},
   deleteLink(id){return this._set(keysForPlan(active).links,this.getLinks().filter(x=>String(x.id)!==String(id)))},
@@ -67,6 +73,7 @@ const DB={
   tecOverlap(start,end,ignoreId=null){return parse(keysForPlan(active).tec,[]).find(s=>String(s.id)!==String(ignoreId)&&start<=s.endDate&&end>=s.startDate)||null},
   getCards(){return parse(keysForPlan(active).cards,[])},
   saveCards(v){return this._set(keysForPlan(active).cards,v)},
+  addCard(data){const l=this.getCards();const x=Object.assign({id:'n'+(++seq)},data||{});l.push(x);this.saveCards(l);return x},
   getCard(id){return this.getCards().find(x=>String(x.id)===String(id))||null},
   updateCard(id,patch){const l=this.getCards(),x=l.find(c=>c.id===id);if(!x)return null;Object.assign(x,patch);this.saveCards(l);return x},
   updateCardNote(id,data){return this.updateCard(id,data)},
@@ -149,6 +156,22 @@ assert.deepEqual(Array.from(ctx.DB.getAllLeisTagged(),x=>x.id),['lA','lB'],'leis
 assert.equal(ctx.DB.getLei('lB')._planId,'B','lei de outro plano deve ser encontrada');
 assert.equal(ctx.DB.updateLei('lB',{titulo:'Lei B editada'}),null,'lei de outro planejamento deve ser somente leitura');
 assert.equal(parse(keysForPlan('B').leis,[])[0].titulo,'Lei B','lei externa não pode ser alterada');
+const leiCopiada=ctx.DB.copyLawToActive('B','lB');
+assert.ok(leiCopiada && leiCopiada.id!=='lB','copiar lei deve criar novo id no plano ativo');
+assert.equal(parse(keysForPlan('B').leis,[]).length,1,'copiar lei não pode remover nem alterar a origem');
+assert.equal(parse(keysForPlan('A').leis,[]).length,2,'cópia deve nascer no planejamento atual');
+assert.equal(leiCopiada.texto,'B','cópia deve preservar o conteúdo');
+assert.equal(leiCopiada.bookmark,7,'cópia deve preservar marcador de leitura');
+assert.equal(leiCopiada.rodizio,undefined,'cópia não deve herdar estratégia/rodízio futuro');
+ctx.DB.updateLei(leiCopiada.id,{titulo:'Lei B Bahia'});
+assert.equal(parse(keysForPlan('B').leis,[])[0].titulo,'Lei B','editar cópia não pode alterar a lei de origem');
+
+assert.deepEqual(Array.from(ctx.DB.getAllSavedGradesTagged(),x=>x.id),['gA','gB'],'grades salvas devem ser descobertas entre planejamentos');
+const gradeCopiada=ctx.DB.copySavedGradeToActive('B','gB');
+assert.ok(gradeCopiada && gradeCopiada.id!=='gB','copiar grade deve criar novo id no plano atual');
+assert.equal(parse(keysForPlan('B').savedGrades,[]).length,1,'grade original deve permanecer intacta');
+assert.equal(parse(keysForPlan('A').savedGrades,[]).length,2,'grade copiada deve pertencer ao plano atual');
+assert.deepEqual(parse(keysForPlan('A').savedGrades,[])[1].grade,{Segunda:['B']},'estrutura da grade deve ser clonada');
 
 assert.deepEqual(Array.from(ctx.DB.getAllLinksTagged(),x=>x.id),['kA','kB'],'links devem ser globais no perfil');
 assert.equal(ctx.DB.updateLink('kB',{nome:'Link B editado'}),null,'link de outro planejamento deve ser somente leitura');
@@ -158,6 +181,11 @@ assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'hi
 assert.equal(ctx.DB.updateTecSnapshot(2,{label:'Setembro'}),null,'retrato TEC de outro planejamento deve ser somente leitura');
 assert.equal(parse(keysForPlan('B').tec,[])[0].label,undefined,'retrato externo não pode ser alterado');
 assert.equal(ctx.DB.tecOverlap('2026-09-15','2026-09-20').id,2,'sobreposição TEC deve considerar outros planejamentos');
+
+const novo=ctx.DB.addCard({frente:'Novo',verso:'Card'});
+assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'card novo deve ser salvo somente no planejamento ativo');
+assert.equal(parse(keysForPlan('B').cards,[]).some(x=>x.id===novo.id),false,'modo Todos não deve duplicar fisicamente o card nos demais planos');
+assert.equal(S.cards('all').some(x=>x.id===novo.id),true,'card novo deve aparecer imediatamente na coleção global');
 
 const b=ctx.DB.getCard('b1');
 assert.equal(b._planId,'B','card de outro planejamento precisa manter origem');
@@ -172,6 +200,7 @@ assert.equal(journal[0].planId,'B','journal durável deve carregar planId de ori
 
 ctx.DB.deleteCard('b1');
 assert.equal(parse(keysForPlan('B').cards,[]).length,0,'exclusão deve ocorrer na origem');
-assert.equal(parse(keysForPlan('A').cards,[]).length,1,'exclusão global não pode tocar outro plano');
+assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id==='a1'),true,'exclusão global não pode tocar card do plano ativo');
+assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'exclusão de card externo não pode tocar card novo do plano ativo');
 
-console.log('OK: memória global visível, edição local, banca e roteamento seguro por planejamento.');
+console.log('OK: memória global, cópias explícitas de grade/lei e Cards globais sem duplicação física.');

@@ -691,7 +691,7 @@
       <div class="siglas-modal-head">
         <div>
           <h2>💾 Grades salvas</h2>
-          <p class="sub">Guarde a grade atual sob um nome. Ao mudar de planejamento ou de meta, você pode restaurar exatamente a grade de antes.</p>
+          <p class="sub">As grades continuam pertencendo ao planejamento em que foram salvas. Grades de outros planejamentos podem ser copiadas para o atual sem alterar a original.</p>
         </div>
         <button type="button" class="icon-btn" id="saved-grades-close" title="Fechar" aria-label="Fechar">✕</button>
       </div>
@@ -703,7 +703,7 @@
             <button class="btn-primary" id="btn-save-current-grade" type="button">Salvar grade atual</button>
           </div>
         </div>
-        <p class="section-label" style="margin:18px 0 8px;">Suas grades salvas</p>
+        <p class="section-label" style="margin:18px 0 8px;">Grades disponíveis</p>
         <div id="saved-grades-list" class="saved-grades-list"></div>
       </div>
       <div class="siglas-modal-foot">
@@ -845,6 +845,7 @@
           <span id="lei-reader-meta" class="leis-reader-meta"></span>
         </div>
         <div class="leis-reader-actions">
+          <button type="button" class="btn-secondary" id="lei-copy-btn" style="display:none;" title="Criar uma cópia independente desta lei no planejamento atual">⧉ Copiar para este planejamento</button>
           <button type="button" class="reg-act-btn" id="lei-edit-btn" title="Editar dados da lei" aria-label="Editar dados da lei">✎</button>
           <button type="button" class="reg-act-btn danger" id="lei-del-btn" title="Excluir lei" aria-label="Excluir lei">✕</button>
         </div>
