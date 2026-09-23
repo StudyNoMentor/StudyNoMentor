@@ -934,6 +934,20 @@ def browser_bulk(
                 match_case=bool(payload.get("match_case", False)),
             )
             return {"ok": True, "changes": pb(out)}
+        elif action == "change_notetype":
+            if not note_ids:
+                raise HTTPException(400, "Selecione notas.")
+            target = int(payload.get("target_notetype_id") or 0)
+            old = int(item.col.models.get_single_notetype_of_notes(note_ids))
+            info = item.col.models.change_notetype_info(
+                old_notetype_id=old,
+                new_notetype_id=target,
+            )
+            request = info.input
+            request.ClearField("note_ids")
+            request.note_ids.extend(note_ids)
+            out = item.col.models.change_notetype_of_notes(request)
+            return {"ok": True, "changes": pb(out)}
         else:
             raise HTTPException(400, f"Ação em massa não suportada: {action}")
         return {"ok": True}
@@ -1212,6 +1226,59 @@ def update_notetype(
     with item.lock:
         nt = dict(payload.get("notetype") or payload)
         nt["id"] = int(notetype_id)
+        item.col.models.update_dict(nt)
+        updated = item.col.models.get(notetype_id)
+        return {"ok": True, "notetype": updated}
+
+
+@app.post("/api/anki/notetypes/{notetype_id}/schema")
+def mutate_notetype_schema(
+    notetype_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    action = str(payload.get("action", "")).strip()
+    with item.lock:
+        nt = item.col.models.get(notetype_id)
+        if not nt:
+            raise HTTPException(404, "Tipo de nota não encontrado.")
+        if action == "add_field":
+            name = str(payload.get("name", "")).strip()
+            if not name:
+                raise HTTPException(400, "Informe o nome do campo.")
+            field = item.col.models.new_field(name)
+            item.col.models.add_field(nt, field)
+        elif action == "remove_field":
+            ordinal = int(payload.get("ordinal", -1))
+            if ordinal < 0 or ordinal >= len(nt.get("flds", [])):
+                raise HTTPException(400, "Campo inválido.")
+            item.col.models.remove_field(nt, nt["flds"][ordinal])
+        elif action == "add_template":
+            name = str(payload.get("name", "")).strip() or f"Card {len(nt.get('tmpls', [])) + 1}"
+            template = item.col.models.new_template(name)
+            template["qfmt"] = str(payload.get("qfmt", "{{Front}}"))
+            template["afmt"] = str(payload.get("afmt", "{{FrontSide}}<hr id=answer>{{Back}}"))
+            item.col.models.add_template(nt, template)
+        elif action == "remove_template":
+            ordinal = int(payload.get("ordinal", -1))
+            if ordinal < 0 or ordinal >= len(nt.get("tmpls", [])):
+                raise HTTPException(400, "Template inválido.")
+            item.col.models.remove_template(nt, nt["tmpls"][ordinal])
+        elif action == "move_field":
+            source = int(payload.get("source", -1))
+            target = int(payload.get("target", -1))
+            if source < 0 or source >= len(nt.get("flds", [])):
+                raise HTTPException(400, "Campo inválido.")
+            item.col.models.reposition_field(nt, nt["flds"][source], target)
+        elif action == "move_template":
+            source = int(payload.get("source", -1))
+            target = int(payload.get("target", -1))
+            if source < 0 or source >= len(nt.get("tmpls", [])):
+                raise HTTPException(400, "Template inválido.")
+            item.col.models.reposition_template(nt, nt["tmpls"][source], target)
+        else:
+            raise HTTPException(400, f"Ação de schema não suportada: {action}")
         item.col.models.update_dict(nt)
         updated = item.col.models.get(notetype_id)
         return {"ok": True, "notetype": updated}
