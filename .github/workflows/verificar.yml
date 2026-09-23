@@ -74,10 +74,13 @@ jobs:
           SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
           SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
           SNM_ANKI_OFFICIAL_OUT: ${{ runner.temp }}/anki-oficial-latest.apkg
+          SNM_ANKI_SEARCH_EXPECTED: ${{ runner.temp }}/anki-search-expected.json
         run: |
           set -euo pipefail
           python -m pip install --disable-pip-version-check --quiet 'anki==26.09.2'
           python testes/anki-oficial-roundtrip.py
+          python testes/anki-oficial-search.py
+          node testes/cards-search-differential.mjs
           node testes/cards-import-anki-oficial.mjs
 
       - name: Regressões críticas dos Cards
