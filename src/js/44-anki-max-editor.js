@@ -15,7 +15,8 @@ const AnkiMaxEditor = {
 
   esc(v){return AnkiProductParity.esc(v);},
   _deckOptions(value){
-    const ds=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    const pid=AnkiProductParity._editingNtOriginal&&AnkiProductParity._editingNtOriginal._planId;
+    const ds=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
     return '<option value="">— padrão do template/baralho —</option>'+ds.map(d=>'<option value="'+this.esc(d.ankiId||d.id)+'" '+(String(value||'')===String(d.ankiId||d.id)?'selected':'')+'>'+this.esc(d.nome)+'</option>').join('');
   },
 

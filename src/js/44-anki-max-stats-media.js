@@ -52,6 +52,9 @@ const AnkiMaxStatsMedia = {
   },
 
   _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
+  _cardsSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.cards)return StudyGlobalScope.cards();}catch(_){}return DB.getCards();},
+  _decksSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.decks)return StudyGlobalScope.decks();}catch(_){}return DB.getDecks();},
+  _revlogSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.revlog)return StudyGlobalScope.revlog();}catch(_){}return DB.getRevlog();},
   _statsSelectedDeckId(){
     const explicit=this._statsState&&this._statsState.deckId;
     if(explicit!=null&&explicit!=='')return String(explicit);
@@ -60,12 +63,12 @@ const AnkiMaxStatsMedia = {
   },
   _statsDeckIds(rootId){
     if(!rootId)return null;
-    const decks=DB.getDecks(),root=decks.find(d=>String(d.id)===String(rootId));if(!root)return new Set([String(rootId)]);
+    const decks=this._decksSource(),root=decks.find(d=>String(d.id)===String(rootId));if(!root)return new Set([String(rootId)]);
     const name=String(root.nome||''),prefix=name+'::';
     return new Set(decks.filter(d=>String(d.id)===String(rootId)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
   },
   statsCards(){
-    let cards=DB.getCards();
+    let cards=this._cardsSource();
     const st=this._statsState||{},scope=st.scope||'deck';
     if(scope==='deck'){
       const ids=this._statsDeckIds(this._statsSelectedDeckId());
@@ -77,7 +80,7 @@ const AnkiMaxStatsMedia = {
     return cards;
   },
   statsRevlog(applyHistory=true){
-    let rows=DB.getRevlog()||[];const st=this._statsState||{},scope=st.scope||'deck';
+    let rows=this._revlogSource()||[];const st=this._statsState||{},scope=st.scope||'deck';
     if(scope!=='collection'){
       const ids=new Set();
       for(const c of this.statsCards()){if(c&&c.id!=null)ids.add(String(c.id));if(c&&c.ankiId!=null)ids.add(String(c.ankiId));}
@@ -96,7 +99,7 @@ const AnkiMaxStatsMedia = {
     return Math.max(1,Math.min(36500,CardEngine._daysBetween(earliest,today)+1));
   },
   _statsControlsHtml(){
-    const st=this._statsState||{},decks=DB.getDecks().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')),
+    const st=this._statsState||{},decks=this._decksSource().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')),
       selected=this._statsSelectedDeckId(),esc=(v)=>typeof AnkiProductParity!=='undefined'&&AnkiProductParity.esc?AnkiProductParity.esc(v):String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     return '<div class="card stat-card anki-stats-controls"><div class="card-header"><div><h2>Escopo das estatísticas</h2><p class="sub">Mesmo modelo de escopo do Anki: baralho, coleção ou pesquisa; últimos 12 meses ou todo o histórico.</p></div></div>'+
       '<div class="field-group"><div class="field"><label>Escopo</label><select id="anki-stats-scope"><option value="deck"'+(st.scope==='deck'?' selected':'')+'>Baralho</option><option value="collection"'+(st.scope==='collection'?' selected':'')+'>Coleção</option><option value="search"'+(st.scope==='search'?' selected':'')+'>Pesquisa</option></select></div>'+
@@ -392,7 +395,7 @@ const AnkiMaxStatsMedia = {
     AnkiProductParity.renderCheck=()=>{old();this.renderExtendedCheck();};
   },
   structuralIssues(){
-    const cards=DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),deckIds=new Set(DB.getDecks().map(d=>String(d.id))),cardAnki=new Map(),orphanNotes=[],badOrd=[],badFiltered=[],badTypes=[];
+    const cards=this._cardsSource(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),deckIds=new Set(this._decksSource().map(d=>String(d.id))),cardAnki=new Map(),orphanNotes=[],badOrd=[],badFiltered=[],badTypes=[];
     cards.forEach(c=>{const k=String(c.ankiId||'');if(k){if(!cardAnki.has(k))cardAnki.set(k,[]);cardAnki.get(k).push(c.id);}const n=AnkiParity.getNote(AnkiProductParity.noteId(c)),nt=n&&AnkiProductParity._typeFor(n);if(nt&&nt.kind!=='cloze'&&(Number(c.ankiTemplateOrd)||0)>=(nt.templates||[]).length)badOrd.push(c.id);if(c.originalDeckId&&!deckIds.has(String(c.originalDeckId)))badFiltered.push(c.id);});
     const used=new Set(cards.map(c=>String(AnkiProductParity.noteId(c))));notes.forEach(n=>{if(!used.has(String(n.id)))orphanNotes.push(n.id);});
     types.forEach(t=>{const names=(t.fields||[]).map(f=>String(f.name||'').toLowerCase()),dup=names.length!==new Set(names).size;if(!(t.fields||[]).length||!(t.templates||[]).length||dup)badTypes.push(t.id);});

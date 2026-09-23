@@ -143,7 +143,8 @@ const AnkiPractical10 = {
   },
   _renderBrowserSidebar(){
     const a=document.getElementById('anki-browser-sidebar');if(!a||typeof AnkiParity==='undefined')return;
-    const cards=DB.getCards(),notes=AnkiParity.notes(),decks=DB.getDecks(),types=AnkiParity.noteTypes();
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),
+      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),types=AnkiParity.noteTypes();
     const saved=typeof AnkiTotalParity!=='undefined'?AnkiTotalParity._savedSearches():[];
     const tags=new Map();notes.forEach(n=>(n.tags||[]).forEach(t=>tags.set(String(t),(tags.get(String(t))||0)+1)));
     const deckItems=decks.filter(d=>!AnkiParity.isFilteredDeck(d)).sort((x,y)=>String(x.nome).localeCompare(String(y.nome),'pt-BR')).map(d=>({kind:'deck',value:d.nome,label:'📁 '+d.nome,count:cards.filter(c=>String(c.deckId)===String(d.id)).length}));
@@ -474,7 +475,9 @@ const AnkiPractical10 = {
     const el=document.getElementById('card-destino');let dest=String(el&&el.value||'');
     if(!dest){showToast('Escolha o baralho');return null;}
     if(dest.startsWith('novo:')){
-      const nome=dest.slice(5),existing=DB.getDecks().find(d=>d.nome===nome),deck=existing||DB.addDeck(nome);
+      const nome=dest.slice(5),pid=CardsScreen._editingPlanId||null,
+        decks=pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks(),
+        existing=decks.find(d=>d.nome===nome),deck=existing||(pid&&DB.addDeckForPlan?DB.addDeckForPlan(pid,nome):DB.addDeck(nome));
       dest='deck:'+deck.id;if(el)el.value=dest;
     }
     return {raw:dest,deckId:dest.startsWith('deck:')?dest.slice(5):null,materia:dest.startsWith('sub:')?dest.slice(4):null};
@@ -529,7 +532,7 @@ const AnkiPractical10 = {
     }).join('');
   },
   _completeStatsHtml(){
-    const cards=DB.getCards(),logs=DB.getRevlog();
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog();
     const intervals=cards.map(c=>Number(c.intervalo)||0).filter(x=>x>0);
     const retr=cards.map(c=>{try{return c.s!=null?Number(CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId))):NaN;}catch(_){return NaN;}}).filter(Number.isFinite).map(x=>x*100);
     const grades=[1,2,3,4].map(g=>logs.filter(r=>Number(r.grade)===g).length),gmax=Math.max(1,...grades);

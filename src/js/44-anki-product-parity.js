@@ -153,7 +153,7 @@ const AnkiProductParity = {
     else showToast('Baixe o .apkg no AnkiWeb e use ↑ Importar no Study.');
   },
 
-  _cardsForNote(id){ const k=String(id);return DB.getCards().filter(c=>this.noteId(c)===k); },
+  _cardsForNote(id){ const k=String(id),cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();return cards.filter(c=>this.noteId(c)===k); },
   _typeFor(note){ return AnkiParity.noteTypes().find(t=>String(t.id)===String(note&&note.notetypeId))||null; },
   _sortField(note,nt){ const f=(nt&&nt.fields||[])[Number(nt&&nt.sortf)||0]||(nt&&nt.fields||[])[0];return this.plain(note&&note.fields&&f?note.fields[f.name]:''); },
 
@@ -283,7 +283,10 @@ const AnkiProductParity = {
 
   reconcileNote(note,nt){
     if(!note||!nt)return {created:0,updated:0,emptied:0};
-    const existing=this._cardsForNote(note.id),deckId=(existing.find(c=>c.deckId)||{}).deckId||(DB.getDecks()[0]||{}).id||null;
+    const existing=this._cardsForNote(note.id),planId=note._planId||(existing[0]&&existing[0]._planId)||
+      (existing[0]&&window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(existing[0].id):null),
+      sourceDecks=planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):(AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks()),
+      deckId=(existing.find(c=>c.deckId)||{}).deckId||(sourceDecks[0]||{}).id||null;
     const desired=[];let created=0,updated=0,emptied=0;
     if(nt.kind==='cloze'){
       const ords=new Set();Object.values(note.fields||{}).forEach(v=>AnkiParity.clozeOrdinals(v).forEach(o=>ords.add(o)));
@@ -295,7 +298,8 @@ const AnkiProductParity = {
     for(const d of desired){
       let card=existing.find(c=>nt.kind==='cloze'?Number(c.clozeOrd||0)===d.cloze:Number(c.ankiTemplateOrd||0)===d.ord);
       if(!card){
-        card=DB.addCard({deckId,noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+d.cloze:(d.ord===1?'reverse':'forward'),clozeOrd:d.cloze||null,ankiTemplateOrd:d.ord,frente:'',verso:''});created++;
+        const data={deckId,noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+d.cloze:(d.ord===1?'reverse':'forward'),clozeOrd:d.cloze||null,ankiTemplateOrd:d.ord,frente:'',verso:''};
+        card=planId&&DB.addCardForPlan?DB.addCardForPlan(planId,data):DB.addCard(data);created++;
       }
       used.add(String(card.id));
       const q=AnkiParity.renderTemplate(nt,note,d.tmpl,'question',card,''),a=AnkiParity.renderTemplate(nt,note,d.tmpl,'answer',card,q);
@@ -306,8 +310,13 @@ const AnkiProductParity = {
   },
 
   openChangeType(ids){
-    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;this._changeTypeIds=ids;
-    const types=AnkiParity.noteTypes(),sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
+    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;
+    const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
+    if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
+    this._changeTypeIds=ids;this._changeTypePlanId=origins.size?[...origins][0]:null;
+    const types=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
+      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : AnkiParity.noteTypes(),
+      sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
     const first=AnkiParity.getNote(ids[0]);if(first)sel.value=String(first.notetypeId);
     const render=()=>this._renderTypeMap(types.find(t=>String(t.id)===String(sel.value)));sel.onchange=render;render();
     document.getElementById('anki-change-type-modal').style.display='flex';
@@ -389,7 +398,10 @@ const AnkiProductParity = {
   },
 
   bulkMoveDeck(ids){
-    const decks=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    const cards=ids.flatMap(id=>this._cardsForNote(id)),origins=new Set(cards.map(c=>String(c._planId||
+      (window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
+    if(origins.size>1){showToast('Para mover em lote, selecione notas do mesmo planejamento de origem.');return;}
+    const pid=origins.size?[...origins][0]:null,decks=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
     if(!decks.length){showToast('Crie um baralho antes de mover.');return;}
     UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{
       if(!v)return;let n=0;
@@ -534,11 +546,16 @@ const AnkiProductParity = {
 
   deleteNotetype(id){
     const used=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length;if(used){showToast('Este tipo ainda é usado por '+used+' nota(s). Mude o tipo delas antes de excluir.');return;}
-    UI.confirm('Excluir este tipo de nota sem uso?',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{if(!ok)return;localStorage.removeItem(AnkiParity._entityKey('notetype',id));this.renderNotetypes();showToast('Tipo excluído');});
+    UI.confirm('Excluir este tipo de nota sem uso?',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{if(!ok)return;
+      const nt=AnkiParity.getNotetype(id),key=(nt&&nt._planId&&window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan)
+        ? StudyGlobalScope.entityKeyForPlan(nt._planId,'notetype',id):AnkiParity._entityKey('notetype',id);
+      localStorage.removeItem(key);this.renderNotetypes();showToast('Tipo excluído');});
   },
 
   scanCollection(){
-    this.ensure();const cards=DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),decks=DB.getDecks(),rev=DB.getRevlog(),noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
+    this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
+      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
+      noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
     const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
     cards.forEach(c=>{
       const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
@@ -576,8 +593,15 @@ const AnkiProductParity = {
   _bindCheck(){
     document.getElementById('anki-check-safe').addEventListener('click',()=>{
       this.ensure();const x=this.scanCollection();let fixed=0;
-      DB.getCards().forEach(c=>{const n=AnkiParity.getNote(this.noteId(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){DB.updateCard(c.id,{notetypeId:n.notetypeId});fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null});fixed++;}});
-      if(x.orphanRevlog.length){const ids=new Set(DB.getCards().map(c=>String(c.id)));DB.replaceRevlog(DB.getRevlog().filter(r=>ids.has(String(r.cardId))));fixed+=x.orphanRevlog.length;}
+      const scopedCards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();
+      scopedCards.forEach(c=>{const n=AnkiParity.getNote(this.noteId(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){DB.updateCard(c.id,{notetypeId:n.notetypeId});fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null});fixed++;}});
+      if(x.orphanRevlog.length){
+        const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
+        fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
+        if(!(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)){
+          const ids=new Set(DB.getCards().map(c=>String(c.id))),before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>ids.has(String(r.cardId))));fixed+=before.length-DB.getRevlog().length;
+        }
+      }
       CardEngine.invalidateDueCache();this.renderCheck();CardsScreen.render();showToast(fixed?fixed+' reparo(s) seguro(s) aplicado(s) ✓':'Nada para reparar');
     });
     document.getElementById('anki-check-empty').addEventListener('click',()=>{

@@ -169,7 +169,7 @@ const AnkiMaxParity = {
     if(a<0||z<0||a===z)return false;
     const [moved]=cols.splice(a,1);cols.splice(z,0,moved);b.columns=cols;this._saveBrowserPrefs();AnkiProductParity.renderBrowser();return true;
   },
-  _deckName(card){const id=card&&(card.originalDeckId||card.deckId),d=DB.getDecks().find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
+  _deckName(card){const id=card&&(card.originalDeckId||card.deckId),ds=AnkiParity._decksForCardPlan?AnkiParity._decksForCardPlan(card):DB.getDecks(),d=ds.find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
   _templateName(row){
     const c=row.card||(row.cards&&row.cards[0]);if(!c||!row.nt)return '';const i=Number(c.ankiTemplateOrd)||0;return String(row.nt.templates&&row.nt.templates[i]&&row.nt.templates[i].name||('Card '+(i+1)));
   },
@@ -392,7 +392,10 @@ const AnkiMaxParity = {
     };
   },
   _bulkCardsMove(ids){
-    const cards=this._resolveSelection(ids).cards,decks=DB.getDecks().filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));if(!cards.length||!decks.length)return;
+    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
+    const origins=new Set(cards.map(c=>String(c._planId||(window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
+    if(origins.size>1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
+    const pid=origins.size?[...origins][0]:null,decks=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));if(!decks.length)return;
     UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{if(!v)return;cards.forEach(c=>DB.updateCard(c.id,c.originalDeckId?{originalDeckId:v.deck}:{deckId:v.deck}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) movido(s) ✓');});
   },
   _bulkCardsDue(ids){
