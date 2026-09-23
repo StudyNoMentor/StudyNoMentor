@@ -190,6 +190,13 @@ const AnkiOfficial = {
         void this.renderView();
       });
     });
+    const exit = document.getElementById('anki-study-exit');
+    if (exit && !exit.dataset.boundAnki) {
+      exit.dataset.boundAnki = '1';
+      exit.onclick = () => {
+        if (typeof switchScreen === 'function') switchScreen('cards');
+      };
+    }
     const input = document.getElementById('anki-official-import');
     if (input && !input.dataset.boundAnki) {
       input.dataset.boundAnki = '1';
@@ -598,5 +605,7 @@ const AnkiOfficial = {
 
 window.AnkiOfficial = AnkiOfficial;
 window.addEventListener('screen:activated', (ev) => {
-  if (ev.detail && ev.detail.screen === 'anki') void AnkiOfficial.activate();
+  const screen = ev.detail && ev.detail.screen;
+  document.body.classList.toggle('anki-mobile-immersive', screen === 'anki');
+  if (screen === 'anki') void AnkiOfficial.activate();
 });
