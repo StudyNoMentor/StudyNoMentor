@@ -624,10 +624,27 @@ const AnkiProductParity = {
     const note=AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note);if(note&&nt){const q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,''),a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);return CardsScreen._flipped?a:q;}return CardsScreen._flipped?(c.verso||''):(c.frente||'');
   },
 
-  replayMedia(c){
-    const html=this._visibleCardHtml(c),urls=[];let m;const re=/(?:src|href)\s*=\s*["'](data:(?:audio|video)\/[^"']+|blob:[^"']+|https?:\/\/[^"']+)["']/gi;while((m=re.exec(html)))urls.push(m[1]);
-    if(!urls.length){showToast('Nenhuma mídia reproduzível encontrada neste lado do card');return;}
-    try{const a=new Audio(urls[0]);a.play().catch(()=>showToast('O navegador bloqueou a reprodução automática.'));}catch(_){showToast('Não foi possível reproduzir a mídia');}
+  async replayMedia(c){
+    if(!c)return false;
+    let parts=[];
+    try{
+      const note=AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note),ord=Number(c.ankiTemplateOrd)||0;
+      if(note&&nt){
+        const q=AnkiParity.renderTemplate(nt,note,ord,'question',c,''),a=AnkiParity.renderTemplate(nt,note,ord,'answer',c,q);
+        const answerOnly=(q&&String(a).includes(String(q)))?String(a).replace(String(q),''):String(a);
+        const cfg=CardsConfig.forDeck(c.deckId);
+        parts=CardsScreen._flipped?(cfg.skipQuestionWhenReplayingAnswer?[answerOnly]:[q,answerOnly]):[q];
+      }
+    }catch(_){}
+    if(!parts.length)parts=[this._visibleCardHtml(c)];
+    if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.playMarkupQueue){
+      const ok=await AnkiRuntime.playMarkupQueue(parts);
+      if(!ok)showToast('Nenhuma mídia reproduzível encontrada neste lado do card');
+      return ok;
+    }
+    const html=parts.join(''),urls=[];let m;const re=/(?:src|href)\s*=\s*["'](data:(?:audio|video)\/[^"']+|blob:[^"']+|https?:\/\/[^"']+)["']/gi;while((m=re.exec(html)))urls.push(m[1]);
+    if(!urls.length){showToast('Nenhuma mídia reproduzível encontrada neste lado do card');return false;}
+    try{for(const u of urls){const a=new Audio(u);await a.play();await new Promise(r=>{a.onended=a.onerror=r;});}return true;}catch(_){showToast('Não foi possível reproduzir a mídia');return false;}
   },
 
   speakCard(c){
