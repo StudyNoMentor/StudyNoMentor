@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import shutil
 import tempfile
@@ -25,7 +26,7 @@ from anki.decks import DeckId, DeckCollapseScope
 from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
 from anki.sound import SoundOrVideoTag, TTSTag
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from google.protobuf.json_format import MessageToDict, ParseDict
