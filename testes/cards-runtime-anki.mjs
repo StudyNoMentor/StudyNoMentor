@@ -28,8 +28,7 @@ const typedQ=R.buildSrcdoc(nt,'[[type:Front]]','question',{id:123},{fields:{Fron
 assert.match(typedQ,/snm-anki-type-input/,'type:Field precisa virar campo de digitação');
 R._typedAnswers.set('123|Front','Correta');
 const typedA=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
-assert.match(typedA,/is-correct/,'resposta digitada precisa sobreviver ao flip e ser comparada');
-assert.match(typedA,/typeGood/,'resposta correta usa a classe oficial typeGood');
+assert.match(typedA,/typeGood/,'resposta digitada correta precisa sobreviver ao flip e usar a classe oficial typeGood');
 assert.match(typedA,/<code id="typeans"/,'comparação deve usar code#typeans como o Anki');
 R._typedAnswers.set('123|Front','Coreta');
 const typedDiff=R.buildSrcdoc(nt,'[[type:Front]]','answer',{id:123},{fields:{Front:'Correta'}});
@@ -37,8 +36,15 @@ assert.match(typedDiff,/typeBad/,'caractere digitado incorreto deve ser destacad
 assert.match(typedDiff,/typeMissed/,'caractere ausente deve ser destacado como no Anki');
 R._typedAnswers.set('123|Front','elite');
 const typedNc=R.buildSrcdoc(nt,'[[type:nc:Front]]','answer',{id:123},{fields:{Front:'élite'}});
-assert.match(typedNc,/is-correct/,'type:nc deve ignorar diacríticos');
+assert.match(typedNc,/<span class="typeGood">élite<\/span>/,'type:nc deve ignorar diacríticos e preservar os sinais na resposta esperada');
 assert.doesNotMatch(typedNc,/<span class="typeBad">/,'diferença apenas de diacrítico não pode ser marcada como erro');
+// Vetores copiados dos testes do rslib/src/typeanswer.rs do Anki 26.09.2.
+assert.equal(R._typeCompareHtml('123','',false),'<code id="typeans">123</code>');
+assert.equal(R._typeCompareHtml('123','123',false),'<code id="typeans"><span class="typeGood">123</span></code>');
+assert.equal(R._typeCompareHtml('123','1123',false),'<code id="typeans"><span class="typeBad">1</span><span class="typeGood">123</span><br><span id="typearrow">&darr;</span><br><span class="typeGood">123</span></code>');
+assert.equal(R._typeCompareHtml('12','1',false),'<code id="typeans"><span class="typeGood">1</span><span class="typeMissed">-</span><br><span id="typearrow">&darr;</span><br><span class="typeGood">1</span><span class="typeMissed">2</span></code>');
+assert.equal(R._typeCompareHtml('<div>123</div>','123',false),'<code id="typeans"><span class="typeGood">123</span></code>');
+assert.equal(R._typeCompareHtml('[sound:foo.mp3]<b>1</b> &nbsp;2','1  2',false),'<code id="typeans"><span class="typeGood">1  2</span></code>');
 assert.match(typedQ,/snm-anki-show-answer/,'Enter no campo digitado deve revelar a resposta');
 assert.match(typedQ,/window\.pycmd/,'template sandbox deve expor bridge pycmd compatível');
 assert.match(typedQ,/playQueue\(avNodes\(\)\)/,'runtime deve reproduzir fila AV inteira em ordem');
