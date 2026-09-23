@@ -75,7 +75,15 @@ assert.match(css,/anki-deck-tools/,'Deck Manager deve ter ferramentas próprias'
 assert.match(js,/True Retention/,'estatísticas devem expor True Retention');
 assert.match(js,/Recuperabilidade/,'estatísticas devem expor Retrievability');
 assert.match(js,/Botões de resposta/,'estatísticas devem expor Answer Buttons');
+assert.match(js,/snm-responsive-media/,'renderer deve impedir recorte de mídia no mobile');
+assert.match(js,/anki-review-action-sheet/,'Mais ações deve abrir lista direta de ações');
+assert.doesNotMatch(js,/UI\.prompt\(\[\{key:'action'.*Mais ações/s,'Mais ações do reviewer não deve exigir select + Abrir');
+assert.match(js,/basic_optional_reversed/,'criador simples deve expor reverso opcional');
+assert.match(js,/typing/,'criador simples deve expor digitação da resposta');
+assert.match(js,/image_occlusion/,'criador simples deve expor oclusão de imagem');
+assert.match(css,/anki-review-action-panel/,'action sheet do reviewer deve ter layout responsivo');
+assert.match(css,/cards-anki-frame/,'iframe de card deve respeitar largura disponível');
 const hist=P._histBars([1,5,10,40,100,500],[1,7,30,90,365],['<1','1-7','7-30','30-90','90-365','>365']);
 assert.match(hist,/anki-p10-hist/);
 
-console.log('PARIDADE PRÁTICA 10/10: hierarquia de decks, Sidebar, preferências, menu semântico e hooks validados.');
+console.log('PARIDADE PRÁTICA 10/10: decks, Browser, preferências, mídia mobile, ações diretas e tipos padrão validados.');
