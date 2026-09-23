@@ -754,3 +754,400 @@ def export_colpkg(user: dict[str, Any] = Depends(current_user)):
         media_type="application/octet-stream",
         background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
     )
+
+
+# ---------------------------------------------------------------------------
+# Superfícies avançadas do Anki Oficial
+# ---------------------------------------------------------------------------
+
+@app.post("/api/anki/decks/manage")
+def manage_deck(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    action = str(payload.get("action", "")).strip()
+    deck_id = DeckId(int(payload.get("deck_id") or 0))
+    with item.lock:
+        if action == "rename":
+            name = str(payload.get("name", "")).strip()
+            if not name:
+                raise HTTPException(400, "Informe o novo nome do baralho.")
+            item.col.decks.rename(deck_id, name)
+        elif action == "delete":
+            item.col.decks.remove([deck_id])
+        elif action == "reparent":
+            parent_id = DeckId(int(payload.get("parent_id") or 0))
+            item.col.decks.reparent([deck_id], parent_id)
+        elif action == "collapse":
+            item.col.decks.set_collapsed(
+                deck_id,
+                bool(payload.get("collapsed", True)),
+                deck_config_pb2.DECK_COLLAPSE_SCOPE_REVIEWER,
+            )
+        elif action == "unbury":
+            item.col.sched.unbury_deck(deck_id)
+        else:
+            raise HTTPException(400, f"Ação de baralho não suportada: {action}")
+        return {"ok": True, "decks": decks(user)}
+
+
+@app.get("/api/anki/browser/facets")
+def browser_facets(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return {
+            "tags": list(item.col.tags.all()),
+            "decks": [
+                {"id": int(getattr(d, "id", 0)), "name": d.name}
+                for d in item.col.decks.all_names_and_ids()
+            ],
+            "notetypes": [
+                {"id": int(getattr(n, "id", 0)), "name": n.name}
+                for n in item.col.models.all_names_and_ids()
+            ],
+        }
+
+
+@app.post("/api/anki/browser/bulk")
+def browser_bulk(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    action = str(payload.get("action", "")).strip()
+    card_ids = [int(x) for x in payload.get("card_ids", [])]
+    note_ids = [int(x) for x in payload.get("note_ids", [])]
+    with item.lock:
+        if action == "move_deck":
+            if not card_ids:
+                raise HTTPException(400, "Selecione cards.")
+            item.col.set_deck(card_ids, int(payload.get("deck_id") or 0))
+        elif action == "suspend_cards":
+            item.col.sched.suspend_cards(card_ids)
+        elif action == "unsuspend_cards":
+            item.col.sched.unsuspend_cards(card_ids)
+        elif action == "bury_cards":
+            item.col.sched.bury_cards(card_ids, manual=True)
+        elif action == "unbury_cards":
+            item.col.sched.unbury_cards(card_ids)
+        elif action == "suspend_notes":
+            item.col.sched.suspend_notes(note_ids)
+        elif action == "bury_notes":
+            item.col.sched.bury_notes(note_ids)
+        elif action == "forget":
+            item.col.sched.schedule_cards_as_new(
+                card_ids,
+                restore_position=bool(payload.get("restore_position", False)),
+                reset_counts=bool(payload.get("reset_counts", False)),
+            )
+        elif action == "set_due":
+            item.col.sched.set_due_date(card_ids, str(payload.get("days") or "0"))
+        elif action == "reposition":
+            item.col.sched.reposition_new_cards(
+                card_ids=card_ids,
+                starting_from=max(0, int(payload.get("starting_from") or 1)),
+                step_size=max(1, int(payload.get("step_size") or 1)),
+                randomize=bool(payload.get("randomize", False)),
+                shift_existing=bool(payload.get("shift_existing", False)),
+            )
+        elif action == "flag":
+            flag = max(0, min(7, int(payload.get("flag") or 0)))
+            item.col.set_user_flag_for_cards(flag, card_ids)
+        elif action == "tags_add":
+            item.col.tags.bulk_add(note_ids, str(payload.get("tags") or ""))
+        elif action == "tags_remove":
+            item.col.tags.bulk_remove(note_ids, str(payload.get("tags") or ""))
+        elif action == "delete_notes":
+            item.col.remove_notes(note_ids)
+        elif action == "find_replace":
+            out = item.col.find_and_replace(
+                note_ids=note_ids,
+                search=str(payload.get("search") or ""),
+                replacement=str(payload.get("replacement") or ""),
+                regex=bool(payload.get("regex", False)),
+                field_name=str(payload.get("field_name") or "") or None,
+                match_case=bool(payload.get("match_case", False)),
+            )
+            return {"ok": True, "changes": pb(out)}
+        else:
+            raise HTTPException(400, f"Ação em massa não suportada: {action}")
+        return {"ok": True}
+
+
+@app.get("/api/anki/browser/duplicates")
+def browser_duplicates(
+    field: str = Query(..., min_length=1),
+    search: str = Query(default=""),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        rows = item.col.find_dupes(field, search)
+        return {
+            "field": field,
+            "groups": [
+                {"value": value, "note_ids": [int(nid) for nid in nids]}
+                for value, nids in rows
+            ],
+        }
+
+
+@app.get("/api/anki/stats/graphs")
+def collection_graphs(
+    search: str = Query(default=""),
+    days: int = Query(default=365, ge=0, le=36500),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        request = stats_pb2.GraphsRequest(search=search, days=days)
+        return pb(item.col._backend.graphs(request))
+
+
+@app.post("/api/anki/fsrs/optimize")
+def fsrs_optimize(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    request = scheduler_pb2.ComputeFsrsParamsRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Parâmetros FSRS inválidos: {exc}") from exc
+    with item.lock:
+        return pb(item.col._backend.compute_fsrs_params(request))
+
+
+@app.post("/api/anki/fsrs/simulate")
+def fsrs_simulate(
+    payload: dict[str, Any],
+    mode: str = Query(default="review"),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    request = scheduler_pb2.SimulateFsrsReviewRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Simulação FSRS inválida: {exc}") from exc
+    with item.lock:
+        if mode == "workload":
+            return pb(item.col._backend.simulate_fsrs_workload(request))
+        if mode == "optimal":
+            return pb(item.col._backend.compute_optimal_retention(request))
+        return pb(item.col._backend.simulate_fsrs_review(request))
+
+
+@app.get("/api/anki/custom-study/defaults/{deck_id}")
+def custom_study_defaults(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return pb(item.col.sched.custom_study_defaults(DeckId(deck_id)))
+
+
+@app.post("/api/anki/custom-study")
+def custom_study(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    request = scheduler_pb2.CustomStudyRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Estudo personalizado inválido: {exc}") from exc
+    with item.lock:
+        return {"ok": True, "changes": pb(item.col.sched.custom_study(request))}
+
+
+@app.get("/api/anki/filtered-deck/{deck_id}")
+def get_filtered_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return {
+            "deck": pb(item.col.sched.get_or_create_filtered_deck(DeckId(deck_id))),
+            "orders": list(item.col.sched.filtered_deck_order_labels()),
+        }
+
+
+@app.put("/api/anki/filtered-deck/{deck_id}")
+def update_filtered_deck(
+    deck_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        current = item.col.sched.get_or_create_filtered_deck(DeckId(deck_id))
+        try:
+            ParseDict(payload, current, ignore_unknown_fields=False)
+        except Exception as exc:
+            raise HTTPException(400, f"Baralho filtrado inválido: {exc}") from exc
+        out = item.col.sched.add_or_update_filtered_deck(current)
+        return {"ok": True, "deck_id": int(out.id), "deck": pb(current)}
+
+
+@app.post("/api/anki/filtered-deck/{deck_id}/rebuild")
+def rebuild_filtered_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return {"ok": True, "changes": pb(item.col.sched.rebuild_filtered_deck(DeckId(deck_id)))}
+
+
+@app.post("/api/anki/filtered-deck/{deck_id}/empty")
+def empty_filtered_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return {"ok": True, "changes": pb(item.col.sched.empty_filtered_deck(DeckId(deck_id)))}
+
+
+@app.get("/api/anki/empty-cards")
+def empty_cards_report(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return pb(item.col.get_empty_cards())
+
+
+@app.post("/api/anki/empty-cards/delete")
+def delete_empty_cards(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    ids = [int(x) for x in payload.get("card_ids", [])]
+    with item.lock:
+        out = item.col.remove_cards_and_orphaned_notes(ids)
+        return {"ok": True, "changes": pb(out)}
+
+
+@app.post("/api/anki/media/trash")
+def media_trash(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    files = [os.path.basename(str(x)) for x in payload.get("files", [])]
+    with item.lock:
+        item.col.media.trash_files(files)
+        return {"ok": True, "count": len(files)}
+
+
+@app.post("/api/anki/media/restore-trash")
+def media_restore_trash(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        item.col.media.restore_trash()
+        return {"ok": True}
+
+
+@app.post("/api/anki/media/empty-trash")
+def media_empty_trash(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        item.col.media.empty_trash()
+        return {"ok": True}
+
+
+@app.get("/api/anki/notetypes/full")
+def notetypes_full(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        rows = []
+        for nt in item.col.models.all():
+            rows.append(
+                {
+                    "notetype": nt,
+                    "use_count": int(item.col.models.use_count(nt)),
+                }
+            )
+        return {"notetypes": rows}
+
+
+@app.post("/api/anki/notetypes/create")
+def create_notetype(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    name = str(payload.get("name", "")).strip()
+    if not name:
+        raise HTTPException(400, "Informe o nome do tipo de nota.")
+    with item.lock:
+        source_id = int(payload.get("source_id") or 0)
+        source = item.col.models.get(source_id) if source_id else item.col.models.current()
+        if not source:
+            raise HTTPException(404, "Tipo de nota de origem não encontrado.")
+        clone = item.col.models.copy(source, add=False)
+        clone["name"] = name
+        out = item.col.models.add(clone)
+        return {"ok": True, "notetype_id": int(out.id)}
+
+
+@app.put("/api/anki/notetypes/{notetype_id}")
+def update_notetype(
+    notetype_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        nt = dict(payload.get("notetype") or payload)
+        nt["id"] = int(notetype_id)
+        item.col.models.update_dict(nt)
+        updated = item.col.models.get(notetype_id)
+        return {"ok": True, "notetype": updated}
+
+
+@app.delete("/api/anki/notetypes/{notetype_id}")
+def delete_notetype(
+    notetype_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return {"ok": True, "changes": pb(item.col.models.remove(notetype_id))}
+
+
+@app.get("/api/anki/notetypes/change-info")
+def change_notetype_info(
+    old_notetype_id: int = Query(...),
+    new_notetype_id: int = Query(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    with item.lock:
+        return pb(
+            item.col.models.change_notetype_info(
+                old_notetype_id=old_notetype_id,
+                new_notetype_id=new_notetype_id,
+            )
+        )
+
+
+@app.post("/api/anki/notetypes/change")
+def change_notetype(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = uc_for(user)
+    request = notetypes_pb2.ChangeNotetypeRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Mudança de tipo inválida: {exc}") from exc
+    with item.lock:
+        return {"ok": True, "changes": pb(item.col.models.change_notetype_of_notes(request))}
