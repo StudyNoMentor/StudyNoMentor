@@ -9,6 +9,8 @@ const wasm=readFileSync(join(ROOT,'src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm'
 mod.initSync(wasm);
 assert.equal(typeof mod.optimize_json,'function');
 assert.equal(typeof mod.simulate_json,'function','vendor FSRS deve expor o simulador oficial');
+assert.equal(typeof mod.memory_state_json,'function','vendor FSRS deve expor inferência oficial de memory state');
+assert.equal(typeof mod.health_check_json,'function','vendor FSRS deve expor Health Check oficial');
 const W=[0.212,1.2931,2.3065,8.2956,6.4133,0.8334,3.0194,0.001,1.8722,0.1666,0.796,1.4835,0.0614,0.2629,1.6483,0.6014,1.8729,0.5425,0.0912,0.0658,0.1542];
 const items=[],card_ids=[];
 for(let c=0;c<64;c++){
@@ -24,6 +26,23 @@ assert.ok(out.params.every(Number.isFinite),'todos os parâmetros otimizados dev
 const LO=[0.001,0.001,0.001,0.001,1,0.001,0.001,0.001,0,0,0.001,0.001,0.001,0.001,0,0,1,0,0,0.01,0.1];
 const HI=[100,100,100,100,10,4,4,0.75,4.5,0.8,3.5,5,0.25,0.9,4,1,6,2,2,0.8,0.8];
 assert.ok(out.params.every((x,i)=>x>=LO[i]-1e-9&&x<=HI[i]+1e-9),'parâmetros devem permanecer dentro dos limites oficiais FSRS-6');
+
+const mem=JSON.parse(mod.memory_state_json(JSON.stringify({
+  reviews:[{rating:3,delta_t:0},{rating:3,delta_t:7}],
+  params:W,
+  starting_sm2:null,
+  desired_retention:.9
+})));
+assert.ok(mem.stability>0&&Number.isFinite(mem.difficulty)&&mem.next_interval>0,'memory_state/next_interval devem sair do fsrs-rs');
+
+const hc=JSON.parse(mod.health_check_json(JSON.stringify({
+  items,
+  card_ids,
+  num_relearning_steps:1
+})));
+assert.equal(hc.fsrs_items,items.length,'Health Check deve avaliar exatamente o conjunto oficial');
+assert.equal(typeof hc.passed,'boolean','Health Check >300 itens deve devolver decisão oficial');
+assert.ok(Number.isFinite(hc.adjusted_log_loss)&&Number.isFinite(hc.adjusted_rmse),'Health Check deve devolver métricas ajustadas oficiais');
 
 const simInput={
   revlogs:[],
