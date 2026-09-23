@@ -81,6 +81,11 @@ const statsSrc=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8
 assert.doesNotMatch(statsSrc,/Calcular retenção mínima recomendada/,'CMRR removido do Anki 25.07 não deve continuar exposto na UI atual');
 assert.match(statsSrc,/anki-sim-additional/,'simulador deve expor cards novos adicionais');
 assert.match(statsSrc,/anki-sim-review-limit/,'simulador deve expor máximo de revisões por dia');
+assert.match(statsSrc,/approximate:false/,'simulador da UI deve usar coleção completa');
+assert.match(statsSrc,/Help Me Decide/,'simulador deve expor Help Me Decide');
+assert.match(statsSrc,/Card Counts/,'estatísticas devem expor Card Counts');
+assert.match(statsSrc,/Review Time/,'estatísticas devem expor Review Time');
+assert.match(statsSrc,/Card Ease/,'estatísticas devem expor Card Ease');
 
 const structure=M.structuralIssues();
 assert.equal(Array.isArray(structure.badOrd),true);
