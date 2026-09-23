@@ -102,7 +102,7 @@
   function montar() {
     const atual = document.querySelector('.screen.active');
     const ativa = atual ? atual.id.replace('screen-', '') : '';
-    grid.innerHTML = [...document.querySelectorAll('.tab[data-screen]')].map(t => {
+    grid.innerHTML = [...document.querySelectorAll('.tab[data-screen]')].filter(t => !t.hidden && t.getAttribute('aria-hidden') !== 'true').map(t => {
       const ico = t.querySelector('.tab-icon');
       const lbl = t.querySelector('.tab-label');
       const tela = t.dataset.screen;
