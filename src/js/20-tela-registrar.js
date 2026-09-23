@@ -230,7 +230,7 @@
   cancelEditBtn.addEventListener('click', exitEditMode);
 
   function renderRecent() {
-    const allEntries = DB.getEntries();
+    const allEntries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
     if (allEntries.length === 0) {
       recentSection.style.display = 'none';
       return;
