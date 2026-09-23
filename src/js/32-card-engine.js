@@ -506,8 +506,34 @@ const CardEngine = {
     if (dias < 365) { const mo = Math.round(dias / 30 * 10) / 10; return mo === 1 ? '1 mês' : mo + ' meses'; }
     const an = Math.round(dias / 365 * 10) / 10; return an === 1 ? '1 ano' : an + ' anos';
   },
-  // ---- Cloze / Omissão de palavras: {{texto}} ou {{c1::texto}} ----
-  hasCloze(text) { return (typeof AnkiParity !== 'undefined') ? AnkiParity.clozeOrdinals(text).length > 0 : /\{\{[\s\S]*?\}\}/.test(String(text || '')); },
+  // ---- Cloze / Omissão de palavras: aceita o atalho {{texto}}, mas
+  // persiste sempre no formato canônico do Anki: {{c1::texto}}.
+  clozeOrdinals(text) {
+    const s = String(text || '');
+    if (typeof AnkiParity !== 'undefined') return AnkiParity.clozeOrdinals(s);
+    const out = new Set();
+    s.replace(/\{\{c([\d,]+)::[\s\S]*?\}\}/gi, (_m, raw) => {
+      String(raw || '').split(',').forEach(x => {
+        const n = Number(x);
+        if (Number.isInteger(n) && n > 0) out.add(n);
+      });
+      return _m;
+    });
+    return [...out].sort((a, b) => a - b);
+  },
+  nextClozeOrdinal(text) {
+    const ords = this.clozeOrdinals(text);
+    return ords.length ? Math.max(...ords) + 1 : 1;
+  },
+  normalizeCloze(text) {
+    let next = this.nextClozeOrdinal(text);
+    return String(text || '').replace(/\{\{(?!c[\d,]+::)([\s\S]*?)\}\}/gi, (m, inner) => {
+      // {{ }} vazio continua inválido; só atalhos com conteúdo viram Cloze.
+      if (!this.plain(inner)) return m;
+      return '{{c' + (next++) + '::' + inner + '}}';
+    });
+  },
+  hasCloze(text) { return this.clozeOrdinals(this.normalizeCloze(text)).length > 0; },
   // reveal=false => mostra [ ... ] no lugar; reveal=true => revela destacado
   clozeRender(html, reveal, ordinal) {
     if (typeof AnkiParity !== 'undefined') return AnkiParity.revealCloze(html, Number(ordinal) || 1, !reveal);
