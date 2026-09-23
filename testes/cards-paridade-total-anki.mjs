@@ -38,6 +38,15 @@ CardsScreen.renderRevisar({innerHTML:''});
 eq(queueBuilds,2,'invalidação explícita reconstrói a fila');
 CardsScreen.buildQueue=realBuild;
 
+// ── FSRS-6 short-term: semântica exata do fsrs-rs 6.6.2 ─────────────────
+{
+  const w=FSRS.DEFAULT_W,S=.2;
+  const hard=FSRS.nextS_short(S,2,w),good=FSRS.nextS_short(S,3,w),easy=FSRS.nextS_short(S,4,w);
+  ok(hard<S,'Hard pode reduzir estabilidade curta quando o multiplicador FSRS-6 é < 1');
+  ok(good>=S,'Good nunca pode reduzir estabilidade curta');
+  ok(easy>=S,'Easy nunca pode reduzir estabilidade curta');
+}
+
 // ── RNG oficial: rand_core seed_from_u64 + StdRng/ChaCha12 ────────────────
 for(const [seed,a,b] of [
   [0n,0xCD2C6F7F,0xBB2A3FB2],
