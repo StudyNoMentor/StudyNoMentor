@@ -1,9 +1,11 @@
 use fsrs::{
-    compute_parameters, ComputeParametersInput, FSRSItem, FSRSReview, MemoryState,
-    TrainingConfig, DEFAULT_PARAMETERS, FSRS,
+    check_and_fill_parameters, compute_parameters, extract_simulator_config, simulate, Card,
+    ComputeParametersInput, FSRSItem, FSRSReview, MemoryState, ReviewPriorityFn, RevlogEntry,
+    RevlogReviewKind, SimulatorConfig, TrainingConfig, DEFAULT_PARAMETERS, FSRS,
 };
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use std::sync::Arc;
 
 #[derive(Debug, Deserialize)]
 struct InputReview {
@@ -148,6 +150,207 @@ pub fn optimize_json(input_json: &str) -> Result<String, JsValue> {
         fsrs_rs_version: "6.6.2",
         training_epochs: 8,
         short_term_enabled: true,
+    })
+    .map_err(js_err)
+}
+
+
+#[derive(Debug, Deserialize)]
+struct SimRevlogInput {
+    id: i64,
+    cid: i64,
+    button_chosen: u8,
+    interval: i32,
+    last_interval: i32,
+    ease_factor: u32,
+    taken_millis: u32,
+    review_kind: u8,
+}
+
+#[derive(Debug, Deserialize)]
+struct SimCardInput {
+    id: i64,
+    difficulty: f32,
+    stability: f32,
+    last_date: f32,
+    due: f32,
+    interval: f32,
+    lapses: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct SimulateInput {
+    revlogs: Vec<SimRevlogInput>,
+    next_day_at: i64,
+    params: Vec<f32>,
+    desired_retention: f32,
+    days_to_simulate: usize,
+    new_card_count: usize,
+    introduced_today_count: usize,
+    new_limit: usize,
+    review_limit: usize,
+    max_interval: f32,
+    new_cards_ignore_review_limit: bool,
+    suspend_after_lapses: Option<u32>,
+    learning_step_count: usize,
+    relearning_step_count: usize,
+    review_order: String,
+    cards: Vec<SimCardInput>,
+}
+
+#[derive(Debug, Serialize)]
+struct SimulateOutput {
+    memorized: Vec<f32>,
+    reviews: Vec<usize>,
+    news: Vec<usize>,
+    time: Vec<f32>,
+    correct: Vec<usize>,
+    introduced: Vec<usize>,
+    simulated_cards: usize,
+    fsrs_rs_version: &'static str,
+}
+
+fn review_kind_from_u8(kind: u8) -> RevlogReviewKind {
+    match kind {
+        0 => RevlogReviewKind::Learning,
+        1 => RevlogReviewKind::Review,
+        2 => RevlogReviewKind::Relearning,
+        3 => RevlogReviewKind::Filtered,
+        _ => RevlogReviewKind::Manual,
+    }
+}
+
+fn review_priority(order: &str) -> Option<ReviewPriorityFn> {
+    match order {
+        "easeAsc" => Some(ReviewPriorityFn::new(|c: &Card| -(c.difficulty * 100.0) as i32)),
+        "easeDesc" => Some(ReviewPriorityFn::new(|c: &Card| (c.difficulty * 100.0) as i32)),
+        "intervalsAsc" => Some(ReviewPriorityFn::new(|c: &Card| c.interval as i32)),
+        "intervalsDesc" => Some(ReviewPriorityFn::new(|c: &Card| (c.interval as i32).saturating_neg())),
+        "retrievabilityAsc" => Some(ReviewPriorityFn::new(|c: &Card| (c.retrievability() * 1000.0) as i32)),
+        "retrievabilityDesc" => Some(ReviewPriorityFn::new(|c: &Card| -(c.retrievability() * 1000.0) as i32)),
+        "day" | "dayThenDeck" | "deckThenDay" => Some(ReviewPriorityFn::new(|c: &Card| c.scheduled_due() as i32)),
+        _ => None,
+    }
+}
+
+/// Simulador oficial do FSRS usado pelo painel de Cards.
+///
+/// A rotina delega a evolução temporal ao próprio fsrs-rs 6.6.2. O JavaScript
+/// apenas traduz a coleção Study para o mesmo conjunto de entradas que o Anki
+/// fornece ao backend: estados S/D, vencimento relativo, revlog e limites.
+#[wasm_bindgen]
+pub fn simulate_json(input_json: &str) -> Result<String, JsValue> {
+    let input: SimulateInput = serde_json::from_str(input_json).map_err(js_err)?;
+    if input.days_to_simulate == 0 {
+        return Err(js_err("FSRS simulator: days_to_simulate deve ser maior que zero"));
+    }
+
+    let params = check_and_fill_parameters(&input.params).map_err(js_err)?;
+    let shared_params = Arc::new(params.clone());
+
+    let revlogs = input
+        .revlogs
+        .into_iter()
+        .map(|r| RevlogEntry {
+            id: r.id,
+            cid: r.cid,
+            usn: -1,
+            button_chosen: r.button_chosen,
+            interval: r.interval,
+            last_interval: r.last_interval,
+            ease_factor: r.ease_factor,
+            taken_millis: r.taken_millis,
+            review_kind: review_kind_from_u8(r.review_kind),
+        })
+        .collect();
+
+    let observed = extract_simulator_config(revlogs, input.next_day_at, true);
+    let mut cards: Vec<Card> = input
+        .cards
+        .into_iter()
+        .filter(|c| c.stability > 1e-9)
+        .map(|c| Card {
+            id: c.id,
+            difficulty: c.difficulty,
+            stability: c.stability,
+            last_date: c.last_date,
+            due: c.due,
+            interval: c.interval,
+            lapses: c.lapses,
+            desired_retention: input.desired_retention,
+            parameters: shared_params.clone(),
+        })
+        .collect();
+
+    if input.new_limit > 0 {
+        let introduced_today = input.introduced_today_count.min(input.new_limit);
+        cards.extend((0..input.new_card_count).map(|i| Card {
+            id: -((i as i64) + 1),
+            difficulty: f32::NEG_INFINITY,
+            // O Anki usa 1e-8 para o card novo sintético não ser descartado
+            // pelo filtro de estabilidade do simulador do fsrs-rs.
+            stability: 1e-8,
+            last_date: f32::NEG_INFINITY,
+            due: ((introduced_today + i) / input.new_limit) as f32,
+            interval: f32::NEG_INFINITY,
+            lapses: 0,
+            desired_retention: input.desired_retention,
+            parameters: shared_params.clone(),
+        }));
+    }
+
+    if cards.is_empty() {
+        return Ok(serde_json::to_string(&SimulateOutput {
+            memorized: vec![0.0; input.days_to_simulate],
+            reviews: vec![0; input.days_to_simulate],
+            news: vec![0; input.days_to_simulate],
+            time: vec![0.0; input.days_to_simulate],
+            correct: vec![0; input.days_to_simulate],
+            introduced: vec![0; input.days_to_simulate],
+            simulated_cards: 0,
+            fsrs_rs_version: "6.6.2",
+        }).map_err(js_err)?);
+    }
+
+    let config = SimulatorConfig {
+        deck_size: cards.len(),
+        learn_span: input.days_to_simulate,
+        max_cost_perday: f32::MAX,
+        max_ivl: input.max_interval.max(1.0),
+        first_rating_prob: observed.first_rating_prob,
+        review_rating_prob: observed.review_rating_prob,
+        learn_limit: input.new_limit,
+        review_limit: input.review_limit,
+        new_cards_ignore_review_limit: input.new_cards_ignore_review_limit,
+        suspend_after_lapses: input.suspend_after_lapses,
+        post_scheduling_fn: None,
+        review_priority_fn: review_priority(&input.review_order),
+        learning_step_transitions: observed.learning_step_transitions,
+        relearning_step_transitions: observed.relearning_step_transitions,
+        state_rating_costs: observed.state_rating_costs,
+        learning_step_count: input.learning_step_count,
+        relearning_step_count: input.relearning_step_count,
+    };
+
+    // None reproduz o Anki: fsrs-rs usa a semente determinística padrão 42.
+    let out = simulate(
+        &config,
+        &params,
+        input.desired_retention,
+        None,
+        Some(cards),
+    )
+    .map_err(js_err)?;
+
+    serde_json::to_string(&SimulateOutput {
+        memorized: out.memorized_cnt_per_day,
+        reviews: out.review_cnt_per_day,
+        news: out.learn_cnt_per_day,
+        time: out.cost_per_day,
+        correct: out.correct_cnt_per_day,
+        introduced: out.introduced_cnt_per_day,
+        simulated_cards: out.cards.len(),
+        fsrs_rs_version: "6.6.2",
     })
     .map_err(js_err)
 }
