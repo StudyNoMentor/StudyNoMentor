@@ -3,7 +3,7 @@ name: Cards FSRS 6.6.2 vendor
 on:
   push:
     branches:
-      - fix/cards-anki-26092-total-parity-20260922
+      - fix/cards-anki-perfect-parity-20260923
     paths:
       - 'tools/cards-fsrs-wasm/**'
       - '.github/workflows/cards-fsrs-vendor.yml'
@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: fix/cards-anki-26092-total-parity-20260922
+          ref: fix/cards-anki-perfect-parity-20260923
           fetch-depth: 0
 
       - uses: dtolnay/rust-toolchain@stable
@@ -44,7 +44,7 @@ jobs:
             --out-dir src/vendor/fsrs-6.6.2 \
             --out-name fsrs_optimizer
           sha256sum src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm | awk '{print $1}' > src/vendor/fsrs-6.6.2/SHA256
-          printf '%s\n' '{"fsrs_rs":"6.6.2","wasm_bindgen":"0.2.100","anki_reference":"26.09.2","training_epochs":8,"short_term":true}' > src/vendor/fsrs-6.6.2/version.json
+          printf '%s\n' '{"fsrs_rs":"6.6.2","wasm_bindgen":"0.2.100","anki_reference":"26.09.2","training_epochs":8,"short_term":true,"simulator":"fsrs::simulate"}' > src/vendor/fsrs-6.6.2/version.json
 
       - name: Commit reproducible vendor assets
         run: |
@@ -57,4 +57,4 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m 'build(cards): vendor fsrs-rs 6.6.2 wasm'
-          git push origin HEAD:fix/cards-anki-26092-total-parity-20260922
+          git push origin HEAD:fix/cards-anki-perfect-parity-20260923
