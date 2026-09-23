@@ -90,7 +90,7 @@ const LeisScreen = {
   renderCards() {
     const wrap = document.getElementById('leis-cards');
     if (!wrap) return;
-    const todas = DB.getLeis().slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+    const todas = (DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis()).slice().sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
     // A busca só aparece quando há leis o bastante para valer a pena procurar.
     const barra = document.querySelector('.leis-busca');
     if (barra) barra.hidden = todas.length < 4;
