@@ -202,6 +202,35 @@ const AnkiParity = {
     const weights=ints.map((d,i)=>counts[i]===0?1:Math.pow(1/counts[i],2.15)*Math.pow(1/d,3)*sib[i]*easy[i]);
     const idx=this.weightedIndex(weights,seed);return idx==null?null:ints[idx];
   },
+  rescheduleLoadBalance(interval,maxIv,minIv,seed,card,daysElapsed){
+    const iv=Number(interval),minimum=Math.max(1,Number(minIv)||1),maximum=Math.max(minimum,Number(maxIv)||36500),elapsed=Math.max(0,Math.floor(Number(daysElapsed)||0));
+    const [rawLo,hi]=FSRS.constrainedFuzzBounds(iv,minimum,maximum);
+    if(hi<elapsed)return null; // oficial cai para fuzz normal se toda a janela ficou no passado
+    const lo=Math.max(rawLo,elapsed),ints=[];for(let d=lo;d<=hi;d++)ints.push(d);
+    if(!ints.length)return null;
+    const preset=this.configIdForDeck(card&&(card.originalDeckId||card.deckId)),today=todayCards(),all=DB.getCards();
+    const dueToday=all.filter(c=>{
+      if(c.suspenso||c.dueTs||!c.due)return false;
+      const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
+      return ph==='review'&&this.configIdForDeck(c.originalDeckId||c.deckId)===preset&&String(c.due)<=today;
+    }).length;
+    const reviewedToday=(DB.getRevlog()||[]).filter(r=>{
+      if(String(r.date||'').slice(0,10)!==today)return false;const x=DB.getCard(r.cardId);
+      return x&&this.configIdForDeck(x.originalDeckId||x.deckId)===preset&&Number(r.grade)>=1&&Number(r.grade)<=4;
+    }).length;
+    const counts=ints.map(d=>{
+      if(d<=elapsed)return dueToday+reviewedToday;
+      const target=CardEngine.addDays(today,d-elapsed);let n=0;
+      all.forEach(c=>{if(c.suspenso||c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');if(ph==='review'&&this.configIdForDeck(c.originalDeckId||c.deckId)===preset&&String(c.due)===target)n++;});return n;
+    });
+    const cfg=this.cfgForCard(card),raw=Array.isArray(cfg.easyDays)&&cfg.easyDays.length===7?cfg.easyDays:[1,1,1,1,1,1,1],
+      days=[raw[1],raw[2],raw[3],raw[4],raw[5],raw[6],raw[0]].map(x=>this._easyKind(x)),
+      weekdays=ints.map(d=>{const due=CardEngine.addDays(today,d-elapsed);const wd=new Date(due+'T00:00:00').getDay();return (wd+6)%7;}),
+      total=counts.reduce((a,b)=>a+b,0),pct=weekdays.reduce((a,w)=>a+this._easyLoad(days[w]),0),
+      easy=weekdays.map((wd,i)=>{let k=days[wd];if(k==='reduced'){const other=total-counts[i],otherPct=pct-.5,normalized=counts[i]/.5,threshold=otherPct>0?other/otherPct:Infinity;k=normalized>threshold?'minimum':'normal';}return this._easyLoad(k);});
+    const weights=ints.map((d,i)=>counts[i]===0?1:Math.pow(1/counts[i],2.15)*Math.pow(1/Math.max(1,d),3)*easy[i]);
+    const idx=this.weightedIndex(weights,seed);return idx==null?null:ints[idx];
+  },
 
   // Tokenização equivalente nos casos de Cloze do Anki: c1, c1,2, dicas e aninhamento.
   _parseOrdinals(raw){const s=new Set();String(raw||'').split(',').forEach(x=>{const n=Number(x);if(Number.isInteger(n)&&n>=0&&n<=65535)s.add(n);});return [...s].sort((a,b)=>a-b);},
@@ -680,8 +709,104 @@ AnkiParity._trainingAffectsScheduling=function(r){
 };
 AnkiParity._trainingInterval=function(r){
   if(r&&r.ankiInterval!=null)return Number(r.ankiInterval)||0;
+  if(r&&r.interval!=null)return Number(r.interval)||0;
   if(r&&r.intervalo!=null)return Number(r.intervalo)||0;
   return 0;
+};
+AnkiParity._trainingLastInterval=function(r){
+  if(r&&r.ankiLastInterval!=null)return Number(r.ankiLastInterval)||0;
+  if(r&&r.lastInterval!=null)return Number(r.lastInterval)||0;
+  if(r&&r.last_interval!=null)return Number(r.last_interval)||0;
+  // Revlogs nativos antigos do Study gravavam em `intervalo` o intervalo
+  // que o card tinha ANTES da resposta, equivalente ao last_interval do Anki.
+  if(r&&r.intervalo!=null)return Number(r.intervalo)||0;
+  return 0;
+};
+AnkiParity._trainingEaseFactor=function(r){
+  const raw=Number(r&&(r.easeFactor!=null?r.easeFactor:(r.ease_factor!=null?r.ease_factor:r.ease)));
+  if(!Number.isFinite(raw)||raw<=0)return 2.5;
+  return raw>10?raw/1000:raw;
+};
+AnkiParity.fsrsMemoryStateData=function(entries,nextDayAtSec,ignoreBeforeMs,historicalRetention,card){
+  const arr=(entries||[]).slice().sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
+  if(!arr.length)return null;
+  const nextDay=Number(nextDayAtSec)||Math.floor((typeof proximaViradaTs==='function'?proximaViradaTs():Date.now()+86400000)/1000);
+  const cutoff=Number(ignoreBeforeMs)||0;
+  let firstOfLastLearn=null,firstUserGrade=null,revlogsComplete=false;
+  let lastReviewedAtMs=null,previousInterval=null;
+
+  // get_last_revlog_info() do Anki: reset limpa o marcador; Again não fornece
+  // previous_interval para o piso do fuzz de reagendamento.
+  for(const e of arr){
+    const kind=this._trainingKind(e);
+    if(this._trainingAffectsScheduling(e)){
+      lastReviewedAtMs=Number(e.ts)||null;
+      previousInterval=Number(e.grade)>1?Math.max(0,this._trainingLastInterval(e)):null;
+    }else if(kind==='reset'){
+      lastReviewedAtMs=null;previousInterval=null;
+    }
+  }
+
+  // reviews_for_fsrs(..., training=false), percorrido de trás para frente.
+  for(let index=arr.length-1;index>=0;index--){
+    const e=arr[index],kind=this._trainingKind(e);
+    if(kind==='filtered')continue;
+    const user=this._trainingHasRating(e),within=(Number(e.ts)||0)>cutoff,iv=this._trainingInterval(e);
+    if(user&&within&&(iv>=1||iv<=-86400))firstUserGrade=index;
+    if(user&&kind==='learning'){
+      firstOfLastLearn=index;revlogsComplete=true;
+    }else if(kind==='reset'){
+      if(firstOfLastLearn!=null){revlogsComplete=true;break;}
+      if(firstUserGrade!=null){revlogsComplete=false;break;}
+      return null;
+    }else if(firstOfLastLearn!=null){
+      break;
+    }
+  }
+
+  if(firstOfLastLearn!=null&&(Number(arr[firstOfLastLearn].ts)||0)<cutoff&&firstOfLastLearn<arr.length-1){
+    revlogsComplete=false;firstOfLastLearn=null;
+  }
+
+  let work;
+  if(firstOfLastLearn!=null){
+    work=arr.slice(firstOfLastLearn);
+  }else{
+    if(firstUserGrade==null)return null;
+    work=arr.slice(firstUserGrade);
+  }
+  const kept=work.filter(e=>this._trainingAffectsScheduling(e));
+  if(!kept.length)return null;
+
+  const reviews=kept.map((e,i)=>{
+    let delta=0;
+    if(i>0){
+      const prev=this._trainingDaysElapsed(kept[i-1].ts,nextDay);
+      const cur=this._trainingDaysElapsed(e.ts,nextDay);
+      delta=Math.max(0,prev-cur);
+    }
+    return {rating:Number(e.grade),delta_t:delta};
+  });
+
+  let startingSm2=null;
+  if(!revlogsComplete){
+    const first=kept[0];
+    let interval=this._trainingInterval(first);
+    // Para revlogs nativos antigos, `intervalo` era last_interval. O intervalo
+    // pós-resposta pode ser recuperado da revisão seguinte ou do estado atual.
+    if(first&&first.ankiInterval==null&&first.interval==null){
+      if(kept.length>1)interval=this._trainingLastInterval(kept[1]);
+      else if(card&&Number(card.intervalo)>0)interval=Number(card.intervalo);
+    }
+    startingSm2={
+      ease_factor:this._trainingEaseFactor(first),
+      interval:Math.max(1,Number(interval)||1),
+      historical_retention:Math.max(.5,Math.min(.99,Number(historicalRetention)||.9))
+    };
+    reviews.shift();
+  }
+
+  return {reviews,startingSm2,lastReviewedAtMs,previousInterval,revlogsComplete,filteredRevlogs:kept};
 };
 AnkiParity._trainingDaysElapsed=function(tsMs,nextDayAtSec){
   const sec=Math.floor((Number(tsMs)||0)/1000);
