@@ -72,10 +72,16 @@ assert.deepEqual(JSON.parse(JSON.stringify(sim1.reviews)),JSON.parse(JSON.string
 assert.ok(sim1.reviews.every(Number.isFinite));
 assert.ok(sim1.time.every(x=>Number.isFinite(x)&&x>=0));
 
-const opt=M.minimumRecommendedRetention(30);
-assert.ok(opt.recommended>=.70&&opt.recommended<=.95);
-assert.equal(opt.curve.length,26);
+const simOpts=M.simulate(30,.91,{sample:100,additionalNew:50,newLimit:7,reviewLimit:25,maxInterval:180});
+assert.equal(simOpts.additionalNew,50);
+assert.equal(simOpts.newLimit,7);
+assert.equal(simOpts.reviewLimit,25);
+assert.equal(simOpts.maxInterval,180);
+const statsSrc=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
+assert.doesNotMatch(statsSrc,/Calcular retenção mínima recomendada/,'CMRR removido do Anki 25.07 não deve continuar exposto na UI atual');
+assert.match(statsSrc,/anki-sim-additional/,'simulador deve expor cards novos adicionais');
+assert.match(statsSrc,/anki-sim-review-limit/,'simulador deve expor máximo de revisões por dia');
 
 const structure=M.structuralIssues();
 assert.equal(Array.isArray(structure.badOrd),true);
-console.log('PARIDADE MÁXIMA STATS/MEDIA: inventário, lixeira, simulação determinística e retenção recomendada validados.');
+console.log('PARIDADE MÁXIMA STATS/MEDIA: inventário, lixeira, simulação determinística e controles atuais do Anki validados.');

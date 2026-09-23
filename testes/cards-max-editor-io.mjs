@@ -54,5 +54,8 @@ assert.equal(io.state.shapes[0].left,io.state.shapes[1].left);
 const before=io.state.shapes.length;M.duplicate();
 assert.equal(io.state.shapes.length,before+2);
 assert.equal(io.state.selected.length,2);
+const ioBase=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
+assert.match(ioBase,/addEventListener\('paste'/,'Image Occlusion deve aceitar imagem colada da área de transferência');
+assert.match(ioBase,/_loadImageFile\(file\)/,'arquivo e clipboard devem compartilhar o mesmo carregador de imagem');
 
-console.log('PARIDADE MÁXIMA EDITOR/IO: metadados de campo, rich/plain editor e ferramentas estruturais de oclusão validados.');
+console.log('PARIDADE MÁXIMA EDITOR/IO: metadados, editor estrutural e entrada por clipboard validados.');
