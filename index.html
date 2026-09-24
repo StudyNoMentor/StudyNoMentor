@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v4798b68ea0">
+<meta name="diario-versao" content="v4ea02c6a48">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -7129,7 +7129,7 @@ window.__relationalBoot = true;
       <span class="section-label" style="margin:0;">Escopo</span>
       <div class="scope-toggle" id="hist-scope-toggle">
         <button type="button" data-scope="plan">Este planejamento</button>
-        <button type="button" data-scope="all" class="active">Todos os planejamentos</button>
+        <button type="button" data-scope="all" class="active">Toda a trajetória</button>
       </div>
     </div>
     <div id="historico-empty" class="empty-state" style="display:none;">
@@ -7172,7 +7172,8 @@ window.__relationalBoot = true;
           <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
             <div class="scope-toggle" id="evo-scope-toggle">
               <button type="button" data-scope="plan">Este planejamento</button>
-              <button type="button" data-scope="all" class="active">Todos os planejamentos</button>
+              <button type="button" data-scope="active" class="active">Planejamentos ativos</button>
+              <button type="button" data-scope="all">Toda a trajetória</button>
             </div>
           </div>
           <div style="display:flex; align-items:flex-end; gap: 14px; flex-wrap: wrap;">
@@ -8141,7 +8142,7 @@ window.__relationalBoot = true;
   <section role="region" tabindex="-1" class="screen" id="screen-planejamentos">
     <div class="page-header">
       <h2 class="page-title">Planejamentos</h2>
-      <p class="page-subtitle">Cada planejamento é um espaço isolado com seus próprios registros, matérias, ciclos e trilhas. Alterne entre eles a qualquer momento — o Histórico e a Evolução podem ser vistos só deste planejamento ou de forma consolidada, somando toda a sua trajetória.</p>
+      <p class="page-subtitle">Cada planejamento isola a estratégia atual — registros, matérias, ciclos, trilhas, TEC, Motor e Extras. Planejamentos pausados saem da operação sem apagar a trajetória. Cards/Anki e Links Úteis pertencem ao perfil e continuam disponíveis entre planejamentos.</p>
     </div>
 
     <section class="card">
@@ -8177,7 +8178,7 @@ window.__relationalBoot = true;
           <p class="hint" style="margin-top:8px;">Registros do diário, ciclos e semanas fechadas <strong>nunca</strong> são copiados. O histórico TEC só é trazido se você marcar a opção acima e vira uma cópia independente.</p>
         </div>
         <div class="submit-row" style="margin-top: 6px;">
-          <span class="save-note"><span class="dot"></span>cada planejamento guarda seus próprios dados</span>
+          <span class="save-note"><span class="dot"></span>dados operacionais ficam no planejamento; conhecimento global acompanha o perfil</span>
           <button type="button" class="btn-primary" id="np-create">Criar planejamento</button>
         </div>
       </div>
@@ -8208,7 +8209,7 @@ window.__relationalBoot = true;
     <div class="report-dialog-body">
       <div class="report-section-title" style="margin-top:0">Escopo</div>
       <div class="report-grid">
-        <div class="report-field"><label for="study-report-scope">Planejamentos</label><select id="study-report-scope"><option value="plan">Planejamento atual</option><option value="all">Todos os planejamentos</option></select></div>
+        <div class="report-field"><label for="study-report-scope">Planejamentos</label><select id="study-report-scope"><option value="plan">Planejamento atual</option><option value="active" selected>Planejamentos ativos</option><option value="all">Toda a trajetória (inclui pausados)</option></select></div>
         <div class="report-field"><label for="study-report-detail">Formato</label><select id="study-report-detail"><option value="summary">Relatório resumido</option><option value="complete">Relatório completo</option></select></div>
       </div>
       <div class="report-section-title">Período</div>
@@ -16472,6 +16473,39 @@ const DB = {
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
   get KEYS() { return this.keysForPlan(this._activePlanId()); },
 
+  /* Ajustes estratégicos pertencem ao PLANEJAMENTO, não ao perfil.
+     O helper abaixo mantém a compatibilidade com as antigas chaves por perfil:
+     o valor legado é herdado UMA única vez pelo planejamento que estiver ativo
+     quando a migração ocorrer. Outros planejamentos passam a ter estado próprio. */
+  planSettingKey(name, planId) {
+    return this._profilePrefix() + 'p:' + String(planId || this._activePlanId()) + ':' + String(name || '');
+  },
+  planSettingRaw(name, opts) {
+    const pid = String((opts && opts.planId) || this._activePlanId());
+    const key = this.planSettingKey(name, pid);
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (_) {}
+    if (raw !== null) return { key, raw, migrated: false };
+
+    const legacyKey = this._profilePrefix() + String(name || '');
+    const ownerKey = this._profilePrefix() + 'plan-settings-legacy-owner-v1';
+    let owners = {};
+    try { owners = JSON.parse(localStorage.getItem(ownerKey) || '{}') || {}; } catch (_) { owners = {}; }
+    let owner = owners[name] || null;
+    let legacy = null;
+    try { legacy = localStorage.getItem(legacyKey); } catch (_) {}
+
+    if (!owner && legacy !== null) {
+      owner = pid;
+      owners[name] = pid;
+      try { this.setRaw(ownerKey, JSON.stringify(owners)); } catch (_) {}
+    }
+    if (legacy !== null && String(owner || '') === pid) {
+      if (this.setRaw(key, legacy) !== false) return { key, raw: legacy, migrated: true };
+    }
+    return { key, raw: null, migrated: false };
+  },
+
   // Bancas oferecidas na criação de card (lista simples, editável em ⚙ Algoritmo → Gerenciar bancas)
   DEFAULT_BANCAS_CARDS: ['FCC', 'CEBRASPE', 'FGV', 'CESGRANRIO', 'VUNESP'],
   DEFAULT_METHODS: ['Videoaula', 'Leitura', 'PDF', 'Resumo', 'Questões', 'Revisão Teórica', 'Mapa mental', 'Outro'],
@@ -16527,7 +16561,7 @@ const DB = {
   },
   _pausedKnowledgeSuffix(suffix) {
     suffix = String(suffix || '');
-    return suffix === 'cards' || suffix === 'decks' || suffix === 'bancas-cards'
+    return suffix === 'cards' || suffix === 'decks' || suffix === 'bancas-cards' || suffix === 'links'
       || suffix === 'revlog' || suffix === 'revlog-pendente'
       || suffix.startsWith('revlog-arquivo')
       || suffix.startsWith('cards-');
@@ -18766,11 +18800,206 @@ const PlanManager = {
     if (p) Object.assign(p, patch);
     this.savePlans(plans);
   },
+  /* Cards/Anki são patrimônio do PERFIL. Como a persistência histórica ainda
+     fica fisicamente sob o namespace de um planejamento, excluir esse plano
+     primeiro migra toda a coleção que nasceu nele para outro plano operacional.
+     Isso inclui decks, cards, revlog e as entidades dinâmicas Note/NoteType. */
+  _migrateKnowledgeBeforeDelete(sourceId, targetId) {
+    sourceId = String(sourceId || ''); targetId = String(targetId || '');
+    if (!sourceId || !targetId || sourceId === targetId) return { ok:false, reason:'invalid-target' };
+    const sk = DB.keysForPlan(sourceId), tk = DB.keysForPlan(targetId);
+    const clone = x => { try { return JSON.parse(JSON.stringify(x)); } catch (_) { return x; } };
+    const same = (a,b) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; } };
+    let numericSeed = Date.now();
+    const allocNumeric = () => {
+      try {
+        if (typeof AnkiParity !== 'undefined' && AnkiParity._allocId) return AnkiParity._allocId();
+      } catch (_) {}
+      numericSeed += 1; return numericSeed;
+    };
+    const cleanTagged = x => {
+      const y = clone(x); if (y && typeof y === 'object') { delete y._planId; delete y._planNome; delete y._planPaused; } return y;
+    };
+
+    const sourceDecks = DB._get(sk.decks, []) || [], targetDecks = DB._get(tk.decks, []) || [];
+    const deckIds = new Set(targetDecks.map(x => String(x && x.id))), deckMap = new Map(), movedDecks = [];
+    sourceDecks.forEach(d0 => {
+      const d = cleanTagged(d0); if (!d) return;
+      const old = String(d.id), existing = targetDecks.find(x => String(x && x.id) === old);
+      let next = d.id;
+      if (existing && !same(existing, d)) {
+        do { next = DB._uid(); } while (deckIds.has(String(next)));
+        d.id = next;
+      }
+      deckMap.set(old, d.id); deckIds.add(String(d.id));
+      if (!existing || String(d.id) !== old) movedDecks.push(d);
+    });
+    movedDecks.forEach(d => {
+      ['parentId','filteredDeckId','originalDeckId'].forEach(k => {
+        if (d[k] != null && deckMap.has(String(d[k]))) d[k] = deckMap.get(String(d[k]));
+      });
+      targetDecks.push(d);
+    });
+
+    const entityPrefix = DB._profilePrefix() + 'p:' + sourceId + ':cards-';
+    const entityRows = [];
+    try {
+      for (let i=0;i<localStorage.length;i++) {
+        const key=localStorage.key(i);
+        if (key && String(key).startsWith(entityPrefix)) entityRows.push([String(key), localStorage.getItem(key)]);
+      }
+    } catch (_) {}
+
+    const byKind = kind => entityRows.filter(([k]) => k.startsWith(entityPrefix + kind + ':'));
+    const migratedEntityKeys = new Set();
+    const ntMap = new Map(), noteMap = new Map();
+    const targetEntityKey = (kind,id) => DB._profilePrefix() + 'p:' + targetId + ':cards-' + kind + ':' + String(id);
+
+    byKind('notetype').forEach(([key,raw]) => {
+      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) {}
+      if (!x || x.id == null) return;
+      const old=String(x.id), direct=targetEntityKey('notetype',x.id), existingRaw=localStorage.getItem(direct);
+      let next=x.id;
+      if (existingRaw != null && existingRaw !== raw) {
+        do { next=allocNumeric(); } while (localStorage.getItem(targetEntityKey('notetype',next)) != null);
+        x.id=next; x.ankiId=next;
+      }
+      ntMap.set(old,x.id);
+      let ok=true;
+      if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('notetype',x.id),JSON.stringify(x)) !== false;
+      if (ok) migratedEntityKeys.add(key);
+    });
+
+    byKind('note').forEach(([key,raw]) => {
+      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) {}
+      if (!x || x.id == null) return;
+      if (x.notetypeId != null && ntMap.has(String(x.notetypeId))) x.notetypeId=ntMap.get(String(x.notetypeId));
+      const old=String(x.id), direct=targetEntityKey('note',x.id), existingRaw=localStorage.getItem(direct);
+      let next=x.id;
+      if (existingRaw != null && existingRaw !== JSON.stringify(x)) {
+        do { next=allocNumeric(); } while (localStorage.getItem(targetEntityKey('note',next)) != null);
+        x.id=next; x.ankiId=next;
+      }
+      noteMap.set(old,x.id);
+      let ok=true;
+      if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('note',x.id),JSON.stringify(x)) !== false;
+      if (ok) migratedEntityKeys.add(key);
+    });
+
+    /* Compatibilidade futura: se uma versão posterior criar outra entidade
+       cards-* sob o planejamento, não a destrua só porque esta versão ainda
+       não conhece sua semântica. Copiamos byte-a-byte quando não há colisão;
+       se houver uma colisão diferente, cancelamos a exclusão em vez de perder
+       patrimônio do usuário. */
+    for (const [key,raw] of entityRows) {
+      if (migratedEntityKeys.has(key)) continue;
+      const suffix=key.slice(entityPrefix.length);
+      const targetKey=DB._profilePrefix() + 'p:' + targetId + ':cards-' + suffix;
+      const existingRaw=localStorage.getItem(targetKey);
+      if (existingRaw != null && existingRaw !== raw) return {ok:false,reason:'unknown-anki-entity-conflict',key:suffix};
+      if (existingRaw == null && DB.setRaw(targetKey,raw) === false) return {ok:false,reason:'save-unknown-anki-entity',key:suffix};
+      migratedEntityKeys.add(key);
+    }
+
+    const sourceCards = DB._get(sk.cards, []) || [], targetCards = DB._get(tk.cards, []) || [];
+    const cardIds = new Set(targetCards.map(x => String(x && x.id))), ankiIds = new Set(targetCards.map(x => String(x && x.ankiId)).filter(Boolean));
+    const cardMap = new Map(), prepared = [];
+    sourceCards.forEach(c0 => {
+      const card=cleanTagged(c0); if (!card) return;
+      const old=String(card.id), existing=targetCards.find(x => String(x && x.id) === old);
+
+      /* Primeiro remapeia as dependências. Só DEPOIS decide se um mesmo cardId
+         ainda representa o mesmo card. Isso evita duplicar o mesmo id quando,
+         por exemplo, o deck de origem precisou ganhar outro id no destino. */
+      ['deckId','originalDeckId','filteredDeckId'].forEach(k => {
+        if (card[k] != null && deckMap.has(String(card[k]))) card[k]=deckMap.get(String(card[k]));
+      });
+      if (card.notetypeId != null && ntMap.has(String(card.notetypeId))) card.notetypeId=ntMap.get(String(card.notetypeId));
+      if (card.noteId != null && noteMap.has(String(card.noteId))) card.noteId=noteMap.get(String(card.noteId));
+      if (card.ankiNoteId != null && noteMap.has(String(card.ankiNoteId))) card.ankiNoteId=noteMap.get(String(card.ankiNoteId));
+
+      let next=card.id;
+      const equivalent=!!existing && same(existing,card);
+      if (existing && !equivalent) {
+        do { next=DB._uid(); } while(cardIds.has(String(next)));
+        card.id=next;
+      }
+      const skip=equivalent && String(next)===old;
+      cardMap.set(old,card.id); cardIds.add(String(card.id));
+
+      if (!skip && card.ankiId != null && ankiIds.has(String(card.ankiId))) {
+        let aid; do { aid=allocNumeric(); } while(ankiIds.has(String(aid)));
+        card.ankiId=aid;
+      }
+      if (card.ankiId != null) ankiIds.add(String(card.ankiId));
+      prepared.push({old,card,skip});
+    });
+    prepared.forEach(x => {
+      if (x.card.reversedOf != null && cardMap.has(String(x.card.reversedOf))) x.card.reversedOf=cardMap.get(String(x.card.reversedOf));
+      if (!x.skip) targetCards.push(x.card);
+    });
+
+    const remapLogs = rows => (rows || []).map(r0 => {
+      const r=cleanTagged(r0); if (!r) return r;
+      if (r.cardId != null && cardMap.has(String(r.cardId))) r.cardId=cardMap.get(String(r.cardId));
+      return r;
+    }).filter(Boolean);
+    const sourceRev = remapLogs(DB._get(sk.revlog, []) || []), targetRev = DB._get(tk.revlog, []) || [];
+    const reviewIds = new Set(targetRev.map(r => String(r && (r.reviewId || r.id))).filter(Boolean));
+    sourceRev.forEach((r,i) => {
+      const rid=r.reviewId||r.id;
+      if (rid != null && reviewIds.has(String(rid))) {
+        const nr=DB._uid(); if (r.reviewId != null) r.reviewId=nr; else r.id=nr;
+      }
+      r._position=Math.max(targetRev.length+1,Number(r._position)||0)+i;
+      targetRev.push(r);
+      const id2=r.reviewId||r.id; if(id2!=null) reviewIds.add(String(id2));
+    });
+
+    const mergeSafety = suffix => {
+      if (!sk[suffix] || !tk[suffix]) return;
+      const src=remapLogs(DB._get(sk[suffix], []) || []), dst=DB._get(tk[suffix], []) || [];
+      if (src.length) DB._set(tk[suffix], dst.concat(src));
+    };
+
+    const sourceBanks=DB._get(sk.bancasCards,[])||[], targetBanks=DB._get(tk.bancasCards,[])||[];
+    const banks=[...new Set(targetBanks.concat(sourceBanks).map(x=>String(x||'').trim()).filter(Boolean))];
+
+    // Links Úteis também são patrimônio global do perfil. Como ainda moram
+    // fisicamente no plano de origem, acompanham a migração antes da exclusão.
+    const sourceLinks=DB._get(sk.links,[])||[], targetLinks=DB._get(tk.links,[])||[];
+    const linkIds=new Set(targetLinks.map(x=>String(x&&x.id)));
+    sourceLinks.forEach(l0=>{
+      const l=cleanTagged(l0); if(!l)return;
+      const existing=targetLinks.find(x=>String(x&&x.id)===String(l.id));
+      if(existing&&same(existing,l))return;
+      if(existing){let nid;do{nid=DB._uid();}while(linkIds.has(String(nid)));l.id=nid;}
+      linkIds.add(String(l.id));targetLinks.push(l);
+    });
+
+    if (DB._set(tk.decks,targetDecks) === false) return {ok:false,reason:'save-decks'};
+    if (DB._set(tk.cards,targetCards) === false) return {ok:false,reason:'save-cards'};
+    if (DB._set(tk.revlog,targetRev) === false) return {ok:false,reason:'save-revlog'};
+    if (DB._set(tk.links,targetLinks) === false) return {ok:false,reason:'save-links'};
+    if (banks.length) DB._set(tk.bancasCards,banks);
+    mergeSafety('revlogPendente'); mergeSafety('revlogArquivo');
+
+    /* Só removemos da origem as entidades que foram reconhecidas E confirmadas
+       no destino. Qualquer futuro cards-* que esta versão ainda não conheça fica
+       preservado em vez de ser destruído silenciosamente. */
+    entityRows.forEach(([key]) => {
+      if (migratedEntityKeys.has(key)) DB.delRaw(key,'planejamento excluído após migração do Anki');
+    });
+    try { DB.invalidarRevlogMemoria(); } catch (_) {}
+    try { if (typeof CardEngine !== 'undefined' && CardEngine.invalidateDueCache) CardEngine.invalidateDueCache(); } catch (_) {}
+    return {ok:true,targetId,cards:sourceCards.length,decks:sourceDecks.length,revlog:sourceRev.length,entities:entityRows.length};
+  },
+
   deletePlan(id) {
     id = String(id || '');
     const atuais = this.getPlans();
     const alvo = atuais.find(p => String(p.id) === id);
-    if (!alvo) return false;
+    if (!alvo || atuais.length <= 1) return false;
     /* Não deixa a exclusão criar um perfil que só tenha planejamentos pausados.
        Nesse estado nenhuma tela operacional teria um destino seguro para novas
        gravações. Reative outro antes de excluir o último operacional. */
@@ -18779,8 +19008,17 @@ const PlanManager = {
       const outrosQuaisquer = atuais.filter(p => String(p.id) !== id);
       if (!outrosOperacionais.length && outrosQuaisquer.length) return false;
     }
-    // apaga todos os dados namespaced do planejamento. A exclusão explícita é
-    // a única operação administrativa que pode atravessar o congelamento.
+    // Antes de apagar o namespace, move a memória Anki/Cards para um plano que
+    // continuará existindo. O plano ativo é o destino preferido.
+    const destino = atuais.find(p => String(p.id) === String(this.getActivePlanId()) && String(p.id) !== id && !this.isPaused(p.id))
+      || atuais.find(p => String(p.id) !== id && !this.isPaused(p.id))
+      || atuais.find(p => String(p.id) !== id);
+    if (!destino) return false;
+    const mig = this._migrateKnowledgeBeforeDelete(id, destino.id);
+    if (!mig || !mig.ok) return false;
+
+    // apaga os dados operacionais remanescentes do planejamento. A exclusão
+    // explícita é a única operação administrativa que atravessa o congelamento.
     const k = DB.keysForPlan(id);
     const wipe = () => Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
     if (DB.withPausedPlanWrite) DB.withPausedPlanWrite(wipe); else wipe();
@@ -25408,7 +25646,7 @@ function planCycleMode() {
 
     const previous = sel.value;
     sel.innerHTML = '<option value="">Escolha um planejamento…</option>' +
-      options.map(x => `<option value="${escapeHtml(x.plan.id)}">${escapeHtml(x.plan.nome)} · ${escapeHtml(x.source.kind)}</option>`).join('');
+      options.map(x => `<option value="${escapeHtml(x.plan.id)}">${PlanManager.isPaused(x.plan.id) ? '⏸ ' : ''}${escapeHtml(x.plan.nome)} · ${escapeHtml(x.source.kind)}</option>`).join('');
     if (previous && options.some(x => x.plan.id === previous)) sel.value = previous;
     btn.disabled = !sel.value;
     if (status && !importedCycleSource) status.textContent = defaultCycleImportStatus();
@@ -25670,7 +25908,7 @@ function planCycleMode() {
     const modeChanged = source.mode && source.mode !== planCycleMode();
     if (status) {
       status.textContent =
-        `Sugestão copiada de "${plan.nome}" (${source.kind}): ${source.subjects.length} matéria(s)` +
+        `Sugestão copiada de "${plan.nome}"${PlanManager.isPaused(plan.id) ? ' · origem pausada' : ''} (${source.kind}): ${source.subjects.length} matéria(s)` +
         (novos ? ` · ${novos} nova(s) neste planejamento` : '') +
         '. Datas, histórico e grade ficaram no planejamento de origem.' +
         (modeChanged ? ' Os parâmetros serão recalculados conforme o tipo do planejamento atual.' : '');
@@ -27588,7 +27826,7 @@ const ConquistasEngine = {
        descontar as horas e as Conquistas continuarem contando com elas. */
     try {
       if (DB.extrasCountGlobal()) {
-        ((DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras()) || []).forEach(x => {
+        ((DB.getAllExtrasTagged ? DB.getAllExtrasTagged({ includePaused: true }) : DB.getExtras()) || []).forEach(x => {
           if (!x.contaMetricas) return;
           (x.historico || []).forEach(h => {
             if (!h.data) return;
@@ -27705,11 +27943,11 @@ const ConquistasEngine = {
     const cards = g(() => DB.getAllCardsTagged ? DB.getAllCardsTagged() : DB.getCards(), []);
     const revlog = g(() => DB.getAllRevlogTagged ? DB.getAllRevlogTagged() : DB.getRevlog(), []);
     const leis = g(() => DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis(), []);
-    const extras = g(() => DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras(), []);
+    const extras = g(() => DB.getAllExtrasTagged ? DB.getAllExtrasTagged({ includePaused: true }) : DB.getExtras(), []);
     const decks = g(() => DB.getAllDecksTagged ? DB.getAllDecksTagged() : DB.getDecks(), []);
-    const tec = g(() => DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots(), []);
-    const incid = g(() => DB.getAllIncidenciaTagged ? DB.getAllIncidenciaTagged() : DB.getIncidencia(), []);
-    const ciclos = g(() => DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory(), []);
+    const tec = g(() => DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged({ includePaused: true }) : DB.getTecSnapshots(), []);
+    const incid = g(() => DB.getAllIncidenciaTagged ? DB.getAllIncidenciaTagged({ includePaused: true }) : DB.getIncidencia(), []);
+    const ciclos = g(() => DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged({ includePaused: true }) : DB.getCycleHistory(), []);
     const ent = entries || [];
 
     // semanas e meses ativos
@@ -27964,7 +28202,7 @@ const EvolucaoScreen = {
   filterStart: null,
   filterEnd: null,
   activeShortcut: 'all', // '7d' | '30d' | 'all' | null (null = intervalo personalizado)
-  scope: 'all', // trajetória realizada é global; 'plan' continua disponível como filtro
+  scope: 'active', // plan = atual · active = todos operacionais · all = toda a trajetória, inclusive pausados
   evoLineMode: 'week', // 'week' = % por semana | 'cum' = média acumulada
   evoLineSubjects: null, // Set de disciplinas selecionadas (null = ainda não inicializado)
 
@@ -28057,7 +28295,8 @@ const EvolucaoScreen = {
     if (!DB.extrasCountGlobal()) return [];
     const methodByTipo = { anki: 'Revisão Teórica', leitura: 'Leitura', questoes: 'Questões', revisao: 'Revisão Teórica', video: 'Videoaula', livre: 'Outro' };
     const out = [];
-    const extras = this.scope === 'all' && DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras();
+    const extras = this.scope === 'plan' ? DB.getExtras()
+      : (DB.getAllExtrasTagged ? DB.getAllExtrasTagged({ includePaused: this.scope === 'all' }) : DB.getExtras());
     extras.forEach(x => {
       if (!x.contaMetricas) return;
       (x.historico || []).forEach((h, i) => {
@@ -28084,7 +28323,8 @@ const EvolucaoScreen = {
   },
   // Fonte unificada de sessões p/ TODOS os gráficos: base (registros) + extras (se habilitado)
   _sourceEntries() {
-    const base = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const base = this.scope === 'plan' ? DB.getEntries()
+      : DB.getAllEntriesTagged({ includePaused: this.scope === 'all' });
     return base.concat(this._extraEntries());
   },
   // [MELHORIA 5] Modal com todos os níveis de uma conquista (requisitos p/ subir).
@@ -28163,7 +28403,7 @@ const EvolucaoScreen = {
   renderConquistas() {
     const box = document.getElementById('conquistas-body');
     if (!box) return;
-    const entries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const entries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged({ includePaused: true }) : DB.getEntries();
     const largo = window.innerWidth >= 900;
     const cal = ConquistasEngine.calendario(entries, largo ? 26 : 14);
     const marcos = ConquistasEngine.marcos(entries);
@@ -28863,7 +29103,8 @@ const EvolucaoScreen = {
   // ------- Aproveitamento por semana fechada (histórico de ciclos) -------
   renderMetaChart() {
     const container = document.getElementById('evolucao-meta-chart');
-    const hist = (this.scope === 'all' ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory())
+    const hist = (this.scope === 'plan' ? DB.getCycleHistory()
+      : DB.getAllCycleHistoryTagged({ includePaused: this.scope === 'all' }))
       .filter(w => w.avgPerformancePct !== null && w.avgPerformancePct !== undefined)
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
     if (hist.length === 0) {
@@ -28882,7 +29123,8 @@ const EvolucaoScreen = {
   // ------- Evolução no TecConcursos (retratos importados) -------
   renderTecChart() {
     const card = document.getElementById('evolucao-tec-card');
-    const snaps = this.scope === 'all' && DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
+    const snaps = this.scope === 'plan' ? DB.getTecSnapshots()
+      : (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged({ includePaused: this.scope === 'all' }) : DB.getTecSnapshots());
     const container = document.getElementById('evolucao-tec-chart');
     const legend = document.getElementById('evolucao-tec-legend');
     const sel = document.getElementById('evo-tec-disc');
@@ -43150,7 +43392,9 @@ window.addEventListener('screen:activated', (e) => {
    ============================================================ */
 const LinksScreen = {
   collection() { return DB.getAllLinksTagged ? DB.getAllLinksTagged() : DB.getLinks(); },
-  local(l) { return !!l && (!l._planId || String(l._planId) === String(DB._activePlanId())); },
+  // Links Úteis são patrimônio do perfil: continuam editáveis mesmo quando a
+  // persistência física nasceu em outro planejamento. O DB roteia a escrita à origem.
+  local(l) { return !!l; },
   _editingId: null,
   _draftLogo: null,
   _draftCor: '#4f46e5',
@@ -44437,7 +44681,10 @@ const DesempenhoTecScreen = {
     return DB.getTecSnapshots();
   },
   // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
-  _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },
+  _prefsKey() {
+    try { return DB.planSettingRaw ? DB.planSettingRaw('tec-prefs').key : DB.planSettingKey('tec-prefs'); }
+    catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':tec-prefs'; }
+  },
   _loadPrefs() {
     if (this._prefs) return this._prefs;
     this._prefs = DB._get(this._prefsKey(), {}) || {};
@@ -46787,7 +47034,7 @@ const PlanUI = {
             <div class="plan-stat"><div class="value">${CycleEngine.fmtHM(totalMin)}</div><div class="label">estudado</div></div>
             <div class="plan-stat"><div class="value">${weeks}</div><div class="label">semanas no histórico</div></div>
           </div>
-          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki continuam globais.</div>` : ''}
+          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki e Links Úteis continuam globais.</div>` : ''}
           <div class="plan-card-actions">
             ${isPaused
               ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar planejamento</button>'
@@ -46810,7 +47057,7 @@ const PlanUI = {
       if (pauseBtn) pauseBtn.addEventListener('click', async () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
         const ok = await UI.confirm(
-          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki continuam disponíveis globalmente.`,
+          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
           { title: '⏸ Pausar planejamento', okText: 'Pausar' }
         );
         if (!ok) return;
@@ -46851,7 +47098,7 @@ const PlanUI = {
         }
         const p = plans.find(x => x.id === id);
         const entries = DB.getEntriesForPlan(id).length;
-        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.`,
+        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nOs dados operacionais (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.\n\nCards/Anki e Links Úteis são patrimônio global do perfil e serão preservados automaticamente em outro planejamento.`,
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
@@ -47593,9 +47840,13 @@ const ReforcoFila = {
     if (mi > ma) mi = ma;
     return { min: mi, max: ma };
   },
+  _prefKey() {
+    try { return DB.planSettingRaw ? DB.planSettingRaw(this.KEY_PREF).key : DB.planSettingKey(this.KEY_PREF); }
+    catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':' + this.KEY_PREF; }
+  },
   prefs() {
     let raw = null;
-    try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF) || '{}'); }
+    try { raw = JSON.parse(localStorage.getItem(this._prefKey()) || '{}'); }
     catch (_) { _quiet(_); raw = {}; }
     const n = Number(raw && raw.disciplinasDia);
     const lim = this._sanearLimites(raw && raw.blocoMin, raw && raw.blocoMax);
@@ -47606,7 +47857,7 @@ const ReforcoFila = {
     p.disciplinasDia = Number(p.disciplinasDia) === 2 ? 2 : 1;
     const lim = this._sanearLimites(p.blocoMin, p.blocoMax);
     p.blocoMin = lim.min; p.blocoMax = lim.max;
-    const key = DB._profilePrefix() + this.KEY_PREF;
+    const key = this._prefKey();
     try {
       if (typeof DB.setRaw === 'function') DB.setRaw(key, JSON.stringify(p));
       else localStorage.setItem(key, JSON.stringify(p));
@@ -48598,8 +48849,8 @@ window.ReforcoFila = ReforcoFila;
     },
 
     _prefKey() {
-      try { return DB._profilePrefix() + this.KEY_PREF; }
-      catch (_) { return 'diario-estudos:' + this.KEY_PREF; }
+      try { return DB.planSettingRaw ? DB.planSettingRaw(this.KEY_PREF).key : DB.planSettingKey(this.KEY_PREF); }
+      catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':' + this.KEY_PREF; }
     },
     prefs() {
       let raw = {};
@@ -53534,11 +53785,13 @@ const StudyReport = {
       sections:new Set([...document.querySelectorAll('#study-report-sections input:checked')].map(x=>x.value)) };
   },
   entries(cfg) {
-    const all = cfg.scope==='all' && DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const all = cfg.scope==='plan' ? DB.getEntries()
+      : (DB.getAllEntriesTagged ? DB.getAllEntriesTagged({includePaused:cfg.scope==='all'}) : DB.getEntries());
     return (all||[]).filter(e=>{ const d=this.dayKey(e); return d && (!cfg.start||d>=cfg.start) && (!cfg.end||d<=cfg.end); }).sort((a,b)=>this.dayKey(a).localeCompare(this.dayKey(b)));
   },
   cycles(cfg) {
-    const all = cfg.scope==='all' && DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory();
+    const all = cfg.scope==='plan' ? DB.getCycleHistory()
+      : (DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged({includePaused:cfg.scope==='all'}) : DB.getCycleHistory());
     return (all||[]).filter(c=>{ const a=String(c.startDate||c.date||'').slice(0,10), b=String(c.endDate||a).slice(0,10); return (!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end); });
   },
   aggregate(entries) {
@@ -53572,11 +53825,15 @@ const StudyReport = {
      onde o dado veio; o aproveitamento até sobrevivia (numerador e denominador
      inflavam juntos), mas "questões" e "acertos" não. */
   snapshotRows(cfg) {
-    const snaps=(DB.getTecSnapshots?DB.getTecSnapshots():[]).filter(x=>{const a=String(x.startDate||x.date||'').slice(0,10),b=String(x.endDate||x.date||a).slice(0,10);return(!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end)});
-    return snaps.map(s=>{ const t=TecEngine.totais(s); return {date:s.endDate||s.date||s.startDate,q:t.questoes,c:t.acertos,p:this.pct(t.acertos,t.questoes)}; });
+    const source = cfg.scope==='plan' ? (DB.getTecSnapshots?DB.getTecSnapshots():[])
+      : (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged({includePaused:cfg.scope==='all'}) : (DB.getTecSnapshots?DB.getTecSnapshots():[]));
+    const snaps=(source||[]).filter(x=>{const a=String(x.startDate||x.date||'').slice(0,10),b=String(x.endDate||x.date||a).slice(0,10);return(!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end)});
+    return snaps.map(s=>{ const t=TecEngine.totais(s); return {date:s.endDate||s.date||s.startDate,q:t.questoes,c:t.acertos,p:this.pct(t.acertos,t.questoes),plan:s._planNome||''}; });
   },
   extras(cfg) {
-    const out=[]; (DB.getExtras?DB.getExtras():[]).forEach(x=>(x.historico||[]).forEach(h=>{const d=String(h.data||'').slice(0,10);if(d&&(!cfg.start||d>=cfg.start)&&(!cfg.end||d<=cfg.end))out.push({title:x.titulo||'Atividade',date:d,quantity:this.n(h.quantidade),minutes:this.n(h.minutos)});})); return out;
+    const source = cfg.scope==='plan' ? (DB.getExtras?DB.getExtras():[])
+      : (DB.getAllExtrasTagged ? DB.getAllExtrasTagged({includePaused:cfg.scope==='all'}) : (DB.getExtras?DB.getExtras():[]));
+    const out=[]; (source||[]).forEach(x=>(x.historico||[]).forEach(h=>{const d=String(h.data||'').slice(0,10);if(d&&(!cfg.start||d>=cfg.start)&&(!cfg.end||d<=cfg.end))out.push({title:x.titulo||'Atividade',date:d,quantity:this.n(h.quantidade),minutes:this.n(h.minutos),plan:x._planNome||''});})); return out;
   },
   css() { return `
     *{box-sizing:border-box}body{margin:0;background:#eef1f6;color:#172033;font:13px Inter,Arial,sans-serif}.toolbar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 22px;background:#172033;color:white}.toolbar button{border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer}.toolbar .primary{background:#4f46e5;color:white}.paper{width:210mm;min-height:297mm;margin:18px auto;background:white;box-shadow:0 12px 35px #17203322}.page{padding:16mm 17mm;page-break-after:always}.page:last-child{page-break-after:auto}.cover{min-height:297mm;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,#fff 0%,#f4f2ff 100%)}.brand{font-weight:900;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase}.cover h1{font-size:34px;line-height:1.07;margin:14px 0}.cover .period{font-size:18px;color:#475569}.cover-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:30px}.cover-cell{padding:14px;border:1px solid #dbe2ee;border-radius:12px;background:#ffffffaa}.cover-cell small{display:block;color:#64748b;text-transform:uppercase;font-weight:800;font-size:9px;letter-spacing:.06em}.cover-cell strong{display:block;margin-top:5px;font-size:14px}.page-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4f46e5;padding-bottom:9px;margin-bottom:18px}.page-head h2{margin:0;font-size:21px}.page-head span{color:#64748b;font-size:10px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.kpi{border:1px solid #dbe2ee;border-radius:12px;padding:12px;min-height:74px}.kpi b{display:block;font-size:19px;color:#4f46e5}.kpi span{font-size:9px;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:.04em}.narrative{margin:16px 0;padding:14px 16px;border-left:4px solid #4f46e5;background:#f5f3ff;line-height:1.6}.section{margin-top:20px}.section h3{font-size:15px;margin:0 0 10px}.chart{display:block;width:100%;max-height:255px}.svg-label{font:11px Arial;fill:#475569}.svg-value{font:bold 11px Arial;fill:#172033}.table{width:100%;border-collapse:collapse;font-size:10px}.table th{background:#f1f5f9;color:#475569;text-align:left;padding:7px;border-bottom:1px solid #cbd5e1}.table td{padding:7px;border-bottom:1px solid #e2e8f0;vertical-align:top}.table .num{text-align:right;font-variant-numeric:tabular-nums}.empty{padding:18px;border:1px dashed #cbd5e1;border-radius:10px;text-align:center;color:#64748b}.note{font-size:9px;color:#64748b;margin-top:8px}.good{color:#047857}.bad{color:#b91c1c}@page{size:A4;margin:0}@media print{body{background:white}.toolbar{display:none}.paper{margin:0;box-shadow:none}.page{min-height:297mm}}
@@ -53585,7 +53842,9 @@ const StudyReport = {
   rangeLabel(cfg){return (cfg.start?this.date(cfg.start):'Início')+' a '+(cfg.end?this.date(cfg.end):'Hoje');},
   build(cfg, entries) {
     const a=this.aggregate(entries), profile=window.ProfileManager&&ProfileManager.getActiveProfile?ProfileManager.getActiveProfile():null;
-    const plan=cfg.scope==='all'?'Todos os planejamentos':((window.PlanManager&&PlanManager.getActivePlan&&PlanManager.getActivePlan()||{}).nome||'Planejamento atual');
+    const plan=cfg.scope==='all'?'Toda a trajetória (inclui pausados)'
+      : cfg.scope==='active'?'Planejamentos ativos'
+      : ((window.PlanManager&&PlanManager.getActivePlan&&PlanManager.getActivePlan()||{}).nome||'Planejamento atual');
     const days=Object.keys(a.byDay), studiedDays=days.length, calDays=(cfg.start&&cfg.end)?Math.max(1,Math.round((new Date(cfg.end+'T00:00:00')-new Date(cfg.start+'T00:00:00'))/86400000)+1):studiedDays;
     const acc=this.pct(a.correct,a.total), avg=studiedDays?a.minutes/studiedDays:0;
     const narrative=entries.length?`No período selecionado, foram registrados <strong>${this.hm(a.minutes)}</strong> de estudo em <strong>${studiedDays}</strong> dia(s), com <strong>${entries.length}</strong> sessão(ões). ${a.total?`Foram contabilizadas <strong>${Math.round(a.total)}</strong> questões e aproveitamento geral de <strong>${(Math.round(acc*100)/100).toFixed(2).replace('.',',')}%</strong>.`: 'Não há questões contabilizadas no recorte.'}`:'Não há registros de estudo no período selecionado.';
@@ -55682,7 +55941,10 @@ else CloudStore.init();
       maxFrentes: [1, 3],
       metaAcerto: [50, 100]
     }),
-    _key() { return DB._profilePrefix() + this.KEY; },
+    _key() {
+      try { return DB.planSettingRaw ? DB.planSettingRaw(this.KEY).key : DB.planSettingKey(this.KEY); }
+      catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':' + this.KEY; }
+    },
     prefs() {
       const d = Object.assign({}, this.DEFAULTS, { disciplinasSel: [] });
       let z = null;
@@ -57615,7 +57877,7 @@ else CloudStore.init();
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
-  DB.getAllExtrasTagged = () => S.operationalAllBy('extras');
+  DB.getAllExtrasTagged = (opts) => (opts && opts.includePaused) ? S.allBy('extras') : S.operationalAllBy('extras');
   DB.getAllSavedGradesTagged = () => S.allBy('savedGrades');
   DB.copySavedGradeToActive = function(sourcePlanId, id) {
     const active = S.activePlanId();
@@ -57673,9 +57935,10 @@ else CloudStore.init();
     if (!out.length && DB.getLinks) out = S._tag(S.activePlanId(), DB.getLinks());
     return out;
   };
-  DB.getAllTecSnapshotsTagged = () => {
+  DB.getAllTecSnapshotsTagged = (opts) => {
     try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
-    return S.operationalAllBy('tec').map(s => {
+    const rows = (opts && opts.includePaused) ? S.allBy('tec') : S.operationalAllBy('tec');
+    return rows.map(s => {
       const x = Object.assign({}, s);
       if (!x.startDate) x.startDate = x.date || (typeof todayLocal === 'function' ? todayLocal() : '');
       if (!x.endDate) x.endDate = x.date || x.startDate;
@@ -57683,7 +57946,7 @@ else CloudStore.init();
     }).sort((a,b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
       || String(a.endDate || '').localeCompare(String(b.endDate || '')));
   };
-  DB.getAllIncidenciaTagged = () => S.operationalAllBy('incidencia');
+  DB.getAllIncidenciaTagged = (opts) => (opts && opts.includePaused) ? S.allBy('incidencia') : S.operationalAllBy('incidencia');
 
   /* Memória realizada/conhecimento pertence ao PERFIL. A persistência continua
      separada por planejamento para compatibilidade e sincronização, mas leitura
@@ -57734,15 +57997,24 @@ else CloudStore.init();
     updateLink: DB.updateLink.bind(DB),
     deleteLink: DB.deleteLink.bind(DB)
   };
+  /* Links são atalhos do perfil. A persistência continua no plano de origem
+     por compatibilidade, mas editar/excluir roteia para essa origem — inclusive
+     quando ela está pausada. Assim a tela não cria "cópias" do mesmo favorito. */
   DB.updateLink = function(id, patch) {
-    const active = S._rows(S.activePlanId(), 'links');
-    if (!active.some(x => String(x.id) === String(id))) return null;
-    return LKO.updateLink(id, patch);
+    const activeId = S.activePlanId(), active = S._rows(activeId, 'links');
+    if (active.some(x => String(x.id) === String(id))) return LKO.updateLink(id, patch);
+    const r = S.findRecord('links', id); if (!r) return null;
+    const safePatch = Object.assign({}, patch || {});
+    if (Object.prototype.hasOwnProperty.call(safePatch, 'url') && DB.urlSegura) safePatch.url = DB.urlSegura(safePatch.url);
+    Object.assign(r.row, safePatch); r.row.updatedAt = new Date().toISOString();
+    if (DB._set(DB.keysForPlan(r.planId).links, r.list) === false) return false;
+    return Object.assign({}, r.row, { _planId:r.planId, _planNome:S.planName(r.planId) });
   };
   DB.deleteLink = function(id) {
-    const active = S._rows(S.activePlanId(), 'links');
-    if (!active.some(x => String(x.id) === String(id))) return false;
-    return LKO.deleteLink(id);
+    const activeId = S.activePlanId(), active = S._rows(activeId, 'links');
+    if (active.some(x => String(x.id) === String(id))) return LKO.deleteLink(id);
+    const r = S.findRecord('links', id); if (!r) return false;
+    return DB._set(DB.keysForPlan(r.planId).links, r.list.filter(x => String(x.id) !== String(id)));
   };
 
   const TO = {
