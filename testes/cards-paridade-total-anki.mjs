@@ -54,11 +54,13 @@ CardsScreen.renderRevisar({innerHTML:''});
 eq(queueBuilds,2,'invalidação explícita reconstrói a fila');
 CardsScreen.buildQueue=realBuild;
 
-// ── FSRS-6 short-term: semântica exata do fsrs-rs 6.6.2 ─────────────────
+// ── FSRS-6 short-term: semântica exata do Anki 26.09.2 ──────────────────
+// Oráculo: get_scheduling_states do anki==26.09.2 devolve S inalterado no
+// "Difícil" intradiário (S=0,2 -> 0,2), embora o multiplicador bruto seja < 1.
 {
   const w=FSRS.DEFAULT_W,S=.2;
   const hard=FSRS.nextS_short(S,2,w),good=FSRS.nextS_short(S,3,w),easy=FSRS.nextS_short(S,4,w);
-  ok(hard<S,'Hard pode reduzir estabilidade curta quando o multiplicador FSRS-6 é < 1');
+  ok(hard===S,'Hard nunca reduz estabilidade curta (trava SInc >= 1 para G >= 2)');
   ok(good>=S,'Good nunca pode reduzir estabilidade curta');
   ok(easy>=S,'Easy nunca pode reduzir estabilidade curta');
 }
