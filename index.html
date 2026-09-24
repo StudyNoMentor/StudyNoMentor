@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve04e7d0384">
+<meta name="diario-versao" content="v069c72d8f2">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6297,6 +6297,7 @@ window.__relationalBoot = true;
              visao, o "Inicio da semana" e o "Editar siglas" ocupavam duas faixas
              inteiras da tela so para ficarem parados esperando um clique raro. -->
         <div class="grade-head-actions">
+          <button class="btn-primary grade-suggest-btn" id="btn-grade-sugerir" type="button" title="Montar a grade automaticamente a partir das metas do ciclo">✨ <span class="gg-word">Sugerir grade</span></button>
           <div class="grade-gear-wrap">
             <button class="btn-secondary grade-gear-btn grade-gear-mini" id="grade-gear-btn" type="button" title="Opções da grade" aria-haspopup="true" aria-expanded="false"><span class="gg-gear">⚙</span><span class="gg-word">Opções</span></button>
             <div class="grade-gear-menu" id="grade-gear-menu" role="menu" aria-hidden="true">
@@ -16494,6 +16495,70 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 @media(max-width:700px){
   #anki-browser-modal .anki-browser-power-tools>select{flex:1 1 100%!important}
   #anki-browser-modal .anki-browser-toolbar>.anki-browser-sort-dir{width:100%!important}
+}
+
+</style>
+
+<style id="grade-gerador">
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRADE — "✨ Sugerir grade" e sessões ligadas aos registros de estudo
+   ═══════════════════════════════════════════════════════════════════════════ */
+#screen-grade .grade-suggest-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:8px 14px;border-radius:11px;white-space:nowrap;font-weight:750}
+
+/* Sessão preenchida pelos registros: mesmo verde do ✓, com borda tracejada
+   para distinguir do ✓ marcado à mão. Parcial: barra no rodapé do chip. */
+.grade-cell-drop .subject-chip{position:relative}
+.grade-cell-drop .subject-chip.auto-done{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--good) 55%,transparent)}
+.grade-cell-drop .subject-chip.auto-done .chip-done-toggle{border-style:dashed}
+.grade-cell-drop .subject-chip .chip-prog{position:absolute;left:6px;right:6px;bottom:3px;height:3px;border-radius:3px;background:color-mix(in srgb,var(--good) 18%,transparent);overflow:hidden;pointer-events:none}
+.grade-cell-drop .subject-chip .chip-prog::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--gp,0%);background:var(--good);border-radius:3px}
+.grade-sigla-picker .gsp-registrar{display:block;width:100%;margin-top:6px;padding:9px 10px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:9px;background:var(--accent-soft);color:var(--accent);font-weight:700;text-align:left;cursor:pointer}
+
+/* Janela */
+.grade-gerador-modal .siglas-modal-box{max-width:860px}
+.grade-gerador-modal .gg-body{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.grade-gerador-modal .gg-h{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.02em;color:var(--text)}
+.grade-gerador-modal .gg-hint{margin:0 0 8px;font-size:12px;color:var(--text-soft);line-height:1.4}
+.grade-gerador-modal .gg-in{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-soft);white-space:nowrap}
+.grade-gerador-modal .gg-in input{width:58px;min-height:34px;padding:4px 6px;text-align:center;font-size:13px;border-radius:8px}
+.grade-gerador-modal .gg-dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.grade-gerador-modal .gg-dia{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border:1px solid var(--border);border-radius:11px;background:var(--surface-sunken);cursor:pointer}
+.grade-gerador-modal .gg-dia.off{opacity:.55}
+.grade-gerador-modal .gg-dia-top{display:inline-flex;align-items:center;gap:5px;font-size:12.5px}
+.grade-gerador-modal .gg-dia-top input{width:16px;height:16px;min-height:0;margin:0;accent-color:var(--accent)}
+.grade-gerador-modal .gg-dia .gg-in input{width:50px}
+.grade-gerador-modal .gg-sess{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:10px;font-size:12.5px;font-weight:650}
+.grade-gerador-modal .gg-sess label{display:inline-flex;align-items:center;gap:8px}
+.grade-gerador-modal .gg-mats{display:grid;gap:6px;max-height:280px;overflow-y:auto;padding-right:2px}
+.grade-gerador-modal .gg-mat{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.grade-gerador-modal .gg-mat-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.grade-gerador-modal .gg-mat-nome b{display:inline-block;min-width:52px;font-family:'Space Mono',monospace;font-size:12px;color:var(--accent)}
+.grade-gerador-modal .gg-tog{position:relative;display:inline-flex;cursor:pointer}
+.grade-gerador-modal .gg-tog input{position:absolute;opacity:0;width:1px;height:1px}
+.grade-gerador-modal .gg-tog span{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border);border-radius:9px;background:var(--surface-sunken);filter:grayscale(1);opacity:.45;font-size:15px;transition:opacity .12s,filter .12s,border-color .12s}
+.grade-gerador-modal .gg-tog input:checked+span{filter:none;opacity:1;border-color:var(--accent);background:var(--accent-soft)}
+.grade-gerador-modal .gg-tog input:focus-visible+span{outline:2px solid var(--accent);outline-offset:1px}
+.grade-gerador-modal .gg-prev-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.grade-gerador-modal .gg-resumo{font-size:12px;color:var(--text-soft)}
+.grade-gerador-modal .gg-aviso{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:var(--warn-soft,#fff7e6);color:var(--warn-text,#8a5300);font-size:12px;line-height:1.35}
+.grade-gerador-modal .gg-prev{overflow-x:auto}
+.grade-gerador-modal .gg-tab{width:100%;min-width:560px;border-collapse:separate;border-spacing:4px}
+.grade-gerador-modal .gg-tab th{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text-soft);padding:2px}
+.grade-gerador-modal .gg-tab td{padding:0}
+.grade-gerador-modal .gg-sn{font-size:11px;color:var(--text-faint);text-align:right;padding-right:4px!important;width:26px}
+.grade-gerador-modal .gg-cel{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;border-radius:9px;background:color-mix(in srgb,var(--chip-color,var(--accent)) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--chip-color,var(--accent)) 30%,var(--border))}
+.grade-gerador-modal .gg-cel b{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--chip-color,var(--accent))}
+.grade-gerador-modal .gg-cel small{font-size:10.5px;color:var(--text-soft)}
+.grade-gerador-modal .gg-foot{flex-wrap:wrap;gap:8px}
+.grade-gerador-modal .gg-foot>button{white-space:nowrap;min-height:40px}
+.grade-gerador-modal .gg-foot>#gg-aplicar{margin-left:auto}
+@media(max-width:640px){
+  .grade-gerador-modal .gg-dias{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .grade-gerador-modal .gg-mat{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"nome nome nome" "min pri calc"}
+  .grade-gerador-modal .gg-mat-nome{grid-area:nome}
+  .grade-gerador-modal .gg-mat-min{grid-area:min}
+  .grade-gerador-modal .gg-foot>button{flex:1 1 auto}
+  #screen-grade .grade-suggest-btn .gg-word{display:inline}
 }
 
 </style>
@@ -27246,9 +27311,68 @@ function planCycleMode() {
   }
   function sessionLabel(i) { return `${i + 1}ª sessão`; }
 
+  /* ---- Grade × registros de estudo ----
+     Cada sessão da grade é preenchida pelos minutos REGISTRADOS da matéria na
+     semana corrente, na ordem dos dias. Calculado na hora (nada é gravado):
+     apagar ou editar um registro corrige a grade sozinho. Estudar em outro dia
+     conta igual — vale a meta da semana, como no Ciclo. O ✓ manual continua
+     existindo e sempre vale. */
+  const _DOW = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const _iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function gradeSemanaAtual() {
+    const hoje = _iso(new Date());
+    try {
+      const cyc = DB.getCurrentCycle();
+      if (cyc && cyc.startDate && cyc.endDate && cyc.startDate <= hoje && hoje <= cyc.endDate) return { ini: cyc.startDate, fim: cyc.endDate };
+    } catch (e) { _quiet(e); }
+    const d = new Date(), inicio = gradeWeekStart() === 'sun' ? 0 : 1;
+    const ini = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() - inicio + 7) % 7));
+    const fim = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + 6);
+    return { ini: _iso(ini), fim: _iso(fim) };
+  }
+  let _gp = null;
+  function gradeProgresso() {
+    const { ini, fim } = gradeSemanaAtual(), tmpl = gradeGet(), estudado = {};
+    let entries = [];
+    try { entries = DB.getEntries() || []; } catch (e) { _quiet(e); }
+    entries.forEach(e => {
+      if (!e || !e.subject || !(e.date >= ini && e.date <= fim)) return;
+      const k = CycleEngine.normKey(e.subject); estudado[k] = (estudado[k] || 0) + (Number(e.durationMin) || 0);
+    });
+    const [y, m, dd] = ini.split('-').map(Number), d0 = new Date(y, m - 1, dd).getDay();
+    const mapa = {};
+    Array.from({ length: 7 }, (_, i) => _DOW[(d0 + i) % 7]).forEach(dia => {
+      (tmpl.grade[dia] || []).forEach((raw, idx) => {
+        const c = normalizeCell(raw); if (!c || !c.subject) return;
+        const k = CycleEngine.normKey(c.subject), meta = Math.max(0, Number(c.minutes) || 0), disp = estudado[k] || 0;
+        const feito = Math.min(meta, disp); estudado[k] = disp - feito;
+        mapa[dia + '|' + idx] = { feito, meta, completo: meta > 0 && feito >= meta };
+      });
+    });
+    return { ini, fim, mapa };
+  }
+  function progressoCelula(dia, idx) {
+    if (!_gp) _gp = gradeProgresso();
+    return _gp.mapa[dia + '|' + idx] || { feito: 0, meta: 0, completo: false };
+  }
+  // Abre "Registrar estudo" já preenchido com a sessão da grade.
+  function registrarSessao(subject, minutes) {
+    if (typeof switchScreen === 'function') switchScreen('registrar');
+    setTimeout(() => {
+      const fire = (el, ev) => el && el.dispatchEvent(new Event(ev, { bubbles: true }));
+      const s = document.getElementById('subject');
+      if (s && [...s.options].some(o => o.value === subject)) { s.value = subject; fire(s, 'change'); }
+      const d = document.getElementById('date'); if (d) { d.value = _iso(new Date()); fire(d, 'change'); }
+      const h = document.getElementById('duration-h'), m = document.getElementById('duration-m');
+      if (h && m) { h.value = String(Math.floor(minutes / 60)); m.value = String(minutes % 60); fire(h, 'input'); fire(m, 'input'); fire(h, 'change'); fire(m, 'change'); }
+      if (typeof showToast === 'function') showToast('Registro preenchido com a sessão da grade');
+    }, 60);
+  }
+
   function renderGrade() {
     const container = document.getElementById('ciclo-grade');
     if (!container) return;
+    _gp = null;
     const tmpl = gradeGet();
     const count = sessionCount(tmpl);
     const rows = Array.from({ length: count }, (_, i) => sessionLabel(i));
@@ -27328,16 +27452,22 @@ function planCycleMode() {
     const { subject, minutes, done } = cellData;
     const acronym = CycleEngine.buildAcronymMap()[subject] || CycleEngine.siglaForSubject(subject);
     const _color = CycleEngine.colorForSubject(subject);
+    const prog = progressoCelula(dia, idx), auto = prog.completo && !done;
+    const concluida = done || prog.completo;
+    const pct = prog.meta > 0 ? Math.round(prog.feito / prog.meta * 100) : 0;
+    const dica = subject + (prog.feito > 0 ? ` · ${prog.feito}/${prog.meta} min pelos registros da semana` : '') + (done ? ' · marcada à mão' : '');
+    const _st = [_color ? `--chip-color:${_color}` : '', `--gp:${pct}%`].filter(Boolean).join(';');
     cell.innerHTML = `
-      <div class="subject-chip ${done ? 'done' : ''}" draggable="true" data-subject="${escapeHtml(subject)}" data-acronym="${escapeHtml(acronym)}" title="${escapeHtml(subject)}"${_color ? ` style="--chip-color:${_color}"` : ''}>
+      <div class="subject-chip ${concluida ? 'done' : ''} ${auto ? 'auto-done' : ''} ${prog.feito > 0 && !concluida ? 'parcial' : ''}" draggable="true" data-subject="${escapeHtml(subject)}" data-acronym="${escapeHtml(acronym)}" title="${escapeHtml(dica)}" style="${_st}">
         <div class="chip-top-row">
           <span class="chip-acronym-label">${escapeHtml(acronym)}</span>
           <button type="button" class="chip-remove" title="Remover desta célula" aria-label="Remover desta célula">×</button>
         </div>
         <div class="chip-bottom-row">
           <span class="chip-duration-wrap"><input type="text" inputmode="numeric" class="chip-duration-input" value="${minutes}" title="Duração em minutos" aria-label="Duração em minutos"></span>
-          <button type="button" class="chip-done-toggle" title="${done ? 'Marcar como não concluída' : 'Marcar como concluída'}">${CHECK_ICON}</button>
+          <button type="button" class="chip-done-toggle" title="${auto ? 'Concluída pelos registros de estudo' : (done ? 'Marcar como não concluída' : 'Marcar como concluída')}">${CHECK_ICON}</button>
         </div>
+        ${prog.feito > 0 && !concluida ? `<span class="chip-prog" aria-label="${prog.feito} de ${prog.meta} minutos registrados"></span>` : ''}
       </div>
     `;
     const chip = cell.querySelector('.subject-chip');
@@ -27367,6 +27497,10 @@ function planCycleMode() {
       // e impedia desmarcar) e re-renderiza a célula para refletir/rebindar corretamente
       const t = gradeGet();
       const cur = normalizeCell(t && t.grade[dia] && t.grade[dia][idx]);
+      if (!(cur && cur.done) && progressoCelula(dia, idx).completo) {
+        showToast('Esta sessão já está concluída pelos estudos registrados na semana.');
+        return;
+      }
       const newDone = !(cur && cur.done);
       setCellData(dia, idx, { subject, minutes: (cur && cur.minutes) || minutes, done: newDone });
       renderCellContent(cell);
@@ -27391,6 +27525,7 @@ function planCycleMode() {
     while (t.grade[dia].length <= idx) t.grade[dia].push(''); // garante slot p/ sessões dinâmicas
     t.grade[dia][idx] = cellData; // objeto {subject, minutes, done} ou null
     gradeSave(t);
+    _gp = null;
   }
 
   function bindDropZones(container) {
@@ -27468,6 +27603,7 @@ function planCycleMode() {
         <span class="gsp-nome">${escapeHtml(s.nome)}</span>
       </button>`).join('');
     html += `</div>`;
+    if (cur) html += `<button type="button" class="gsp-registrar" data-registrar="1">📝 Registrar estudo desta sessão</button>`;
     if (cur) html += `<button type="button" class="gsp-remove" data-remove="1">✕ Remover desta célula</button>`;
     pop.innerHTML = html;
     document.body.appendChild(pop);
@@ -27502,6 +27638,8 @@ function planCycleMode() {
       closeSiglaPicker();
       renderCellContent(cell); updateDaySummary(); updateUncheckAllBtn();
     }));
+    const rg = pop.querySelector('[data-registrar]');
+    if (rg) rg.addEventListener('click', () => { closeSiglaPicker(); registrarSessao(cur.subject, Number(cur.minutes) || GRADE_DEFAULT_MIN); });
     const rm = pop.querySelector('[data-remove]');
     if (rm) rm.addEventListener('click', () => {
       setCellData(dia, idx, null);
@@ -27650,8 +27788,12 @@ function planCycleMode() {
     const tmpl = gradeGet();
     const days = gradeDaysOrder();
     const hoje = _todayWeekdayName();
+    _gp = null;
     const html = days.map(dia => {
-      const slots = (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean);
+      const slots = (tmpl.grade[dia] || []).map((raw, i) => {
+        const c = normalizeCell(raw); if (!c) return null;
+        return Object.assign({}, c, { done: !!c.done || progressoCelula(dia, i).completo });
+      }).filter(Boolean);
       const totalMin = slots.reduce((s, c) => s + (c.minutes || 0), 0);
       /* A meta diaria mostrava tudo com a mesma cara: nao dava para saber o que
          ja foi feito sem voltar para a visao semanal. Agora o que esta marcado
@@ -27714,7 +27856,7 @@ function planCycleMode() {
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
-  window.GradeScreen = { render: renderGradeScreen };
+  window.GradeScreen = { render: renderGradeScreen, progresso: gradeProgresso, registrarSessao };
 
   // Gerenciador de siglas: MATÉRIAS (sigla auto editável) + siglas livres customizadas.
   function renderCustomSiglaManager() {
@@ -28148,6 +28290,372 @@ function planCycleMode() {
   });
 
   init();
+})();
+
+/* ============================================================================
+   GERADOR DE GRADE SEMANAL
+   ----------------------------------------------------------------------------
+   Transforma as metas semanais do Ciclo (minutos por matéria) em uma grade
+   pronta, seguindo as regras de montagem:
+
+   • Sessões de 60 a 120 min, sempre preferindo 60. O que sobra de uma meta
+     (ex.: 150 min) vai para UMA sessão maior (60 + 90), nunca fatia menor
+     que o mínimo.
+   • Repetições da mesma matéria espaçadas ao longo da semana (3 sessões em
+     6 dias → seg/qua/sex), sem repetir a matéria no mesmo dia quando houver
+     alternativa.
+   • Matérias de cálculo nunca em sequência no mesmo dia, se der para alternar.
+   • Matérias prioritárias ocupam os primeiros horários do dia.
+   • Respeita o tempo disponível de cada dia; o que não couber volta como
+     "sobra", em vez de estourar o dia.
+
+   GradeGerador.gerar() é função pura (sem DB nem DOM) — testável em Node.
+   A janela "✨ Sugerir grade" usa o motor e grava via DB.saveGradeTemplate.
+   ============================================================================ */
+(function (root) {
+  'use strict';
+  const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+
+  function rng(seed) {
+    let a = (Number(seed) || 0) >>> 0 || 0x9e3779b9;
+    return function () {
+      a = (a + 0x6D2B79F5) >>> 0; let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* Divide a meta semanal em sessões. Prefere o mínimo; o resto (< mínimo)
+     engorda uma única sessão, até o máximo. */
+  function dividir(total, min, max) {
+    total = Math.max(0, Math.round(Number(total) || 0));
+    min = Math.max(5, Math.round(Number(min) || 60));
+    max = Math.max(min, Math.round(Number(max) || 120));
+    if (!total) return { sessoes: [], arredondado: false };
+    if (total < min) return { sessoes: [min], arredondado: true };
+    const k = Math.floor(total / min);
+    const s = Array.from({ length: k }, () => min);
+    let r = total - k * min;
+    for (let i = s.length - 1; r > 0 && i >= 0; i--) {
+      const add = Math.min(r, max - s[i]);
+      s[i] += add; r -= add;
+    }
+    return { sessoes: s, arredondado: false };
+  }
+
+  const distCirc = (a, b, n) => { const d = Math.abs(a - b) % n; return Math.min(d, n - d); };
+
+  function gerar(opts) {
+    opts = opts || {};
+    const min = Math.max(5, Math.round(Number(opts.minSess) || 60));
+    const max = Math.max(min, Math.round(Number(opts.maxSess) || 120));
+    const rand = rng(opts.semente || 0);
+    const avisos = [];
+    const diasCfg = (opts.dias || []).filter(d => d && DIAS.includes(d.dia));
+    const livres = DIAS.filter(dia => {
+      const c = diasCfg.find(d => d.dia === dia);
+      return c && Number(c.minutos) > 0;
+    });
+    const cap = {}; DIAS.forEach(d => { const c = diasCfg.find(x => x.dia === d); cap[d] = c ? Math.max(0, Math.round(Number(c.minutos) || 0)) : 0; });
+    const grade = {}; DIAS.forEach(d => { grade[d] = []; });
+    const sobras = [];
+
+    const materias = (opts.materias || [])
+      .filter(m => m && String(m.nome || '').trim() && Number(m.minutos) > 0)
+      .map((m, i) => {
+        const div = dividir(m.minutos, min, max);
+        if (div.arredondado) avisos.push(`${m.nome}: meta de ${Math.round(m.minutos)} min arredondada para uma sessão de ${min} min.`);
+        return { nome: String(m.nome).trim(), minutos: Math.round(Number(m.minutos)), prioritaria: !!m.prioritaria, calculo: !!m.calculo, sessoes: div.sessoes, _ord: i, _r: rand() };
+      })
+      // mais restritas primeiro: prioritárias, depois as com mais sessões
+      .sort((a, b) => (b.prioritaria - a.prioritaria) || (b.sessoes.length - a.sessoes.length) || (b.minutos - a.minutos) || (a._r - b._r));
+
+    if (!livres.length) {
+      materias.forEach(m => m.sessoes.forEach(s => sobras.push({ nome: m.nome, minutos: s })));
+      return { grade, sessoes: 0, sobras, avisos: avisos.concat('Nenhum dia com tempo disponível.') };
+    }
+
+    const L = livres.length;
+    const usado = {}; DIAS.forEach(d => { usado[d] = 0; });
+    const temNoDia = (dia, nome) => grade[dia].some(x => x.nome === nome);
+    // Excesso de cálculo no dia: com mais cálculo que teóricas não dá para alternar.
+    // As prioritárias abrem o dia; a alternância acontece no restante dele.
+    const cargaCalc = dia => {
+      const resto = grade[dia].filter(x => !x.prioritaria), c = resto.filter(x => x.calculo).length;
+      return Math.max(0, c - (resto.length - c) + 1);
+    };
+
+    materias.forEach(m => {
+      const n = m.sessoes.length;
+      if (n > L) avisos.push(`${m.nome}: ${n} sessões em ${L} dia(s) — a matéria se repete em algum dia.`);
+      // Testa cada ponto de partida e fica com a distribuição mais espaçada
+      // e que usa os dias mais folgados.
+      let melhor = null;
+      for (let o = 0; o < L; o++) {
+        const plano = [], usoSim = Object.assign({}, usado), diasSim = new Set();
+        let desloc = 0, cabe = 0;
+        m.sessoes.forEach((mins, i) => {
+          const alvo = Math.round(o + i * L / n) % L;
+          // candidatos: alvo e vizinhos, do mais perto ao mais longe
+          // perto do dia ideal, com menos cálculo e com o dia menos carregado
+          const peso = k => distCirc(k, alvo, L) + (m.calculo ? 0.6 * cargaCalc(livres[k]) : 0) + 0.8 * (usoSim[livres[k]] / (cap[livres[k]] || 1));
+          const ordem = Array.from({ length: L }, (_, k) => k).sort((a, b) => peso(a) - peso(b) || a - b);
+          let esc = ordem.find(k => cap[livres[k]] - usoSim[livres[k]] >= mins && !diasSim.has(k) && !temNoDia(livres[k], m.nome));
+          if (esc == null) esc = ordem.find(k => cap[livres[k]] - usoSim[livres[k]] >= mins);
+          if (esc == null) { plano.push(null); return; }
+          desloc += distCirc(esc, alvo, L); cabe++;
+          usoSim[livres[esc]] += mins; diasSim.add(esc); plano.push(esc);
+        });
+        const pos = plano.filter(x => x != null).sort((a, b) => a - b);
+        let gapMin = L;
+        for (let i = 0; i < pos.length; i++) for (let j = i + 1; j < pos.length; j++) gapMin = Math.min(gapMin, distCirc(pos[i], pos[j], L));
+        if (pos.length < 2) gapMin = L;
+        const folga = pos.reduce((s, k) => s + (cap[livres[k]] - usado[livres[k]]), 0);
+        const calc = m.calculo ? pos.reduce((s, k) => s + cargaCalc(livres[k]), 0) : 0;
+        const score = cabe * 1e6 + gapMin * 1e4 - desloc * 100 - calc * 150 + folga * 3 + rand();
+        if (!melhor || score > melhor.score) melhor = { score, plano };
+      }
+      melhor.plano.forEach((k, i) => {
+        const mins = m.sessoes[i];
+        if (k == null) { sobras.push({ nome: m.nome, minutos: mins }); return; }
+        const dia = livres[k];
+        usado[dia] += mins;
+        grade[dia].push({ nome: m.nome, minutos: mins, prioritaria: m.prioritaria, calculo: m.calculo, peso: m.minutos, r: rand() });
+      });
+    });
+
+    // Ordem dentro do dia: prioritárias no topo, cálculo sem repetir em sequência.
+    DIAS.forEach(dia => {
+      const resto = grade[dia].slice().sort((a, b) => (b.prioritaria - a.prioritaria) || (b.peso - a.peso) || (a.r - b.r));
+      const seq = [];
+      while (resto.length) {
+        const prev = seq[seq.length - 1];
+        const nCalc = resto.filter(x => x.calculo).length, nOutras = resto.length - nCalc;
+        let i = -1;
+        // se sobram mais de cálculo do que intervalos possíveis, puxa uma de cálculo já
+        // (sem furar a fila das prioritárias: elas sempre vêm primeiro)
+        const priTeorica = resto.some(x => x.prioritaria && !x.calculo);
+        if (prev && !prev.calculo && nCalc > nOutras && !priTeorica) i = resto.findIndex(x => x.calculo && x.nome !== prev.nome);
+        if (i < 0) i = resto.findIndex(x => !(prev && prev.calculo && x.calculo) && !(prev && x.nome === prev.nome));
+        // uma prioritária nunca fica atrás de uma não prioritária só para alternar
+        if (i > 0 && !resto[i].prioritaria && resto[0].prioritaria) i = 0;
+        if (i < 0) i = resto.findIndex(x => !(prev && x.nome === prev.nome));
+        if (i < 0) i = 0;
+        seq.push(resto.splice(i, 1)[0]);
+      }
+      grade[dia] = seq;
+    });
+
+    let sessoes = 0; DIAS.forEach(d => { sessoes = Math.max(sessoes, grade[d].length); });
+    const out = {};
+    DIAS.forEach(d => {
+      out[d] = grade[d].map(x => ({ subject: x.nome, minutes: x.minutos, done: false }));
+      while (out[d].length < sessoes) out[d].push('');
+    });
+    if (sobras.length) {
+      const porMat = {}; sobras.forEach(s => { porMat[s.nome] = (porMat[s.nome] || 0) + s.minutos; });
+      avisos.push('Não couberam no tempo disponível: ' + Object.keys(porMat).map(k => `${k} (${porMat[k]} min)`).join(', ') + '.');
+    }
+    return { grade: out, sessoes: Math.max(1, sessoes), sobras, avisos };
+  }
+
+  // Palpite inicial para "matéria de cálculo" (o aluno ajusta na janela).
+  const CALC_RE = /(contab|custo|estat[ií]st|matem[aá]t|financ|racioc[ií]nio|l[oó]gica|econom|c[aá]lculo|f[ií]sica|qu[ií]mica|atuar|probabil)/i;
+  function pareceCalculo(nome) { return CALC_RE.test(String(nome || '').normalize('NFC')); }
+
+  const api = { gerar, dividir, pareceCalculo, DIAS };
+  root.GradeGerador = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---------------------------------------------------------------- janela */
+(function () {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const G = window.GradeGerador, DIAS = G.DIAS;
+  const esc = s => (typeof escapeHtml === 'function' ? escapeHtml(s) : String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+  // CycleEngine é um const global (não fica em window).
+  const CE = () => (typeof CycleEngine !== 'undefined' ? CycleEngine : null);
+  const nk = s => CE() ? CE().normKey(s) : String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const fmt = m => CE() ? CE().fmtHM(m) : (m + ' min');
+  let _mapaSiglas = null;
+  const sigla = n => { if (!CE()) return n; if (!_mapaSiglas) _mapaSiglas = CE().buildAcronymMap(); return _mapaSiglas[n] || CE().siglaForSubject(n); };
+
+  function chavePrefs() {
+    try { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':grade-gerador'; } catch (_) { return 'diario-estudos:grade-gerador'; }
+  }
+  function lerPrefs() { try { return JSON.parse(localStorage.getItem(chavePrefs()) || 'null') || {}; } catch (_) { return {}; } }
+  function gravarPrefs(p) { try { DB.setRaw(chavePrefs(), JSON.stringify(p)); } catch (_) { try { localStorage.setItem(chavePrefs(), JSON.stringify(p)); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'grade-gerador'); } } }
+
+  // Metas da semana: ciclo atual → último ciclo montado → matérias ativas (sem meta).
+  function metasDoCiclo() {
+    let subs = [];
+    try {
+      const cyc = DB.getCurrentCycle && DB.getCurrentCycle();
+      const last = DB.getLastCycleSetup && DB.getLastCycleSetup();
+      subs = (cyc && cyc.subjects && cyc.subjects.length ? cyc.subjects : (last && last.subjects) || []);
+    } catch (_) { subs = []; }
+    let lista = subs.filter(s => s && s.nome).map(s => ({ nome: s.nome, minutos: Math.round(Number(s.definidoMin != null ? s.definidoMin : s.sugeridoMin) || 0) }));
+    if (!lista.length) { try { lista = DB.getActiveSubjects().map(s => ({ nome: s.nome, minutos: 0 })); } catch (_) { lista = []; } }
+    return lista;
+  }
+
+  const st = { semente: 0, ultimo: null };
+
+  function estadoInicial() {
+    const p = lerPrefs(), metas = metasDoCiclo(), marc = p.materias || {};
+    const total = metas.reduce((s, m) => s + m.minutos, 0);
+    const porDia = Math.max(60, Math.ceil(total / 7 / 60) * 60);
+    const dias = DIAS.map(d => {
+      const salvo = (p.dias || {})[d];
+      return { dia: d, ativo: salvo ? !!salvo.ativo : true, minutos: salvo ? Math.max(0, Number(salvo.minutos) || 0) : porDia };
+    });
+    return {
+      minSess: Number(p.minSess) || 60, maxSess: Number(p.maxSess) || 120,
+      dias,
+      materias: metas.map(m => {
+        const k = nk(m.nome), s = marc[k];
+        return { nome: m.nome, minutos: m.minutos, prioritaria: s ? !!s.prioritaria : false, calculo: s ? !!s.calculo : G.pareceCalculo(m.nome) };
+      })
+    };
+  }
+
+  function montarModal() {
+    let m = document.getElementById('grade-gerador-modal');
+    if (m) return m;
+    m = document.createElement('div');
+    m.id = 'grade-gerador-modal'; m.className = 'siglas-modal grade-gerador-modal'; m.style.display = 'none';
+    m.innerHTML = `
+      <div class="siglas-modal-box" role="dialog" aria-modal="true" aria-labelledby="gg-titulo">
+        <div class="siglas-modal-head">
+          <div>
+            <h2 id="gg-titulo">✨ Sugerir grade</h2>
+            <p class="sub">Distribui as metas do ciclo na semana: sessões de 60 min (até o máximo), repetições espaçadas, cálculo alternado e prioritárias nos primeiros horários.</p>
+          </div>
+          <button type="button" class="icon-btn" data-gg-fechar title="Fechar" aria-label="Fechar">✕</button>
+        </div>
+        <div class="siglas-modal-body gg-body">
+          <section class="gg-sec">
+            <h3 class="gg-h">Tempo disponível por dia</h3>
+            <div class="gg-dias" id="gg-dias"></div>
+            <div class="gg-sess">
+              <label>Sessão mínima <span class="gg-in"><input type="number" id="gg-min" min="15" max="240" step="5"> min</span></label>
+              <label>Sessão máxima <span class="gg-in"><input type="number" id="gg-max" min="15" max="240" step="5"> min</span></label>
+            </div>
+          </section>
+          <section class="gg-sec">
+            <h3 class="gg-h">Matérias da semana</h3>
+            <p class="gg-hint">⭐ Prioritária = vai para os primeiros horários do dia. 🧮 Cálculo = não fica em sequência com outra de cálculo.</p>
+            <div class="gg-mats" id="gg-mats"></div>
+          </section>
+          <section class="gg-sec">
+            <div class="gg-prev-head"><h3 class="gg-h">Prévia</h3><span class="gg-resumo" id="gg-resumo"></span></div>
+            <div class="gg-avisos" id="gg-avisos"></div>
+            <div class="gg-prev grade-scroll" id="gg-prev"></div>
+          </section>
+        </div>
+        <div class="siglas-modal-foot gg-foot">
+          <button type="button" class="btn-secondary" data-gg-fechar>Cancelar</button>
+          <button type="button" class="btn-secondary" id="gg-outra">🔀 Outra sugestão</button>
+          <button type="button" class="btn-primary" id="gg-aplicar">Aplicar na grade</button>
+        </div>
+      </div>`;
+    document.body.appendChild(m);
+    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-gg-fechar]')) fechar(); });
+    m.addEventListener('input', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
+    m.addEventListener('change', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
+    m.querySelector('#gg-outra').addEventListener('click', () => { st.semente++; gerarPrevia(); });
+    m.querySelector('#gg-aplicar').addEventListener('click', aplicar);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && m.style.display !== 'none') fechar(); });
+    return m;
+  }
+
+  function renderForm() {
+    const s = st.form;
+    document.getElementById('gg-min').value = s.minSess;
+    document.getElementById('gg-max').value = s.maxSess;
+    document.getElementById('gg-dias').innerHTML = s.dias.map((d, i) => `
+      <label class="gg-dia ${d.ativo ? '' : 'off'}">
+        <span class="gg-dia-top"><input type="checkbox" data-dia-ativo="${i}" ${d.ativo ? 'checked' : ''}><b>${d.dia.slice(0, 3)}</b></span>
+        <span class="gg-in"><input type="number" data-dia-h="${i}" min="0" max="16" step="0.5" value="${Math.round(d.minutos / 30) / 2}" ${d.ativo ? '' : 'disabled'} aria-label="Horas em ${d.dia}"> h</span>
+      </label>`).join('');
+    const mats = document.getElementById('gg-mats');
+    if (!s.materias.length) { mats.innerHTML = '<p class="gg-hint">Monte o ciclo da semana (ou cadastre matérias) para ter metas a distribuir.</p>'; return; }
+    mats.innerHTML = s.materias.map((m, i) => `
+      <div class="gg-mat">
+        <span class="gg-mat-nome" title="${esc(m.nome)}"><b>${esc(sigla(m.nome))}</b> ${esc(m.nome)}</span>
+        <span class="gg-in gg-mat-min"><input type="number" data-mat-min="${i}" min="0" step="15" value="${m.minutos}" aria-label="Minutos por semana de ${esc(m.nome)}"> min</span>
+        <label class="gg-tog" title="Prioritária: primeiros horários do dia"><input type="checkbox" data-mat-pri="${i}" ${m.prioritaria ? 'checked' : ''}><span>⭐</span></label>
+        <label class="gg-tog" title="Matéria de cálculo"><input type="checkbox" data-mat-calc="${i}" ${m.calculo ? 'checked' : ''}><span>🧮</span></label>
+      </div>`).join('');
+  }
+
+  function lerForm() {
+    const s = st.form, q = sel => document.querySelectorAll(sel);
+    s.minSess = Math.max(15, Number(document.getElementById('gg-min').value) || 60);
+    s.maxSess = Math.max(s.minSess, Number(document.getElementById('gg-max').value) || 120);
+    q('[data-dia-ativo]').forEach(el => { const d = s.dias[+el.dataset.diaAtivo]; d.ativo = el.checked; el.closest('.gg-dia').classList.toggle('off', !el.checked); const h = el.closest('.gg-dia').querySelector('[data-dia-h]'); if (h) h.disabled = !el.checked; });
+    q('[data-dia-h]').forEach(el => { s.dias[+el.dataset.diaH].minutos = Math.max(0, Math.round((Number(el.value) || 0) * 60)); });
+    q('[data-mat-min]').forEach(el => { s.materias[+el.dataset.matMin].minutos = Math.max(0, Math.round(Number(el.value) || 0)); });
+    q('[data-mat-pri]').forEach(el => { s.materias[+el.dataset.matPri].prioritaria = el.checked; });
+    q('[data-mat-calc]').forEach(el => { s.materias[+el.dataset.matCalc].calculo = el.checked; });
+    const dias = {}; s.dias.forEach(d => { dias[d.dia] = { ativo: d.ativo, minutos: d.minutos }; });
+    const materias = {}; s.materias.forEach(m => { materias[nk(m.nome)] = { prioritaria: m.prioritaria, calculo: m.calculo }; });
+    gravarPrefs({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
+  }
+
+  function gerarPrevia() {
+    const s = st.form;
+    const r = G.gerar({ minSess: s.minSess, maxSess: s.maxSess, semente: st.semente,
+      dias: s.dias.map(d => ({ dia: d.dia, minutos: d.ativo ? d.minutos : 0 })), materias: s.materias });
+    st.ultimo = r;
+    const meta = s.materias.reduce((a, m) => a + m.minutos, 0);
+    const disp = s.dias.reduce((a, d) => a + (d.ativo ? d.minutos : 0), 0);
+    const aloc = DIAS.reduce((a, d) => a + r.grade[d].reduce((x, c) => x + (c ? c.minutes : 0), 0), 0);
+    document.getElementById('gg-resumo').textContent = `${fmt(aloc)} alocadas · meta ${fmt(meta)} · disponível ${fmt(disp)}`;
+    document.getElementById('gg-avisos').innerHTML = r.avisos.map(a => `<p class="gg-aviso">⚠ ${esc(a)}</p>`).join('');
+    const cor = n => CE() ? CE().colorForSubject(n) : '';
+    let h = '<table class="gg-tab"><thead><tr><th></th>' + DIAS.map(d => `<th>${d.slice(0, 3)}</th>`).join('') + '</tr></thead><tbody>';
+    for (let i = 0; i < r.sessoes; i++) {
+      h += `<tr><td class="gg-sn">${i + 1}ª</td>` + DIAS.map(d => {
+        const c = r.grade[d][i];
+        if (!c) return '<td></td>';
+        const m = s.materias.find(x => x.nome === c.subject) || {};
+        return `<td><span class="gg-cel" title="${esc(c.subject)}"${cor(c.subject) ? ` style="--chip-color:${cor(c.subject)}"` : ''}><b>${esc(sigla(c.subject))}</b><small>${c.minutes}${m.prioritaria ? ' ⭐' : ''}${m.calculo ? ' 🧮' : ''}</small></span></td>`;
+      }).join('') + '</tr>';
+    }
+    h += '</tbody></table>';
+    document.getElementById('gg-prev').innerHTML = aloc ? h : '<p class="gg-hint">Nada para distribuir ainda: informe as metas das matérias e o tempo dos dias.</p>';
+    document.getElementById('gg-aplicar').disabled = !aloc;
+  }
+
+  async function aplicar() {
+    const r = st.ultimo; if (!r) return;
+    const t = DB.getGradeTemplate();
+    const temAlgo = DIAS.some(d => (t.grade && t.grade[d] || []).some(Boolean));
+    if (temAlgo) {
+      const ok = await UI.confirm('Substituir a grade atual pela sugestão? Uma cópia da grade atual fica guardada em "Grades salvas".', { title: '✨ Aplicar sugestão', okText: 'Substituir' });
+      if (!ok) return;
+      try { DB.addSavedGrade('Antes da sugestão ' + new Date().toLocaleDateString('pt-BR')); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'grade-gerador'); }
+    }
+    DB.saveGradeTemplate(Object.assign({}, t, { grade: JSON.parse(JSON.stringify(r.grade)), sessions: r.sessoes }));
+    fechar();
+    if (window.GradeScreen && GradeScreen.render) GradeScreen.render();
+    if (typeof showToast === 'function') showToast('Grade sugerida aplicada ✓');
+  }
+
+  function abrir() {
+    const m = montarModal();
+    _mapaSiglas = null;
+    st.form = estadoInicial(); st.semente = 0;
+    renderForm(); gerarPrevia();
+    m.style.display = 'flex';
+  }
+  function fechar() { const m = document.getElementById('grade-gerador-modal'); if (m) m.style.display = 'none'; }
+
+  window.GradeGerador.abrir = abrir;
+  window.GradeGerador.fechar = fechar;
+  document.addEventListener('click', e => { if (e.target.closest('#btn-grade-sugerir')) { e.preventDefault(); abrir(); } });
 })();
 
 /* ============================================================

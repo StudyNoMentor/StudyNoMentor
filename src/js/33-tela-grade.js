@@ -883,9 +883,68 @@ function planCycleMode() {
   }
   function sessionLabel(i) { return `${i + 1}ª sessão`; }
 
+  /* ---- Grade × registros de estudo ----
+     Cada sessão da grade é preenchida pelos minutos REGISTRADOS da matéria na
+     semana corrente, na ordem dos dias. Calculado na hora (nada é gravado):
+     apagar ou editar um registro corrige a grade sozinho. Estudar em outro dia
+     conta igual — vale a meta da semana, como no Ciclo. O ✓ manual continua
+     existindo e sempre vale. */
+  const _DOW = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+  const _iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  function gradeSemanaAtual() {
+    const hoje = _iso(new Date());
+    try {
+      const cyc = DB.getCurrentCycle();
+      if (cyc && cyc.startDate && cyc.endDate && cyc.startDate <= hoje && hoje <= cyc.endDate) return { ini: cyc.startDate, fim: cyc.endDate };
+    } catch (e) { _quiet(e); }
+    const d = new Date(), inicio = gradeWeekStart() === 'sun' ? 0 : 1;
+    const ini = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() - inicio + 7) % 7));
+    const fim = new Date(ini.getFullYear(), ini.getMonth(), ini.getDate() + 6);
+    return { ini: _iso(ini), fim: _iso(fim) };
+  }
+  let _gp = null;
+  function gradeProgresso() {
+    const { ini, fim } = gradeSemanaAtual(), tmpl = gradeGet(), estudado = {};
+    let entries = [];
+    try { entries = DB.getEntries() || []; } catch (e) { _quiet(e); }
+    entries.forEach(e => {
+      if (!e || !e.subject || !(e.date >= ini && e.date <= fim)) return;
+      const k = CycleEngine.normKey(e.subject); estudado[k] = (estudado[k] || 0) + (Number(e.durationMin) || 0);
+    });
+    const [y, m, dd] = ini.split('-').map(Number), d0 = new Date(y, m - 1, dd).getDay();
+    const mapa = {};
+    Array.from({ length: 7 }, (_, i) => _DOW[(d0 + i) % 7]).forEach(dia => {
+      (tmpl.grade[dia] || []).forEach((raw, idx) => {
+        const c = normalizeCell(raw); if (!c || !c.subject) return;
+        const k = CycleEngine.normKey(c.subject), meta = Math.max(0, Number(c.minutes) || 0), disp = estudado[k] || 0;
+        const feito = Math.min(meta, disp); estudado[k] = disp - feito;
+        mapa[dia + '|' + idx] = { feito, meta, completo: meta > 0 && feito >= meta };
+      });
+    });
+    return { ini, fim, mapa };
+  }
+  function progressoCelula(dia, idx) {
+    if (!_gp) _gp = gradeProgresso();
+    return _gp.mapa[dia + '|' + idx] || { feito: 0, meta: 0, completo: false };
+  }
+  // Abre "Registrar estudo" já preenchido com a sessão da grade.
+  function registrarSessao(subject, minutes) {
+    if (typeof switchScreen === 'function') switchScreen('registrar');
+    setTimeout(() => {
+      const fire = (el, ev) => el && el.dispatchEvent(new Event(ev, { bubbles: true }));
+      const s = document.getElementById('subject');
+      if (s && [...s.options].some(o => o.value === subject)) { s.value = subject; fire(s, 'change'); }
+      const d = document.getElementById('date'); if (d) { d.value = _iso(new Date()); fire(d, 'change'); }
+      const h = document.getElementById('duration-h'), m = document.getElementById('duration-m');
+      if (h && m) { h.value = String(Math.floor(minutes / 60)); m.value = String(minutes % 60); fire(h, 'input'); fire(m, 'input'); fire(h, 'change'); fire(m, 'change'); }
+      if (typeof showToast === 'function') showToast('Registro preenchido com a sessão da grade');
+    }, 60);
+  }
+
   function renderGrade() {
     const container = document.getElementById('ciclo-grade');
     if (!container) return;
+    _gp = null;
     const tmpl = gradeGet();
     const count = sessionCount(tmpl);
     const rows = Array.from({ length: count }, (_, i) => sessionLabel(i));
@@ -965,16 +1024,22 @@ function planCycleMode() {
     const { subject, minutes, done } = cellData;
     const acronym = CycleEngine.buildAcronymMap()[subject] || CycleEngine.siglaForSubject(subject);
     const _color = CycleEngine.colorForSubject(subject);
+    const prog = progressoCelula(dia, idx), auto = prog.completo && !done;
+    const concluida = done || prog.completo;
+    const pct = prog.meta > 0 ? Math.round(prog.feito / prog.meta * 100) : 0;
+    const dica = subject + (prog.feito > 0 ? ` · ${prog.feito}/${prog.meta} min pelos registros da semana` : '') + (done ? ' · marcada à mão' : '');
+    const _st = [_color ? `--chip-color:${_color}` : '', `--gp:${pct}%`].filter(Boolean).join(';');
     cell.innerHTML = `
-      <div class="subject-chip ${done ? 'done' : ''}" draggable="true" data-subject="${escapeHtml(subject)}" data-acronym="${escapeHtml(acronym)}" title="${escapeHtml(subject)}"${_color ? ` style="--chip-color:${_color}"` : ''}>
+      <div class="subject-chip ${concluida ? 'done' : ''} ${auto ? 'auto-done' : ''} ${prog.feito > 0 && !concluida ? 'parcial' : ''}" draggable="true" data-subject="${escapeHtml(subject)}" data-acronym="${escapeHtml(acronym)}" title="${escapeHtml(dica)}" style="${_st}">
         <div class="chip-top-row">
           <span class="chip-acronym-label">${escapeHtml(acronym)}</span>
           <button type="button" class="chip-remove" title="Remover desta célula" aria-label="Remover desta célula">×</button>
         </div>
         <div class="chip-bottom-row">
           <span class="chip-duration-wrap"><input type="text" inputmode="numeric" class="chip-duration-input" value="${minutes}" title="Duração em minutos" aria-label="Duração em minutos"></span>
-          <button type="button" class="chip-done-toggle" title="${done ? 'Marcar como não concluída' : 'Marcar como concluída'}">${CHECK_ICON}</button>
+          <button type="button" class="chip-done-toggle" title="${auto ? 'Concluída pelos registros de estudo' : (done ? 'Marcar como não concluída' : 'Marcar como concluída')}">${CHECK_ICON}</button>
         </div>
+        ${prog.feito > 0 && !concluida ? `<span class="chip-prog" aria-label="${prog.feito} de ${prog.meta} minutos registrados"></span>` : ''}
       </div>
     `;
     const chip = cell.querySelector('.subject-chip');
@@ -1004,6 +1069,10 @@ function planCycleMode() {
       // e impedia desmarcar) e re-renderiza a célula para refletir/rebindar corretamente
       const t = gradeGet();
       const cur = normalizeCell(t && t.grade[dia] && t.grade[dia][idx]);
+      if (!(cur && cur.done) && progressoCelula(dia, idx).completo) {
+        showToast('Esta sessão já está concluída pelos estudos registrados na semana.');
+        return;
+      }
       const newDone = !(cur && cur.done);
       setCellData(dia, idx, { subject, minutes: (cur && cur.minutes) || minutes, done: newDone });
       renderCellContent(cell);
@@ -1028,6 +1097,7 @@ function planCycleMode() {
     while (t.grade[dia].length <= idx) t.grade[dia].push(''); // garante slot p/ sessões dinâmicas
     t.grade[dia][idx] = cellData; // objeto {subject, minutes, done} ou null
     gradeSave(t);
+    _gp = null;
   }
 
   function bindDropZones(container) {
@@ -1105,6 +1175,7 @@ function planCycleMode() {
         <span class="gsp-nome">${escapeHtml(s.nome)}</span>
       </button>`).join('');
     html += `</div>`;
+    if (cur) html += `<button type="button" class="gsp-registrar" data-registrar="1">📝 Registrar estudo desta sessão</button>`;
     if (cur) html += `<button type="button" class="gsp-remove" data-remove="1">✕ Remover desta célula</button>`;
     pop.innerHTML = html;
     document.body.appendChild(pop);
@@ -1139,6 +1210,8 @@ function planCycleMode() {
       closeSiglaPicker();
       renderCellContent(cell); updateDaySummary(); updateUncheckAllBtn();
     }));
+    const rg = pop.querySelector('[data-registrar]');
+    if (rg) rg.addEventListener('click', () => { closeSiglaPicker(); registrarSessao(cur.subject, Number(cur.minutes) || GRADE_DEFAULT_MIN); });
     const rm = pop.querySelector('[data-remove]');
     if (rm) rm.addEventListener('click', () => {
       setCellData(dia, idx, null);
@@ -1287,8 +1360,12 @@ function planCycleMode() {
     const tmpl = gradeGet();
     const days = gradeDaysOrder();
     const hoje = _todayWeekdayName();
+    _gp = null;
     const html = days.map(dia => {
-      const slots = (tmpl.grade[dia] || []).map(normalizeCell).filter(Boolean);
+      const slots = (tmpl.grade[dia] || []).map((raw, i) => {
+        const c = normalizeCell(raw); if (!c) return null;
+        return Object.assign({}, c, { done: !!c.done || progressoCelula(dia, i).completo });
+      }).filter(Boolean);
       const totalMin = slots.reduce((s, c) => s + (c.minutes || 0), 0);
       /* A meta diaria mostrava tudo com a mesma cara: nao dava para saber o que
          ja foi feito sem voltar para a visao semanal. Agora o que esta marcado
@@ -1351,7 +1428,7 @@ function planCycleMode() {
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
-  window.GradeScreen = { render: renderGradeScreen };
+  window.GradeScreen = { render: renderGradeScreen, progresso: gradeProgresso, registrarSessao };
 
   // Gerenciador de siglas: MATÉRIAS (sigla auto editável) + siglas livres customizadas.
   function renderCustomSiglaManager() {
