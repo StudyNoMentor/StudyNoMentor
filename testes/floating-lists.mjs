@@ -53,6 +53,8 @@ assert.match(grade,/const paraCima = natural > abaixo && acima > abaixo/,'seleto
 assert.match(gradeCss,/\.gsp-list\s*\{[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y/,'lista da Grade deve rolar por toque');
 
 assert.match(globalScope,/installBankPickerDismiss\(\)[\s\S]*document\.addEventListener\('pointerdown'/,'filtro global de banca deve fechar ao tocar fora, inclusive com busca focada');
+assert.match(globalScope,/window\.addEventListener\('screen:activated',[^;]*closeAll\(null\)/,'troca de tela deve fechar o seletor global de bancas');
+assert.match(tec,/\.banca-pick-panel\[hidden\]\s*\{\s*display:\s*none\s*!important;\s*\}/,'hidden deve vencer display:grid no seletor de bancas');
 assert.match(globalScope,/global-bank-list\{[^}]*overflow-y:auto[^}]*touch-action:pan-y/,'lista global de bancas deve rolar internamente no mobile');
 assert.match(globalScope,/global-bank-item input\[type="checkbox"\][^}]*width:20px!important[^}]*height:20px!important/,'checkbox de banca não pode herdar width:100% dos inputs gerais');
 assert.match(globalScope,/if \(h !== host\) this\.renderBankPicker/,'seleção múltipla deve manter aberto o seletor atual');

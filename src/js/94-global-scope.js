@@ -586,6 +586,9 @@
         });
         if (e.cancelable) e.preventDefault();
       });
+      /* Dropdown é estado transitório de tela: ao trocar de menu ele sempre
+         fecha, para não reaparecer aberto quando o usuário voltar. */
+      window.addEventListener('screen:activated', () => closeAll(null));
     },
 
     installCardsUi() {

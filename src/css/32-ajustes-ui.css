@@ -854,6 +854,9 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
+/* O atributo hidden precisa vencer o display:grid acima. Sem isto o JS fecha
+   corretamente o seletor, mas ele continua visível após clique fora/reload. */
+.banca-pick-panel[hidden] { display: none !important; }
 .banca-pick-list {
   min-height: 0;
   max-height: none;
