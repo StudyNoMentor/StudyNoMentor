@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va552d8fb4f">
+<meta name="diario-versao" content="va2216d36e8">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -22552,6 +22552,14 @@ const FSRS = {
     const v = Math.pow(1 + fac * this._t(t) / this._S(S), dec);
     return isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
   },
+  /* Intervalo SEM arredondar, como o fsrs-rs devolve ao Anki. O fuzz do Anki
+     (constrained_fuzz_bounds) calcula a faixa sobre este valor fracionário;
+     arredondar antes desloca a faixa em 1 dia em parte dos casos. */
+  intervalFloat(S, r, w) {
+    const dec = this.decayOf(w), fac = this.factorOf(w);
+    const v = (this._S(S) / fac) * (Math.pow(this._r(r), 1 / dec) - 1);
+    return isFinite(v) ? Math.min(this.S_MAX, Math.max(0, v)) : 1;
+  },
   interval(S, r, w) {
     const dec = this.decayOf(w), fac = this.factorOf(w);
     const v = Math.round((this._S(S) / fac) * (Math.pow(this._r(r), 1 / dec) - 1));
@@ -23716,7 +23724,7 @@ const CardEngine = {
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
     const sementeFuzz = (typeof AnkiParity !== 'undefined') ? AnkiParity.fuzzSeed(c) : ((c.id || 'c') + '|' + (c.reps || 0));
     const place = (ivRaw, minIv) => {
-      const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
+      const iv = Math.max(1, Math.min(maxIv, ivRaw));
       const piso = Math.max(1, Math.min(maxIv, minIv || 1));
       if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso, sementeFuzz, c));
       /* O Anki sorteia UM fuzz_factor por card+reps (card.get_fuzz_factor) e usa
@@ -23781,6 +23789,12 @@ const CardEngine = {
       if (passos.length > 1) return arredDias((passos[0] + passos[1]) / 2);
       return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
     };
+    const curtoPrazo = (fase, S, D, ivDias) => {
+      const min = Math.floor(Math.fround(Math.fround(ivDias) * 86400)) / 60;   // Anki: (dias * 86400.0) as u32, em f32
+      Object.assign(patch, { phase: fase, learnStep: 0, s: S, d: D, status: 'naosei' }, stepDue(min));
+      patch._kind = 'min'; patch._val = min;
+      return patch;
+    };
     const graduate = (g, st) => {
       /* Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a
          regra de crescimento (não havia intervalo anterior de revisão).
@@ -23791,10 +23805,21 @@ const CardEngine = {
          do "Bom" — os botões apareciam fora de ordem e o algoritmo premiava
          menos quem achou o card fácil. */
       const S = st.s, D = st.d;
+      /* SEM PASSOS E MENOS DE MEIO DIA (Anki 26.09.2, conferido no backend
+         oficial): se o intervalo do FSRS é < 0,5 dia, o card NÃO gradua — fica
+         em (re)aprendizado pelo próprio intervalo, em segundos. Só acontece com
+         listas de passos vazias; com passos, graduate() só é chamado no fim. */
+      const semPassos = (c.phase === 'relearning') ? !relearn.length : !learn.length;
+      if (semPassos && g !== 4) {   // answer_easy nunca fica no curto prazo
+        const ivCurto = FSRS.intervalFloat(S, r, w);
+        if (ivCurto < 0.5) return curtoPrazo(c.phase === 'relearning' ? 'relearning' : 'learning', S, D, ivCurto);
+      }
       let piso = 1;
       if (g === 4) {
         const stBom = shortTerm(3);
-        piso = place(FSRS.interval(stBom.s, r, w), 1) + 1;
+        // learning.rs/relearning.rs::answer_easy: o "Bom" do piso é sorteado
+        // sobre o intervalo FRACIONÁRIO; o do "Fácil", sobre o arredondado.
+        piso = place(FSRS.intervalFloat(stBom.s, r, w), 1) + 1;
       }
       const iv = place(FSRS.interval(S, r, w), piso);
       /* O status acompanha a NOTA, não o fato de ter graduado. Com listas de
@@ -23846,8 +23871,13 @@ const CardEngine = {
         const lapses = (c.lapses || 0) + 1;
         if (semReaprendizado) {
           /* Sem passos de reaprendizado o card volta direto para revisão, com
-             o intervalo que a memória recalculada indica e piso de 1 dia. */
-          const iv = place(FSRS.interval(S2, r, w), 1);
+             o intervalo que a memória recalculada indica e piso de 1 dia.
+             Como no Anki 26.09.2 (medido no backend oficial): esse intervalo é
+             só ARREDONDADO, sem fuzz; abaixo de 0,5 dia o card fica em
+             reaprendizado pelo próprio intervalo, em segundos. */
+          const ivF = FSRS.intervalFloat(S2, r, w);
+          if (ivF < 0.5) { Object.assign(patch, { lapses }); return curtoPrazo('relearning', S2, D2, ivF); }
+          const iv = Math.max(1, Math.min(maxIv, Math.round(ivF)));
           Object.assign(patch, { phase: 'review', learnStep: 0, s: S2, d: D2, lapses,
             status: 'naosei', due: this.addDays(tdy, iv), dueTs: null, intervalo: iv });
           patch._kind = 'day'; patch._val = iv;
@@ -23872,7 +23902,7 @@ const CardEngine = {
            nota respondida é gravado, exatamente como o Anki faz. */
         const prevIv = ivPrevio();
         const ivDaNota = (g, pisoMin) => {
-          const raw = FSRS.interval(sDaNota(g), r, w);
+          const raw = FSRS.intervalFloat(sDaNota(g), r, w);
           const piso = Math.max(pisoMin, FSRS.minReviewFuzzInterval(raw, prevIv, maxIv));
           return place(raw, piso);
         };
@@ -23963,13 +23993,20 @@ const CardEngine = {
       if (steps.length > 1) return arredDias((steps[0] + steps[1]) / 2);
       return arredDias(Math.min(steps[0] * 1.5, steps[0] + 1440));
     };
-    const constr = (dias, minimo) => {
-      const raw = Math.max(1, Number(dias) || 1) * fGlobal;
+    /* constrain_passing_interval (review.rs): o multiplicador global só vale
+       para revisões aprovadas; a graduação usa o intervalo de graduação puro.
+       O fuzz recebe o intervalo FRACIONÁRIO — arredondar antes desloca a faixa
+       em 1 dia (medido contra o backend oficial 26.09.2). */
+    const constr = (dias, minimo, semMultiplicador) => {
+      const raw = Math.max(1, Number(dias) || 1) * (semMultiplicador ? 1 : fGlobal);
       const min = Math.min(Math.max(1, minimo || 1), maxIv);
-      const base = Math.max(min, Math.min(maxIv, Math.round(raw)));
-      // O SM-2 do Anki também aplica fuzz aos intervalos em dias.
-      try { return Math.min(maxIv, FSRS.fuzzed(base, seed, maxIv, min)); }
-      catch (_) { return base; }
+      const base = Math.max(min, Math.min(maxIv, raw));
+      try {
+        // with_review_fuzz do Anki passa pelo LoadBalancer também no SM-2.
+        if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(base, (d) => this._dueCountInDays(d), maxIv, min, seed, card));
+        return Math.min(maxIv, FSRS.fuzzed(base, seed, maxIv, min));
+      }
+      catch (_) { return Math.round(base); }
     };
     const stepPatch = (whichPhase, idx, delay, status) => {
       const p = Object.assign({
@@ -23982,8 +24019,10 @@ const CardEngine = {
     const graduateNew = (easy) => {
       // A facilidade inicial nasce NA GRADUAÇÃO. Again/Hard durante aprendizagem
       // não reduzem ease, e Easy em card novo não a aumenta.
-      ease = Number(card.ease) || easeIni;
-      intervalo = constr(easy ? gradEasy : gradGood, 1);
+      // Anki: a graduação sempre parte da facilidade INICIAL da predefinição.
+      // O card novo nasce com ease 2,5 gravado; usá-lo ignorava a opção.
+      ease = easeIni;
+      intervalo = constr(easy ? gradEasy : gradGood, 1, true);
       return {
         status: grade === 'errei' ? 'naosei' : 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -23997,9 +24036,10 @@ const CardEngine = {
          configuração). O app devolvia o MESMO intervalo para os dois, de modo
          que acertar com folga um card que estava em reaprendizado não rendia
          nada — e a invariante de ordem não pegava, porque ela aceita empate. */
+      /* relearning.rs: Bom devolve o intervalo pós-lapso já calculado e Fácil
+         o mesmo + 1 — sem fuzz e sem multiplicador (backend oficial 26.09.2). */
       const base = Math.max(minLapse, intervalo || minLapse);
-      const ivBom = constr(base, 1);
-      intervalo = easy ? constr(base, ivBom + 1) : ivBom;
+      intervalo = Math.min(maxIv, easy ? base + 1 : base);
       return {
         status: grade === 'errei' ? 'naosei' : 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -24023,7 +24063,13 @@ const CardEngine = {
     if (phase === 'relearning') {
       if (!relearn.length) return graduateRelearn(grade === 'facil');
       const cur = Math.max(0, Math.min(card.learnStep || 0, relearn.length - 1));
-      if (grade === 'errei') return stepPatch('relearning', 0, relearn[0], 'naosei');
+      if (grade === 'errei') {
+        /* relearning.rs::answer_again: failing_review_interval de novo sobre o
+           intervalo guardado (multiplicador de lapso + fuzz, piso mínimo). O
+           lapso não é contado outra vez. */
+        intervalo = constr(Math.max(1, intervalo) * fLapse, minLapse, true);
+        return stepPatch('relearning', 0, relearn[0], 'naosei');
+      }
       if (grade === 'dificil') return stepPatch('relearning', cur, hardDelay(relearn, cur), 'naosei');
       if (grade === 'facil') return graduateRelearn(true);
       const next = cur + 1;
@@ -24037,9 +24083,12 @@ const CardEngine = {
     if (grade === 'errei') {
       lapses += 1;
       ease = clampE(ease + this.EASE_AGAIN_DELTA);
-      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(base * fLapse)));
+      /* failing_review_interval (review.rs): o intervalo pós-lapso é
+         FRACIONÁRIO, com fuzz (e balanceamento), piso no intervalo mínimo e
+         sem o multiplicador global — calculado já no erro, com ou sem passos
+         de reaprendizado (é o valor que a graduação do reaprendizado usa). */
+      intervalo = constr(base * fLapse, minLapse, true);
       if (relearn.length) return stepPatch('relearning', 0, relearn[0], 'naosei');
-      intervalo = constr(intervalo, minLapse);
       return {
         status: 'naosei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -24047,6 +24096,9 @@ const CardEngine = {
       };
     }
 
+    /* Revisão antecipada (passing_early_review_intervals) só ocorre no Anki
+       em baralho filtrado; num baralho normal o backend oficial usa a fórmula
+       comum mesmo com decorridos < agendados (medido no 26.09.2). */
     const minHard = fHard <= 1.0 ? 0 : base + 1;
     const ivHard = constr(base * fHard, minHard);
     const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
@@ -24075,6 +24127,16 @@ const CardEngine = {
     // para baixo: com limiar padrão 8 não fazia diferença (8/2=4 nos dois
     // casos), mas em qualquer limiar ÍMPAR editado na tela (3, 5, 7, 9, 15...)
     // floor() disparava o aviso em lapsos errados a partir da segunda rodada.
+    /* O Anki GRAVA o estado de memória arredondado (S com 4 casas, D com 3 —
+       conferido lendo o card de volta no backend 26.09.2). O intervalo já foi
+       calculado com o valor cheio; o que persiste, e alimenta a próxima
+       resposta, é o arredondado. Sem isso a trajetória derivava aos poucos. */
+    if (typeof patch.s === 'number' && isFinite(patch.s)) patch.s = Math.round(patch.s * 1e4) / 1e4;
+    if (typeof patch.d === 'number' && isFinite(patch.d)) patch.d = Math.round(patch.d * 1e3) / 1e3;
+    /* last_review_time do Anki: instante exato da resposta. A ordem por
+       retenção (extract_fsrs_retrievability) mede o tempo em segundos a partir
+       dele; só com a data, dois cards do mesmo dia empatavam. */
+    patch.lastReviewTs = Date.now();
     const lim = cfg.leechThreshold || 0;
     if (lim > 0 && patch.lapses && patch.lapses > (card.lapses || 0) && patch.lapses >= lim) {
       const passo = Math.max(1, Math.ceil(lim / 2));
@@ -31915,7 +31977,9 @@ const CardsScreen = {
       else if (c.dueTs) aprendAgora.push(c); // intradiário: prioridade absoluta
       else aprendDia.push(c);                // cruzou a virada: conta como review
     });
-    aprendAgora.sort((a, b) => Number(a.dueTs || 0) - Number(b.dueTs || 0));
+    // queue/learning.rs::cmp_by_reps_then_due: quem já tem repetições vem antes
+    // dos que nunca foram respondidos; depois, pelo vencimento.
+    aprendAgora.sort((a, b) => (((a.reps || 0) === 0) - ((b.reps || 0) === 0)) || Number(a.dueTs || 0) - Number(b.dueTs || 0));
     /* ── ORDEM DAS REVISÕES ───────────────────────────────────────────────────
        Ordena ANTES de aplicar o limite: com acúmulo, quais revisões entram
        importa tanto quanto a ordem em que aparecem. O padrão do Anki 26.09.2
@@ -31972,8 +32036,10 @@ const CardsScreen = {
         : novos.slice().sort(COLETA.posicao);
     }
 
-    // NewCardSortOrder: reordena o lote já coletado exatamente como o rslib.
+    // NewCardSortOrder: reordena o lote JÁ LIMITADO (builder/mod.rs::build chama
+    // sort_new depois de gather_cards) — ver ordenarNovos() abaixo.
     const sortNovos = cfgQ.newSortOrder || 'template';
+    const ordenarNovos = (novos) => {
     if (sortNovos === 'template') {
       novos = (typeof AnkiParity !== 'undefined')
         ? AnkiParity.stableNewSort(novos,'template')
@@ -31985,6 +32051,8 @@ const CardsScreen = {
     } else if (sortNovos === 'randomCard') {
       if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'randomCard');
     }
+    return novos;
+    };
     /* ── ReviewCardOrder ──────────────────────────────────────────────────────
        Réplica das variantes do Anki que fazem sentido aqui. Ficaram de fora as
        que dependem de múltiplos baralhos aninhados (DAY_THEN_DECK,
@@ -31995,13 +32063,23 @@ const CardsScreen = {
        risco que um de 300 dias atrasado 3 (razão 1,01), mesmo o segundo estando
        "mais vencido" em dias absolutos. É a ordem que o Anki usa por padrão no
        agendador v3 clássico. */
-    const hojeQ = todayCards(), wQ = CardsConfig.weights();
-    const R = (c) => CardEngine.retrievabilityDe(c, hojeQ, wQ);
-    const atrasoRel = (c) => {
-      const iv = Math.max(1, c.intervalo || 1);
-      const atraso = CardEngine._daysBetween(c.due || hojeQ, hojeQ);
-      return (atraso + iv) / iv;                       // >1 = mais urgente
+    const hojeQ = todayCards(), wQ = CardsConfig.weights(), fsrsQ = CardsConfig.get().algo === 'fsrs';
+    /* extract_fsrs_retrievability (storage/sqlite.rs): com last_review_time o
+       Anki mede o tempo decorrido em SEGUNDOS; sem ele, em dias inteiros
+       desde due − ivl. */
+    const R = (c) => {
+      const ts = Number(c && c.lastReviewTs);
+      if (ts > 0 && typeof c.s === 'number' && c.s > 0) return FSRS.R(Math.max(0, Date.now() - ts) / 86400000, c.s, wQ);
+      return CardEngine.retrievabilityDe(c, hojeQ, wQ);
     };
+    // Dias desde o vencimento, com sinal (card vencido > 0).
+    const diasVencido = (c) => Math.round((new Date(hojeQ + 'T00:00:00') - new Date(String(c.due || hojeQ) + 'T00:00:00')) / 86400000);
+    /* RelativeOverdueness: no FSRS a retenção atual relativa à desejada da
+       predefinição (mesma ordem de R crescente); no SM-2,
+       -(1 + (hoje − due + 0,001) / ivl) crescente. */
+    const sobreatraso = (c) => fsrsQ && typeof c.s === 'number' && c.s > 0
+      ? R(c) : -(1 + (diasVencido(c) + 0.001) / Math.max(1, c.intervalo || 1));
+    const nidDe = (c) => { const n = Number(c && (c.ankiNoteId || c.ankiId)); return Number.isFinite(n) && n > 0 ? n : Date.parse(c && c.createdAt || '') || 0; };
     const ordemRev = cfgQ.reviewOrder || 'day';
     // Desempate exato do backend: SQLite fnvhash(card.id, card.mod), FNV-1a
     // 64-bit sobre os dois i64. ankiId/ankiMod preservam essa identidade sem
@@ -32019,20 +32097,23 @@ const CardsScreen = {
     const ORDENADORES = {
       retrievabilityAsc:  (a, b) => R(a) - R(b) || cmpRnd(a, b),
       retrievabilityDesc: (a, b) => R(b) - R(a) || cmpRnd(a, b),
-      relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a) || cmpRnd(a, b),
+      relativeOverdueness:(a, b) => sobreatraso(a) - sobreatraso(b) || cmpRnd(a, b),
       day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
       dayThenDeck:        (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || rankDeck(a) - rankDeck(b) || cmpRnd(a, b),
       deckThenDay:        (a, b) => rankDeck(a) - rankDeck(b) || String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
       intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || cmpRnd(a, b),
       intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || cmpRnd(a, b),
-      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0) || cmpRnd(a, b),     // no FSRS a dificuldade
-      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0) || cmpRnd(a, b),     // faz o papel do "ease"
-      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || cmpRnd(a, b),
-      reverseAdded:       (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || cmpRnd(a, b),
+      // review_order_sql: no FSRS "facilidade crescente" = dificuldade DECRESCENTE.
+      easeAsc:            (a, b) => (fsrsQ ? (b.d || 0) - (a.d || 0) : (a.ease || 0) - (b.ease || 0)) || cmpRnd(a, b),
+      easeDesc:           (a, b) => (fsrsQ ? (a.d || 0) - (b.d || 0) : (b.ease || 0) - (a.ease || 0)) || cmpRnd(a, b),
+      // "nid asc, ord asc" / "nid desc, ord asc"
+      added:              (a, b) => nidDe(a) - nidDe(b) || ordTemplate(a) - ordTemplate(b) || cmpRnd(a, b),
+      reverseAdded:       (a, b) => nidDe(b) - nidDe(a) || ordTemplate(a) - ordTemplate(b) || cmpRnd(a, b),
       random:             (a, b) => cmpRnd(a, b)
     };
     const cmp = ORDENADORES[ordemRev];
-    if (cmp) revisoes.sort(cmp);
+    // O aprendizado entre dias usa a MESMA cláusula de ordem das revisões.
+    if (cmp) { revisoes.sort(cmp); aprendDia.sort(cmp); }
     /* O campo new_per_day_minimum ainda existe no protobuf do Anki, mas o
        backend atual o marca explicitamente como "not currently used". Não
        deixamos um campo legado alterar a fila. A única exceção oficial ao
@@ -32084,16 +32165,18 @@ const CardsScreen = {
       return out;
     };
 
-    const novosLim = limitarPorArvore(novos, newRemEfetivo, 'new');
-
-    // Interday learning e reviews usam O MESMO saldo de review da árvore.
-    // Cards intradiários continuam fora do teto, como no scheduler moderno.
+    /* gathering.rs: aprendizado entre dias → revisões → novos. Cada revisão
+       aceita reduz o teto de novos (novos = mín(novos, revisões restantes));
+       aceitar um novo NÃO consome vaga de revisão durante a montagem. */
     const aprendDiaLim = limitarPorArvore(aprendDia, revRem, 'review');
     const revLim = limitarPorArvore(
       revisoes,
       Math.max(0, revRem - aprendDiaLim.length),
       'review'
     );
+    const restoRev = Math.max(0, revRem - aprendDiaLim.length - revLim.length);
+    const novosLim = ordenarNovos(limitarPorArvore(novos,
+      cfgQ.newCardsIgnoreReviewLimit ? newRemEfetivo : Math.min(newRemEfetivo, restoRev), 'new'));
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
@@ -32130,11 +32213,12 @@ const CardsScreen = {
                        que ficou pela metade.
        "Misturar" usa o intercalador proporcional acima, não sorteio. */
     const cfgMix = cfgQ;
+    // builder/mod.rs: Intersperser::new(base, grupo) — a base conduz.
     const aplicarMix = (grupo, base, modo) => {
       if (!grupo.length) return base;
       if (modo === 'antes') return grupo.concat(base);
       if (modo === 'depois') return base.concat(grupo);
-      return intercalar(grupo, base);
+      return intercalar(base, grupo);
     };
     /* NÃO embaralhar aqui. O código antigo fazia shuffle() nos dois grupos
        porque não existia opção de ordenação — o acaso era a única política.
@@ -32142,9 +32226,10 @@ const CardsScreen = {
        propósito, e embaralhar depois ANULA as três: era o caso de
        'materiaRodizio' montar C,T,C,T e o shuffle devolver C,C,C,T,T,T.
        Quem quiser acaso escolhe 'Aleatória' nas opções. */
+    // merge_day_learning e DEPOIS merge_new, nesta ordem.
     let corpo = revLim.slice();
-    corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
     corpo = aplicarMix(aprendDiaLim.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
     // Passos intradiários vencidos precedem review/new para respeitar o atraso
     // configurado o mais de perto possível (regra explícita do Anki).
     corpo = aprendAgora.concat(corpo);
@@ -34751,7 +34836,9 @@ const AnkiParity = {
       const raw=Number(c&&c.ankiTemplateOrd);
       return Number.isFinite(raw)?Math.max(0,raw):(c&&c.template==='reverse'?1:0);
     };
-    const cid=c=>this.newCardHash(c,days),nid=c=>this.newNoteHash(c,days);
+    // sort_new (builder/sorting.rs) usa FnvHasher::finish(): u64 SEM sinal.
+    // A coleta (gather*) usa fnvhash() do SQLite, que é i64 com sinal.
+    const cid=c=>BigInt.asUintN(64,this.newCardHash(c,days)),nid=c=>BigInt.asUintN(64,this.newNoteHash(c,days));
     if(mode==='template')xs.sort((a,b)=>ord(a)-ord(b));
     else if(mode==='templateRandom')xs.sort((a,b)=>ord(a)-ord(b)||this.cmpBig(cid(a),cid(b)));
     else if(mode==='randomNoteTemplate')xs.sort((a,b)=>this.cmpBig(nid(a),nid(b))||ord(a)-ord(b));
@@ -34782,23 +34869,34 @@ const AnkiParity = {
     });
   },
   _siblingModifiers(card,lo,hi){
+    /* answering/mod.rs só entrega o note_id ao LoadBalancer quando a
+       predefinição ENTERRA revisões irmãs (bury_reviews); sem isso não há
+       afastamento de irmãos. E a janela é [hoje, hoje+99): irmão vencido no
+       passado não conta — _daysBetween satura em 0 e o contava como "hoje". */
     const out=Array.from({length:hi-lo+1},()=>1);if(!card||!card.noteId)return out;
+    const cfg=this.cfgForCard(card);if(!cfg||!cfg.buryReviews)return out;
     const nid=String(card.noteId),days=new Set(),steps=[-5,-4,-3,-2,-1,0,1,2,3,4,5],mods=[1,.8,.6,.4,.2,.000001,.2,.4,.6,.8,1];
+    const hoje=Date.parse(todayCards()+'T00:00:00');
     this._cardsForCardPlan(card).forEach(c=>{
       if(String(c.id)===String(card.id)||String(c.noteId||c.id)!==nid||c.dueTs||!c.due)return;
-      const d=CardEngine._daysBetween(todayCards(),c.due);if(d>=0&&d<99)days.add(d);
+      const d=Math.round((Date.parse(String(c.due).slice(0,10)+'T00:00:00')-hoje)/86400000);if(d>=0&&d<99)days.add(d);
     });
     days.forEach(sd=>steps.forEach((st,i)=>{const at=sd+st-lo;if(at>=0&&at<out.length)out[at]*=mods[i];}));
     return out;
   },
   loadBalance(interval,maxIv,minIv,seed,card){
     const iv=Number(interval),minimum=Math.max(1,Number(minIv)||1),maximum=Math.max(minimum,Number(maxIv)||36500);
-    if(iv>90||minimum>90)return null;
+    // find_interval: `interval as usize > 90` TRUNCA (90,64 ainda é balanceado).
+    if(Math.trunc(iv)>90||minimum>90)return null;
     const b=FSRS.constrainedFuzzBounds(iv,minimum,maximum),lo=b[0],hi=b[1],ints=[];for(let d=lo;d<=hi;d++)ints.push(d);
     const preset=this.configIdForDeck(card&&card.deckId);
+    /* get_all_cards_due_in_range (storage/card/mod.rs) conta TODO card cujo
+       vencimento em dias cai na janela: suspensos, enterrados e aprendizado
+       entre dias entram; só o aprendizado intradiário (vencimento em segundos)
+       fica de fora. Card novo não tem dia de vencimento no Study. */
     const counts=ints.map(d=>{let n=0;this._scopeCards().forEach(c=>{
-      if(c.suspenso||c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
-      if(ph!=='review'||this.configIdForDeck(c.deckId)!==preset)return;if(CardEngine._daysBetween(todayCards(),c.due)===d)n++;
+      if(c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
+      if(ph==='new'||this.configIdForDeck(c.deckId)!==preset)return;if(CardEngine._daysBetween(todayCards(),c.due)===d)n++;
     });return n;});
     const easy=this._easyModifiers(this.cfgForCard(card),ints,counts),sib=this._siblingModifiers(card,lo,hi);
     const weights=ints.map((d,i)=>counts[i]===0?1:Math.pow(1/counts[i],2.15)*Math.pow(1/d,3)*sib[i]*easy[i]);
@@ -35279,8 +35377,10 @@ AnkiParity.limitState=function(selectedDeckId){
       // O estado inicial já desconta os novos vistos hoje; aqui descontamos
       // os novos que entram NESTA fila para que os reviews seguintes vejam
       // exatamente o saldo restante em cada nó da árvore.
-      if(kind==='new'&&r.capNewToReview)r.review=Math.max(0,r.review-1);
-      if(r.capNewToReview)r.new=Math.min(r.new,r.review);
+      // limits.rs::decrement: só a REVISÃO rebaixa o teto de novos; aceitar
+      // um novo na montagem não consome vaga de revisão (o saldo inicial já
+      // desconta os novos introduzidos hoje).
+      if(kind==='review'&&r.capNewToReview)r.new=Math.min(r.new,r.review);
     });
     return true;
   };
@@ -51198,6 +51298,10 @@ const RelationalStore = {
   _applying: false,
   _tail: Promise.resolve(),
   _pending: 0,
+  /* Geração das mutações LOCAIS persistentes. Uma leitura da nuvem que começou
+     antes de uma escrita local (ou com escritas ainda na fila) traz um retrato
+     velho: aplicá-lo por cima apagaria a resposta recém-dada a um card. */
+  _localGen: 0,
   _lastError: null,
   _lastSyncAt: null,
   _channel: null,
@@ -51428,9 +51532,14 @@ const RelationalStore = {
   /* Recarrega só as tabelas informadas (já sabemos quais mudaram pelo
      change-log) em vez de todo o perfil — mesmo resultado final, muito
      menos egress quando o usuário só registrou uma sessão ou editou um card. */
+  _snapshotVelho(gen) {
+    return this._localGen !== gen || this._pending > 0;
+  },
   async _refreshCorePartial(profileId, specs) {
     const appliers = this._coreGroupAppliers();
+    const gen = this._localGen;
     const loaded = await Promise.all(specs.map(s => this._all(s[1], profileId, s[2])));
+    if (this._snapshotVelho(gen)) return { stale: true };
     const pfx = this._pfx(profileId);
     specs.forEach((s, i) => {
       const a = appliers[s[0]]; if (!a) return;
@@ -51671,7 +51780,16 @@ const RelationalStore = {
     // Antes de substituir a projeção local pela nuvem, drena respostas feitas
     // offline. Se isso falhar, NÃO hidratamos por cima do estado local pendente.
     await this.replayReviewOutbox(profileId, { beforeHydrate: true });
-    const d=await this._loadCoreBundle(profileId);
+    let d=null;
+    for(let tentativa=0;;tentativa++){
+      const gen=this._localGen;
+      d=await this._loadCoreBundle(profileId);
+      if(!this._snapshotVelho(gen))break;
+      // Catch-up pode esperar o próximo ciclo; abertura/restauração tentam de novo.
+      if(opts.guardLocal)return {ok:false,stale:true};
+      if(tentativa>=2)break;
+      try{await this.flush();}catch(e){_quiet(e,'rel-core-reflush');}
+    }
     this._applyCoreBundle(profileId,d,{preserveHeavy:!!opts.preserveHeavy});
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
@@ -51900,6 +52018,7 @@ const RelationalStore = {
     /* Reaplicar exatamente o mesmo valor não é uma mutação persistente.
        Evita UPSERTs disparados por renderizações/reativações de tela. */
     if(oldRaw===newRaw) return;
+    this._localGen++;
     /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
        Essas escritas de UI são apenas projeção efêmera; não entram em fila e
        não viram falso erro de banco. Depois do login, isReady() permanece true
@@ -52158,11 +52277,13 @@ const RelationalStore = {
       if(spec){ core=true; partialSpecs.push(spec); }
       else { core=true; needsFullCore=true; }
     });
+    let r=null;
     if(needsFullCore){
-      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+      r=await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true,guardLocal:true});
     } else if(partialSpecs.length){
-      await this._refreshCorePartial(profileId,partialSpecs);
+      r=await this._refreshCorePartial(profileId,partialSpecs);
     }
+    if(r&&r.stale)return {core,heavy,stale:true};
     if(heavy){
       this._heavyDirty.add(profileId);
       if(this._heavyReady.has(profileId))await this.ensureHeavyData(profileId,{reason:reason||'catch-up-heavy',force:true});
@@ -52183,7 +52304,14 @@ const RelationalStore = {
       this._lastSyncAt=Date.now();
       return {ok:true,mudou:0,changeId:after};
     }
-    await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
+    const aplicado=await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
+    if(aplicado&&aplicado.stale){
+      // Escrita local no meio da leitura: não avança a marca d'água e relê
+      // depois que a fila local chegar ao banco.
+      clearTimeout(this._rtTimer);
+      this._rtTimer=setTimeout(()=>this.catchUp(id,'catch-up-stale').catch(e=>{this._lastError=e;}),1500);
+      return {ok:true,mudou:0,stale:true,changeId:after};
+    }
     this._lastChangeId.set(id,Math.max(after,Number(summary.maxChangeId)||after));
     this._lastSyncAt=Date.now();this._lastError=null;
     return {ok:true,mudou:summary.count||1,changeId:this._lastChangeId.get(id),tables:summary.tables};

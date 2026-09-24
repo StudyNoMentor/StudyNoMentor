@@ -6,6 +6,10 @@ const RelationalStore = {
   _applying: false,
   _tail: Promise.resolve(),
   _pending: 0,
+  /* Geração das mutações LOCAIS persistentes. Uma leitura da nuvem que começou
+     antes de uma escrita local (ou com escritas ainda na fila) traz um retrato
+     velho: aplicá-lo por cima apagaria a resposta recém-dada a um card. */
+  _localGen: 0,
   _lastError: null,
   _lastSyncAt: null,
   _channel: null,
@@ -236,9 +240,14 @@ const RelationalStore = {
   /* Recarrega só as tabelas informadas (já sabemos quais mudaram pelo
      change-log) em vez de todo o perfil — mesmo resultado final, muito
      menos egress quando o usuário só registrou uma sessão ou editou um card. */
+  _snapshotVelho(gen) {
+    return this._localGen !== gen || this._pending > 0;
+  },
   async _refreshCorePartial(profileId, specs) {
     const appliers = this._coreGroupAppliers();
+    const gen = this._localGen;
     const loaded = await Promise.all(specs.map(s => this._all(s[1], profileId, s[2])));
+    if (this._snapshotVelho(gen)) return { stale: true };
     const pfx = this._pfx(profileId);
     specs.forEach((s, i) => {
       const a = appliers[s[0]]; if (!a) return;
@@ -479,7 +488,16 @@ const RelationalStore = {
     // Antes de substituir a projeção local pela nuvem, drena respostas feitas
     // offline. Se isso falhar, NÃO hidratamos por cima do estado local pendente.
     await this.replayReviewOutbox(profileId, { beforeHydrate: true });
-    const d=await this._loadCoreBundle(profileId);
+    let d=null;
+    for(let tentativa=0;;tentativa++){
+      const gen=this._localGen;
+      d=await this._loadCoreBundle(profileId);
+      if(!this._snapshotVelho(gen))break;
+      // Catch-up pode esperar o próximo ciclo; abertura/restauração tentam de novo.
+      if(opts.guardLocal)return {ok:false,stale:true};
+      if(tentativa>=2)break;
+      try{await this.flush();}catch(e){_quiet(e,'rel-core-reflush');}
+    }
     this._applyCoreBundle(profileId,d,{preserveHeavy:!!opts.preserveHeavy});
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
@@ -708,6 +726,7 @@ const RelationalStore = {
     /* Reaplicar exatamente o mesmo valor não é uma mutação persistente.
        Evita UPSERTs disparados por renderizações/reativações de tela. */
     if(oldRaw===newRaw) return;
+    this._localGen++;
     /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
        Essas escritas de UI são apenas projeção efêmera; não entram em fila e
        não viram falso erro de banco. Depois do login, isReady() permanece true
@@ -966,11 +985,13 @@ const RelationalStore = {
       if(spec){ core=true; partialSpecs.push(spec); }
       else { core=true; needsFullCore=true; }
     });
+    let r=null;
     if(needsFullCore){
-      await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true});
+      r=await this.hydrateProfile(profileId,{reason:reason||'catch-up-core',includeHeavy:false,preserveHeavy:true,skipWatermark:true,guardLocal:true});
     } else if(partialSpecs.length){
-      await this._refreshCorePartial(profileId,partialSpecs);
+      r=await this._refreshCorePartial(profileId,partialSpecs);
     }
+    if(r&&r.stale)return {core,heavy,stale:true};
     if(heavy){
       this._heavyDirty.add(profileId);
       if(this._heavyReady.has(profileId))await this.ensureHeavyData(profileId,{reason:reason||'catch-up-heavy',force:true});
@@ -991,7 +1012,14 @@ const RelationalStore = {
       this._lastSyncAt=Date.now();
       return {ok:true,mudou:0,changeId:after};
     }
-    await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
+    const aplicado=await this._refreshDomains(id,summary.tables,reason||'catch-up',summary.truncated);
+    if(aplicado&&aplicado.stale){
+      // Escrita local no meio da leitura: não avança a marca d'água e relê
+      // depois que a fila local chegar ao banco.
+      clearTimeout(this._rtTimer);
+      this._rtTimer=setTimeout(()=>this.catchUp(id,'catch-up-stale').catch(e=>{this._lastError=e;}),1500);
+      return {ok:true,mudou:0,stale:true,changeId:after};
+    }
     this._lastChangeId.set(id,Math.max(after,Number(summary.maxChangeId)||after));
     this._lastSyncAt=Date.now();this._lastError=null;
     return {ok:true,mudou:summary.count||1,changeId:this._lastChangeId.get(id),tables:summary.tables};

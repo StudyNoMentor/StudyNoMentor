@@ -66,6 +66,14 @@ const FSRS = {
     const v = Math.pow(1 + fac * this._t(t) / this._S(S), dec);
     return isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
   },
+  /* Intervalo SEM arredondar, como o fsrs-rs devolve ao Anki. O fuzz do Anki
+     (constrained_fuzz_bounds) calcula a faixa sobre este valor fracionário;
+     arredondar antes desloca a faixa em 1 dia em parte dos casos. */
+  intervalFloat(S, r, w) {
+    const dec = this.decayOf(w), fac = this.factorOf(w);
+    const v = (this._S(S) / fac) * (Math.pow(this._r(r), 1 / dec) - 1);
+    return isFinite(v) ? Math.min(this.S_MAX, Math.max(0, v)) : 1;
+  },
   interval(S, r, w) {
     const dec = this.decayOf(w), fac = this.factorOf(w);
     const v = Math.round((this._S(S) / fac) * (Math.pow(this._r(r), 1 / dec) - 1));

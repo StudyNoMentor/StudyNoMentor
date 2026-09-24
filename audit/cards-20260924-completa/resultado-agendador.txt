@@ -1,0 +1,17 @@
+categoria             fsrs_balanceado fsrs_balanceado_easydays        fsrs_padrao fsrs_passos_longos    fsrs_sem_passos      fsrs_um_passo     sm2_balanceado         sm2_custom         sm2_padrao  sm2_passos_longos
+facilidade                          -                  -                  -                  -                  -                  -          1202/1202          1272/1272          1237/1237          1188/1188
+fase                        1600/1600          1600/1600          1600/1600          1600/1600          1600/1600          1600/1600          1600/1600          1600/1600          1600/1600          1600/1600
+intervalo pos-lapso                  -                  -                  -                  -                  -                  -            318/318                  -            341/341            348/348
+intervalo(dias)               911/911            908/908            917/917            856/856          1083/1083          1198/1198            884/884          1272/1272            896/896            840/840
+lapsos                      1241/1241          1239/1239          1273/1273          1226/1226          1526/1526          1282/1282          1202/1202          1272/1272          1237/1237          1188/1188
+memoria S/D                 1600/1600          1600/1600          1600/1600          1600/1600          1599/1600          1600/1600                  -                  -                  -                  -
+passo(segundos)               689/689            692/692            683/683            744/744            517/517            401/402            716/716            328/328            704/704            760/760
+sanguessuga                 1241/1241          1239/1239          1273/1273          1226/1226          1526/1526          1282/1282          1202/1202          1272/1272          1237/1237          1188/1188
+
+TOTAL 72876 / 72878
+
+## passo(segundos) fsrs_um_passo 1
+   review step=0 el=1 ivl=1 errei: app=min:267.9 anki=16073s
+
+## memoria S/D fsrs_sem_passos 1
+   review step=0 el=16 ivl=26 facil: app S=127.6039 D=2.377 anki S=127.604164 D=2.376552

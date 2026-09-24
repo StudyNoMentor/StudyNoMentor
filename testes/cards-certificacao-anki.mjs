@@ -73,7 +73,9 @@ eq(CardsScreen.buildQueue()[0], 'mais-antigo',
   'em Todos, a fila deve voltar à ordem global por vencimento');
 
 // Também a mistura new/review precisa obedecer ao preset do deck selecionado.
-a.reset({ algo: 'fsrs', loadBalance: false, newMix: 'misturar', newPerDay: 20, revPerDay: 200 });
+// Global "novos antes" x preset "novos depois". (Com "misturar", 1 revisão e
+// 1 novo, o Intersperser do Anki põe a revisão primeiro — ratio (1+1)/(1+1).)
+a.reset({ algo: 'fsrs', loadBalance: false, newMix: 'antes', newPerDay: 20, revPerDay: 200 });
 DB.saveDecks([{ id: 'd1', nome: 'Deck 1', createdAt: '2026-01-01T00:00:00Z' }]);
 DB.saveCards([
   {
@@ -129,8 +131,15 @@ for (const phase of ['new', 'review', 'relearning']) {
     ok(/^\d{4}-\d{2}-\d{2}$/.test(String(x.due)), 'due válida em ' + phase + '/' + grade);
     ok(Number.isFinite(x.s) && x.s > 0, 'S válida em ' + phase + '/' + grade);
     ok(Number.isFinite(x.d) && x.d >= 1 && x.d <= 10, 'D válida em ' + phase + '/' + grade);
-    ok(Number.isFinite(x.intervalo) && x.intervalo >= 1 && x.intervalo <= 36500,
-      'intervalo válido em ' + phase + '/' + grade);
+    // Anki 26.09.2: sem passos, intervalo FSRS < 0,5 dia mantém o card em
+    // (re)aprendizado pelo próprio intervalo, em segundos (learning.rs).
+    if (x.phase === 'learning' || x.phase === 'relearning') {
+      ok(x._kind === 'min' && Number.isFinite(x._val) && x._val > 0 && x._val < 720,
+        'curto prazo sem passos válido em ' + phase + '/' + grade);
+    } else {
+      ok(Number.isFinite(x.intervalo) && x.intervalo >= 1 && x.intervalo <= 36500,
+        'intervalo válido em ' + phase + '/' + grade);
+    }
   }
 }
 
@@ -200,7 +209,10 @@ for (let dia = 0; dia < 365; dia++) {
     ok(/^\d{4}-\d{2}-\d{2}$/.test(String(c.due)), 'simulação: due sempre ISO');
     ok(Number.isFinite(c.s) && c.s > 0, 'simulação: S sempre válida');
     ok(Number.isFinite(c.d) && c.d >= 1 && c.d <= 10, 'simulação: D sempre válida');
-    ok(Number.isFinite(c.intervalo) && c.intervalo >= 1 && c.intervalo <= 36500,
+    // Curto prazo sem passos (Anki 26.09.2): card novo pode ficar em
+    // aprendizado com intervalo 0 até a próxima resposta.
+    const minIv = (c.phase === 'learning' || c.phase === 'relearning') ? 0 : 1;
+    ok(Number.isFinite(c.intervalo) && c.intervalo >= minIv && c.intervalo <= 36500,
       'simulação: intervalo sempre válido');
     respostas++;
   }

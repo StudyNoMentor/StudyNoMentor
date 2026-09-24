@@ -181,7 +181,9 @@ const AnkiParity = {
       const raw=Number(c&&c.ankiTemplateOrd);
       return Number.isFinite(raw)?Math.max(0,raw):(c&&c.template==='reverse'?1:0);
     };
-    const cid=c=>this.newCardHash(c,days),nid=c=>this.newNoteHash(c,days);
+    // sort_new (builder/sorting.rs) usa FnvHasher::finish(): u64 SEM sinal.
+    // A coleta (gather*) usa fnvhash() do SQLite, que é i64 com sinal.
+    const cid=c=>BigInt.asUintN(64,this.newCardHash(c,days)),nid=c=>BigInt.asUintN(64,this.newNoteHash(c,days));
     if(mode==='template')xs.sort((a,b)=>ord(a)-ord(b));
     else if(mode==='templateRandom')xs.sort((a,b)=>ord(a)-ord(b)||this.cmpBig(cid(a),cid(b)));
     else if(mode==='randomNoteTemplate')xs.sort((a,b)=>this.cmpBig(nid(a),nid(b))||ord(a)-ord(b));
@@ -212,23 +214,34 @@ const AnkiParity = {
     });
   },
   _siblingModifiers(card,lo,hi){
+    /* answering/mod.rs só entrega o note_id ao LoadBalancer quando a
+       predefinição ENTERRA revisões irmãs (bury_reviews); sem isso não há
+       afastamento de irmãos. E a janela é [hoje, hoje+99): irmão vencido no
+       passado não conta — _daysBetween satura em 0 e o contava como "hoje". */
     const out=Array.from({length:hi-lo+1},()=>1);if(!card||!card.noteId)return out;
+    const cfg=this.cfgForCard(card);if(!cfg||!cfg.buryReviews)return out;
     const nid=String(card.noteId),days=new Set(),steps=[-5,-4,-3,-2,-1,0,1,2,3,4,5],mods=[1,.8,.6,.4,.2,.000001,.2,.4,.6,.8,1];
+    const hoje=Date.parse(todayCards()+'T00:00:00');
     this._cardsForCardPlan(card).forEach(c=>{
       if(String(c.id)===String(card.id)||String(c.noteId||c.id)!==nid||c.dueTs||!c.due)return;
-      const d=CardEngine._daysBetween(todayCards(),c.due);if(d>=0&&d<99)days.add(d);
+      const d=Math.round((Date.parse(String(c.due).slice(0,10)+'T00:00:00')-hoje)/86400000);if(d>=0&&d<99)days.add(d);
     });
     days.forEach(sd=>steps.forEach((st,i)=>{const at=sd+st-lo;if(at>=0&&at<out.length)out[at]*=mods[i];}));
     return out;
   },
   loadBalance(interval,maxIv,minIv,seed,card){
     const iv=Number(interval),minimum=Math.max(1,Number(minIv)||1),maximum=Math.max(minimum,Number(maxIv)||36500);
-    if(iv>90||minimum>90)return null;
+    // find_interval: `interval as usize > 90` TRUNCA (90,64 ainda é balanceado).
+    if(Math.trunc(iv)>90||minimum>90)return null;
     const b=FSRS.constrainedFuzzBounds(iv,minimum,maximum),lo=b[0],hi=b[1],ints=[];for(let d=lo;d<=hi;d++)ints.push(d);
     const preset=this.configIdForDeck(card&&card.deckId);
+    /* get_all_cards_due_in_range (storage/card/mod.rs) conta TODO card cujo
+       vencimento em dias cai na janela: suspensos, enterrados e aprendizado
+       entre dias entram; só o aprendizado intradiário (vencimento em segundos)
+       fica de fora. Card novo não tem dia de vencimento no Study. */
     const counts=ints.map(d=>{let n=0;this._scopeCards().forEach(c=>{
-      if(c.suspenso||c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
-      if(ph!=='review'||this.configIdForDeck(c.deckId)!==preset)return;if(CardEngine._daysBetween(todayCards(),c.due)===d)n++;
+      if(c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
+      if(ph==='new'||this.configIdForDeck(c.deckId)!==preset)return;if(CardEngine._daysBetween(todayCards(),c.due)===d)n++;
     });return n;});
     const easy=this._easyModifiers(this.cfgForCard(card),ints,counts),sib=this._siblingModifiers(card,lo,hi);
     const weights=ints.map((d,i)=>counts[i]===0?1:Math.pow(1/counts[i],2.15)*Math.pow(1/d,3)*sib[i]*easy[i]);
@@ -709,8 +722,10 @@ AnkiParity.limitState=function(selectedDeckId){
       // O estado inicial já desconta os novos vistos hoje; aqui descontamos
       // os novos que entram NESTA fila para que os reviews seguintes vejam
       // exatamente o saldo restante em cada nó da árvore.
-      if(kind==='new'&&r.capNewToReview)r.review=Math.max(0,r.review-1);
-      if(r.capNewToReview)r.new=Math.min(r.new,r.review);
+      // limits.rs::decrement: só a REVISÃO rebaixa o teto de novos; aceitar
+      // um novo na montagem não consome vaga de revisão (o saldo inicial já
+      // desconta os novos introduzidos hoje).
+      if(kind==='review'&&r.capNewToReview)r.new=Math.min(r.new,r.review);
     });
     return true;
   };

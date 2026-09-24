@@ -282,7 +282,9 @@ const CardsScreen = {
       else if (c.dueTs) aprendAgora.push(c); // intradiário: prioridade absoluta
       else aprendDia.push(c);                // cruzou a virada: conta como review
     });
-    aprendAgora.sort((a, b) => Number(a.dueTs || 0) - Number(b.dueTs || 0));
+    // queue/learning.rs::cmp_by_reps_then_due: quem já tem repetições vem antes
+    // dos que nunca foram respondidos; depois, pelo vencimento.
+    aprendAgora.sort((a, b) => (((a.reps || 0) === 0) - ((b.reps || 0) === 0)) || Number(a.dueTs || 0) - Number(b.dueTs || 0));
     /* ── ORDEM DAS REVISÕES ───────────────────────────────────────────────────
        Ordena ANTES de aplicar o limite: com acúmulo, quais revisões entram
        importa tanto quanto a ordem em que aparecem. O padrão do Anki 26.09.2
@@ -339,8 +341,10 @@ const CardsScreen = {
         : novos.slice().sort(COLETA.posicao);
     }
 
-    // NewCardSortOrder: reordena o lote já coletado exatamente como o rslib.
+    // NewCardSortOrder: reordena o lote JÁ LIMITADO (builder/mod.rs::build chama
+    // sort_new depois de gather_cards) — ver ordenarNovos() abaixo.
     const sortNovos = cfgQ.newSortOrder || 'template';
+    const ordenarNovos = (novos) => {
     if (sortNovos === 'template') {
       novos = (typeof AnkiParity !== 'undefined')
         ? AnkiParity.stableNewSort(novos,'template')
@@ -352,6 +356,8 @@ const CardsScreen = {
     } else if (sortNovos === 'randomCard') {
       if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'randomCard');
     }
+    return novos;
+    };
     /* ── ReviewCardOrder ──────────────────────────────────────────────────────
        Réplica das variantes do Anki que fazem sentido aqui. Ficaram de fora as
        que dependem de múltiplos baralhos aninhados (DAY_THEN_DECK,
@@ -362,13 +368,23 @@ const CardsScreen = {
        risco que um de 300 dias atrasado 3 (razão 1,01), mesmo o segundo estando
        "mais vencido" em dias absolutos. É a ordem que o Anki usa por padrão no
        agendador v3 clássico. */
-    const hojeQ = todayCards(), wQ = CardsConfig.weights();
-    const R = (c) => CardEngine.retrievabilityDe(c, hojeQ, wQ);
-    const atrasoRel = (c) => {
-      const iv = Math.max(1, c.intervalo || 1);
-      const atraso = CardEngine._daysBetween(c.due || hojeQ, hojeQ);
-      return (atraso + iv) / iv;                       // >1 = mais urgente
+    const hojeQ = todayCards(), wQ = CardsConfig.weights(), fsrsQ = CardsConfig.get().algo === 'fsrs';
+    /* extract_fsrs_retrievability (storage/sqlite.rs): com last_review_time o
+       Anki mede o tempo decorrido em SEGUNDOS; sem ele, em dias inteiros
+       desde due − ivl. */
+    const R = (c) => {
+      const ts = Number(c && c.lastReviewTs);
+      if (ts > 0 && typeof c.s === 'number' && c.s > 0) return FSRS.R(Math.max(0, Date.now() - ts) / 86400000, c.s, wQ);
+      return CardEngine.retrievabilityDe(c, hojeQ, wQ);
     };
+    // Dias desde o vencimento, com sinal (card vencido > 0).
+    const diasVencido = (c) => Math.round((new Date(hojeQ + 'T00:00:00') - new Date(String(c.due || hojeQ) + 'T00:00:00')) / 86400000);
+    /* RelativeOverdueness: no FSRS a retenção atual relativa à desejada da
+       predefinição (mesma ordem de R crescente); no SM-2,
+       -(1 + (hoje − due + 0,001) / ivl) crescente. */
+    const sobreatraso = (c) => fsrsQ && typeof c.s === 'number' && c.s > 0
+      ? R(c) : -(1 + (diasVencido(c) + 0.001) / Math.max(1, c.intervalo || 1));
+    const nidDe = (c) => { const n = Number(c && (c.ankiNoteId || c.ankiId)); return Number.isFinite(n) && n > 0 ? n : Date.parse(c && c.createdAt || '') || 0; };
     const ordemRev = cfgQ.reviewOrder || 'day';
     // Desempate exato do backend: SQLite fnvhash(card.id, card.mod), FNV-1a
     // 64-bit sobre os dois i64. ankiId/ankiMod preservam essa identidade sem
@@ -386,20 +402,23 @@ const CardsScreen = {
     const ORDENADORES = {
       retrievabilityAsc:  (a, b) => R(a) - R(b) || cmpRnd(a, b),
       retrievabilityDesc: (a, b) => R(b) - R(a) || cmpRnd(a, b),
-      relativeOverdueness:(a, b) => atrasoRel(b) - atrasoRel(a) || cmpRnd(a, b),
+      relativeOverdueness:(a, b) => sobreatraso(a) - sobreatraso(b) || cmpRnd(a, b),
       day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
       dayThenDeck:        (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || rankDeck(a) - rankDeck(b) || cmpRnd(a, b),
       deckThenDay:        (a, b) => rankDeck(a) - rankDeck(b) || String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
       intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || cmpRnd(a, b),
       intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || cmpRnd(a, b),
-      easeAsc:            (a, b) => (a.d || 0) - (b.d || 0) || cmpRnd(a, b),     // no FSRS a dificuldade
-      easeDesc:           (a, b) => (b.d || 0) - (a.d || 0) || cmpRnd(a, b),     // faz o papel do "ease"
-      added:              (a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')) || cmpRnd(a, b),
-      reverseAdded:       (a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')) || cmpRnd(a, b),
+      // review_order_sql: no FSRS "facilidade crescente" = dificuldade DECRESCENTE.
+      easeAsc:            (a, b) => (fsrsQ ? (b.d || 0) - (a.d || 0) : (a.ease || 0) - (b.ease || 0)) || cmpRnd(a, b),
+      easeDesc:           (a, b) => (fsrsQ ? (a.d || 0) - (b.d || 0) : (b.ease || 0) - (a.ease || 0)) || cmpRnd(a, b),
+      // "nid asc, ord asc" / "nid desc, ord asc"
+      added:              (a, b) => nidDe(a) - nidDe(b) || ordTemplate(a) - ordTemplate(b) || cmpRnd(a, b),
+      reverseAdded:       (a, b) => nidDe(b) - nidDe(a) || ordTemplate(a) - ordTemplate(b) || cmpRnd(a, b),
       random:             (a, b) => cmpRnd(a, b)
     };
     const cmp = ORDENADORES[ordemRev];
-    if (cmp) revisoes.sort(cmp);
+    // O aprendizado entre dias usa a MESMA cláusula de ordem das revisões.
+    if (cmp) { revisoes.sort(cmp); aprendDia.sort(cmp); }
     /* O campo new_per_day_minimum ainda existe no protobuf do Anki, mas o
        backend atual o marca explicitamente como "not currently used". Não
        deixamos um campo legado alterar a fila. A única exceção oficial ao
@@ -451,16 +470,18 @@ const CardsScreen = {
       return out;
     };
 
-    const novosLim = limitarPorArvore(novos, newRemEfetivo, 'new');
-
-    // Interday learning e reviews usam O MESMO saldo de review da árvore.
-    // Cards intradiários continuam fora do teto, como no scheduler moderno.
+    /* gathering.rs: aprendizado entre dias → revisões → novos. Cada revisão
+       aceita reduz o teto de novos (novos = mín(novos, revisões restantes));
+       aceitar um novo NÃO consome vaga de revisão durante a montagem. */
     const aprendDiaLim = limitarPorArvore(aprendDia, revRem, 'review');
     const revLim = limitarPorArvore(
       revisoes,
       Math.max(0, revRem - aprendDiaLim.length),
       'review'
     );
+    const restoRev = Math.max(0, revRem - aprendDiaLim.length - revLim.length);
+    const novosLim = ordenarNovos(limitarPorArvore(novos,
+      cfgQ.newCardsIgnoreReviewLimit ? newRemEfetivo : Math.min(newRemEfetivo, restoRev), 'new'));
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
@@ -497,11 +518,12 @@ const CardsScreen = {
                        que ficou pela metade.
        "Misturar" usa o intercalador proporcional acima, não sorteio. */
     const cfgMix = cfgQ;
+    // builder/mod.rs: Intersperser::new(base, grupo) — a base conduz.
     const aplicarMix = (grupo, base, modo) => {
       if (!grupo.length) return base;
       if (modo === 'antes') return grupo.concat(base);
       if (modo === 'depois') return base.concat(grupo);
-      return intercalar(grupo, base);
+      return intercalar(base, grupo);
     };
     /* NÃO embaralhar aqui. O código antigo fazia shuffle() nos dois grupos
        porque não existia opção de ordenação — o acaso era a única política.
@@ -509,9 +531,10 @@ const CardsScreen = {
        propósito, e embaralhar depois ANULA as três: era o caso de
        'materiaRodizio' montar C,T,C,T e o shuffle devolver C,C,C,T,T,T.
        Quem quiser acaso escolhe 'Aleatória' nas opções. */
+    // merge_day_learning e DEPOIS merge_new, nesta ordem.
     let corpo = revLim.slice();
-    corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
     corpo = aplicarMix(aprendDiaLim.slice(), corpo, cfgMix.interdayMix || 'misturar');
+    corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
     // Passos intradiários vencidos precedem review/new para respeitar o atraso
     // configurado o mais de perto possível (regra explícita do Anki).
     corpo = aprendAgora.concat(corpo);

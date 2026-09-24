@@ -142,4 +142,42 @@ assert.equal(stressCardWrites,5000,'cada snapshot realmente mais novo escreve em
 const uniqueStress=new Set([...reviewRows.keys()].filter(x=>x.startsWith('stress-')));
 assert.equal(uniqueStress.size,5000,'nenhuma revisão concorrente pode desaparecer ou colidir');
 
+// 7) Catch-up em tempo real não pode apagar uma resposta dada DURANTE a leitura.
+// Caso real (auditoria 24/09, card cabb3a95): "Errei" num card novo, a leitura
+// do banco já estava em voo com o card ainda novo, e ao chegar regravou a lista
+// local inteira. A 2ª resposta partiu de phase:new, s:null.
+{
+  const k='diario-estudos:u:p1:p:pl1:cards';
+  const velho=[{id:'c9',phase:'new',s:null,reps:0,updatedAt:'2026-09-23T20:00:00.000Z'}];
+  const novo=[{id:'c9',phase:'learning',s:0.212,reps:1,updatedAt:'2026-09-23T20:09:40.000Z'}];
+  localStorage.setItem(k,JSON.stringify(velho));
+  R.enabled=true; R._persistPlanKey=async()=>{};
+  R.flush=async()=>true;
+  R._lastChangeId=new Map([['p1',10]]);
+  R._changeSummary=async()=>({count:1,tables:['study_cards'],maxChangeId:11});
+  const serverRow={card_id:'c9',plan_id:'pl1',phase:'new',s:null,reps:0,updated_at:'2026-09-23T20:00:00.000Z'};
+  let respondeNoMeio=true;
+  R._all=async()=>{
+    if(respondeNoMeio){
+      // a resposta local acontece enquanto a leitura está em voo
+      const antes=localStorage.getItem(k),depois=JSON.stringify(novo);
+      localStorage.setItem(k,depois); R.onStorageMutation(k,antes,depois);
+    }
+    await new Promise(r=>setTimeout(r,5));
+    return [serverRow];
+  };
+  const r1=await R.catchUp('p1','realtime');
+  clearTimeout(R._rtTimer);
+  assert.equal(JSON.parse(localStorage.getItem(k))[0].phase,'learning','leitura velha não pode desfazer a resposta local');
+  assert.equal(r1.stale,true,'catch-up deve reconhecer o retrato velho');
+  assert.equal(R._lastChangeId.get('p1'),10,'marca d\'água não avança com retrato descartado');
+  await R._tail;
+  respondeNoMeio=false;
+  Object.assign(serverRow,{phase:'learning',s:0.212,reps:1,updated_at:'2026-09-23T20:09:40.000Z'});
+  const r2=await R.catchUp('p1','realtime');
+  assert.ok(!r2.stale,'sem escrita local concorrente o catch-up aplica');
+  assert.equal(R._lastChangeId.get('p1'),11);
+  assert.equal(JSON.parse(localStorage.getItem(k))[0].reps,1);
+}
+
 console.log('CONCORRÊNCIA CARDS: 5.000 conflitos + replay idempotente, LWW seguro, ordenação estável e hydrate-after-outbox válidos.');
