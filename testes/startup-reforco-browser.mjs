@@ -115,7 +115,9 @@ try {
       ready:CloudStore.isReady,logged:CloudStore.isLoggedIn};
     let flush=0;
     CloudStore.isReady=()=>true;CloudStore.isLoggedIn=()=>true;
-    RelationalStore.flush=async()=>{flush++;};
+    // Conta só o flush do próprio SaveGuard: com a sessão simulada como logada,
+    // a reconciliação de fundo também pode chamar flush() nesta janela (≥400 ms).
+    RelationalStore.flush=async()=>{if(/_aguardaNuvem/.test(new Error().stack||''))flush++;};
     RelationalStore.pendingCount=()=>0;RelationalStore._lastError=null;
     const r=await SaveGuard.run({escrever:async()=>true,verificar:()=>true});
     RelationalStore.flush=keep.flush;RelationalStore.pendingCount=keep.pending;RelationalStore._lastError=keep.err;

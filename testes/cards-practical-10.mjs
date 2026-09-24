@@ -72,9 +72,11 @@ assert.match(js,/cards-preferences-btn/,'preferências operacionais devem estar 
 assert.match(js,/reviewer:answer:before/,'API de extensões deve expor hook do reviewer');
 assert.match(css,/grid-template-columns:220px/,'Browser desktop deve reservar coluna para Sidebar');
 assert.match(css,/anki-deck-tools/,'Deck Manager deve ter ferramentas próprias');
-assert.match(js,/True Retention/,'estatísticas devem expor True Retention');
-assert.match(js,/Recuperabilidade/,'estatísticas devem expor Retrievability');
-assert.match(js,/Botões de resposta/,'estatísticas devem expor Answer Buttons');
+// Os painéis vivem na página única de estatísticas (44-tela-cards + 44-anki-max-stats-media).
+const statsJs=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8')+readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
+assert.match(statsJs,/True Retention/,'estatísticas devem expor True Retention');
+assert.match(statsJs,/Recuperabilidade/,'estatísticas devem expor Retrievability');
+assert.match(statsJs,/Botões de resposta/,'estatísticas devem expor Answer Buttons');
 assert.match(js,/snm-responsive-media/,'renderer deve impedir recorte de mídia no mobile');
 assert.match(js,/anki-review-action-sheet/,'Mais ações deve abrir lista direta de ações');
 assert.doesNotMatch(js,/UI\.prompt\(\[\{key:'action'.*Mais ações/s,'Mais ações do reviewer não deve exigir select + Abrir');

@@ -192,34 +192,10 @@ const AnkiTotalParity = {
     if(typeof AnkiImageOcclusion!=='undefined')this._wrapCheckpoint(AnkiImageOcclusion,'save','Editar oclusão');
   },
 
-  /* ───────────────── ESTATÍSTICAS RESTANTES ───────────────── */
-  _hist(values,bins,labels){
-    const out=Array.from({length:bins.length-1},()=>0);for(const raw of values){const v=Number(raw);if(!Number.isFinite(v))continue;let i=bins.findIndex((b,j)=>j<bins.length-1&&v>=b&&v<bins[j+1]);if(i<0&&v>=bins[bins.length-1])i=out.length-1;if(i>=0)out[i]++;}
-    const max=Math.max(1,...out);return '<div class="anki-total-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
-  },
-  _extraStatsHtml(){
-    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),now=new Date(),months=[];
-    for(let i=11;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth()-i,1),k=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');months.push({k,label:String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getFullYear()).slice(-2),n:0});}
-    cards.forEach(c=>{const k=String(c.createdAt||'').slice(0,7),m=months.find(x=>x.k===k);if(m)m.n++;});
-    const maxAdded=Math.max(1,...months.map(x=>x.n));
-    const states={Novo:0,Aprendendo:0,Revisão:0,Suspenso:0,Enterrado:0};cards.forEach(c=>{if(c.suspenso)states.Suspenso++;else if(CardEngine.estaEnterrado(c))states.Enterrado++;else if((c.phase||'new')==='new')states.Novo++;else if(['learning','relearning'].includes(c.phase))states.Aprendendo++;else states.Revisão++;});
-    const timeDays=Array.from({length:30},(_,i)=>({date:CardEngine.addDays(todayCards(),i-29),sec:0}));const byDay=new Map(timeDays.map(x=>[x.date,x]));
-    logs.forEach(r=>{const x=byDay.get(String(r.date||''));if(x)x.sec+=(Number(r.time)||0)/1000;});const maxTime=Math.max(1,...timeDays.map(x=>x.sec));
-    const cardCounts=Object.entries(states),maxCount=Math.max(1,...cardCounts.map(x=>x[1]));
-    const ease=cards.map(c=>Number(c.ease)||0).filter(Boolean),stab=cards.map(c=>Number(c.s)).filter(Number.isFinite),diff=cards.map(c=>Number(c.d)).filter(Number.isFinite);
-    return '<div class="anki-total-stats">'+
-      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>＋ Cards adicionados</h2><p class="sub">Últimos 12 meses</p></div></div><div class="anki-total-bars">'+months.map(x=>'<div title="'+x.k+': '+x.n+'"><i style="height:'+Math.max(x.n?4:0,Math.round(x.n/maxAdded*100))+'%"></i><span>'+x.label+'</span></div>').join('')+'</div></div>'+
-      '<div class="card stat-card"><div class="card-header"><div><h2>🧮 Contagem de cards</h2><p class="sub">Estado atual da coleção</p></div></div><div class="anki-total-bars">'+cardCounts.map(([k,n])=>'<div title="'+k+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/maxCount*100))+'%"></i><span>'+k.slice(0,4)+'</span></div>').join('')+'</div></div></div>'+
-      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>⏱ Tempo de revisão</h2><p class="sub">30 dias</p></div></div><div class="anki-total-bars anki-time-bars">'+timeDays.map(x=>'<div title="'+x.date+': '+Math.round(x.sec)+'s"><i style="height:'+Math.max(x.sec?3:0,Math.round(x.sec/maxTime*100))+'%"></i></div>').join('')+'</div></div>'+
-      '<div class="card stat-card"><div class="card-header"><div><h2>📈 Facilidade</h2><p class="sub">Distribuição SM-2/importados</p></div></div>'+this._hist(ease,[0,1.5,2,2.5,3,3.5,99],['<1.5','1.5–2','2–2.5','2.5–3','3–3.5','>3.5'])+'</div></div>'+
-      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>🧠 Estabilidade</h2><p class="sub">Dias de memória FSRS</p></div></div>'+this._hist(stab,[0,1,7,30,90,365,1e12],['<1d','1–7','7–30','30–90','90–365','>1a'])+'</div>'+
-      '<div class="card stat-card"><div class="card-header"><div><h2>🎚 Dificuldade</h2><p class="sub">D do FSRS</p></div></div>'+this._hist(diff,[0,2,4,6,8,10,1e12],['0–2','2–4','4–6','6–8','8–10','10+'])+'</div></div></div>';
-  },
-  _installStatsParity(){
-    if(typeof AnkiMaxStatsMedia==='undefined'||typeof AnkiMaxStatsMedia.statsHtml!=='function')return;
-    const old=AnkiMaxStatsMedia.statsHtml.bind(AnkiMaxStatsMedia);
-    AnkiMaxStatsMedia.statsHtml=()=>old()+this._extraStatsHtml();
-  },
+  /* Cards adicionados, contagem, tempo, facilidade, estabilidade e dificuldade
+     já fazem parte da página única de estatísticas (CardsScreen.renderStats).
+     Este módulo anexava cópias próprias — a tela repetia os mesmos gráficos. */
+  _installStatsParity(){},
 
   /* ───────────────── CHECK COLLECTION MAIS PROFUNDO ───────────────── */
   deepIssues(){

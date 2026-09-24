@@ -865,71 +865,97 @@ CardsScreen._temMisturaFsrs = function () {
   try { const g = CardsScreen._contarGeracoes(); return g.fsrs5 > 0 && g.fsrs6 > 0; }
   catch (_) { return false; }
 };
-/* ↻ Recalcular memória — reprocessa o histórico de cada card com os pesos atuais.
-   NÃO mexe no `due` de quem já está agendado além de recalcular o intervalo a
-   partir do novo S: mantém a data quando ela ainda cabe na janela de fuzz, para
-   não jogar uma avalanche de revisões no colo do usuário de uma vez. */
-CardsScreen.recalcularMemoria = function () {
+/* ↻ Recalcular memória — o "recalcular estados de memória" do Anki: reconstrói
+   S/D de cada card a partir do histórico, com os pesos da predefinição dele.
+   Como no Anki com "Reagendar cards ao mudar" DESLIGADO, datas e intervalos já
+   agendados NÃO mudam. Também alinha o contador de repetições ao histórico
+   (um card podia ter a resposta gravada no histórico sem o card atualizar).
+   Vale para o escopo de cards atual — inclusive "Todos os planejamentos". */
+CardsScreen._planoRecalculo = function (escopoCards) {
   const scope = CardsScreen._fsrsScope || null;
-  const cards = (DB.getCards() || []).filter(c => !scope || c.deckId === scope);
-  const revlog = DB.getRevlog() || [];
-  const w = scope ? CardsConfig.weightsFor(scope) : CardsConfig.weights();
+  const G = window.StudyGlobalScope;
+  const todos = (G && G.cards) ? G.cards(escopoCards) : (DB.getCards() || []);
+  const cards = todos.filter(c => (!scope || c.deckId === scope) && (c.algo || 'fsrs') === 'fsrs');
+  const revlog = (G && G.revlog) ? G.revlog(escopoCards) : (DB.getRevlog() || []);
   const porCard = {};
   revlog.forEach(r => { if (r && r.cardId) (porCard[r.cardId] = porCard[r.cardId] || []).push(r); });
-  // Simulação primeiro: o usuário decide com o número na mão.
   const plano = [];
   cards.forEach(c => {
     const logs = porCard[c.id];
-    if (!logs || !logs.length) return;
-    const novo = FSRS.recomputarMemoria(logs, w);
+    if (!logs || !logs.length || (c.phase || 'new') === 'new') return;
+    const novo = FSRS.recomputarMemoria(logs, CardsConfig.weightsFor(c.originalDeckId || c.deckId));
     if (!novo) return;
-    const dS = Math.abs(novo.s - (c.s || 0)) / Math.max(novo.s, c.s || 1e-9);
-    if (dS > 1e-6) plano.push({ c, novo, dS });
+    const respostas = logs.filter(r => r.grade >= 1 && r.grade <= 4 && !/^(manual|rescheduled)$/i.test(String(r.ankiReviewKind || ''))).length;
+    const patch = {};
+    if (c.s == null || Math.abs(novo.s - c.s) > 5e-5 * Math.max(1, novo.s)) patch.s = novo.s;
+    if (c.d == null || Math.abs(novo.d - c.d) > 5e-4) patch.d = novo.d;
+    if ((Number(c.reps) || 0) < respostas) patch.reps = respostas;
+    if (Object.keys(patch).length) plano.push({ c, patch, dS: patch.s != null && c.s ? Math.abs(novo.s - c.s) / Math.max(novo.s, c.s) : 0 });
   });
+  return plano;
+};
+CardsScreen.recalcularMemoria = function () {
+  const plano = CardsScreen._planoRecalculo();
   const g = CardsScreen._contarGeracoes();
   if (!plano.length) {
     UI.alert('Nada a fazer: o estado de memória de todos os cards já corresponde ao histórico com os pesos atuais. ✓',
       { title: '↻ Recalcular memória', okText: 'Perfeito' });
     return;
   }
-  const medio = Math.round(plano.reduce((a, p) => a + p.dS, 0) / plano.length * 100);
+  const nReps = plano.filter(p => p.patch.reps != null).length;
   const aviso = (g.fsrs5 > 0 && g.fsrs6 > 0)
-    ? `\n\n⚠ Foram encontrados ${g.fsrs5} card(s) com estado de memória criado por uma versão ANTERIOR do algoritmo (FSRS-5) convivendo com ${g.fsrs6} do FSRS-6. É por isso que cards parecidos recebem intervalos diferentes.`
+    ? `\n\n⚠ Há ${g.fsrs5} card(s) com estado de memória de uma versão ANTERIOR do algoritmo (FSRS-5) ao lado de ${g.fsrs6} do FSRS-6.`
     : '';
   UI.confirm(
-    `${plano.length} card(s) teriam a memória recalculada (variação média de ${medio}% na estabilidade).` + aviso +
-    `\n\nO histórico de revisões NÃO é alterado — só o estado (S/D) é reconstruído a partir dele com os pesos atuais. ` +
-    `As datas já agendadas são mantidas quando ainda cabem na janela de dispersão do Anki; as demais são reagendadas.` +
-    `\n\nRecomendado depois de otimizar os parâmetros ou de atualizar o app. Dá para desfazer restaurando um backup.`,
+    `${plano.length} card(s) terão a estabilidade/dificuldade reconstruída a partir do histórico` +
+    (nReps ? ` (${nReps} também com o contador de repetições corrigido)` : '') + '.' + aviso +
+    `\n\nComo o "recalcular estados de memória" do Anki: o histórico não muda e as datas já agendadas também não. ` +
+    `Os próximos intervalos passam a usar os valores corrigidos.`,
     { title: '↻ Recalcular memória pelo histórico', okText: 'Recalcular ' + plano.length + ' card(s)', cancelText: 'Cancelar' }
   ).then(okc => {
     if (!okc) return;
-    const cfg = scope ? CardsConfig.forDeck(scope) : CardsConfig.get();
-    const r = cfg.retention || 0.9, maxIv = Math.max(1, cfg.maxInterval || 36500);
-    let n = 0, reagendados = 0;
-    plano.forEach(({ c, novo }) => {
-      const patch = { s: novo.s, d: novo.d };
-      if (c.phase === 'review' && c.due) {
-        const iv = FSRS.interval(novo.s, r, w);
-        const [lo, hi] = FSRS.fuzzRange(iv, maxIv, 1);
-        const restam = CardEngine._daysBetween(todayCards(), c.due);
-        if (restam < lo || restam > hi) {                 // fora da janela: reagenda
-          const novoIv = Math.min(maxIv, Math.max(1, iv));
-          patch.due = CardEngine.addDays(c.lastReview || todayCards(), novoIv);
-          patch.intervalo = novoIv; reagendados++;
-        } else {
-          patch.intervalo = Math.max(1, restam);           // mantém a data, corrige o rótulo
-        }
-      }
-      DB.updateCard(c.id, patch); n++;
-    });
-    CardEngine.invalidateDueCache();
-    UI.alert(`${n} card(s) recalculados ✓  (${reagendados} tiveram a data ajustada; os demais mantiveram a data já marcada.)\n\n` +
-             `A coleção agora usa uma régua só: o FSRS-6 com os pesos atuais.`,
+    const n = CardsScreen.aplicarRecalculoMemoria(plano);
+    UI.alert(`${n} card(s) recalculados ✓  Nenhuma data de revisão foi alterada.`,
       { title: '✅ Memória recalculada', okText: 'Ótimo' });
     if (CardsScreen.tab) CardsScreen.renderContent();
   });
 };
+CardsScreen.aplicarRecalculoMemoria = function (plano) {
+  let n = 0;
+  (plano || CardsScreen._planoRecalculo()).forEach(({ c, patch }) => { if (DB.updateCard(c.id, patch) !== false) n++; });
+  CardEngine.invalidateDueCache();
+  return n;
+};
+/* Reparo único (por perfil) dos resíduos de bugs já corrigidos do agendador:
+   "Difícil" intradiário que reduzia S e resposta gravada no histórico sem o card
+   atualizar. Roda na primeira abertura da tela de Cards depois da atualização,
+   só em cards de predefinições com os pesos PADRÃO (com pesos otimizados a
+   diferença pode ser intencional, e aí vale o botão "↻ Recalcular memória").
+   Mesmo alcance do botão: só S/D/repetições, nenhuma data muda. */
+CardsScreen._REPARO_MEMORIA_KEY = 'cards-reparo-memoria-v1';
+CardsScreen._reparoMemoriaUnico = function () {
+  let chave;
+  try { chave = DB._profilePrefix() + CardsScreen._REPARO_MEMORIA_KEY; if (localStorage.getItem(chave)) return 0; } catch (_) { return 0; }
+  const G = window.StudyGlobalScope;
+  const temHistorico = ((G && G.revlog) ? G.revlog('all') : (DB.getRevlog() || [])).length > 0;
+  if (!temHistorico) return 0;                       // dados ainda não carregados: tenta na próxima abertura
+  const salvoEscopo = CardsScreen._fsrsScope; CardsScreen._fsrsScope = null;
+  let plano;
+  // Todos os planejamentos, independentemente do filtro de escopo da tela.
+  try { plano = CardsScreen._planoRecalculo('all'); } finally { CardsScreen._fsrsScope = salvoEscopo; }
+  plano = plano.filter(p => !FSRS.pesosValidos(CardsConfig.forDeck(p.c.originalDeckId || p.c.deckId).weights));
+  const n = plano.length ? CardsScreen.aplicarRecalculoMemoria(plano) : 0;
+  DB.setRaw(chave, JSON.stringify({ em: new Date().toISOString(), cards: n }));
+  if (n) { try { showToast('↻ ' + n + ' card(s) tiveram a memória (S/D) corrigida pelo histórico — nenhuma data mudou.'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, 'reparo-memoria'); } }
+  return n;
+};
+(function () {
+  const render = CardsScreen.render.bind(CardsScreen);
+  CardsScreen.render = function () {
+    try { CardsScreen._reparoMemoriaUnico(); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'reparo-memoria'); }
+    return render.apply(CardsScreen, arguments);
+  };
+})();
 // ⚡ Otimizador: roda gradient descent sobre o revlog e adota os pesos se forem melhores
 /* ── REPOSICIONAR CARDS NOVOS (Reposition do Anki) ──────────────────────────
    Reordena SÓ a fila de novos — nada que já esteja agendado é tocado. Útil

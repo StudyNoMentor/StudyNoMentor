@@ -531,32 +531,10 @@ const AnkiPractical10 = {
     values.forEach(raw=>{const v=Number(raw);if(!Number.isFinite(v))return;let i=0;while(i<bins.length&&v>=bins[i])i++;out[Math.min(i,out.length-1)]++;});
     const max=Math.max(1,...out);return '<div class="anki-p10-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
   },
-  _trueRetentionRows(){
-    const windows=[['Hoje',1],['Ontem','ontem'],['Última semana',7],['Último mês',30],['Último ano',365],['Todo o período',null]];
-    return windows.map(([label,n])=>{
-      const t=CardsScreen.trueRetention(n),xs=t.todos||{total:0,acertos:0,pct:null};
-      return '<tr><td>'+label+'</td><td>'+xs.total.toLocaleString('pt-BR')+'</td><td>'+xs.acertos.toLocaleString('pt-BR')+'</td><td>'+(xs.total?Number(xs.pct).toFixed(1)+'%':'—')+'</td></tr>';
-    }).join('');
-  },
-  _completeStatsHtml(){
-    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog();
-    const intervals=cards.map(c=>Number(c.intervalo)||0).filter(x=>x>0);
-    const retr=cards.map(c=>{try{return c.s!=null?Number(CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId))):NaN;}catch(_){return NaN;}}).filter(Number.isFinite).map(x=>x*100);
-    const grades=[1,2,3,4].map(g=>logs.filter(r=>Number(r.grade)===g).length),gmax=Math.max(1,...grades);
-    return '<div class="anki-p10-stats">'+
-      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>↔ Intervalos de revisão</h2><p class="sub">Distribuição atual</p></div></div>'+
-      this._histBars(intervals,[1,7,30,90,365],['<1d','1–7d','7–30d','30–90d','90–365d','>1a'])+'</div>'+
-      '<div class="card stat-card"><div class="card-header"><div><h2>🎯 Recuperabilidade</h2><p class="sub">Probabilidade de lembrar hoje</p></div></div>'+
-      this._histBars(retr,[50,70,80,90,95],['<50%','50–70','70–80','80–90','90–95','>95%'])+'</div></div>'+
-      '<div class="stat-grid"><div class="card stat-card"><div class="card-header"><div><h2>◉ Botões de resposta</h2><p class="sub">Again / Hard / Good / Easy</p></div></div><div class="anki-p10-answer-bars">'+
-      ['Again','Hard','Good','Easy'].map((x,i)=>'<div><i style="height:'+Math.max(grades[i]?5:0,Math.round(grades[i]/gmax*100))+'%"></i><strong>'+grades[i].toLocaleString('pt-BR')+'</strong><span>'+x+'</span></div>').join('')+
-      '</div></div><div class="card stat-card"><div class="card-header"><div><h2>✓ True Retention</h2><p class="sub">Primeira revisão de cada card por dia · Again falha, Hard/Good/Easy passam</p></div></div><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Período</th><th>Respostas</th><th>Corretas</th><th>Retenção</th></tr></thead><tbody>'+this._trueRetentionRows()+'</tbody></table></div></div></div></div>';
-  },
-  _installStatsCompleteness(){
-    if(typeof AnkiMaxStatsMedia==='undefined'||typeof AnkiMaxStatsMedia.statsHtml!=='function'||AnkiMaxStatsMedia.statsHtml.__p10)return;
-    const old=AnkiMaxStatsMedia.statsHtml.bind(AnkiMaxStatsMedia),self=this;
-    function wrapped(){return old()+self._completeStatsHtml();}wrapped.__p10=true;AnkiMaxStatsMedia.statsHtml=wrapped;
-  },
+  /* Intervalos, recuperabilidade, botões de resposta e True Retention já estão
+     na página única de estatísticas (CardsScreen.renderStats); anexar outra
+     cópia aqui duplicava os painéis. */
+  _installStatsCompleteness(){},
 
   /* ───────────────────── EXTENSION HOOKS ───────────────────── */
   _installHooks(){

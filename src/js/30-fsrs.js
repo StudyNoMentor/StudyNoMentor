@@ -394,21 +394,32 @@ const FSRS = {
 
      Devolve null quando não há histórico suficiente (aí o estado atual é mantido). */
   recomputarMemoria(revlogDoCard, w) {
-    const logs = (revlogDoCard || []).slice()
-      .filter(r => r && r.grade >= 1 && r.grade <= 4)
+    /* Como o compute_memory_state do Anki: só respostas que afetam o agendamento
+       (sem manual/reagendada/cramming), recomeça no último "Esquecer", e os dias
+       decorridos vêm das DATAS de estudo das respostas (virada configurada), não
+       de um campo gravado — assim um registro antigo inconsistente não contamina. */
+    const kind = r => String(r && r.ankiReviewKind || '').toLowerCase();
+    let logs = (revlogDoCard || []).slice()
+      .filter(r => r && ((r.grade >= 1 && r.grade <= 4) || kind(r) === 'reset'))
+      .filter(r => kind(r) !== 'manual' && kind(r) !== 'rescheduled' && !(kind(r) === 'filtered' && Number(r.easeFactor) === 0))
       .sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    const reset = logs.map(kind).lastIndexOf('reset');
+    if (reset >= 0) logs = logs.slice(reset + 1);
     if (!logs.length) return null;
     w = this.migrarW(w) || this.DEFAULT_W;
+    const hora = (typeof cardsRolloverHour === 'function') ? cardsRolloverHour() : 4;
+    const dia = r => { if (!(r.ts > 0)) return null; const d = new Date(r.ts - hora * 3600000); return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000; };
     let S = this.initS(logs[0].grade, w), D = this.initD(logs[0].grade, w);
     for (let i = 1; i < logs.length; i++) {
-      const G = logs[i].grade;
-      const dt = Math.max(0, logs[i].elapsed || 0);
+      const G = logs[i].grade, a = dia(logs[i - 1]), b = dia(logs[i]);
+      const dt = (a != null && b != null) ? Math.max(0, b - a) : Math.max(0, logs[i].elapsed || 0);
       if (dt < 1) { S = this.nextS_short(S, G, w); D = this.nextD(D, G, w); continue; }
       const R = this.R(dt, S, w);
       S = (G === 1) ? this.nextS_forget(D, S, R, w) : this.nextS_recall(D, S, R, G, w);
       D = this.nextD(D, G === 1 ? 1 : G, w);
     }
-    return { s: this.clampS(S), d: this.clampD(D), revisoes: logs.length };
+    // O Anki grava S com 4 casas e D com 3 (o mesmo que o app grava ao responder).
+    return { s: Math.round(this.clampS(S) * 1e4) / 1e4, d: Math.round(this.clampD(D) * 1e3) / 1e3, revisoes: logs.length };
   },
 
   /* ── EASY DAYS ────────────────────────────────────────────────────────────

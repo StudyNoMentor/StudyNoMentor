@@ -669,41 +669,43 @@ const CardsScreen = {
     const dueNow = cards.filter(c => CardEngine.isDue(c)).length;
     const custom = FSRS.pesosValidos(cfg.weights);
     const kpi = (v, l, tone) => `<div class="stat-kpi"><div class="stat-kpi-v ${tone || ''}">${v}</div><div class="stat-kpi-l">${l}</div></div>`;
-    const bars = (arr, max, lbl, tone, uni) => arr.map(p => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar" data-tip="${escapeHtml(formatDateShort(p.dia))}: ${p.n || 0} ${uni || ''}"><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-n">${p.n || ''}</span><span class="stat-bar-x">${lbl(p.dia)}</span></div>`; }).join('');
+    // Número em cima da própria barra; com muitas barras, rótulo do eixo em dias alternados (não se sobrepõem no celular).
+    const bars = (arr, max, lbl, tone, uni) => arr.map((p, i) => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar" data-tip="${escapeHtml(formatDateShort(p.dia))}: ${p.n || 0} ${uni || ''}"><span class="stat-bar-n">${p.n || ''}</span><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-x${arr.length > 8 && i % 2 ? ' alt' : ''}">${lbl(p.dia)}</span></div>`; }).join('');
     const dm = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
     const wd = (iso) => ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][new Date(iso + 'T00:00:00').getDay()];
-    box.innerHTML = `
+    /* Uma página só, na ordem da tela de estatísticas do Anki (escopo →
+       hoje → contagens/previsão → calendário → revisões → retenção → botões →
+       memória → horários → adicionados). Antes três camadas anexavam painéis
+       próprios e a tela repetia contagem, estabilidade, intervalos etc. */
+    const M = (typeof AnkiMaxStatsMedia !== 'undefined') ? AnkiMaxStatsMedia : null;
+    const parte = (fn) => { try { return fn() || ''; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-stats'); return ''; } };
+    const temSm2 = cards.some(c => (c.algo || cfg.algo) !== 'fsrs' && Number(c.ease) > 0);
+    const previsao = `<div class="card stat-card"><div class="card-header"><div><h2>📅 Previsão de carga</h2><p class="sub">${(() => {
+          const p = this.previsaoCarga(30);
+          return `Próximos 14 dias · em 30 dias: ${p.total} revisão(ões), média de ${p.media}/dia, pico de ${p.pico}` +
+                 (p.atrasados ? ` · <strong class="tone-warn">${p.atrasados} atrasada(s)</strong>` : '');
+        })()}</p></div></div><div class="stat-chart">${bars(prev, maxPrev, dm, 'accent')}</div></div>`;
+    const atividade = `<div class="card stat-card"><div class="card-header"><div><h2>🔥 Atividade recente</h2><p class="sub">Revisões feitas nos últimos 14 dias · histórico: ${revlog.length}</p></div></div><div class="stat-chart">${bars(act, maxAct, wd, 'good')}</div></div>`;
+    box.innerHTML = `<div class="stats-page">
+      ${M ? parte(() => M._statsControlsHtml()) : ''}
       <div class="stat-kpis">
         ${kpi(retReal != null ? retReal + '%' : '—', 'Retenção real (tudo)', retReal != null && retReal >= cfg.retention * 100 ? 'good' : (retReal != null ? 'warn' : ''))}
         ${kpi(ret30 != null ? ret30 + '%' : '—', 'Retenção (30 dias)', ret30 != null && ret30 >= cfg.retention * 100 ? 'good' : (ret30 != null ? 'warn' : ''))}
         ${kpi(Math.round(cfg.retention * 100) + '%', 'Meta configurada', 'accent')}
         ${kpi(dueNow, 'Para revisar agora', dueNow ? 'warn' : 'good')}
       </div>
-      <div class="stat-grid">
-        <div class="card stat-card">
-          <div class="card-header"><div><h2>🧩 Maturidade dos cards</h2><p class="sub">Total: ${cards.length} · algoritmo: ${cfg.algo === 'fsrs' ? 'FSRS-6' + (custom ? ' (pesos personalizados)' : '') : 'Clássico'}</p></div></div>
-          <div class="stat-mat">
-            <div class="stat-mat-bar">
-              <span style="flex:${novos || 0.001};background:var(--text-faint)"></span><span style="flex:${aprend || 0.001};background:var(--warn)"></span>
-              <span style="flex:${jovens || 0.001};background:var(--accent)"></span><span style="flex:${maduros || 0.001};background:var(--good)"></span>
-            </div>
-            <div class="stat-mat-legend">
-              <span><i style="background:var(--text-faint)"></i>Novos ${novos}</span><span><i style="background:var(--warn)"></i>Aprendendo ${aprend}</span>
-              <span><i style="background:var(--accent)"></i>Jovens ${jovens}</span><span><i style="background:var(--good)"></i>Maduros ${maduros}</span>
-            </div>
-          </div>
-        </div>
-        <div class="card stat-card"><div class="card-header"><div><h2>📅 Previsão de carga</h2><p class="sub">${(() => {
-          const p = this.previsaoCarga(30);
-          return `Próximos 14 dias no gráfico · em 30 dias: ${p.total} revisão(ões), média de ${p.media}/dia, pico de ${p.pico}` +
-                 (p.atrasados ? ` · <strong class="tone-warn">${p.atrasados} atrasada(s)</strong>` : '');
-        })()}</p></div></div><div class="stat-chart">${bars(prev, maxPrev, dm, 'accent')}</div></div>
-        <div class="card stat-card"><div class="card-header"><div><h2>🔥 Atividade recente</h2><p class="sub">Revisões feitas nos últimos 14 dias · histórico: ${revlog.length}</p></div></div><div class="stat-chart">${bars(act, maxAct, wd, 'good')}</div></div>
-      </div>
-      ${this._statTrueRetention()}
+      ${M ? parte(() => M._todayHtml()) : ''}
+      <div class="stat-grid">${M ? parte(() => M._cardCountsHtml()) : ''}${previsao}</div>
+      ${M ? parte(() => M._calendarHtml()) : ''}
+      <div class="stat-grid">${M ? parte(() => M._reviewsHtml()) + parte(() => M._reviewTimeHtml()) : atividade}</div>
+      ${this._statTrueRetention(trTudo.maduro.total < 10 ? `💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${trTudo.maduro.total}).` : '')}
       ${this._statBotoes()}
+      ${M ? parte(() => M._memoryHtml()) : ''}
       ${this._statDistribuicao()}
-      ${trTudo.maduro.total < 10 ? `<p class="hint" style="text-align:center;margin-top:14px;">💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${trTudo.maduro.total}).</p>` : ''}`;
+      ${M && temSm2 ? parte(() => M._easeHtml()) : ''}
+      <div class="stat-grid">${M ? parte(() => M._hourlyHtml()) + parte(() => M._addedHtml()) : ''}</div>
+      ${M ? parte(() => M._simCardHtml()) : ''}
+    </div>`;
   },
 
   /* ── TRUE RETENTION (Anki: aba Estatísticas → True Retention) ──────────────
@@ -712,7 +714,7 @@ const CardsScreen = {
      jovem (< 21 dias) ainda está sendo aprendido e erra muito; card maduro é
      que mede retenção de verdade. Revisões do mesmo dia ficam de fora — repetir
      um card em dez minutos não diz nada sobre esquecimento. */
-  _statTrueRetention() {
+  _statTrueRetention(dica) {
     const p = [];
     // Mesmos períodos da tabela "Retenção real" do Anki.
     [[1, 'Hoje'], ['ontem', 'Ontem'], [7, 'Última semana'], [30, 'Último mês'], [365, 'Último ano'], [null, 'Todo o período']].forEach(([d, rot]) => {
@@ -724,10 +726,11 @@ const CardsScreen = {
     });
     if (!p.length) return '';
     const meta = this.trueRetention(null).meta;
-    return `<div class="card stat-card" style="margin-top:14px">
+    return `<div class="card stat-card">
       <div class="card-header"><div><h2>🎯 Retenção real (True Retention)</h2>
       <p class="sub">Como no Anki: revisões e (re)aprendizado vindo de intervalo ≥ 1 dia; passos do mesmo dia ficam de fora. Again = falha; Hard/Good/Easy = acerto. Meta configurada: ${meta}%.</p></div></div>
-      <div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
+      <div class="stat-body"><div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
+      ${dica ? `<p class="stat-note">${dica}</p>` : ''}</div>
     </div>`;
   },
 
@@ -750,16 +753,16 @@ const CardsScreen = {
       const barras = [1, 2, 3, 4].map(g => {
         const pc = Math.round(cnt[g] / sub.length * 1000) / 10;
         return `<div class="ab-col" data-tip="${NOMES[g]}: ${cnt[g]} (${pc}%)">
-          <div class="ab-bar"><div class="ab-fill tone-${TONS[g]}" style="height:${Math.max(2, pc)}%"></div></div>
-          <span class="ab-pc">${pc >= 1 ? Math.round(pc) + '%' : ''}</span><span class="ab-lb">${NOMES[g]}</span></div>`;
+          <div class="ab-bar"><div class="ab-fill tone-${TONS[g]}" style="height:${cnt[g] ? Math.max(3, pc) : 0}%"></div></div>
+          <span class="ab-pc">${cnt[g] ? (pc >= 1 ? Math.round(pc) : '<1') + '%' : '0'}</span><span class="ab-lb">${NOMES[g]}</span></div>`;
       }).join('');
       linhas.push(`<div class="ab-grupo"><div class="ab-tit">${fases[fase]}<span>${sub.length}</span></div><div class="ab-cols">${barras}</div></div>`);
     });
     if (!linhas.length) return '';
-    return `<div class="card stat-card" style="margin-top:14px">
+    return `<div class="card stat-card">
       <div class="card-header"><div><h2>🔘 Botões de resposta</h2>
       <p class="sub">Muito "Errei" em revisão = intervalos longos demais. Muito "Fácil" = o oposto — mexa na retenção-alvo, não nos cards.</p></div></div>
-      <div class="ab-wrap">${linhas.join('')}</div></div>`;
+      <div class="stat-body"><div class="ab-wrap">${linhas.join('')}</div></div></div>`;
   },
 
   /* ── DISTRIBUIÇÃO DE ESTABILIDADE E DIFICULDADE (Anki: Card Stability /
@@ -777,17 +780,17 @@ const CardsScreen = {
       const mx = Math.max(1, ...c);
       return faixas.map(([, , rot], i) => `<div class="hd-col" data-tip="${rot}: ${c[i]} card(s)">
         <div class="hd-bar"><div class="hd-fill ${tone}" style="height:${c[i] ? Math.max(4, Math.round(c[i] / mx * 100)) : 0}%"></div></div>
-        <span class="hd-n">${c[i] || ''}</span><span class="hd-lb">${rot}</span></div>`).join('');
+        <span class="hd-n">${c[i]}</span><span class="hd-lb">${rot}</span></div>`).join('');
     };
     const medS = cards.reduce((a, c) => a + c.s, 0) / cards.length;
     const medD = cards.reduce((a, c) => a + c.d, 0) / cards.length;
-    return `<div class="stat-grid" style="margin-top:14px">
+    return `<div class="stat-grid">
       <div class="card stat-card"><div class="card-header"><div><h2>📈 Estabilidade</h2>
-        <p class="sub">Quanto tempo a memória dura. Média: ${CycleEngine.fmtHM ? '' : ''}${medS < 1 ? medS.toFixed(2) + ' dia' : Math.round(medS) + ' dias'}</p></div></div>
-        <div class="hd-wrap">${hist(FAIXAS_S, c => c.s, 'tone-accent')}</div></div>
+        <p class="sub">Quanto tempo a memória dura. Média: ${medS < 1 ? medS.toFixed(2) + ' dia' : Math.round(medS) + ' dias'}</p></div></div>
+        <div class="stat-body"><div class="hd-wrap">${hist(FAIXAS_S, c => c.s, 'tone-accent')}</div></div></div>
       <div class="card stat-card"><div class="card-header"><div><h2>🧱 Dificuldade</h2>
         <p class="sub">Média: ${medD.toFixed(1)} de 10. Concentração no topo costuma indicar card mal formulado, não assunto difícil.</p></div></div>
-        <div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div>
+        <div class="stat-body"><div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div></div>
     </div>`;
   },
   _reviewElapsedMs(cfg) {
