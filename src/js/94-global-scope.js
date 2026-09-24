@@ -763,7 +763,9 @@
     const activeId = S.activePlanId(), active = S._rows(activeId, 'links');
     if (active.some(x => String(x.id) === String(id))) return LKO.updateLink(id, patch);
     const r = S.findRecord('links', id); if (!r) return null;
-    Object.assign(r.row, patch || {}); r.row.updatedAt = new Date().toISOString();
+    const safePatch = Object.assign({}, patch || {});
+    if (Object.prototype.hasOwnProperty.call(safePatch, 'url') && DB.urlSegura) safePatch.url = DB.urlSegura(safePatch.url);
+    Object.assign(r.row, safePatch); r.row.updatedAt = new Date().toISOString();
     if (DB._set(DB.keysForPlan(r.planId).links, r.list) === false) return false;
     return Object.assign({}, r.row, { _planId:r.planId, _planNome:S.planName(r.planId) });
   };
