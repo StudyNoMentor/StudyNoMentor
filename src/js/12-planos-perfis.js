@@ -242,6 +242,21 @@ const PlanManager = {
       if (ok) migratedEntityKeys.add(key);
     });
 
+    /* Compatibilidade futura: se uma versão posterior criar outra entidade
+       cards-* sob o planejamento, não a destrua só porque esta versão ainda
+       não conhece sua semântica. Copiamos byte-a-byte quando não há colisão;
+       se houver uma colisão diferente, cancelamos a exclusão em vez de perder
+       patrimônio do usuário. */
+    for (const [key,raw] of entityRows) {
+      if (migratedEntityKeys.has(key)) continue;
+      const suffix=key.slice(entityPrefix.length);
+      const targetKey=DB._profilePrefix() + 'p:' + targetId + ':cards-' + suffix;
+      const existingRaw=localStorage.getItem(targetKey);
+      if (existingRaw != null && existingRaw !== raw) return {ok:false,reason:'unknown-anki-entity-conflict',key:suffix};
+      if (existingRaw == null && DB.setRaw(targetKey,raw) === false) return {ok:false,reason:'save-unknown-anki-entity',key:suffix};
+      migratedEntityKeys.add(key);
+    }
+
     const sourceCards = DB._get(sk.cards, []) || [], targetCards = DB._get(tk.cards, []) || [];
     const cardIds = new Set(targetCards.map(x => String(x && x.id))), ankiIds = new Set(targetCards.map(x => String(x && x.ankiId)).filter(Boolean));
     const cardMap = new Map(), prepared = [];
