@@ -5486,7 +5486,7 @@
   .cards-select-toggle input { flex:0 0 16px !important; width:16px !important; height:16px !important; margin:0 !important; }
   .cards-select-toggle span { display:inline-flex !important; align-items:center !important; height:100% !important; white-space:nowrap !important; line-height:1 !important; }
   .cards-bulk-count { white-space:nowrap !important; }
-  .cards-bulk .btn-danger { min-height:36px !important; height:36px !important; display:inline-flex !important; align-items:center !important; white-space:nowrap !important; }
+  .cards-bulk .btn-danger { min-height:36px !important; height:36px !important; display:inline-flex; align-items:center !important; white-space:nowrap !important; }
   .exd.done .exd-check:hover .exd-check-lbl { visibility:visible !important; display:inline !important; opacity:1 !important; }
   .exd.done .exd-check:hover { background:var(--warn) !important; border-color:var(--warn) !important; color:#fff !important; }
   .exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content:none !important; display:none !important; }
