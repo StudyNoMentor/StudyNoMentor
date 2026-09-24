@@ -994,10 +994,21 @@ const ExtrasScreen = {
     // ajusta o texto do botão salvar conforme o contexto
     const okBtn = document.getElementById('extra-save'); if (okBtn) okBtn.textContent = isConfig ? 'Adicionar atividade' : 'Salvar';
     $id('extra-titulo').value = x.titulo;
-    $id('extra-tipo').value = x.tipo;
+    /* Atividade antiga/importada com tipo ou unidade fora da lista abria o
+       formulário com os seletores EM BRANCO — e salvar gravava tipo vazio.
+       Tipo desconhecido vira "livre" (como a lista já exibe); unidade
+       desconhecida é preservada como opção própria. */
+    const selTipo = $id('extra-tipo'); selTipo.value = x.tipo;
+    if (selTipo.value !== x.tipo) selTipo.value = 'livre';
     $id('extra-disciplina').value = x.disciplina || '';
     $id('extra-alvo').value = x.alvo || '';
-    $id('extra-unidade').value = x.unidade;
+    const selUnid = $id('extra-unidade');
+    selUnid.querySelectorAll('option[data-legado]').forEach(o => o.remove());
+    selUnid.value = x.unidade;
+    if (x.unidade && selUnid.value !== x.unidade) {
+      const o = document.createElement('option'); o.value = x.unidade; o.textContent = x.unidade; o.dataset.legado = '1';
+      selUnid.appendChild(o); selUnid.value = x.unidade;
+    }
     $id('extra-periodo').value = x.periodo;
     const dfEl = document.getElementById('extra-datafim'); if (dfEl) dfEl.value = x.dataFim || '';
     const diEl = document.getElementById('extra-datainicio'); if (diEl) diEl.value = x.dataInicio || '';

@@ -1,0 +1,189 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESEMPENHO TEC + ATIVIDADES EXTRAS — acabamento visual
+   Carregado por último: unifica cartões, abas, chips e botões das duas telas
+   (e das janelas que elas abrem) sobre os mesmos tokens do app. As camadas
+   anteriores (tec-premium, ux100, ux-stability) usam !important, então os
+   ajustes aqui também usam onde precisam vencer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Base comum ─────────────────────────────────────────────────────────── */
+#screen-desempenhotec .card,
+#screen-extras .card{border-radius:16px!important;box-shadow:var(--shadow-sm)!important;border-color:var(--border)!important}
+#screen-desempenhotec .page-header,#screen-extras .page-header{margin-bottom:10px!important}
+
+/* ══════════════════════════ DESEMPENHO TEC ══════════════════════════════ */
+
+/* Cabeçalho da aba: título + escopo numa linha, texto curto, data como selo */
+#screen-desempenhotec .tp-command.uxv3-tec-command{
+  display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;grid-template-areas:"main metrics"!important;
+  gap:8px 16px!important;align-items:start!important;padding:16px 18px!important;margin:0 0 14px!important;
+  border-radius:16px!important;border:1px solid var(--border)!important;box-shadow:var(--shadow-sm)!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 7%,var(--surface)),var(--surface) 60%)!important
+}
+#screen-desempenhotec .uxv3-tec-command .tp-main{grid-area:main;min-width:0}
+#screen-desempenhotec .uxv3-tec-command .tp-eyebrow{font-size:10.5px!important;letter-spacing:.08em!important;color:var(--accent)!important;font-weight:800!important;text-transform:uppercase}
+#screen-desempenhotec .uxv3-tec-command .tp-title{margin:4px 0 6px!important;gap:8px!important}
+#screen-desempenhotec .uxv3-tec-command .tp-title strong{font-size:21px!important;letter-spacing:-.01em}
+#screen-desempenhotec .uxv3-tec-command .tp-title span{border:0!important;background:var(--accent-soft)!important;color:var(--accent)!important;font-weight:700!important;font-size:11.5px!important;padding:3px 10px!important}
+#screen-desempenhotec .uxv3-tec-command .tp-main p{margin:0!important;font-size:13px!important;line-height:1.5!important;color:var(--text-soft)!important;max-width:62ch}
+#screen-desempenhotec .uxv3-tec-command .tp-metrics{grid-area:metrics!important;display:flex!important;flex-direction:column!important;gap:6px!important;align-items:flex-end!important}
+#screen-desempenhotec .uxv3-tec-command .tp-metrics>span{display:inline-flex!important;flex-direction:column!important;align-items:flex-end!important;gap:1px!important;padding:7px 11px!important;border-radius:12px!important;min-width:0!important}
+#screen-desempenhotec .uxv3-tec-command .tp-metrics b{font-size:13.5px!important}
+#screen-desempenhotec .uxv3-tec-command .tp-metrics small{font-size:10.5px!important}
+@media(max-width:560px){
+  #screen-desempenhotec .tp-command.uxv3-tec-command{grid-template-columns:1fr!important;grid-template-areas:"main" "metrics"!important;padding:14px!important}
+  #screen-desempenhotec .uxv3-tec-command .tp-metrics{flex-direction:row!important;flex-wrap:wrap!important;align-items:center!important}
+  #screen-desempenhotec .uxv3-tec-command .tp-metrics>span{flex-direction:row!important;align-items:baseline!important;gap:6px!important;padding:5px 10px!important;border-radius:999px!important}
+  #screen-desempenhotec .uxv3-tec-command .tp-main p{font-size:12.5px!important}
+}
+
+/* Abas Análise / Incidência / Motor: controle segmentado que nunca quebra linha */
+#screen-desempenhotec .tec-subtabs{
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important;padding:4px!important;margin:14px 0 12px!important;
+  background:var(--surface-sunken)!important;border:1px solid var(--border)!important;border-radius:14px!important;flex-wrap:nowrap!important
+}
+#screen-desempenhotec .tec-subtab{
+  min-height:40px!important;padding:8px 6px!important;border:0!important;border-radius:10px!important;background:transparent!important;
+  font-size:13px!important;font-weight:750!important;color:var(--text-soft)!important;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;box-shadow:none!important
+}
+#screen-desempenhotec .tec-subtab:hover{color:var(--text)!important}
+#screen-desempenhotec .tec-subtab.active{background:var(--surface)!important;color:var(--accent)!important;box-shadow:0 1px 3px rgba(15,23,42,.12)!important}
+#screen-desempenhotec .tec-subtab .sm{display:none}
+@media(max-width:480px){#screen-desempenhotec .tec-subtab .lg{display:none}#screen-desempenhotec .tec-subtab .sm{display:inline}}
+
+/* Números principais: mesmo cartão para os quatro, sem borda de destaque solta */
+#screen-desempenhotec #tec-totais{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important}
+@media(max-width:700px){#screen-desempenhotec #tec-totais{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+#screen-desempenhotec .tec-total-card{border:1px solid var(--border)!important;border-radius:14px!important;background:var(--surface)!important;box-shadow:var(--shadow-sm)!important;padding:14px 12px!important;overflow:hidden}
+#screen-desempenhotec .tec-total-card::before{height:3px!important;opacity:.9}
+#screen-desempenhotec .tec-total-card.hero{background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 9%,var(--surface)),var(--surface) 80%)!important;border-color:color-mix(in srgb,var(--accent) 35%,var(--border))!important}
+#screen-desempenhotec .tec-total-card .val{display:flex;align-items:baseline;justify-content:center;flex-wrap:wrap;gap:4px 6px}
+#screen-desempenhotec .tec-total-card .tec-delta{font-size:10.5px!important}
+#screen-desempenhotec .tec-totais-legenda{grid-column:1/-1;margin:2px 2px 0!important;font-size:11.5px!important;line-height:1.45!important;color:var(--text-faint)!important}
+
+/* Cartão da árvore: cabeçalho, ordem e ferramentas numa faixa só */
+#screen-desempenhotec .tec-analysis-card{margin-top:14px!important}
+#screen-desempenhotec .tec-ordem{
+  display:flex!important;align-items:center!important;flex-wrap:wrap!important;gap:6px!important;margin:0 18px 10px!important;padding:0!important;border:0!important;background:none!important
+}
+#screen-desempenhotec .tec-ordem-lbl{font-size:10.5px!important;font-weight:800!important;letter-spacing:.06em!important;color:var(--text-faint)!important;text-transform:uppercase;margin-right:2px}
+#screen-desempenhotec .tec-ordem button{
+  min-height:34px!important;padding:6px 12px!important;border-radius:999px!important;border:1px solid var(--border)!important;background:var(--surface)!important;
+  font-size:12.5px!important;font-weight:700!important;color:var(--text-soft)!important
+}
+#screen-desempenhotec .tec-ordem button.active{background:var(--accent-soft)!important;border-color:var(--accent)!important;color:var(--accent)!important}
+#screen-desempenhotec .tec-tree-toolbar{display:flex!important;align-items:center!important;flex-wrap:nowrap!important;gap:6px!important;padding:0 0 10px!important}
+#screen-desempenhotec .tec-tree-hint{flex:1 1 auto;min-width:0;font-size:11.5px!important;color:var(--text-faint)!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#screen-desempenhotec .tec-tree-btn{flex:0 0 auto;min-height:32px!important;padding:5px 10px!important;border-radius:9px!important;font-size:12px!important;white-space:nowrap}
+@media(max-width:480px){
+  #screen-desempenhotec .tec-ordem{margin:0 14px 10px!important}
+  #screen-desempenhotec .tec-ordem-lbl{flex-basis:100%}
+  #screen-desempenhotec .tec-tree-hint{display:none}
+  #screen-desempenhotec .tec-tree-toolbar{justify-content:flex-end}
+}
+
+/* Motor: o "único lugar que decide" vira um selo discreto; resumo de ajustes
+   não repete as pílulas da regra logo abaixo */
+#screen-desempenhotec #tec-panel-motor .tec-escopo-lista{display:inline-block;margin-bottom:4px;font-size:10.5px!important;letter-spacing:.06em;color:var(--accent)!important;font-weight:800}
+#screen-desempenhotec #tec-panel-motor .tec-cfg-bar{display:flex!important;align-items:center!important;gap:8px!important;margin:10px 0!important;padding:0!important;border:0!important;background:none!important}
+#screen-desempenhotec #tec-panel-motor #motor-cfg-resumo{display:none!important}
+#screen-desempenhotec #tec-panel-motor .tec-cfg-open{min-height:36px!important;padding:6px 14px!important;border-radius:10px!important}
+#screen-desempenhotec .ms-fase{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important}
+#screen-desempenhotec .ms-fase button{text-align:left;border-radius:12px!important}
+@media(max-width:420px){#screen-desempenhotec .ms-fase{grid-template-columns:1fr!important}}
+#screen-desempenhotec .ms-rule-summary{display:flex!important;flex-wrap:wrap!important;gap:6px!important}
+#screen-desempenhotec .ms-rule-summary span{flex:0 1 auto!important;border-radius:999px!important;padding:5px 10px!important;font-size:10.5px!important;text-transform:none!important;letter-spacing:0!important;font-weight:700!important}
+
+/* ═════════════════════════ ATIVIDADES EXTRAS ═══════════════════════════ */
+
+/* Painel superior: resumo + interruptor + ações em grade estável */
+#screen-extras .extras-toolbar.ux100-config-card{
+  display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:12px!important;padding:16px!important;border-radius:16px!important;
+  border:1px solid var(--border)!important;box-shadow:var(--shadow-sm)!important;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 6%,var(--surface)),var(--surface) 55%)!important
+}
+#screen-extras .ux100-config-head{display:grid!important;grid-template-columns:40px minmax(0,1fr) auto!important;align-items:center!important;gap:12px!important}
+#screen-extras .ux100-config-icon{width:40px!important;height:40px!important;border-radius:12px!important;font-size:19px!important}
+#screen-extras .ux100-config-copy small{font-size:10px!important;letter-spacing:.08em!important}
+#screen-extras .ux100-config-copy strong{font-size:16.5px!important}
+#screen-extras .ux100-config-copy span{font-size:12px!important;color:var(--text-soft)!important}
+#screen-extras .ux100-config-kpis{padding-left:0!important}
+#screen-extras .ux100-config-kpis span{font-size:11px!important;padding:4px 10px!important}
+#screen-extras .extras-toolbar.ux100-config-card .extras-global{padding:9px 12px!important;border:1px solid var(--border)!important;border-radius:12px!important;background:var(--surface)!important}
+#screen-extras .extras-toolbar.ux100-config-card .extras-global>span{font-size:12.5px!important;font-weight:650!important}
+#screen-extras .extras-actions.uxv3-toolbar-actions{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+#screen-extras .extras-actions.uxv3-toolbar-actions>button{min-height:42px!important;border-radius:12px!important;font-size:13px!important;font-weight:750!important;white-space:nowrap!important;padding:8px 10px!important;box-shadow:none!important}
+#screen-extras .extras-actions.uxv3-toolbar-actions>.btn-primary{box-shadow:0 4px 12px var(--accent-ring)!important}
+@media(max-width:760px){
+  #screen-extras .ux100-config-head{grid-template-columns:40px minmax(0,1fr)!important}
+  #screen-extras .ux100-config-kpis{grid-column:1/-1!important;justify-content:flex-start!important}
+  #screen-extras .extras-actions.uxv3-toolbar-actions{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+
+/* Cartão do dia: navegação à direita, números em grade, filtros quebram linha */
+#extras-agenda .ux100-day-card .card-header{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;flex-wrap:wrap}
+#extras-agenda .ux100-day-card .cal-nav{display:inline-flex!important;align-items:center!important;gap:4px!important;padding:3px!important;border:1px solid var(--border)!important;border-radius:12px!important;background:var(--surface-sunken)!important}
+#extras-agenda .ux100-day-card .cal-nav .icon-btn{width:32px!important;height:32px!important;min-width:32px!important;border-radius:9px!important;border:0!important;background:transparent!important}
+#extras-agenda .ux100-day-card .cal-nav #cal-today{min-height:32px!important;padding:4px 12px!important;border-radius:9px!important;border:0!important;background:var(--surface)!important;box-shadow:0 1px 3px rgba(15,23,42,.1)!important}
+#extras-agenda .exm-stats{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:8px!important}
+@media(max-width:760px){#extras-agenda .exm-stats{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+#extras-agenda .exm-stat{border-radius:12px!important;padding:10px!important;min-width:0}
+#extras-agenda .exm-filters{display:flex!important;flex-wrap:wrap!important;overflow:visible!important;gap:6px!important;padding-bottom:0!important}
+#extras-agenda .exm-chip{flex:0 0 auto!important;min-height:32px!important;padding:5px 10px!important}
+#extras-agenda .exm-chip.active{background:var(--accent)!important;border-color:var(--accent)!important;color:var(--on-accent,#fff)!important}
+#extras-agenda .exm-chip.active b{background:color-mix(in srgb,var(--on-accent,#fff) 22%,transparent)!important;color:var(--on-accent,#fff)!important}
+/* A fita de dias continua rolando na horizontal, mas avisa que há mais dias */
+#extras-agenda .cal-strip{scroll-snap-type:x proximity;-webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 28px),transparent);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 28px),transparent)}
+#extras-agenda .cal-strip .cal-day{scroll-snap-align:start}
+
+/* Cartões de atividade: ações na mesma linha do título, registro compacto */
+#extras-list .exd.exm-task{border-radius:14px!important;padding:12px 14px!important}
+#extras-list .exd-top{display:grid!important;grid-template-columns:26px 38px minmax(0,1fr) auto!important;grid-template-areas:"chk ico main act"!important;align-items:start!important;gap:10px!important}
+#extras-list .exd-top>.exd-check{grid-area:chk}
+#extras-list .exd-top>.exd-ico{grid-area:ico;width:38px!important;height:38px!important;border-radius:11px!important}
+#extras-list .exd-top>.exd-main{grid-area:main;min-width:0}
+#extras-list .exd-top>.exd-actions{grid-area:act!important;grid-column:auto!important;justify-self:end!important;margin:0!important;padding:0!important;gap:4px!important}
+#extras-list .exd-actions .reg-act-btn{width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;border-radius:9px!important;font-size:13px!important}
+#extras-list .exd-title{font-size:14.5px!important;line-height:1.3!important;overflow-wrap:anywhere}
+#extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-left:74px!important}
+#extras-list .exd-reg{padding-top:10px!important}
+#extras-list .exd-reg-group{display:flex!important;flex-wrap:nowrap!important;gap:8px!important;width:100%}
+#extras-list .exd-reg .exd-num{flex:0 0 84px!important;width:84px!important;max-width:84px!important;min-height:40px!important}
+#extras-list .exd-reg .exd-reg-btn{flex:0 1 220px!important;min-height:40px!important}
+@media(max-width:560px){#extras-list .exd-reg .exd-reg-btn{flex:1 1 auto!important}}
+/* "Onde parei": rótulo em cima, campo e botão na mesma linha */
+#extras-list .extra-marcador{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:6px 8px!important;align-items:center!important;padding:10px 12px!important;border-radius:12px!important}
+#extras-list .extra-marcador .em-label{grid-column:1/-1;font-size:11px!important;font-weight:800!important;letter-spacing:.04em}
+#extras-list .extra-marcador .ex-marcador{min-width:0!important;width:100%!important;min-height:38px!important}
+#extras-list .extra-marcador .ex-marcador-save{min-height:38px!important;padding:6px 14px!important}
+@media(max-width:560px){
+  #extras-list .exd.exm-task{padding:12px!important}
+  #extras-list .exd-top{grid-template-columns:24px 34px minmax(0,1fr) auto!important;gap:8px!important}
+  #extras-list .exd-top>.exd-ico{width:34px!important;height:34px!important}
+  #extras-list .exd-prog,#extras-list .extra-marcador,#extras-list .exd-reg{margin-left:0!important}
+}
+#extras-list .exm-section-head{padding:12px 14px!important}
+#extras-list .exm-disc-title{margin:12px 2px 6px!important;font-size:10.5px!important;letter-spacing:.07em!important}
+
+/* ── Janelas das duas telas: cabeçalho, corpo e rodapé coerentes ─────── */
+.xsc-modal .xsc-head,.cards-modal#extras-manage-modal .cards-modal-head{align-items:flex-start}
+.xsc-modal [data-xsc-close],.xsc-modal .xsc-close{border-radius:12px!important;box-shadow:none!important}
+.xsc-nav{gap:6px!important}
+.xsc-nav button{border-radius:999px!important;min-height:36px!important}
+.xsc-nav button[aria-current="page"]{background:var(--accent-soft)!important;border-color:var(--accent)!important;color:var(--accent)!important}
+
+/* Gerenciar atividades: nome em até duas linhas (antes cortava em "Concordânc…") */
+#extras-manage-modal .exm-row{align-items:center!important;gap:10px!important;padding:10px 12px!important;border-radius:12px!important}
+#extras-manage-modal .exm-name{white-space:normal!important;overflow:hidden!important;text-overflow:clip!important;display:-webkit-box!important;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3!important;font-size:14px!important}
+#extras-manage-modal .exm-body{min-width:0!important;flex:1 1 auto!important}
+#extras-manage-modal .exm-acts{flex:0 0 auto!important;gap:2px!important}
+#extras-manage-modal .exm-acts .icon-btn{width:32px!important;height:32px!important}
+
+/* Ajustes do Motor: as quatro seções numa fita só */
+#tec-cfg-modal .tec-cfg-nav{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:4px!important;padding:4px!important;border-radius:12px!important;background:var(--surface-sunken)!important;overflow:visible!important}
+#tec-cfg-modal .tec-cfg-nav button{min-height:36px!important;padding:6px 4px!important;border:0!important;border-radius:9px!important;background:transparent!important;font-size:12.5px!important;white-space:nowrap!important;box-shadow:none!important}
+#tec-cfg-modal .tec-cfg-nav button.is-active{background:var(--surface)!important;color:var(--accent)!important;box-shadow:0 1px 3px rgba(15,23,42,.12)!important}
+
+/* Cabeçalho do cartão do dia: navegação encostada à direita, sem esticar */
+#extras-agenda .ux100-day-card .card-header>div:first-child{flex:1 1 auto;min-width:0}
+#extras-agenda .ux100-day-card .cal-nav{margin-left:auto!important;width:auto!important;flex:0 0 auto!important}

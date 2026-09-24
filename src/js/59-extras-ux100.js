@@ -53,11 +53,11 @@
       const s = this._status(), lp = s.lei.prefs || {};
       const rotinaLei = lp.ativo === false ? 'Lei seca pausada' : `${s.lei.aptas || 0} lei(s) apta(s)`;
       head.innerHTML = `
-        <div class="ux100-config-icon" aria-hidden="true">⚙</div>
+        <div class="ux100-config-icon" aria-hidden="true">🔁</div>
         <div class="ux100-config-copy">
-          <small>CONTROLE DAS ATIVIDADES</small>
-          <strong>Configurações</strong>
-          <span>Automação, reforços e lei seca ficam aqui; abaixo você executa o que já foi planejado.</span>
+          <small>ROTINA AUTOMÁTICA</small>
+          <strong>Reforços e lei seca</strong>
+          <span>O que o app agenda sozinho. Ajuste em ⚙ Configurações; abaixo fica só a execução do dia.</span>
         </div>
         <div class="ux100-config-kpis" aria-label="Resumo das automações">
           <span><b>${s.reforcos}</b> reforço${s.reforcos === 1 ? '' : 's'}</span>
