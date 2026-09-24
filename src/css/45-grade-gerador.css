@@ -58,3 +58,11 @@
   .grade-gerador-modal .gg-foot>button{flex:1 1 auto}
   #screen-grade .grade-suggest-btn .gg-word{display:inline}
 }
+
+/* Prioridades e cálculo (⚙ Opções) */
+.grade-gerador-modal .gg-sugerir-calc{border:0;background:none;padding:4px 2px;color:var(--accent);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.grade-gerador-modal .gg-sugerir-calc:hover{text-decoration:underline}
+.grade-prioridades-modal .siglas-modal-box{max-width:560px}
+.grade-prioridades-modal .gp-mats{max-height:none}
+.grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto}
+@media(max-width:640px){.grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:none}.grade-prioridades-modal .gp-mat .gg-mat-nome{grid-area:auto}}

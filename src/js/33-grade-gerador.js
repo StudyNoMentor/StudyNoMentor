@@ -166,7 +166,9 @@
     return { grade: out, sessoes: Math.max(1, sessoes), sobras, avisos };
   }
 
-  // Palpite inicial para "matéria de cálculo" (o aluno ajusta na janela).
+  /* Palpite para "matéria de cálculo". Nunca é aplicado sozinho: o planejamento
+     pode ser de qualquer área, então quem decide é o aluno. Serve só para o
+     botão "Sugerir pelo nome", que marca as prováveis para ele revisar. */
   const CALC_RE = /(contab|custo|estat[ií]st|matem[aá]t|financ|racioc[ií]nio|l[oó]gica|econom|c[aá]lculo|f[ií]sica|qu[ií]mica|atuar|probabil)/i;
   function pareceCalculo(nome) { return CALC_RE.test(String(nome || '').normalize('NFC')); }
 
@@ -221,7 +223,7 @@
       dias,
       materias: metas.map(m => {
         const k = nk(m.nome), s = marc[k];
-        return { nome: m.nome, minutos: m.minutos, prioritaria: s ? !!s.prioritaria : false, calculo: s ? !!s.calculo : G.pareceCalculo(m.nome) };
+        return { nome: m.nome, minutos: m.minutos, prioritaria: s ? !!s.prioritaria : false, calculo: s ? !!s.calculo : false };
       })
     };
   }
@@ -250,8 +252,8 @@
             </div>
           </section>
           <section class="gg-sec">
-            <h3 class="gg-h">Matérias da semana</h3>
-            <p class="gg-hint">⭐ Prioritária = vai para os primeiros horários do dia. 🧮 Cálculo = não fica em sequência com outra de cálculo.</p>
+            <div class="gg-prev-head"><h3 class="gg-h">Matérias da semana</h3><button type="button" class="btn-link gg-sugerir-calc" id="gg-sugerir-calc">🧮 Sugerir cálculo pelo nome</button></div>
+            <p class="gg-hint">⭐ Prioritária = vai para os primeiros horários do dia. 🧮 Cálculo = não fica em sequência com outra de cálculo. As marcações também ficam em ⚙ Opções → Prioridades e cálculo.</p>
             <div class="gg-mats" id="gg-mats"></div>
           </section>
           <section class="gg-sec">
@@ -271,6 +273,11 @@
     m.addEventListener('input', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
     m.addEventListener('change', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
     m.querySelector('#gg-outra').addEventListener('click', () => { st.semente++; gerarPrevia(); });
+    m.querySelector('#gg-sugerir-calc').addEventListener('click', () => {
+      const n = sugerirCalculo(st.form.materias);
+      renderForm(); lerForm(); gerarPrevia();
+      if (typeof showToast === 'function') showToast(n ? n + ' matéria(s) marcada(s) como cálculo — confira' : 'Nenhuma matéria com nome de cálculo encontrada');
+    });
     m.querySelector('#gg-aplicar').addEventListener('click', aplicar);
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && m.style.display !== 'none') fechar(); });
     return m;
@@ -306,7 +313,8 @@
     q('[data-mat-pri]').forEach(el => { s.materias[+el.dataset.matPri].prioritaria = el.checked; });
     q('[data-mat-calc]').forEach(el => { s.materias[+el.dataset.matCalc].calculo = el.checked; });
     const dias = {}; s.dias.forEach(d => { dias[d.dia] = { ativo: d.ativo, minutos: d.minutos }; });
-    const materias = {}; s.materias.forEach(m => { materias[nk(m.nome)] = { prioritaria: m.prioritaria, calculo: m.calculo }; });
+    // funde com as marcações de matérias que não estão nesta semana
+    const materias = Object.assign({}, lerPrefs().materias || {}); s.materias.forEach(m => { materias[nk(m.nome)] = { prioritaria: m.prioritaria, calculo: m.calculo }; });
     gravarPrefs({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
   }
 
@@ -350,6 +358,80 @@
     if (typeof showToast === 'function') showToast('Grade sugerida aplicada ✓');
   }
 
+  function sugerirCalculo(lista) {
+    let n = 0; lista.forEach(m => { if (!m.calculo && G.pareceCalculo(m.nome)) { m.calculo = true; n++; } }); return n;
+  }
+
+  /* ⚙ Opções → Prioridades e cálculo: marca as matérias de qualquer área,
+     mesmo fora do ciclo da semana. Mesmas marcações da janela de sugestão. */
+  function materiasDoPlano() {
+    const nomes = [], vistos = new Set(), add = n => { const k = nk(n); if (n && !vistos.has(k)) { vistos.add(k); nomes.push(n); } };
+    metasDoCiclo().forEach(m => add(m.nome));
+    try { DB.getActiveSubjects().forEach(s => add(s.nome)); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'grade-gerador'); }
+    return nomes;
+  }
+  function abrirPrioridades() {
+    let m = document.getElementById('grade-prioridades-modal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'grade-prioridades-modal'; m.className = 'siglas-modal grade-gerador-modal grade-prioridades-modal'; m.style.display = 'none';
+      m.innerHTML = `
+        <div class="siglas-modal-box" role="dialog" aria-modal="true" aria-labelledby="gp-titulo">
+          <div class="siglas-modal-head">
+            <div>
+              <h2 id="gp-titulo">⭐ Prioridades e cálculo</h2>
+              <p class="sub">Usadas pelo ✨ Sugerir grade. ⭐ Prioritária vai para os primeiros horários do dia; 🧮 Cálculo nunca fica em sequência com outra de cálculo.</p>
+            </div>
+            <button type="button" class="icon-btn" data-gp-fechar title="Fechar" aria-label="Fechar">✕</button>
+          </div>
+          <div class="siglas-modal-body gg-body">
+            <div class="gg-prev-head"><span class="gg-resumo" id="gp-resumo"></span><button type="button" class="btn-link gg-sugerir-calc" id="gp-sugerir-calc">🧮 Sugerir cálculo pelo nome</button></div>
+            <div class="gg-mats gp-mats" id="gp-mats"></div>
+          </div>
+          <div class="siglas-modal-foot gg-foot">
+            <button type="button" class="btn-secondary" id="gp-limpar">Limpar marcações</button>
+            <button type="button" class="btn-primary" id="gp-ok" data-gp-fechar>Concluído</button>
+          </div>
+        </div>`;
+      document.body.appendChild(m);
+      m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-gp-fechar]')) m.style.display = 'none'; });
+      m.addEventListener('change', e => { if (e.target.closest('#gp-mats')) salvarPrioridades(); });
+      m.querySelector('#gp-sugerir-calc').addEventListener('click', () => {
+        const lista = st.gp; const n = sugerirCalculo(lista); desenharPrioridades(); salvarPrioridades();
+        if (typeof showToast === 'function') showToast(n ? n + ' matéria(s) marcada(s) como cálculo — confira' : 'Nenhuma matéria com nome de cálculo encontrada');
+      });
+      m.querySelector('#gp-limpar').addEventListener('click', () => { st.gp.forEach(x => { x.prioritaria = false; x.calculo = false; }); desenharPrioridades(); salvarPrioridades(); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && m.style.display !== 'none') m.style.display = 'none'; });
+    }
+    _mapaSiglas = null;
+    const marc = lerPrefs().materias || {};
+    st.gp = materiasDoPlano().map(nome => { const s = marc[nk(nome)] || {}; return { nome, prioritaria: !!s.prioritaria, calculo: !!s.calculo }; });
+    desenharPrioridades();
+    m.style.display = 'flex';
+  }
+  function desenharPrioridades() {
+    const box = document.getElementById('gp-mats'), lista = st.gp || [];
+    box.innerHTML = lista.length ? lista.map((x, i) => `
+      <div class="gg-mat gp-mat">
+        <span class="gg-mat-nome" title="${esc(x.nome)}"><b>${esc(sigla(x.nome))}</b> ${esc(x.nome)}</span>
+        <label class="gg-tog" title="Prioritária: primeiros horários do dia"><input type="checkbox" data-gp-pri="${i}" ${x.prioritaria ? 'checked' : ''}><span>⭐</span></label>
+        <label class="gg-tog" title="Matéria de cálculo"><input type="checkbox" data-gp-calc="${i}" ${x.calculo ? 'checked' : ''}><span>🧮</span></label>
+      </div>`).join('') : '<p class="gg-hint">Cadastre matérias em Configurações ou monte o ciclo da semana.</p>';
+    resumoPrioridades();
+  }
+  function resumoPrioridades() {
+    const l = st.gp || [], el = document.getElementById('gp-resumo');
+    if (el) el.textContent = `${l.filter(x => x.prioritaria).length} prioritária(s) · ${l.filter(x => x.calculo).length} de cálculo`;
+  }
+  function salvarPrioridades() {
+    const l = st.gp || [];
+    document.querySelectorAll('[data-gp-pri]').forEach(el => { l[+el.dataset.gpPri].prioritaria = el.checked; });
+    document.querySelectorAll('[data-gp-calc]').forEach(el => { l[+el.dataset.gpCalc].calculo = el.checked; });
+    const p = lerPrefs(); p.materias = Object.assign({}, p.materias || {});
+    l.forEach(x => { p.materias[nk(x.nome)] = { prioritaria: x.prioritaria, calculo: x.calculo }; });
+    gravarPrefs(p); resumoPrioridades();
+  }
+
   function abrir() {
     const m = montarModal();
     _mapaSiglas = null;
@@ -361,5 +443,9 @@
 
   window.GradeGerador.abrir = abrir;
   window.GradeGerador.fechar = fechar;
-  document.addEventListener('click', e => { if (e.target.closest('#btn-grade-sugerir')) { e.preventDefault(); abrir(); } });
+  window.GradeGerador.abrirPrioridades = abrirPrioridades;
+  document.addEventListener('click', e => {
+    if (e.target.closest('#btn-grade-sugerir')) { e.preventDefault(); abrir(); }
+    else if (e.target.closest('#btn-grade-prioridades')) { e.preventDefault(); abrirPrioridades(); }
+  });
 })();

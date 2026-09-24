@@ -29,13 +29,24 @@ try{
     DB.saveGradeTemplate({grade:{Segunda:[{subject:'Direito Civil',minutes:60,done:false}]},sessions:1});
     switchScreen('grade');
     const out={};
+    // ⚙ Opções → Prioridades e cálculo: nada vem marcado sozinho
+    document.getElementById('grade-gear-btn').click();
+    document.getElementById('btn-grade-prioridades').click();
+    await new Promise(r=>setTimeout(r,100));
+    const gp=document.getElementById('grade-prioridades-modal');
+    out.gpAberto=getComputedStyle(gp).display!=='none';
+    out.gpInicial=[...gp.querySelectorAll('[data-gp-calc],[data-gp-pri]')].some(x=>x.checked);
+    document.getElementById('gp-sugerir-calc').click();
+    out.gpSugestao=[...gp.querySelectorAll('[data-gp-calc]')].map(x=>x.checked);
+    const pDT=gp.querySelector('[data-gp-pri="0"]');pDT.checked=true;pDT.dispatchEvent(new Event('change',{bubbles:true}));
+    out.gpResumo=document.getElementById('gp-resumo').textContent;
+    document.getElementById('gp-ok').click();
     document.getElementById('btn-grade-sugerir').click();
     await new Promise(r=>setTimeout(r,100));
     out.aberto=getComputedStyle(document.getElementById('grade-gerador-modal')).display!=='none';
     out.materias=document.querySelectorAll('#gg-mats .gg-mat').length;
     out.calcPalpite=[...document.querySelectorAll('[data-mat-calc]')].map(x=>x.checked);
-    // marca Direito Tributário como prioritária
-    const pri=document.querySelector('[data-mat-pri="0"]');pri.checked=true;pri.dispatchEvent(new Event('change',{bubbles:true}));
+    out.priHerdada=document.querySelector('[data-mat-pri="0"]').checked;
     out.prev=document.querySelectorAll('#gg-prev .gg-cel').length;
     out.overflow=document.querySelector('#grade-gerador-modal .siglas-modal-box').scrollWidth-document.querySelector('#grade-gerador-modal .siglas-modal-box').clientWidth;
     UI.confirm=()=>Promise.resolve(true);
@@ -64,7 +75,11 @@ try{
   });
   ok(r.aberto,'janela abre pelo botão ✨ Sugerir grade');
   ok(r.materias===4,'lista as matérias do ciclo');
-  ok(r.calcPalpite.join()==='false,true,false,true','palpite de cálculo por nome');
+  ok(r.gpAberto,'Prioridades e cálculo abre pelo menu ⚙ Opções');
+  ok(!r.gpInicial,'nenhuma matéria vem marcada sozinha (vale para qualquer área)');
+  ok(r.gpSugestao.join()==='false,true,false,true','"Sugerir pelo nome" marca as prováveis de cálculo');
+  ok(r.gpResumo.startsWith('1 prioritária')&&r.gpResumo.includes('2 de cálculo'),'resumo das marcações');
+  ok(r.priHerdada&&r.calcPalpite.join()==='false,true,false,true','Sugerir grade usa as marcações das Opções');
   ok(r.prev===7,'prévia com 7 sessões (3+2+1+1)');
   ok(r.overflow<=1,'janela sem rolagem horizontal no celular');
   ok(r.celulas.length===7&&r.celulas.every(c=>c.m===60),'grade aplicada com sessões de 60 min');
