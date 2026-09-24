@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va2216d36e8">
+<meta name="diario-versao" content="v3c6e7be2c5">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -51055,6 +51055,7 @@ const CloudStore = {
     const { data, error } = await this._withTimeout(
       this.client.auth.signUp({ email, password }), 20000, 'A criação de conta');
     if (error) throw error;
+    this._setServiceStatus('ok');
     return data;
   },
 
@@ -51062,6 +51063,7 @@ const CloudStore = {
     const { data, error } = await this._withTimeout(
       this.client.auth.signInWithPassword({ email, password }), 20000, 'O login');
     if (error) throw error;
+    this._setServiceStatus('ok');
     return data;
   },
 
