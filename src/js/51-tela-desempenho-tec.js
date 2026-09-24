@@ -382,7 +382,10 @@ const DesempenhoTecScreen = {
     return DB.getTecSnapshots();
   },
   // ---- Persistência de filtros/seleções (lembra entre sessões, por perfil) ----
-  _prefsKey() { return DB._profilePrefix() + 'tec-prefs'; },
+  _prefsKey() {
+    try { return DB.planSettingRaw ? DB.planSettingRaw('tec-prefs').key : DB.planSettingKey('tec-prefs'); }
+    catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':tec-prefs'; }
+  },
   _loadPrefs() {
     if (this._prefs) return this._prefs;
     this._prefs = DB._get(this._prefsKey(), {}) || {};
