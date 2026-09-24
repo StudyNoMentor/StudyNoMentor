@@ -263,24 +263,32 @@ const PlanManager = {
     sourceCards.forEach(c0 => {
       const card=cleanTagged(c0); if (!card) return;
       const old=String(card.id), existing=targetCards.find(x => String(x && x.id) === old);
-      let next=card.id;
-      if (existing && !same(existing,card)) {
-        do { next=DB._uid(); } while(cardIds.has(String(next)));
-        card.id=next;
-      }
-      cardMap.set(old,card.id); cardIds.add(String(card.id));
-      if (card.ankiId != null && ankiIds.has(String(card.ankiId)) && (!existing || String(existing.ankiId) !== String(card.ankiId))) {
-        let aid; do { aid=allocNumeric(); } while(ankiIds.has(String(aid)));
-        card.ankiId=aid;
-      }
-      if (card.ankiId != null) ankiIds.add(String(card.ankiId));
+
+      /* Primeiro remapeia as dependências. Só DEPOIS decide se um mesmo cardId
+         ainda representa o mesmo card. Isso evita duplicar o mesmo id quando,
+         por exemplo, o deck de origem precisou ganhar outro id no destino. */
       ['deckId','originalDeckId','filteredDeckId'].forEach(k => {
         if (card[k] != null && deckMap.has(String(card[k]))) card[k]=deckMap.get(String(card[k]));
       });
       if (card.notetypeId != null && ntMap.has(String(card.notetypeId))) card.notetypeId=ntMap.get(String(card.notetypeId));
       if (card.noteId != null && noteMap.has(String(card.noteId))) card.noteId=noteMap.get(String(card.noteId));
       if (card.ankiNoteId != null && noteMap.has(String(card.ankiNoteId))) card.ankiNoteId=noteMap.get(String(card.ankiNoteId));
-      prepared.push({old,card,skip:!!existing && String(next)===old && same(existing,card)});
+
+      let next=card.id;
+      const equivalent=!!existing && same(existing,card);
+      if (existing && !equivalent) {
+        do { next=DB._uid(); } while(cardIds.has(String(next)));
+        card.id=next;
+      }
+      const skip=equivalent && String(next)===old;
+      cardMap.set(old,card.id); cardIds.add(String(card.id));
+
+      if (!skip && card.ankiId != null && ankiIds.has(String(card.ankiId))) {
+        let aid; do { aid=allocNumeric(); } while(ankiIds.has(String(aid)));
+        card.ankiId=aid;
+      }
+      if (card.ankiId != null) ankiIds.add(String(card.ankiId));
+      prepared.push({old,card,skip});
     });
     prepared.forEach(x => {
       if (x.card.reversedOf != null && cardMap.has(String(x.card.reversedOf))) x.card.reversedOf=cardMap.get(String(x.card.reversedOf));
