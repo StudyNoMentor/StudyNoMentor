@@ -14,7 +14,7 @@ assert.match(infra,/const AnchoredListViewport = \{/,'deve existir um posicionad
 assert.match(infra,/window\.visualViewport/,'deve medir o viewport visual no mobile/teclado');
 assert.match(infra,/getElementById\('tabs'\)/,'deve descontar a barra móvel fixa do Study');
 assert.match(infra,/_bounds\(panel\)/,'deve considerar ancestrais que recortam conteúdo');
-assert.match(infra,/[\\/\(]auto\|scroll\|hidden\|clip[\\/\)]/,'deve reconhecer containers com overflow que recortam o menu');
+assert.ok(infra.includes('/(auto|scroll|hidden|clip)/.test(oy)'), 'deve reconhecer containers com overflow que recortam o menu');
 assert.match(infra,/ux-float-up/,'deve conseguir inverter a abertura para cima');
 
 for (const sel of [
