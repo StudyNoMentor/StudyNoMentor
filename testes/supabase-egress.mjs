@@ -36,5 +36,9 @@ assert.match(media,/MEDIA_SYNC_MIN_MS:5\*60\*1000/,'sincronização automática 
 assert.match(cloud,/res\.status === 402 \? 'restricted' : 'ok'/,'HTTP 402 deve marcar serviço restrito');
 assert.match(gate,/Servidor restrito por cota/,'portão deve mostrar restrição de cota');
 assert.match(gate,/exceed_egress_quota/,'erro de egress deve ser traduzido para a UI');
+assert.match(cloud,/signInWithPassword[\s\S]{0,240}_setServiceStatus\('ok'\)/,
+  'login bem-sucedido deve confirmar o servidor sem depender do fetch interno do SDK');
+assert.match(cloud,/auth\.signUp[\s\S]{0,240}_setServiceStatus\('ok'\)/,
+  'cadastro bem-sucedido deve confirmar o servidor sem deixar o portão em pending');
 
 console.log('EGRESS SUPABASE: polling, auth, no-op writes, quota e mídia incremental validados.');
