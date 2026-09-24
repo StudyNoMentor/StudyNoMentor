@@ -84,6 +84,10 @@ jobs:
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-concorrencia-multidevice.mjs
 
+      - name: FSRS oficial (otimizador, Health Check, simulador)
+        if: github.event_name != 'push'
+        run: timeout 180s node testes/cards-fsrs-optimizer-oficial.mjs
+
       - name: Round-trip com Anki oficial 26.09.2
         if: github.event_name != 'push'
         shell: bash

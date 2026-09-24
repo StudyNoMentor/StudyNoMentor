@@ -118,8 +118,9 @@ export function criarAmbiente(opts = {}) {
     // Relógio do harness. Os testes NUNCA devem usar o Date.now() do Node:
     // ele não é o relógio que os módulos enxergam.
     agora: () => estado.now,
-    avancar(ms) { estado.now += ms; ctx.CardEngine.invalidateDueCache(); },
-    irPara(ms) { estado.now = ms; ctx.CardEngine.invalidateDueCache(); },
+    // Relógio não é operação do Anki: não derruba a fila montada (LoadBalancer).
+    avancar(ms) { estado.now += ms; ctx.CardEngine.invalidateDueCache(true); },
+    irPara(ms) { estado.now = ms; ctx.CardEngine.invalidateDueCache(true); },
     bytes: () => tamanho(),
     // Zera TUDO: armazenamento, caches de config e estado de sessão da tela.
     reset(cfg) {

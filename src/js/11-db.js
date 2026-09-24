@@ -1194,7 +1194,8 @@ const DB = {
       if ('frente' in patch) patch.frente = _sanCard(patch.frente);
       if ('verso' in patch) patch.verso = _sanCard(patch.verso);
     }
-    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); c.ankiMod = Math.floor(Date.now() / 1000); }
+    // ankiMod explícito (Desfazer restaura o mtime do card, como o Anki) é respeitado.
+    if (c) { Object.assign(c, patch); c.updatedAt = new Date().toISOString(); if (!(patch && patch.ankiMod != null)) c.ankiMod = Math.floor(Date.now() / 1000); }
     // FALSE quando o armazenamento recusou: quem agenda precisa saber (ver
     // CardsScreen.answer). Card inexistente continua devolvendo null.
     return this.saveCards(list) === false ? false : c;

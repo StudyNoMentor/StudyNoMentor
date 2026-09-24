@@ -28,6 +28,10 @@ jobs:
       - name: Install wasm-bindgen CLI
         run: cargo install wasm-bindgen-cli --version 0.2.100 --locked
 
+      - name: Prepare fsrs-rs 6.6.2 (crates.io, SHA-256 fixado) + patch wasm sequencial
+        working-directory: tools/cards-fsrs-wasm
+        run: ./preparar-fsrs.sh
+
       - name: Build exact fsrs-rs 6.6.2 wrapper
         working-directory: tools/cards-fsrs-wasm
         run: cargo build --release

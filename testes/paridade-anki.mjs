@@ -98,7 +98,7 @@ for (const d of [1, 3, 5, 8, 10]) {
   }
 }
 for (const s of [0.001, 0.01, 0.5, 1, 10, 100, 5000]) {
-  for (const g of [1, 2, 3, 4]) ck(`short(S=${s},G=${g})`, F.nextS_short(s, g, W), R.clamp(R.sShort(W, s, g), R.S_MIN, R.S_MAX));
+  for (const g of [1, 2, 3, 4]) ck(`short(S=${s},G=${g})`, F.nextS_short(s, g, W), R.clamp(R.sShort(W, s, g), Math.fround(R.S_MIN), R.S_MAX));
 }
 for (let iv = 1; iv <= 2000; iv++) {
   ck(`fuzzDelta(${iv})`, F.fuzzDelta(iv), R.fuzzDelta(iv), 1e-9);

@@ -38,6 +38,19 @@ const FSRS = {
   },
   decayOf(w) { return -this._w20(w); },
   factorOf(w) { return Math.pow(0.9, -1 / this._w20(w)) - 1; },
+  /* ── ARITMÉTICA f32 ───────────────────────────────────────────────────────
+     O fsrs-rs 6.6.2 (next_states → model::step) calcula tudo em f32, operação
+     por operação. Em f64 o resultado diverge na 4ª casa de S em ~1 a cada
+     2.000 estados. Math.fround em cada passo reproduz a mesma sequência de
+     arredondamentos (exp/powf do Rust são corretamente arredondados na prática). */
+  _f: Math.fround,
+  _w32(w) {
+    if (this._w32c && this._w32c.src === w) return this._w32c.v;
+    const v = (w || []).map(x => Math.fround(Number(x)));
+    this._w32c = { src: w, v }; return v;
+  },
+  _fator32(w) { const f = this._f, dec = f(-this._w20(w)); return f(f(Math.exp(f(f(Math.log(f(0.9))) / dec))) - 1); },
+  _clampS32(s) { const f = this._f; return Math.min(f(this.S_MAX), Math.max(f(this.S_MIN), isFinite(s) ? f(s) : f(this.S_MIN))); },
   // Compatibilidade: código antigo que lia FSRS.DECAY / FSRS.FACTOR continua funcionando
   get DECAY() { return -this.DECAY_PADRAO; },
   get FACTOR() { return Math.pow(0.9, 1 / this.DECAY) - 1; }, // ≈ 0.234568
@@ -62,16 +75,18 @@ const FSRS = {
   // R e interval agora recebem os pesos para usar a curva personalizada.
   // Sem w, caem no decaimento padrão — nenhum chamador antigo quebra.
   R(t, S, w) {
-    const dec = this.decayOf(w), fac = this.factorOf(w);
-    const v = Math.pow(1 + fac * this._t(t) / this._S(S), dec);
+    // power_forgetting_curve: (t / s * factor + 1).powf(decay)
+    const f = this._f, dec = f(-this._w20(w)), fac = this._fator32(w);
+    const v = f(Math.pow(f(f(f(f(this._t(t)) / this._clampS32(S)) * fac) + 1), dec));
     return isFinite(v) ? Math.min(1, Math.max(0, v)) : 0;
   },
   /* Intervalo SEM arredondar, como o fsrs-rs devolve ao Anki. O fuzz do Anki
      (constrained_fuzz_bounds) calcula a faixa sobre este valor fracionário;
      arredondar antes desloca a faixa em 1 dia em parte dos casos. */
   intervalFloat(S, r, w) {
-    const dec = this.decayOf(w), fac = this.factorOf(w);
-    const v = (this._S(S) / fac) * (Math.pow(this._r(r), 1 / dec) - 1);
+    // next_interval: stability / factor * (desired_retention.powf(1.0 / decay) - 1.0)
+    const f = this._f, dec = f(-this._w20(w)), fac = this._fator32(w);
+    const v = f(f(this._clampS32(S) / fac) * f(f(Math.pow(f(this._r(r)), f(1 / dec))) - 1));
     return isFinite(v) ? Math.min(this.S_MAX, Math.max(0, v)) : 1;
   },
   interval(S, r, w) {
@@ -89,14 +104,24 @@ const FSRS = {
     return null;
   },
   pesosValidos(w) { return Array.isArray(w) && (w.length === this.N_W || w.length === 19); },
-  initS(G, w) { return this.clampS(w[G - 1]); },
-  D0(G, w) { return w[4] - Math.exp(w[5] * (G - 1)) + 1; },
+  initS(G, w) { return this._clampS32(this._w32(w)[G - 1]); },
+  // init_difficulty: w[4] - (w[5] * (rating - 1)).exp() + 1.0
+  D0(G, w) { const f = this._f, v = this._w32(w); return f(f(v[4] - f(Math.exp(f(v[5] * f(G - 1))))) + 1); },
   initD(G, w) { return this.clampD(this.D0(G, w)); },
-  nextD(D, G, w) { const d0 = this._D(D); const dp = d0 - w[6] * (G - 3) * (10 - d0) / 9; return this.clampD(w[7] * this.D0(4, w) + (1 - w[7]) * dp); },
+  nextD(D, G, w) {
+    // next_difficulty + linear_damping + mean_reversion, na ordem do fsrs-rs.
+    const f = this._f, v = this._w32(w), d0 = f(this._D(D));
+    const delta = f(f(-v[6]) * f(G - 3)), nd = f(d0 + f(f(f(10 - d0) * delta) / 9));
+    return this.clampD(f(f(v[7] * f(this.D0(4, w) - nd)) + nd));
+  },
   nextS_recall(D, S, R, G, w) {
-    const S0 = this._S(S), D0 = this._D(D), R0 = isFinite(R) ? Math.min(1, Math.max(0, R)) : 0.9;
-    const hard = (G === 2) ? w[15] : 1, easy = (G === 4) ? w[16] : 1;
-    return this.clampS(S0 * (1 + Math.exp(w[8]) * (11 - D0) * Math.pow(S0, -w[9]) * (Math.exp(w[10] * (1 - R0)) - 1) * hard * easy));
+    const f = this._f, v = this._w32(w), S0 = this._clampS32(S), D0 = f(this._D(D)), R0 = f(isFinite(R) ? Math.min(1, Math.max(0, R)) : 0.9);
+    const hard = (G === 2) ? v[15] : 1, easy = (G === 4) ? v[16] : 1;
+    let a = f(Math.exp(v[8]));
+    a = f(a * f(11 - D0)); a = f(a * f(Math.pow(S0, f(-v[9]))));
+    a = f(a * f(f(Math.exp(f(f(1 - R0) * v[10]))) - 1));
+    a = f(a * hard); a = f(a * easy);
+    return this._clampS32(f(S0 * f(a + 1)));
   },
   /* ── ESTABILIDADE APÓS ESQUECER (post-lapse) ──────────────────────────────
      O teto NÃO é S, é S / e^(w17·w18). Parece detalhe, mas é uma correção que o
@@ -106,10 +131,12 @@ const FSRS = {
      Com os pesos padrão, e^(0.5425·0.0912) ≈ 1.0507 — ou seja, o teto real é
      ~95,2% de S, não 100%. */
   nextS_forget(D, S, R, w) {
-    const S0 = this._S(S), D0 = this._D(D), R0 = isFinite(R) ? Math.min(1, Math.max(0, R)) : 0.9;
-    const longo = w[11] * Math.pow(D0, -w[12]) * (Math.pow(S0 + 1, w[13]) - 1) * Math.exp(w[14] * (1 - R0));
-    const tetoCurto = S0 / Math.exp(w[17] * w[18]);
-    return this.clampS(Math.min(longo, tetoCurto));
+    const f = this._f, v = this._w32(w), S0 = this._clampS32(S), D0 = f(this._D(D)), R0 = f(isFinite(R) ? Math.min(1, Math.max(0, R)) : 0.9);
+    let longo = f(v[11] * f(Math.pow(D0, f(-v[12]))));
+    longo = f(longo * f(f(Math.pow(f(S0 + 1), v[13])) - 1));
+    longo = f(longo * f(Math.exp(f(f(1 - R0) * v[14]))));
+    const tetoCurto = f(S0 / f(Math.exp(f(v[17] * v[18]))));
+    return this._clampS32(Math.min(longo, tetoCurto));
   },
   /* ── MEMÓRIA DE CURTO PRAZO (revisões no MESMO dia) ───────────────────────
      Usada nos passos de aprendizado/reaprendizado — é o que acontece quando um
@@ -129,15 +156,15 @@ const FSRS = {
     // distorcia cards de estabilidade muito baixa — justo os que estão em
     // aprendizado, que é onde esta fórmula mais atua. A referência só limita
     // o RESULTADO. Isso valeu 413 divergências no teste diferencial.
-    const S0 = this._S(S);
-    const w17 = w[17], w18 = w[18], w19 = (w.length > 19 && isFinite(w[19])) ? w[19] : 0;
-    let sInc = Math.exp(w17 * (G - 3 + w18)) * Math.pow(S0, -w19);
+    const f = this._f, v = this._w32(w), S0 = this._clampS32(S);
+    const w17 = v[17], w18 = v[18], w19 = (v.length > 19 && isFinite(v[19])) ? v[19] : 0;
+    let sInc = f(f(Math.exp(f(w17 * f(f(G - 3) + w18)))) * f(Math.pow(S0, f(-w19))));
     // Trava: Difícil, Bom e Fácil (G >= 2) não podem REDUZIR a estabilidade.
     // Conferido no backend oficial (anki==26.09.2, get_scheduling_states): no
     // mesmo dia, "Difícil" devolve S inalterado (0,5 -> 0,5; 30 -> 30). Com
     // G >= 3 o app reduzia S e divergia do Anki em todo "Difícil" intradiário.
     if (G >= 2) sInc = Math.max(1, sInc);
-    return this.clampS(S0 * sInc);
+    return this._clampS32(f(S0 * sInc));
   },
 
   // ---- FUZZ (dispersão) — mesma fórmula do Anki: delta acumulado por faixa ----

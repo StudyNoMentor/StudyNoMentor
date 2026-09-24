@@ -60,7 +60,7 @@ CardsScreen.buildQueue=realBuild;
 {
   const w=FSRS.DEFAULT_W,S=.2;
   const hard=FSRS.nextS_short(S,2,w),good=FSRS.nextS_short(S,3,w),easy=FSRS.nextS_short(S,4,w);
-  ok(hard===S,'Hard nunca reduz estabilidade curta (trava SInc >= 1 para G >= 2)');
+  ok(hard===Math.fround(S),'Hard nunca reduz estabilidade curta (trava SInc >= 1 para G >= 2)');
   ok(good>=S,'Good nunca pode reduzir estabilidade curta');
   ok(easy>=S,'Easy nunca pode reduzir estabilidade curta');
 }
@@ -410,7 +410,10 @@ eq(optNt.fields.map(f=>f.name),['Front','Back','Add Reverse'],'Optional Reversed
 const optNote=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:optNt.id,fields:{Front:'F',Back:'B','Add Reverse':'y'},tags:[]});
 eq(strip(AnkiParity.renderTemplate(optNt,optNote,1,'question',{ankiTemplateOrd:1},'')),'B','Optional Reversed gera verso quando Add Reverse está preenchido');
 const optOff=AnkiParity.saveNote({id:AnkiParity._allocId(),notetypeId:optNt.id,fields:{Front:'F',Back:'B','Add Reverse':''},tags:[]});
-eq(strip(AnkiParity.renderTemplate(optNt,optOff,1,'question',{ankiTemplateOrd:1},'')),'','Optional Reversed omite o segundo card quando Add Reverse está vazio');
+// Geração de card segue o cardgen.rs (renders_with_fields), não o texto renderizado:
+// renderizar um template sem campos mostra o aviso de frente vazia do Anki.
+eq(AnkiParity.templateGeraCard(optNt,optOff,1),false,'Optional Reversed omite o segundo card quando Add Reverse está vazio');
+eq(AnkiParity.templateGeraCard(optNt,optNote,1),true,'Optional Reversed gera o segundo card com Add Reverse preenchido');
 eq(rs.map(x=>x.ankiTemplateOrd).sort((a,b)=>a-b),[0,1],'cards irmãos apontam para ordinais 0/1');
 
 const cc=DB.getCards().find(x=>String(x.noteId)==='cl-note'), cnote=AnkiParity.getNote(cc.ankiNoteId), cnt=AnkiParity.getNotetype(cc.notetypeId);

@@ -213,6 +213,31 @@ const AnkiParity = {
       return this._easyLoad(k);
     });
   },
+  /* LoadBalancer::new (states/load_balancer.rs) lê UMA vez, ao montar a fila,
+     `select id, nid, did, due from cards where due >= hoje and due < hoje+99`:
+     sem filtro de fila (novo entra pela posição, suspenso/enterrado entram),
+     aprendizado intradiário fica fora (due em segundos) e card em baralho
+     filtrado também (o baralho filtrado não tem predefinição). Depois só
+     add_card() ao responder. Sem fila montada, a tabela é lida na hora. */
+  _lb:null,
+  _lbItens(){
+    const hoje=todayCards(),hojeIdx=this.daysElapsed(),itens=[];
+    this._scopeCards().forEach(c=>{
+      if(c.dueTs||c.originalDeckId)return;
+      const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');let d;
+      if(ph==='new'){const p=Number(c.posicaoNova);if(!Number.isFinite(p))return;d=Math.round(p)-hojeIdx;}
+      else{if(!c.due)return;d=CardEngine._daysBetween(hoje,c.due);if(String(c.due).slice(0,10)<hoje)return;}
+      if(d>=0&&d<99)itens.push({nid:String(c.noteId||c.id),dc:this.configIdForDeck(c.deckId),d});
+    });
+    return itens;
+  },
+  lbCongelar(){this._lb={dia:todayCards(),itens:this._lbItens()};},
+  _lbTabela(){return (this._lb&&this._lb.dia===todayCards())?this._lb.itens:this._lbItens();},
+  lbAdicionarRespondido(card){
+    if(!this._lb||this._lb.dia!==todayCards()||!card||card.dueTs||card.suspenso||String(card.phase||'')!=='review')return;
+    const iv=Math.round(Number(card.intervalo)||0);
+    if(iv>=0&&iv<99)this._lb.itens.push({nid:String(card.noteId||card.id),dc:this.configIdForDeck(card.originalDeckId||card.deckId),d:iv});
+  },
   _siblingModifiers(card,lo,hi){
     /* answering/mod.rs só entrega o note_id ao LoadBalancer quando a
        predefinição ENTERRA revisões irmãs (bury_reviews); sem isso não há
@@ -221,11 +246,9 @@ const AnkiParity = {
     const out=Array.from({length:hi-lo+1},()=>1);if(!card||!card.noteId)return out;
     const cfg=this.cfgForCard(card);if(!cfg||!cfg.buryReviews)return out;
     const nid=String(card.noteId),days=new Set(),steps=[-5,-4,-3,-2,-1,0,1,2,3,4,5],mods=[1,.8,.6,.4,.2,.000001,.2,.4,.6,.8,1];
-    const hoje=Date.parse(todayCards()+'T00:00:00');
-    this._cardsForCardPlan(card).forEach(c=>{
-      if(String(c.id)===String(card.id)||String(c.noteId||c.id)!==nid||c.dueTs||!c.due)return;
-      const d=Math.round((Date.parse(String(c.due).slice(0,10)+'T00:00:00')-hoje)/86400000);if(d>=0&&d<99)days.add(d);
-    });
+    // Todas as predefinições; o próprio card também está na tabela e
+    // has_sibling(nid) o encontra: não é excluído.
+    this._lbTabela().forEach(e=>{if(e.nid===nid)days.add(e.d);});
     days.forEach(sd=>steps.forEach((st,i)=>{const at=sd+st-lo;if(at>=0&&at<out.length)out[at]*=mods[i];}));
     return out;
   },
@@ -234,15 +257,14 @@ const AnkiParity = {
     // find_interval: `interval as usize > 90` TRUNCA (90,64 ainda é balanceado).
     if(Math.trunc(iv)>90||minimum>90)return null;
     const b=FSRS.constrainedFuzzBounds(iv,minimum,maximum),lo=b[0],hi=b[1],ints=[];for(let d=lo;d<=hi;d++)ints.push(d);
-    const preset=this.configIdForDeck(card&&card.deckId);
+    const preset=this.configIdForDeck(card&&(card.originalDeckId||card.deckId));
     /* get_all_cards_due_in_range (storage/card/mod.rs) conta TODO card cujo
        vencimento em dias cai na janela: suspensos, enterrados e aprendizado
        entre dias entram; só o aprendizado intradiário (vencimento em segundos)
-       fica de fora. Card novo não tem dia de vencimento no Study. */
-    const counts=ints.map(d=>{let n=0;this._scopeCards().forEach(c=>{
-      if(c.dueTs||!c.due)return;const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
-      if(ph==='new'||this.configIdForDeck(c.deckId)!==preset)return;if(CardEngine._daysBetween(todayCards(),c.due)===d)n++;
-    });return n;});
+       fica de fora. A consulta não filtra a fila: card NOVO entra pelo seu
+       `due`, que é a POSIÇÃO — cai no dia (posição − sched.today). */
+    const tab=this._lbTabela().filter(e=>e.dc===preset);
+    const counts=ints.map(d=>tab.reduce((n,e)=>n+(e.d===d?1:0),0));
     const easy=this._easyModifiers(this.cfgForCard(card),ints,counts),sib=this._siblingModifiers(card,lo,hi);
     const weights=ints.map((d,i)=>counts[i]===0?1:Math.pow(1/counts[i],2.15)*Math.pow(1/d,3)*sib[i]*easy[i]);
     const idx=this.weightedIndex(weights,seed);return idx==null?null:ints[idx];
@@ -311,7 +333,7 @@ const AnkiParity = {
   revealCloze(text,ord,question){
     let found=false;const renderNodes=nodes=>nodes.map(render).join(''),render=n=>{
       if(n.type==='text')return n.text;const active=n.ordinals.includes(Number(ord));if(active)found=true;const os=n.ordinals.join(',');
-      if(question&&active){const inner=renderNodes(n.nodes),hint=n.hint==null?'...':n.hint;return '<span class="cloze" data-cloze="'+this._escAttr(inner)+'" data-ordinal="'+os+'">['+hint+']</span>';}
+      if(question&&active){const inner=renderNodes(n.nodes),hint=n.hint==null?'...':n.hint;return '<span class="cloze" data-cloze="'+this._encodeAttrAnki(inner)+'" data-ordinal="'+os+'">['+hint+']</span>';}
       return '<span class="'+(active?'cloze':'cloze-inactive')+'" data-ordinal="'+os+'">'+renderNodes(n.nodes)+'</span>';
     };
     const out=renderNodes(this.parseCloze(text));return found?out:'';
@@ -361,8 +383,9 @@ const AnkiParity = {
     try{
       const note=this.getNote(this.noteId(card));if(!note)return false;
       const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)return false;
-      const front=this.renderTemplate(nt,note,Number(card.ankiTemplateOrd)||0,'question',card,'');
-      return !this._fieldNonempty(front);
+      const isCloze=(nt.kind==='cloze'||nt.stockKind==='cloze'),ord=Number(card.ankiTemplateOrd)||0;
+      const clozeN=isCloze?(Number(card.clozeOrd)||ord+1||1):null,tmpl=(nt.templates||[])[isCloze?0:ord]||{};
+      return this._frenteVaziaAnki(nt,tmpl,this._mapaCampos(nt,note,tmpl,card,isCloze?clozeN-1:ord),isCloze,clozeN);
     }catch(_){return false;}
   },
   emptyCardIds(){
@@ -379,14 +402,30 @@ const AnkiParity = {
   },
 
   autoBurySiblings(card){
-    if(!card||!card.noteId)return 0;const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),nid=String(card.noteId);let n=0;
+    if(!card||!card.noteId)return 0;const cfg=Object.assign({},CardsConfig.forDeck(card.originalDeckId||card.deckId)),nid=String(card.noteId);let n=0;
+    this._excluirFilasAnteriores(cfg,card);
     const buried=[];
     this._cardsForCardPlan(card).forEach(s=>{
       if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
       const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
       const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
-      if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
+      // siblings_for_bury.sql: fila de novos, de revisão (vencida ou não) ou de
+      // aprendizado entre dias — só não repete quem já está enterrado.
+      if(bury&&!CardEngine.estaEnterrado(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
     });return buried;
+  },
+  /* bury_and_suspend.rs::exclude_earlier_gathered_queues: o card respondido só
+     enterra irmãos de filas coletadas DEPOIS da dele (intradiário 0 → entre
+     dias 1 → revisão 2 → novo 3). Novos são sempre enterráveis. */
+  _ordemColeta(card){
+    const ph=card&&(card.phase||(((card.reps||0)>0&&(card.intervalo||0)>0)?'review':'new'));
+    if(ph==='new')return 3;if(ph==='review')return 2;return card&&card.dueTs?0:1;
+  },
+  _excluirFilasAnteriores(cfg,card){
+    const o=this._ordemColeta(card);
+    cfg.buryInterdayLearning=!!cfg.buryInterdayLearning&&o<=1;
+    cfg.buryReviews=!!cfg.buryReviews&&o<=2;
+    return cfg;
   },
   suspendCard(id){
     const c=DB.getCard(id);if(!c)return false;const p={suspenso:true,enterradoAte:null,buryKind:null};
@@ -570,21 +609,205 @@ AnkiParity._specialField=function(name,nt,note,tmpl,card){
   if(n==='CardID')return String(card&&card.ankiId||card&&card.id||'');
   return null;
 };
+
+/* ── RENDERIZAÇÃO NO FORMATO EXATO DO ANKI 26.09.2 ─────────────────────────
+   Réplicas de rslib/src/{template.rs,template_filters.rs,text.rs,
+   notetype/render.rs} e do crate htmlescape 0.3.1 usado por eles. */
+AnkiParity._HTML4_ENT={AElig:0x00C6,Aacute:0x00C1,Acirc:0x00C2,Agrave:0x00C0,Alpha:0x0391,Aring:0x00C5,Atilde:0x00C3,Auml:0x00C4,Beta:0x0392,Ccedil:0x00C7,Chi:0x03A7,Dagger:0x2021,Delta:0x0394,ETH:0x00D0,Eacute:0x00C9,Ecirc:0x00CA,Egrave:0x00C8,Epsilon:0x0395,Eta:0x0397,Euml:0x00CB,Gamma:0x0393,Iacute:0x00CD,Icirc:0x00CE,Igrave:0x00CC,Iota:0x0399,Iuml:0x00CF,Kappa:0x039A,Lambda:0x039B,Mu:0x039C,Ntilde:0x00D1,Nu:0x039D,OElig:0x0152,Oacute:0x00D3,Ocirc:0x00D4,Ograve:0x00D2,Omega:0x03A9,Omicron:0x039F,Oslash:0x00D8,Otilde:0x00D5,Ouml:0x00D6,Phi:0x03A6,Pi:0x03A0,Prime:0x2033,Psi:0x03A8,Rho:0x03A1,Scaron:0x0160,Sigma:0x03A3,THORN:0x00DE,Tau:0x03A4,Theta:0x0398,Uacute:0x00DA,Ucirc:0x00DB,Ugrave:0x00D9,Upsilon:0x03A5,Uuml:0x00DC,Xi:0x039E,Yacute:0x00DD,Yuml:0x0178,Zeta:0x0396,aacute:0x00E1,acirc:0x00E2,acute:0x00B4,aelig:0x00E6,agrave:0x00E0,alefsym:0x2135,alpha:0x03B1,amp:0x0026,and:0x2227,ang:0x2220,aring:0x00E5,asymp:0x2248,atilde:0x00E3,auml:0x00E4,bdquo:0x201E,beta:0x03B2,brvbar:0x00A6,bull:0x2022,cap:0x2229,ccedil:0x00E7,cedil:0x00B8,cent:0x00A2,chi:0x03C7,circ:0x02C6,clubs:0x2663,cong:0x2245,copy:0x00A9,crarr:0x21B5,cup:0x222A,curren:0x00A4,dArr:0x21D3,dagger:0x2020,darr:0x2193,deg:0x00B0,delta:0x03B4,diams:0x2666,divide:0x00F7,eacute:0x00E9,ecirc:0x00EA,egrave:0x00E8,empty:0x2205,emsp:0x2003,ensp:0x2002,epsilon:0x03B5,equiv:0x2261,eta:0x03B7,eth:0x00F0,euml:0x00EB,euro:0x20AC,exist:0x2203,fnof:0x0192,forall:0x2200,frac12:0x00BD,frac14:0x00BC,frac34:0x00BE,frasl:0x2044,gamma:0x03B3,ge:0x2265,gt:0x003E,hArr:0x21D4,harr:0x2194,hearts:0x2665,hellip:0x2026,iacute:0x00ED,icirc:0x00EE,iexcl:0x00A1,igrave:0x00EC,image:0x2111,infin:0x221E,int:0x222B,iota:0x03B9,iquest:0x00BF,isin:0x2208,iuml:0x00EF,kappa:0x03BA,lArr:0x21D0,lambda:0x03BB,lang:0x2329,laquo:0x00AB,larr:0x2190,lceil:0x2308,ldquo:0x201C,le:0x2264,lfloor:0x230A,lowast:0x2217,loz:0x25CA,lrm:0x200E,lsaquo:0x2039,lsquo:0x2018,lt:0x003C,macr:0x00AF,mdash:0x2014,micro:0x00B5,middot:0x00B7,minus:0x2212,mu:0x03BC,nabla:0x2207,nbsp:0x00A0,ndash:0x2013,ne:0x2260,ni:0x220B,not:0x00AC,notin:0x2209,nsub:0x2284,ntilde:0x00F1,nu:0x03BD,oacute:0x00F3,ocirc:0x00F4,oelig:0x0153,ograve:0x00F2,oline:0x203E,omega:0x03C9,omicron:0x03BF,oplus:0x2295,or:0x2228,ordf:0x00AA,ordm:0x00BA,oslash:0x00F8,otilde:0x00F5,otimes:0x2297,ouml:0x00F6,para:0x00B6,part:0x2202,permil:0x2030,perp:0x22A5,phi:0x03C6,pi:0x03C0,piv:0x03D6,plusmn:0x00B1,pound:0x00A3,prime:0x2032,prod:0x220F,prop:0x221D,psi:0x03C8,quot:0x0022,rArr:0x21D2,radic:0x221A,rang:0x232A,raquo:0x00BB,rarr:0x2192,rceil:0x2309,rdquo:0x201D,real:0x211C,reg:0x00AE,rfloor:0x230B,rho:0x03C1,rlm:0x200F,rsaquo:0x203A,rsquo:0x2019,sbquo:0x201A,scaron:0x0161,sdot:0x22C5,sect:0x00A7,shy:0x00AD,sigma:0x03C3,sigmaf:0x03C2,sim:0x223C,spades:0x2660,sub:0x2282,sube:0x2286,sum:0x2211,sup:0x2283,sup1:0x00B9,sup2:0x00B2,sup3:0x00B3,supe:0x2287,szlig:0x00DF,tau:0x03C4,there4:0x2234,theta:0x03B8,thetasym:0x03D1,thinsp:0x2009,thorn:0x00FE,tilde:0x02DC,times:0x00D7,trade:0x2122,uArr:0x21D1,uacute:0x00FA,uarr:0x2191,ucirc:0x00FB,ugrave:0x00F9,uml:0x00A8,upsih:0x03D2,upsilon:0x03C5,uuml:0x00FC,weierp:0x2118,xi:0x03BE,yacute:0x00FD,yen:0x00A5,yuml:0x00FF,zeta:0x03B6,zwj:0x200D,zwnj:0x200C};
+// htmlescape::decode_html — entidade inválida devolve o texto ORIGINAL inteiro.
+AnkiParity._decodeHtmlAnki=function(s){
+  s=String(s==null?'':s);if(s.indexOf('&')<0)return s;
+  let out='',st='N',buf='';const dig=c=>c>='0'&&c<='9',hex=c=>/[0-9a-fA-F]/.test(c);
+  for(const c of s){
+    if(st==='N'){if(c==='&')st='E';else out+=c;continue;}
+    if(st==='E'){if(c==='#'){st='#';continue;}if(c===';')return s;st='NM';buf=c;continue;}
+    if(st==='NM'){if(c===';'){const cp=this._HTML4_ENT[buf];if(cp==null)return s;out+=String.fromCodePoint(cp);buf='';st='N';}else buf+=c;continue;}
+    if(st==='#'){if(dig(c)){st='D';buf=c;continue;}if(c==='x'){st='X';buf='';continue;}return s;}
+    if(st==='D'||st==='X'){
+      if(c===';'){const n=parseInt(buf,st==='D'?10:16);if(!buf||!Number.isFinite(n)||n>0x10FFFF||(n>=0xD800&&n<=0xDFFF))return s;out+=String.fromCodePoint(n);buf='';st='N';continue;}
+      if(st==='D'?dig(c):hex(c)){buf+=c;continue;}return s;
+    }
+  }
+  if(st!=='N')return s;
+  return out.replace(/ /g,' ');
+};
+// text.rs::strip_html (regex HTML com (?si)) + decode_entities.
+AnkiParity._stripHtmlAnki=function(s){
+  return this._decodeHtmlAnki(String(s==null?'':s).replace(/(<!--[\s\S]*?-->)|(<style[\s\S]*?>[\s\S]*?<\/style>)|(<script[\s\S]*?>[\s\S]*?<\/script>)|(<[\s\S]*?>)/gi,''));
+};
+// htmlescape::encode_attribute: mínimas nomeadas; demais < 256 não alfanuméricas em &#xHH;.
+AnkiParity._encodeAttrAnki=function(s){
+  const M={'"':'&quot;','&':'&amp;',"'":'&#x27;','<':'&lt;','>':'&gt;'};let out='';
+  for(const c of String(s==null?'':s)){
+    if(M[c]){out+=M[c];continue;}
+    const b=c.codePointAt(0);
+    out+=(b<256&&(b>127||!/[A-Za-z0-9]/.test(c)))?'&#x'+b.toString(16).toUpperCase().padStart(2,'0')+';':c;
+  }
+  return out;
+};
+// template.rs::field_is_empty: só espaços e <br>/<div>/</div> (comentário NÃO é vazio).
+AnkiParity._fieldNonempty=function(v){
+  return !/^(?:\s|<\/?(?:br|div) ?\/?>)*$/i.test(String(v==null?'':v));
+};
+// BLAKE3 (implementação de referência), usado pelo filtro hint: para o id do DOM.
+AnkiParity._blake3=function(bytes){
+  const IV=[0x6A09E667,0xBB67AE85,0x3C6EF372,0xA54FF53A,0x510E527F,0x9B05688C,0x1F83D9AB,0x5BE0CD19];
+  const P=[2,6,3,10,7,0,4,13,1,11,12,5,9,14,15,8];
+  const CS=1,CE=2,PAR=4,ROOT=8,rot=(x,n)=>((x>>>n)|(x<<(32-n)))>>>0;
+  const g=(s,a,b,c,d,x,y)=>{s[a]=(s[a]+s[b]+x)>>>0;s[d]=rot(s[d]^s[a],16);s[c]=(s[c]+s[d])>>>0;s[b]=rot(s[b]^s[c],12);
+    s[a]=(s[a]+s[b]+y)>>>0;s[d]=rot(s[d]^s[a],8);s[c]=(s[c]+s[d])>>>0;s[b]=rot(s[b]^s[c],7);};
+  const compress=(cv,m,ctr,len,flags)=>{
+    const s=[cv[0],cv[1],cv[2],cv[3],cv[4],cv[5],cv[6],cv[7],IV[0],IV[1],IV[2],IV[3],ctr>>>0,Math.floor(ctr/0x100000000)>>>0,len,flags];
+    let w=m.slice();
+    for(let r=0;r<7;r++){
+      g(s,0,4,8,12,w[0],w[1]);g(s,1,5,9,13,w[2],w[3]);g(s,2,6,10,14,w[4],w[5]);g(s,3,7,11,15,w[6],w[7]);
+      g(s,0,5,10,15,w[8],w[9]);g(s,1,6,11,12,w[10],w[11]);g(s,2,7,8,13,w[12],w[13]);g(s,3,4,9,14,w[14],w[15]);
+      if(r<6)w=P.map(i=>w[i]);
+    }
+    for(let i=0;i<8;i++){s[i]=(s[i]^s[i+8])>>>0;s[i+8]=(s[i+8]^cv[i])>>>0;}
+    return s;
+  };
+  const words=(b,o)=>{const w=new Array(16).fill(0);for(let i=0;i<64;i++){const v=o+i<b.length?b[o+i]:0;w[i>>2]|=v<<((i&3)*8);}return w.map(x=>x>>>0);};
+  const chunkOut=(chunk,ctr)=>{ // devolve {cv, m, len, flags} do último bloco, sem ROOT
+    let cv=IV.slice();const nb=Math.max(1,Math.ceil(chunk.length/64));
+    for(let i=0;i<nb;i++){
+      const len=Math.min(64,chunk.length-i*64),flags=(i===0?CS:0)|(i===nb-1?CE:0),m=words(chunk,i*64);
+      if(i===nb-1)return {cv,m,ctr,len,flags};
+      cv=compress(cv,m,ctr,64,flags).slice(0,8);
+    }
+  };
+  const cvOf=o=>compress(o.cv,o.m,o.ctr,o.len,o.flags).slice(0,8);
+  const parent=(l,r)=>({cv:IV,m:l.concat(r),ctr:0,len:64,flags:PAR});
+  const chunks=[];for(let i=0;i<Math.max(1,Math.ceil(bytes.length/1024));i++)chunks.push(bytes.slice(i*1024,(i+1)*1024));
+  let stack=[],out=null;
+  chunks.forEach((ch,i)=>{
+    const o=chunkOut(ch,i);
+    if(i===chunks.length-1){out=o;return;}
+    let cv=cvOf(o),total=i+1;
+    while((total&1)===0){cv=cvOf(parent(stack.pop(),cv));total>>=1;}
+    stack.push(cv);
+  });
+  while(stack.length){out=parent(stack.pop(),cvOf(out));}
+  const s=compress(out.cv,out.m,out.ctr,out.len,out.flags|ROOT),res=[];
+  for(let i=0;i<8;i++)for(let k=0;k<4;k++)res.push((s[i]>>>(8*k))&255);
+  return res;
+};
+AnkiParity._hintAnki=function(text,fieldName){
+  if(!String(text).trim())return String(text);
+  const bytes=Array.from(new TextEncoder().encode(String(text)+String(fieldName)));
+  const id=this._blake3(bytes).slice(0,8).map(b=>b.toString(16).padStart(2,'0')).join('');
+  return '\n<a class=hint href="#"\nonclick="this.style.display=\'none\';\ndocument.getElementById(\'hint'+id+'\').style.display=\'block\';\nreturn false;" draggable=false>\n'+fieldName+'</a>\n<div id="hint'+id+'" class=hint style="display: none">'+text+'</div>\n';
+};
+// Tags canônicas: sem repetição (sem diferenciar caixa) e ordenadas (UniCase).
+AnkiParity._tagsCanonicas=function(tags){
+  const vistos=new Map();(tags||[]).forEach(t=>String(t).split(/\s+/).filter(Boolean).forEach(x=>{const k=x.toLowerCase();if(!vistos.has(k))vistos.set(k,x);}));
+  return [...vistos.values()].sort((a,b)=>{const x=a.toLowerCase(),y=b.toLowerCase();return x<y?-1:x>y?1:0;});
+};
+// notetype/render.rs::render_card + add_special_fields: especiais NÃO sobrepõem campos da nota.
+AnkiParity._mapaCampos=function(nt,note,tmpl,card,ord){
+  const m=Object.assign({},note.fields||{}),put=(k,v)=>{if(!Object.prototype.hasOwnProperty.call(m,k))m[k]=v;};
+  const deckId=card&&(card.originalDeckId||card.deckId),deck=deckId==null?null:this._decksForDeckId(deckId).find(d=>String(d.id)===String(deckId));
+  const deckName=deck?String(deck.nome||''):'(Deck)';
+  put('Tags',this._tagsCanonicas(note.tags).join(' '));put('Type',String(nt&&nt.name||''));
+  put('Subdeck',deckName.split('::').pop());put('Deck',deckName);
+  put('CardFlag','flag'+(Number(card&&card.flag)||0));put('Card',String(tmpl&&tmpl.name||''));
+  put('CardID',String(this.cardId(card)||(card&&card.id)||''));
+  put('c'+((Number(ord)||0)+1),'1');
+  return m;
+};
+// template.rs: parser mínimo de nós (Texto, Substituição, Condicional, Negação).
+AnkiParity._parseTemplate=function(src){
+  const toks=[],re=/\{\{([#^\/]?)([^{}]*?)\}\}/g;let last=0,mm;const s=String(src||'');
+  while((mm=re.exec(s))){if(mm.index>last)toks.push({t:'text'});toks.push({t:mm[1]||'repl',k:mm[2].trim()});last=re.lastIndex;}
+  const build=(i,fim)=>{const nodes=[];while(i<toks.length){const x=toks[i];
+    if(x.t==='/'){if(x.k===fim)return [nodes,i+1];i++;continue;}
+    if(x.t==='#'||x.t==='^'){const [ch,j]=build(i+1,x.k);nodes.push({t:x.t,k:x.k,ch});i=j;continue;}
+    if(x.t==='repl'){const parts=x.k.split(':');nodes.push({t:'repl',k:parts[parts.length-1].trim()});}
+    i++;}return [nodes,i];};
+  return build(0,null)[0];
+};
+AnkiParity._templateVazio=function(nodes,nonempty){
+  for(const n of nodes){
+    if(n.t==='repl'){if(nonempty.has(n.k))return false;}
+    else if(n.t==='#'){if(!nonempty.has(n.k))continue;if(!this._templateVazio(n.ch,nonempty))return false;}
+    else if(n.t==='^'){if(nonempty.has(n.k))continue;if(!this._templateVazio(n.ch,nonempty))return false;}
+  }
+  return true;
+};
+// Mesma decisão do render_card (is_empty): cloze sem a omissão do card, ou
+// pergunta que não renderiza nenhum campo preenchido. Base de "Cartas Vazias".
+AnkiParity._frenteVaziaAnki=function(nt,tmpl,mapa,isCloze,clozeN){
+  if(isCloze){
+    const nums=new Set();Object.values(mapa).forEach(v=>{String(v||'').replace(/\{\{c(\d+)::/g,(m,n)=>{nums.add(Number(n));return m;});});
+    return !nums.has(clozeN);
+  }
+  const cheios=new Set(Object.keys(mapa).filter(k=>this._fieldNonempty(mapa[k])));
+  return this._templateVazio(this._parseTemplate(tmpl&&tmpl.qfmt||''),cheios);
+};
+// notetype/cardgen.rs::new_cards_required_normal — o modelo gera card se a
+// pergunta renderiza com campos: preenchidos da nota + especiais (Tags só com tags).
+AnkiParity.templateGeraCard=function(nt,note,ord){
+  const tmpl=(nt&&nt.templates||[])[Number(ord)||0];if(!tmpl)return false;
+  const campos=(note&&note.fields)||{},cheios=new Set(Object.keys(campos).filter(k=>this._fieldNonempty(campos[k])));
+  ['Card','CardFlag','Deck','Subdeck','Tags','Type','CardID'].forEach(k=>{
+    if(Object.prototype.hasOwnProperty.call(campos,k))return;
+    if(k==='Tags'&&!(note&&Array.isArray(note.tags)&&note.tags.length))return;
+    cheios.add(k);
+  });
+  return !this._templateVazio(this._parseTemplate(tmpl.qfmt||''),cheios);
+};
+/* notetype/mod.rs::ensure_template_fronts_unique → ensure_valid_parsed_templates →
+   ensure_cloze_if_cloze_notetype, nesta ordem, com as mensagens do Anki em pt-BR. */
+AnkiParity._camposReferenciados=function(nodes,out,soCloze,comCond){
+  (nodes||[]).forEach(n=>{
+    if(n.t==='repl'){if(!soCloze||n.cloze)out.add(n.k);}
+    else if(n.t==='#'||n.t==='^'){if(comCond&&!/^c\d+$/.test(n.k))out.add(n.k);this._camposReferenciados(n.ch,out,soCloze,comCond);}
+  });
+  return out;
+};
+AnkiParity.erroNotetype=function(nt){
+  const tpls=(nt&&nt.templates)||[],pref=i=>'O modelo do cartão \u2068'+(i+1)+'\u2069 tem um problema.<br>';
+  const vistos=new Map();
+  for(let i=0;i<tpls.length;i++){
+    const q=String(tpls[i].qfmt||'');
+    if(vistos.has(q)&&!/\{\{\s*Card\s*\}\}/.test(q))return pref(i)+'O lado frontal é idêntico ao modelo do cartão \u2068'+(vistos.get(q)+1)+'\u2069.';
+    if(!vistos.has(q))vistos.set(q,i);
+  }
+  const nomes=new Set(((nt&&nt.fields)||[]).map(f=>String(f.name))),especiais=new Set(['FrontSide','Card','CardFlag','Deck','Subdeck','Tags','Type','CardID']);
+  for(let i=0;i<tpls.length;i++){
+    const qn=this._parseTemplate(tpls[i].qfmt||''),an=this._parseTemplate(tpls[i].afmt||'');
+    const qf=this._camposReferenciados(qn,new Set(),false,true);
+    if(!qf.size)return pref(i)+'Esperado encontrar um substituto de campo na frente do modelo do cartão.';
+    const todos=new Set([...qf,...this._camposReferenciados(an,new Set(),false,true)]);
+    for(const k of todos)if(k&&!especiais.has(k)&&!nomes.has(k))return pref(i)+"Campo '\u2068"+k+"\u2069' não encontrado.";
+  }
+  if(nt&&(nt.kind==='cloze'||nt.stockKind==='cloze')){
+    const temCloze=src=>/\{\{[^{}]*\bcloze:[^{}]*\}\}/.test(String(src||''));
+    const t0=tpls[0]||{};
+    if(!temCloze(t0.qfmt)||!temCloze(t0.afmt))return pref(0)+"Espera-se encontrar{{ cloze:Text}}' ou algo semelhante no modelo frontal e no modelo do verso.";
+  }
+  return null;
+};
+AnkiParity._MSG_FRENTE_VAZIA="<div>A frente deste cartão está em branco.<br><a href='https://docs.ankiweb.net/templates/errors.html#front-of-card-is-blank'>Mais informações</a></div>";
+AnkiParity._msgClozeAusente=function(n){return "<div>Nenhuma omissão ⁨"+n+"⁩ encontrada no cartão.\nAdicione uma omissão de palavras ou use a ferramenta 'Cartas Vazias'.<br><a href='https://docs.ankiweb.net/templates/errors.html#no-cloze-filter-on-cloze-note-type'>Mais informações</a></div>";};
+
 AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
   nt=nt||{};note=note||{};card=card||{};const fields=note.fields||{};
   // Cloze tem um único template no NoteType; o ordinal do card identifica c1/c2/...
   // e NÃO um índice de template distinto.
   const templateOrd=(nt.kind==='cloze'||nt.stockKind==='cloze')?0:(Number(ord)||0);
   const tmpl=(nt.templates||[])[templateOrd]||{};
+  const isCloze=(nt.kind==='cloze'||nt.stockKind==='cloze');
+  const clozeN=isCloze?(Number(card.clozeOrd)||Number(card.ankiTemplateOrd)+1||1):null;
+  const mapa=this._mapaCampos(nt,note,tmpl,card,isCloze?clozeN-1:templateOrd);
   let src=String(side==='answer'?tmpl.afmt:tmpl.qfmt||'');
-  src=this._renderConditionals(src,fields);
+  src=this._renderConditionals(src,mapa);
   src=src.replace(/\{\{FrontSide\}\}/g,String(frontSide||''));
   src=src.replace(/\{\{([^{}]+)\}\}/g,(m,expr)=>{
     expr=String(expr||'').trim();
     if(expr==='FrontSide')return String(frontSide||'');
     const parts=expr.split(':').map(x=>x.trim()),fieldName=parts.pop(),filters=parts;
-    let value=this._specialField(fieldName,nt,note,tmpl,card);
-    if(value==null)value=String(fields[fieldName]??'');
+    let value=String(mapa[fieldName]??'');
     const lower=filters.map(x=>String(x).toLowerCase());
     if(lower.includes('type')&&lower.includes('cloze'))return '[[type:cloze:'+fieldName+']]';
     if(lower.includes('type')&&lower.includes('nc'))return '[[type:nc:'+fieldName+']]';
@@ -602,9 +825,9 @@ AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
         const o=Number(card.clozeOrd)||Number(card.ankiTemplateOrd)+1||1;
         value=this.clozeOnly(value,o,side!=='answer');
       }else if(filter==='text'){
-        value=this._stripHtml(value);
+        value=this._stripHtmlAnki(value);
       }else if(filter==='hint'){
-        value=String(value||'').trim()?'<details class="hint"><summary>'+this._escAttr(fieldName)+'</summary>'+value+'</details>':'';
+        value=this._hintAnki(value,fieldName);
       }else if(filter==='type'){
         value='[[type:'+fieldName+']]';
       }else if(filter==='kanji'){
@@ -621,6 +844,11 @@ AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
     }
     return String(value);
   });
+  /* template.rs::render_card: frente sem nenhum campo preenchido (ou cloze
+     sem a omissão deste card) mostra o aviso do Anki; a resposta vira só o aviso. */
+  const vazio=this._frenteVaziaAnki(nt,tmpl,mapa,isCloze,clozeN);
+  const aviso=vazio?(isCloze?this._msgClozeAusente(clozeN):this._MSG_FRENTE_VAZIA):null;
+  if(aviso)return side==='answer'?aviso:src+aviso;
   return src;
 };
 
@@ -759,9 +987,12 @@ AnkiParity._trainingKind=function(r){
 AnkiParity._trainingHasRating=function(r){
   const g=Number(r&&r.grade);return Number.isInteger(g)&&g>=1&&g<=4;
 };
+// revlog/mod.rs::has_rating_and_affects_scheduling: filtrado só sai quando é
+// "cramming" (filtrado sem reagendar, facilidade 0).
 AnkiParity._trainingAffectsScheduling=function(r){
   const k=this._trainingKind(r);
-  return this._trainingHasRating(r)&&k!=='manual'&&k!=='rescheduled'&&k!=='reset'&&k!=='filtered';
+  if(k==='filtered'&&!(Number(r&&r.easeFactor)>0))return false;
+  return this._trainingHasRating(r)&&k!=='manual'&&k!=='rescheduled'&&k!=='reset';
 };
 AnkiParity._trainingInterval=function(r){
   if(r&&r.ankiInterval!=null)return Number(r.ankiInterval)||0;
@@ -1036,6 +1267,9 @@ AnkiParity.removeFromFilteredAfterReschedule=function(card,patch){
   const deck=this._decksForCardPlan(card).find(d=>String(d.id)===String(card.deckId));
   const cfg=this.filteredConfig(deck);
   if(!cfg||!cfg.reschedule)return patch||{};
+  /* rescheduling_filter.rs::maybe_wrap: só o estado de REVISÃO devolve o card
+     ao baralho de origem; aprendizado/reaprendizado continuam no filtrado. */
+  if(patch&&patch.phase&&patch.phase!=='review')return patch;
   const out=Object.assign({},patch||{},{deckId:card.originalDeckId});
   return this._clearFilteredFields(out);
 };
@@ -1204,29 +1438,61 @@ AnkiParity.filteredSearchMatches=function(card,expr){
   if(ands.length>1)return ands.every(x=>this.filteredSearchMatches(card,x));
   return this._filteredTermMatches(card,expr);
 };
+/* storage/card/filtered.rs::order_and_limit_for_search — cada ordem seguida
+   do desempate "fnvhash(c.id, c.mod)" do Anki. */
 AnkiParity._filteredSort=function(cards,order){
-  const xs=cards.slice(),lastReview=(c)=>{
-    let max=0;this._scopeRevlog().forEach(r=>{if(String(r.cardId)===String(c.id))max=Math.max(max,Number(r.ts)||0);});return max;
+  const xs=cards.slice(),hojeIdx=this.daysElapsed(),agoraS=Math.floor(Date.now()/1000),hoje=todayCards();
+  const ultimaRev=new Map();this._scopeRevlog().forEach(r=>{const k=String(r.cardId),t=Number(r.ts)||0;if(t>(ultimaRev.get(k)||0))ultimaRev.set(k,t);});
+  const ord=c=>{const raw=Number(c&&c.ankiTemplateOrd);return Number.isFinite(raw)?Math.max(0,raw):(c&&c.template==='reverse'?1:0);};
+  const nid=c=>{const n=Number(c&&(c.ankiNoteId||c.ankiId));return Number.isFinite(n)&&n>0?n:(Date.parse(c&&c.createdAt||'')||0);};
+  const fase=c=>c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
+  const diasAte=d=>Math.round((new Date(String(d||hoje).slice(0,10)+'T00:00:00')-new Date(hoje+'T00:00:00'))/86400000);
+  // "case when due > 1e9 then due else (due - today) * 86400 + now end"
+  const vence=c=>{
+    if(c.originalDueTs||c.dueTs)return Math.floor(Number(c.originalDueTs||c.dueTs)/1000);
+    if(fase(c)==='new')return ((Number(c.posicaoNova)||0)-hojeIdx)*86400+agoraS;   // card novo: due = posição
+    return diasAte(c.originalDue||c.due)*86400+agoraS;
   };
-  const overdue=(c)=>{
-    const iv=Math.max(1,Number(c.intervalo)||1),due=c.originalDue||c.due||todayCards();
-    const late=Math.max(0,CardEngine._daysBetween(due,todayCards()));return (late+iv)/iv;
+  const w=c=>CardsConfig.weightsFor(c.originalDeckId||c.deckId);
+  const temMem=c=>typeof c.s==='number'&&c.s>0;
+  const decorridoS=c=>{
+    if(Number(c.lastReviewTs)>0)return Math.max(0,agoraS-Math.floor(Number(c.lastReviewTs)/1000));
+    const iv=Number(c.intervalo)||0;return Math.max(0,iv-diasAte(c.originalDue||c.due))*86400;
   };
-  const R=c=>CardEngine.retrievabilityDe(c,todayCards(),CardsConfig.weightsFor(c.originalDeckId||c.deckId));
+  const R=c=>temMem(c)?FSRS.R(decorridoS(c)/86400,c.s,w(c)):null;
+  const relR=c=>{
+    if(temMem(c)){
+      const dec=-FSRS.decayOf(w(c)),r=Math.max(1e-4,R(c)),rd=Math.max(1e-4,Number(CardsConfig.forDeck(c.originalDeckId||c.deckId).retention)||0.9);
+      return -(Math.pow(r,-1/dec)-1)/(Math.pow(rd,-1/dec)-1);
+    }
+    // Sem memória: fórmula de reserva do SQL. Card novo tem due = posição, então
+    // "dias decorridos" = hoje − posição (e ele sobe para o topo, como no Anki).
+    // Aprendizado intradiário: segundos desde o vencimento.
+    let el;
+    if(fase(c)==='new')el=Math.max(0,hojeIdx-(Number(c.posicaoNova)||0));
+    else if(c.originalDueTs||c.dueTs)el=Math.floor(Math.max(0,agoraS-Math.floor(Number(c.originalDueTs||c.dueTs)/1000))/86400);
+    else el=Math.floor(decorridoS(c)/86400);
+    return -(el+0.001)/Math.max(1,Number(c.intervalo)||0);
+  };
+  const tie=(a,b)=>this.cmpBig(this.reviewTie(a),this.reviewTie(b));
+  const nulosPrimeiro=(f,desc)=>(a,b)=>{const x=f(a),y=f(b);if(x==null&&y==null)return 0;if(x==null)return desc?1:-1;if(y==null)return desc?-1:1;return desc?y-x:x-y;};
+  const fsrsOn=CardsConfig.get().algo==='fsrs';
+  let cmp;
   switch(Number(order)){
-    case 0:xs.sort((a,b)=>lastReview(a)-lastReview(b));break;
-    case 1:for(let i=xs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[xs[i],xs[j]]=[xs[j],xs[i]];}break;
-    case 2:xs.sort((a,b)=>(a.intervalo||0)-(b.intervalo||0));break;
-    case 3:xs.sort((a,b)=>(b.intervalo||0)-(a.intervalo||0));break;
-    case 4:xs.sort((a,b)=>(b.lapses||0)-(a.lapses||0));break;
-    case 5:xs.sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||'')));break;
-    case 6:xs.sort((a,b)=>String(a.originalDue||a.due||'').localeCompare(String(b.originalDue||b.due||'')));break;
-    case 7:xs.sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));break;
-    case 8:xs.sort((a,b)=>R(a)-R(b));break;
-    case 9:xs.sort((a,b)=>R(b)-R(a));break;
-    case 10:xs.sort((a,b)=>overdue(b)-overdue(a));break;
+    case 0:cmp=(a,b)=>(ultimaRev.get(String(a.id))||0)-(ultimaRev.get(String(b.id))||0);break;
+    case 1:for(let i=xs.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[xs[i],xs[j]]=[xs[j],xs[i]];}return xs;
+    case 2:cmp=(a,b)=>(a.intervalo||0)-(b.intervalo||0);break;
+    case 3:cmp=(a,b)=>(b.intervalo||0)-(a.intervalo||0);break;
+    case 4:cmp=(a,b)=>(b.lapses||0)-(a.lapses||0);break;
+    case 5:cmp=(a,b)=>nid(a)-nid(b)||ord(a)-ord(b);break;
+    case 6:cmp=(a,b)=>vence(a)-vence(b)||ord(a)-ord(b);break;
+    case 7:cmp=(a,b)=>nid(b)-nid(a)||ord(a)-ord(b);break;
+    case 8:cmp=fsrsOn?nulosPrimeiro(R,false):()=>0;break;
+    case 9:cmp=fsrsOn?nulosPrimeiro(R,true):()=>0;break;
+    case 10:cmp=(a,b)=>relR(a)-relR(b);break;
+    default:cmp=()=>0;
   }
-  return xs;
+  return xs.sort((a,b)=>cmp(a,b)||tie(a,b));
 };
 AnkiParity.rebuildFilteredDeck=function(deckId){
   const deck=DB.getDecks().find(d=>String(d.id)===String(deckId));
@@ -1235,8 +1501,10 @@ AnkiParity.rebuildFilteredDeck=function(deckId){
   try{this.ensureIdentities();this.ensureCanonicalNotes();}catch(_){}
   const all=DB.getCards(),picked=[],seen=new Set();
   for(const term of cfg.searchTerms.slice(0,2)){
+    // "-is:suspended -is:buried -deck:filtered": o que o termo anterior já
+    // levou está no filtrado e sai da busca ANTES do limite.
     const candidates=all.filter(card=>{
-      if(card.suspenso||CardEngine.estaEnterrado(card)||card.originalDeckId)return false;
+      if(card.suspenso||CardEngine.estaEnterrado(card)||card.originalDeckId||seen.has(String(card.id)))return false;
       if(String(card.deckId)===String(deckId))return false;
       return this.filteredSearchMatches(card,term.search);
     });
@@ -1289,7 +1557,7 @@ AnkiParity.previewFilteredAnswer=function(card,grade){
   if(secs<=0)return Object.assign(this._restoreFilteredCardPatch(card),{_filteredPreview:true,_filteredFinished:true});
   const delay=(typeof this.learningFuzzSeconds==='function')?this.learningFuzzSeconds(card,secs):secs;
   return {
-    deckId:card.deckId,due:todayCards(),dueTs:Date.now()+delay*1000,
+    deckId:card.deckId,due:todayCards(),dueTs:(Math.floor(Date.now()/1000)+delay)*1000,
     phase:card.phase,status:card.status,_filteredPreview:true,_filteredFinished:false
   };
 };

@@ -21,15 +21,15 @@ A identidade Anki do card (`ankiId`, `ankiMod`) é a mesma dos dois lados, entã
 fuzz, balanceamento e desempates pseudoaleatórios precisam coincidir EXATAMENTE,
 não por faixa.
 
-## Agendador — 72.877 / 72.878 comparações idênticas
+## Agendador — 94.671 / 94.671 comparações idênticas (2ª rodada)
 
 4.000 estados × 4 botões em 10 predefinições (FSRS com 1, 2, 4 e 0 passos,
 retenções 0,80–0,95, intervalo máximo 30/365/36500; SM-2 padrão, customizado e
 com passos longos; balanceamento de carga com e sem easy days sobre 400 cards de
 fundo, incluindo suspensos e aprendizado entre dias). Compara fase, passo em
 segundos, intervalo em dias, S/D, facilidade, lapsos, sanguessuga e intervalo
-pós-lapso. Resíduo: 1 passo de curto prazo com 1 s de diferença (aritmética f32
-do Rust contra f64 do JS).
+pós-lapso. O resíduo f32 da 1ª rodada foi eliminado: o FSRS agora reproduz a
+aritmética f32 do fsrs-rs operação por operação (`Math.fround`).
 
 ## Fila do dia — 19 / 19 cenários idênticos, posição a posição
 
@@ -67,3 +67,40 @@ ordens de revisão, as 6 coletas e as 5 ordenações de novos.
 | 24 | Ordem "sobreatraso" no FSRS | retenção relativa | fórmula do SM-2 |
 | 25 | Ordem por retenção | segundos desde a última revisão | dias inteiros (grava `lastReviewTs`) |
 | 26 | Ordenação aleatória de novos | hash u64 sem sinal | com sinal |
+
+## 2ª rodada — pontos em aberto verificados contra o código-fonte
+
+Novos diferenciais (todos com o `anki==26.9.2` real):
+
+```
+v/bin/python sessao_oficial.py s.json SEM AHEAD [desfazer]   # sessão com relógio real
+node sessao_comparar.mjs s.json                              # mesma sessão no Cards
+v/bin/python filtrado_oficial.py f.json && node filtrado_comparar.mjs f.json
+v/bin/python render_oficial.py r.json && node render_comparar.mjs r.json
+v/bin/python otimizador_oficial.py o.json 400 [saude] && node otimizador_comparar.mjs o.json
+```
+
+| Área | Resultado |
+|---|---|
+| Agendador (13 predefinições, FSRS/SM-2, LB, irmãos, filtrado) | 94.671 / 94.671 |
+| Fila do dia + enterro após responder | 22 / 22 cenários; 72 / 72 |
+| Baralho filtrado (busca, ordem, limite) | 15 / 15 |
+| Sessões reais com relógio (aprender adiantado, deque de aprendizado) | 13 sessões, 100% na mesma ordem |
+| Sessões com desfazer | 6 sessões, 100% |
+| Estatísticas: Hoje, Contagem de cards, Retenção real (6 períodos) | idênticas em todas as sessões |
+| Revlog (ease, ivl, lastIvl, tipo) | 100% das linhas em todas as sessões |
+| Otimizador FSRS (WASM fsrs-rs 6.6.2) + checagem de saúde | diferença máx. 2,25e-7 |
+| Renderização de templates / geração de cards / validação de notetype | 29/29, 4/4, 7/7 |
+
+Divergências corrigidas nesta rodada:
+
+| # | Área | Anki 26.09.2 | Cards antes |
+|---|---|---|---|
+| 27 | FSRS | toda a conta em f32 (`model::step`, `next_interval`) | f64 (S divergia na 4ª casa) |
+| 28 | LoadBalancer | tabela lida UMA vez ao montar a fila, depois só `add_card()` | recontava o banco a cada resposta |
+| 29 | LoadBalancer | SQL sem filtro de fila: card novo conta no dia `posição − sched.today` | novos ignorados |
+| 30 | LoadBalancer | card em baralho filtrado fora (sem predefinição); irmãos de todas as predefinições | contava filtrados |
+| 31 | LoadBalancer + desfazer | tabela relida do banco após desfazer | mantinha a resposta desfeita |
+| 32 | Numeração de dias | `col.crt` da coleção importada preservado (`ankiCrt`) | época recalculada pelos cards |
+| 33 | Exportação de novos | `due` = posição (ida e volta estável) | posição + 1 a cada exportação |
+| 34 | Retenção real | toda resposta de revisão conta (retention.rs), janelas por horário | deduplicava por card/dia |

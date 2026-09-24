@@ -25,6 +25,9 @@ CEN = {
   'coleta_deck_notas': {'newGatherOrder': 'deckRandomNotes', 'newSortOrder': 'coleta'},
   'coleta_posicao': {'newGatherOrder': 'posicao', 'newSortOrder': 'template'},
   'novos_ignoram_limite': {'revPerDay': 10, 'newCardsIgnoreReviewLimit': True},
+  'enterrar_tudo': {'buryNew': True, 'buryReviews': True, 'buryInterdayLearning': True},
+  'enterrar_novos': {'buryNew': True},
+  'enterrar_revisoes_limite': {'buryReviews': True, 'buryInterdayLearning': True, 'revPerDay': 20},
 }
 RO = {'day': 0, 'intervalsAsc': 3, 'intervalsDesc': 4, 'easeAsc': 5, 'easeDesc': 6, 'retrievabilityAsc': 7,
       'random': 8, 'added': 9, 'reverseAdded': 10, 'retrievabilityDesc': 11, 'relativeOverdueness': 12}
@@ -42,6 +45,8 @@ for nome, op in CEN.items():
     conf['reviewOrder'] = RO[op.get('reviewOrder', 'day')]
     conf['newMix'] = MIX[op.get('newMix', 'misturar')]; conf['interdayLearningMix'] = MIX[op.get('interdayMix', 'misturar')]
     conf['newGatherPriority'] = GA[op.get('newGatherOrder', 'deck')]; conf['newSortOrder'] = SO[op.get('newSortOrder', 'template')]
+    conf['new']['bury'] = bool(op.get('buryNew')); conf['rev']['bury'] = bool(op.get('buryReviews'))
+    conf['buryInterdayLearning'] = bool(op.get('buryInterdayLearning'))
     col.decks.update_config(conf)
     basic, rev = col.models.by_name('Basic'), col.models.by_name('Basic (and reversed card)')
     notas = []
@@ -79,8 +84,22 @@ for nome, op in CEN.items():
                           d=c.memory_state.difficulty if c.memory_state else None,
                           lastReview=c.last_review_time))
     q = col.sched.get_queued_cards(fetch_limit=1000)
+    enterro = []
+    if nome.startswith('enterrar'):
+        # Responde (Bom) o primeiro card de cada nota com irmão e registra quais irmãos o Anki enterrou.
+        por_nota = {}
+        for c in lista: por_nota.setdefault(c['nid'], []).append(c)
+        from anki.scheduler.v3 import CardAnswer
+        for nid, cs in por_nota.items():
+            if len(cs) < 2 or cs[0]['queue'] == 1: continue
+            caminho = col.path; col.close(); col = Collection(caminho)   # sem fila montada: responde qualquer card
+            alvo = col.get_card(cs[0]['id']); alvo.start_timer()
+            st = col._backend.get_scheduling_states(alvo.id)
+            col.sched.answer_card(col.sched.build_answer(card=alvo, states=st, rating=CardAnswer.GOOD))
+            irm = col.get_card(cs[1]['id'])
+            enterro.append(dict(respondido=cs[0]['id'], irmao=cs[1]['id'], enterrado=irm.queue in (-2, -3)))
     out[nome] = dict(op=op, today=today, cards=lista, fila=[x.card.id for x in q.cards],
-                     contagens=[q.new_count, q.learning_count, q.review_count])
+                     contagens=[q.new_count, q.learning_count, q.review_count], enterro=enterro)
     col.close()
 json.dump(out, open(sys.argv[1], 'w'))
 print('cenários:', len(out))

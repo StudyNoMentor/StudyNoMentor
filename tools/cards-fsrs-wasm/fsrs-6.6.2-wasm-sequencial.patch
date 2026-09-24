@@ -1,0 +1,24 @@
+--- a/src/inference.rs
++++ b/src/inference.rs
+@@ -794,6 +794,21 @@
+         for (index, split) in splits.into_iter().enumerate() {
+             let tx = tx.clone();
+             let progress = split_progresses[index].clone();
++            // wasm32-unknown-unknown não tem threads: um job de rayon::spawn
++            // nunca executa e o `for ... in rx` abaixo espera para sempre.
++            // Avalia a divisão na própria thread; ordem e matemática idênticas.
++            #[cfg(target_arch = "wasm32")]
++            {
++                let result = evaluate_time_series_split(
++                    split,
++                    enable_short_term,
++                    num_relearning_steps,
++                    training_config,
++                    Some(progress),
++                );
++                let _ = tx.send((index, result));
++            }
++            #[cfg(not(target_arch = "wasm32"))]
+             rayon::spawn(move || {
+                 let result = evaluate_time_series_split(
+                     split,

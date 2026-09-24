@@ -45,21 +45,24 @@ const AutoTeste = {
 
   fsrs() {
     const w = FSRS.DEFAULT_W;
+    // O fsrs-rs calcula em f32 (e o FSRS daqui o reproduz): os vetores em f64
+    // valem até a precisão de f32 acumulada em poucas operações.
+    const F32 = 2e-6;
     this.VETORES.forEach((v, i) => {
       const pfx = 'FSRS vetor ' + (i + 1) + ': ';
-      this._ok(pfx + 'initS', this._perto(FSRS.initS(v.G, w), v.initS), FSRS.initS(v.G, w));
-      this._ok(pfx + 'initD', this._perto(FSRS.initD(v.G, w), v.initD), FSRS.initD(v.G, w));
-      this._ok(pfx + 'nextD', this._perto(FSRS.nextD(v.D, v.G, w), v.nextD), FSRS.nextD(v.D, v.G, w));
+      this._ok(pfx + 'initS', this._perto(FSRS.initS(v.G, w), v.initS, F32), FSRS.initS(v.G, w));
+      this._ok(pfx + 'initD', this._perto(FSRS.initD(v.G, w), v.initD, F32), FSRS.initD(v.G, w));
+      this._ok(pfx + 'nextD', this._perto(FSRS.nextD(v.D, v.G, w), v.nextD, F32), FSRS.nextD(v.D, v.G, w));
       const R = FSRS.R(v.t, v.S, w);
-      this._ok(pfx + 'R', this._perto(R, v.R), R);
-      this._ok(pfx + 'nextS_recall', this._perto(FSRS.nextS_recall(v.D, v.S, R, v.G, w), v.recall), FSRS.nextS_recall(v.D, v.S, R, v.G, w));
-      this._ok(pfx + 'nextS_forget', this._perto(FSRS.nextS_forget(v.D, v.S, R, w), v.forget), FSRS.nextS_forget(v.D, v.S, R, w));
-      this._ok(pfx + 'nextS_short', this._perto(FSRS.nextS_short(v.S, v.G, w), v.short), FSRS.nextS_short(v.S, v.G, w));
+      this._ok(pfx + 'R', this._perto(R, v.R, F32), R);
+      this._ok(pfx + 'nextS_recall', this._perto(FSRS.nextS_recall(v.D, v.S, R, v.G, w), v.recall, F32), FSRS.nextS_recall(v.D, v.S, R, v.G, w));
+      this._ok(pfx + 'nextS_forget', this._perto(FSRS.nextS_forget(v.D, v.S, R, w), v.forget, F32), FSRS.nextS_forget(v.D, v.S, R, w));
+      this._ok(pfx + 'nextS_short', this._perto(FSRS.nextS_short(v.S, v.G, w), v.short, F32), FSRS.nextS_short(v.S, v.G, w));
       this._ok(pfx + 'interval', FSRS.interval(v.S, v.r, w) === v.interval, FSRS.interval(v.S, v.r, w));
     });
     // Identidade que define o FSRS: em t = S, a retrievability é exatamente 90%.
     [0.5, 1, 7, 30, 365, 3650].forEach(S => {
-      this._ok('R(S,S) = 0,90 para S=' + S, this._perto(FSRS.R(S, S, w), 0.9, 1e-9), FSRS.R(S, S, w));
+      this._ok('R(S,S) = 0,90 para S=' + S, this._perto(FSRS.R(S, S, w), 0.9, F32), FSRS.R(S, S, w));
     });
     // w20 = 0.5 tem de reproduzir exatamente o FSRS-5 (é o que torna a migração indolor)
     const w5 = FSRS.migrarW(FSRS.W5_DEFAULT);
@@ -161,9 +164,12 @@ const AutoTeste = {
     const g = CardEngine._scheduleSM2(semAtraso, 'bom');
     const h = CardEngine._scheduleSM2(semAtraso, 'dificil');
     const e = CardEngine._scheduleSM2(semAtraso, 'facil');
-    this._ok('SM-2 Bom = iv * ease', g.intervalo === 25, g.intervalo);
-    this._ok('SM-2 Difícil = iv * 1,2', h.intervalo === 12, h.intervalo);
-    this._ok('SM-2 Fácil = iv * ease * 1,3', e.intervalo === 33, e.intervalo);
+    // O Anki aplica fuzz (e o LoadBalancer) também no SM-2: o resultado cai na
+    // faixa constrained_fuzz_bounds do intervalo bruto, com Difícil > atual.
+    const faixaAnki = (bruto, x, min) => { const f = FSRS.constrainedFuzzBounds(bruto, min || 1, 36500); return x >= f[0] && x <= f[1]; };
+    this._ok('SM-2 Bom = iv * ease (± fuzz do Anki)', faixaAnki(25, g.intervalo), g.intervalo);
+    this._ok('SM-2 Difícil = iv * 1,2 (± fuzz, > atual)', faixaAnki(12, h.intervalo, 11), h.intervalo);
+    this._ok('SM-2 Fácil = iv * ease * 1,3 (± fuzz)', faixaAnki(32.5, e.intervalo), e.intervalo);
     this._ok('SM-2 ordem hard < good < easy', h.intervalo < g.intervalo && g.intervalo < e.intervalo);
     this._ok('SM-2 "Bom" não mexe na facilidade', g.ease === 2.5, g.ease);
     this._ok('SM-2 "Difícil" −0,15', Math.abs(h.ease - 2.35) < 1e-9, h.ease);

@@ -23,3 +23,15 @@ O binario de navegador e gerado de forma reproduzivel e versionado em
 
 A pasta `src/vendor/fsrs-6.6.2/` e artefato derivado: deve ser produzida pelo workflow
 `Cards FSRS 6.6.2 vendor` a partir deste wrapper, nunca editada manualmente.
+
+## Patch do crate para o navegador
+
+`preparar-fsrs.sh` baixa o crate **oficial** `fsrs 6.6.2` do crates.io
+(SHA-256 fixado) e aplica um único patch, `fsrs-6.6.2-wasm-sequencial.patch`:
+em `evaluate_with_time_series_splits` (a verificação de saúde), cada divisão
+era disparada com `rayon::spawn` e o resultado esperado num canal. No
+`wasm32-unknown-unknown` não há threads, o job nunca executa e a espera era
+eterna — a aba travava. No wasm32 a divisão é avaliada na própria thread; a
+ordem, a matemática e o resultado são os mesmos (conferido contra
+`compute_fsrs_params`/`evaluate_params` do anki==26.09.2 em
+`audit/cards-20260924-completa/otimizador_*.{py,mjs}`: Δ < 3e-7).

@@ -906,7 +906,7 @@
       if ('verso' in p) p.verso = _sanCard(p.verso);
     }
     const c = r.list[r.index];
-    Object.assign(c, p || {}); c.updatedAt = new Date().toISOString(); c.ankiMod = Math.floor(Date.now()/1000);
+    Object.assign(c, p || {}); c.updatedAt = new Date().toISOString(); if (!(p && p.ankiMod != null)) c.ankiMod = Math.floor(Date.now()/1000);
     return DB._set(DB.keysForPlan(r.planId).cards, r.list) === false ? false
       : Object.assign({}, c, { _planId: r.planId, _planNome: S.planName(r.planId) });
   };
@@ -1015,13 +1015,16 @@
   if (window.AnkiParity && AnkiParity.autoBurySiblings) {
     AnkiParity.autoBurySiblings = function(card) {
       if (!card || !card.noteId) return [];
-      const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId), nid=String(card.noteId), buried=[];
+      const cfg=Object.assign({},CardsConfig.forDeck(card.originalDeckId||card.deckId)), nid=String(card.noteId), buried=[];
+      if (AnkiParity._excluirFilasAnteriores) AnkiParity._excluirFilasAnteriores(cfg, card);
       const pid=card._planId||S.sourcePlanForCard(card.id), cards=pid?S._tag(pid,S._rows(pid,'cards')):DB.getCards();
       cards.forEach(s=>{
         if(String(s.id)===String(card.id)||String(s.noteId||s.id)!==nid||s.suspenso)return;
         const ph=s.phase||(((s.reps||0)>0&&(s.intervalo||0)>0)?'review':'new'),inter=(ph==='learning'||ph==='relearning')&&!s.dueTs;
         const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
-        if(bury&&CardEngine.isDue(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
+        // siblings_for_bury.sql: fila de novos, de revisão (vencida ou não) ou de
+        // aprendizado entre dias — só não repete quem já está enterrado.
+        if(bury&&!CardEngine.estaEnterrado(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
       });
       return buried;
     };
