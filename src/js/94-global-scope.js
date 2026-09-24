@@ -636,7 +636,7 @@
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');
-  DB.getAllExtrasTagged = () => S.operationalAllBy('extras');
+  DB.getAllExtrasTagged = (opts) => (opts && opts.includePaused) ? S.allBy('extras') : S.operationalAllBy('extras');
   DB.getAllSavedGradesTagged = () => S.allBy('savedGrades');
   DB.copySavedGradeToActive = function(sourcePlanId, id) {
     const active = S.activePlanId();
@@ -694,9 +694,10 @@
     if (!out.length && DB.getLinks) out = S._tag(S.activePlanId(), DB.getLinks());
     return out;
   };
-  DB.getAllTecSnapshotsTagged = () => {
+  DB.getAllTecSnapshotsTagged = (opts) => {
     try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
-    return S.operationalAllBy('tec').map(s => {
+    const rows = (opts && opts.includePaused) ? S.allBy('tec') : S.operationalAllBy('tec');
+    return rows.map(s => {
       const x = Object.assign({}, s);
       if (!x.startDate) x.startDate = x.date || (typeof todayLocal === 'function' ? todayLocal() : '');
       if (!x.endDate) x.endDate = x.date || x.startDate;
@@ -704,7 +705,7 @@
     }).sort((a,b) => String(a.startDate || '').localeCompare(String(b.startDate || ''))
       || String(a.endDate || '').localeCompare(String(b.endDate || '')));
   };
-  DB.getAllIncidenciaTagged = () => S.operationalAllBy('incidencia');
+  DB.getAllIncidenciaTagged = (opts) => (opts && opts.includePaused) ? S.allBy('incidencia') : S.operationalAllBy('incidencia');
 
   /* Memória realizada/conhecimento pertence ao PERFIL. A persistência continua
      separada por planejamento para compatibilidade e sincronização, mas leitura
@@ -755,15 +756,22 @@
     updateLink: DB.updateLink.bind(DB),
     deleteLink: DB.deleteLink.bind(DB)
   };
+  /* Links são atalhos do perfil. A persistência continua no plano de origem
+     por compatibilidade, mas editar/excluir roteia para essa origem — inclusive
+     quando ela está pausada. Assim a tela não cria "cópias" do mesmo favorito. */
   DB.updateLink = function(id, patch) {
-    const active = S._rows(S.activePlanId(), 'links');
-    if (!active.some(x => String(x.id) === String(id))) return null;
-    return LKO.updateLink(id, patch);
+    const activeId = S.activePlanId(), active = S._rows(activeId, 'links');
+    if (active.some(x => String(x.id) === String(id))) return LKO.updateLink(id, patch);
+    const r = S.findRecord('links', id); if (!r) return null;
+    Object.assign(r.row, patch || {}); r.row.updatedAt = new Date().toISOString();
+    if (DB._set(DB.keysForPlan(r.planId).links, r.list) === false) return false;
+    return Object.assign({}, r.row, { _planId:r.planId, _planNome:S.planName(r.planId) });
   };
   DB.deleteLink = function(id) {
-    const active = S._rows(S.activePlanId(), 'links');
-    if (!active.some(x => String(x.id) === String(id))) return false;
-    return LKO.deleteLink(id);
+    const activeId = S.activePlanId(), active = S._rows(activeId, 'links');
+    if (active.some(x => String(x.id) === String(id))) return LKO.deleteLink(id);
+    const r = S.findRecord('links', id); if (!r) return false;
+    return DB._set(DB.keysForPlan(r.planId).links, r.list.filter(x => String(x.id) !== String(id)));
   };
 
   const TO = {
