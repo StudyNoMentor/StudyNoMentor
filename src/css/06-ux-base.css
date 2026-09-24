@@ -1351,3 +1351,24 @@
 @media (prefers-reduced-motion: reduce) {
   .pl-skel-giro { animation-duration: 2.4s; }
 }
+
+
+/* ═════════════ LISTAS FLUTUANTES ADAPTÁVEIS AO VIEWPORT ═══════════════════
+   A altura disponível é calculada pelo AnchoredListViewport. O componente
+   mantém seu teto natural, mas nunca fica maior do que o espaço real do lado
+   em que abriu. Quando necessário, abre para cima. */
+.ux-float-viewport {
+  max-height: min(var(--ux-float-max-h, 70dvh), 100dvh) !important;
+  overscroll-behavior: contain;
+}
+.ux-float-viewport.ux-float-up {
+  top: auto !important;
+  bottom: calc(100% + var(--ux-float-gap, 6px)) !important;
+}
+/* Menus simples rolam no próprio painel. Os três seletores grandes do TEC
+   mantêm overflow:hidden porque a rolagem vive na lista interna. */
+.ux-float-viewport:not(.tec-disc-pick-panel):not(.ms-disc-filter-panel):not(.banca-pick-panel) {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
