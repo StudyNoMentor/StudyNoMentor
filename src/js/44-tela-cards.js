@@ -2013,23 +2013,41 @@ const CardsScreen = {
       ? PlanManager.getActivePlan() : null;
     const activePlanId = activePlan ? activePlan.id : null;
     const now = new Date();
+
+    // Em escopo global, cardId sozinho não é uma identidade segura: importações
+    // antigas ou cópias de planejamento podem reutilizar IDs. A auditoria usa
+    // planId::cardId para nunca misturar cards/históricos de origens distintas.
+    const auditKey = (planId, cardId) =>
+      String(planId == null ? '' : planId) + '::' + String(cardId == null ? '' : cardId);
+    const planIdOfCard = c => c._planId || activePlanId || null;
+
+    // Agrupa o histórico uma única vez. A versão anterior filtrava o revlog
+    // inteiro para cada card (O(cards × revisões)) e ainda copiava cada revisão
+    // novamente dentro de cards[].reviewLog, praticamente dobrando o arquivo.
+    const reviewsByCard = new Map();
+    revlog.forEach(r => {
+      if (!r) return;
+      const pid = r._planId || activePlanId || null;
+      const k = auditKey(pid, r.cardId);
+      if (!reviewsByCard.has(k)) reviewsByCard.set(k, []);
+      reviewsByCard.get(k).push(r);
+    });
+    reviewsByCard.forEach(logs => logs.sort((a,b) => (a.ts||0) - (b.ts||0)));
+
     const byCard = {};
     cards.forEach(c => {
-      const cardPlanId = c._planId || activePlanId || null;
+      const cardPlanId = planIdOfCard(c);
       const cardPlanName = c._planNome || (cardPlanId && window.StudyGlobalScope && StudyGlobalScope.planName
         ? StudyGlobalScope.planName(cardPlanId) : (activePlan && activePlan.nome) || null);
-      const logs = revlog.filter(r => String(r.cardId) === String(c.id)
-        && (!r._planId || !cardPlanId || String(r._planId) === String(cardPlanId)))
-        .sort((a,b) => (a.ts||0) - (b.ts||0));
-      byCard[c.id] = {
-        id:c.id, planId:cardPlanId, planName:cardPlanName,
+      const key = auditKey(cardPlanId, c.id);
+      const logs = reviewsByCard.get(key) || [];
+      byCard[key] = {
+        auditKey:key, id:c.id, planId:cardPlanId, planName:cardPlanName,
         deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
         createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
         due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
         ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
-        /* lastReview FALTAVA no export — e é justamente o campo que decide
-           curto vs longo prazo no agendador (days_since_last_review < 1).
-           Sem ele, a auditoria não conseguia diagnosticar o próprio agendador. */
+        /* lastReview é decisivo para curto vs longo prazo no agendador. */
         lastReview:c.lastReview||null, algo:c.algo||null,
         leech:!!c.leech, favorito:!!c.favorito, enterradoAte:c.enterradoAte||null,
         /* "Era" do estado de memória: identifica cards cujo S inicial veio dos
@@ -2041,18 +2059,21 @@ const CardsScreen = {
           if (q(0.212)||q(1.2931)||q(2.3065)||q(8.2956)) return 'fsrs6-inicial';
           return 'derivado';
         })(),
-        reviewCount:logs.length, reviewLog:logs
+        reviewCount:logs.length
       };
     });
+
     const anomalies = [];
     cards.forEach(c => {
-      if ((c.phase === 'learning' || c.phase === 'relearning') && !c.dueTs && !c.due) anomalies.push({cardId:c.id,type:'learning_without_due'});
-      if (c.dueTs && Number(c.dueTs) < 0) anomalies.push({cardId:c.id,type:'negative_dueTs'});
-      if ((c.reps||0) > 0 && !revlog.some(r => r.cardId === c.id)) anomalies.push({cardId:c.id,type:'reps_without_revlog',reps:c.reps});
-      if (c.phase === 'review' && !(c.intervalo > 0)) anomalies.push({cardId:c.id,type:'review_sem_intervalo'});
-      if (typeof c.s === 'number' && (!isFinite(c.s) || c.s < 0.001 || c.s > 36500)) anomalies.push({cardId:c.id,type:'s_fora_de_faixa',s:c.s});
-      if (typeof c.d === 'number' && (!isFinite(c.d) || c.d < 1 || c.d > 10)) anomalies.push({cardId:c.id,type:'d_fora_de_faixa',d:c.d});
+      const logs = reviewsByCard.get(auditKey(planIdOfCard(c), c.id)) || [];
+      if ((c.phase === 'learning' || c.phase === 'relearning') && !c.dueTs && !c.due) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'learning_without_due'});
+      if (c.dueTs && Number(c.dueTs) < 0) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'negative_dueTs'});
+      if ((c.reps||0) > 0 && !logs.length) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'reps_without_revlog',reps:c.reps});
+      if (c.phase === 'review' && !(c.intervalo > 0)) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'review_sem_intervalo'});
+      if (typeof c.s === 'number' && (!isFinite(c.s) || c.s < 0.001 || c.s > 36500)) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'s_fora_de_faixa',s:c.s});
+      if (typeof c.d === 'number' && (!isFinite(c.d) || c.d < 1 || c.d > 10)) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'d_fora_de_faixa',d:c.d});
     });
+
     // Mistura de gerações: cards agendados por pesos padrão de versões diferentes
     const eras = { f5:0, f6:0 };
     cards.forEach(c => {
@@ -2067,10 +2088,19 @@ const CardsScreen = {
               + 'O mesmo desempenho gera intervalos diferentes conforme a época do card. '
               + 'Use Configurações → Cards → "Recalcular memória pelo histórico" para uniformizar.' });
     }
-    const planIds = [...new Set(cards.map(c => c._planId).filter(Boolean))];
+
+    const planIds = [...new Set([]
+      .concat(cards.map(c => c._planId), decks.map(d => d._planId), revlog.map(r => r && r._planId))
+      .filter(Boolean))];
     const payload = {
-      schema:'diario-estudos-cards-audit', version:2, exportedAt:now.toISOString(), appDate:todayCards(),
+      schema:'diario-estudos-cards-audit', version:3, exportedAt:now.toISOString(), appDate:todayCards(),
       purpose:'Diagnóstico do agendador de cards, limites diários e possíveis repetições em loop.',
+      format:{
+        encoding:'utf-8',
+        serialization:'compact-json',
+        cardKey:'planId::cardId',
+        reviewLog:'rawReviewLog é a fonte detalhada única; cards[*].reviewCount evita duplicar o histórico no arquivo.'
+      },
       scope:{
         mode:scope,
         label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento',
@@ -2088,8 +2118,13 @@ const CardsScreen = {
       cards:byCard, rawReviewLog:revlog, detectedAnomalies:anomalies
     };
     const sufixo = scope === 'all' ? 'todos-planejamentos' : 'planejamento-atual';
-    this._download('auditoria-cards_' + sufixo + '_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
-    showToast('Arquivo de auditoria exportado ✓');
+
+    // .txt é deliberado: continua sendo JSON puro, mas é tratado como arquivo
+    // de texto por apps móveis e anexadores, evitando rejeições por MIME .json.
+    // Compacto reduz bastante o tamanho sem perder nenhum dado de diagnóstico.
+    const serialized = JSON.stringify(payload);
+    this._download('auditoria-cards_' + sufixo + '_' + todayLocal() + '.json.txt', serialized, 'text/plain;charset=utf-8');
+    showToast('Auditoria exportada em texto (JSON compacto) ✓');
     } catch (err) {
       console.error('Falha ao exportar auditoria dos cards:', err);
       showToast('Não foi possível exportar. Detalhe: ' + (err && err.message ? err.message : 'erro desconhecido'));
