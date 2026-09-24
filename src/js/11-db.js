@@ -156,6 +156,39 @@ const DB = {
   // KEYS "dinâmico": sempre aponta para o planejamento ativo no momento da leitura
   get KEYS() { return this.keysForPlan(this._activePlanId()); },
 
+  /* Ajustes estratégicos pertencem ao PLANEJAMENTO, não ao perfil.
+     O helper abaixo mantém a compatibilidade com as antigas chaves por perfil:
+     o valor legado é herdado UMA única vez pelo planejamento que estiver ativo
+     quando a migração ocorrer. Outros planejamentos passam a ter estado próprio. */
+  planSettingKey(name, planId) {
+    return this._profilePrefix() + 'p:' + String(planId || this._activePlanId()) + ':' + String(name || '');
+  },
+  planSettingRaw(name, opts) {
+    const pid = String((opts && opts.planId) || this._activePlanId());
+    const key = this.planSettingKey(name, pid);
+    let raw = null;
+    try { raw = localStorage.getItem(key); } catch (_) {}
+    if (raw !== null) return { key, raw, migrated: false };
+
+    const legacyKey = this._profilePrefix() + String(name || '');
+    const ownerKey = this._profilePrefix() + 'plan-settings-legacy-owner-v1';
+    let owners = {};
+    try { owners = JSON.parse(localStorage.getItem(ownerKey) || '{}') || {}; } catch (_) { owners = {}; }
+    let owner = owners[name] || null;
+    let legacy = null;
+    try { legacy = localStorage.getItem(legacyKey); } catch (_) {}
+
+    if (!owner && legacy !== null) {
+      owner = pid;
+      owners[name] = pid;
+      try { this.setRaw(ownerKey, JSON.stringify(owners)); } catch (_) {}
+    }
+    if (legacy !== null && String(owner || '') === pid) {
+      if (this.setRaw(key, legacy) !== false) return { key, raw: legacy, migrated: true };
+    }
+    return { key, raw: null, migrated: false };
+  },
+
   // Bancas oferecidas na criação de card (lista simples, editável em ⚙ Algoritmo → Gerenciar bancas)
   DEFAULT_BANCAS_CARDS: ['FCC', 'CEBRASPE', 'FGV', 'CESGRANRIO', 'VUNESP'],
   DEFAULT_METHODS: ['Videoaula', 'Leitura', 'PDF', 'Resumo', 'Questões', 'Revisão Teórica', 'Mapa mental', 'Outro'],
@@ -211,7 +244,7 @@ const DB = {
   },
   _pausedKnowledgeSuffix(suffix) {
     suffix = String(suffix || '');
-    return suffix === 'cards' || suffix === 'decks' || suffix === 'bancas-cards'
+    return suffix === 'cards' || suffix === 'decks' || suffix === 'bancas-cards' || suffix === 'links'
       || suffix === 'revlog' || suffix === 'revlog-pendente'
       || suffix.startsWith('revlog-arquivo')
       || suffix.startsWith('cards-');
