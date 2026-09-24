@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v4ea02c6a48">
+<meta name="diario-versao" content="v011ab0a830">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -1995,7 +1995,7 @@ window.__relationalBoot = true;
   }
   @keyframes gsp-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
   .gsp-head { font-size: var(--fs-2xs); font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); padding: 10px 12px 6px; }
-  .gsp-list { overflow-y: auto; padding: 0 6px 6px; }
+  .gsp-list { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; padding: 0 6px 6px; }
   .gsp-empty { font-size: var(--fs-xs); color: var(--text-faint); padding: 10px 8px; }
   .gsp-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: transparent; border: none; border-radius: 9px; padding: 9px 10px; cursor: pointer; }
   .gsp-opt:hover { background: var(--surface-sunken); }
@@ -9592,6 +9592,54 @@ window.__relationalBoot = true;
   .pl-skel-giro { animation-duration: 2.4s; }
 }
 
+
+/* ═════════════ LISTAS FLUTUANTES ADAPTÁVEIS AO VIEWPORT ═══════════════════
+   A altura disponível é calculada pelo AnchoredListViewport. O componente
+   mantém seu teto natural, mas nunca fica maior do que o espaço real do lado
+   em que abriu. Quando necessário, abre para cima. */
+.ux-float-viewport {
+  max-height: min(var(--ux-float-max-h, 70dvh), 100dvh) !important;
+  overscroll-behavior: contain;
+}
+.ux-float-viewport.ux-float-up {
+  top: auto !important;
+  bottom: calc(100% + var(--ux-float-gap, 6px)) !important;
+}
+/* Menus simples rolam no próprio painel. Os três seletores grandes do TEC
+   mantêm overflow:hidden porque a rolagem vive na lista interna. */
+.ux-float-viewport:not(.tec-disc-pick-panel):not(.ms-disc-filter-panel):not(.banca-pick-panel) {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+
+/* O dropdown de disciplinas do modal precisa de um containing block próprio;
+   sem position:relative, top/bottom eram calculados contra um ancestral e a
+   inversão para cima podia parar no lugar errado. */
+.pl-modal-field { position: relative; }
+
+/* Menus FIXED que já calculam coordenadas no JS também recebem um teto físico.
+   A lista interna rola; cabeçalho/estado permanecem visíveis. */
+.profile-menu,
+.cloud-menu {
+  max-height: calc(100dvh - 20px);
+  display: flex;
+  flex-direction: column;
+}
+.profile-menu-head,
+.profile-menu-stats,
+.cloud-menu-head,
+.cloud-menu-foot { flex: 0 0 auto; }
+.profile-menu-list,
+.cloud-menu-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
 </style>
 
 <style id="ux-layout">
@@ -14584,6 +14632,8 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   scrollbar-gutter: stable;
   padding: 1px 3px 1px 1px;
 }
@@ -14823,8 +14873,21 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
 #incid-bancas-card .incid-bancas-pick-wrap { min-width: 0; width: 100%; margin: 0; }
 #incid-bancas-card .banca-pick,
 #incid-bancas-card .banca-pick-btn { width: 100%; min-width: 0; }
-.banca-pick-panel { max-height: min(520px, 72vh); overflow: hidden; }
-.banca-pick-list { max-height: min(350px, 52vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.banca-pick-panel {
+  max-height: min(520px, 72vh);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+.banca-pick-list {
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
 .banca-pick-topo { margin: 2px 4px 8px; line-height: 1.4; }
 .banca-pick-acoes { min-height: 34px; }
 
@@ -15203,6 +15266,8 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
 .ms-disc-filter-panel {
   position: absolute; left: 12px; right: 12px; top: calc(100% - 3px);
   max-height: min(560px,68vh); padding: 8px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   border: 1px solid var(--border); border-radius: 12px;
   background: var(--surface); box-shadow: var(--shadow-lg); overflow: hidden;
 }
@@ -15237,7 +15302,8 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
   min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
 }
 .ms-disc-filter-list {
-  max-height: min(350px,44vh); overflow-y: auto; overscroll-behavior: contain;
+  min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; touch-action: pan-y;
   scrollbar-gutter: stable; display: grid; gap: 3px;
 }
 .ms-disc-filter-item {
@@ -16149,6 +16215,161 @@ function recarregarApp(motivo, opts) {
   }, 1500);
 }
 window.recarregarApp = recarregarApp;
+
+/* ═════════════ LISTAS FLUTUANTES — SEM FICAR PRESAS NO FIM DA TELA ═════════
+   Dropdowns customizados não têm a inteligência de posicionamento de um
+   <select> nativo. Se o botão está perto do rodapé, abrir sempre para baixo
+   deixa parte da lista fora do viewport; tentar rolar a página não ajuda
+   quando a página já terminou. A regra é única para o app inteiro:
+
+   · mede o viewport VISUAL (inclui teclado do celular);
+   · abre para baixo quando cabe;
+   · abre para cima quando há mais espaço acima;
+   · se nenhum lado comporta tudo, limita a altura ao lado maior e deixa a
+     própria lista rolar — sem depender do scroll da página.
+
+   Só entram aqui menus ancorados. Popovers fixed que já calculam posição
+   (perfil, nuvem, dicas, seletor da Grade) continuam com a lógica própria. */
+const AnchoredListViewport = {
+  RULES: [
+    { panel: '.ms-disc-filter-panel', anchor: '.ms-disc-filter-btn', gap: 6 },
+    { panel: '.tec-disc-pick-panel', anchor: '.tec-disc-pick-btn', gap: 7 },
+    { panel: '.banca-pick-panel', anchor: '.banca-pick-btn', gap: 6 },
+    { panel: '.pl-disc-panel', anchor: '.pl-disc-toggle', gap: 4 },
+    { panel: '.cards-more-menu', anchor: '.cards-more-btn', gap: 6 },
+    { panel: '.grade-gear-menu', anchor: '.grade-gear-btn', gap: 8 },
+    { panel: '#anki-browser-columns-menu', anchor: 'summary', gap: 6 },
+    { panel: '.plan-switcher-menu', anchor: '.plan-switcher-btn', gap: 6 }
+  ],
+  _raf: 0,
+  _visible(el) {
+    if (!el || el.hidden || el.hasAttribute('hidden')) return false;
+    try {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      return el.getClientRects().length > 0;
+    } catch (_) { return false; }
+  },
+  _viewport() {
+    const vv = window.visualViewport;
+    const out = vv ? {
+      top: Number(vv.offsetTop) || 0,
+      bottom: (Number(vv.offsetTop) || 0) + (Number(vv.height) || window.innerHeight)
+    } : { top: 0, bottom: window.innerHeight };
+
+    /* A barra móvel do próprio Study ocupa o fim do viewport. Ela não reduz o
+       visualViewport porque pertence à página; sem descontá-la, um dropdown
+       "caberia" geometricamente, mas as últimas opções ficariam atrás da barra. */
+    try {
+      const tabs = document.getElementById('tabs');
+      if (tabs) {
+        const cs = getComputedStyle(tabs), r = tabs.getBoundingClientRect();
+        if (cs.position === 'fixed' && cs.display !== 'none' && r.height > 0 && r.top < out.bottom) {
+          out.bottom = Math.max(out.top, r.top - 6);
+        }
+      }
+    } catch (_) {}
+    return out;
+  },
+  _bounds(panel) {
+    const out = this._viewport();
+    /* O viewport não é o único recorte possível. Modais e alguns cartões usam
+       overflow:auto/hidden; uma lista absoluta não pode atravessar essas
+       bordas. Intersectar todos os ancestrais que recortam conteúdo evita
+       escolher "para baixo" só porque há espaço na tela quando, na prática,
+       o modal terminaria antes. */
+    try {
+      let p = panel && panel.parentElement;
+      while (p && p !== document.body && p !== document.documentElement) {
+        const cs = getComputedStyle(p);
+        const oy = String(cs.overflowY || cs.overflow || '');
+        if (/(auto|scroll|hidden|clip)/.test(oy)) {
+          const r = p.getBoundingClientRect();
+          if (r.height > 0) {
+            out.top = Math.max(out.top, r.top);
+            out.bottom = Math.min(out.bottom, r.bottom);
+          }
+        }
+        p = p.parentElement;
+      }
+    } catch (_) {}
+    if (out.bottom < out.top) out.bottom = out.top;
+    return out;
+  },
+  _anchor(panel, selector) {
+    if (!panel || !selector) return null;
+    try {
+      return (panel.parentElement && panel.parentElement.querySelector(selector))
+        || document.querySelector(selector);
+    } catch (_) { return null; }
+  },
+  fit(panel, anchor, gap) {
+    if (!this._visible(panel) || !anchor) return false;
+    gap = Number.isFinite(Number(gap)) ? Number(gap) : 6;
+
+    /* Mede primeiro com o CSS NATURAL do componente. Assim continuamos
+       respeitando seus próprios 260px/70vh/340px em vez de transformar todo
+       dropdown num painel gigante. */
+    panel.classList.remove('ux-float-viewport', 'ux-float-up');
+    panel.style.removeProperty('--ux-float-max-h');
+    panel.style.removeProperty('--ux-float-gap');
+
+    const vp = this._bounds(panel);
+    const ar = anchor.getBoundingClientRect();
+    const margin = 10;
+    const abaixo = Math.max(0, vp.bottom - margin - ar.bottom - gap);
+    const acima = Math.max(0, ar.top - vp.top - margin - gap);
+    const cs = getComputedStyle(panel);
+    const capCss = parseFloat(cs.maxHeight);
+    const cap = Number.isFinite(capCss) && capCss > 0 ? capCss : Math.max(120, panel.scrollHeight || 520);
+    const natural = Math.min(cap, Math.max(panel.getBoundingClientRect().height || 0, panel.scrollHeight || 0, 80));
+
+    let paraCima = false;
+    if (natural > abaixo) {
+      if (natural <= acima) paraCima = true;
+      else paraCima = acima > abaixo;
+    }
+    const disponivel = Math.max(48, Math.floor(paraCima ? acima : abaixo));
+    const altura = Math.max(48, Math.floor(Math.min(cap, disponivel)));
+
+    panel.style.setProperty('--ux-float-max-h', altura + 'px');
+    panel.style.setProperty('--ux-float-gap', gap + 'px');
+    panel.classList.add('ux-float-viewport');
+    panel.classList.toggle('ux-float-up', paraCima);
+    return true;
+  },
+  fitVisible() {
+    this.RULES.forEach(rule => {
+      document.querySelectorAll(rule.panel).forEach(panel => {
+        if (!this._visible(panel)) return;
+        this.fit(panel, this._anchor(panel, rule.anchor), rule.gap);
+      });
+    });
+  },
+  schedule() {
+    if (this._raf) return;
+    this._raf = requestAnimationFrame(() => {
+      this._raf = 0;
+      this.fitVisible();
+    });
+  },
+  init() {
+    /* O clique roda depois do handler do próprio botão (target → document), e
+       o rAF mede já com o menu aberto. <details> usa o evento toggle. */
+    document.addEventListener('click', () => this.schedule());
+    document.addEventListener('toggle', () => this.schedule(), true);
+    document.addEventListener('focusin', () => this.schedule(), true);
+    window.addEventListener('resize', () => this.schedule());
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.schedule());
+      window.visualViewport.addEventListener('scroll', () => this.schedule());
+    }
+  }
+};
+window.AnchoredListViewport = AnchoredListViewport;
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => AnchoredListViewport.init(), { once: true });
+} else AnchoredListViewport.init();
 
 
 /* ═══════════════════ LIXEIRA — apagar deixou de ser definitivo ═════════════
@@ -26646,12 +26867,23 @@ function planCycleMode() {
     let left = r.left + window.scrollX;
     if (left + pw > window.scrollX + window.innerWidth - 10) left = window.scrollX + window.innerWidth - pw - 10;
     if (left < window.scrollX + 10) left = window.scrollX + 10;
-    let top = r.bottom + window.scrollY + 4;
     pop.style.left = left + 'px';
-    pop.style.top = top + 'px';
-    // se estourar embaixo, abre acima
+
+    // A mesma régua dos demais menus: respeita visualViewport + barra móvel do
+    // Study. Se nenhum lado comporta os 320px naturais, limita a altura e a
+    // lista interna assume a rolagem.
+    const vp = (window.AnchoredListViewport && AnchoredListViewport._viewport)
+      ? AnchoredListViewport._viewport() : { top: 0, bottom: window.innerHeight };
+    const gap = 4, margem = 10;
+    const abaixo = Math.max(0, vp.bottom - margem - r.bottom - gap);
+    const acima = Math.max(0, r.top - vp.top - margem - gap);
+    const natural = Math.min(320, Math.max(pop.scrollHeight || 0, pop.getBoundingClientRect().height || 0));
+    const paraCima = natural > abaixo && acima > abaixo;
+    const disponivel = Math.max(72, paraCima ? acima : abaixo);
+    pop.style.maxHeight = Math.min(320, disponivel) + 'px';
     const ph = pop.getBoundingClientRect().height;
-    if (r.bottom + ph > window.innerHeight - 10) pop.style.top = (r.top + window.scrollY - ph - 4) + 'px';
+    const top = paraCima ? (r.top + window.scrollY - ph - gap) : (r.bottom + window.scrollY + gap);
+    pop.style.top = top + 'px';
 
     pop.querySelectorAll('.gsp-opt').forEach(b => b.addEventListener('click', () => {
       const c = normalizeCell(gradeGet().grade[dia] && gradeGet().grade[dia][idx]);
@@ -44891,9 +45123,12 @@ const DesempenhoTecScreen = {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const abrir = painel.hasAttribute('hidden');
-      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
-      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b2 => { if (b2 !== btn) b2.setAttribute('aria-expanded', 'false'); });
-      if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b2 => { if (b2 !== btn) b2.setAttribute('aria-expanded', 'false'); });
+      if (abrir) {
+        painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+        if (window.AnchoredListViewport) AnchoredListViewport.schedule();
+      }
       else { painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
     });
     painel.addEventListener('click', (e) => e.stopPropagation());
@@ -45616,7 +45851,14 @@ const DesempenhoTecScreen = {
     const search = wrap.querySelector('input[type="search"]');
     const list = wrap.querySelector('.ms-disc-filter-list');
     const abrir = () => {
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p => {
+        if (p !== panel) p.setAttribute('hidden', '');
+      });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b => {
+        if (b !== btn) b.setAttribute('aria-expanded', 'false');
+      });
       panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+      if (window.AnchoredListViewport) AnchoredListViewport.schedule();
       if (search) search.focus({ preventScroll: true });
     };
     const fechar = () => { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); };
@@ -46583,13 +46825,17 @@ const DesempenhoTecScreen = {
     btn.onclick = (e) => {
       e.stopPropagation();
       const abrir = panel.hasAttribute('hidden');
-      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => {
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p => {
         if (p !== panel) p.setAttribute('hidden', '');
       });
-      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => {
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b => {
         if (b !== btn) b.setAttribute('aria-expanded', 'false');
       });
-      if (abrir) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); if (search) search.focus({ preventScroll: true }); }
+      if (abrir) {
+        panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+        if (window.AnchoredListViewport) AnchoredListViewport.schedule();
+        if (search) search.focus({ preventScroll: true });
+      }
       else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
     };
     panel.onclick = e => e.stopPropagation();
@@ -46692,8 +46938,8 @@ const DesempenhoTecScreen = {
 
 // Um toque fora fecha os seletores flutuantes sem reconstruí-los.
 document.addEventListener('click', () => {
-  document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => p.setAttribute('hidden', ''));
-  document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p => p.setAttribute('hidden', ''));
+  document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
 });
 
 // Listeners da tela Desempenho TEC
