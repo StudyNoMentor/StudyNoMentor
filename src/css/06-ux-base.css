@@ -1372,3 +1372,30 @@
   -webkit-overflow-scrolling: touch;
   touch-action: pan-y;
 }
+
+
+/* O dropdown de disciplinas do modal precisa de um containing block próprio;
+   sem position:relative, top/bottom eram calculados contra um ancestral e a
+   inversão para cima podia parar no lugar errado. */
+.pl-modal-field { position: relative; }
+
+/* Menus FIXED que já calculam coordenadas no JS também recebem um teto físico.
+   A lista interna rola; cabeçalho/estado permanecem visíveis. */
+.profile-menu,
+.cloud-menu {
+  max-height: calc(100dvh - 20px);
+  display: flex;
+  flex-direction: column;
+}
+.profile-menu-head,
+.profile-menu-stats,
+.cloud-menu-head,
+.cloud-menu-foot { flex: 0 0 auto; }
+.profile-menu-list,
+.cloud-menu-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
