@@ -67,7 +67,7 @@ const DB={
   getLinks(){return parse(keysForPlan(active).links,[])},
   updateLink(id,patch){const l=this.getLinks(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).links,l);return x},
   deleteLink(id){return this._set(keysForPlan(active).links,this.getLinks().filter(x=>String(x.id)!==String(id)))},
-  urlSegura:u=>String(u||''),
+  urlSegura:u=>{const s=String(u||'').trim();if(/^https?:\/\//i.test(s))return s;if(/^[a-z][a-z0-9+.-]*:/i.test(s))return '';return s?'https://'+s:'';},
   deleteTecSnapshot(id){return this._set(keysForPlan(active).tec,parse(keysForPlan(active).tec,[]).filter(x=>String(x.id)!==String(id)))},
   updateTecSnapshot(id,patch){const l=parse(keysForPlan(active).tec,[]),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).tec,l);return x},
   tecOverlap(start,end,ignoreId=null){return parse(keysForPlan(active).tec,[]).find(s=>String(s.id)!==String(ignoreId)&&start<=s.endDate&&end>=s.startDate)||null},
