@@ -92,6 +92,7 @@ DB._set(kb.revlog,[{reviewId:'rB',cardId:'cB',ts:1}]);
 DB._set(kb.links,[{id:'lB',nome:'TEC',url:'https://example.test'}]);
 DB.setRaw(pfx+'p:B:cards-notetype:201',JSON.stringify({id:201,ankiId:201,name:'Basic',kind:'normal'}));
 DB.setRaw(pfx+'p:B:cards-note:101',JSON.stringify({id:101,ankiId:101,notetypeId:201,fields:{Front:'F',Back:'V'}}));
+DB.setRaw(pfx+'p:B:cards-future:xyz',JSON.stringify({future:true,payload:'preservar'}));
 assert.equal(P.deletePlan('B'),true,'plano pausado deve poder ser excluído com migração prévia');
 assert.equal(P.getPlans().some(x=>x.id==='B'),false);
 assert.equal(DB._get(ka.cards,[]).length,1,'card deve sobreviver no planejamento operacional');
@@ -100,7 +101,9 @@ assert.equal(DB._get(ka.revlog,[]).length,1,'revlog deve sobreviver');
 assert.equal(DB._get(ka.links,[]).length,1,'link global deve sobreviver');
 assert.ok(localStorage.getItem(pfx+'p:A:cards-note:101'),'Note deve ser migrada');
 assert.ok(localStorage.getItem(pfx+'p:A:cards-notetype:201'),'NoteType deve ser migrado');
+assert.equal(JSON.parse(localStorage.getItem(pfx+'p:A:cards-future:xyz')).future,true,'entidade cards-* futura deve sobreviver sem conhecimento prévio da versão');
 assert.equal(localStorage.getItem(pfx+'p:B:cards-note:101'),null,'entidade antiga deve sair da origem excluída');
+assert.equal(localStorage.getItem(pfx+'p:B:cards-future:xyz'),null,'entidade futura migrada deve sair da origem excluída');
 
 // Contrato transversal: operação congela; conhecimento Anki continua global.
 const db=read('src/js/11-db.js');
