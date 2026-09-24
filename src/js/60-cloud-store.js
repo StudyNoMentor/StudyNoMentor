@@ -47,6 +47,13 @@ const CloudStore = {
       });
       this.libStatus = 'ready';
 
+      /* Sem sessão, getSession() pode resolver só do armazenamento local e não
+         tocar a rede. Fazemos UMA sonda mínima ao PostgREST para o indicador do
+         portão refletir o backend real já na tela inicial. O fetch global é quem
+         converte 200/4xx alcançável em ok, 402 em restricted e falha de rede em
+         offline. Não há polling nem repetição automática. */
+      this._probeServiceOnce();
+
       this.client.auth.getSession()
         .then(({ data }) => {
           this.session = (data && data.session) || null;
@@ -93,6 +100,20 @@ const CloudStore = {
           ? ProfileManager.getActiveProfileId() : null;
         if (id && window.RelationalStore) RelationalStore.subscribeProfile(id);
       } catch (e) { _quiet(e, 'cloud-service-status-resubscribe'); }
+    }
+  },
+
+  async _probeServiceOnce() {
+    if (!this.client || this.serviceStatus !== 'unknown') return false;
+    try {
+      /* Só 1 coluna e 1 linha. Mesmo com RLS anônimo, a resposta HTTP confirma
+         que o backend está alcançável; _buscarComTeto atualiza serviceStatus. */
+      await this.client.from(this.TABLE).select('id').limit(1);
+      return this.serviceStatus === 'ok';
+    } catch (e) {
+      /* O wrapper de fetch já marca offline quando a rede falha. */
+      _quiet(e, 'cloud-service-probe');
+      return false;
     }
   },
 
