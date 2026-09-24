@@ -49,7 +49,10 @@
       maxFrentes: [1, 3],
       metaAcerto: [50, 100]
     }),
-    _key() { return DB._profilePrefix() + this.KEY; },
+    _key() {
+      try { return DB.planSettingRaw ? DB.planSettingRaw(this.KEY).key : DB.planSettingKey(this.KEY); }
+      catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':' + this.KEY; }
+    },
     prefs() {
       const d = Object.assign({}, this.DEFAULTS, { disciplinasSel: [] });
       let z = null;

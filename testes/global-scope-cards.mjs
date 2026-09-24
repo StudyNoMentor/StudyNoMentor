@@ -67,7 +67,7 @@ const DB={
   getLinks(){return parse(keysForPlan(active).links,[])},
   updateLink(id,patch){const l=this.getLinks(),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).links,l);return x},
   deleteLink(id){return this._set(keysForPlan(active).links,this.getLinks().filter(x=>String(x.id)!==String(id)))},
-  urlSegura:u=>String(u||''),
+  urlSegura:u=>{const s=String(u||'').trim();if(/^https?:\/\//i.test(s))return s;if(/^[a-z][a-z0-9+.-]*:/i.test(s))return '';return s?'https://'+s:'';},
   deleteTecSnapshot(id){return this._set(keysForPlan(active).tec,parse(keysForPlan(active).tec,[]).filter(x=>String(x.id)!==String(id)))},
   updateTecSnapshot(id,patch){const l=parse(keysForPlan(active).tec,[]),x=l.find(e=>String(e.id)===String(id));if(!x)return null;Object.assign(x,patch);this._set(keysForPlan(active).tec,l);return x},
   tecOverlap(start,end,ignoreId=null){return parse(keysForPlan(active).tec,[]).find(s=>String(s.id)!==String(ignoreId)&&start<=s.endDate&&end>=s.startDate)||null},
@@ -180,8 +180,11 @@ assert.equal(parse(keysForPlan('A').savedGrades,[]).length,2,'grade copiada deve
 assert.deepEqual(parse(keysForPlan('A').savedGrades,[])[1].grade,{Segunda:['B']},'estrutura da grade deve ser clonada');
 
 assert.deepEqual(Array.from(ctx.DB.getAllLinksTagged(),x=>x.id),['kA','kB'],'links devem ser globais no perfil');
-assert.equal(ctx.DB.updateLink('kB',{nome:'Link B editado'}),null,'link de outro planejamento deve ser somente leitura');
-assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B','link externo não pode ser alterado');
+const linkEditado=ctx.DB.updateLink('kB',{nome:'Link B editado',url:'javascript:alert(1)'});
+assert.ok(linkEditado && linkEditado._planId==='B','edição global do link deve preservar a origem física');
+assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B editado','edição do link global deve voltar ao planejamento de origem');
+assert.notEqual(parse(keysForPlan('B').links,[])[0].url,'javascript:alert(1)','edição global não pode contornar a sanitização de URL');
+assert.equal(parse(keysForPlan('A').links,[])[0].nome,'Link A','edição global não pode clonar nem alterar outro link');
 
 assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'consulta consolidada do TEC deve continuar disponível');
 assert.equal(ctx.DB.updateTecSnapshot(2,{label:'Setembro'}),null,'retrato TEC de outro planejamento deve ser somente leitura');

@@ -115,7 +115,7 @@ function planCycleMode() {
 
     const previous = sel.value;
     sel.innerHTML = '<option value="">Escolha um planejamento…</option>' +
-      options.map(x => `<option value="${escapeHtml(x.plan.id)}">${escapeHtml(x.plan.nome)} · ${escapeHtml(x.source.kind)}</option>`).join('');
+      options.map(x => `<option value="${escapeHtml(x.plan.id)}">${PlanManager.isPaused(x.plan.id) ? '⏸ ' : ''}${escapeHtml(x.plan.nome)} · ${escapeHtml(x.source.kind)}</option>`).join('');
     if (previous && options.some(x => x.plan.id === previous)) sel.value = previous;
     btn.disabled = !sel.value;
     if (status && !importedCycleSource) status.textContent = defaultCycleImportStatus();
@@ -377,7 +377,7 @@ function planCycleMode() {
     const modeChanged = source.mode && source.mode !== planCycleMode();
     if (status) {
       status.textContent =
-        `Sugestão copiada de "${plan.nome}" (${source.kind}): ${source.subjects.length} matéria(s)` +
+        `Sugestão copiada de "${plan.nome}"${PlanManager.isPaused(plan.id) ? ' · origem pausada' : ''} (${source.kind}): ${source.subjects.length} matéria(s)` +
         (novos ? ` · ${novos} nova(s) neste planejamento` : '') +
         '. Datas, histórico e grade ficaram no planejamento de origem.' +
         (modeChanged ? ' Os parâmetros serão recalculados conforme o tipo do planejamento atual.' : '');

@@ -156,11 +156,206 @@ const PlanManager = {
     if (p) Object.assign(p, patch);
     this.savePlans(plans);
   },
+  /* Cards/Anki são patrimônio do PERFIL. Como a persistência histórica ainda
+     fica fisicamente sob o namespace de um planejamento, excluir esse plano
+     primeiro migra toda a coleção que nasceu nele para outro plano operacional.
+     Isso inclui decks, cards, revlog e as entidades dinâmicas Note/NoteType. */
+  _migrateKnowledgeBeforeDelete(sourceId, targetId) {
+    sourceId = String(sourceId || ''); targetId = String(targetId || '');
+    if (!sourceId || !targetId || sourceId === targetId) return { ok:false, reason:'invalid-target' };
+    const sk = DB.keysForPlan(sourceId), tk = DB.keysForPlan(targetId);
+    const clone = x => { try { return JSON.parse(JSON.stringify(x)); } catch (_) { return x; } };
+    const same = (a,b) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; } };
+    let numericSeed = Date.now();
+    const allocNumeric = () => {
+      try {
+        if (typeof AnkiParity !== 'undefined' && AnkiParity._allocId) return AnkiParity._allocId();
+      } catch (_) {}
+      numericSeed += 1; return numericSeed;
+    };
+    const cleanTagged = x => {
+      const y = clone(x); if (y && typeof y === 'object') { delete y._planId; delete y._planNome; delete y._planPaused; } return y;
+    };
+
+    const sourceDecks = DB._get(sk.decks, []) || [], targetDecks = DB._get(tk.decks, []) || [];
+    const deckIds = new Set(targetDecks.map(x => String(x && x.id))), deckMap = new Map(), movedDecks = [];
+    sourceDecks.forEach(d0 => {
+      const d = cleanTagged(d0); if (!d) return;
+      const old = String(d.id), existing = targetDecks.find(x => String(x && x.id) === old);
+      let next = d.id;
+      if (existing && !same(existing, d)) {
+        do { next = DB._uid(); } while (deckIds.has(String(next)));
+        d.id = next;
+      }
+      deckMap.set(old, d.id); deckIds.add(String(d.id));
+      if (!existing || String(d.id) !== old) movedDecks.push(d);
+    });
+    movedDecks.forEach(d => {
+      ['parentId','filteredDeckId','originalDeckId'].forEach(k => {
+        if (d[k] != null && deckMap.has(String(d[k]))) d[k] = deckMap.get(String(d[k]));
+      });
+      targetDecks.push(d);
+    });
+
+    const entityPrefix = DB._profilePrefix() + 'p:' + sourceId + ':cards-';
+    const entityRows = [];
+    try {
+      for (let i=0;i<localStorage.length;i++) {
+        const key=localStorage.key(i);
+        if (key && String(key).startsWith(entityPrefix)) entityRows.push([String(key), localStorage.getItem(key)]);
+      }
+    } catch (_) {}
+
+    const byKind = kind => entityRows.filter(([k]) => k.startsWith(entityPrefix + kind + ':'));
+    const migratedEntityKeys = new Set();
+    const ntMap = new Map(), noteMap = new Map();
+    const targetEntityKey = (kind,id) => DB._profilePrefix() + 'p:' + targetId + ':cards-' + kind + ':' + String(id);
+
+    byKind('notetype').forEach(([key,raw]) => {
+      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) {}
+      if (!x || x.id == null) return;
+      const old=String(x.id), direct=targetEntityKey('notetype',x.id), existingRaw=localStorage.getItem(direct);
+      let next=x.id;
+      if (existingRaw != null && existingRaw !== raw) {
+        do { next=allocNumeric(); } while (localStorage.getItem(targetEntityKey('notetype',next)) != null);
+        x.id=next; x.ankiId=next;
+      }
+      ntMap.set(old,x.id);
+      let ok=true;
+      if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('notetype',x.id),JSON.stringify(x)) !== false;
+      if (ok) migratedEntityKeys.add(key);
+    });
+
+    byKind('note').forEach(([key,raw]) => {
+      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) {}
+      if (!x || x.id == null) return;
+      if (x.notetypeId != null && ntMap.has(String(x.notetypeId))) x.notetypeId=ntMap.get(String(x.notetypeId));
+      const old=String(x.id), direct=targetEntityKey('note',x.id), existingRaw=localStorage.getItem(direct);
+      let next=x.id;
+      if (existingRaw != null && existingRaw !== JSON.stringify(x)) {
+        do { next=allocNumeric(); } while (localStorage.getItem(targetEntityKey('note',next)) != null);
+        x.id=next; x.ankiId=next;
+      }
+      noteMap.set(old,x.id);
+      let ok=true;
+      if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('note',x.id),JSON.stringify(x)) !== false;
+      if (ok) migratedEntityKeys.add(key);
+    });
+
+    /* Compatibilidade futura: se uma versão posterior criar outra entidade
+       cards-* sob o planejamento, não a destrua só porque esta versão ainda
+       não conhece sua semântica. Copiamos byte-a-byte quando não há colisão;
+       se houver uma colisão diferente, cancelamos a exclusão em vez de perder
+       patrimônio do usuário. */
+    for (const [key,raw] of entityRows) {
+      if (migratedEntityKeys.has(key)) continue;
+      const suffix=key.slice(entityPrefix.length);
+      const targetKey=DB._profilePrefix() + 'p:' + targetId + ':cards-' + suffix;
+      const existingRaw=localStorage.getItem(targetKey);
+      if (existingRaw != null && existingRaw !== raw) return {ok:false,reason:'unknown-anki-entity-conflict',key:suffix};
+      if (existingRaw == null && DB.setRaw(targetKey,raw) === false) return {ok:false,reason:'save-unknown-anki-entity',key:suffix};
+      migratedEntityKeys.add(key);
+    }
+
+    const sourceCards = DB._get(sk.cards, []) || [], targetCards = DB._get(tk.cards, []) || [];
+    const cardIds = new Set(targetCards.map(x => String(x && x.id))), ankiIds = new Set(targetCards.map(x => String(x && x.ankiId)).filter(Boolean));
+    const cardMap = new Map(), prepared = [];
+    sourceCards.forEach(c0 => {
+      const card=cleanTagged(c0); if (!card) return;
+      const old=String(card.id), existing=targetCards.find(x => String(x && x.id) === old);
+
+      /* Primeiro remapeia as dependências. Só DEPOIS decide se um mesmo cardId
+         ainda representa o mesmo card. Isso evita duplicar o mesmo id quando,
+         por exemplo, o deck de origem precisou ganhar outro id no destino. */
+      ['deckId','originalDeckId','filteredDeckId'].forEach(k => {
+        if (card[k] != null && deckMap.has(String(card[k]))) card[k]=deckMap.get(String(card[k]));
+      });
+      if (card.notetypeId != null && ntMap.has(String(card.notetypeId))) card.notetypeId=ntMap.get(String(card.notetypeId));
+      if (card.noteId != null && noteMap.has(String(card.noteId))) card.noteId=noteMap.get(String(card.noteId));
+      if (card.ankiNoteId != null && noteMap.has(String(card.ankiNoteId))) card.ankiNoteId=noteMap.get(String(card.ankiNoteId));
+
+      let next=card.id;
+      const equivalent=!!existing && same(existing,card);
+      if (existing && !equivalent) {
+        do { next=DB._uid(); } while(cardIds.has(String(next)));
+        card.id=next;
+      }
+      const skip=equivalent && String(next)===old;
+      cardMap.set(old,card.id); cardIds.add(String(card.id));
+
+      if (!skip && card.ankiId != null && ankiIds.has(String(card.ankiId))) {
+        let aid; do { aid=allocNumeric(); } while(ankiIds.has(String(aid)));
+        card.ankiId=aid;
+      }
+      if (card.ankiId != null) ankiIds.add(String(card.ankiId));
+      prepared.push({old,card,skip});
+    });
+    prepared.forEach(x => {
+      if (x.card.reversedOf != null && cardMap.has(String(x.card.reversedOf))) x.card.reversedOf=cardMap.get(String(x.card.reversedOf));
+      if (!x.skip) targetCards.push(x.card);
+    });
+
+    const remapLogs = rows => (rows || []).map(r0 => {
+      const r=cleanTagged(r0); if (!r) return r;
+      if (r.cardId != null && cardMap.has(String(r.cardId))) r.cardId=cardMap.get(String(r.cardId));
+      return r;
+    }).filter(Boolean);
+    const sourceRev = remapLogs(DB._get(sk.revlog, []) || []), targetRev = DB._get(tk.revlog, []) || [];
+    const reviewIds = new Set(targetRev.map(r => String(r && (r.reviewId || r.id))).filter(Boolean));
+    sourceRev.forEach((r,i) => {
+      const rid=r.reviewId||r.id;
+      if (rid != null && reviewIds.has(String(rid))) {
+        const nr=DB._uid(); if (r.reviewId != null) r.reviewId=nr; else r.id=nr;
+      }
+      r._position=Math.max(targetRev.length+1,Number(r._position)||0)+i;
+      targetRev.push(r);
+      const id2=r.reviewId||r.id; if(id2!=null) reviewIds.add(String(id2));
+    });
+
+    const mergeSafety = suffix => {
+      if (!sk[suffix] || !tk[suffix]) return;
+      const src=remapLogs(DB._get(sk[suffix], []) || []), dst=DB._get(tk[suffix], []) || [];
+      if (src.length) DB._set(tk[suffix], dst.concat(src));
+    };
+
+    const sourceBanks=DB._get(sk.bancasCards,[])||[], targetBanks=DB._get(tk.bancasCards,[])||[];
+    const banks=[...new Set(targetBanks.concat(sourceBanks).map(x=>String(x||'').trim()).filter(Boolean))];
+
+    // Links Úteis também são patrimônio global do perfil. Como ainda moram
+    // fisicamente no plano de origem, acompanham a migração antes da exclusão.
+    const sourceLinks=DB._get(sk.links,[])||[], targetLinks=DB._get(tk.links,[])||[];
+    const linkIds=new Set(targetLinks.map(x=>String(x&&x.id)));
+    sourceLinks.forEach(l0=>{
+      const l=cleanTagged(l0); if(!l)return;
+      const existing=targetLinks.find(x=>String(x&&x.id)===String(l.id));
+      if(existing&&same(existing,l))return;
+      if(existing){let nid;do{nid=DB._uid();}while(linkIds.has(String(nid)));l.id=nid;}
+      linkIds.add(String(l.id));targetLinks.push(l);
+    });
+
+    if (DB._set(tk.decks,targetDecks) === false) return {ok:false,reason:'save-decks'};
+    if (DB._set(tk.cards,targetCards) === false) return {ok:false,reason:'save-cards'};
+    if (DB._set(tk.revlog,targetRev) === false) return {ok:false,reason:'save-revlog'};
+    if (DB._set(tk.links,targetLinks) === false) return {ok:false,reason:'save-links'};
+    if (banks.length) DB._set(tk.bancasCards,banks);
+    mergeSafety('revlogPendente'); mergeSafety('revlogArquivo');
+
+    /* Só removemos da origem as entidades que foram reconhecidas E confirmadas
+       no destino. Qualquer futuro cards-* que esta versão ainda não conheça fica
+       preservado em vez de ser destruído silenciosamente. */
+    entityRows.forEach(([key]) => {
+      if (migratedEntityKeys.has(key)) DB.delRaw(key,'planejamento excluído após migração do Anki');
+    });
+    try { DB.invalidarRevlogMemoria(); } catch (_) {}
+    try { if (typeof CardEngine !== 'undefined' && CardEngine.invalidateDueCache) CardEngine.invalidateDueCache(); } catch (_) {}
+    return {ok:true,targetId,cards:sourceCards.length,decks:sourceDecks.length,revlog:sourceRev.length,entities:entityRows.length};
+  },
+
   deletePlan(id) {
     id = String(id || '');
     const atuais = this.getPlans();
     const alvo = atuais.find(p => String(p.id) === id);
-    if (!alvo) return false;
+    if (!alvo || atuais.length <= 1) return false;
     /* Não deixa a exclusão criar um perfil que só tenha planejamentos pausados.
        Nesse estado nenhuma tela operacional teria um destino seguro para novas
        gravações. Reative outro antes de excluir o último operacional. */
@@ -169,8 +364,17 @@ const PlanManager = {
       const outrosQuaisquer = atuais.filter(p => String(p.id) !== id);
       if (!outrosOperacionais.length && outrosQuaisquer.length) return false;
     }
-    // apaga todos os dados namespaced do planejamento. A exclusão explícita é
-    // a única operação administrativa que pode atravessar o congelamento.
+    // Antes de apagar o namespace, move a memória Anki/Cards para um plano que
+    // continuará existindo. O plano ativo é o destino preferido.
+    const destino = atuais.find(p => String(p.id) === String(this.getActivePlanId()) && String(p.id) !== id && !this.isPaused(p.id))
+      || atuais.find(p => String(p.id) !== id && !this.isPaused(p.id))
+      || atuais.find(p => String(p.id) !== id);
+    if (!destino) return false;
+    const mig = this._migrateKnowledgeBeforeDelete(id, destino.id);
+    if (!mig || !mig.ok) return false;
+
+    // apaga os dados operacionais remanescentes do planejamento. A exclusão
+    // explícita é a única operação administrativa que atravessa o congelamento.
     const k = DB.keysForPlan(id);
     const wipe = () => Object.values(k).forEach(key => DB.delRaw(key, 'planejamento excluído'));
     if (DB.withPausedPlanWrite) DB.withPausedPlanWrite(wipe); else wipe();

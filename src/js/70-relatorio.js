@@ -43,11 +43,13 @@ const StudyReport = {
       sections:new Set([...document.querySelectorAll('#study-report-sections input:checked')].map(x=>x.value)) };
   },
   entries(cfg) {
-    const all = cfg.scope==='all' && DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const all = cfg.scope==='plan' ? DB.getEntries()
+      : (DB.getAllEntriesTagged ? DB.getAllEntriesTagged({includePaused:cfg.scope==='all'}) : DB.getEntries());
     return (all||[]).filter(e=>{ const d=this.dayKey(e); return d && (!cfg.start||d>=cfg.start) && (!cfg.end||d<=cfg.end); }).sort((a,b)=>this.dayKey(a).localeCompare(this.dayKey(b)));
   },
   cycles(cfg) {
-    const all = cfg.scope==='all' && DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory();
+    const all = cfg.scope==='plan' ? DB.getCycleHistory()
+      : (DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged({includePaused:cfg.scope==='all'}) : DB.getCycleHistory());
     return (all||[]).filter(c=>{ const a=String(c.startDate||c.date||'').slice(0,10), b=String(c.endDate||a).slice(0,10); return (!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end); });
   },
   aggregate(entries) {
@@ -81,11 +83,15 @@ const StudyReport = {
      onde o dado veio; o aproveitamento até sobrevivia (numerador e denominador
      inflavam juntos), mas "questões" e "acertos" não. */
   snapshotRows(cfg) {
-    const snaps=(DB.getTecSnapshots?DB.getTecSnapshots():[]).filter(x=>{const a=String(x.startDate||x.date||'').slice(0,10),b=String(x.endDate||x.date||a).slice(0,10);return(!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end)});
-    return snaps.map(s=>{ const t=TecEngine.totais(s); return {date:s.endDate||s.date||s.startDate,q:t.questoes,c:t.acertos,p:this.pct(t.acertos,t.questoes)}; });
+    const source = cfg.scope==='plan' ? (DB.getTecSnapshots?DB.getTecSnapshots():[])
+      : (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged({includePaused:cfg.scope==='all'}) : (DB.getTecSnapshots?DB.getTecSnapshots():[]));
+    const snaps=(source||[]).filter(x=>{const a=String(x.startDate||x.date||'').slice(0,10),b=String(x.endDate||x.date||a).slice(0,10);return(!cfg.start||b>=cfg.start)&&(!cfg.end||a<=cfg.end)});
+    return snaps.map(s=>{ const t=TecEngine.totais(s); return {date:s.endDate||s.date||s.startDate,q:t.questoes,c:t.acertos,p:this.pct(t.acertos,t.questoes),plan:s._planNome||''}; });
   },
   extras(cfg) {
-    const out=[]; (DB.getExtras?DB.getExtras():[]).forEach(x=>(x.historico||[]).forEach(h=>{const d=String(h.data||'').slice(0,10);if(d&&(!cfg.start||d>=cfg.start)&&(!cfg.end||d<=cfg.end))out.push({title:x.titulo||'Atividade',date:d,quantity:this.n(h.quantidade),minutes:this.n(h.minutos)});})); return out;
+    const source = cfg.scope==='plan' ? (DB.getExtras?DB.getExtras():[])
+      : (DB.getAllExtrasTagged ? DB.getAllExtrasTagged({includePaused:cfg.scope==='all'}) : (DB.getExtras?DB.getExtras():[]));
+    const out=[]; (source||[]).forEach(x=>(x.historico||[]).forEach(h=>{const d=String(h.data||'').slice(0,10);if(d&&(!cfg.start||d>=cfg.start)&&(!cfg.end||d<=cfg.end))out.push({title:x.titulo||'Atividade',date:d,quantity:this.n(h.quantidade),minutes:this.n(h.minutos),plan:x._planNome||''});})); return out;
   },
   css() { return `
     *{box-sizing:border-box}body{margin:0;background:#eef1f6;color:#172033;font:13px Inter,Arial,sans-serif}.toolbar{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;gap:12px;padding:12px 22px;background:#172033;color:white}.toolbar button{border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer}.toolbar .primary{background:#4f46e5;color:white}.paper{width:210mm;min-height:297mm;margin:18px auto;background:white;box-shadow:0 12px 35px #17203322}.page{padding:16mm 17mm;page-break-after:always}.page:last-child{page-break-after:auto}.cover{min-height:297mm;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(145deg,#fff 0%,#f4f2ff 100%)}.brand{font-weight:900;color:#4f46e5;letter-spacing:.08em;text-transform:uppercase}.cover h1{font-size:34px;line-height:1.07;margin:14px 0}.cover .period{font-size:18px;color:#475569}.cover-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:30px}.cover-cell{padding:14px;border:1px solid #dbe2ee;border-radius:12px;background:#ffffffaa}.cover-cell small{display:block;color:#64748b;text-transform:uppercase;font-weight:800;font-size:9px;letter-spacing:.06em}.cover-cell strong{display:block;margin-top:5px;font-size:14px}.page-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #4f46e5;padding-bottom:9px;margin-bottom:18px}.page-head h2{margin:0;font-size:21px}.page-head span{color:#64748b;font-size:10px}.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.kpi{border:1px solid #dbe2ee;border-radius:12px;padding:12px;min-height:74px}.kpi b{display:block;font-size:19px;color:#4f46e5}.kpi span{font-size:9px;color:#64748b;text-transform:uppercase;font-weight:800;letter-spacing:.04em}.narrative{margin:16px 0;padding:14px 16px;border-left:4px solid #4f46e5;background:#f5f3ff;line-height:1.6}.section{margin-top:20px}.section h3{font-size:15px;margin:0 0 10px}.chart{display:block;width:100%;max-height:255px}.svg-label{font:11px Arial;fill:#475569}.svg-value{font:bold 11px Arial;fill:#172033}.table{width:100%;border-collapse:collapse;font-size:10px}.table th{background:#f1f5f9;color:#475569;text-align:left;padding:7px;border-bottom:1px solid #cbd5e1}.table td{padding:7px;border-bottom:1px solid #e2e8f0;vertical-align:top}.table .num{text-align:right;font-variant-numeric:tabular-nums}.empty{padding:18px;border:1px dashed #cbd5e1;border-radius:10px;text-align:center;color:#64748b}.note{font-size:9px;color:#64748b;margin-top:8px}.good{color:#047857}.bad{color:#b91c1c}@page{size:A4;margin:0}@media print{body{background:white}.toolbar{display:none}.paper{margin:0;box-shadow:none}.page{min-height:297mm}}
@@ -94,7 +100,9 @@ const StudyReport = {
   rangeLabel(cfg){return (cfg.start?this.date(cfg.start):'Início')+' a '+(cfg.end?this.date(cfg.end):'Hoje');},
   build(cfg, entries) {
     const a=this.aggregate(entries), profile=window.ProfileManager&&ProfileManager.getActiveProfile?ProfileManager.getActiveProfile():null;
-    const plan=cfg.scope==='all'?'Todos os planejamentos':((window.PlanManager&&PlanManager.getActivePlan&&PlanManager.getActivePlan()||{}).nome||'Planejamento atual');
+    const plan=cfg.scope==='all'?'Toda a trajetória (inclui pausados)'
+      : cfg.scope==='active'?'Planejamentos ativos'
+      : ((window.PlanManager&&PlanManager.getActivePlan&&PlanManager.getActivePlan()||{}).nome||'Planejamento atual');
     const days=Object.keys(a.byDay), studiedDays=days.length, calDays=(cfg.start&&cfg.end)?Math.max(1,Math.round((new Date(cfg.end+'T00:00:00')-new Date(cfg.start+'T00:00:00'))/86400000)+1):studiedDays;
     const acc=this.pct(a.correct,a.total), avg=studiedDays?a.minutes/studiedDays:0;
     const narrative=entries.length?`No período selecionado, foram registrados <strong>${this.hm(a.minutes)}</strong> de estudo em <strong>${studiedDays}</strong> dia(s), com <strong>${entries.length}</strong> sessão(ões). ${a.total?`Foram contabilizadas <strong>${Math.round(a.total)}</strong> questões e aproveitamento geral de <strong>${(Math.round(acc*100)/100).toFixed(2).replace('.',',')}%</strong>.`: 'Não há questões contabilizadas no recorte.'}`:'Não há registros de estudo no período selecionado.';

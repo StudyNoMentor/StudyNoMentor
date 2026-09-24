@@ -3,7 +3,9 @@
    ============================================================ */
 const LinksScreen = {
   collection() { return DB.getAllLinksTagged ? DB.getAllLinksTagged() : DB.getLinks(); },
-  local(l) { return !!l && (!l._planId || String(l._planId) === String(DB._activePlanId())); },
+  // Links Úteis são patrimônio do perfil: continuam editáveis mesmo quando a
+  // persistência física nasceu em outro planejamento. O DB roteia a escrita à origem.
+  local(l) { return !!l; },
   _editingId: null,
   _draftLogo: null,
   _draftCor: '#4f46e5',

@@ -38,9 +38,13 @@ const ReforcoFila = {
     if (mi > ma) mi = ma;
     return { min: mi, max: ma };
   },
+  _prefKey() {
+    try { return DB.planSettingRaw ? DB.planSettingRaw(this.KEY_PREF).key : DB.planSettingKey(this.KEY_PREF); }
+    catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':' + this.KEY_PREF; }
+  },
   prefs() {
     let raw = null;
-    try { raw = JSON.parse(localStorage.getItem(DB._profilePrefix() + this.KEY_PREF) || '{}'); }
+    try { raw = JSON.parse(localStorage.getItem(this._prefKey()) || '{}'); }
     catch (_) { _quiet(_); raw = {}; }
     const n = Number(raw && raw.disciplinasDia);
     const lim = this._sanearLimites(raw && raw.blocoMin, raw && raw.blocoMax);
@@ -51,7 +55,7 @@ const ReforcoFila = {
     p.disciplinasDia = Number(p.disciplinasDia) === 2 ? 2 : 1;
     const lim = this._sanearLimites(p.blocoMin, p.blocoMax);
     p.blocoMin = lim.min; p.blocoMax = lim.max;
-    const key = DB._profilePrefix() + this.KEY_PREF;
+    const key = this._prefKey();
     try {
       if (typeof DB.setRaw === 'function') DB.setRaw(key, JSON.stringify(p));
       else localStorage.setItem(key, JSON.stringify(p));

@@ -19,8 +19,8 @@
     },
 
     _prefKey() {
-      try { return DB._profilePrefix() + this.KEY_PREF; }
-      catch (_) { return 'diario-estudos:' + this.KEY_PREF; }
+      try { return DB.planSettingRaw ? DB.planSettingRaw(this.KEY_PREF).key : DB.planSettingKey(this.KEY_PREF); }
+      catch (_) { return DB._profilePrefix() + 'p:' + DB._activePlanId() + ':' + this.KEY_PREF; }
     },
     prefs() {
       let raw = {};

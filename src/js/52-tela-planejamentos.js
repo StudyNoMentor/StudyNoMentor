@@ -98,7 +98,7 @@ const PlanUI = {
             <div class="plan-stat"><div class="value">${CycleEngine.fmtHM(totalMin)}</div><div class="label">estudado</div></div>
             <div class="plan-stat"><div class="value">${weeks}</div><div class="label">semanas no histórico</div></div>
           </div>
-          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki continuam globais.</div>` : ''}
+          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki e Links Úteis continuam globais.</div>` : ''}
           <div class="plan-card-actions">
             ${isPaused
               ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar planejamento</button>'
@@ -121,7 +121,7 @@ const PlanUI = {
       if (pauseBtn) pauseBtn.addEventListener('click', async () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
         const ok = await UI.confirm(
-          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki continuam disponíveis globalmente.`,
+          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
           { title: '⏸ Pausar planejamento', okText: 'Pausar' }
         );
         if (!ok) return;
@@ -162,7 +162,7 @@ const PlanUI = {
         }
         const p = plans.find(x => x.id === id);
         const entries = DB.getEntriesForPlan(id).length;
-        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nTodos os seus dados (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.`,
+        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nOs dados operacionais (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.\n\nCards/Anki e Links Úteis são patrimônio global do perfil e serão preservados automaticamente em outro planejamento.`,
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;
