@@ -40,5 +40,11 @@ assert.match(cloud,/signInWithPassword[\s\S]{0,240}_setServiceStatus\('ok'\)/,
   'login bem-sucedido deve confirmar o servidor sem depender do fetch interno do SDK');
 assert.match(cloud,/auth\.signUp[\s\S]{0,240}_setServiceStatus\('ok'\)/,
   'cadastro bem-sucedido deve confirmar o servidor sem deixar o portão em pending');
+assert.match(cloud,/_probeServiceOnce\(\);/,
+  'inicialização deve sondar o backend mesmo sem sessão autenticada');
+assert.match(cloud,/from\(this\.TABLE\)\.select\('id'\)\.limit\(1\)/,
+  'sonda pré-login deve ser mínima: uma coluna e no máximo uma linha');
+assert.doesNotMatch(cloud,/setInterval[\s\S]{0,180}_probeServiceOnce/,
+  'sonda pré-login não pode virar polling');
 
 console.log('EGRESS SUPABASE: polling, auth, no-op writes, quota e mídia incremental validados.');
