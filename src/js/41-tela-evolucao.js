@@ -75,7 +75,7 @@ const ConquistasEngine = {
        descontar as horas e as Conquistas continuarem contando com elas. */
     try {
       if (DB.extrasCountGlobal()) {
-        ((DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras()) || []).forEach(x => {
+        ((DB.getAllExtrasTagged ? DB.getAllExtrasTagged({ includePaused: true }) : DB.getExtras()) || []).forEach(x => {
           if (!x.contaMetricas) return;
           (x.historico || []).forEach(h => {
             if (!h.data) return;
@@ -192,11 +192,11 @@ const ConquistasEngine = {
     const cards = g(() => DB.getAllCardsTagged ? DB.getAllCardsTagged() : DB.getCards(), []);
     const revlog = g(() => DB.getAllRevlogTagged ? DB.getAllRevlogTagged() : DB.getRevlog(), []);
     const leis = g(() => DB.getAllLeisTagged ? DB.getAllLeisTagged() : DB.getLeis(), []);
-    const extras = g(() => DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras(), []);
+    const extras = g(() => DB.getAllExtrasTagged ? DB.getAllExtrasTagged({ includePaused: true }) : DB.getExtras(), []);
     const decks = g(() => DB.getAllDecksTagged ? DB.getAllDecksTagged() : DB.getDecks(), []);
-    const tec = g(() => DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots(), []);
-    const incid = g(() => DB.getAllIncidenciaTagged ? DB.getAllIncidenciaTagged() : DB.getIncidencia(), []);
-    const ciclos = g(() => DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory(), []);
+    const tec = g(() => DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged({ includePaused: true }) : DB.getTecSnapshots(), []);
+    const incid = g(() => DB.getAllIncidenciaTagged ? DB.getAllIncidenciaTagged({ includePaused: true }) : DB.getIncidencia(), []);
+    const ciclos = g(() => DB.getAllCycleHistoryTagged ? DB.getAllCycleHistoryTagged({ includePaused: true }) : DB.getCycleHistory(), []);
     const ent = entries || [];
 
     // semanas e meses ativos
@@ -451,7 +451,7 @@ const EvolucaoScreen = {
   filterStart: null,
   filterEnd: null,
   activeShortcut: 'all', // '7d' | '30d' | 'all' | null (null = intervalo personalizado)
-  scope: 'all', // trajetória realizada é global; 'plan' continua disponível como filtro
+  scope: 'active', // plan = atual · active = todos operacionais · all = toda a trajetória, inclusive pausados
   evoLineMode: 'week', // 'week' = % por semana | 'cum' = média acumulada
   evoLineSubjects: null, // Set de disciplinas selecionadas (null = ainda não inicializado)
 
@@ -544,7 +544,8 @@ const EvolucaoScreen = {
     if (!DB.extrasCountGlobal()) return [];
     const methodByTipo = { anki: 'Revisão Teórica', leitura: 'Leitura', questoes: 'Questões', revisao: 'Revisão Teórica', video: 'Videoaula', livre: 'Outro' };
     const out = [];
-    const extras = this.scope === 'all' && DB.getAllExtrasTagged ? DB.getAllExtrasTagged() : DB.getExtras();
+    const extras = this.scope === 'plan' ? DB.getExtras()
+      : (DB.getAllExtrasTagged ? DB.getAllExtrasTagged({ includePaused: this.scope === 'all' }) : DB.getExtras());
     extras.forEach(x => {
       if (!x.contaMetricas) return;
       (x.historico || []).forEach((h, i) => {
@@ -571,7 +572,8 @@ const EvolucaoScreen = {
   },
   // Fonte unificada de sessões p/ TODOS os gráficos: base (registros) + extras (se habilitado)
   _sourceEntries() {
-    const base = this.scope === 'all' ? DB.getAllEntriesTagged() : DB.getEntries();
+    const base = this.scope === 'plan' ? DB.getEntries()
+      : DB.getAllEntriesTagged({ includePaused: this.scope === 'all' });
     return base.concat(this._extraEntries());
   },
   // [MELHORIA 5] Modal com todos os níveis de uma conquista (requisitos p/ subir).
@@ -650,7 +652,7 @@ const EvolucaoScreen = {
   renderConquistas() {
     const box = document.getElementById('conquistas-body');
     if (!box) return;
-    const entries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const entries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged({ includePaused: true }) : DB.getEntries();
     const largo = window.innerWidth >= 900;
     const cal = ConquistasEngine.calendario(entries, largo ? 26 : 14);
     const marcos = ConquistasEngine.marcos(entries);
@@ -1350,7 +1352,8 @@ const EvolucaoScreen = {
   // ------- Aproveitamento por semana fechada (histórico de ciclos) -------
   renderMetaChart() {
     const container = document.getElementById('evolucao-meta-chart');
-    const hist = (this.scope === 'all' ? DB.getAllCycleHistoryTagged() : DB.getCycleHistory())
+    const hist = (this.scope === 'plan' ? DB.getCycleHistory()
+      : DB.getAllCycleHistoryTagged({ includePaused: this.scope === 'all' }))
       .filter(w => w.avgPerformancePct !== null && w.avgPerformancePct !== undefined)
       .sort((a, b) => a.startDate.localeCompare(b.startDate));
     if (hist.length === 0) {
@@ -1369,7 +1372,8 @@ const EvolucaoScreen = {
   // ------- Evolução no TecConcursos (retratos importados) -------
   renderTecChart() {
     const card = document.getElementById('evolucao-tec-card');
-    const snaps = this.scope === 'all' && DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged() : DB.getTecSnapshots();
+    const snaps = this.scope === 'plan' ? DB.getTecSnapshots()
+      : (DB.getAllTecSnapshotsTagged ? DB.getAllTecSnapshotsTagged({ includePaused: this.scope === 'all' }) : DB.getTecSnapshots());
     const container = document.getElementById('evolucao-tec-chart');
     const legend = document.getElementById('evolucao-tec-legend');
     const sel = document.getElementById('evo-tec-disc');
