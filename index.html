@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va3b1fac853">
+<meta name="diario-versao" content="ve04e7d0384">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -32292,11 +32292,18 @@ const CardsScreen = {
     }
     return DB.getDecks();
   },
-  destinoOptionsHtml(selected, planId) {
+  destinoOptionsHtml(selected, planId, todosOsPlanos) {
     // O destino de um card novo é sempre um baralho ("deck:id") — a disciplina
     // ficou pro campo Matéria (Tec), texto livre, sem duplicar o que já é feito
     // aqui pelo baralho. Em edição global, usa o catálogo do plano de origem.
-    const deckOpts = this.destinationDecks(planId).map(d =>
+    // Card NOVO pode nascer em qualquer baralho visível: é gravado no
+    // planejamento dono do baralho escolhido (saveCard). Edição e importação
+    // continuam presas ao plano de origem/ativo.
+    const lista = todosOsPlanos
+      ? this.collectionDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
+          .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      : this.destinationDecks(planId);
+    const deckOpts = lista.map(d =>
       `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome && String(d._planId) !== String(PlanManager.getActivePlanId()) ? ' · ' + escapeHtml(d._planNome) : ''}</option>`
     ).join('');
     // Cards antigos podiam ter uma disciplina como destino, sem baralho nenhum
@@ -34009,7 +34016,7 @@ const CardsScreen = {
       destSel = c.deckId ? 'deck:' + c.deckId : (c.materia ? 'sub:' + c.materia : '');
       assunto = c.assunto || ''; materiaTec = c.materiaTec || ''; banca = c.banca || ''; frente = c.frente || ''; verso = c.verso || ''; kind = c.kind || 'basic';
     }
-    $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel, this._editingPlanId);
+    $id('card-destino').innerHTML = this.destinoOptionsHtml(destSel, this._editingPlanId, !isEdit);
     $id('card-assunto').value = assunto;
     const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
     $id('card-assunto-list').innerHTML = tops.map(t => `<option value="${escapeHtml(t)}">`).join('');
@@ -34105,22 +34112,24 @@ const CardsScreen = {
       }
       showToast('Card atualizado ✓'); this.closeCardModal();
     } else {
-      if (reversed) {
-        const noteId = DB._uid();
-        const c = DB.addCard({ ...data, noteId, template: 'forward' });
-        DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
-        if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
-        showToast('2 cards criados (normal + invertido) ✓');
-      } else {
-        const c = DB.addCard(data);
-        if (typeof AnkiParity !== 'undefined') {
-          AnkiParity.ensureIdentities();
-          if (data.kind === 'cloze' && c) {
-            const n = AnkiParity.syncClozeSiblings(c.id);
-            showToast(n + ' card(s) Cloze criado(s) ✓');
+      this._noPlanoDoBaralho(data.deckId, () => {
+        if (reversed) {
+          const noteId = DB._uid();
+          const c = DB.addCard({ ...data, noteId, template: 'forward' });
+          DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
+          if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
+          showToast('2 cards criados (normal + invertido) ✓');
+        } else {
+          const c = DB.addCard(data);
+          if (typeof AnkiParity !== 'undefined') {
+            AnkiParity.ensureIdentities();
+            if (data.kind === 'cloze' && c) {
+              const n = AnkiParity.syncClozeSiblings(c.id);
+              showToast(n + ' card(s) Cloze criado(s) ✓');
+            } else showToast('Card criado ✓');
           } else showToast('Card criado ✓');
-        } else showToast('Card criado ✓');
-      }
+        }
+      });
       if (closeAfter) this.closeCardModal();
       else {
         $id('card-frente').innerHTML = '';
@@ -34143,12 +34152,20 @@ const CardsScreen = {
   openDeckModal() { this.renderDeckList(); $id('deck-modal').style.display = 'flex'; },
   // Baralhos e cards no mesmo escopo da tela (padrão: todos os planejamentos).
   // Antes a lista lia só o planejamento ativo e escondia os demais baralhos.
-  _deckScope() {
+  _deckScope() { return { decks: this.collectionDecks(), cards: this.collectionCards() }; },
+  // Planejamento dono do baralho e execução de operações dentro dele.
+  _planDoBaralho(deckId) {
     const G = window.StudyGlobalScope;
-    if (G && typeof G.decks === 'function' && typeof G.cards === 'function') {
-      try { return { decks: G.decks(), cards: G.cards() }; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-deck-scope'); }
-    }
-    return { decks: DB.getDecks(), cards: DB.getCards() };
+    return (G && G.planForDeck) ? G.planForDeck(deckId) : null;
+  },
+  _noPlanoDoBaralho(deckId, fn) {
+    const G = window.StudyGlobalScope, pid = this._planDoBaralho(deckId);
+    return (G && G.inPlan && pid) ? G.inPlan(pid, fn) : fn();
+  },
+  // Rótulo "Baralho · Plano" quando a visão junta mais de um planejamento.
+  _rotuloBaralho(d, decks) {
+    const planos = new Set((decks || []).map(x => String(x._planId || ''))).size;
+    return String(d.nome || '') + (planos > 1 && d._planNome ? ' · ' + d._planNome : '');
   },
   renderDeckList() {
     const box = document.getElementById('deck-list');
@@ -34179,8 +34196,8 @@ const CardsScreen = {
           ? 'Excluir este baralho filtrado? Os cards voltarão aos baralhos e agendamentos de origem.'
           : 'Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).';
         if (!await UI.confirm(msg)) return;
-        if (filtrado) AnkiParity.emptyFilteredDeck(id);
-        DB.deleteDeck(id); this.renderDeckList(); this.render();
+        this._noPlanoDoBaralho(id, () => { if (filtrado) AnkiParity.emptyFilteredDeck(id); DB.deleteDeck(id); });
+        CardEngine.invalidateDueCache(); this.renderDeckList(); this.render();
       });
     });
   },
@@ -34206,8 +34223,9 @@ const CardsScreen = {
 
   // ---- Estudo Personalizado / Baralhos Filtrados (Anki 26.09.2) ----
   _normalDeckOptions(selected) {
-    return DB.getDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
-      .map(d => '<option value="'+escapeHtml(String(d.id))+'"'+(String(selected)===String(d.id)?' selected':'')+'>'+escapeHtml(d.nome)+'</option>').join('');
+    const decks = this.collectionDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }));
+    return decks.map(d => '<option value="'+escapeHtml(String(d.id))+'"'+(String(selected)===String(d.id)?' selected':'')+'>'+escapeHtml(this._rotuloBaralho(d, decks))+'</option>').join('');
   },
   openCustomStudy() {
     const sel = document.getElementById('cards-custom-deck');
@@ -34244,7 +34262,7 @@ const CardsScreen = {
       input.includeTags=tags('cards-custom-tags-in');input.excludeTags=tags('cards-custom-tags-out');
     }else if(kind==='newLimitDelta'||kind==='reviewLimitDelta')input.delta=value;
     else input.days=value;
-    const result=AnkiParity.customStudy(input);
+    const result=this._noPlanoDoBaralho(deckId,()=>AnkiParity.customStudy(input));
     if(!result||!result.ok){
       showToast(result&&result.error==='name-conflict'
         ? 'Já existe um baralho normal chamado Estudo Personalizado'
@@ -34269,7 +34287,7 @@ const CardsScreen = {
   },
   openFilteredDeckModal(deckId) {
     if(typeof AnkiParity==='undefined')return;
-    const d=deckId?DB.getDecks().find(x=>String(x.id)===String(deckId)):null;
+    const d=deckId?this.collectionDecks().find(x=>String(x.id)===String(deckId)):null;
     const cfg=d?AnkiParity.filteredConfig(d):AnkiParity.filteredDefaults();
     document.getElementById('cards-filtered-id').value=d?d.id:'';
     document.getElementById('cards-filtered-name').value=d?d.nome:'Baralho filtrado';
@@ -34309,7 +34327,8 @@ const CardsScreen = {
     cfg.previewAgainSecs=Math.max(0,Number(document.getElementById('cards-filtered-again').value)||0);
     cfg.previewHardSecs=Math.max(0,Number(document.getElementById('cards-filtered-hard').value)||0);
     cfg.previewGoodSecs=Math.max(0,Number(document.getElementById('cards-filtered-good').value)||0);
-    const result=AnkiParity.saveFilteredDeck({id,nome,config:cfg,allowEmpty:true});
+    const result=id?this._noPlanoDoBaralho(id,()=>AnkiParity.saveFilteredDeck({id,nome,config:cfg,allowEmpty:true}))
+      :AnkiParity.saveFilteredDeck({id,nome,config:cfg,allowEmpty:true});
     if(!result||!result.ok){showToast('Não foi possível construir o baralho filtrado');return;}
     document.getElementById('cards-filtered-modal').style.display='none';
     this.populateFilterOptions();this.renderDeckList();this.irParaBaralho(result.deck.id,'revisar');
@@ -34886,9 +34905,10 @@ const CardsScreen = {
 };
 // Passo 1: escolher o ESCOPO (global ou um baralho específico) — como o Anki (presets por baralho)
 CardsScreen.openAlgoConfig = function () {
-  const decks = DB.getDecks();
+  const decks = CardsScreen.collectionDecks().slice()
+    .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }));
   const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
-    decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
+    decks.map(d => ({ value: d.id, label: '📁 ' + CardsScreen._rotuloBaralho(d, decks) + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
   );
   opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
   opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
@@ -36540,14 +36560,23 @@ AnkiParity.filteredDefaults=function(){
     delays:[],previewDelay:10,previewAgainSecs:60,previewHardSecs:600,previewGoodSecs:0
   };
 };
+// Card de outro planejamento (Cards em "Todos os planejamentos") aponta para
+// baralho que não está em DB.getDecks(); sem este fallback um baralho filtrado
+// de outro plano era tratado como normal (reagendamento/prévia errados).
+AnkiParity._findDeckAnyPlan=function(id){
+  if(id==null||id==='')return null;
+  const k=String(id),local=DB.getDecks().find(x=>String(x.id)===k);if(local)return local;
+  try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord){const r=StudyGlobalScope.deckRecord(k);if(r)return r.deck||null;}}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
+  return null;
+};
 AnkiParity.isFilteredDeck=function(deckOrId){
   const d=(deckOrId&&typeof deckOrId==='object')?deckOrId:
-    DB.getDecks().find(x=>String(x.id)===String(deckOrId));
+    this._findDeckAnyPlan(deckOrId);
   return !!(d&&(d.filtered===true||d.kind==='filtered'||d.filteredConfig));
 };
 AnkiParity.filteredConfig=function(deckOrId){
   const d=(deckOrId&&typeof deckOrId==='object')?deckOrId:
-    DB.getDecks().find(x=>String(x.id)===String(deckOrId));
+    this._findDeckAnyPlan(deckOrId);
   if(!this.isFilteredDeck(d))return null;
   const raw=d.filteredConfig||{},def=this.filteredDefaults();
   const terms=Array.isArray(raw.searchTerms)?raw.searchTerms:
@@ -40457,7 +40486,7 @@ const AnkiPractical10 = {
       row.style.setProperty('--deck-depth',String(m.depth));
       const count=row.querySelector('.deck-count');if(count){
         const planos=new Set(meta.map(x=>String(x.d._planId||''))).size;
-        count.textContent=(m.hasChildren?(m.direct+' direto · '+m.total+' total'):(m.direct+' card(s)'))+(planos>1&&m.d._planNome?' · '+m.d._planNome:'');
+        count.textContent=(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(m.d)?'🔎 ':'')+(m.hasChildren?(m.direct+' direto · '+m.total+' total'):(m.direct+' card(s)'))+(planos>1&&m.d._planNome?' · '+m.d._planNome:'');
         count.title=m.hasChildren?'Inclui cards dos subbaralhos':'Cards diretamente neste baralho';
       }
       if(!row.querySelector('.anki-deck-tree-toggle')){
@@ -60194,6 +60223,20 @@ else CloudStore.init();
   DB.saveDecksForPlan = (id, list) => DB._set(DB.keysForPlan(id).decks, (list || []).map(x => {
     const d=clone(x);if(d){delete d._planId;delete d._planNome;}return d;
   }));
+  /* Executa fn com DB.getCards/getDecks/saveCards/saveDecks apontando para o
+     planejamento pid. Operações que por natureza vivem dentro de UM plano
+     (baralho filtrado, estudo personalizado, excluir baralho filtrado) passam
+     a agir no plano dono do baralho, não no plano ativo. */
+  S.inPlan = function(pid, fn) {
+    if (!pid || String(pid) === String(S.activePlanId())) return fn();
+    const clean = x => { const y = clone(x); if (y) { delete y._planId; delete y._planNome; } return y; };
+    const prev = { getCards: DB.getCards, getDecks: DB.getDecks, saveCards: DB.saveCards, saveDecks: DB.saveDecks };
+    DB.getCards = () => S._rows(pid, 'cards'); DB.getDecks = () => S._rows(pid, 'decks');
+    DB.saveCards = list => DB._set(DB.keysForPlan(pid).cards, (list || []).map(clean));
+    DB.saveDecks = list => DB._set(DB.keysForPlan(pid).decks, (list || []).map(clean));
+    try { return fn(); } finally { Object.assign(DB, prev); }
+  };
+  S.planForDeck = function(id) { const r = S.deckRecord(id); return r ? r.planId : null; };
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');

@@ -85,7 +85,7 @@ const AnkiPractical10 = {
       row.style.setProperty('--deck-depth',String(m.depth));
       const count=row.querySelector('.deck-count');if(count){
         const planos=new Set(meta.map(x=>String(x.d._planId||''))).size;
-        count.textContent=(m.hasChildren?(m.direct+' direto · '+m.total+' total'):(m.direct+' card(s)'))+(planos>1&&m.d._planNome?' · '+m.d._planNome:'');
+        count.textContent=(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(m.d)?'🔎 ':'')+(m.hasChildren?(m.direct+' direto · '+m.total+' total'):(m.direct+' card(s)'))+(planos>1&&m.d._planNome?' · '+m.d._planNome:'');
         count.title=m.hasChildren?'Inclui cards dos subbaralhos':'Cards diretamente neste baralho';
       }
       if(!row.querySelector('.anki-deck-tree-toggle')){
