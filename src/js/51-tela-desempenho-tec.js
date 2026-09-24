@@ -592,9 +592,12 @@ const DesempenhoTecScreen = {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const abrir = painel.hasAttribute('hidden');
-      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
-      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b2 => { if (b2 !== btn) b2.setAttribute('aria-expanded', 'false'); });
-      if (abrir) { painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p2 => { if (p2 !== painel) p2.setAttribute('hidden', ''); });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b2 => { if (b2 !== btn) b2.setAttribute('aria-expanded', 'false'); });
+      if (abrir) {
+        painel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+        if (window.AnchoredListViewport) AnchoredListViewport.schedule();
+      }
       else { painel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
     });
     painel.addEventListener('click', (e) => e.stopPropagation());
@@ -1317,7 +1320,14 @@ const DesempenhoTecScreen = {
     const search = wrap.querySelector('input[type="search"]');
     const list = wrap.querySelector('.ms-disc-filter-list');
     const abrir = () => {
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p => {
+        if (p !== panel) p.setAttribute('hidden', '');
+      });
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b => {
+        if (b !== btn) b.setAttribute('aria-expanded', 'false');
+      });
       panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+      if (window.AnchoredListViewport) AnchoredListViewport.schedule();
       if (search) search.focus({ preventScroll: true });
     };
     const fechar = () => { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); };
@@ -2284,13 +2294,17 @@ const DesempenhoTecScreen = {
     btn.onclick = (e) => {
       e.stopPropagation();
       const abrir = panel.hasAttribute('hidden');
-      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => {
+      document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p => {
         if (p !== panel) p.setAttribute('hidden', '');
       });
-      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => {
+      document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b => {
         if (b !== btn) b.setAttribute('aria-expanded', 'false');
       });
-      if (abrir) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); if (search) search.focus({ preventScroll: true }); }
+      if (abrir) {
+        panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true');
+        if (window.AnchoredListViewport) AnchoredListViewport.schedule();
+        if (search) search.focus({ preventScroll: true });
+      }
       else { panel.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
     };
     panel.onclick = e => e.stopPropagation();
@@ -2393,8 +2407,8 @@ const DesempenhoTecScreen = {
 
 // Um toque fora fecha os seletores flutuantes sem reconstruí-los.
 document.addEventListener('click', () => {
-  document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel').forEach(p => p.setAttribute('hidden', ''));
-  document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  document.querySelectorAll('.banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel').forEach(p => p.setAttribute('hidden', ''));
+  document.querySelectorAll('.banca-pick-btn,.tec-disc-pick-btn,.ms-disc-filter-btn').forEach(b => b.setAttribute('aria-expanded', 'false'));
 });
 
 // Listeners da tela Desempenho TEC
