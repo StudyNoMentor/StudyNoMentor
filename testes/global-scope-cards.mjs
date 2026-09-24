@@ -180,9 +180,10 @@ assert.equal(parse(keysForPlan('A').savedGrades,[]).length,2,'grade copiada deve
 assert.deepEqual(parse(keysForPlan('A').savedGrades,[])[1].grade,{Segunda:['B']},'estrutura da grade deve ser clonada');
 
 assert.deepEqual(Array.from(ctx.DB.getAllLinksTagged(),x=>x.id),['kA','kB'],'links devem ser globais no perfil');
-const linkEditado=ctx.DB.updateLink('kB',{nome:'Link B editado'});
+const linkEditado=ctx.DB.updateLink('kB',{nome:'Link B editado',url:'javascript:alert(1)'});
 assert.ok(linkEditado && linkEditado._planId==='B','edição global do link deve preservar a origem física');
 assert.equal(parse(keysForPlan('B').links,[])[0].nome,'Link B editado','edição do link global deve voltar ao planejamento de origem');
+assert.notEqual(parse(keysForPlan('B').links,[])[0].url,'javascript:alert(1)','edição global não pode contornar a sanitização de URL');
 assert.equal(parse(keysForPlan('A').links,[])[0].nome,'Link A','edição global não pode clonar nem alterar outro link');
 
 assert.deepEqual(Array.from(ctx.DB.getAllTecSnapshotsTagged(),x=>x.id),[1,2],'consulta consolidada do TEC deve continuar disponível');
