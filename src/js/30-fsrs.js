@@ -114,8 +114,8 @@ const FSRS = {
      e mais devagar quando já é grande — antes, repetir um card maduro no mesmo
      dia inflava S tanto quanto repetir um card novo, o que era irreal.
 
-     A trava SInc >= 1 para G >= 3 é exigida pela especificação: Bom e Fácil
-     nunca podem DIMINUIR a estabilidade. Só Errei e Difícil podem. */
+     A trava SInc >= 1 vale para G >= 2, como no Anki 26.09.2: Difícil, Bom e
+     Fácil nunca podem DIMINUIR a estabilidade. Só Errei pode. */
   nextS_short(S, G, w) {
     // ATENÇÃO: S entra CRU na fórmula. Limitá-lo antes (eu limitava a 0.01)
     // distorcia cards de estabilidade muito baixa — justo os que estão em
@@ -124,10 +124,11 @@ const FSRS = {
     const S0 = this._S(S);
     const w17 = w[17], w18 = w[18], w19 = (w.length > 19 && isFinite(w[19])) ? w[19] : 0;
     let sInc = Math.exp(w17 * (G - 3 + w18)) * Math.pow(S0, -w19);
-    // fsrs-rs 6.6.2 (a versão fixada pelo Anki 26.09.2) aplica
-    // a trava apenas a Good/Easy. Hard pode reduzir a estabilidade no curto
-    // prazo; impedir isso cria divergência objetiva contra o backend oficial.
-    if (G >= 3) sInc = Math.max(1, sInc);
+    // Trava: Difícil, Bom e Fácil (G >= 2) não podem REDUZIR a estabilidade.
+    // Conferido no backend oficial (anki==26.09.2, get_scheduling_states): no
+    // mesmo dia, "Difícil" devolve S inalterado (0,5 -> 0,5; 30 -> 30). Com
+    // G >= 3 o app reduzia S e divergia do Anki em todo "Difícil" intradiário.
+    if (G >= 2) sInc = Math.max(1, sInc);
     return this.clampS(S0 * sInc);
   },
 
