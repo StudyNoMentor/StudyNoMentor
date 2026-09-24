@@ -451,7 +451,7 @@ const AnkiProductParity = {
 
   deleteNotes(ids){
     if(!ids.length)return;UI.confirm('Excluir '+ids.length+' nota(s) e todos os seus cards/históricos? Não há como desfazer.',{title:'🗑 Excluir notas',okText:'Excluir',danger:true}).then(ok=>{
-      if(!ok)return;ids.forEach(id=>{const cards=this._cardsForNote(id);cards.forEach(c=>DB.deleteNoteByCard(c.id));try{localStorage.removeItem(AnkiParity._entityKey('note',id));}catch(_){};});
+      if(!ok)return;ids.forEach(id=>{const cards=this._cardsForNote(id);cards.forEach(c=>DB.deleteNoteByCard(c.id));try{localStorage.removeItem(AnkiParity._entityKey('note',id));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-product-parity'); };});
       this.browser.selected.clear();this.renderBrowser();CardsScreen.render();showToast('Notas excluídas');
     });
   },
@@ -663,7 +663,7 @@ const AnkiProductParity = {
         const cfg=CardsConfig.forDeck(c.deckId);
         parts=CardsScreen._flipped?(cfg.skipQuestionWhenReplayingAnswer?[answerOnly]:[q,answerOnly]):[q];
       }
-    }catch(_){}
+    }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-product-parity'); }
     if(!parts.length)parts=[this._visibleCardHtml(c)];
     if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.playMarkupQueue){
       const ok=await AnkiRuntime.playMarkupQueue(parts);

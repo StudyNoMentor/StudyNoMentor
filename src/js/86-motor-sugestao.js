@@ -560,7 +560,7 @@
         if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
           return { erro: 'plano-pausado', fase: p.fase, prefs: p, itens: [], todos: [], disciplinas: [], disciplinasTodas: [], disciplinasDisponiveis: [] };
         }
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '86-motor-sugestao'); }
 
       const retratoOverride = opts && opts.retrato ? opts.retrato : null;
       delete p.retrato;

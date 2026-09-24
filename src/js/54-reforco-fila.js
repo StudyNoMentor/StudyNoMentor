@@ -190,7 +190,7 @@ const ReforcoFila = {
       if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
         return { mudou: false, pausado: true };
       }
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '54-reforco-fila'); }
     if (this._rodando) return { mudou: false };
     this._rodando = true;
     let mudou = false;

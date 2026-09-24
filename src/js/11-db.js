@@ -167,7 +167,7 @@ const DB = {
     const pid = String((opts && opts.planId) || this._activePlanId());
     const key = this.planSettingKey(name, pid);
     let raw = null;
-    try { raw = localStorage.getItem(key); } catch (_) {}
+    try { raw = localStorage.getItem(key); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '11-db'); }
     if (raw !== null) return { key, raw, migrated: false };
 
     const legacyKey = this._profilePrefix() + String(name || '');
@@ -176,12 +176,12 @@ const DB = {
     try { owners = JSON.parse(localStorage.getItem(ownerKey) || '{}') || {}; } catch (_) { owners = {}; }
     let owner = owners[name] || null;
     let legacy = null;
-    try { legacy = localStorage.getItem(legacyKey); } catch (_) {}
+    try { legacy = localStorage.getItem(legacyKey); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '11-db'); }
 
     if (!owner && legacy !== null) {
       owner = pid;
       owners[name] = pid;
-      try { this.setRaw(ownerKey, JSON.stringify(owners)); } catch (_) {}
+      try { this.setRaw(ownerKey, JSON.stringify(owners)); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '11-db'); }
     }
     if (legacy !== null && String(owner || '') === pid) {
       if (this.setRaw(key, legacy) !== false) return { key, raw: legacy, migrated: true };
@@ -261,7 +261,7 @@ const DB = {
     const now = Date.now();
     if (this._lastPausedWriteWarn && now - this._lastPausedWriteWarn < 2000) return;
     this._lastPausedWriteWarn = now;
-    try { showToast('⏸ Planejamento pausado — dados operacionais estão somente leitura.'); } catch (_) {}
+    try { showToast('⏸ Planejamento pausado — dados operacionais estão somente leitura.'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '11-db'); }
   },
 
   _get(key, fallback) {

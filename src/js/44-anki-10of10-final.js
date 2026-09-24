@@ -83,7 +83,7 @@ const AnkiFinalParity = {
   },
   _readBindings(){
     if(this._customBindings)return this._customBindings;
-    let raw={};try{raw=JSON.parse(localStorage.getItem(this._bindingsKey())||'{}')||{};}catch(_){}
+    let raw={};try{raw=JSON.parse(localStorage.getItem(this._bindingsKey())||'{}')||{};}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-10of10-final'); }
     const out={};
     this.ACTIONS.forEach(a=>{const v=this._normalizeShortcut(raw[a.id]);if(v)out[a.id]=v;});
     this._customBindings=out;return out;

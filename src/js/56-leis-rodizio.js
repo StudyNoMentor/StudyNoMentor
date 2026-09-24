@@ -175,7 +175,7 @@
         if (typeof PlanManager !== 'undefined' && PlanManager.isActivePlanPaused && PlanManager.isActivePlanPaused()) {
           return { mudou: false, criadas: 0, pausado: true };
         }
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '56-leis-rodizio'); }
       const p = this.prefs(), hoje = todayLocal();
       if (!p.ativo || !this._diaPermitido(hoje, p)) return { mudou: false, criadas: 0 };
       let extras = DB.getExtras();

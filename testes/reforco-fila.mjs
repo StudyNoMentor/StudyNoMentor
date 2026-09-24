@@ -10,6 +10,8 @@ const localStorage = { getItem(k) { return prefMem.has(k) ? prefMem.get(k) : nul
 const DB = {
   _data: data,
   _profilePrefix() { return 'p:'; },
+  _activePlanId() { return 'plano-teste'; },
+  planSettingKey(nome) { return this._profilePrefix() + 'p:' + this._activePlanId() + ':' + nome; },
   setRaw(k, v) { localStorage.setItem(k, v); },
   getExtras() { return this._data; },
   getTecSnapshots() { return tecSnaps; },

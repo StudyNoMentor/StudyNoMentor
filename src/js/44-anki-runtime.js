@@ -9,7 +9,7 @@ const AnkiRuntime = {
   _avActive:new Set(),
   isAvPlaying(){return this._avActive.size>0;},
   _frameById(id){return [...document.querySelectorAll('iframe[data-anki-frame-id]')].find(f=>f.dataset.ankiFrameId===String(id))||null;},
-  _postFrame(frame,msg){try{if(frame&&frame.contentWindow)frame.contentWindow.postMessage(msg,'*');}catch(_){}},
+  _postFrame(frame,msg){try{if(frame&&frame.contentWindow)frame.contentWindow.postMessage(msg,'*');}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}},
   replayVisible(includeQuestion){
     const frames=[...document.querySelectorAll('iframe[data-anki-frame-id]')];
     const answer=frames.find(f=>/-answer$/.test(f.dataset.ankiFrameId||'')),question=frames.find(f=>/-question$/.test(f.dataset.ankiFrameId||''));
@@ -20,11 +20,11 @@ const AnkiRuntime = {
   _parentAvToken:0,_parentAudio:null,_parentUtterance:null,
   _setParentAv(active){
     if(active)this._avActive.add('__parent');else this._avActive.delete('__parent');
-    if(!this._avActive.size)try{if(typeof CardsScreen!=='undefined'&&CardsScreen._resumeAutoAdvanceIfReady)CardsScreen._resumeAutoAdvanceIfReady();}catch(_){}
+    if(!this._avActive.size)try{if(typeof CardsScreen!=='undefined'&&CardsScreen._resumeAutoAdvanceIfReady)CardsScreen._resumeAutoAdvanceIfReady();}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
   },
   stopParentAv(){
-    this._parentAvToken++;try{if(this._parentAudio){this._parentAudio.pause();this._parentAudio=null;}}catch(_){}
-    try{if(typeof speechSynthesis!=='undefined')speechSynthesis.cancel();}catch(_){}
+    this._parentAvToken++;try{if(this._parentAudio){this._parentAudio.pause();this._parentAudio=null;}}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
+    try{if(typeof speechSynthesis!=='undefined')speechSynthesis.cancel();}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
     this._parentUtterance=null;this._setParentAv(false);
   },
   _collectMarkupAv(html){
@@ -53,7 +53,7 @@ const AnkiRuntime = {
     return new Promise(resolve=>{
       if(token!==this._parentAvToken||typeof Audio==='undefined')return resolve();
       let a;try{a=new Audio(item.src);}catch(_){return resolve();}this._parentAudio=a;
-      const done=()=>{try{a.removeEventListener('ended',done);a.removeEventListener('error',done);a.removeEventListener('abort',done);}catch(_){}if(this._parentAudio===a)this._parentAudio=null;resolve();};
+      const done=()=>{try{a.removeEventListener('ended',done);a.removeEventListener('error',done);a.removeEventListener('abort',done);}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}if(this._parentAudio===a)this._parentAudio=null;resolve();};
       a.addEventListener('ended',done,{once:true});a.addEventListener('error',done,{once:true});a.addEventListener('abort',done,{once:true});
       try{const p=a.play();if(p&&p.catch)p.catch(done);}catch(_){done();}
     });
@@ -65,10 +65,10 @@ const AnkiRuntime = {
     if(token===this._parentAvToken)this._setParentAv(false);return true;
   },
   pauseAv(){
-    this.controlVisible('snm-anki-pause');try{if(this._parentAudio)this._parentAudio.paused?this._parentAudio.play():this._parentAudio.pause();else if(typeof speechSynthesis!=='undefined')speechSynthesis.paused?speechSynthesis.resume():speechSynthesis.pause();}catch(_){}
+    this.controlVisible('snm-anki-pause');try{if(this._parentAudio)this._parentAudio.paused?this._parentAudio.play():this._parentAudio.pause();else if(typeof speechSynthesis!=='undefined')speechSynthesis.paused?speechSynthesis.resume():speechSynthesis.pause();}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
   },
   seekAv(seconds){
-    this.controlVisible('snm-anki-seek',Number(seconds)||0);try{if(this._parentAudio)this._parentAudio.currentTime=Math.max(0,(this._parentAudio.currentTime||0)+(Number(seconds)||0));}catch(_){}
+    this.controlVisible('snm-anki-seek',Number(seconds)||0);try{if(this._parentAudio)this._parentAudio.currentTime=Math.max(0,(this._parentAudio.currentTime||0)+(Number(seconds)||0));}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
   },
   _cardKey(card){return String(card&&(card.ankiId||card.id)||'');},
   clearTyped(card){
@@ -205,7 +205,7 @@ const AnkiRuntime = {
     if(typeof document==='undefined'||!document.querySelectorAll)return;
     const dark=this._darkTheme();
     for(const frame of document.querySelectorAll('iframe[data-anki-frame-id]')){
-      try{if(frame.contentWindow)frame.contentWindow.postMessage({type:'snm-anki-theme',dark},'*');}catch(_){}
+      try{if(frame.contentWindow)frame.contentWindow.postMessage({type:'snm-anki-theme',dark},'*');}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
     }
   },
   buildSrcdoc(nt, html, side, card, note, options) {
@@ -229,19 +229,19 @@ const AnkiRuntime = {
     const autoPlay=!(options&&options.disableAutoplay);
     const bootstrap='<script>(function(){'+
       'const FRAME_ID='+JSON.stringify(frameId)+';const AUTO_PLAY='+JSON.stringify(autoPlay)+';'+
-      'function applyTheme(dark){try{document.documentElement.classList.toggle("nightMode",!!dark);if(document.body)document.body.classList.toggle("nightMode",!!dark);}catch(_){}}'+
-      'function resize(){try{const h=Math.max(document.documentElement.scrollHeight||0,document.body&&document.body.scrollHeight||0,80);parent.postMessage({type:"snm-anki-frame-height",id:FRAME_ID,height:h},"*");}catch(_){}}'+
+      'function applyTheme(dark){try{document.documentElement.classList.toggle("nightMode",!!dark);if(document.body)document.body.classList.toggle("nightMode",!!dark);}catch(_){/* iframe isolado: sem _quiet */}}'+
+      'function resize(){try{const h=Math.max(document.documentElement.scrollHeight||0,document.body&&document.body.scrollHeight||0,80);parent.postMessage({type:"snm-anki-frame-height",id:FRAME_ID,height:h},"*");}catch(_){/* iframe isolado: sem _quiet */}}'+
       'function voiceFor(spec){const m=String(spec||"").match(/voices=([^\\s]+)/i);if(!m||!window.speechSynthesis)return null;const wanted=m[1].split(",").map(x=>x.trim().toLowerCase());return speechSynthesis.getVoices().find(v=>wanted.includes(String(v.name||"").toLowerCase()))||null;}'+
-      'let AV_TOKEN=0,CURRENT_MEDIA=null;function avState(active){try{parent.postMessage({type:"snm-anki-av-state",id:FRAME_ID,active:!!active},"*");}catch(_){}}'+
-      'function stopAv(){AV_TOKEN++;try{if(window.speechSynthesis)speechSynthesis.cancel();}catch(_){};try{if(CURRENT_MEDIA){CURRENT_MEDIA.pause();CURRENT_MEDIA=null;}}catch(_){}avState(false);}'+
+      'let AV_TOKEN=0,CURRENT_MEDIA=null;function avState(active){try{parent.postMessage({type:"snm-anki-av-state",id:FRAME_ID,active:!!active},"*");}catch(_){/* iframe isolado: sem _quiet */}}'+
+      'function stopAv(){AV_TOKEN++;try{if(window.speechSynthesis)speechSynthesis.cancel();}catch(_){/* iframe isolado: sem _quiet */};try{if(CURRENT_MEDIA){CURRENT_MEDIA.pause();CURRENT_MEDIA=null;}}catch(_){/* iframe isolado: sem _quiet */}avState(false);}'+
       'function ttsPromise(el,token){return new Promise(resolve=>{if(token!==AV_TOKEN||!window.speechSynthesis||!window.SpeechSynthesisUtterance)return resolve();const spec=el.getAttribute("data-anki-tts")||"";const u=new SpeechSynthesisUtterance(el.textContent||"");const lm=spec.match(/(?:^|\\s)lang=([^\\s]+)/i);if(lm)u.lang=lm[1];const v=voiceFor(spec);if(v)u.voice=v;u.onend=u.onerror=()=>resolve();try{speechSynthesis.speak(u);}catch(_){resolve();}});}'+
-      'function mediaPromise(el,token){return new Promise(resolve=>{if(token!==AV_TOKEN||!el||!el.play)return resolve();CURRENT_MEDIA=el;try{el.currentTime=0;}catch(_){}const done=()=>{el.removeEventListener("ended",done);el.removeEventListener("error",done);el.removeEventListener("abort",done);if(CURRENT_MEDIA===el)CURRENT_MEDIA=null;resolve();};el.addEventListener("ended",done,{once:true});el.addEventListener("error",done,{once:true});el.addEventListener("abort",done,{once:true});try{const p=el.play();if(p&&p.catch)p.catch(done);}catch(_){done();}});}'+
+      'function mediaPromise(el,token){return new Promise(resolve=>{if(token!==AV_TOKEN||!el||!el.play)return resolve();CURRENT_MEDIA=el;try{el.currentTime=0;}catch(_){/* iframe isolado: sem _quiet */}const done=()=>{el.removeEventListener("ended",done);el.removeEventListener("error",done);el.removeEventListener("abort",done);if(CURRENT_MEDIA===el)CURRENT_MEDIA=null;resolve();};el.addEventListener("ended",done,{once:true});el.addEventListener("error",done,{once:true});el.addEventListener("abort",done,{once:true});try{const p=el.play();if(p&&p.catch)p.catch(done);}catch(_){done();}});}'+
       'function avNodes(){return [...document.querySelectorAll("[data-anki-tts],audio,video")];}'+
       'async function playQueue(nodes){stopAv();const token=++AV_TOKEN;if(!nodes.length)return;avState(true);for(const el of nodes){if(token!==AV_TOKEN)break;if(el.matches&&el.matches("[data-anki-tts]"))await ttsPromise(el,token);else await mediaPromise(el,token);}if(token===AV_TOKEN)avState(false);}'+
       'function replay(){playQueue(avNodes());}'+
       'function initAv(){for(const el of document.querySelectorAll("[data-anki-tts]"))el.addEventListener("click",()=>playQueue([el]));if(AUTO_PLAY)setTimeout(replay,0);}'+
-      'function initType(){for(const el of document.querySelectorAll("[data-anki-type-key]")){const send=()=>parent.postMessage({type:"snm-anki-typed",id:FRAME_ID,key:el.dataset.ankiTypeKey,field:el.dataset.ankiTypeField,value:el.value},"*");el.addEventListener("input",send);el.addEventListener("change",send);el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();send();parent.postMessage({type:"snm-anki-show-answer",id:FRAME_ID,key:el.dataset.ankiTypeKey},"*");}});}}'+      'window.pycmd=function(cmd,cb){try{parent.postMessage({type:"snm-anki-pycmd",id:FRAME_ID,cmd:String(cmd||"")},"*");if(typeof cb==="function")cb(null);}catch(_){}return false;};window.bridgeCommand=window.pycmd;'+
-      'addEventListener("message",e=>{const d=e.data||{};if(d.type==="snm-anki-theme")applyTheme(d.dark);else if(d.type==="snm-anki-replay")replay();else if(d.type==="snm-anki-pause"){try{if(CURRENT_MEDIA){CURRENT_MEDIA.paused?CURRENT_MEDIA.play():CURRENT_MEDIA.pause();}else if(window.speechSynthesis){speechSynthesis.paused?speechSynthesis.resume():speechSynthesis.pause();}}catch(_){}}else if(d.type==="snm-anki-seek"){try{if(CURRENT_MEDIA)CURRENT_MEDIA.currentTime=Math.max(0,(CURRENT_MEDIA.currentTime||0)+Number(d.value||0));}catch(_){}}});'+
+      'function initType(){for(const el of document.querySelectorAll("[data-anki-type-key]")){const send=()=>parent.postMessage({type:"snm-anki-typed",id:FRAME_ID,key:el.dataset.ankiTypeKey,field:el.dataset.ankiTypeField,value:el.value},"*");el.addEventListener("input",send);el.addEventListener("change",send);el.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();send();parent.postMessage({type:"snm-anki-show-answer",id:FRAME_ID,key:el.dataset.ankiTypeKey},"*");}});}}'+      'window.pycmd=function(cmd,cb){try{parent.postMessage({type:"snm-anki-pycmd",id:FRAME_ID,cmd:String(cmd||"")},"*");if(typeof cb==="function")cb(null);}catch(_){/* iframe isolado: sem _quiet */}return false;};window.bridgeCommand=window.pycmd;'+
+      'addEventListener("message",e=>{const d=e.data||{};if(d.type==="snm-anki-theme")applyTheme(d.dark);else if(d.type==="snm-anki-replay")replay();else if(d.type==="snm-anki-pause"){try{if(CURRENT_MEDIA){CURRENT_MEDIA.paused?CURRENT_MEDIA.play():CURRENT_MEDIA.pause();}else if(window.speechSynthesis){speechSynthesis.paused?speechSynthesis.resume():speechSynthesis.pause();}}catch(_){/* iframe isolado: sem _quiet */}}else if(d.type==="snm-anki-seek"){try{if(CURRENT_MEDIA)CURRENT_MEDIA.currentTime=Math.max(0,(CURRENT_MEDIA.currentTime||0)+Number(d.value||0));}catch(_){/* iframe isolado: sem _quiet */}}});'+
       'addEventListener("load",()=>{initAv();initType();resize();setTimeout(resize,100);setTimeout(resize,500);});addEventListener("beforeunload",stopAv);addEventListener("resize",resize);if(window.ResizeObserver)new ResizeObserver(resize).observe(document.documentElement);new MutationObserver(resize).observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});})();<\/script>';
     const csp="default-src data: blob: https:; img-src data: blob: https:; media-src data: blob: https:; font-src data: blob: https:; style-src 'unsafe-inline' data: blob: https:; script-src 'unsafe-inline' data: blob: https:; connect-src https:; frame-src data: blob: https:";
     return '<!doctype html><html class="'+(dark?'nightMode':'')+'"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'+
@@ -274,7 +274,7 @@ const AnkiRuntime = {
       }catch(_){return false;}
     }
     if(cmd==='repaintNeeded'||cmd==='updateToolbar'||cmd==='statesMutated')return true;
-    try{if(globalThis.AnkiStudyExtensions)globalThis.AnkiStudyExtensions.emit('pycmd',{cmd,cardId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null});}catch(_){}
+    try{if(globalThis.AnkiStudyExtensions)globalThis.AnkiStudyExtensions.emit('pycmd',{cmd,cardId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null});}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
     return false;
   },
   async _playSingleParentItem(item){
@@ -284,7 +284,7 @@ const AnkiRuntime = {
   },
   init() {
     if(typeof window==='undefined'||!window.addEventListener)return;
-    window.addEventListener('message',(ev)=>{const d=ev&&ev.data;if(!d||!d.id)return;const frames=document.querySelectorAll('iframe[data-anki-frame-id]');let trusted=false,frame=null;for(const f of frames){if(f.contentWindow===ev.source&&f.dataset.ankiFrameId===String(d.id)){trusted=true;frame=f;break;}}if(!trusted)return;if(d.type==='snm-anki-frame-height'){const h=Math.max(80,Math.min(12000,Number(d.height)||0));if(h&&frame)frame.style.height=h+'px';}else if(d.type==='snm-anki-typed'&&d.key&&d.field){this._typedAnswers.set(String(d.key)+'|'+String(d.field),String(d.value||''));}else if(d.type==='snm-anki-show-answer'){try{if(typeof CardsScreen!=='undefined'&&!CardsScreen._flipped)CardsScreen.flip(document.getElementById('cards-content'));}catch(_){}}else if(d.type==='snm-anki-av-state'){if(d.active)this._avActive.add(String(d.id));else this._avActive.delete(String(d.id));if(!this._avActive.size)try{if(typeof CardsScreen!=='undefined'&&CardsScreen._resumeAutoAdvanceIfReady)CardsScreen._resumeAutoAdvanceIfReady();}catch(_){}}else if(d.type==='snm-anki-pycmd'){this._handlePycmd(String(d.cmd||''),frame);}});
+    window.addEventListener('message',(ev)=>{const d=ev&&ev.data;if(!d||!d.id)return;const frames=document.querySelectorAll('iframe[data-anki-frame-id]');let trusted=false,frame=null;for(const f of frames){if(f.contentWindow===ev.source&&f.dataset.ankiFrameId===String(d.id)){trusted=true;frame=f;break;}}if(!trusted)return;if(d.type==='snm-anki-frame-height'){const h=Math.max(80,Math.min(12000,Number(d.height)||0));if(h&&frame)frame.style.height=h+'px';}else if(d.type==='snm-anki-typed'&&d.key&&d.field){this._typedAnswers.set(String(d.key)+'|'+String(d.field),String(d.value||''));}else if(d.type==='snm-anki-show-answer'){try{if(typeof CardsScreen!=='undefined'&&!CardsScreen._flipped)CardsScreen.flip(document.getElementById('cards-content'));}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}}else if(d.type==='snm-anki-av-state'){if(d.active)this._avActive.add(String(d.id));else this._avActive.delete(String(d.id));if(!this._avActive.size)try{if(typeof CardsScreen!=='undefined'&&CardsScreen._resumeAutoAdvanceIfReady)CardsScreen._resumeAutoAdvanceIfReady();}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}}else if(d.type==='snm-anki-pycmd'){this._handlePycmd(String(d.cmd||''),frame);}});
     if(typeof document!=='undefined'&&document.documentElement&&typeof MutationObserver!=='undefined'){
       const observer=new MutationObserver(()=>this._syncThemeToFrames());
       observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
@@ -292,4 +292,4 @@ const AnkiRuntime = {
   }
 };
 AnkiRuntime.init();
-try{globalThis.AnkiRuntime=AnkiRuntime;}catch(_){}
+try{globalThis.AnkiRuntime=AnkiRuntime;}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}

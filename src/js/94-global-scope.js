@@ -48,7 +48,7 @@
     },
     prefs() {
       let p = null;
-      try { p = JSON.parse(localStorage.getItem(this._key()) || 'null'); } catch (_) {}
+      try { p = JSON.parse(localStorage.getItem(this._key()) || 'null'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       p = Object.assign({}, this.defaults, p && typeof p === 'object' ? p : {});
       p.cardsScope = p.cardsScope === 'plan' ? 'plan' : 'all';
       if (!Array.isArray(p.cardsBancas)) p.cardsBancas = [];
@@ -188,9 +188,9 @@
           try {
             const v = JSON.parse(localStorage.getItem(k) || 'null');
             if (v && typeof v === 'object') out.push(Object.assign({}, v, { _planId: planId, _planNome: this.planName(planId) }));
-          } catch (_) {}
+          } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
         }
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       return out;
     },
     ankiEntities(kind, scope) {
@@ -218,13 +218,13 @@
         for (let i = 0; i < localStorage.length; i++) {
           const k = localStorage.key(i); if (k && String(k).startsWith(prefix)) rows.push([k, localStorage.getItem(k)]);
         }
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       return rows;
     },
 
     bankCatalog() {
       let saved = null;
-      try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) {}
+      try { saved = JSON.parse(localStorage.getItem(this._banksKey()) || 'null'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       const hadSaved = Array.isArray(saved);
       const all = hadSaved ? saved.slice() : [];
       (DB.DEFAULT_BANCAS_CARDS || []).forEach(x => all.push(x));
@@ -345,11 +345,11 @@
           key, profileId: ctx.profileId, planId: ctx.planId,
           row: clone(row), createdAt: Date.now()
         }).catch(e => { if (typeof _quiet === 'function') _quiet(e, 'global-review-journal-delete'); });
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       try {
         if (DB._bancoRelacionalPronto && DB._bancoRelacionalPronto() && window.RelationalStore && RelationalStore.queueRevlogDelete)
           RelationalStore.queueRevlogDelete(key, row);
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       const keys = DB.keysForPlan(planId), pend = DB._get(keys.revlogPendente, []);
       const target = DB._chaveRevisao(row), arr = Array.isArray(pend) ? pend : [];
       const pi = arr.map(r => DB._chaveRevisao(r)).lastIndexOf(target);
@@ -401,7 +401,7 @@
           d.usage=(d.usage||[]).filter(x=>!targetIds.has(String(x&&x.id)));
         }
         CardsConfig._saveDaily(d);
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
       return out;
     },
     cleanOrphanRevlog(scope) {
@@ -428,7 +428,7 @@
       const current = Number(decks.current_deck_id || 0);
       if (!banks.length) {
         if (st.filteredDeckId) {
-          try { await AnkiOfficial.request('/api/anki/filtered-deck/' + Number(st.filteredDeckId) + '/empty', { method: 'POST' }); } catch (_) {}
+          try { await AnkiOfficial.request('/api/anki/filtered-deck/' + Number(st.filteredDeckId) + '/empty', { method: 'POST' }); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
           const back = Number(st.previousDeckId || 0);
           if (back && back !== Number(st.filteredDeckId)) {
             try {
@@ -436,7 +436,7 @@
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ deck_id: back })
               });
-            } catch (_) {}
+            } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
           }
         }
         this._saveAnkiState({ filteredDeckId: st.filteredDeckId || null, previousDeckId: null });
@@ -758,7 +758,7 @@
     return out;
   };
   DB.getAllTecSnapshotsTagged = (opts) => {
-    try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) {}
+    try { if (DB._kickRelationalHeavy) DB._kickRelationalHeavy('db-tec-global'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
     const rows = (opts && opts.includePaused) ? S.allBy('tec') : S.operationalAllBy('tec');
     return rows.map(s => {
       const x = Object.assign({}, s);
@@ -938,7 +938,7 @@
     const r = S.findCardRecord(id); if (!r) return;
     DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(id)));
     S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => String(x.cardId) !== String(id)));
-    try { CardsConfig.forgetCardId(id); } catch (_) {}
+    try { CardsConfig.forgetCardId(id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
   };
   DB.deleteNoteByCard = function(id) {
     if (O.getCard(id)) return O.deleteNoteByCard(id);
@@ -947,7 +947,7 @@
     const ids = new Set(r.list.filter(c => String(c.noteId || c.id) === nid).map(c => String(c.id)));
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => !ids.has(String(c.id)))) === false) return false;
     S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => !ids.has(String(x.cardId))));
-    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (_) {}
+    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
     return ids.size;
   };
 
@@ -986,7 +986,7 @@
       cardAfter: after, cardPosition: Number(cardPosition)||1, createdAt: Date.now()
     };
     let journaled = false;
-    try { journaled = await ReviewJournal.put(op); } catch (_) {}
+    try { journaled = await ReviewJournal.put(op); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
     if (!journaled && S._savePending(pid, row) === false) {
       const i = l.findIndex(x => x && x.reviewId === row.reviewId); if (i >= 0) l.splice(i,1);
       return false;
@@ -998,7 +998,7 @@
     if (!pid || String(pid) === String(S.activePlanId())) return O.cancelarRevlogDurable(row);
     const l = S._revlogForPlan(pid), i = l.findIndex(x => x && x.reviewId === row.reviewId);
     if (i >= 0) l.splice(i,1);
-    try { await ReviewJournal.remove(String(row.reviewId)+':append'); } catch (_) {}
+    try { await ReviewJournal.remove(String(row.reviewId)+':append'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
     S.confirmReview(pid,row.reviewId); return true;
   };
   DB.removeRevlog = function(ts) {

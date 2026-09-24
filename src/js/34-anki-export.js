@@ -253,7 +253,7 @@ const AnkiExport = {
     return new Date(a[0], a[1] - 1, a[2]).getTime();
   },
   _collectionEpoch(cards) {
-    try { const crt = CardsConfig.get().ankiCrt; if (crt) return crt; } catch (e) { _quiet(e, 'anki-crt'); }
+    try { const crt = CardsConfig.get().ankiCrt; if (crt) return crt; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'anki-crt'); }
     let min = Date.now();
     for (const c of cards || []) for (const v of [c.createdAt, c.due, c.originalDue]) {
       const ms = this._dayMs(v); if (Number.isFinite(ms)) min = Math.min(min, ms);
@@ -612,7 +612,7 @@ const AnkiExport = {
     dc.free();
 
     // Schema 14 normalizou as preferências de col.conf em registros JSON.
-    let conf={};try{const row=db.exec('select conf from col where id=1');conf=JSON.parse(row[0]&&row[0].values[0]&&row[0].values[0][0]||'{}')||{};}catch(_){}
+    let conf={};try{const row=db.exec('select conf from col where id=1');conf=JSON.parse(row[0]&&row[0].values[0]&&row[0].values[0][0]||'{}')||{};}catch(_){ if (typeof _quiet === 'function') _quiet(_, '34-anki-export'); }
     const cf=db.prepare('INSERT OR REPLACE INTO config VALUES (?,?,?,?)');
     for(const [k,v] of Object.entries(conf))cf.run([k,0,0,this._enc.encode(JSON.stringify(v))]);
     cf.free();
@@ -623,7 +623,7 @@ const AnkiExport = {
     try{
       const rows=db.exec('select tags from notes');
       for(const row of (rows[0]&&rows[0].values||[]))for(const t of String(row[0]||'').trim().split(/\s+/))if(t)allTags.add(t);
-    }catch(_){}
+    }catch(_){ if (typeof _quiet === 'function') _quiet(_, '34-anki-export'); }
     const ts=db.prepare('INSERT OR IGNORE INTO tags VALUES (?,?)');
     for(const tag of allTags)ts.run([tag,-1]);ts.free();
 
@@ -695,15 +695,15 @@ const AnkiExport = {
   },
 
   _sourceCards() {
-    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '34-anki-export'); }
     return DB.getCards();
   },
   _sourceDecks() {
-    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '34-anki-export'); }
     return DB.getDecks();
   },
   _sourceRevlog() {
-    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) {}
+    try { if (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '34-anki-export'); }
     return DB.getRevlog();
   },
 

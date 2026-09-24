@@ -132,3 +132,48 @@ jobs:
           git add index.html sw.js src/manifesto.json
           git commit -m "build: sincronizar artefatos gerados [skip ci]"
           git push
+
+  suites:
+    # Suítes completas: todo testes/*.mjs participa de uma barreira automática
+    # (repositorio-higiene.mjs exige). Job próprio para não estourar o gate mínimo.
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build
+        run: node build.mjs
+
+      - name: Suítes Node
+        shell: bash
+        run: |
+          set -euo pipefail
+          for t in testes/repositorio-higiene.mjs testes/cards-10of10-final.mjs testes/cards-image-occlusion.mjs \
+                   testes/cards-max-editor-io.mjs testes/cards-max-stats-media.mjs testes/cards-practical-10.mjs \
+                   testes/cards-product-parity.mjs testes/cards-total-parity.mjs testes/extras-estabilidade.mjs \
+                   testes/governanca-premium.mjs testes/governanca-rebalanceamento.mjs testes/lei-rodizio-perf.mjs \
+                   testes/reforco-fila.mjs testes/ui-organizacao-extras-tec.mjs; do
+            echo "::group::$t"; timeout 120s node "$t"; echo "::endgroup::"
+          done
+          # Longo prazo: 6.000 cards × 365 dias com fila e agendador reais.
+          timeout 600s node testes/cards-certificacao-anki.mjs
+
+      - name: Suítes de navegador
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+          # A lista explícita também é o que repositorio-higiene.mjs confere.
+          for t in testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/extras-estabilidade-browser.mjs \
+                   testes/extras-ux100-browser.mjs testes/site-performance-browser.mjs \
+                   testes/startup-reforco-browser.mjs testes/ux-hierarquia-browser.mjs \
+                   testes/ux-stability-browser.mjs; do
+            echo "::group::$t"; timeout 300s node "$t"; echo "::endgroup::"
+          done

@@ -397,7 +397,12 @@ const AnkiPractical10 = {
     CardsScreen.openCardModal=(id)=>{
       if(id){
         const card=DB.getCard(id),note=card&&AnkiParity.getNote(AnkiProductParity.noteId(card)),nt=note&&AnkiParity.getNotetype(note.notetypeId),kind=nt&&nt.stockKind;
-        if(note&&nt&&['basic_reversed','basic_optional_reversed','typing','image_occlusion'].includes(kind)){
+        /* O formulário simples só sabe gravar Frente/Verso dos tipos padrão
+           Básico e Cloze. Qualquer outro tipo (em especial os importados do
+           Anki, que renderizam da NOTA) edita os campos da nota, como o Editor
+           do Anki — senão a revisão continuava mostrando os campos antigos. */
+        const simples=kind==='basic'||kind==='cloze';
+        if(note&&nt&&(!simples||['basic_reversed','basic_optional_reversed','typing','image_occlusion'].includes(kind))){
           if(kind==='image_occlusion'&&typeof AnkiImageOcclusion!=='undefined')AnkiImageOcclusion.openEditor(note.id,card.deckId||null);
           else AnkiProductParity.openNoteEditor(note.id);
           return;
