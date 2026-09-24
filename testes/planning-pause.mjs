@@ -108,6 +108,7 @@ assert.match(db,/_blockedByPlanPause\(key\)/,'DB deve proteger escrita operacion
 assert.match(db,/suffix === 'cards'/,'Cards devem ser exceção explícita do congelamento');
 assert.match(db,/suffix === 'decks'/,'Decks Anki devem continuar disponíveis');
 assert.match(db,/suffix === 'revlog'/,'revisões Anki devem continuar graváveis');
+assert.match(db,/suffix === 'links'/,'Links Úteis globais devem continuar editáveis com origem pausada');
 assert.match(db,/suffix\.startsWith\('cards-'\)/,'Note\/NoteType e entidades Anki devem continuar graváveis');
 
 const scope=read('src/js/94-global-scope.js');
@@ -150,6 +151,6 @@ assert.match(grade,/PlanManager\.isPaused\(x\.plan\.id\) \? '⏸ '/,'origem paus
 const ui=read('src/js/52-tela-planejamentos.js');
 assert.match(ui,/btn-pause-plan/,'gestão deve expor botão Pausar');
 assert.match(ui,/btn-resume-plan/,'gestão deve expor botão Reativar');
-assert.match(ui,/Cards\/Anki continuam disponíveis globalmente/,'UI deve explicar a exceção global do Anki');
+assert.match(ui,/Cards\/Anki e Links Úteis continuam disponíveis globalmente/,'UI deve explicar o conhecimento global preservado');
 
 console.log('COERÊNCIA ENTRE PLANEJAMENTOS: pausa, trajetória, ajustes por plano e preservação de conhecimento validados.');
