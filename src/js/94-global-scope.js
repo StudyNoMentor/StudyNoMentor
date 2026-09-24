@@ -497,20 +497,40 @@
         '<div class="banca-pick-panel global-bank-panel" hidden>' +
           '<button type="button" class="banca-pick-all ' + (!selected.size ? 'is-active' : '') + '" data-global-bank-all>' +
             '<span class="banca-pick-all-mark">✓</span><span><b>Todas as bancas</b><small>Não restringir a revisão</small></span></button>' +
-          '<label class="global-bank-search"><span>⌕</span><input type="search" placeholder="Buscar banca" autocomplete="off"></label>' +
-          '<div class="global-bank-list">' + catalog.map(b => '<label class="global-bank-item" data-bank-n="' + escapeHtml(norm(b)) + '">' +
+          '<label class="global-bank-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Buscar banca" autocomplete="off" aria-label="Buscar banca"></label>' +
+          '<div class="global-bank-list">' + catalog.map(b => '<label class="global-bank-item ' + (selected.has(norm(b)) ? 'is-active' : '') + '" data-bank-n="' + escapeHtml(norm(b)) + '">' +
             '<input type="checkbox" value="' + escapeHtml(b) + '" ' + (selected.has(norm(b)) ? 'checked' : '') + '><span>' + escapeHtml(b) + '</span></label>').join('') + '</div>' +
           '<p class="hint global-bank-hint">Vazio = todas. A seleção vale para Cards e Anki Oficial.</p>' +
         '</div>';
       const btn = host.querySelector('.global-bank-btn'), panel = host.querySelector('.global-bank-panel');
       const search = host.querySelector('.global-bank-search input');
       const close = () => { panel.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); };
+      const syncLocal = () => {
+        const active = new Set(this.selectedBanks().map(norm));
+        const label = btn.querySelector('span:not(.chev)');
+        if (label) label.textContent = '🏛️ ' + this.bankLabel();
+        const all = host.querySelector('[data-global-bank-all]');
+        if (all) all.classList.toggle('is-active', !active.size);
+        host.querySelectorAll('.global-bank-item').forEach(row => {
+          const input = row.querySelector('input[type="checkbox"]');
+          row.classList.toggle('is-active', !!input && active.has(norm(input.value)));
+        });
+      };
       btn.onclick = e => {
         e.stopPropagation();
         const open = panel.hasAttribute('hidden');
-        document.querySelectorAll('.global-bank-panel').forEach(x => x.setAttribute('hidden',''));
-        if (open) { panel.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); if (search) setTimeout(()=>search.focus(),20); }
-        else close();
+        document.querySelectorAll('.global-bank-panel').forEach(x => {
+          if (x === panel) return;
+          x.setAttribute('hidden','');
+          const otherBtn = x.parentElement && x.parentElement.querySelector('.global-bank-btn');
+          if (otherBtn) otherBtn.setAttribute('aria-expanded','false');
+        });
+        if (open) {
+          panel.removeAttribute('hidden');
+          btn.setAttribute('aria-expanded','true');
+          if (window.AnchoredListViewport && AnchoredListViewport.schedule) AnchoredListViewport.schedule();
+          if (search) setTimeout(() => search.focus(), 20);
+        } else close();
       };
       panel.onclick = e => e.stopPropagation();
       if (search) search.oninput = () => {
@@ -520,7 +540,12 @@
       const apply = () => {
         const vals = [...host.querySelectorAll('.global-bank-item input:checked')].map(x => x.value);
         this.setSelectedBanks(vals);
-        document.querySelectorAll('[data-global-bank-host]').forEach(h => this.renderBankPicker(h, { anki: h.dataset.globalBankHost === 'anki' }));
+        syncLocal();
+        /* O seletor atual permanece aberto para permitir marcar várias bancas.
+           Só espelhamos a escolha nos outros hosts (Cards/Anki). */
+        document.querySelectorAll('[data-global-bank-host]').forEach(h => {
+          if (h !== host) this.renderBankPicker(h, { anki: h.dataset.globalBankHost === 'anki' });
+        });
         this.refreshCards();
         if (document.getElementById('screen-anki') && document.getElementById('screen-anki').classList.contains('active')) {
           this.applyAnkiBankFilter(true).catch(e => {
@@ -531,6 +556,36 @@
       host.querySelectorAll('.global-bank-item input').forEach(x => x.onchange = apply);
       const all = host.querySelector('[data-global-bank-all]');
       if (all) all.onclick = () => { host.querySelectorAll('.global-bank-item input').forEach(x => x.checked = false); apply(); };
+      syncLocal();
+    },
+
+    installBankPickerDismiss() {
+      if (this._bankPickerDismissInstalled) return;
+      this._bankPickerDismissInstalled = true;
+      const closeAll = target => {
+        document.querySelectorAll('.global-bank-panel').forEach(panel => {
+          const owner = panel.closest ? panel.closest('.global-bank-host') : panel.parentElement;
+          if (target && owner && owner.contains(target)) return;
+          panel.setAttribute('hidden','');
+          const b = owner && owner.querySelector ? owner.querySelector('.global-bank-btn') : null;
+          if (b) b.setAttribute('aria-expanded','false');
+        });
+      };
+      /* pointerdown em captura fecha mesmo quando o foco está no campo de busca.
+         Cliques internos não fecham; clicar em qualquer área externa fecha. */
+      document.addEventListener('pointerdown', e => closeAll(e.target), true);
+      document.addEventListener('keydown', e => {
+        if (e.key !== 'Escape') return;
+        const abertas = [...document.querySelectorAll('.global-bank-panel:not([hidden])')];
+        if (!abertas.length) return;
+        abertas.forEach(panel => {
+          panel.setAttribute('hidden','');
+          const owner = panel.closest ? panel.closest('.global-bank-host') : panel.parentElement;
+          const b = owner && owner.querySelector ? owner.querySelector('.global-bank-btn') : null;
+          if (b) b.setAttribute('aria-expanded','false');
+        });
+        if (e.cancelable) e.preventDefault();
+      });
     },
 
     installCardsUi() {
@@ -574,16 +629,21 @@
       const st = document.createElement('style'); st.id = 'study-global-scope-style';
       st.textContent = [
         '.global-scope-row{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr);gap:14px;margin:10px 0 14px}',
-        '.global-scope-field{margin:0}.global-bank-host{position:relative}',
-        '.global-bank-panel{min-width:min(360px,88vw);max-height:360px;overflow:auto;z-index:80}',
-        '.global-bank-search{display:flex;align-items:center;gap:7px;padding:7px 8px;position:sticky;top:0;background:var(--surface);z-index:2}',
-        '.global-bank-search input{width:100%}.global-bank-list{display:grid;gap:2px;padding:4px 6px 8px}',
-        '.global-bank-item{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;cursor:pointer}',
-        '.global-bank-item:hover{background:var(--surface-2)}.global-bank-item input{accent-color:var(--accent)}',
-        '.global-bank-hint{padding:6px 10px 10px;margin:0}',
+        '.global-scope-field{margin:0}.global-bank-host{position:relative;min-width:0}',
+        '.global-bank-panel{width:100%;min-width:0;max-width:min(420px,calc(100vw - 32px));max-height:min(360px,60dvh);overflow:hidden;z-index:80}',
+        '.global-bank-panel>.banca-pick-all{margin:0 0 6px;padding:9px 8px}',
+        '.global-bank-search{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:center;gap:8px;padding:6px 2px 8px;margin:0;background:var(--surface);z-index:2}',
+        '.global-bank-search>span{display:grid;place-items:center;color:var(--text-faint);font-size:16px;line-height:1}',
+        '.global-bank-search input{width:100%;min-width:0;height:42px;margin:0;padding:9px 11px}',
+        '.global-bank-list{min-height:0;display:grid;gap:3px;padding:2px 0 6px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y}',
+        '.global-bank-item{display:grid;grid-template-columns:20px minmax(0,1fr);align-items:center;gap:10px;margin:0;padding:9px 8px;min-height:40px;border:1px solid transparent;border-radius:9px;cursor:pointer;color:var(--text);font-size:var(--fs-sm);font-weight:700}',
+        '.global-bank-item:hover{background:var(--surface-sunken)}.global-bank-item.is-active{background:color-mix(in srgb,var(--accent) 8%,var(--surface));border-color:color-mix(in srgb,var(--accent) 28%,var(--border))}',
+        '.global-bank-item input[type="checkbox"]{width:20px!important;height:20px!important;min-width:20px;margin:0!important;padding:0!important;accent-color:var(--accent);cursor:pointer}',
+        '.global-bank-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+        '.global-bank-hint{padding:6px 4px 2px;margin:0}',
         '.anki-global-bank-card{margin-bottom:14px}.global-anki-bank-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px}',
         '.global-anki-bank-row>div:first-child{display:flex;flex-direction:column;gap:2px}.global-anki-bank-row span{font-size:12px;color:var(--text-faint)}',
-        '@media(max-width:680px){.global-scope-row{grid-template-columns:1fr}.global-anki-bank-row{align-items:stretch;flex-direction:column}.global-bank-btn{width:100%}}'
+        '@media(max-width:680px){.global-scope-row{grid-template-columns:1fr}.global-anki-bank-row{align-items:stretch;flex-direction:column}.global-bank-btn{width:100%}.global-bank-panel{width:100%;max-width:100%}}'
       ].join('');
       document.head.appendChild(st);
     }
@@ -1098,7 +1158,7 @@
   };
 
   const boot = () => {
-    S.installAnkiEntityScope(); S.installStyle(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+    S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
