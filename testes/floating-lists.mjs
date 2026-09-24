@@ -9,6 +9,8 @@ const tec=read('src/css/32-ajustes-ui.css');
 const tecJs=read('src/js/51-tela-desempenho-tec.js');
 const grade=read('src/js/33-tela-grade.js');
 const gradeCss=read('src/css/01-base.css');
+const globalScope=read('src/js/94-global-scope.js');
+const ankiTotalCss=read('src/css/39-anki-total-parity.css');
 
 assert.match(infra,/const AnchoredListViewport = \{/,'deve existir um posicionador central de listas flutuantes');
 assert.match(infra,/window\.visualViewport/,'deve medir o viewport visual no mobile/teclado');
@@ -50,4 +52,10 @@ assert.match(grade,/AnchoredListViewport\._viewport/,'seletor de matéria da Gra
 assert.match(grade,/const paraCima = natural > abaixo && acima > abaixo/,'seletor da Grade deve inverter quando faltar espaço embaixo');
 assert.match(gradeCss,/\.gsp-list\s*\{[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y/,'lista da Grade deve rolar por toque');
 
-console.log('LISTAS FLUTUANTES: viewport, inversão, recorte e rolagem interna validados em todo o contrato auditado.');
+assert.match(globalScope,/installBankPickerDismiss\(\)[\s\S]*document\.addEventListener\('pointerdown'/,'filtro global de banca deve fechar ao tocar fora, inclusive com busca focada');
+assert.match(globalScope,/global-bank-list\{[^}]*overflow-y:auto[^}]*touch-action:pan-y/,'lista global de bancas deve rolar internamente no mobile');
+assert.match(globalScope,/global-bank-item input\[type="checkbox"\][^}]*width:20px!important[^}]*height:20px!important/,'checkbox de banca não pode herdar width:100% dos inputs gerais');
+assert.match(globalScope,/if \(h !== host\) this\.renderBankPicker/,'seleção múltipla deve manter aberto o seletor atual');
+assert.ok(!/\.cards-review-actions\{[^}]*margin-left:-8px[^}]*margin-right:-8px/.test(ankiTotalCss),'borda das ações do reviewer não pode avançar para fora do card no mobile');
+
+console.log('LISTAS FLUTUANTES: viewport, inversão, recorte, fechamento externo e rolagem interna validados em todo o contrato auditado.');
