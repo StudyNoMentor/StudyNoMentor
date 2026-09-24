@@ -96,7 +96,7 @@
       const ativos = extras.filter(x => x && x.status !== 'concluida');
       const fontes = {
         reforco: ativos.filter(x => this.fonte(x) === 'reforco').length,
-        motor: ativos.filter(x => this.fonte(x) === 'plano').length,
+        motor: ativos.filter(x => this.fonte(x) === 'motor').length,
         manual: ativos.filter(x => this.fonte(x) === 'manual').length
       };
 
@@ -113,7 +113,10 @@
     },
 
     filtroFonte(entry) {
-      if (this.view === 'reforco' || this.view === 'plano' || this.view === 'manual') {
+      /* fonte() devolve 'motor' para o que veio do "Puxar do Motor"; a chave antiga
+         'plano' nunca casava — o filtro vinha vazio e a contagem, "undefined". */
+      if (this.view === 'plano') this.view = 'motor';
+      if (this.view === 'reforco' || this.view === 'motor' || this.view === 'manual') {
         return this.fonte(entry.x) === this.view;
       }
       return true;
@@ -128,7 +131,7 @@
       ];
       return base
         .filter(([k]) => {
-          if (this.view === 'all' || this.view === 'reforco' || this.view === 'plano' || this.view === 'manual') return true;
+          if (this.view === 'all' || this.view === 'reforco' || this.view === 'motor' || this.view === 'plano' || this.view === 'manual') return true;
           return this.view === k;
         })
         .map(([k, titulo, ico, arr]) => [k, titulo, ico, arr.filter(e => this.filtroFonte(e))]);
@@ -173,7 +176,7 @@
           ${this.chip('concluidas', 'Concluídas', c.concluidas.length, 'good')}
           ${this.chip('reforco', 'Reforço', c.fontes.reforco)}
           ${this.chip('manual', 'Manuais', c.fontes.manual)}
-          ${this.chip('plano', 'Plano', c.fontes.plano)}
+          ${this.chip('motor', 'Motor', c.fontes.motor)}
         </div>
         <div class="exm-rotation">
           <div class="exm-rotation-copy">
@@ -264,7 +267,7 @@
         const tags = card.querySelector('.exd-tags');
         if (tags && !tags.querySelector('.exm-status')) {
           const [rot, cls] = this.badgeStatus(entry);
-          const fonteRot = fonte === 'reforco' ? 'Reforço' : (fonte === 'plano' ? 'Plano' : 'Manual');
+          const fonteRot = fonte === 'reforco' ? 'Reforço' : (fonte === 'motor' ? 'Motor' : 'Manual');
           tags.insertAdjacentHTML('afterbegin',
             `<span class="extra-tag exm-source ${fonte}">${fonteRot}</span>` +
             `<span class="extra-tag exm-status ${cls}">${rot}</span>`);

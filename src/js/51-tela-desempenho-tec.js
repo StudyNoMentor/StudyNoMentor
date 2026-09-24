@@ -2370,7 +2370,7 @@ const DesempenhoTecScreen = {
 
     const toolbar = `
       <div class="tec-tree-toolbar">
-        <span class="tec-tree-hint">${selecionadas.length === 1 ? 'Detalhamento por tópico · ' : selecionadas.length > 1 ? selecionadas.length + ' disciplinas combinadas · ' : 'Clique para abrir/fechar cada nível · '}</span>
+        <span class="tec-tree-hint">${selecionadas.length === 1 ? 'Detalhamento por tópico · ' : selecionadas.length > 1 ? selecionadas.length + ' disciplinas combinadas · ' : 'Toque para abrir/fechar cada nível'}</span>
         <button type="button" class="tec-tree-btn" id="tec-expand-all">⊞ Expandir tudo</button>
         <button type="button" class="tec-tree-btn" id="tec-collapse-all">⊟ Recolher tudo</button>
       </div>`;
