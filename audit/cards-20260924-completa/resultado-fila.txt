@@ -17,5 +17,11 @@ coleta_posicao_desc          anki=74 app=74 mesmo_conjunto=true mesma_posicao=74
 coleta_deck_notas            anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
 coleta_posicao               anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
 novos_ignoram_limite         anki=34 app=34 mesmo_conjunto=true mesma_posicao=34/34
+   enterro após responder: 24/24 iguais ao Anki
+enterrar_tudo                anki=67 app=67 mesmo_conjunto=true mesma_posicao=67/67
+   enterro após responder: 24/24 iguais ao Anki
+enterrar_novos               anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+   enterro após responder: 24/24 iguais ao Anki
+enterrar_revisoes_limite     anki=24 app=24 mesmo_conjunto=true mesma_posicao=24/24
 
-FILA: 19/19 cenários idênticos ao Anki 26.09.2
+FILA: 22/22 cenários idênticos ao Anki 26.09.2; enterro após responder 72/72

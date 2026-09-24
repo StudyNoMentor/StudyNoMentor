@@ -150,22 +150,26 @@ ok(ui.includes("...(!isDeck ? [{\n      key: 'algo'"), 'seletor de algoritmo dev
 ok(!ui.includes("key: 'newPerDayMinimum'"), 'campo legado sem efeito não deve ser exposto ao usuário');
 ok(ui.includes("key: 'newCardsIgnoreReviewLimit'"), 'interruptor global oficial deve existir na UI');
 
-// ── 7b) True Retention: só a primeira revisão de cada card/dia conta ────────
+// ── 7b) True Retention: semântica de stats/graphs/retention.rs (Anki 26.09.2) ─
+// Toda resposta de revisão conta (sem deduplicar por card/dia); o reaprendizado
+// intradiário (intervalo anterior em segundos) fica fora; janelas pelo horário
+// da resposta a partir da próxima virada.
 a.reset({ algo:'fsrs', retention:.9 });
-const d0=a.hoje(),d1=CardEngine.addDays(d0,-1);
+const T0=a.agora();
 DB.replaceRevlog([
-  {cardId:'tr-a',ts:100,date:d0,grade:1,phase:'review',intervalo:30},
-  {cardId:'tr-a',ts:200,date:d0,grade:3,phase:'review',intervalo:30},
-  {cardId:'tr-b',ts:110,date:d0,grade:3,phase:'review',intervalo:10},
-  {cardId:'tr-b',ts:210,date:d0,grade:1,phase:'review',intervalo:10},
-  {cardId:'tr-c',ts:50,date:d1,grade:3,phase:'review',intervalo:40}
+  {cardId:'tr-a',ts:T0+100,date:a.hoje(),grade:1,phase:'review',intervalo:30},
+  {cardId:'tr-a',ts:T0+200,date:a.hoje(),grade:3,phase:'relearning',intervalo:0},
+  {cardId:'tr-b',ts:T0+110,date:a.hoje(),grade:3,phase:'review',intervalo:10},
+  {cardId:'tr-b',ts:T0+300,date:a.hoje(),grade:3,phase:'review',intervalo:10},
+  {cardId:'tr-c',ts:T0-86400000,date:CardEngine.addDays(a.hoje(),-1),grade:3,phase:'review',intervalo:40}
 ]);
 const trHoje=CardsScreen.trueRetention(1);
-eq(trHoje.todos.total,2,'True Retention de Hoje conta um resultado por card');
-eq(trHoje.todos.acertos,1,'a primeira resposta do dia define Pass/Fail');
-eq(trHoje.todos.pct,50,'Again falha; Hard/Good/Easy passam');
-eq(trHoje.mesmoDia,2,'repetições posteriores do mesmo card/dia ficam fora da retenção');
-eq(CardsScreen.trueRetention(7).todos.total,3,'janela de 7 dias inclui os dias anteriores sem duplicar revisões intradiárias');
+eq(trHoje.todos.total,3,'True Retention de Hoje conta toda resposta de revisão');
+eq(trHoje.todos.acertos,2,'Again falha; Hard/Good/Easy passam');
+eq(trHoje.maduro.total,1,'maduro pelo intervalo anterior >= 21');
+eq(trHoje.jovem.total,2,'jovem pelo intervalo anterior < 21');
+eq(CardsScreen.trueRetention('ontem').todos.total,1,'janela de ontem');
+eq(CardsScreen.trueRetention(7).todos.total,4,'janela de 7 dias');
 
 // ── 8) Longo prazo: 6.000 cards, 365 dias, fila + agendador reais ────────────
 // Simulação diária em lote: buildQueue() e schedule() são os módulos reais; a

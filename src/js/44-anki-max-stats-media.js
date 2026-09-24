@@ -195,19 +195,48 @@ const AnkiMaxStatsMedia = {
     const bars=(arr,labels)=>{const mx=Math.max(1,...arr);return '<div class="anki-mini-hist">'+arr.map((n,i)=>'<div title="'+labels[i]+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+labels[i]+'</span></div>').join('')+'</div>';};
     return '<div class="stat-grid anki-memory-grid"><div class="card stat-card"><div class="card-header"><div><h2>🧠 Recuperabilidade</h2><p class="sub">'+cards.length+' cards FSRS</p></div></div>'+bars(rBins,['0–20','20–40','40–60','60–80','80–100'])+'</div><div class="card stat-card"><div class="card-header"><div><h2>↔ Intervalos</h2></div></div>'+bars(iBins,['<1d','1–7','7–30','30–90','90–365','>1a'])+'</div></div>';
   },
+  /* stats/graphs/today.rs + ts/routes/graphs/today.ts do Anki 26.09.2: respostas
+     desde o início do dia (exceto manuais/reagendadas), acertos, maduros pelo
+     intervalo ANTERIOR (>= 21) e contagem por tipo do estado antes da resposta. */
+  _todayData(){
+    const ini=proximaViradaTs()-86400000,d={answerCount:0,answerMillis:0,correctCount:0,matureCount:0,matureCorrect:0,learnCount:0,reviewCount:0,relearnCount:0,earlyReviewCount:0};
+    this.statsRevlog(false).forEach(r=>{
+      if((Number(r&&r.ts)||0)<ini)return;
+      const k=CardsScreen._revlogAnki(r);if(!k||k.tipo==='manual'||k.tipo==='rescheduled'||k.tipo==='reset')return;
+      const g=Number(r.grade)||0;d.answerCount++;d.answerMillis+=Math.max(0,Number(r.time)||0);if(g>1)d.correctCount++;
+      if(k.last>=21){d.matureCount++;if(g>1)d.matureCorrect++;}
+      if(k.tipo==='learning')d.learnCount++;else if(k.tipo==='relearning')d.relearnCount++;else if(k.tipo==='filtered')d.earlyReviewCount++;else d.reviewCount++;
+    });
+    return d;
+  },
+  // FluentNumber({maximumFractionDigits:2}) + Intl pt-BR, como ts/lib/generated/ftl-helpers.ts.
+  _fnum(n){return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:2}).format(n);},
+  _plural(n){try{return new Intl.PluralRules('pt-BR').select(n);}catch(_){return n===1?'one':'other';}},
+  _todayLines(){
+    const t=this._todayData();
+    if(!t.answerCount)return ['Nenhum cartão foi estudada hoje'];
+    const secs=t.answerMillis/1000,unit=secs<60?'s':'m',amount=unit==='s'?secs:secs/60;
+    const nome=unit==='s'?(this._plural(amount)==='one'?'segundo':'segundos'):(this._plural(amount)==='one'?'minuto':'minutos');
+    const cartoes=this._plural(t.answerCount)==='one'?'cartão':'cartões';
+    const estudado='Estudado(s) '+this._fnum(t.answerCount)+' '+cartoes+' em '+this._fnum(amount)+' '+nome+' hoje ('+this._fnum(secs/t.answerCount)+'s/card)';
+    const again=t.answerCount-t.correctCount,pct=Math.round(again/t.answerCount*100*100)/100;
+    const againTxt='Contagem de repetições: '+again+' ('+pct.toLocaleString('pt-BR')+'%)';
+    const tipos='Aprendidos: '+this._fnum(t.learnCount)+', Revisados: '+this._fnum(t.reviewCount)+', Reaprendidos: '+this._fnum(t.relearnCount)+', Filtrados: '+this._fnum(t.earlyReviewCount);
+    const maduro=t.matureCount?'Resposta correta de cartões antigos: '+this._fnum(t.matureCorrect)+'/'+this._fnum(t.matureCount)+' ('+this._fnum(t.matureCorrect/t.matureCount*100)+'%)':'Nenhum cartão antigo foi estudado hoje.';
+    return [estudado,againTxt,tipos,maduro];
+  },
   _todayHtml(){
-    const today=todayCards(),logs=this.statsRevlog(false).filter(r=>this._revDate(r)===today),again=logs.filter(r=>Number(r.grade)===1).length,
-      phase={learning:0,review:0,relearning:0,filtered:0},ms=logs.reduce((a,r)=>a+Math.max(0,Number(r.time)||0),0);
-    logs.forEach(r=>{const p=String(r.phase||'review');if(p==='learning')phase.learning++;else if(p==='relearning')phase.relearning++;else if(p==='filtered'||Number(r.ankiReviewKind)===3)phase.filtered++;else phase.review++;});
-    return '<div class="card stat-card"><div class="card-header"><div><h2>Hoje</h2><p class="sub">Resumo da sessão diária no formato das estatísticas do Anki</p></div></div><div class="stat-kpis">'+
-      '<div class="stat-kpi"><div class="stat-kpi-v">'+logs.length+'</div><div class="stat-kpi-l">Respostas</div></div>'+
-      '<div class="stat-kpi"><div class="stat-kpi-v">'+again+'</div><div class="stat-kpi-l">Again</div></div>'+
-      '<div class="stat-kpi"><div class="stat-kpi-v">'+(ms/60000).toFixed(1)+'m</div><div class="stat-kpi-l">Tempo</div></div></div>'+
-      '<p class="hint">Learn '+phase.learning+' · Review '+phase.review+' · Relearn '+phase.relearning+' · Filtered '+phase.filtered+'</p></div>';
+    const esc=x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    return '<div class="card stat-card"><div class="card-header"><div><h2>Hoje</h2></div></div>'+this._todayLines().map(l=>'<p>'+esc(l)+'</p>').join('')+'</div>';
+  },
+  // stats/graphs/card_counts.rs (excluding_inactive): suspensos e enterrados à parte.
+  _cardCountsData(){
+    const counts={new:0,learn:0,relearn:0,young:0,mature:0,suspended:0,buried:0};
+    this.statsCards().forEach(c=>{if(c.suspenso){counts.suspended++;return;}if(CardEngine.estaEnterrado(c)){counts.buried++;return;}const ph=String(c.phase||'new');if(ph==='new')counts.new++;else if(ph==='learning')counts.learn++;else if(ph==='relearning')counts.relearn++;else if((Number(c.intervalo)||0)>=21)counts.mature++;else counts.young++;});
+    return counts;
   },
   _cardCountsHtml(){
-    const cards=this.statsCards(),counts={new:0,learn:0,relearn:0,young:0,mature:0,suspended:0,buried:0};
-    cards.forEach(c=>{if(c.suspenso){counts.suspended++;return;}if(CardEngine.estaEnterrado(c)){counts.buried++;return;}const ph=String(c.phase||'new');if(ph==='new')counts.new++;else if(ph==='learning')counts.learn++;else if(ph==='relearning')counts.relearn++;else if((Number(c.intervalo)||0)>=21)counts.mature++;else counts.young++;});
+    const counts=this._cardCountsData();
     const items=[['New',counts.new],['Learning',counts.learn],['Relearning',counts.relearn],['Young',counts.young],['Mature',counts.mature],['Suspended',counts.suspended],['Buried',counts.buried]],mx=Math.max(1,...items.map(x=>x[1]));
     return '<div class="card stat-card"><div class="card-header"><div><h2>Card Counts</h2><p class="sub">Estado atual dos cards</p></div></div><div class="anki-mini-hist">'+items.map(([k,n])=>'<div title="'+k+': '+n+'"><i style="height:'+Math.max(n?3:0,Math.round(n/mx*100))+'%"></i><span>'+k+'</span></div>').join('')+'</div></div>';
   },
@@ -264,7 +293,7 @@ const AnkiMaxStatsMedia = {
     const n=Math.round((y-x)/86400000);return Number.isFinite(n)?n:0;
   },
   _simNextDayAtSec(cfg){
-    const now=new Date(),cut=new Date(now),hour=Math.max(0,Math.min(23,Number(cfg&&cfg.rolloverHour)||4));
+    const now=new Date(),cut=new Date(now),hour=Math.max(0,Math.min(23,(cfg&&cfg.rolloverHour!=null&&Number.isFinite(Number(cfg.rolloverHour)))?Number(cfg.rolloverHour):4));
     cut.setHours(hour,0,0,0);if(cut<=now)cut.setDate(cut.getDate()+1);
     return Math.floor(cut.getTime()/1000);
   },

@@ -12,6 +12,11 @@ const CardsConfig = {
     algo: 'fsrs', retention: 0.9, learnSteps: [1, 10], relearnSteps: [10], weights: null,
     loadBalance: true, lastOptim: null, newPerDay: 20, revPerDay: 200,
     maxInterval: 36500, leechThreshold: 8, leechAction: 'tag', rolloverHour: 4,
+    // Preferência do Anki "Learn ahead limit" (collapseTime, padrão 1200 s).
+    learnAheadMin: 20,
+    // col.crt da coleção Anki importada (segundos): fixa a numeração de dias
+    // (sched.today) que o Anki usa para posições de cards novos e exportação.
+    ankiCrt: null,
     /* Ordem em que as revisões vencidas são apresentadas. No Anki 26.09.2 o
        padrão é "Due date, then random": vence primeiro quem tem a menor data,
        e empates são desfeitos por uma ordem pseudoaleatória estável. */
@@ -180,6 +185,8 @@ const CardsConfig = {
     c.questionAction = Math.round(this._numValido(c.questionAction, D.questionAction, 0, 1));
     c.answerAction = Math.round(this._numValido(c.answerAction, D.answerAction, 0, 4));
     c.rolloverHour = Math.round(this._numValido(c.rolloverHour, D.rolloverHour, 0, 23));
+    c.learnAheadMin = this._numValido(c.learnAheadMin, D.learnAheadMin, 0, 1440);
+    c.ankiCrt = (c.ankiCrt != null && isFinite(Number(c.ankiCrt)) && Number(c.ankiCrt) > 0) ? Math.floor(Number(c.ankiCrt)) : null;
     // Multiplicadores do SM-2: um NaN aqui zerava o intervalo do card clássico.
     ['initialEase', 'hardMultiplier', 'easyMultiplier', 'lapseMultiplier', 'intervalMultiplier',
      'minimumLapseInterval', 'graduatingIntervalGood', 'graduatingIntervalEasy'].forEach((k) => {

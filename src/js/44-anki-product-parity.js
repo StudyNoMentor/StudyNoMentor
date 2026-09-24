@@ -292,7 +292,7 @@ const AnkiProductParity = {
       const ords=new Set();Object.values(note.fields||{}).forEach(v=>AnkiParity.clozeOrdinals(v).forEach(o=>ords.add(o)));
       [...ords].sort((a,b)=>a-b).forEach(o=>desired.push({key:'c'+o,ord:o-1,cloze:o,tmpl:0}));
     }else{
-      (nt.templates||[]).forEach((t,ord)=>{const probe={noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,ankiTemplateOrd:ord,deckId},q=AnkiParity.renderTemplate(nt,note,ord,'question',probe,'');if(AnkiParity._fieldNonempty(q))desired.push({key:'t'+ord,ord,tmpl:ord});});
+      (nt.templates||[]).forEach((t,ord)=>{const probe={noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,ankiTemplateOrd:ord,deckId},gera=AnkiParity.templateGeraCard?AnkiParity.templateGeraCard(nt,note,ord):AnkiParity._fieldNonempty(AnkiParity.renderTemplate(nt,note,ord,'question',probe,''));if(gera)desired.push({key:'t'+ord,ord,tmpl:ord});});
     }
     const used=new Set();
     for(const d of desired){
@@ -534,7 +534,11 @@ const AnkiProductParity = {
 
   _applyNotetypeEdit(old,nt,notes){
     const cleanFields=nt.fields.map(({_source,...x})=>x),cleanTemplates=nt.templates.map(({_sourceOrd,...x})=>x),fieldSource=nt.fields.map(x=>x._source),templateSource=nt.templates.map(x=>x._sourceOrd);
-    nt.fields=cleanFields;nt.templates=cleanTemplates;const savedNt=AnkiParity.saveNotetype(nt);
+    nt.fields=cleanFields;nt.templates=cleanTemplates;
+    // Mesmas validações do Anki ao salvar o tipo de nota (mensagem oficial em pt-BR).
+    const erroNt=AnkiParity.erroNotetype?AnkiParity.erroNotetype(nt):null;
+    if(erroNt){UI.alert(erroNt.replace(/<br>/g,'\n'),{title:'⚠ Tipo de nota inválido',okText:'Corrigir'});return;}
+    const savedNt=AnkiParity.saveNotetype(nt);
     for(const note of notes){
       const fields={};savedNt.fields.forEach((f,i)=>{const src=fieldSource[i];fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
       const cards=this._cardsForNote(note.id);

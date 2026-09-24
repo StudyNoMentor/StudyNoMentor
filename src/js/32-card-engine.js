@@ -39,7 +39,9 @@ const CardEngine = {
   _daysBetween(a, b) { return Math.max(0, Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000)); },
   // Conta quantos cards de revisão já vencem daqui a N dias (para o Load Balancing)
   _dueCache: null,
-  invalidateDueCache() { this._dueCache = null; },
+  /* Qualquer alteração fora da resposta derruba também a tabela congelada do
+     LoadBalancer (o Anki limpa card_queues nessas operações). */
+  invalidateDueCache(manterLb) { this._dueCache = null; if (!manterLb && typeof AnkiParity !== 'undefined') AnkiParity._lb = null; },
   _dueCountInDays(n) {
     try {
       const scope = (typeof window !== 'undefined' && window.StudyGlobalScope && StudyGlobalScope.cardsScope) ? StudyGlobalScope.cardsScope() : 'plan';
@@ -110,7 +112,8 @@ const CardEngine = {
         const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
         return { dueTs: null, due: this.addDays(tdy, dias) };
       }
-      return { dueTs: nowTs + segsFuzz * 1000, due: tdy };
+      // Anki guarda o vencimento em segundos inteiros (TimestampSecs::now() + secs).
+      return { dueTs: (Math.floor(nowTs / 1000) + segsFuzz) * 1000, due: tdy };
     };
     // Dia de vencimento: fuzz determinístico do Anki; com Load Balancing, o dia de MENOR
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
@@ -376,7 +379,8 @@ const CardEngine = {
         const dias = Math.floor((segsFuzz - ateVirada) / 86400) + 1;
         return { dueTs: null, due: this.addDays(tdy, dias) };
       }
-      return { dueTs: nowTs + segsFuzz * 1000, due: tdy };
+      // Anki guarda o vencimento em segundos inteiros (TimestampSecs::now() + secs).
+      return { dueTs: (Math.floor(nowTs / 1000) + segsFuzz) * 1000, due: tdy };
     };
     const hardDelay = (steps, idx) => {
       if (!steps.length) return 0;
@@ -471,7 +475,8 @@ const CardEngine = {
 
     // REVIEW: mantém as regras clássicas de atraso, facilidade e multiplicadores.
     const base = Math.max(1, intervalo);
-    const atraso = Math.max(0, this._daysBetween(card.due || tdy, tdy));
+    // No filtrado o Anki mede o atraso pelo vencimento ORIGINAL (current.rs).
+    const atraso = Math.max(0, this._daysBetween((card.originalDeckId && card.originalDue) || card.due || tdy, tdy));
     if (grade === 'errei') {
       lapses += 1;
       ease = clampE(ease + this.EASE_AGAIN_DELTA);
@@ -488,9 +493,26 @@ const CardEngine = {
       };
     }
 
-    /* Revisão antecipada (passing_early_review_intervals) só ocorre no Anki
-       em baralho filtrado; num baralho normal o backend oficial usa a fórmula
-       comum mesmo com decorridos < agendados (medido no 26.09.2). */
+    /* REVISÃO ANTECIPADA (review.rs::passing_early_review_intervals).
+       answering/current.rs: num baralho normal o vencimento é limitado a hoje
+       (nunca é antecipada); num FILTRADO vale o vencimento ORIGINAL — é assim
+       que "revisar adiantado" chega aqui. Sem fuzz e sem ordem imposta. */
+    const dueOrig = (card.originalDeckId && card.originalDue) ? card.originalDue : null;
+    const faltam = dueOrig ? Math.round((new Date(dueOrig + 'T00:00:00') - new Date(tdy + 'T00:00:00')) / 86400000) : 0;
+    if (faltam > 0) {
+      // Aritmética em f32, como no Rust: 90 × 1,15 = 103,5 (f32) → 104.
+      const f = Math.fround, decorridos = f(Math.max(0, base - faltam)), sb = f(base), e32 = f(ease);
+      const fixo = (v) => Math.max(1, Math.min(maxIv, Math.round(f(f(v) * f(fGlobal)))));
+      const bonusReduzido = f(f(fEasy) - f(f(f(fEasy) - 1) / 2));
+      if (grade === 'dificil') { intervalo = fixo(Math.max(f(decorridos * f(fHard)), f(sb * f(f(fHard) / 2)))); ease = clampE(ease + this.EASE_HARD_DELTA); }
+      else if (grade === 'facil') { intervalo = fixo(f(Math.max(f(decorridos * e32), sb) * bonusReduzido)); ease = clampE(ease + this.EASE_EASY_DELTA); }
+      else intervalo = fixo(Math.max(f(decorridos * e32), sb));
+      return {
+        status: 'sei', grade, ease, intervalo, reps, lapses,
+        phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
+        dueTs: null, lastReview: tdy, algo: 'sm2', _kind: 'day', _val: intervalo
+      };
+    }
     const minHard = fHard <= 1.0 ? 0 : base + 1;
     const ivHard = constr(base * fHard, minHard);
     const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;

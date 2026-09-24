@@ -109,40 +109,50 @@ const CardsScreen = {
      aprendidos e erram muito; cards maduros medem retenção de verdade.
      Só contam revisões de LONGO PRAZO — repetir um card no mesmo dia não diz
      nada sobre esquecimento. */
+  /* Semântica de revlog do Anki para uma linha do histórico: tipo (a partir do
+     estado ANTES da resposta) e last_interval (dias; passos em -segundos).
+     Linhas antigas do Study não tinham essa semântica: (re)aprendizado é tido
+     como passo intradiário (exato para passos < 1 dia). */
+  _revlogAnki(r) {
+    if (!r) return null;
+    const expl = String(r.ankiReviewKind || '').toLowerCase();
+    const ph = String(r.phase || 'review').toLowerCase();
+    let tipo = (expl === 'manual' || expl === 'rescheduled' || expl === 'reset' || expl === 'filtered') ? expl
+      : (ph === 'new' || ph === 'learning') ? 'learning' : ph === 'relearning' ? 'relearning' : ph === 'filtered' ? 'filtered' : 'review';
+    if (r.ankiIvlSemantica === 2 && r.ankiReviewKind) tipo = String(r.ankiReviewKind);
+    let last;
+    if (r.ankiIvlSemantica === 2 && r.ankiLastInterval != null) last = Number(r.ankiLastInterval);
+    else last = (tipo === 'review') ? Number(r.intervalo != null ? r.intervalo : (r.elapsed || 0)) : (tipo === 'learning' && ph === 'new' ? 0 : -60);
+    return { tipo, last, ease: Number(r.easeFactor != null ? r.easeFactor : 2500) };
+  },
+  /* stats/graphs/retention.rs::calculate_true_retention — toda resposta com nota
+     que afeta o agendamento (não manual/reagendada, não "cramming"), de revisão
+     ou vinda de intervalo ≥ 1 dia. Jovem/maduro pelo intervalo ANTERIOR (< 21).
+     Janelas pelo horário a partir da próxima virada: hoje, ontem, 7, 30, 365, tudo. */
   trueRetention(dias) {
     const revlog = this._statsRevlog();
-    // O Anki conta somente a PRIMEIRA revisão do card em cada dia.
-    // "Hoje" é apenas hoje; uma janela N inclui hoje + N-1 dias anteriores.
-    const limite = dias ? CardEngine.addDays(todayCards(), -(Math.max(1, Number(dias)) - 1)) : null;
-    const acc = {
-      jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 },
-      todos: { total: 0, acertos: 0 }, mesmoDia: 0
-    };
-    const rows = revlog.map((r, i) => ({ r, i, ts: Number(r && r.ts) || 0 }))
-      .filter(x => x.r && Number(x.r.grade) >= 1 && Number(x.r.grade) <= 4 && (x.r.phase || 'review') === 'review')
-      .sort((a, b) => (a.ts || a.i) - (b.ts || b.i));
-    const seen = new Set();
-    rows.forEach(({ r }) => {
-      const data = String(r.date || '').slice(0, 10);
-      if (limite && data && data < limite) return;
-      const cardKey = String(r.cardId == null ? (r.ankiCardId == null ? '' : r.ankiCardId) : r.cardId);
-      const dailyKey = cardKey + '|' + data;
-      if (seen.has(dailyKey)) { acc.mesmoDia++; return; }
-      seen.add(dailyKey);
-
-      /* Maturidade usa o intervalo que o card tinha ANTES desta revisão.
-         Logs antigos podem não ter esse campo; elapsed é o fallback histórico. */
-      const ivl = (r.intervalo != null) ? Number(r.intervalo) : Number(r.elapsed || 0);
-      const alvo = ivl >= 21 ? acc.maduro : acc.jovem;
+    const fim = proximaViradaTs(), dia = 86400000;
+    let ini = 0, ate = fim;
+    if (dias === 'ontem') { ini = fim - 2 * dia; ate = fim - dia; }
+    else if (dias) ini = fim - Math.max(1, Number(dias)) * dia;
+    const acc = { jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 }, todos: { total: 0, acertos: 0 } };
+    revlog.forEach(r => {
+      const g = Number(r && r.grade); if (!(g >= 1 && g <= 4)) return;
+      const k = this._revlogAnki(r); if (!k) return;
+      if (k.tipo === 'manual' || k.tipo === 'rescheduled' || k.tipo === 'reset') return;
+      if (k.tipo === 'filtered' && !(k.ease > 0)) return;              // cramming
+      if (!(k.tipo === 'review' || k.last <= -86400 || k.last >= 1)) return;
+      const ts = Number(r.ts) || 0; if (ts < ini || ts >= ate) return;
+      const alvo = k.last < 21 ? acc.jovem : acc.maduro;
       alvo.total++; acc.todos.total++;
-      if (Number(r.grade) > 1) { alvo.acertos++; acc.todos.acertos++; }
+      if (g > 1) { alvo.acertos++; acc.todos.acertos++; }
     });
     const pct = (o) => o.total ? Math.round((o.acertos / o.total) * 1000) / 10 : null;
     return {
       jovem: Object.assign({ pct: pct(acc.jovem) }, acc.jovem),
       maduro: Object.assign({ pct: pct(acc.maduro) }, acc.maduro),
       todos: Object.assign({ pct: pct(acc.todos) }, acc.todos),
-      mesmoDia: acc.mesmoDia,
+      mesmoDia: 0,
       meta: Math.round((CardsConfig.get().retention || 0.9) * 100)
     };
   },
@@ -240,6 +250,8 @@ const CardsScreen = {
   // Monta a fila do dia respeitando os LIMITES diários (novos/revisões) — como o Anki.
   buildQueue() {
     if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
+    // LoadBalancer::new roda junto com a montagem da fila (build_queues).
+    if (typeof AnkiParity !== 'undefined' && AnkiParity.lbCongelar) AnkiParity.lbCongelar();
     // cards suspensos (leech) ficam fora da fila, como no Anki
     const filtered = this.currentFilteredCards().filter(c => !c.suspenso);
     const due = filtered.filter(c => CardEngine.isDue(c));
@@ -436,12 +448,28 @@ const CardsScreen = {
     const selectedDeckId = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
     const limitTree = (typeof AnkiParity !== 'undefined') ? AnkiParity.limitState(selectedDeckId) : null;
     const fallbackTaken = new Map();
-    const limitarPorArvore = (lista, limiteGlobal, kind) => {
+    /* ENTERRAR NA COLETA (builder/burying.rs + gathering.rs): cada nota vista
+       guarda o modo de enterro da predefinição; um irmão que chega depois é
+       pulado — sem gastar vaga do limite — conforme o tipo dele. O
+       aprendizado intradiário marca a nota, mas nunca é pulado. */
+    const notasVistas = new Map();
+    const chaveNota = (c) => String(c && (c.noteId || c.id));
+    const modoEnterro = (c) => { const k = CardsConfig.forDeck(c.originalDeckId || c.deckId) || {}; return { novo: !!k.buryNew, rev: !!k.buryReviews, dia: !!k.buryInterdayLearning }; };
+    const verNota = (c) => {
+      const k = chaveNota(c), m = modoEnterro(c), antes = notasVistas.get(k);
+      notasVistas.set(k, antes ? { novo: antes.novo || m.novo, rev: antes.rev || m.rev, dia: antes.dia || m.dia } : m);
+      return antes || null;
+    };
+    filtered.filter(c => c.dueTs && (c.due || todayCards()) <= todayCards() && !CardEngine.estaEnterrado(c)).forEach(verNota);
+    const enterrarNaColeta = (card, tipoFila) => { const antes = verNota(card); return !!(antes && antes[tipoFila]); };
+    const limitarPorArvore = (lista, limiteGlobal, kind, tipoFila) => {
       const out = [];
       for (const card of lista) {
         if (out.length >= limiteGlobal) break;
         if (limitTree) {
-          if (!limitTree.take(card, kind)) continue;
+          if (!limitTree.can(card, kind)) continue;
+          if (enterrarNaColeta(card, tipoFila)) continue;
+          limitTree.take(card, kind);
         } else {
           /* Fallback para carregamento isolado/legado sem a camada de paridade.
              As consultas *RemainingForDeck() refletem apenas o que já foi
@@ -456,6 +484,7 @@ const CardsScreen = {
             ? CardsConfig.newRemainingForDeck(card.deckId)
             : CardsConfig.revRemainingForDeck(card.deckId)) - usados;
           if (remDeck <= 0) continue;
+          if (enterrarNaColeta(card, tipoFila)) continue;
           if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit) {
             const revKey = 'review:' + did;
             const revUsados = fallbackTaken.get(revKey) || 0;
@@ -473,15 +502,15 @@ const CardsScreen = {
     /* gathering.rs: aprendizado entre dias → revisões → novos. Cada revisão
        aceita reduz o teto de novos (novos = mín(novos, revisões restantes));
        aceitar um novo NÃO consome vaga de revisão durante a montagem. */
-    const aprendDiaLim = limitarPorArvore(aprendDia, revRem, 'review');
+    const aprendDiaLim = limitarPorArvore(aprendDia, revRem, 'review', 'dia');
     const revLim = limitarPorArvore(
       revisoes,
       Math.max(0, revRem - aprendDiaLim.length),
-      'review'
+      'review', 'rev'
     );
     const restoRev = Math.max(0, revRem - aprendDiaLim.length - revLim.length);
     const novosLim = ordenarNovos(limitarPorArvore(novos,
-      cfgQ.newCardsIgnoreReviewLimit ? newRemEfetivo : Math.min(newRemEfetivo, restoRev), 'new'));
+      cfgQ.newCardsIgnoreReviewLimit ? newRemEfetivo : Math.min(newRemEfetivo, restoRev), 'new', 'novo'));
     /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
        O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
        os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
@@ -555,7 +584,14 @@ const CardsScreen = {
   },
   // Anki mostra um card de aprendizado antes da hora quando não há mais nada na fila
   // (learn ahead limit = 20 min). Fora disso, informa quanto falta.
-  LEARN_AHEAD_MIN: 20,
+  // "Limite para aprender adiantado" das Preferências (Anki: collapseTime).
+  _learnAheadFixo: null,
+  get LEARN_AHEAD_MIN() {
+    if (this._learnAheadFixo != null) return this._learnAheadFixo;
+    const v = Number(CardsConfig.get().learnAheadMin);
+    return Number.isFinite(v) && v >= 0 ? v : 20;
+  },
+  set LEARN_AHEAD_MIN(v) { this._learnAheadFixo = v; },
   _learnAheadQueue() {
     const limite = Date.now() + this.LEARN_AHEAD_MIN * 60000;
     return this.currentFilteredCards()
@@ -575,6 +611,7 @@ const CardsScreen = {
     if (!cacheValido) {
       this._reviewQueue = this.buildQueue();
       this._reviewIdx = 0;
+      this._aprendAnki = null;
     }
     const m = this._queueMeta || {};
     if (this._reviewQueue.length === 0) {
@@ -677,7 +714,8 @@ const CardsScreen = {
      um card em dez minutos não diz nada sobre esquecimento. */
   _statTrueRetention() {
     const p = [];
-    [[1, 'Hoje'], [7, '7 dias'], [30, '30 dias'], [365, '1 ano'], [null, 'Tudo']].forEach(([d, rot]) => {
+    // Mesmos períodos da tabela "Retenção real" do Anki.
+    [[1, 'Hoje'], ['ontem', 'Ontem'], [7, 'Última semana'], [30, 'Último mês'], [365, 'Último ano'], [null, 'Todo o período']].forEach(([d, rot]) => {
       const t = this.trueRetention(d);
       if (!t.todos.total) return;
       const cor = (v) => v == null ? '' : (v >= t.meta ? 'good' : v >= t.meta - 5 ? 'warn' : 'bad');
@@ -688,7 +726,7 @@ const CardsScreen = {
     const meta = this.trueRetention(null).meta;
     return `<div class="card stat-card" style="margin-top:14px">
       <div class="card-header"><div><h2>🎯 Retenção real (True Retention)</h2>
-      <p class="sub">Primeira revisão de cada card por dia. Again = falha; Hard/Good/Easy = acerto. Meta configurada: ${meta}%.</p></div></div>
+      <p class="sub">Como no Anki: revisões e (re)aprendizado vindo de intervalo ≥ 1 dia; passos do mesmo dia ficam de fora. Again = falha; Hard/Good/Easy = acerto. Meta configurada: ${meta}%.</p></div></div>
       <div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
     </div>`;
   },
@@ -1084,6 +1122,59 @@ const CardsScreen = {
   },
   // pula (rotacionando para o fim) cards cujo passo de aprendizado ainda não venceu,
   // desde que exista outro card disponível agora
+  /* Iterador do Anki (queue/mod.rs::iter): aprendizado intradiário JÁ vencido →
+     fila principal (revisões/novos/entre dias) → aprendizado que vence dentro do
+     "aprender adiantado". O aprendizado vive numa lista própria (a deque
+     intraday_learning do Anki), ordenada por cmp_by_reps_then_due e alimentada
+     por inserção com a MESMA busca binária do Rust (binary_search_by): no
+     empate, o recém-inserido cai antes. requeue_learning_entry: com a fila
+     principal vazia, o card recém-respondido não passa à frente do próximo de
+     aprendizado (o vencimento da ENTRADA vira o dele + 1 s). O corte "agora" é
+     o instante da resposta (update_learning_cutoff_and_count). */
+  _iniciarAprendAnki(cards) {
+    const hoje = todayCards();
+    const lista = (cards || []).filter(c => c && !c.suspenso && c.dueTs && (c.due || hoje) <= hoje)
+      .map((c, k) => ({ id: c.id, due: Math.floor(Number(c.dueTs) / 1000), semRep: (c.reps || 0) === 0, k }));
+    lista.sort((a, b) => (a.semRep - b.semRep) || (a.due - b.due) || (a.k - b.k));
+    this._aprendAnki = lista.map(({ id, due, semRep }) => ({ id, due, semRep }));
+  },
+  _inserirAprendAnki(e) {
+    const d = this._aprendAnki, cmp = (x) => ((x.semRep - e.semRep) || (x.due - e.due));
+    let size = d.length, base = 0, pos;
+    if (!size) pos = 0;
+    else {
+      while (size > 1) { const half = size >> 1, mid = base + half; base = cmp(d[mid]) > 0 ? base : mid; size -= half; }
+      const c = cmp(d[base]); pos = c === 0 ? base : base + (c < 0 ? 1 : 0);
+    }
+    d.splice(pos, 0, e);
+  },
+  _ordenarComoAnki(ultimoId) {
+    const q = this._reviewQueue || [], i = Math.min(this._reviewIdx || 0, q.length);
+    if (!this._aprendAnki) this._iniciarAprendAnki(this.currentFilteredCards());
+    const agoraS = Math.floor(Date.now() / 1000), corteS = agoraS + Math.round(this.LEARN_AHEAD_MIN * 60);
+    const vistos = new Set(), principal = [];
+    q.slice(i).forEach(id => {
+      if (vistos.has(String(id))) return; vistos.add(String(id));
+      const c = DB.getCard(id); if (c && !c.suspenso && !c.dueTs) principal.push(c.id);
+    });
+    if (ultimoId != null) {
+      this._aprendAnki = this._aprendAnki.filter(e => String(e.id) !== String(ultimoId));
+      const c = DB.getCard(ultimoId);
+      if (c && !c.suspenso && c.dueTs && (c.due || todayCards()) <= todayCards()) {
+        const e = { id: c.id, due: Math.floor(Number(c.dueTs) / 1000), semRep: (c.reps || 0) === 0 };
+        if (e.due <= corteS && !principal.length) {
+          const prox = this._aprendAnki[0];
+          if (prox && prox.due >= e.due && prox.due + 1 < corteS) e.due = prox.due + 1;
+        }
+        this._inserirAprendAnki(e);
+      }
+    }
+    this._aprendAnki = this._aprendAnki.filter(e => { const c = DB.getCard(e.id); return c && !c.suspenso && c.dueTs; });
+    const ja = this._aprendAnki.filter(e => e.due <= agoraS).map(e => e.id);
+    const adiante = this._aprendAnki.filter(e => e.due > agoraS && e.due <= corteS).map(e => e.id);
+    this._reviewQueue = q.slice(0, i).concat(ja, principal, adiante);
+    this._reviewIdx = i;
+  },
   _skipNotDue() {
     const q = this._reviewQueue;
     let guard = q.length;
@@ -1147,8 +1238,12 @@ const CardsScreen = {
     const u = (this._undoStack || []).pop();
     if (!u) { showToast('Nada para desfazer'); return; }
     DB.updateCard(u.id, u.antes);
+    if (u.aprendAntes !== undefined) this._aprendAnki = u.aprendAntes;
     (u.buriedSiblings || []).forEach(id => { try { DB.unburyCard(id); } catch (_) {} });
-    CardEngine.invalidateDueCache();
+    CardEngine.invalidateDueCache(true);
+    // Medido no anki==26.09.2: depois do desfazer o LoadBalancer é relido do
+    // banco (o add_card() da resposta desfeita some; o card volta ao vencimento antigo).
+    if (typeof AnkiParity !== 'undefined' && AnkiParity._lb && AnkiParity.lbCongelar) AnkiParity.lbCongelar();
     DB.removeRevlog(u.revTs);
     if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
     if (this._seenThisSession && !(this._undoStack || []).some(x => x.id === u.id)) this._seenThisSession.delete(u.id);
@@ -1221,7 +1316,7 @@ const CardsScreen = {
   
         // snapshot para DESFAZER, antes de qualquer mutação.
         const antes = {};
-        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'firstReviewAt', 'algo', 'leech', 'suspenso']
+        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'lastReviewTs', 'ankiMod', 'firstReviewAt', 'algo', 'leech', 'suspenso']
           .forEach(k => { antes[k] = c[k]; });
   
         if (previewPatch) {
@@ -1236,18 +1331,27 @@ const CardsScreen = {
         const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
         const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
         const cardPosition = Math.max(1, (window.StudyGlobalScope && StudyGlobalScope.cardPosition ? StudyGlobalScope.cardPosition(id) : DB.getCards().findIndex(x => String(x.id) === String(id)) + 1));
-        const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
+        const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=previewPatch?0:Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
+        /* Revlog na semântica do Anki (scheduler/answering/revlog.rs): tipo pelo
+           estado ANTES da resposta; ivl/lastIvl em dias, ou -segundos nos passos
+           (maybe_as_days: passo que cruza a virada vira dias). */
+        const cfgRev=CardsConfig.forDeck(c.originalDeckId||c.deckId),ateVirada=Math.max(0,Math.round((proximaViradaTs()-revTs)/1000));
+        const comoRevlog=(secs)=>secs>=ateVirada&&ateVirada>0?Math.floor((secs-ateVirada)/86400)+1:-secs;
+        const passoAtualSecs=(lista,idx)=>{const l=Array.isArray(lista)?lista:[];if(!l.length)return 0;return Math.round(Number(l[Math.max(0,Math.min(Number(idx)||0,l.length-1))])*60);};
+        const faseAntes=c.phase||'new',dueOrigRev=c.originalDeckId&&c.originalDue?c.originalDue:null;
+        const tipoRev=previewPatch?'filtered':(faseAntes==='new'||faseAntes==='learning')?'learning':faseAntes==='relearning'?'relearning':(dueOrigRev&&dueOrigRev>todayCards())?'filtered':'review';
+        const lastIvlAnki=previewPatch?0:faseAntes==='new'?0:faseAntes==='learning'?comoRevlog(passoAtualSecs(cfgRev.learnSteps,c.learnStep)):faseAntes==='relearning'?comoRevlog(passoAtualSecs(cfgRev.relearnSteps,c.learnStep)):(Number(c.intervalo)||0);
         const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
         const revRow = await DB.addRevlogDurable(
           { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
             phase: previewPatch ? 'filtered' : (c.phase || 'new'),
-            ankiReviewKind: previewPatch ? 'filtered' : undefined,
             elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
             // Compatibilidade: `intervalo` continua sendo o intervalo pré-resposta
             // usado pelas estatísticas antigas; os campos Anki explícitos removem
             // qualquer ambiguidade para FSRS/import/export daqui em diante.
-            intervalo: preInterval, lastInterval: preInterval, ankiLastInterval: preInterval,
-            ankiInterval: postInterval, easeFactor,
+            intervalo: preInterval, lastInterval: preInterval,
+            ankiInterval: previewPatch?0:(patch&&patch._kind==='min'?comoRevlog(Math.round(Number(patch._val)*60)):postInterval),
+            ankiLastInterval: lastIvlAnki, ankiReviewKind: tipoRev, ankiIvlSemantica: 2, easeFactor,
             s: (c.s || null), d: (c.d || null) },
           cardAfter, cardPosition
         );
@@ -1270,10 +1374,15 @@ const CardsScreen = {
         // A partir daqui a resposta sobrevive a reload/offline. A sincronização
         // remota pode terminar depois sem bloquear a próxima pergunta.
         DB.kickRevlogDuravel();
-        CardEngine.invalidateDueCache();
+        CardEngine.invalidateDueCache(true);
+        // answering/mod.rs: card que volta à fila Review entra no LoadBalancer
+        // da fila já montada, no dia = intervalo (sem remover o vencimento antigo).
+        if (typeof AnkiParity !== 'undefined' && AnkiParity.lbAdicionarRespondido) AnkiParity.lbAdicionarRespondido(DB.getCard(id));
         const buriedSiblings = (typeof AnkiParity !== 'undefined') ? AnkiParity.autoBurySiblings(c) : [];
         if(!this._redoing)this._redoStack=[];
-        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings, grade });
+        // Desfazer do Anki restaura também a fila de aprendizado (QueueUpdate).
+        const aprendAntes = this._aprendAnki ? this._aprendAnki.map(e => Object.assign({}, e)) : null;
+        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings, grade, aprendAntes });
         if (this._undoStack.length > 50) this._undoStack.shift();
         if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
         // O campo {{type:...}} pertence somente a esta apresentação. Limpa
@@ -1284,16 +1393,11 @@ const CardsScreen = {
       this._reviewCardId=null;this._reviewStartedAt=null;this._answerShownAt=null;
       clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
       this._flipped = false;
-      // Anki: cards em APRENDIZADO/REAPRENDIZADO ressurgem na mesma sessão, mas só DEPOIS
-      // do passo. Passo curto volta logo; passo longo vai para o fim da fila.
-      if (patch && (patch.phase === 'learning' || patch.phase === 'relearning' || (patch._filteredPreview && !patch._filteredFinished)) && !patch.suspenso) {
-        const restam = this._reviewQueue.length - this._reviewIdx;
-        const curto = patch.dueTs && (patch.dueTs - Date.now()) <= 3 * 60000;
-        const gap = curto ? Math.min(3, restam) : restam;
-        this._reviewQueue.splice(this._reviewIdx + gap, 0, id);
-      }
-      // não mostra um card cujo passo ainda não venceu se houver outro disponível
-      this._skipNotDue();
+      // Anki: cards em APRENDIZADO/REAPRENDIZADO voltam à fila da sessão e reaparecem
+      // pelo HORÁRIO do passo (queue/learning.rs), não por posição.
+      // Todo card respondido sai da deque de aprendizado; se voltar hoje, é
+      // reinserido nela (requeue_learning_entry).
+      this._ordenarComoAnki(id);
       this.atualizarFoco();
       const box = document.getElementById('cards-content');
       if (this._reviewIdx >= this._reviewQueue.length) {
@@ -1315,8 +1419,8 @@ const CardsScreen = {
           return c && !c.suspenso;
         });
         if (antecipados.length) {
-          this._reviewQueue = this._reviewQueue.concat(antecipados);
-          this._skipNotDue();
+          this._reviewQueue = this._reviewQueue.concat(antecipados.filter(x => !this._reviewQueue.slice(this._reviewIdx).includes(x)));
+          this._ordenarComoAnki(null);
           this.renderReviewCard(box);
           return true;
         }
@@ -1327,9 +1431,19 @@ const CardsScreen = {
         if (rb) rb.addEventListener('click', () => { this.invalidateReviewQueue(); this.renderContent(); });
         this.updateFavCount();
         // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
-        const prox = (this._queueMeta || {}).proximoTs;
+        const agoraFim = Date.now(), pendHoje = this.currentFilteredCards()
+          .filter(c => !c.suspenso && c.dueTs && c.dueTs > agoraFim && (c.due || todayCards()) <= todayCards())
+          .map(c => c.dueTs).sort((a, b) => a - b);
+        const prox = pendHoje.length ? pendHoje[0] : (this._queueMeta || {}).proximoTs;
         clearTimeout(this._etaTimer);
-        if (prox) this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') { this.invalidateReviewQueue(); this.renderContent(); } }, Math.max(3000, prox - Date.now() + 500));
+        // Fila vazia: como counts() do Anki, só renova o corte "agora" e segue com
+        // a MESMA lista de aprendizado (sem remontar e reordenar tudo).
+        if (prox) this._etaTimer = setTimeout(() => {
+          if (this.tab !== 'revisar') return;
+          this._ordenarComoAnki(null);
+          if (this._reviewIdx < this._reviewQueue.length) this.renderReviewCard(document.getElementById('cards-content'));
+          else { this.invalidateReviewQueue(); this.renderContent(); }
+        }, Math.max(1000, prox - Date.now() + 200));
         return true;
       }
       this.renderReviewCard(box);

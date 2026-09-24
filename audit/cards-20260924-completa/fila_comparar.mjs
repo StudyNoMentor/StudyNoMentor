@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { criarAmbiente } from '../cards-20260921-v2/harness.mjs';
 const dados = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 const a = criarAmbiente({ now: Date.now() });
-let ok = 0, total = 0;
+let ok = 0, total = 0, enterroOk = 0, enterroTot = 0;
 for (const [nome, cen] of Object.entries(dados)) {
   a.reset(Object.assign({ algo: 'fsrs', retention: 0.9, loadBalance: false, learnSteps: [1, 10], relearnSteps: [10] }, cen.op));
   const { DB, CardEngine, CardsScreen } = a, HOJE = a.hoje(), add = (n) => CardEngine.addDays(HOJE, n);
@@ -26,6 +26,17 @@ for (const [nome, cen] of Object.entries(dados)) {
   CardsScreen.filters = { materias: new Set(['deck:1']) };
   const fila = Array.from(CardsScreen.buildQueue()).map(id => Number(String(id).slice(1)));
   const tipo = new Map(cen.cards.map(c => [c.id, ['N', 'L', 'R', 'D'][c.queue] || '?']));
+  if ((cen.enterro || []).length) {
+    let ok = 0;
+    for (const e of cen.enterro) {
+      const card = DB.getCard('c' + e.respondido);
+      const enterrados = a.AnkiParity.autoBurySiblings(card) || [];
+      const app = enterrados.map(String).includes('c' + e.irmao);
+      if (app === e.enterrado) ok++; else console.log('   enterro diverge', e, 'app', app, DB.getCard('c' + e.irmao).phase);
+    }
+    console.log(`   enterro após responder: ${ok}/${cen.enterro.length} iguais ao Anki`);
+    enterroOk += ok; enterroTot += cen.enterro.length;
+  }
   let iguais = 0; for (let i = 0; i < Math.max(fila.length, cen.fila.length); i++) if (fila[i] === cen.fila[i]) iguais++;
   const conj = fila.length === cen.fila.length && fila.every(x => cen.fila.includes(x));
   total++; if (iguais === cen.fila.length && fila.length === cen.fila.length) ok++;
@@ -39,4 +50,4 @@ for (const [nome, cen] of Object.entries(dados)) {
     console.log('   app :', fila.map(x => tipo.get(x)).join(''));
   }
 }
-console.log(`\nFILA: ${ok}/${total} cenários idênticos ao Anki 26.09.2`);
+console.log(`\nFILA: ${ok}/${total} cenários idênticos ao Anki 26.09.2; enterro após responder ${enterroOk}/${enterroTot}`);

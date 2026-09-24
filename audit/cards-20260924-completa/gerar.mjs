@@ -45,6 +45,11 @@ const CONFIGS = {
   fsrs_balanceado: { algo: 'fsrs', learnSteps: [1, 10], relearnSteps: [10], loadBalance: true, fundo: true },
   fsrs_balanceado_easydays: { algo: 'fsrs', learnSteps: [1, 10], relearnSteps: [10], loadBalance: true, fundo: true, easyDays: [0, 1, 1, 0.5, 1, 1, 0.5] },
   sm2_balanceado: { algo: 'sm2', learnSteps: [1, 10], relearnSteps: [10], loadBalance: true, fundo: true },
+  // Baralho filtrado COM reagendamento ("revisar adiantado", estudo personalizado).
+  // Irmãos: nota com 2 cards e "enterrar revisões irmãs" ligado (o LoadBalancer afasta irmãos).
+  fsrs_balanceado_irmaos: { algo: 'fsrs', learnSteps: [1, 10], relearnSteps: [10], loadBalance: true, fundo: true, buryReviews: true, irmaos: true },
+  sm2_filtrado: { algo: 'sm2', learnSteps: [1, 10], relearnSteps: [10], filtrado: true },
+  fsrs_filtrado: { algo: 'fsrs', learnSteps: [1, 10], relearnSteps: [10], filtrado: true },
 };
 let seed = 12345;
 const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
@@ -96,8 +101,23 @@ for (const [nome, extra] of Object.entries(CONFIGS)) {
     if (tipo !== 'new') {
       c.lastReview = addDays(HOJE, -elapsed);
       c.due = tipo === 'review' ? addDays(c.lastReview, c.intervalo) : HOJE;
+      // Aprendizado intradiário, como no oráculo (queue=1, vencimento em segundos).
+      if (tipo === 'learning' || tipo === 'relearning') c.dueTs = VIRADA_TS - 86400000 + 3600000;
     }
-    FUNDO = fundo.concat([c]);
+    let irmao = null;
+    if (CFG.irmaos) {
+      c.noteId = 'n' + c.ankiId; c.ankiNoteId = c.ankiId;
+      const off = Math.floor(rnd() * 25);
+      irmao = { id: 'i' + i, ankiId: nextId++, noteId: c.noteId, deckId: 'd', phase: 'review', suspenso: false, reps: 3, intervalo: 5,
+        due: addDays(HOJE, off), dueTs: null, offset: off, template: 'reverse', ankiTemplateOrd: 1 };
+      c.irmao = irmao;
+    }
+    if (CFG.filtrado && tipo !== 'new') {
+      // Card levado ao filtrado: vencimento original guardado, "due" = hoje.
+      Object.assign(c, { originalDeckId: 'd', originalDue: c.due, originalPhase: tipo, deckId: 'f', filteredReschedule: true, due: HOJE });
+      if (tipo === 'review' && rnd() < 0.6) { const antes = 1 + Math.floor(rnd() * Math.max(1, c.intervalo - 1)); elapsed = Math.max(0, c.intervalo - antes); c.lastReview = addDays(HOJE, -elapsed); c.originalDue = addDays(c.lastReview, c.intervalo); }
+    }
+    FUNDO = fundo.concat(irmao ? [c, irmao] : [c]);
     const resp = {};
     for (const g of GR) {
       const p0 = CE.schedule(Object.assign({}, c), g), p = Object.assign({}, c, p0);

@@ -20,3 +20,7 @@ codegen-units = 1
 lto = "fat"
 opt-level = 3
 strip = true
+
+# Crate oficial fsrs 6.6.2 + fsrs-6.6.2-wasm-sequencial.patch (ver preparar-fsrs.sh).
+[patch.crates-io]
+fsrs = { path = "fsrs-6.6.2-wasm" }

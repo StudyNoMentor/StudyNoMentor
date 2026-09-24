@@ -391,7 +391,7 @@ const AnkiImport = {
     }else{
       (nt.templates||[]).forEach((tmpl,ord)=>{
         const probe={noteId:note.id,ankiTemplateOrd:ord,deckId:targetDeck(tmpl)},q=AnkiParity.renderTemplate(nt,note,ord,'question',probe,'');
-        if(!AnkiParity._fieldNonempty(q))return;
+        if(!(AnkiParity.templateGeraCard?AnkiParity.templateGeraCard(nt,note,ord):AnkiParity._fieldNonempty(q)))return;
         let card=existing.find(c=>Number(c.ankiTemplateOrd||0)===ord);
         if(!card){card=DB.addCard({deckId:targetDeck(tmpl),noteId:note.id,ankiNoteId:note.id,notetypeId:nt.id,kind:'basic',template:ord===1?'reverse':'forward',frente:'',verso:''});made.push(card);}
         const a=AnkiParity.renderTemplate(nt,note,ord,'answer',card,q);
@@ -456,6 +456,7 @@ const AnkiImport = {
       if(opts.withDeckConfigs!==false&&meta.dconf&&meta.dconf[String(d.conf)])CardsConfig.setDeckPreset(hit.id,this._deckCfg(meta.dconf[String(d.conf)]));
     }
     DB.saveDecks(existingDecks);
+    try{if(opts.withScheduling!==false&&Number(col.crt)>0&&!CardsConfig.get().ankiCrt)CardsConfig.set({ankiCrt:Number(col.crt)});}catch(e){_quiet(e,'anki-crt');}
 
     const currentTypes=AnkiParity.noteTypes();
     for(const m of Object.values(meta.models||{})){

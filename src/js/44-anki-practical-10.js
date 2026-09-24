@@ -204,6 +204,7 @@ const AnkiPractical10 = {
       '</div><div class="field-group">'+
       '<div class="field"><label>Tempo máximo de resposta (s)</label><input id="pref-cap-time" type="number" min="0" max="86400" value="'+Number(c.capAnswerTimeToSecs||0)+'"></div>'+
       '<div class="field"><label>Início do novo dia</label><input id="pref-rollover" type="number" min="0" max="23" value="'+Number(c.rolloverHour||0)+'"></div>'+
+      '<div class="field"><label>Limite para aprender adiantado (min)</label><input id="pref-learn-ahead" type="number" min="0" max="1440" value="'+Number(c.learnAheadMin==null?20:c.learnAheadMin)+'"></div>'+
       '</div><h3 class="anki-section-title">Browser</h3><div class="field-group">'+
       '<div class="field"><label>Modo inicial</label><select id="pref-browser-mode"><option value="notes" '+(b.mode!=='cards'?'selected':'')+'>Notas</option><option value="cards" '+(b.mode==='cards'?'selected':'')+'>Cards</option></select></div>'+
       '<div class="field"><label>Ordenação</label><select id="pref-browser-dir"><option value="asc" '+(b.sortDir!=='desc'?'selected':'')+'>Crescente</option><option value="desc" '+(b.sortDir==='desc'?'selected':'')+'>Decrescente</option></select></div>'+
@@ -219,7 +220,8 @@ const AnkiPractical10 = {
       stopTimerOnAnswer:val('pref-stop-timer')==='1',
       waitForAudio:val('pref-wait-audio')==='1',
       capAnswerTimeToSecs:Math.max(0,Number(val('pref-cap-time'))||0),
-      rolloverHour:Math.max(0,Math.min(23,Number(val('pref-rollover'))||0))
+      rolloverHour:Math.max(0,Math.min(23,Number(val('pref-rollover'))||0)),
+      learnAheadMin:Math.max(0,Math.min(1440,Number(val('pref-learn-ahead'))||0))
     });
     if(typeof AnkiMaxParity!=='undefined'){
       AnkiProductParity.browser.mode=val('pref-browser-mode')==='cards'?'cards':'notes';
@@ -525,7 +527,7 @@ const AnkiPractical10 = {
     const max=Math.max(1,...out);return '<div class="anki-p10-hist">'+out.map((n,i)=>'<div title="'+this.esc(labels[i])+': '+n+'"><i style="height:'+Math.max(n?4:0,Math.round(n/max*100))+'%"></i><span>'+this.esc(labels[i])+'</span></div>').join('')+'</div>';
   },
   _trueRetentionRows(){
-    const windows=[['Hoje',1],['7 dias',7],['30 dias',30],['1 ano',365],['Tudo',null]];
+    const windows=[['Hoje',1],['Ontem','ontem'],['Última semana',7],['Último mês',30],['Último ano',365],['Todo o período',null]];
     return windows.map(([label,n])=>{
       const t=CardsScreen.trueRetention(n),xs=t.todos||{total:0,acertos:0,pct:null};
       return '<tr><td>'+label+'</td><td>'+xs.total.toLocaleString('pt-BR')+'</td><td>'+xs.acertos.toLocaleString('pt-BR')+'</td><td>'+(xs.total?Number(xs.pct).toFixed(1)+'%':'—')+'</td></tr>';

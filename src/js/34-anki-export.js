@@ -253,6 +253,7 @@ const AnkiExport = {
     return new Date(a[0], a[1] - 1, a[2]).getTime();
   },
   _collectionEpoch(cards) {
+    try { const crt = CardsConfig.get().ankiCrt; if (crt) return crt; } catch (e) { _quiet(e, 'anki-crt'); }
     let min = Date.now();
     for (const c of cards || []) for (const v of [c.createdAt, c.due, c.originalDue]) {
       const ms = this._dayMs(v); if (Number.isFinite(ms)) min = Math.min(min, ms);
@@ -291,7 +292,7 @@ const AnkiExport = {
   cardSchedule(card, crtSec, newPos) {
     const c = this._homeState(card), phase = String(c.phase || 'new');
     let type = 0, queue = 0;
-    let due = Math.max(1, Number.isFinite(Number(c.posicaoNova)) ? Math.round(Number(c.posicaoNova)) + 1 : newPos);
+    let due = Number.isFinite(Number(c.posicaoNova)) ? Math.max(0, Math.round(Number(c.posicaoNova))) : Math.max(1, newPos);
     const dueTs = c.dueTs != null ? Number(c.dueTs) : (c.dueTsAntesEnterrar != null ? Number(c.dueTsAntesEnterrar) : NaN);
     if (phase === 'learning') {
       type = 1; queue = Number.isFinite(dueTs) ? 1 : 3;
@@ -650,6 +651,14 @@ const AnkiExport = {
       for (let i = 0; i < logs.length; i++) {
         const r = logs[i], kind = this._revKind(r), lastIvl = Number(r.intervalo) || prevExportIvl || 0;
         let ivl;
+        if (r.ankiIvlSemantica === 2 && r.ankiInterval != null && r.ankiLastInterval != null) {
+          // Linha gravada já na semântica do Anki: exporta exatamente o que foi registrado.
+          let id2 = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id2 <= uniqueLast) id2 = uniqueLast + 1; uniqueLast = id2;
+          rows.push([id2, Number(card.ankiId), -1, Math.min(4, Math.max(0, Math.round(Number(r.grade) || 0))), Math.round(Number(r.ankiInterval) || 0),
+            Math.round(Number(r.ankiLastInterval) || 0), Math.max(0, Math.round(Number(r.easeFactor) || 0)), Math.max(0, Math.round(Number(r.time) || 0)), kind]);
+          prevExportIvl = Number(r.ankiInterval) || 0;
+          continue;
+        }
         if (kind === 0 || kind === 2) {
           const next = logs[i + 1];
           const sec = next ? Math.max(1, Math.round(((Number(next.ts) || 0) - (Number(r.ts) || 0)) / 1000))
@@ -806,8 +815,8 @@ const AnkiExport = {
 
     const SQL = await this._loadSqlJs(), db = new SQL.Database(); db.run(this.SCHEMA11);
     const nowMs = Date.now(), conf = {
-      activeDecks: [1], curDeck: 1, newSpread: 0, collapseTime: 1200, timeLim: 0, estTimes: true, dueCounts: true,
-      curModel: null, nextPos: Math.max(1, ...cards.map(c => (Number(c.posicaoNova) || 0) + 2)),
+      activeDecks: [1], curDeck: 1, newSpread: 0, collapseTime: Math.round(((typeof CardsConfig !== 'undefined' && CardsConfig.get().learnAheadMin != null) ? Number(CardsConfig.get().learnAheadMin) : 20) * 60), timeLim: 0, estTimes: true, dueCounts: true,
+      curModel: null, nextPos: Math.max(1, ...cards.map(c => (Number(c.posicaoNova) || 0) + 1)),
       sortType: 'noteFld', sortBackwards: false, addToCur: true, dayLearnFirst: false, schedVer: 2,
       creationOffset: null, sched2021: true
     };
