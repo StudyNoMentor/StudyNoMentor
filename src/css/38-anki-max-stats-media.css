@@ -1,33 +1,65 @@
 /* Paridade máxima — estatísticas e manutenção de mídia */
 .anki-max-stats{display:grid;gap:14px;margin-top:14px}
-.anki-calendar-grid{
-  display:grid;grid-template-rows:repeat(7,10px);grid-auto-flow:column;grid-auto-columns:10px;
-  gap:3px;overflow-x:auto;padding:6px 2px 3px;min-height:88px
-}
-.anki-cal-day{width:10px;height:10px;border-radius:2px;background:var(--surface-sunken);border:1px solid var(--border)}
+/* ── Página única de estatísticas dos Cards ─────────────────────────────── */
+.stats-page{display:grid;gap:14px;min-width:0}
+.stats-page .card{margin:0;min-width:0}
+.stats-page .stat-kpis{margin:0}
+.stats-page .stat-grid{gap:14px}
+@media(min-width:760px){.stats-page .stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.stats-page .stat-grid>.stat-grid{grid-column:1/-1}}
+.stat-body{padding:6px 16px 16px;min-width:0}
+.stats-page .stat-chart{height:150px;padding:8px 16px 30px;gap:3px}
+.stats-page .stat-bar-n{position:static;margin-bottom:3px;line-height:1}
+.stats-page .stat-bar-fill{width:78%}
+.stats-page .stat-bar-x{bottom:-20px;white-space:nowrap}
+@media(max-width:560px){.stats-page .stat-bar-x.alt{visibility:hidden}}
+.stat-note{margin:12px 0 0;font-size:var(--fs-xs);line-height:1.45;color:var(--text-faint)}
+.anki-today p{margin:0 0 6px;font-size:var(--fs-sm);line-height:1.5;color:var(--text-soft)}
+.anki-today p:last-child{margin-bottom:0}
+.anki-stats-fields .field-group{margin:0}
+/* Séries no tempo (revisões, tempo, adicionados) */
+.anki-ts-meta,.anki-ts-eixo,.anki-hour-eixo{display:flex;justify-content:space-between;gap:8px;font-size:var(--fs-3xs);color:var(--text-faint)}
+.anki-ts-meta{margin-bottom:6px}
+.anki-ts-eixo,.anki-hour-eixo{margin-top:5px}
+.anki-ts{display:grid;gap:3px;align-items:end;height:140px;border-bottom:1px solid var(--border)}
+.anki-ts-col{height:100%;display:flex;align-items:flex-end;min-width:0}
+.anki-ts-bar{width:100%;max-width:30px;margin:0 auto;display:flex;flex-direction:column-reverse;border-radius:4px 4px 0 0;overflow:hidden}
+.anki-ts-bar i{display:block;width:100%;flex:none}
+.anki-ts-bar .learn,.anki-stat-legend .learn{background:var(--warn)}
+.anki-ts-bar .review,.anki-stat-legend .review{background:var(--accent)}
+.anki-ts-bar .relearn,.anki-stat-legend .relearn{background:var(--bad)}
+.anki-ts-bar .filtered,.anki-stat-legend .filtered{background:var(--text-faint)}
+.anki-stat-legend{display:flex;gap:6px 14px;flex-wrap:wrap;padding:0 16px 16px;color:var(--text-faint);font-size:var(--fs-2xs)}
+.anki-stat-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+/* Calendário: semanas em colunas, sempre dentro do card */
+.anki-calendar-grid{display:grid;grid-template-rows:repeat(7,auto);grid-auto-flow:column;gap:3px;width:min(100%,calc(var(--sem,12) * 19px))}
+.anki-cal-day{display:block;width:10px;height:10px;border-radius:2px;background:var(--surface-sunken);border:1px solid var(--border);box-sizing:border-box}
+.anki-calendar-grid .anki-cal-day{width:100%;height:auto;aspect-ratio:1}
+.anki-cal-day.vazio{visibility:hidden}
 .anki-cal-day.l1{background:color-mix(in srgb,var(--good) 25%,var(--surface))}
 .anki-cal-day.l2{background:color-mix(in srgb,var(--good) 45%,var(--surface))}
 .anki-cal-day.l3{background:color-mix(in srgb,var(--good) 68%,var(--surface))}
-.anki-cal-day.l4{background:var(--good)}
-.anki-hourly{height:170px;display:grid;grid-template-columns:repeat(24,minmax(10px,1fr));gap:3px;align-items:end;padding-top:8px}
-.anki-hour{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;min-width:0}
-.anki-hour-fill{width:78%;min-height:0;background:var(--accent);border-radius:4px 4px 1px 1px}
-.anki-hour span{font-size:9px;color:var(--text-faint);writing-mode:vertical-rl;transform:rotate(180deg);height:19px}
-.anki-review-bars{height:170px;display:grid;grid-template-columns:repeat(30,minmax(5px,1fr));gap:3px;align-items:end;padding-top:8px}
-.anki-review-day{height:100%;display:flex;align-items:flex-end}
-.anki-stack{width:100%;height:100%;display:flex;flex-direction:column-reverse;justify-content:flex-start}
-.anki-stack i{display:block;width:100%;min-height:0}
-.anki-stack .learn{background:var(--warn)}
-.anki-stack .review{background:var(--accent)}
-.anki-stack .relearn{background:var(--bad)}
-.anki-stack .filtered{background:var(--text-faint)}
-.anki-stat-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;color:var(--text-faint);font-size:var(--fs-2xs)}
-.anki-future-bars{height:160px;display:grid;grid-template-columns:repeat(13,1fr);gap:5px;align-items:end}
-.anki-future-bars>div,.anki-mini-hist>div{height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px}
-.anki-future-bars i,.anki-mini-hist i{display:block;width:72%;background:var(--accent);border-radius:4px 4px 1px 1px}
-.anki-future-bars span,.anki-mini-hist span{font-size:9px;color:var(--text-faint);white-space:nowrap}
-.anki-mini-hist{height:145px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;align-items:end}
-.anki-memory-grid .stat-card:first-child .anki-mini-hist{grid-template-columns:repeat(5,minmax(0,1fr))}
+.anki-cal-day.l4{background:var(--good);border-color:var(--good)}
+.anki-cal-leg{display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:10px;font-size:var(--fs-3xs);color:var(--text-faint)}
+/* Distribuição por hora: 24 colunas que cabem na largura */
+.anki-hourly{height:130px;display:grid;grid-template-columns:repeat(24,minmax(0,1fr));gap:2px;align-items:end;border-bottom:1px solid var(--border)}
+.anki-hour{height:100%;display:flex;align-items:flex-end;min-width:0}
+.anki-hour-fill{width:100%;background:var(--accent);border-radius:3px 3px 0 0}
+/* Histogramas curtos (intervalos, recuperabilidade, facilidade) */
+.anki-mini-hist{height:160px;display:grid;gap:6px;align-items:stretch}
+.anki-mini-hist>div{display:flex;flex-direction:column;align-items:center;min-width:0}
+.anki-mini-hist b{font-size:var(--fs-2xs);font-family:'Space Mono',ui-monospace,monospace;color:var(--text-soft);margin-bottom:3px}
+.anki-mini-hist .mh-bar{flex:1;width:100%;display:flex;align-items:flex-end;justify-content:center;border-bottom:1px solid var(--border)}
+.anki-mini-hist i{display:block;width:78%;max-width:36px;background:var(--accent);border-radius:4px 4px 0 0}
+.anki-mini-hist span{font-size:var(--fs-3xs);color:var(--text-faint);text-align:center;line-height:1.15;margin-top:5px;min-height:2.3em}
+/* Contagem de cards */
+.anki-counts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 16px;margin-top:14px}
+.anki-counts>div{display:grid;grid-template-columns:10px minmax(0,1fr) auto auto;gap:6px;align-items:center;font-size:var(--fs-xs);color:var(--text-soft)}
+.anki-counts i{width:10px;height:10px;border-radius:3px}
+.anki-counts span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.anki-counts b{font-family:'Space Mono',ui-monospace,monospace}
+.anki-counts em{font-style:normal;color:var(--text-faint);min-width:3.6em;text-align:right}
+.anki-counts .zero{opacity:.5}
+@media(max-width:360px){.anki-counts{grid-template-columns:1fr}}
 .anki-sim-card{display:flex;flex-direction:column;justify-content:space-between}
 .anki-sim-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}
 .anki-sim-bars{height:160px;display:flex;gap:2px;align-items:flex-end;overflow:hidden;padding-top:8px}
@@ -35,8 +67,3 @@
 .anki-retention-result{padding:14px;border:1px solid var(--border);border-radius:12px;background:var(--accent-soft);margin:12px 0}
 .anki-media-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 #anki-check-extended{margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
-@media(max-width:700px){
-  .anki-hourly{overflow-x:auto;grid-template-columns:repeat(24,18px)}
-  .anki-review-bars{overflow-x:auto;grid-template-columns:repeat(30,12px)}
-  .anki-future-bars{overflow-x:auto;grid-template-columns:repeat(13,28px)}
-}
