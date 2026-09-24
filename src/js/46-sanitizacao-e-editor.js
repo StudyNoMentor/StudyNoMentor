@@ -402,13 +402,27 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     CardsScreen.renderContent();
   }));
   // filtro colapsável
-  on('cards-filter-toggle', 'click', () => {
+  /* Os filtros começam RECOLHIDOS: abertos, ocupavam a primeira tela inteira
+     do celular e empurravam o card da revisão para baixo da dobra. A escolha
+     de abrir/fechar é lembrada neste aparelho. */
+  const FILTROS_KEY = 'snm:cards-filtros-abertos';
+  const aplicarFiltros = (aberto) => {
     const card = document.getElementById('cards-filter-card');
     const body = document.getElementById('cards-filter-body');
-    const open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-    if (card) card.classList.toggle('collapsed', open);
-    $id('cards-filter-caret').textContent = open ? '▸' : '▾';
+    if (!body) return;
+    body.style.display = aberto ? 'block' : 'none';
+    if (card) card.classList.toggle('collapsed', !aberto);
+    const caret = document.getElementById('cards-filter-caret'); if (caret) caret.textContent = aberto ? '▾' : '▸';
+    const head = document.getElementById('cards-filter-toggle'); if (head) head.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+  };
+  let filtrosAbertos = false;
+  try { filtrosAbertos = localStorage.getItem(FILTROS_KEY) === '1'; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-filtros'); }
+  aplicarFiltros(filtrosAbertos);
+  on('cards-filter-toggle', 'click', () => {
+    const body = document.getElementById('cards-filter-body');
+    const aberto = body && body.style.display === 'none';
+    aplicarFiltros(aberto);
+    try { localStorage.setItem(FILTROS_KEY, aberto ? '1' : '0'); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-filtros'); }
   });
   // busca
   on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });

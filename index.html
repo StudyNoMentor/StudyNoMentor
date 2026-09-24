@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve5850e43cc">
+<meta name="diario-versao" content="vb085075c65">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -5582,7 +5582,7 @@ window.__relationalBoot = true;
   .cards-select-toggle input { flex:0 0 16px !important; width:16px !important; height:16px !important; margin:0 !important; }
   .cards-select-toggle span { display:inline-flex !important; align-items:center !important; height:100% !important; white-space:nowrap !important; line-height:1 !important; }
   .cards-bulk-count { white-space:nowrap !important; }
-  .cards-bulk .btn-danger { min-height:36px !important; height:36px !important; display:inline-flex !important; align-items:center !important; white-space:nowrap !important; }
+  .cards-bulk .btn-danger { min-height:36px !important; height:36px !important; display:inline-flex; align-items:center !important; white-space:nowrap !important; }
   .exd.done .exd-check:hover .exd-check-lbl { visibility:visible !important; display:inline !important; opacity:1 !important; }
   .exd.done .exd-check:hover { background:var(--warn) !important; border-color:var(--warn) !important; color:#fff !important; }
   .exd.done .exd-check:hover::before, .exd.done .exd-check:hover::after { content:none !important; display:none !important; }
@@ -16358,6 +16358,144 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 /* Cabeçalho do cartão do dia: navegação encostada à direita, sem esticar */
 #extras-agenda .ux100-day-card .card-header>div:first-child{flex:1 1 auto;min-width:0}
 #extras-agenda .ux100-day-card .cal-nav{margin-left:auto!important;width:auto!important;flex:0 0 auto!important}
+
+</style>
+
+<style id="telas-cards">
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARDS — acabamento visual da tela, do revisor e das janelas que ela abre
+   Carregado por último. As camadas anteriores (ux-base, anki-parity,
+   practical-10…) usam !important; aqui também, só onde precisa vencer.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Abas: controle segmentado, sem ícone empilhado nem texto quebrado ─── */
+#screen-cards .cards-tabs{
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:4px!important;padding:4px!important;margin:12px 0!important;
+  background:var(--surface-sunken)!important;border:1px solid var(--border)!important;border-radius:14px!important
+}
+#screen-cards .cards-tab{
+  display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:6px!important;
+  min-height:40px!important;padding:7px 6px!important;border:0!important;border-radius:10px!important;background:transparent!important;
+  font-size:13px!important;font-weight:750!important;color:var(--text-soft)!important;white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;box-shadow:none!important
+}
+#screen-cards .cards-tab.active{background:var(--surface)!important;color:var(--accent)!important;box-shadow:0 1px 3px rgba(15,23,42,.12)!important}
+
+/* ── Filtros: cabeçalho enxuto quando recolhido ───────────────────────── */
+#cards-filter-card{border-radius:16px!important}
+#cards-filter-card .cards-filter-head{cursor:pointer;padding:12px 16px!important;min-height:0!important}
+#cards-filter-card .cards-filter-head h2{font-size:15px!important;margin:0!important}
+#cards-filter-card.collapsed{box-shadow:none!important}
+
+/* ── Revisor ───────────────────────────────────────────────────────────── */
+#screen-cards .cards-review-wrap{border-radius:18px!important;padding:14px 16px 16px!important}
+#screen-cards .cards-review-progress{gap:8px!important;flex-wrap:wrap}
+#screen-cards .cards-face{border-radius:14px!important}
+/* Ações: chips em grade estável em vez de links soltos em três linhas */
+#screen-cards .cards-review-nav{
+  display:flex!important;flex-wrap:wrap!important;align-items:center!important;justify-content:center!important;gap:6px!important;margin-top:14px!important;padding:0!important
+}
+#screen-cards .cards-review-nav>.icon-btn{
+  display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;width:auto!important;height:auto!important;
+  min-height:36px!important;padding:6px 11px!important;border:1px solid var(--border)!important;border-radius:10px!important;background:var(--surface)!important;
+  font-size:12.5px!important;font-weight:700!important;color:var(--text-soft)!important;white-space:nowrap!important;box-shadow:none!important
+}
+#screen-cards .cards-review-nav>.icon-btn:hover{border-color:var(--accent)!important;color:var(--accent)!important}
+#screen-cards .cards-review-nav>#cards-act-del:hover{border-color:var(--bad)!important;color:var(--bad)!important}
+#screen-cards .cards-review-nav>#anki-review-more{background:var(--accent-soft)!important;border-color:color-mix(in srgb,var(--accent) 35%,var(--border))!important;color:var(--accent)!important}
+#screen-cards .cards-flagbar{display:inline-flex!important;align-items:center!important;gap:5px!important;padding:5px 8px!important;border:1px solid var(--border)!important;border-radius:10px!important;background:var(--surface)!important}
+#screen-cards .cards-flag{width:18px!important;height:18px!important;min-width:18px!important;min-height:18px!important;border-radius:50%!important;border:2px solid var(--fl,var(--border))!important;background:transparent!important;padding:0!important}
+#screen-cards .cards-flag.on{background:var(--fl)!important}
+@media(max-width:560px){
+  /* No celular ficam as ações mais usadas; o resto (suspender, esquecer,
+     data, excluir, bandeiras) está a um toque em "Mais ações". */
+  #screen-cards .cards-review-nav{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important}
+  #screen-cards .cards-review-nav>#cards-act-susp,
+  #screen-cards .cards-review-nav>#cards-act-forget,
+  #screen-cards .cards-review-nav>#cards-act-due,
+  #screen-cards .cards-review-nav>#cards-act-del,
+  #screen-cards .cards-review-nav>.cards-flagbar{display:none!important}
+  #screen-cards .cards-review-nav>.icon-btn{width:100%!important;padding:6px 4px!important}
+}
+/* Atalhos de teclado não servem para toque */
+@media(hover:none) and (pointer:coarse),(max-width:560px){#screen-cards .cards-kbd-hint-row{display:none!important}}
+#screen-cards .cards-kbd-hint-row{margin-top:12px!important;opacity:.9}
+
+/* ── Meus cards ────────────────────────────────────────────────────────── */
+#screen-cards .cards-count-bar{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:0 2px 10px!important;font-size:12px!important}
+#screen-cards .cards-bulk{padding:10px 12px!important;margin-bottom:12px!important;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+#screen-cards .cards-bulk .cards-select-toggle{display:inline-flex;align-items:center;gap:8px;font-weight:650;font-size:13px}
+#screen-cards .mini-card{border-radius:14px!important}
+
+/* ── Janelas (modais) dos Cards: cabeçalho, rodapé e caixas de seleção ─── */
+.cards-modal .cards-modal-box{border-radius:18px!important}
+.cards-modal .cards-modal-head{gap:12px!important;align-items:flex-start!important}
+.cards-modal .cards-modal-head h2{font-size:17px!important;line-height:1.25!important}
+.cards-modal .cards-modal-head .sub{font-size:12.5px!important;line-height:1.4!important}
+.cards-modal .cards-modal-head>.icon-btn{flex:0 0 auto;width:36px!important;height:36px!important;border-radius:10px!important}
+.cards-modal .cards-modal-head>.icon-btn:focus:not(:focus-visible){box-shadow:none!important;outline:none!important}
+/* Rodapé: botões nunca quebram o texto em 2–3 linhas; ferramentas extras
+   ocupam a linha de cima e a ação principal fica à direita */
+.cards-modal .cards-modal-foot{display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:8px!important}
+.cards-modal .cards-modal-foot>button,.cards-modal .cards-modal-foot>div>button{white-space:nowrap!important;min-height:40px!important;padding:8px 14px!important;border-radius:11px!important;line-height:1.1!important}
+.cards-modal .cards-modal-foot>.btn-primary{margin-left:auto}
+/* Caixa de seleção + rótulo na mesma linha */
+.cards-modal label.check-label,.cards-modal label:has(> input[type=checkbox]){display:flex!important;flex-direction:row!important;align-items:center!important;gap:10px!important;font-weight:600;cursor:pointer}
+.cards-modal label.check-label>input[type=checkbox],.cards-modal label:has(> input[type=checkbox])>input[type=checkbox]{flex:0 0 auto!important;width:18px!important;height:18px!important;min-height:0!important;margin:0!important;accent-color:var(--accent)}
+.cards-modal fieldset{border:1px solid var(--border)!important;border-radius:12px!important;padding:10px 14px 12px!important;margin:12px 0!important;display:grid;gap:8px}
+.cards-modal fieldset legend{padding:0 6px;font-size:12px;font-weight:800;letter-spacing:.03em;color:var(--text-soft)}
+
+/* Meus baralhos: nome inteiro na 1ª linha; contagem e ações na 2ª */
+#deck-list .deck-row{
+  display:flex!important;flex-wrap:wrap!important;align-items:center!important;gap:6px!important;grid-template-columns:none!important;grid-template-areas:none!important;
+  padding:10px 12px!important;border:1px solid var(--border)!important;border-radius:12px!important;background:var(--surface)!important;margin-bottom:8px!important
+}
+#deck-list .deck-row>*{grid-column:auto!important;grid-row:auto!important;margin:0!important}
+#deck-list .deck-row>.anki-deck-tree-toggle{order:0;flex:0 0 24px!important;width:24px!important;height:24px!important;min-width:24px!important;min-height:24px!important;padding:0!important;border:0!important;background:none!important;color:var(--text-soft)!important}
+#deck-list .deck-row>.anki-deck-tree-toggle:disabled{opacity:.3}
+#deck-list .deck-row>.deck-name{order:1;flex:1 1 calc(100% - 30px)!important;width:auto!important;min-width:0!important;min-height:40px!important;font-size:14.5px!important;font-weight:750!important;text-transform:none!important;letter-spacing:0!important;line-height:1.4!important;height:auto!important;padding:8px 12px!important}
+#deck-list .deck-row>.deck-count{order:2;flex:0 0 auto;margin:0 auto 0 30px!important;font-size:12px!important;color:var(--text-faint)!important;white-space:nowrap}
+#deck-list .deck-row>.icon-btn:not(.anki-deck-tree-toggle){order:3;flex:0 0 auto;width:34px!important;height:34px!important;min-width:34px!important;min-height:34px!important;padding:0!important;border:1px solid var(--border)!important;border-radius:9px!important;background:var(--surface-sunken)!important;font-size:14px!important}
+#deck-list .deck-row>.icon-btn.deck-del{color:var(--bad)!important}
+
+/* Navegador: busca inteira, filtros em duas colunas, ferramentas compactas */
+@media(max-width:700px){
+  #anki-browser-modal .anki-browser-toolbar{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}
+  #anki-browser-modal .anki-browser-toolbar>#anki-browser-search{grid-column:1/-1}
+  #anki-browser-modal .anki-browser-toolbar>select,#anki-browser-modal .anki-browser-toolbar>input{min-height:38px!important;font-size:13px!important}
+  #anki-browser-modal .anki-browser-toolbar>.anki-browser-marked{min-height:38px;padding:0 10px;border:1px solid var(--border);border-radius:10px;justify-content:flex-start}
+  #anki-browser-modal .anki-browser-toolbar>.anki-browser-sort-dir{min-height:38px!important}
+  #anki-browser-modal .anki-browser-toolbar>.anki-browser-columns{grid-column:auto}
+  #anki-browser-modal .anki-browser-power-tools{grid-column:1/-1;display:flex!important;flex-wrap:wrap!important;gap:6px!important}
+  #anki-browser-modal .anki-browser-power-tools>select{flex:1 1 100%}
+  #anki-browser-modal .anki-browser-power-tools>button{flex:1 1 auto;min-height:36px!important;padding:6px 10px!important;font-size:12.5px!important}
+}
+
+/* Botão fechar: anel de foco discreto (o foco inicial vem do script) */
+.cards-modal .cards-modal-head>.icon-btn:focus-visible{box-shadow:none!important;outline:2px solid color-mix(in srgb,var(--accent) 55%,transparent)!important;outline-offset:1px!important}
+
+/* Linha de alternância (caixa + título + explicação) */
+.cards-modal label.toggle-row{display:flex!important;align-items:flex-start!important;gap:10px!important;padding:10px 12px!important;border:1px solid var(--border)!important;border-radius:12px!important;background:var(--surface-sunken)!important;cursor:pointer}
+.cards-modal label.toggle-row>input[type=checkbox]{flex:0 0 auto!important;width:18px!important;height:18px!important;min-height:0!important;margin:2px 0 0!important;accent-color:var(--accent)}
+.cards-modal label.toggle-row>span{display:flex!important;flex-direction:column!important;gap:3px!important;min-width:0}
+.cards-modal label.toggle-row>span>strong{font-size:13.5px!important;line-height:1.3!important}
+.cards-modal label.toggle-row>span>small{display:block!important;font-size:12px!important;line-height:1.35!important;font-weight:500!important;color:var(--text-soft)!important}
+
+/* Tipos de nota: nome/contagem à esquerda, ações alinhadas à direita */
+.anki-nt-row{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;padding:12px 14px!important;border:1px solid var(--border)!important;border-radius:12px!important;background:var(--surface)!important;margin-bottom:8px!important}
+.anki-nt-row>div:first-child{display:flex!important;flex-direction:column!important;gap:2px!important;min-width:0}
+.anki-nt-row>div:first-child>span{font-size:12px!important;color:var(--text-soft)!important}
+.anki-nt-row>div:last-child{display:flex!important;flex-wrap:nowrap!important;gap:6px!important;flex:0 0 auto}
+.anki-nt-row>div:last-child>.icon-btn{width:34px!important;height:34px!important;min-width:34px!important;border:1px solid var(--border)!important;border-radius:9px!important;background:var(--surface-sunken)!important}
+
+/* Navegador: ferramentas em uma faixa compacta */
+#anki-browser-modal .anki-browser-power-tools{display:flex!important;flex-wrap:wrap!important;gap:6px!important;align-items:center!important}
+#anki-browser-modal .anki-browser-power-tools>select{flex:1 1 180px!important;min-width:0}
+#anki-browser-modal .anki-browser-power-tools>button{flex:0 0 auto!important;width:auto!important;min-height:36px!important;padding:6px 12px!important;font-size:12.5px!important;white-space:nowrap!important}
+#anki-browser-modal .anki-browser-power-tools>#anki-browser-global-undo,#anki-browser-modal .anki-browser-power-tools>#anki-browser-global-redo{width:36px!important;padding:0!important}
+@media(max-width:700px){
+  #anki-browser-modal .anki-browser-power-tools>select{flex:1 1 100%!important}
+  #anki-browser-modal .anki-browser-toolbar>.anki-browser-sort-dir{width:100%!important}
+}
 
 </style>
 
@@ -37388,12 +37526,16 @@ const AnkiProductParity = {
   },
 
   openChangeType(ids){
-    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;
+    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;this.ensure();
     const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
     if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
     this._changeTypeIds=ids;this._changeTypePlanId=origins.size?[...origins][0]:null;
-    const types=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
-      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : AnkiParity.noteTypes(),
+    /* Nota com _planId cujo planejamento não tem tipos gravados sob a chave
+       dele (o caso comum: o tipo mora no planejamento ativo) deixava o
+       seletor VAZIO e o botão "Mudar tipo" sem destino. */
+    const doPlano=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
+      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : [];
+    const types=(doPlano&&doPlano.length)?doPlano:AnkiParity.noteTypes(),
       sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
     const first=AnkiParity.getNote(ids[0]);if(first)sel.value=String(first.notetypeId);
     const render=()=>this._renderTypeMap(types.find(t=>String(t.id)===String(sel.value)));sel.onchange=render;render();
@@ -43925,13 +44067,27 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     CardsScreen.renderContent();
   }));
   // filtro colapsável
-  on('cards-filter-toggle', 'click', () => {
+  /* Os filtros começam RECOLHIDOS: abertos, ocupavam a primeira tela inteira
+     do celular e empurravam o card da revisão para baixo da dobra. A escolha
+     de abrir/fechar é lembrada neste aparelho. */
+  const FILTROS_KEY = 'snm:cards-filtros-abertos';
+  const aplicarFiltros = (aberto) => {
     const card = document.getElementById('cards-filter-card');
     const body = document.getElementById('cards-filter-body');
-    const open = body.style.display !== 'none';
-    body.style.display = open ? 'none' : 'block';
-    if (card) card.classList.toggle('collapsed', open);
-    $id('cards-filter-caret').textContent = open ? '▸' : '▾';
+    if (!body) return;
+    body.style.display = aberto ? 'block' : 'none';
+    if (card) card.classList.toggle('collapsed', !aberto);
+    const caret = document.getElementById('cards-filter-caret'); if (caret) caret.textContent = aberto ? '▾' : '▸';
+    const head = document.getElementById('cards-filter-toggle'); if (head) head.setAttribute('aria-expanded', aberto ? 'true' : 'false');
+  };
+  let filtrosAbertos = false;
+  try { filtrosAbertos = localStorage.getItem(FILTROS_KEY) === '1'; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-filtros'); }
+  aplicarFiltros(filtrosAbertos);
+  on('cards-filter-toggle', 'click', () => {
+    const body = document.getElementById('cards-filter-body');
+    const aberto = body && body.style.display === 'none';
+    aplicarFiltros(aberto);
+    try { localStorage.setItem(FILTROS_KEY, aberto ? '1' : '0'); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-filtros'); }
   });
   // busca
   on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });

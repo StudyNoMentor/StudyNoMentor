@@ -310,12 +310,16 @@ const AnkiProductParity = {
   },
 
   openChangeType(ids){
-    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;
+    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;this.ensure();
     const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
     if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
     this._changeTypeIds=ids;this._changeTypePlanId=origins.size?[...origins][0]:null;
-    const types=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
-      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : AnkiParity.noteTypes(),
+    /* Nota com _planId cujo planejamento não tem tipos gravados sob a chave
+       dele (o caso comum: o tipo mora no planejamento ativo) deixava o
+       seletor VAZIO e o botão "Mudar tipo" sem destino. */
+    const doPlano=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
+      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : [];
+    const types=(doPlano&&doPlano.length)?doPlano:AnkiParity.noteTypes(),
       sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
     const first=AnkiParity.getNote(ids[0]);if(first)sel.value=String(first.notetypeId);
     const render=()=>this._renderTypeMap(types.find(t=>String(t.id)===String(sel.value)));sel.onchange=render;render();
