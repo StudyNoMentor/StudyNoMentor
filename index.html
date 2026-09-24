@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vf9b0ace68c">
+<meta name="diario-versao" content="v493c676948">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -14879,6 +14879,9 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
+/* O atributo hidden precisa vencer o display:grid acima. Sem isto o JS fecha
+   corretamente o seletor, mas ele continua visível após clique fora/reload. */
+.banca-pick-panel[hidden] { display: none !important; }
 .banca-pick-list {
   min-height: 0;
   max-height: none;
@@ -58074,6 +58077,9 @@ else CloudStore.init();
         });
         if (e.cancelable) e.preventDefault();
       });
+      /* Dropdown é estado transitório de tela: ao trocar de menu ele sempre
+         fecha, para não reaparecer aberto quando o usuário voltar. */
+      window.addEventListener('screen:activated', () => closeAll(null));
     },
 
     installCardsUi() {
