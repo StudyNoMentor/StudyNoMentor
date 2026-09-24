@@ -224,6 +224,7 @@ const CloudStore = {
     const { data, error } = await this._withTimeout(
       this.client.auth.signUp({ email, password }), 20000, 'A criação de conta');
     if (error) throw error;
+    this._setServiceStatus('ok');
     return data;
   },
 
@@ -231,6 +232,7 @@ const CloudStore = {
     const { data, error } = await this._withTimeout(
       this.client.auth.signInWithPassword({ email, password }), 20000, 'O login');
     if (error) throw error;
+    this._setServiceStatus('ok');
     return data;
   },
 
