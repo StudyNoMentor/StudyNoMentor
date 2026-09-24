@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vb085075c65">
+<meta name="diario-versao" content="vd005d6748e">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -12982,7 +12982,6 @@ html.extras-modal-open,html.extras-modal-open body{overflow:hidden!important;ove
 /* Cards: revisão domina; diagnóstico não compete */
 #screen-cards #cards-content.ux-primary-workspace{min-height:180px}
 #screen-cards #cards-filter-card{box-shadow:none}
-#screen-cards #cards-audit-export-btn.ux-diagnostic-action{font-size:var(--fs-2xs)}
 
 /* Extras: execução de hoje domina, parametrização recua */
 #screen-extras #extras-agenda.ux-primary-workspace{position:relative}
@@ -59344,7 +59343,6 @@ else CloudStore.init();
       // Estatísticas já têm aba própria; o atalho duplicado em “Mais” só aumenta escolha.
       const dupStats = q('#cards-stats-btn', s);
       if (dupStats) { dupStats.hidden = true; dupStats.setAttribute('aria-hidden', 'true'); }
-      q('#cards-audit-export-btn', s)?.classList.add('ux-diagnostic-action');
       q('#cards-filter-card', s)?.classList.add('ux-secondary-area');
       q('#cards-content', s)?.classList.add('ux-primary-workspace');
     },
