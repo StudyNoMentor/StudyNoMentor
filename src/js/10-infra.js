@@ -221,11 +221,49 @@ const AnchoredListViewport = {
   },
   _viewport() {
     const vv = window.visualViewport;
-    if (vv) return {
+    const out = vv ? {
       top: Number(vv.offsetTop) || 0,
       bottom: (Number(vv.offsetTop) || 0) + (Number(vv.height) || window.innerHeight)
-    };
-    return { top: 0, bottom: window.innerHeight };
+    } : { top: 0, bottom: window.innerHeight };
+
+    /* A barra móvel do próprio Study ocupa o fim do viewport. Ela não reduz o
+       visualViewport porque pertence à página; sem descontá-la, um dropdown
+       "caberia" geometricamente, mas as últimas opções ficariam atrás da barra. */
+    try {
+      const tabs = document.getElementById('tabs');
+      if (tabs) {
+        const cs = getComputedStyle(tabs), r = tabs.getBoundingClientRect();
+        if (cs.position === 'fixed' && cs.display !== 'none' && r.height > 0 && r.top < out.bottom) {
+          out.bottom = Math.max(out.top, r.top - 6);
+        }
+      }
+    } catch (_) {}
+    return out;
+  },
+  _bounds(panel) {
+    const out = this._viewport();
+    /* O viewport não é o único recorte possível. Modais e alguns cartões usam
+       overflow:auto/hidden; uma lista absoluta não pode atravessar essas
+       bordas. Intersectar todos os ancestrais que recortam conteúdo evita
+       escolher "para baixo" só porque há espaço na tela quando, na prática,
+       o modal terminaria antes. */
+    try {
+      let p = panel && panel.parentElement;
+      while (p && p !== document.body && p !== document.documentElement) {
+        const cs = getComputedStyle(p);
+        const oy = String(cs.overflowY || cs.overflow || '');
+        if (/(auto|scroll|hidden|clip)/.test(oy)) {
+          const r = p.getBoundingClientRect();
+          if (r.height > 0) {
+            out.top = Math.max(out.top, r.top);
+            out.bottom = Math.min(out.bottom, r.bottom);
+          }
+        }
+        p = p.parentElement;
+      }
+    } catch (_) {}
+    if (out.bottom < out.top) out.bottom = out.top;
+    return out;
   },
   _anchor(panel, selector) {
     if (!panel || !selector) return null;
@@ -245,7 +283,7 @@ const AnchoredListViewport = {
     panel.style.removeProperty('--ux-float-max-h');
     panel.style.removeProperty('--ux-float-gap');
 
-    const vp = this._viewport();
+    const vp = this._bounds(panel);
     const ar = anchor.getBoundingClientRect();
     const margin = 10;
     const abaixo = Math.max(0, vp.bottom - margin - ar.bottom - gap);
