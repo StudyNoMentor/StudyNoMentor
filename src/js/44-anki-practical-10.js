@@ -63,12 +63,13 @@ const AnkiPractical10 = {
     CardsScreen.openDeckModal=()=>{const out=oldOpen();const s=document.getElementById('deck-search');if(s)s.value='';this._decorateDeckRows();return out;};
   },
   _deckMeta(){
-    const decks=DB.getDecks().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'}));
-    const cards=DB.getCards();
+    const sc=CardsScreen._deckScope?CardsScreen._deckScope():{decks:DB.getDecks(),cards:DB.getCards()};
+    const decks=sc.decks.slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+    const cards=sc.cards,mesmoPlano=(a,b)=>String(a._planId||'')===String(b._planId||'');
     return decks.map(d=>{
       const name=String(d.nome||''),parts=name.split('::'),prefix=name+'::';
       const direct=cards.filter(c=>String(c.deckId)===String(d.id)).length;
-      const descendantIds=new Set(decks.filter(x=>String(x.nome||'').startsWith(prefix)).map(x=>String(x.id)));
+      const descendantIds=new Set(decks.filter(x=>mesmoPlano(x,d)&&String(x.nome||'').startsWith(prefix)).map(x=>String(x.id)));
       const descendants=cards.filter(c=>descendantIds.has(String(c.deckId))).length;
       return {d,name,parts,depth:Math.max(0,parts.length-1),direct,total:direct+descendants,hasChildren:descendantIds.size>0};
     });
@@ -83,7 +84,8 @@ const AnkiPractical10 = {
       row.dataset.deckName=m.name;row.dataset.depth=String(m.depth);row.dataset.hasChildren=m.hasChildren?'1':'';
       row.style.setProperty('--deck-depth',String(m.depth));
       const count=row.querySelector('.deck-count');if(count){
-        count.textContent=(m.hasChildren?(m.direct+' direto · '+m.total+' total'):(m.direct+' card(s)'));
+        const planos=new Set(meta.map(x=>String(x.d._planId||''))).size;
+        count.textContent=(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(m.d)?'🔎 ':'')+(m.hasChildren?(m.direct+' direto · '+m.total+' total'):(m.direct+' card(s)'))+(planos>1&&m.d._planNome?' · '+m.d._planNome:'');
         count.title=m.hasChildren?'Inclui cards dos subbaralhos':'Cards diretamente neste baralho';
       }
       if(!row.querySelector('.anki-deck-tree-toggle')){
@@ -103,11 +105,11 @@ const AnkiPractical10 = {
     this._filterDeckRows();this._applyDeckCollapse();
   },
   _addSubdeck(id){
-    const d=DB.getDecks().find(x=>String(x.id)===String(id));if(!d)return;
+    const d=(CardsScreen._deckScope?CardsScreen._deckScope().decks:DB.getDecks()).find(x=>String(x.id)===String(id));if(!d)return;
     UI.prompt([{key:'name',label:'Nome do subbaralho',type:'text',value:'',placeholder:'Ex.: Capítulo 1'}],{title:'＋ Criar subbaralho',okText:'Criar'}).then(v=>{
       const leaf=String(v&&v.name||'').trim();if(!leaf)return;
       if(leaf.includes('::')){showToast('Use apenas o nome do nível; a hierarquia é criada automaticamente.');return;}
-      const created=DB.addDeck(String(d.nome)+'::'+leaf);if(!created){showToast('Não foi possível criar o subbaralho');return;}
+      const created=d._planId&&DB.addDeckForPlan?DB.addDeckForPlan(d._planId,String(d.nome)+'::'+leaf):DB.addDeck(String(d.nome)+'::'+leaf);if(!created){showToast('Não foi possível criar o subbaralho');return;}
       CardsScreen.renderDeckList();CardsScreen.render();showToast('Subbaralho criado ✓');
     });
   },

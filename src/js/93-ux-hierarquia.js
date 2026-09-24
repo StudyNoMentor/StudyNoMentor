@@ -200,7 +200,6 @@
       // Estatísticas já têm aba própria; o atalho duplicado em “Mais” só aumenta escolha.
       const dupStats = q('#cards-stats-btn', s);
       if (dupStats) { dupStats.hidden = true; dupStats.setAttribute('aria-hidden', 'true'); }
-      q('#cards-audit-export-btn', s)?.classList.add('ux-diagnostic-action');
       q('#cards-filter-card', s)?.classList.add('ux-secondary-area');
       q('#cards-content', s)?.classList.add('ux-primary-workspace');
     },

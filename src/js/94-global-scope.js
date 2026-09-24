@@ -696,6 +696,20 @@
   DB.saveDecksForPlan = (id, list) => DB._set(DB.keysForPlan(id).decks, (list || []).map(x => {
     const d=clone(x);if(d){delete d._planId;delete d._planNome;}return d;
   }));
+  /* Executa fn com DB.getCards/getDecks/saveCards/saveDecks apontando para o
+     planejamento pid. Operações que por natureza vivem dentro de UM plano
+     (baralho filtrado, estudo personalizado, excluir baralho filtrado) passam
+     a agir no plano dono do baralho, não no plano ativo. */
+  S.inPlan = function(pid, fn) {
+    if (!pid || String(pid) === String(S.activePlanId())) return fn();
+    const clean = x => { const y = clone(x); if (y) { delete y._planId; delete y._planNome; } return y; };
+    const prev = { getCards: DB.getCards, getDecks: DB.getDecks, saveCards: DB.saveCards, saveDecks: DB.saveDecks };
+    DB.getCards = () => S._rows(pid, 'cards'); DB.getDecks = () => S._rows(pid, 'decks');
+    DB.saveCards = list => DB._set(DB.keysForPlan(pid).cards, (list || []).map(clean));
+    DB.saveDecks = list => DB._set(DB.keysForPlan(pid).decks, (list || []).map(clean));
+    try { return fn(); } finally { Object.assign(DB, prev); }
+  };
+  S.planForDeck = function(id) { const r = S.deckRecord(id); return r ? r.planId : null; };
   DB.getAllCardsTagged = () => S.cards('all');
   DB.getAllDecksTagged = () => S.decks('all');
   DB.getAllRevlogTagged = () => S.revlog('all');

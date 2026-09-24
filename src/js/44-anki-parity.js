@@ -1215,14 +1215,23 @@ AnkiParity.filteredDefaults=function(){
     delays:[],previewDelay:10,previewAgainSecs:60,previewHardSecs:600,previewGoodSecs:0
   };
 };
+// Card de outro planejamento (Cards em "Todos os planejamentos") aponta para
+// baralho que não está em DB.getDecks(); sem este fallback um baralho filtrado
+// de outro plano era tratado como normal (reagendamento/prévia errados).
+AnkiParity._findDeckAnyPlan=function(id){
+  if(id==null||id==='')return null;
+  const k=String(id),local=DB.getDecks().find(x=>String(x.id)===k);if(local)return local;
+  try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord){const r=StudyGlobalScope.deckRecord(k);if(r)return r.deck||null;}}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
+  return null;
+};
 AnkiParity.isFilteredDeck=function(deckOrId){
   const d=(deckOrId&&typeof deckOrId==='object')?deckOrId:
-    DB.getDecks().find(x=>String(x.id)===String(deckOrId));
+    this._findDeckAnyPlan(deckOrId);
   return !!(d&&(d.filtered===true||d.kind==='filtered'||d.filteredConfig));
 };
 AnkiParity.filteredConfig=function(deckOrId){
   const d=(deckOrId&&typeof deckOrId==='object')?deckOrId:
-    DB.getDecks().find(x=>String(x.id)===String(deckOrId));
+    this._findDeckAnyPlan(deckOrId);
   if(!this.isFilteredDeck(d))return null;
   const raw=d.filteredConfig||{},def=this.filteredDefaults();
   const terms=Array.isArray(raw.searchTerms)?raw.searchTerms:
