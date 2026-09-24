@@ -1902,12 +1902,21 @@ const CardsScreen = {
 
   // ---- baralhos ----
   openDeckModal() { this.renderDeckList(); $id('deck-modal').style.display = 'flex'; },
+  // Baralhos e cards no mesmo escopo da tela (padrão: todos os planejamentos).
+  // Antes a lista lia só o planejamento ativo e escondia os demais baralhos.
+  _deckScope() {
+    const G = window.StudyGlobalScope;
+    if (G && typeof G.decks === 'function' && typeof G.cards === 'function') {
+      try { return { decks: G.decks(), cards: G.cards() }; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-deck-scope'); }
+    }
+    return { decks: DB.getDecks(), cards: DB.getCards() };
+  },
   renderDeckList() {
     const box = document.getElementById('deck-list');
-    const decks = DB.getDecks();
+    const { decks, cards } = this._deckScope();
     if (decks.length === 0) { box.innerHTML = `<p class="hint">Nenhum baralho ainda. Crie o primeiro acima.</p>`; return; }
     box.innerHTML = decks.map(d => {
-      const n = DB.getCards().filter(c => c.deckId === d.id).length;
+      const n = cards.filter(c => String(c.deckId) === String(d.id)).length;
       const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d);
       return `<div class="deck-row" data-id="${d.id}">
         <input type="text" class="deck-name" value="${escapeHtml(d.nome)}">
