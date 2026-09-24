@@ -293,9 +293,22 @@ const PlanManager = {
     const sourceBanks=DB._get(sk.bancasCards,[])||[], targetBanks=DB._get(tk.bancasCards,[])||[];
     const banks=[...new Set(targetBanks.concat(sourceBanks).map(x=>String(x||'').trim()).filter(Boolean))];
 
+    // Links Úteis também são patrimônio global do perfil. Como ainda moram
+    // fisicamente no plano de origem, acompanham a migração antes da exclusão.
+    const sourceLinks=DB._get(sk.links,[])||[], targetLinks=DB._get(tk.links,[])||[];
+    const linkIds=new Set(targetLinks.map(x=>String(x&&x.id)));
+    sourceLinks.forEach(l0=>{
+      const l=cleanTagged(l0); if(!l)return;
+      const existing=targetLinks.find(x=>String(x&&x.id)===String(l.id));
+      if(existing&&same(existing,l))return;
+      if(existing){let nid;do{nid=DB._uid();}while(linkIds.has(String(nid)));l.id=nid;}
+      linkIds.add(String(l.id));targetLinks.push(l);
+    });
+
     if (DB._set(tk.decks,targetDecks) === false) return {ok:false,reason:'save-decks'};
     if (DB._set(tk.cards,targetCards) === false) return {ok:false,reason:'save-cards'};
     if (DB._set(tk.revlog,targetRev) === false) return {ok:false,reason:'save-revlog'};
+    if (DB._set(tk.links,targetLinks) === false) return {ok:false,reason:'save-links'};
     if (banks.length) DB._set(tk.bancasCards,banks);
     mergeSafety('revlogPendente'); mergeSafety('revlogArquivo');
 
