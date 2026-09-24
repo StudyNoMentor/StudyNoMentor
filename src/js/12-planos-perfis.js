@@ -207,6 +207,7 @@ const PlanManager = {
     } catch (_) {}
 
     const byKind = kind => entityRows.filter(([k]) => k.startsWith(entityPrefix + kind + ':'));
+    const migratedEntityKeys = new Set();
     const ntMap = new Map(), noteMap = new Map();
     const targetEntityKey = (kind,id) => DB._profilePrefix() + 'p:' + targetId + ':cards-' + kind + ':' + String(id);
 
@@ -220,7 +221,9 @@ const PlanManager = {
         x.id=next; x.ankiId=next;
       }
       ntMap.set(old,x.id);
-      if (existingRaw == null || String(next) !== old) DB.setRaw(targetEntityKey('notetype',x.id),JSON.stringify(x));
+      let ok=true;
+      if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('notetype',x.id),JSON.stringify(x)) !== false;
+      if (ok) migratedEntityKeys.add(key);
     });
 
     byKind('note').forEach(([key,raw]) => {
@@ -234,7 +237,9 @@ const PlanManager = {
         x.id=next; x.ankiId=next;
       }
       noteMap.set(old,x.id);
-      if (existingRaw == null || String(next) !== old) DB.setRaw(targetEntityKey('note',x.id),JSON.stringify(x));
+      let ok=true;
+      if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('note',x.id),JSON.stringify(x)) !== false;
+      if (ok) migratedEntityKeys.add(key);
     });
 
     const sourceCards = DB._get(sk.cards, []) || [], targetCards = DB._get(tk.cards, []) || [];
@@ -312,9 +317,12 @@ const PlanManager = {
     if (banks.length) DB._set(tk.bancasCards,banks);
     mergeSafety('revlogPendente'); mergeSafety('revlogArquivo');
 
-    /* Só depois de toda a coleção estar gravada no destino removemos as
-       entidades dinâmicas da origem. As chaves fixas serão apagadas por deletePlan. */
-    entityRows.forEach(([key]) => DB.delRaw(key,'planejamento excluído após migração do Anki'));
+    /* Só removemos da origem as entidades que foram reconhecidas E confirmadas
+       no destino. Qualquer futuro cards-* que esta versão ainda não conheça fica
+       preservado em vez de ser destruído silenciosamente. */
+    entityRows.forEach(([key]) => {
+      if (migratedEntityKeys.has(key)) DB.delRaw(key,'planejamento excluído após migração do Anki');
+    });
     try { DB.invalidarRevlogMemoria(); } catch (_) {}
     try { if (typeof CardEngine !== 'undefined' && CardEngine.invalidateDueCache) CardEngine.invalidateDueCache(); } catch (_) {}
     return {ok:true,targetId,cards:sourceCards.length,decks:sourceDecks.length,revlog:sourceRev.length,entities:entityRows.length};
