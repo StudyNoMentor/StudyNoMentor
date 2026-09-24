@@ -261,8 +261,9 @@ const AnchoredListViewport = {
       else paraCima = acima > abaixo;
     }
     const disponivel = Math.max(48, Math.floor(paraCima ? acima : abaixo));
+    const altura = Math.max(48, Math.floor(Math.min(cap, disponivel)));
 
-    panel.style.setProperty('--ux-float-max-h', disponivel + 'px');
+    panel.style.setProperty('--ux-float-max-h', altura + 'px');
     panel.style.setProperty('--ux-float-gap', gap + 'px');
     panel.classList.add('ux-float-viewport');
     panel.classList.toggle('ux-float-up', paraCima);
