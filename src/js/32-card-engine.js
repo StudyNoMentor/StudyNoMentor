@@ -116,7 +116,7 @@ const CardEngine = {
     // carga dentro da mesma janela. Determinístico = a prévia do botão bate com o agendado.
     const sementeFuzz = (typeof AnkiParity !== 'undefined') ? AnkiParity.fuzzSeed(c) : ((c.id || 'c') + '|' + (c.reps || 0));
     const place = (ivRaw, minIv) => {
-      const iv = Math.max(1, Math.min(maxIv, Math.round(ivRaw)));
+      const iv = Math.max(1, Math.min(maxIv, ivRaw));
       const piso = Math.max(1, Math.min(maxIv, minIv || 1));
       if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(iv, (d) => this._dueCountInDays(d), maxIv, piso, sementeFuzz, c));
       /* O Anki sorteia UM fuzz_factor por card+reps (card.get_fuzz_factor) e usa
@@ -181,6 +181,12 @@ const CardEngine = {
       if (passos.length > 1) return arredDias((passos[0] + passos[1]) / 2);
       return arredDias(Math.min(passos[0] * 1.5, passos[0] + 1440));
     };
+    const curtoPrazo = (fase, S, D, ivDias) => {
+      const min = Math.floor(Math.fround(Math.fround(ivDias) * 86400)) / 60;   // Anki: (dias * 86400.0) as u32, em f32
+      Object.assign(patch, { phase: fase, learnStep: 0, s: S, d: D, status: 'naosei' }, stepDue(min));
+      patch._kind = 'min'; patch._val = min;
+      return patch;
+    };
     const graduate = (g, st) => {
       /* Ao graduar, o Anki usa min_and_max_review_intervals(1) — piso 1, sem a
          regra de crescimento (não havia intervalo anterior de revisão).
@@ -191,10 +197,21 @@ const CardEngine = {
          do "Bom" — os botões apareciam fora de ordem e o algoritmo premiava
          menos quem achou o card fácil. */
       const S = st.s, D = st.d;
+      /* SEM PASSOS E MENOS DE MEIO DIA (Anki 26.09.2, conferido no backend
+         oficial): se o intervalo do FSRS é < 0,5 dia, o card NÃO gradua — fica
+         em (re)aprendizado pelo próprio intervalo, em segundos. Só acontece com
+         listas de passos vazias; com passos, graduate() só é chamado no fim. */
+      const semPassos = (c.phase === 'relearning') ? !relearn.length : !learn.length;
+      if (semPassos && g !== 4) {   // answer_easy nunca fica no curto prazo
+        const ivCurto = FSRS.intervalFloat(S, r, w);
+        if (ivCurto < 0.5) return curtoPrazo(c.phase === 'relearning' ? 'relearning' : 'learning', S, D, ivCurto);
+      }
       let piso = 1;
       if (g === 4) {
         const stBom = shortTerm(3);
-        piso = place(FSRS.interval(stBom.s, r, w), 1) + 1;
+        // learning.rs/relearning.rs::answer_easy: o "Bom" do piso é sorteado
+        // sobre o intervalo FRACIONÁRIO; o do "Fácil", sobre o arredondado.
+        piso = place(FSRS.intervalFloat(stBom.s, r, w), 1) + 1;
       }
       const iv = place(FSRS.interval(S, r, w), piso);
       /* O status acompanha a NOTA, não o fato de ter graduado. Com listas de
@@ -246,8 +263,13 @@ const CardEngine = {
         const lapses = (c.lapses || 0) + 1;
         if (semReaprendizado) {
           /* Sem passos de reaprendizado o card volta direto para revisão, com
-             o intervalo que a memória recalculada indica e piso de 1 dia. */
-          const iv = place(FSRS.interval(S2, r, w), 1);
+             o intervalo que a memória recalculada indica e piso de 1 dia.
+             Como no Anki 26.09.2 (medido no backend oficial): esse intervalo é
+             só ARREDONDADO, sem fuzz; abaixo de 0,5 dia o card fica em
+             reaprendizado pelo próprio intervalo, em segundos. */
+          const ivF = FSRS.intervalFloat(S2, r, w);
+          if (ivF < 0.5) { Object.assign(patch, { lapses }); return curtoPrazo('relearning', S2, D2, ivF); }
+          const iv = Math.max(1, Math.min(maxIv, Math.round(ivF)));
           Object.assign(patch, { phase: 'review', learnStep: 0, s: S2, d: D2, lapses,
             status: 'naosei', due: this.addDays(tdy, iv), dueTs: null, intervalo: iv });
           patch._kind = 'day'; patch._val = iv;
@@ -272,7 +294,7 @@ const CardEngine = {
            nota respondida é gravado, exatamente como o Anki faz. */
         const prevIv = ivPrevio();
         const ivDaNota = (g, pisoMin) => {
-          const raw = FSRS.interval(sDaNota(g), r, w);
+          const raw = FSRS.intervalFloat(sDaNota(g), r, w);
           const piso = Math.max(pisoMin, FSRS.minReviewFuzzInterval(raw, prevIv, maxIv));
           return place(raw, piso);
         };
@@ -363,13 +385,20 @@ const CardEngine = {
       if (steps.length > 1) return arredDias((steps[0] + steps[1]) / 2);
       return arredDias(Math.min(steps[0] * 1.5, steps[0] + 1440));
     };
-    const constr = (dias, minimo) => {
-      const raw = Math.max(1, Number(dias) || 1) * fGlobal;
+    /* constrain_passing_interval (review.rs): o multiplicador global só vale
+       para revisões aprovadas; a graduação usa o intervalo de graduação puro.
+       O fuzz recebe o intervalo FRACIONÁRIO — arredondar antes desloca a faixa
+       em 1 dia (medido contra o backend oficial 26.09.2). */
+    const constr = (dias, minimo, semMultiplicador) => {
+      const raw = Math.max(1, Number(dias) || 1) * (semMultiplicador ? 1 : fGlobal);
       const min = Math.min(Math.max(1, minimo || 1), maxIv);
-      const base = Math.max(min, Math.min(maxIv, Math.round(raw)));
-      // O SM-2 do Anki também aplica fuzz aos intervalos em dias.
-      try { return Math.min(maxIv, FSRS.fuzzed(base, seed, maxIv, min)); }
-      catch (_) { return base; }
+      const base = Math.max(min, Math.min(maxIv, raw));
+      try {
+        // with_review_fuzz do Anki passa pelo LoadBalancer também no SM-2.
+        if (cfg.loadBalance) return Math.min(maxIv, FSRS.loadBalance(base, (d) => this._dueCountInDays(d), maxIv, min, seed, card));
+        return Math.min(maxIv, FSRS.fuzzed(base, seed, maxIv, min));
+      }
+      catch (_) { return Math.round(base); }
     };
     const stepPatch = (whichPhase, idx, delay, status) => {
       const p = Object.assign({
@@ -382,8 +411,10 @@ const CardEngine = {
     const graduateNew = (easy) => {
       // A facilidade inicial nasce NA GRADUAÇÃO. Again/Hard durante aprendizagem
       // não reduzem ease, e Easy em card novo não a aumenta.
-      ease = Number(card.ease) || easeIni;
-      intervalo = constr(easy ? gradEasy : gradGood, 1);
+      // Anki: a graduação sempre parte da facilidade INICIAL da predefinição.
+      // O card novo nasce com ease 2,5 gravado; usá-lo ignorava a opção.
+      ease = easeIni;
+      intervalo = constr(easy ? gradEasy : gradGood, 1, true);
       return {
         status: grade === 'errei' ? 'naosei' : 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -397,9 +428,10 @@ const CardEngine = {
          configuração). O app devolvia o MESMO intervalo para os dois, de modo
          que acertar com folga um card que estava em reaprendizado não rendia
          nada — e a invariante de ordem não pegava, porque ela aceita empate. */
+      /* relearning.rs: Bom devolve o intervalo pós-lapso já calculado e Fácil
+         o mesmo + 1 — sem fuzz e sem multiplicador (backend oficial 26.09.2). */
       const base = Math.max(minLapse, intervalo || minLapse);
-      const ivBom = constr(base, 1);
-      intervalo = easy ? constr(base, ivBom + 1) : ivBom;
+      intervalo = Math.min(maxIv, easy ? base + 1 : base);
       return {
         status: grade === 'errei' ? 'naosei' : 'sei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -423,7 +455,13 @@ const CardEngine = {
     if (phase === 'relearning') {
       if (!relearn.length) return graduateRelearn(grade === 'facil');
       const cur = Math.max(0, Math.min(card.learnStep || 0, relearn.length - 1));
-      if (grade === 'errei') return stepPatch('relearning', 0, relearn[0], 'naosei');
+      if (grade === 'errei') {
+        /* relearning.rs::answer_again: failing_review_interval de novo sobre o
+           intervalo guardado (multiplicador de lapso + fuzz, piso mínimo). O
+           lapso não é contado outra vez. */
+        intervalo = constr(Math.max(1, intervalo) * fLapse, minLapse, true);
+        return stepPatch('relearning', 0, relearn[0], 'naosei');
+      }
       if (grade === 'dificil') return stepPatch('relearning', cur, hardDelay(relearn, cur), 'naosei');
       if (grade === 'facil') return graduateRelearn(true);
       const next = cur + 1;
@@ -437,9 +475,12 @@ const CardEngine = {
     if (grade === 'errei') {
       lapses += 1;
       ease = clampE(ease + this.EASE_AGAIN_DELTA);
-      intervalo = Math.max(minLapse, Math.min(maxIv, Math.round(base * fLapse)));
+      /* failing_review_interval (review.rs): o intervalo pós-lapso é
+         FRACIONÁRIO, com fuzz (e balanceamento), piso no intervalo mínimo e
+         sem o multiplicador global — calculado já no erro, com ou sem passos
+         de reaprendizado (é o valor que a graduação do reaprendizado usa). */
+      intervalo = constr(base * fLapse, minLapse, true);
       if (relearn.length) return stepPatch('relearning', 0, relearn[0], 'naosei');
-      intervalo = constr(intervalo, minLapse);
       return {
         status: 'naosei', grade, ease, intervalo, reps, lapses,
         phase: 'review', learnStep: 0, due: this.addDays(tdy, intervalo),
@@ -447,6 +488,9 @@ const CardEngine = {
       };
     }
 
+    /* Revisão antecipada (passing_early_review_intervals) só ocorre no Anki
+       em baralho filtrado; num baralho normal o backend oficial usa a fórmula
+       comum mesmo com decorridos < agendados (medido no 26.09.2). */
     const minHard = fHard <= 1.0 ? 0 : base + 1;
     const ivHard = constr(base * fHard, minHard);
     const minGood = fHard <= 1.0 ? base + 1 : ivHard + 1;
@@ -475,6 +519,16 @@ const CardEngine = {
     // para baixo: com limiar padrão 8 não fazia diferença (8/2=4 nos dois
     // casos), mas em qualquer limiar ÍMPAR editado na tela (3, 5, 7, 9, 15...)
     // floor() disparava o aviso em lapsos errados a partir da segunda rodada.
+    /* O Anki GRAVA o estado de memória arredondado (S com 4 casas, D com 3 —
+       conferido lendo o card de volta no backend 26.09.2). O intervalo já foi
+       calculado com o valor cheio; o que persiste, e alimenta a próxima
+       resposta, é o arredondado. Sem isso a trajetória derivava aos poucos. */
+    if (typeof patch.s === 'number' && isFinite(patch.s)) patch.s = Math.round(patch.s * 1e4) / 1e4;
+    if (typeof patch.d === 'number' && isFinite(patch.d)) patch.d = Math.round(patch.d * 1e3) / 1e3;
+    /* last_review_time do Anki: instante exato da resposta. A ordem por
+       retenção (extract_fsrs_retrievability) mede o tempo em segundos a partir
+       dele; só com a data, dois cards do mesmo dia empatavam. */
+    patch.lastReviewTs = Date.now();
     const lim = cfg.leechThreshold || 0;
     if (lim > 0 && patch.lapses && patch.lapses > (card.lapses || 0) && patch.lapses >= lim) {
       const passo = Math.max(1, Math.ceil(lim / 2));

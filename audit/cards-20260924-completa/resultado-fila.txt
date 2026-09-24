@@ -1,0 +1,21 @@
+padrao                       anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+limites_baixos               anki=14 app=14 mesmo_conjunto=true mesma_posicao=14/14
+novos_depois_interday_antes  anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+novos_antes                  anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+retrievability_asc           anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+retrievability_desc          anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+overdueness                  anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+intervalos_asc               anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+intervalos_desc              anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+ease_asc                     anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+aleatoria                    anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+adicionados                  anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+adicionados_rev              anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+coleta_aleatoria_cards       anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+coleta_aleatoria_notas       anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+coleta_posicao_desc          anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+coleta_deck_notas            anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+coleta_posicao               anki=74 app=74 mesmo_conjunto=true mesma_posicao=74/74
+novos_ignoram_limite         anki=34 app=34 mesmo_conjunto=true mesma_posicao=34/34
+
+FILA: 19/19 cenários idênticos ao Anki 26.09.2
