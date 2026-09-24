@@ -170,7 +170,7 @@ const PlanManager = {
     const allocNumeric = () => {
       try {
         if (typeof AnkiParity !== 'undefined' && AnkiParity._allocId) return AnkiParity._allocId();
-      } catch (_) {}
+      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
       numericSeed += 1; return numericSeed;
     };
     const cleanTagged = x => {
@@ -204,7 +204,7 @@ const PlanManager = {
         const key=localStorage.key(i);
         if (key && String(key).startsWith(entityPrefix)) entityRows.push([String(key), localStorage.getItem(key)]);
       }
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
 
     const byKind = kind => entityRows.filter(([k]) => k.startsWith(entityPrefix + kind + ':'));
     const migratedEntityKeys = new Set();
@@ -212,7 +212,7 @@ const PlanManager = {
     const targetEntityKey = (kind,id) => DB._profilePrefix() + 'p:' + targetId + ':cards-' + kind + ':' + String(id);
 
     byKind('notetype').forEach(([key,raw]) => {
-      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) {}
+      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
       if (!x || x.id == null) return;
       const old=String(x.id), direct=targetEntityKey('notetype',x.id), existingRaw=localStorage.getItem(direct);
       let next=x.id;
@@ -227,7 +227,7 @@ const PlanManager = {
     });
 
     byKind('note').forEach(([key,raw]) => {
-      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) {}
+      let x=null; try { x=JSON.parse(raw||'null'); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
       if (!x || x.id == null) return;
       if (x.notetypeId != null && ntMap.has(String(x.notetypeId))) x.notetypeId=ntMap.get(String(x.notetypeId));
       const old=String(x.id), direct=targetEntityKey('note',x.id), existingRaw=localStorage.getItem(direct);
@@ -346,8 +346,8 @@ const PlanManager = {
     entityRows.forEach(([key]) => {
       if (migratedEntityKeys.has(key)) DB.delRaw(key,'planejamento excluído após migração do Anki');
     });
-    try { DB.invalidarRevlogMemoria(); } catch (_) {}
-    try { if (typeof CardEngine !== 'undefined' && CardEngine.invalidateDueCache) CardEngine.invalidateDueCache(); } catch (_) {}
+    try { DB.invalidarRevlogMemoria(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
+    try { if (typeof CardEngine !== 'undefined' && CardEngine.invalidateDueCache) CardEngine.invalidateDueCache(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
     return {ok:true,targetId,cards:sourceCards.length,decks:sourceDecks.length,revlog:sourceRev.length,entities:entityRows.length};
   },
 

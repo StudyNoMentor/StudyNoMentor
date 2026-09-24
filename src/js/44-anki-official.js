@@ -53,7 +53,7 @@ const AnkiOfficial = {
     const r = await fetch(base + path, { headers: this.headers() });
     if (!r.ok) {
       let msg = '';
-      try { const x = await r.json(); msg = x.detail || ''; } catch (_) {}
+      try { const x = await r.json(); msg = x.detail || ''; } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-official'); }
       throw new Error(msg || ('HTTP ' + r.status));
     }
     return r.blob();
@@ -79,7 +79,7 @@ const AnkiOfficial = {
 
   clearMediaUrls() {
     for (const url of this._blobUrls.splice(0)) {
-      try { URL.revokeObjectURL(url); } catch (_) {}
+      try { URL.revokeObjectURL(url); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-official'); }
     }
   },
 
@@ -650,7 +650,7 @@ const AnkiOfficial = {
           const a=new Audio(url); a.onended=resolve; a.onerror=resolve;
           const p=a.play(); if(p&&p.catch) p.catch(resolve);
         });
-      } catch(_) {}
+      } catch(_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-official'); }
     }
   },
 

@@ -7,28 +7,28 @@ const AnkiParity = {
   _idKey() { try { return DB._profilePrefix() + 'cards-anki-last-id'; } catch (_) { return 'diario-estudos:cards-anki-last-id'; } },
   _allocId() {
     let last = 0;
-    try { last = Number(localStorage.getItem(this._idKey())) || 0; } catch (_) {}
+    try { last = Number(localStorage.getItem(this._idKey())) || 0; } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     const id = Math.max(Date.now(), last + 1);
-    try { localStorage.setItem(this._idKey(), String(id)); } catch (_) {}
+    try { localStorage.setItem(this._idKey(), String(id)); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     return id;
   },
   _validId(v) { const n=Number(v); return Number.isSafeInteger(n)&&n>0?n:null; },
   cardId(card) { return card ? (this._validId(card.ankiId)||this._validId(card.id)||0) : 0; },
   noteId(card) { return card ? (this._validId(card.ankiNoteId)||this.cardId(card)) : 0; },
   _scopeCards() {
-    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     return DB.getCards();
   },
   _scopeDecks() {
-    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     return DB.getDecks();
   },
   _scopeRevlog() {
-    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) {}
+    try { if (typeof window!=='undefined' && window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     return DB.getRevlog();
   },
   _planIdForCard(card) {
-    try { if (card && card._planId) return card._planId; if (window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard) return StudyGlobalScope.sourcePlanForCard(card&&card.id); } catch (_) {}
+    try { if (card && card._planId) return card._planId; if (window.StudyGlobalScope && StudyGlobalScope.sourcePlanForCard) return StudyGlobalScope.sourcePlanForCard(card&&card.id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     return null;
   },
   _cardsForCardPlan(card) {
@@ -44,7 +44,7 @@ const AnkiParity = {
       if (typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord) {
         const r=StudyGlobalScope.deckRecord(deckId);if(r&&DB.getDecksForPlan)return DB.getDecksForPlan(r.planId);
       }
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     return DB.getDecks();
   },
   mod(card) {
@@ -456,7 +456,7 @@ AnkiParity.assignPreset=function(deckId,configId){
     if(window.StudyGlobalScope&&StudyGlobalScope.deckRecord&&DB.saveDecksForPlan){
       const r=StudyGlobalScope.deckRecord(deckId);if(r)return DB.saveDecksForPlan(r.planId,ds)!==false;
     }
-  }catch(_){}
+  }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
   DB.saveDecks(ds);return true;
 };
 AnkiParity.deckAncestors=function(deckId){
@@ -504,9 +504,9 @@ AnkiParity._scanEntities=function(kind){
   try{
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);if(!k||!String(k).startsWith(prefix))continue;
-      try{const v=JSON.parse(localStorage.getItem(k)||'null');if(v&&typeof v==='object')out.push(v);}catch(_){}
+      try{const v=JSON.parse(localStorage.getItem(k)||'null');if(v&&typeof v==='object')out.push(v);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
     }
-  }catch(_){}
+  }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
   return out;
 };
 AnkiParity.getNotetype=function(id){
@@ -902,7 +902,7 @@ AnkiParity.selectedDeckId=function(){
   try{
     const set=CardsScreen.filters&&CardsScreen.filters.materias;
     if(set&&set.size===1){const v=[...set][0];if(typeof v==='string'&&v.startsWith('deck:'))return v.slice(5);}
-  }catch(_){}
+  }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
   return null;
 };
 AnkiParity.limitState=function(selectedDeckId){
@@ -1498,7 +1498,7 @@ AnkiParity.rebuildFilteredDeck=function(deckId){
   const deck=DB.getDecks().find(d=>String(d.id)===String(deckId));
   const cfg=this.filteredConfig(deck);if(!cfg)return 0;
   this.emptyFilteredDeck(deckId);
-  try{this.ensureIdentities();this.ensureCanonicalNotes();}catch(_){}
+  try{this.ensureIdentities();this.ensureCanonicalNotes();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
   const all=DB.getCards(),picked=[],seen=new Set();
   for(const term of cfg.searchTerms.slice(0,2)){
     // "-is:suspended -is:buried -deck:filtered": o que o termo anterior já

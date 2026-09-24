@@ -135,8 +135,8 @@ const AnkiTotalParity = {
 
   /* ───────────────── UNDO/REDO TRANSVERSAL ───────────────── */
   _entityEntries(){
-    const prefixes=[];try{prefixes.push(AnkiParity._entityKey('note',''),AnkiParity._entityKey('notetype',''));}catch(_){}
-    const rows=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&prefixes.some(p=>k.startsWith(p)))rows.push([k,localStorage.getItem(k)]);}}catch(_){}
+    const prefixes=[];try{prefixes.push(AnkiParity._entityKey('note',''),AnkiParity._entityKey('notetype',''));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
+    const rows=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&prefixes.some(p=>k.startsWith(p)))rows.push([k,localStorage.getItem(k)]);}}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
     return {prefixes,rows};
   },
   _snapshot(label){
@@ -157,7 +157,7 @@ const AnkiTotalParity = {
       try{
         const kill=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(s.entityPrefixes||[]).some(p=>k.startsWith(p)))kill.push(k);}
         kill.forEach(k=>localStorage.removeItem(k));(s.entities||[]).forEach(([k,v])=>localStorage.setItem(k,v));
-      }catch(_){}
+      }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
       CardEngine.invalidateDueCache();
       if(typeof CardsScreen!=='undefined'&&CardsScreen.render)CardsScreen.render();
       if(typeof AnkiProductParity!=='undefined'&&document.getElementById('anki-browser-modal')&&document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
@@ -252,7 +252,7 @@ const AnkiTotalParity = {
   _mediaContext(){
     const cs=typeof CloudStore!=='undefined'?CloudStore:null;if(!cs||!cs.isReady||!cs.isReady()||!cs.isLoggedIn||!cs.isLoggedIn())return null;
     const profile=window.ProfileManager&&ProfileManager.getActiveProfileId?ProfileManager.getActiveProfileId():null;
-    let plan=null;try{plan=DB._activePlanId();}catch(_){}
+    let plan=null;try{plan=DB._activePlanId();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
     const uid=cs.session&&cs.session.user&&cs.session.user.id;return uid&&profile&&plan?{uid,profile:String(profile),plan:String(plan)}:null;
   },
   _bytesToB64(bytes){const b=AnkiMediaStore._u8(bytes);let s='';const N=0x8000;for(let i=0;i<b.length;i+=N)s+=String.fromCharCode(...b.subarray(i,i+N));return btoa(s);},
@@ -346,7 +346,7 @@ const AnkiTotalParity = {
     const oldTrash=AnkiMediaStore._setTrash.bind(AnkiMediaStore);AnkiMediaStore._setTrash=async(name,value)=>{const ok=await oldTrash(name,value);if(ok&&!this._mediaApplying){const rec=(await AnkiMediaStore.all(true)).find(x=>x.name===String(name));if(rec)this._pushMedia(rec).catch(e=>console.warn('Media tombstone',e));}return ok;};
     queueMicrotask(()=>{
       if(typeof CloudStore==='undefined')return;
-      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const old=CloudStore.syncNow.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false,true);return ok;};CloudStore.syncNow.__ankiMedia=true;}
+      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const orig=CloudStore.syncNow,old=orig.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false,true);return ok;};CloudStore.syncNow.__ankiMedia=true;CloudStore.syncNow.__original=orig;}
       if(typeof CloudStore.syncOnFocus==='function'&&!CloudStore.syncOnFocus.__ankiMedia){const old=CloudStore.syncOnFocus.bind(CloudStore);const self=this;CloudStore.syncOnFocus=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false);return ok;};CloudStore.syncOnFocus.__ankiMedia=true;}
       setTimeout(()=>this.syncMedia(false),1200);
     });

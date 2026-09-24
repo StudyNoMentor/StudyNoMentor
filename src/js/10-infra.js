@@ -237,7 +237,7 @@ const AnchoredListViewport = {
           out.bottom = Math.max(out.top, r.top - 6);
         }
       }
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '10-infra'); }
     return out;
   },
   _bounds(panel) {
@@ -261,7 +261,7 @@ const AnchoredListViewport = {
         }
         p = p.parentElement;
       }
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '10-infra'); }
     if (out.bottom < out.top) out.bottom = out.top;
     return out;
   },

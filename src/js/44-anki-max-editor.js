@@ -179,7 +179,7 @@ const AnkiMaxEditor = {
   /* ───────────────── ADVANCED ADD ───────────────── */
   _stickyKey(nt){return 'snm-anki-sticky:'+String(nt&&nt.id||'');},
   _stickyRead(nt){try{return JSON.parse(sessionStorage.getItem(this._stickyKey(nt))||'{}')||{};}catch(_){return {};}},
-  _stickyWrite(nt,fields){const o={};(nt.fields||[]).forEach(f=>{if(f.sticky)o[f.name]=fields[f.name]||'';});try{sessionStorage.setItem(this._stickyKey(nt),JSON.stringify(o));}catch(_){}},
+  _stickyWrite(nt,fields){const o={};(nt.fields||[]).forEach(f=>{if(f.sticky)o[f.name]=fields[f.name]||'';});try{sessionStorage.setItem(this._stickyKey(nt),JSON.stringify(o));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-editor'); }},
   _patchAdvancedAdd(){
     const save=document.getElementById('anki-advanced-save');if(save)save.addEventListener('click',e=>{if(!document.querySelector('#anki-advanced-fields .anki-advanced-field-max'))return;e.preventDefault();e.stopImmediatePropagation();this._saveAdvancedRich();},true);
     AnkiImageOcclusion._renderAdvancedFields=()=>{

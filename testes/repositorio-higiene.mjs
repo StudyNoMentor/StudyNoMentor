@@ -28,6 +28,8 @@ assert.deepEqual([...new Set(declarados)].sort(),fontes,
 // lugar onde JS órfão pode ser escondido.
 const vendorsPermitidos=[
   'vendor/fsrs-6.6.2/fsrs_optimizer.js',
+  // zstd do .apkg/.colpkg do Anki 2.1.50+ (35-anki-import.js, sob demanda).
+  'vendor/fzstd-0.1.1/fzstd.js',
   'vendor/sqljs-1.2.1/sql-asm.js'
 ].sort();
 const vendors=vendorAbs.map(relSrc).sort();

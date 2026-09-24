@@ -52,13 +52,13 @@ const AnkiMaxStatsMedia = {
   },
 
   _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
-  _cardsSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.cards)return StudyGlobalScope.cards();}catch(_){}return DB.getCards();},
-  _decksSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.decks)return StudyGlobalScope.decks();}catch(_){}return DB.getDecks();},
-  _revlogSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.revlog)return StudyGlobalScope.revlog();}catch(_){}return DB.getRevlog();},
+  _cardsSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.cards)return StudyGlobalScope.cards();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-stats-media'); }return DB.getCards();},
+  _decksSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.decks)return StudyGlobalScope.decks();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-stats-media'); }return DB.getDecks();},
+  _revlogSource(){try{if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.revlog)return StudyGlobalScope.revlog();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-stats-media'); }return DB.getRevlog();},
   _statsSelectedDeckId(){
     const explicit=this._statsState&&this._statsState.deckId;
     if(explicit!=null&&explicit!=='')return String(explicit);
-    try{if(typeof AnkiParity!=='undefined'&&AnkiParity.selectedDeckId)return String(AnkiParity.selectedDeckId()||'');}catch(_){}
+    try{if(typeof AnkiParity!=='undefined'&&AnkiParity.selectedDeckId)return String(AnkiParity.selectedDeckId()||'');}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-stats-media'); }
     return '';
   },
   _statsDeckIds(rootId){

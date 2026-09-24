@@ -130,14 +130,14 @@ const AnkiMaxParity = {
   /* ───────────────────────── BROWSER ───────────────────────── */
   _browserPrefsKey(){try{return AnkiParity._entityKey('browser','prefs');}catch(_){return 'snm-anki-browser-prefs';}},
   _loadBrowserPrefs(){
-    let p={};try{p=JSON.parse(localStorage.getItem(this._browserPrefsKey())||'{}')||{};}catch(_){}
+    let p={};try{p=JSON.parse(localStorage.getItem(this._browserPrefsKey())||'{}')||{};}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-reviewer-browser'); }
     const b=AnkiProductParity.browser;
     b.mode=p.mode==='cards'?'cards':'notes';
     b.columns=Array.isArray(p.columns)?p.columns.slice():null;
     b.sort=p.sort||b.sort||'sortField';b.sortDir=p.sortDir==='desc'?'desc':'asc';
   },
   _saveBrowserPrefs(){
-    const b=AnkiProductParity.browser;try{localStorage.setItem(this._browserPrefsKey(),JSON.stringify({mode:b.mode,columns:b.columns,sort:b.sort,sortDir:b.sortDir}));}catch(_){}
+    const b=AnkiProductParity.browser;try{localStorage.setItem(this._browserPrefsKey(),JSON.stringify({mode:b.mode,columns:b.columns,sort:b.sort,sortDir:b.sortDir}));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-max-reviewer-browser'); }
   },
   _columnDefs(){
     const both=['notes','cards'];

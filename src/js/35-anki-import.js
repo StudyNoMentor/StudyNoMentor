@@ -73,7 +73,7 @@ const AnkiImport = {
         const ds=new DecompressionStream('zstd');
         const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
         return new Uint8Array(ab);
-      }catch(_){}
+      }catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
     }
     const mod=await this._loadFzstd();
     if(mod&&typeof mod.decompress==='function')return mod.decompress(bytes);
@@ -107,7 +107,7 @@ const AnkiImport = {
   async _package(file){
     const bytes=new Uint8Array(await file.arrayBuffer()),files=await this.unzip(bytes);
     let version=files.has('collection.anki21b')?3:(files.has('collection.anki21')?2:1);
-    if(files.has('meta')){try{const m=this._proto(files.get('meta'));version=this._pNum(m,1,version);}catch(_){}}
+    if(files.has('meta')){try{const m=this._proto(files.get('meta'));version=this._pNum(m,1,version);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }}
     const colName=version===3?'collection.anki21b':(version===2?'collection.anki21':'collection.anki2');
     if(!files.has(colName))throw new Error('Pacote Anki sem '+colName);
     const collection=version===3?await this._zstd(files.get(colName)):files.get(colName);
@@ -117,7 +117,7 @@ const AnkiImport = {
         const mapBytes=await this._zstd(files.get('media')),entries=this._mediaEntriesProto(mapBytes);
         for(let i=0;i<entries.length;i++)if(files.has(String(i)))media.set(entries[i].name,await this._zstd(files.get(String(i))));
       }else{
-        let map={};try{map=JSON.parse(this._text(files.get('media')))||{};}catch(_){}
+        let map={};try{map=JSON.parse(this._text(files.get('media')))||{};}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
         for(const k of Object.keys(map))if(files.has(String(k)))media.set(String(map[k]),files.get(String(k)));
       }
     }
@@ -135,7 +135,7 @@ const AnkiImport = {
     const cache=new Map(),dataFor=(raw)=>{
       let name=String(raw||'').trim();
       if(/^data:|^https?:|^blob:|^#|^mailto:/i.test(name))return null;
-      try{name=decodeURIComponent(name);}catch(_){}
+      try{name=decodeURIComponent(name);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
       if(cache.has(name))return cache.get(name);
       const b=media.get(name);if(!b)return null;
       const u='data:'+this._mime(name)+';base64,'+this._b64(b);cache.set(name,u);return u;
@@ -170,7 +170,7 @@ const AnkiImport = {
   },
   _legacyMetadata(db){
     const c=this._rows(db,'select ver,models,decks,dconf from col where id=1')[0]||{};
-    let models={},decks={},dconf={};try{models=JSON.parse(c.models||'{}');}catch(_){}try{decks=JSON.parse(c.decks||'{}');}catch(_){}try{dconf=JSON.parse(c.dconf||'{}');}catch(_){}
+    let models={},decks={},dconf={};try{models=JSON.parse(c.models||'{}');}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }try{decks=JSON.parse(c.decks||'{}');}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }try{dconf=JSON.parse(c.dconf||'{}');}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
     return {ver:Number(c.ver)||11,models,decks,dconf};
   },
   _modernMetadata(db){
@@ -188,7 +188,7 @@ const AnkiImport = {
       }
     }
     if(this._has(db,'decks'))for(const r of this._rows(db,'select id,name,common,kind from decks')){
-      let conf=1,dyn=0,desc='';try{const kc=this._proto(r.kind||new Uint8Array());if(kc[1]&&kc[1][0]){const n=this._proto(kc[1][0].value);conf=this._pNum(n,1,1);desc=this._pStr(n,4,'');}else if(kc[2])dyn=1;}catch(_){}
+      let conf=1,dyn=0,desc='';try{const kc=this._proto(r.kind||new Uint8Array());if(kc[1]&&kc[1][0]){const n=this._proto(kc[1][0].value);conf=this._pNum(n,1,1);desc=this._pStr(n,4,'');}else if(kc[2])dyn=1;}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
       decks[String(r.id)]={id:Number(r.id),name:r.name,conf,dyn,desc};
     }
     if(this._has(db,'deck_config'))for(const r of this._rows(db,'select id,name,config from deck_config')){
@@ -410,14 +410,14 @@ const AnkiImport = {
         localStorage.removeItem(CardsConfig.PKEY);localStorage.removeItem(CardsConfig.DKEY);
         CardsConfig._c=null;CardsConfig._cKey=null;
       }
-    }catch(_){}
+    }catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
   },
   _snapshotCollectionState(){
     const values={};
     try{
       const p=AnkiParity._planPrefix(),extra=new Set([AnkiParity._presetKey(),CardsConfig.KEY,CardsConfig.PKEY,CardsConfig.DKEY]);
       for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(k.startsWith(p+'cards-')||extra.has(k)))values[k]=localStorage.getItem(k);}
-    }catch(_){}
+    }catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
     return {cards:structuredClone(DB.getCards()),decks:structuredClone(DB.getDecks()),revlog:structuredClone(DB.getRevlog()),values};
   },
   _restoreCollectionState(s){
@@ -427,7 +427,7 @@ const AnkiImport = {
       const p=AnkiParity._planPrefix(),extra=new Set([AnkiParity._presetKey(),CardsConfig.KEY,CardsConfig.PKEY,CardsConfig.DKEY]),del=[];
       for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(k.startsWith(p+'cards-')||extra.has(k)))del.push(k);}
       del.forEach(k=>localStorage.removeItem(k));Object.entries(s.values||{}).forEach(([k,v])=>localStorage.setItem(k,v));
-    }catch(_){}
+    }catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }
     DB.saveCards(structuredClone(s.cards||[]));DB.saveDecks(structuredClone(s.decks||[]));DB.replaceRevlog(structuredClone(s.revlog||[]));
     if(typeof CardsConfig!=='undefined'){CardsConfig._c=null;CardsConfig._cKey=null;}
   },
@@ -456,7 +456,7 @@ const AnkiImport = {
       if(opts.withDeckConfigs!==false&&meta.dconf&&meta.dconf[String(d.conf)])CardsConfig.setDeckPreset(hit.id,this._deckCfg(meta.dconf[String(d.conf)]));
     }
     DB.saveDecks(existingDecks);
-    try{if(opts.withScheduling!==false&&Number(col.crt)>0&&!CardsConfig.get().ankiCrt)CardsConfig.set({ankiCrt:Number(col.crt)});}catch(e){_quiet(e,'anki-crt');}
+    try{if(opts.withScheduling!==false&&Number(col.crt)>0&&!CardsConfig.get().ankiCrt)CardsConfig.set({ankiCrt:Number(col.crt)});}catch(e){if(typeof _quiet==='function')_quiet(e,'anki-crt');}
 
     const currentTypes=AnkiParity.noteTypes();
     for(const m of Object.values(meta.models||{})){
@@ -649,4 +649,4 @@ const AnkiImport = {
   }
 
 };
-try{globalThis.AnkiImport=AnkiImport;}catch(_){}
+try{globalThis.AnkiImport=AnkiImport;}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }

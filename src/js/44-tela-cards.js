@@ -16,11 +16,11 @@ const CardsScreen = {
   },
   // ---- opções de filtro (matérias + baralhos, tópicos, tipos) ----
   collectionCards() {
-    try { if (window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) {}
+    try { if (window.StudyGlobalScope && StudyGlobalScope.cards) return StudyGlobalScope.cards(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return DB.getCards();
   },
   collectionDecks() {
-    try { if (window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) {}
+    try { if (window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return DB.getDecks();
   },
   materiaOptionsHtml(selectedValue) {
@@ -79,7 +79,7 @@ const CardsScreen = {
   },
   currentFilteredCards() {
     let out = CardEngine.applyFilters(this.collectionCards(), this.filters);
-    try { if (window.StudyGlobalScope && StudyGlobalScope.filterCardsByBanca) out = StudyGlobalScope.filterCardsByBanca(out); } catch (_) {}
+    try { if (window.StudyGlobalScope && StudyGlobalScope.filterCardsByBanca) out = StudyGlobalScope.filterCardsByBanca(out); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return out;
   },
   updateFavCount() {
@@ -91,14 +91,14 @@ const CardsScreen = {
     try {
       if (window.StudyGlobalScope && StudyGlobalScope.cardsScope && StudyGlobalScope.cardsScope() === 'all') return this.collectionCards();
       if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return this.collectionCards();
   },
   _statsRevlog(applyHistory) {
     try {
       if (window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog();
       if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
-    } catch (_) {}
+    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return DB.getRevlog() || [];
   },
 
@@ -220,7 +220,7 @@ const CardsScreen = {
   materiaLabel(c) {
     if (c.deckId) {
       let d = null;
-      try { d = window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null; } catch (_) {}
+      try { d = window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null; } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
       if (!d) d = DB.getDecks().find(x => x.id === c.deckId);
       return d ? '📁 ' + d.nome : '📁 (baralho removido)';
     }
@@ -1239,7 +1239,7 @@ const CardsScreen = {
     if (!u) { showToast('Nada para desfazer'); return; }
     DB.updateCard(u.id, u.antes);
     if (u.aprendAntes !== undefined) this._aprendAnki = u.aprendAntes;
-    (u.buriedSiblings || []).forEach(id => { try { DB.unburyCard(id); } catch (_) {} });
+    (u.buriedSiblings || []).forEach(id => { try { DB.unburyCard(id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); } });
     CardEngine.invalidateDueCache(true);
     // Medido no anki==26.09.2: depois do desfazer o LoadBalancer é relido do
     // banco (o add_card() da resposta desfeita some; o card volta ao vencimento antigo).
@@ -3054,7 +3054,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check: dados insuficientes ('+h.fsrsItems+' itens; requer >300)');else showToast((h.passed?'✅':'⚠')+' Health Check '+(h.passed?'aprovado':'requer atenção')+' · loss '+h.adjustedLogLoss.toFixed(2)+' · RMSE '+h.adjustedRmse.toFixed(2));}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
     foot.insertBefore(health,b.nextSibling);
     const decide=document.createElement('button');decide.id='cards-fsrs-help-decide-btn';decide.type='button';decide.className='btn-secondary';decide.textContent='🤔 Help Me Decide';
-    decide.addEventListener('click',()=>{try{UI._submit(false);}catch(_){};setTimeout(()=>{if(typeof AnkiMaxStatsMedia!=='undefined'&&AnkiMaxStatsMedia.openSimulator){AnkiMaxStatsMedia.openSimulator();const x=document.getElementById('anki-sim-help');if(x)x.click();}else showToast('Simulador FSRS indisponível');},0);});
+    decide.addEventListener('click',()=>{try{UI._submit(false);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); };setTimeout(()=>{if(typeof AnkiMaxStatsMedia!=='undefined'&&AnkiMaxStatsMedia.openSimulator){AnkiMaxStatsMedia.openSimulator();const x=document.getElementById('anki-sim-help');if(x)x.click();}else showToast('Simulador FSRS indisponível');},0);});
     foot.insertBefore(decide,health.nextSibling);
     if(!isDeck){
       const all=document.createElement('button');all.id='cards-optimize-all-fsrs-btn';all.type='button';all.className='btn-secondary';all.textContent='🧠 Otimizar todos os presets';

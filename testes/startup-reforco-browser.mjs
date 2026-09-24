@@ -21,7 +21,7 @@ const server = createServer((req,res)=>{
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const url=`http://127.0.0.1:${server.address().port}/index.html`;
-const browser=await chromium.launch();
+const browser=await chromium.launch(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {});
 const page=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
 const errors=[];let checks=0;
 page.on('pageerror',e=>errors.push(e.message));
@@ -133,7 +133,8 @@ try {
     coreSpecs:String(RelationalStore._coreSpecs),
     loadCore:String(RelationalStore._loadCoreBundle),
     catchUp:String(RelationalStore.catchUp),
-    cloudSync:String(CloudStore.syncNow)
+    // A mídia do Anki embrulha syncNow; o contrato vale para a implementação de base.
+    cloudSync:String(CloudStore.syncNow.__original||CloudStore.syncNow)
   }));
   ok(/study_change_log/.test(rt.subscribe),'Realtime deve assinar study_change_log');
   ok(/postgres_changes/.test(rt.subscribe),'Realtime deve usar eventos do Postgres');
