@@ -185,6 +185,161 @@ function recarregarApp(motivo, opts) {
 }
 window.recarregarApp = recarregarApp;
 
+/* ═════════════ LISTAS FLUTUANTES — SEM FICAR PRESAS NO FIM DA TELA ═════════
+   Dropdowns customizados não têm a inteligência de posicionamento de um
+   <select> nativo. Se o botão está perto do rodapé, abrir sempre para baixo
+   deixa parte da lista fora do viewport; tentar rolar a página não ajuda
+   quando a página já terminou. A regra é única para o app inteiro:
+
+   · mede o viewport VISUAL (inclui teclado do celular);
+   · abre para baixo quando cabe;
+   · abre para cima quando há mais espaço acima;
+   · se nenhum lado comporta tudo, limita a altura ao lado maior e deixa a
+     própria lista rolar — sem depender do scroll da página.
+
+   Só entram aqui menus ancorados. Popovers fixed que já calculam posição
+   (perfil, nuvem, dicas, seletor da Grade) continuam com a lógica própria. */
+const AnchoredListViewport = {
+  RULES: [
+    { panel: '.ms-disc-filter-panel', anchor: '.ms-disc-filter-btn', gap: 6 },
+    { panel: '.tec-disc-pick-panel', anchor: '.tec-disc-pick-btn', gap: 7 },
+    { panel: '.banca-pick-panel', anchor: '.banca-pick-btn', gap: 6 },
+    { panel: '.pl-disc-panel', anchor: '.pl-disc-toggle', gap: 4 },
+    { panel: '.cards-more-menu', anchor: '.cards-more-btn', gap: 6 },
+    { panel: '.grade-gear-menu', anchor: '.grade-gear-btn', gap: 8 },
+    { panel: '#anki-browser-columns-menu', anchor: 'summary', gap: 6 },
+    { panel: '.plan-switcher-menu', anchor: '.plan-switcher-btn', gap: 6 }
+  ],
+  _raf: 0,
+  _visible(el) {
+    if (!el || el.hidden || el.hasAttribute('hidden')) return false;
+    try {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      return el.getClientRects().length > 0;
+    } catch (_) { return false; }
+  },
+  _viewport() {
+    const vv = window.visualViewport;
+    const out = vv ? {
+      top: Number(vv.offsetTop) || 0,
+      bottom: (Number(vv.offsetTop) || 0) + (Number(vv.height) || window.innerHeight)
+    } : { top: 0, bottom: window.innerHeight };
+
+    /* A barra móvel do próprio Study ocupa o fim do viewport. Ela não reduz o
+       visualViewport porque pertence à página; sem descontá-la, um dropdown
+       "caberia" geometricamente, mas as últimas opções ficariam atrás da barra. */
+    try {
+      const tabs = document.getElementById('tabs');
+      if (tabs) {
+        const cs = getComputedStyle(tabs), r = tabs.getBoundingClientRect();
+        if (cs.position === 'fixed' && cs.display !== 'none' && r.height > 0 && r.top < out.bottom) {
+          out.bottom = Math.max(out.top, r.top - 6);
+        }
+      }
+    } catch (_) {}
+    return out;
+  },
+  _bounds(panel) {
+    const out = this._viewport();
+    /* O viewport não é o único recorte possível. Modais e alguns cartões usam
+       overflow:auto/hidden; uma lista absoluta não pode atravessar essas
+       bordas. Intersectar todos os ancestrais que recortam conteúdo evita
+       escolher "para baixo" só porque há espaço na tela quando, na prática,
+       o modal terminaria antes. */
+    try {
+      let p = panel && panel.parentElement;
+      while (p && p !== document.body && p !== document.documentElement) {
+        const cs = getComputedStyle(p);
+        const oy = String(cs.overflowY || cs.overflow || '');
+        if (/(auto|scroll|hidden|clip)/.test(oy)) {
+          const r = p.getBoundingClientRect();
+          if (r.height > 0) {
+            out.top = Math.max(out.top, r.top);
+            out.bottom = Math.min(out.bottom, r.bottom);
+          }
+        }
+        p = p.parentElement;
+      }
+    } catch (_) {}
+    if (out.bottom < out.top) out.bottom = out.top;
+    return out;
+  },
+  _anchor(panel, selector) {
+    if (!panel || !selector) return null;
+    try {
+      return (panel.parentElement && panel.parentElement.querySelector(selector))
+        || document.querySelector(selector);
+    } catch (_) { return null; }
+  },
+  fit(panel, anchor, gap) {
+    if (!this._visible(panel) || !anchor) return false;
+    gap = Number.isFinite(Number(gap)) ? Number(gap) : 6;
+
+    /* Mede primeiro com o CSS NATURAL do componente. Assim continuamos
+       respeitando seus próprios 260px/70vh/340px em vez de transformar todo
+       dropdown num painel gigante. */
+    panel.classList.remove('ux-float-viewport', 'ux-float-up');
+    panel.style.removeProperty('--ux-float-max-h');
+    panel.style.removeProperty('--ux-float-gap');
+
+    const vp = this._bounds(panel);
+    const ar = anchor.getBoundingClientRect();
+    const margin = 10;
+    const abaixo = Math.max(0, vp.bottom - margin - ar.bottom - gap);
+    const acima = Math.max(0, ar.top - vp.top - margin - gap);
+    const cs = getComputedStyle(panel);
+    const capCss = parseFloat(cs.maxHeight);
+    const cap = Number.isFinite(capCss) && capCss > 0 ? capCss : Math.max(120, panel.scrollHeight || 520);
+    const natural = Math.min(cap, Math.max(panel.getBoundingClientRect().height || 0, panel.scrollHeight || 0, 80));
+
+    let paraCima = false;
+    if (natural > abaixo) {
+      if (natural <= acima) paraCima = true;
+      else paraCima = acima > abaixo;
+    }
+    const disponivel = Math.max(48, Math.floor(paraCima ? acima : abaixo));
+    const altura = Math.max(48, Math.floor(Math.min(cap, disponivel)));
+
+    panel.style.setProperty('--ux-float-max-h', altura + 'px');
+    panel.style.setProperty('--ux-float-gap', gap + 'px');
+    panel.classList.add('ux-float-viewport');
+    panel.classList.toggle('ux-float-up', paraCima);
+    return true;
+  },
+  fitVisible() {
+    this.RULES.forEach(rule => {
+      document.querySelectorAll(rule.panel).forEach(panel => {
+        if (!this._visible(panel)) return;
+        this.fit(panel, this._anchor(panel, rule.anchor), rule.gap);
+      });
+    });
+  },
+  schedule() {
+    if (this._raf) return;
+    this._raf = requestAnimationFrame(() => {
+      this._raf = 0;
+      this.fitVisible();
+    });
+  },
+  init() {
+    /* O clique roda depois do handler do próprio botão (target → document), e
+       o rAF mede já com o menu aberto. <details> usa o evento toggle. */
+    document.addEventListener('click', () => this.schedule());
+    document.addEventListener('toggle', () => this.schedule(), true);
+    document.addEventListener('focusin', () => this.schedule(), true);
+    window.addEventListener('resize', () => this.schedule());
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => this.schedule());
+      window.visualViewport.addEventListener('scroll', () => this.schedule());
+    }
+  }
+};
+window.AnchoredListViewport = AnchoredListViewport;
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => AnchoredListViewport.init(), { once: true });
+} else AnchoredListViewport.init();
+
 
 /* ═══════════════════ LIXEIRA — apagar deixou de ser definitivo ═════════════
    O episódio que originou este código: um download tratou "esta seção não está

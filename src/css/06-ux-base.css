@@ -1351,3 +1351,51 @@
 @media (prefers-reduced-motion: reduce) {
   .pl-skel-giro { animation-duration: 2.4s; }
 }
+
+
+/* ═════════════ LISTAS FLUTUANTES ADAPTÁVEIS AO VIEWPORT ═══════════════════
+   A altura disponível é calculada pelo AnchoredListViewport. O componente
+   mantém seu teto natural, mas nunca fica maior do que o espaço real do lado
+   em que abriu. Quando necessário, abre para cima. */
+.ux-float-viewport {
+  max-height: min(var(--ux-float-max-h, 70dvh), 100dvh) !important;
+  overscroll-behavior: contain;
+}
+.ux-float-viewport.ux-float-up {
+  top: auto !important;
+  bottom: calc(100% + var(--ux-float-gap, 6px)) !important;
+}
+/* Menus simples rolam no próprio painel. Os três seletores grandes do TEC
+   mantêm overflow:hidden porque a rolagem vive na lista interna. */
+.ux-float-viewport:not(.tec-disc-pick-panel):not(.ms-disc-filter-panel):not(.banca-pick-panel) {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+
+/* O dropdown de disciplinas do modal precisa de um containing block próprio;
+   sem position:relative, top/bottom eram calculados contra um ancestral e a
+   inversão para cima podia parar no lugar errado. */
+.pl-modal-field { position: relative; }
+
+/* Menus FIXED que já calculam coordenadas no JS também recebem um teto físico.
+   A lista interna rola; cabeçalho/estado permanecem visíveis. */
+.profile-menu,
+.cloud-menu {
+  max-height: calc(100dvh - 20px);
+  display: flex;
+  flex-direction: column;
+}
+.profile-menu-head,
+.profile-menu-stats,
+.cloud-menu-head,
+.cloud-menu-foot { flex: 0 0 auto; }
+.profile-menu-list,
+.cloud-menu-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}

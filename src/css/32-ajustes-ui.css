@@ -607,6 +607,8 @@ html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
   scrollbar-gutter: stable;
   padding: 1px 3px 1px 1px;
 }
@@ -846,8 +848,21 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
 #incid-bancas-card .incid-bancas-pick-wrap { min-width: 0; width: 100%; margin: 0; }
 #incid-bancas-card .banca-pick,
 #incid-bancas-card .banca-pick-btn { width: 100%; min-width: 0; }
-.banca-pick-panel { max-height: min(520px, 72vh); overflow: hidden; }
-.banca-pick-list { max-height: min(350px, 52vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.banca-pick-panel {
+  max-height: min(520px, 72vh);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+.banca-pick-list {
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-gutter: stable;
+}
 .banca-pick-topo { margin: 2px 4px 8px; line-height: 1.4; }
 .banca-pick-acoes { min-height: 34px; }
 
@@ -1226,6 +1241,8 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
 .ms-disc-filter-panel {
   position: absolute; left: 12px; right: 12px; top: calc(100% - 3px);
   max-height: min(560px,68vh); padding: 8px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   border: 1px solid var(--border); border-radius: 12px;
   background: var(--surface); box-shadow: var(--shadow-lg); overflow: hidden;
 }
@@ -1260,7 +1277,8 @@ details[open] > summary .ms-chevron::before { border-color: var(--accent, #5e81f
   min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
 }
 .ms-disc-filter-list {
-  max-height: min(350px,44vh); overflow-y: auto; overscroll-behavior: contain;
+  min-height: 0; max-height: none; overflow-y: auto; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; touch-action: pan-y;
   scrollbar-gutter: stable; display: grid; gap: 3px;
 }
 .ms-disc-filter-item {

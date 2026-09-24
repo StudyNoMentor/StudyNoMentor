@@ -1115,12 +1115,23 @@ function planCycleMode() {
     let left = r.left + window.scrollX;
     if (left + pw > window.scrollX + window.innerWidth - 10) left = window.scrollX + window.innerWidth - pw - 10;
     if (left < window.scrollX + 10) left = window.scrollX + 10;
-    let top = r.bottom + window.scrollY + 4;
     pop.style.left = left + 'px';
-    pop.style.top = top + 'px';
-    // se estourar embaixo, abre acima
+
+    // A mesma régua dos demais menus: respeita visualViewport + barra móvel do
+    // Study. Se nenhum lado comporta os 320px naturais, limita a altura e a
+    // lista interna assume a rolagem.
+    const vp = (window.AnchoredListViewport && AnchoredListViewport._viewport)
+      ? AnchoredListViewport._viewport() : { top: 0, bottom: window.innerHeight };
+    const gap = 4, margem = 10;
+    const abaixo = Math.max(0, vp.bottom - margem - r.bottom - gap);
+    const acima = Math.max(0, r.top - vp.top - margem - gap);
+    const natural = Math.min(320, Math.max(pop.scrollHeight || 0, pop.getBoundingClientRect().height || 0));
+    const paraCima = natural > abaixo && acima > abaixo;
+    const disponivel = Math.max(72, paraCima ? acima : abaixo);
+    pop.style.maxHeight = Math.min(320, disponivel) + 'px';
     const ph = pop.getBoundingClientRect().height;
-    if (r.bottom + ph > window.innerHeight - 10) pop.style.top = (r.top + window.scrollY - ph - 4) + 'px';
+    const top = paraCima ? (r.top + window.scrollY - ph - gap) : (r.bottom + window.scrollY + gap);
+    pop.style.top = top + 'px';
 
     pop.querySelectorAll('.gsp-opt').forEach(b => b.addEventListener('click', () => {
       const c = normalizeCell(gradeGet().grade[dia] && gradeGet().grade[dia][idx]);
