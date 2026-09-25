@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v99bca91419">
+<meta name="diario-versao" content="v1beb084a49">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -38768,7 +38768,12 @@ const AnkiRuntime = {
     // Se o template já possui CSS próprio para .nightMode, ele continua soberano.
     // Caso contrário, removemos apenas o branco/preto padrão do Anki e deixamos o
     // fundo transparente para a superfície escura do reviewer aparecer.
-    const hasNightCss=/\.nightMode\b/.test(css);
+    /* Só cede ao template quando ele define o FUNDO no modo noturno. O Cloze
+       padrão do Anki tem `.nightMode .cloze{color:lightblue}` — cita
+       nightMode, mas só para a cor do cloze; tratá-lo como "tem CSS noturno"
+       deixava o `.card{background-color:white}` valendo no tema escuro. */
+    const semComentarios=css.replace(/\/\*[\s\S]*?\*\//g,'');
+    const hasNightCss=/\.night_?mode\b[^{}]*\{[^}]*\bbackground(?:-color)?\s*:/i.test(semComentarios);
     const themeCss='html.nightMode{color-scheme:dark}'+
       (hasNightCss?'':'html.nightMode body.card{background:transparent;color:#e8eaed}');
     const nightClass=dark?' nightMode':'';
@@ -57053,12 +57058,17 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
     try { v = parseFloat(localStorage.getItem(chave())); } catch (_) { _quiet(_); }
     return PASSOS.includes(v) ? v : 1;
   }
-  function aplicar(v, avisar) {
+  // Só PINTA: não grava. Antes, a abertura do app (ainda sem perfil) e a troca
+  // de perfil regravavam o valor lido — "100%" antes de o banco responder.
+  function pintar(v) {
     document.documentElement.style.setProperty('--fs-scale', String(v));
-    DB.setRaw(chave(), String(v));
     const i = PASSOS.indexOf(v);
     if (menor) menor.disabled = (i <= 0);
     if (maior) maior.disabled = (i >= PASSOS.length - 1);
+  }
+  function aplicar(v, avisar) {
+    pintar(v);
+    DB.setRaw(chave(), String(v));
     if (avisar) showToast('Texto em ' + Math.round(v * 100) + '%');
   }
   function mover(d) {
@@ -57068,8 +57078,12 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   }
   if (menor) menor.addEventListener('click', () => mover(-1));
   if (maior) maior.addEventListener('click', () => mover(1));
-  aplicar(atual(), false);
-  window.aplicarEscalaFonte = () => aplicar(atual(), false); // reaplica ao trocar de perfil
+  pintar(atual());
+  window.aplicarEscalaFonte = () => pintar(atual()); // reaplica ao trocar de perfil
+  /* O valor é salvo POR PERFIL e só existe depois que o perfil é carregado do
+     banco. Sem isto, ao sair e entrar de novo a tela ficava em 100% mesmo com
+     o valor salvo. */
+  window.addEventListener('profile:relational-ready', () => pintar(atual()));
 })();
 
 

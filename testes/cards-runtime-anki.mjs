@@ -66,6 +66,10 @@ assert.match(darkDoc,/<html class="nightMode">/,'tema escuro do Study deve chega
 assert.match(darkDoc,/class="card question nightMode"/,'body do card deve receber a classe nightMode compatível com Anki');
 assert.match(darkDoc,/html\.nightMode body\.card\{background:transparent;color:#e8eaed\}/,'template sem nightMode deve usar fallback escuro transparente');
 assert.match(darkDoc,/snm-anki-theme/,'iframe deve aceitar atualização de tema sem recarregar a sessão');
+// Cloze padrão: cita .nightMode só para a cor do cloze — o fundo branco do .card
+// não pode valer no tema escuro.
+const clozePadrao=R.buildSrcdoc({css:'.card {\n    font-family: arial;\n    background-color: white;\n    color: black;\n}\n.cloze {\n    font-weight: bold;\n    color: blue;\n}\n.nightMode .cloze {\n    color: lightblue;\n}\n'},'Pergunta','question',{id:126});
+assert.match(clozePadrao,/html\.nightMode body\.card\{background:transparent;color:#e8eaed\}/,'Cloze padrão no tema escuro não pode ficar com fundo branco');
 const customNight=R.buildSrcdoc({css:'.card{background:white;color:black}.nightMode{background:#111;color:#eee}'},'Pergunta','question',{id:125});
 assert.doesNotMatch(customNight,/html\.nightMode body\.card\{background:transparent;color:#e8eaed\}/,'CSS nightMode do próprio template deve prevalecer');
 delete ctx.document;

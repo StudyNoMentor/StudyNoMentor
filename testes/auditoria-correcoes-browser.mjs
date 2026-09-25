@@ -233,6 +233,21 @@ async function pontaAPonta() {
   ok(linhas('study_entries', r => r.entry_id === 'e-antes-backup').length === 1 && !linhas('study_entries', r => r.entry_id === 'e-depois-backup').length,
     'A5: com o banco de volta, o estado restaurado chega completo');
 
+  // Tamanho do texto: salvo por perfil e reaplicado ao sair e entrar de novo
+  await page.evaluate(() => { document.getElementById('fs-maior').click(); document.getElementById('fs-maior').click(); });
+  await page.evaluate(() => RelationalStore.flush());
+  const fsBanco = linhas('study_profile_settings', r => r.profile_id === perfil.id && r.key === 'fs-scale');
+  ok(fsBanco.length === 1 && String(fsBanco[0].value) === '1.1', 'tamanho do texto salvo no banco (' + JSON.stringify(fsBanco.map(r => r.value)) + ')');
+  const fsDepois = await page.evaluate(async (id) => {
+    // "sair": memória do perfil descartada e tela de volta ao padrão
+    RelationalStore._clearProfileMemory(id);
+    document.documentElement.style.setProperty('--fs-scale', '1');
+    ProfileUI._entering = false;
+    await ProfileUI.enterProfile(id);
+    return getComputedStyle(document.documentElement).getPropertyValue('--fs-scale').trim();
+  }, perfil.id);
+  ok(fsDepois === '1.1', 'ao entrar de novo, o tamanho do texto salvo é reaplicado (' + fsDepois + ')');
+
   ok(erros.length === 0, 'ponta a ponta sem erro de página: ' + erros.join(' | '));
   await ctx.close();
 }
@@ -348,6 +363,15 @@ try {
 
   // ── Baixo: SHA-1 único (csum do Anki) continua correto ─────────────────────
   ok(await page.evaluate(() => AnkiExport._sha1First32('abc') === 0xa9993e36 && AnkiExport._sha1First32('') === 0xda39a3ee), 'csum do Anki (SHA-1, 32 bits) correto com a implementação única');
+
+  // ── Cards no tema escuro: Cloze padrão não fica com fundo branco ───────────
+  const fundo = await page.evaluate(async () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const nt = AnkiParity.stockNotetype('cloze');
+    const doc = AnkiRuntime.buildSrcdoc(nt, 'Texto {{c1::oculto}}', 'question', { id: 'fundo-1' }, null, { disableAutoplay: true });
+    return { temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc) };
+  });
+  ok(fundo.temFallback, 'Cloze padrão no tema escuro usa fundo transparente (não branco)');
 
   // ── A7: código de terceiros ────────────────────────────────────────────────
   const a7 = await page.evaluate(() => ({
