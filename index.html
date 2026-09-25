@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vcc6fba4a42">
+<meta name="diario-versao" content="v99bca91419">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -23584,6 +23584,8 @@ const CycleEngine = {
     };
   },
   statusFor(studiedMin, targetMin) {
+    // sem carga horária na semana não há nada a cumprir: já está finalizada
+    if (!(Number(targetMin) > 0)) return 'finalizada';
     if (studiedMin <= 0) return 'pendente';
     if (studiedMin >= targetMin) return 'finalizada';
     return 'iniciada';
