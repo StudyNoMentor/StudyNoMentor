@@ -216,6 +216,11 @@ button.is-saving {
   padding: 7px 13px; font-size: var(--fs-xs); border-radius: 10px; min-height: 34px;
 }
 .ciclo-close-btn { box-shadow: none; }
+/* "Avançar" no topo da montagem: leva às sugestões de tempo sem rolar até o fim. */
+.ciclo-setup-next {
+  margin-left: auto; flex-shrink: 0; box-shadow: none;
+  padding: 7px 13px; font-size: var(--fs-xs); border-radius: 10px; min-height: 34px;
+}
 .ciclo-close-btn:hover { box-shadow: 0 4px 12px var(--accent-ring); }
 @media (max-width: 640px) {
   .ciclo-head-actions { width: 100%; }

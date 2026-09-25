@@ -317,6 +317,9 @@ function planCycleMode() {
     cycleEndInput.value = prefill?.endDate || CycleEngine.weekEndDate(_start);
     // aviso e rótulos conforme o modo do planejamento ativo
     const isPos = planCycleMode() === 'pos';
+    // com um ciclo já ativo, esta tela é a edição dele (primeiro passo; "Avançar" leva às sugestões)
+    const titleEl = document.getElementById('ciclo-setup-title');
+    if (titleEl) titleEl.textContent = DB.getCurrentCycle() ? 'Editar ciclo da semana' : 'Montar ciclo da semana';
     const hintEl = document.getElementById('ciclo-setup-mode-hint');
     const labelEl = document.getElementById('ciclo-setup-subjects-label');
     if (isPos) {
@@ -339,6 +342,7 @@ function planCycleMode() {
 
   on('btn-start-cycle', 'click', () => {
     importedCycleSource = null;
+    pendingCycle = null;
     openSetup(null);
   });
 
@@ -397,11 +401,15 @@ function planCycleMode() {
 
   on('btn-cancel-cycle', 'click', () => {
     importedCycleSource = null;
+    pendingCycle = null;
     const existing = DB.getCurrentCycle();
     showState(existing ? 'active' : 'empty');
   });
   on('btn-edit-cycle', 'click', () => {
-    // reabre a revisão de tempo do ciclo já ativo, mantendo os tempos já definidos
+    // reabre o ciclo já ativo pelo primeiro passo (matérias, carga e datas); "Avançar"
+    // segue para a revisão de tempo. O rascunho guarda os tempos já definidos, que o
+    // cálculo da sugestão preserva por nome.
+    importedCycleSource = null;
     const existing = DB.getCurrentCycle();
     if (existing) {
       pendingCycle = {
@@ -410,13 +418,18 @@ function planCycleMode() {
         weeklyHours: existing.weeklyHours,
         mode: existing.mode || planCycleMode(),
         subjects: existing.subjects.map(s => ({ ...s })),
-        grade: existing.grade
+        grade: existing.grade,
+        sessions: existing.sessions || sessionCount(existing)
       };
-      renderReview();
-      showState('review');
+      openSetup(pendingCycle);
     } else {
       openSetup(null);
     }
+  });
+
+  on('btn-setup-next', 'click', () => {
+    const calc = document.getElementById('btn-calc-cycle');
+    if (calc) calc.click();
   });
 
   on('btn-calc-cycle', 'click', () => {

@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9da0521470">
+<meta name="diario-versao" content="v0900e674c0">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6203,9 +6203,10 @@ window.__relationalBoot = true;
     <div id="ciclo-setup" class="card" style="display:none;">
       <div class="card-header">
         <div>
-          <h2>Montar ciclo da semana</h2>
+          <h2 id="ciclo-setup-title">Montar ciclo da semana</h2>
           <p class="sub" id="ciclo-setup-mode-hint"></p>
         </div>
+        <button class="btn-primary ciclo-head-btn ciclo-setup-next" id="btn-setup-next" type="button">Avançar →</button>
       </div>
       <div style="padding: 20px 28px 28px;">
         <div id="cycle-import-wrap" style="display:none; margin-bottom:18px; padding:14px 16px; border:1px solid var(--border); border-radius:12px; background:var(--surface-soft, var(--surface));">
@@ -9882,6 +9883,11 @@ button.is-saving {
   padding: 7px 13px; font-size: var(--fs-xs); border-radius: 10px; min-height: 34px;
 }
 .ciclo-close-btn { box-shadow: none; }
+/* "Avançar" no topo da montagem: leva às sugestões de tempo sem rolar até o fim. */
+.ciclo-setup-next {
+  margin-left: auto; flex-shrink: 0; box-shadow: none;
+  padding: 7px 13px; font-size: var(--fs-xs); border-radius: 10px; min-height: 34px;
+}
 .ciclo-close-btn:hover { box-shadow: 0 4px 12px var(--accent-ring); }
 @media (max-width: 640px) {
   .ciclo-head-actions { width: 100%; }
@@ -27913,6 +27919,9 @@ function planCycleMode() {
     cycleEndInput.value = prefill?.endDate || CycleEngine.weekEndDate(_start);
     // aviso e rótulos conforme o modo do planejamento ativo
     const isPos = planCycleMode() === 'pos';
+    // com um ciclo já ativo, esta tela é a edição dele (primeiro passo; "Avançar" leva às sugestões)
+    const titleEl = document.getElementById('ciclo-setup-title');
+    if (titleEl) titleEl.textContent = DB.getCurrentCycle() ? 'Editar ciclo da semana' : 'Montar ciclo da semana';
     const hintEl = document.getElementById('ciclo-setup-mode-hint');
     const labelEl = document.getElementById('ciclo-setup-subjects-label');
     if (isPos) {
@@ -27935,6 +27944,7 @@ function planCycleMode() {
 
   on('btn-start-cycle', 'click', () => {
     importedCycleSource = null;
+    pendingCycle = null;
     openSetup(null);
   });
 
@@ -27993,11 +28003,15 @@ function planCycleMode() {
 
   on('btn-cancel-cycle', 'click', () => {
     importedCycleSource = null;
+    pendingCycle = null;
     const existing = DB.getCurrentCycle();
     showState(existing ? 'active' : 'empty');
   });
   on('btn-edit-cycle', 'click', () => {
-    // reabre a revisão de tempo do ciclo já ativo, mantendo os tempos já definidos
+    // reabre o ciclo já ativo pelo primeiro passo (matérias, carga e datas); "Avançar"
+    // segue para a revisão de tempo. O rascunho guarda os tempos já definidos, que o
+    // cálculo da sugestão preserva por nome.
+    importedCycleSource = null;
     const existing = DB.getCurrentCycle();
     if (existing) {
       pendingCycle = {
@@ -28006,13 +28020,18 @@ function planCycleMode() {
         weeklyHours: existing.weeklyHours,
         mode: existing.mode || planCycleMode(),
         subjects: existing.subjects.map(s => ({ ...s })),
-        grade: existing.grade
+        grade: existing.grade,
+        sessions: existing.sessions || sessionCount(existing)
       };
-      renderReview();
-      showState('review');
+      openSetup(pendingCycle);
     } else {
       openSetup(null);
     }
+  });
+
+  on('btn-setup-next', 'click', () => {
+    const calc = document.getElementById('btn-calc-cycle');
+    if (calc) calc.click();
   });
 
   on('btn-calc-cycle', 'click', () => {
