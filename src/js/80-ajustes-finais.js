@@ -614,6 +614,9 @@ else CloudStore.init();
       to('#config-modes-list', 'estudo');
       to('#config-statuses-list', 'estudo');
       to('#cloud-auth-box', 'conta');
+      // "Navegação" (módulos opcionais do menu) ficava fora dos grupos e
+      // aparecia no rodapé de TODAS as seções.
+      to('#config-anki-menu-toggle', 'prefs');
       /* "Dados e backup" mantém apenas as duas proteções atuais:
          fotos imutáveis no PostgreSQL e exportação manual em arquivo. */
       to('#cfg-cloudbk-body', 'dados');   // fotos no servidor
@@ -626,7 +629,7 @@ else CloudStore.init();
       window.addEventListener('screen:activated', (e) => {
         if (!e.detail || e.detail.screen !== 'config') return;
         const t = $('#cfgp-tema');
-        if (t) { try { t.value = localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'light'; } catch (_) { _quiet(_); } }
+        if (t) { try { t.value = localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'auto'; } catch (_) { _quiet(_); } }
       });
     },
     show(id) {
@@ -662,7 +665,7 @@ else CloudStore.init();
         </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;"><button type="button" class="btn-secondary" id="cfgp-reset">↺ Restaurar padrões de exibição</button></div>`);
       const themeSel = $('#cfgp-tema', c);
-      themeSel.value = (() => { try { return localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'light'; } catch (_) { return 'light'; } })();
+      themeSel.value = (() => { try { return localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'auto'; } catch (_) { return 'light'; } })();
       themeSel.addEventListener('change', () => {
         const v = themeSel.value;
         const eff = v === 'auto' ? ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light') : v;

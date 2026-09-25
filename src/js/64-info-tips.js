@@ -211,6 +211,9 @@ const GraficoTip = {
     document.addEventListener('click', (e) => {
       const area = e.target.closest ? e.target.closest(this.AREAS) : null;
       if (!area) { this.esconder(); return; }
+      // Botões e campos já dizem o que fazem: o "title" deles é dica de mouse.
+      // Antes, tocar em "Gerar relatório" deixava a bolha por cima da janela.
+      if (e.target.closest('button, a, input, select, textarea, label, summary, [role="button"]')) { this.esconder(); return; }
       // sobe até encontrar quem carrega a informação
       let el = e.target;
       let texto = null;
