@@ -90,6 +90,10 @@ window.__relationalBoot = true;
      no caminho crítico mesmo sem uso. O leitor .xlsx EMBUTIDO (MiniXLSX) é o primário;
      o SheetJS (versão CORRIGIDA 0.20.x do CDN oficial) só é baixado SOB DEMANDA, quando
      o embutido não dá conta (ex.: .xls binário antigo). Ver ensureSheetJS(). -->
+<!-- async (não defer): um script defer atrasa o DOMContentLoaded e, com ele, a
+     abertura inteira do app até o CDN responder. Agora o app pinta e monta na
+     hora; CloudStore.init espera o evento "supabase:lib" quando a biblioteca
+     ainda não chegou e tenta de novo uma vez se o download falhar. -->
 <!-- Supabase: sincronização opcional na nuvem (login + backup do perfil). Versão FIXADA
      (não mais "@2" solto) para uma mudança dentro do major não quebrar o app sem aviso. -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha256-hZaWX+kY5lZgChtWjToWj1wNPSKmAIhrtvRKZVXbAec=" crossorigin="anonymous" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js" integrity="sha256-hZaWX+kY5lZgChtWjToWj1wNPSKmAIhrtvRKZVXbAec=" crossorigin="anonymous" async id="supabase-lib" onload="window.__sbLib='ok';window.dispatchEvent(new Event('supabase:lib'))" onerror="window.__sbLib='erro';window.dispatchEvent(new Event('supabase:lib'))"></script>

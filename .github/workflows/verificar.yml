@@ -172,7 +172,7 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           # A lista explícita também é o que repositorio-higiene.mjs confere.
-          for t in testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-reparo-memoria-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/extras-estabilidade-browser.mjs \
+          for t in testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-reparo-memoria-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/pausa-metricas-browser.mjs testes/abertura-browser.mjs testes/extras-estabilidade-browser.mjs \
                    testes/extras-ux100-browser.mjs testes/site-performance-browser.mjs \
                    testes/startup-reforco-browser.mjs testes/ux-hierarquia-browser.mjs \
                    testes/ux-stability-browser.mjs; do

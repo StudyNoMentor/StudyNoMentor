@@ -37,7 +37,14 @@ const CloudStore = {
         ? supabase
         : (typeof window !== 'undefined' ? window.supabase : undefined);
       if (!lib || !lib.createClient) {
+        if (this._esperarLib()) {
+          this.libStatus = 'pending';
+          if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+          return;
+        }
         this.libStatus = 'missing';
+        this._libAguardo.forEach(fn => fn(false)); this._libAguardo = [];
+        if (window.__congelarPrototypes) window.__congelarPrototypes();
         if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
         return;
       }
@@ -46,6 +53,8 @@ const CloudStore = {
         global: { fetch: (u, o) => this._buscarComTeto(u, o) }
       });
       this.libStatus = 'ready';
+      this._libAguardo.forEach(fn => fn(true)); this._libAguardo = [];
+      if (window.__congelarPrototypes) window.__congelarPrototypes();
 
       /* Sem sessão, getSession() pode resolver só do armazenamento local e não
          tocar a rede. Fazemos UMA sonda mínima ao PostgREST para o indicador do
@@ -71,9 +80,58 @@ const CloudStore = {
       });
     } catch (err) {
       this.libStatus = 'error';
+      if (window.__congelarPrototypes) window.__congelarPrototypes();
       console.error('CloudStore.init', err);
     }
     if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+  },
+
+  /* A biblioteca do Supabase chega de forma assíncrona (script async no
+     <head>), então o app pode montar antes dela. Enquanto o download estiver
+     em curso, init() espera o evento "supabase:lib"; se o download falhar,
+     tenta mais uma vez antes de declarar a nuvem indisponível. */
+  _libAguardo: [],
+  _libTentativas: 0,
+  _esperarLib() {
+    const st = window.__sbLib;
+    if (st === 'ok') return false;               // chegou, mas sem createClient: erro real
+    if (st === 'erro') {
+      if (this._libTentativas >= 1) return false;
+      this._libTentativas++;
+      window.__sbLib = undefined;
+      try {
+        const orig = document.getElementById('supabase-lib');
+        const s = document.createElement('script');
+        s.src = orig ? orig.src : 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js';
+        if (orig && orig.integrity) s.integrity = orig.integrity;
+        s.crossOrigin = 'anonymous'; s.async = true;
+        s.onload = () => { window.__sbLib = 'ok'; window.dispatchEvent(new Event('supabase:lib')); };
+        s.onerror = () => { window.__sbLib = 'erro'; window.dispatchEvent(new Event('supabase:lib')); };
+        document.head.appendChild(s);
+      } catch (e) { _quiet(e, 'supabase-lib-retry'); return false; }
+    } else if (!document.getElementById('supabase-lib')) return false;   // página sem a tag (testes)
+    if (!this._libOuvindo) {
+      this._libOuvindo = true;
+      // CDN que não responde nem falha: depois de 15 s o portão avisa, mas a
+      // escuta continua — se a biblioteca chegar, a nuvem liga sozinha.
+      setTimeout(() => {
+        if (this.client || this.libStatus !== 'pending') return;
+        this.libStatus = 'missing';
+        this._libAguardo.forEach(fn => fn(false)); this._libAguardo = [];
+        if (window.ProfileUI && ProfileUI.isGateOpen()) ProfileUI.refreshStage();
+      }, 15000);
+      window.addEventListener('supabase:lib', () => { this._libOuvindo = false; if (!this.client) this.init(); }, { once: true });
+    }
+    return true;
+  },
+  // Promessa resolvida quando a biblioteca estiver pronta (true) ou indisponível (false).
+  aguardarLib(ms) {
+    if (this.client) return Promise.resolve(true);
+    if (this.libStatus !== 'pending') return Promise.resolve(false);
+    return new Promise(res => {
+      const t = setTimeout(() => res(!!this.client), ms || 12000);
+      this._libAguardo.push(ok => { clearTimeout(t); res(ok); });
+    });
   },
 
   isReady() { return !!this.client; },

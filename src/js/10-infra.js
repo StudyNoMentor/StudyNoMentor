@@ -101,15 +101,26 @@ window.__diag = function () {
    de backup, colagem do TEC): esses fluxos parseiam dados de fora. Congelar
    os prototypes básicos faz uma tentativa de escrever em __proto__/constructor
    falhar em vez de contaminar todo objeto do app.
-   Feito ANTES de qualquer parse e depois que os polyfills já rodaram. */
+   Feito ANTES de qualquer parse e depois que os polyfills já rodaram.
+   A biblioteca do Supabase agora chega de forma assíncrona e, ao ser avaliada,
+   escreve em Array.prototype: congelar antes dela a quebraria. Por isso o
+   congelamento espera a biblioteca (ou a desistência dela) — CloudStore chama
+   window.__congelarPrototypes. Nenhuma importação acontece antes da primeira
+   interação, e jsonSeguro continua filtrando as chaves perigosas. */
 (function endurecerPrototypes() {
-  try {
-    // Escopo estreito de propósito: Object/Array.prototype são os alvos reais da
-    // poluição de prototype. Congelar Function/String/Number ampliaria a
-    // superfície de quebra sem ganho proporcional.
-    Object.freeze(Object.prototype);
-    Object.freeze(Array.prototype);
-  } catch (e) { _quiet(e, 'freeze-prototypes'); }
+  let feito = false;
+  window.__congelarPrototypes = function () {
+    if (feito) return; feito = true;
+    try {
+      // Escopo estreito de propósito: Object/Array.prototype são os alvos reais da
+      // poluição de prototype. Congelar Function/String/Number ampliaria a
+      // superfície de quebra sem ganho proporcional.
+      Object.freeze(Object.prototype);
+      Object.freeze(Array.prototype);
+    } catch (e) { _quiet(e, 'freeze-prototypes'); }
+  };
+  const tag = document.getElementById('supabase-lib');
+  if (!tag || window.supabase || window.__sbLib === 'ok') window.__congelarPrototypes();
 })();
 
 /* ── Guarda de estrutura para dados importados ────────────────────────────

@@ -315,5 +315,36 @@ window.addEventListener('planning:pause-changed', (e) => {
   if (atual && atual.id) switchScreen(atual.id.replace(/^screen-/, ''));
 });
 
+/* Aviso no topo das telas: pausa em vigor no planejamento em uso ou agendada
+   para os próximos 7 dias. Quem vai viajar vê antes o que deixa de contar. */
+const PausaAviso = {
+  fmt(d) { const [y, m, dd] = String(d || '').split('-'); return dd ? `${dd}/${m}/${y}` : ''; },
+  render() {
+    try {
+      const alvo = document.querySelector('.main-content .content-wrap');
+      if (!alvo) return;
+      let el = document.getElementById('pausa-aviso');
+      const id = PlanManager.getActivePlanId(), hoje = todayLocal();
+      const cur = PlanManager.pauseInfo(id), prox = PlanManager.scheduledPause(id);
+      const dias = prox ? Math.round((new Date(prox.from + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000) : 99;
+      const tela = document.querySelector('.screen.active');
+      if ((!cur && dias > 7) || (tela && tela.id === 'screen-planejamentos')) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'pausa-aviso'; el.className = 'pausa-aviso'; el.setAttribute('role', 'status');
+        alvo.insertBefore(el, alvo.firstChild);
+      }
+      const quando = dias === 0 ? 'hoje' : dias === 1 ? 'amanhã' : `em ${dias} dias`;
+      el.innerHTML = cur
+        ? `<span class="pa-ic" aria-hidden="true">⏸</span><span class="pa-txt"><b>Planejamento pausado</b> desde ${this.fmt(cur.from)}${cur.until ? ` · volta em <b>${this.fmt(cur.until)}</b>` : ' · sem data de retorno'}. Extras, metas e atrasos não contam nesses dias.</span><button type="button" class="pa-btn">Gerenciar</button>`
+        : `<span class="pa-ic" aria-hidden="true">🗓</span><span class="pa-txt"><b>Pausa agendada ${quando}</b> · de ${this.fmt(prox.from)}${prox.until ? ` até ${this.fmt(prox.until)}` : ' sem data de retorno'}. Nesses dias nada será cobrado.</span><button type="button" class="pa-btn">Gerenciar</button>`;
+      el.querySelector('.pa-btn').onclick = () => switchScreen('planejamentos');
+    } catch (e) { _quiet(e, 'pausa-aviso'); }
+  }
+};
+window.addEventListener('screen:activated', () => PausaAviso.render());
+window.addEventListener('planning:pause-changed', () => PausaAviso.render());
+window.addEventListener('data:relational-hydrated', () => PausaAviso.render());
+
 // Render inicial do seletor na sidebar
 PlanUI.renderSidebar();

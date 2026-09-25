@@ -682,15 +682,23 @@ const EvolucaoScreen = {
     const _iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const _diaAnterior = (iso) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - 1); return _iso(d); };
     const _ativo = new Set(_isoAtivos);
+    // Dias de planejamento pausado não quebram a sequência (nem somam a ela).
+    const _pausado = (iso) => { try { return typeof PlanManager !== 'undefined' && PlanManager.isDayPaused && PlanManager.isDayPaused(iso); } catch (_) { return false; } };
     let _seqAtual = 0;
     {
       let cur = todayLocal();
       if (!_ativo.has(cur)) cur = _diaAnterior(cur);   // ainda da tempo de estudar hoje
-      while (_ativo.has(cur)) { _seqAtual++; cur = _diaAnterior(cur); }
+      for (let g = 0; g < 3660; g++) {
+        if (_ativo.has(cur)) _seqAtual++;
+        else if (!_pausado(cur)) break;
+        cur = _diaAnterior(cur);
+      }
     }
     let _seqMax = 0, _run = 0, _prev = null;
     _isoAtivos.forEach(iso => {
-      _run = (_prev && _diaAnterior(iso) === _prev) ? _run + 1 : 1;
+      let ligado = false;
+      if (_prev) { let d = _diaAnterior(iso), g = 0; while (d > _prev && _pausado(d) && g++ < 3660) d = _diaAnterior(d); ligado = d === _prev; }
+      _run = ligado ? _run + 1 : 1;
       if (_run > _seqMax) _seqMax = _run;
       _prev = iso;
     });

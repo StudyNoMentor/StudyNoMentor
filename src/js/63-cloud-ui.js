@@ -234,6 +234,15 @@ window.CloudUI = CloudUI;
   const on = (id, ev, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
   on('gate-auth-submit', 'click', () => ProfileUI.submitGateAuth());
   on('gate-password', 'keydown', (e) => { if (e.key === 'Enter') ProfileUI.submitGateAuth(); });
+  on('gate-email', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $id('gate-password').focus(); } });
+  on('gate-pass-eye', 'click', () => {
+    const inp = $id('gate-password'), btn = $id('gate-pass-eye'), ver = inp.type === 'password';
+    inp.type = ver ? 'text' : 'password';
+    btn.setAttribute('aria-pressed', ver ? 'true' : 'false');
+    btn.setAttribute('aria-label', ver ? 'Ocultar senha' : 'Mostrar senha');
+    btn.title = ver ? 'Ocultar senha' : 'Mostrar senha';
+    inp.focus();
+  });
   document.querySelectorAll('#gate-login .cloud-auth-tab').forEach(tab => tab.addEventListener('click', () => ProfileUI.setGateAuthMode(tab.dataset.gatemode)));
 
   on('gate-forgot-btn', 'click', () => ProfileUI.forgotPassword());
