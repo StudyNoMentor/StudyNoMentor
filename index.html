@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8fa3feb910">
+<meta name="diario-versao" content="v15d708f118">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -62823,6 +62823,7 @@ else CloudStore.init();
       var oldNative = null;
       try {
         if (nativeLS) { oldNative = nativeLS.getItem(k); nativeLS.setItem(k, v); }
+        if (oldNative == null) invalidate();
       } catch (_) {}
       if (isStudyKey(k) && oldNative !== v) notify(k, oldNative, v);
     },
@@ -62836,13 +62837,26 @@ else CloudStore.init();
       }
       var oldNative = null;
       try { if (nativeLS) { oldNative = nativeLS.getItem(k); nativeLS.removeItem(k); } } catch (_) {}
+      if (oldNative != null) invalidate();
       if (isStudyKey(k) && oldNative != null) notify(k, oldNative, null);
     },
     clear: function () {
       var olds = Array.from(mem.entries());
       mem.clear(); invalidate();
       olds.forEach(function (x) { notify(x[0], x[1], null); });
-      try { if (nativeLS) nativeLS.clear(); } catch (_) {}
+      /* Só o namespace do app: o armazenamento nativo é compartilhado com
+         qualquer outra página da mesma origem (ex.: outro app no GitHub Pages). */
+      try {
+        if (nativeLS) {
+          var nativas = [];
+          for (var i = 0; i < nativeLS.length; i++) {
+            var nk = nativeLS.key(i);
+            if (nk && isMemoryKey(nk)) nativas.push(nk);
+          }
+          nativas.forEach(function (nk) { try { nativeLS.removeItem(nk); } catch (_) {} });
+        }
+      } catch (_) {}
+      invalidate();
     },
     key: function (i) {
       i = i >> 0;
@@ -62876,21 +62890,60 @@ else CloudStore.init();
   window.__idbFlush = function () { return Promise.resolve(); };
   window.__idbFlushStrict = function () { return Promise.resolve({ ok: true, relational: true, pending: 0 }); };
 
-  /* Limpa cópias persistentes antigas do namespace. O tema fica como cache visual. */
+  /* Cópias persistentes antigas do namespace (anteriores à migração
+     relacional) NÃO são apagadas às cegas: primeiro vão para um arquivo
+     IndexedDB próprio ("studynomentor-legado"), e só depois de a transação
+     confirmar é que saem do localStorage. Assim, um dado que por algum motivo
+     não tenha chegado ao banco ainda pode ser recuperado com
+     window.__exportarLegado(). O tema fica como cache visual. */
+  var LEGADO_DB = 'studynomentor-legado';
+  function abrirArquivo() {
+    return new Promise(function (resolve, reject) {
+      try {
+        if (!window.indexedDB) { reject(new Error('sem IndexedDB')); return; }
+        var req = indexedDB.open(LEGADO_DB, 1);
+        req.onupgradeneeded = function () {
+          var db = req.result;
+          if (!db.objectStoreNames.contains('chaves')) db.createObjectStore('chaves', { keyPath: 'k' });
+        };
+        req.onsuccess = function () { resolve(req.result); };
+        req.onerror = function () { reject(req.error || new Error('falha ao abrir o arquivo legado')); };
+        req.onblocked = function () { reject(new Error('arquivo legado bloqueado')); };
+      } catch (e) { reject(e); }
+    });
+  }
   setTimeout(function () {
     if (!nativeLS) return;
+    var antigas = [];
     try {
-      var apagar = [];
       for (var i = 0; i < nativeLS.length; i++) {
         var k = nativeLS.key(i);
-        if (k && isStudyKey(k) && k !== THEME) apagar.push(k);
+        if (k && isMemoryKey(k)) antigas.push({ k: k, v: nativeLS.getItem(k), em: Date.now() });
       }
-      apagar.forEach(function (k) { try { nativeLS.removeItem(k); } catch (_) {} });
-    } catch (_) {}
-    try {
-      if (window.indexedDB && indexedDB.deleteDatabase) indexedDB.deleteDatabase('diario-estudos-db');
-    } catch (_) {}
+    } catch (_) { return; }
+    if (!antigas.length) return;
+    abrirArquivo().then(function (db) {
+      var tx = db.transaction('chaves', 'readwrite');
+      var st = tx.objectStore('chaves');
+      antigas.forEach(function (x) { st.put(x); });
+      tx.oncomplete = function () {
+        antigas.forEach(function (x) { try { nativeLS.removeItem(x.k); } catch (_) {} });
+        invalidate();
+        try { db.close(); } catch (_) {}
+      };
+      tx.onerror = tx.onabort = function () { try { db.close(); } catch (_) {} };
+    }).catch(function () { /* sem arquivo: mantém as chaves onde estão */ });
   }, 5000);
+
+  window.__exportarLegado = function () {
+    return abrirArquivo().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var req = db.transaction('chaves', 'readonly').objectStore('chaves').getAll();
+        req.onsuccess = function () { try { db.close(); } catch (_) {} resolve(req.result || []); };
+        req.onerror = function () { try { db.close(); } catch (_) {} reject(req.error); };
+      });
+    });
+  };
 
   function applyTheme() {
     try {

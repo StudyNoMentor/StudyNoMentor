@@ -50,6 +50,37 @@ const libSupabase = readFileSync(join(ROOT, 'node_modules/@supabase/supabase-js/
 const espera = (ms) => new Promise(r => setTimeout(r, ms));
 const linhas = (t, f) => api.estado.tabelas[t].filter(f || (() => true));
 
+/* ── C8: CHAVES ANTIGAS VÃO PARA UM ARQUIVO, NÃO PARA O LIXO ────────────── */
+async function legado() {
+  const ctx = await browser.newContext({ serviceWorkers: 'block' });
+  await ctx.route('https://cdn.jsdelivr.net/**', r => r.abort());
+  await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
+  await ctx.addInitScript(() => {
+    if (sessionStorage.getItem('semeado')) return;
+    sessionStorage.setItem('semeado', '1');
+    localStorage.setItem('diario-estudos:u:antigo:entries', '[{"id":1}]');
+    localStorage.setItem('diario-estudos:theme', 'dark');
+    localStorage.setItem('outro-app:config', 'preservar');
+  });
+  const page = await ctx.newPage();
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(() => typeof window.__exportarLegado === 'function', null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__nativeLS.getItem('diario-estudos:u:antigo:entries') == null, null, { timeout: 15000 });
+  const r = await page.evaluate(async () => {
+    const arq = await window.__exportarLegado();
+    const nat = window.__nativeLS;
+    const antes = { tema: nat.getItem('diario-estudos:theme'), outro: nat.getItem('outro-app:config') };
+    localStorage.setItem('diario-estudos:u:x:y', '1');
+    localStorage.clear();
+    return { arq, antes, depois: { tema: nat.getItem('diario-estudos:theme'), outro: nat.getItem('outro-app:config') }, mem: localStorage.getItem('diario-estudos:u:x:y') };
+  });
+  ok(r.arq.some(x => x.k === 'diario-estudos:u:antigo:entries' && x.v === '[{"id":1}]'), 'C8: chave antiga arquivada no IndexedDB antes de sair do localStorage');
+  ok(!r.arq.some(x => x.k === 'diario-estudos:theme'), 'C8: o tema não é arquivado (continua como cache visual)');
+  ok(r.antes.tema === 'dark' && r.antes.outro === 'preservar', 'C8: tema e chaves de outros apps permanecem no navegador');
+  ok(r.depois.outro === 'preservar' && r.mem == null, 'C8: localStorage.clear() limpa só o namespace do app');
+  await ctx.close();
+}
+
 /* ── PERSISTÊNCIA DE PONTA A PONTA (supabase-js real × banco falso) ───────── */
 async function pontaAPonta() {
   const ctx = await browser.newContext({ serviceWorkers: 'block' });
@@ -199,6 +230,7 @@ try {
   await ctx.close();
 
   await pontaAPonta();
+  await legado();
   console.log(`AUDITORIA (NAVEGADOR) OK — ${n} verificações.`);
 } finally {
   await browser.close();

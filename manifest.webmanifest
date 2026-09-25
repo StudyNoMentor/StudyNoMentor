@@ -1,7 +1,7 @@
 {
   "name": "Diário de Estudos",
   "short_name": "Diário",
-  "description": "Registro de estudos, ciclo, flashcards com FSRS-6 e desempenho por banca — tudo no seu dispositivo.",
+  "description": "Registro de estudos, ciclo, flashcards com FSRS-6 e desempenho por banca — salvo na sua conta e sincronizado entre aparelhos.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "./index.html",

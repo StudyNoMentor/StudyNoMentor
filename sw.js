@@ -30,13 +30,13 @@
      divergência silenciosa entre dispositivos — o pior tipo de bug.
 
    IMPORTANTE: este worker NÃO guarda nenhum dado de estudo. Seus dados moram
-   no IndexedDB, que já é local e independente disto.
+   na sua conta (Supabase), independente disto.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* O carimbo é gravado pelo build.mjs a partir de um resumo do conteúdo de src/.
    Ele muda a cada publicação real — é isso que dá um BALDE NOVO a cada versão e
    faz a faxina da ativação ter o que descartar. Não edite à mão. */
-const VERSAO = 'v8fa3feb910';
+const VERSAO = 'v15d708f118';
 
 /* Dois baldes com ciclos de vida diferentes, e a diferença é proposital:
 
@@ -119,14 +119,20 @@ function guardar(cacheNome, chave, resp, aceitarOpaca) {
    que é exatamente o sintoma que este arquivo inteiro existe para eliminar. */
 async function precarregar() {
   const c = await caches.open(CACHE_APP);
+  let casca = false;
   // A casca vai sempre para a chave canônica, venha de './index.html' ou de './'
   // (há hospedagens que servem só a raiz, e outras só o arquivo).
   for (const origem of ['./index.html', './']) {
     try {
       const r = await fetch(new Request(origem, { cache: 'reload' }));
-      if (r && r.ok) { await c.put(CHAVE_CASCA, r.clone()); break; }
+      if (r && r.ok) { await c.put(CHAVE_CASCA, r.clone()); casca = true; break; }
     } catch (_) { /* tenta a próxima origem */ }
   }
+  /* Sem a casca, a instalação FALHA de propósito: um worker instalado com o
+     balde vazio assumiria a navegação da versão nova sem ter o que servir
+     offline. Falhando, o worker anterior continua no controle e o navegador
+     tenta de novo na próxima verificação. */
+  if (!casca) throw new Error('casca do app indisponível durante a instalação');
   try {
     const m = await fetch(new Request('./manifest.webmanifest', { cache: 'reload' }));
     if (m && m.ok) await c.put('./manifest.webmanifest', m.clone());
@@ -161,7 +167,7 @@ async function precarregar() {
 }
 
 self.addEventListener('install', (evt) => {
-  evt.waitUntil(precarregar().catch(() => null));
+  evt.waitUntil(precarregar());
   /* Sem skipWaiting() automático, de propósito.
      Ele fazia o worker novo assumir na hora — passando a servir ativos da
      versão NOVA para uma página que continua executando o JavaScript da
