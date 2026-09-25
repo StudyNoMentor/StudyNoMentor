@@ -913,6 +913,33 @@
       return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
     };
 
+    // Matérias do dia na grade semanal: o dia da semana da data do registro
+    // aponta a coluna da grade (rotina Segunda…Domingo). Fica acima das recentes.
+    const doDia = document.createElement('div');
+    doDia.className = 'reg-chips reg-do-dia';
+    doDia.setAttribute('role', 'group');
+    doDia.setAttribute('aria-label', 'Matérias do dia na grade');
+    campo('subject').appendChild(doDia);
+    doDia.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-materia]'); if (!b) return;
+      subjectSel.value = b.dataset.materia; emitir(subjectSel, 'change');
+    });
+    const DIAS_GRADE = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
+    function materiasDaGrade(ativos) {
+      const iso = dateInput.value || diaLocal(0);
+      const [y, m, d] = iso.split('-').map(Number);
+      if (!y || !m || !d) return { dia: '', nomes: [] };
+      const dia = DIAS_GRADE[new Date(y, m - 1, d).getDay()];
+      let celulas = [];
+      try { const t = DB.getGradeTemplate(); celulas = (t && t.grade && t.grade[dia]) || []; } catch (e) { _quiet(e, 'reg-grade-dia'); }
+      const nomes = [];
+      celulas.forEach(c => {
+        const n = c && (typeof c === 'string' ? c : c.subject);
+        if (n && ativos.has(n) && !nomes.includes(n)) nomes.push(n);
+      });
+      return { dia, iso, nomes };
+    }
+
     // Matérias recentes (do planejamento ativo), logo abaixo do seletor.
     const recentes = document.createElement('div');
     recentes.className = 'reg-chips reg-recentes';
@@ -925,10 +952,17 @@
     });
     function pintarRecentes() {
       const ativos = new Set([...subjectSel.options].map(o => o.value).filter(Boolean));
+      const grade = materiasDaGrade(ativos);
+      const feitas = new Set((DB.getEntries() || []).filter(e => e && e.date === grade.iso).map(e => e.subject));
+      doDia.hidden = !grade.nomes.length;
+      doDia.innerHTML = grade.nomes.length ? `<span class="reg-chips-rot">Grade · ${escapeHtml(grade.dia.slice(0, 3))}:</span>` + grade.nomes.map(n => {
+        const on = n === subjectSel.value, ok = feitas.has(n);
+        return `<button type="button" class="reg-chip${on ? ' on' : ''}${ok ? ' feita' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${on}"${ok ? ' title="Já registrada neste dia"' : ''}>${ok ? '✓ ' : ''}${escapeHtml(n)}</button>`;
+      }).join('') : '';
       const nomes = [];
       (DB.getEntries() || []).slice()
         .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || _ordemCriacao(b, a))
-        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !nomes.includes(e.subject) && nomes.length < 4) nomes.push(e.subject); });
+        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !grade.nomes.includes(e.subject) && !nomes.includes(e.subject) && nomes.length < 4) nomes.push(e.subject); });
       recentes.hidden = !nomes.length;
       recentes.innerHTML = nomes.length ? '<span class="reg-chips-rot">Recentes:</span>' + nomes.map(n =>
         `<button type="button" class="reg-chip${n === subjectSel.value ? ' on' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${n === subjectSel.value}">${escapeHtml(n)}</button>`).join('') : '';
