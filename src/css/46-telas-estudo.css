@@ -138,6 +138,9 @@
 #screen-registrar.reg-v2 .reg-chip:focus-visible,#screen-registrar.reg-v2 .reg-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #screen-registrar.reg-v2 .reg-chip.on,#screen-registrar.reg-v2 .reg-pill.on{border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--text);font-weight:700}
 #screen-registrar.reg-v2 .reg-recentes{margin-top:8px}
+#screen-registrar.reg-v2 .reg-do-dia{margin-top:8px}
+#screen-registrar.reg-v2 .reg-do-dia + .reg-recentes{margin-top:6px}
+#screen-registrar.reg-v2 .reg-chip.feita:not(.on){color:var(--text-faint)}
 #screen-registrar.reg-v2 #method{display:none}
 #screen-registrar.reg-v2 .reg-data-linha{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #screen-registrar.reg-v2 .reg-data-linha input[type="date"]{flex:1 1 150px;min-width:0}
