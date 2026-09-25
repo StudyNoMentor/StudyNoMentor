@@ -914,10 +914,16 @@ function planCycleMode() {
 
   /* ---- Grade × registros de estudo ----
      Cada sessão da grade é preenchida pelos minutos REGISTRADOS da matéria na
-     semana corrente, na ordem dos dias. Calculado na hora (nada é gravado):
-     apagar ou editar um registro corrige a grade sozinho. Estudar em outro dia
-     conta igual — vale a meta da semana, como no Ciclo. O ✓ manual continua
-     existindo e sempre vale. */
+     semana corrente. Calculado na hora (nada é gravado): apagar ou editar um
+     registro corrige a grade sozinho. Duas passadas:
+       1) o registro cobre primeiro a sessão da MESMA matéria no MESMO dia — quem
+          estudou hoje o que estava previsto para hoje vê a missão de hoje
+          concluída (antes o minuto ia para a primeira sessão da semana e a
+          missão do dia continuava pendente);
+       2) o que sobra vale a meta da semana, como no Ciclo: cobre as sessões
+          ainda abertas em ordem cronológica — primeiro as atrasadas, depois
+          adianta as próximas.
+     O ✓ manual continua existindo e vale na semana em que foi marcado. */
   const _DOW = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   const _iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   function gradeSemanaAtual() {
@@ -933,32 +939,62 @@ function planCycleMode() {
   }
   let _gp = null;
   function gradeProgresso() {
-    const { ini, fim } = gradeSemanaAtual(), tmpl = gradeGet(), estudado = {};
+    const { ini, fim } = gradeSemanaAtual(), tmpl = gradeGet();
+    const [y, m, dd] = ini.split('-').map(Number);
+    // os 7 dias reais da semana, na ordem em que acontecem (com a data de cada um)
+    const dias = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(y, m - 1, dd + i);
+      return { iso: _iso(d), dia: _DOW[d.getDay()] };
+    });
+    const isoDoDia = {}; dias.forEach(d => { isoDoDia[d.iso] = true; });
     let entries = [];
     try { entries = DB.getEntries() || []; } catch (e) { _quiet(e); }
+    const noDia = {}, sobra = {};   // noDia[iso][matéria] | sobra[matéria]
     entries.forEach(e => {
       if (!e || !e.subject || !(e.date >= ini && e.date <= fim)) return;
-      const k = CycleEngine.normKey(e.subject); estudado[k] = (estudado[k] || 0) + (Number(e.durationMin) || 0);
+      const k = CycleEngine.normKey(e.subject), min = Number(e.durationMin) || 0;
+      if (isoDoDia[e.date]) { const b = noDia[e.date] || (noDia[e.date] = {}); b[k] = (b[k] || 0) + min; }
+      else sobra[k] = (sobra[k] || 0) + min;   // ciclo com mais de 7 dias
     });
-    const [y, m, dd] = ini.split('-').map(Number), d0 = new Date(y, m - 1, dd).getDay();
+    const celulas = [];
+    dias.forEach(d => (tmpl.grade[d.dia] || []).forEach((raw, idx) => {
+      const c = normalizeCell(raw); if (!c || !c.subject) return;
+      celulas.push({ dia: d.dia, iso: d.iso, idx, k: CycleEngine.normKey(c.subject), meta: Math.max(0, Number(c.minutes) || 0), feito: 0 });
+    }));
+    // 1) mesmo dia, mesma matéria
+    celulas.forEach(c => {
+      const b = noDia[c.iso]; const disp = (b && b[c.k]) || 0;
+      const usa = Math.min(c.meta, disp); c.feito = usa; if (usa) b[c.k] = disp - usa;
+    });
+    // 2) o que sobrou cobre as sessões abertas, da mais antiga para a mais nova
+    Object.keys(noDia).forEach(iso => Object.keys(noDia[iso]).forEach(k => { sobra[k] = (sobra[k] || 0) + noDia[iso][k]; }));
+    celulas.forEach(c => {
+      const disp = sobra[c.k] || 0; if (!disp || c.feito >= c.meta) return;
+      const usa = Math.min(c.meta - c.feito, disp); c.feito += usa; sobra[c.k] = disp - usa;
+    });
     const mapa = {};
-    Array.from({ length: 7 }, (_, i) => _DOW[(d0 + i) % 7]).forEach(dia => {
-      (tmpl.grade[dia] || []).forEach((raw, idx) => {
-        const c = normalizeCell(raw); if (!c || !c.subject) return;
-        const k = CycleEngine.normKey(c.subject), meta = Math.max(0, Number(c.minutes) || 0), disp = estudado[k] || 0;
-        const feito = Math.min(meta, disp); estudado[k] = disp - feito;
-        mapa[dia + '|' + idx] = { feito, meta, completo: meta > 0 && feito >= meta };
-      });
-    });
-    return { ini, fim, mapa };
+    celulas.forEach(c => { mapa[c.dia + '|' + c.idx] = { feito: c.feito, meta: c.meta, completo: c.meta > 0 && c.feito >= c.meta }; });
+    return { ini, fim, mapa, dias };
+  }
+  /* O ✓ manual fica gravado no MODELO da grade, que é reaproveitado toda
+     semana — por isso ele leva a semana em que foi marcado (doneWeek) e só vale
+     nela. A semana seguinte começa com as missões abertas, sem precisar de
+     "Desmarcar concluídos". Marcas antigas, sem semana, continuam valendo. */
+  function marcadaNaSemana(c) {
+    if (!c || !c.done) return false;
+    if (!c.doneWeek) return true;
+    return c.doneWeek === (_gp ? _gp.ini : gradeSemanaAtual().ini);
   }
   function progressoCelula(dia, idx) {
     if (!_gp) _gp = gradeProgresso();
     return _gp.mapa[dia + '|' + idx] || { feito: 0, meta: 0, completo: false };
   }
-  // Abre "Registrar estudo" já preenchido com a sessão da grade.
+  // Abre "Registrar estudo" já preenchido com a sessão da grade. Salvar o
+  // registro traz a pessoa de volta para a grade, já com a missão atualizada.
+  let _voltarParaGrade = null;
   function registrarSessao(subject, minutes) {
     if (typeof switchScreen === 'function') switchScreen('registrar');
+    _voltarParaGrade = { subject, ate: Date.now() + 45 * 60000 };
     setTimeout(() => {
       const fire = (el, ev) => el && el.dispatchEvent(new Event(ev, { bubbles: true }));
       const s = document.getElementById('subject');
@@ -1057,7 +1093,8 @@ function planCycleMode() {
       bindCellClick(cell);
       return;
     }
-    const { subject, minutes, done } = cellData;
+    const { subject, minutes } = cellData;
+    const done = marcadaNaSemana(cellData);
     const acronym = (_renderCache ? (_renderCache.acr || (_renderCache.acr = CycleEngine.buildAcronymMap())) : CycleEngine.buildAcronymMap())[subject] || CycleEngine.siglaForSubject(subject);
     const _color = CycleEngine.colorForSubject(subject);
     const prog = progressoCelula(dia, idx), auto = prog.completo && !done;
@@ -1082,7 +1119,7 @@ function planCycleMode() {
     chip.addEventListener('dragstart', (e) => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', JSON.stringify({
-        subject, acronym, minutes, done, from: 'cell', fromDia: dia, fromIdx: idx
+        subject, acronym, minutes, done, doneWeek: cellData.doneWeek, from: 'cell', fromDia: dia, fromIdx: idx
       }));
       chip.classList.add('dragging');
     });
@@ -1094,7 +1131,8 @@ function planCycleMode() {
     durationInput.addEventListener('input', () => { durationInput.value = durationInput.value.replace(/\D/g, ''); });
     durationInput.addEventListener('change', () => {
       const newMin = Math.max(5, parseInt(durationInput.value, 10) || GRADE_DEFAULT_MIN);
-      setCellData(dia, idx, { subject, minutes: newMin, done });
+      const atual = normalizeCell(gradeGet().grade[dia] && gradeGet().grade[dia][idx]);
+      setCellData(dia, idx, Object.assign({}, atual || { subject, done: false }, { minutes: newMin }));
       durationInput.value = newMin;
       updateDaySummary();
     });
@@ -1103,14 +1141,7 @@ function planCycleMode() {
       e.stopPropagation();
       // lê o estado ATUAL do armazenamento (não o do closure, que ficava desatualizado
       // e impedia desmarcar) e re-renderiza a célula para refletir/rebindar corretamente
-      const t = gradeGet();
-      const cur = normalizeCell(t && t.grade[dia] && t.grade[dia][idx]);
-      if (!(cur && cur.done) && progressoCelula(dia, idx).completo) {
-        showToast('Esta sessão já está concluída pelos estudos registrados na semana.');
-        return;
-      }
-      const newDone = !(cur && cur.done);
-      setCellData(dia, idx, { subject, minutes: (cur && cur.minutes) || minutes, done: newDone });
+      if (!alternarMarcacao(dia, idx)) return;
       renderCellContent(cell);
       updateDaySummary();
       updateUncheckAllBtn(); // <- FIX: reflete no botão "Desmarcar concluídos"
@@ -1125,6 +1156,24 @@ function planCycleMode() {
       updateUncheckAllBtn();
     });
     bindCellClick(cell); // clicar na sigla troca a matéria (ótimo p/ toque)
+  }
+
+  /* Liga/desliga o ✓ manual de uma sessão (tabela e painel usam a mesma
+     regra). Lê o estado ATUAL do armazenamento, não o de um closure antigo.
+     Devolve false quando não havia o que alternar. */
+  function alternarMarcacao(dia, idx) {
+    const t = gradeGet();
+    const cur = normalizeCell(t && t.grade[dia] && t.grade[dia][idx]);
+    if (!cur) return false;
+    const marcada = marcadaNaSemana(cur);
+    if (!marcada && progressoCelula(dia, idx).completo) {
+      showToast('Esta sessão já está concluída pelos estudos registrados na semana.');
+      return false;
+    }
+    const nova = Object.assign({}, cur, { done: !marcada });
+    if (nova.done) nova.doneWeek = gradeSemanaAtual().ini; else delete nova.doneWeek;
+    setCellData(dia, idx, nova);
+    return true;
   }
 
   function setCellData(dia, idx, cellData) {
@@ -1155,7 +1204,9 @@ function planCycleMode() {
       const minutes = data.minutes || GRADE_DEFAULT_MIN;
       // move preserva o status de conclusão; nova alocação da bandeja sempre começa pendente
       const done = data.from === 'cell' ? !!data.done : false;
-      setCellData(targetDia, targetIdx, { subject: data.subject, minutes, done });
+      const nova = { subject: data.subject, minutes, done };
+      if (done && data.doneWeek) nova.doneWeek = data.doneWeek;
+      setCellData(targetDia, targetIdx, nova);
       renderGradeScreen(); // re-renderiza a grade para refletir a movimentação
     }
 
@@ -1246,7 +1297,7 @@ function planCycleMode() {
 
     pop.querySelectorAll('.gsp-opt').forEach(b => b.addEventListener('click', () => {
       const c = normalizeCell(gradeGet().grade[dia] && gradeGet().grade[dia][idx]);
-      setCellData(dia, idx, { subject: b.dataset.subject, minutes: (c && c.minutes) || GRADE_DEFAULT_MIN, done: (c && c.done) || false });
+      setCellData(dia, idx, Object.assign({ minutes: GRADE_DEFAULT_MIN, done: false }, c || {}, { subject: b.dataset.subject }));
       closeSiglaPicker();
       renderCellContent(cell); updateDaySummary(); updateUncheckAllBtn();
     }));
@@ -1387,74 +1438,311 @@ function planCycleMode() {
     renderSubjectsProgress(cycle);
   }
 
-  // Renderiza a TELA da Grade Semanal (bandeja + grade), independente do ciclo.
-  /* ---- Visão da Grade: 'semana' (grade completa) | 'dia' (só a meta diária) ---- */
-  function gradeViewMode() { return gradePrefGet('grade-view', null, 'semana') === 'dia' ? 'dia' : 'semana'; }
-  function setGradeViewMode(v) { gradePrefSet('grade-view', v === 'dia' ? 'dia' : 'semana'); }
+  // Renderiza a TELA da Grade Semanal, independente do ciclo.
+  /* ---- Dois modos: 'painel' (Acompanhar — o que falta fazer) | 'semana' (Montar — a grade) ----
+     Sem escolha gravada, a tela abre no Acompanhar quando já existe grade
+     montada e no Montar quando ela está vazia. A antiga "Meta diária" ('dia')
+     virou o Acompanhar, que responde a mesma pergunta com mais precisão. */
+  function gradeTemAlgo(t) {
+    t = t || gradeGet();
+    return DIAS_SEMANA.some(d => (t.grade[d] || []).some(c => { const n = normalizeCell(c); return n && n.subject; }));
+  }
+  function gradeViewMode() {
+    const v = gradePrefGet('grade-view', null, '');
+    if (v === 'semana') return 'semana';
+    if (v === 'painel' || v === 'dia') return 'painel';
+    return gradeTemAlgo() ? 'painel' : 'semana';
+  }
+  function setGradeViewMode(v) { gradePrefSet('grade-view', v === 'painel' ? 'painel' : 'semana'); }
 
-  // Nome do dia da semana de hoje, no vocabulário interno da grade
-  function _todayWeekdayName() {
-    return ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'][new Date().getDay()];
+  /* ---- Painel "Acompanhar" ----
+     Tudo sai do mesmo cálculo da tabela (gradeProgresso): a missão que aparece
+     concluída aqui é exatamente a célula verde do Montar. Nada é gravado além
+     do ✓ manual. */
+  const _DIA_CURTO = { Domingo: 'Dom', Segunda: 'Seg', 'Terça': 'Ter', Quarta: 'Qua', Quinta: 'Qui', Sexta: 'Sex', 'Sábado': 'Sáb' };
+  const _MES_CURTO = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const _dataCurta = iso => { const [, m, d] = iso.split('-').map(Number); return d + ' ' + _MES_CURTO[m - 1]; };
+  let _gpDiaSel = null;     // data (ISO) do dia aberto no painel; null = hoje
+  let _gpSemanaSel = null;  // semana a que _gpDiaSel pertence (troca de semana volta para hoje)
+
+  function painelDados() {
+    _gp = gradeProgresso();
+    const tmpl = gradeGet(), hoje = _iso(new Date());
+    let planejado = 0, cumprido = 0, esperadoOntem = 0, esperadoHoje = 0, total = 0, feitas = 0;
+    const porMateria = {};
+    const dias = _gp.dias.map(d => {
+      const missoes = (tmpl.grade[d.dia] || []).map((raw, idx) => {
+        const c = normalizeCell(raw); if (!c || !c.subject) return null;
+        const p = _gp.mapa[d.dia + '|' + idx] || { feito: 0, meta: 0, completo: false };
+        const manual = marcadaNaSemana(c), feita = manual || p.completo;
+        const feito = feita ? p.meta : p.feito;
+        return { dia: d.dia, iso: d.iso, idx, subject: c.subject, meta: p.meta, feito, falta: Math.max(0, p.meta - feito),
+          feita, manual, auto: p.completo && !manual, parcial: !feita && p.feito > 0 };
+      }).filter(Boolean);
+      const meta = missoes.reduce((a, x) => a + x.meta, 0), feito = missoes.reduce((a, x) => a + x.feito, 0);
+      const nFeitas = missoes.filter(x => x.feita).length;
+      planejado += meta; cumprido += feito; total += missoes.length; feitas += nFeitas;
+      if (d.iso < hoje) esperadoOntem += meta;
+      if (d.iso <= hoje) esperadoHoje += meta;
+      missoes.forEach(x => {
+        const k = CycleEngine.normKey(x.subject);
+        const pm = porMateria[k] || (porMateria[k] = { subject: x.subject, meta: 0, feito: 0 });
+        pm.meta += x.meta; pm.feito += x.feito;
+      });
+      return Object.assign({}, d, { missoes, meta, feito, nFeitas, passado: d.iso < hoje, hoje: d.iso === hoje, futuro: d.iso > hoje });
+    });
+    const atrasadas = [];
+    dias.forEach(d => { if (d.passado) d.missoes.forEach(x => { if (!x.feita) atrasadas.push(x); }); });
+    const idxHoje = dias.findIndex(d => d.hoje);
+    const diasRestantes = idxHoje >= 0 ? dias.length - idxHoje : 0;
+    return { ini: _gp.ini, fim: _gp.fim, hoje, dias, atrasadas, planejado, cumprido, esperadoOntem, esperadoHoje, total, feitas,
+      diasRestantes, materias: Object.keys(porMateria).map(k => porMateria[k]) };
   }
 
-  // Visão "Meta diária": lista compacta com o alvo de cada dia (total + matérias planejadas).
-  function renderGradeDaily() {
+  // anel de progresso da semana (SVG puro, cor pelos tokens do tema)
+  function anelHtml(pct, completo) {
+    const r = 26, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, pct));
+    return `<svg class="gp-anel ${completo ? 'is-ok' : ''}" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="${r}" class="gp-anel-fundo"></circle>
+      <circle cx="32" cy="32" r="${r}" class="gp-anel-valor" stroke-dasharray="${(c * v / 100).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 32 32)"></circle>
+    </svg><span class="gp-anel-pct">${Math.round(v)}%</span>`;
+  }
+
+  function missaoHtml(x, quando) {
+    const cor = CycleEngine.colorForSubject(x.subject) || 'var(--accent)';
+    const sig = CycleEngine.siglaForSubject(x.subject);
+    const pct = x.meta > 0 ? Math.round(x.feito / x.meta * 100) : (x.feita ? 100 : 0);
+    const st = x.feita ? 'st-feita' : (quando === 'passado' ? 'st-atrasada' : (x.parcial ? 'st-parcial' : 'st-aberta'));
+    const fmt = CycleEngine.fmtHM;
+    const detalhe = x.feita
+      ? (x.auto ? `✓ ${fmt(x.meta)} pelos registros` : `✓ concluída · ${fmt(x.meta)}`)
+      : (x.feito > 0 ? `${fmt(x.feito)} de ${fmt(x.meta)} · faltam ${fmt(x.falta)}` : `${fmt(x.meta)}${quando === 'passado' ? ' · atrasada' : ''}`);
+    const verbo = quando === 'passado' ? 'Recuperar' : (quando === 'futuro' ? 'Adiantar' : 'Registrar');
+    const chave = escapeHtml(x.dia + '|' + x.idx);
+    return `
+      <li class="gp-m ${st}" style="--c:${cor}">
+        <span class="gp-m-cor" aria-hidden="true"></span>
+        <div class="gp-m-info">
+          <div class="gp-m-top"><span class="gp-m-sigla">${escapeHtml(sig)}</span><span class="gp-m-nome" title="${escapeHtml(x.subject)}">${escapeHtml(x.subject)}</span></div>
+          <div class="gp-m-barra" aria-hidden="true"><i style="width:${pct}%"></i></div>
+          <div class="gp-m-sub">${detalhe}</div>
+        </div>
+        <div class="gp-m-acoes">
+          ${x.feita ? '' : `<button type="button" class="gp-reg" data-gp-reg="${chave}" title="Abrir Registrar estudo com ${escapeHtml(x.subject)} · ${fmt(x.falta || x.meta)}">▶ ${verbo}</button>`}
+          <button type="button" class="gp-check ${x.feita ? 'on' : ''} ${x.auto ? 'auto' : ''}" data-gp-check="${chave}" aria-pressed="${x.feita ? 'true' : 'false'}"
+            title="${x.auto ? 'Concluída pelos registros de estudo' : (x.feita ? 'Desmarcar' : 'Marcar como feita')}" aria-label="${x.feita ? 'Concluída' : 'Marcar como feita'}: ${escapeHtml(x.subject)}">${CHECK_ICON}</button>
+        </div>
+      </li>`;
+  }
+
+  function renderGradePainel() {
     const container = document.getElementById('ciclo-grade');
     if (!container) return;
-    const tmpl = gradeGet();
-    const days = gradeDaysOrder();
-    const hoje = _todayWeekdayName();
-    _gp = null;
-    const html = days.map(dia => {
-      const slots = (tmpl.grade[dia] || []).map((raw, i) => {
-        const c = normalizeCell(raw); if (!c) return null;
-        return Object.assign({}, c, { done: !!c.done || progressoCelula(dia, i).completo });
-      }).filter(Boolean);
-      const totalMin = slots.reduce((s, c) => s + (c.minutes || 0), 0);
-      /* A meta diaria mostrava tudo com a mesma cara: nao dava para saber o que
-         ja foi feito sem voltar para a visao semanal. Agora o que esta marcado
-         como concluido vem em VERDE, com o visto — e o cabecalho do dia diz
-         quantas das sessoes ja sairam. */
-      const feitos = slots.filter(c => c.done).length;
-      const diaCompleto = slots.length > 0 && feitos === slots.length;
-      const chips = slots.map(c => {
-        const cor = CycleEngine.colorForSubject(c.subject) || 'var(--accent)';
-        const sig = CycleEngine.siglaForSubject(c.subject);
-        const feito = !!c.done;
-        return `<span class="gd-chip ${feito ? 'is-done' : ''}"${feito ? '' : ` style="color:${cor};"`} title="${escapeHtml(c.subject)}${feito ? ' — concluída' : ''}">${feito ? '<span class="gd-chip-check">✓</span>' : ''}${escapeHtml(sig)} <small>${CycleEngine.fmtHM(c.minutes || 0)}</small></span>`;
-      }).join('');
-      const isToday = dia === hoje;
-      return `
-        <div class="gd-day ${isToday ? 'is-today' : ''} ${diaCompleto ? 'is-complete' : ''}">
-          <div class="gd-day-head">
-            <span class="gd-day-name">${dia}${isToday ? '<span class="gd-today-tag">hoje</span>' : ''}${diaCompleto ? '<span class="gd-done-tag">✓ concluído</span>' : ''}</span>
-            <span class="gd-day-total ${totalMin === 0 ? 'zero' : ''}">${slots.length ? `<span class="gd-day-count ${feitos ? 'has' : ''}">${feitos}/${slots.length}</span>` : ''}${totalMin === 0 ? '— sem meta' : CycleEngine.fmtHM(totalMin)}</span>
+    const fmt = CycleEngine.fmtHM;
+    const D = painelDados();
+    if (!D.total) {
+      container.innerHTML = `
+        <div class="gp gp-vazio">
+          <div class="gp-vazio-ic" aria-hidden="true">◎</div>
+          <h3>Sua semana ainda não tem missões</h3>
+          <p>Monte a grade uma vez — ela se repete toda semana — e aqui você acompanha, dia a dia, o que já foi feito e o que falta. Os registros de estudo marcam as missões sozinhos.</p>
+          <div class="gp-vazio-acoes">
+            <button type="button" class="btn-primary" data-gp-acao="sugerir">✨ Sugerir grade</button>
+            <button type="button" class="btn-secondary" data-gp-acao="montar">▦ Montar à mão</button>
           </div>
-          ${slots.length ? `<div class="gd-chips">${chips}</div>` : `<p class="gd-empty">Nenhuma matéria planejada para este dia.</p>`}
         </div>`;
-    }).join('');
-    container.innerHTML = `<div class="grade-daily">${html}</div>`;
+      return;
+    }
+    if (_gpSemanaSel !== D.ini) { _gpSemanaSel = D.ini; _gpDiaSel = null; }
+    let sel = D.dias.find(d => d.iso === _gpDiaSel) || D.dias.find(d => d.hoje);
+    if (!sel) sel = D.hoje > D.dias[D.dias.length - 1].iso ? D.dias[D.dias.length - 1] : D.dias[0];
+    const dHoje = D.dias.find(d => d.hoje);
+
+    // ---- resumo da semana ----
+    const pct = D.planejado > 0 ? D.cumprido / D.planejado * 100 : 0;
+    const concluida = D.planejado > 0 && D.cumprido >= D.planejado;
+    let tom, status;
+    if (concluida) { tom = 'good'; status = 'Semana concluída — tudo o que estava na grade foi feito'; }
+    else if (D.cumprido >= D.esperadoHoje) { tom = 'good'; status = D.cumprido > D.esperadoHoje ? `Adiantado ${fmt(D.cumprido - D.esperadoHoje)}` : 'Em dia — o de hoje já está feito'; }
+    else if (D.cumprido >= D.esperadoOntem) { tom = 'info'; status = `No ritmo · faltam ${fmt(D.esperadoHoje - D.cumprido)} hoje`; }
+    else { tom = 'warn'; status = `Atrasado ${fmt(D.esperadoOntem - D.cumprido)} em relação ao plano`; }
+    const restante = Math.max(0, D.planejado - D.cumprido);
+    const porDia = D.diasRestantes > 0 && restante > 0 ? Math.ceil(restante / D.diasRestantes) : 0;
+    const faltaHoje = dHoje ? Math.max(0, dHoje.meta - dHoje.feito) : 0;
+    const idxHoje = D.dias.findIndex(d => d.hoje);
+    const kicker = `${_dataCurta(D.dias[0].iso)} – ${_dataCurta(D.dias[6].iso)}` + (idxHoje >= 0 ? ` · dia ${idxHoje + 1} de 7` : '');
+    const resumo = `
+      <section class="gp-resumo tone-${tom}" aria-label="Andamento da semana">
+        <div class="gp-resumo-main">
+          <div class="gp-anel-wrap" title="${Math.round(pct)}% do tempo planejado na grade">${anelHtml(pct, concluida)}</div>
+          <div class="gp-resumo-txt">
+            <div class="gp-kicker">Semana · ${kicker}</div>
+            <div class="gp-titulo"><b>${fmt(D.cumprido)}</b> de ${fmt(D.planejado)} cumpridas</div>
+            <div class="gp-status tone-${tom}"><span class="gp-dot" aria-hidden="true"></span>${escapeHtml(status)}</div>
+          </div>
+        </div>
+        <div class="gp-kpis">
+          <div class="gp-kpi"><b>${D.feitas}/${D.total}</b><span>missões feitas</span></div>
+          <div class="gp-kpi ${dHoje && !faltaHoje ? 'ok' : ''}"><b>${!dHoje ? '—' : (faltaHoje ? fmt(faltaHoje) : '✓')}</b><span>${!dHoje ? 'fora da semana' : (faltaHoje ? 'faltam hoje' : 'hoje em dia')}</span></div>
+          <div class="gp-kpi ${D.atrasadas.length ? 'alerta' : 'ok'}"><b>${D.atrasadas.length || '✓'}</b><span>${D.atrasadas.length ? (D.atrasadas.length === 1 ? 'atrasada' : 'atrasadas') : 'nada atrasado'}</span></div>
+          <div class="gp-kpi" title="Tempo que ainda falta na grade dividido pelos dias que restam (hoje incluído)"><b>${restante ? fmt(porDia) : '✓'}</b><span>${restante ? 'por dia p/ fechar' : 'meta batida'}</span></div>
+        </div>
+      </section>`;
+
+    // ---- faixa dos 7 dias ----
+    const faixa = `
+      <div class="gp-dias" role="tablist" aria-label="Dias da semana">
+        ${D.dias.map(d => {
+          const p = d.meta > 0 ? Math.round(d.feito / d.meta * 100) : 0;
+          const atraso = d.passado && d.missoes.some(x => !x.feita);
+          const completo = d.missoes.length > 0 && d.nFeitas === d.missoes.length;
+          const cls = ['gp-dia', d.hoje ? 'is-hoje' : '', d === sel ? 'is-sel' : '', d.passado ? 'is-passado' : '', atraso ? 'has-atraso' : '', completo ? 'is-completo' : '', !d.missoes.length ? 'is-livre' : ''].filter(Boolean).join(' ');
+          const rotulo = `${d.dia}, ${_dataCurta(d.iso)}: ${d.missoes.length ? d.nFeitas + ' de ' + d.missoes.length + ' missões' : 'sem missões'}${atraso ? ', com atraso' : ''}`;
+          return `<button type="button" class="${cls}" data-gp-dia="${d.iso}" role="tab" aria-selected="${d === sel}" aria-label="${escapeHtml(rotulo)}">
+            <span class="gp-dia-nome">${d.hoje ? 'Hoje' : _DIA_CURTO[d.dia]}</span>
+            <span class="gp-dia-num">${Number(d.iso.slice(8))}</span>
+            <span class="gp-dia-barra" aria-hidden="true"><i style="width:${p}%"></i></span>
+            <span class="gp-dia-meta">${d.missoes.length ? (completo ? '✓' : d.nFeitas + '/' + d.missoes.length) : '—'}</span>
+          </button>`;
+        }).join('')}
+      </div>`;
+
+    // ---- dia em foco ----
+    const quando = sel.passado ? 'passado' : (sel.hoje ? 'hoje' : 'futuro');
+    const tituloDia = sel.hoje ? `Hoje · ${sel.dia.toLowerCase()}, ${_dataCurta(sel.iso)}` : `${sel.dia}, ${_dataCurta(sel.iso)}`;
+    let destaque = '';
+    if (sel.hoje) {
+      const prox = sel.missoes.find(x => !x.feita);
+      if (prox) {
+        const cor = CycleEngine.colorForSubject(prox.subject) || 'var(--accent)';
+        destaque = `
+          <div class="gp-proxima" style="--c:${cor}">
+            <div class="gp-proxima-txt">
+              <span class="gp-proxima-lbl">${prox.parcial ? 'Continue de onde parou' : 'Próxima missão'}</span>
+              <span class="gp-proxima-nome">${escapeHtml(prox.subject)}</span>
+              <span class="gp-proxima-tempo">${prox.feito > 0 ? `faltam ${fmt(prox.falta)} de ${fmt(prox.meta)}` : fmt(prox.meta)}</span>
+            </div>
+            <button type="button" class="btn-primary gp-proxima-btn" data-gp-reg="${escapeHtml(prox.dia + '|' + prox.idx)}">▶ Registrar agora</button>
+          </div>`;
+      } else {
+        const alvo = D.atrasadas[0] || null;
+        const futura = !alvo && D.dias.filter(d => d.futuro).map(d => d.missoes.find(x => !x.feita)).find(Boolean);
+        const sug = alvo || futura;
+        destaque = `
+          <div class="gp-proxima is-ok">
+            <div class="gp-proxima-txt">
+              <span class="gp-proxima-lbl">${sel.missoes.length ? 'Missões de hoje concluídas' : 'Hoje é dia livre na grade'}</span>
+              <span class="gp-proxima-nome">${sel.missoes.length ? 'Tudo feito por hoje ✓' : 'Descanso planejado'}</span>
+              <span class="gp-proxima-tempo">${sug ? (alvo ? 'Quer recuperar ' : 'Quer adiantar ') + escapeHtml(sug.subject) + ' (' + fmt(sug.falta || sug.meta) + ')?' : 'Nada pendente na semana.'}</span>
+            </div>
+            ${sug ? `<button type="button" class="btn-secondary gp-proxima-btn" data-gp-reg="${escapeHtml(sug.dia + '|' + sug.idx)}">▶ ${alvo ? 'Recuperar' : 'Adiantar'}</button>` : ''}
+          </div>`;
+      }
+    }
+    const lista = sel.missoes.length
+      ? `<ol class="gp-missoes">${sel.missoes.map(x => missaoHtml(x, quando)).join('')}</ol>`
+      : (sel.hoje ? '' : `<p class="gp-livre">Nenhuma missão planejada para este dia.</p>`);
+    const foco = `
+      <section class="gp-foco" aria-label="Missões do dia">
+        <header class="gp-foco-head">
+          <h3>${escapeHtml(tituloDia)}</h3>
+          <span class="gp-foco-total">${sel.missoes.length ? `${fmt(sel.feito)} de ${fmt(sel.meta)}` : ''}</span>
+        </header>
+        ${destaque}
+        ${lista}
+      </section>`;
+
+    // ---- lateral: atrasadas + matérias ----
+    const atrasadasHtml = `
+      <section class="gp-bloco gp-atrasadas">
+        <h4>Para recuperar ${D.atrasadas.length ? `<span class="gp-badge">${D.atrasadas.length}</span>` : ''}</h4>
+        ${D.atrasadas.length ? `<ul class="gp-rec">${D.atrasadas.map(x => {
+          const cor = CycleEngine.colorForSubject(x.subject) || 'var(--accent)';
+          return `<li style="--c:${cor}">
+            <span class="gp-rec-sig">${escapeHtml(CycleEngine.siglaForSubject(x.subject))}</span>
+            <span class="gp-rec-txt"><span class="gp-rec-nome" title="${escapeHtml(x.subject)}">${escapeHtml(x.subject)}</span><small>${_DIA_CURTO[x.dia]} · faltam ${fmt(x.falta)}</small></span>
+            <button type="button" class="gp-reg" data-gp-reg="${escapeHtml(x.dia + '|' + x.idx)}" aria-label="Recuperar ${escapeHtml(x.subject)}">▶</button>
+          </li>`;
+        }).join('')}</ul>` : `<p class="gp-ok-msg">✓ Nada atrasado. O que ficou para trás aparece aqui.</p>`}
+      </section>`;
+    const mats = D.materias.slice().sort((a, b) => (b.meta - b.feito) - (a.meta - a.feito) || a.subject.localeCompare(b.subject, 'pt-BR'));
+    const materiasHtml = `
+      <section class="gp-bloco gp-materias">
+        <h4>Matérias na semana</h4>
+        <ul class="gp-mat">${mats.map(m => {
+          const cor = CycleEngine.colorForSubject(m.subject) || 'var(--accent)';
+          const p = m.meta > 0 ? Math.min(100, Math.round(m.feito / m.meta * 100)) : 0;
+          const ok = m.meta > 0 && m.feito >= m.meta;
+          return `<li class="${ok ? 'ok' : ''}" style="--c:${cor}" title="${escapeHtml(m.subject)} — ${p}%">
+            <span class="gp-mat-sig">${escapeHtml(CycleEngine.siglaForSubject(m.subject))}</span>
+            <span class="gp-mat-barra" aria-hidden="true"><i style="width:${p}%"></i></span>
+            <span class="gp-mat-val">${ok ? '✓ ' : ''}${fmt(m.feito)}<small> / ${fmt(m.meta)}</small></span>
+          </li>`;
+        }).join('')}</ul>
+      </section>`;
+
+    container.innerHTML = `<div class="gp">${resumo}${faixa}<div class="gp-corpo">${foco}<aside class="gp-lado">${atrasadasHtml}${materiasHtml}</aside></div></div>`;
   }
 
-  // Alterna a exibição entre a grade semanal completa e a meta diária.
+  // Ações do painel: um único ouvinte delegado (o conteúdo é refeito a cada render).
+  (function ligarPainel() {
+    const container = document.getElementById('ciclo-grade');
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      const dia = e.target.closest('[data-gp-dia]');
+      if (dia) { _gpDiaSel = dia.dataset.gpDia; renderGradePainel(); return; }
+      const reg = e.target.closest('[data-gp-reg]');
+      const chk = e.target.closest('[data-gp-check]');
+      const alvo = reg || chk;
+      if (alvo) {
+        const [d, i] = (alvo.dataset.gpReg || alvo.dataset.gpCheck).split('|');
+        const idx = parseInt(i, 10);
+        const c = normalizeCell(gradeGet().grade[d] && gradeGet().grade[d][idx]);
+        if (!c) { renderGradePainel(); return; }
+        if (reg) {
+          _gp = null;
+          const p = progressoCelula(d, idx);
+          registrarSessao(c.subject, Math.max(5, (p.meta - p.feito) || Number(c.minutes) || GRADE_DEFAULT_MIN));
+        } else if (alternarMarcacao(d, idx)) {
+          renderGradePainel();
+          updateUncheckAllBtn();
+        }
+        return;
+      }
+      const acao = e.target.closest('[data-gp-acao]');
+      if (acao) {
+        if (acao.dataset.gpAcao === 'montar') { setGradeViewMode('semana'); applyGradeView(); }
+        else { const b = document.getElementById('btn-grade-sugerir'); if (b) b.click(); }
+      }
+    });
+  })();
+
+  // Alterna a exibição entre o Acompanhar (painel) e o Montar (grade completa).
   function applyGradeView() {
     const mode = gradeViewMode();
+    const screen = document.getElementById('screen-grade');
+    if (screen) screen.setAttribute('data-gmodo', mode);
     const trayBar = document.getElementById('grade-tray-bar');
     const scrollHint = document.getElementById('grade-scroll-hint');
     const minAlert = document.querySelector('#screen-grade .grade-min-alert');
-    document.querySelectorAll('#grade-view-toggle .gvt-btn').forEach(b => {
+    document.querySelectorAll('#grade-view-toggle [data-gview]').forEach(b => {
       const on = b.dataset.gview === mode;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    // o item "Siglas" so faz sentido na visao semanal (a bandeja arrastavel)
-    const trayItem = document.getElementById('btn-toggle-tray');
-    if (trayItem) trayItem.style.display = (mode === 'dia') ? 'none' : '';
-    if (mode === 'dia') {
+    // os itens da bandeja e do saldo só fazem sentido montando a grade
+    ['btn-toggle-tray', 'btn-toggle-budget'].forEach(id => {
+      const it = document.getElementById(id);
+      if (it) it.style.display = (mode === 'painel') ? 'none' : '';
+    });
+    if (mode === 'painel') {
       if (trayBar) trayBar.style.display = 'none';
       if (scrollHint) scrollHint.style.display = 'none';
       if (minAlert) minAlert.style.display = 'none';
-      renderGradeDaily();
+      const bud = document.getElementById('grade-budget');
+      if (bud) bud.classList.add('hidden');
+      renderGradePainel();
+      updateUncheckAllBtn();
     } else {
       if (trayBar) trayBar.style.display = '';
       if (scrollHint) scrollHint.style.display = '';
@@ -1472,7 +1760,11 @@ function planCycleMode() {
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
   // exposto para a navegação abrir a tela e para o botão de atalho do ciclo
-  window.GradeScreen = { render: renderGradeScreen, progresso: gradeProgresso, registrarSessao };
+  window.GradeScreen = {
+    render: renderGradeScreen, progresso: gradeProgresso, registrarSessao,
+    modo: gradeViewMode,
+    setView(v) { setGradeViewMode(v); applyGradeView(); }
+  };
 
   // Gerenciador de siglas: MATÉRIAS (sigla auto editável) + siglas livres customizadas.
   function renderCustomSiglaManager() {
@@ -1513,7 +1805,7 @@ function planCycleMode() {
     }
 
     box.innerHTML = html;
-    const refresh = () => { renderChipTray(); renderGrade(); renderCustomSiglaManager(); };
+    const refresh = () => { applyGradeView(); renderCustomSiglaManager(); };
 
     // --- linhas de matéria ---
     box.querySelectorAll('.custom-sigla-row[data-subject]').forEach(row => {
@@ -1567,7 +1859,7 @@ function planCycleMode() {
     DB.addCustomSigla({ sigla, nome });
     $id('new-sigla-input').value = '';
     $id('new-sigla-nome').value = '';
-    renderChipTray(); renderGrade(); renderCustomSiglaManager();
+    applyGradeView(); renderCustomSiglaManager();
     showToast('Sigla criada ✓');
   });
 
@@ -1582,7 +1874,7 @@ function planCycleMode() {
   }
   function closeSiglasModal() {
     $id('siglas-modal').style.display = 'none';
-    renderChipTray(); renderGrade(); // reflete edições na bandeja/grade ao fechar
+    applyGradeView(); // reflete edições na bandeja/grade (ou no painel) ao fechar
   }
   const _editSiglas = document.getElementById('btn-edit-siglas');
   if (_editSiglas) _editSiglas.addEventListener('click', openSiglasModal);
@@ -1590,7 +1882,7 @@ function planCycleMode() {
   const _wsSel = document.getElementById('grade-weekstart-select');
   if (_wsSel) {
     _wsSel.value = gradeWeekStart();
-    // renderGradeDaily tambem depende da ordem dos dias: applyGradeView cobre as duas visoes
+    // o Montar depende da ordem dos dias: applyGradeView redesenha o modo aberto
     _wsSel.addEventListener('change', () => { setGradeWeekStart(_wsSel.value); applyGradeView(); });
   }
   const _mClose = document.getElementById('siglas-modal-close');
@@ -1656,7 +1948,7 @@ function planCycleMode() {
       t.grade[d].forEach((c, i) => { const nc = normalizeCell(c); if (nc && nc.done) { nc.done = false; t.grade[d][i] = nc; } });
     });
     gradeSave(t);
-    renderGrade();
+    applyGradeView();
     showToast('Concluídos desmarcados ✓');
   });
   // Limpar grade: esvazia TODAS as células (mantém o nº de sessões), para remontar do zero.
@@ -1674,7 +1966,7 @@ function planCycleMode() {
     const n = sessionCount(t);
     DIAS_SEMANA.forEach(d => { t.grade[d] = Array.from({ length: n }, () => ''); });
     gradeSave(t);
-    renderGrade();
+    applyGradeView();
     showToast('Grade limpa — monte do zero ✓');
   });
 
@@ -1699,19 +1991,15 @@ function planCycleMode() {
       else document.removeEventListener('click', onDoc, true);
     });
     // fecha ao escolher um item (mas deixa o clique do próprio item executar antes)
+    /* O select de inicio da semana NAO fecha o menu — quem esta ajustando isso
+       costuma querer conferir o resultado com o menu ainda aberto. */
     gmenu.querySelectorAll('.grade-gear-item').forEach(it => it.addEventListener('click', () => setTimeout(closeGear, 0)));
-    /* O seletor de visao mora dentro do menu agora: escolher "Semanal" ou
-       "Meta diaria" e uma decisao final, entao o menu se fecha junto. Ja o
-       select de inicio da semana NAO fecha — quem esta ajustando isso costuma
-       querer conferir o resultado com o menu ainda aberto. */
-    const vt = gmenu.querySelector('#grade-view-toggle');
-    if (vt) vt.addEventListener('click', (e) => { if (e.target.closest('.gvt-btn')) setTimeout(closeGear, 0); });
   })();
 
-  /* ---- Item 1: seletor de visão (Semanal / Meta diária) ---- */
+  /* ---- Item 1: seletor de modo (Acompanhar / Montar), no cabeçalho ---- */
   const _viewToggle = document.getElementById('grade-view-toggle');
   if (_viewToggle) _viewToggle.addEventListener('click', (e) => {
-    const btn = e.target.closest('.gvt-btn');
+    const btn = e.target.closest('[data-gview]');
     if (!btn) return;
     setGradeViewMode(btn.dataset.gview);
     applyGradeView();
@@ -1865,7 +2153,14 @@ function planCycleMode() {
       endDate: realEndDate,
       weeklyHours: cycle.weeklyHours,
       subjects: prog.subjects,
-      grade: JSON.parse(JSON.stringify(gradeGet().grade)),
+      // o ✓ manual só entra no arquivo se foi marcado DENTRO desta semana
+      grade: (() => {
+        const g = JSON.parse(JSON.stringify(gradeGet().grade));
+        Object.keys(g).forEach(d => (Array.isArray(g[d]) ? g[d] : []).forEach(c => {
+          if (c && typeof c === 'object' && c.done && c.doneWeek && !(c.doneWeek >= cycle.startDate && c.doneWeek <= realEndDate)) c.done = false;
+        }));
+        return g;
+      })(),
       sessions: gradeGet().sessions,
       totalTargetMin: prog.totalTargetMin,
       totalStudiedMin: prog.totalStudiedMin,
@@ -1904,6 +2199,25 @@ function planCycleMode() {
   });
   window.addEventListener('data:entry-changed', () => {
     if (DB.getCurrentCycle()) renderActiveCycle();
+  });
+  const _gradeVisivel = () => { const sc = document.getElementById('screen-grade'); return !!(sc && sc.classList.contains('active')); };
+  ['data:entry-added', 'data:entry-changed'].forEach(ev => window.addEventListener(ev, () => {
+    if (_gradeVisivel()) applyGradeView();
+  }));
+  window.addEventListener('data:entry-added', () => {
+    const v = _voltarParaGrade; _voltarParaGrade = null;
+    if (!v || Date.now() > v.ate) return;
+    const reg = document.getElementById('screen-registrar');
+    if (!reg || !reg.classList.contains('active')) return;
+    setTimeout(() => {
+      try { switchScreen('grade'); } catch (e) { _quiet(e, 'grade-voltar'); return; }
+      showToast('Missão atualizada na grade ✓');
+    }, 450);
+  });
+  // saiu do Registrar por conta própria: não sequestra a navegação depois
+  window.addEventListener('screen:activated', (e) => {
+    const n = e.detail && e.detail.screen;
+    if (n !== 'registrar' && n !== 'grade') _voltarParaGrade = null;
   });
 
   init();

@@ -315,13 +315,13 @@ try {
   });
   furos === 0 ? ok('menu "Opcoes" aberto sem nada por cima')
     : erro(furos < 0 ? 'menu "Opcoes" nao abriu' : `menu "Opcoes" coberto em ${furos} ponto(s) — a tabela volta a atravessar o painel`);
-  // o rotulo do seletor de visao nao pode voltar a quebrar em duas linhas
+  // o seletor Acompanhar/Montar mora no cabecalho e o rotulo nao pode quebrar em duas linhas
   const alturaSeletor = await pag.evaluate(() => {
-    const t = document.querySelector('#grade-gear-menu .grade-view-toggle');
+    const t = document.querySelector('#screen-grade .card-header #grade-view-toggle');
     return t ? Math.round(t.getBoundingClientRect().height) : -1;
   });
-  alturaSeletor > 0 && alturaSeletor <= 38 ? ok(`seletor Semanal/Meta diaria em uma linha (${alturaSeletor}px)`)
-    : erro(`seletor de visao com ${alturaSeletor}px — o rotulo quebrou em duas linhas`);
+  alturaSeletor > 0 && alturaSeletor <= 44 ? ok(`seletor Acompanhar/Montar em uma linha (${alturaSeletor}px)`)
+    : erro(`seletor de modo com ${alturaSeletor}px — o rotulo quebrou em duas linhas (ou saiu do cabecalho)`);
   await pag.evaluate(() => { const b = document.getElementById('grade-gear-btn'); if (b) b.click(); });
 
   /* Painéis de filtro recolhíveis: têm de nascer RECOLHIDOS e com o resumo do

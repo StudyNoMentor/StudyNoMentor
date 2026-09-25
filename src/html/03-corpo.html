@@ -632,23 +632,23 @@
       <div class="card-header">
         <div>
           <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">⏱ tempos em minutos</span></h2>
-          <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
+          <p class="sub">Acompanhar: as missões de hoje e o andamento da semana, preenchidos pelos seus registros. Montar: toque numa célula para escolher a sigla (ou arraste) — a mesma matéria pode aparecer em várias células, cada uma com sua duração.</p>
         </div>
         <!-- TUDO o que e secundario vive dentro da engrenagem. Antes o seletor de
              visao, o "Inicio da semana" e o "Editar siglas" ocupavam duas faixas
              inteiras da tela so para ficarem parados esperando um clique raro. -->
         <div class="grade-head-actions">
+          <!-- As duas perguntas da tela têm lugar próprio: "o que falta fazer?"
+               (Acompanhar) e "como é a minha semana?" (Montar). O seletor saiu do
+               menu de opções porque é a primeira escolha, não uma opção rara. -->
+          <div class="grade-modo" id="grade-view-toggle" role="tablist" aria-label="Modo da Grade Semanal">
+            <button type="button" class="gm-btn" data-gview="painel" role="tab" aria-selected="false"><span aria-hidden="true">◎</span> Acompanhar</button>
+            <button type="button" class="gm-btn" data-gview="semana" role="tab" aria-selected="false"><span aria-hidden="true">▦</span> Montar</button>
+          </div>
           <button class="btn-primary grade-suggest-btn" id="btn-grade-sugerir" type="button" title="Montar a grade automaticamente a partir das metas do ciclo">✨ <span class="gg-word">Sugerir grade</span></button>
           <div class="grade-gear-wrap">
             <button class="btn-secondary grade-gear-btn grade-gear-mini" id="grade-gear-btn" type="button" title="Opções da grade" aria-haspopup="true" aria-expanded="false"><span class="gg-gear">⚙</span><span class="gg-word">Opções</span></button>
             <div class="grade-gear-menu" id="grade-gear-menu" role="menu" aria-hidden="true">
-              <div class="grade-gear-group">
-                <span class="grade-gear-lbl">Visualização</span>
-                <div class="grade-view-toggle" id="grade-view-toggle" role="tablist" aria-label="Modo de visualização da grade">
-                  <button type="button" class="gvt-btn active" data-gview="semana" role="tab" aria-selected="true">▦ Semanal</button>
-                  <button type="button" class="gvt-btn" data-gview="dia" role="tab" aria-selected="false">◷ Meta diária</button>
-                </div>
-              </div>
               <div class="grade-gear-group">
                 <span class="grade-gear-lbl">Início da semana</span>
                 <select id="grade-weekstart-select" class="grade-gear-select" title="Dia em que a semana começa">
