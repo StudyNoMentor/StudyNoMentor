@@ -217,6 +217,8 @@ const CycleEngine = {
     };
   },
   statusFor(studiedMin, targetMin) {
+    // sem carga horária na semana não há nada a cumprir: já está finalizada
+    if (!(Number(targetMin) > 0)) return 'finalizada';
     if (studiedMin <= 0) return 'pendente';
     if (studiedMin >= targetMin) return 'finalizada';
     return 'iniciada';
