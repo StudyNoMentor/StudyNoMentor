@@ -110,3 +110,15 @@
   #screen-estudonovo .en-table .col-pct{width:84px!important;min-width:84px}
   #screen-estudonovo .en-table tr.en-tb-check td{text-align:left!important;padding-left:14px!important}
 }
+
+/* ── Leis Secas ─────────────────────────────────────────────────────────── */
+/* Caput em peso normal; só o rótulo do artigo em destaque */
+#screen-leis .law-art,body.leis-foco .law-art{font-weight:500!important}
+#screen-leis .law-art::first-line,body.leis-foco .law-art::first-line{color:inherit!important}
+.law-art .law-art-num{font-weight:800;color:var(--accent);margin-right:.2em}
+/* Nova lei: aviso de salvamento numa linha própria, botões juntos à direita */
+#lei-form-modal .cards-modal-foot{flex-wrap:wrap}
+#lei-form-modal .cards-modal-foot>.save-note{flex:1 1 100%!important;order:-1;font-size:11.5px}
+#lei-form-modal .cards-modal-foot>#lei-form-cancel{margin-left:auto}
+/* a busca some com menos de 4 leis (o display:flex anulava o [hidden]) */
+#screen-leis .leis-busca[hidden]{display:none!important}

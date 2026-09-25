@@ -128,6 +128,8 @@ const LeisScreen = {
     const barra = document.querySelector('.leis-busca');
     if (barra) barra.hidden = todas.length < 4;
     const q = (this._busca || '').trim().toLowerCase();
+    // nome do planejamento só quando há leis de mais de um (ou a lei é de outro)
+    const variosPlanos = new Set(todas.map(l => String(l._planId || ''))).size > 1;
     const leis = q
       ? todas.filter(l => [l.titulo, l.referencia, l.materia].some(v => String(v || '').toLowerCase().includes(q)))
       : todas;
@@ -184,7 +186,7 @@ const LeisScreen = {
               <span class="lei-estado"><i aria-hidden="true">${estado.ic}</i>${escapeHtml(estado.rot)}</span>
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
               ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
-              ${l._planNome ? `<span class="lei-tag ref">${escapeHtml(l._planNome)}${this._leiLocal(l) ? '' : ' · somente leitura'}</span>` : ''}
+              ${l._planNome && (variosPlanos || !this._leiLocal(l)) ? `<span class="lei-tag ref">${escapeHtml(l._planNome)}${this._leiLocal(l) ? '' : ' · somente leitura'}</span>` : ''}
             </span>
             <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
             <span class="lei-card-stats">
@@ -274,6 +276,7 @@ const LeisScreen = {
     const body = document.getElementById('lei-reader-body');
     if (!body) return;
     body.innerHTML = LawEngine.toHtml(lei, DB.getLeiKeywords());
+    this._destacarRotulosDeArtigo(body);
     this._pintarFonte();
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
     body.classList.toggle('tool-erase', this.hlMode === 'erase');
@@ -296,6 +299,23 @@ const LeisScreen = {
     }
     this.atualizarFoco();
     this._pintarBotaoMarcador(lei.bookmark != null);
+  },
+  /* Só o rótulo "Art. 1º" em destaque; o caput segue em peso normal (antes o
+     artigo inteiro saía em negrito e ::first-line pintava de roxo uma linha
+     visual arbitrária). Mexe só no primeiro nó de texto: o deslocamento das
+     marcações é medido pelo textContent, que não muda. */
+  _destacarRotulosDeArtigo(body) {
+    body.querySelectorAll('.law-art > .law-content').forEach(c => {
+      const t = c.firstChild;
+      if (!t || t.nodeType !== 3) return;
+      const m = /^\s*Art(?:\.|igo)\s*\d+[\wºª°-]*\.?/i.exec(t.nodeValue);
+      if (!m) return;
+      const sp = document.createElement('span');
+      sp.className = 'law-art-num';
+      sp.textContent = m[0];
+      t.nodeValue = t.nodeValue.slice(m[0].length);
+      c.insertBefore(sp, t);
+    });
   },
   /* Re-renderizar a lei inteira custa caro (é o innerHTML de centenas de
      blocos). Quando o usuário desliga três categorias em sequência, isso
@@ -928,7 +948,7 @@ const LeisScreen = {
     if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
-    if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`, { title: '🗑 Excluir lei', okText: 'Excluir', danger: true })) return;
     DB.deleteLei(this.currentId);
     showToast('Lei excluída');
     this.showList();
