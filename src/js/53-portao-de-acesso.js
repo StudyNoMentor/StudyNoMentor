@@ -43,7 +43,23 @@ const ProfileUI = {
   },
   isGateOpen() { const g = document.getElementById('profile-gate'); return g && g.style.display !== 'none'; },
   showGate() { $id('profile-gate').style.display = 'block'; this.refreshStage(); },
-  hideGate() { $id('profile-gate').style.display = 'none'; },
+  hideGate() {
+    const g = $id('profile-gate'), aberto = g.style.display !== 'none';
+    g.style.display = 'none';
+    if (aberto) this._veuSaida();
+  },
+  // O portão sai de cena por dissolução: um véu da cor do fundo, sem clique,
+  // desaparece sobre o app já montado.
+  _veuSaida() {
+    try {
+      if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const v = document.createElement('div');
+      v.className = 'gate-veu'; v.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(v);
+      requestAnimationFrame(() => requestAnimationFrame(() => v.classList.add('sai')));
+      setTimeout(() => v.remove(), 600);
+    } catch (e) { _quiet(e, 'gate-veu'); }
+  },
   _showEnteringGate(id) {
     this._entering = true;
     this._autoEnterTried = true;
@@ -71,6 +87,13 @@ const ProfileUI = {
     if (window.CloudUI) CloudUI.render();
   },
 
+  _temSessaoSalva() {
+    try {
+      const ls = window.__nativeLS || window.localStorage;
+      for (let i = 0; i < ls.length; i++) { const k = ls.key(i); if (k && /^sb-.+-auth-token$/.test(k)) return true; }
+    } catch (e) { _quiet(e, 'gate-sessao-salva'); }
+    return false;
+  },
   refreshStage() {
     // Se já estamos entrando num perfil (reload a caminho), não repinta o gate —
     // evita qualquer flash do seletor por um evento de auth tardio.
@@ -83,6 +106,17 @@ const ProfileUI = {
     const title = document.getElementById('profile-gate-title');
     const sub = document.getElementById('profile-gate-sub');
     const head = document.querySelector('#profile-gate .gate-panel-head');
+    // Sessão salva neste aparelho enquanto a biblioteca da nuvem ainda chega:
+    // mostra "Entrando…" em vez de piscar o formulário de login.
+    if (!logged && !this._offline && CS && CS.libStatus === 'pending' && this._temSessaoSalva() &&
+        this.autoEnterOn() && !this._autoEnterTried) {
+      this._stage = 'entering';
+      if (loginEl) loginEl.style.display = 'none';
+      if (profilesEl) profilesEl.style.display = 'none';
+      if (enteringEl) enteringEl.style.display = 'block';
+      if (head) head.style.display = 'none';
+      return;
+    }
     if (!logged && !this._offline) {
       this._stage = 'login';
       this._gridSig = null;
@@ -433,6 +467,11 @@ const ProfileUI = {
     const show = (t, kind) => { msg.textContent = t; msg.className = 'gate-alert ' + (kind || 'bad'); msg.style.display = 'block'; };
     msg.style.display = 'none';
     const CS = window.CloudStore;
+    if (CS && !CS.isReady() && CS.libStatus === 'pending') {
+      show('Conectando ao servidor…', 'info');
+      await CS.aguardarLib(12000);
+      msg.style.display = 'none';
+    }
     if (!CS || !CS.isReady()) { show('Banco indisponível. Verifique sua internet e tente novamente.', 'warn'); return; }
     if (!email) { show('Informe seu e-mail.', 'bad'); return; }
     if (password.length < 6) { show('A senha precisa ter ao menos 6 caracteres.', 'bad'); return; }
