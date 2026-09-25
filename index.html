@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="ve04fa3c436">
+<meta name="diario-versao" content="v9da0521470">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6154,7 +6154,7 @@ window.__relationalBoot = true;
 
            </div>
             <div class="submit-row">
-              <span class="save-note"><span class="dot"></span>salvo neste dispositivo</span>
+              <span class="save-note"><span class="dot"></span>salvo na sua conta</span>
               <button type="submit" class="btn-primary" id="submit-btn">Registrar estudo</button>
             </div>
           </form>
@@ -16717,6 +16717,90 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 /* a busca some com menos de 4 leis (o display:flex anulava o [hidden]) */
 #screen-leis .leis-busca[hidden]{display:none!important}
 
+/* ══ REGISTRAR · FORMULÁRIO REPAGINADO ══════════════════════════════════════
+   Atalhos de toque sobre os campos de sempre (valem nos dois modos) e, no modo
+   Compacto, o layout em painel: matéria e data, assunto, forma de estudo em
+   pílulas, tempo e desempenho lado a lado, páginas/observações sob demanda e o
+   resumo do registro ao lado do botão. O Guiado segue a trilha numerada. */
+#screen-registrar.reg-v2 .reg-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+#screen-registrar.reg-v2 .reg-chips[hidden],#screen-registrar.reg-v2 .reg-chips [hidden]{display:none}
+#screen-registrar.reg-v2 .reg-chips-rot{font-size:var(--fs-xs);color:var(--text-faint);margin-right:2px}
+#screen-registrar.reg-v2 .reg-chip,#screen-registrar.reg-v2 .reg-pill{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);background:transparent;color:var(--text-soft);font-weight:600;cursor:pointer;line-height:1.2;transition:border-color .15s ease,background .15s ease,color .15s ease}
+#screen-registrar.reg-v2 .reg-chip{min-height:32px;padding:4px 12px;border-radius:999px;font-size:var(--fs-xs)}
+#screen-registrar.reg-v2 .reg-pill{min-height:40px;padding:6px 15px;border-radius:999px;font-size:var(--fs-sm)}
+#screen-registrar.reg-v2 .reg-chip:hover,#screen-registrar.reg-v2 .reg-pill:hover{border-color:var(--accent);color:var(--text)}
+#screen-registrar.reg-v2 .reg-chip:focus-visible,#screen-registrar.reg-v2 .reg-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#screen-registrar.reg-v2 .reg-chip.on,#screen-registrar.reg-v2 .reg-pill.on{border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--text);font-weight:700}
+#screen-registrar.reg-v2 .reg-recentes{margin-top:8px}
+#screen-registrar.reg-v2 #method{display:none}
+#screen-registrar.reg-v2 .reg-data-linha{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#screen-registrar.reg-v2 .reg-data-linha input[type="date"]{flex:1 1 150px;min-width:0}
+#screen-registrar.reg-v2 .reg-tempo-rapido{margin-top:10px}
+#screen-registrar.reg-v2 .reg-tempo-rapido .reg-chip{flex:1 1 0;border-radius:10px;font-weight:700;background:var(--surface)}
+#screen-registrar.reg-v2 .reg-perf-head,#screen-registrar.reg-v2 .reg-extras,#screen-registrar.reg-v2 .reg-resumo{display:none}
+#screen-registrar.reg-v2 .reg-add{border-style:dashed}
+
+/* — Compacto: layout em painel — */
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"materia materia materia materia data data" "aula aula aula aula aula aula" "metodo metodo metodo metodo metodo metodo" "tempo tempo tempo desemp desemp desemp" "video video video video video video" "pini pini pini pfim pfim pfim" "phint phint phint phint phint phint" "obs obs obs obs obs obs" "extras extras extras extras extras extras";column-gap:16px;row-gap:0;padding:20px 24px 6px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .step,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .field-group,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .row-3{display:contents!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .step-num,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .step-head{display:none!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body > .step > *,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-materia,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-aula,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-metodo,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-data,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pini,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pfim,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs{margin:0 0 16px!important;min-width:0}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-materia{grid-area:materia}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-data{grid-area:data}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-aula{grid-area:aula}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-metodo{grid-area:metodo}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo{grid-area:tempo}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp{grid-area:desemp}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-video{grid-area:video;margin:0 0 16px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pini{grid-area:pini}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pfim{grid-area:pfim}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-phint{grid-area:phint;margin:-10px 0 12px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs{grid-area:obs}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-extras{grid-area:extras;display:flex;margin:0 0 14px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-extras[hidden]{display:none}
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-paginas]) .reg-f-pini,
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-paginas]) .reg-f-pfim,
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-paginas]) .reg-f-phint,
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-obs]) .reg-f-obs{display:none!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp{align-self:stretch;box-sizing:border-box;background:var(--surface-sunken);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:14px;row-gap:10px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp .performance-inputs{min-width:0;gap:10px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp .gauge{width:84px;height:84px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp .performance-inputs input{width:100%;min-width:0;box-sizing:border-box}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-perf-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:var(--fs-2xs);font-weight:800;letter-spacing:.045em;text-transform:uppercase;color:var(--text-soft)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-perf-head .reg-opt{font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-faint)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo .time-input input{font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-lg);font-weight:700;text-align:center;min-width:0}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs #comment{min-height:80px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{padding:14px 0 0;margin:0 24px 18px;border-top:1px solid var(--border)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:block;flex:1 1 220px;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo:empty{display:none}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row .save-note{order:-1;flex:1 0 100%}
+@media (max-width: 720px){
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"materia materia" "aula aula" "metodo metodo" "data data" "tempo tempo" "desemp desemp" "video video" "pini pfim" "phint phint" "obs obs" "extras extras";padding:14px 14px 4px}
+}
+/* No celular a barra de abas é fixa no rodapé: o botão Registrar fica logo
+   acima dela, sempre à mão. overflow:clip (e não hidden) no cartão, para o
+   sticky funcionar sem perder os cantos arredondados. */
+@media (max-width: 860px){
+  #screen-registrar.reg-v2 > .card{overflow:clip}
+  #screen-registrar.reg-v2 .submit-row,
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));z-index:5;margin:0;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface);box-shadow:0 -6px 16px rgba(0,0,0,.12)}
+  #screen-registrar.reg-v2 .submit-row .save-note,
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:none}
+  #screen-registrar.reg-v2 .submit-row #submit-btn{flex:1 1 auto}
+}
+#screen-registrar.reg-v2 .reg-tempo-rapido{flex-wrap:nowrap}
+#screen-registrar.reg-v2 .reg-tempo-rapido .reg-chip{min-width:0;padding:4px 6px}
+#screen-registrar.reg-v2:not([data-reg-mode="compacto"]) #step-3 .row-3{align-items:start}
+
 </style>
 
 <style id="padrao-global">
@@ -22732,6 +22816,7 @@ const ReforcoEngine = {
     updateVideoFieldsVisibility();
     updateVideoConsumed();
 
+    sincronizarV2();
     formTitle.textContent = 'Editar sessão de estudo';
     editNote.style.display = 'block';
     cancelEditBtn.style.display = 'inline-block';
@@ -22752,6 +22837,7 @@ const ReforcoEngine = {
     updatePagesHint();
     updateVideoConsumed();
     updateVideoFieldsVisibility();
+    sincronizarV2({ reset: true });
 
     formTitle.textContent = 'Nova sessão de estudo';
     editNote.style.display = 'none';
@@ -23273,6 +23359,7 @@ const ReforcoEngine = {
         updatePagesHint();
         updateVideoConsumed();
         updateVideoFieldsVisibility();
+        sincronizarV2({ reset: true });
         renderRecent();
         window.dispatchEvent(new CustomEvent('data:entry-added', { detail: entry }));
       }
@@ -23358,11 +23445,181 @@ const ReforcoEngine = {
     updateVideoConsumed();
     updateVideoFieldsVisibility();
     atualizarEtapas();
+    sincronizarV2();
   }
   window.addEventListener('data:relational-hydrated', refreshFromRelationalStore);
   window.addEventListener('screen:activated', (e) => {
     if (e.detail && e.detail.screen === 'registrar') refreshFromRelationalStore();
   });
+
+  /* ══ FORMULÁRIO REPAGINADO ════════════════════════════════════════════════
+     Camada de apresentação sobre os MESMOS campos (#subject, #method, #date,
+     #duration-h/m, #correct, #total, #comment…): a lógica de salvar, editar,
+     vídeo e etapas continua lendo e gravando neles. Aqui só se acrescentam
+     atalhos de toque — matérias recentes, forma de estudo em pílulas,
+     Hoje/Ontem, +15/+30/+1h — e, no modo Compacto, o layout em painel com
+     páginas e observações sob demanda e o resumo do registro no rodapé. */
+  var _v2 = null;
+  function sincronizarV2(opts) { if (_v2) _v2(opts || {}); }
+  (function repaginarFormulario() {
+    const scr = document.getElementById('screen-registrar');
+    const corpo = form && form.querySelector('.steps-body');
+    const subjectSel = document.getElementById('subject');
+    const hEl = document.getElementById('duration-h'), mEl = document.getElementById('duration-m');
+    const commentEl = document.getElementById('comment');
+    const submitRow = form && form.querySelector('.submit-row');
+    if (!scr || !corpo || !subjectSel || !hEl || !mEl || scr.classList.contains('reg-v2')) return;
+    scr.classList.add('reg-v2');
+    const campo = (id) => { const el = document.getElementById(id); return el ? el.closest('.field') : null; };
+    const marcar = (el, cls) => { if (el) el.classList.add(cls); };
+    marcar(campo('subject'), 'reg-f-materia');
+    marcar(campo('lesson'), 'reg-f-aula');
+    marcar(campo('method'), 'reg-f-metodo');
+    marcar(campo('date'), 'reg-f-data');
+    marcar(campo('duration-h'), 'reg-f-tempo');
+    marcar(campo('page-start'), 'reg-f-pini');
+    marcar(campo('page-end'), 'reg-f-pfim');
+    marcar(pagesHint, 'reg-f-phint');
+    marcar(videoFields, 'reg-f-video');
+    marcar(perfPanel, 'reg-f-desemp');
+    marcar(campo('comment'), 'reg-f-obs');
+    const emitir = (el, ev) => el.dispatchEvent(new Event(ev, { bubbles: true }));
+    const diaLocal = (delta) => {
+      const d = new Date(); d.setDate(d.getDate() + delta);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+
+    // Matérias recentes (do planejamento ativo), logo abaixo do seletor.
+    const recentes = document.createElement('div');
+    recentes.className = 'reg-chips reg-recentes';
+    recentes.setAttribute('role', 'group');
+    recentes.setAttribute('aria-label', 'Matérias recentes');
+    campo('subject').appendChild(recentes);
+    recentes.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-materia]'); if (!b) return;
+      subjectSel.value = b.dataset.materia; emitir(subjectSel, 'change');
+    });
+    function pintarRecentes() {
+      const ativos = new Set([...subjectSel.options].map(o => o.value).filter(Boolean));
+      const nomes = [];
+      (DB.getEntries() || []).slice()
+        .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || _ordemCriacao(b, a))
+        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !nomes.includes(e.subject) && nomes.length < 4) nomes.push(e.subject); });
+      recentes.hidden = !nomes.length;
+      recentes.innerHTML = nomes.length ? '<span class="reg-chips-rot">Recentes:</span>' + nomes.map(n =>
+        `<button type="button" class="reg-chip${n === subjectSel.value ? ' on' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${n === subjectSel.value}">${escapeHtml(n)}</button>`).join('') : '';
+    }
+
+    // Forma de estudo em pílulas: o <select> continua sendo o valor de verdade.
+    const pilulas = document.createElement('div');
+    pilulas.className = 'reg-chips reg-metodos';
+    pilulas.setAttribute('role', 'radiogroup');
+    pilulas.setAttribute('aria-label', 'Forma de estudo');
+    methodSelect.insertAdjacentElement('afterend', pilulas);
+    pilulas.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-metodo]'); if (!b) return;
+      methodSelect.value = b.dataset.metodo; emitir(methodSelect, 'change');
+    });
+    function pintarMetodos() {
+      // Mesmas opções: só marca a escolhida (recriar os botões tiraria o foco
+      // de quem está navegando pelo teclado).
+      const valores = [...methodSelect.options].map(o => o.value);
+      const atuais = [...pilulas.querySelectorAll('[data-metodo]')];
+      if (atuais.length === valores.length && atuais.every((b, i) => b.dataset.metodo === valores[i])) {
+        atuais.forEach(b => { const on = b.dataset.metodo === methodSelect.value; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+        return;
+      }
+      pilulas.innerHTML = [...methodSelect.options].map(o => {
+        const on = o.value === methodSelect.value;
+        return `<button type="button" role="radio" aria-checked="${on}" class="reg-pill${on ? ' on' : ''}" data-metodo="${escapeHtml(o.value)}">${escapeHtml(o.textContent)}</button>`;
+      }).join('');
+    }
+    new MutationObserver(pintarMetodos).observe(methodSelect, { childList: true });
+
+    // Hoje / Ontem ao lado do calendário.
+    const linhaData = document.createElement('div');
+    linhaData.className = 'reg-data-linha';
+    linhaData.innerHTML = '<button type="button" class="reg-pill" data-dia="0">Hoje</button><button type="button" class="reg-pill" data-dia="-1">Ontem</button>';
+    dateInput.insertAdjacentElement('beforebegin', linhaData);
+    linhaData.appendChild(dateInput);
+    linhaData.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dia]'); if (!b) return;
+      dateInput.value = diaLocal(Number(b.dataset.dia)); emitir(dateInput, 'change');
+    });
+    function pintarData() {
+      linhaData.querySelectorAll('[data-dia]').forEach(b => {
+        const on = dateInput.value === diaLocal(Number(b.dataset.dia));
+        b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+      });
+    }
+
+    // Atalhos de tempo.
+    const rapidos = document.createElement('div');
+    rapidos.className = 'reg-chips reg-tempo-rapido';
+    rapidos.setAttribute('role', 'group');
+    rapidos.setAttribute('aria-label', 'Atalhos de tempo');
+    rapidos.innerHTML = '<button type="button" class="reg-chip" data-soma="15">+15</button><button type="button" class="reg-chip" data-soma="30">+30</button><button type="button" class="reg-chip" data-soma="60">+1h</button><button type="button" class="reg-chip" data-soma="zero">Zerar</button>';
+    campo('duration-h').appendChild(rapidos);
+    const minutos = () => (parseInt(hEl.value, 10) || 0) * 60 + (parseInt(mEl.value, 10) || 0);
+    rapidos.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-soma]'); if (!b) return;
+      const total = b.dataset.soma === 'zero' ? 0 : Math.min(24 * 60, minutos() + Number(b.dataset.soma));
+      hEl.value = total >= 60 ? String(Math.floor(total / 60)) : '';
+      mEl.value = total % 60 ? String(total % 60) : '';
+      emitir(hEl, 'input'); emitir(mEl, 'change');
+    });
+
+    // Cabeçalho do painel de desempenho (só aparece no Compacto).
+    const cab = document.createElement('div');
+    cab.className = 'reg-perf-head';
+    cab.innerHTML = '<span>Desempenho em questões</span><span class="reg-opt">opcional</span>';
+    perfPanel.insertBefore(cab, perfPanel.firstChild);
+
+    // Páginas e observações sob demanda (Compacto).
+    const extras = document.createElement('div');
+    extras.className = 'reg-chips reg-extras';
+    extras.innerHTML = '<button type="button" class="reg-chip reg-add" data-abrir="paginas">+ Páginas lidas</button><button type="button" class="reg-chip reg-add" data-abrir="obs">+ Observações</button>';
+    corpo.appendChild(extras);
+    const abertos = { paginas: false, obs: false };
+    extras.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-abrir]'); if (!b) return;
+      abertos[b.dataset.abrir] = true; pintarExtras();
+      const alvo = document.getElementById(b.dataset.abrir === 'paginas' ? 'page-start' : 'comment');
+      if (alvo) alvo.focus();
+    });
+    function pintarExtras() {
+      const temPaginas = !!(pageStart.value || pageEnd.value), temObs = !!(commentEl && commentEl.value.trim());
+      const pag = abertos.paginas || temPaginas, obs = abertos.obs || temObs;
+      scr.toggleAttribute('data-reg-paginas', pag);
+      scr.toggleAttribute('data-reg-obs', obs);
+      extras.querySelector('[data-abrir="paginas"]').hidden = pag;
+      extras.querySelector('[data-abrir="obs"]').hidden = obs;
+      extras.hidden = pag && obs;
+    }
+
+    // Resumo do que será registrado, ao lado do botão.
+    const resumo = document.createElement('span');
+    resumo.className = 'reg-resumo';
+    resumo.setAttribute('aria-live', 'polite');
+    if (submitRow) submitRow.insertBefore(resumo, submitRow.querySelector('#submit-btn'));
+    function pintarResumo() {
+      const min = minutos(), partes = [];
+      if (min) partes.push(Math.floor(min / 60) ? (Math.floor(min / 60) + 'h' + (min % 60 ? String(min % 60).padStart(2, '0') : '')) : (min + 'min'));
+      if (subjectSel.value) partes.push(subjectSel.value);
+      if (methodSelect.value) partes.push(methodSelect.value);
+      const c = parseInt(correctInput.value, 10), t = parseInt(totalInput.value, 10);
+      if (t > 0) partes.push((Number.isFinite(c) ? c : 0) + '/' + t);
+      resumo.textContent = partes.join(' · ');
+    }
+
+    _v2 = (opts) => {
+      if (opts.reset) { abertos.paginas = false; abertos.obs = false; }
+      pintarRecentes(); pintarMetodos(); pintarData(); pintarExtras(); pintarResumo();
+    };
+    ['input', 'change'].forEach(ev => form.addEventListener(ev, () => { pintarData(); pintarResumo(); pintarExtras(); if (ev === 'change') { pintarMetodos(); pintarRecentes(); } }));
+    window.addEventListener('data:entry-added', () => pintarRecentes());
+    sincronizarV2();
+  })();
 
   window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas, refreshFromRelationalStore };
 })();
@@ -59179,7 +59436,8 @@ else CloudStore.init();
       try {
         const all = DB.getEntries() || [];
         if (!all.length) return null;
-        return all.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.date).localeCompare(String(a.date)))[0];
+        // createdAt é ISO (texto): subtrair dava NaN e a "última" era arbitrária.
+        return all.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
       } catch (_) { return null; }
     },
     refreshRepeat() {

@@ -122,3 +122,87 @@
 #lei-form-modal .cards-modal-foot>#lei-form-cancel{margin-left:auto}
 /* a busca some com menos de 4 leis (o display:flex anulava o [hidden]) */
 #screen-leis .leis-busca[hidden]{display:none!important}
+
+/* ══ REGISTRAR · FORMULÁRIO REPAGINADO ══════════════════════════════════════
+   Atalhos de toque sobre os campos de sempre (valem nos dois modos) e, no modo
+   Compacto, o layout em painel: matéria e data, assunto, forma de estudo em
+   pílulas, tempo e desempenho lado a lado, páginas/observações sob demanda e o
+   resumo do registro ao lado do botão. O Guiado segue a trilha numerada. */
+#screen-registrar.reg-v2 .reg-chips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+#screen-registrar.reg-v2 .reg-chips[hidden],#screen-registrar.reg-v2 .reg-chips [hidden]{display:none}
+#screen-registrar.reg-v2 .reg-chips-rot{font-size:var(--fs-xs);color:var(--text-faint);margin-right:2px}
+#screen-registrar.reg-v2 .reg-chip,#screen-registrar.reg-v2 .reg-pill{display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--border);background:transparent;color:var(--text-soft);font-weight:600;cursor:pointer;line-height:1.2;transition:border-color .15s ease,background .15s ease,color .15s ease}
+#screen-registrar.reg-v2 .reg-chip{min-height:32px;padding:4px 12px;border-radius:999px;font-size:var(--fs-xs)}
+#screen-registrar.reg-v2 .reg-pill{min-height:40px;padding:6px 15px;border-radius:999px;font-size:var(--fs-sm)}
+#screen-registrar.reg-v2 .reg-chip:hover,#screen-registrar.reg-v2 .reg-pill:hover{border-color:var(--accent);color:var(--text)}
+#screen-registrar.reg-v2 .reg-chip:focus-visible,#screen-registrar.reg-v2 .reg-pill:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#screen-registrar.reg-v2 .reg-chip.on,#screen-registrar.reg-v2 .reg-pill.on{border:1.5px solid var(--accent);background:var(--accent-soft);color:var(--text);font-weight:700}
+#screen-registrar.reg-v2 .reg-recentes{margin-top:8px}
+#screen-registrar.reg-v2 #method{display:none}
+#screen-registrar.reg-v2 .reg-data-linha{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#screen-registrar.reg-v2 .reg-data-linha input[type="date"]{flex:1 1 150px;min-width:0}
+#screen-registrar.reg-v2 .reg-tempo-rapido{margin-top:10px}
+#screen-registrar.reg-v2 .reg-tempo-rapido .reg-chip{flex:1 1 0;border-radius:10px;font-weight:700;background:var(--surface)}
+#screen-registrar.reg-v2 .reg-perf-head,#screen-registrar.reg-v2 .reg-extras,#screen-registrar.reg-v2 .reg-resumo{display:none}
+#screen-registrar.reg-v2 .reg-add{border-style:dashed}
+
+/* — Compacto: layout em painel — */
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"materia materia materia materia data data" "aula aula aula aula aula aula" "metodo metodo metodo metodo metodo metodo" "tempo tempo tempo desemp desemp desemp" "video video video video video video" "pini pini pini pfim pfim pfim" "phint phint phint phint phint phint" "obs obs obs obs obs obs" "extras extras extras extras extras extras";column-gap:16px;row-gap:0;padding:20px 24px 6px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .step,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .field-group,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .row-3{display:contents!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .step-num,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .step-head{display:none!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body > .step > *,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-materia,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-aula,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-metodo,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-data,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pini,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pfim,#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs{margin:0 0 16px!important;min-width:0}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-materia{grid-area:materia}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-data{grid-area:data}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-aula{grid-area:aula}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-metodo{grid-area:metodo}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo{grid-area:tempo}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp{grid-area:desemp}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-video{grid-area:video;margin:0 0 16px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pini{grid-area:pini}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-pfim{grid-area:pfim}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-phint{grid-area:phint;margin:-10px 0 12px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs{grid-area:obs}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-extras{grid-area:extras;display:flex;margin:0 0 14px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-extras[hidden]{display:none}
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-paginas]) .reg-f-pini,
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-paginas]) .reg-f-pfim,
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-paginas]) .reg-f-phint,
+#screen-registrar.reg-v2[data-reg-mode="compacto"]:not([data-reg-obs]) .reg-f-obs{display:none!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp{align-self:stretch;box-sizing:border-box;background:var(--surface-sunken);border:1.5px solid var(--border);border-radius:14px;padding:14px 16px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;column-gap:14px;row-gap:10px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp .performance-inputs{min-width:0;gap:10px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp .gauge{width:84px;height:84px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-desemp .performance-inputs input{width:100%;min-width:0;box-sizing:border-box}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-perf-head{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:var(--fs-2xs);font-weight:800;letter-spacing:.045em;text-transform:uppercase;color:var(--text-soft)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-perf-head .reg-opt{font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-faint)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo .time-input input{font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-lg);font-weight:700;text-align:center;min-width:0}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs #comment{min-height:80px!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{padding:14px 0 0;margin:0 24px 18px;border-top:1px solid var(--border)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:block;flex:1 1 220px;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo:empty{display:none}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row .save-note{order:-1;flex:1 0 100%}
+@media (max-width: 720px){
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"materia materia" "aula aula" "metodo metodo" "data data" "tempo tempo" "desemp desemp" "video video" "pini pfim" "phint phint" "obs obs" "extras extras";padding:14px 14px 4px}
+}
+/* No celular a barra de abas é fixa no rodapé: o botão Registrar fica logo
+   acima dela, sempre à mão. overflow:clip (e não hidden) no cartão, para o
+   sticky funcionar sem perder os cantos arredondados. */
+@media (max-width: 860px){
+  #screen-registrar.reg-v2 > .card{overflow:clip}
+  #screen-registrar.reg-v2 .submit-row,
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));z-index:5;margin:0;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface);box-shadow:0 -6px 16px rgba(0,0,0,.12)}
+  #screen-registrar.reg-v2 .submit-row .save-note,
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:none}
+  #screen-registrar.reg-v2 .submit-row #submit-btn{flex:1 1 auto}
+}
+#screen-registrar.reg-v2 .reg-tempo-rapido{flex-wrap:nowrap}
+#screen-registrar.reg-v2 .reg-tempo-rapido .reg-chip{min-width:0;padding:4px 6px}
+#screen-registrar.reg-v2:not([data-reg-mode="compacto"]) #step-3 .row-3{align-items:start}

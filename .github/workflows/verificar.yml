@@ -187,6 +187,6 @@ jobs:
           for t in testes/auditoria-correcoes-browser.mjs testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-reparo-memoria-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/pausa-metricas-browser.mjs testes/abertura-browser.mjs testes/extras-estabilidade-browser.mjs \
                    testes/extras-ux100-browser.mjs testes/site-performance-browser.mjs \
                    testes/startup-reforco-browser.mjs testes/ux-hierarquia-browser.mjs \
-                   testes/ux-stability-browser.mjs; do
+                   testes/ux-stability-browser.mjs testes/registrar-formulario-browser.mjs; do
             echo "::group::$t"; timeout 300s node "$t"; echo "::endgroup::"
           done
