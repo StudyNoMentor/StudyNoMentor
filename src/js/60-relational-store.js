@@ -92,6 +92,12 @@ const RelationalStore = {
     return out;
   },
   _memSet(k, v) {
+    /* Chave com alteração local ainda não confirmada (suja ou em envio) NÃO é
+       sobrescrita pelo que vem do banco: a atualização em segundo plano
+       (catch-up) chegava no meio — trazia o valor antigo, repunha a base, e o
+       envio seguinte não via mais diferença. Uma exclusão feita naquele
+       instante simplesmente sumia. A alteração local vence; ela sobe a seguir. */
+    if (this._dirty.has(String(k))) return;
     this._applying = true;
     try {
       localStorage.setItem(k, String(v));
@@ -108,6 +114,7 @@ const RelationalStore = {
     finally { this._applying = false; }
   },
   _memDel(k) {
+    if (this._dirty.has(String(k))) return;   // ver _memSet
     this._applying = true;
     try { localStorage.removeItem(k); this._confirmed.delete(String(k)); }
     finally { this._applying = false; }

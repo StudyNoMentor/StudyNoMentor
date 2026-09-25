@@ -2777,7 +2777,7 @@ CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
     state=FSRS.memoryStateOfficialWithModule(mod,data,w,retention),raw=state.interval,maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
     previous=data.previousInterval==null?0:Math.max(0,Number(data.previousInterval)||0),
     min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),
-    lastDate=new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
+    lastDate=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(data.lastReviewedAtMs)):new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
     elapsed=Math.max(0,CardEngine._daysBetween(lastDate,todayCards())),seed=AnkiParity.fuzzSeed(card,true);
   let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
   if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);

@@ -751,14 +751,15 @@ function planCycleMode() {
         </div>`;
     }
     const shown = _cicloSubjFilter ? ordered.filter(s => s.nome === _cicloSubjFilter) : ordered;
+    const registrosSemana = DB.getEntries();
     container.innerHTML = filterHtml + shown.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle), registrosSemana);
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = (s.definidoMin > 0) ? Math.min(100, Math.round((studied / s.definidoMin) * 100)) : 0;
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
       // aproveitamento em questões desta matéria na semana
-      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
+      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle), registrosSemana);
       const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
       const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
       return `
@@ -991,9 +992,12 @@ function planCycleMode() {
     container.innerHTML = html;
 
     // preenche cada célula com o chip correspondente, se houver
-    container.querySelectorAll('.grade-cell-drop').forEach(cell => {
-      renderCellContent(cell);
-    });
+    _renderCache = { tmpl };
+    try {
+      container.querySelectorAll('.grade-cell-drop').forEach(cell => {
+        renderCellContent(cell);
+      });
+    } finally { _renderCache = null; }
 
     bindDropZones(container);
     updateDaySummary();
@@ -1028,9 +1032,12 @@ function planCycleMode() {
 
   const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
+  /* Durante um render completo da grade, o modelo e o mapa de siglas são lidos
+     UMA vez (antes: um parse do modelo e um mapa de siglas por célula). */
+  let _renderCache = null;
   function renderCellContent(cell) {
     const dia = cell.dataset.dia, idx = parseInt(cell.dataset.idx, 10);
-    const tmpl = gradeGet();
+    const tmpl = _renderCache ? _renderCache.tmpl : gradeGet();
     const cellData = normalizeCell(tmpl.grade[dia] && tmpl.grade[dia][idx]);
     if (!cellData) {
       cell.innerHTML = `<span class="grade-cell-empty-hint">+ escolher</span>`;
@@ -1038,7 +1045,7 @@ function planCycleMode() {
       return;
     }
     const { subject, minutes, done } = cellData;
-    const acronym = CycleEngine.buildAcronymMap()[subject] || CycleEngine.siglaForSubject(subject);
+    const acronym = (_renderCache ? (_renderCache.acr || (_renderCache.acr = CycleEngine.buildAcronymMap())) : CycleEngine.buildAcronymMap())[subject] || CycleEngine.siglaForSubject(subject);
     const _color = CycleEngine.colorForSubject(subject);
     const prog = progressoCelula(dia, idx), auto = prog.completo && !done;
     const concluida = done || prog.completo;
@@ -1748,10 +1755,10 @@ function planCycleMode() {
       const s = DB.getSavedGrades().find(x => x.id === id);
       if (!s) return;
       if (!await UI.confirm(`Restaurar a grade "${s.nome}"? A grade atual será substituída (salve-a antes se quiser mantê-la).`)) return;
-      DB.applySavedGrade(id);
+      const restaurou = DB.applySavedGrade(id);
       applyGradeView();
       renderSavedGradesList();
-      showToast('Grade restaurada ✓');
+      showToast(restaurou ? 'Grade restaurada ✓' : '⚠ Não foi possível restaurar a grade.');
     }));
     box.querySelectorAll('[data-sg-over]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgOver;
@@ -1856,8 +1863,9 @@ function planCycleMode() {
       closedAt: new Date().toISOString()
     };
 
-    DB.saveCycleToHistory(snapshot);
-    DB.clearCurrentCycle();
+    // Só limpa a semana ativa depois de o histórico aceitar a gravação.
+    if (DB.saveCycleToHistory(snapshot) === false) { showToast('⚠ Não foi possível salvar a semana no histórico. Nada foi alterado.'); return; }
+    if (DB.clearCurrentCycle() === false) { showToast('⚠ A semana foi para o histórico, mas a semana ativa não pôde ser encerrada.'); HistoricoScreen.render(); return; }
     showToast('Semana fechada e salva no histórico ✓');
     showState('empty');
     HistoricoScreen.render();

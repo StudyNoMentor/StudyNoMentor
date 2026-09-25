@@ -1150,12 +1150,3 @@ function insertImageFile(area, file) {
     if (orig > kb * 1.5) showToast('Imagem inserida · ' + orig + 'KB → ' + kb + 'KB');
   }).catch(() => showToast('Não foi possível processar a imagem'));
 }
-// Limpa o HTML colado de sites/PDFs. Sem isso, a colagem trazia fonte, tamanho e cor de
-// fundo fixos — que quebram o layout do card e ficam ilegíveis no modo escuro — além de
-// atributos executáveis (onerror/onload) e tags perigosas.
-const RTE_TAGS_OK = new Set(['B','STRONG','I','EM','U','S','STRIKE','BR','P','DIV','SPAN','UL','OL','LI',
-  'TABLE','THEAD','TBODY','TR','TD','TH','A','IMG','MARK','SUB','SUP','H1','H2','H3','H4','BLOCKQUOTE','CODE','PRE','HR',
-  'DETAILS','SUMMARY','AUDIO','VIDEO','SOURCE']);
-// Estas saem com o CONTEÚDO junto (não só a tag): senão o texto interno de um bloco de
-// script colado vazaria como texto solto dentro do card.
-const RTE_TAGS_FORA = new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','OBJECT','EMBED','LINK','META','FORM','INPUT','BUTTON','SVG','CANVAS']);

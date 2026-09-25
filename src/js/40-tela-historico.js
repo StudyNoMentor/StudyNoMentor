@@ -23,9 +23,14 @@ const HistoricoScreen = {
     // No modo consolidado as semanas são apenas leitura (podem vir de vários planejamentos)
     // nome do planejamento só quando a trajetória mistura mais de um
     this._variosPlanos = new Set(history.map(w => String(w._planId || ''))).size > 1;
-    listEl.innerHTML = history.map(w =>
-      (!consolidated && this.editingId === w.id) ? this.editTemplate(w) : this.viewTemplate(w, consolidated)
-    ).join('');
+    // Registros lidos uma vez por planejamento durante o render (antes: três
+    // leituras completas por semana exibida).
+    this._registrosRender = new Map();
+    try {
+      listEl.innerHTML = history.map(w =>
+        (!consolidated && this.editingId != null && String(this.editingId) === String(w.id)) ? this.editTemplate(w) : this.viewTemplate(w, consolidated)
+      ).join('');
+    } finally { this._registrosRender = null; }
     this.bindDetailToggles(listEl);        // expandir/ocultar detalhes funciona nos dois escopos
     if (!consolidated) this.bindRows(listEl);
   },
@@ -39,7 +44,12 @@ const HistoricoScreen = {
 
   // sessões reais registradas no intervalo da semana (do planejamento correto)
   getPeriodEntries(w, consolidated) {
-    const all = (consolidated && w._planId) ? DB.getEntriesForPlan(w._planId) : DB.getEntries();
+    const chave = (consolidated && w._planId) ? 'p:' + w._planId : 'ativo';
+    let all = this._registrosRender && this._registrosRender.get(chave);
+    if (!all) {
+      all = (consolidated && w._planId) ? DB.getEntriesForPlan(w._planId) : DB.getEntries();
+      if (this._registrosRender) this._registrosRender.set(chave, all);
+    }
     return all
       .filter(e => e.date >= w.startDate && e.date <= w.endDate)
       .sort((a, b) => a.date.localeCompare(b.date) || (a.subject || '').localeCompare(b.subject || ''));
@@ -362,18 +372,19 @@ const HistoricoScreen = {
 
   bindRows(listEl) {
     listEl.querySelectorAll('.week-card').forEach(card => {
-      const id = parseFloat(card.dataset.id);
+      const id = card.dataset.id;   // texto: ids antigos não são numéricos (DB compara com _mesmoId)
 
       const editBtn = card.querySelector('.btn-edit-week');
       if (editBtn) editBtn.addEventListener('click', () => { this.editingId = id; this.render(); });
 
       const deleteBtn = card.querySelector('.btn-delete-week');
       if (deleteBtn) deleteBtn.addEventListener('click', async () => {
-        const w = DB.getCycleHistory().find(x => x.id === id);
+        const w = DB.getCycleHistory().find(x => String(x.id) === String(id));
+        if (!w) { this.render(); return; }
         if (!await UI.confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico?\n\nEssa ação não pode ser desfeita.`,
           { title: '🗑️ Excluir semana', okText: 'Excluir', danger: true })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir uma semana do histórico'); } catch (_) { _quiet(_); }
-        DB.deleteCycleHistoryEntry(id);
+        if (DB.deleteCycleHistoryEntry(id) === false) { showToast('⚠ Não foi possível remover a semana.'); return; }
         showToast('Semana removida do histórico');
         this.render();
       });
@@ -383,7 +394,7 @@ const HistoricoScreen = {
 
       // Só entra no modo edição quando esta semana está sendo editada
       if (card.classList.contains('wk-editing')) {
-        const w = DB.getCycleHistory().find(x => x.id === id);
+        const w = DB.getCycleHistory().find(x => String(x.id) === String(id));
         const warnEl = card.querySelector('.wk-range-warn');
         const startEl = card.querySelector('.wk-start');
         const endEl = card.querySelector('.wk-end');
@@ -414,12 +425,13 @@ const HistoricoScreen = {
         if (saveBtn) saveBtn.addEventListener('click', () => {
           const { r, dateError } = refresh();
           if (dateError) { showToast(dateError); return; }
-          DB.updateCycleHistoryEntry(id, {
+          const salvo = DB.updateCycleHistoryEntry(id, {
             startDate: r.startDate, endDate: r.endDate, weeklyHours: r.weeklyHours,
             subjects: r.subjects, totalTargetMin: r.totalTargetMin, totalStudiedMin: r.totalStudiedMin,
             pctCumprido: r.pctCumprido, finalizadas: r.finalizadas, totalSubjects: r.totalSubjects,
             avgPerformancePct: r.avgPerformancePct
           });
+          if (!salvo) { showToast('⚠ Não foi possível atualizar a semana.'); return; }
           this.editingId = null;
           showToast('Semana atualizada ✓');
           this.render();

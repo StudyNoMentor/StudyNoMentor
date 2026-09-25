@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v1b0ade27f3">
+<meta name="diario-versao" content="vcc6fba4a42">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -17515,7 +17515,8 @@ window.pintarDepois = pintarDepois;
    Antes de a fila avançar, registramos a intenção em IndexedDB. O registro só
    sai daqui depois de a nuvem confirmar TANTO o revlog quanto o estado novo do
    card. Assim reload, queda de rede ou fechamento da aba não perdem a resposta.
-   O localStorage continua apenas como fallback para navegadores sem IndexedDB. */
+   Sem IndexedDB, o fallback é a lista de pendentes em RAM (DB.getRevlogPendentes),
+   que só sobrevive enquanto a aba estiver aberta. */
 const ReviewJournal = {
   DB_NAME: 'studynomentor-review-journal',
   STORE: 'review-ops',
@@ -17902,9 +17903,7 @@ const DB = {
   _mesmoId(a, b) { return String(a) === String(b); },
   deleteEntry(id) {
     const key = this.KEYS.entries;
-    const antes = this.getEntries();
-    const removido = antes.find(e => this._mesmoId(e.id, id)) || null;
-    const entries = antes.filter(e => !this._mesmoId(e.id, id));
+    const entries = this.getEntries().filter(e => !this._mesmoId(e.id, id));
     if (this._set(key, entries) === false) return false;
     return true;
   },
@@ -17912,11 +17911,7 @@ const DB = {
     const key = this.KEYS.entries;
     const entries = this.getEntries();
     const e = entries.find(x => this._mesmoId(x.id, id));
-    let before = null;
-    if (e) {
-      try { before = JSON.parse(JSON.stringify(e)); } catch (_) { before = Object.assign({}, e); }
-      Object.assign(e, patch);
-    }
+    if (e) Object.assign(e, patch);
     if (this._set(key, entries) === false) return null;
     return e;
   },
@@ -17935,7 +17930,7 @@ const DB = {
     return list;
   },
   getActiveSubjects() { return this.getSubjects().filter(s => s.ativo); },
-  saveSubjects(list) { this._set(this.KEYS.subjects, list); },
+  saveSubjects(list) { return this._set(this.KEYS.subjects, list) !== false; },
   upsertSubjectName(name) {
     // garante que toda matéria digitada no Diário exista no cadastro mestre
     const subjects = this.getSubjects();
@@ -18052,7 +18047,8 @@ const DB = {
     this._set(this.KEYS.subjects, subjects);
   },
   subjectHasEntries(nome) {
-    return this.getEntries().some(e => e.subject.toLowerCase() === nome.toLowerCase());
+    const alvo = String(nome == null ? '' : nome).toLowerCase();
+    return this.getEntries().some(e => String(e && e.subject || '').toLowerCase() === alvo);
   },
   // exclusão "inteligente": se nunca foi usada, remove de vez; se tem histórico, apenas desativa
   removeSubjectSafely(id) {
@@ -18089,7 +18085,8 @@ const DB = {
     this._set(this.KEYS.methods, list);
   },
   methodInUse(nome) {
-    return this.getEntries().some(e => e.method.toLowerCase() === nome.toLowerCase());
+    const alvo = String(nome == null ? '' : nome).toLowerCase();
+    return this.getEntries().some(e => String(e && e.method || '').toLowerCase() === alvo);
   },
   removeMethodSafely(id) {
     const list = this.getMethods();
@@ -18191,8 +18188,8 @@ const DB = {
 
   // --- Current Cycle ---
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
-  saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
-  clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
+  saveCurrentCycle(cycle) { return this._set(this.KEYS.currentCycle, cycle) !== false; },
+  clearCurrentCycle() { return this.delRaw(this.KEYS.currentCycle, 'semana fechada') !== false; },
   // leituras cruzadas são somente leitura: permitem reaproveitar um ciclo de outro
   // planejamento sem trocar o namespace ativo nem criar vínculo entre origem/destino.
   getCurrentCycleForPlan(planId) { return this._get(this.keysForPlan(planId).currentCycle, null); },
@@ -18219,7 +18216,7 @@ const DB = {
     }
     return t;
   },
-  saveGradeTemplate(t) { this._set(this.KEYS.gradeTemplate, t); },
+  saveGradeTemplate(t) { return this._set(this.KEYS.gradeTemplate, t) !== false; },
 
   // ---- Grades salvas: [{ id, nome, grade, sessions, createdAt }] ----
   // Permite guardar a grade atual sob um nome, trocar de planejamento/meta e depois
@@ -18265,8 +18262,7 @@ const DB = {
     const t = this.getGradeTemplate();
     t.grade = JSON.parse(JSON.stringify(s.grade || {}));
     t.sessions = s.sessions || t.sessions || 3;
-    this.saveGradeTemplate(t);
-    return true;
+    return this.saveGradeTemplate(t);
   },
 
   // ---- Siglas customizadas: [{ id, sigla, nome, color }] ----
@@ -18663,7 +18659,7 @@ const DB = {
     if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
     return this.replaceRevlog(l);
   },
-  getCard(id) { return this.getCards().find(c => c.id === id) || null; },
+  getCard(id) { return this.getCards().find(c => this._mesmoId(c.id, id)) || null; },
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
@@ -18979,29 +18975,12 @@ const DB = {
      há sessões no intervalo (semana vazia fica como está) e roda UMA vez,
      marcada por flag. O valor anterior vai para `avgPerformancePctLegado`
      para o número antigo não sumir sem rastro. */
-  migrarAproveitamentoAgregado() {
-    const FLAG = 'mig-aprov-agregado-v1';
-    try {
-      if (this._get(FLAG, null)) return 0;
-      const hist = this.getCycleHistory() || [];
-      const todas = this.getEntries() || [];
-      let n = 0;
-      hist.forEach(w => {
-        if (!w || !w.startDate || !w.endDate) return;
-        const novo = CycleEngine.aproveitamentoNoPeriodo(w.startDate, w.endDate, todas);
-        if (novo == null) return;
-        const antigo = w.avgPerformancePct;
-        if (antigo != null && Math.abs(antigo - novo) < 0.005) return;
-        if (antigo != null && w.avgPerformancePctLegado === undefined) w.avgPerformancePctLegado = antigo;
-        w.avgPerformancePct = novo;
-        n++;
-      });
-      if (n) this._set(this.KEYS.cycleHistory, hist);
-      this._set(FLAG, 1);
-      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
-      return n;
-    } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
-  },
+  /* Desativada: recalculava o aproveitamento de semanas JÁ FECHADAS, o que
+     contraria a regra "semana fechada é registro" (ver o reparo logo abaixo).
+     Além disso a flag não tinha prefixo de estudo — ia para o armazenamento
+     nativo, valia para o navegador inteiro e rodava só no primeiro perfil
+     aberto. Mantida como no-op para quem ainda a chama. */
+  migrarAproveitamentoAgregado() { return 0; },
 
   /* ── REPARO: devolve à semana fechada os números com que ela foi fechada ──
      A auditoria de métricas passou a RECALCULAR, no boot e em silêncio, o
@@ -19670,21 +19649,24 @@ const DB = {
 
   // --- Cycle History ---
   getCycleHistory() { return this._get(this.KEYS.cycleHistory, []); },
+  // Todas devolvem FALSE quando a gravação foi recusada (plano pausado, falha):
+  // a tela não pode anunciar "✓ salvo" nesse caso.
   saveCycleToHistory(cycleSnapshot) {
     const history = this.getCycleHistory();
     history.push(cycleSnapshot);
-    this._set(this.KEYS.cycleHistory, history);
+    return this._set(this.KEYS.cycleHistory, history) !== false;
   },
+  // Ids comparados como texto: semanas de backups antigos têm id não numérico.
   updateCycleHistoryEntry(id, patch) {
     const history = this.getCycleHistory();
-    const w = history.find(x => x.id === id);
-    if (w) Object.assign(w, patch);
-    this._set(this.KEYS.cycleHistory, history);
-    return w;
+    const w = history.find(x => this._mesmoId(x.id, id));
+    if (!w) return null;
+    Object.assign(w, patch);
+    return this._set(this.KEYS.cycleHistory, history) === false ? false : w;
   },
   deleteCycleHistoryEntry(id) {
-    const history = this.getCycleHistory().filter(x => x.id !== id);
-    this._set(this.KEYS.cycleHistory, history);
+    const history = this.getCycleHistory().filter(x => !this._mesmoId(x.id, id));
+    return this._set(this.KEYS.cycleHistory, history) !== false;
   },
   // Verifica se o intervalo [start,end] se sobrepõe a algum ciclo já existente.
   // excludeHistoryId: ignora uma semana do histórico (ao editá-la).
@@ -19695,7 +19677,7 @@ const DB = {
     if (includeActive === undefined) includeActive = true;
     const items = [];
     this.getCycleHistory().forEach(w => {
-      if (excludeHistoryId != null && w.id === excludeHistoryId) return;
+      if (excludeHistoryId != null && this._mesmoId(w.id, excludeHistoryId)) return;
       items.push({ start: w.startDate, end: w.endDate, label: 'semana ' + w.startDate + ' → ' + w.endDate });
     });
     if (includeActive) {
@@ -20561,7 +20543,8 @@ const PlanManager = {
 /* ============================================================
    PERFIS DE ACESSO — multi-usuário no dispositivo
    Cada perfil tem seus próprios planejamentos e dados (namespace 'diario-estudos:u:<id>:').
-   IMPORTANTE: é uma separação LOCAL, não autenticação forte. O PIN é uma trava leve.
+   A separação real é a conta (Supabase + RLS). Não há PIN de perfil: o código
+   antigo (hash djb2 de 32 bits sem sal, nunca verificado) foi removido.
    ============================================================ */
 const ProfileManager = {
   DEFAULT_AVATARS: ['📘', '🎯', '⚖️', '📊', '🧠', '🚀', '🦉', '📚', '✏️', '🏆', '💡', '🔥'],
@@ -20662,26 +20645,7 @@ const ProfileManager = {
     } catch (e) { _quiet(e, 'perfil-canal-secoes'); }
   },
 
-  // hash simples (NÃO é segurança forte — apenas evita guardar o PIN em texto puro)
-  _hash(str) {
-    let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-    return 'h' + h.toString(36);
-  },
-  setPin(id, pin) {
-    const list = this.getProfiles();
-    const p = list.find(x => x.id === id);
-    if (p) p.pinHash = pin ? this._hash(pin) : null;
-    this.saveProfiles(list);
-  },
-  hasPin(id) { const p = this.getProfiles().find(x => x.id === id); return !!(p && p.pinHash); },
-  checkPin(id, pin) {
-    const p = this.getProfiles().find(x => x.id === id);
-    if (!p || !p.pinHash) return true;
-    return this._hash(pin) === p.pinHash;
-  },
-
-  createProfile({ nome, avatar, cor, pin }) {
+  createProfile({ nome, avatar, cor }) {
     /* Helper de projeção em RAM. A persistência real de perfis é criada por
        CloudStore.createRow(), que recebe o UUID definitivo do PostgreSQL. */
     const id = DB._uid();
@@ -20690,7 +20654,6 @@ const ProfileManager = {
       id, nome: (nome || 'Novo perfil').trim(),
       avatar: avatar || this.DEFAULT_AVATARS[list.length % this.DEFAULT_AVATARS.length],
       cor: cor || this.DEFAULT_COLORS[list.length % this.DEFAULT_COLORS.length],
-      pinHash: pin ? this._hash(pin) : null,
       createdAt: new Date().toISOString()
     });
     this.saveProfiles(list);
@@ -20956,7 +20919,17 @@ $id('tabs').addEventListener('click', (e) => {
        AnkiWeb na mesma aba. No desktop, mantém o Study aberto e usa nova aba. */
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 860px)').matches;
     if (isMobile) {
-      window.location.assign(externalUrl);
+      /* Sair da página na mesma aba descarta a RAM — que é a única cópia do que
+         ainda não foi confirmado no banco. Entrega as pendências primeiro; se o
+         banco não confirmar, pergunta antes de sair. */
+      (async () => {
+        const RS = window.RelationalStore;
+        let pend = 0;
+        try { if (RS && RS.pendingCount && RS.pendingCount() > 0) { await Promise.race([RS.flush(), new Promise(r => setTimeout(r, 8000))]); } } catch (err) { _quiet(err, 'ext-link-flush'); }
+        try { pend = RS && RS.pendingCount ? RS.pendingCount() : 0; } catch (_) { _quiet(_); }
+        if (pend > 0 && !(await UI.confirm('Há alterações que o banco ainda não confirmou. Se sair agora, elas podem se perder.', { title: 'Sair do Study?', okText: 'Sair mesmo assim', danger: true }))) return;
+        window.location.assign(externalUrl);
+      })();
     } else {
       const w = window.open(externalUrl, '_blank', 'noopener,noreferrer');
       if (w) try { w.opener = null; } catch (_) { _quiet(_); }
@@ -21075,9 +21048,14 @@ const FocusTrap = {
     // semântica ARIA de diálogo
     if (!modal.getAttribute('role')) modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
-    // foca o primeiro elemento útil (ou o próprio modal)
+    // foca o elemento marcado com data-autofocus; senão o primeiro útil (ou o próprio modal)
     const f = this._focusables(modal);
-    setTimeout(() => { try { (f[0] || modal).focus(); } catch (_) { _quiet(_); } }, 30);
+    setTimeout(() => {
+      try {
+        const marcado = modal.querySelector('[data-autofocus]');
+        (marcado && f.includes(marcado) ? marcado : (f[0] || modal)).focus();
+      } catch (_) { _quiet(_); }
+    }, 30);
   },
   deactivate(modal) {
     const i = this._stack.indexOf(modal);
@@ -21196,7 +21174,9 @@ const UI = {
     /* Sem campo para preencher, o foco vai para um BOTÃO — e Enter aciona o
        botão focado. Numa ação perigosa, o foco nasce no Cancelar. */
     const alvo = first || (danger && !hideCancel ? cancel : ok);
-    if (alvo) setTimeout(() => { try { alvo.focus(); } catch (_) { _quiet(_); } }, 60);
+    // Marcado para o FocusTrap não trocar o foco pelo primeiro focável (o X).
+    modal.querySelectorAll('[data-autofocus]').forEach(el => el.removeAttribute('data-autofocus'));
+    if (alvo) { alvo.setAttribute('data-autofocus', ''); setTimeout(() => { try { alvo.focus(); } catch (_) { _quiet(_); } }, 60); }
   },
   _close() { $id('ui-modal').style.display = 'none'; },
   confirm(message, opts = {}) {
@@ -21626,6 +21606,23 @@ function proximaViradaTs() {
   return alvo.getTime();
 }
 window.todayCards = todayCards;
+/* Dia de ESTUDO (com a virada do Cards) de um instante qualquer, no fuso LOCAL.
+   toISOString().slice(0,10) dá o dia em UTC: no Brasil, tudo depois das 21h
+   caía no dia seguinte (revlog importado, gráfico "Adicionados", reagendamento). */
+function diaDeEstudoDe(ts) {
+  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  if (d.getHours() < cardsRolloverHour()) d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Dia de CALENDÁRIO local de um instante (sem a virada do Cards).
+function dataLocalDe(ts) {
+  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+window.diaDeEstudoDe = diaDeEstudoDe;
+window.dataLocalDe = dataLocalDe;
 
 function todayLocal() {
   const d = new Date();
@@ -21726,8 +21723,21 @@ const MiniXLSX = {
       throw new Error('seu navegador não suporta ler .xlsx offline — atualize o navegador ou cole os dados.');
     const ds = new DecompressionStream('deflate-raw');
     const stream = new Blob([data]).stream().pipeThrough(ds);
-    const ab = await new Response(stream).arrayBuffer();
-    return new Uint8Array(ab);
+    /* Teto do que SAI do descompressor, lido em fatias: uma planilha-bomba
+       (poucos KB que viram GB) derrubava a aba. 200 MB por parte do .xlsx. */
+    const TETO = 200 * 1024 * 1024;
+    const reader = stream.getReader(), partes = [];
+    let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      n += value.length;
+      if (n > TETO) { try { await reader.cancel(); } catch (_) { _quiet(_); } throw new Error('planilha grande demais depois de descompactada (mais de 200 MB).'); }
+      partes.push(value);
+    }
+    const out = new Uint8Array(n); let o = 0;
+    for (const p of partes) { out.set(p, o); o += p.length; }
+    return out;
   },
   _xmlDecode(s) {
     return String(s)
@@ -22401,7 +22411,9 @@ const ReforcoEngine = {
     if (!filtro) return DB.getIncidencia().length > 0;
     return DB.getIncidencia().some(r => this._daBanca(filtro, r.banca));
   },
-  // O retrato TEC mais recente é considerado "nível atual" se for dos últimos 90 dias.
+  // O retrato TEC mais recente é o "nível atual", sem prazo de validade: quem
+  // mostra o retrato exibe a data dele (o antigo comentário prometia um corte
+  // de 90 dias que nunca existiu — não o criamos para não esconder dados).
   currentSnapshot() {
     const snaps = DB.getTecSnapshots();
     if (!snaps.length) return null;
@@ -22455,12 +22467,19 @@ const ReforcoEngine = {
 
   raizIncid(rows) {
     rows = rows || [];
-    const raiz = rows.filter(r => r.depth === 0 || r.codigo == null || r.codigo === '');
-    if (raiz.length) return raiz.reduce((a, r) => a + (r.incidencia || 0), 0);
+    const soma = xs => xs.reduce((a, r) => a + (r.incidencia || 0), 0);
+    /* Linhas sem código só são RAIZ quando não declaram profundidade > 0. A
+       "Sem Classificação" do TEC chega com depth=1 e codigo=null: é irmã dos
+       assuntos de 1º nível, não a disciplina — contá-la como raiz somava a
+       disciplina E um filho, inflando o total. */
+    const semCodigo = r => r.codigo == null || r.codigo === '';
+    const raiz = rows.filter(r => r.depth === 0 || (semCodigo(r) && !(Number(r.depth) > 0)));
+    if (raiz.length) return soma(raiz);
+    const nivel = r => { const n = this._depth(r.codigo); if (n > 0) return n; const d = Number(r.depth); return Number.isFinite(d) && d > 0 ? d : 0; };
     let raso = Infinity;
-    rows.forEach(r => { const n = this._depth(r.codigo); if (n > 0 && n < raso) raso = n; });
-    if (raso === Infinity) return rows.reduce((a, r) => a + (r.incidencia || 0), 0);  // colagem plana
-    return rows.reduce((a, r) => a + (this._depth(r.codigo) === raso ? (r.incidencia || 0) : 0), 0);
+    rows.forEach(r => { const n = nivel(r); if (n > 0 && n < raso) raso = n; });
+    if (raso === Infinity) return soma(rows);  // colagem plana
+    return soma(rows.filter(r => nivel(r) === raso));
   },
 
   incidPorDisciplina(banca) {
@@ -22638,6 +22657,26 @@ const ReforcoEngine = {
   videoEnd.addEventListener('input', updateVideoConsumed);
   methodSelect.addEventListener('change', updateVideoFieldsVisibility);
 
+  /* Desempate pela ordem de criação. Ids hoje são UUID (texto): subtrair dava
+     NaN e a ordem do mesmo dia ficava arbitrária. createdAt primeiro; o id
+     entra só como último critério, comparado como texto (estável). */
+  function _ordemCriacao(a, b) {
+    const ca = String(a && a.createdAt || ''), cb = String(b && b.createdAt || '');
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = Number(a && a.id), nb = Number(b && b.id);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+  }
+  /* Editar um registro de matéria/método DESATIVADO: a opção não existe mais no
+     <select>, que ficava vazio e bloqueava o salvar. Acrescenta a opção só para
+     este registro, marcada como desativada. */
+  function _garantirOpcao(sel, valor) {
+    if (!sel || !valor || [...sel.options].some(o => o.value === valor)) return;
+    const o = document.createElement('option');
+    o.value = valor; o.textContent = valor + ' (desativada)'; o.dataset.inativa = '1';
+    sel.appendChild(o);
+  }
+
   function refreshSubjectSelect() {
     const subjects = DB.getActiveSubjects();
     const subjectSelect = document.getElementById('subject');
@@ -22667,8 +22706,10 @@ const ReforcoEngine = {
 
   function enterEditMode(entry) {
     editingId = entry.id;
+    _garantirOpcao($id('subject'), entry.subject);
     $id('subject').value = entry.subject;
     $id('lesson').value = entry.lesson || '';
+    _garantirOpcao($id('method'), entry.method);
     $id('method').value = entry.method;
     dateInput.value = entry.date;
     pageStart.value = entry.pageStart ?? '';
@@ -22727,7 +22768,7 @@ const ReforcoEngine = {
     // ordena sempre por data (mais recente no topo); desempata pela ordem de criação (id/createdAt)
     let entries = allEntries.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-      return (b.id || 0) - (a.id || 0);
+      return _ordemCriacao(b, a);
     });
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -22941,7 +22982,7 @@ const ReforcoEngine = {
     // Ordenação
     const pctOf = e => (e.total > 0 ? (e.correct / e.total) : -1);
     const cmp = {
-      date: (a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : ((a.id || 0) - (b.id || 0))),
+      date: (a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : _ordemCriacao(a, b)),
       subject: (a, b) => a.subject.localeCompare(b.subject, 'pt'),
       lesson: (a, b) => String(a.lesson || '').localeCompare(String(b.lesson || ''), 'pt'),
       method: (a, b) => a.method.localeCompare(b.method, 'pt'),
@@ -23387,9 +23428,11 @@ const CycleEngine = {
     return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   },
   // minutos já estudados desta matéria dentro do intervalo da semana (casamento robusto por nome)
-  minutesStudied(subjectName, startDate, endDate) {
+  // `entries` opcional: quem mede várias matérias de uma vez lê os registros UMA
+  // vez e repassa (antes era um parse da lista inteira por matéria).
+  minutesStudied(subjectName, startDate, endDate, entries) {
     const key = this.normKey(subjectName);
-    return DB.getEntries()
+    return (entries || DB.getEntries())
       .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
   },
@@ -23493,6 +23536,7 @@ const CycleEngine = {
   },
   progressoSemana(subjects, startDate, endDate, metas) {
     const fator = this.fatorPausa(startDate, endDate);
+    const registros = DB.getEntries();
     const lista = (subjects || []).map(s => {
       // meta editável (quando fornecida) sobrescreve a definida no ciclo/snapshot
       let definido = s.definidoMin || 0;
@@ -23501,7 +23545,7 @@ const CycleEngine = {
         if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov, 10) || 0);
       }
       if (fator < 1) definido = Math.round(definido * fator);
-      const estudado = this.minutesStudied(s.nome, startDate, endDate);
+      const estudado = this.minutesStudied(s.nome, startDate, endDate, registros);
       return { ...s, definidoMin: definido, estudadoMin: estudado, status: this.statusFor(estudado, definido) };
     });
     const totalTargetMin = lista.reduce((a, s) => a + (s.definidoMin || 0), 0);
@@ -25919,32 +25963,10 @@ const AnkiExport = {
     return src;
   },
 
+  // Primeiros 32 bits do SHA-1 (csum do Anki). Uma implementação só: _sha1Bytes.
   _sha1First32(text) {
-    const bytes = this._enc.encode(String(text || '')), ml = bytes.length * 8;
-    const total = ((bytes.length + 9 + 63) >> 6) << 6, buf = new Uint8Array(total);
-    buf.set(bytes); buf[bytes.length] = 0x80;
-    const dv = new DataView(buf.buffer);
-    dv.setUint32(total - 4, ml >>> 0, false);
-    dv.setUint32(total - 8, Math.floor(ml / 0x100000000), false);
-    let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476, h4 = 0xc3d2e1f0;
-    const w = new Uint32Array(80), rol = (x, n) => ((x << n) | (x >>> (32 - n))) >>> 0;
-    for (let off = 0; off < total; off += 64) {
-      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
-      for (let i = 16; i < 80; i++) w[i] = rol(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
-      let a = h0, b = h1, c = h2, d = h3, e = h4;
-      for (let i = 0; i < 80; i++) {
-        let f, k;
-        if (i < 20) { f = (b & c) | ((~b) & d); k = 0x5a827999; }
-        else if (i < 40) { f = b ^ c ^ d; k = 0x6ed9eba1; }
-        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8f1bbcdc; }
-        else { f = b ^ c ^ d; k = 0xca62c1d6; }
-        const t = (rol(a, 5) + f + e + k + w[i]) >>> 0;
-        e = d; d = c; c = rol(b, 30); b = a; a = t;
-      }
-      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0;
-      h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
-    }
-    return h0 >>> 0;
+    const h = this._sha1Bytes(this._enc.encode(String(text || '')));
+    return new DataView(h.buffer, h.byteOffset, h.byteLength).getUint32(0, false) >>> 0;
   },
   _plain(html) {
     return String(html || '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -26377,7 +26399,11 @@ const AnkiExport = {
           ivl = Math.max(0, Math.round(ivl));
         }
         let id = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id <= uniqueLast) id = uniqueLast + 1; uniqueLast = id;
-        const ease = Math.min(4, Math.max(1, Math.round(Number(r.grade) || 3))), rawEase = Number(card.ease) || 2.5;
+        const ease = Math.min(4, Math.max(1, Math.round(Number(r.grade) || 3)));
+        // factor DAQUELA revisão quando o histórico o registrou; o ease atual do
+        // card é só o último recurso (antes era usado para o histórico inteiro).
+        const easeDaRevisao = [r.easeFactor, r.factor, r.ease].map(Number).find(x => Number.isFinite(x) && x > 0);
+        const rawEase = easeDaRevisao || Number(card.ease) || 2.5;
         rows.push([id, Number(card.ankiId), -1, ease, ivl, Math.round(lastIvl), Math.round(rawEase < 10 ? rawEase * 1000 : rawEase),
           Math.max(0, Math.round(Number(r.time) || 0)), kind]);
         prevExportIvl = ivl;
@@ -26524,7 +26550,7 @@ const AnkiExport = {
     const SQL = await this._loadSqlJs(), db = new SQL.Database(); db.run(this.SCHEMA11);
     const nowMs = Date.now(), conf = {
       activeDecks: [1], curDeck: 1, newSpread: 0, collapseTime: Math.round(((typeof CardsConfig !== 'undefined' && CardsConfig.get().learnAheadMin != null) ? Number(CardsConfig.get().learnAheadMin) : 20) * 60), timeLim: 0, estTimes: true, dueCounts: true,
-      curModel: null, nextPos: Math.max(1, ...cards.map(c => (Number(c.posicaoNova) || 0) + 1)),
+      curModel: null, nextPos: cards.reduce((m, c) => Math.max(m, (Number(c.posicaoNova) || 0) + 1), 1),  // reduce: spread estoura a pilha com coleções grandes
       sortType: 'noteFld', sortBackwards: false, addToCur: true, dayLearnFirst: false, schedVer: 2,
       creationOffset: null, sched2021: true
     };
@@ -26669,11 +26695,25 @@ const AnkiImport = {
     }
     return -1;
   },
-  async _inflateRaw(bytes){
+  /* Tetos de descompactação: um arquivo-bomba (poucos KB que viram GB) derrubava
+     a aba. O teto vale para o que SAI do descompressor, lido em fatias — o
+     tamanho declarado no ZIP não é confiável. */
+  ZIP_TETO_ENTRADA:512*1024*1024,
+  ZIP_TETO_TOTAL:1024*1024*1024,
+  async _lerComTeto(stream,teto,nome){
+    const reader=stream.getReader(),partes=[];let n=0;
+    for(;;){
+      const {done,value}=await reader.read();if(done)break;
+      n+=value.length;
+      if(n>teto){try{await reader.cancel();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }throw new Error('Arquivo compactado grande demais'+(nome?' ('+nome+')':'')+': passa de '+Math.round(teto/1048576)+' MB descompactado.');}
+      partes.push(value);
+    }
+    const out=new Uint8Array(n);let o=0;for(const p of partes){out.set(p,o);o+=p.length;}return out;
+  },
+  async _inflateRaw(bytes,teto,nome){
     if(typeof DecompressionStream==='undefined')throw new Error('Navegador sem suporte a DEFLATE para pacote Anki.');
     const ds=new DecompressionStream('deflate-raw');
-    const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
-    return new Uint8Array(ab);
+    return this._lerComTeto(new Blob([bytes]).stream().pipeThrough(ds),teto||this.ZIP_TETO_ENTRADA,nome);
   },
   async _loadFzstd(){
     if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return globalThis.fzstd;
@@ -26702,7 +26742,7 @@ const AnkiImport = {
   async unzip(bytes){
     bytes=this._u8(bytes);const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),eocd=this._findEOCD(bytes);
     if(eocd<0)throw new Error('ZIP/APKG inválido: diretório central ausente');
-    const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true),files=new Map();let p=cdOff;
+    const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true),files=new Map();let p=cdOff,total=0;
     for(let i=0;i<count;i++){
       if(dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP inválido: entrada central');
       const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true);
@@ -26710,8 +26750,10 @@ const AnkiImport = {
       const name=this._text(bytes.slice(p+46,p+46+nlen));
       if(dv.getUint32(loff,true)!==0x04034b50)throw new Error('ZIP inválido: cabeçalho local');
       const ln=dv.getUint16(loff+26,true),lx=dv.getUint16(loff+28,true),start=loff+30+ln+lx,packed=bytes.slice(start,start+csize);
-      let data;if(method===0)data=packed;else if(method===8)data=await this._inflateRaw(packed);else throw new Error('ZIP usa método '+method+' não suportado');
+      const resta=this.ZIP_TETO_TOTAL-total;
+      let data;if(method===0)data=packed;else if(method===8)data=await this._inflateRaw(packed,Math.min(this.ZIP_TETO_ENTRADA,resta),name);else throw new Error('ZIP usa método '+method+' não suportado');
       if(usize&&data.length!==usize)throw new Error('ZIP truncado em '+name);
+      total+=data.length;if(total>this.ZIP_TETO_TOTAL)throw new Error('Pacote grande demais: passa de '+Math.round(this.ZIP_TETO_TOTAL/1048576)+' MB descompactado.');
       files.set(name,data);p+=46+nlen+xlen+clen;
     }
     return files;
@@ -27167,7 +27209,7 @@ const AnkiImport = {
     });
     if(opts.withScheduling!==false&&this._has(db,'revlog')){
       const old=DB.getRevlog().slice(),known=new Set(old.map(r=>String(r.reviewId||r.id||'')+'|'+String(r.cardId))),rr=this._rows(db,'select id,cid,ease,ivl,lastIvl,factor,time,type from revlog order by id');
-      for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:new Date(Number(r.id)).toISOString().slice(0,10),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
+      for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(r.id)):new Date(Number(r.id)).toISOString().slice(0,10)),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
       DB.replaceRevlog(old);
     }
     db.close();AnkiParity.ensureCanonicalNotes();CardEngine.invalidateDueCache();
@@ -27229,7 +27271,7 @@ const AnkiImport = {
         if(Number(mc.last_rep)===-1)continue;
         const ord=this._mnemoCardOrd(mc.fact_view_id),card=local.find(c=>nt.kind==='cloze'?Number(c.clozeOrd||1)===ord+1:Number(c.ankiTemplateOrd||0)===ord)||local[ord]||local[0];
         if(!card)continue;
-        DB.updateCard(card.id,{phase:'review',reps:Number(mc.reps)||0,lapses:Number(mc.lapses)||0,ease:Number(mc.easiness)||2.5,intervalo:Math.max(1,Math.floor((Number(mc.next_rep)-Number(mc.last_rep))/86400)),due:new Date(Number(mc.next_rep)*1000).toISOString().slice(0,10)});
+        DB.updateCard(card.id,{phase:'review',reps:Number(mc.reps)||0,lapses:Number(mc.lapses)||0,ease:Number(mc.easiness)||2.5,intervalo:Math.max(1,Math.floor((Number(mc.next_rep)-Number(mc.last_rep))/86400)),due:(typeof dataLocalDe==='function'?dataLocalDe(Number(mc.next_rep)*1000):new Date(Number(mc.next_rep)*1000).toISOString().slice(0,10))});
       }
       cardCount+=local.length;noteCount++;
     }
@@ -28041,14 +28083,15 @@ function planCycleMode() {
         </div>`;
     }
     const shown = _cicloSubjFilter ? ordered.filter(s => s.nome === _cicloSubjFilter) : ordered;
+    const registrosSemana = DB.getEntries();
     container.innerHTML = filterHtml + shown.map(s => {
-      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
+      const studied = CycleEngine.minutesStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle), registrosSemana);
       const status = CycleEngine.statusFor(studied, s.definidoMin);
       const pct = (s.definidoMin > 0) ? Math.min(100, Math.round((studied / s.definidoMin) * 100)) : 0;
       const over = studied > s.definidoMin;
       const remaining = Math.max(0, s.definidoMin - studied);
       // aproveitamento em questões desta matéria na semana
-      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle));
+      const q = CycleEngine.questionsStudied(s.nome, cycle.startDate, CycleEngine.rangeEnd(cycle), registrosSemana);
       const acc = q.total > 0 ? Math.round((q.correct / q.total) * 10000) / 100 : null;
       const accTone = acc == null ? '' : (acc >= 70 ? 'tone-good' : acc >= 50 ? 'tone-warn' : 'tone-bad');
       return `
@@ -28281,9 +28324,12 @@ function planCycleMode() {
     container.innerHTML = html;
 
     // preenche cada célula com o chip correspondente, se houver
-    container.querySelectorAll('.grade-cell-drop').forEach(cell => {
-      renderCellContent(cell);
-    });
+    _renderCache = { tmpl };
+    try {
+      container.querySelectorAll('.grade-cell-drop').forEach(cell => {
+        renderCellContent(cell);
+      });
+    } finally { _renderCache = null; }
 
     bindDropZones(container);
     updateDaySummary();
@@ -28318,9 +28364,12 @@ function planCycleMode() {
 
   const CHECK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
+  /* Durante um render completo da grade, o modelo e o mapa de siglas são lidos
+     UMA vez (antes: um parse do modelo e um mapa de siglas por célula). */
+  let _renderCache = null;
   function renderCellContent(cell) {
     const dia = cell.dataset.dia, idx = parseInt(cell.dataset.idx, 10);
-    const tmpl = gradeGet();
+    const tmpl = _renderCache ? _renderCache.tmpl : gradeGet();
     const cellData = normalizeCell(tmpl.grade[dia] && tmpl.grade[dia][idx]);
     if (!cellData) {
       cell.innerHTML = `<span class="grade-cell-empty-hint">+ escolher</span>`;
@@ -28328,7 +28377,7 @@ function planCycleMode() {
       return;
     }
     const { subject, minutes, done } = cellData;
-    const acronym = CycleEngine.buildAcronymMap()[subject] || CycleEngine.siglaForSubject(subject);
+    const acronym = (_renderCache ? (_renderCache.acr || (_renderCache.acr = CycleEngine.buildAcronymMap())) : CycleEngine.buildAcronymMap())[subject] || CycleEngine.siglaForSubject(subject);
     const _color = CycleEngine.colorForSubject(subject);
     const prog = progressoCelula(dia, idx), auto = prog.completo && !done;
     const concluida = done || prog.completo;
@@ -29038,10 +29087,10 @@ function planCycleMode() {
       const s = DB.getSavedGrades().find(x => x.id === id);
       if (!s) return;
       if (!await UI.confirm(`Restaurar a grade "${s.nome}"? A grade atual será substituída (salve-a antes se quiser mantê-la).`)) return;
-      DB.applySavedGrade(id);
+      const restaurou = DB.applySavedGrade(id);
       applyGradeView();
       renderSavedGradesList();
-      showToast('Grade restaurada ✓');
+      showToast(restaurou ? 'Grade restaurada ✓' : '⚠ Não foi possível restaurar a grade.');
     }));
     box.querySelectorAll('[data-sg-over]').forEach(b => b.addEventListener('click', async () => {
       const id = b.dataset.sgOver;
@@ -29146,8 +29195,9 @@ function planCycleMode() {
       closedAt: new Date().toISOString()
     };
 
-    DB.saveCycleToHistory(snapshot);
-    DB.clearCurrentCycle();
+    // Só limpa a semana ativa depois de o histórico aceitar a gravação.
+    if (DB.saveCycleToHistory(snapshot) === false) { showToast('⚠ Não foi possível salvar a semana no histórico. Nada foi alterado.'); return; }
+    if (DB.clearCurrentCycle() === false) { showToast('⚠ A semana foi para o histórico, mas a semana ativa não pôde ser encerrada.'); HistoricoScreen.render(); return; }
     showToast('Semana fechada e salva no histórico ✓');
     showState('empty');
     HistoricoScreen.render();
@@ -29227,7 +29277,9 @@ function planCycleMode() {
       const add = Math.min(r, max - s[i]);
       s[i] += add; r -= add;
     }
-    return { sessoes: s, arredondado: false };
+    // Com todas as sessões já no máximo, o que sobra não cabe: devolve para o
+    // chamador AVISAR em vez de sumir com esses minutos em silêncio.
+    return { sessoes: s, arredondado: false, perdido: Math.max(0, r) };
   }
 
   const distCirc = (a, b, n) => { const d = Math.abs(a - b) % n; return Math.min(d, n - d); };
@@ -29252,6 +29304,7 @@ function planCycleMode() {
       .map((m, i) => {
         const div = dividir(m.minutos, min, max);
         if (div.arredondado) avisos.push(`${m.nome}: meta de ${Math.round(m.minutos)} min arredondada para uma sessão de ${min} min.`);
+        if (div.perdido > 0) avisos.push(`${m.nome}: ${div.perdido} min da meta não couberam em sessões de ${min}–${max} min e ficaram de fora.`);
         return { nome: String(m.nome).trim(), minutos: Math.round(Number(m.minutos)), prioritaria: !!m.prioritaria, calculo: !!m.calculo, sessoes: div.sessoes, _ord: i, _r: rand() };
       })
       // mais restritas primeiro: prioritárias, depois as com mais sessões
@@ -29449,7 +29502,8 @@ function planCycleMode() {
         </div>
       </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-gg-fechar]')) fechar(); });
+    // Fundo desfocado NÃO fecha (mesma regra do resto do app): só Cancelar/Esc.
+    m.addEventListener('click', e => { if (e.target.closest('[data-gg-fechar]')) fechar(); });
     m.addEventListener('input', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
     m.addEventListener('change', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
     m.querySelector('#gg-outra').addEventListener('click', () => { st.semente++; gerarPrevia(); });
@@ -29495,7 +29549,21 @@ function planCycleMode() {
     const dias = {}; s.dias.forEach(d => { dias[d.dia] = { ativo: d.ativo, minutos: d.minutos }; });
     // funde com as marcações de matérias que não estão nesta semana
     const materias = Object.assign({}, lerPrefs().materias || {}); s.materias.forEach(m => { materias[nk(m.nome)] = { prioritaria: m.prioritaria, calculo: m.calculo }; });
-    gravarPrefs({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
+    gravarPrefsAdiado({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
+  }
+  /* Cada tecla disparava um upsert no banco. Agora a gravação espera a
+     digitação parar; fechar/aplicar gravam na hora o que estiver pendente. */
+  let _prefsPendentes = null, _prefsTimer = null;
+  function gravarPrefsAdiado(p) {
+    _prefsPendentes = p;
+    clearTimeout(_prefsTimer);
+    _prefsTimer = setTimeout(gravarPrefsAgora, 700);
+  }
+  function gravarPrefsAgora() {
+    clearTimeout(_prefsTimer); _prefsTimer = null;
+    if (!_prefsPendentes) return;
+    const p = _prefsPendentes; _prefsPendentes = null;
+    gravarPrefs(p);
   }
 
   function gerarPrevia() {
@@ -29524,6 +29592,7 @@ function planCycleMode() {
   }
 
   async function aplicar() {
+    gravarPrefsAgora();
     const r = st.ultimo; if (!r) return;
     const t = DB.getGradeTemplate();
     const temAlgo = DIAS.some(d => (t.grade && t.grade[d] || []).some(Boolean));
@@ -29619,7 +29688,7 @@ function planCycleMode() {
     renderForm(); gerarPrevia();
     m.style.display = 'flex';
   }
-  function fechar() { const m = document.getElementById('grade-gerador-modal'); if (m) m.style.display = 'none'; }
+  function fechar() { gravarPrefsAgora(); const m = document.getElementById('grade-gerador-modal'); if (m) m.style.display = 'none'; }
 
   window.GradeGerador.abrir = abrir;
   window.GradeGerador.fechar = fechar;
@@ -29655,9 +29724,14 @@ const HistoricoScreen = {
     // No modo consolidado as semanas são apenas leitura (podem vir de vários planejamentos)
     // nome do planejamento só quando a trajetória mistura mais de um
     this._variosPlanos = new Set(history.map(w => String(w._planId || ''))).size > 1;
-    listEl.innerHTML = history.map(w =>
-      (!consolidated && this.editingId === w.id) ? this.editTemplate(w) : this.viewTemplate(w, consolidated)
-    ).join('');
+    // Registros lidos uma vez por planejamento durante o render (antes: três
+    // leituras completas por semana exibida).
+    this._registrosRender = new Map();
+    try {
+      listEl.innerHTML = history.map(w =>
+        (!consolidated && this.editingId != null && String(this.editingId) === String(w.id)) ? this.editTemplate(w) : this.viewTemplate(w, consolidated)
+      ).join('');
+    } finally { this._registrosRender = null; }
     this.bindDetailToggles(listEl);        // expandir/ocultar detalhes funciona nos dois escopos
     if (!consolidated) this.bindRows(listEl);
   },
@@ -29671,7 +29745,12 @@ const HistoricoScreen = {
 
   // sessões reais registradas no intervalo da semana (do planejamento correto)
   getPeriodEntries(w, consolidated) {
-    const all = (consolidated && w._planId) ? DB.getEntriesForPlan(w._planId) : DB.getEntries();
+    const chave = (consolidated && w._planId) ? 'p:' + w._planId : 'ativo';
+    let all = this._registrosRender && this._registrosRender.get(chave);
+    if (!all) {
+      all = (consolidated && w._planId) ? DB.getEntriesForPlan(w._planId) : DB.getEntries();
+      if (this._registrosRender) this._registrosRender.set(chave, all);
+    }
     return all
       .filter(e => e.date >= w.startDate && e.date <= w.endDate)
       .sort((a, b) => a.date.localeCompare(b.date) || (a.subject || '').localeCompare(b.subject || ''));
@@ -29994,18 +30073,19 @@ const HistoricoScreen = {
 
   bindRows(listEl) {
     listEl.querySelectorAll('.week-card').forEach(card => {
-      const id = parseFloat(card.dataset.id);
+      const id = card.dataset.id;   // texto: ids antigos não são numéricos (DB compara com _mesmoId)
 
       const editBtn = card.querySelector('.btn-edit-week');
       if (editBtn) editBtn.addEventListener('click', () => { this.editingId = id; this.render(); });
 
       const deleteBtn = card.querySelector('.btn-delete-week');
       if (deleteBtn) deleteBtn.addEventListener('click', async () => {
-        const w = DB.getCycleHistory().find(x => x.id === id);
+        const w = DB.getCycleHistory().find(x => String(x.id) === String(id));
+        if (!w) { this.render(); return; }
         if (!await UI.confirm(`Excluir a semana de ${formatDateShort(w.startDate)} a ${formatDateShort(w.endDate)} do histórico?\n\nEssa ação não pode ser desfeita.`,
           { title: '🗑️ Excluir semana', okText: 'Excluir', danger: true })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir uma semana do histórico'); } catch (_) { _quiet(_); }
-        DB.deleteCycleHistoryEntry(id);
+        if (DB.deleteCycleHistoryEntry(id) === false) { showToast('⚠ Não foi possível remover a semana.'); return; }
         showToast('Semana removida do histórico');
         this.render();
       });
@@ -30015,7 +30095,7 @@ const HistoricoScreen = {
 
       // Só entra no modo edição quando esta semana está sendo editada
       if (card.classList.contains('wk-editing')) {
-        const w = DB.getCycleHistory().find(x => x.id === id);
+        const w = DB.getCycleHistory().find(x => String(x.id) === String(id));
         const warnEl = card.querySelector('.wk-range-warn');
         const startEl = card.querySelector('.wk-start');
         const endEl = card.querySelector('.wk-end');
@@ -30046,12 +30126,13 @@ const HistoricoScreen = {
         if (saveBtn) saveBtn.addEventListener('click', () => {
           const { r, dateError } = refresh();
           if (dateError) { showToast(dateError); return; }
-          DB.updateCycleHistoryEntry(id, {
+          const salvo = DB.updateCycleHistoryEntry(id, {
             startDate: r.startDate, endDate: r.endDate, weeklyHours: r.weeklyHours,
             subjects: r.subjects, totalTargetMin: r.totalTargetMin, totalStudiedMin: r.totalStudiedMin,
             pctCumprido: r.pctCumprido, finalizadas: r.finalizadas, totalSubjects: r.totalSubjects,
             avgPerformancePct: r.avgPerformancePct
           });
+          if (!salvo) { showToast('⚠ Não foi possível atualizar a semana.'); return; }
           this.editingId = null;
           showToast('Semana atualizada ✓');
           this.render();
@@ -36526,7 +36607,7 @@ CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
     state=FSRS.memoryStateOfficialWithModule(mod,data,w,retention),raw=state.interval,maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
     previous=data.previousInterval==null?0:Math.max(0,Number(data.previousInterval)||0),
     min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),
-    lastDate=new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
+    lastDate=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(data.lastReviewedAtMs)):new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
     elapsed=Math.max(0,CardEngine._daysBetween(lastDate,todayCards())),seed=AnkiParity.fuzzSeed(card,true);
   let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
   if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);
@@ -40940,7 +41021,7 @@ const AnkiMaxStatsMedia = {
     const old=CardsScreen.renderStats.bind(CardsScreen);
     CardsScreen.renderStats=(box)=>{const out=old(box);try{this._bindStatsUi();}catch(e){console.warn('Stats parity',e);}return out;};
   },
-  _revDate(r){if(r&&/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||'')))return String(r.date);const ts=Number(r&&r.ts)||0;return ts?new Date(ts).toISOString().slice(0,10):'';},
+  _revDate(r){if(r&&/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||'')))return String(r.date);const ts=Number(r&&r.ts)||0;return ts?(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(ts):new Date(ts).toISOString().slice(0,10)):'';},
   _dayMap(days){
     const span=Math.max(1,Number(days)||this._statsHistoryDays()),m=new Map(),today=todayCards();for(let i=span-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),{count:0,time:0,learning:0,review:0,relearning:0,filtered:0,good:0,total:0});
     for(const r of this.statsRevlog()){const d=this._revDate(r),x=m.get(d);if(!x)continue;x.count++;x.time+=Math.max(0,Number(r.time)||0);const ph=String(r.phase||'review');if(ph==='learning')x.learning++;else if(ph==='relearning')x.relearning++;else if(Number(r.ankiReviewKind)===3)x.filtered++;else x.review++;if(Number(r.grade)>=2)x.good++;x.total++;}
@@ -41068,7 +41149,7 @@ const AnkiMaxStatsMedia = {
     for(const card of this.statsCards()){
       const raw=card.createdAt||card.created_at||'',d=raw?new Date(raw):null;
       if(!d||!Number.isFinite(d.getTime()))continue;
-      const key=d.toISOString().slice(0,10);if(m.has(key))m.set(key,(m.get(key)||0)+1);
+      const key=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(d.getTime()):d.toISOString().slice(0,10);if(m.has(key))m.set(key,(m.get(key)||0)+1);
     }
     const serie=this._serie([...m.entries()],x=>x[1]>0);
     return '<div class="card stat-card" data-anki-stat-graph="added"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards criados no período</p></div></div>'+
@@ -41164,7 +41245,7 @@ const AnkiMaxStatsMedia = {
         ef=Math.max(0,Math.round((Number.isFinite(efRaw)&&efRaw>0?efRaw:2.5)*(efRaw>100?1:1000))),
         taken=Math.max(0,Math.round(Number(r.time!=null?r.time:r.takenMillis)||0));
       revlogs.push({id,cid,button_chosen:Math.max(1,Math.min(4,Math.round(Number(r.grade)||1))),interval:iv,last_interval:lastIv,ease_factor:ef,taken_millis:taken,review_kind:this._simReviewKind(r)});
-      const d=String(r.date||new Date(Number(r.ts)||0).toISOString().slice(0,10)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
+      const d=String(r.date||this._revDate(r)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
       if(d&&(!firstReviewDateByCard.has(k)||d<firstReviewDateByCard.get(k)))firstReviewDateByCard.set(k,d);
     });
     const introducedToday=scoped.filter(c=>{
@@ -45267,15 +45348,6 @@ function insertImageFile(area, file) {
     if (orig > kb * 1.5) showToast('Imagem inserida · ' + orig + 'KB → ' + kb + 'KB');
   }).catch(() => showToast('Não foi possível processar a imagem'));
 }
-// Limpa o HTML colado de sites/PDFs. Sem isso, a colagem trazia fonte, tamanho e cor de
-// fundo fixos — que quebram o layout do card e ficam ilegíveis no modo escuro — além de
-// atributos executáveis (onerror/onload) e tags perigosas.
-const RTE_TAGS_OK = new Set(['B','STRONG','I','EM','U','S','STRIKE','BR','P','DIV','SPAN','UL','OL','LI',
-  'TABLE','THEAD','TBODY','TR','TD','TH','A','IMG','MARK','SUB','SUP','H1','H2','H3','H4','BLOCKQUOTE','CODE','PRE','HR',
-  'DETAILS','SUMMARY','AUDIO','VIDEO','SOURCE']);
-// Estas saem com o CONTEÚDO junto (não só a tag): senão o texto interno de um bloco de
-// script colado vazaria como texto solto dentro do card.
-const RTE_TAGS_FORA = new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','OBJECT','EMBED','LINK','META','FORM','INPUT','BUTTON','SVG','CANVAS']);
 
 /* ════════════════════════════════════════════════════════════════════════════
    SANITIZAÇÃO DE CARDS — proteção do conteúdo que vira HTML de verdade
@@ -45295,6 +45367,16 @@ const RTE_TAGS_FORA = new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','OBJECT','EM
    innerHTML a um div desanexado, em alguns navegadores, já inicia o carregamento
    das imagens ANTES de removermos o onerror.
    ══════════════════════════════════════════════════════════════════════════ */
+// (Moradas aqui, junto de quem as usa: antes viviam no arquivo do AutoTeste.)
+// Limpa o HTML colado de sites/PDFs. Sem isso, a colagem trazia fonte, tamanho e cor de
+// fundo fixos — que quebram o layout do card e ficam ilegíveis no modo escuro — além de
+// atributos executáveis (onerror/onload) e tags perigosas.
+const RTE_TAGS_OK = new Set(['B','STRONG','I','EM','U','S','STRIKE','BR','P','DIV','SPAN','UL','OL','LI',
+  'TABLE','THEAD','TBODY','TR','TD','TH','A','IMG','MARK','SUB','SUP','H1','H2','H3','H4','BLOCKQUOTE','CODE','PRE','HR',
+  'DETAILS','SUMMARY','AUDIO','VIDEO','SOURCE']);
+// Estas saem com o CONTEÚDO junto (não só a tag): senão o texto interno de um bloco de
+// script colado vazaria como texto solto dentro do card.
+const RTE_TAGS_FORA = new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','OBJECT','EMBED','LINK','META','FORM','INPUT','BUTTON','SVG','CANVAS']);
 // FONT entra na lista porque o próprio editor produz <font color> / <font size>
 // (é o que o execCommand gera no Chrome) — sem ela, sanear apagaria as cores que
 // você aplicou pela barra de ferramentas.
@@ -45418,8 +45500,11 @@ function rteExec(area, cmd, val) { area.focus(); try { document.execCommand(cmd,
 // Converte HTML em TEXTO PURO preservando as quebras de linha (blocos/br viram \n).
 // Base do botão "Limpar formatação" — remove cor, fonte, fundo, negrito etc. do texto colado.
 function rtePlainFromHtml(html) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = String(html || '');
+  // Documento INERTE (ver o cabeçalho deste arquivo): innerHTML num div do
+  // documento vivo já dispararia carregamentos e onerror do HTML de entrada.
+  let tmp;
+  try { tmp = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html').body; }
+  catch (_) { return String(html || '').replace(/<[^>]*>/g, ''); }
   tmp.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
   // isola cada bloco com quebras antes e depois, para não grudar parágrafos/linhas/células
   // (mesmo quando um bloco vem logo após texto inline)
@@ -51376,10 +51461,13 @@ const ProfileUI = {
     const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
     if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
     this._gridSig = sig;
+    // Cor só entra no style se for uma cor hex; id e avatar sempre escapados
+    // (vêm da conta, que pode ter sido editada fora do app).
+    const corSegura = c => /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : '#4f46e5';
     grid.innerHTML = (profiles || []).map(p => `
-      <div class="profile-card" data-id="${p.id}">
-        <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar" aria-label="Editar">✎</button>
-        <div class="profile-card-avatar" style="background:${p.cor};">${p.avatar}</div>
+      <div class="profile-card" data-id="${escapeHtml(String(p.id))}">
+        <button type="button" class="profile-card-edit" data-edit="${escapeHtml(String(p.id))}" title="Editar" aria-label="Editar">✎</button>
+        <div class="profile-card-avatar" style="background:${corSegura(p.cor)};">${escapeHtml(String(p.avatar || ''))}</div>
         <div class="profile-card-name">${escapeHtml(p.nome)}</div>
         <div class="profile-card-stats">&nbsp;</div>
       </div>`).join('') + `
@@ -55114,6 +55202,12 @@ const RelationalStore = {
     return out;
   },
   _memSet(k, v) {
+    /* Chave com alteração local ainda não confirmada (suja ou em envio) NÃO é
+       sobrescrita pelo que vem do banco: a atualização em segundo plano
+       (catch-up) chegava no meio — trazia o valor antigo, repunha a base, e o
+       envio seguinte não via mais diferença. Uma exclusão feita naquele
+       instante simplesmente sumia. A alteração local vence; ela sobe a seguir. */
+    if (this._dirty.has(String(k))) return;
     this._applying = true;
     try {
       localStorage.setItem(k, String(v));
@@ -55130,6 +55224,7 @@ const RelationalStore = {
     finally { this._applying = false; }
   },
   _memDel(k) {
+    if (this._dirty.has(String(k))) return;   // ver _memSet
     this._applying = true;
     try { localStorage.removeItem(k); this._confirmed.delete(String(k)); }
     finally { this._applying = false; }
@@ -57284,8 +57379,9 @@ const CloudBackup = {
   },
 
   _diaKey(id) { return 'diario-estudos:cbk-dia:' + id; },
-  /* Assinatura do último conteúdo publicado, por perfil. GRAVADA em disco (não
-     só em memória): sem isto, um recarregamento — e o app recarrega sozinho
+  /* Assinatura do último conteúdo publicado, por perfil. Persistida como
+     preferência da conta (chave `diario-estudos:*` → user_preferences), não só
+     em memória: sem isto, um recarregamento — e o app recarrega sozinho
      depois de quase toda operação de risco, inclusive logo após restaurar um
      backup — esquecia a última assinatura e podia duplicar a MESMA foto que
      acabara de subir segundos antes. */
@@ -57489,6 +57585,35 @@ const CloudBackup = {
       return [];
     }
   },
+  /* A faxina e a âncora precisam enxergar TODAS as fotos: com o teto de 60 da
+     listagem da tela, uma foto mais antiga ficava invisível (nunca era
+     descartada, nem considerada como âncora). Só metadados — sem o conteúdo —
+     em páginas de 1000. Em erro devolve null: quem apaga não pode decidir com
+     lista incompleta. */
+  async listarTodas(id) {
+    if (!this._pronto()) return null;
+    const alvo = id || ProfileManager.getActiveProfileId();
+    if (!alvo) return null;
+    const PAG = 1000, out = [];
+    try {
+      for (let de = 0; de < 100000; de += PAG) {
+        const { data, error } = await CloudStore._withTimeout(
+          CloudStore.client.from(this.TABLE)
+            .select('id,created_at,note,device,chars,sig,ancora,enc')
+            .eq('profile_id', alvo).order('created_at', { ascending: false }).range(de, de + PAG - 1),
+          15000, 'Listar os backups da nuvem');
+        if (error) throw error;
+        const pag = data || [];
+        out.push(...pag);
+        if (pag.length < PAG) break;
+      }
+      return out;
+    } catch (err) {
+      if (this._isMissingTable(err)) { this._disable(err); return null; }
+      console.warn('[CloudBackup] não deu para listar todas:', err && (err.message || err));
+      return null;
+    }
+  },
   // Devolve o mapa seção→texto de uma foto (ou null).
   async abrir(rowId) {
     if (!this._pronto()) return null;
@@ -57649,7 +57774,8 @@ const CloudBackup = {
     const alvo = id || ProfileManager.getActiveProfileId();
     if (!alvo) return { mudou: false };
     let linhas;
-    try { linhas = await this.listar(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    try { linhas = await this.listarTodas(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    if (!linhas) return { mudou: false };
     const atual = (linhas || []).filter(r => r.ancora)[0] || null;
     const ideal = this.ancoraIdeal(linhas, Date.now());
     if (!ideal || (atual && ideal.id === atual.id)) return { mudou: false };
@@ -57739,7 +57865,8 @@ const CloudBackup = {
          pela metade (o perfil ficaria sem âncora), ela mesma desfaz; se nem
          isso der certo, não se apaga nada nesta rodada. */
       try { await this.moverAncora(alvo); } catch (e) { _quiet(e, 'cbk-ancora-mover'); }
-      const linhas = await this.listar(alvo);
+      const linhas = await this.listarTodas(alvo);
+      if (!linhas) return 0;   // lista incompleta: não se apaga nada nesta rodada
       if (!(linhas || []).some(r => r.ancora)) {
         console.warn('[CloudBackup] faxina adiada: o perfil ficou sem âncora — nada foi apagado.');
         return 0;
@@ -58195,11 +58322,22 @@ const Atualizacao = {
       /* Cobre mutações ocorridas entre o clique e o controllerchange. */
       const ok = await this._entregarPendencias(10000);
       if (!ok) {
-        recarregou = false;
-        this._trocando = false;
+        /* O worker novo JÁ assumiu (skipWaiting foi pedido). Ficar parado aqui
+           é justamente a mistura "página velha + worker novo" que este módulo
+           evita. A fila é durável (reenvio automático + aviso na tela): em vez
+           de desistir, esperamos ela esvaziar e só então recarregamos. */
         try {
-          showToast('⚠ A nova versão está pronta, mas o banco ainda não confirmou tudo. A página não foi recarregada.');
-        } catch (e) { _quiet(e, 'upd-reload-cancel'); }
+          showToast('⚠ A nova versão está pronta. Recarregaremos assim que o banco confirmar as alterações pendentes.');
+        } catch (e) { _quiet(e, 'upd-reload-wait'); }
+        const quandoVazia = (ev) => {
+          const RS = window.RelationalStore;
+          if (RS && RS.pendingCount && RS.pendingCount() === 0 && !(ev && ev.detail && ev.detail.failing)) {
+            window.removeEventListener('relational:pending', quandoVazia);
+            location.reload();
+          }
+        };
+        window.addEventListener('relational:pending', quandoVazia);
+        try { if (window.RelationalStore && RelationalStore.resumeDirty) RelationalStore.resumeDirty(); } catch (e) { _quiet(e, 'upd-resume'); }
         return;
       }
       location.reload();

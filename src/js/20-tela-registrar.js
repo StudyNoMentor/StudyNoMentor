@@ -165,6 +165,26 @@
   videoEnd.addEventListener('input', updateVideoConsumed);
   methodSelect.addEventListener('change', updateVideoFieldsVisibility);
 
+  /* Desempate pela ordem de criação. Ids hoje são UUID (texto): subtrair dava
+     NaN e a ordem do mesmo dia ficava arbitrária. createdAt primeiro; o id
+     entra só como último critério, comparado como texto (estável). */
+  function _ordemCriacao(a, b) {
+    const ca = String(a && a.createdAt || ''), cb = String(b && b.createdAt || '');
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = Number(a && a.id), nb = Number(b && b.id);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
+    return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+  }
+  /* Editar um registro de matéria/método DESATIVADO: a opção não existe mais no
+     <select>, que ficava vazio e bloqueava o salvar. Acrescenta a opção só para
+     este registro, marcada como desativada. */
+  function _garantirOpcao(sel, valor) {
+    if (!sel || !valor || [...sel.options].some(o => o.value === valor)) return;
+    const o = document.createElement('option');
+    o.value = valor; o.textContent = valor + ' (desativada)'; o.dataset.inativa = '1';
+    sel.appendChild(o);
+  }
+
   function refreshSubjectSelect() {
     const subjects = DB.getActiveSubjects();
     const subjectSelect = document.getElementById('subject');
@@ -194,8 +214,10 @@
 
   function enterEditMode(entry) {
     editingId = entry.id;
+    _garantirOpcao($id('subject'), entry.subject);
     $id('subject').value = entry.subject;
     $id('lesson').value = entry.lesson || '';
+    _garantirOpcao($id('method'), entry.method);
     $id('method').value = entry.method;
     dateInput.value = entry.date;
     pageStart.value = entry.pageStart ?? '';
@@ -254,7 +276,7 @@
     // ordena sempre por data (mais recente no topo); desempata pela ordem de criação (id/createdAt)
     let entries = allEntries.slice().sort((a, b) => {
       if (a.date !== b.date) return a.date < b.date ? 1 : -1;
-      return (b.id || 0) - (a.id || 0);
+      return _ordemCriacao(b, a);
     });
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -468,7 +490,7 @@
     // Ordenação
     const pctOf = e => (e.total > 0 ? (e.correct / e.total) : -1);
     const cmp = {
-      date: (a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : ((a.id || 0) - (b.id || 0))),
+      date: (a, b) => a.date < b.date ? -1 : (a.date > b.date ? 1 : _ordemCriacao(a, b)),
       subject: (a, b) => a.subject.localeCompare(b.subject, 'pt'),
       lesson: (a, b) => String(a.lesson || '').localeCompare(String(b.lesson || ''), 'pt'),
       method: (a, b) => a.method.localeCompare(b.method, 'pt'),

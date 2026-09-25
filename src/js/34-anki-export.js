@@ -211,32 +211,10 @@ const AnkiExport = {
     return src;
   },
 
+  // Primeiros 32 bits do SHA-1 (csum do Anki). Uma implementação só: _sha1Bytes.
   _sha1First32(text) {
-    const bytes = this._enc.encode(String(text || '')), ml = bytes.length * 8;
-    const total = ((bytes.length + 9 + 63) >> 6) << 6, buf = new Uint8Array(total);
-    buf.set(bytes); buf[bytes.length] = 0x80;
-    const dv = new DataView(buf.buffer);
-    dv.setUint32(total - 4, ml >>> 0, false);
-    dv.setUint32(total - 8, Math.floor(ml / 0x100000000), false);
-    let h0 = 0x67452301, h1 = 0xefcdab89, h2 = 0x98badcfe, h3 = 0x10325476, h4 = 0xc3d2e1f0;
-    const w = new Uint32Array(80), rol = (x, n) => ((x << n) | (x >>> (32 - n))) >>> 0;
-    for (let off = 0; off < total; off += 64) {
-      for (let i = 0; i < 16; i++) w[i] = dv.getUint32(off + i * 4, false);
-      for (let i = 16; i < 80; i++) w[i] = rol(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
-      let a = h0, b = h1, c = h2, d = h3, e = h4;
-      for (let i = 0; i < 80; i++) {
-        let f, k;
-        if (i < 20) { f = (b & c) | ((~b) & d); k = 0x5a827999; }
-        else if (i < 40) { f = b ^ c ^ d; k = 0x6ed9eba1; }
-        else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8f1bbcdc; }
-        else { f = b ^ c ^ d; k = 0xca62c1d6; }
-        const t = (rol(a, 5) + f + e + k + w[i]) >>> 0;
-        e = d; d = c; c = rol(b, 30); b = a; a = t;
-      }
-      h0 = (h0 + a) >>> 0; h1 = (h1 + b) >>> 0; h2 = (h2 + c) >>> 0;
-      h3 = (h3 + d) >>> 0; h4 = (h4 + e) >>> 0;
-    }
-    return h0 >>> 0;
+    const h = this._sha1Bytes(this._enc.encode(String(text || '')));
+    return new DataView(h.buffer, h.byteOffset, h.byteLength).getUint32(0, false) >>> 0;
   },
   _plain(html) {
     return String(html || '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -669,7 +647,11 @@ const AnkiExport = {
           ivl = Math.max(0, Math.round(ivl));
         }
         let id = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id <= uniqueLast) id = uniqueLast + 1; uniqueLast = id;
-        const ease = Math.min(4, Math.max(1, Math.round(Number(r.grade) || 3))), rawEase = Number(card.ease) || 2.5;
+        const ease = Math.min(4, Math.max(1, Math.round(Number(r.grade) || 3)));
+        // factor DAQUELA revisão quando o histórico o registrou; o ease atual do
+        // card é só o último recurso (antes era usado para o histórico inteiro).
+        const easeDaRevisao = [r.easeFactor, r.factor, r.ease].map(Number).find(x => Number.isFinite(x) && x > 0);
+        const rawEase = easeDaRevisao || Number(card.ease) || 2.5;
         rows.push([id, Number(card.ankiId), -1, ease, ivl, Math.round(lastIvl), Math.round(rawEase < 10 ? rawEase * 1000 : rawEase),
           Math.max(0, Math.round(Number(r.time) || 0)), kind]);
         prevExportIvl = ivl;
@@ -816,7 +798,7 @@ const AnkiExport = {
     const SQL = await this._loadSqlJs(), db = new SQL.Database(); db.run(this.SCHEMA11);
     const nowMs = Date.now(), conf = {
       activeDecks: [1], curDeck: 1, newSpread: 0, collapseTime: Math.round(((typeof CardsConfig !== 'undefined' && CardsConfig.get().learnAheadMin != null) ? Number(CardsConfig.get().learnAheadMin) : 20) * 60), timeLim: 0, estTimes: true, dueCounts: true,
-      curModel: null, nextPos: Math.max(1, ...cards.map(c => (Number(c.posicaoNova) || 0) + 1)),
+      curModel: null, nextPos: cards.reduce((m, c) => Math.max(m, (Number(c.posicaoNova) || 0) + 1), 1),  // reduce: spread estoura a pilha com coleções grandes
       sortType: 'noteFld', sortBackwards: false, addToCur: true, dayLearnFirst: false, schedVer: 2,
       creationOffset: null, sched2021: true
     };

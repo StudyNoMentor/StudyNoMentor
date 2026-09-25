@@ -299,6 +299,23 @@ function proximaViradaTs() {
   return alvo.getTime();
 }
 window.todayCards = todayCards;
+/* Dia de ESTUDO (com a virada do Cards) de um instante qualquer, no fuso LOCAL.
+   toISOString().slice(0,10) dá o dia em UTC: no Brasil, tudo depois das 21h
+   caía no dia seguinte (revlog importado, gráfico "Adicionados", reagendamento). */
+function diaDeEstudoDe(ts) {
+  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  if (d.getHours() < cardsRolloverHour()) d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Dia de CALENDÁRIO local de um instante (sem a virada do Cards).
+function dataLocalDe(ts) {
+  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+window.diaDeEstudoDe = diaDeEstudoDe;
+window.dataLocalDe = dataLocalDe;
 
 function todayLocal() {
   const d = new Date();

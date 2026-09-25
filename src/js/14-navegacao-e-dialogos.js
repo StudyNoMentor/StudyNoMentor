@@ -82,7 +82,17 @@ $id('tabs').addEventListener('click', (e) => {
        AnkiWeb na mesma aba. No desktop, mantém o Study aberto e usa nova aba. */
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 860px)').matches;
     if (isMobile) {
-      window.location.assign(externalUrl);
+      /* Sair da página na mesma aba descarta a RAM — que é a única cópia do que
+         ainda não foi confirmado no banco. Entrega as pendências primeiro; se o
+         banco não confirmar, pergunta antes de sair. */
+      (async () => {
+        const RS = window.RelationalStore;
+        let pend = 0;
+        try { if (RS && RS.pendingCount && RS.pendingCount() > 0) { await Promise.race([RS.flush(), new Promise(r => setTimeout(r, 8000))]); } } catch (err) { _quiet(err, 'ext-link-flush'); }
+        try { pend = RS && RS.pendingCount ? RS.pendingCount() : 0; } catch (_) { _quiet(_); }
+        if (pend > 0 && !(await UI.confirm('Há alterações que o banco ainda não confirmou. Se sair agora, elas podem se perder.', { title: 'Sair do Study?', okText: 'Sair mesmo assim', danger: true }))) return;
+        window.location.assign(externalUrl);
+      })();
     } else {
       const w = window.open(externalUrl, '_blank', 'noopener,noreferrer');
       if (w) try { w.opener = null; } catch (_) { _quiet(_); }
@@ -201,9 +211,14 @@ const FocusTrap = {
     // semântica ARIA de diálogo
     if (!modal.getAttribute('role')) modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
-    // foca o primeiro elemento útil (ou o próprio modal)
+    // foca o elemento marcado com data-autofocus; senão o primeiro útil (ou o próprio modal)
     const f = this._focusables(modal);
-    setTimeout(() => { try { (f[0] || modal).focus(); } catch (_) { _quiet(_); } }, 30);
+    setTimeout(() => {
+      try {
+        const marcado = modal.querySelector('[data-autofocus]');
+        (marcado && f.includes(marcado) ? marcado : (f[0] || modal)).focus();
+      } catch (_) { _quiet(_); }
+    }, 30);
   },
   deactivate(modal) {
     const i = this._stack.indexOf(modal);
@@ -322,7 +337,9 @@ const UI = {
     /* Sem campo para preencher, o foco vai para um BOTÃO — e Enter aciona o
        botão focado. Numa ação perigosa, o foco nasce no Cancelar. */
     const alvo = first || (danger && !hideCancel ? cancel : ok);
-    if (alvo) setTimeout(() => { try { alvo.focus(); } catch (_) { _quiet(_); } }, 60);
+    // Marcado para o FocusTrap não trocar o foco pelo primeiro focável (o X).
+    modal.querySelectorAll('[data-autofocus]').forEach(el => el.removeAttribute('data-autofocus'));
+    if (alvo) { alvo.setAttribute('data-autofocus', ''); setTimeout(() => { try { alvo.focus(); } catch (_) { _quiet(_); } }, 60); }
   },
   _close() { $id('ui-modal').style.display = 'none'; },
   confirm(message, opts = {}) {

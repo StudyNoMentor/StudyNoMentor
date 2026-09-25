@@ -637,7 +637,8 @@ const PlanManager = {
 /* ============================================================
    PERFIS DE ACESSO — multi-usuário no dispositivo
    Cada perfil tem seus próprios planejamentos e dados (namespace 'diario-estudos:u:<id>:').
-   IMPORTANTE: é uma separação LOCAL, não autenticação forte. O PIN é uma trava leve.
+   A separação real é a conta (Supabase + RLS). Não há PIN de perfil: o código
+   antigo (hash djb2 de 32 bits sem sal, nunca verificado) foi removido.
    ============================================================ */
 const ProfileManager = {
   DEFAULT_AVATARS: ['📘', '🎯', '⚖️', '📊', '🧠', '🚀', '🦉', '📚', '✏️', '🏆', '💡', '🔥'],
@@ -738,26 +739,7 @@ const ProfileManager = {
     } catch (e) { _quiet(e, 'perfil-canal-secoes'); }
   },
 
-  // hash simples (NÃO é segurança forte — apenas evita guardar o PIN em texto puro)
-  _hash(str) {
-    let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-    return 'h' + h.toString(36);
-  },
-  setPin(id, pin) {
-    const list = this.getProfiles();
-    const p = list.find(x => x.id === id);
-    if (p) p.pinHash = pin ? this._hash(pin) : null;
-    this.saveProfiles(list);
-  },
-  hasPin(id) { const p = this.getProfiles().find(x => x.id === id); return !!(p && p.pinHash); },
-  checkPin(id, pin) {
-    const p = this.getProfiles().find(x => x.id === id);
-    if (!p || !p.pinHash) return true;
-    return this._hash(pin) === p.pinHash;
-  },
-
-  createProfile({ nome, avatar, cor, pin }) {
+  createProfile({ nome, avatar, cor }) {
     /* Helper de projeção em RAM. A persistência real de perfis é criada por
        CloudStore.createRow(), que recebe o UUID definitivo do PostgreSQL. */
     const id = DB._uid();
@@ -766,7 +748,6 @@ const ProfileManager = {
       id, nome: (nome || 'Novo perfil').trim(),
       avatar: avatar || this.DEFAULT_AVATARS[list.length % this.DEFAULT_AVATARS.length],
       cor: cor || this.DEFAULT_COLORS[list.length % this.DEFAULT_COLORS.length],
-      pinHash: pin ? this._hash(pin) : null,
       createdAt: new Date().toISOString()
     });
     this.saveProfiles(list);

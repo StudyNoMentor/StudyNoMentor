@@ -268,6 +268,21 @@ await R.flush();
 assert.deepEqual(banco('study_entries').map(r => r.entry_id), ['c2'], 'só o estado final chega ao banco');
 ok('lote adiado: estado intermediário nunca sai; falha restaurada não envia nada');
 
+// ── Catch-up do banco no meio de uma alteração local não a apaga
+{
+  localStorage.setItem(entriesKey, JSON.stringify([{ id: 'x1', subject: 'A', durationMin: 1 }, { id: 'x2', subject: 'B', durationMin: 2 }]));
+  await R.flush();
+  net.down = true;
+  localStorage.setItem(entriesKey, JSON.stringify([{ id: 'x2', subject: 'B', durationMin: 2 }]));   // exclui x1
+  await R._tail;
+  // o catch-up traz a versão do banco (ainda com x1) enquanto a exclusão não subiu
+  R._memSet(entriesKey, JSON.stringify([{ id: 'x1', subject: 'A', durationMin: 1 }, { id: 'x2', subject: 'B', durationMin: 2 }]));
+  assert.deepEqual(JSON.parse(localStorage.getItem(entriesKey)).map(x => x.id), ['x2'], 'a alteração local não é sobrescrita');
+  net.down = false; R.resumeDirty(); await R.flush();
+  assert.deepEqual(banco('study_entries').map(r => r.entry_id).filter(x => x === 'x1' || x === 'x2'), ['x2'], 'a exclusão chega ao banco');
+  ok('atualização vinda do banco não atropela alteração local pendente');
+}
+
 // ── A6: revisão envenenada não impede abrir o perfil
 {
   const mortasGuardadas = [], removidas = [];

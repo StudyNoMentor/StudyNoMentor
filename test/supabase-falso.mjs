@@ -423,6 +423,8 @@ export function montarApiFalsa() {
           return (x < y ? -1 : x > y ? 1 : 0) * (dir === 'desc' ? -1 : 1);
         });
       }
+      const desl = parseInt(params.get('offset') || '0', 10);
+      if (desl > 0) linhas = linhas.slice(desl);
       const lim = parseInt(params.get('limit') || '0', 10);
       if (lim > 0) linhas = linhas.slice(0, lim);
       const saida = linhas.map((l) => projetar(l, select));

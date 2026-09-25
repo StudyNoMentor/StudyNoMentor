@@ -252,10 +252,13 @@ const ProfileUI = {
     const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
     if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
     this._gridSig = sig;
+    // Cor só entra no style se for uma cor hex; id e avatar sempre escapados
+    // (vêm da conta, que pode ter sido editada fora do app).
+    const corSegura = c => /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : '#4f46e5';
     grid.innerHTML = (profiles || []).map(p => `
-      <div class="profile-card" data-id="${p.id}">
-        <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar" aria-label="Editar">✎</button>
-        <div class="profile-card-avatar" style="background:${p.cor};">${p.avatar}</div>
+      <div class="profile-card" data-id="${escapeHtml(String(p.id))}">
+        <button type="button" class="profile-card-edit" data-edit="${escapeHtml(String(p.id))}" title="Editar" aria-label="Editar">✎</button>
+        <div class="profile-card-avatar" style="background:${corSegura(p.cor)};">${escapeHtml(String(p.avatar || ''))}</div>
         <div class="profile-card-name">${escapeHtml(p.nome)}</div>
         <div class="profile-card-stats">&nbsp;</div>
       </div>`).join('') + `

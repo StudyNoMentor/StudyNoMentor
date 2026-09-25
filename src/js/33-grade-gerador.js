@@ -47,7 +47,9 @@
       const add = Math.min(r, max - s[i]);
       s[i] += add; r -= add;
     }
-    return { sessoes: s, arredondado: false };
+    // Com todas as sessões já no máximo, o que sobra não cabe: devolve para o
+    // chamador AVISAR em vez de sumir com esses minutos em silêncio.
+    return { sessoes: s, arredondado: false, perdido: Math.max(0, r) };
   }
 
   const distCirc = (a, b, n) => { const d = Math.abs(a - b) % n; return Math.min(d, n - d); };
@@ -72,6 +74,7 @@
       .map((m, i) => {
         const div = dividir(m.minutos, min, max);
         if (div.arredondado) avisos.push(`${m.nome}: meta de ${Math.round(m.minutos)} min arredondada para uma sessão de ${min} min.`);
+        if (div.perdido > 0) avisos.push(`${m.nome}: ${div.perdido} min da meta não couberam em sessões de ${min}–${max} min e ficaram de fora.`);
         return { nome: String(m.nome).trim(), minutos: Math.round(Number(m.minutos)), prioritaria: !!m.prioritaria, calculo: !!m.calculo, sessoes: div.sessoes, _ord: i, _r: rand() };
       })
       // mais restritas primeiro: prioritárias, depois as com mais sessões
@@ -269,7 +272,8 @@
         </div>
       </div>`;
     document.body.appendChild(m);
-    m.addEventListener('click', e => { if (e.target === m || e.target.closest('[data-gg-fechar]')) fechar(); });
+    // Fundo desfocado NÃO fecha (mesma regra do resto do app): só Cancelar/Esc.
+    m.addEventListener('click', e => { if (e.target.closest('[data-gg-fechar]')) fechar(); });
     m.addEventListener('input', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
     m.addEventListener('change', e => { if (e.target.closest('#gg-dias, #gg-mats, .gg-sess')) { lerForm(); gerarPrevia(); } });
     m.querySelector('#gg-outra').addEventListener('click', () => { st.semente++; gerarPrevia(); });
@@ -315,7 +319,21 @@
     const dias = {}; s.dias.forEach(d => { dias[d.dia] = { ativo: d.ativo, minutos: d.minutos }; });
     // funde com as marcações de matérias que não estão nesta semana
     const materias = Object.assign({}, lerPrefs().materias || {}); s.materias.forEach(m => { materias[nk(m.nome)] = { prioritaria: m.prioritaria, calculo: m.calculo }; });
-    gravarPrefs({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
+    gravarPrefsAdiado({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
+  }
+  /* Cada tecla disparava um upsert no banco. Agora a gravação espera a
+     digitação parar; fechar/aplicar gravam na hora o que estiver pendente. */
+  let _prefsPendentes = null, _prefsTimer = null;
+  function gravarPrefsAdiado(p) {
+    _prefsPendentes = p;
+    clearTimeout(_prefsTimer);
+    _prefsTimer = setTimeout(gravarPrefsAgora, 700);
+  }
+  function gravarPrefsAgora() {
+    clearTimeout(_prefsTimer); _prefsTimer = null;
+    if (!_prefsPendentes) return;
+    const p = _prefsPendentes; _prefsPendentes = null;
+    gravarPrefs(p);
   }
 
   function gerarPrevia() {
@@ -344,6 +362,7 @@
   }
 
   async function aplicar() {
+    gravarPrefsAgora();
     const r = st.ultimo; if (!r) return;
     const t = DB.getGradeTemplate();
     const temAlgo = DIAS.some(d => (t.grade && t.grade[d] || []).some(Boolean));
@@ -439,7 +458,7 @@
     renderForm(); gerarPrevia();
     m.style.display = 'flex';
   }
-  function fechar() { const m = document.getElementById('grade-gerador-modal'); if (m) m.style.display = 'none'; }
+  function fechar() { gravarPrefsAgora(); const m = document.getElementById('grade-gerador-modal'); if (m) m.style.display = 'none'; }
 
   window.GradeGerador.abrir = abrir;
   window.GradeGerador.fechar = fechar;

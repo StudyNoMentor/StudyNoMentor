@@ -1,6 +1,6 @@
 # Auditoria geral do StudyNoMentor — 25/09/2026
 
-Somente análise. Nenhum código foi alterado.
+Relatório original: somente análise. As correções vieram depois — ver **§6. Status das correções** no fim deste arquivo.
 
 ## Cobertura
 
@@ -186,3 +186,82 @@ O iframe do card (script do template) pode enviar `pycmd('ease4')`, que chama `C
 5. **C8 / A11 / A12** — decidir e documentar o modelo (cloud-only), revisar a limpeza automática do `localStorage` antigo, versionar o schema completo do Supabase e colocar `verificar.mjs` + `build --check` na CI.
 6. **A1–A5** — importação em lote (uma leitura, uma gravação), mídia em `study_anki_media`, transações/RPC únicas para substituições em massa.
 7. Restante (A7–A13, médios e baixos) conforme o roadmap.
+
+---
+
+## 6. Status das correções
+
+Legenda: ✅ corrigido e verificado por teste · 🟡 parcial · ⛔ não feito (motivo ao lado).
+Testes citados: `testes/fila-duravel.mjs` (Node), `testes/auditoria-correcoes-browser.mjs` (Chromium + supabase-js real + banco falso), `testes/anki-oficial-backend-smoke.py` (backend real com `anki==26.09.2`), além das suítes existentes e do `verificar.mjs` completo.
+
+### Críticos
+
+| # | Status | Como foi resolvido | Prova |
+|---|:---:|---|---|
+| C1 | ✅ | Fila durável por chave em `60-relational-store.js`: nada é descartado em falha; reenvio com backoff, `online`, retomada ao logar; `flush()` só resolve com tudo confirmado; aviso `#rel-pending-banner`; `beforeunload` com pendência; recusa definitiva isola a linha ruim e realinha a tela. Catch-up do banco não sobrescreve chave com alteração local pendente (`_memSet`). | fila-duravel (falha de rede, erro persistente, estado final, catch-up); navegador C1 |
+| C2 | ✅ | Sem sessão, com perfil já aberto, a alteração fica pendente e sobe ao entrar de novo; aviso "sessão expirou" com botão. | navegador C2 |
+| C3 | ✅ | `DB.garantirPesado()`; `DB` e `onStorageMutation` recusam TEC/incidência antes do bloco pesado; telas aguardam o carregamento. | fila-duravel; navegador C3 |
+| C4 | ✅ | AutoTeste roda num planejamento-sandbox, sem escrita persistível. | navegador C4 |
+| C5 | ✅ | `'wasm-unsafe-eval'` no `script-src`. | navegador: otimizador FSRS WASM sob o CSP |
+| C6 | ✅ | Regex `{{type:…}}` corrigida no backend e no front. | smoke do backend (falha no código antigo) |
+| C7 | ✅ | `meta` do perfil persistido em `study_profile_settings` (`profile-meta`) e recarregado. | navegador C7 |
+| C8 | ✅ | Chaves legadas vão para o IndexedDB `studynomentor-legado` antes de sair do `localStorage` (`__exportarLegado()`); `clear()` limita-se ao namespace do app; `keysCache` invalidado; SW falha a instalação sem a casca; manifesto e docs descrevem o modelo cloud-first. O `</script></script>` citado era falso positivo (o `</script>` do início de `90-rodape.html` fecha o `#app-code`). | navegador C8; `verificar.mjs` (invariantes do SW) |
+
+### Altos
+
+| # | Status | Como foi resolvido | Prova |
+|---|:---:|---|---|
+| A1 | ✅ | `DB.withCardsBatch(fn)`; índices por `ankiId`/nota/tipo montados uma vez; `importText`/`importMnemosyne`/`importPackage` gravam os cards uma única vez. | navegador: 300 notas → 1 gravação, 1 requisição |
+| A2 | ⛔ | A mídia continua embutida como `data:` no HTML do card. Tirá-la exige que **toda** superfície que renderiza card (revisor em iframe sandbox sem mesma origem, navegador, estatísticas, exportação, Check Media) resolva nomes via `AnkiMediaStore`/`study_anki_media` — é um redesenho do pipeline de renderização, com risco de quebrar cards existentes. A falha de backup "grande demais" já aparece no painel de backup. Recomendação: fazer em PR próprio, com migração dos cards existentes. | — |
+| A3 | 🟡 | Leituras quentes: `minutesStudied`/`questionsStudied` recebem os registros lidos uma vez (ciclo, grade); render da grade lê modelo e mapa de siglas uma vez; Histórico lê registros uma vez por planejamento. **Não feito:** o modelo "lista inteira por chave" (`updateCard` ainda faz parse/stringify da coleção) — exige armazenamento por linha. | suítes de grade/ciclo/histórico |
+| A4 | ✅ | `RelationalStore.lote(fn)`: o estado intermediário do Collection Package nunca sai; falha restaurada não envia nada. | fila-duravel (lote adiado) |
+| A5 | ✅ | `CloudBackup.restaurar` exige a foto de segurança (ou confirmação explícita de risco); falha no meio de `replaceProfileFromPayload` deixa o restante na fila durável em vez de abandonar o perfil parcial. **Limite:** continua sem transação única no banco (exigiria RPC nova). | navegador A5 (sem foto; falha no meio → completa) |
+| A6 | ✅ | Recusa definitiva na fila de revisões vai para a "fila morta" do `ReviewJournal`; erro transitório continua interrompendo. | fila-duravel A6 |
+| A7 | ✅ | Extensões locais e Custom Scheduling não executam código (guardam só o texto); chaves de código são filtradas em `importProfile` e `replaceProfileFromPayload`. | navegador A7; `cards-total-parity` |
+| A8 | ✅ | `pycmd('easeN')` exige ativação do usuário, o quadro do card da tela e intervalo mínimo; sandbox sem `allow-modals`. | `cards-runtime-anki` |
+| A9 | ✅ | Diálogos em fila (nenhuma promessa pendurada); Enter em botão é o próprio botão; ação perigosa nasce com foco em Cancelar. | navegador A9 |
+| A10 | ✅ | Bandeja da grade ligada uma vez; clique da célula por `onclick` (sem acúmulo). | navegador A10 |
+| A11 | ⛔ | O schema (tabelas `study_*`, RLS, RPCs, triggers, `profile_backups`) só existe no Supabase de produção; daqui não há acesso ao banco para gerar o dump. Passo necessário: `supabase db dump --schema public > supabase/migrations/<data>_baseline.sql` por quem tem acesso ao projeto, e revisar a RLS a partir dele. | — |
+| A12 | ✅ | CI roda `build --check`, `verificar --rapido`, fila durável e, no job de suítes, `verificar.mjs` completo + suíte da auditoria; checkout por SHA; workflow do vendor FSRS só manual. | — |
+| A13 | ✅ | `app.py`: reabre a coleção e restaura backup datado em falha do colpkg; `mark` uma vez por nota; cache de token; upload em fatias com teto (413) sem temporário órfão; LRU de coleções; `/health` sem `data_dir`; origens padrão sem localhost; `lifespan`; fonte escapada. | smoke do backend |
+
+### Médios
+
+| # | Status | Observação |
+|---|:---:|---|
+| 1 | ⛔ | Camadas de monkey-patch: consolidar é refatoração ampla, fora do escopo de correção. |
+| 2 | ✅ | `CONTRIBUINDO.md` (modelo cloud-first, fila durável, CI real), comentários do `ReviewJournal` e do backup; `_ignoreSub` cobre `__trash:`. |
+| 3 | ✅ | `RTE_TAGS_OK`/`RTE_TAGS_FORA` moradas no `46-sanitizacao-e-editor.js`. |
+| 4 | ✅ | `rtePlainFromHtml` usa `DOMParser` (documento inerte). |
+| 5 | ✅ | `diaDeEstudoDe`/`dataLocalDe` (fuso local) no revlog importado, Mnemosyne, "Adicionados", simulador e reagendamento. Navegador em `America/Sao_Paulo`. |
+| 6 | ✅ | `migrarAproveitamentoAgregado` virou no-op (não reescreve semanas fechadas). |
+| 7 | ✅ | Fechar semana, excluir/editar semana e restaurar grade checam o retorno; migrações na leitura não disparam o toast de plano pausado. |
+| 8 | ✅ | Ids do Histórico comparados como texto. |
+| 9 | ✅ | `SaveGuard` não re-hidrata mais em falha (pendência fica na fila durável). |
+| 10 | ✅ | Ordenação por `createdAt`/id textual; opção "(desativada)" ao editar; `subjectHasEntries`/`methodInUse` tolerantes. |
+| 11 | ✅ | Preferências do gerador com debounce (grava ao fechar/aplicar); resto que não cabe vira aviso. |
+| 12 | ✅ | Código de PIN removido. |
+| 13 | 🟡 | SRI do SheetJS **não** preenchido: o CDN `cdn.sheetjs.com` é bloqueado pela rede deste ambiente, então não foi possível calcular o hash. Comando no comentário de `16-planilhas-e-tec.js`. |
+| 14 | ✅ | Se o flush falhar depois do `skipWaiting`, a página espera a fila esvaziar e recarrega. |
+| 15 | ✅ | `reduce` no lugar do spread; `factor` do revlog usa o ease da própria revisão quando registrado. ZIP64 não implementado. |
+| 16 | ✅ | Teto de descompactação (entrada e total) em `.apkg`/`.colpkg` e `.xlsx`. |
+| 17 | 🟡 | Faxina/âncora usam `listarTodas()` (paginado). O custo de egress de `protegerAgora` não mudou. |
+| 18 | ✅ | "Sem Classificação" (depth 1, sem código) não vira raiz. Comentário de `currentSnapshot` corrigido (não havia corte de 90 dias; não foi criado para não esconder dados). |
+| 19 | ✅ | Link externo no celular entrega pendências antes de sair e pergunta se o banco não confirmou. |
+
+### Baixos
+
+| Item | Status |
+|---|:---:|
+| `</script></script>` duplicado | falso positivo (ver C8) |
+| `keysCache` defasado | ✅ |
+| SW instala sem casca | ✅ |
+| Ícones SVG com emoji | ⛔ (cosmético; exige arte) |
+| `build --check` sem manifesto / meta ausente | ✅ |
+| Variáveis mortas, `getCard` com `===` | ✅ |
+| Duas implementações de SHA-1 | ✅ |
+| Fundo do gerador fechando o modal | ✅ |
+| Avatar/cor/id sem escape no portão | ✅ |
+| `!important`/CSS em camadas | ⛔ (refatoração de CSS, fora do escopo) |
+| Fonte sem escape no `app.py` | ✅ |
+

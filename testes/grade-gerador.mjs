@@ -10,6 +10,8 @@ let n = 0; const ok = (v, m) => { n++; assert.ok(v, m); };
 assert.deepEqual(G.dividir(180, 60, 120).sessoes, [60, 60, 60]); n++;
 assert.deepEqual(G.dividir(150, 60, 120).sessoes, [60, 90]); n++;
 assert.deepEqual(G.dividir(200, 60, 120).sessoes, [60, 60, 80]); n++;
+assert.equal(G.dividir(500, 60, 60).perdido, 20, "resto que não cabe é informado, não descartado em silêncio"); n++;
+assert.ok(G.gerar({ minSess: 60, maxSess: 60, dias: [{ dia: G.DIAS[0], minutos: 600 }], materias: [{ nome: "X", minutos: 500 }] }).avisos.some(a => /não couberam/.test(a)), "aviso de minutos perdidos"); n++;
 ok(G.dividir(30, 60, 120).arredondado && G.dividir(30, 60, 120).sessoes[0] === 60, 'meta menor que o mínimo vira uma sessão mínima');
 ok(G.dividir(1000, 60, 120).sessoes.every(x => x >= 60 && x <= 120), 'nenhuma sessão fora de 60–120');
 

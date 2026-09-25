@@ -165,7 +165,7 @@ const AnkiMaxStatsMedia = {
     const old=CardsScreen.renderStats.bind(CardsScreen);
     CardsScreen.renderStats=(box)=>{const out=old(box);try{this._bindStatsUi();}catch(e){console.warn('Stats parity',e);}return out;};
   },
-  _revDate(r){if(r&&/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||'')))return String(r.date);const ts=Number(r&&r.ts)||0;return ts?new Date(ts).toISOString().slice(0,10):'';},
+  _revDate(r){if(r&&/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||'')))return String(r.date);const ts=Number(r&&r.ts)||0;return ts?(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(ts):new Date(ts).toISOString().slice(0,10)):'';},
   _dayMap(days){
     const span=Math.max(1,Number(days)||this._statsHistoryDays()),m=new Map(),today=todayCards();for(let i=span-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),{count:0,time:0,learning:0,review:0,relearning:0,filtered:0,good:0,total:0});
     for(const r of this.statsRevlog()){const d=this._revDate(r),x=m.get(d);if(!x)continue;x.count++;x.time+=Math.max(0,Number(r.time)||0);const ph=String(r.phase||'review');if(ph==='learning')x.learning++;else if(ph==='relearning')x.relearning++;else if(Number(r.ankiReviewKind)===3)x.filtered++;else x.review++;if(Number(r.grade)>=2)x.good++;x.total++;}
@@ -293,7 +293,7 @@ const AnkiMaxStatsMedia = {
     for(const card of this.statsCards()){
       const raw=card.createdAt||card.created_at||'',d=raw?new Date(raw):null;
       if(!d||!Number.isFinite(d.getTime()))continue;
-      const key=d.toISOString().slice(0,10);if(m.has(key))m.set(key,(m.get(key)||0)+1);
+      const key=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(d.getTime()):d.toISOString().slice(0,10);if(m.has(key))m.set(key,(m.get(key)||0)+1);
     }
     const serie=this._serie([...m.entries()],x=>x[1]>0);
     return '<div class="card stat-card" data-anki-stat-graph="added"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards criados no período</p></div></div>'+
@@ -389,7 +389,7 @@ const AnkiMaxStatsMedia = {
         ef=Math.max(0,Math.round((Number.isFinite(efRaw)&&efRaw>0?efRaw:2.5)*(efRaw>100?1:1000))),
         taken=Math.max(0,Math.round(Number(r.time!=null?r.time:r.takenMillis)||0));
       revlogs.push({id,cid,button_chosen:Math.max(1,Math.min(4,Math.round(Number(r.grade)||1))),interval:iv,last_interval:lastIv,ease_factor:ef,taken_millis:taken,review_kind:this._simReviewKind(r)});
-      const d=String(r.date||new Date(Number(r.ts)||0).toISOString().slice(0,10)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
+      const d=String(r.date||this._revDate(r)).slice(0,10),k=String(r.cardId==null?r.ankiCardId:r.cardId);
       if(d&&(!firstReviewDateByCard.has(k)||d<firstReviewDateByCard.get(k)))firstReviewDateByCard.set(k,d);
     });
     const introducedToday=scoped.filter(c=>{

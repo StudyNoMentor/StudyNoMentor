@@ -89,8 +89,21 @@ const MiniXLSX = {
       throw new Error('seu navegador não suporta ler .xlsx offline — atualize o navegador ou cole os dados.');
     const ds = new DecompressionStream('deflate-raw');
     const stream = new Blob([data]).stream().pipeThrough(ds);
-    const ab = await new Response(stream).arrayBuffer();
-    return new Uint8Array(ab);
+    /* Teto do que SAI do descompressor, lido em fatias: uma planilha-bomba
+       (poucos KB que viram GB) derrubava a aba. 200 MB por parte do .xlsx. */
+    const TETO = 200 * 1024 * 1024;
+    const reader = stream.getReader(), partes = [];
+    let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      n += value.length;
+      if (n > TETO) { try { await reader.cancel(); } catch (_) { _quiet(_); } throw new Error('planilha grande demais depois de descompactada (mais de 200 MB).'); }
+      partes.push(value);
+    }
+    const out = new Uint8Array(n); let o = 0;
+    for (const p of partes) { out.set(p, o); o += p.length; }
+    return out;
   },
   _xmlDecode(s) {
     return String(s)

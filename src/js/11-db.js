@@ -6,7 +6,8 @@
    Antes de a fila avançar, registramos a intenção em IndexedDB. O registro só
    sai daqui depois de a nuvem confirmar TANTO o revlog quanto o estado novo do
    card. Assim reload, queda de rede ou fechamento da aba não perdem a resposta.
-   O localStorage continua apenas como fallback para navegadores sem IndexedDB. */
+   Sem IndexedDB, o fallback é a lista de pendentes em RAM (DB.getRevlogPendentes),
+   que só sobrevive enquanto a aba estiver aberta. */
 const ReviewJournal = {
   DB_NAME: 'studynomentor-review-journal',
   STORE: 'review-ops',
@@ -393,9 +394,7 @@ const DB = {
   _mesmoId(a, b) { return String(a) === String(b); },
   deleteEntry(id) {
     const key = this.KEYS.entries;
-    const antes = this.getEntries();
-    const removido = antes.find(e => this._mesmoId(e.id, id)) || null;
-    const entries = antes.filter(e => !this._mesmoId(e.id, id));
+    const entries = this.getEntries().filter(e => !this._mesmoId(e.id, id));
     if (this._set(key, entries) === false) return false;
     return true;
   },
@@ -403,11 +402,7 @@ const DB = {
     const key = this.KEYS.entries;
     const entries = this.getEntries();
     const e = entries.find(x => this._mesmoId(x.id, id));
-    let before = null;
-    if (e) {
-      try { before = JSON.parse(JSON.stringify(e)); } catch (_) { before = Object.assign({}, e); }
-      Object.assign(e, patch);
-    }
+    if (e) Object.assign(e, patch);
     if (this._set(key, entries) === false) return null;
     return e;
   },
@@ -426,7 +421,7 @@ const DB = {
     return list;
   },
   getActiveSubjects() { return this.getSubjects().filter(s => s.ativo); },
-  saveSubjects(list) { this._set(this.KEYS.subjects, list); },
+  saveSubjects(list) { return this._set(this.KEYS.subjects, list) !== false; },
   upsertSubjectName(name) {
     // garante que toda matéria digitada no Diário exista no cadastro mestre
     const subjects = this.getSubjects();
@@ -543,7 +538,8 @@ const DB = {
     this._set(this.KEYS.subjects, subjects);
   },
   subjectHasEntries(nome) {
-    return this.getEntries().some(e => e.subject.toLowerCase() === nome.toLowerCase());
+    const alvo = String(nome == null ? '' : nome).toLowerCase();
+    return this.getEntries().some(e => String(e && e.subject || '').toLowerCase() === alvo);
   },
   // exclusão "inteligente": se nunca foi usada, remove de vez; se tem histórico, apenas desativa
   removeSubjectSafely(id) {
@@ -580,7 +576,8 @@ const DB = {
     this._set(this.KEYS.methods, list);
   },
   methodInUse(nome) {
-    return this.getEntries().some(e => e.method.toLowerCase() === nome.toLowerCase());
+    const alvo = String(nome == null ? '' : nome).toLowerCase();
+    return this.getEntries().some(e => String(e && e.method || '').toLowerCase() === alvo);
   },
   removeMethodSafely(id) {
     const list = this.getMethods();
@@ -682,8 +679,8 @@ const DB = {
 
   // --- Current Cycle ---
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
-  saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
-  clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
+  saveCurrentCycle(cycle) { return this._set(this.KEYS.currentCycle, cycle) !== false; },
+  clearCurrentCycle() { return this.delRaw(this.KEYS.currentCycle, 'semana fechada') !== false; },
   // leituras cruzadas são somente leitura: permitem reaproveitar um ciclo de outro
   // planejamento sem trocar o namespace ativo nem criar vínculo entre origem/destino.
   getCurrentCycleForPlan(planId) { return this._get(this.keysForPlan(planId).currentCycle, null); },
@@ -710,7 +707,7 @@ const DB = {
     }
     return t;
   },
-  saveGradeTemplate(t) { this._set(this.KEYS.gradeTemplate, t); },
+  saveGradeTemplate(t) { return this._set(this.KEYS.gradeTemplate, t) !== false; },
 
   // ---- Grades salvas: [{ id, nome, grade, sessions, createdAt }] ----
   // Permite guardar a grade atual sob um nome, trocar de planejamento/meta e depois
@@ -756,8 +753,7 @@ const DB = {
     const t = this.getGradeTemplate();
     t.grade = JSON.parse(JSON.stringify(s.grade || {}));
     t.sessions = s.sessions || t.sessions || 3;
-    this.saveGradeTemplate(t);
-    return true;
+    return this.saveGradeTemplate(t);
   },
 
   // ---- Siglas customizadas: [{ id, sigla, nome, color }] ----
@@ -1154,7 +1150,7 @@ const DB = {
     if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
     return this.replaceRevlog(l);
   },
-  getCard(id) { return this.getCards().find(c => c.id === id) || null; },
+  getCard(id) { return this.getCards().find(c => this._mesmoId(c.id, id)) || null; },
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
@@ -1470,29 +1466,12 @@ const DB = {
      há sessões no intervalo (semana vazia fica como está) e roda UMA vez,
      marcada por flag. O valor anterior vai para `avgPerformancePctLegado`
      para o número antigo não sumir sem rastro. */
-  migrarAproveitamentoAgregado() {
-    const FLAG = 'mig-aprov-agregado-v1';
-    try {
-      if (this._get(FLAG, null)) return 0;
-      const hist = this.getCycleHistory() || [];
-      const todas = this.getEntries() || [];
-      let n = 0;
-      hist.forEach(w => {
-        if (!w || !w.startDate || !w.endDate) return;
-        const novo = CycleEngine.aproveitamentoNoPeriodo(w.startDate, w.endDate, todas);
-        if (novo == null) return;
-        const antigo = w.avgPerformancePct;
-        if (antigo != null && Math.abs(antigo - novo) < 0.005) return;
-        if (antigo != null && w.avgPerformancePctLegado === undefined) w.avgPerformancePctLegado = antigo;
-        w.avgPerformancePct = novo;
-        n++;
-      });
-      if (n) this._set(this.KEYS.cycleHistory, hist);
-      this._set(FLAG, 1);
-      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
-      return n;
-    } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
-  },
+  /* Desativada: recalculava o aproveitamento de semanas JÁ FECHADAS, o que
+     contraria a regra "semana fechada é registro" (ver o reparo logo abaixo).
+     Além disso a flag não tinha prefixo de estudo — ia para o armazenamento
+     nativo, valia para o navegador inteiro e rodava só no primeiro perfil
+     aberto. Mantida como no-op para quem ainda a chama. */
+  migrarAproveitamentoAgregado() { return 0; },
 
   /* ── REPARO: devolve à semana fechada os números com que ela foi fechada ──
      A auditoria de métricas passou a RECALCULAR, no boot e em silêncio, o
@@ -2161,21 +2140,24 @@ const DB = {
 
   // --- Cycle History ---
   getCycleHistory() { return this._get(this.KEYS.cycleHistory, []); },
+  // Todas devolvem FALSE quando a gravação foi recusada (plano pausado, falha):
+  // a tela não pode anunciar "✓ salvo" nesse caso.
   saveCycleToHistory(cycleSnapshot) {
     const history = this.getCycleHistory();
     history.push(cycleSnapshot);
-    this._set(this.KEYS.cycleHistory, history);
+    return this._set(this.KEYS.cycleHistory, history) !== false;
   },
+  // Ids comparados como texto: semanas de backups antigos têm id não numérico.
   updateCycleHistoryEntry(id, patch) {
     const history = this.getCycleHistory();
-    const w = history.find(x => x.id === id);
-    if (w) Object.assign(w, patch);
-    this._set(this.KEYS.cycleHistory, history);
-    return w;
+    const w = history.find(x => this._mesmoId(x.id, id));
+    if (!w) return null;
+    Object.assign(w, patch);
+    return this._set(this.KEYS.cycleHistory, history) === false ? false : w;
   },
   deleteCycleHistoryEntry(id) {
-    const history = this.getCycleHistory().filter(x => x.id !== id);
-    this._set(this.KEYS.cycleHistory, history);
+    const history = this.getCycleHistory().filter(x => !this._mesmoId(x.id, id));
+    return this._set(this.KEYS.cycleHistory, history) !== false;
   },
   // Verifica se o intervalo [start,end] se sobrepõe a algum ciclo já existente.
   // excludeHistoryId: ignora uma semana do histórico (ao editá-la).
@@ -2186,7 +2168,7 @@ const DB = {
     if (includeActive === undefined) includeActive = true;
     const items = [];
     this.getCycleHistory().forEach(w => {
-      if (excludeHistoryId != null && w.id === excludeHistoryId) return;
+      if (excludeHistoryId != null && this._mesmoId(w.id, excludeHistoryId)) return;
       items.push({ start: w.startDate, end: w.endDate, label: 'semana ' + w.startDate + ' → ' + w.endDate });
     });
     if (includeActive) {

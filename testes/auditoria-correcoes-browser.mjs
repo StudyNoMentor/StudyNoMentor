@@ -33,7 +33,7 @@ let n = 0;
 const ok = (v, m) => { n++; assert.ok(v, m); console.log('  ✓ ' + m); };
 
 async function abrir() {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block' });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: 'block', timezoneId: 'America/Sao_Paulo' });
   await ctx.route('https://cdn.jsdelivr.net/**', r => r.abort());
   await ctx.route('https://fonts.googleapis.com/**', r => r.fulfill({ status: 200, contentType: 'text/css', body: '' }));
   await ctx.route('https://*.supabase.co/**', r => r.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
@@ -208,6 +208,12 @@ async function pontaAPonta() {
     return { foto: foto.ok, rid: lista[0] && lista[0].id };
   });
   ok(r5.foto && r5.rid, 'A5: foto de backup criada para o teste');
+  // Médio 17 — a faxina enxerga todas as fotos, não só as 60 da tela
+  const modelo = linhas('profile_backups', r => r.profile_id === perfil.id)[0];
+  for (let i = 0; i < 70; i++) api.estado.tabelas.profile_backups.push(Object.assign({}, modelo, { id: 'velha-' + i, ancora: false, created_at: new Date(Date.now() - (i + 1) * 60000).toISOString() }));   // < 24 h: a faxina nunca apaga
+  const contagem = await page.evaluate(async () => ({ tela: (await CloudBackup.listar()).length, todas: (await CloudBackup.listarTodas()).length }));
+  ok(contagem.tela === 60 && contagem.todas >= 71, 'backup: a faxina/âncora enxergam todas as fotos (' + JSON.stringify(contagem) + ')');
+  api.estado.tabelas.profile_backups = api.estado.tabelas.profile_backups.filter(r => !String(r.id).startsWith('velha-'));
   api.estado.falhaForcada = (req, u) => u.pathname.includes('profile_backups') && req.method === 'POST';
   const semFoto = await page.evaluate(async (rid) => {
     DB.saveEntry({ id: 'e-depois-backup', subject: 'Penal', method: 'Questões', date: '2026-09-04', durationMin: 25, correct: 1, total: 2 });
@@ -306,6 +312,42 @@ try {
     return { n, bound: tray.dataset.dropBound };
   });
   ok(a10.n <= 1, 'A10: re-renderizar a grade não acumula listeners de drop na bandeja (' + a10.n + ')');
+
+  // ── Médio 5: datas pelo dia LOCAL, não UTC ────────────────────────────────
+  const datas = await page.evaluate(() => {
+    const noite = new Date(2026, 8, 10, 22, 30).getTime();   // 22:30 em Brasília = 01:30 UTC do dia 11
+    return { estudo: diaDeEstudoDe(noite), cal: dataLocalDe(noite), utc: new Date(noite).toISOString().slice(0, 10), madrugada: diaDeEstudoDe(new Date(2026, 8, 11, 2, 0).getTime()) };
+  });
+  ok(datas.utc === '2026-09-11' && datas.estudo === '2026-09-10' && datas.cal === '2026-09-10', 'datas: 22h30 em Brasília continua no dia 10 (UTC diria 11)');
+  ok(datas.madrugada === '2026-09-10', 'datas: 2h da manhã ainda é o dia de estudo anterior (virada às 4h)');
+
+  // ── Médio 16: ZIP-bomba é recusado pelo teto do que sai do descompressor ───
+  const bomba = await page.evaluate(async () => {
+    const zeros = new Uint8Array(8 * 1024 * 1024);
+    const comp = new Uint8Array(await new Response(new Blob([zeros]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
+    const nome = new TextEncoder().encode('collection.anki2');
+    const le16 = v => [v & 255, (v >> 8) & 255], le32 = v => [v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255];
+    const local = [...le32(0x04034b50), ...le16(20), 0, 0, ...le16(8), 0, 0, 0, 0, ...le32(0), ...le32(comp.length), ...le32(0), ...le16(nome.length), 0, 0];
+    const central = [...le32(0x02014b50), ...le16(20), ...le16(20), 0, 0, ...le16(8), 0, 0, 0, 0, ...le32(0), ...le32(comp.length), ...le32(0), ...le16(nome.length), 0, 0, 0, 0, 0, 0, 0, 0, ...le32(0), ...le32(0)];
+    const cdOff = local.length + nome.length + comp.length;
+    const eocd = [...le32(0x06054b50), 0, 0, 0, 0, ...le16(1), ...le16(1), ...le32(central.length + nome.length), ...le32(cdOff), 0, 0];
+    const zip = new Uint8Array([...local, ...nome, ...comp, ...central, ...nome, ...eocd]);
+    const teto = AnkiImport.ZIP_TETO_ENTRADA; AnkiImport.ZIP_TETO_ENTRADA = 1024 * 1024;
+    try { await AnkiImport.unzip(zip); return 'aceitou'; }
+    catch (e) { return String(e.message); }
+    finally { AnkiImport.ZIP_TETO_ENTRADA = teto; }
+  });
+  ok(/grande demais/.test(bomba), 'ZIP-bomba: descompactação passa do teto e é recusada (' + bomba + ')');
+
+  // ── Médio 18: "Sem Classificação" (depth=1, sem código) não vira raiz ──────
+  const incid = await page.evaluate(() => ({
+    comRaiz: ReforcoEngine.raizIncid([{ depth: 0, codigo: null, incidencia: 100 }, { depth: 1, codigo: null, incidencia: 20 }, { depth: 1, codigo: '1', incidencia: 80 }]),
+    semRaiz: ReforcoEngine.raizIncid([{ depth: 1, codigo: null, incidencia: 20 }, { depth: 1, codigo: '1', incidencia: 80 }, { depth: 2, codigo: '1.1', incidencia: 50 }])
+  }));
+  ok(incid.comRaiz === 100 && incid.semRaiz === 100, 'incidência: total da disciplina não é inflado pela "Sem Classificação" (' + JSON.stringify(incid) + ')');
+
+  // ── Baixo: SHA-1 único (csum do Anki) continua correto ─────────────────────
+  ok(await page.evaluate(() => AnkiExport._sha1First32('abc') === 0xa9993e36 && AnkiExport._sha1First32('') === 0xda39a3ee), 'csum do Anki (SHA-1, 32 bits) correto com a implementação única');
 
   // ── A7: código de terceiros ────────────────────────────────────────────────
   const a7 = await page.evaluate(() => ({

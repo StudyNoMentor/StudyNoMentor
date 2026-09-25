@@ -61,8 +61,9 @@ const CloudBackup = {
   },
 
   _diaKey(id) { return 'diario-estudos:cbk-dia:' + id; },
-  /* Assinatura do último conteúdo publicado, por perfil. GRAVADA em disco (não
-     só em memória): sem isto, um recarregamento — e o app recarrega sozinho
+  /* Assinatura do último conteúdo publicado, por perfil. Persistida como
+     preferência da conta (chave `diario-estudos:*` → user_preferences), não só
+     em memória: sem isto, um recarregamento — e o app recarrega sozinho
      depois de quase toda operação de risco, inclusive logo após restaurar um
      backup — esquecia a última assinatura e podia duplicar a MESMA foto que
      acabara de subir segundos antes. */
@@ -266,6 +267,35 @@ const CloudBackup = {
       return [];
     }
   },
+  /* A faxina e a âncora precisam enxergar TODAS as fotos: com o teto de 60 da
+     listagem da tela, uma foto mais antiga ficava invisível (nunca era
+     descartada, nem considerada como âncora). Só metadados — sem o conteúdo —
+     em páginas de 1000. Em erro devolve null: quem apaga não pode decidir com
+     lista incompleta. */
+  async listarTodas(id) {
+    if (!this._pronto()) return null;
+    const alvo = id || ProfileManager.getActiveProfileId();
+    if (!alvo) return null;
+    const PAG = 1000, out = [];
+    try {
+      for (let de = 0; de < 100000; de += PAG) {
+        const { data, error } = await CloudStore._withTimeout(
+          CloudStore.client.from(this.TABLE)
+            .select('id,created_at,note,device,chars,sig,ancora,enc')
+            .eq('profile_id', alvo).order('created_at', { ascending: false }).range(de, de + PAG - 1),
+          15000, 'Listar os backups da nuvem');
+        if (error) throw error;
+        const pag = data || [];
+        out.push(...pag);
+        if (pag.length < PAG) break;
+      }
+      return out;
+    } catch (err) {
+      if (this._isMissingTable(err)) { this._disable(err); return null; }
+      console.warn('[CloudBackup] não deu para listar todas:', err && (err.message || err));
+      return null;
+    }
+  },
   // Devolve o mapa seção→texto de uma foto (ou null).
   async abrir(rowId) {
     if (!this._pronto()) return null;
@@ -426,7 +456,8 @@ const CloudBackup = {
     const alvo = id || ProfileManager.getActiveProfileId();
     if (!alvo) return { mudou: false };
     let linhas;
-    try { linhas = await this.listar(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    try { linhas = await this.listarTodas(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    if (!linhas) return { mudou: false };
     const atual = (linhas || []).filter(r => r.ancora)[0] || null;
     const ideal = this.ancoraIdeal(linhas, Date.now());
     if (!ideal || (atual && ideal.id === atual.id)) return { mudou: false };
@@ -516,7 +547,8 @@ const CloudBackup = {
          pela metade (o perfil ficaria sem âncora), ela mesma desfaz; se nem
          isso der certo, não se apaga nada nesta rodada. */
       try { await this.moverAncora(alvo); } catch (e) { _quiet(e, 'cbk-ancora-mover'); }
-      const linhas = await this.listar(alvo);
+      const linhas = await this.listarTodas(alvo);
+      if (!linhas) return 0;   // lista incompleta: não se apaga nada nesta rodada
       if (!(linhas || []).some(r => r.ancora)) {
         console.warn('[CloudBackup] faxina adiada: o perfil ficou sem âncora — nada foi apagado.');
         return 0;
