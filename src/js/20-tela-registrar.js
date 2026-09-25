@@ -50,6 +50,13 @@
 
   let editingId = null; // null = modo "novo registro"; caso contrário, id do registro em edição
   let searchTerm = '';
+  /* Paginação da lista: desenhar milhares de registros de uma vez travava a
+     tela por segundos. Mostra 60 e cresce sob demanda; volta a 60 quando a
+     busca, a visão, os filtros ou a ordenação mudam. */
+  const RECENT_PASSO = 60;
+  let recentLimite = RECENT_PASSO, _recentChave = '';
+  const botaoMais = (total, onde) => total > recentLimite
+    ? `<div class="recent-more-row"><button type="button" class="btn-secondary recent-more-btn" data-onde="${onde}">Mostrar mais ${Math.min(RECENT_PASSO, total - recentLimite)} <span>· ${total - recentLimite} restante${total - recentLimite === 1 ? '' : 's'}</span></button></div>` : '';
   /* Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por
      coluna). A chave é NAMESPACED pelo perfil, como todas as outras escolhas do
      usuário: fora do prefixo `diario-estudos:u:<perfil>:` nada é sincronizado, e
@@ -66,7 +73,10 @@
   let tblSort = { key: 'date', dir: 'desc' };
   let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
   const entryIsLocal = (e) => !e || !e._planId || String(e._planId) === String(DB._activePlanId());
-  const entryPlanBadge = (e) => (e && e._planNome)
+  // Nome do planejamento só ajuda quando a lista mistura planejamentos; com um
+  // só, o selo se repetia em todo registro como ruído.
+  let _variosPlanos = false;
+  const entryPlanBadge = (e) => (_variosPlanos && e && e._planNome)
     ? `<span class="meta-badge badge-plan" title="Planejamento de origem">${escapeHtml(e._planNome)}</span>` : '';
 
   dateInput.value = todayLocal();
@@ -239,6 +249,7 @@
       return;
     }
     recentSection.style.display = 'block';
+    _variosPlanos = new Set(allEntries.map(e => String(e._planId || ''))).size > 1;
 
     // ordena sempre por data (mais recente no topo); desempata pela ordem de criação (id/createdAt)
     let entries = allEntries.slice().sort((a, b) => {
@@ -268,6 +279,9 @@
     const _wrap = document.querySelector('.content-wrap');
     if (_wrap) _wrap.classList.toggle('wrap-reg-table', _isTable);
 
+    const chave = [searchTerm, recentView, JSON.stringify(typeof tblFilters !== 'undefined' ? tblFilters : null), JSON.stringify(typeof tblSort !== 'undefined' ? tblSort : null)].join('|');
+    if (chave !== _recentChave) { _recentChave = chave; recentLimite = RECENT_PASSO; }
+
     if (entries.length === 0) {
       recentList.innerHTML = `<p style="color:var(--text-faint); font-size:13px; padding: 16px 0;">Nenhum registro encontrado para "${escapeHtml(searchTerm)}".</p>`;
       return;
@@ -275,7 +289,7 @@
 
     if (recentView === 'tabela') { renderRecentTable(entries); return; }
 
-    recentList.innerHTML = entries.map(e => {
+    recentList.innerHTML = entries.slice(0, recentLimite).map(e => {
       const hasPct = e.total > 0;
       const pct = hasPct ? calcPct(e.correct, e.total) : null;
       const tone = hasPct ? toneFor(pct) : null;
@@ -315,19 +329,28 @@
           </div>
         </div>
       `;
-    }).join('');
+    }).join('') + botaoMais(entries.length, 'cartoes');
 
     wireEntryRows();
+    ligarMostrarMais();
+  }
+  function ligarMostrarMais() {
+    const b = recentList.querySelector('.recent-more-btn');
+    if (b) b.addEventListener('click', () => { recentLimite += RECENT_PASSO; renderRecent(); });
   }
 
   // Liga os botões de editar/excluir de cada linha — funciona tanto para os
   // cartões (.recent-item) quanto para as linhas da tabela (.reg-row).
   function wireEntryRows() {
+    // Um único levantamento dos registros (antes: um por LINHA, O(n²) — com
+    // milhares de registros a tela travava vários segundos).
+    const todos = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const porId = new Map(todos.map(e => [String(e.id), e]));
     recentList.querySelectorAll('.recent-item, .reg-row').forEach(row => {
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
       // NaN e os botões parariam de funcionar sem erro visível.
       const id = row.dataset.id;
-      const visible = (DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries()).find(e => DB._mesmoId ? DB._mesmoId(e.id, id) : String(e.id) === String(id));
+      const visible = porId.get(String(id)) || (DB._mesmoId ? todos.find(e => DB._mesmoId(e.id, id)) : null);
       if (visible && !entryIsLocal(visible)) return;
       const eb = row.querySelector('.btn-edit-entry');
       const db = row.querySelector('.btn-delete-entry');
@@ -462,7 +485,7 @@
     const opt = (arr, sel) => ['<option value="">Todas</option>'].concat(
       arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`)).join('');
 
-    const bodyRows = rows.map(e => {
+    const bodyRows = rows.slice(0, recentLimite).map(e => {
       const hasPct = e.total > 0;
       const pct = hasPct ? calcPct(e.correct, e.total) : null;
       const tone = hasPct ? toneFor(pct) : 'none';
@@ -481,7 +504,7 @@
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
-          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
+          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${_variosPlanos && e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
           <td class="reg-c reg-c-lesson" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-method" title="${meth}"><span class="reg-method-chip">${meth}</span></td>
           <td class="reg-c reg-c-num reg-c-time">${timeStr}</td>
@@ -561,8 +584,8 @@
       </div>
       <div class="reg-hbar" id="reg-hbar" aria-hidden="true"><div class="reg-hbar-thumb" id="reg-hbar-thumb"></div></div>
       <div class="reg-table-foot">
-        <span class="count">Mostrando <strong>${rows.length}</strong> de ${baseEntries.length} registro${baseEntries.length === 1 ? '' : 's'}${anyFilter ? ' (filtrados)' : ''}.</span>
-      </div>`;
+        <span class="count">Mostrando <strong>${Math.min(rows.length, recentLimite)}</strong> de ${rows.length}${rows.length !== baseEntries.length ? ' (' + baseEntries.length + ' no total)' : ''} registro${rows.length === 1 ? '' : 's'}${anyFilter ? ' (filtrados)' : ''}.</span>
+      </div>${botaoMais(rows.length, 'tabela')}`;
 
     // Barra de rolagem CUSTOM (sempre visível quando a tabela transborda a caixa)
     setupRegHBar();
@@ -612,6 +635,7 @@
     }
 
     wireEntryRows();
+    ligarMostrarMais();
   }
 
   searchInput.addEventListener('input', () => {

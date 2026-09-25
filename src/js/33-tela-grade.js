@@ -2,6 +2,16 @@ const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'
 
 // modo de montagem do ciclo conforme o tipo do planejamento ativo
 // 'pos' = Pós-edital (ponderação estratégica) | 'pre' = demais (dificuldade + fase)
+/* "dificuldade 3 · Novo" — só com o que existe. Ciclos vindos do Motor, de
+   importação ou de outro planejamento podem não trazer dificuldade/fase, e a
+   tela mostrava "dificuldade undefined ·". */
+function metaDificuldadeFase(s) {
+  const partes = [];
+  if (s && s.dificuldade != null && s.dificuldade !== '') partes.push('dificuldade ' + s.dificuldade);
+  if (s && s.fase) partes.push(escapeHtml(s.fase));
+  return partes.join(' · ');
+}
+
 function planCycleMode() {
   const p = PlanManager.getActivePlan();
   return (p && p.tipo === 'Pós-edital') ? 'pos' : 'pre';
@@ -546,8 +556,8 @@ function planCycleMode() {
       const m = s.definidoMin % 60;
       const changed = s.definidoMin !== s.sugeridoMin;
       const metaTxt = (pendingCycle.mode === 'pos')
-        ? `relevância ${(( s.relevancia || 0) * 100).toFixed(1)}% · dif. ${s.dificuldade} · ext. ${s.extensao || 1}`
-        : `dificuldade ${s.dificuldade} · ${escapeHtml(s.fase || '—')}`;
+        ? `relevância ${(( s.relevancia || 0) * 100).toFixed(1)}%` + (s.dificuldade != null ? ` · dif. ${s.dificuldade}` : '') + ` · ext. ${s.extensao || 1}`
+        : metaDificuldadeFase(s);
       return `
         <div class="cycle-review-row" data-idx="${idx}">
           <div>
@@ -773,7 +783,7 @@ function planCycleMode() {
             </div>
           </div>
           <div class="subject-progress-head sp-foot" style="margin-top:10px; margin-bottom:0;">
-            <span class="subject-meta-tag">dificuldade ${s.dificuldade} · ${escapeHtml(s.fase)}</span>
+            ${metaDificuldadeFase(s) ? `<span class="subject-meta-tag">${metaDificuldadeFase(s)}</span>` : '<span></span>'}
             <span class="subject-meta-tag">${pct}% da meta</span>
           </div>
         </div>
@@ -953,7 +963,8 @@ function planCycleMode() {
     days.forEach(d => html += `<th>${d.slice(0, 3)}</th>`);
     html += '</tr></thead><tbody>';
     rows.forEach((label, ri) => {
-      html += `<tr><td>${label}</td>`;
+      // no celular a coluna fica só com "1ª" (o "sessão" repetido quebrava a célula)
+      html += `<tr><td title="${label}"><span class="gs-n">${ri + 1}ª</span><span class="gs-w"> sessão</span></td>`;
       days.forEach(dia => {
         html += `<td><div class="grade-cell-drop" data-dia="${dia}" data-idx="${ri}"></div></td>`;
       });

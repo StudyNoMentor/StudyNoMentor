@@ -2267,16 +2267,25 @@ const DB = {
   getCycleHistoryForPlan(planId) { return this._get(this.keysForPlan(planId).cycleHistory, []); },
   getTracksForPlan(planId) { return this._get(this.keysForPlan(planId).tracks, {}); },
   // Todos os registros de todos os planejamentos, cada um marcado com o plano de origem
+  /* Planos consultados pelas leituras consolidadas. O planejamento ATIVO entra
+     sempre: sem registro na lista (perfil recém-criado, migração), seus
+     registros sumiam de "Todos os registros" embora existissem. */
+  _plansForTagged(includePaused) {
+    const plans = (includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans()) || [];
+    const active = (PlanManager.getActivePlanId && PlanManager.getActivePlanId()) || this._activePlanId();
+    if (active && !plans.some(p => String(p.id) === String(active))) return [{ id: active, nome: 'Planejamento atual' }].concat(plans);
+    return plans;
+  },
   getAllEntriesTagged(opts) {
     const includePaused = !!(opts && opts.includePaused);
-    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    const plans = this._plansForTagged(includePaused);
     return plans.flatMap(p =>
       this.getEntriesForPlan(p.id).map(e => ({ ...e, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
   },
   getAllCycleHistoryTagged(opts) {
     const includePaused = !!(opts && opts.includePaused);
-    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    const plans = this._plansForTagged(includePaused);
     return plans.flatMap(p =>
       this.getCycleHistoryForPlan(p.id).map(w => ({ ...w, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
