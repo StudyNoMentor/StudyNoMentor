@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v176a5f566d">
+<meta name="diario-versao" content="vc4c438fea6">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -1348,6 +1348,9 @@ window.__relationalBoot = true;
   .cal-day .cal-alldone { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-top: 3px; border-radius: 50%; background: var(--good); color: #fff; font-size: calc(9px * var(--fs-scale,1)); font-weight: 900; line-height: 1; }
   .cal-day.partial .cal-dots { position: relative; }
   .cal-day.partial::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+  /* dia congelado pela pausa do planejamento: borda tracejada, sem cobrança */
+  .cal-day.paused { border-style: dashed; background: var(--surface-sunken); box-shadow: none; }
+  .cal-day .cal-paused-mark { font-size: var(--fs-3xs); color: var(--text-soft); }
   .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
   .cal-more { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 700; }
   .cal-panel { padding: 4px 24px 20px; }
@@ -19558,51 +19561,254 @@ const PlanManager = {
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
+  /* ── PAUSA DATADA ─────────────────────────────────────────────────────────
+     A pausa é uma JANELA de calendário [from, until): `from` é o primeiro dia
+     congelado e `until` o primeiro dia em que tudo volta a contar (null =
+     indefinida). As datas são escolhidas pela pessoa — podem ser retroativas
+     ("parei dia 10 e esqueci de pausar") ou futuras (pausa/retorno agendados).
+     Janelas antigas ficam guardadas: um dia pausado continua pausado para as
+     métricas mesmo depois da reativação. `pausedAt`/`resumedAt` continuam no
+     registro só como espelho legível por versões antigas do app. */
+  _hoje() {
+    if (typeof todayLocal === 'function') return todayLocal();
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  _diaISO(v) {
+    const s = String(v == null ? '' : v).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(s + 'T00:00:00');
+      return isNaN(d.getTime()) ? null : s;
+    }
+    if (!s) return null;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  _somaDias(iso, n) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  // Função pura: aceita o registro novo ({windows}) e o legado ({pausedAt, resumedAt}).
+  pauseWindowsFromRecord(rec) {
+    if (!rec || typeof rec !== 'object') return [];
+    let raw = Array.isArray(rec.windows) ? rec.windows : null;
+    if (!raw) raw = rec.pausedAt ? [{ from: rec.pausedAt, until: rec.resumedAt || null, pausedAt: rec.pausedAt, resumedAt: rec.resumedAt || null }] : [];
+    const out = [];
+    raw.forEach(w => {
+      if (!w) return;
+      const from = this._diaISO(w.from);
+      if (!from) return;
+      const until = w.until ? this._diaISO(w.until) : null;
+      if (until && until <= from) return;               // janela vazia = pausa cancelada
+      out.push({ from, until, pausedAt: w.pausedAt || null, resumedAt: w.resumedAt || null });
+    });
+    return out.sort((a, b) => a.from.localeCompare(b.from));
+  },
+  pausedOnFromRecord(rec, dia) {
+    dia = this._diaISO(dia) || this._hoje();
+    return this.pauseWindowsFromRecord(rec).some(w => w.from <= dia && (!w.until || dia < w.until));
+  },
   _pauseMap() {
     const v = DB._get(this.GK.pauses, {});
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   },
   _savePauseMap(v) { return DB._set(this.GK.pauses, v || {}); },
-  pauseInfo(id) {
-    const x = this._pauseMap()[String(id)] || null;
-    if (!x || !x.pausedAt || x.resumedAt) return null;
-    return x;
+  pauseWindows(id) { return this.pauseWindowsFromRecord(this._pauseMap()[String(id)]); },
+  _savePauseWindows(id, windows) {
+    const map = this._pauseMap();
+    const ws = this.pauseWindowsFromRecord({ windows });
+    if (!ws.length) delete map[String(id)];
+    else {
+      const ult = ws[ws.length - 1];
+      map[String(id)] = {
+        v: 2, windows: ws,
+        pausedAt: ult.pausedAt || new Date(ult.from + 'T00:00:00').toISOString(),
+        resumedAt: ult.until ? (ult.resumedAt || new Date(ult.until + 'T00:00:00').toISOString()) : null
+      };
+    }
+    return this._savePauseMap(map);
   },
-  isPaused(id) { return !!this.pauseInfo(id); },
+  isPausedOn(id, dia) {
+    if (id == null) return false;
+    dia = this._diaISO(dia) || this._hoje();
+    return this.pauseWindows(id).some(w => w.from <= dia && (!w.until || dia < w.until));
+  },
+  // Janela vigente hoje (ou null). Mantém `pausedAt` para quem já lia esse campo.
+  pauseInfo(id) {
+    const hoje = this._hoje();
+    const w = this.pauseWindows(id).find(x => x.from <= hoje && (!x.until || hoje < x.until));
+    return w ? Object.assign({}, w, { pausedAt: w.pausedAt || w.from }) : null;
+  },
+  // Próxima pausa ainda não iniciada (agendada para o futuro).
+  scheduledPause(id) {
+    const hoje = this._hoje();
+    return this.pauseWindows(id).find(x => x.from > hoje) || null;
+  },
+  isPaused(id) { return this.isPausedOn(id, this._hoje()); },
   isActivePlanPaused() { return this.isPaused(this.getActivePlanId()); },
+  // Dia congelado no planejamento indicado (padrão: o ativo). É a pergunta
+  // que agenda, atrasos, fila de reforço, rodízio e métricas fazem.
+  isDayPaused(dia, planId) {
+    return this.isPausedOn(planId == null ? this.getActivePlanId() : planId, dia);
+  },
+  // Primeiro dia >= `dia` em que o planejamento opera; null se a pausa for indefinida.
+  nextOperationalDay(dia, planId) {
+    let d = this._diaISO(dia) || this._hoje();
+    const ws = this.pauseWindows(planId == null ? this.getActivePlanId() : planId);
+    for (let i = 0; i <= ws.length; i++) {
+      const w = ws.find(x => x.from <= d && (!x.until || d < x.until));
+      if (!w) return d;
+      if (!w.until) return null;
+      d = w.until;
+    }
+    return d;
+  },
+  // Dias congelados no intervalo fechado [a, b].
+  pausedDaysBetween(a, b, planId) {
+    a = this._diaISO(a); b = this._diaISO(b);
+    if (!a || !b || a > b) return 0;
+    const ws = this.pauseWindows(planId == null ? this.getActivePlanId() : planId);
+    const t = iso => new Date(iso + 'T00:00:00').getTime();
+    let n = 0;
+    ws.forEach(w => {
+      const ini = w.from > a ? w.from : a;
+      const fimExcl = w.until ? (w.until <= this._somaDias(b, 1) ? w.until : this._somaDias(b, 1)) : this._somaDias(b, 1);
+      if (fimExcl > ini) n += Math.round((t(fimExcl) - t(ini)) / 86400000);
+    });
+    return n;
+  },
+  operationalDaysBetween(a, b, planId) {
+    a = this._diaISO(a); b = this._diaISO(b);
+    if (!a || !b || a > b) return 0;
+    const total = Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000) + 1;
+    return Math.max(0, total - this.pausedDaysBetween(a, b, planId));
+  },
   getOperationalPlans() { return this.getPlans().filter(p => !this.isPaused(p.id)); },
   getPausedPlans() { return this.getPlans().filter(p => this.isPaused(p.id)); },
-  pausePlan(id) {
+  /* Outro planejamento precisa seguir operando em TODOS os dias a partir de
+     `inicio` (a pausa nova é indefinida até alguém escolher o retorno). */
+  _temCobertura(excluiId, inicio) {
+    return this.getPlans().some(x => String(x.id) !== String(excluiId) &&
+      !this.pauseWindows(x.id).some(w => !w.until || w.until > inicio));
+  },
+  _emitPause(detail) {
+    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail })); }
+    catch (e) { _quiet(e, 'planning-pause-event'); }
+  },
+  /* Reposiciona o contexto ativo quando o dia de hoje cai numa pausa (pausa
+     retroativa, agendada que chegou ou pausa sincronizada de outro aparelho). */
+  _garantirAtivoOperacional() {
+    if (!this.isActivePlanPaused()) return null;
+    const next = this.getOperationalPlans()[0];
+    if (!next) return null;
+    DB.setRaw(this.GK.active, next.id);
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-pause'); }
+    return next.id;
+  },
+  /* opts.from: primeiro dia congelado (padrão: hoje; pode ser passado ou futuro).
+     opts.until: dia de retorno opcional (primeiro dia que volta a contar). */
+  pausePlan(id, opts) {
     id = String(id || '');
+    opts = opts || {};
     const plans = this.getPlans(), p = plans.find(x => String(x.id) === id);
     if (!p) return { ok: false, reason: 'not-found' };
-    if (this.isPaused(id)) return { ok: true, unchanged: true, info: this.pauseInfo(id) };
-    const outros = plans.filter(x => String(x.id) !== id && !this.isPaused(x.id));
-    if (!outros.length) return { ok: false, reason: 'last-operational' };
-    const now = new Date().toISOString(), map = this._pauseMap();
-    map[id] = { pausedAt: now, resumedAt: null };
-    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
-    let switchedTo = null;
-    if (String(this.getActivePlanId()) === id) {
-      switchedTo = outros[0].id;
-      DB.setRaw(this.GK.active, switchedTo);
-      try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-pause'); }
-    }
-    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: true, pausedAt: now, switchedTo } })); }
-    catch (e) { _quiet(e, 'planning-pause-event'); }
-    return { ok: true, pausedAt: now, switchedTo };
-  },
-  resumePlan(id) {
-    id = String(id || '');
-    if (!this.getPlans().some(x => String(x.id) === id)) return { ok: false, reason: 'not-found' };
-    const map = this._pauseMap(), old = map[id];
-    if (!old || !old.pausedAt || old.resumedAt) return { ok: true, unchanged: true };
+    const hoje = this._hoje();
+    const from = opts.from == null || opts.from === '' ? hoje : this._diaISO(opts.from);
+    if (!from) return { ok: false, reason: 'invalid-date' };
+    const until = opts.until ? this._diaISO(opts.until) : null;
+    if (opts.until && !until) return { ok: false, reason: 'invalid-date' };
+    if (until && until <= from) return { ok: false, reason: 'until-before-from' };
+    const ws = this.pauseWindows(id);
+    // Uma pausa vigente se edita pela reativação; uma agendada é substituída.
+    const vigente = ws.find(w => w.from <= hoje && (!w.until || hoje < w.until));
+    if (vigente) return { ok: true, unchanged: true, info: this.pauseInfo(id) };
+    const base = ws.filter(w => w.from <= hoje);            // janelas passadas ficam
+    const ultima = base[base.length - 1];
+    if (ultima && ultima.until && from < ultima.until) return { ok: false, reason: 'overlap', min: ultima.until };
+    const inicioEfetivo = from > hoje ? from : hoje;
+    if (!this._temCobertura(id, inicioEfetivo)) return { ok: false, reason: 'last-operational' };
     const now = new Date().toISOString();
-    map[id] = Object.assign({}, old, { resumedAt: now });
-    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
-    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: false, resumedAt: now } })); }
-    catch (e) { _quiet(e, 'planning-resume-event'); }
-    return { ok: true, resumedAt: now };
+    const nova = { from, until, pausedAt: now, resumedAt: until ? now : null };
+    if (this._savePauseWindows(id, base.concat([nova])) === false) return { ok: false, reason: 'save-failed' };
+    let switchedTo = null;
+    if (String(this.getActivePlanId()) === id && this.isPaused(id)) switchedTo = this._garantirAtivoOperacional();
+    const scheduled = from > hoje;
+    this._emitPause({ planId: id, paused: this.isPaused(id), scheduled, from, until, pausedAt: now, switchedTo });
+    return { ok: true, pausedAt: now, from, until, scheduled, switchedTo };
+  },
+  /* opts.from: dia em que tudo volta a contar (padrão: hoje; pode ser passado,
+     desde que não anterior ao início da pausa, ou futuro = retorno agendado).
+     Retorno no mesmo dia do início desfaz a pausa inteira. */
+  resumePlan(id, opts) {
+    id = String(id || '');
+    opts = opts || {};
+    if (!this.getPlans().some(x => String(x.id) === id)) return { ok: false, reason: 'not-found' };
+    const hoje = this._hoje();
+    const ws = this.pauseWindows(id);
+    // Janela aberta: vigente hoje ou ainda por começar.
+    const alvo = ws.find(w => (!w.until || w.until > hoje));
+    if (!alvo) return { ok: true, unchanged: true };
+    const until = opts.from == null || opts.from === '' ? (alvo.from > hoje ? alvo.from : hoje) : this._diaISO(opts.from);
+    if (!until) return { ok: false, reason: 'invalid-date' };
+    if (until < alvo.from) return { ok: false, reason: 'before-pause', min: alvo.from };
+    const seguinte = ws.find(w => w !== alvo && w.from > alvo.from);
+    if (seguinte && until > seguinte.from) return { ok: false, reason: 'overlap', max: seguinte.from };
+    const now = new Date().toISOString();
+    const novas = ws.map(w => w === alvo ? Object.assign({}, w, { until, resumedAt: now }) : w)
+      .filter(w => !w.until || w.until > w.from);
+    if (this._savePauseWindows(id, novas) === false) return { ok: false, reason: 'save-failed' };
+    const cancelled = until === alvo.from;
+    const scheduled = until > hoje;
+    this._emitPause({ planId: id, paused: this.isPaused(id), resumedAt: now, until, scheduled, cancelled });
+    return { ok: true, resumedAt: now, until, scheduled, cancelled };
+  },
+  // Desfaz uma pausa que ainda não começou.
+  cancelScheduledPause(id) {
+    id = String(id || '');
+    const hoje = this._hoje();
+    const ws = this.pauseWindows(id);
+    const novas = ws.filter(w => !(w.from > hoje));
+    if (novas.length === ws.length) return { ok: true, unchanged: true };
+    if (this._savePauseWindows(id, novas) === false) return { ok: false, reason: 'save-failed' };
+    this._emitPause({ planId: id, paused: this.isPaused(id), cancelled: true });
+    return { ok: true, cancelled: true };
+  },
+  /* Viradas de dia: uma pausa/retorno agendado entra em vigor sem ação do
+     usuário. Verificado no boot, ao voltar à aba e a cada minuto (barato: só
+     compara a data). */
+  _pauseSig() {
+    return this.getPlans().map(p => p.id + ':' + (this.isPaused(p.id) ? 1 : 0)).join('|');
+  },
+  aplicarViradaDePausa() {
+    let sig;
+    try { sig = this._pauseSig(); } catch (e) { _quiet(e, 'plan-pause-sig'); return false; }
+    const mudou = this._ultimaAssinaturaPausa != null && this._ultimaAssinaturaPausa !== sig;
+    this._ultimaAssinaturaPausa = sig;
+    const switchedTo = this._garantirAtivoOperacional();
+    if (mudou || switchedTo) {
+      if (switchedTo) this._ultimaAssinaturaPausa = this._pauseSig();
+      this._emitPause({ automatic: true, switchedTo });
+      return true;
+    }
+    return false;
+  },
+  _vigiarViradaDePausa() {
+    if (this._vigiaPausa || typeof window === 'undefined' || !window.addEventListener) return;
+    this._vigiaPausa = true;
+    let dia = this._hoje();
+    const checar = () => {
+      const agora = this._hoje();
+      if (agora === dia) return;
+      dia = agora;
+      this.aplicarViradaDePausa();
+    };
+    try {
+      window.addEventListener('focus', checar);
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) checar(); });
+      setInterval(checar, 60000);
+    } catch (e) { _quiet(e, 'plan-pause-watch'); }
   },
   // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
   // vez todas as chaves do planejamento e as telas abririam vazias.
@@ -19973,6 +20179,8 @@ const PlanManager = {
         else this.setActivePlan(id);
       }
     }
+    try { this._ultimaAssinaturaPausa = this._pauseSig(); } catch (e) { _quiet(e, 'plan-pause-sig-init'); }
+    this._vigiarViradaDePausa();
   }
 };
 
@@ -27279,6 +27487,11 @@ function planCycleMode() {
       const d1 = new Date((_hojeIso > cycle.startDate ? _hojeIso : cycle.startDate) + 'T00:00:00');
       const d2 = new Date(_fimSemana + 'T00:00:00');
       diasRestantes = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+      // Dias de pausa agendada dentro da semana não recebem estudo.
+      if (typeof PlanManager !== 'undefined' && PlanManager.operationalDaysBetween && d2 >= d1) {
+        const ini = _hojeIso > cycle.startDate ? _hojeIso : cycle.startDate;
+        diasRestantes = Math.max(1, PlanManager.operationalDaysBetween(ini, _fimSemana));
+      }
     } catch (_) { diasRestantes = 1; }
     const porDia = remaining > 0 ? Math.round(remaining / diasRestantes) : 0;
     const ritmoAccent = remaining === 0 ? 'accent-good' : (porDia > 300 ? 'accent-bad' : porDia > 180 ? 'accent-warn' : '');
@@ -45188,7 +45401,9 @@ const ExtrasScreen = {
     if (todasOcc.length === 0) {
       const ehHoje = day === hoje;
       const futuro = day > hoje;
-      const dica = futuro
+      const dica = this._diaPausado(day)
+        ? '⏸ O planejamento está pausado neste dia: nenhuma atividade é gerada e nada conta como atraso.'
+        : futuro
         ? 'Vincule atividades a este dia no calendário para planejar com antecedência.'
         : (ehHoje
           ? 'Crie uma atividade ou uma recorrência em <strong>🔁 Gerenciar</strong>.'
@@ -45365,11 +45580,23 @@ const ExtrasScreen = {
   // Recorrentes: aparecem no dia se ele foi gerado (datas) OU, sem datas geradas,
   // se bate a cadência dentro da janela. Avulsas: aparecem nos dias vinculados;
   // se não têm nenhum dia vinculado, aparecem HOJE como pendência até concluir.
+  /* Dia congelado pela pausa do planejamento (passada, vigente ou agendada):
+     nada é gerado nem cobrado nele. Só continua visível o que foi de fato
+     executado ali — registro é histórico e nunca some. */
+  _diaPausado(day) {
+    try { return typeof PlanManager !== 'undefined' && !!PlanManager.isDayPaused && PlanManager.isDayPaused(day); }
+    catch (e) { _quiet(e, 'extras-dia-pausado'); return false; }
+  },
+  _executadaNoDia(x, day) {
+    return !!x && ((x.historico || []).some(h => h.data === day) || (x.concluidasEm || []).includes(day));
+  },
   occurrencesForDay(day) {
     if (this._occCache && this._occCache.has(day)) return this._occCache.get(day);
     const hoje = todayLocal();
     const extras = DB._extrasReadSnapshot || DB.getExtras();
+    const pausado = this._diaPausado(day);
     const occ = extras.filter(x => {
+      if (pausado) return this._executadaNoDia(x, day);
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
         if ((x.excluidasEm || []).includes(day)) return false;
@@ -46242,9 +46469,10 @@ const ExtrasScreen = {
       const partial = total > 0 && feitos > 0 && feitos < total;
       const dots = occ.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
       const sel = dia === this.selDay, isHoje = dia === hoje;
-      const marca = allDone ? '<span class="cal-alldone">✓</span>'
+      const pausadoDia = this._diaPausado(dia);
+      const marca = (pausadoDia && !total) ? '<span class="cal-dots cal-paused-mark" aria-hidden="true">⏸</span>' : allDone ? '<span class="cal-alldone">✓</span>'
         : (total > 0 ? `<span class="cal-dots">${dots}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>` : '<span class="cal-dots">&nbsp;</span>');
-      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''} ${allDone ? 'alldone' : ''} ${partial ? 'partial' : ''}" data-dia="${dia}" title="${total ? feitos + '/' + total + ' concluída(s)' : 'sem atividades'}">
+      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''} ${allDone ? 'alldone' : ''} ${partial ? 'partial' : ''} ${pausadoDia ? 'paused' : ''}" data-dia="${dia}" title="${pausadoDia ? 'Planejamento pausado neste dia — nada é gerado nem conta como atraso' : (total ? feitos + '/' + total + ' concluída(s)' : 'sem atividades')}">
         <span class="cal-wd">${nomes[d.getDay()]}</span>
         <span class="cal-dn">${String(d.getDate()).padStart(2, '0')}</span>
         <span class="cal-mo">${meses[d.getMonth()]}</span>
@@ -49975,6 +50203,87 @@ const PlanUI = {
       return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     } catch (_) { return String(iso); }
   },
+  _fmtDia(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+  },
+  // Texto da pausa para o card: vigente, agendada e janelas já encerradas.
+  _pauseHint(id) {
+    const hoje = todayLocal();
+    const ws = PlanManager.pauseWindows(id);
+    const vig = PlanManager.pauseInfo(id);
+    const ag = PlanManager.scheduledPause(id);
+    const passadas = ws.filter(w => w.until && w.until <= hoje);
+    const partes = [];
+    if (vig) {
+      partes.push(`Pausado desde <strong>${escapeHtml(this._fmtDia(vig.from))}</strong>` +
+        (vig.until ? ` · volta a contar em <strong>${escapeHtml(this._fmtDia(vig.until))}</strong>` : ' · sem data de retorno') +
+        '. Histórico preservado; nesses dias métricas, motores, ciclos e Extras não contam atraso nem geram atividades. Cards/Anki e Links Úteis continuam globais.');
+    } else if (ag) {
+      partes.push(`Pausa agendada a partir de <strong>${escapeHtml(this._fmtDia(ag.from))}</strong>` +
+        (ag.until ? ` até <strong>${escapeHtml(this._fmtDia(ag.until))}</strong> (retorno)` : ' · sem data de retorno') +
+        '. Até lá tudo funciona normalmente; Extras e rodízios não são gerados para os dias pausados.');
+    }
+    if (passadas.length) {
+      partes.push('Pausas anteriores (não contam em atrasos e métricas): ' + passadas.slice(-4).map(w =>
+        `${escapeHtml(this._fmtDia(w.from))} → ${escapeHtml(this._fmtDia(PlanManager._somaDias(w.until, -1)))}`).join(' · ') + '.');
+    }
+    return partes.length ? `<div class="hint plan-pause-hint" style="margin:.35rem 0 .6rem">${partes.join('<br>')}</div>` : '';
+  },
+  async _explicarFalhaPausa(r) {
+    const msgs = {
+      'last-operational': 'É preciso manter pelo menos um planejamento operacional em todos os dias a partir da pausa. Crie outro planejamento, ou reative/cancele a pausa de outro, antes de pausar este.',
+      'overlap': r && r.min ? `A pausa não pode começar antes de ${this._fmtDia(r.min)}, quando terminou a pausa anterior.` : (r && r.max ? `O retorno precisa ser até ${this._fmtDia(r.max)}, início da pausa seguinte.` : 'As datas se sobrepõem a outra pausa.'),
+      'until-before-from': 'A data de retorno precisa ser posterior ao primeiro dia da pausa.',
+      'before-pause': r && r.min ? `A reativação não pode ser anterior ao início da pausa (${this._fmtDia(r.min)}).` : 'A reativação não pode ser anterior ao início da pausa.',
+      'invalid-date': 'Data inválida.'
+    };
+    const txt = msgs[r && r.reason];
+    if (txt) await UI.alert(txt, { title: 'Não foi possível salvar a pausa' });
+    else showToast('Não foi possível salvar a pausa');
+  },
+  // Pausar (ou reagendar uma pausa futura) escolhendo o primeiro dia congelado.
+  async _pedirPausa(id) {
+    const p = PlanManager.getPlans().find(x => x.id === id);
+    if (!p) return;
+    const hoje = todayLocal();
+    const ag = PlanManager.scheduledPause(id);
+    const ws = PlanManager.pauseWindows(id).filter(w => w.until && w.until <= hoje);
+    const min = ws.length ? ws[ws.length - 1].until : null;
+    const v = await UI.prompt([
+      { key: 'from', label: 'Pausar a partir de', type: 'date', value: ag ? ag.from : hoje, min,
+        hint: 'Primeiro dia congelado. Pode ser uma data passada (os dias desde então deixam de contar como atraso) ou futura (pausa agendada).' },
+      { key: 'until', label: 'Voltar a contar em', type: 'date', value: ag && ag.until ? ag.until : '', opt: true,
+        hint: 'Deixe em branco para pausar sem data de retorno — você define ao reativar.' }
+    ], {
+      title: ag ? '⏸ Alterar pausa agendada' : '⏸ Pausar planejamento',
+      sub: `"${p.nome}": registros e histórico ficam preservados. Nos dias pausados não são gerados Extras, rodízio de Lei Seca ou reforços, nada conta como atraso e as métricas do planejamento ignoram esses dias. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
+      okText: ag ? 'Salvar pausa' : 'Pausar'
+    });
+    if (!v) return;
+    const r = PlanManager.pausePlan(id, { from: v.from || hoje, until: v.until || null });
+    if (!r.ok) { await this._explicarFalhaPausa(r); return; }
+    if (r.unchanged) { showToast('Este planejamento já está pausado'); return; }
+    showToast(r.scheduled ? `Pausa agendada para ${this._fmtDia(r.from)} ✓` : 'Planejamento pausado ✓');
+    if (r.switchedTo) { CloudStore.saveThenReload(); return; }
+    this.renderScreen(); this.renderSidebar();
+  },
+  // Reativar escolhendo o dia em que tudo volta a contar.
+  async _pedirRetorno(id) {
+    const p = PlanManager.getPlans().find(x => x.id === id);
+    const vig = PlanManager.pauseInfo(id);
+    if (!p || !vig) return;
+    const hoje = todayLocal();
+    const v = await UI.prompt([
+      { key: 'until', label: 'Voltar a contar em', type: 'date', value: vig.until || hoje, min: vig.from,
+        hint: `A pausa começou em ${this._fmtDia(vig.from)}. Uma data passada reativa desde aquele dia (o que venceu depois dela volta a contar); uma data futura agenda o retorno.` }
+    ], { title: '▶ Reativar planejamento', sub: `"${p.nome}" volta a entrar em métricas, motores, ciclo e Extras a partir da data escolhida.`, okText: 'Reativar' });
+    if (!v) return;
+    const r = PlanManager.resumePlan(id, { from: v.until || hoje });
+    if (!r.ok) { await this._explicarFalhaPausa(r); return; }
+    showToast(r.cancelled ? 'Pausa desfeita ✓' : (r.scheduled ? `Retorno agendado para ${this._fmtDia(r.until)} ✓` : 'Planejamento reativado ✓'));
+    this.renderScreen(); this.renderSidebar();
+  },
 
   // ---------- Seletor na sidebar ----------
   renderSidebar() {
@@ -49985,12 +50294,13 @@ const PlanUI = {
     const activeId = PlanManager.getActivePlanId();
     listEl.innerHTML = plans.map(p => {
       const paused = PlanManager.isPaused(p.id);
+      const ag = !paused && PlanManager.scheduledPause(p.id);
       return `
       <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" aria-disabled="${paused ? 'true' : 'false'}">
         <span class="psi-dot"></span>
         <span class="psi-text">
           <span class="psi-name">${escapeHtml(p.nome)}</span>
-          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${escapeHtml(p.tipo)}</span>
+          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${ag ? '⏳ Pausa em ' + escapeHtml(formatDateShort(ag.from)) + ' · ' : ''}${escapeHtml(p.tipo)}</span>
         </span>
         ${p.id === activeId ? '<span class="psi-check">✓</span>' : paused ? '<span class="psi-check">⏸</span>' : ''}
       </button>`;
@@ -50044,6 +50354,7 @@ const PlanUI = {
       const isActive = p.id === activeId;
       const pause = PlanManager.pauseInfo(p.id);
       const isPaused = !!pause;
+      const agendada = !isPaused && PlanManager.scheduledPause(p.id);
       return `
         <div class="plan-card ${isActive ? 'is-active' : ''} ${isPaused ? 'is-paused' : ''}" data-id="${p.id}">
           <div class="plan-card-head">
@@ -50052,6 +50363,7 @@ const PlanUI = {
               <span class="plan-type-badge">${escapeHtml(p.tipo)}</span>
               ${isActive ? '<span class="plan-active-pill">ativo</span>' : ''}
               ${isPaused ? '<span class="plan-active-pill">⏸ pausado</span>' : ''}
+              ${agendada ? `<span class="plan-active-pill">⏳ pausa em ${escapeHtml(this._fmtDia(agendada.from))}</span>` : ''}
             </div>
             <div class="config-row-actions">
               <button type="button" class="icon-btn btn-rename-plan" title="Renomear">✎ Renomear</button>
@@ -50064,14 +50376,15 @@ const PlanUI = {
             <div class="plan-stat"><div class="value">${CycleEngine.fmtHM(totalMin)}</div><div class="label">estudado</div></div>
             <div class="plan-stat"><div class="value">${weeks}</div><div class="label">semanas no histórico</div></div>
           </div>
-          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki e Links Úteis continuam globais.</div>` : ''}
+          ${this._pauseHint(p.id)}
           <div class="plan-card-actions">
             ${isPaused
-              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar planejamento</button>'
+              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar…</button>'
               : (isActive
                 ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
                 : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>')}
-            ${isPaused ? '' : '<button type="button" class="btn-secondary btn-pause-plan">⏸ Pausar</button>'}
+            ${isPaused ? '' : `<button type="button" class="btn-secondary btn-pause-plan">${agendada ? '✎ Alterar pausa' : '⏸ Pausar'}</button>`}
+            ${agendada ? '<button type="button" class="btn-secondary btn-cancel-pause-plan">✕ Cancelar pausa</button>' : ''}
           </div>
         </div>`;
     }).join('');
@@ -50084,31 +50397,16 @@ const PlanUI = {
         CloudStore.saveThenReload();
       });
       const pauseBtn = card.querySelector('.btn-pause-plan');
-      if (pauseBtn) pauseBtn.addEventListener('click', async () => {
-        const p = PlanManager.getPlans().find(x => x.id === id);
-        const ok = await UI.confirm(
-          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
-          { title: '⏸ Pausar planejamento', okText: 'Pausar' }
-        );
-        if (!ok) return;
-        const r = PlanManager.pausePlan(id);
-        if (!r.ok) {
-          if (r.reason === 'last-operational') {
-            await UI.alert('É preciso manter pelo menos um planejamento ativo. Crie ou reative outro antes de pausar este.', { title: 'Não é possível pausar' });
-          } else showToast('Não foi possível pausar o planejamento');
-          return;
-        }
-        showToast('Planejamento pausado ✓');
-        if (r.switchedTo) { CloudStore.saveThenReload(); return; }
+      if (pauseBtn) pauseBtn.addEventListener('click', () => this._pedirPausa(id));
+      const cancelPauseBtn = card.querySelector('.btn-cancel-pause-plan');
+      if (cancelPauseBtn) cancelPauseBtn.addEventListener('click', () => {
+        const r = PlanManager.cancelScheduledPause(id);
+        if (!r.ok) { showToast('Não foi possível cancelar a pausa'); return; }
+        showToast('Pausa agendada cancelada ✓');
         this.renderScreen(); this.renderSidebar();
       });
       const resumeBtn = card.querySelector('.btn-resume-plan');
-      if (resumeBtn) resumeBtn.addEventListener('click', () => {
-        const r = PlanManager.resumePlan(id);
-        if (!r.ok) { showToast('Não foi possível reativar'); return; }
-        showToast('Planejamento reativado ✓');
-        this.renderScreen(); this.renderSidebar();
-      });
+      if (resumeBtn) resumeBtn.addEventListener('click', () => this._pedirRetorno(id));
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
         UI.prompt([{ key: 'nome', label: 'Novo nome do planejamento', type: 'text', value: p.nome }], { title: '✎ Renomear planejamento', okText: 'Salvar' }).then(v => {
@@ -50197,6 +50495,18 @@ window.addEventListener('data:relational-hydrated', () => {
   PlanUI.renderSidebar();
   const tela = document.getElementById('screen-planejamentos');
   if (tela && tela.classList.contains('active')) PlanUI.renderScreen();
+});
+
+/* Pausa ou retorno agendado que entrou em vigor sozinho (virada do dia ou
+   sincronização). Se o planejamento aberto congelou, o app reabre no próximo
+   operacional; senão basta repintar a tela atual com as novas datas. */
+window.addEventListener('planning:pause-changed', (e) => {
+  const d = (e && e.detail) || {};
+  if (!d.automatic) return;
+  if (d.switchedTo) { showToast('⏸ A pausa agendada começou — abrindo outro planejamento.'); CloudStore.saveThenReload(); return; }
+  PlanUI.renderSidebar();
+  const atual = document.querySelector('.screen.active');
+  if (atual && atual.id) switchScreen(atual.id.replace(/^screen-/, ''));
 });
 
 // Render inicial do seletor na sidebar
@@ -51131,6 +51441,12 @@ const ReforcoFila = {
       let dia = hoje;
       let guarda = 0;
       while (tarefas.some(t => t.restante > 0) && guarda++ < 1460) {
+        /* Pausa agendada: nenhum bloco nasce em dia congelado. Retorno definido
+           → a fila continua a partir dele; pausa sem retorno → o saldo espera a
+           reativação, quando a fila é recalculada. */
+        const livre = (typeof PlanManager !== 'undefined' && PlanManager.nextOperationalDay) ? PlanManager.nextOperationalDay(dia) : dia;
+        if (!livre) break;
+        if (livre !== dia) { dia = livre; continue; }
         const usadas = (dia === hoje) ? new Set(ocupadasHoje) : new Set();
         let slots = this.limiteDisciplinasDia() - (dia === hoje ? nHoje : 0);
         if (slots < 0) slots = 0;
@@ -51200,6 +51516,7 @@ const ReforcoFila = {
     const e = list.find(x => x.id === id);
     if (!e || !this.eGerenciado(e) || e.status === 'concluida') return { ok: false, motivo: 'encerrada' };
     const hoje = todayLocal();
+    if (typeof PlanManager !== 'undefined' && PlanManager.isDayPaused && PlanManager.isDayPaused(hoje)) return { ok: false, motivo: 'pausado' };
     if (this.alvoNoDia(e, hoje)) return { ok: true, ja: true };
     const outras = list.filter(x => x.id !== id && this.eGerenciado(x) && this.alvoNoDia(x, hoje));
     const disc = this._norm(e.disciplina || (MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).disciplina) || 'sem disciplina');
@@ -51311,9 +51628,10 @@ ReforcoFila._orig.occurrencesForDay = ExtrasScreen.occurrencesForDay;
 ExtrasScreen.occurrencesForDay = function (day) {
   const base = ReforcoFila._orig.occurrencesForDay.call(this, day);
   const porId = new Map(base.map(e => [e.id, e]));
+  const pausado = this._diaPausado ? this._diaPausado(day) : false;
   DB.getExtras().forEach(e => {
     if (!ReforcoFila.eGerenciado(e)) return;
-    const deve = ReforcoFila.alvoNoDia(e, day) != null
+    const deve = (!pausado && ReforcoFila.alvoNoDia(e, day) != null)
       || (e.historico || []).some(h => h.data === day)
       || (e.concluidasEm || []).includes(day);
     if (deve) porId.set(e.id, e); else porId.delete(e.id);
@@ -51535,7 +51853,8 @@ window.ReforcoFila = ReforcoFila;
         try {
           if (typeof ReforcoFila !== 'undefined' && ReforcoFila.eGerenciado && ReforcoFila.eGerenciado(x)) return;
         } catch (_) { _quiet(_); }
-        const dias = (x.datas || []).filter(d => d && d < hoje).sort().reverse();
+        // Dia congelado pela pausa do planejamento nunca vira atraso.
+        const dias = (x.datas || []).filter(d => d && d < hoje && !(screen._diaPausado && screen._diaPausado(d))).sort().reverse();
         const d = dias.find(dia => !DB.extraConcluidaEm(x, dia));
         if (d) atrasadas.push({ x, day: d, bucket: 'atrasadas' });
       });
@@ -51948,6 +52267,9 @@ window.ReforcoFila = ReforcoFila;
     },
     eExtra(e) { return !!(e && e.origemLei && e.origemLei.rodizio && e.origemLei.leiId); },
     _diaPermitido(dia, p) {
+      // Dia congelado pela pausa do planejamento não recebe sessão de lei seca.
+      try { if (typeof PlanManager !== 'undefined' && PlanManager.isDayPaused && PlanManager.isDayPaused(dia)) return false; }
+      catch (_) { if (typeof _quiet === 'function') _quiet(_, '56-leis-rodizio'); }
       const d = new Date(String(dia) + 'T00:00:00');
       return (p.dias || []).includes(d.getDay());
     },
@@ -52464,6 +52786,7 @@ window.ReforcoFila = ReforcoFila;
 
     reflow(opts) {
       if(typeof ReforcoFila==='undefined') return {mudou:false};
+      if(typeof PlanManager!=='undefined'&&PlanManager.isActivePlanPaused&&PlanManager.isActivePlanPaused()) return {mudou:false,pausado:true};
       opts=opts||{}; const hoje=todayLocal(); let list=DB.getExtras(); const ativos=list.filter(e=>this.eAtivo(e));
       if(!ativos.length) return {mudou:false};
       const preservarHoje=new Set(opts.preservarHoje||[]), ref=ReforcoFila._motorRef?ReforcoFila._motorRef():null;
@@ -52486,6 +52809,10 @@ window.ReforcoFila = ReforcoFila;
       });
       let dia=opts.incluirHoje?hoje:isoAdd(hoje,1), guarda=0;
       while(tarefas.some(t=>t.restante>0)&&guarda++<1460){
+        // Dias da pausa (agendada) do planejamento não recebem blocos.
+        const livre=(typeof PlanManager!=='undefined'&&PlanManager.nextOperationalDay)?PlanManager.nextOperationalDay(dia):dia;
+        if(!livre) break;
+        if(livre!==dia){ dia=livre; continue; }
         const ocup=dia===hoje?hojeOcupantes.slice():[];
         const cand=tarefas.filter(t=>t.restante>0&&!(dia===hoje&&ocup.some(o=>o.e.id===t.e.id))).sort((a,b)=>this._cmp(a,b));
         for(const t of cand){
@@ -52543,7 +52870,7 @@ window.ReforcoFila = ReforcoFila;
     _prefsBase:null,_cfgBase:null,_linhasBase:null,_criarBase:null,_decorarBase:null,
     ritmoMedido(leiId){if(typeof LeiRodizio==='undefined')return null;const regs=[];DB.getExtras().forEach(e=>{if(!LeiRodizio.eExtra(e)||!e.origemLei||e.origemLei.leiId!==leiId)return;(e.historico||[]).forEach(h=>{const q=Number(h.quantidade)||0,m=Number(h.minutos)||0;if(q>0&&m>0)regs.push({q,m,ts:h.ts||''});});});regs.sort((a,b)=>String(b.ts).localeCompare(String(a.ts)));const am=regs.slice(0,30),q=am.reduce((s,x)=>s+x.q,0),m=am.reduce((s,x)=>s+x.m,0);return m>=5&&q>0?q/m:null;},
     instalarModelo(){if(typeof LeiRodizio==='undefined'||this._prefsBase)return;this._prefsBase=LeiRodizio.prefs;this._cfgBase=LeiRodizio.cfgLei;this._linhasBase=LeiRodizio._linhasSessao;this._criarBase=LeiRodizio._criarMissao;const self=this;LeiRodizio.prefs=function(){const b=self._prefsBase.call(this);let raw={};try{raw=JSON.parse(localStorage.getItem(this._prefKey())||'{}')||{};}catch(_){raw={};}return Object.assign({},b,{modoCarga:raw.modoCarga==='tempo'?'tempo':'linhas',minutosSessao:Math.max(5,Math.min(180,Math.round(Number(raw.minutosSessao)||20))),linhasPorMinuto:Math.max(.1,Math.min(20,Number(raw.linhasPorMinuto)||1.5))});};LeiRodizio.cfgLei=function(lei){const b=self._cfgBase.call(this,lei),r=(lei&&lei.rodizio)||{};return Object.assign({},b,{modoCarga:['padrao','linhas','tempo'].includes(r.modoCarga)?r.modoCarga:'padrao',minutosSessao:Number.isFinite(Number(r.minutosSessao))&&Number(r.minutosSessao)>0?Math.max(5,Math.min(180,Math.round(Number(r.minutosSessao)))):null,linhasPorMinuto:Number.isFinite(Number(r.linhasPorMinuto))&&Number(r.linhasPorMinuto)>0?Math.max(.1,Math.min(20,Number(r.linhasPorMinuto))):null});};LeiRodizio._cargaEfetiva=function(lei,p){p=p||this.prefs();const c=this.cfgLei(lei),modo=c.modoCarga==='padrao'?p.modoCarga:c.modoCarga,med=self.ritmoMedido(lei.id),ritmo=c.linhasPorMinuto||med||p.linhasPorMinuto,minutos=c.minutosSessao||p.minutosSessao;return{modo,minutos,ritmo,ritmoMedido:!!(!c.linhasPorMinuto&&med),linhas:modo==='tempo'?Math.max(5,Math.min(300,Math.round(minutos*ritmo))):(c.linhasSessao||p.linhasSessao)};};LeiRodizio._linhasSessao=function(lei,p){return this._cargaEfetiva(lei,p).linhas;};LeiRodizio._criarMissao=function(lei,hoje,p){const c=this._cargaEfetiva(lei,p),e=self._criarBase.call(this,lei,hoje,p);if(e){const atual=DB.getExtra(e.id),o=Object.assign({},atual.origemLei||{},{modoCarga:c.modo,minutosAlvo:c.modo==='tempo'?c.minutos:null,ritmoUsado:c.ritmo,ritmoMedido:c.ritmoMedido});DB.updateExtra(e.id,{origemLei:o});return DB.getExtra(e.id)||e;}return e;};},
-    proximoDiaPermitido(de,p){let d=de;for(let i=0;i<14;i++){d=isoAdd(d,1);if((p.dias||[]).includes(new Date(d+'T00:00:00').getDay()))return d;}return isoAdd(de,1);},
+    proximoDiaPermitido(de,p){let d=de;for(let i=0;i<400;i++){d=isoAdd(d,1);if(typeof PlanManager!=='undefined'&&PlanManager.isDayPaused&&PlanManager.isDayPaused(d)){const livre=PlanManager.nextOperationalDay(d);if(!livre)return isoAdd(de,1);d=isoAdd(livre,-1);continue;}if((p.dias||[]).includes(new Date(d+'T00:00:00').getDay()))return d;}return isoAdd(de,1);},
     rebalancearHoje(){if(typeof LeiRodizio==='undefined')return;const p=LeiRodizio.prefs(),hoje=todayLocal();let list=DB.getExtras();const hojeM=list.filter(e=>LeiRodizio.eExtra(e)&&e.status!=='concluida'&&((e.origemLei&&e.origemLei.agendadoPara===hoje)||(e.datas||[]).includes(hoje)));hojeM.sort((a,b)=>{const fa=LeiRodizio._progressoExtra(a)>0?0:1,fb=LeiRodizio._progressoExtra(b)>0?0:1;return fa-fb||String(a.createdAt||'').localeCompare(String(b.createdAt||''));});let usados=0,mudou=false;for(const e of hojeM){const iniciado=LeiRodizio._progressoExtra(e)>0;if(iniciado){usados++;continue;}if(usados<p.porDia){usados++;const lei=DB.getLei(e.origemLei.leiId);if(lei){const carga=LeiRodizio._cargaEfetiva(lei,p),de=LeiRodizio._bookmark(lei),total=LeiRodizio._linhas(lei).length,ate=Math.min(total,de+carga.linhas-1);e.alvo=Math.max(1,ate-de+1);e.marcador='linhas '+de+'–'+ate;e.origemLei=Object.assign({},e.origemLei,{deLinha:de,ateLinha:ate,totalLinhas:total,modoCarga:carga.modo,minutosAlvo:carga.modo==='tempo'?carga.minutos:null,ritmoUsado:carga.ritmo,ritmoMedido:carga.ritmoMedido});mudou=true;}continue;}const prox=this.proximoDiaPermitido(hoje,p);e.datas=[prox];e.origemLei=Object.assign({},e.origemLei,{agendadoPara:prox,adiadaPorLimite:hoje});mudou=true;}if(mudou)DB.saveExtras(list);LeiRodizio.sincronizarHoje();},
     upgradePainel(){if(typeof LeiRodizio==='undefined')return;const panel=document.querySelector('#extras-agenda .lr-panel');if(!panel||panel.dataset.premium==='1')return;panel.dataset.premium='1';const p=LeiRodizio.prefs(),grid=panel.querySelector('.lr-grid');if(grid)grid.insertAdjacentHTML('beforeend',`<label>Meta da sessão<select data-lrp-modo><option value="linhas" ${p.modoCarga==='linhas'?'selected':''}>Por linhas</option><option value="tempo" ${p.modoCarga==='tempo'?'selected':''}>Por tempo</option></select></label><label>Minutos por sessão<input type="number" min="5" max="180" data-lrp-min value="${p.minutosSessao}"></label><label>Ritmo fallback<input type="number" min="0.1" max="20" step="0.1" data-lrp-ritmo value="${p.linhasPorMinuto}"></label>`);const save=panel.querySelector('[data-lr-salvar]');if(save){const novo=save.cloneNode(true);save.replaceWith(novo);novo.addEventListener('click',()=>{const dias=[...panel.querySelectorAll('[data-lr-dia]:checked')].map(x=>Number(x.value));LeiRodizio.salvarPrefs({ativo:panel.querySelector('[data-lr-ativo]').checked,porDia:Number(panel.querySelector('[data-lr-pordia]').value),linhasSessao:Number(panel.querySelector('[data-lr-linhas]').value),ordem:panel.querySelector('[data-lr-ordem]').value,aoFinal:panel.querySelector('[data-lr-fim]').value,alternarMaterias:panel.querySelector('[data-lr-alternar]').checked,dias,modoCarga:panel.querySelector('[data-lrp-modo]').value,minutosSessao:Number(panel.querySelector('[data-lrp-min]').value),linhasPorMinuto:Number(panel.querySelector('[data-lrp-ritmo]').value)});this.rebalancearHoje();ExtrasScreen.render();showToast('Rodízio de lei seca atualizado ✓');});}const foot=panel.querySelector('.lr-panel-foot');if(foot&&!foot.querySelector('.lrp-note'))foot.insertAdjacentHTML('beforeend','<span class="lrp-note">No modo tempo, o site converte minutos em uma faixa exata de linhas. Registros com minutos alimentam o ritmo real de cada lei.</span>');},
     upgradeCards(){if(typeof LeiRodizio==='undefined')return;document.querySelectorAll('#extras-list .exd').forEach(card=>{const e=DB.getExtra(card.dataset.id);if(!LeiRodizio.eExtra(e))return;const reg=card.querySelector('.exd-reg');if(reg)reg.style.display='none';const route=card.querySelector('.lr-route');if(!route||route.querySelector('[data-lrp-reg]'))return;const o=e.origemLei||{},lei=DB.getLei(o.leiId),c=lei?LeiRodizio._cargaEfetiva(lei,LeiRodizio.prefs()):null;if(c&&c.modo==='tempo'){const main=route.querySelector('.lr-route-main span');if(main)main.insertAdjacentHTML('beforeend',` · alvo ≈ ${c.minutos} min${c.ritmoMedido?' · ritmo aprendido':''}`);}if(e.status!=='concluida'){const b=document.createElement('button');b.type='button';b.className='btn-primary';b.dataset.lrpReg='';b.textContent='＋ Registrar leitura';route.appendChild(b);b.addEventListener('click',async()=>{const atual=DB.getExtra(e.id),feito=LeiRodizio._progressoExtra(atual),rest=Math.max(1,(Number(atual.alvo)||1)-feito),pref=lei?LeiRodizio._cargaEfetiva(lei,LeiRodizio.prefs()):{minutos:20},v=await UI.prompt([{key:'linhas',label:'Linhas lidas agora',type:'number',value:String(rest),min:1},{key:'minutos',label:'Minutos gastos',type:'number',value:String(pref.minutos||''),min:0}],{title:'Registrar leitura da lei seca',okText:'Registrar'});if(!v)return;const q=Number(v.linhas),m=Number(v.minutos)||0;if(!(q>0)){showToast('Informe quantas linhas foram lidas');return;}DB.addExtraProgress(atual.id,q,m,{data:card.dataset.day||todayLocal()});ExtrasScreen.render();showToast('Leitura registrada ✓');});}});},
@@ -54335,9 +54662,10 @@ const RelationalStore = {
     try {
       const rawPause = localStorage.getItem(pfx + 'plan-pauses-v1');
       const pauses = rawPause ? JSON.parse(rawPause) : {};
+      // Mesma regra datada do PlanManager (janelas [from, until), com leitura do formato legado).
       const paused = id => {
         const x = pauses && pauses[String(id)];
-        return !!(x && x.pausedAt && !x.resumedAt);
+        return !!(x && PlanManager.pausedOnFromRecord(x, todayLocal()));
       };
       if (active && paused(active)) {
         const next = visiblePlans.find(p => !paused(p.plan_id));
@@ -56996,8 +57324,11 @@ const StudyReport = {
     return `<svg class="chart" style="max-height:310px" viewBox="0 0 ${W} ${H}" role="img" aria-label="Tempo estudado por data"><defs><linearGradient id="studyArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6757e8" stop-opacity=".28"/><stop offset="1" stop-color="#6757e8" stop-opacity=".02"/></linearGradient></defs>${grid}<path d="${area}" fill="url(#studyArea)"/><path d="${path}" fill="none" stroke="#6757e8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>${points}${xlabels}<text x="${W/2}" y="${H-2}" text-anchor="middle" class="svg-label" style="font-weight:bold">DATA DO ESTUDO</text><text transform="translate(13 ${H/2}) rotate(-90)" text-anchor="middle" class="svg-label" style="font-weight:bold">TEMPO REGISTRADO</text></svg><div class="legend"><span><i style="background:#6757e8"></i>Tempo total por dia</span><span>Valores exibidos em horas e minutos</span></div>`;
   };
 
-  StudyReport._advanced = function(entries){
+  StudyReport._advanced = function(entries,cfg){
     const a=this.aggregate(entries), days=Object.keys(a.byDay).sort();
+    /* Planejamento atual: dias da pausa datada nao quebram a sequencia nem
+       entram no denominador da frequencia — nao eram dias para estudar. */
+    const pausa=(cfg&&cfg.scope==='plan'&&typeof PlanManager!=='undefined'&&PlanManager.pausedDaysBetween)?PlanManager:null;
     const read=[], video=[]; let pages=0,readMin=0,videoConsumed=0,videoStudyMin=0;
     entries.forEach(e=>{
       const min=this.n(e.durationMin||e.minutes||e.minutos), method=String(e.method||'').toLowerCase();
@@ -57011,10 +57342,11 @@ const StudyReport = {
       const v1=this.n(e.videoStart),v2=this.n(e.videoEnd); const vc=(v2>v1)?v2-v1:0;
       if(vc>0&&min>0){videoConsumed+=vc;videoStudyMin+=min;video.push({subject:e.subject||'Sem disciplina',content:vc,min,date:this.dayKey(e)});}
     });
-    let maxStreak=0,current=0,prev=null; days.forEach(k=>{const d=new Date(k+'T00:00:00');if(prev&&Math.round((d-prev)/86400000)===1)current++;else current=1;maxStreak=Math.max(maxStreak,current);prev=d;});
+    const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    let maxStreak=0,current=0,prev=null; days.forEach(k=>{const d=new Date(k+'T00:00:00');let gap=prev?Math.round((d-prev)/86400000):0;if(prev&&pausa&&gap>1){const a1=new Date(prev);a1.setDate(a1.getDate()+1);const b1=new Date(d);b1.setDate(b1.getDate()-1);gap-=pausa.pausedDaysBetween(iso(a1),iso(b1));}if(prev&&gap===1)current++;else current=1;maxStreak=Math.max(maxStreak,current);prev=d;});
     const weekday=Array.from({length:7},(_,i)=>({name:['Dom','Seg','Ter','Qua','Qui','Sex','Sab'][i],minutes:0,sessions:0})); entries.forEach(e=>{const d=new Date(this.dayKey(e)+'T00:00:00');if(!isNaN(d)){weekday[d.getDay()].minutes+=this.n(e.durationMin);weekday[d.getDay()].sessions++;}});
     const hourBuckets=[{name:'Madrugada',minutes:0,sessions:0},{name:'Manha',minutes:0,sessions:0},{name:'Tarde',minutes:0,sessions:0},{name:'Noite',minutes:0,sessions:0}]; entries.forEach(e=>{const raw=String(e.createdAt||'');const d=new Date(raw);if(!isNaN(d)){const h=d.getHours(),idx=h<6?0:h<12?1:h<18?2:3;hourBuckets[idx].minutes+=this.n(e.durationMin);hourBuckets[idx].sessions++;}});
-    const activeDays=days.length, avgSession=entries.length?a.minutes/entries.length:0, consistency=days.length&&days[0]&&days[days.length-1]?100*activeDays/Math.max(1,Math.round((new Date(days[days.length-1]+'T00:00:00')-new Date(days[0]+'T00:00:00'))/86400000)+1):0;
+    const activeDays=days.length, avgSession=entries.length?a.minutes/entries.length:0, consistency=days.length&&days[0]&&days[days.length-1]?100*activeDays/Math.max(1,activeDays,Math.round((new Date(days[days.length-1]+'T00:00:00')-new Date(days[0]+'T00:00:00'))/86400000)+1-(pausa?pausa.pausedDaysBetween(days[0],days[days.length-1]):0)):0;
     return {a,days,pages,readMin,readSpeed:readMin?pages/(readMin/60):0,read,videoConsumed,videoStudyMin,videoRatio:videoStudyMin?videoConsumed/videoStudyMin:0,video,maxStreak,weekday,hourBuckets,avgSession,consistency};
   };
   StudyReport._insights = function(d){
@@ -57027,7 +57359,7 @@ const StudyReport = {
     return out;
   };
   StudyReport._mentorPages = function(cfg,entries){
-    const d=this._advanced(entries), ins=this._insights(d), subs=d.a.bySub.slice().sort((x,y)=>y.minutes-x.minutes);
+    const d=this._advanced(entries,cfg), ins=this._insights(d), subs=d.a.bySub.slice().sort((x,y)=>y.minutes-x.minutes);
     let html=`<section class="page">${this.pageHead('Painel analitico do mentor',cfg)}<div class="metric-band"><div><b>${d.maxStreak} dia(s)</b><span>Maior sequencia</span></div><div><b>${this.hm(d.avgSession)}</b><span>Duracao media da sessao</span></div><div><b>${d.consistency.toFixed(0)}%</b><span>Frequencia no intervalo ativo</span></div></div><div class="insight-grid">${ins.map(x=>`<div class="insight ${x.tone}"><span class="ico">${x.ico}</span><b>${this.esc(x.title)}</b><p>${x.text}</p></div>`).join('')}</div><div class="section"><h3>Distribuicao semanal do esforco</h3>${this.svgBars(d.weekday.map(x=>({...x,display:this.hm(x.minutes)})),'minutes','#168aad')}</div><div class="data-note">As leituras acima sao descritivas e calculadas apenas com os campos efetivamente preenchidos. Decisoes de planejamento devem considerar edital, prioridade, dificuldade e qualidade da execucao.</div></section>`;
     html+=`<section class="page">${this.pageHead('Velocidade e produtividade',cfg)}<div class="kpis"><div class="kpi"><b>${d.pages||'-'}</b><span>Paginas contabilizadas</span></div><div class="kpi"><b>${d.readSpeed?d.readSpeed.toFixed(1).replace('.',','):'-'}</b><span>Paginas por hora</span></div><div class="kpi"><b>${d.videoConsumed?Math.round(d.videoConsumed)+' min':'-'}</b><span>Conteudo em video</span></div><div class="kpi"><b>${d.videoRatio?d.videoRatio.toFixed(2).replace('.',',')+'x':'-'}</b><span>Razao conteudo/estudo</span></div></div><div class="mini-title">Leitura por disciplina</div><table class="table"><thead><tr><th>Disciplina</th><th class="num">Paginas</th><th class="num">Tempo</th><th class="num">Paginas/hora</th></tr></thead><tbody>${Object.values(d.read.reduce((m,x)=>{const z=m[x.subject]||(m[x.subject]={subject:x.subject,pages:0,min:0});z.pages+=x.pages;z.min+=x.min;return m;},{})).sort((a,b)=>b.pages-a.pages).map(x=>`<tr><td>${this.esc(x.subject)}</td><td class="num">${x.pages}</td><td class="num">${this.hm(x.min)}</td><td class="num">${(x.pages/(x.min/60)).toFixed(1).replace('.',',')}</td></tr>`).join('')||'<tr><td colspan="4">Sem dados suficientes de paginas e duracao.</td></tr>'}</tbody></table><div class="mini-title">Video por disciplina</div><table class="table"><thead><tr><th>Disciplina</th><th class="num">Conteudo consumido</th><th class="num">Tempo de estudo</th><th class="num">Razao</th></tr></thead><tbody>${Object.values(d.video.reduce((m,x)=>{const z=m[x.subject]||(m[x.subject]={subject:x.subject,content:0,min:0});z.content+=x.content;z.min+=x.min;return m;},{})).sort((a,b)=>b.content-a.content).map(x=>`<tr><td>${this.esc(x.subject)}</td><td class="num">${Math.round(x.content)} min</td><td class="num">${this.hm(x.min)}</td><td class="num">${(x.content/x.min).toFixed(2).replace('.',',')}x</td></tr>`).join('')||'<tr><td colspan="4">Sem dados suficientes de posicao do video e duracao.</td></tr>'}</tbody></table><div class="data-note">Velocidade de leitura usa pagina inicial e final, incluindo ambas. A razao de video compara minutos de conteudo avancado com minutos efetivamente registrados.</div></section>`;
     html+=`<section class="page">${this.pageHead('Padroes de estudo e equilibrio',cfg)}<div class="section"><h3>Tempo por dia da semana</h3>${this.svgBars(d.weekday.map(x=>({...x,display:this.hm(x.minutes)})),'minutes','#6657e8')}</div><div class="section"><h3>Registro por faixa do dia</h3>${this.svgBars(d.hourBuckets.map(x=>({...x,display:this.hm(x.minutes)})),'minutes','#e78a20')}</div><div class="mini-title">Indicadores por disciplina</div><table class="table"><thead><tr><th>Disciplina</th><th class="num">Tempo</th><th class="num">Sessoes</th><th class="num">Media/sessao</th><th class="num">Questoes/hora</th><th class="num">Aproveitamento</th></tr></thead><tbody>${subs.map(x=>`<tr><td><strong>${this.esc(x.name)}</strong></td><td class="num">${this.hm(x.minutes)}</td><td class="num">${x.sessions}</td><td class="num">${this.hm(x.minutes/Math.max(1,x.sessions))}</td><td class="num">${x.minutes&&x.total?(x.total/(x.minutes/60)).toFixed(1).replace('.',','):'-'}</td><td class="num">${x.total?this.pct(x.correct,x.total).toFixed(1).replace('.',',')+'%':'-'}</td></tr>`).join('')||'<tr><td colspan="6">Sem registros.</td></tr>'}</tbody></table><div class="data-note">A faixa do dia usa o horario de criacao do registro, que pode ser diferente do horario real do estudo quando o lancamento e feito posteriormente.</div></section>`;
@@ -57093,7 +57425,7 @@ const StudyReport = {
     return out;
   };
   StudyReport._mentorPages = function(cfg,entries){
-    const d=this._advanced(entries),ins=this._insights(d),subs=d.a.bySub.slice().sort((x,y)=>y.minutes-x.minutes);
+    const d=this._advanced(entries,cfg),ins=this._insights(d),subs=d.a.bySub.slice().sort((x,y)=>y.minutes-x.minutes);
     let html=`<section class="page">${this.pageHead('Painel analitico do mentor',cfg)}<div class="metric-band"><div><b>${d.maxStreak} dia(s)</b><span>Maior sequencia</span></div><div><b>${this.hm(d.avgSession)}</b><span>Duracao media da sessao</span></div><div><b>${d.consistency.toFixed(0)}%</b><span>Frequencia no intervalo ativo</span></div></div><div class="insight-grid">${ins.map(x=>`<div class="insight ${x.tone}"><span class="ico">${x.ico}</span><b>${this.esc(x.title)}</b><p>${x.text}</p></div>`).join('')}</div><div class="section"><h3>Distribuicao semanal do esforco</h3>${this.svgBars(d.weekday.map(x=>({...x,display:this.hm(x.minutes)})),'minutes','#168aad')}</div><div class="data-note">O painel utiliza datas, duracoes, paginas, videos e questoes efetivamente registrados. Nao utiliza o horario de cadastro como horario de estudo.</div></section>`;
     const qrows=d.qBySub.slice().sort((a,b)=>b.questions-a.questions);
     html+=`<section class="page">${this.pageHead('Ritmo e produtividade em questoes',cfg)}<div class="kpis"><div class="kpi"><b>${d.questionCount?Math.round(d.questionCount):'-'}</b><span>Questoes contabilizadas</span></div><div class="kpi"><b>${d.minutesPerQuestion?d.minutesPerQuestion.toFixed(2).replace('.',','):'-'}</b><span>Minutos por questao</span></div><div class="kpi"><b>${d.questionsPerHour?d.questionsPerHour.toFixed(1).replace('.',','):'-'}</b><span>Questoes por hora</span></div><div class="kpi"><b>${d.avgQuestionsPerSession?d.avgQuestionsPerSession.toFixed(1).replace('.',','):'-'}</b><span>Questoes por sessao</span></div><div class="kpi"><b>${this.hm(d.questionMinutes)}</b><span>Tempo em sessoes com questoes</span></div><div class="kpi"><b>${d.medianMinutesPerQuestion?d.medianMinutesPerQuestion.toFixed(2).replace('.',','):'-'}</b><span>Mediana min/questao por sessao</span></div><div class="kpi"><b>${d.questionCount?this.pct(d.questionCorrect,d.questionCount).toFixed(1).replace('.',',')+'%':'-'}</b><span>Aproveitamento</span></div><div class="kpi"><b>${d.timedQuestionSessions}/${d.questionSessions}</b><span>Sessoes com tempo preenchido</span></div></div><div class="section"><h3>Evolucao de minutos por questao</h3>${this._questionChart(d)}</div><div class="data-note">Minutos por questao = duracao total dos registros com questoes ÷ quantidade total de questoes. A metrica nao controla dificuldade, leitura do enunciado, correcao comentada nem revisao posterior.</div></section>`;

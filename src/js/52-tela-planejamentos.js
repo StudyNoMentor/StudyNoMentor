@@ -9,6 +9,87 @@ const PlanUI = {
       return d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
     } catch (_) { return String(iso); }
   },
+  _fmtDia(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+  },
+  // Texto da pausa para o card: vigente, agendada e janelas já encerradas.
+  _pauseHint(id) {
+    const hoje = todayLocal();
+    const ws = PlanManager.pauseWindows(id);
+    const vig = PlanManager.pauseInfo(id);
+    const ag = PlanManager.scheduledPause(id);
+    const passadas = ws.filter(w => w.until && w.until <= hoje);
+    const partes = [];
+    if (vig) {
+      partes.push(`Pausado desde <strong>${escapeHtml(this._fmtDia(vig.from))}</strong>` +
+        (vig.until ? ` · volta a contar em <strong>${escapeHtml(this._fmtDia(vig.until))}</strong>` : ' · sem data de retorno') +
+        '. Histórico preservado; nesses dias métricas, motores, ciclos e Extras não contam atraso nem geram atividades. Cards/Anki e Links Úteis continuam globais.');
+    } else if (ag) {
+      partes.push(`Pausa agendada a partir de <strong>${escapeHtml(this._fmtDia(ag.from))}</strong>` +
+        (ag.until ? ` até <strong>${escapeHtml(this._fmtDia(ag.until))}</strong> (retorno)` : ' · sem data de retorno') +
+        '. Até lá tudo funciona normalmente; Extras e rodízios não são gerados para os dias pausados.');
+    }
+    if (passadas.length) {
+      partes.push('Pausas anteriores (não contam em atrasos e métricas): ' + passadas.slice(-4).map(w =>
+        `${escapeHtml(this._fmtDia(w.from))} → ${escapeHtml(this._fmtDia(PlanManager._somaDias(w.until, -1)))}`).join(' · ') + '.');
+    }
+    return partes.length ? `<div class="hint plan-pause-hint" style="margin:.35rem 0 .6rem">${partes.join('<br>')}</div>` : '';
+  },
+  async _explicarFalhaPausa(r) {
+    const msgs = {
+      'last-operational': 'É preciso manter pelo menos um planejamento operacional em todos os dias a partir da pausa. Crie outro planejamento, ou reative/cancele a pausa de outro, antes de pausar este.',
+      'overlap': r && r.min ? `A pausa não pode começar antes de ${this._fmtDia(r.min)}, quando terminou a pausa anterior.` : (r && r.max ? `O retorno precisa ser até ${this._fmtDia(r.max)}, início da pausa seguinte.` : 'As datas se sobrepõem a outra pausa.'),
+      'until-before-from': 'A data de retorno precisa ser posterior ao primeiro dia da pausa.',
+      'before-pause': r && r.min ? `A reativação não pode ser anterior ao início da pausa (${this._fmtDia(r.min)}).` : 'A reativação não pode ser anterior ao início da pausa.',
+      'invalid-date': 'Data inválida.'
+    };
+    const txt = msgs[r && r.reason];
+    if (txt) await UI.alert(txt, { title: 'Não foi possível salvar a pausa' });
+    else showToast('Não foi possível salvar a pausa');
+  },
+  // Pausar (ou reagendar uma pausa futura) escolhendo o primeiro dia congelado.
+  async _pedirPausa(id) {
+    const p = PlanManager.getPlans().find(x => x.id === id);
+    if (!p) return;
+    const hoje = todayLocal();
+    const ag = PlanManager.scheduledPause(id);
+    const ws = PlanManager.pauseWindows(id).filter(w => w.until && w.until <= hoje);
+    const min = ws.length ? ws[ws.length - 1].until : null;
+    const v = await UI.prompt([
+      { key: 'from', label: 'Pausar a partir de', type: 'date', value: ag ? ag.from : hoje, min,
+        hint: 'Primeiro dia congelado. Pode ser uma data passada (os dias desde então deixam de contar como atraso) ou futura (pausa agendada).' },
+      { key: 'until', label: 'Voltar a contar em', type: 'date', value: ag && ag.until ? ag.until : '', opt: true,
+        hint: 'Deixe em branco para pausar sem data de retorno — você define ao reativar.' }
+    ], {
+      title: ag ? '⏸ Alterar pausa agendada' : '⏸ Pausar planejamento',
+      sub: `"${p.nome}": registros e histórico ficam preservados. Nos dias pausados não são gerados Extras, rodízio de Lei Seca ou reforços, nada conta como atraso e as métricas do planejamento ignoram esses dias. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
+      okText: ag ? 'Salvar pausa' : 'Pausar'
+    });
+    if (!v) return;
+    const r = PlanManager.pausePlan(id, { from: v.from || hoje, until: v.until || null });
+    if (!r.ok) { await this._explicarFalhaPausa(r); return; }
+    if (r.unchanged) { showToast('Este planejamento já está pausado'); return; }
+    showToast(r.scheduled ? `Pausa agendada para ${this._fmtDia(r.from)} ✓` : 'Planejamento pausado ✓');
+    if (r.switchedTo) { CloudStore.saveThenReload(); return; }
+    this.renderScreen(); this.renderSidebar();
+  },
+  // Reativar escolhendo o dia em que tudo volta a contar.
+  async _pedirRetorno(id) {
+    const p = PlanManager.getPlans().find(x => x.id === id);
+    const vig = PlanManager.pauseInfo(id);
+    if (!p || !vig) return;
+    const hoje = todayLocal();
+    const v = await UI.prompt([
+      { key: 'until', label: 'Voltar a contar em', type: 'date', value: vig.until || hoje, min: vig.from,
+        hint: `A pausa começou em ${this._fmtDia(vig.from)}. Uma data passada reativa desde aquele dia (o que venceu depois dela volta a contar); uma data futura agenda o retorno.` }
+    ], { title: '▶ Reativar planejamento', sub: `"${p.nome}" volta a entrar em métricas, motores, ciclo e Extras a partir da data escolhida.`, okText: 'Reativar' });
+    if (!v) return;
+    const r = PlanManager.resumePlan(id, { from: v.until || hoje });
+    if (!r.ok) { await this._explicarFalhaPausa(r); return; }
+    showToast(r.cancelled ? 'Pausa desfeita ✓' : (r.scheduled ? `Retorno agendado para ${this._fmtDia(r.until)} ✓` : 'Planejamento reativado ✓'));
+    this.renderScreen(); this.renderSidebar();
+  },
 
   // ---------- Seletor na sidebar ----------
   renderSidebar() {
@@ -19,12 +100,13 @@ const PlanUI = {
     const activeId = PlanManager.getActivePlanId();
     listEl.innerHTML = plans.map(p => {
       const paused = PlanManager.isPaused(p.id);
+      const ag = !paused && PlanManager.scheduledPause(p.id);
       return `
       <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" aria-disabled="${paused ? 'true' : 'false'}">
         <span class="psi-dot"></span>
         <span class="psi-text">
           <span class="psi-name">${escapeHtml(p.nome)}</span>
-          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${escapeHtml(p.tipo)}</span>
+          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${ag ? '⏳ Pausa em ' + escapeHtml(formatDateShort(ag.from)) + ' · ' : ''}${escapeHtml(p.tipo)}</span>
         </span>
         ${p.id === activeId ? '<span class="psi-check">✓</span>' : paused ? '<span class="psi-check">⏸</span>' : ''}
       </button>`;
@@ -78,6 +160,7 @@ const PlanUI = {
       const isActive = p.id === activeId;
       const pause = PlanManager.pauseInfo(p.id);
       const isPaused = !!pause;
+      const agendada = !isPaused && PlanManager.scheduledPause(p.id);
       return `
         <div class="plan-card ${isActive ? 'is-active' : ''} ${isPaused ? 'is-paused' : ''}" data-id="${p.id}">
           <div class="plan-card-head">
@@ -86,6 +169,7 @@ const PlanUI = {
               <span class="plan-type-badge">${escapeHtml(p.tipo)}</span>
               ${isActive ? '<span class="plan-active-pill">ativo</span>' : ''}
               ${isPaused ? '<span class="plan-active-pill">⏸ pausado</span>' : ''}
+              ${agendada ? `<span class="plan-active-pill">⏳ pausa em ${escapeHtml(this._fmtDia(agendada.from))}</span>` : ''}
             </div>
             <div class="config-row-actions">
               <button type="button" class="icon-btn btn-rename-plan" title="Renomear">✎ Renomear</button>
@@ -98,14 +182,15 @@ const PlanUI = {
             <div class="plan-stat"><div class="value">${CycleEngine.fmtHM(totalMin)}</div><div class="label">estudado</div></div>
             <div class="plan-stat"><div class="value">${weeks}</div><div class="label">semanas no histórico</div></div>
           </div>
-          ${isPaused ? `<div class="hint" style="margin:.35rem 0 .6rem">Congelado em <strong>${escapeHtml(this._fmtPause(pause.pausedAt))}</strong>. Histórico preservado; métricas, motores, ciclos e Extras não usam este planejamento. Cards/Anki e Links Úteis continuam globais.</div>` : ''}
+          ${this._pauseHint(p.id)}
           <div class="plan-card-actions">
             ${isPaused
-              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar planejamento</button>'
+              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar…</button>'
               : (isActive
                 ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
                 : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>')}
-            ${isPaused ? '' : '<button type="button" class="btn-secondary btn-pause-plan">⏸ Pausar</button>'}
+            ${isPaused ? '' : `<button type="button" class="btn-secondary btn-pause-plan">${agendada ? '✎ Alterar pausa' : '⏸ Pausar'}</button>`}
+            ${agendada ? '<button type="button" class="btn-secondary btn-cancel-pause-plan">✕ Cancelar pausa</button>' : ''}
           </div>
         </div>`;
     }).join('');
@@ -118,31 +203,16 @@ const PlanUI = {
         CloudStore.saveThenReload();
       });
       const pauseBtn = card.querySelector('.btn-pause-plan');
-      if (pauseBtn) pauseBtn.addEventListener('click', async () => {
-        const p = PlanManager.getPlans().find(x => x.id === id);
-        const ok = await UI.confirm(
-          `Pausar "${p.nome}"?\n\nO histórico será preservado, mas este planejamento sairá de métricas, motores, ciclo, Extras, sugestões e novas atividades. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
-          { title: '⏸ Pausar planejamento', okText: 'Pausar' }
-        );
-        if (!ok) return;
-        const r = PlanManager.pausePlan(id);
-        if (!r.ok) {
-          if (r.reason === 'last-operational') {
-            await UI.alert('É preciso manter pelo menos um planejamento ativo. Crie ou reative outro antes de pausar este.', { title: 'Não é possível pausar' });
-          } else showToast('Não foi possível pausar o planejamento');
-          return;
-        }
-        showToast('Planejamento pausado ✓');
-        if (r.switchedTo) { CloudStore.saveThenReload(); return; }
+      if (pauseBtn) pauseBtn.addEventListener('click', () => this._pedirPausa(id));
+      const cancelPauseBtn = card.querySelector('.btn-cancel-pause-plan');
+      if (cancelPauseBtn) cancelPauseBtn.addEventListener('click', () => {
+        const r = PlanManager.cancelScheduledPause(id);
+        if (!r.ok) { showToast('Não foi possível cancelar a pausa'); return; }
+        showToast('Pausa agendada cancelada ✓');
         this.renderScreen(); this.renderSidebar();
       });
       const resumeBtn = card.querySelector('.btn-resume-plan');
-      if (resumeBtn) resumeBtn.addEventListener('click', () => {
-        const r = PlanManager.resumePlan(id);
-        if (!r.ok) { showToast('Não foi possível reativar'); return; }
-        showToast('Planejamento reativado ✓');
-        this.renderScreen(); this.renderSidebar();
-      });
+      if (resumeBtn) resumeBtn.addEventListener('click', () => this._pedirRetorno(id));
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
         UI.prompt([{ key: 'nome', label: 'Novo nome do planejamento', type: 'text', value: p.nome }], { title: '✎ Renomear planejamento', okText: 'Salvar' }).then(v => {
@@ -231,6 +301,18 @@ window.addEventListener('data:relational-hydrated', () => {
   PlanUI.renderSidebar();
   const tela = document.getElementById('screen-planejamentos');
   if (tela && tela.classList.contains('active')) PlanUI.renderScreen();
+});
+
+/* Pausa ou retorno agendado que entrou em vigor sozinho (virada do dia ou
+   sincronização). Se o planejamento aberto congelou, o app reabre no próximo
+   operacional; senão basta repintar a tela atual com as novas datas. */
+window.addEventListener('planning:pause-changed', (e) => {
+  const d = (e && e.detail) || {};
+  if (!d.automatic) return;
+  if (d.switchedTo) { showToast('⏸ A pausa agendada começou — abrindo outro planejamento.'); CloudStore.saveThenReload(); return; }
+  PlanUI.renderSidebar();
+  const atual = document.querySelector('.screen.active');
+  if (atual && atual.id) switchScreen(atual.id.replace(/^screen-/, ''));
 });
 
 // Render inicial do seletor na sidebar

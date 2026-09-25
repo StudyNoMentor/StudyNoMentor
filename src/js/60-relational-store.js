@@ -373,9 +373,10 @@ const RelationalStore = {
     try {
       const rawPause = localStorage.getItem(pfx + 'plan-pauses-v1');
       const pauses = rawPause ? JSON.parse(rawPause) : {};
+      // Mesma regra datada do PlanManager (janelas [from, until), com leitura do formato legado).
       const paused = id => {
         const x = pauses && pauses[String(id)];
-        return !!(x && x.pausedAt && !x.resumedAt);
+        return !!(x && PlanManager.pausedOnFromRecord(x, todayLocal()));
       };
       if (active && paused(active)) {
         const next = visiblePlans.find(p => !paused(p.plan_id));

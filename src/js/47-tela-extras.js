@@ -62,7 +62,9 @@ const ExtrasScreen = {
     if (todasOcc.length === 0) {
       const ehHoje = day === hoje;
       const futuro = day > hoje;
-      const dica = futuro
+      const dica = this._diaPausado(day)
+        ? '⏸ O planejamento está pausado neste dia: nenhuma atividade é gerada e nada conta como atraso.'
+        : futuro
         ? 'Vincule atividades a este dia no calendário para planejar com antecedência.'
         : (ehHoje
           ? 'Crie uma atividade ou uma recorrência em <strong>🔁 Gerenciar</strong>.'
@@ -239,11 +241,23 @@ const ExtrasScreen = {
   // Recorrentes: aparecem no dia se ele foi gerado (datas) OU, sem datas geradas,
   // se bate a cadência dentro da janela. Avulsas: aparecem nos dias vinculados;
   // se não têm nenhum dia vinculado, aparecem HOJE como pendência até concluir.
+  /* Dia congelado pela pausa do planejamento (passada, vigente ou agendada):
+     nada é gerado nem cobrado nele. Só continua visível o que foi de fato
+     executado ali — registro é histórico e nunca some. */
+  _diaPausado(day) {
+    try { return typeof PlanManager !== 'undefined' && !!PlanManager.isDayPaused && PlanManager.isDayPaused(day); }
+    catch (e) { _quiet(e, 'extras-dia-pausado'); return false; }
+  },
+  _executadaNoDia(x, day) {
+    return !!x && ((x.historico || []).some(h => h.data === day) || (x.concluidasEm || []).includes(day));
+  },
   occurrencesForDay(day) {
     if (this._occCache && this._occCache.has(day)) return this._occCache.get(day);
     const hoje = todayLocal();
     const extras = DB._extrasReadSnapshot || DB.getExtras();
+    const pausado = this._diaPausado(day);
     const occ = extras.filter(x => {
+      if (pausado) return this._executadaNoDia(x, day);
       const datas = x.datas || [];
       if (DB.extraRecorrente(x)) {
         if ((x.excluidasEm || []).includes(day)) return false;
@@ -1116,9 +1130,10 @@ const ExtrasScreen = {
       const partial = total > 0 && feitos > 0 && feitos < total;
       const dots = occ.slice(0, 4).map(x => `<span class="cal-dot" style="background:${this._tipoColor(x.tipo)}"></span>`).join('');
       const sel = dia === this.selDay, isHoje = dia === hoje;
-      const marca = allDone ? '<span class="cal-alldone">✓</span>'
+      const pausadoDia = this._diaPausado(dia);
+      const marca = (pausadoDia && !total) ? '<span class="cal-dots cal-paused-mark" aria-hidden="true">⏸</span>' : allDone ? '<span class="cal-alldone">✓</span>'
         : (total > 0 ? `<span class="cal-dots">${dots}${total > 4 ? '<span class="cal-more">+' + (total - 4) + '</span>' : ''}</span>` : '<span class="cal-dots">&nbsp;</span>');
-      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''} ${allDone ? 'alldone' : ''} ${partial ? 'partial' : ''}" data-dia="${dia}" title="${total ? feitos + '/' + total + ' concluída(s)' : 'sem atividades'}">
+      strip += `<button type="button" class="cal-day ${sel ? 'sel' : ''} ${isHoje ? 'hoje' : ''} ${allDone ? 'alldone' : ''} ${partial ? 'partial' : ''} ${pausadoDia ? 'paused' : ''}" data-dia="${dia}" title="${pausadoDia ? 'Planejamento pausado neste dia — nada é gerado nem conta como atraso' : (total ? feitos + '/' + total + ' concluída(s)' : 'sem atividades')}">
         <span class="cal-wd">${nomes[d.getDay()]}</span>
         <span class="cal-dn">${String(d.getDate()).padStart(2, '0')}</span>
         <span class="cal-mo">${meses[d.getMonth()]}</span>

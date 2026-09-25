@@ -105,6 +105,78 @@ assert.equal(JSON.parse(localStorage.getItem(pfx+'p:A:cards-future:xyz')).future
 assert.equal(localStorage.getItem(pfx+'p:B:cards-note:101'),null,'entidade antiga deve sair da origem excluída');
 assert.equal(localStorage.getItem(pfx+'p:B:cards-future:xyz'),null,'entidade futura migrada deve sair da origem excluída');
 
+// ── Pausa DATADA: janela [from, until) escolhida pela pessoa ───────────────
+const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const dia=n=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()+n);return iso(d);};
+const hoje=dia(0);
+P.savePlans(P.getPlans().concat([
+  {id:'C',nome:'Agendado',tipo:'Outro',createdAt:'2026-01-01T00:00:00.000Z'},
+  {id:'D',nome:'Retroativo',tipo:'Outro',createdAt:'2026-01-01T00:00:00.000Z'}
+]));
+assert.equal(P.getActivePlanId(),'A');
+
+// Pausa futura: o plano segue operando até lá; os dias da janela já contam como pausados.
+r=P.pausePlan('C',{from:dia(5)});
+assert.equal(r.ok,true); assert.equal(r.scheduled,true);
+assert.equal(P.isPaused('C'),false,'pausa agendada não congela hoje');
+assert.equal(P.scheduledPause('C').from,dia(5));
+assert.equal(P.isPausedOn('C',dia(4)),false);
+assert.equal(P.isPausedOn('C',dia(5)),true);
+assert.equal(P.isDayPaused(dia(30),'C'),true,'sem retorno a pausa é indefinida');
+assert.equal(P.nextOperationalDay(dia(6),'C'),null,'pausa indefinida não tem próximo dia operacional');
+assert.equal(P.nextOperationalDay(dia(2),'C'),dia(2));
+// Retorno agendado dentro da pausa agendada.
+r=P.resumePlan('C',{from:dia(9)});
+assert.equal(r.ok,true);
+assert.equal(P.nextOperationalDay(dia(6),'C'),dia(9),'retorno definido reabre a agenda');
+assert.equal(P.pausedDaysBetween(dia(0),dia(20),'C'),4,'4 dias congelados: +5..+8');
+assert.equal(P.operationalDaysBetween(dia(0),dia(6),'C'),5);
+// Reagendar substitui a pausa futura; cancelar remove.
+r=P.pausePlan('C',{from:dia(7),until:dia(8)});
+assert.equal(r.ok,true);
+assert.deepEqual(Array.from(P.pauseWindows('C'),w=>[w.from,w.until]),[[dia(7),dia(8)]]);
+assert.equal(P.cancelScheduledPause('C').ok,true);
+assert.equal(P.pauseWindows('C').length,0);
+assert.equal(P.pausePlan('C',{from:dia(3),until:dia(3)}).reason,'until-before-from');
+
+// Pausa retroativa: congela desde a data escolhida.
+r=P.pausePlan('D',{from:dia(-10)});
+assert.equal(r.ok,true); assert.equal(r.scheduled,false);
+assert.equal(P.isPaused('D'),true,'pausa retroativa já está vigente');
+assert.equal(P.pauseInfo('D').from,dia(-10));
+assert.equal(P.pausedDaysBetween(dia(-12),hoje,'D'),11);
+assert.equal(P.isPausedOn('D',dia(-11)),false,'dia anterior à pausa continua contando');
+// Retorno anterior ao início é recusado; retorno retroativo reabre desde a data.
+assert.equal(P.resumePlan('D',{from:dia(-11)}).reason,'before-pause');
+r=P.resumePlan('D',{from:dia(-3)});
+assert.equal(r.ok,true); assert.equal(r.scheduled,false);
+assert.equal(P.isPaused('D'),false);
+assert.equal(P.isPausedOn('D',dia(-5)),true,'janela encerrada continua valendo para métricas e atrasos');
+assert.equal(P.isPausedOn('D',dia(-3)),false,'dia do retorno volta a contar');
+assert.equal(P.pausePlan('D',{from:dia(-6)}).reason,'overlap','nova pausa não pode sobrepor a anterior');
+// Retorno agendado: segue pausado até a data.
+r=P.pausePlan('D',{from:dia(-1)});
+assert.equal(r.ok,true);
+r=P.resumePlan('D',{from:dia(2)});
+assert.equal(r.ok,true); assert.equal(r.scheduled,true);
+assert.equal(P.isPaused('D'),true,'retorno futuro mantém a pausa até lá');
+assert.equal(P.pauseInfo('D').until,dia(2));
+assert.equal(P.pauseWindows('D').length,2,'histórico de pausas preservado');
+// Retorno no próprio dia de início desfaz a janela inteira.
+r=P.resumePlan('D',{from:dia(-1)});
+assert.equal(r.ok,true); assert.equal(r.cancelled,true);
+assert.equal(P.pauseWindows('D').length,1);
+
+// Cobertura: não pode ficar dia algum sem planejamento operacional.
+P.pausePlan('C',{from:dia(3)});
+P.pausePlan('D',{from:dia(4)});
+assert.equal(P.pausePlan('A',{from:dia(10)}).reason,'last-operational','pausas indefinidas nos demais não cobrem o futuro');
+P.cancelScheduledPause('C'); P.cancelScheduledPause('D');
+
+// Formato legado ({pausedAt,resumedAt}) continua lido.
+assert.equal(P.pausedOnFromRecord({pausedAt:new Date(Date.now()-86400000*2).toISOString(),resumedAt:null},hoje),true);
+assert.equal(P.pausedOnFromRecord({pausedAt:new Date(Date.now()-86400000*2).toISOString(),resumedAt:new Date().toISOString()},hoje),false);
+
 // Contrato transversal: operação congela; conhecimento Anki continua global.
 const db=read('src/js/11-db.js');
 assert.match(db,/_blockedByPlanPause\(key\)/,'DB deve proteger escrita operacional');
@@ -151,9 +223,22 @@ assert.match(links,/local\(l\) \{ return !!l; \}/,'Links devem ser editáveis gl
 const grade=read('src/js/33-tela-grade.js');
 assert.match(grade,/PlanManager\.isPaused\(x\.plan\.id\) \? '⏸ '/,'origem pausada deve ser sinalizada ao copiar ciclo');
 
+// Regras datadas aplicadas em todo o site.
+const extrasScreen=read('src/js/47-tela-extras.js');
+assert.match(extrasScreen,/_diaPausado\(day\)/,'agenda de Extras não gera ocorrência em dia pausado');
+assert.match(read('src/js/55-extras-ui-moderna.js'),/_diaPausado\(d\)/,'dia pausado nunca vira atraso');
+assert.match(fila,/nextOperationalDay\(dia\)/,'fila de reforço pula a pausa agendada');
+assert.match(read('src/js/58-extras-governanca.js'),/nextOperationalDay\(dia\)/,'rebalanceamento pula a pausa agendada');
+assert.match(leis,/isDayPaused\(dia\)/,'rodízio de Lei Seca não agenda dia pausado');
+assert.match(read('src/js/60-relational-store.js'),/pausedOnFromRecord/,'hidratação usa a mesma regra datada');
+assert.match(read('src/js/33-tela-grade.js'),/operationalDaysBetween/,'ritmo da semana ignora dias pausados');
+assert.match(read('src/js/70-relatorio.js'),/pausedDaysBetween/,'frequência do relatório ignora dias pausados');
+
 const ui=read('src/js/52-tela-planejamentos.js');
 assert.match(ui,/btn-pause-plan/,'gestão deve expor botão Pausar');
 assert.match(ui,/btn-resume-plan/,'gestão deve expor botão Reativar');
+assert.match(ui,/type: 'date'/,'pausa e reativação devem permitir escolher a data');
+assert.match(ui,/btn-cancel-pause-plan/,'pausa agendada deve poder ser cancelada');
 assert.match(ui,/Cards\/Anki e Links Úteis continuam disponíveis globalmente/,'UI deve explicar o conhecimento global preservado');
 
 console.log('COERÊNCIA ENTRE PLANEJAMENTOS: pausa, trajetória, ajustes por plano e preservação de conhecimento validados.');

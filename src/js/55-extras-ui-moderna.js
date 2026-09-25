@@ -62,7 +62,8 @@
         try {
           if (typeof ReforcoFila !== 'undefined' && ReforcoFila.eGerenciado && ReforcoFila.eGerenciado(x)) return;
         } catch (_) { _quiet(_); }
-        const dias = (x.datas || []).filter(d => d && d < hoje).sort().reverse();
+        // Dia congelado pela pausa do planejamento nunca vira atraso.
+        const dias = (x.datas || []).filter(d => d && d < hoje && !(screen._diaPausado && screen._diaPausado(d))).sort().reverse();
         const d = dias.find(dia => !DB.extraConcluidaEm(x, dia));
         if (d) atrasadas.push({ x, day: d, bucket: 'atrasadas' });
       });

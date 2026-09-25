@@ -299,6 +299,12 @@ const ReforcoFila = {
       let dia = hoje;
       let guarda = 0;
       while (tarefas.some(t => t.restante > 0) && guarda++ < 1460) {
+        /* Pausa agendada: nenhum bloco nasce em dia congelado. Retorno definido
+           → a fila continua a partir dele; pausa sem retorno → o saldo espera a
+           reativação, quando a fila é recalculada. */
+        const livre = (typeof PlanManager !== 'undefined' && PlanManager.nextOperationalDay) ? PlanManager.nextOperationalDay(dia) : dia;
+        if (!livre) break;
+        if (livre !== dia) { dia = livre; continue; }
         const usadas = (dia === hoje) ? new Set(ocupadasHoje) : new Set();
         let slots = this.limiteDisciplinasDia() - (dia === hoje ? nHoje : 0);
         if (slots < 0) slots = 0;
@@ -368,6 +374,7 @@ const ReforcoFila = {
     const e = list.find(x => x.id === id);
     if (!e || !this.eGerenciado(e) || e.status === 'concluida') return { ok: false, motivo: 'encerrada' };
     const hoje = todayLocal();
+    if (typeof PlanManager !== 'undefined' && PlanManager.isDayPaused && PlanManager.isDayPaused(hoje)) return { ok: false, motivo: 'pausado' };
     if (this.alvoNoDia(e, hoje)) return { ok: true, ja: true };
     const outras = list.filter(x => x.id !== id && this.eGerenciado(x) && this.alvoNoDia(x, hoje));
     const disc = this._norm(e.disciplina || (MotorCiclo.origemDe(e) && MotorCiclo.origemDe(e).disciplina) || 'sem disciplina');
@@ -479,9 +486,10 @@ ReforcoFila._orig.occurrencesForDay = ExtrasScreen.occurrencesForDay;
 ExtrasScreen.occurrencesForDay = function (day) {
   const base = ReforcoFila._orig.occurrencesForDay.call(this, day);
   const porId = new Map(base.map(e => [e.id, e]));
+  const pausado = this._diaPausado ? this._diaPausado(day) : false;
   DB.getExtras().forEach(e => {
     if (!ReforcoFila.eGerenciado(e)) return;
-    const deve = ReforcoFila.alvoNoDia(e, day) != null
+    const deve = (!pausado && ReforcoFila.alvoNoDia(e, day) != null)
       || (e.historico || []).some(h => h.data === day)
       || (e.concluidasEm || []).includes(day);
     if (deve) porId.set(e.id, e); else porId.delete(e.id);
