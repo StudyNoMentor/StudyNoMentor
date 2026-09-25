@@ -62,6 +62,10 @@ try{
     const dt=cel.filter(c=>c.s==='Direito Tributário');
     DB.saveEntry({id:'e1',date:iso(ini),subject:'Direito Tributário',durationMin:90,method:'Teoria'});
     GradeScreen.render();await new Promise(r=>setTimeout(r,100));
+    // com grade montada, a tela abre no Acompanhar (painel de missões)
+    out.modoPadrao=GradeScreen.modo();
+    out.painel=!!document.querySelector('#ciclo-grade .gp .gp-resumo')&&document.querySelectorAll('#ciclo-grade .gp-dia').length===7;
+    GradeScreen.setView('semana');await new Promise(r=>setTimeout(r,100));
     const p=GradeScreen.progresso().mapa;
     out.prog=dt.map(c=>p[c.d+'|'+c.i]);
     const chips=[...document.querySelectorAll('.grade-cell-drop .subject-chip[data-subject="Direito Tributário"]')];
@@ -71,6 +75,39 @@ try{
     GradeScreen.registrarSessao('Contabilidade Geral',60);
     await new Promise(r=>setTimeout(r,300));
     out.reg={s:(document.getElementById('subject')||{}).value,h:(document.getElementById('duration-h')||{}).value,m:(document.getElementById('duration-m')||{}).value};
+    // painel: o registro cobre primeiro a sessão do MESMO dia; o ✓ manual de
+    // outra semana não vale nesta
+    const D=['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
+    const g={};D.forEach(d=>g[d]=['']);
+    g.Segunda=[{subject:'Direito Civil',minutes:60,done:false}];
+    g.Quarta=[{subject:'Direito Civil',minutes:60,done:false}];
+    g.Sexta=[{subject:'Estatística Básica',minutes:60,done:true,doneWeek:'2000-01-03'}];
+    g.Sábado=[{subject:'Estatística Básica',minutes:60,done:false}];
+    DB.saveGradeTemplate({grade:g,sessions:1});
+    const qua=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+2);
+    DB.saveEntry({id:'e2',date:iso(qua),subject:'Direito Civil',durationMin:60,method:'Teoria'});
+    const m2=GradeScreen.progresso().mapa;
+    out.mesmoDia={seg:m2['Segunda|0'].completo,qua:m2['Quarta|0'].completo};
+    GradeScreen.setView('painel');await new Promise(r=>setTimeout(r,100));
+    const sel=d=>document.querySelector('#ciclo-grade [data-gp-dia="'+iso(d)+'"]');
+    const sex=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+4);
+    sel(sex).click();await new Promise(r=>setTimeout(r,60));
+    out.velhaSemana=document.querySelectorAll('#ciclo-grade .gp-missoes .gp-m.st-feita').length;
+    // ✓ pelo painel grava a semana atual e conta como feita
+    document.querySelector('#ciclo-grade .gp-missoes [data-gp-check]').click();await new Promise(r=>setTimeout(r,60));
+    const c=DB.getGradeTemplate().grade.Sexta[0];
+    out.marcou={done:c.done,semana:c.doneWeek===GradeScreen.progresso().ini,feitas:document.querySelectorAll('#ciclo-grade .gp-missoes .gp-m.st-feita').length};
+    // ▶ Registrar abre o formulário com o que falta da missão
+    sel(qua).click();await new Promise(r=>setTimeout(r,60));
+    sel(new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+5)).click();await new Promise(r=>setTimeout(r,60));
+    document.querySelector('#ciclo-grade .gp-missoes [data-gp-reg]').click();
+    await new Promise(r=>setTimeout(r,300));
+    out.regPainel={s:(document.getElementById('subject')||{}).value,h:(document.getElementById('duration-h')||{}).value};
+    // grade vazia: o Acompanhar mostra o convite para montar
+    DB.saveGradeTemplate({grade:{},sessions:1});localStorage.removeItem(DB._profilePrefix()+'pref-grade-view');
+    out.modoVazio=GradeScreen.modo();
+    GradeScreen.setView('painel');await new Promise(r=>setTimeout(r,60));
+    out.vazio=!!document.querySelector('#ciclo-grade .gp-vazio [data-gp-acao="montar"]');
     return out;
   });
   ok(r.aberto,'janela abre pelo botão ✨ Sugerir grade');
@@ -89,6 +126,13 @@ try{
   ok(r.prog.filter(x=>x.completo).length===1&&r.prog.some(x=>x.feito===30),'90 min registrados = 1 sessão completa + 30/60 na seguinte');
   ok(r.autoDone===1&&r.parcial===1,'chips mostram concluída pelos registros e parcial');
   ok(r.reg.s==='Contabilidade Geral'&&r.reg.h==='1'&&r.reg.m==='0','Registrar estudo aberto já preenchido');
+  ok(r.modoPadrao==='painel'&&r.painel,'grade montada abre no Acompanhar, com resumo e os 7 dias');
+  ok(r.mesmoDia.qua&&!r.mesmoDia.seg,'registro cobre primeiro a missão do mesmo dia');
+  ok(r.velhaSemana===0,'✓ manual de outra semana não vale nesta');
+  ok(r.marcou.done&&r.marcou.semana&&r.marcou.feitas===1,'✓ pelo painel marca a missão na semana atual');
+  ok(r.regPainel.s==='Estatística Básica'&&r.regPainel.h==='1','▶ Registrar do painel abre o formulário preenchido');
+  ok(r.modoVazio==='semana','grade vazia abre no Montar');
+  ok(r.vazio,'Acompanhar sem grade convida a montar');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`GRADE GERADOR (NAVEGADOR) OK — ${n} invariantes.`);
 }finally{await browser.close();server.close();}

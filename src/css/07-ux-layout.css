@@ -366,20 +366,11 @@ button.is-saving {
 /* o menu abre alinhado à direita, sem estourar a tela */
 #screen-grade .grade-gear-menu { right: 0; left: auto; }
 
-/* Grupos rotulados dentro do menu (visão e início da semana) */
+/* Grupos rotulados dentro do menu (início da semana) */
 .grade-gear-group { padding: 9px 12px 10px; }
 .grade-gear-lbl {
   display: block; font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .07em;
   text-transform: uppercase; color: var(--text-faint); margin-bottom: 7px;
-}
-.grade-gear-group .grade-view-toggle { display: flex; width: 100%; }
-/* Dentro do menu o seletor tem ~211px para dois botoes. Com o padding de 13px
-   herdado, sobravam 79px de texto por botao e "Meta diaria" QUEBRAVA em duas
-   linhas — o controle segmentado ficava com 48px de altura e aparencia de
-   defeito. Padding menor + nowrap devolvem a linha unica. */
-.grade-gear-group .gvt-btn {
-  flex: 1 1 0; justify-content: center; text-align: center;
-  padding-left: 6px; padding-right: 6px; white-space: nowrap;
 }
 .grade-gear-select {
   width: 100%; padding: 7px 32px 7px 10px; font-size: var(--fs-sm);
@@ -395,30 +386,6 @@ button.is-saving {
 
 /* A bandeja perdeu a barra de ações: os chips ocupam a faixa inteira */
 .grade-tray-bar .grade-chip-tray { width: 100%; }
-
-/* ── Meta diária: o que já foi concluído fica VERDE ───────────────────────── */
-.gd-chip.is-done {
-  color: var(--good-text) !important;
-  background: var(--good-soft);
-  border-color: color-mix(in srgb, var(--good) 45%, transparent);
-}
-.gd-chip-check { font-weight: 900; margin-right: 4px; color: var(--good); }
-.gd-day.is-complete {
-  border-color: color-mix(in srgb, var(--good) 45%, var(--border));
-  background: color-mix(in srgb, var(--good-soft) 55%, var(--surface));
-}
-.gd-done-tag {
-  margin-left: 8px; padding: 2px 8px; border-radius: 20px;
-  background: var(--good-soft); color: var(--good-text);
-  font-size: var(--fs-3xs); font-weight: 800; letter-spacing: .02em; white-space: nowrap;
-}
-.gd-day-count {
-  display: inline-block; margin-right: 8px; padding: 2px 8px; border-radius: 20px;
-  background: var(--surface-sunken); border: 1px solid var(--border);
-  font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 700;
-}
-.gd-day-count.has { background: var(--good-soft); border-color: transparent; color: var(--good-text); }
 
 /* ---------------------------------------------------------------------------
    4. ESTUDO NOVO

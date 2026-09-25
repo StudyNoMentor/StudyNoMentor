@@ -20,7 +20,7 @@
   const COPY = Object.freeze({
     registrar: 'Registre a sessão atual. O restante é calculado a partir dos seus dados.',
     ciclo: 'Veja se a semana está no ritmo, quanto falta e onde concentrar o próximo esforço.',
-    grade: 'Distribua as sessões da semana. Os números reais continuam vindo dos registros.',
+    grade: 'Acompanhe as missões de hoje e da semana; monte a rotina uma vez e ela se repete. Os números reais vêm dos registros.',
     estudonovo: 'Acompanhe o avanço da teoria por disciplina e aula.',
     leis: 'Leia, marque e retome exatamente de onde parou.',
     cards: 'Revise o que vence hoje. O agendamento continua automático.',

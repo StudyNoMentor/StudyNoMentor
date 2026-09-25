@@ -1138,12 +1138,6 @@
   .gb-disc-row { display: grid; grid-template-columns: 56px 1fr auto; align-items: center; gap: 9px; padding: 4px 0; }
   .gb-disc-sig { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-2xs); text-transform: uppercase; text-align: center; border: 1.5px solid currentColor; border-radius: 7px; padding: 3px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, currentColor 9%, transparent); }
 
-  /* ── Seletor de visão da Grade (Semanal / Meta diária) ── */
-  .grade-view-toggle { display: inline-flex; background: var(--surface-sunken); border: 1.5px solid var(--border); border-radius: 20px; padding: 3px; gap: 2px; }
-  .gvt-btn { background: transparent; border: none; border-radius: 16px; padding: 6px 13px; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-size: var(--fs-xs); font-weight: 700; color: var(--text-soft); cursor: pointer; transition: all 0.14s ease; }
-  .gvt-btn:hover { color: var(--text); }
-  .gvt-btn.active { background: var(--accent-soft); color: var(--accent); box-shadow: var(--shadow-sm); }
-
   /* ── Cabeçalho da Grade: só o essencial + engrenagem de opções ── */
   .grade-head-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .grade-gear-wrap { position: relative; }
@@ -1169,20 +1163,6 @@
   .grade-gear-item.is-collapsed, .grade-gear-item.active { background: var(--accent-soft); color: var(--accent); }
   .grade-gear-sep { height: 1px; background: var(--border); margin: 5px 6px; }
   @media (max-width: 560px) { .grade-gear-menu { right: auto; left: 0; min-width: 210px; } }
-
-  /* ── Visão "Meta diária": lista compacta do alvo de cada dia ── */
-  .grade-daily { display: grid; gap: 10px; }
-  .gd-day { border: 1.5px solid var(--border); border-radius: 12px; padding: 12px 14px; background: var(--surface); transition: border-color 0.15s ease; }
-  .gd-day.is-today { border-color: var(--accent); background: var(--accent-soft); }
-  .gd-day-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
-  .gd-day-name { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-weight: 800; font-size: var(--fs-md); color: var(--text); text-transform: capitalize; }
-  .gd-day-name .gd-today-tag { font-size: calc(9.5px * var(--fs-scale,1)); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--accent); background: var(--surface); border: 1px solid var(--accent); border-radius: 20px; padding: 1px 7px; margin-left: 8px; vertical-align: middle; }
-  .gd-day-total { font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-md); color: var(--text); }
-  .gd-day-total.zero { color: var(--text-faint); font-weight: 600; }
-  .gd-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .gd-chip { display: inline-flex; align-items: center; gap: 6px; border: 1.5px solid currentColor; border-radius: 8px; padding: 3px 8px; font-family: 'Space Mono', ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; font-size: var(--fs-2xs); text-transform: uppercase; background: color-mix(in srgb, currentColor 9%, transparent); }
-  .gd-chip small { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; font-weight: 600; text-transform: none; color: var(--text-soft); }
-  .gd-empty { color: var(--text-faint); font-size: var(--fs-xs); font-style: italic; }
 
   /* ── Lista de grades salvas ── */
   .saved-grades-list { display: grid; gap: 8px; }
