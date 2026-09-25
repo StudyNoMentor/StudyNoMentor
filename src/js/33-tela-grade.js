@@ -681,6 +681,11 @@ function planCycleMode() {
       const d1 = new Date((_hojeIso > cycle.startDate ? _hojeIso : cycle.startDate) + 'T00:00:00');
       const d2 = new Date(_fimSemana + 'T00:00:00');
       diasRestantes = Math.max(1, Math.round((d2 - d1) / 86400000) + 1);
+      // Dias de pausa agendada dentro da semana não recebem estudo.
+      if (typeof PlanManager !== 'undefined' && PlanManager.operationalDaysBetween && d2 >= d1) {
+        const ini = _hojeIso > cycle.startDate ? _hojeIso : cycle.startDate;
+        diasRestantes = Math.max(1, PlanManager.operationalDaysBetween(ini, _fimSemana));
+      }
     } catch (_) { diasRestantes = 1; }
     const porDia = remaining > 0 ? Math.round(remaining / diasRestantes) : 0;
     const ritmoAccent = remaining === 0 ? 'accent-good' : (porDia > 300 ? 'accent-bad' : porDia > 180 ? 'accent-warn' : '');

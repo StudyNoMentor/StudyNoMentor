@@ -1252,6 +1252,9 @@
   .cal-day .cal-alldone { display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; margin-top: 3px; border-radius: 50%; background: var(--good); color: #fff; font-size: calc(9px * var(--fs-scale,1)); font-weight: 900; line-height: 1; }
   .cal-day.partial .cal-dots { position: relative; }
   .cal-day.partial::after { content: ''; position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); }
+  /* dia congelado pela pausa do planejamento: borda tracejada, sem cobrança */
+  .cal-day.paused { border-style: dashed; background: var(--surface-sunken); box-shadow: none; }
+  .cal-day .cal-paused-mark { font-size: var(--fs-3xs); color: var(--text-soft); }
   .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
   .cal-more { font-size: var(--fs-3xs); color: var(--text-faint); font-weight: 700; }
   .cal-panel { padding: 4px 24px 20px; }

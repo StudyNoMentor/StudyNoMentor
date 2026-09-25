@@ -11,51 +11,254 @@ const PlanManager = {
 
   getPlans() { return DB._get(this.GK.plans, []); },
   savePlans(list) { DB._set(this.GK.plans, list); },
+  /* ── PAUSA DATADA ─────────────────────────────────────────────────────────
+     A pausa é uma JANELA de calendário [from, until): `from` é o primeiro dia
+     congelado e `until` o primeiro dia em que tudo volta a contar (null =
+     indefinida). As datas são escolhidas pela pessoa — podem ser retroativas
+     ("parei dia 10 e esqueci de pausar") ou futuras (pausa/retorno agendados).
+     Janelas antigas ficam guardadas: um dia pausado continua pausado para as
+     métricas mesmo depois da reativação. `pausedAt`/`resumedAt` continuam no
+     registro só como espelho legível por versões antigas do app. */
+  _hoje() {
+    if (typeof todayLocal === 'function') return todayLocal();
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  _diaISO(v) {
+    const s = String(v == null ? '' : v).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(s + 'T00:00:00');
+      return isNaN(d.getTime()) ? null : s;
+    }
+    if (!s) return null;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  _somaDias(iso, n) {
+    const d = new Date(iso + 'T00:00:00');
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  },
+  // Função pura: aceita o registro novo ({windows}) e o legado ({pausedAt, resumedAt}).
+  pauseWindowsFromRecord(rec) {
+    if (!rec || typeof rec !== 'object') return [];
+    let raw = Array.isArray(rec.windows) ? rec.windows : null;
+    if (!raw) raw = rec.pausedAt ? [{ from: rec.pausedAt, until: rec.resumedAt || null, pausedAt: rec.pausedAt, resumedAt: rec.resumedAt || null }] : [];
+    const out = [];
+    raw.forEach(w => {
+      if (!w) return;
+      const from = this._diaISO(w.from);
+      if (!from) return;
+      const until = w.until ? this._diaISO(w.until) : null;
+      if (until && until <= from) return;               // janela vazia = pausa cancelada
+      out.push({ from, until, pausedAt: w.pausedAt || null, resumedAt: w.resumedAt || null });
+    });
+    return out.sort((a, b) => a.from.localeCompare(b.from));
+  },
+  pausedOnFromRecord(rec, dia) {
+    dia = this._diaISO(dia) || this._hoje();
+    return this.pauseWindowsFromRecord(rec).some(w => w.from <= dia && (!w.until || dia < w.until));
+  },
   _pauseMap() {
     const v = DB._get(this.GK.pauses, {});
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
   },
   _savePauseMap(v) { return DB._set(this.GK.pauses, v || {}); },
-  pauseInfo(id) {
-    const x = this._pauseMap()[String(id)] || null;
-    if (!x || !x.pausedAt || x.resumedAt) return null;
-    return x;
+  pauseWindows(id) { return this.pauseWindowsFromRecord(this._pauseMap()[String(id)]); },
+  _savePauseWindows(id, windows) {
+    const map = this._pauseMap();
+    const ws = this.pauseWindowsFromRecord({ windows });
+    if (!ws.length) delete map[String(id)];
+    else {
+      const ult = ws[ws.length - 1];
+      map[String(id)] = {
+        v: 2, windows: ws,
+        pausedAt: ult.pausedAt || new Date(ult.from + 'T00:00:00').toISOString(),
+        resumedAt: ult.until ? (ult.resumedAt || new Date(ult.until + 'T00:00:00').toISOString()) : null
+      };
+    }
+    return this._savePauseMap(map);
   },
-  isPaused(id) { return !!this.pauseInfo(id); },
+  isPausedOn(id, dia) {
+    if (id == null) return false;
+    dia = this._diaISO(dia) || this._hoje();
+    return this.pauseWindows(id).some(w => w.from <= dia && (!w.until || dia < w.until));
+  },
+  // Janela vigente hoje (ou null). Mantém `pausedAt` para quem já lia esse campo.
+  pauseInfo(id) {
+    const hoje = this._hoje();
+    const w = this.pauseWindows(id).find(x => x.from <= hoje && (!x.until || hoje < x.until));
+    return w ? Object.assign({}, w, { pausedAt: w.pausedAt || w.from }) : null;
+  },
+  // Próxima pausa ainda não iniciada (agendada para o futuro).
+  scheduledPause(id) {
+    const hoje = this._hoje();
+    return this.pauseWindows(id).find(x => x.from > hoje) || null;
+  },
+  isPaused(id) { return this.isPausedOn(id, this._hoje()); },
   isActivePlanPaused() { return this.isPaused(this.getActivePlanId()); },
+  // Dia congelado no planejamento indicado (padrão: o ativo). É a pergunta
+  // que agenda, atrasos, fila de reforço, rodízio e métricas fazem.
+  isDayPaused(dia, planId) {
+    return this.isPausedOn(planId == null ? this.getActivePlanId() : planId, dia);
+  },
+  // Primeiro dia >= `dia` em que o planejamento opera; null se a pausa for indefinida.
+  nextOperationalDay(dia, planId) {
+    let d = this._diaISO(dia) || this._hoje();
+    const ws = this.pauseWindows(planId == null ? this.getActivePlanId() : planId);
+    for (let i = 0; i <= ws.length; i++) {
+      const w = ws.find(x => x.from <= d && (!x.until || d < x.until));
+      if (!w) return d;
+      if (!w.until) return null;
+      d = w.until;
+    }
+    return d;
+  },
+  // Dias congelados no intervalo fechado [a, b].
+  pausedDaysBetween(a, b, planId) {
+    a = this._diaISO(a); b = this._diaISO(b);
+    if (!a || !b || a > b) return 0;
+    const ws = this.pauseWindows(planId == null ? this.getActivePlanId() : planId);
+    const t = iso => new Date(iso + 'T00:00:00').getTime();
+    let n = 0;
+    ws.forEach(w => {
+      const ini = w.from > a ? w.from : a;
+      const fimExcl = w.until ? (w.until <= this._somaDias(b, 1) ? w.until : this._somaDias(b, 1)) : this._somaDias(b, 1);
+      if (fimExcl > ini) n += Math.round((t(fimExcl) - t(ini)) / 86400000);
+    });
+    return n;
+  },
+  operationalDaysBetween(a, b, planId) {
+    a = this._diaISO(a); b = this._diaISO(b);
+    if (!a || !b || a > b) return 0;
+    const total = Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000) + 1;
+    return Math.max(0, total - this.pausedDaysBetween(a, b, planId));
+  },
   getOperationalPlans() { return this.getPlans().filter(p => !this.isPaused(p.id)); },
   getPausedPlans() { return this.getPlans().filter(p => this.isPaused(p.id)); },
-  pausePlan(id) {
+  /* Outro planejamento precisa seguir operando em TODOS os dias a partir de
+     `inicio` (a pausa nova é indefinida até alguém escolher o retorno). */
+  _temCobertura(excluiId, inicio) {
+    return this.getPlans().some(x => String(x.id) !== String(excluiId) &&
+      !this.pauseWindows(x.id).some(w => !w.until || w.until > inicio));
+  },
+  _emitPause(detail) {
+    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail })); }
+    catch (e) { _quiet(e, 'planning-pause-event'); }
+  },
+  /* Reposiciona o contexto ativo quando o dia de hoje cai numa pausa (pausa
+     retroativa, agendada que chegou ou pausa sincronizada de outro aparelho). */
+  _garantirAtivoOperacional() {
+    if (!this.isActivePlanPaused()) return null;
+    const next = this.getOperationalPlans()[0];
+    if (!next) return null;
+    DB.setRaw(this.GK.active, next.id);
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-pause'); }
+    return next.id;
+  },
+  /* opts.from: primeiro dia congelado (padrão: hoje; pode ser passado ou futuro).
+     opts.until: dia de retorno opcional (primeiro dia que volta a contar). */
+  pausePlan(id, opts) {
     id = String(id || '');
+    opts = opts || {};
     const plans = this.getPlans(), p = plans.find(x => String(x.id) === id);
     if (!p) return { ok: false, reason: 'not-found' };
-    if (this.isPaused(id)) return { ok: true, unchanged: true, info: this.pauseInfo(id) };
-    const outros = plans.filter(x => String(x.id) !== id && !this.isPaused(x.id));
-    if (!outros.length) return { ok: false, reason: 'last-operational' };
-    const now = new Date().toISOString(), map = this._pauseMap();
-    map[id] = { pausedAt: now, resumedAt: null };
-    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
-    let switchedTo = null;
-    if (String(this.getActivePlanId()) === id) {
-      switchedTo = outros[0].id;
-      DB.setRaw(this.GK.active, switchedTo);
-      try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-pause'); }
-    }
-    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: true, pausedAt: now, switchedTo } })); }
-    catch (e) { _quiet(e, 'planning-pause-event'); }
-    return { ok: true, pausedAt: now, switchedTo };
-  },
-  resumePlan(id) {
-    id = String(id || '');
-    if (!this.getPlans().some(x => String(x.id) === id)) return { ok: false, reason: 'not-found' };
-    const map = this._pauseMap(), old = map[id];
-    if (!old || !old.pausedAt || old.resumedAt) return { ok: true, unchanged: true };
+    const hoje = this._hoje();
+    const from = opts.from == null || opts.from === '' ? hoje : this._diaISO(opts.from);
+    if (!from) return { ok: false, reason: 'invalid-date' };
+    const until = opts.until ? this._diaISO(opts.until) : null;
+    if (opts.until && !until) return { ok: false, reason: 'invalid-date' };
+    if (until && until <= from) return { ok: false, reason: 'until-before-from' };
+    const ws = this.pauseWindows(id);
+    // Uma pausa vigente se edita pela reativação; uma agendada é substituída.
+    const vigente = ws.find(w => w.from <= hoje && (!w.until || hoje < w.until));
+    if (vigente) return { ok: true, unchanged: true, info: this.pauseInfo(id) };
+    const base = ws.filter(w => w.from <= hoje);            // janelas passadas ficam
+    const ultima = base[base.length - 1];
+    if (ultima && ultima.until && from < ultima.until) return { ok: false, reason: 'overlap', min: ultima.until };
+    const inicioEfetivo = from > hoje ? from : hoje;
+    if (!this._temCobertura(id, inicioEfetivo)) return { ok: false, reason: 'last-operational' };
     const now = new Date().toISOString();
-    map[id] = Object.assign({}, old, { resumedAt: now });
-    if (this._savePauseMap(map) === false) return { ok: false, reason: 'save-failed' };
-    try { window.dispatchEvent(new CustomEvent('planning:pause-changed', { detail: { planId: id, paused: false, resumedAt: now } })); }
-    catch (e) { _quiet(e, 'planning-resume-event'); }
-    return { ok: true, resumedAt: now };
+    const nova = { from, until, pausedAt: now, resumedAt: until ? now : null };
+    if (this._savePauseWindows(id, base.concat([nova])) === false) return { ok: false, reason: 'save-failed' };
+    let switchedTo = null;
+    if (String(this.getActivePlanId()) === id && this.isPaused(id)) switchedTo = this._garantirAtivoOperacional();
+    const scheduled = from > hoje;
+    this._emitPause({ planId: id, paused: this.isPaused(id), scheduled, from, until, pausedAt: now, switchedTo });
+    return { ok: true, pausedAt: now, from, until, scheduled, switchedTo };
+  },
+  /* opts.from: dia em que tudo volta a contar (padrão: hoje; pode ser passado,
+     desde que não anterior ao início da pausa, ou futuro = retorno agendado).
+     Retorno no mesmo dia do início desfaz a pausa inteira. */
+  resumePlan(id, opts) {
+    id = String(id || '');
+    opts = opts || {};
+    if (!this.getPlans().some(x => String(x.id) === id)) return { ok: false, reason: 'not-found' };
+    const hoje = this._hoje();
+    const ws = this.pauseWindows(id);
+    // Janela aberta: vigente hoje ou ainda por começar.
+    const alvo = ws.find(w => (!w.until || w.until > hoje));
+    if (!alvo) return { ok: true, unchanged: true };
+    const until = opts.from == null || opts.from === '' ? (alvo.from > hoje ? alvo.from : hoje) : this._diaISO(opts.from);
+    if (!until) return { ok: false, reason: 'invalid-date' };
+    if (until < alvo.from) return { ok: false, reason: 'before-pause', min: alvo.from };
+    const seguinte = ws.find(w => w !== alvo && w.from > alvo.from);
+    if (seguinte && until > seguinte.from) return { ok: false, reason: 'overlap', max: seguinte.from };
+    const now = new Date().toISOString();
+    const novas = ws.map(w => w === alvo ? Object.assign({}, w, { until, resumedAt: now }) : w)
+      .filter(w => !w.until || w.until > w.from);
+    if (this._savePauseWindows(id, novas) === false) return { ok: false, reason: 'save-failed' };
+    const cancelled = until === alvo.from;
+    const scheduled = until > hoje;
+    this._emitPause({ planId: id, paused: this.isPaused(id), resumedAt: now, until, scheduled, cancelled });
+    return { ok: true, resumedAt: now, until, scheduled, cancelled };
+  },
+  // Desfaz uma pausa que ainda não começou.
+  cancelScheduledPause(id) {
+    id = String(id || '');
+    const hoje = this._hoje();
+    const ws = this.pauseWindows(id);
+    const novas = ws.filter(w => !(w.from > hoje));
+    if (novas.length === ws.length) return { ok: true, unchanged: true };
+    if (this._savePauseWindows(id, novas) === false) return { ok: false, reason: 'save-failed' };
+    this._emitPause({ planId: id, paused: this.isPaused(id), cancelled: true });
+    return { ok: true, cancelled: true };
+  },
+  /* Viradas de dia: uma pausa/retorno agendado entra em vigor sem ação do
+     usuário. Verificado no boot, ao voltar à aba e a cada minuto (barato: só
+     compara a data). */
+  _pauseSig() {
+    return this.getPlans().map(p => p.id + ':' + (this.isPaused(p.id) ? 1 : 0)).join('|');
+  },
+  aplicarViradaDePausa() {
+    let sig;
+    try { sig = this._pauseSig(); } catch (e) { _quiet(e, 'plan-pause-sig'); return false; }
+    const mudou = this._ultimaAssinaturaPausa != null && this._ultimaAssinaturaPausa !== sig;
+    this._ultimaAssinaturaPausa = sig;
+    const switchedTo = this._garantirAtivoOperacional();
+    if (mudou || switchedTo) {
+      if (switchedTo) this._ultimaAssinaturaPausa = this._pauseSig();
+      this._emitPause({ automatic: true, switchedTo });
+      return true;
+    }
+    return false;
+  },
+  _vigiarViradaDePausa() {
+    if (this._vigiaPausa || typeof window === 'undefined' || !window.addEventListener) return;
+    this._vigiaPausa = true;
+    let dia = this._hoje();
+    const checar = () => {
+      const agora = this._hoje();
+      if (agora === dia) return;
+      dia = agora;
+      this.aplicarViradaDePausa();
+    };
+    try {
+      window.addEventListener('focus', checar);
+      if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (!document.hidden) checar(); });
+      setInterval(checar, 60000);
+    } catch (e) { _quiet(e, 'plan-pause-watch'); }
   },
   // Mesma leitura saneada do DB._activePlanId: um id com aspas renomearia de uma
   // vez todas as chaves do planejamento e as telas abririam vazias.
@@ -426,6 +629,8 @@ const PlanManager = {
         else this.setActivePlan(id);
       }
     }
+    try { this._ultimaAssinaturaPausa = this._pauseSig(); } catch (e) { _quiet(e, 'plan-pause-sig-init'); }
+    this._vigiarViradaDePausa();
   }
 };
 

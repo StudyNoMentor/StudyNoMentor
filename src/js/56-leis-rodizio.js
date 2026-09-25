@@ -85,6 +85,9 @@
     },
     eExtra(e) { return !!(e && e.origemLei && e.origemLei.rodizio && e.origemLei.leiId); },
     _diaPermitido(dia, p) {
+      // Dia congelado pela pausa do planejamento não recebe sessão de lei seca.
+      try { if (typeof PlanManager !== 'undefined' && PlanManager.isDayPaused && PlanManager.isDayPaused(dia)) return false; }
+      catch (_) { if (typeof _quiet === 'function') _quiet(_, '56-leis-rodizio'); }
       const d = new Date(String(dia) + 'T00:00:00');
       return (p.dias || []).includes(d.getDay());
     },
