@@ -77,7 +77,12 @@
   // só, o selo se repetia em todo registro como ruído.
   let _variosPlanos = false;
   const entryPlanBadge = (e) => (_variosPlanos && e && e._planNome)
-    ? `<span class="meta-badge badge-plan" title="Planejamento de origem">${escapeHtml(e._planNome)}</span>` : '';
+    ? `<span class="meta-badge badge-plan" title="${e._planPaused ? 'Planejamento pausado — somente leitura' : 'Planejamento de origem'}">${e._planPaused ? '⏸ ' : ''}${escapeHtml(e._planNome)}</span>` : '';
+  /* O histórico de estudo é memória realizada: pausar um planejamento suspende
+     a OPERAÇÃO dele (ciclo, metas, novas escritas), não apaga o que já foi
+     estudado. Antes, a lista lia só os planejamentos operacionais e os
+     registros do pausado sumiam dos outros. Eles continuam somente leitura. */
+  const todosOsRegistros = () => DB.getAllEntriesTagged ? DB.getAllEntriesTagged({ includePaused: true }) : DB.getEntries();
 
   dateInput.value = todayLocal();
   gaugeFill.style.strokeDasharray = CIRC;
@@ -265,7 +270,7 @@
   cancelEditBtn.addEventListener('click', exitEditMode);
 
   function renderRecent() {
-    const allEntries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const allEntries = todosOsRegistros();
     if (allEntries.length === 0) {
       recentSection.style.display = 'none';
       return;
@@ -366,7 +371,7 @@
   function wireEntryRows() {
     // Um único levantamento dos registros (antes: um por LINHA, O(n²) — com
     // milhares de registros a tela travava vários segundos).
-    const todos = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const todos = todosOsRegistros();
     const porId = new Map(todos.map(e => [String(e.id), e]));
     recentList.querySelectorAll('.recent-item, .reg-row').forEach(row => {
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
@@ -526,7 +531,7 @@
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
-          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${_variosPlanos && e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
+          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${_variosPlanos && e._planNome ? `<small class="reg-origin-plan">${e._planPaused ? '⏸ ' : ''}${escapeHtml(e._planNome)}</small>` : ''}</th>
           <td class="reg-c reg-c-lesson" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-method" title="${meth}"><span class="reg-method-chip">${meth}</span></td>
           <td class="reg-c reg-c-num reg-c-time">${timeStr}</td>
