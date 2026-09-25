@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v16c5a0ab06">
+<meta name="diario-versao" content="v782967af1b">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6290,7 +6290,7 @@ window.__relationalBoot = true;
     <div class="card">
       <div class="card-header">
         <div>
-          <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">❗ Digite os tempos em minutos</span></h2>
+          <h2 class="grade-title-line">Grade da semana <span class="grade-min-alert">⏱ tempos em minutos</span></h2>
           <p class="sub">Toque numa célula para escolher a sigla (ou arraste). A mesma matéria pode aparecer em várias células — ajuste a duração de cada uma.</p>
         </div>
         <!-- TUDO o que e secundario vive dentro da engrenagem. Antes o seletor de
@@ -6436,7 +6436,7 @@ window.__relationalBoot = true;
             <div style="padding: 8px 0 20px;">
               <div id="en-track-averages"></div>
               <div id="en-track-list"></div>
-              <div style="padding: 0 28px; margin-top: 14px; display:flex; gap: 10px;">
+              <div class="en-add-row" style="padding: 0 28px; margin-top: 14px; display:flex; gap: 10px;">
                 <input type="text" id="en-new-lesson-input" placeholder="Nome da aula/assunto" style="flex:1;">
                 <button type="button" class="btn-primary" id="en-add-lesson-btn">+ Adicionar aula</button>
                 <button type="button" class="btn-secondary" id="en-bulk-lesson-btn" title="Colar uma lista de assuntos e criar todas as aulas de uma vez">📋 Colar lista</button>
@@ -16572,6 +16572,88 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 
 </style>
 
+<style id="telas-estudo">
+/* ═══════════════════════════════════════════════════════════════════════════
+   REGISTRAR · CICLO · GRADE · ESTUDO NOVO — acabamento visual
+   Carregado por último; !important só onde uma camada anterior insiste.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Registrar ─────────────────────────────────────────────────────────── */
+/* O título das etapas 3 e 4 (com o selo "opcional") empurrava o número para
+   uma linha própria no celular: o bloco do título agora encolhe em vez de
+   quebrar para baixo do círculo. */
+#screen-registrar[data-reg-mode="compacto"] .step > .step-head{flex:1 1 0!important}
+#screen-registrar[data-reg-mode="compacto"] .step-title{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+#screen-registrar[data-reg-mode="compacto"] .step-title .step-opt{margin:0!important}
+#screen-registrar[data-reg-mode="compacto"] #comment{min-height:88px!important}
+/* Matéria com mais espaço que a aula (o seletor cortava "Selecione a maté…") */
+@media (min-width:861px){
+  #screen-registrar[data-reg-mode="compacto"] #step-1 .field-group{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)!important}
+}
+/* Lista de registros: busca ocupa a linha inteira no celular */
+@media (max-width:640px){
+  #screen-registrar .recent-head-controls{width:100%}
+  #screen-registrar #recent-search{flex:1 1 100%;width:100%!important;min-width:0}
+}
+
+/* ── Grade ─────────────────────────────────────────────────────────────── */
+/* "tempos em minutos" vira um lembrete discreto (antes: alerta vermelho fixo
+   que empurrava o ⓘ para uma linha sozinho). */
+#screen-grade .grade-title-line{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;white-space:nowrap}
+#screen-grade .grade-title-line .info-dot{order:1}
+#screen-grade .grade-title-line .grade-min-alert{order:2;flex-basis:100%;display:block;color:var(--text-faint)!important;font-weight:600!important;font-size:11.5px!important;letter-spacing:0!important}
+#ciclo-grade .grade-table thead th:first-child{white-space:nowrap;letter-spacing:0!important;font-size:10.5px}
+#ciclo-grade .grade-table td:first-child{white-space:nowrap}
+@media (max-width:640px){#ciclo-grade .gs-w{display:none}}
+/* Minutos da sessão legíveis no tema escuro (fundo era branco translúcido) */
+#ciclo-grade .chip-duration-input{background:color-mix(in srgb,var(--surface) 72%,transparent)!important;color:inherit}
+#ciclo-grade .chip-duration-input:focus{background:var(--surface)!important}
+
+/* Gerenciar siglas: sigla, nome, cor e ação alinhados numa linha */
+#siglas-modal .custom-sigla-row{display:grid!important;grid-template-columns:12px 92px minmax(0,1fr) 36px 34px;align-items:center;gap:10px;padding:8px 10px!important;margin-bottom:6px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+#siglas-modal .custom-sigla-swatch{width:12px;height:12px;border-radius:50%;display:block}
+#siglas-modal .custom-sigla-row .cs-sigla{width:100%!important;min-width:0;min-height:36px;padding:4px 8px;font-family:'Space Mono',monospace;font-weight:700;text-transform:uppercase}
+#siglas-modal .custom-sigla-row .cs-subject-name,#siglas-modal .custom-sigla-row .cs-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+#siglas-modal .custom-sigla-row .cs-nome{min-height:36px;padding:4px 8px}
+#siglas-modal .custom-sigla-row .cs-color{width:36px!important;height:36px!important;min-height:0;padding:2px!important;border:1px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer}
+#siglas-modal .custom-sigla-row .icon-btn{width:34px!important;height:34px!important;min-width:34px;border-radius:9px}
+#siglas-modal .siglas-add-block .config-add-row{display:flex;flex-wrap:wrap;gap:8px}
+#siglas-modal .siglas-add-block .config-add-row>input{flex:1 1 140px;min-width:0;max-width:none!important}
+/* Grades salvas: nome + botão sem espremer o campo */
+#saved-grades-modal .config-add-row,#saved-grades-modal .saved-grade-add{display:flex;flex-wrap:wrap;gap:8px}
+#saved-grades-modal #new-saved-grade-name{flex:1 1 200px;min-width:0}
+#saved-grades-modal #btn-save-current-grade{flex:0 0 auto;white-space:nowrap}
+
+/* ── Estudo Novo ───────────────────────────────────────────────────────── */
+/* Campo "Nome da aula" espremido a ~20px ao lado dos botões no celular */
+#screen-estudonovo .en-add-row{flex-wrap:wrap;align-items:stretch}
+#screen-estudonovo .en-add-row>#en-new-lesson-input{flex:1 1 220px!important;min-width:0;min-height:42px}
+#screen-estudonovo .en-add-row>button{flex:0 0 auto;white-space:nowrap;min-height:42px}
+@media (max-width:640px){
+  #screen-estudonovo .en-add-row{padding:0 16px!important}
+  #screen-estudonovo .en-add-row>#en-new-lesson-input{flex-basis:100%!important}
+  #screen-estudonovo .en-add-row>button{flex:1 1 0}
+}
+/* Tabela da trilha: sombra indica que há mais colunas para rolar */
+#screen-estudonovo .en-table-wrap{background:linear-gradient(90deg,var(--surface) 30%,transparent) left/40px 100% no-repeat local,linear-gradient(270deg,var(--surface) 30%,transparent) right/40px 100% no-repeat local,radial-gradient(farthest-side at 100% 50%,rgba(15,23,42,.16),transparent) right/12px 100% no-repeat scroll,var(--surface)!important}
+#siglas-modal .custom-sigla-row .cs-subject-name,#siglas-modal .custom-sigla-row .cs-nome{grid-column:auto!important}
+#siglas-modal .custom-sigla-row .cs-color{display:block;min-width:36px;-webkit-appearance:none;appearance:none}
+#siglas-modal .custom-sigla-row .cs-color::-webkit-color-swatch-wrapper{padding:0}
+#siglas-modal .custom-sigla-row .cs-color::-webkit-color-swatch{border:0;border-radius:6px}
+/* Grade no celular: título numa linha, ações logo abaixo */
+@media (max-width:560px){
+  #screen-grade .card-header{flex-wrap:wrap;row-gap:10px}
+  #screen-grade .card-header>div:first-child{flex:1 1 100%;min-width:0}
+  #screen-grade .grade-head-actions{flex:1 1 100%;justify-content:flex-start}
+  #screen-grade .grade-head-actions .grade-suggest-btn{flex:1 1 auto;justify-content:center}
+}
+/* Registrar: "Mostrar mais" da lista de registros */
+#screen-registrar .recent-more-row{display:flex;justify-content:center;padding:12px 0 16px}
+#screen-registrar .recent-more-btn{min-height:40px;padding:8px 18px;border-radius:11px;font-weight:700}
+#screen-registrar .recent-more-btn span{font-weight:500;color:var(--text-soft)}
+
+</style>
+
 <script id="app-code" type="application/x-diario-inert">
 /* ═══════════════════════════════════════════════════════════════════════════
    DIÁRIO DE ESTUDOS — mapa do código
@@ -19349,16 +19431,25 @@ const DB = {
   getCycleHistoryForPlan(planId) { return this._get(this.keysForPlan(planId).cycleHistory, []); },
   getTracksForPlan(planId) { return this._get(this.keysForPlan(planId).tracks, {}); },
   // Todos os registros de todos os planejamentos, cada um marcado com o plano de origem
+  /* Planos consultados pelas leituras consolidadas. O planejamento ATIVO entra
+     sempre: sem registro na lista (perfil recém-criado, migração), seus
+     registros sumiam de "Todos os registros" embora existissem. */
+  _plansForTagged(includePaused) {
+    const plans = (includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans()) || [];
+    const active = (PlanManager.getActivePlanId && PlanManager.getActivePlanId()) || this._activePlanId();
+    if (active && !plans.some(p => String(p.id) === String(active))) return [{ id: active, nome: 'Planejamento atual' }].concat(plans);
+    return plans;
+  },
   getAllEntriesTagged(opts) {
     const includePaused = !!(opts && opts.includePaused);
-    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    const plans = this._plansForTagged(includePaused);
     return plans.flatMap(p =>
       this.getEntriesForPlan(p.id).map(e => ({ ...e, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
   },
   getAllCycleHistoryTagged(opts) {
     const includePaused = !!(opts && opts.includePaused);
-    const plans = includePaused || !PlanManager.getOperationalPlans ? PlanManager.getPlans() : PlanManager.getOperationalPlans();
+    const plans = this._plansForTagged(includePaused);
     return plans.flatMap(p =>
       this.getCycleHistoryForPlan(p.id).map(w => ({ ...w, _planId: p.id, _planNome: p.nome, _planPaused: !!(PlanManager.isPaused && PlanManager.isPaused(p.id)) }))
     );
@@ -21724,6 +21815,13 @@ const ReforcoEngine = {
 
   let editingId = null; // null = modo "novo registro"; caso contrário, id do registro em edição
   let searchTerm = '';
+  /* Paginação da lista: desenhar milhares de registros de uma vez travava a
+     tela por segundos. Mostra 60 e cresce sob demanda; volta a 60 quando a
+     busca, a visão, os filtros ou a ordenação mudam. */
+  const RECENT_PASSO = 60;
+  let recentLimite = RECENT_PASSO, _recentChave = '';
+  const botaoMais = (total, onde) => total > recentLimite
+    ? `<div class="recent-more-row"><button type="button" class="btn-secondary recent-more-btn" data-onde="${onde}">Mostrar mais ${Math.min(RECENT_PASSO, total - recentLimite)} <span>· ${total - recentLimite} restante${total - recentLimite === 1 ? '' : 's'}</span></button></div>` : '';
   /* Visão da lista de registros: 'cartoes' (padrão) ou 'tabela' (com filtros por
      coluna). A chave é NAMESPACED pelo perfil, como todas as outras escolhas do
      usuário: fora do prefixo `diario-estudos:u:<perfil>:` nada é sincronizado, e
@@ -21740,7 +21838,10 @@ const ReforcoEngine = {
   let tblSort = { key: 'date', dir: 'desc' };
   let _pendingFocus = null; // { fk, pos } — devolve o foco ao filtro de texto após re-render
   const entryIsLocal = (e) => !e || !e._planId || String(e._planId) === String(DB._activePlanId());
-  const entryPlanBadge = (e) => (e && e._planNome)
+  // Nome do planejamento só ajuda quando a lista mistura planejamentos; com um
+  // só, o selo se repetia em todo registro como ruído.
+  let _variosPlanos = false;
+  const entryPlanBadge = (e) => (_variosPlanos && e && e._planNome)
     ? `<span class="meta-badge badge-plan" title="Planejamento de origem">${escapeHtml(e._planNome)}</span>` : '';
 
   dateInput.value = todayLocal();
@@ -21913,6 +22014,7 @@ const ReforcoEngine = {
       return;
     }
     recentSection.style.display = 'block';
+    _variosPlanos = new Set(allEntries.map(e => String(e._planId || ''))).size > 1;
 
     // ordena sempre por data (mais recente no topo); desempata pela ordem de criação (id/createdAt)
     let entries = allEntries.slice().sort((a, b) => {
@@ -21942,6 +22044,9 @@ const ReforcoEngine = {
     const _wrap = document.querySelector('.content-wrap');
     if (_wrap) _wrap.classList.toggle('wrap-reg-table', _isTable);
 
+    const chave = [searchTerm, recentView, JSON.stringify(typeof tblFilters !== 'undefined' ? tblFilters : null), JSON.stringify(typeof tblSort !== 'undefined' ? tblSort : null)].join('|');
+    if (chave !== _recentChave) { _recentChave = chave; recentLimite = RECENT_PASSO; }
+
     if (entries.length === 0) {
       recentList.innerHTML = `<p style="color:var(--text-faint); font-size:13px; padding: 16px 0;">Nenhum registro encontrado para "${escapeHtml(searchTerm)}".</p>`;
       return;
@@ -21949,7 +22054,7 @@ const ReforcoEngine = {
 
     if (recentView === 'tabela') { renderRecentTable(entries); return; }
 
-    recentList.innerHTML = entries.map(e => {
+    recentList.innerHTML = entries.slice(0, recentLimite).map(e => {
       const hasPct = e.total > 0;
       const pct = hasPct ? calcPct(e.correct, e.total) : null;
       const tone = hasPct ? toneFor(pct) : null;
@@ -21989,19 +22094,28 @@ const ReforcoEngine = {
           </div>
         </div>
       `;
-    }).join('');
+    }).join('') + botaoMais(entries.length, 'cartoes');
 
     wireEntryRows();
+    ligarMostrarMais();
+  }
+  function ligarMostrarMais() {
+    const b = recentList.querySelector('.recent-more-btn');
+    if (b) b.addEventListener('click', () => { recentLimite += RECENT_PASSO; renderRecent(); });
   }
 
   // Liga os botões de editar/excluir de cada linha — funciona tanto para os
   // cartões (.recent-item) quanto para as linhas da tabela (.reg-row).
   function wireEntryRows() {
+    // Um único levantamento dos registros (antes: um por LINHA, O(n²) — com
+    // milhares de registros a tela travava vários segundos).
+    const todos = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const porId = new Map(todos.map(e => [String(e.id), e]));
     recentList.querySelectorAll('.recent-item, .reg-row').forEach(row => {
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
       // NaN e os botões parariam de funcionar sem erro visível.
       const id = row.dataset.id;
-      const visible = (DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries()).find(e => DB._mesmoId ? DB._mesmoId(e.id, id) : String(e.id) === String(id));
+      const visible = porId.get(String(id)) || (DB._mesmoId ? todos.find(e => DB._mesmoId(e.id, id)) : null);
       if (visible && !entryIsLocal(visible)) return;
       const eb = row.querySelector('.btn-edit-entry');
       const db = row.querySelector('.btn-delete-entry');
@@ -22136,7 +22250,7 @@ const ReforcoEngine = {
     const opt = (arr, sel) => ['<option value="">Todas</option>'].concat(
       arr.map(v => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(v)}</option>`)).join('');
 
-    const bodyRows = rows.map(e => {
+    const bodyRows = rows.slice(0, recentLimite).map(e => {
       const hasPct = e.total > 0;
       const pct = hasPct ? calcPct(e.correct, e.total) : null;
       const tone = hasPct ? toneFor(pct) : 'none';
@@ -22155,7 +22269,7 @@ const ReforcoEngine = {
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
-          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
+          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${_variosPlanos && e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
           <td class="reg-c reg-c-lesson" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-method" title="${meth}"><span class="reg-method-chip">${meth}</span></td>
           <td class="reg-c reg-c-num reg-c-time">${timeStr}</td>
@@ -22235,8 +22349,8 @@ const ReforcoEngine = {
       </div>
       <div class="reg-hbar" id="reg-hbar" aria-hidden="true"><div class="reg-hbar-thumb" id="reg-hbar-thumb"></div></div>
       <div class="reg-table-foot">
-        <span class="count">Mostrando <strong>${rows.length}</strong> de ${baseEntries.length} registro${baseEntries.length === 1 ? '' : 's'}${anyFilter ? ' (filtrados)' : ''}.</span>
-      </div>`;
+        <span class="count">Mostrando <strong>${Math.min(rows.length, recentLimite)}</strong> de ${rows.length}${rows.length !== baseEntries.length ? ' (' + baseEntries.length + ' no total)' : ''} registro${rows.length === 1 ? '' : 's'}${anyFilter ? ' (filtrados)' : ''}.</span>
+      </div>${botaoMais(rows.length, 'tabela')}`;
 
     // Barra de rolagem CUSTOM (sempre visível quando a tabela transborda a caixa)
     setupRegHBar();
@@ -22286,6 +22400,7 @@ const ReforcoEngine = {
     }
 
     wireEntryRows();
+    ligarMostrarMais();
   }
 
   searchInput.addEventListener('input', () => {
@@ -26439,6 +26554,16 @@ const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'
 
 // modo de montagem do ciclo conforme o tipo do planejamento ativo
 // 'pos' = Pós-edital (ponderação estratégica) | 'pre' = demais (dificuldade + fase)
+/* "dificuldade 3 · Novo" — só com o que existe. Ciclos vindos do Motor, de
+   importação ou de outro planejamento podem não trazer dificuldade/fase, e a
+   tela mostrava "dificuldade undefined ·". */
+function metaDificuldadeFase(s) {
+  const partes = [];
+  if (s && s.dificuldade != null && s.dificuldade !== '') partes.push('dificuldade ' + s.dificuldade);
+  if (s && s.fase) partes.push(escapeHtml(s.fase));
+  return partes.join(' · ');
+}
+
 function planCycleMode() {
   const p = PlanManager.getActivePlan();
   return (p && p.tipo === 'Pós-edital') ? 'pos' : 'pre';
@@ -26983,8 +27108,8 @@ function planCycleMode() {
       const m = s.definidoMin % 60;
       const changed = s.definidoMin !== s.sugeridoMin;
       const metaTxt = (pendingCycle.mode === 'pos')
-        ? `relevância ${(( s.relevancia || 0) * 100).toFixed(1)}% · dif. ${s.dificuldade} · ext. ${s.extensao || 1}`
-        : `dificuldade ${s.dificuldade} · ${escapeHtml(s.fase || '—')}`;
+        ? `relevância ${(( s.relevancia || 0) * 100).toFixed(1)}%` + (s.dificuldade != null ? ` · dif. ${s.dificuldade}` : '') + ` · ext. ${s.extensao || 1}`
+        : metaDificuldadeFase(s);
       return `
         <div class="cycle-review-row" data-idx="${idx}">
           <div>
@@ -27210,7 +27335,7 @@ function planCycleMode() {
             </div>
           </div>
           <div class="subject-progress-head sp-foot" style="margin-top:10px; margin-bottom:0;">
-            <span class="subject-meta-tag">dificuldade ${s.dificuldade} · ${escapeHtml(s.fase)}</span>
+            ${metaDificuldadeFase(s) ? `<span class="subject-meta-tag">${metaDificuldadeFase(s)}</span>` : '<span></span>'}
             <span class="subject-meta-tag">${pct}% da meta</span>
           </div>
         </div>
@@ -27390,7 +27515,8 @@ function planCycleMode() {
     days.forEach(d => html += `<th>${d.slice(0, 3)}</th>`);
     html += '</tr></thead><tbody>';
     rows.forEach((label, ri) => {
-      html += `<tr><td>${label}</td>`;
+      // no celular a coluna fica só com "1ª" (o "sessão" repetido quebrava a célula)
+      html += `<tr><td title="${label}"><span class="gs-n">${ri + 1}ª</span><span class="gs-w"> sessão</span></td>`;
       days.forEach(dia => {
         html += `<td><div class="grade-cell-drop" data-dia="${dia}" data-idx="${ri}"></div></td>`;
       });

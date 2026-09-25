@@ -1,0 +1,78 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   REGISTRAR · CICLO · GRADE · ESTUDO NOVO — acabamento visual
+   Carregado por último; !important só onde uma camada anterior insiste.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Registrar ─────────────────────────────────────────────────────────── */
+/* O título das etapas 3 e 4 (com o selo "opcional") empurrava o número para
+   uma linha própria no celular: o bloco do título agora encolhe em vez de
+   quebrar para baixo do círculo. */
+#screen-registrar[data-reg-mode="compacto"] .step > .step-head{flex:1 1 0!important}
+#screen-registrar[data-reg-mode="compacto"] .step-title{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}
+#screen-registrar[data-reg-mode="compacto"] .step-title .step-opt{margin:0!important}
+#screen-registrar[data-reg-mode="compacto"] #comment{min-height:88px!important}
+/* Matéria com mais espaço que a aula (o seletor cortava "Selecione a maté…") */
+@media (min-width:861px){
+  #screen-registrar[data-reg-mode="compacto"] #step-1 .field-group{grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)!important}
+}
+/* Lista de registros: busca ocupa a linha inteira no celular */
+@media (max-width:640px){
+  #screen-registrar .recent-head-controls{width:100%}
+  #screen-registrar #recent-search{flex:1 1 100%;width:100%!important;min-width:0}
+}
+
+/* ── Grade ─────────────────────────────────────────────────────────────── */
+/* "tempos em minutos" vira um lembrete discreto (antes: alerta vermelho fixo
+   que empurrava o ⓘ para uma linha sozinho). */
+#screen-grade .grade-title-line{display:flex;flex-wrap:wrap;align-items:center;gap:2px 8px;white-space:nowrap}
+#screen-grade .grade-title-line .info-dot{order:1}
+#screen-grade .grade-title-line .grade-min-alert{order:2;flex-basis:100%;display:block;color:var(--text-faint)!important;font-weight:600!important;font-size:11.5px!important;letter-spacing:0!important}
+#ciclo-grade .grade-table thead th:first-child{white-space:nowrap;letter-spacing:0!important;font-size:10.5px}
+#ciclo-grade .grade-table td:first-child{white-space:nowrap}
+@media (max-width:640px){#ciclo-grade .gs-w{display:none}}
+/* Minutos da sessão legíveis no tema escuro (fundo era branco translúcido) */
+#ciclo-grade .chip-duration-input{background:color-mix(in srgb,var(--surface) 72%,transparent)!important;color:inherit}
+#ciclo-grade .chip-duration-input:focus{background:var(--surface)!important}
+
+/* Gerenciar siglas: sigla, nome, cor e ação alinhados numa linha */
+#siglas-modal .custom-sigla-row{display:grid!important;grid-template-columns:12px 92px minmax(0,1fr) 36px 34px;align-items:center;gap:10px;padding:8px 10px!important;margin-bottom:6px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
+#siglas-modal .custom-sigla-swatch{width:12px;height:12px;border-radius:50%;display:block}
+#siglas-modal .custom-sigla-row .cs-sigla{width:100%!important;min-width:0;min-height:36px;padding:4px 8px;font-family:'Space Mono',monospace;font-weight:700;text-transform:uppercase}
+#siglas-modal .custom-sigla-row .cs-subject-name,#siglas-modal .custom-sigla-row .cs-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+#siglas-modal .custom-sigla-row .cs-nome{min-height:36px;padding:4px 8px}
+#siglas-modal .custom-sigla-row .cs-color{width:36px!important;height:36px!important;min-height:0;padding:2px!important;border:1px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer}
+#siglas-modal .custom-sigla-row .icon-btn{width:34px!important;height:34px!important;min-width:34px;border-radius:9px}
+#siglas-modal .siglas-add-block .config-add-row{display:flex;flex-wrap:wrap;gap:8px}
+#siglas-modal .siglas-add-block .config-add-row>input{flex:1 1 140px;min-width:0;max-width:none!important}
+/* Grades salvas: nome + botão sem espremer o campo */
+#saved-grades-modal .config-add-row,#saved-grades-modal .saved-grade-add{display:flex;flex-wrap:wrap;gap:8px}
+#saved-grades-modal #new-saved-grade-name{flex:1 1 200px;min-width:0}
+#saved-grades-modal #btn-save-current-grade{flex:0 0 auto;white-space:nowrap}
+
+/* ── Estudo Novo ───────────────────────────────────────────────────────── */
+/* Campo "Nome da aula" espremido a ~20px ao lado dos botões no celular */
+#screen-estudonovo .en-add-row{flex-wrap:wrap;align-items:stretch}
+#screen-estudonovo .en-add-row>#en-new-lesson-input{flex:1 1 220px!important;min-width:0;min-height:42px}
+#screen-estudonovo .en-add-row>button{flex:0 0 auto;white-space:nowrap;min-height:42px}
+@media (max-width:640px){
+  #screen-estudonovo .en-add-row{padding:0 16px!important}
+  #screen-estudonovo .en-add-row>#en-new-lesson-input{flex-basis:100%!important}
+  #screen-estudonovo .en-add-row>button{flex:1 1 0}
+}
+/* Tabela da trilha: sombra indica que há mais colunas para rolar */
+#screen-estudonovo .en-table-wrap{background:linear-gradient(90deg,var(--surface) 30%,transparent) left/40px 100% no-repeat local,linear-gradient(270deg,var(--surface) 30%,transparent) right/40px 100% no-repeat local,radial-gradient(farthest-side at 100% 50%,rgba(15,23,42,.16),transparent) right/12px 100% no-repeat scroll,var(--surface)!important}
+#siglas-modal .custom-sigla-row .cs-subject-name,#siglas-modal .custom-sigla-row .cs-nome{grid-column:auto!important}
+#siglas-modal .custom-sigla-row .cs-color{display:block;min-width:36px;-webkit-appearance:none;appearance:none}
+#siglas-modal .custom-sigla-row .cs-color::-webkit-color-swatch-wrapper{padding:0}
+#siglas-modal .custom-sigla-row .cs-color::-webkit-color-swatch{border:0;border-radius:6px}
+/* Grade no celular: título numa linha, ações logo abaixo */
+@media (max-width:560px){
+  #screen-grade .card-header{flex-wrap:wrap;row-gap:10px}
+  #screen-grade .card-header>div:first-child{flex:1 1 100%;min-width:0}
+  #screen-grade .grade-head-actions{flex:1 1 100%;justify-content:flex-start}
+  #screen-grade .grade-head-actions .grade-suggest-btn{flex:1 1 auto;justify-content:center}
+}
+/* Registrar: "Mostrar mais" da lista de registros */
+#screen-registrar .recent-more-row{display:flex;justify-content:center;padding:12px 0 16px}
+#screen-registrar .recent-more-btn{min-height:40px;padding:8px 18px;border-radius:11px;font-weight:700}
+#screen-registrar .recent-more-btn span{font-weight:500;color:var(--text-soft)}
