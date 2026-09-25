@@ -77,7 +77,12 @@
   // só, o selo se repetia em todo registro como ruído.
   let _variosPlanos = false;
   const entryPlanBadge = (e) => (_variosPlanos && e && e._planNome)
-    ? `<span class="meta-badge badge-plan" title="Planejamento de origem">${escapeHtml(e._planNome)}</span>` : '';
+    ? `<span class="meta-badge badge-plan" title="${e._planPaused ? 'Planejamento pausado — somente leitura' : 'Planejamento de origem'}">${e._planPaused ? '⏸ ' : ''}${escapeHtml(e._planNome)}</span>` : '';
+  /* O histórico de estudo é memória realizada: pausar um planejamento suspende
+     a OPERAÇÃO dele (ciclo, metas, novas escritas), não apaga o que já foi
+     estudado. Antes, a lista lia só os planejamentos operacionais e os
+     registros do pausado sumiam dos outros. Eles continuam somente leitura. */
+  const todosOsRegistros = () => DB.getAllEntriesTagged ? DB.getAllEntriesTagged({ includePaused: true }) : DB.getEntries();
 
   dateInput.value = todayLocal();
   gaugeFill.style.strokeDasharray = CIRC;
@@ -235,6 +240,7 @@
     updateVideoFieldsVisibility();
     updateVideoConsumed();
 
+    sincronizarV2();
     formTitle.textContent = 'Editar sessão de estudo';
     editNote.style.display = 'block';
     cancelEditBtn.style.display = 'inline-block';
@@ -255,6 +261,7 @@
     updatePagesHint();
     updateVideoConsumed();
     updateVideoFieldsVisibility();
+    sincronizarV2({ reset: true });
 
     formTitle.textContent = 'Nova sessão de estudo';
     editNote.style.display = 'none';
@@ -265,7 +272,7 @@
   cancelEditBtn.addEventListener('click', exitEditMode);
 
   function renderRecent() {
-    const allEntries = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const allEntries = todosOsRegistros();
     if (allEntries.length === 0) {
       recentSection.style.display = 'none';
       return;
@@ -366,7 +373,7 @@
   function wireEntryRows() {
     // Um único levantamento dos registros (antes: um por LINHA, O(n²) — com
     // milhares de registros a tela travava vários segundos).
-    const todos = DB.getAllEntriesTagged ? DB.getAllEntriesTagged() : DB.getEntries();
+    const todos = todosOsRegistros();
     const porId = new Map(todos.map(e => [String(e.id), e]));
     recentList.querySelectorAll('.recent-item, .reg-row').forEach(row => {
       // Sem parseFloat: o id agora pode ser UUID (texto). parseFloat devolveria
@@ -526,7 +533,7 @@
       return `
         <tr class="reg-row" data-id="${e.id}">
           <td class="reg-c reg-c-date">${d}/${m}/${y}</td>
-          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${_variosPlanos && e._planNome ? `<small class="reg-origin-plan">${escapeHtml(e._planNome)}</small>` : ''}</th>
+          <th scope="row" class="reg-c reg-c-subject" title="${subj}"><span>${subj}</span>${_variosPlanos && e._planNome ? `<small class="reg-origin-plan">${e._planPaused ? '⏸ ' : ''}${escapeHtml(e._planNome)}</small>` : ''}</th>
           <td class="reg-c reg-c-lesson" title="${less}">${less || '<span class="reg-empty">—</span>'}</td>
           <td class="reg-c reg-c-method" title="${meth}"><span class="reg-method-chip">${meth}</span></td>
           <td class="reg-c reg-c-num reg-c-time">${timeStr}</td>
@@ -776,6 +783,7 @@
         updatePagesHint();
         updateVideoConsumed();
         updateVideoFieldsVisibility();
+        sincronizarV2({ reset: true });
         renderRecent();
         window.dispatchEvent(new CustomEvent('data:entry-added', { detail: entry }));
       }
@@ -861,11 +869,181 @@
     updateVideoConsumed();
     updateVideoFieldsVisibility();
     atualizarEtapas();
+    sincronizarV2();
   }
   window.addEventListener('data:relational-hydrated', refreshFromRelationalStore);
   window.addEventListener('screen:activated', (e) => {
     if (e.detail && e.detail.screen === 'registrar') refreshFromRelationalStore();
   });
+
+  /* ══ FORMULÁRIO REPAGINADO ════════════════════════════════════════════════
+     Camada de apresentação sobre os MESMOS campos (#subject, #method, #date,
+     #duration-h/m, #correct, #total, #comment…): a lógica de salvar, editar,
+     vídeo e etapas continua lendo e gravando neles. Aqui só se acrescentam
+     atalhos de toque — matérias recentes, forma de estudo em pílulas,
+     Hoje/Ontem, +15/+30/+1h — e, no modo Compacto, o layout em painel com
+     páginas e observações sob demanda e o resumo do registro no rodapé. */
+  var _v2 = null;
+  function sincronizarV2(opts) { if (_v2) _v2(opts || {}); }
+  (function repaginarFormulario() {
+    const scr = document.getElementById('screen-registrar');
+    const corpo = form && form.querySelector('.steps-body');
+    const subjectSel = document.getElementById('subject');
+    const hEl = document.getElementById('duration-h'), mEl = document.getElementById('duration-m');
+    const commentEl = document.getElementById('comment');
+    const submitRow = form && form.querySelector('.submit-row');
+    if (!scr || !corpo || !subjectSel || !hEl || !mEl || scr.classList.contains('reg-v2')) return;
+    scr.classList.add('reg-v2');
+    const campo = (id) => { const el = document.getElementById(id); return el ? el.closest('.field') : null; };
+    const marcar = (el, cls) => { if (el) el.classList.add(cls); };
+    marcar(campo('subject'), 'reg-f-materia');
+    marcar(campo('lesson'), 'reg-f-aula');
+    marcar(campo('method'), 'reg-f-metodo');
+    marcar(campo('date'), 'reg-f-data');
+    marcar(campo('duration-h'), 'reg-f-tempo');
+    marcar(campo('page-start'), 'reg-f-pini');
+    marcar(campo('page-end'), 'reg-f-pfim');
+    marcar(pagesHint, 'reg-f-phint');
+    marcar(videoFields, 'reg-f-video');
+    marcar(perfPanel, 'reg-f-desemp');
+    marcar(campo('comment'), 'reg-f-obs');
+    const emitir = (el, ev) => el.dispatchEvent(new Event(ev, { bubbles: true }));
+    const diaLocal = (delta) => {
+      const d = new Date(); d.setDate(d.getDate() + delta);
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    };
+
+    // Matérias recentes (do planejamento ativo), logo abaixo do seletor.
+    const recentes = document.createElement('div');
+    recentes.className = 'reg-chips reg-recentes';
+    recentes.setAttribute('role', 'group');
+    recentes.setAttribute('aria-label', 'Matérias recentes');
+    campo('subject').appendChild(recentes);
+    recentes.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-materia]'); if (!b) return;
+      subjectSel.value = b.dataset.materia; emitir(subjectSel, 'change');
+    });
+    function pintarRecentes() {
+      const ativos = new Set([...subjectSel.options].map(o => o.value).filter(Boolean));
+      const nomes = [];
+      (DB.getEntries() || []).slice()
+        .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || _ordemCriacao(b, a))
+        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !nomes.includes(e.subject) && nomes.length < 4) nomes.push(e.subject); });
+      recentes.hidden = !nomes.length;
+      recentes.innerHTML = nomes.length ? '<span class="reg-chips-rot">Recentes:</span>' + nomes.map(n =>
+        `<button type="button" class="reg-chip${n === subjectSel.value ? ' on' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${n === subjectSel.value}">${escapeHtml(n)}</button>`).join('') : '';
+    }
+
+    // Forma de estudo em pílulas: o <select> continua sendo o valor de verdade.
+    const pilulas = document.createElement('div');
+    pilulas.className = 'reg-chips reg-metodos';
+    pilulas.setAttribute('role', 'radiogroup');
+    pilulas.setAttribute('aria-label', 'Forma de estudo');
+    methodSelect.insertAdjacentElement('afterend', pilulas);
+    pilulas.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-metodo]'); if (!b) return;
+      methodSelect.value = b.dataset.metodo; emitir(methodSelect, 'change');
+    });
+    function pintarMetodos() {
+      // Mesmas opções: só marca a escolhida (recriar os botões tiraria o foco
+      // de quem está navegando pelo teclado).
+      const valores = [...methodSelect.options].map(o => o.value);
+      const atuais = [...pilulas.querySelectorAll('[data-metodo]')];
+      if (atuais.length === valores.length && atuais.every((b, i) => b.dataset.metodo === valores[i])) {
+        atuais.forEach(b => { const on = b.dataset.metodo === methodSelect.value; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+        return;
+      }
+      pilulas.innerHTML = [...methodSelect.options].map(o => {
+        const on = o.value === methodSelect.value;
+        return `<button type="button" role="radio" aria-checked="${on}" class="reg-pill${on ? ' on' : ''}" data-metodo="${escapeHtml(o.value)}">${escapeHtml(o.textContent)}</button>`;
+      }).join('');
+    }
+    new MutationObserver(pintarMetodos).observe(methodSelect, { childList: true });
+
+    // Hoje / Ontem ao lado do calendário.
+    const linhaData = document.createElement('div');
+    linhaData.className = 'reg-data-linha';
+    linhaData.innerHTML = '<button type="button" class="reg-pill" data-dia="0">Hoje</button><button type="button" class="reg-pill" data-dia="-1">Ontem</button>';
+    dateInput.insertAdjacentElement('beforebegin', linhaData);
+    linhaData.appendChild(dateInput);
+    linhaData.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-dia]'); if (!b) return;
+      dateInput.value = diaLocal(Number(b.dataset.dia)); emitir(dateInput, 'change');
+    });
+    function pintarData() {
+      linhaData.querySelectorAll('[data-dia]').forEach(b => {
+        const on = dateInput.value === diaLocal(Number(b.dataset.dia));
+        b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+      });
+    }
+
+    // Atalhos de tempo.
+    const rapidos = document.createElement('div');
+    rapidos.className = 'reg-chips reg-tempo-rapido';
+    rapidos.setAttribute('role', 'group');
+    rapidos.setAttribute('aria-label', 'Atalhos de tempo');
+    rapidos.innerHTML = '<button type="button" class="reg-chip" data-soma="15">+15</button><button type="button" class="reg-chip" data-soma="30">+30</button><button type="button" class="reg-chip" data-soma="60">+1h</button><button type="button" class="reg-chip" data-soma="zero">Zerar</button>';
+    campo('duration-h').appendChild(rapidos);
+    const minutos = () => (parseInt(hEl.value, 10) || 0) * 60 + (parseInt(mEl.value, 10) || 0);
+    rapidos.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-soma]'); if (!b) return;
+      const total = b.dataset.soma === 'zero' ? 0 : Math.min(24 * 60, minutos() + Number(b.dataset.soma));
+      hEl.value = total >= 60 ? String(Math.floor(total / 60)) : '';
+      mEl.value = total % 60 ? String(total % 60) : '';
+      emitir(hEl, 'input'); emitir(mEl, 'change');
+    });
+
+    // Cabeçalho do painel de desempenho (só aparece no Compacto).
+    const cab = document.createElement('div');
+    cab.className = 'reg-perf-head';
+    cab.innerHTML = '<span>Desempenho em questões</span><span class="reg-opt">opcional</span>';
+    perfPanel.insertBefore(cab, perfPanel.firstChild);
+
+    // Páginas e observações sob demanda (Compacto).
+    const extras = document.createElement('div');
+    extras.className = 'reg-chips reg-extras';
+    extras.innerHTML = '<button type="button" class="reg-chip reg-add" data-abrir="paginas">+ Páginas lidas</button><button type="button" class="reg-chip reg-add" data-abrir="obs">+ Observações</button>';
+    corpo.appendChild(extras);
+    const abertos = { paginas: false, obs: false };
+    extras.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-abrir]'); if (!b) return;
+      abertos[b.dataset.abrir] = true; pintarExtras();
+      const alvo = document.getElementById(b.dataset.abrir === 'paginas' ? 'page-start' : 'comment');
+      if (alvo) alvo.focus();
+    });
+    function pintarExtras() {
+      const temPaginas = !!(pageStart.value || pageEnd.value), temObs = !!(commentEl && commentEl.value.trim());
+      const pag = abertos.paginas || temPaginas, obs = abertos.obs || temObs;
+      scr.toggleAttribute('data-reg-paginas', pag);
+      scr.toggleAttribute('data-reg-obs', obs);
+      extras.querySelector('[data-abrir="paginas"]').hidden = pag;
+      extras.querySelector('[data-abrir="obs"]').hidden = obs;
+      extras.hidden = pag && obs;
+    }
+
+    // Resumo do que será registrado, ao lado do botão.
+    const resumo = document.createElement('span');
+    resumo.className = 'reg-resumo';
+    resumo.setAttribute('aria-live', 'polite');
+    if (submitRow) submitRow.insertBefore(resumo, submitRow.querySelector('#submit-btn'));
+    function pintarResumo() {
+      const min = minutos(), partes = [];
+      if (min) partes.push(Math.floor(min / 60) ? (Math.floor(min / 60) + 'h' + (min % 60 ? String(min % 60).padStart(2, '0') : '')) : (min + 'min'));
+      if (subjectSel.value) partes.push(subjectSel.value);
+      if (methodSelect.value) partes.push(methodSelect.value);
+      const c = parseInt(correctInput.value, 10), t = parseInt(totalInput.value, 10);
+      if (t > 0) partes.push((Number.isFinite(c) ? c : 0) + '/' + t);
+      resumo.textContent = partes.join(' · ');
+    }
+
+    _v2 = (opts) => {
+      if (opts.reset) { abertos.paginas = false; abertos.obs = false; }
+      pintarRecentes(); pintarMetodos(); pintarData(); pintarExtras(); pintarResumo();
+    };
+    ['input', 'change'].forEach(ev => form.addEventListener(ev, () => { pintarData(); pintarResumo(); pintarExtras(); if (ev === 'change') { pintarMetodos(); pintarRecentes(); } }));
+    window.addEventListener('data:entry-added', () => pintarRecentes());
+    sincronizarV2();
+  })();
 
   window.RegistrarScreen = { refreshSubjectSelect, refreshMethodSelect, renderRecent, atualizarEtapas, refreshFromRelationalStore };
 })();

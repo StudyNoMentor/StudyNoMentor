@@ -185,7 +185,8 @@ else CloudStore.init();
       try {
         const all = DB.getEntries() || [];
         if (!all.length) return null;
-        return all.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0) || String(b.date).localeCompare(String(a.date)))[0];
+        // createdAt é ISO (texto): subtrair dava NaN e a "última" era arbitrária.
+        return all.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')))[0];
       } catch (_) { return null; }
     },
     refreshRepeat() {

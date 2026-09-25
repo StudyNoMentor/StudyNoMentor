@@ -51,6 +51,16 @@ try{
     PlanManager.resumePlan(atual,{from:dia(3)});
     switchScreen('registrar');await w(200);
     out.avisoCancelado=!!document.getElementById('pausa-aviso');
+    // Planejamento pausado: seus registros continuam visíveis (somente leitura) nos outros.
+    const arquivo=PlanManager.createPlan({nome:'Arquivo antigo',tipo:'Pré-edital'});
+    PlanManager.setActivePlan(arquivo);
+    DB.saveEntry({id:'e-pausado',date:dia(-2),subject:'Português',lesson:'Registro do plano pausado',durationMin:45});
+    out.pausaArquivo=PlanManager.pausePlan(arquivo);
+    out.ativoDepois=PlanManager.getActivePlanId();
+    switchScreen('registrar');await w(300);
+    const lista=document.getElementById('recent-list');
+    out.listaTemPausado=!!(lista&&/Registro do plano pausado/.test(lista.innerText));
+    out.pausadoSomenteLeitura=!!(lista&&[...lista.querySelectorAll('[data-id="e-pausado"]')].some(el=>el.querySelector('.reg-readonly')));
     return out;
   });
   const val=(l,k)=>((l.find(x=>x.includes(k))||'').match(/^(\d+)/)||[])[1];
@@ -67,6 +77,9 @@ try{
   ok(r.largura<=412,'aviso cabe na largura do celular');
   ok(r.tela==='screen-planejamentos'&&!r.avisoEmPlan,'"Gerenciar" abre Planejamentos, sem aviso repetido lá');
   ok(!r.avisoCancelado,'cancelar a pausa agendada remove o aviso');
+  ok(r.pausaArquivo.ok&&r.ativoDepois!==undefined,'planejamento pausado: '+JSON.stringify(r.pausaArquivo));
+  ok(r.listaTemPausado,'registros do planejamento pausado continuam na lista dos outros');
+  ok(r.pausadoSomenteLeitura,'registro do planejamento pausado aparece como somente leitura');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`PAUSA NAS MÉTRICAS (NAVEGADOR) OK — ${n} invariantes.`);
 }finally{await browser.close();server.close();}
