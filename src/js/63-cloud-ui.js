@@ -495,12 +495,17 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
     try { v = parseFloat(localStorage.getItem(chave())); } catch (_) { _quiet(_); }
     return PASSOS.includes(v) ? v : 1;
   }
-  function aplicar(v, avisar) {
+  // Só PINTA: não grava. Antes, a abertura do app (ainda sem perfil) e a troca
+  // de perfil regravavam o valor lido — "100%" antes de o banco responder.
+  function pintar(v) {
     document.documentElement.style.setProperty('--fs-scale', String(v));
-    DB.setRaw(chave(), String(v));
     const i = PASSOS.indexOf(v);
     if (menor) menor.disabled = (i <= 0);
     if (maior) maior.disabled = (i >= PASSOS.length - 1);
+  }
+  function aplicar(v, avisar) {
+    pintar(v);
+    DB.setRaw(chave(), String(v));
     if (avisar) showToast('Texto em ' + Math.round(v * 100) + '%');
   }
   function mover(d) {
@@ -510,7 +515,11 @@ window.addEventListener('screen:activated', (e) => { if (e.detail.screen === 'co
   }
   if (menor) menor.addEventListener('click', () => mover(-1));
   if (maior) maior.addEventListener('click', () => mover(1));
-  aplicar(atual(), false);
-  window.aplicarEscalaFonte = () => aplicar(atual(), false); // reaplica ao trocar de perfil
+  pintar(atual());
+  window.aplicarEscalaFonte = () => pintar(atual()); // reaplica ao trocar de perfil
+  /* O valor é salvo POR PERFIL e só existe depois que o perfil é carregado do
+     banco. Sem isto, ao sair e entrar de novo a tela ficava em 100% mesmo com
+     o valor salvo. */
+  window.addEventListener('profile:relational-ready', () => pintar(atual()));
 })();
 

@@ -233,6 +233,21 @@ async function pontaAPonta() {
   ok(linhas('study_entries', r => r.entry_id === 'e-antes-backup').length === 1 && !linhas('study_entries', r => r.entry_id === 'e-depois-backup').length,
     'A5: com o banco de volta, o estado restaurado chega completo');
 
+  // Tamanho do texto: salvo por perfil e reaplicado ao sair e entrar de novo
+  await page.evaluate(() => { document.getElementById('fs-maior').click(); document.getElementById('fs-maior').click(); });
+  await page.evaluate(() => RelationalStore.flush());
+  const fsBanco = linhas('study_profile_settings', r => r.profile_id === perfil.id && r.key === 'fs-scale');
+  ok(fsBanco.length === 1 && String(fsBanco[0].value) === '1.1', 'tamanho do texto salvo no banco (' + JSON.stringify(fsBanco.map(r => r.value)) + ')');
+  const fsDepois = await page.evaluate(async (id) => {
+    // "sair": memória do perfil descartada e tela de volta ao padrão
+    RelationalStore._clearProfileMemory(id);
+    document.documentElement.style.setProperty('--fs-scale', '1');
+    ProfileUI._entering = false;
+    await ProfileUI.enterProfile(id);
+    return getComputedStyle(document.documentElement).getPropertyValue('--fs-scale').trim();
+  }, perfil.id);
+  ok(fsDepois === '1.1', 'ao entrar de novo, o tamanho do texto salvo é reaplicado (' + fsDepois + ')');
+
   ok(erros.length === 0, 'ponta a ponta sem erro de página: ' + erros.join(' | '));
   await ctx.close();
 }
