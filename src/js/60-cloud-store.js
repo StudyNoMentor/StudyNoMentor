@@ -270,10 +270,15 @@ const CloudStore = {
       this._prefsHydratingUid = null;
       this._prefsHydratePromise = null;
       this._unsub();
+      // Sessão caiu com um perfil aberto: as alterações seguintes ficam
+      // pendentes (não descartadas) e a pessoa é avisada na tela.
+      try { if (window.RelationalStore) RelationalStore._notifyPendingState(); } catch (e) { _quiet(e, 'auth-pending'); }
       return;
     }
 
     this.subscribeRealtime();
+    // Sessão (re)estabelecida: envia o que ficou pendente enquanto ela faltava.
+    try { if (window.RelationalStore) RelationalStore.resumeDirty(); } catch (e) { _quiet(e, 'auth-resume-dirty'); }
 
     /* INITIAL_SESSION, SIGNED_IN e TOKEN_REFRESHED podem apontar para a mesma
        sessão. Preferências globais só precisam ser lidas uma vez por usuário;

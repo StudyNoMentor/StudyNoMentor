@@ -67,3 +67,11 @@ body:has(.nav-sheet.open) .tabs{z-index:97!important}
 .pausa-aviso .pa-ic{flex:0 0 auto;font-size:var(--fs-lg)}
 .pausa-aviso .pa-btn{flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
 @media (max-width:520px){.pausa-aviso{flex-wrap:wrap}.pausa-aviso .pa-btn{width:100%}}
+
+/* Aviso de alterações que o banco ainda não confirmou (fila relacional). */
+.rel-pending-banner{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:10px;width:min(640px,calc(100vw - 24px));padding:10px 14px;border-radius:14px;border:1px solid var(--warn);background:var(--warn-soft);color:var(--warn-text);font-size:var(--fs-sm);line-height:1.45;box-shadow:var(--shadow-lg)}
+.rel-pending-banner[hidden]{display:none}
+.rel-pending-banner .rpb-txt{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.rel-pending-banner .rpb-btn{flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+@media (max-width:860px){.rel-pending-banner{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:520px){.rel-pending-banner{flex-wrap:wrap}.rel-pending-banner .rpb-btn{width:100%}}

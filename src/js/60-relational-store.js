@@ -23,10 +23,39 @@ const RelationalStore = {
   _lastChangeId: new Map(),
   _lastHydratedAt: new Map(),
 
+  /* ── FILA DURÁVEL POR CHAVE ─────────────────────────────────────────────────
+     Antes cada mutação virava uma tarefa com o par (antes, depois) daquele
+     instante. Se ela falhasse três vezes, era DESCARTADA — e o próximo sucesso
+     de qualquer outra tarefa zerava `_lastError`. Como o envio é por diferença,
+     edições seguintes na mesma lista não reenviavam o que se perdeu: bastava
+     uma queda de rede de um segundo para a alteração existir só na RAM.
+
+     Agora cada chave alterada fica SUJA até o banco confirmar o valor atual
+     dela. O envio compara com o último valor CONFIRMADO no banco (`_confirmed`,
+     alimentado pela hidratação e por cada envio bem-sucedido), então:
+       · várias edições seguidas viram um único envio;
+       · uma falha mantém a chave suja e é reenviada sozinha (com espera);
+       · `_lastError` só some quando não resta nada pendente;
+       · uma recusa definitiva do banco (restrição violada) não trava a fila:
+         a chave sai da fila, o perfil é realinhado com o banco e a pessoa vê.
+     Sem sessão, as chaves continuam sujas e são enviadas quando ela voltar. */
+  _dirty: new Map(),
+  _confirmed: new Map(),
+  _dirtySeq: 0,
+  _drainQueued: false,
+  _retryTimer: null,
+  _retryStep: 0,
+  _failing: new Set(),
+  _rejected: 0,
+  _lastRejection: null,
+  _everHydrated: false,
+  RETRY_DELAYS_MS: [2000, 5000, 15000, 30000, 60000],
+
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
-  pendingCount() { return this._pending; },
+  pendingCount() { return this._pending + this._dirty.size; },
+  dirtyCount() { return this._dirty.size; },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -66,6 +95,8 @@ const RelationalStore = {
     this._applying = true;
     try {
       localStorage.setItem(k, String(v));
+      // O que veio do banco é, por definição, o que o banco tem.
+      this._confirmed.set(String(k), String(v));
       /* O histórico vive em RAM no DB. Quando a hidratação traz uma versão nova
          do banco, a projeção em memória precisa ser descartada — senão a
          sessão continua lendo a lista antiga e o que veio do banco fica
@@ -78,9 +109,10 @@ const RelationalStore = {
   },
   _memDel(k) {
     this._applying = true;
-    try { localStorage.removeItem(k); }
+    try { localStorage.removeItem(k); this._confirmed.delete(String(k)); }
     finally { this._applying = false; }
   },
+  _forgetKeys(keys) { keys.forEach(k => this._confirmed.delete(String(k))); },
   _isHeavyMemoryKey(profileId, key) {
     const p=this._pfx(profileId);
     if(!key || key.indexOf(p)!==0) return false;
@@ -98,6 +130,7 @@ const RelationalStore = {
         keys.push(k);
       }
       keys.forEach(k=>localStorage.removeItem(k));
+      this._forgetKeys(keys);
     } finally { this._applying=false; }
   },
   _clearHeavyMemory(profileId) {
@@ -109,6 +142,7 @@ const RelationalStore = {
         if(this._isHeavyMemoryKey(profileId,k)) keys.push(k);
       }
       keys.forEach(k=>localStorage.removeItem(k));
+      this._forgetKeys(keys);
     } finally { this._applying=false; }
   },
   _group(rows, key='plan_id') {
@@ -235,13 +269,14 @@ const RelationalStore = {
         if (rx.test(k.slice(p.length))) keys.push(k);
       }
       keys.forEach(k => localStorage.removeItem(k));
+      this._forgetKeys(keys);
     } finally { this._applying = false; }
   },
   /* Recarrega só as tabelas informadas (já sabemos quais mudaram pelo
      change-log) em vez de todo o perfil — mesmo resultado final, muito
      menos egress quando o usuário só registrou uma sessão ou editou um card. */
   _snapshotVelho(gen) {
-    return this._localGen !== gen || this._pending > 0;
+    return this._localGen !== gen || this.pendingCount() > 0;
   },
   async _refreshCorePartial(profileId, specs) {
     const appliers = this._coreGroupAppliers();
@@ -346,7 +381,10 @@ const RelationalStore = {
     if (error) throw error;
     this._applying=true;
     try {
-      (data||[]).forEach(r => localStorage.setItem('diario-estudos:' + r.key, this._raw(r.value)));
+      (data||[]).forEach(r => {
+        const k = 'diario-estudos:' + r.key, v = this._raw(r.value);
+        localStorage.setItem(k, v); this._confirmed.set(k, v);
+      });
     } finally { this._applying=false; }
     return true;
   },
@@ -486,8 +524,18 @@ const RelationalStore = {
     if(!this._lastChangeId.has(profileId)&&!opts.skipWatermark){
       try{watermark=await this._latestChangeId(profileId);}catch(e){_quiet(e,'rel-watermark');}
     }
-    // Antes de substituir a projeção local pela nuvem, drena respostas feitas
-    // offline. Se isso falhar, NÃO hidratamos por cima do estado local pendente.
+    // Antes de substituir a projeção local pela nuvem, drena o que ainda não
+    // chegou ao banco: alterações sujas (inclusive as feitas com a sessão
+    // caída) e respostas feitas offline. Se isso falhar, NÃO hidratamos por
+    // cima do estado local pendente — seria apagar trabalho não salvo.
+    if (this._dirty.size) {
+      try { await this.flush(); }
+      catch (e) {
+        const err = new Error('Há alterações locais que o banco ainda não confirmou.');
+        err.code = 'pendencias-locais'; err.causa = e;
+        throw err;
+      }
+    }
     await this.replayReviewOutbox(profileId, { beforeHydrate: true });
     let d=null;
     for(let tentativa=0;;tentativa++){
@@ -503,7 +551,8 @@ const RelationalStore = {
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
     this._lastHydratedAt.set(profileId,Date.now());
-    this._lastSyncAt=Date.now();this._lastError=null;
+    this._lastSyncAt=Date.now();if(!this._dirty.size)this._lastError=null;
+    this._everHydrated=true;
     this.subscribeProfile(profileId);
     try { if (typeof DB !== 'undefined' && DB.normalizeCardNotesInPlace) DB.normalizeCardNotesInPlace(); } catch (e) { _quiet(e, 'card-note-normalize'); }
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
@@ -521,7 +570,7 @@ const RelationalStore = {
         e.code='quota-restricted';this._lastError=e;throw e;
       }
       for(let i=0;i<3;i++){
-        try { const r=await task(); this._lastError=null; this._lastSyncAt=Date.now(); return r; }
+        try { const r=await task(); if(!this._failing.size)this._lastError=null; this._lastSyncAt=Date.now(); return r; }
         catch(e){
           last=e;
           /* 402 de cota não melhora repetindo a mesma operação. O fetch global
@@ -542,8 +591,201 @@ const RelationalStore = {
   },
   async flush() {
     await this._tail;
+    // Uma mutação feita durante a espera agenda outra drenagem no fim da fila.
+    if (this._dirty.size && this.isReady() && !this._failing.size) await this._tail;
+    if (this._dirty.size) {
+      throw this._lastError || new Error(this.isReady()
+        ? 'operações SQL pendentes'
+        : 'sessão ausente: alterações aguardando o login');
+    }
     if (this._lastError) throw this._lastError;
     return true;
+  },
+
+  /* ── DRENAGEM ───────────────────────────────────────────────────────────── */
+  _markDirty(key, oldRaw) {
+    const k = String(key);
+    if (!this._confirmed.has(k)) this._confirmed.set(k, oldRaw == null ? null : String(oldRaw));
+    if (!this._dirty.has(k)) this._dirty.set(k, { seq: ++this._dirtySeq });
+  },
+  _scheduleDrain() {
+    if (this._drainQueued) return;
+    this._drainQueued = true;
+    const run = () => this._drain();
+    this._tail = this._tail.then(run, run).catch(e => { _quiet(e, 'rel-drain'); });
+    this._notifyPendingState();
+  },
+  resumeDirty() {
+    clearTimeout(this._retryTimer); this._retryTimer = null;
+    this._failing.clear();
+    if (this._dirty.size && this.isReady()) this._scheduleDrain();
+    this._notifyPendingState();
+  },
+  _scheduleRetry() {
+    if (this._retryTimer) return;
+    const d = this.RETRY_DELAYS_MS[Math.min(this._retryStep, this.RETRY_DELAYS_MS.length - 1)];
+    this._retryStep++;
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this._failing.clear();
+      if (this._dirty.size && this.isReady()) this._scheduleDrain();
+    }, d);
+  },
+  /* Erros que repetir não resolve: o banco recusou o CONTEÚDO (FK, NOT NULL,
+     CHECK, tipo inválido, coluna inexistente). Rede, sessão e cota ficam de
+     fora — esses se resolvem esperando. */
+  _isPermanent(e) {
+    const code = String(e && e.code || '');
+    if (!code) return false;
+    return /^(23503|23502|23514|23P01|22P02|22001|22003|22007|22008|22023|42703|42P10|PGRST204|PGRST102)$/.test(code);
+  },
+  _kindOf(p) {
+    if (p.scope === 'user') return 'user';
+    if (p.scope === 'profile') {
+      if (p.sub === 'planejamentos') return 'plans';
+      if (p.sub === 'active-plan') return 'active';
+      return 'setting';
+    }
+    return this._PLAN_TABLE_SUBS.has(p.sub) || p.sub === 'tec' ? 'table' : 'state';
+  },
+  _PLAN_TABLE_SUBS: new Set(['subjects','methods','phases','statuses','modes','entries','decks','cards','leis',
+    'links','custom-siglas','cycle-history','saved-grades','revlog','lei-keywords','extras','tracks','incidencia']),
+  async _retrying(fn) {
+    let last;
+    for (let i = 0; i < 3; i++) {
+      try { return await fn(); }
+      catch (e) {
+        last = e;
+        if (this._isPermanent(e)) break;
+        if (window.CloudStore && CloudStore.serviceStatus === 'restricted') break;
+        if (i < 2) await new Promise(res => setTimeout(res, [250, 900][i]));
+      }
+    }
+    throw last;
+  },
+  async _drain() {
+    this._drainQueued = false;
+    if (!this._dirty.size) { this._notifyPendingState(); return; }
+    if (!this.isReady()) { this._notifyPendingState(); return; }
+    if (window.CloudStore && CloudStore.serviceStatus === 'restricted') {
+      const e = new Error('Banco restrito por cota do Supabase'); e.code = 'quota-restricted';
+      this._lastError = e; this._dirty.forEach((_, k) => this._failing.add(k));
+      this._scheduleRetry(); this._notifyPendingState(); return;
+    }
+    const rank = { plans: 0, active: 1, table: 2, setting: 3, state: 3, user: 3 };
+    const itens = [];
+    this._dirty.forEach((v, k) => { const p = this._keyParts(k); if (p) itens.push({ k, p, seq: v.seq, kind: this._kindOf(p) }); else this._dirty.delete(k); });
+    itens.sort((a, b) => (rank[a.kind] - rank[b.kind]) || (a.seq - b.seq));
+    let falhou = null;
+    const rejeitadas = [];
+    const concluir = (k, raw) => {
+      this._confirmed.set(k, raw);
+      this._failing.delete(k);
+      let atual = null; try { atual = localStorage.getItem(k); } catch (_) { atual = null; }
+      if (atual === raw) this._dirty.delete(k);
+    };
+    const falha = (k, e) => {
+      if (this._isPermanent(e)) { this._dirty.delete(k); this._failing.delete(k); rejeitadas.push({ k, e }); return; }
+      this._failing.add(k); falhou = e;
+    };
+    // 1) estrutura e tabelas, na ordem das dependências
+    for (const it of itens.filter(x => x.kind === 'plans' || x.kind === 'active' || x.kind === 'table')) {
+      if (!this.isReady()) break;
+      let raw = null; try { raw = localStorage.getItem(it.k); } catch (_) { raw = null; }
+      const base = this._confirmed.has(it.k) ? this._confirmed.get(it.k) : null;
+      if (raw === base) { this._dirty.delete(it.k); this._failing.delete(it.k); continue; }
+      try {
+        await this._retrying(() => this._persistOne(it.p, base, raw));
+        concluir(it.k, raw);
+      } catch (e) { falha(it.k, e); if (it.kind !== 'table') break; }
+    }
+    // 2) chave/valor em lote (settings de perfil, estado de plano, preferências)
+    const kv = itens.filter(x => x.kind === 'setting' || x.kind === 'state' || x.kind === 'user');
+    if (kv.length && this.isReady() && !(falhou && itens.some(x => x.kind === 'plans' && this._failing.has(x.k)))) {
+      await this._persistKvBatch(kv, concluir, falha);
+    }
+    if (rejeitadas.length) this._onRejected(rejeitadas);
+    if (falhou) { this._lastError = falhou; this._scheduleRetry(); }
+    else if (!this._failing.size) { this._retryStep = 0; if (!this._dirty.size) this._lastError = null; this._lastSyncAt = Date.now(); }
+    if (this._dirty.size && !falhou && this.isReady()) this._scheduleDrain();
+    this._notifyPendingState();
+  },
+  async _persistOne(p, base, raw) {
+    if (p.scope === 'profile' && p.sub === 'planejamentos') return this._persistPlans(p.profileId, base, raw);
+    if (p.scope === 'profile' && p.sub === 'active-plan') return this._persistActivePlan(p.profileId, raw);
+    return this._persistPlanKey(p.profileId, p.planId, p.sub, base, raw);
+  },
+  _jsonValue(raw) { let value; try { value = JSON.parse(raw); } catch (_) { value = { __raw__: String(raw) }; } return value; },
+  async _persistKvBatch(itens, concluir, falha) {
+    const now = new Date().toISOString();
+    const grupos = { setting: [], state: [], user: [] };
+    itens.forEach(it => {
+      let raw = null; try { raw = localStorage.getItem(it.k); } catch (_) { raw = null; }
+      const base = this._confirmed.has(it.k) ? this._confirmed.get(it.k) : null;
+      if (raw === base) { this._dirty.delete(it.k); this._failing.delete(it.k); return; }
+      grupos[it.kind].push(Object.assign({ raw }, it));
+    });
+    const uid = CloudStore.session && CloudStore.session.user && CloudStore.session.user.id;
+    const spec = {
+      setting: { table: 'study_profile_settings', conflict: 'profile_id,key',
+        row: it => ({ profile_id: it.p.profileId, key: it.p.sub, value: this._jsonValue(it.raw), updated_at: now }),
+        del: it => CloudStore.client.from('study_profile_settings').delete().eq('profile_id', it.p.profileId).eq('key', it.p.sub) },
+      state: { table: 'study_plan_state', conflict: 'profile_id,plan_id,key',
+        row: it => ({ profile_id: it.p.profileId, plan_id: it.p.planId, key: it.p.sub, value: this._jsonValue(it.raw), updated_at: now }),
+        del: it => CloudStore.client.from('study_plan_state').delete().eq('profile_id', it.p.profileId).eq('plan_id', it.p.planId).eq('key', it.p.sub) },
+      user: { table: 'user_preferences', conflict: 'user_id,key',
+        row: it => ({ user_id: uid, key: it.p.sub, value: this._jsonValue(it.raw), updated_at: now }),
+        del: it => CloudStore.client.from('user_preferences').delete().eq('user_id', uid).eq('key', it.p.sub) }
+    };
+    for (const kind of ['setting', 'state', 'user']) {
+      const lista = grupos[kind]; if (!lista.length) continue;
+      const cfg = spec[kind];
+      if (kind === 'user' && !uid) { lista.forEach(it => falha(it.k, new Error('Sem usuário'))); continue; }
+      for (const it of lista.filter(x => x.raw == null)) {
+        try { await this._retrying(async () => { const { error } = await cfg.del(it); if (error) throw error; }); concluir(it.k, null); }
+        catch (e) { falha(it.k, e); }
+      }
+      const ups = lista.filter(x => x.raw != null);
+      for (const ch of this._chunks(ups, 200)) {
+        try {
+          await this._retrying(async () => {
+            const { error } = await CloudStore.client.from(cfg.table).upsert(ch.map(cfg.row), { onConflict: cfg.conflict });
+            if (error) throw error;
+          });
+          ch.forEach(it => concluir(it.k, it.raw));
+        } catch (e) {
+          if (this._isPermanent(e) && ch.length > 1) {
+            // Lote recusado: tenta um a um para isolar só a linha com problema.
+            for (const it of ch) {
+              try {
+                await this._retrying(async () => { const { error } = await CloudStore.client.from(cfg.table).upsert([cfg.row(it)], { onConflict: cfg.conflict }); if (error) throw error; });
+                concluir(it.k, it.raw);
+              } catch (e2) { falha(it.k, e2); }
+            }
+          } else ch.forEach(it => falha(it.k, e));
+        }
+      }
+    }
+  },
+  _onRejected(lista) {
+    this._rejected += lista.length;
+    this._lastRejection = { em: Date.now(), itens: lista.map(x => ({ key: x.k, code: x.e && x.e.code, message: String(x.e && x.e.message || x.e) })) };
+    try { console.error('[RelationalStore] o banco recusou alterações', this._lastRejection); } catch (_) { _quiet(_); }
+    try { showToast('⚠ O banco recusou uma alteração. A tela será sincronizada com o que está salvo.'); } catch (e) { _quiet(e, 'rel-rejected-toast'); }
+    // Realinha a projeção com o banco: o que ficou na RAM já não é verdade lá.
+    const perfis = new Set(lista.map(x => { const p = this._keyParts(x.k); return p && p.profileId; }).filter(Boolean));
+    const ativo = window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId();
+    if (ativo && perfis.has(ativo)) {
+      setTimeout(() => {
+        this.hydrateProfile(ativo, { reason: 'rejected-write', includeHeavy: false, preserveHeavy: true, skipWatermark: true })
+          .then(() => { try { window.dispatchEvent(new CustomEvent('data:relational-hydrated', { detail: { profileId: ativo, reason: 'rejected-write' } })); } catch (e) { _quiet(e, 'rel-rejected-event'); } })
+          .catch(e => _quiet(e, 'rel-rejected-rehydrate'));
+      }, 0);
+    }
+  },
+  _notifyPendingState() {
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(this._dirty.size ? 'syncing' : undefined, this._dirty.size ? 'Salvando no banco…' : undefined); } catch (e) { _quiet(e, 'rel-pending-ui'); }
+    try { window.dispatchEvent(new CustomEvent('relational:pending', { detail: { count: this._dirty.size, ready: this.isReady(), failing: this._failing.size } })); } catch (e) { _quiet(e, 'rel-pending-event'); }
   },
 
   /* ── HISTÓRICO DE REVISÕES: CHAMADA DIRETA, NÃO DIFERENÇA DE BLOBS ────────
@@ -717,7 +959,8 @@ const RelationalStore = {
        de segurança LOCAL do histórico, para o caso de o banco não estar
        disponível. As linhas correspondentes já vão para `study_review_log` por
        queueRevlogAppend; persisti-las de novo criaria duplicata. */
-    return sub.indexOf('__lixeira:') === 0
+    return sub.indexOf('__trash:') === 0
+        || sub.indexOf('__lixeira:') === 0
         || sub === 'revlog-pendente'
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
@@ -728,11 +971,6 @@ const RelationalStore = {
        Evita UPSERTs disparados por renderizações/reativações de tela. */
     if(oldRaw===newRaw) return;
     this._localGen++;
-    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
-       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
-       não viram falso erro de banco. Depois do login, isReady() permanece true
-       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
-    if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
     if (p.scope === 'plan') {
       try {
@@ -741,19 +979,29 @@ const RelationalStore = {
         if (pausado && !conhecimento) return;
       } catch (e) { _quiet(e, 'rel-pause-write-guard'); }
     }
-    if(p.scope==='user') {
-      if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
-      return;
-    }
+    if(p.scope==='user' && (p.sub==='profiles'||p.sub==='active-profile')) return;
     if(this._ignoreSub(p.sub)) return;
-    if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw));
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw));
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw));
+    /* TEC e incidência são gravados por SUBSTITUIÇÃO. Se o bloco pesado ainda
+       não chegou, a lista em RAM está incompleta e enviá-la apagaria o
+       histórico inteiro no banco. A camada DB já recusa essas escritas; esta
+       é a rede de segurança para qualquer caminho novo. */
+    if (p.scope === 'plan' && (p.sub === 'tec' || p.sub === 'incidencia') && this._everHydrated && !this.isHeavyReady(p.profileId)) {
+      const e = new Error('Escrita em ' + p.sub + ' antes de carregar o histórico — recusada para não apagar o banco');
+      e.code = 'heavy-not-ready';
+      try { console.error('[RelationalStore]', e.message, key); } catch (_) { _quiet(_); }
+      _quiet(e, 'rel-heavy-guard');
       return;
     }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw));
+    /* O portão pode montar/medir telas antes de existir uma sessão: essas
+       escritas de UI não vão ao banco. Mas, depois que um perfil foi aberto,
+       uma sessão perdida (token expirado) NÃO pode descartar o que a pessoa
+       faz: a chave fica suja e é enviada quando ela entrar de novo. */
+    if(!this.isReady()) {
+      if (this._everHydrated) { this._markDirty(key, oldRaw); this._notifyPendingState(); }
+      return;
+    }
+    this._markDirty(key, oldRaw);
+    this._scheduleDrain();
   },
 
   async _persistUserPref(key, raw) {
@@ -1069,5 +1317,57 @@ window.RelationalStore=RelationalStore;
 try {
   window.addEventListener('online', () => {
     try { RelationalStore.replayReviewOutbox().catch(e => _quiet(e, 'review-outbox-online')); } catch (e) { _quiet(e, 'review-outbox-online'); }
+    try { RelationalStore.resumeDirty(); } catch (e) { _quiet(e, 'rel-dirty-online'); }
+  });
+  /* Fechar a aba com alterações que o banco ainda não confirmou perde essas
+     alterações: a projeção vive só em RAM. O navegador pede confirmação. */
+  window.addEventListener('beforeunload', (e) => {
+    try {
+      if (RelationalStore.pendingCount() > 0) { e.preventDefault(); e.returnValue = ''; return ''; }
+    } catch (err) { _quiet(err, 'rel-beforeunload'); }
+    return undefined;
   });
 } catch (e) { _quiet(e, 'review-outbox-online-listener'); }
+
+/* ── AVISO DE ALTERAÇÕES PENDENTES ──────────────────────────────────────────
+   Some sozinho quando o banco confirma tudo. Aparece em dois casos:
+     · a sessão caiu com um perfil aberto: nada do que for feito chega ao banco
+       até a pessoa entrar de novo (e o aviso diz isso, com o botão para entrar);
+     · o banco está falhando: as alterações ficam na fila e são reenviadas. */
+const PendingBanner = {
+  _el: null,
+  _ensure() {
+    if (this._el && this._el.isConnected) return this._el;
+    const el = document.createElement('div');
+    el.id = 'rel-pending-banner';
+    el.className = 'rel-pending-banner';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.hidden = true;
+    el.innerHTML = '<span class="rpb-txt"></span><button type="button" class="rpb-btn"></button>';
+    el.querySelector('.rpb-btn').addEventListener('click', () => {
+      if (!RelationalStore.isReady()) {
+        try { if (window.ProfileUI) ProfileUI.showGate(); } catch (e) { _quiet(e, 'rpb-login'); }
+      } else RelationalStore.resumeDirty();
+    });
+    document.body.appendChild(el);
+    this._el = el;
+    return el;
+  },
+  render(detail) {
+    if (!document.body) return;
+    const n = RelationalStore.dirtyCount();
+    const sessaoCaiu = RelationalStore._everHydrated && !RelationalStore.isReady();
+    const falhando = RelationalStore._failing.size > 0;
+    const mostrar = n > 0 && (sessaoCaiu || falhando);
+    if (!mostrar) { if (this._el) this._el.hidden = true; return; }
+    const el = this._ensure();
+    el.querySelector('.rpb-txt').textContent = sessaoCaiu
+      ? '⚠ Sua sessão expirou. ' + n + ' alteração(ões) aguardam o login para serem salvas no banco — não feche esta aba.'
+      : '⚠ ' + n + ' alteração(ões) ainda não foram confirmadas pelo banco. Tentando de novo automaticamente…';
+    el.querySelector('.rpb-btn').textContent = sessaoCaiu ? 'Entrar novamente' : 'Tentar agora';
+    el.hidden = false;
+  }
+};
+window.PendingBanner = PendingBanner;
+try { window.addEventListener('relational:pending', (e) => PendingBanner.render(e.detail)); } catch (e) { _quiet(e, 'rpb-listener'); }

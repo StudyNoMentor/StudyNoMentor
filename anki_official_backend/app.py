@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import html
 import json
 import os
 import re
 import shutil
 import tempfile
 import threading
-from dataclasses import dataclass
+import time
+from collections import OrderedDict
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -42,13 +47,27 @@ ORIGINS = [
     x.strip()
     for x in os.environ.get(
         "ALLOWED_ORIGINS",
-        "https://studynomentor.github.io,http://localhost:8000,http://127.0.0.1:8000",
+        # Produção só aceita a origem publicada. Para desenvolvimento local,
+        # defina ALLOWED_ORIGINS explicitamente (ex.: http://localhost:8000).
+        "https://studynomentor.github.io",
     ).split(",")
     if x.strip()
 ]
 MAX_IMPORT_BYTES = int(os.environ.get("ANKI_MAX_IMPORT_BYTES", str(512 * 1024 * 1024)))
+MAX_MEDIA_BYTES = int(os.environ.get("ANKI_MAX_MEDIA_BYTES", str(100 * 1024 * 1024)))
+MAX_OPEN_COLLECTIONS = max(1, int(os.environ.get("ANKI_MAX_OPEN_COLLECTIONS", "32")))
+TOKEN_CACHE_SECONDS = max(0, int(os.environ.get("ANKI_TOKEN_CACHE_SECONDS", "60")))
+UPLOAD_CHUNK = 1024 * 1024
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    yield
+    pool.close_all()
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title="StudyNoMentor — Anki Official Bridge",
     version=ANKI_VERSION,
     description="Thin authenticated bridge to the upstream Anki 26.09.2 Python/Rust backend.",
@@ -101,17 +120,44 @@ class UserCollection:
     collection_path: Path
     col: Collection
     lock: threading.RLock
+    last_used: float = field(default_factory=time.monotonic)
 
 
 class CollectionPool:
-    def __init__(self) -> None:
-        self._items: dict[str, UserCollection] = {}
+    """Coleções abertas por usuário, com teto (LRU).
+
+    Sem teto, cada usuário que já usou o backend mantinha uma coleção SQLite
+    aberta para sempre: memória e descritores cresciam sem limite. A mais
+    antiga só é fechada quando ninguém a está usando (lock livre)."""
+
+    def __init__(self, max_open: int = MAX_OPEN_COLLECTIONS) -> None:
+        self._items: "OrderedDict[str, UserCollection]" = OrderedDict()
         self._guard = threading.RLock()
+        self._max_open = max_open
+
+    def _evict_locked(self) -> None:
+        while len(self._items) > self._max_open:
+            victim_id = None
+            for uid, item in self._items.items():
+                if item.lock.acquire(blocking=False):
+                    try:
+                        item.col.close()
+                    except Exception:
+                        pass
+                    finally:
+                        item.lock.release()
+                    victim_id = uid
+                    break
+            if victim_id is None:
+                return  # todas em uso: tenta de novo na próxima abertura
+            self._items.pop(victim_id, None)
 
     def get(self, user_id: str) -> UserCollection:
         with self._guard:
             existing = self._items.get(user_id)
             if existing:
+                existing.last_used = time.monotonic()
+                self._items.move_to_end(user_id)
                 return existing
             root = DATA_DIR / user_id
             root.mkdir(parents=True, exist_ok=True)
@@ -125,6 +171,7 @@ class CollectionPool:
                 lock=threading.RLock(),
             )
             self._items[user_id] = item
+            self._evict_locked()
             return item
 
     def close_all(self) -> None:
@@ -139,10 +186,90 @@ class CollectionPool:
 
 pool = CollectionPool()
 
+# token -> (expira_em, usuario). Guardamos só o hash do token.
+_token_cache: dict[str, tuple[float, dict[str, Any]]] = {}
+_token_guard = threading.Lock()
 
-@app.on_event("shutdown")
-def shutdown() -> None:
-    pool.close_all()
+
+def _token_key(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _cache_get(token: str) -> dict[str, Any] | None:
+    if TOKEN_CACHE_SECONDS <= 0:
+        return None
+    key = _token_key(token)
+    now = time.monotonic()
+    with _token_guard:
+        hit = _token_cache.get(key)
+        if hit and hit[0] > now:
+            return hit[1]
+        if hit:
+            _token_cache.pop(key, None)
+    return None
+
+
+def _cache_put(token: str, user: dict[str, Any]) -> None:
+    if TOKEN_CACHE_SECONDS <= 0:
+        return
+    now = time.monotonic()
+    with _token_guard:
+        if len(_token_cache) > 5000:
+            for k in [k for k, v in _token_cache.items() if v[0] <= now]:
+                _token_cache.pop(k, None)
+            if len(_token_cache) > 5000:
+                _token_cache.clear()
+        _token_cache[_token_key(token)] = (now + TOKEN_CACHE_SECONDS, user)
+
+
+async def _upload_to_tempfile(upload: UploadFile, suffix: str, limit: int) -> str:
+    """Grava o upload em disco em blocos, abortando ao passar do limite.
+
+    Antes cada endpoint fazia `await upload.read(MAX+1)`: o arquivo inteiro
+    (até 512 MB) ia para a RAM de uma vez, por requisição."""
+    fd, tmp = tempfile.mkstemp(suffix=suffix)
+    total = 0
+    try:
+        with os.fdopen(fd, "wb") as out:
+            while True:
+                chunk = await upload.read(UPLOAD_CHUNK)
+                if not chunk:
+                    break
+                total += len(chunk)
+                if total > limit:
+                    raise HTTPException(413, "Arquivo excede o limite configurado.")
+                out.write(chunk)
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    return tmp
+
+
+async def _upload_bytes(upload: UploadFile, limit: int) -> bytes:
+    parts: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(UPLOAD_CHUNK)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            raise HTTPException(413, "Arquivo excede o limite configurado.")
+        parts.append(chunk)
+    return b"".join(parts)
+
+
+def _unlink_quiet(path: str) -> None:
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+
+
+def _new_tempfile(suffix: str) -> str:
+    fd, tmp = tempfile.mkstemp(suffix=suffix)
+    os.close(fd)
+    return tmp
 
 
 async def current_user(
@@ -153,6 +280,9 @@ async def current_user(
     if not SUPABASE_ANON_KEY:
         raise HTTPException(503, "SUPABASE_ANON_KEY não configurada no backend.")
     token = authorization.split(" ", 1)[1].strip()
+    cached = _cache_get(token)
+    if cached is not None:
+        return cached
     try:
         async with httpx.AsyncClient(timeout=12.0) as client:
             response = await client.get(
@@ -169,6 +299,7 @@ async def current_user(
     user = response.json()
     if not user.get("id"):
         raise HTTPException(401, "Usuário do Study não identificado.")
+    _cache_put(token, user)
     return user
 
 
@@ -294,7 +425,6 @@ def health() -> dict[str, Any]:
         "pinned_version": ANKI_VERSION,
         "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
         "build": "railpack",
-        "data_dir": str(DATA_DIR),
     }
 
 
@@ -353,7 +483,7 @@ def select_deck(body: SelectDeckBody, user: dict[str, Any] = Depends(current_use
         return {"ok": True, "current_deck_id": int(item.col.decks.get_current_id())}
 
 
-TYPE_ANSWER_PATTERN = re.compile(r"\\[\\[type:(.+?)\\]\\]")
+TYPE_ANSWER_PATTERN = re.compile(r"\[\[type:(.+?)\]\]")
 
 
 def type_answer_context(col: Collection, card: Card) -> dict[str, Any] | None:
@@ -452,7 +582,7 @@ def reviewer_type_answer(
         stripped = answer_html.replace('<hr id=answer>', '')
         replacement = (
             f'<div class="anki-type-answer-comparison" '
-            f'style="font-family:{ctx["font"]};font-size:{ctx["size"]}px">'
+            f'style="font-family:{html.escape(str(ctx["font"]), quote=True)};font-size:{int(ctx["size"])}px">'
             f'{comparison}</div>'
         )
         if had_separator:
@@ -521,8 +651,14 @@ def card_action(body: CardActionBody, user: dict[str, Any] = Depends(current_use
                 raise HTTPException(400, "Flag deve estar entre 0 e 7.")
             item.col.set_user_flag_for_cards(flag, ids)
         elif body.action == "mark":
+            # Uma nota com vários cards selecionados era alternada uma vez por
+            # card: dois cards irmãos marcavam e desmarcavam, sem efeito final.
+            seen: set[int] = set()
             for cid in ids:
                 note = item.col.get_card(cid).note()
+                if int(note.id) in seen:
+                    continue
+                seen.add(int(note.id))
                 if "marked" in note.tags:
                     note.tags = [tag for tag in note.tags if tag != "marked"]
                 else:
@@ -780,9 +916,7 @@ async def editor_media(
     file: UploadFile = File(...),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
-    data = await file.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "Arquivo de mídia excede o limite configurado.")
+    data = await _upload_bytes(file, MAX_MEDIA_BYTES)
     item = uc_for(user)
     with item.lock:
         desired = os.path.basename(file.filename or "media")
@@ -848,14 +982,9 @@ async def import_apkg(
     name = package.filename or "import.apkg"
     if not name.lower().endswith((".apkg", ".zip")):
         raise HTTPException(400, "Use um pacote .apkg do Anki.")
-    data = await package.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "Pacote excede o limite configurado.")
     item = uc_for(user)
-    fd, tmp = tempfile.mkstemp(suffix=".apkg")
-    os.close(fd)
+    tmp = await _upload_to_tempfile(package, ".apkg", MAX_IMPORT_BYTES)
     try:
-        Path(tmp).write_bytes(data)
         with item.lock:
             request = ImportAnkiPackageRequest(
                 package_path=tmp,
@@ -870,34 +999,38 @@ async def import_apkg(
             result = item.col.import_anki_package(request)
             return pb(result)
     finally:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+        _unlink_quiet(tmp)
+
+
+def _file_response(tmp: str, filename: str, media_type: str) -> FileResponse:
+    return FileResponse(
+        tmp,
+        filename=filename,
+        media_type=media_type,
+        background=BackgroundTask(_unlink_quiet, tmp),
+    )
 
 
 @app.get("/api/anki/export/apkg")
 def export_apkg(user: dict[str, Any] = Depends(current_user)):
     item = uc_for(user)
-    fd, tmp = tempfile.mkstemp(suffix=".apkg")
-    os.close(fd)
-    with item.lock:
-        item.col.export_anki_package(
-            out_path=tmp,
-            options=ExportAnkiPackageOptions(
-                with_scheduling=True,
-                with_deck_configs=True,
-                with_media=True,
-                legacy=False,
-            ),
-            limit=None,
-        )
-    return FileResponse(
-        tmp,
-        filename="StudyNoMentor-Anki.apkg",
-        media_type="application/octet-stream",
-        background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
-    )
+    tmp = _new_tempfile(".apkg")
+    try:
+        with item.lock:
+            item.col.export_anki_package(
+                out_path=tmp,
+                options=ExportAnkiPackageOptions(
+                    with_scheduling=True,
+                    with_deck_configs=True,
+                    with_media=True,
+                    legacy=False,
+                ),
+                limit=None,
+            )
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    return _file_response(tmp, "StudyNoMentor-Anki.apkg", "application/octet-stream")
 
 
 @app.post("/api/anki/import/colpkg")
@@ -908,52 +1041,61 @@ async def import_colpkg(
     name = package.filename or "collection.colpkg"
     if not name.lower().endswith(".colpkg"):
         raise HTTPException(400, "Use um pacote .colpkg do Anki.")
-    data = await package.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "Pacote excede o limite configurado.")
     item = uc_for(user)
-    fd, tmp = tempfile.mkstemp(suffix=".colpkg")
-    os.close(fd)
-    Path(tmp).write_bytes(data)
+    tmp = await _upload_to_tempfile(package, ".colpkg", MAX_IMPORT_BYTES)
     try:
         with item.lock:
-            backup = item.root / "before-colpkg-import.anki2"
+            # Cópia de segurança com carimbo: a importação de uma coleção
+            # substitui tudo, e a cópia anterior não pode ser sobrescrita pela
+            # próxima importação.
+            backup = item.root / f"before-colpkg-import-{int(time.time())}.anki2"
             if item.collection_path.exists():
+                item.col.close()
                 shutil.copy2(item.collection_path, backup)
+                item.col.reopen()
             backend = item.col._backend
             item.col.close()
-            media_folder, media_db = media_paths_from_col_path(str(item.collection_path))
-            backend.import_collection_package(
-                import_export_pb2.ImportCollectionPackageRequest(
-                    col_path=str(item.collection_path),
-                    backup_path=tmp,
-                    media_folder=media_folder,
-                    media_db=media_db,
+            try:
+                media_folder, media_db = media_paths_from_col_path(str(item.collection_path))
+                backend.import_collection_package(
+                    import_export_pb2.ImportCollectionPackageRequest(
+                        col_path=str(item.collection_path),
+                        backup_path=tmp,
+                        media_folder=media_folder,
+                        media_db=media_db,
+                    )
                 )
-            )
-            item.col.reopen()
+            except BaseException:
+                # Falhou no meio: volta a coleção anterior antes de reabrir.
+                # Sem isto a coleção do usuário ficava FECHADA até o processo
+                # reiniciar (toda requisição seguinte falhava).
+                if backup.exists():
+                    try:
+                        shutil.copy2(backup, item.collection_path)
+                    except OSError:
+                        pass
+                raise
+            finally:
+                item.col.reopen()
             return {"ok": True, "cards": int(item.col.card_count()), "notes": int(item.col.note_count())}
     finally:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+        _unlink_quiet(tmp)
 
 
 @app.get("/api/anki/export/colpkg")
 def export_colpkg(user: dict[str, Any] = Depends(current_user)):
     item = uc_for(user)
-    fd, tmp = tempfile.mkstemp(suffix=".colpkg")
-    os.close(fd)
-    with item.lock:
-        item.col.export_collection_package(tmp, include_media=True, legacy=False)
-        item.col.reopen()
-    return FileResponse(
-        tmp,
-        filename="StudyNoMentor-Anki.colpkg",
-        media_type="application/octet-stream",
-        background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
-    )
+    tmp = _new_tempfile(".colpkg")
+    try:
+        with item.lock:
+            try:
+                item.col.export_collection_package(tmp, include_media=True, legacy=False)
+            finally:
+                item.col.reopen()
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    return _file_response(tmp, "StudyNoMentor-Anki.colpkg", "application/octet-stream")
 
 
 # ---------------------------------------------------------------------------
@@ -1527,22 +1669,14 @@ async def csv_metadata(
     package: UploadFile = File(...),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
-    data = await package.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "Arquivo excede o limite configurado.")
     suffix = Path(package.filename or "import.csv").suffix or ".csv"
-    fd, tmp = tempfile.mkstemp(suffix=suffix)
-    os.close(fd)
-    Path(tmp).write_bytes(data)
     item = uc_for(user)
+    tmp = await _upload_to_tempfile(package, suffix, MAX_IMPORT_BYTES)
     try:
         with item.lock:
             return pb(item.col.get_csv_metadata(tmp, None))
     finally:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+        _unlink_quiet(tmp)
 
 
 @app.post("/api/anki/import/csv")
@@ -1551,14 +1685,9 @@ async def import_csv(
     metadata_json: str | None = Form(default=None),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
-    data = await package.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "Arquivo excede o limite configurado.")
     suffix = Path(package.filename or "import.csv").suffix or ".csv"
-    fd, tmp = tempfile.mkstemp(suffix=suffix)
-    os.close(fd)
-    Path(tmp).write_bytes(data)
     item = uc_for(user)
+    tmp = await _upload_to_tempfile(package, suffix, MAX_IMPORT_BYTES)
     try:
         with item.lock:
             metadata = item.col.get_csv_metadata(tmp, None)
@@ -1571,10 +1700,7 @@ async def import_csv(
             request = import_export_pb2.ImportCsvRequest(path=tmp, metadata=metadata)
             return pb(item.col.import_csv(request))
     finally:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
+        _unlink_quiet(tmp)
 
 
 @app.get("/api/anki/export/notes.csv")
@@ -1587,24 +1713,22 @@ def export_notes_csv(
     user: dict[str, Any] = Depends(current_user),
 ):
     item = uc_for(user)
-    fd, tmp = tempfile.mkstemp(suffix=".txt")
-    os.close(fd)
-    with item.lock:
-        item.col.export_note_csv(
-            out_path=tmp,
-            limit=None,
-            with_html=html,
-            with_tags=tags,
-            with_deck=deck,
-            with_notetype=notetype,
-            with_guid=guid,
-        )
-    return FileResponse(
-        tmp,
-        filename="StudyNoMentor-Anki-notes.txt",
-        media_type="text/plain; charset=utf-8",
-        background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
-    )
+    tmp = _new_tempfile(".txt")
+    try:
+        with item.lock:
+            item.col.export_note_csv(
+                out_path=tmp,
+                limit=None,
+                with_html=html,
+                with_tags=tags,
+                with_deck=deck,
+                with_notetype=notetype,
+                with_guid=guid,
+            )
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    return _file_response(tmp, "StudyNoMentor-Anki-notes.txt", "text/plain; charset=utf-8")
 
 
 @app.get("/api/anki/export/cards.csv")
@@ -1613,16 +1737,14 @@ def export_cards_csv(
     user: dict[str, Any] = Depends(current_user),
 ):
     item = uc_for(user)
-    fd, tmp = tempfile.mkstemp(suffix=".txt")
-    os.close(fd)
-    with item.lock:
-        item.col.export_card_csv(out_path=tmp, limit=None, with_html=html)
-    return FileResponse(
-        tmp,
-        filename="StudyNoMentor-Anki-cards.txt",
-        media_type="text/plain; charset=utf-8",
-        background=BackgroundTask(lambda: os.path.exists(tmp) and os.unlink(tmp)),
-    )
+    tmp = _new_tempfile(".txt")
+    try:
+        with item.lock:
+            item.col.export_card_csv(out_path=tmp, limit=None, with_html=html)
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    return _file_response(tmp, "StudyNoMentor-Anki-cards.txt", "text/plain; charset=utf-8")
 
 
 @app.post("/api/anki/image-occlusion/setup")
@@ -1643,9 +1765,7 @@ async def image_occlusion_image(
     image: UploadFile = File(...),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
-    data = await image.read(MAX_IMPORT_BYTES + 1)
-    if len(data) > MAX_IMPORT_BYTES:
-        raise HTTPException(413, "Imagem excede o limite configurado.")
+    data = await _upload_bytes(image, MAX_MEDIA_BYTES)
     item = uc_for(user)
     safe_name = os.path.basename(image.filename or "image.png")
     with item.lock:

@@ -1041,8 +1041,11 @@ const DesempenhoTecScreen = {
     prev.textContent = `✓ ${discs.length} disciplina(s), ${rows.length} linha(s) · ${tot.questoes.toLocaleString('pt-BR')} questões · ${tot.pct}% de acerto geral`;
     prev.style.color = 'var(--good)';
   },
-  saveImport() {
+  async saveImport() {
     if (this._fileReading) { showToast('Aguarde o término da leitura do arquivo'); return; }
+    /* O retrato é gravado por substituição da lista inteira: sem o histórico
+       já carregado, a lista partiria vazia e apagaria os retratos no banco. */
+    if (!(await DB.garantirPesado())) { showToast('⏳ Não consegui carregar o histórico do TEC agora. Verifique a conexão e tente de novo.'); return; }
     if (!this.validateRange()) { showToast('Ajuste o intervalo de datas antes de salvar'); return; }
     // usa os dados do arquivo, se houver; senão o texto colado
     const rows = Array.isArray(this._parsedRows)
@@ -1067,7 +1070,7 @@ const DesempenhoTecScreen = {
       rows,
       importedAt: new Date().toISOString()
     };
-    DB.saveTecSnapshot(snap);
+    if (DB.saveTecSnapshot(snap) === false) return;
     this.currentSnapId = snap.id;
     // garante que o novo retrato entre no escopo atual (marcado na seleção)
     if (this.selectedSnapIds) this.selectedSnapIds.add(snap.id);
@@ -1140,12 +1143,15 @@ const DesempenhoTecScreen = {
     });
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
-      const id = parseInt(btn.closest('.tec-snap-pick').dataset.id, 10);
-      const s = this.snapshots().find(x => x.id === id);
+      /* Retratos copiados de outro planejamento têm id em texto ("tec_…"):
+         parseInt dava NaN e o botão de excluir não fazia nada. */
+      const idTxt = btn.closest('.tec-snap-pick').dataset.id;
+      const s = this.snapshots().find(x => String(x.id) === String(idTxt));
       if (!s) return;
+      const id = s.id;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
-        DB.deleteTecSnapshot(id);
+        if (DB.deleteTecSnapshot(id) === false) return;
         this.selectedSnapIds.delete(id);
         this._scopedC = null;
         this._motorRefC = null;
@@ -1997,9 +2003,10 @@ const DesempenhoTecScreen = {
     reader.onload = (e) => finish(ReforcoEngine.parseIncidencia(e.target.result, banca));
     reader.readAsText(file);
   },
-  saveIncidencia() {
+  async saveIncidencia() {
     const banca = $id('incid-banca').value.trim();
     if (!banca) { showToast('Informe a banca'); return; }
+    if (!(await DB.garantirPesado())) { showToast('⏳ Não consegui carregar a incidência salva agora. Verifique a conexão e tente de novo.'); return; }
     // Prioridade: linhas do arquivo importado → _incidParsed → reparse do textarea
     let rows = (this._incidFileRows && this._incidFileRows.length) ? this._incidFileRows
              : (this._incidParsed && this._incidParsed.length) ? this._incidParsed
@@ -2009,6 +2016,7 @@ const DesempenhoTecScreen = {
     rows.forEach(r => r.banca = banca);
     const replace = $id('incid-replace').checked;
     const r = DB.addIncidenciaRows(banca, rows, replace);
+    if (!r) return;
     const n = r.novas;
     $id('incid-text').value = '';
     $id('incid-file').value = '';

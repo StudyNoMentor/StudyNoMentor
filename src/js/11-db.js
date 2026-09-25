@@ -301,6 +301,13 @@ const DB = {
     // a fachada localStorage em RAM encaminha a mutação ao RelationalStore.
     return true;
   },
+  /* Gravação feita DENTRO de uma leitura (migração de formato, semeadura de
+     padrões). Num planejamento pausado ela não pode acontecer — e também não
+     pode exibir o aviso "somente leitura": a pessoa só abriu a tela. */
+  _setMigracao(key, value) {
+    if (this._blockedByPlanPause(key)) return false;
+    return this._set(key, value);
+  },
   /* ── CANAL ÚNICO DE ESCRITA ────────────────────────────────────────────────
      _set trata JSON; setRaw/delRaw tratam texto e exclusões. Todos escrevem na
      projeção em RAM, cuja fachada encaminha a mutação imediatamente ao
@@ -403,7 +410,7 @@ const DB = {
       if (!s.id) { s.id = this._uid(); migrated = true; }
       if (s.ativo === undefined) { s.ativo = true; migrated = true; }
     });
-    if (migrated) this._set(this.KEYS.subjects, list);
+    if (migrated) this._setMigracao(this.KEYS.subjects, list);
     return list;
   },
   getActiveSubjects() { return this.getSubjects().filter(s => s.ativo); },
@@ -543,7 +550,7 @@ const DB = {
     let list = this._get(this.KEYS.methods, null);
     if (!list) {
       list = this.DEFAULT_METHODS.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.methods, list);
+      this._setMigracao(this.KEYS.methods, list);
     }
     return list;
   },
@@ -580,7 +587,7 @@ const DB = {
     let list = this._get(this.KEYS.phases, null);
     if (!list) {
       list = this.DEFAULT_PHASES.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.phases, list);
+      this._setMigracao(this.KEYS.phases, list);
     }
     return list;
   },
@@ -618,7 +625,7 @@ const DB = {
     let list = this._get(this.KEYS.modes, null);
     if (!list) {
       list = this.DEFAULT_MODES.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.modes, list);
+      this._setMigracao(this.KEYS.modes, list);
     }
     return list;
   },
@@ -687,7 +694,7 @@ const DB = {
       }
       const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
       DIAS.forEach(d => { if (!Array.isArray(t.grade[d])) t.grade[d] = []; while (t.grade[d].length < t.sessions) t.grade[d].push(''); });
-      this._set(this.KEYS.gradeTemplate, t);
+      this._setMigracao(this.KEYS.gradeTemplate, t);
     }
     return t;
   },
@@ -805,7 +812,7 @@ const DB = {
     let list = this._get(this.KEYS.leiKeywords, null);
     if (list === null) {  // 1ª vez: semeia com os padrões
       list = this.LEI_KEYWORDS_DEFAULT.map(t => ({ t, cat: this._leiKwCatOf(t), def: true }));
-      this._set(this.KEYS.leiKeywords, list);
+      this._setMigracao(this.KEYS.leiKeywords, list);
     }
     return list;
   },
@@ -853,7 +860,7 @@ const DB = {
   // sem soft-delete: remover da lista não apaga a banca já gravada nos cards).
   getCardBancas() {
     let list = this._get(this.KEYS.bancasCards, null);
-    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._set(this.KEYS.bancasCards, list); }
+    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._setMigracao(this.KEYS.bancasCards, list); }
     return list;
   },
   saveCardBancas(list) { this._set(this.KEYS.bancasCards, list); },
@@ -1559,10 +1566,10 @@ const DB = {
     let list = this._get(this.KEYS.links, null);
     if (list === null) {
       list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
-      this._set(this.KEYS.links, list);
+      this._setMigracao(this.KEYS.links, list);
     }
     // neutraliza esquemas perigosos guardados antes desta trava existir
-    if (this._sanearLinks(list)) this._set(this.KEYS.links, list);
+    if (this._sanearLinks(list)) this._setMigracao(this.KEYS.links, list);
     return list;
   },
   saveLinks(list) { this._set(this.KEYS.links, list); },
@@ -1632,11 +1639,39 @@ const DB = {
       }
     } catch (e) { _quiet(e, 'db-heavy-read-start'); }
   },
+  /* ── TEC E INCIDÊNCIA SÓ SE GRAVAM COM O HISTÓRICO CARREGADO ─────────────
+     Os dois são persistidos por SUBSTITUIÇÃO (o banco passa a ter exatamente
+     a lista da RAM). A abertura do perfil traz esse "bloco pesado" depois, em
+     segundo plano — e com economia de dados só quando uma tela pede. Gravar
+     antes disso partia de uma lista VAZIA: importar um retrato logo ao abrir
+     o app apagava no banco todo o histórico TEC do planejamento. */
+  heavyPronto() {
+    try {
+      if (typeof RelationalStore === 'undefined' || !RelationalStore._everHydrated) return true;
+      const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+      return !id || RelationalStore.isHeavyReady(id);
+    } catch (_) { return true; }
+  },
+  async garantirPesado() {
+    if (this.heavyPronto()) return true;
+    const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+    try { await RelationalStore.ensureHeavyData(id, { reason: 'antes-de-gravar' }); }
+    catch (e) { _quiet(e, 'garantir-pesado'); }
+    return this.heavyPronto();
+  },
+  _recusaPesado() {
+    this._kickRelationalHeavy('write-guard');
+    try { showToast('⏳ O histórico do TEC ainda está carregando. Tente de novo em instantes.'); } catch (e) { _quiet(e, 'pesado-toast'); }
+    return false;
+  },
   getIncidencia() {
     this._kickRelationalHeavy('db-incidencia');
     return this._get(this.KEYS.incidencia, []);
   },
-  saveIncidencia(list) { this._set(this.KEYS.incidencia, list); },
+  saveIncidencia(list) {
+    if (!this.heavyPronto()) return this._recusaPesado();
+    return this._set(this.KEYS.incidencia, list);
+  },
   getBancas() { return [...new Set(this.getIncidencia().map(r => r.banca).filter(Boolean))].sort(); },
   // adiciona/substitui em lote as linhas de uma banca (replace = troca todo o histórico daquela banca)
   /* ── INCIDÊNCIA: GRAVAR SEM DUPLICAR ──────────────────────────────────────
@@ -1657,6 +1692,7 @@ const DB = {
     return n(banca) + '|' + n(r.disciplina) + '|' + (cod !== null ? '#' + cod : n(r.topico));
   },
   addIncidenciaRows(banca, rows, replace) {
+    if (!this.heavyPronto()) { this._recusaPesado(); return null; }
     let list = this.getIncidencia();
     if (replace) list = list.filter(r => r.banca.toLowerCase() !== banca.toLowerCase());
     const porChave = new Map();
@@ -1678,7 +1714,7 @@ const DB = {
       const nova = Object.assign({ id: this._uid() }, linha);
       list.push(nova); porChave.set(k, nova); novas++;
     });
-    this.saveIncidencia(list);
+    if (this.saveIncidencia(list) === false) return null;
     return { total: rows.length, novas, repetidas };
   },
   /* Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
@@ -1690,6 +1726,7 @@ const DB = {
   renameIncidenciaBanca(de, para) {
     const alvo = String(para || '').trim();
     if (!alvo) return 0;
+    if (!this.heavyPronto()) { this._recusaPesado(); return 0; }
     const list = this.getIncidencia();
     let n = 0;
     list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; r._renomeada = true; n++; } });
@@ -1742,7 +1779,7 @@ const DB = {
       // ativa — agora a conclusão é por dia (concluidasEm), não trava a atividade toda.
       if (this.extraRecorrente(e) && e.status === 'concluida') { e.status = 'ativa'; mig = true; }
     });
-    if (mig) { try { this._set(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
+    if (mig) { try { this._setMigracao(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
     return list;
   },
   saveExtras(list) { this._extrasReadSnapshot = null; this._set(this.KEYS.extras, list); },
@@ -2129,7 +2166,7 @@ const DB = {
     let list = this._get(this.KEYS.statuses, null);
     if (!list) {
       list = this.DEFAULT_STATUSES.map(s => ({ id: this._uid(), ...s, ativo: true }));
-      this._set(this.KEYS.statuses, list);
+      this._setMigracao(this.KEYS.statuses, list);
     }
     return list;
   },
@@ -2303,24 +2340,27 @@ const DB = {
       if (!s.startDate) { s.startDate = s.date || todayLocal(); migrated = true; }
       if (!s.endDate) { s.endDate = s.date || s.startDate; migrated = true; }
     });
-    if (migrated) this._set(this.KEYS.tec, list);
+    if (migrated && this.heavyPronto()) this._setMigracao(this.KEYS.tec, list);
     // ordena pelo início do intervalo
     return list.slice().sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
   },
   saveTecSnapshot(snap) {
+    if (!this.heavyPronto()) return this._recusaPesado();
     const list = this._get(this.KEYS.tec, []);
     list.push(snap);
-    this._set(this.KEYS.tec, list);
+    if (this._set(this.KEYS.tec, list) === false) return false;
     return snap;
   },
   deleteTecSnapshot(id) {
-    this._set(this.KEYS.tec, this._get(this.KEYS.tec, []).filter(s => s.id !== id));
+    if (!this.heavyPronto()) return this._recusaPesado();
+    return this._set(this.KEYS.tec, this._get(this.KEYS.tec, []).filter(s => !this._mesmoId(s.id, id)));
   },
   updateTecSnapshot(id, patch) {
+    if (!this.heavyPronto()) return this._recusaPesado();
     const list = this._get(this.KEYS.tec, []);
-    const s = list.find(x => x.id === id);
+    const s = list.find(x => this._mesmoId(x.id, id));
     if (s) Object.assign(s, patch);
-    this._set(this.KEYS.tec, list);
+    return this._set(this.KEYS.tec, list);
   },
   latestTecSnapshot() {
     const list = this.getTecSnapshots();

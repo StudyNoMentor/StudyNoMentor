@@ -9,6 +9,9 @@
      por um recurso real do app (não há origem "solta"):
        • script-src  : o próprio app (inline, exigido pelo padrão #app-code) +
                        os CDNs do Supabase (jsDelivr) e do SheetJS sob demanda.
+                       'wasm-unsafe-eval' libera SÓ a compilação de WebAssembly
+                       (o otimizador/Health Check/simulador FSRS oficial é o
+                       fsrs-rs em WASM). Não libera eval nem new Function.
        • connect-src : Supabase (REST https + realtime wss), backend Anki Oficial e os CDNs.
        • style-src   : estilos inline do app + Google Fonts.
        • font-src    : os .woff2 do Google Fonts.
@@ -22,7 +25,7 @@
      enviar `Content-Security-Policy: frame-ancestors 'none'`. Em hospedagem
      estática sem cabeçalhos (GitHub Pages), quem protege é a trava anti-moldura
      em JavaScript logo abaixo — essa, sim, funciona. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://anki-official-production.up.railway.app https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'self' blob:; manifest-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdn.jsdelivr.net https://cdn.sheetjs.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://anki-official-production.up.railway.app https://cdn.jsdelivr.net https://cdn.sheetjs.com; object-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:; frame-src 'self' blob:; manifest-src 'self'">
 <script>
 /* ── TRAVA ANTI-MOLDURA (clickjacking) ────────────────────────────────────
    Sem cabeçalho HTTP não há frame-ancestors, e o app trata dados de estudo,
@@ -57,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v994327033c">
+<meta name="diario-versao" content="v8fa3feb910">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16787,6 +16790,14 @@ body:has(.nav-sheet.open) .tabs{z-index:97!important}
 .pausa-aviso .pa-btn{flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
 @media (max-width:520px){.pausa-aviso{flex-wrap:wrap}.pausa-aviso .pa-btn{width:100%}}
 
+/* Aviso de alterações que o banco ainda não confirmou (fila relacional). */
+.rel-pending-banner{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:10px;width:min(640px,calc(100vw - 24px));padding:10px 14px;border-radius:14px;border:1px solid var(--warn);background:var(--warn-soft);color:var(--warn-text);font-size:var(--fs-sm);line-height:1.45;box-shadow:var(--shadow-lg)}
+.rel-pending-banner[hidden]{display:none}
+.rel-pending-banner .rpb-txt{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.rel-pending-banner .rpb-btn{flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+@media (max-width:860px){.rel-pending-banner{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+@media (max-width:520px){.rel-pending-banner{flex-wrap:wrap}.rel-pending-banner .rpb-btn{width:100%}}
+
 </style>
 
 <style id="abertura">
@@ -17799,6 +17810,13 @@ const DB = {
     // a fachada localStorage em RAM encaminha a mutação ao RelationalStore.
     return true;
   },
+  /* Gravação feita DENTRO de uma leitura (migração de formato, semeadura de
+     padrões). Num planejamento pausado ela não pode acontecer — e também não
+     pode exibir o aviso "somente leitura": a pessoa só abriu a tela. */
+  _setMigracao(key, value) {
+    if (this._blockedByPlanPause(key)) return false;
+    return this._set(key, value);
+  },
   /* ── CANAL ÚNICO DE ESCRITA ────────────────────────────────────────────────
      _set trata JSON; setRaw/delRaw tratam texto e exclusões. Todos escrevem na
      projeção em RAM, cuja fachada encaminha a mutação imediatamente ao
@@ -17901,7 +17919,7 @@ const DB = {
       if (!s.id) { s.id = this._uid(); migrated = true; }
       if (s.ativo === undefined) { s.ativo = true; migrated = true; }
     });
-    if (migrated) this._set(this.KEYS.subjects, list);
+    if (migrated) this._setMigracao(this.KEYS.subjects, list);
     return list;
   },
   getActiveSubjects() { return this.getSubjects().filter(s => s.ativo); },
@@ -18041,7 +18059,7 @@ const DB = {
     let list = this._get(this.KEYS.methods, null);
     if (!list) {
       list = this.DEFAULT_METHODS.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.methods, list);
+      this._setMigracao(this.KEYS.methods, list);
     }
     return list;
   },
@@ -18078,7 +18096,7 @@ const DB = {
     let list = this._get(this.KEYS.phases, null);
     if (!list) {
       list = this.DEFAULT_PHASES.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.phases, list);
+      this._setMigracao(this.KEYS.phases, list);
     }
     return list;
   },
@@ -18116,7 +18134,7 @@ const DB = {
     let list = this._get(this.KEYS.modes, null);
     if (!list) {
       list = this.DEFAULT_MODES.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.modes, list);
+      this._setMigracao(this.KEYS.modes, list);
     }
     return list;
   },
@@ -18185,7 +18203,7 @@ const DB = {
       }
       const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
       DIAS.forEach(d => { if (!Array.isArray(t.grade[d])) t.grade[d] = []; while (t.grade[d].length < t.sessions) t.grade[d].push(''); });
-      this._set(this.KEYS.gradeTemplate, t);
+      this._setMigracao(this.KEYS.gradeTemplate, t);
     }
     return t;
   },
@@ -18303,7 +18321,7 @@ const DB = {
     let list = this._get(this.KEYS.leiKeywords, null);
     if (list === null) {  // 1ª vez: semeia com os padrões
       list = this.LEI_KEYWORDS_DEFAULT.map(t => ({ t, cat: this._leiKwCatOf(t), def: true }));
-      this._set(this.KEYS.leiKeywords, list);
+      this._setMigracao(this.KEYS.leiKeywords, list);
     }
     return list;
   },
@@ -18351,7 +18369,7 @@ const DB = {
   // sem soft-delete: remover da lista não apaga a banca já gravada nos cards).
   getCardBancas() {
     let list = this._get(this.KEYS.bancasCards, null);
-    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._set(this.KEYS.bancasCards, list); }
+    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._setMigracao(this.KEYS.bancasCards, list); }
     return list;
   },
   saveCardBancas(list) { this._set(this.KEYS.bancasCards, list); },
@@ -19057,10 +19075,10 @@ const DB = {
     let list = this._get(this.KEYS.links, null);
     if (list === null) {
       list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
-      this._set(this.KEYS.links, list);
+      this._setMigracao(this.KEYS.links, list);
     }
     // neutraliza esquemas perigosos guardados antes desta trava existir
-    if (this._sanearLinks(list)) this._set(this.KEYS.links, list);
+    if (this._sanearLinks(list)) this._setMigracao(this.KEYS.links, list);
     return list;
   },
   saveLinks(list) { this._set(this.KEYS.links, list); },
@@ -19130,11 +19148,39 @@ const DB = {
       }
     } catch (e) { _quiet(e, 'db-heavy-read-start'); }
   },
+  /* ── TEC E INCIDÊNCIA SÓ SE GRAVAM COM O HISTÓRICO CARREGADO ─────────────
+     Os dois são persistidos por SUBSTITUIÇÃO (o banco passa a ter exatamente
+     a lista da RAM). A abertura do perfil traz esse "bloco pesado" depois, em
+     segundo plano — e com economia de dados só quando uma tela pede. Gravar
+     antes disso partia de uma lista VAZIA: importar um retrato logo ao abrir
+     o app apagava no banco todo o histórico TEC do planejamento. */
+  heavyPronto() {
+    try {
+      if (typeof RelationalStore === 'undefined' || !RelationalStore._everHydrated) return true;
+      const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+      return !id || RelationalStore.isHeavyReady(id);
+    } catch (_) { return true; }
+  },
+  async garantirPesado() {
+    if (this.heavyPronto()) return true;
+    const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+    try { await RelationalStore.ensureHeavyData(id, { reason: 'antes-de-gravar' }); }
+    catch (e) { _quiet(e, 'garantir-pesado'); }
+    return this.heavyPronto();
+  },
+  _recusaPesado() {
+    this._kickRelationalHeavy('write-guard');
+    try { showToast('⏳ O histórico do TEC ainda está carregando. Tente de novo em instantes.'); } catch (e) { _quiet(e, 'pesado-toast'); }
+    return false;
+  },
   getIncidencia() {
     this._kickRelationalHeavy('db-incidencia');
     return this._get(this.KEYS.incidencia, []);
   },
-  saveIncidencia(list) { this._set(this.KEYS.incidencia, list); },
+  saveIncidencia(list) {
+    if (!this.heavyPronto()) return this._recusaPesado();
+    return this._set(this.KEYS.incidencia, list);
+  },
   getBancas() { return [...new Set(this.getIncidencia().map(r => r.banca).filter(Boolean))].sort(); },
   // adiciona/substitui em lote as linhas de uma banca (replace = troca todo o histórico daquela banca)
   /* ── INCIDÊNCIA: GRAVAR SEM DUPLICAR ──────────────────────────────────────
@@ -19155,6 +19201,7 @@ const DB = {
     return n(banca) + '|' + n(r.disciplina) + '|' + (cod !== null ? '#' + cod : n(r.topico));
   },
   addIncidenciaRows(banca, rows, replace) {
+    if (!this.heavyPronto()) { this._recusaPesado(); return null; }
     let list = this.getIncidencia();
     if (replace) list = list.filter(r => r.banca.toLowerCase() !== banca.toLowerCase());
     const porChave = new Map();
@@ -19176,7 +19223,7 @@ const DB = {
       const nova = Object.assign({ id: this._uid() }, linha);
       list.push(nova); porChave.set(k, nova); novas++;
     });
-    this.saveIncidencia(list);
+    if (this.saveIncidencia(list) === false) return null;
     return { total: rows.length, novas, repetidas };
   },
   /* Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
@@ -19188,6 +19235,7 @@ const DB = {
   renameIncidenciaBanca(de, para) {
     const alvo = String(para || '').trim();
     if (!alvo) return 0;
+    if (!this.heavyPronto()) { this._recusaPesado(); return 0; }
     const list = this.getIncidencia();
     let n = 0;
     list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; r._renomeada = true; n++; } });
@@ -19240,7 +19288,7 @@ const DB = {
       // ativa — agora a conclusão é por dia (concluidasEm), não trava a atividade toda.
       if (this.extraRecorrente(e) && e.status === 'concluida') { e.status = 'ativa'; mig = true; }
     });
-    if (mig) { try { this._set(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
+    if (mig) { try { this._setMigracao(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
     return list;
   },
   saveExtras(list) { this._extrasReadSnapshot = null; this._set(this.KEYS.extras, list); },
@@ -19627,7 +19675,7 @@ const DB = {
     let list = this._get(this.KEYS.statuses, null);
     if (!list) {
       list = this.DEFAULT_STATUSES.map(s => ({ id: this._uid(), ...s, ativo: true }));
-      this._set(this.KEYS.statuses, list);
+      this._setMigracao(this.KEYS.statuses, list);
     }
     return list;
   },
@@ -19801,24 +19849,27 @@ const DB = {
       if (!s.startDate) { s.startDate = s.date || todayLocal(); migrated = true; }
       if (!s.endDate) { s.endDate = s.date || s.startDate; migrated = true; }
     });
-    if (migrated) this._set(this.KEYS.tec, list);
+    if (migrated && this.heavyPronto()) this._setMigracao(this.KEYS.tec, list);
     // ordena pelo início do intervalo
     return list.slice().sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
   },
   saveTecSnapshot(snap) {
+    if (!this.heavyPronto()) return this._recusaPesado();
     const list = this._get(this.KEYS.tec, []);
     list.push(snap);
-    this._set(this.KEYS.tec, list);
+    if (this._set(this.KEYS.tec, list) === false) return false;
     return snap;
   },
   deleteTecSnapshot(id) {
-    this._set(this.KEYS.tec, this._get(this.KEYS.tec, []).filter(s => s.id !== id));
+    if (!this.heavyPronto()) return this._recusaPesado();
+    return this._set(this.KEYS.tec, this._get(this.KEYS.tec, []).filter(s => !this._mesmoId(s.id, id)));
   },
   updateTecSnapshot(id, patch) {
+    if (!this.heavyPronto()) return this._recusaPesado();
     const list = this._get(this.KEYS.tec, []);
-    const s = list.find(x => x.id === id);
+    const s = list.find(x => this._mesmoId(x.id, id));
     if (s) Object.assign(s, patch);
-    this._set(this.KEYS.tec, list);
+    return this._set(this.KEYS.tec, list);
   },
   latestTecSnapshot() {
     const list = this.getTecSnapshots();
@@ -20516,8 +20567,48 @@ const ProfileManager = {
     });
     return out;
   },
-  getProfiles() { return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])); },
-  saveProfiles(list) { DB._set(DB.PROFILES_KEY, this._sanearPerfis(list)); },
+  /* ── DADOS DO ESTUDANTE (concurso, cargo, banca, prova, meta) ─────────────
+     Moravam dentro da lista-espelho de perfis, que NÃO vai ao banco (ela é
+     reconstruída de study_profiles a cada listagem) — o "Perfil atualizado ✓"
+     aparecia e os dados sumiam na próxima abertura. Agora ficam numa
+     configuração do próprio perfil (study_profile_settings, chave
+     `profile-meta`), persistida pelo mesmo canal do resto do perfil. */
+  _metaKey(id) { return 'diario-estudos:u:' + id + ':profile-meta'; },
+  getMeta(id) {
+    try { const raw = localStorage.getItem(this._metaKey(id)); return raw ? (JSON.parse(raw) || {}) : null; }
+    catch (_) { return null; }
+  },
+  setMeta(id, meta) {
+    const limpo = {};
+    Object.keys(meta || {}).forEach(k => { const v = meta[k]; if (v != null && String(v).trim() !== '') limpo[k] = String(v).trim(); });
+    return DB.setRaw(this._metaKey(id), JSON.stringify(limpo));
+  },
+  /* Perfil que ainda não foi aberto nesta aba não tem as configurações em RAM:
+     busca só a linha do meta no banco, para o formulário não nascer vazio (e
+     salvar vazio por cima do que já existia). */
+  async carregarMeta(id) {
+    const local = this.getMeta(id);
+    if (local) return local;
+    try {
+      if (!window.CloudStore || !CloudStore.isLoggedIn() || !CloudStore.client) return {};
+      const { data, error } = await CloudStore.client.from('study_profile_settings')
+        .select('value').eq('profile_id', id).eq('key', 'profile-meta').maybeSingle();
+      if (error) throw error;
+      const v = data && data.value && typeof data.value === 'object' ? data.value : {};
+      if (window.RelationalStore) RelationalStore._memSet(this._metaKey(id), JSON.stringify(v));
+      return v;
+    } catch (e) { _quiet(e, 'perfil-meta-carregar'); return null; }
+  },
+  getProfiles() {
+    return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])).map(p => {
+      const meta = this.getMeta(p.id);
+      return meta ? Object.assign(p, { meta }) : p;
+    });
+  },
+  saveProfiles(list) {
+    // O meta tem casa própria (profile-meta): não viaja na lista-espelho.
+    DB._set(DB.PROFILES_KEY, this._sanearPerfis(list).map(p => { const c = Object.assign({}, p); delete c.meta; return c; }));
+  },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) {
@@ -20568,10 +20659,16 @@ const ProfileManager = {
     return id;
   },
   updateProfile(id, patch) {
+    patch = Object.assign({}, patch || {});
+    if (Object.prototype.hasOwnProperty.call(patch, 'meta')) {
+      if (this.setMeta(id, patch.meta) === false) return false;
+      delete patch.meta;
+    }
     const list = this.getProfiles();
     const p = list.find(x => x.id === id);
     if (p) Object.assign(p, patch);
     this.saveProfiles(list);
+    return true;
   },
   renameProfile(id, nome) { this.updateProfile(id, { nome: (nome || '').trim() }); },
   // ---- Helpers usados pela reconciliação com o índice da nuvem ----
@@ -21240,22 +21337,26 @@ const SaveGuard = {
       return comPiso({ ok: true, local: true, cloud: false, motivo: 'memoria-apenas' });
     }
 
+    /* A mutação já está na fila DURÁVEL do RelationalStore: se o banco não
+       confirmar agora (rede lenta, oscilação, sessão caída), ela continua
+       pendente e é reenviada sozinha — o aviso na tela e a proteção ao fechar
+       a aba cobrem o intervalo. Por isso "não confirmou a tempo" NÃO é falha:
+       tratar como falha levava a pessoa a registrar de novo e duplicar.
+       Antes, a falha ainda recarregava o perfil inteiro do banco, apagando da
+       RAM outras edições pendentes que nada tinham a ver com esta.
+       Falha de verdade é só a RECUSA do banco (restrição violada), que o
+       RelationalStore já desfaz realinhando a tela com o banco. */
+    const RS = window.RelationalStore;
+    const recusasAntes = RS ? RS._rejected : 0;
     const r = await this._aguardaNuvem(opts.timeout);
-    if (!r.enviado) {
-      try {
-        const pid = window.ProfileManager && ProfileManager.getActiveProfileId
-          ? ProfileManager.getActiveProfileId() : null;
-        if (pid && window.RelationalStore) {
-          await RelationalStore.hydrateProfile(pid, { reason: 'rollback-after-write-failure' });
-        }
-      } catch (e) { _quiet(e, 'saveguard-rollback'); }
-      return comPiso({
-        ok: false, local: false, cloud: false,
-        motivo: r.motivo || 'erro-banco'
-      });
+    if (r.enviado) return comPiso({ ok: true, local: false, cloud: true, motivo: '' });
+    if (RS && RS._rejected > recusasAntes) {
+      return comPiso({ ok: false, local: false, cloud: false, motivo: 'recusado' });
     }
-
-    return comPiso({ ok: true, local: false, cloud: true, motivo: '' });
+    if (r.motivo === 'sem-banco' && !(RS && RS._everHydrated && RS.dirtyCount() > 0)) {
+      return comPiso({ ok: false, local: false, cloud: false, motivo: 'sem-banco' });
+    }
+    return comPiso({ ok: true, local: true, cloud: false, motivo: 'pendente' });
   },
 
   ocupar(btn, texto) {
@@ -21278,14 +21379,20 @@ const SaveGuard = {
 
   toast(res, okTexto) {
     if (!res || !res.ok) {
-      const msg = res && res.motivo === 'tempo-esgotado'
-        ? '⚠ O banco não confirmou a operação a tempo. A tela voltou ao último estado confirmado.'
-        : '⚠ O banco não confirmou a operação. Nada foi considerado salvo.';
+      const msg = res && res.motivo === 'recusado'
+        ? '⚠ O banco recusou a operação. A tela foi sincronizada com o que está salvo.'
+        : res && res.motivo === 'sem-banco'
+          ? '⚠ Sem conexão com o banco: entre na sua conta para salvar.'
+          : '⚠ Não foi possível aplicar a operação.';
       showToast(msg);
       return;
     }
     if (res.cloud) {
       showToast((okTexto || 'Salvo') + ' — confirmado no banco ✓');
+      return;
+    }
+    if (res.motivo === 'pendente') {
+      showToast((okTexto || 'Salvo') + ' — aguardando confirmação do banco (reenvio automático)');
       return;
     }
     showToast(okTexto || 'Alteração temporária');
@@ -43534,7 +43641,7 @@ const AnkiOfficialSurfaces = {
       if(card.type_answer){
         const frame=document.getElementById('anki-official-card-frame');
         if(frame&&card.type_answer.question_html&&frame.srcdoc){
-          frame.srcdoc=frame.srcdoc.replace(/\\[\\[type:.+?\\]\\]/g,'');
+          frame.srcdoc=frame.srcdoc.replace(/\[\[type:.+?\]\]/g,'');
         }
         if(card.type_answer.enabled){
           const actions=document.getElementById('anki-official-answer-buttons');
@@ -44611,9 +44718,39 @@ const AutoTeste = {
       /RelationalStore\.flush/.test(String(SaveGuard._aguardaNuvem)));
   },
 
+  /* ── SANDBOX: TESTE NUNCA ENCOSTA NO DADO DE VERDADE ───────────────────────
+     O AutoTeste roda no app de produção (o próprio CONTRIBUINDO manda rodar no
+     console). O teste de incidência apagava e regravava a incidência do
+     planejamento ATIVO — e cada gravação ia para o banco por substituição: se o
+     bloco pesado não estivesse carregado, o "restaurar" final gravava vazio.
+     Agora o teste roda num planejamento fictício, com a persistência desligada,
+     e tudo que ele criou é removido da RAM no fim. */
+  _sandboxPlano(fn) {
+    const PLANO = '__autoteste__';
+    const RS = (typeof RelationalStore !== 'undefined') ? RelationalStore : null;
+    const antes = { plano: DB._activePlanId, pronto: DB.heavyPronto, applying: RS ? RS._applying : false };
+    DB._activePlanId = () => PLANO;
+    DB.heavyPronto = () => true;
+    if (RS) RS._applying = true;
+    try { return fn(); }
+    finally {
+      DB._activePlanId = antes.plano;
+      DB.heavyPronto = antes.pronto;
+      try {
+        const lixo = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.indexOf(PLANO) >= 0) lixo.push(k);
+        }
+        lixo.forEach(k => localStorage.removeItem(k));
+      } catch (e) { _quiet(e, 'autoteste-sandbox'); }
+      if (RS) RS._applying = antes.applying;
+    }
+  },
   incidenciaGravacao() {
-    const chave = DB.KEYS.incidencia;
-    const antes = localStorage.getItem(DB._profilePrefix ? DB._profilePrefix() + 'x' : 'x');  // só para não sombrear
+    return this._sandboxPlano(() => this._incidenciaGravacao());
+  },
+  _incidenciaGravacao() {
     const guardado = DB.getIncidencia();
     const linhas = (n) => [
       { disciplina: 'Direito Administrativo', topico: 'Licitações', incidencia: n, codigo: '01', depth: 1 },
@@ -44653,7 +44790,6 @@ const AutoTeste = {
         DB.renameIncidenciaBanca('FGV', '   ') === 0 && DB.getIncidencia().length === 3);
     } finally {
       DB.saveIncidencia(guardado);
-      void antes; void chave;
     }
   },
 
@@ -48890,8 +49026,11 @@ const DesempenhoTecScreen = {
     prev.textContent = `✓ ${discs.length} disciplina(s), ${rows.length} linha(s) · ${tot.questoes.toLocaleString('pt-BR')} questões · ${tot.pct}% de acerto geral`;
     prev.style.color = 'var(--good)';
   },
-  saveImport() {
+  async saveImport() {
     if (this._fileReading) { showToast('Aguarde o término da leitura do arquivo'); return; }
+    /* O retrato é gravado por substituição da lista inteira: sem o histórico
+       já carregado, a lista partiria vazia e apagaria os retratos no banco. */
+    if (!(await DB.garantirPesado())) { showToast('⏳ Não consegui carregar o histórico do TEC agora. Verifique a conexão e tente de novo.'); return; }
     if (!this.validateRange()) { showToast('Ajuste o intervalo de datas antes de salvar'); return; }
     // usa os dados do arquivo, se houver; senão o texto colado
     const rows = Array.isArray(this._parsedRows)
@@ -48916,7 +49055,7 @@ const DesempenhoTecScreen = {
       rows,
       importedAt: new Date().toISOString()
     };
-    DB.saveTecSnapshot(snap);
+    if (DB.saveTecSnapshot(snap) === false) return;
     this.currentSnapId = snap.id;
     // garante que o novo retrato entre no escopo atual (marcado na seleção)
     if (this.selectedSnapIds) this.selectedSnapIds.add(snap.id);
@@ -48989,12 +49128,15 @@ const DesempenhoTecScreen = {
     });
     box.querySelectorAll('.tsp-del').forEach(btn => btn.addEventListener('click', (e) => {
       e.preventDefault(); e.stopPropagation();
-      const id = parseInt(btn.closest('.tec-snap-pick').dataset.id, 10);
-      const s = this.snapshots().find(x => x.id === id);
+      /* Retratos copiados de outro planejamento têm id em texto ("tec_…"):
+         parseInt dava NaN e o botão de excluir não fazia nada. */
+      const idTxt = btn.closest('.tec-snap-pick').dataset.id;
+      const s = this.snapshots().find(x => String(x.id) === String(idTxt));
       if (!s) return;
+      const id = s.id;
       UI.confirm(`Excluir o retrato do período ${this.rangeLabel(s)}${s.label ? ' (' + s.label + ')' : ''}? Essa ação não pode ser desfeita.`, { title: 'Excluir retrato', okText: 'Excluir', danger: true }).then(ok => {
         if (!ok) return;
-        DB.deleteTecSnapshot(id);
+        if (DB.deleteTecSnapshot(id) === false) return;
         this.selectedSnapIds.delete(id);
         this._scopedC = null;
         this._motorRefC = null;
@@ -49846,9 +49988,10 @@ const DesempenhoTecScreen = {
     reader.onload = (e) => finish(ReforcoEngine.parseIncidencia(e.target.result, banca));
     reader.readAsText(file);
   },
-  saveIncidencia() {
+  async saveIncidencia() {
     const banca = $id('incid-banca').value.trim();
     if (!banca) { showToast('Informe a banca'); return; }
+    if (!(await DB.garantirPesado())) { showToast('⏳ Não consegui carregar a incidência salva agora. Verifique a conexão e tente de novo.'); return; }
     // Prioridade: linhas do arquivo importado → _incidParsed → reparse do textarea
     let rows = (this._incidFileRows && this._incidFileRows.length) ? this._incidFileRows
              : (this._incidParsed && this._incidParsed.length) ? this._incidParsed
@@ -49858,6 +50001,7 @@ const DesempenhoTecScreen = {
     rows.forEach(r => r.banca = banca);
     const replace = $id('incid-replace').checked;
     const r = DB.addIncidenciaRows(banca, rows, replace);
+    if (!r) return;
     const n = r.novas;
     $id('incid-text').value = '';
     $id('incid-file').value = '';
@@ -50748,12 +50892,18 @@ const PlanUI = {
       });
     });
   },
-  createFromForm() {
+  async createFromForm() {
     const nome = $id('np-nome').value.trim();
     if (!nome) { showToast('Dê um nome ao planejamento'); return; }
     const tipo = $id('np-tipo').value;
     const source = $id('np-source').value;
     let newId;
+    /* Copiar o histórico TEC lê o bloco pesado da origem: sem ele carregado a
+       cópia sairia vazia sem aviso nenhum. */
+    if (source && $id('np-copy-tec').checked && !(await DB.garantirPesado())) {
+      showToast('⏳ Não consegui carregar o histórico do TEC para copiar. Tente de novo em instantes.');
+      return;
+    }
     if (source) {
       newId = PlanManager.duplicateFrom(source, {
         nome, tipo,
@@ -51176,7 +51326,9 @@ const ProfileUI = {
       this._entering = false;
       this._autoEnterTried = true;
       console.error('[perfil] falha ao carregar banco relacional', err);
-      showToast('Não foi possível carregar o perfil do banco. Nada local foi usado.');
+      showToast(err && err.code === 'pendencias-locais'
+        ? '⚠ Há alterações feitas nesta aba que o banco ainda não confirmou. Verifique a conexão e tente de novo — elas não foram descartadas.'
+        : 'Não foi possível carregar o perfil do banco. Nada local foi usado.');
       this._showProfilePicker();
     }
   },
@@ -51224,6 +51376,21 @@ const ProfileUI = {
     this._pfUpdatePreview();
     $id('profile-modal').style.display = 'flex';
     setTimeout(() => $id('pf-nome').focus(), 50);
+    /* Perfil ainda não aberto nesta aba: os dados do estudante vêm do banco.
+       O Salvar espera, para não gravar um formulário vazio por cima deles. */
+    if (!isNew && ProfileManager.getMeta(id) === null && ProfileManager.carregarMeta) {
+      const salvar = document.getElementById('pf-save');
+      if (salvar) salvar.disabled = true;
+      ProfileManager.carregarMeta(id).then(m => {
+        if (this._editingId !== id) return;
+        if (m) {
+          setV('pf-concurso', m.concurso); setV('pf-cargo', m.cargo);
+          setV('pf-banca', m.banca); setV('pf-prova', m.provaDate); setV('pf-metah', m.metaHoras);
+          this._pfUpdatePreview();
+        } else showToast('Não consegui carregar os dados do estudante deste perfil agora.');
+        if (salvar && m) salvar.disabled = false;
+      });
+    }
   },
   _pfUpdatePreview() {
     const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
@@ -51260,9 +51427,12 @@ const ProfileUI = {
       const meta = { concurso: gv('pf-concurso'), cargo: gv('pf-cargo'), banca: gv('pf-banca'), provaDate: gv('pf-prova'), metaHoras: gv('pf-metah') };
       if (this._editingId) {
         ProfileManager.addMirror({ id: this._editingId, nome, avatar: this._draftAvatar, cor: this._draftColor });
-        ProfileManager.updateProfile(this._editingId, { meta });   // projeção em RAM; RelationalStore persiste no SQL
+        // profile-meta vai para study_profile_settings pela fila do RelationalStore
+        if (ProfileManager.updateProfile(this._editingId, { meta }) === false) throw new Error('não foi possível gravar os dados do estudante');
         if (window.CloudStore && CloudStore.isLoggedIn()) await CloudStore.updateMeta(this._editingId, { nome, avatar: this._draftAvatar, cor: this._draftColor });
-        showToast('Perfil atualizado ✓');
+        let confirmado = true;
+        try { if (window.RelationalStore) await RelationalStore.flush(); } catch (e) { confirmado = false; _quiet(e, 'perfil-meta-flush'); }
+        showToast(confirmado ? 'Perfil atualizado — confirmado no banco ✓' : 'Perfil atualizado — aguardando confirmação do banco (reenvio automático)');
         $id('profile-modal').style.display = 'none';
         this.renderChip();
         this.refreshStage();
@@ -51271,6 +51441,7 @@ const ProfileUI = {
         const row = await CloudStore.createRow({ name: nome, avatar: this._draftAvatar, color: this._draftColor });
         ProfileManager.addMirror({ id: row.id, nome, avatar: this._draftAvatar, cor: this._draftColor });
         ProfileManager.setActiveProfile(row.id);
+        ProfileManager.setMeta(row.id, meta);
         /* O perfil nasce diretamente no modelo relacional. PlanManager.init()
            apenas monta a projeção em memória; cada escrita é capturada pelo
            RelationalStore e confirmada no PostgreSQL antes de entrarmos nele. */
@@ -54451,10 +54622,15 @@ const CloudStore = {
       this._prefsHydratingUid = null;
       this._prefsHydratePromise = null;
       this._unsub();
+      // Sessão caiu com um perfil aberto: as alterações seguintes ficam
+      // pendentes (não descartadas) e a pessoa é avisada na tela.
+      try { if (window.RelationalStore) RelationalStore._notifyPendingState(); } catch (e) { _quiet(e, 'auth-pending'); }
       return;
     }
 
     this.subscribeRealtime();
+    // Sessão (re)estabelecida: envia o que ficou pendente enquanto ela faltava.
+    try { if (window.RelationalStore) RelationalStore.resumeDirty(); } catch (e) { _quiet(e, 'auth-resume-dirty'); }
 
     /* INITIAL_SESSION, SIGNED_IN e TOKEN_REFRESHED podem apontar para a mesma
        sessão. Preferências globais só precisam ser lidas uma vez por usuário;
@@ -54746,10 +54922,39 @@ const RelationalStore = {
   _lastChangeId: new Map(),
   _lastHydratedAt: new Map(),
 
+  /* ── FILA DURÁVEL POR CHAVE ─────────────────────────────────────────────────
+     Antes cada mutação virava uma tarefa com o par (antes, depois) daquele
+     instante. Se ela falhasse três vezes, era DESCARTADA — e o próximo sucesso
+     de qualquer outra tarefa zerava `_lastError`. Como o envio é por diferença,
+     edições seguintes na mesma lista não reenviavam o que se perdeu: bastava
+     uma queda de rede de um segundo para a alteração existir só na RAM.
+
+     Agora cada chave alterada fica SUJA até o banco confirmar o valor atual
+     dela. O envio compara com o último valor CONFIRMADO no banco (`_confirmed`,
+     alimentado pela hidratação e por cada envio bem-sucedido), então:
+       · várias edições seguidas viram um único envio;
+       · uma falha mantém a chave suja e é reenviada sozinha (com espera);
+       · `_lastError` só some quando não resta nada pendente;
+       · uma recusa definitiva do banco (restrição violada) não trava a fila:
+         a chave sai da fila, o perfil é realinhado com o banco e a pessoa vê.
+     Sem sessão, as chaves continuam sujas e são enviadas quando ela voltar. */
+  _dirty: new Map(),
+  _confirmed: new Map(),
+  _dirtySeq: 0,
+  _drainQueued: false,
+  _retryTimer: null,
+  _retryStep: 0,
+  _failing: new Set(),
+  _rejected: 0,
+  _lastRejection: null,
+  _everHydrated: false,
+  RETRY_DELAYS_MS: [2000, 5000, 15000, 30000, 60000],
+
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
-  pendingCount() { return this._pending; },
+  pendingCount() { return this._pending + this._dirty.size; },
+  dirtyCount() { return this._dirty.size; },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
   _raw(v) {
@@ -54789,6 +54994,8 @@ const RelationalStore = {
     this._applying = true;
     try {
       localStorage.setItem(k, String(v));
+      // O que veio do banco é, por definição, o que o banco tem.
+      this._confirmed.set(String(k), String(v));
       /* O histórico vive em RAM no DB. Quando a hidratação traz uma versão nova
          do banco, a projeção em memória precisa ser descartada — senão a
          sessão continua lendo a lista antiga e o que veio do banco fica
@@ -54801,9 +55008,10 @@ const RelationalStore = {
   },
   _memDel(k) {
     this._applying = true;
-    try { localStorage.removeItem(k); }
+    try { localStorage.removeItem(k); this._confirmed.delete(String(k)); }
     finally { this._applying = false; }
   },
+  _forgetKeys(keys) { keys.forEach(k => this._confirmed.delete(String(k))); },
   _isHeavyMemoryKey(profileId, key) {
     const p=this._pfx(profileId);
     if(!key || key.indexOf(p)!==0) return false;
@@ -54821,6 +55029,7 @@ const RelationalStore = {
         keys.push(k);
       }
       keys.forEach(k=>localStorage.removeItem(k));
+      this._forgetKeys(keys);
     } finally { this._applying=false; }
   },
   _clearHeavyMemory(profileId) {
@@ -54832,6 +55041,7 @@ const RelationalStore = {
         if(this._isHeavyMemoryKey(profileId,k)) keys.push(k);
       }
       keys.forEach(k=>localStorage.removeItem(k));
+      this._forgetKeys(keys);
     } finally { this._applying=false; }
   },
   _group(rows, key='plan_id') {
@@ -54958,13 +55168,14 @@ const RelationalStore = {
         if (rx.test(k.slice(p.length))) keys.push(k);
       }
       keys.forEach(k => localStorage.removeItem(k));
+      this._forgetKeys(keys);
     } finally { this._applying = false; }
   },
   /* Recarrega só as tabelas informadas (já sabemos quais mudaram pelo
      change-log) em vez de todo o perfil — mesmo resultado final, muito
      menos egress quando o usuário só registrou uma sessão ou editou um card. */
   _snapshotVelho(gen) {
-    return this._localGen !== gen || this._pending > 0;
+    return this._localGen !== gen || this.pendingCount() > 0;
   },
   async _refreshCorePartial(profileId, specs) {
     const appliers = this._coreGroupAppliers();
@@ -55069,7 +55280,10 @@ const RelationalStore = {
     if (error) throw error;
     this._applying=true;
     try {
-      (data||[]).forEach(r => localStorage.setItem('diario-estudos:' + r.key, this._raw(r.value)));
+      (data||[]).forEach(r => {
+        const k = 'diario-estudos:' + r.key, v = this._raw(r.value);
+        localStorage.setItem(k, v); this._confirmed.set(k, v);
+      });
     } finally { this._applying=false; }
     return true;
   },
@@ -55209,8 +55423,18 @@ const RelationalStore = {
     if(!this._lastChangeId.has(profileId)&&!opts.skipWatermark){
       try{watermark=await this._latestChangeId(profileId);}catch(e){_quiet(e,'rel-watermark');}
     }
-    // Antes de substituir a projeção local pela nuvem, drena respostas feitas
-    // offline. Se isso falhar, NÃO hidratamos por cima do estado local pendente.
+    // Antes de substituir a projeção local pela nuvem, drena o que ainda não
+    // chegou ao banco: alterações sujas (inclusive as feitas com a sessão
+    // caída) e respostas feitas offline. Se isso falhar, NÃO hidratamos por
+    // cima do estado local pendente — seria apagar trabalho não salvo.
+    if (this._dirty.size) {
+      try { await this.flush(); }
+      catch (e) {
+        const err = new Error('Há alterações locais que o banco ainda não confirmou.');
+        err.code = 'pendencias-locais'; err.causa = e;
+        throw err;
+      }
+    }
     await this.replayReviewOutbox(profileId, { beforeHydrate: true });
     let d=null;
     for(let tentativa=0;;tentativa++){
@@ -55226,7 +55450,8 @@ const RelationalStore = {
     if(!opts.preserveHeavy){this._heavyReady.delete(profileId);this._heavyDirty.add(profileId);}
     this._lastChangeId.set(profileId,Math.max(Number(this._lastChangeId.get(profileId))||0,Number(watermark)||0));
     this._lastHydratedAt.set(profileId,Date.now());
-    this._lastSyncAt=Date.now();this._lastError=null;
+    this._lastSyncAt=Date.now();if(!this._dirty.size)this._lastError=null;
+    this._everHydrated=true;
     this.subscribeProfile(profileId);
     try { if (typeof DB !== 'undefined' && DB.normalizeCardNotesInPlace) DB.normalizeCardNotesInPlace(); } catch (e) { _quiet(e, 'card-note-normalize'); }
     this._trace('rel-core-ok',{profileId,ms:Date.now()-t0});
@@ -55244,7 +55469,7 @@ const RelationalStore = {
         e.code='quota-restricted';this._lastError=e;throw e;
       }
       for(let i=0;i<3;i++){
-        try { const r=await task(); this._lastError=null; this._lastSyncAt=Date.now(); return r; }
+        try { const r=await task(); if(!this._failing.size)this._lastError=null; this._lastSyncAt=Date.now(); return r; }
         catch(e){
           last=e;
           /* 402 de cota não melhora repetindo a mesma operação. O fetch global
@@ -55265,8 +55490,201 @@ const RelationalStore = {
   },
   async flush() {
     await this._tail;
+    // Uma mutação feita durante a espera agenda outra drenagem no fim da fila.
+    if (this._dirty.size && this.isReady() && !this._failing.size) await this._tail;
+    if (this._dirty.size) {
+      throw this._lastError || new Error(this.isReady()
+        ? 'operações SQL pendentes'
+        : 'sessão ausente: alterações aguardando o login');
+    }
     if (this._lastError) throw this._lastError;
     return true;
+  },
+
+  /* ── DRENAGEM ───────────────────────────────────────────────────────────── */
+  _markDirty(key, oldRaw) {
+    const k = String(key);
+    if (!this._confirmed.has(k)) this._confirmed.set(k, oldRaw == null ? null : String(oldRaw));
+    if (!this._dirty.has(k)) this._dirty.set(k, { seq: ++this._dirtySeq });
+  },
+  _scheduleDrain() {
+    if (this._drainQueued) return;
+    this._drainQueued = true;
+    const run = () => this._drain();
+    this._tail = this._tail.then(run, run).catch(e => { _quiet(e, 'rel-drain'); });
+    this._notifyPendingState();
+  },
+  resumeDirty() {
+    clearTimeout(this._retryTimer); this._retryTimer = null;
+    this._failing.clear();
+    if (this._dirty.size && this.isReady()) this._scheduleDrain();
+    this._notifyPendingState();
+  },
+  _scheduleRetry() {
+    if (this._retryTimer) return;
+    const d = this.RETRY_DELAYS_MS[Math.min(this._retryStep, this.RETRY_DELAYS_MS.length - 1)];
+    this._retryStep++;
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      this._failing.clear();
+      if (this._dirty.size && this.isReady()) this._scheduleDrain();
+    }, d);
+  },
+  /* Erros que repetir não resolve: o banco recusou o CONTEÚDO (FK, NOT NULL,
+     CHECK, tipo inválido, coluna inexistente). Rede, sessão e cota ficam de
+     fora — esses se resolvem esperando. */
+  _isPermanent(e) {
+    const code = String(e && e.code || '');
+    if (!code) return false;
+    return /^(23503|23502|23514|23P01|22P02|22001|22003|22007|22008|22023|42703|42P10|PGRST204|PGRST102)$/.test(code);
+  },
+  _kindOf(p) {
+    if (p.scope === 'user') return 'user';
+    if (p.scope === 'profile') {
+      if (p.sub === 'planejamentos') return 'plans';
+      if (p.sub === 'active-plan') return 'active';
+      return 'setting';
+    }
+    return this._PLAN_TABLE_SUBS.has(p.sub) || p.sub === 'tec' ? 'table' : 'state';
+  },
+  _PLAN_TABLE_SUBS: new Set(['subjects','methods','phases','statuses','modes','entries','decks','cards','leis',
+    'links','custom-siglas','cycle-history','saved-grades','revlog','lei-keywords','extras','tracks','incidencia']),
+  async _retrying(fn) {
+    let last;
+    for (let i = 0; i < 3; i++) {
+      try { return await fn(); }
+      catch (e) {
+        last = e;
+        if (this._isPermanent(e)) break;
+        if (window.CloudStore && CloudStore.serviceStatus === 'restricted') break;
+        if (i < 2) await new Promise(res => setTimeout(res, [250, 900][i]));
+      }
+    }
+    throw last;
+  },
+  async _drain() {
+    this._drainQueued = false;
+    if (!this._dirty.size) { this._notifyPendingState(); return; }
+    if (!this.isReady()) { this._notifyPendingState(); return; }
+    if (window.CloudStore && CloudStore.serviceStatus === 'restricted') {
+      const e = new Error('Banco restrito por cota do Supabase'); e.code = 'quota-restricted';
+      this._lastError = e; this._dirty.forEach((_, k) => this._failing.add(k));
+      this._scheduleRetry(); this._notifyPendingState(); return;
+    }
+    const rank = { plans: 0, active: 1, table: 2, setting: 3, state: 3, user: 3 };
+    const itens = [];
+    this._dirty.forEach((v, k) => { const p = this._keyParts(k); if (p) itens.push({ k, p, seq: v.seq, kind: this._kindOf(p) }); else this._dirty.delete(k); });
+    itens.sort((a, b) => (rank[a.kind] - rank[b.kind]) || (a.seq - b.seq));
+    let falhou = null;
+    const rejeitadas = [];
+    const concluir = (k, raw) => {
+      this._confirmed.set(k, raw);
+      this._failing.delete(k);
+      let atual = null; try { atual = localStorage.getItem(k); } catch (_) { atual = null; }
+      if (atual === raw) this._dirty.delete(k);
+    };
+    const falha = (k, e) => {
+      if (this._isPermanent(e)) { this._dirty.delete(k); this._failing.delete(k); rejeitadas.push({ k, e }); return; }
+      this._failing.add(k); falhou = e;
+    };
+    // 1) estrutura e tabelas, na ordem das dependências
+    for (const it of itens.filter(x => x.kind === 'plans' || x.kind === 'active' || x.kind === 'table')) {
+      if (!this.isReady()) break;
+      let raw = null; try { raw = localStorage.getItem(it.k); } catch (_) { raw = null; }
+      const base = this._confirmed.has(it.k) ? this._confirmed.get(it.k) : null;
+      if (raw === base) { this._dirty.delete(it.k); this._failing.delete(it.k); continue; }
+      try {
+        await this._retrying(() => this._persistOne(it.p, base, raw));
+        concluir(it.k, raw);
+      } catch (e) { falha(it.k, e); if (it.kind !== 'table') break; }
+    }
+    // 2) chave/valor em lote (settings de perfil, estado de plano, preferências)
+    const kv = itens.filter(x => x.kind === 'setting' || x.kind === 'state' || x.kind === 'user');
+    if (kv.length && this.isReady() && !(falhou && itens.some(x => x.kind === 'plans' && this._failing.has(x.k)))) {
+      await this._persistKvBatch(kv, concluir, falha);
+    }
+    if (rejeitadas.length) this._onRejected(rejeitadas);
+    if (falhou) { this._lastError = falhou; this._scheduleRetry(); }
+    else if (!this._failing.size) { this._retryStep = 0; if (!this._dirty.size) this._lastError = null; this._lastSyncAt = Date.now(); }
+    if (this._dirty.size && !falhou && this.isReady()) this._scheduleDrain();
+    this._notifyPendingState();
+  },
+  async _persistOne(p, base, raw) {
+    if (p.scope === 'profile' && p.sub === 'planejamentos') return this._persistPlans(p.profileId, base, raw);
+    if (p.scope === 'profile' && p.sub === 'active-plan') return this._persistActivePlan(p.profileId, raw);
+    return this._persistPlanKey(p.profileId, p.planId, p.sub, base, raw);
+  },
+  _jsonValue(raw) { let value; try { value = JSON.parse(raw); } catch (_) { value = { __raw__: String(raw) }; } return value; },
+  async _persistKvBatch(itens, concluir, falha) {
+    const now = new Date().toISOString();
+    const grupos = { setting: [], state: [], user: [] };
+    itens.forEach(it => {
+      let raw = null; try { raw = localStorage.getItem(it.k); } catch (_) { raw = null; }
+      const base = this._confirmed.has(it.k) ? this._confirmed.get(it.k) : null;
+      if (raw === base) { this._dirty.delete(it.k); this._failing.delete(it.k); return; }
+      grupos[it.kind].push(Object.assign({ raw }, it));
+    });
+    const uid = CloudStore.session && CloudStore.session.user && CloudStore.session.user.id;
+    const spec = {
+      setting: { table: 'study_profile_settings', conflict: 'profile_id,key',
+        row: it => ({ profile_id: it.p.profileId, key: it.p.sub, value: this._jsonValue(it.raw), updated_at: now }),
+        del: it => CloudStore.client.from('study_profile_settings').delete().eq('profile_id', it.p.profileId).eq('key', it.p.sub) },
+      state: { table: 'study_plan_state', conflict: 'profile_id,plan_id,key',
+        row: it => ({ profile_id: it.p.profileId, plan_id: it.p.planId, key: it.p.sub, value: this._jsonValue(it.raw), updated_at: now }),
+        del: it => CloudStore.client.from('study_plan_state').delete().eq('profile_id', it.p.profileId).eq('plan_id', it.p.planId).eq('key', it.p.sub) },
+      user: { table: 'user_preferences', conflict: 'user_id,key',
+        row: it => ({ user_id: uid, key: it.p.sub, value: this._jsonValue(it.raw), updated_at: now }),
+        del: it => CloudStore.client.from('user_preferences').delete().eq('user_id', uid).eq('key', it.p.sub) }
+    };
+    for (const kind of ['setting', 'state', 'user']) {
+      const lista = grupos[kind]; if (!lista.length) continue;
+      const cfg = spec[kind];
+      if (kind === 'user' && !uid) { lista.forEach(it => falha(it.k, new Error('Sem usuário'))); continue; }
+      for (const it of lista.filter(x => x.raw == null)) {
+        try { await this._retrying(async () => { const { error } = await cfg.del(it); if (error) throw error; }); concluir(it.k, null); }
+        catch (e) { falha(it.k, e); }
+      }
+      const ups = lista.filter(x => x.raw != null);
+      for (const ch of this._chunks(ups, 200)) {
+        try {
+          await this._retrying(async () => {
+            const { error } = await CloudStore.client.from(cfg.table).upsert(ch.map(cfg.row), { onConflict: cfg.conflict });
+            if (error) throw error;
+          });
+          ch.forEach(it => concluir(it.k, it.raw));
+        } catch (e) {
+          if (this._isPermanent(e) && ch.length > 1) {
+            // Lote recusado: tenta um a um para isolar só a linha com problema.
+            for (const it of ch) {
+              try {
+                await this._retrying(async () => { const { error } = await CloudStore.client.from(cfg.table).upsert([cfg.row(it)], { onConflict: cfg.conflict }); if (error) throw error; });
+                concluir(it.k, it.raw);
+              } catch (e2) { falha(it.k, e2); }
+            }
+          } else ch.forEach(it => falha(it.k, e));
+        }
+      }
+    }
+  },
+  _onRejected(lista) {
+    this._rejected += lista.length;
+    this._lastRejection = { em: Date.now(), itens: lista.map(x => ({ key: x.k, code: x.e && x.e.code, message: String(x.e && x.e.message || x.e) })) };
+    try { console.error('[RelationalStore] o banco recusou alterações', this._lastRejection); } catch (_) { _quiet(_); }
+    try { showToast('⚠ O banco recusou uma alteração. A tela será sincronizada com o que está salvo.'); } catch (e) { _quiet(e, 'rel-rejected-toast'); }
+    // Realinha a projeção com o banco: o que ficou na RAM já não é verdade lá.
+    const perfis = new Set(lista.map(x => { const p = this._keyParts(x.k); return p && p.profileId; }).filter(Boolean));
+    const ativo = window.ProfileManager && ProfileManager.getActiveProfileId && ProfileManager.getActiveProfileId();
+    if (ativo && perfis.has(ativo)) {
+      setTimeout(() => {
+        this.hydrateProfile(ativo, { reason: 'rejected-write', includeHeavy: false, preserveHeavy: true, skipWatermark: true })
+          .then(() => { try { window.dispatchEvent(new CustomEvent('data:relational-hydrated', { detail: { profileId: ativo, reason: 'rejected-write' } })); } catch (e) { _quiet(e, 'rel-rejected-event'); } })
+          .catch(e => _quiet(e, 'rel-rejected-rehydrate'));
+      }, 0);
+    }
+  },
+  _notifyPendingState() {
+    try { if (window.CloudUI) CloudUI.refreshSyncBtn(this._dirty.size ? 'syncing' : undefined, this._dirty.size ? 'Salvando no banco…' : undefined); } catch (e) { _quiet(e, 'rel-pending-ui'); }
+    try { window.dispatchEvent(new CustomEvent('relational:pending', { detail: { count: this._dirty.size, ready: this.isReady(), failing: this._failing.size } })); } catch (e) { _quiet(e, 'rel-pending-event'); }
   },
 
   /* ── HISTÓRICO DE REVISÕES: CHAMADA DIRETA, NÃO DIFERENÇA DE BLOBS ────────
@@ -55440,7 +55858,8 @@ const RelationalStore = {
        de segurança LOCAL do histórico, para o caso de o banco não estar
        disponível. As linhas correspondentes já vão para `study_review_log` por
        queueRevlogAppend; persisti-las de novo criaria duplicata. */
-    return sub.indexOf('__lixeira:') === 0
+    return sub.indexOf('__trash:') === 0
+        || sub.indexOf('__lixeira:') === 0
         || sub === 'revlog-pendente'
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
@@ -55451,11 +55870,6 @@ const RelationalStore = {
        Evita UPSERTs disparados por renderizações/reativações de tela. */
     if(oldRaw===newRaw) return;
     this._localGen++;
-    /* O portão de acesso pode montar/medir telas antes de existir uma sessão.
-       Essas escritas de UI são apenas projeção efêmera; não entram em fila e
-       não viram falso erro de banco. Depois do login, isReady() permanece true
-       mesmo se a rede oscilar, então mutações reais continuam sendo retentadas. */
-    if(!this.isReady()) return;
     const p=this._keyParts(key); if(!p) return;
     if (p.scope === 'plan') {
       try {
@@ -55464,19 +55878,29 @@ const RelationalStore = {
         if (pausado && !conhecimento) return;
       } catch (e) { _quiet(e, 'rel-pause-write-guard'); }
     }
-    if(p.scope==='user') {
-      if(p.sub==='profiles'||p.sub==='active-profile') return;
-      this._queue('user:'+p.sub,()=>this._persistUserPref(p.sub,newRaw));
-      return;
-    }
+    if(p.scope==='user' && (p.sub==='profiles'||p.sub==='active-profile')) return;
     if(this._ignoreSub(p.sub)) return;
-    if(p.scope==='profile'){
-      if(p.sub==='planejamentos') this._queue('plans',()=>this._persistPlans(p.profileId,oldRaw,newRaw));
-      else if(p.sub==='active-plan') this._queue('active-plan',()=>this._persistActivePlan(p.profileId,newRaw));
-      else this._queue('profile:'+p.sub,()=>this._persistProfileSetting(p.profileId,p.sub,newRaw));
+    /* TEC e incidência são gravados por SUBSTITUIÇÃO. Se o bloco pesado ainda
+       não chegou, a lista em RAM está incompleta e enviá-la apagaria o
+       histórico inteiro no banco. A camada DB já recusa essas escritas; esta
+       é a rede de segurança para qualquer caminho novo. */
+    if (p.scope === 'plan' && (p.sub === 'tec' || p.sub === 'incidencia') && this._everHydrated && !this.isHeavyReady(p.profileId)) {
+      const e = new Error('Escrita em ' + p.sub + ' antes de carregar o histórico — recusada para não apagar o banco');
+      e.code = 'heavy-not-ready';
+      try { console.error('[RelationalStore]', e.message, key); } catch (_) { _quiet(_); }
+      _quiet(e, 'rel-heavy-guard');
       return;
     }
-    this._queue('plan:'+p.sub,()=>this._persistPlanKey(p.profileId,p.planId,p.sub,oldRaw,newRaw));
+    /* O portão pode montar/medir telas antes de existir uma sessão: essas
+       escritas de UI não vão ao banco. Mas, depois que um perfil foi aberto,
+       uma sessão perdida (token expirado) NÃO pode descartar o que a pessoa
+       faz: a chave fica suja e é enviada quando ela entrar de novo. */
+    if(!this.isReady()) {
+      if (this._everHydrated) { this._markDirty(key, oldRaw); this._notifyPendingState(); }
+      return;
+    }
+    this._markDirty(key, oldRaw);
+    this._scheduleDrain();
   },
 
   async _persistUserPref(key, raw) {
@@ -55792,8 +56216,60 @@ window.RelationalStore=RelationalStore;
 try {
   window.addEventListener('online', () => {
     try { RelationalStore.replayReviewOutbox().catch(e => _quiet(e, 'review-outbox-online')); } catch (e) { _quiet(e, 'review-outbox-online'); }
+    try { RelationalStore.resumeDirty(); } catch (e) { _quiet(e, 'rel-dirty-online'); }
+  });
+  /* Fechar a aba com alterações que o banco ainda não confirmou perde essas
+     alterações: a projeção vive só em RAM. O navegador pede confirmação. */
+  window.addEventListener('beforeunload', (e) => {
+    try {
+      if (RelationalStore.pendingCount() > 0) { e.preventDefault(); e.returnValue = ''; return ''; }
+    } catch (err) { _quiet(err, 'rel-beforeunload'); }
+    return undefined;
   });
 } catch (e) { _quiet(e, 'review-outbox-online-listener'); }
+
+/* ── AVISO DE ALTERAÇÕES PENDENTES ──────────────────────────────────────────
+   Some sozinho quando o banco confirma tudo. Aparece em dois casos:
+     · a sessão caiu com um perfil aberto: nada do que for feito chega ao banco
+       até a pessoa entrar de novo (e o aviso diz isso, com o botão para entrar);
+     · o banco está falhando: as alterações ficam na fila e são reenviadas. */
+const PendingBanner = {
+  _el: null,
+  _ensure() {
+    if (this._el && this._el.isConnected) return this._el;
+    const el = document.createElement('div');
+    el.id = 'rel-pending-banner';
+    el.className = 'rel-pending-banner';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    el.hidden = true;
+    el.innerHTML = '<span class="rpb-txt"></span><button type="button" class="rpb-btn"></button>';
+    el.querySelector('.rpb-btn').addEventListener('click', () => {
+      if (!RelationalStore.isReady()) {
+        try { if (window.ProfileUI) ProfileUI.showGate(); } catch (e) { _quiet(e, 'rpb-login'); }
+      } else RelationalStore.resumeDirty();
+    });
+    document.body.appendChild(el);
+    this._el = el;
+    return el;
+  },
+  render(detail) {
+    if (!document.body) return;
+    const n = RelationalStore.dirtyCount();
+    const sessaoCaiu = RelationalStore._everHydrated && !RelationalStore.isReady();
+    const falhando = RelationalStore._failing.size > 0;
+    const mostrar = n > 0 && (sessaoCaiu || falhando);
+    if (!mostrar) { if (this._el) this._el.hidden = true; return; }
+    const el = this._ensure();
+    el.querySelector('.rpb-txt').textContent = sessaoCaiu
+      ? '⚠ Sua sessão expirou. ' + n + ' alteração(ões) aguardam o login para serem salvas no banco — não feche esta aba.'
+      : '⚠ ' + n + ' alteração(ões) ainda não foram confirmadas pelo banco. Tentando de novo automaticamente…';
+    el.querySelector('.rpb-btn').textContent = sessaoCaiu ? 'Entrar novamente' : 'Tentar agora';
+    el.hidden = false;
+  }
+};
+window.PendingBanner = PendingBanner;
+try { window.addEventListener('relational:pending', (e) => PendingBanner.render(e.detail)); } catch (e) { _quiet(e, 'rpb-listener'); }
 
 /* ============================================================
    CLOUD UI — status da conta em Configurações (simplificado)

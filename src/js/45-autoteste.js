@@ -724,9 +724,39 @@ const AutoTeste = {
       /RelationalStore\.flush/.test(String(SaveGuard._aguardaNuvem)));
   },
 
+  /* ── SANDBOX: TESTE NUNCA ENCOSTA NO DADO DE VERDADE ───────────────────────
+     O AutoTeste roda no app de produção (o próprio CONTRIBUINDO manda rodar no
+     console). O teste de incidência apagava e regravava a incidência do
+     planejamento ATIVO — e cada gravação ia para o banco por substituição: se o
+     bloco pesado não estivesse carregado, o "restaurar" final gravava vazio.
+     Agora o teste roda num planejamento fictício, com a persistência desligada,
+     e tudo que ele criou é removido da RAM no fim. */
+  _sandboxPlano(fn) {
+    const PLANO = '__autoteste__';
+    const RS = (typeof RelationalStore !== 'undefined') ? RelationalStore : null;
+    const antes = { plano: DB._activePlanId, pronto: DB.heavyPronto, applying: RS ? RS._applying : false };
+    DB._activePlanId = () => PLANO;
+    DB.heavyPronto = () => true;
+    if (RS) RS._applying = true;
+    try { return fn(); }
+    finally {
+      DB._activePlanId = antes.plano;
+      DB.heavyPronto = antes.pronto;
+      try {
+        const lixo = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.indexOf(PLANO) >= 0) lixo.push(k);
+        }
+        lixo.forEach(k => localStorage.removeItem(k));
+      } catch (e) { _quiet(e, 'autoteste-sandbox'); }
+      if (RS) RS._applying = antes.applying;
+    }
+  },
   incidenciaGravacao() {
-    const chave = DB.KEYS.incidencia;
-    const antes = localStorage.getItem(DB._profilePrefix ? DB._profilePrefix() + 'x' : 'x');  // só para não sombrear
+    return this._sandboxPlano(() => this._incidenciaGravacao());
+  },
+  _incidenciaGravacao() {
     const guardado = DB.getIncidencia();
     const linhas = (n) => [
       { disciplina: 'Direito Administrativo', topico: 'Licitações', incidencia: n, codigo: '01', depth: 1 },
@@ -766,7 +796,6 @@ const AutoTeste = {
         DB.renameIncidenciaBanca('FGV', '   ') === 0 && DB.getIncidencia().length === 3);
     } finally {
       DB.saveIncidencia(guardado);
-      void antes; void chave;
     }
   },
 
