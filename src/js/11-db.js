@@ -6,7 +6,8 @@
    Antes de a fila avançar, registramos a intenção em IndexedDB. O registro só
    sai daqui depois de a nuvem confirmar TANTO o revlog quanto o estado novo do
    card. Assim reload, queda de rede ou fechamento da aba não perdem a resposta.
-   O localStorage continua apenas como fallback para navegadores sem IndexedDB. */
+   Sem IndexedDB, o fallback é a lista de pendentes em RAM (DB.getRevlogPendentes),
+   que só sobrevive enquanto a aba estiver aberta. */
 const ReviewJournal = {
   DB_NAME: 'studynomentor-review-journal',
   STORE: 'review-ops',
@@ -62,7 +63,18 @@ const ReviewJournal = {
       tx.onabort = () => resolve(false);
     });
   },
-  async list(profileId) {
+  /* Operações que o banco recusou de forma DEFINITIVA (card apagado em outro
+     aparelho → FK, por exemplo) não voltam para a fila: ficam marcadas como
+     "mortas" aqui, para exportação/diagnóstico, e deixam de bloquear a
+     abertura do perfil. */
+  async marcarMorta(op, erro) {
+    const x = Object.assign({}, op, { morta: true, mortaEm: Date.now(),
+      erro: { code: String(erro && erro.code || ''), message: String(erro && erro.message || erro || '') } });
+    return this.put(x);
+  },
+  async listarMortas(profileId) { return (await this.list(profileId, { mortas: true })).filter(x => x.morta); },
+  async list(profileId, opts) {
+    const incluirMortas = !!(opts && opts.mortas);
     const db = await this._open();
     if (!db) return [];
     return new Promise((resolve) => {
@@ -74,6 +86,7 @@ const ReviewJournal = {
       req.onsuccess = () => {
         let rows = Array.isArray(req.result) ? req.result : [];
         if (profileId) rows = rows.filter(x => !x.profileId || String(x.profileId) === String(profileId));
+        if (!incluirMortas) rows = rows.filter(x => !x.morta);
         rows.sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
         resolve(rows);
       };
@@ -301,6 +314,13 @@ const DB = {
     // a fachada localStorage em RAM encaminha a mutação ao RelationalStore.
     return true;
   },
+  /* Gravação feita DENTRO de uma leitura (migração de formato, semeadura de
+     padrões). Num planejamento pausado ela não pode acontecer — e também não
+     pode exibir o aviso "somente leitura": a pessoa só abriu a tela. */
+  _setMigracao(key, value) {
+    if (this._blockedByPlanPause(key)) return false;
+    return this._set(key, value);
+  },
   /* ── CANAL ÚNICO DE ESCRITA ────────────────────────────────────────────────
      _set trata JSON; setRaw/delRaw tratam texto e exclusões. Todos escrevem na
      projeção em RAM, cuja fachada encaminha a mutação imediatamente ao
@@ -374,9 +394,7 @@ const DB = {
   _mesmoId(a, b) { return String(a) === String(b); },
   deleteEntry(id) {
     const key = this.KEYS.entries;
-    const antes = this.getEntries();
-    const removido = antes.find(e => this._mesmoId(e.id, id)) || null;
-    const entries = antes.filter(e => !this._mesmoId(e.id, id));
+    const entries = this.getEntries().filter(e => !this._mesmoId(e.id, id));
     if (this._set(key, entries) === false) return false;
     return true;
   },
@@ -384,11 +402,7 @@ const DB = {
     const key = this.KEYS.entries;
     const entries = this.getEntries();
     const e = entries.find(x => this._mesmoId(x.id, id));
-    let before = null;
-    if (e) {
-      try { before = JSON.parse(JSON.stringify(e)); } catch (_) { before = Object.assign({}, e); }
-      Object.assign(e, patch);
-    }
+    if (e) Object.assign(e, patch);
     if (this._set(key, entries) === false) return null;
     return e;
   },
@@ -403,11 +417,11 @@ const DB = {
       if (!s.id) { s.id = this._uid(); migrated = true; }
       if (s.ativo === undefined) { s.ativo = true; migrated = true; }
     });
-    if (migrated) this._set(this.KEYS.subjects, list);
+    if (migrated) this._setMigracao(this.KEYS.subjects, list);
     return list;
   },
   getActiveSubjects() { return this.getSubjects().filter(s => s.ativo); },
-  saveSubjects(list) { this._set(this.KEYS.subjects, list); },
+  saveSubjects(list) { return this._set(this.KEYS.subjects, list) !== false; },
   upsertSubjectName(name) {
     // garante que toda matéria digitada no Diário exista no cadastro mestre
     const subjects = this.getSubjects();
@@ -524,7 +538,8 @@ const DB = {
     this._set(this.KEYS.subjects, subjects);
   },
   subjectHasEntries(nome) {
-    return this.getEntries().some(e => e.subject.toLowerCase() === nome.toLowerCase());
+    const alvo = String(nome == null ? '' : nome).toLowerCase();
+    return this.getEntries().some(e => String(e && e.subject || '').toLowerCase() === alvo);
   },
   // exclusão "inteligente": se nunca foi usada, remove de vez; se tem histórico, apenas desativa
   removeSubjectSafely(id) {
@@ -543,7 +558,7 @@ const DB = {
     let list = this._get(this.KEYS.methods, null);
     if (!list) {
       list = this.DEFAULT_METHODS.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.methods, list);
+      this._setMigracao(this.KEYS.methods, list);
     }
     return list;
   },
@@ -561,7 +576,8 @@ const DB = {
     this._set(this.KEYS.methods, list);
   },
   methodInUse(nome) {
-    return this.getEntries().some(e => e.method.toLowerCase() === nome.toLowerCase());
+    const alvo = String(nome == null ? '' : nome).toLowerCase();
+    return this.getEntries().some(e => String(e && e.method || '').toLowerCase() === alvo);
   },
   removeMethodSafely(id) {
     const list = this.getMethods();
@@ -580,7 +596,7 @@ const DB = {
     let list = this._get(this.KEYS.phases, null);
     if (!list) {
       list = this.DEFAULT_PHASES.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.phases, list);
+      this._setMigracao(this.KEYS.phases, list);
     }
     return list;
   },
@@ -618,7 +634,7 @@ const DB = {
     let list = this._get(this.KEYS.modes, null);
     if (!list) {
       list = this.DEFAULT_MODES.map(nome => ({ id: this._uid(), nome, ativo: true }));
-      this._set(this.KEYS.modes, list);
+      this._setMigracao(this.KEYS.modes, list);
     }
     return list;
   },
@@ -663,8 +679,8 @@ const DB = {
 
   // --- Current Cycle ---
   getCurrentCycle() { return this._get(this.KEYS.currentCycle, null); },
-  saveCurrentCycle(cycle) { this._set(this.KEYS.currentCycle, cycle); },
-  clearCurrentCycle() { this.delRaw(this.KEYS.currentCycle, 'semana fechada'); },
+  saveCurrentCycle(cycle) { return this._set(this.KEYS.currentCycle, cycle) !== false; },
+  clearCurrentCycle() { return this.delRaw(this.KEYS.currentCycle, 'semana fechada') !== false; },
   // leituras cruzadas são somente leitura: permitem reaproveitar um ciclo de outro
   // planejamento sem trocar o namespace ativo nem criar vínculo entre origem/destino.
   getCurrentCycleForPlan(planId) { return this._get(this.keysForPlan(planId).currentCycle, null); },
@@ -687,11 +703,11 @@ const DB = {
       }
       const DIAS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
       DIAS.forEach(d => { if (!Array.isArray(t.grade[d])) t.grade[d] = []; while (t.grade[d].length < t.sessions) t.grade[d].push(''); });
-      this._set(this.KEYS.gradeTemplate, t);
+      this._setMigracao(this.KEYS.gradeTemplate, t);
     }
     return t;
   },
-  saveGradeTemplate(t) { this._set(this.KEYS.gradeTemplate, t); },
+  saveGradeTemplate(t) { return this._set(this.KEYS.gradeTemplate, t) !== false; },
 
   // ---- Grades salvas: [{ id, nome, grade, sessions, createdAt }] ----
   // Permite guardar a grade atual sob um nome, trocar de planejamento/meta e depois
@@ -737,8 +753,7 @@ const DB = {
     const t = this.getGradeTemplate();
     t.grade = JSON.parse(JSON.stringify(s.grade || {}));
     t.sessions = s.sessions || t.sessions || 3;
-    this.saveGradeTemplate(t);
-    return true;
+    return this.saveGradeTemplate(t);
   },
 
   // ---- Siglas customizadas: [{ id, sigla, nome, color }] ----
@@ -805,7 +820,7 @@ const DB = {
     let list = this._get(this.KEYS.leiKeywords, null);
     if (list === null) {  // 1ª vez: semeia com os padrões
       list = this.LEI_KEYWORDS_DEFAULT.map(t => ({ t, cat: this._leiKwCatOf(t), def: true }));
-      this._set(this.KEYS.leiKeywords, list);
+      this._setMigracao(this.KEYS.leiKeywords, list);
     }
     return list;
   },
@@ -853,7 +868,7 @@ const DB = {
   // sem soft-delete: remover da lista não apaga a banca já gravada nos cards).
   getCardBancas() {
     let list = this._get(this.KEYS.bancasCards, null);
-    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._set(this.KEYS.bancasCards, list); }
+    if (!list) { list = this.DEFAULT_BANCAS_CARDS.slice(); this._setMigracao(this.KEYS.bancasCards, list); }
     return list;
   },
   saveCardBancas(list) { this._set(this.KEYS.bancasCards, list); },
@@ -875,6 +890,32 @@ const DB = {
   // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
   // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
   saveCards(list) { return this._set(this.KEYS.cards, list); },
+  /* ── LOTE DE CARDS ───────────────────────────────────────────────────────
+     Importações criam/atualizam milhares de cards. Sem lote, cada addCard e
+     cada updateCard faz parse + stringify da coleção inteira e gera um diff
+     próprio para o banco (O(n²) em JSON, milhares de RPCs). Dentro do lote,
+     getCards devolve a MESMA lista em memória e saveCards só a substitui; a
+     gravação real acontece UMA vez, no fim. Só aceita função síncrona: um
+     await no meio deixaria o resto do app lendo a lista do lote. */
+  withCardsBatch(fn) {
+    if (this._cardsBatch) return fn();
+    const getOrig = this.getCards, saveOrig = this.saveCards, self = this;
+    let cache = null, sujo = false, ok = false, r;
+    this._cardsBatch = true;
+    this.getCards = function () { if (!cache) cache = getOrig.call(self); return cache; };
+    this.saveCards = function (list) { cache = list; sujo = true; return true; };
+    try {
+      r = fn();
+      if (r && typeof r.then === 'function') throw new Error('withCardsBatch aceita apenas função síncrona');
+      ok = true;
+    } finally {
+      this.getCards = getOrig; this.saveCards = saveOrig; this._cardsBatch = false;
+    }
+    if (ok && sujo && saveOrig.call(this, cache) === false) {
+      throw new Error('A gravação dos cards foi recusada; nada foi importado.');
+    }
+    return r;
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
@@ -1109,7 +1150,7 @@ const DB = {
     if (idx >= 0) { lista.splice(idx, 1); return this._set(this.KEYS.revlogPendente, lista); }
     return this.replaceRevlog(l);
   },
-  getCard(id) { return this.getCards().find(c => c.id === id) || null; },
+  getCard(id) { return this.getCards().find(c => this._mesmoId(c.id, id)) || null; },
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
@@ -1425,29 +1466,12 @@ const DB = {
      há sessões no intervalo (semana vazia fica como está) e roda UMA vez,
      marcada por flag. O valor anterior vai para `avgPerformancePctLegado`
      para o número antigo não sumir sem rastro. */
-  migrarAproveitamentoAgregado() {
-    const FLAG = 'mig-aprov-agregado-v1';
-    try {
-      if (this._get(FLAG, null)) return 0;
-      const hist = this.getCycleHistory() || [];
-      const todas = this.getEntries() || [];
-      let n = 0;
-      hist.forEach(w => {
-        if (!w || !w.startDate || !w.endDate) return;
-        const novo = CycleEngine.aproveitamentoNoPeriodo(w.startDate, w.endDate, todas);
-        if (novo == null) return;
-        const antigo = w.avgPerformancePct;
-        if (antigo != null && Math.abs(antigo - novo) < 0.005) return;
-        if (antigo != null && w.avgPerformancePctLegado === undefined) w.avgPerformancePctLegado = antigo;
-        w.avgPerformancePct = novo;
-        n++;
-      });
-      if (n) this._set(this.KEYS.cycleHistory, hist);
-      this._set(FLAG, 1);
-      if (n) { try { console.info('[migração] aproveitamento recalculado em ' + n + ' semana(s).'); } catch (e) { _quiet(e, 'log-migracao'); } }
-      return n;
-    } catch (e) { _quiet(e, 'migrar-aproveitamento'); return 0; }
-  },
+  /* Desativada: recalculava o aproveitamento de semanas JÁ FECHADAS, o que
+     contraria a regra "semana fechada é registro" (ver o reparo logo abaixo).
+     Além disso a flag não tinha prefixo de estudo — ia para o armazenamento
+     nativo, valia para o navegador inteiro e rodava só no primeiro perfil
+     aberto. Mantida como no-op para quem ainda a chama. */
+  migrarAproveitamentoAgregado() { return 0; },
 
   /* ── REPARO: devolve à semana fechada os números com que ela foi fechada ──
      A auditoria de métricas passou a RECALCULAR, no boot e em silêncio, o
@@ -1559,10 +1583,10 @@ const DB = {
     let list = this._get(this.KEYS.links, null);
     if (list === null) {
       list = this.DEFAULT_LINKS.map(l => ({ id: this._uid(), ...l, logo: null, createdAt: new Date().toISOString() }));
-      this._set(this.KEYS.links, list);
+      this._setMigracao(this.KEYS.links, list);
     }
     // neutraliza esquemas perigosos guardados antes desta trava existir
-    if (this._sanearLinks(list)) this._set(this.KEYS.links, list);
+    if (this._sanearLinks(list)) this._setMigracao(this.KEYS.links, list);
     return list;
   },
   saveLinks(list) { this._set(this.KEYS.links, list); },
@@ -1632,11 +1656,39 @@ const DB = {
       }
     } catch (e) { _quiet(e, 'db-heavy-read-start'); }
   },
+  /* ── TEC E INCIDÊNCIA SÓ SE GRAVAM COM O HISTÓRICO CARREGADO ─────────────
+     Os dois são persistidos por SUBSTITUIÇÃO (o banco passa a ter exatamente
+     a lista da RAM). A abertura do perfil traz esse "bloco pesado" depois, em
+     segundo plano — e com economia de dados só quando uma tela pede. Gravar
+     antes disso partia de uma lista VAZIA: importar um retrato logo ao abrir
+     o app apagava no banco todo o histórico TEC do planejamento. */
+  heavyPronto() {
+    try {
+      if (typeof RelationalStore === 'undefined' || !RelationalStore._everHydrated) return true;
+      const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+      return !id || RelationalStore.isHeavyReady(id);
+    } catch (_) { return true; }
+  },
+  async garantirPesado() {
+    if (this.heavyPronto()) return true;
+    const id = window.ProfileManager && ProfileManager.getActiveProfileId ? ProfileManager.getActiveProfileId() : null;
+    try { await RelationalStore.ensureHeavyData(id, { reason: 'antes-de-gravar' }); }
+    catch (e) { _quiet(e, 'garantir-pesado'); }
+    return this.heavyPronto();
+  },
+  _recusaPesado() {
+    this._kickRelationalHeavy('write-guard');
+    try { showToast('⏳ O histórico do TEC ainda está carregando. Tente de novo em instantes.'); } catch (e) { _quiet(e, 'pesado-toast'); }
+    return false;
+  },
   getIncidencia() {
     this._kickRelationalHeavy('db-incidencia');
     return this._get(this.KEYS.incidencia, []);
   },
-  saveIncidencia(list) { this._set(this.KEYS.incidencia, list); },
+  saveIncidencia(list) {
+    if (!this.heavyPronto()) return this._recusaPesado();
+    return this._set(this.KEYS.incidencia, list);
+  },
   getBancas() { return [...new Set(this.getIncidencia().map(r => r.banca).filter(Boolean))].sort(); },
   // adiciona/substitui em lote as linhas de uma banca (replace = troca todo o histórico daquela banca)
   /* ── INCIDÊNCIA: GRAVAR SEM DUPLICAR ──────────────────────────────────────
@@ -1657,6 +1709,7 @@ const DB = {
     return n(banca) + '|' + n(r.disciplina) + '|' + (cod !== null ? '#' + cod : n(r.topico));
   },
   addIncidenciaRows(banca, rows, replace) {
+    if (!this.heavyPronto()) { this._recusaPesado(); return null; }
     let list = this.getIncidencia();
     if (replace) list = list.filter(r => r.banca.toLowerCase() !== banca.toLowerCase());
     const porChave = new Map();
@@ -1678,7 +1731,7 @@ const DB = {
       const nova = Object.assign({ id: this._uid() }, linha);
       list.push(nova); porChave.set(k, nova); novas++;
     });
-    this.saveIncidencia(list);
+    if (this.saveIncidencia(list) === false) return null;
     return { total: rows.length, novas, repetidas };
   },
   /* Renomear uma banca: "FGV " e "FGV" viravam duas, e só existia excluir.
@@ -1690,6 +1743,7 @@ const DB = {
   renameIncidenciaBanca(de, para) {
     const alvo = String(para || '').trim();
     if (!alvo) return 0;
+    if (!this.heavyPronto()) { this._recusaPesado(); return 0; }
     const list = this.getIncidencia();
     let n = 0;
     list.forEach(r => { if (r.banca && r.banca.toLowerCase() === String(de).toLowerCase()) { r.banca = alvo; r._renomeada = true; n++; } });
@@ -1742,7 +1796,7 @@ const DB = {
       // ativa — agora a conclusão é por dia (concluidasEm), não trava a atividade toda.
       if (this.extraRecorrente(e) && e.status === 'concluida') { e.status = 'ativa'; mig = true; }
     });
-    if (mig) { try { this._set(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
+    if (mig) { try { this._setMigracao(this.KEYS.extras, list); } catch (_) { _quiet(_); } }
     return list;
   },
   saveExtras(list) { this._extrasReadSnapshot = null; this._set(this.KEYS.extras, list); },
@@ -2086,21 +2140,24 @@ const DB = {
 
   // --- Cycle History ---
   getCycleHistory() { return this._get(this.KEYS.cycleHistory, []); },
+  // Todas devolvem FALSE quando a gravação foi recusada (plano pausado, falha):
+  // a tela não pode anunciar "✓ salvo" nesse caso.
   saveCycleToHistory(cycleSnapshot) {
     const history = this.getCycleHistory();
     history.push(cycleSnapshot);
-    this._set(this.KEYS.cycleHistory, history);
+    return this._set(this.KEYS.cycleHistory, history) !== false;
   },
+  // Ids comparados como texto: semanas de backups antigos têm id não numérico.
   updateCycleHistoryEntry(id, patch) {
     const history = this.getCycleHistory();
-    const w = history.find(x => x.id === id);
-    if (w) Object.assign(w, patch);
-    this._set(this.KEYS.cycleHistory, history);
-    return w;
+    const w = history.find(x => this._mesmoId(x.id, id));
+    if (!w) return null;
+    Object.assign(w, patch);
+    return this._set(this.KEYS.cycleHistory, history) === false ? false : w;
   },
   deleteCycleHistoryEntry(id) {
-    const history = this.getCycleHistory().filter(x => x.id !== id);
-    this._set(this.KEYS.cycleHistory, history);
+    const history = this.getCycleHistory().filter(x => !this._mesmoId(x.id, id));
+    return this._set(this.KEYS.cycleHistory, history) !== false;
   },
   // Verifica se o intervalo [start,end] se sobrepõe a algum ciclo já existente.
   // excludeHistoryId: ignora uma semana do histórico (ao editá-la).
@@ -2111,7 +2168,7 @@ const DB = {
     if (includeActive === undefined) includeActive = true;
     const items = [];
     this.getCycleHistory().forEach(w => {
-      if (excludeHistoryId != null && w.id === excludeHistoryId) return;
+      if (excludeHistoryId != null && this._mesmoId(w.id, excludeHistoryId)) return;
       items.push({ start: w.startDate, end: w.endDate, label: 'semana ' + w.startDate + ' → ' + w.endDate });
     });
     if (includeActive) {
@@ -2129,7 +2186,7 @@ const DB = {
     let list = this._get(this.KEYS.statuses, null);
     if (!list) {
       list = this.DEFAULT_STATUSES.map(s => ({ id: this._uid(), ...s, ativo: true }));
-      this._set(this.KEYS.statuses, list);
+      this._setMigracao(this.KEYS.statuses, list);
     }
     return list;
   },
@@ -2303,24 +2360,27 @@ const DB = {
       if (!s.startDate) { s.startDate = s.date || todayLocal(); migrated = true; }
       if (!s.endDate) { s.endDate = s.date || s.startDate; migrated = true; }
     });
-    if (migrated) this._set(this.KEYS.tec, list);
+    if (migrated && this.heavyPronto()) this._setMigracao(this.KEYS.tec, list);
     // ordena pelo início do intervalo
     return list.slice().sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
   },
   saveTecSnapshot(snap) {
+    if (!this.heavyPronto()) return this._recusaPesado();
     const list = this._get(this.KEYS.tec, []);
     list.push(snap);
-    this._set(this.KEYS.tec, list);
+    if (this._set(this.KEYS.tec, list) === false) return false;
     return snap;
   },
   deleteTecSnapshot(id) {
-    this._set(this.KEYS.tec, this._get(this.KEYS.tec, []).filter(s => s.id !== id));
+    if (!this.heavyPronto()) return this._recusaPesado();
+    return this._set(this.KEYS.tec, this._get(this.KEYS.tec, []).filter(s => !this._mesmoId(s.id, id)));
   },
   updateTecSnapshot(id, patch) {
+    if (!this.heavyPronto()) return this._recusaPesado();
     const list = this._get(this.KEYS.tec, []);
-    const s = list.find(x => x.id === id);
+    const s = list.find(x => this._mesmoId(x.id, id));
     if (s) Object.assign(s, patch);
-    this._set(this.KEYS.tec, list);
+    return this._set(this.KEYS.tec, list);
   },
   latestTecSnapshot() {
     const list = this.getTecSnapshots();

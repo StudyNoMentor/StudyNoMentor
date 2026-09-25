@@ -255,11 +255,32 @@ const AnkiRuntime = {
     if(!visible)return '<div class="cards-anki-frame-placeholder" aria-hidden="true"></div>';
     const id='anki-'+String(card&&(card.ankiId||card.id)||'')+'-'+String(side||'question');
     const srcdoc=this.buildSrcdoc(nt,html,side,card,note,options);
-    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
+    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
+  },
+  /* Responder um card é decisão da pessoa, não do template. O script do card
+     (de um baralho baixado de qualquer lugar) podia mandar pycmd('ease4') em
+     laço e responder a fila inteira como "Fácil". Só aceitamos quando:
+       · há ativação do usuário recente (clique/tecla dentro do card também
+         ativa a página, pela regra de ativação do navegador);
+       · o quadro é o do card que está na tela;
+       · passou um intervalo mínimo desde a última resposta por pycmd. */
+  PYCMD_EASE_INTERVALO_MS:800,
+  _pycmdEaseOk(frame){
+    try{
+      const ua=typeof navigator!=='undefined'&&navigator.userActivation;
+      if(ua&&!ua.isActive)return false;
+      const agora=Date.now();if(this._ultimoPycmdEase&&agora-this._ultimoPycmdEase<this.PYCMD_EASE_INTERVALO_MS)return false;
+      const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx],card=id&&DB.getCard(id);
+      if(!card||!frame)return false;
+      const fid=String(frame.dataset&&frame.dataset.ankiFrameId||'');
+      if(fid.indexOf('anki-'+String(card.ankiId||card.id||'')+'-')!==0)return false;
+      this._ultimoPycmdEase=agora;return true;
+    }catch(_){return false;}
   },
   _handlePycmd(cmd,frame){
     if(cmd==='ans'){if(typeof CardsScreen!=='undefined'&&!CardsScreen._flipped)CardsScreen.flip(document.getElementById('cards-content'));return true;}
     if(/^ease[1-4]$/.test(cmd)&&typeof CardsScreen!=='undefined'){
+      if(!this._pycmdEaseOk(frame))return false;
       const map={ease1:'errei',ease2:'dificil',ease3:'bom',ease4:'facil'};if(!CardsScreen._flipped)CardsScreen.flip(document.getElementById('cards-content'));else CardsScreen.answer(map[cmd]);return true;
     }
     if(cmd==='edit'){document.getElementById('cards-act-edit')?.click();return true;}

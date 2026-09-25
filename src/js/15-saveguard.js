@@ -72,22 +72,26 @@ const SaveGuard = {
       return comPiso({ ok: true, local: true, cloud: false, motivo: 'memoria-apenas' });
     }
 
+    /* A mutação já está na fila DURÁVEL do RelationalStore: se o banco não
+       confirmar agora (rede lenta, oscilação, sessão caída), ela continua
+       pendente e é reenviada sozinha — o aviso na tela e a proteção ao fechar
+       a aba cobrem o intervalo. Por isso "não confirmou a tempo" NÃO é falha:
+       tratar como falha levava a pessoa a registrar de novo e duplicar.
+       Antes, a falha ainda recarregava o perfil inteiro do banco, apagando da
+       RAM outras edições pendentes que nada tinham a ver com esta.
+       Falha de verdade é só a RECUSA do banco (restrição violada), que o
+       RelationalStore já desfaz realinhando a tela com o banco. */
+    const RS = window.RelationalStore;
+    const recusasAntes = RS ? RS._rejected : 0;
     const r = await this._aguardaNuvem(opts.timeout);
-    if (!r.enviado) {
-      try {
-        const pid = window.ProfileManager && ProfileManager.getActiveProfileId
-          ? ProfileManager.getActiveProfileId() : null;
-        if (pid && window.RelationalStore) {
-          await RelationalStore.hydrateProfile(pid, { reason: 'rollback-after-write-failure' });
-        }
-      } catch (e) { _quiet(e, 'saveguard-rollback'); }
-      return comPiso({
-        ok: false, local: false, cloud: false,
-        motivo: r.motivo || 'erro-banco'
-      });
+    if (r.enviado) return comPiso({ ok: true, local: false, cloud: true, motivo: '' });
+    if (RS && RS._rejected > recusasAntes) {
+      return comPiso({ ok: false, local: false, cloud: false, motivo: 'recusado' });
     }
-
-    return comPiso({ ok: true, local: false, cloud: true, motivo: '' });
+    if (r.motivo === 'sem-banco' && !(RS && RS._everHydrated && RS.dirtyCount() > 0)) {
+      return comPiso({ ok: false, local: false, cloud: false, motivo: 'sem-banco' });
+    }
+    return comPiso({ ok: true, local: true, cloud: false, motivo: 'pendente' });
   },
 
   ocupar(btn, texto) {
@@ -110,14 +114,20 @@ const SaveGuard = {
 
   toast(res, okTexto) {
     if (!res || !res.ok) {
-      const msg = res && res.motivo === 'tempo-esgotado'
-        ? '⚠ O banco não confirmou a operação a tempo. A tela voltou ao último estado confirmado.'
-        : '⚠ O banco não confirmou a operação. Nada foi considerado salvo.';
+      const msg = res && res.motivo === 'recusado'
+        ? '⚠ O banco recusou a operação. A tela foi sincronizada com o que está salvo.'
+        : res && res.motivo === 'sem-banco'
+          ? '⚠ Sem conexão com o banco: entre na sua conta para salvar.'
+          : '⚠ Não foi possível aplicar a operação.';
       showToast(msg);
       return;
     }
     if (res.cloud) {
       showToast((okTexto || 'Salvo') + ' — confirmado no banco ✓');
+      return;
+    }
+    if (res.motivo === 'pendente') {
+      showToast((okTexto || 'Salvo') + ' — aguardando confirmação do banco (reenvio automático)');
       return;
     }
     showToast(okTexto || 'Alteração temporária');
@@ -289,6 +299,23 @@ function proximaViradaTs() {
   return alvo.getTime();
 }
 window.todayCards = todayCards;
+/* Dia de ESTUDO (com a virada do Cards) de um instante qualquer, no fuso LOCAL.
+   toISOString().slice(0,10) dá o dia em UTC: no Brasil, tudo depois das 21h
+   caía no dia seguinte (revlog importado, gráfico "Adicionados", reagendamento). */
+function diaDeEstudoDe(ts) {
+  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  if (d.getHours() < cardsRolloverHour()) d.setDate(d.getDate() - 1);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Dia de CALENDÁRIO local de um instante (sem a virada do Cards).
+function dataLocalDe(ts) {
+  const d = new Date(typeof ts === 'number' ? ts : Date.parse(ts));
+  if (!Number.isFinite(d.getTime())) return '';
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+window.diaDeEstudoDe = diaDeEstudoDe;
+window.dataLocalDe = dataLocalDe;
 
 function todayLocal() {
   const d = new Date();

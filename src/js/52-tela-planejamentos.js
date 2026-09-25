@@ -248,12 +248,18 @@ const PlanUI = {
       });
     });
   },
-  createFromForm() {
+  async createFromForm() {
     const nome = $id('np-nome').value.trim();
     if (!nome) { showToast('Dê um nome ao planejamento'); return; }
     const tipo = $id('np-tipo').value;
     const source = $id('np-source').value;
     let newId;
+    /* Copiar o histórico TEC lê o bloco pesado da origem: sem ele carregado a
+       cópia sairia vazia sem aviso nenhum. */
+    if (source && $id('np-copy-tec').checked && !(await DB.garantirPesado())) {
+      showToast('⏳ Não consegui carregar o histórico do TEC para copiar. Tente de novo em instantes.');
+      return;
+    }
     if (source) {
       newId = PlanManager.duplicateFrom(source, {
         nome, tipo,

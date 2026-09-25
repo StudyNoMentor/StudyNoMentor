@@ -49,11 +49,25 @@ const AnkiImport = {
     }
     return -1;
   },
-  async _inflateRaw(bytes){
+  /* Tetos de descompactação: um arquivo-bomba (poucos KB que viram GB) derrubava
+     a aba. O teto vale para o que SAI do descompressor, lido em fatias — o
+     tamanho declarado no ZIP não é confiável. */
+  ZIP_TETO_ENTRADA:512*1024*1024,
+  ZIP_TETO_TOTAL:1024*1024*1024,
+  async _lerComTeto(stream,teto,nome){
+    const reader=stream.getReader(),partes=[];let n=0;
+    for(;;){
+      const {done,value}=await reader.read();if(done)break;
+      n+=value.length;
+      if(n>teto){try{await reader.cancel();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '35-anki-import'); }throw new Error('Arquivo compactado grande demais'+(nome?' ('+nome+')':'')+': passa de '+Math.round(teto/1048576)+' MB descompactado.');}
+      partes.push(value);
+    }
+    const out=new Uint8Array(n);let o=0;for(const p of partes){out.set(p,o);o+=p.length;}return out;
+  },
+  async _inflateRaw(bytes,teto,nome){
     if(typeof DecompressionStream==='undefined')throw new Error('Navegador sem suporte a DEFLATE para pacote Anki.');
     const ds=new DecompressionStream('deflate-raw');
-    const ab=await new Response(new Blob([bytes]).stream().pipeThrough(ds)).arrayBuffer();
-    return new Uint8Array(ab);
+    return this._lerComTeto(new Blob([bytes]).stream().pipeThrough(ds),teto||this.ZIP_TETO_ENTRADA,nome);
   },
   async _loadFzstd(){
     if(globalThis.fzstd&&typeof globalThis.fzstd.decompress==='function')return globalThis.fzstd;
@@ -82,7 +96,7 @@ const AnkiImport = {
   async unzip(bytes){
     bytes=this._u8(bytes);const dv=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength),eocd=this._findEOCD(bytes);
     if(eocd<0)throw new Error('ZIP/APKG inválido: diretório central ausente');
-    const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true),files=new Map();let p=cdOff;
+    const count=dv.getUint16(eocd+10,true),cdOff=dv.getUint32(eocd+16,true),files=new Map();let p=cdOff,total=0;
     for(let i=0;i<count;i++){
       if(dv.getUint32(p,true)!==0x02014b50)throw new Error('ZIP inválido: entrada central');
       const method=dv.getUint16(p+10,true),csize=dv.getUint32(p+20,true),usize=dv.getUint32(p+24,true);
@@ -90,8 +104,10 @@ const AnkiImport = {
       const name=this._text(bytes.slice(p+46,p+46+nlen));
       if(dv.getUint32(loff,true)!==0x04034b50)throw new Error('ZIP inválido: cabeçalho local');
       const ln=dv.getUint16(loff+26,true),lx=dv.getUint16(loff+28,true),start=loff+30+ln+lx,packed=bytes.slice(start,start+csize);
-      let data;if(method===0)data=packed;else if(method===8)data=await this._inflateRaw(packed);else throw new Error('ZIP usa método '+method+' não suportado');
+      const resta=this.ZIP_TETO_TOTAL-total;
+      let data;if(method===0)data=packed;else if(method===8)data=await this._inflateRaw(packed,Math.min(this.ZIP_TETO_ENTRADA,resta),name);else throw new Error('ZIP usa método '+method+' não suportado');
       if(usize&&data.length!==usize)throw new Error('ZIP truncado em '+name);
+      total+=data.length;if(total>this.ZIP_TETO_TOTAL)throw new Error('Pacote grande demais: passa de '+Math.round(this.ZIP_TETO_TOTAL/1048576)+' MB descompactado.');
       files.set(name,data);p+=46+nlen+xlen+clen;
     }
     return files;
@@ -433,6 +449,12 @@ const AnkiImport = {
   },
   async importCollectionPackage(parsed){
     if(!parsed||parsed.format!=='colpkg')throw new Error('Collection Package inválido');
+    // Nada do estado intermediário (coleção esvaziada) vai ao banco: só o
+    // resultado final, e só o que mudou. Ver RelationalStore.lote.
+    const lote=typeof RelationalStore!=='undefined'&&RelationalStore.lote?fn=>RelationalStore.lote(fn):fn=>fn();
+    return lote(()=>this._importCollectionPackage(parsed));
+  },
+  async _importCollectionPackage(parsed){
     const backup=this._snapshotCollectionState();
     try{
       DB.saveCards([]);DB.saveDecks([]);DB.replaceRevlog([]);this._clearCanonicalCardEntities();
@@ -513,14 +535,21 @@ const AnkiImport = {
     }
 
     const cards=this._rows(db,'select id,nid,did,ord,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data,mod from cards');
+    // Índices montados uma vez: antes eram um SELECT no SQLite, um scan dos
+    // tipos de nota e um parse da coleção inteira POR CARD.
+    const midPorNota=new Map(notes.map(n=>[String(n.id),n.mid])),tiposPorId=new Map(AnkiParity.noteTypes().map(x=>[String(x.id),x])),notasLocais=new Map();
+    this._lote(()=>{
+    const porAnkiId=new Map();DB.getCards().forEach(x=>{if(x&&x.ankiId!=null)porAnkiId.set(Number(x.ankiId),x);});
     for(const ac of cards){
-      const localNid=noteMap.get(String(ac.nid))||Number(ac.nid),note=AnkiParity.getNote(localNid);if(!note)continue;
-      const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
-      const sourceNote=this._rows(db,'select mid from notes where id=?',[ac.nid])[0]||{},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
+      const localNid=noteMap.get(String(ac.nid))||Number(ac.nid);
+      if(!notasLocais.has(String(localNid)))notasLocais.set(String(localNid),AnkiParity.getNote(localNid));
+      const note=notasLocais.get(String(localNid));if(!note)continue;
+      const nt=tiposPorId.get(String(note.notetypeId));if(!nt)continue;
+      const sourceNote={mid:midPorNota.get(String(ac.nid))},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
       const stub={clozeOrd:Number(ac.ord)+1,ankiTemplateOrd:localOrd,deckId:deckMap.get(String(ac.did))||opts.deckId||null};
       const front=AnkiParity.renderTemplate(nt,note,localOrd,'question',stub,''),back=AnkiParity.renderTemplate(nt,note,localOrd,'answer',stub,front);
-      let c=DB.getCards().find(x=>Number(x.ankiId)===Number(ac.id));
-      if(!c)c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});
+      let c=porAnkiId.get(Number(ac.id));
+      if(!c){c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});porAnkiId.set(Number(ac.id),c);}
       else DB.updateCard(c.id,{deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,frente:front,verso:back,kind:nt.kind==='cloze'?'cloze':'basic'});
       const patch={ankiId:Number(ac.id),ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,ankiMod:Number(ac.mod)||0,flag:Math.max(0,Math.min(7,Number(ac.flags)||0))};
       if(opts.withScheduling!==false){
@@ -531,15 +560,17 @@ const AnkiImport = {
       }
       DB.updateCard(c.id,patch);cardMap.set(String(ac.id),c.id);
     }
+    });
     if(opts.withScheduling!==false&&this._has(db,'revlog')){
       const old=DB.getRevlog().slice(),known=new Set(old.map(r=>String(r.reviewId||r.id||'')+'|'+String(r.cardId))),rr=this._rows(db,'select id,cid,ease,ivl,lastIvl,factor,time,type from revlog order by id');
-      for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:new Date(Number(r.id)).toISOString().slice(0,10),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
+      for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(r.id)):new Date(Number(r.id)).toISOString().slice(0,10)),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
       DB.replaceRevlog(old);
     }
     db.close();AnkiParity.ensureCanonicalNotes();CardEngine.invalidateDueCache();
     return {cards:cards.length,notes:notes.length,decks:deckMap.size};
   },
 
+  _lote(fn){return typeof DB.withCardsBatch==='function'?DB.withCardsBatch(fn):fn();},
   _mnemoMungeField(value){
     return String(value==null?'':value).replace(/\r?\n/g,'<br>')
       .replace(/<\/?(?:\$|\$\$|latex)>/gi,(m)=>'['+m.slice(1,-1)+']')
@@ -573,7 +604,8 @@ const AnkiImport = {
       {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'}
     ]};
   },
-  importMnemosyne(parsed,opts){
+  importMnemosyne(parsed,opts){return this._lote(()=>this._importMnemosyne(parsed,opts));},
+  _importMnemosyne(parsed,opts){
     opts=opts||{};const facts=new Map();for(const r of parsed.facts){if(!facts.has(r.id))facts.set(r.id,{});facts.get(r.id)[r.key]=String(r.value||'');}
     const byFact=new Map();for(const c of parsed.cards){if(!byFact.has(c.fact_id))byFact.set(c.fact_id,[]);byFact.get(c.fact_id).push(c);}
     const types=AnkiParity.noteTypes(),byName=new Map(types.map(x=>[String(x.name||''),x]));let cardCount=0,noteCount=0;
@@ -593,13 +625,14 @@ const AnkiImport = {
         if(Number(mc.last_rep)===-1)continue;
         const ord=this._mnemoCardOrd(mc.fact_view_id),card=local.find(c=>nt.kind==='cloze'?Number(c.clozeOrd||1)===ord+1:Number(c.ankiTemplateOrd||0)===ord)||local[ord]||local[0];
         if(!card)continue;
-        DB.updateCard(card.id,{phase:'review',reps:Number(mc.reps)||0,lapses:Number(mc.lapses)||0,ease:Number(mc.easiness)||2.5,intervalo:Math.max(1,Math.floor((Number(mc.next_rep)-Number(mc.last_rep))/86400)),due:new Date(Number(mc.next_rep)*1000).toISOString().slice(0,10)});
+        DB.updateCard(card.id,{phase:'review',reps:Number(mc.reps)||0,lapses:Number(mc.lapses)||0,ease:Number(mc.easiness)||2.5,intervalo:Math.max(1,Math.floor((Number(mc.next_rep)-Number(mc.last_rep))/86400)),due:(typeof dataLocalDe==='function'?dataLocalDe(Number(mc.next_rep)*1000):new Date(Number(mc.next_rep)*1000).toISOString().slice(0,10))});
       }
       cardCount+=local.length;noteCount++;
     }
     CardEngine.invalidateDueCache();return {cards:cardCount,notes:noteCount};
   },
-  importText(parsed,opts){
+  importText(parsed,opts){return this._lote(()=>this._importText(parsed,opts));},
+  _importText(parsed,opts){
     opts=opts||{};const rows=parsed.rows||[],html=opts.forceIsHtml?!!opts.isHtml:(parsed.headers&&Object.prototype.hasOwnProperty.call(parsed.headers,'html')?parsed.isHtml:(opts.isHtml!=null?!!opts.isHtml:parsed.isHtml));
     const dupe=String(opts.dupeResolution||'update').toLowerCase(),match=String(opts.matchScope||'notetype').toLowerCase();
     const deckCol=Math.max(0,Number(opts.deckColumn!=null?opts.deckColumn:parsed.deckColumn)||0),ntCol=Math.max(0,Number(opts.notetypeColumn!=null?opts.notetypeColumn:parsed.notetypeColumn)||0);

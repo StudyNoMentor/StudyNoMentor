@@ -77,7 +77,9 @@ store.set(T._customKey(),JSON.stringify({enabled:true,source:'if (states.hard.no
 T._baseScheduler=sched;
 const custom=T._runCustomScheduling(cards[0],'dificil',sched(cards[0],'dificil'));
 assert.equal(custom._kind,'min');
-assert.equal(custom._val,123,'script no formato oficial states deve alterar o intervalo Hard');
+assert.equal(custom._val,10,'código de Custom Scheduling NÃO é executado na origem do app (segurança)');
+// O mapeamento states -> patch continua correto para quando houver sandbox.
+assert.equal(T._applyStateLeaf(sched(cards[0],'dificil'),{scheduledSecs:123*60})._val,123);
 store.delete(T._customKey());
 
 const bytes=new Uint8Array([0,1,2,253,254,255]);

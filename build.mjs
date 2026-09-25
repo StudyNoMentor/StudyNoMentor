@@ -65,7 +65,13 @@ const PARTES = [
 
 const semCarimbo = PARTES.join('');
 const VERSAO = 'v' + createHash('sha256').update(semCarimbo).digest('hex').slice(0, 10);
-const montado = semCarimbo.replace('<meta name="diario-versao" content="dev">', `<meta name="diario-versao" content="${VERSAO}">`);
+const META_VERSAO = '<meta name="diario-versao" content="dev">';
+// Sem a meta, o carimbo falhava em silêncio (o app deixava de saber a própria versão).
+if (semCarimbo.split(META_VERSAO).length !== 2) {
+  console.error('ERRO: src/ precisa ter exatamente uma ' + META_VERSAO + ' para receber o carimbo de versão.');
+  process.exit(1);
+}
+const montado = semCarimbo.replace(META_VERSAO, `<meta name="diario-versao" content="${VERSAO}">`);
 const destino = join(RAIZ, 'index.html');
 
 function carimbarServiceWorker() {
@@ -94,6 +100,12 @@ if (process.argv.includes('--check')) {
   if (swVersao !== VERSAO) {
     console.error(`DIVERGENCIA: sw.js carimbado como "${swVersao}", src/ monta "${VERSAO}".`);
     console.error('Rode `node build.mjs` para recarimbar.'); process.exit(1);
+  }
+  let manifestoAtual = null;
+  try { manifestoAtual = readFileSync(join(RAIZ, 'src', 'manifesto.json'), 'utf8'); } catch { manifestoAtual = null; }
+  if (manifestoAtual !== montarManifesto()) {
+    console.error('DIVERGENCIA: src/manifesto.json não corresponde à montagem atual.');
+    console.error('Rode `node build.mjs` para regerá-lo.'); process.exit(1);
   }
   if (atual === montado) { console.log(`OK: src/ monta exatamente o index.html atual (${montado.length} bytes, ${VERSAO}).`); process.exit(0); }
   const a = atual.split('\n'), b = montado.split('\n'); let i = 0;

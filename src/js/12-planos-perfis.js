@@ -637,7 +637,8 @@ const PlanManager = {
 /* ============================================================
    PERFIS DE ACESSO — multi-usuário no dispositivo
    Cada perfil tem seus próprios planejamentos e dados (namespace 'diario-estudos:u:<id>:').
-   IMPORTANTE: é uma separação LOCAL, não autenticação forte. O PIN é uma trava leve.
+   A separação real é a conta (Supabase + RLS). Não há PIN de perfil: o código
+   antigo (hash djb2 de 32 bits sem sal, nunca verificado) foi removido.
    ============================================================ */
 const ProfileManager = {
   DEFAULT_AVATARS: ['📘', '🎯', '⚖️', '📊', '🧠', '🚀', '🦉', '📚', '✏️', '🏆', '💡', '🔥'],
@@ -681,8 +682,48 @@ const ProfileManager = {
     });
     return out;
   },
-  getProfiles() { return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])); },
-  saveProfiles(list) { DB._set(DB.PROFILES_KEY, this._sanearPerfis(list)); },
+  /* ── DADOS DO ESTUDANTE (concurso, cargo, banca, prova, meta) ─────────────
+     Moravam dentro da lista-espelho de perfis, que NÃO vai ao banco (ela é
+     reconstruída de study_profiles a cada listagem) — o "Perfil atualizado ✓"
+     aparecia e os dados sumiam na próxima abertura. Agora ficam numa
+     configuração do próprio perfil (study_profile_settings, chave
+     `profile-meta`), persistida pelo mesmo canal do resto do perfil. */
+  _metaKey(id) { return 'diario-estudos:u:' + id + ':profile-meta'; },
+  getMeta(id) {
+    try { const raw = localStorage.getItem(this._metaKey(id)); return raw ? (JSON.parse(raw) || {}) : null; }
+    catch (_) { return null; }
+  },
+  setMeta(id, meta) {
+    const limpo = {};
+    Object.keys(meta || {}).forEach(k => { const v = meta[k]; if (v != null && String(v).trim() !== '') limpo[k] = String(v).trim(); });
+    return DB.setRaw(this._metaKey(id), JSON.stringify(limpo));
+  },
+  /* Perfil que ainda não foi aberto nesta aba não tem as configurações em RAM:
+     busca só a linha do meta no banco, para o formulário não nascer vazio (e
+     salvar vazio por cima do que já existia). */
+  async carregarMeta(id) {
+    const local = this.getMeta(id);
+    if (local) return local;
+    try {
+      if (!window.CloudStore || !CloudStore.isLoggedIn() || !CloudStore.client) return {};
+      const { data, error } = await CloudStore.client.from('study_profile_settings')
+        .select('value').eq('profile_id', id).eq('key', 'profile-meta').maybeSingle();
+      if (error) throw error;
+      const v = data && data.value && typeof data.value === 'object' ? data.value : {};
+      if (window.RelationalStore) RelationalStore._memSet(this._metaKey(id), JSON.stringify(v));
+      return v;
+    } catch (e) { _quiet(e, 'perfil-meta-carregar'); return null; }
+  },
+  getProfiles() {
+    return this._sanearPerfis(DB._get(DB.PROFILES_KEY, [])).map(p => {
+      const meta = this.getMeta(p.id);
+      return meta ? Object.assign(p, { meta }) : p;
+    });
+  },
+  saveProfiles(list) {
+    // O meta tem casa própria (profile-meta): não viaja na lista-espelho.
+    DB._set(DB.PROFILES_KEY, this._sanearPerfis(list).map(p => { const c = Object.assign({}, p); delete c.meta; return c; }));
+  },
   getActiveProfileId() { try { return localStorage.getItem(DB.ACTIVE_PROFILE_KEY); } catch (e) { return null; } },
   getActiveProfile() { return this.getProfiles().find(p => p.id === this.getActiveProfileId()) || null; },
   setActiveProfile(id) {
@@ -698,26 +739,7 @@ const ProfileManager = {
     } catch (e) { _quiet(e, 'perfil-canal-secoes'); }
   },
 
-  // hash simples (NÃO é segurança forte — apenas evita guardar o PIN em texto puro)
-  _hash(str) {
-    let h = 5381;
-    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-    return 'h' + h.toString(36);
-  },
-  setPin(id, pin) {
-    const list = this.getProfiles();
-    const p = list.find(x => x.id === id);
-    if (p) p.pinHash = pin ? this._hash(pin) : null;
-    this.saveProfiles(list);
-  },
-  hasPin(id) { const p = this.getProfiles().find(x => x.id === id); return !!(p && p.pinHash); },
-  checkPin(id, pin) {
-    const p = this.getProfiles().find(x => x.id === id);
-    if (!p || !p.pinHash) return true;
-    return this._hash(pin) === p.pinHash;
-  },
-
-  createProfile({ nome, avatar, cor, pin }) {
+  createProfile({ nome, avatar, cor }) {
     /* Helper de projeção em RAM. A persistência real de perfis é criada por
        CloudStore.createRow(), que recebe o UUID definitivo do PostgreSQL. */
     const id = DB._uid();
@@ -726,17 +748,22 @@ const ProfileManager = {
       id, nome: (nome || 'Novo perfil').trim(),
       avatar: avatar || this.DEFAULT_AVATARS[list.length % this.DEFAULT_AVATARS.length],
       cor: cor || this.DEFAULT_COLORS[list.length % this.DEFAULT_COLORS.length],
-      pinHash: pin ? this._hash(pin) : null,
       createdAt: new Date().toISOString()
     });
     this.saveProfiles(list);
     return id;
   },
   updateProfile(id, patch) {
+    patch = Object.assign({}, patch || {});
+    if (Object.prototype.hasOwnProperty.call(patch, 'meta')) {
+      if (this.setMeta(id, patch.meta) === false) return false;
+      delete patch.meta;
+    }
     const list = this.getProfiles();
     const p = list.find(x => x.id === id);
     if (p) Object.assign(p, patch);
     this.saveProfiles(list);
+    return true;
   },
   renameProfile(id, nome) { this.updateProfile(id, { nome: (nome || '').trim() }); },
   // ---- Helpers usados pela reconciliação com o índice da nuvem ----
@@ -831,6 +858,8 @@ const ProfileManager = {
     Object.keys(obj.data || {}).forEach(subKey => {
       // ignora eventuais chaves de perfil aninhadas por segurança
       if (subKey.startsWith('u:')) return;
+      // Código (extensões, Custom Scheduling) não entra por arquivo de fora.
+      if (/(^|:)cards-(extensions|custom-scheduling):/.test(subKey)) return;
       let valor = obj.data[subKey];
       // Um backup pode vir de fora (colega, grupo de estudos, download). Os cards
       // são o único conteúdo renderizado como HTML, então passam pelo saneamento

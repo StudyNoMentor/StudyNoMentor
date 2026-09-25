@@ -252,10 +252,13 @@ const ProfileUI = {
     const sig = JSON.stringify((profiles || []).map(p => [p.id, p.nome, p.avatar, p.cor]));
     if (sig === this._gridSig && grid.querySelector('.profile-card')) return;
     this._gridSig = sig;
+    // Cor só entra no style se for uma cor hex; id e avatar sempre escapados
+    // (vêm da conta, que pode ter sido editada fora do app).
+    const corSegura = c => /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : '#4f46e5';
     grid.innerHTML = (profiles || []).map(p => `
-      <div class="profile-card" data-id="${p.id}">
-        <button type="button" class="profile-card-edit" data-edit="${p.id}" title="Editar" aria-label="Editar">✎</button>
-        <div class="profile-card-avatar" style="background:${p.cor};">${p.avatar}</div>
+      <div class="profile-card" data-id="${escapeHtml(String(p.id))}">
+        <button type="button" class="profile-card-edit" data-edit="${escapeHtml(String(p.id))}" title="Editar" aria-label="Editar">✎</button>
+        <div class="profile-card-avatar" style="background:${corSegura(p.cor)};">${escapeHtml(String(p.avatar || ''))}</div>
         <div class="profile-card-name">${escapeHtml(p.nome)}</div>
         <div class="profile-card-stats">&nbsp;</div>
       </div>`).join('') + `
@@ -325,7 +328,9 @@ const ProfileUI = {
       this._entering = false;
       this._autoEnterTried = true;
       console.error('[perfil] falha ao carregar banco relacional', err);
-      showToast('Não foi possível carregar o perfil do banco. Nada local foi usado.');
+      showToast(err && err.code === 'pendencias-locais'
+        ? '⚠ Há alterações feitas nesta aba que o banco ainda não confirmou. Verifique a conexão e tente de novo — elas não foram descartadas.'
+        : 'Não foi possível carregar o perfil do banco. Nada local foi usado.');
       this._showProfilePicker();
     }
   },
@@ -373,6 +378,21 @@ const ProfileUI = {
     this._pfUpdatePreview();
     $id('profile-modal').style.display = 'flex';
     setTimeout(() => $id('pf-nome').focus(), 50);
+    /* Perfil ainda não aberto nesta aba: os dados do estudante vêm do banco.
+       O Salvar espera, para não gravar um formulário vazio por cima deles. */
+    if (!isNew && ProfileManager.getMeta(id) === null && ProfileManager.carregarMeta) {
+      const salvar = document.getElementById('pf-save');
+      if (salvar) salvar.disabled = true;
+      ProfileManager.carregarMeta(id).then(m => {
+        if (this._editingId !== id) return;
+        if (m) {
+          setV('pf-concurso', m.concurso); setV('pf-cargo', m.cargo);
+          setV('pf-banca', m.banca); setV('pf-prova', m.provaDate); setV('pf-metah', m.metaHoras);
+          this._pfUpdatePreview();
+        } else showToast('Não consegui carregar os dados do estudante deste perfil agora.');
+        if (salvar && m) salvar.disabled = false;
+      });
+    }
   },
   _pfUpdatePreview() {
     const g = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
@@ -409,9 +429,12 @@ const ProfileUI = {
       const meta = { concurso: gv('pf-concurso'), cargo: gv('pf-cargo'), banca: gv('pf-banca'), provaDate: gv('pf-prova'), metaHoras: gv('pf-metah') };
       if (this._editingId) {
         ProfileManager.addMirror({ id: this._editingId, nome, avatar: this._draftAvatar, cor: this._draftColor });
-        ProfileManager.updateProfile(this._editingId, { meta });   // projeção em RAM; RelationalStore persiste no SQL
+        // profile-meta vai para study_profile_settings pela fila do RelationalStore
+        if (ProfileManager.updateProfile(this._editingId, { meta }) === false) throw new Error('não foi possível gravar os dados do estudante');
         if (window.CloudStore && CloudStore.isLoggedIn()) await CloudStore.updateMeta(this._editingId, { nome, avatar: this._draftAvatar, cor: this._draftColor });
-        showToast('Perfil atualizado ✓');
+        let confirmado = true;
+        try { if (window.RelationalStore) await RelationalStore.flush(); } catch (e) { confirmado = false; _quiet(e, 'perfil-meta-flush'); }
+        showToast(confirmado ? 'Perfil atualizado — confirmado no banco ✓' : 'Perfil atualizado — aguardando confirmação do banco (reenvio automático)');
         $id('profile-modal').style.display = 'none';
         this.renderChip();
         this.refreshStage();
@@ -420,6 +443,7 @@ const ProfileUI = {
         const row = await CloudStore.createRow({ name: nome, avatar: this._draftAvatar, color: this._draftColor });
         ProfileManager.addMirror({ id: row.id, nome, avatar: this._draftAvatar, cor: this._draftColor });
         ProfileManager.setActiveProfile(row.id);
+        ProfileManager.setMeta(row.id, meta);
         /* O perfil nasce diretamente no modelo relacional. PlanManager.init()
            apenas monta a projeção em memória; cada escrita é capturada pelo
            RelationalStore e confirmada no PostgreSQL antes de entrarmos nele. */

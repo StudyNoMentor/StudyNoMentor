@@ -166,11 +166,22 @@ const Atualizacao = {
       /* Cobre mutações ocorridas entre o clique e o controllerchange. */
       const ok = await this._entregarPendencias(10000);
       if (!ok) {
-        recarregou = false;
-        this._trocando = false;
+        /* O worker novo JÁ assumiu (skipWaiting foi pedido). Ficar parado aqui
+           é justamente a mistura "página velha + worker novo" que este módulo
+           evita. A fila é durável (reenvio automático + aviso na tela): em vez
+           de desistir, esperamos ela esvaziar e só então recarregamos. */
         try {
-          showToast('⚠ A nova versão está pronta, mas o banco ainda não confirmou tudo. A página não foi recarregada.');
-        } catch (e) { _quiet(e, 'upd-reload-cancel'); }
+          showToast('⚠ A nova versão está pronta. Recarregaremos assim que o banco confirmar as alterações pendentes.');
+        } catch (e) { _quiet(e, 'upd-reload-wait'); }
+        const quandoVazia = (ev) => {
+          const RS = window.RelationalStore;
+          if (RS && RS.pendingCount && RS.pendingCount() === 0 && !(ev && ev.detail && ev.detail.failing)) {
+            window.removeEventListener('relational:pending', quandoVazia);
+            location.reload();
+          }
+        };
+        window.addEventListener('relational:pending', quandoVazia);
+        try { if (window.RelationalStore && RelationalStore.resumeDirty) RelationalStore.resumeDirty(); } catch (e) { _quiet(e, 'upd-resume'); }
         return;
       }
       location.reload();

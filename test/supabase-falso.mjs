@@ -423,6 +423,8 @@ export function montarApiFalsa() {
           return (x < y ? -1 : x > y ? 1 : 0) * (dir === 'desc' ? -1 : 1);
         });
       }
+      const desl = parseInt(params.get('offset') || '0', 10);
+      if (desl > 0) linhas = linhas.slice(desl);
       const lim = parseInt(params.get('limit') || '0', 10);
       if (lim > 0) linhas = linhas.slice(0, lim);
       const saida = linhas.map((l) => projetar(l, select));
@@ -503,6 +505,15 @@ export function montarApiFalsa() {
       const alvos = new Set(tabelas[tabela].filter(casa));
       const saida = [...alvos].map((l) => projetar(l, select));
       tabelas[tabela] = tabelas[tabela].filter((l) => !alvos.has(l));
+      /* FK ON DELETE CASCADE do schema real: apagar um planejamento leva junto
+         todas as linhas study_* daquele (perfil, plano). */
+      if (tabela === 'study_plans' && alvos.size) {
+        const planos = new Set([...alvos].map((l) => l.profile_id + '\u0000' + l.plan_id));
+        for (const t of Object.keys(tabelas)) {
+          if (!t.startsWith('study_') || t === 'study_plans' || t === 'study_profiles' || t === 'study_profile_settings' || t === 'study_change_log') continue;
+          tabelas[t] = tabelas[t].filter((l) => !(l && l.plan_id != null && planos.has(l.profile_id + '\u0000' + l.plan_id)));
+        }
+      }
       return { status: 200, corpo: querRetorno ? saida : [] };
     }
 

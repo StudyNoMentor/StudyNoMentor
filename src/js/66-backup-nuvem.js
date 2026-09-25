@@ -61,8 +61,9 @@ const CloudBackup = {
   },
 
   _diaKey(id) { return 'diario-estudos:cbk-dia:' + id; },
-  /* Assinatura do último conteúdo publicado, por perfil. GRAVADA em disco (não
-     só em memória): sem isto, um recarregamento — e o app recarrega sozinho
+  /* Assinatura do último conteúdo publicado, por perfil. Persistida como
+     preferência da conta (chave `diario-estudos:*` → user_preferences), não só
+     em memória: sem isto, um recarregamento — e o app recarrega sozinho
      depois de quase toda operação de risco, inclusive logo após restaurar um
      backup — esquecia a última assinatura e podia duplicar a MESMA foto que
      acabara de subir segundos antes. */
@@ -266,6 +267,35 @@ const CloudBackup = {
       return [];
     }
   },
+  /* A faxina e a âncora precisam enxergar TODAS as fotos: com o teto de 60 da
+     listagem da tela, uma foto mais antiga ficava invisível (nunca era
+     descartada, nem considerada como âncora). Só metadados — sem o conteúdo —
+     em páginas de 1000. Em erro devolve null: quem apaga não pode decidir com
+     lista incompleta. */
+  async listarTodas(id) {
+    if (!this._pronto()) return null;
+    const alvo = id || ProfileManager.getActiveProfileId();
+    if (!alvo) return null;
+    const PAG = 1000, out = [];
+    try {
+      for (let de = 0; de < 100000; de += PAG) {
+        const { data, error } = await CloudStore._withTimeout(
+          CloudStore.client.from(this.TABLE)
+            .select('id,created_at,note,device,chars,sig,ancora,enc')
+            .eq('profile_id', alvo).order('created_at', { ascending: false }).range(de, de + PAG - 1),
+          15000, 'Listar os backups da nuvem');
+        if (error) throw error;
+        const pag = data || [];
+        out.push(...pag);
+        if (pag.length < PAG) break;
+      }
+      return out;
+    } catch (err) {
+      if (this._isMissingTable(err)) { this._disable(err); return null; }
+      console.warn('[CloudBackup] não deu para listar todas:', err && (err.message || err));
+      return null;
+    }
+  },
   // Devolve o mapa seção→texto de uma foto (ou null).
   async abrir(rowId) {
     if (!this._pronto()) return null;
@@ -301,16 +331,26 @@ const CloudBackup = {
   /* Restaura a foto SOBRE o perfil ativo. Duas garantias antes de qualquer
      escrita: uma foto no banco do estado atual, para que a restauração continue
      reversível em qualquer aparelho. */
-  async restaurar(rowId) {
+  async restaurar(rowId, opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId();
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
+    /* A foto do estado ATUAL é o único caminho de volta se a restauração der
+       errado. Sem ela, não seguimos — a menos que a pessoa aceite o risco
+       explicitamente (opts.semFotoDeSeguranca), depois de avisada. */
+    if (!opts.semFotoDeSeguranca) {
+      let pre = null;
+      try { pre = await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); }
+      catch (e) { _quiet(e, 'cbk-pre'); pre = { ok: false, motivo: String(e && e.message || e) }; }
+      // Perfil vazio não tem o que proteger.
+      if (!pre || (!pre.ok && pre.motivo !== 'perfil-vazio')) return { ok: false, motivo: 'sem-foto-de-seguranca', detalhe: pre && pre.motivo };
+    }
     try {
       if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
       const r = await RelationalStore.replaceProfileFromPayload(id, foto.data, { reason: 'cloud-backup-restore' });
-      return { ok: true, secoes: r.secoes || Object.keys(foto.data).length };
+      return { ok: true, pendente: !!r.pendente, secoes: r.secoes || Object.keys(foto.data).length };
     } catch (e) {
       console.error('[CloudBackup] restauração relacional falhou', e);
       return { ok: false, motivo: 'falha-ao-aplicar' };
@@ -416,7 +456,8 @@ const CloudBackup = {
     const alvo = id || ProfileManager.getActiveProfileId();
     if (!alvo) return { mudou: false };
     let linhas;
-    try { linhas = await this.listar(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    try { linhas = await this.listarTodas(alvo); } catch (e) { _quiet(e, 'cbk-ancora-lista'); return { mudou: false }; }
+    if (!linhas) return { mudou: false };
     const atual = (linhas || []).filter(r => r.ancora)[0] || null;
     const ideal = this.ancoraIdeal(linhas, Date.now());
     if (!ideal || (atual && ideal.id === atual.id)) return { mudou: false };
@@ -506,7 +547,8 @@ const CloudBackup = {
          pela metade (o perfil ficaria sem âncora), ela mesma desfaz; se nem
          isso der certo, não se apaga nada nesta rodada. */
       try { await this.moverAncora(alvo); } catch (e) { _quiet(e, 'cbk-ancora-mover'); }
-      const linhas = await this.listar(alvo);
+      const linhas = await this.listarTodas(alvo);
+      if (!linhas) return 0;   // lista incompleta: não se apaga nada nesta rodada
       if (!(linhas || []).some(r => r.ancora)) {
         console.warn('[CloudBackup] faxina adiada: o perfil ficou sem âncora — nada foi apagado.');
         return 0;
@@ -755,8 +797,18 @@ const CloudBackupUI = {
         { title: '↺ Restaurar do banco', okText: 'Restaurar' });
       if (!ok) return;
       showToast('Restaurando…');
-      const r = await CloudBackup.restaurar(rid);
+      let r = await CloudBackup.restaurar(rid);
+      if (!r.ok && r.motivo === 'sem-foto-de-seguranca') {
+        const mesmoAssim = await UI.confirm(
+          'Não foi possível guardar uma foto do estado ATUAL antes de restaurar' + (r.detalhe ? ' (' + r.detalhe + ')' : '') +
+          '.\n\nSe continuar, o estado atual não poderá ser recuperado pelo banco. Recomendado: baixe uma cópia do perfil antes.',
+          { title: 'Restaurar sem foto de segurança?', okText: 'Restaurar mesmo assim', danger: true });
+        if (!mesmoAssim) return;
+        showToast('Restaurando…');
+        r = await CloudBackup.restaurar(rid, { semFotoDeSeguranca: true });
+      }
       if (!r.ok) { showToast('Não foi possível restaurar: ' + (r.motivo || '')); return; }
+      if (r.pendente) { showToast('Restaurado na tela; parte ainda está sendo enviada ao banco. Não feche o app até o aviso sumir.'); return; }
       showToast(r.secoes + ' seção(ões) restaurada(s) ✓ — enviando e recarregando');
       try { await CloudStore.flushPending(); } catch (e) { _quiet(e, 'cbk-flush'); }
       setTimeout(() => recarregarApp('backup da nuvem restaurado', { imediato: true }), 700);

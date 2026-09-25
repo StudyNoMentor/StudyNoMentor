@@ -178,7 +178,9 @@ const ReforcoEngine = {
     if (!filtro) return DB.getIncidencia().length > 0;
     return DB.getIncidencia().some(r => this._daBanca(filtro, r.banca));
   },
-  // O retrato TEC mais recente é considerado "nível atual" se for dos últimos 90 dias.
+  // O retrato TEC mais recente é o "nível atual", sem prazo de validade: quem
+  // mostra o retrato exibe a data dele (o antigo comentário prometia um corte
+  // de 90 dias que nunca existiu — não o criamos para não esconder dados).
   currentSnapshot() {
     const snaps = DB.getTecSnapshots();
     if (!snaps.length) return null;
@@ -232,12 +234,19 @@ const ReforcoEngine = {
 
   raizIncid(rows) {
     rows = rows || [];
-    const raiz = rows.filter(r => r.depth === 0 || r.codigo == null || r.codigo === '');
-    if (raiz.length) return raiz.reduce((a, r) => a + (r.incidencia || 0), 0);
+    const soma = xs => xs.reduce((a, r) => a + (r.incidencia || 0), 0);
+    /* Linhas sem código só são RAIZ quando não declaram profundidade > 0. A
+       "Sem Classificação" do TEC chega com depth=1 e codigo=null: é irmã dos
+       assuntos de 1º nível, não a disciplina — contá-la como raiz somava a
+       disciplina E um filho, inflando o total. */
+    const semCodigo = r => r.codigo == null || r.codigo === '';
+    const raiz = rows.filter(r => r.depth === 0 || (semCodigo(r) && !(Number(r.depth) > 0)));
+    if (raiz.length) return soma(raiz);
+    const nivel = r => { const n = this._depth(r.codigo); if (n > 0) return n; const d = Number(r.depth); return Number.isFinite(d) && d > 0 ? d : 0; };
     let raso = Infinity;
-    rows.forEach(r => { const n = this._depth(r.codigo); if (n > 0 && n < raso) raso = n; });
-    if (raso === Infinity) return rows.reduce((a, r) => a + (r.incidencia || 0), 0);  // colagem plana
-    return rows.reduce((a, r) => a + (this._depth(r.codigo) === raso ? (r.incidencia || 0) : 0), 0);
+    rows.forEach(r => { const n = nivel(r); if (n > 0 && n < raso) raso = n; });
+    if (raso === Infinity) return soma(rows);  // colagem plana
+    return soma(rows.filter(r => nivel(r) === raso));
   },
 
   incidPorDisciplina(banca) {

@@ -2,13 +2,17 @@
 
 ## O que é publicado
 
-`index.html` — um único arquivo publicado, sem dependências de runtime. Ele é
-montado por `build.mjs` a partir de `src/`, abre no navegador, é o que o GitHub
-Pages serve e continua funcionando por `file://`.
+`index.html` — um único arquivo publicado. Ele é montado por `build.mjs` a
+partir de `src/` e é o que o GitHub Pages serve.
+
+**O app é cloud-first.** Os dados de estudo moram no Supabase (PostgreSQL,
+tabelas `study_*`); no navegador existe só uma projeção em memória (o
+`localStorage` é substituído por um shim em RAM em `src/html/90-rodape.html`).
+Sem conta/sessão não há onde salvar. Ver "Persistência" abaixo.
 
 `manifest.webmanifest` e `sw.js` são opcionais: se estiverem ao lado do
-`index.html`, o app fica instalável e abre sem internet. Se não estiverem, o app
-funciona igual — só sem offline.
+`index.html`, o app fica instalável e a **casca** abre sem internet (os dados
+continuam dependendo do banco).
 
 ## O que existe para quem MANTÉM o código
 
@@ -45,8 +49,9 @@ estiver com versão diferente da que `src/` monta.
 `<script type="module" src="...">` seria o caminho óbvio, e foi descartado por
 quatro motivos concretos:
 
-1. o app tem de abrir por `file://` — módulos ES são bloqueados por CORS aí;
-2. seriam ~45 requisições em vez de 1, num app que é offline-first;
+1. o formato publicado é um arquivo único (e o app nasceu abrindo por
+   `file://`, onde módulos ES são bloqueados por CORS);
+2. seriam ~45 requisições em vez de 1, num app cuja abertura precisa ser rápida;
 3. a CSP teria de afrouxar;
 4. o escopo global compartilhado é premissa do código atual — converter para
    `import`/`export` seria uma reescrita, não uma reorganização.
@@ -91,7 +96,13 @@ reste divergência.
 | 7 | nenhum texto abaixo do contraste WCAG AA — nos temas claro **e** escuro | sim |
 
 `node verificar.mjs --rapido` roda só 1–4 (segundos, sem navegador).
-A CI (`.github/workflows/verificar.yml`) roda tudo em cada push e PR.
+
+A CI (`.github/workflows/verificar.yml`) roda, em cada push e PR:
+`node build.mjs --check`, `node verificar.mjs --rapido`, as suítes Node de
+`testes/` e, no job de suítes, o `verificar.mjs` completo (1–7) e as suítes de
+navegador — incluindo `testes/auditoria-correcoes-browser.mjs`. Todo arquivo
+`testes/*.mjs` precisa estar referenciado na CI ou no `verificar.mjs`
+(`testes/repositorio-higiene.mjs` reprova o que ficar de fora).
 
 ## As duas suítes de teste
 
@@ -211,40 +222,59 @@ TEC, a classe `.tec-cfg` (menu ⚙ Exibição → "Filtros e configurações") a
 ganhar painel próprio — com as duas, abrir "Mostrar ajustes" revelava um painel
 pela metade.
 
+## Persistência
+
+- **Fila durável** (`src/js/60-relational-store.js`): toda mutação de chave do
+  perfil vira uma chave "suja" com o valor confirmado anterior guardado. Falha
+  de rede, sessão caída ou recusa temporária **não descartam nada**: a chave
+  continua pendente, é reenviada com backoff e ao voltar a rede/sessão, e o
+  aviso `#rel-pending-banner` aparece. `flush()` só resolve quando tudo foi
+  confirmado; `beforeunload` pede confirmação com pendência.
+- **Recusa definitiva** (FK, CHECK, tipo…) não trava a fila: a linha ruim é
+  isolada, a tela é realinhada com o banco e um aviso é mostrado. Na fila de
+  revisões, a operação vai para a "fila morta" do `ReviewJournal`.
+- **Operações que esvaziam e reconstroem** (importar Collection Package) rodam
+  dentro de `RelationalStore.lote(fn)`: o estado intermediário nunca sai; no
+  fim só o que mudou vai para a fila.
+- **TEC/incidência** são gravados por substituição e só depois de o bloco
+  pesado carregar (`DB.garantirPesado()`); antes disso a escrita é recusada.
+- **Hidratação nunca passa por cima de pendência**: `hydrateProfile` tenta
+  enviar primeiro e, se não conseguir, recusa com `code: 'pendencias-locais'`.
+- Importações grandes usam `DB.withCardsBatch(fn)` (uma gravação no fim).
+
 ## Regras que não se negociam
 
 - **Sem dependência nova em tempo de execução.** O app carrega com 1 requisição.
-  Supabase e SheetJS são opcionais, sob demanda, e o app funciona 100% sem eles.
+  O Supabase é obrigatório para salvar; o SheetJS é opcional, sob demanda.
 - **Todo HTML de fora passa pelo sanitizador.** `sanitizeCardHtml` na entrada de
   qualquer card (editor, importação `.tsv`/`.json`, colagem). Nunca
   `innerHTML = <dado do usuário>` sem passar por `escapeHtml` ou pelo
   sanitizador.
 - **Nada de `eval`, `new Function` ou `setTimeout('string')`.** A CSP barraria,
-  mas o hábito é o que protege.
+  mas o hábito é o que protege. Extensões locais e Custom Scheduling do Cards
+  guardam o código, mas **não o executam** (rodariam com acesso à sessão). A
+  CSP libera só `'wasm-unsafe-eval'` (o otimizador FSRS oficial é WASM).
 - **Erro engolido deixa rastro.** `catch (e) { _quiet(e, 'contexto'); }`, nunca
   `catch (e) {}`.
 - **`$id()` em vez de `getElementById()`** quando o elemento pode não existir:
   ele nunca devolve `null`, então um id renomeado vira um aviso local em vez de
   derrubar a inicialização inteira.
 - **Nunca `localStorage.setItem`/`removeItem` direto numa chave do perfil.** Use
-  `DB._set` (valores JSON), `DB.setRaw` (texto puro) ou `DB.delRaw`. Só eles
-  avisam as DUAS camadas de sincronização: o blob e a tabela por seção. Uma
-  gravação direta sobe no blob mas deixa a linha da seção velha — e como a
-  leitura vem das seções, o valor volta desatualizado ao abrir em outro
-  aparelho. Foi assim que conclusões marcadas na grade "sumiam" no dia seguinte.
+  `DB._set` (valores JSON), `DB.setRaw` (texto puro) ou `DB.delRaw`. Eles
+  respeitam a pausa do planejamento, a Lixeira e devolvem `false` quando a
+  gravação foi recusada — e a tela precisa checar esse retorno antes de
+  anunciar "✓ salvo".
 - **Nada de `location.reload()` novo.** Use `recarregarApp(motivo)`: ele espera o
-  IndexedDB confirmar a gravação (um reload no meio da escrita aborta a
-  transação e perde o que acabou de ser salvo — inclusive a sessão do login) e,
-  para recargas que vêm de fora, espera a pessoa sair do campo ou fechar o
+  banco confirmar as pendências (a RAM é a única cópia do que ainda não subiu)
+  e, para recargas que vêm de fora, espera a pessoa sair do campo ou fechar o
   diálogo. Passe `{ imediato: true }` só quando a recarga foi PEDIDA por ela.
 - **Recarregar só com mudança de verdade.** `_applyMap` e `restorePayloadInto`
   devolvem quantas chaves mudaram; recarregue apenas se for maior que zero. Um
   download que traz exatamente o que já está aqui não justifica reiniciar a tela.
 - **Download nunca apaga o que ainda não subiu.** Qualquer caminho novo que
-  sobrescreva o armazenamento com dados da nuvem tem de chamar antes
-  `SectionSync.flushBeforeRead(id)` e preservar as seções que a chamada devolver
-  (é o que `SectionSync.hydrate`, `CloudStore.pullActiveAndReload` e
-  `ProfileUI.enterProfile` fazem).
+  sobrescreva a projeção com dados do banco passa por
+  `RelationalStore.hydrateProfile`, que recusa enquanto houver pendência não
+  confirmada (ver "Persistência").
 
 
 ## O Supabase de mentira (`test/supabase-falso.mjs`)

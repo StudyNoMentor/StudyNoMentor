@@ -145,6 +145,87 @@ with tempfile.TemporaryDirectory() as tmp:
         )
         assert out.is_file() and out.stat().st_size > 0
 
+        # {{type:Campo}}: o padrão precisa reconhecer o marcador REAL do Anki.
+        # (A regex com barras dobradas nunca casava e o campo de digitação sumia.)
+        assert app.TYPE_ANSWER_PATTERN.search("<div>[[type:Back]]</div>").group(1) == "Back"
+        typed_nt = col.models.by_name("Basic (type in the answer)")
+        assert typed_nt, "tipo de nota oficial com campo de digitação ausente"
+        typed = col.new_note(typed_nt)
+        tkeys = typed.keys()
+        typed[tkeys[0]] = "Capital da França?"
+        typed[tkeys[1]] = "Paris"
+        col.add_note(typed, col.decks.get_current_id())
+        typed_card = typed.cards()[0]
+        ctx = app.type_answer_context(col, typed_card)
+        assert ctx and ctx["enabled"] is True and ctx["expected"] == "Paris", ctx
+        assert "[[type:" not in ctx["question_html"]
+        compared = app.reviewer_type_answer(int(typed_card.id), app.TypeAnswerBody(provided="Pariz"), user_ctx)
+        assert compared["enabled"] is True and "anki-type-answer-comparison" in compared["answer_html"]
+
+        # "Marcar" dois cards IRMÃOS alterna a nota uma única vez.
+        rev_nt = col.models.by_name("Basic (and reversed card)")
+        pair = col.new_note(rev_nt)
+        pkeys = pair.keys()
+        pair[pkeys[0]] = "Irmão A"
+        pair[pkeys[1]] = "Irmão B"
+        col.add_note(pair, col.decks.get_current_id())
+        sibling_ids = [int(c.id) for c in pair.cards()]
+        assert len(sibling_ids) == 2
+        app.card_action(app.CardActionBody(action="mark", card_ids=sibling_ids), user_ctx)
+        assert "marked" in col.get_note(pair.id).tags, "marcar irmãos deve marcar a nota"
+
+        # /health não expõe caminhos do servidor.
+        assert "data_dir" not in app.health()
+
+    app.pool.close_all()
+
+    # Pool com teto (LRU): coleções antigas e livres são fechadas.
+    small = app.CollectionPool(max_open=2)
+    a = small.get("lru-a"); small.get("lru-b"); small.get("lru-c")
+    assert "lru-a" not in small._items and len(small._items) == 2
+    small.close_all()
+
+    # Upload em blocos com teto: passa do limite -> 413, sem temporário órfão.
+    import asyncio, io, glob
+
+    class FakeUpload:
+        def __init__(self, data):
+            self._b = io.BytesIO(data)
+        async def read(self, n=-1):
+            return self._b.read(n)
+
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.bin")))
+    try:
+        asyncio.run(app._upload_to_tempfile(FakeUpload(b"x" * (3 * 1024 * 1024)), ".bin", 1024 * 1024))
+        raise AssertionError("upload acima do limite deveria falhar")
+    except app.HTTPException as exc:
+        assert exc.status_code == 413
+    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "*.bin")))
+    assert after == before, "upload recusado não pode deixar arquivo temporário"
+    ok_tmp = asyncio.run(app._upload_to_tempfile(FakeUpload(b"abc"), ".bin", 1024))
+    assert Path(ok_tmp).read_bytes() == b"abc"
+    os.unlink(ok_tmp)
+
+    # .colpkg inválido: a coleção do usuário continua ABERTA e intacta.
+    user2 = app.pool.get("colpkg-user")
+    with user2.lock:
+        n2 = user2.col.new_note(user2.col.models.current())
+        k2 = n2.keys(); n2[k2[0]] = "Sobrevive"; n2[k2[1]] = "à importação"
+        user2.col.add_note(n2, user2.col.decks.get_current_id())
+
+    class NamedUpload(FakeUpload):
+        filename = "quebrado.colpkg"
+
+    try:
+        asyncio.run(app.import_colpkg(NamedUpload(b"isto nao e um colpkg"), {"id": "colpkg-user"}))
+        raise AssertionError("colpkg inválido deveria falhar")
+    except AssertionError:
+        raise
+    except Exception:
+        pass
+    with user2.lock:
+        assert user2.col.card_count() >= 1, "a coleção deve seguir aberta e com os dados anteriores"
+        assert user2.col.find_cards("Sobrevive")
     app.pool.close_all()
 
 header = (ROOT / "src" / "html" / "00-cabecalho.html").read_text(encoding="utf-8")

@@ -64,9 +64,11 @@ const CycleEngine = {
     return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   },
   // minutos já estudados desta matéria dentro do intervalo da semana (casamento robusto por nome)
-  minutesStudied(subjectName, startDate, endDate) {
+  // `entries` opcional: quem mede várias matérias de uma vez lê os registros UMA
+  // vez e repassa (antes era um parse da lista inteira por matéria).
+  minutesStudied(subjectName, startDate, endDate, entries) {
     const key = this.normKey(subjectName);
-    return DB.getEntries()
+    return (entries || DB.getEntries())
       .filter(e => this.normKey(e.subject) === key && e.date >= startDate && e.date <= endDate)
       .reduce((sum, e) => sum + (e.durationMin || 0), 0);
   },
@@ -170,6 +172,7 @@ const CycleEngine = {
   },
   progressoSemana(subjects, startDate, endDate, metas) {
     const fator = this.fatorPausa(startDate, endDate);
+    const registros = DB.getEntries();
     const lista = (subjects || []).map(s => {
       // meta editável (quando fornecida) sobrescreve a definida no ciclo/snapshot
       let definido = s.definidoMin || 0;
@@ -178,7 +181,7 @@ const CycleEngine = {
         if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov, 10) || 0);
       }
       if (fator < 1) definido = Math.round(definido * fator);
-      const estudado = this.minutesStudied(s.nome, startDate, endDate);
+      const estudado = this.minutesStudied(s.nome, startDate, endDate, registros);
       return { ...s, definidoMin: definido, estudadoMin: estudado, status: this.statusFor(estudado, definido) };
     });
     const totalTargetMin = lista.reduce((a, s) => a + (s.definidoMin || 0), 0);

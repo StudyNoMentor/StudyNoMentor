@@ -425,7 +425,7 @@ const AnkiOfficialSurfaces = {
       if(card.type_answer){
         const frame=document.getElementById('anki-official-card-frame');
         if(frame&&card.type_answer.question_html&&frame.srcdoc){
-          frame.srcdoc=frame.srcdoc.replace(/\\[\\[type:.+?\\]\\]/g,'');
+          frame.srcdoc=frame.srcdoc.replace(/\[\[type:.+?\]\]/g,'');
         }
         if(card.type_answer.enabled){
           const actions=document.getElementById('anki-official-answer-buttons');

@@ -20,9 +20,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
+      # SHA do head (e não o nome da branch): funciona também para PRs de fork,
+      # cuja branch não existe neste repositório.
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -39,6 +41,13 @@ jobs:
           node --check verificar.mjs
           for f in src/js/*.js; do node --check "$f"; done
           node build.mjs
+          # Checagens 1–4 do CONTRIBUINDO (montagem byte a byte, sintaxe por
+          # módulo, paridade com o Anki, CSP/ids/trava anti-moldura, SW).
+          node build.mjs --check
+          timeout 300s node verificar.mjs --rapido
+
+      - name: Fila relacional durável
+        run: timeout 60s node testes/fila-duravel.mjs
 
       - name: Egress Supabase
         if: github.event_name != 'push'
@@ -143,7 +152,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref || github.ref }}
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -172,7 +181,10 @@ jobs:
           npm ci --no-audit --no-fund
           npx playwright install --with-deps chromium
           # A lista explícita também é o que repositorio-higiene.mjs confere.
-          for t in testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-reparo-memoria-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/pausa-metricas-browser.mjs testes/abertura-browser.mjs testes/extras-estabilidade-browser.mjs \
+          # Verificação completa (checagens 5–8: console limpo, navegação,
+          # AutoTeste, persistência ponta a ponta e contraste WCAG).
+          timeout 900s node verificar.mjs
+          for t in testes/auditoria-correcoes-browser.mjs testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-reparo-memoria-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/pausa-metricas-browser.mjs testes/abertura-browser.mjs testes/extras-estabilidade-browser.mjs \
                    testes/extras-ux100-browser.mjs testes/site-performance-browser.mjs \
                    testes/startup-reforco-browser.mjs testes/ux-hierarquia-browser.mjs \
                    testes/ux-stability-browser.mjs; do

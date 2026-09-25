@@ -16,6 +16,16 @@
    innerHTML a um div desanexado, em alguns navegadores, já inicia o carregamento
    das imagens ANTES de removermos o onerror.
    ══════════════════════════════════════════════════════════════════════════ */
+// (Moradas aqui, junto de quem as usa: antes viviam no arquivo do AutoTeste.)
+// Limpa o HTML colado de sites/PDFs. Sem isso, a colagem trazia fonte, tamanho e cor de
+// fundo fixos — que quebram o layout do card e ficam ilegíveis no modo escuro — além de
+// atributos executáveis (onerror/onload) e tags perigosas.
+const RTE_TAGS_OK = new Set(['B','STRONG','I','EM','U','S','STRIKE','BR','P','DIV','SPAN','UL','OL','LI',
+  'TABLE','THEAD','TBODY','TR','TD','TH','A','IMG','MARK','SUB','SUP','H1','H2','H3','H4','BLOCKQUOTE','CODE','PRE','HR',
+  'DETAILS','SUMMARY','AUDIO','VIDEO','SOURCE']);
+// Estas saem com o CONTEÚDO junto (não só a tag): senão o texto interno de um bloco de
+// script colado vazaria como texto solto dentro do card.
+const RTE_TAGS_FORA = new Set(['SCRIPT','STYLE','NOSCRIPT','IFRAME','OBJECT','EMBED','LINK','META','FORM','INPUT','BUTTON','SVG','CANVAS']);
 // FONT entra na lista porque o próprio editor produz <font color> / <font size>
 // (é o que o execCommand gera no Chrome) — sem ela, sanear apagaria as cores que
 // você aplicou pela barra de ferramentas.
@@ -139,8 +149,11 @@ function rteExec(area, cmd, val) { area.focus(); try { document.execCommand(cmd,
 // Converte HTML em TEXTO PURO preservando as quebras de linha (blocos/br viram \n).
 // Base do botão "Limpar formatação" — remove cor, fonte, fundo, negrito etc. do texto colado.
 function rtePlainFromHtml(html) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = String(html || '');
+  // Documento INERTE (ver o cabeçalho deste arquivo): innerHTML num div do
+  // documento vivo já dispararia carregamentos e onerror do HTML de entrada.
+  let tmp;
+  try { tmp = new DOMParser().parseFromString('<body>' + String(html || '') + '</body>', 'text/html').body; }
+  catch (_) { return String(html || '').replace(/<[^>]*>/g, ''); }
   tmp.querySelectorAll('br').forEach(br => br.replaceWith('\n'));
   // isola cada bloco com quebras antes e depois, para não grudar parágrafos/linhas/células
   // (mesmo quando um bloco vem logo após texto inline)
