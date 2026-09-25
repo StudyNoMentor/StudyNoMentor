@@ -1,0 +1,68 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRADE — "✨ Sugerir grade" e sessões ligadas aos registros de estudo
+   ═══════════════════════════════════════════════════════════════════════════ */
+#screen-grade .grade-suggest-btn{display:inline-flex;align-items:center;gap:6px;min-height:38px;padding:8px 14px;border-radius:11px;white-space:nowrap;font-weight:750}
+
+/* Sessão preenchida pelos registros: mesmo verde do ✓, com borda tracejada
+   para distinguir do ✓ marcado à mão. Parcial: barra no rodapé do chip. */
+.grade-cell-drop .subject-chip{position:relative}
+.grade-cell-drop .subject-chip.auto-done{box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--good) 55%,transparent)}
+.grade-cell-drop .subject-chip.auto-done .chip-done-toggle{border-style:dashed}
+.grade-cell-drop .subject-chip .chip-prog{position:absolute;left:6px;right:6px;bottom:3px;height:3px;border-radius:3px;background:color-mix(in srgb,var(--good) 18%,transparent);overflow:hidden;pointer-events:none}
+.grade-cell-drop .subject-chip .chip-prog::after{content:"";position:absolute;inset:0 auto 0 0;width:var(--gp,0%);background:var(--good);border-radius:3px}
+.grade-sigla-picker .gsp-registrar{display:block;width:100%;margin-top:6px;padding:9px 10px;border:1px solid color-mix(in srgb,var(--accent) 35%,var(--border));border-radius:9px;background:var(--accent-soft);color:var(--accent);font-weight:700;text-align:left;cursor:pointer}
+
+/* Janela */
+.grade-gerador-modal .siglas-modal-box{max-width:860px}
+.grade-gerador-modal .gg-body{display:grid;grid-template-columns:minmax(0,1fr);gap:18px}
+.grade-gerador-modal .gg-h{margin:0 0 8px;font-size:13px;font-weight:800;letter-spacing:.02em;color:var(--text)}
+.grade-gerador-modal .gg-hint{margin:0 0 8px;font-size:12px;color:var(--text-soft);line-height:1.4}
+.grade-gerador-modal .gg-in{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-soft);white-space:nowrap}
+.grade-gerador-modal .gg-in input{width:58px;min-height:34px;padding:4px 6px;text-align:center;font-size:13px;border-radius:8px}
+.grade-gerador-modal .gg-dias{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.grade-gerador-modal .gg-dia{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px 4px;border:1px solid var(--border);border-radius:11px;background:var(--surface-sunken);cursor:pointer}
+.grade-gerador-modal .gg-dia.off{opacity:.55}
+.grade-gerador-modal .gg-dia-top{display:inline-flex;align-items:center;gap:5px;font-size:12.5px}
+.grade-gerador-modal .gg-dia-top input{width:16px;height:16px;min-height:0;margin:0;accent-color:var(--accent)}
+.grade-gerador-modal .gg-dia .gg-in input{width:50px}
+.grade-gerador-modal .gg-sess{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:10px;font-size:12.5px;font-weight:650}
+.grade-gerador-modal .gg-sess label{display:inline-flex;align-items:center;gap:8px}
+.grade-gerador-modal .gg-mats{display:grid;gap:6px;max-height:280px;overflow-y:auto;padding-right:2px}
+.grade-gerador-modal .gg-mat{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--border);border-radius:10px;background:var(--surface)}
+.grade-gerador-modal .gg-mat-nome{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.grade-gerador-modal .gg-mat-nome b{display:inline-block;min-width:52px;font-family:'Space Mono',monospace;font-size:12px;color:var(--accent)}
+.grade-gerador-modal .gg-tog{position:relative;display:inline-flex;cursor:pointer}
+.grade-gerador-modal .gg-tog input{position:absolute;opacity:0;width:1px;height:1px}
+.grade-gerador-modal .gg-tog span{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border:1px solid var(--border);border-radius:9px;background:var(--surface-sunken);filter:grayscale(1);opacity:.45;font-size:15px;transition:opacity .12s,filter .12s,border-color .12s}
+.grade-gerador-modal .gg-tog input:checked+span{filter:none;opacity:1;border-color:var(--accent);background:var(--accent-soft)}
+.grade-gerador-modal .gg-tog input:focus-visible+span{outline:2px solid var(--accent);outline-offset:1px}
+.grade-gerador-modal .gg-prev-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:4px 12px}
+.grade-gerador-modal .gg-resumo{font-size:12px;color:var(--text-soft)}
+.grade-gerador-modal .gg-aviso{margin:0 0 6px;padding:7px 10px;border-radius:9px;background:var(--warn-soft,#fff7e6);color:var(--warn-text,#8a5300);font-size:12px;line-height:1.35}
+.grade-gerador-modal .gg-prev{overflow-x:auto}
+.grade-gerador-modal .gg-tab{width:100%;min-width:560px;border-collapse:separate;border-spacing:4px}
+.grade-gerador-modal .gg-tab th{font-size:11px;font-weight:800;text-transform:uppercase;color:var(--text-soft);padding:2px}
+.grade-gerador-modal .gg-tab td{padding:0}
+.grade-gerador-modal .gg-sn{font-size:11px;color:var(--text-faint);text-align:right;padding-right:4px!important;width:26px}
+.grade-gerador-modal .gg-cel{display:flex;flex-direction:column;align-items:center;gap:1px;padding:6px 2px;border-radius:9px;background:color-mix(in srgb,var(--chip-color,var(--accent)) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--chip-color,var(--accent)) 30%,var(--border))}
+.grade-gerador-modal .gg-cel b{font-family:'Space Mono',monospace;font-size:11.5px;color:var(--chip-color,var(--accent))}
+.grade-gerador-modal .gg-cel small{font-size:10.5px;color:var(--text-soft)}
+.grade-gerador-modal .gg-foot{flex-wrap:wrap;gap:8px}
+.grade-gerador-modal .gg-foot>button{white-space:nowrap;min-height:40px}
+.grade-gerador-modal .gg-foot>#gg-aplicar{margin-left:auto}
+@media(max-width:640px){
+  .grade-gerador-modal .gg-dias{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .grade-gerador-modal .gg-mat{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:"nome nome nome" "min pri calc"}
+  .grade-gerador-modal .gg-mat-nome{grid-area:nome}
+  .grade-gerador-modal .gg-mat-min{grid-area:min}
+  .grade-gerador-modal .gg-foot>button{flex:1 1 auto}
+  #screen-grade .grade-suggest-btn .gg-word{display:inline}
+}
+
+/* Prioridades e cálculo (⚙ Opções) */
+.grade-gerador-modal .gg-sugerir-calc{border:0;background:none;padding:4px 2px;color:var(--accent);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.grade-gerador-modal .gg-sugerir-calc:hover{text-decoration:underline}
+.grade-prioridades-modal .siglas-modal-box{max-width:560px}
+.grade-prioridades-modal .gp-mats{max-height:none}
+.grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto}
+@media(max-width:640px){.grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:none}.grade-prioridades-modal .gp-mat .gg-mat-nome{grid-area:auto}}
