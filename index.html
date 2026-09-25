@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v176a5f566d">
+<meta name="diario-versao" content="v08855906b7">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6667,7 +6667,7 @@ window.__relationalBoot = true;
   </div>
   <section role="region" tabindex="-1" class="screen" id="screen-cards">
     <div class="page-header">
-      <h2 class="page-title">🗂️ Cards de Revisão</h2>
+      <h2 class="page-title">Cards de Revisão</h2>
       <p class="page-subtitle">Revise por matéria e assunto com repetição espaçada. Marque o que você já sabe e o app agenda a próxima revisão de cada card automaticamente.</p>
     </div>
 
@@ -6742,7 +6742,7 @@ window.__relationalBoot = true;
   <section role="region" tabindex="-1" class="screen" id="screen-anki">
     <div class="page-header anki-cards-header">
       <div>
-        <h2 class="page-title"><span class="anki-title-icon" aria-hidden="true">⭐</span> Anki Oficial</h2>
+        <h2 class="page-title">Anki Oficial</h2>
         <p class="page-subtitle">A experiência visual dos Cards do Study, usando a coleção, fila, scheduler, busca e operações do Anki 26.09.2 oficial.</p>
       </div>
       <div class="anki-official-engine-badge" id="anki-official-engine-badge" title="Estado da engine oficial">Conectando…</div>
@@ -7055,7 +7055,7 @@ window.__relationalBoot = true;
   <!-- ============ TELA: LINKS ÚTEIS ============ -->
   <section role="region" tabindex="-1" class="screen" id="screen-links">
     <div class="page-header">
-      <h2 class="page-title">🔗 Links Úteis</h2>
+      <h2 class="page-title">Links Úteis</h2>
       <p class="page-subtitle">Seus atalhos de estudo num só lugar. Clique para abrir em nova aba. Personalize com o logo de cada site e gerencie quando um link mudar.</p>
     </div>
     <div class="links-topbar">
@@ -7145,7 +7145,7 @@ window.__relationalBoot = true;
   <!-- ============ TELA: CONQUISTAS ============ -->
   <section role="region" tabindex="-1" class="screen" id="screen-conquistas">
     <div class="page-header">
-      <h2 class="page-title">🏅 Conquistas</h2>
+      <h2 class="page-title">Conquistas</h2>
       <p class="page-subtitle">O registro da sua caminhada. Nada aqui expira, nada se perde e nada tem prazo — são fatos sobre o que você já construiu.</p>
     </div>
     <div id="conquistas-body"></div>
@@ -7173,9 +7173,9 @@ window.__relationalBoot = true;
         <div id="evo-scope-body" style="margin-top:14px;">
           <div style="display:flex; align-items:center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;">
             <div class="scope-toggle" id="evo-scope-toggle">
-              <button type="button" data-scope="plan">Este planejamento</button>
-              <button type="button" data-scope="active" class="active">Planejamentos ativos</button>
-              <button type="button" data-scope="all">Toda a trajetória</button>
+              <button type="button" data-scope="plan" title="Este planejamento"><span class="sc-lg">Este planejamento</span><span class="sc-sm">Este plano</span></button>
+              <button type="button" data-scope="active" class="active" title="Planejamentos ativos"><span class="sc-lg">Planejamentos ativos</span><span class="sc-sm">Ativos</span></button>
+              <button type="button" data-scope="all" title="Toda a trajetória"><span class="sc-lg">Toda a trajetória</span><span class="sc-sm">Trajetória</span></button>
             </div>
           </div>
           <div style="display:flex; align-items:flex-end; gap: 14px; flex-wrap: wrap;">
@@ -8020,7 +8020,7 @@ window.__relationalBoot = true;
   <!-- ============ TELA: ATIVIDADES EXTRAS ============ -->
   <section role="region" tabindex="-1" class="screen" id="screen-extras">
     <div class="page-header">
-      <h2 class="page-title">✅ Atividades Extras</h2>
+      <h2 class="page-title">Atividades Extras</h2>
       <p class="page-subtitle">Metas paralelas ao seu planejamento obrigatório: baralhos de Anki, leitura de lei seca, questões de um assunto, revisão de pontos fracos, vídeos e revisões de véspera. Você decide, por atividade, se ela entra ou não nas métricas de Evolução.</p>
     </div>
     <div class="extras-toolbar">
@@ -16697,6 +16697,72 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #lei-form-modal .cards-modal-foot>#lei-form-cancel{margin-left:auto}
 /* a busca some com menos de 4 leis (o display:flex anulava o [hidden]) */
 #screen-leis .leis-busca[hidden]{display:none!important}
+
+</style>
+
+<style id="padrao-global">
+/* ═══════════════════════════════════════════════════════════════════════════
+   PADRÃO VISUAL GLOBAL — carregado por último
+   Uma só família para texto (Inter), monoespaçada só para números e siglas;
+   parágrafos alinhados à esquerda; segmentados sem palavras partidas.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── "Mais" (celular): o escurecimento cobre a tela inteira ───────────────
+   O topo (nome do perfil, planejamento ativo) tinha z-index maior que o
+   véu e ficava claro por cima dele. Só enquanto a folha está aberta. */
+body:has(.nav-sheet.open) .nav-scrim{z-index:95!important}
+body:has(.nav-sheet.open) .nav-sheet{z-index:96!important}
+body:has(.nav-sheet.open) .tabs{z-index:97!important}
+
+/* ── Tipografia: textos explicativos em Inter (antes Space Mono) ───────── */
+.hint,.rm-sub,.mpq-nota,.tec-dropzone-hint{font-family:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif!important;letter-spacing:0!important;line-height:1.45}
+/* parágrafos nunca justificados: em tela estreita abriam buracos entre palavras */
+.pl-prosa,.page-subtitle,.card-header .sub,.cfg-group-head p{text-align:left!important;hyphens:none}
+.pl-prosa{font-size:var(--fs-sm);line-height:1.5}
+
+/* ── Segmentados: rótulo curto no celular em vez de quebrar a palavra ─── */
+.sc-sm{display:none}
+@media(max-width:520px){
+  .scope-toggle .sc-lg{display:none}
+  .scope-toggle .sc-sm{display:inline}
+}
+.scope-toggle button{overflow-wrap:normal!important;word-break:normal!important}
+
+/* ── Ferramentas: abas lado a lado, mesma largura ──────────────────────── */
+#screen-ferramentas .tool-tabs{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:4px;background:var(--surface-sunken);border:1px solid var(--border);border-radius:14px}
+#screen-ferramentas .tool-tab{display:flex;align-items:center;justify-content:center;gap:6px;min-height:42px;padding:8px 10px!important;border:0!important;border-radius:10px!important;background:transparent;font-size:var(--fs-sm)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screen-ferramentas .tool-tab.active{background:var(--surface)!important;color:var(--accent)!important;box-shadow:0 1px 3px rgba(15,23,42,.12)}
+
+/* ── Evolução: rótulos de meta não se sobrepõem no celular ─────────────── */
+@media(max-width:720px){
+  .acm-ruler-track{height:38px!important}
+  .acm-ruler-lbl{font-size:calc(10px * var(--fs-scale,1))!important;padding:1px 5px!important}
+  .acm-ruler-lbl:nth-child(2n){bottom:17px!important}
+}
+/* Tempo de estudo: datas com largura útil */
+#screen-evolucao .evo-tempo-range{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+#screen-evolucao .evo-tempo-range input[type=date]{flex:1 1 110px!important;min-width:0;font-size:var(--fs-sm)!important;padding:6px 8px!important}
+
+/* ── Relatório: botões do rodapé em uma linha ──────────────────────────── */
+.report-dialog-foot{display:flex;flex-wrap:wrap;gap:8px}
+.report-dialog-foot>button{white-space:nowrap;flex:1 1 auto;min-height:44px}
+
+/* ── Configurações > Matérias: nome, ativar e excluir numa linha;
+      dificuldade e fase lado a lado ────────────────────────────────────── */
+#config-subjects-list .config-subject-row{padding:12px!important}
+#config-subjects-list .csr-head{display:flex!important;flex-wrap:nowrap!important;align-items:center;gap:8px}
+#config-subjects-list .csr-head>.cfg-subj-name{flex:1 1 0!important;width:auto!important;min-width:0!important}
+#config-subjects-list .csr-head>.config-row-actions{flex:0 0 auto;display:flex;align-items:center;gap:6px;margin:0!important}
+#config-subjects-list .csr-fields{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}
+#config-subjects-list .csr-fields .cfg-field{margin:0!important;min-width:0}
+
+/* ── Componentes comuns: mesmo raio, peso e sombra em todas as telas ───── */
+.screen .card{border-radius:16px}
+.screen .btn-primary,.screen .btn-secondary{border-radius:12px;font-weight:700;letter-spacing:0}
+/* títulos de cartão: mesmo tamanho/peso em todas as telas */
+.screen .card-header h2{font-size:var(--fs-lg);font-weight:750;letter-spacing:-.005em;line-height:1.3}
+/* rótulos de seção em caixa-alta: uma só régua */
+.screen .section-label{font-size:var(--fs-3xs);font-weight:800;letter-spacing:.06em;color:var(--text-faint)}
 
 </style>
 
@@ -55752,6 +55818,9 @@ const GraficoTip = {
     document.addEventListener('click', (e) => {
       const area = e.target.closest ? e.target.closest(this.AREAS) : null;
       if (!area) { this.esconder(); return; }
+      // Botões e campos já dizem o que fazem: o "title" deles é dica de mouse.
+      // Antes, tocar em "Gerar relatório" deixava a bolha por cima da janela.
+      if (e.target.closest('button, a, input, select, textarea, label, summary, [role="button"]')) { this.esconder(); return; }
       // sobe até encontrar quem carrega a informação
       let el = e.target;
       let texto = null;
@@ -57985,6 +58054,9 @@ else CloudStore.init();
       to('#config-modes-list', 'estudo');
       to('#config-statuses-list', 'estudo');
       to('#cloud-auth-box', 'conta');
+      // "Navegação" (módulos opcionais do menu) ficava fora dos grupos e
+      // aparecia no rodapé de TODAS as seções.
+      to('#config-anki-menu-toggle', 'prefs');
       /* "Dados e backup" mantém apenas as duas proteções atuais:
          fotos imutáveis no PostgreSQL e exportação manual em arquivo. */
       to('#cfg-cloudbk-body', 'dados');   // fotos no servidor
@@ -57997,7 +58069,7 @@ else CloudStore.init();
       window.addEventListener('screen:activated', (e) => {
         if (!e.detail || e.detail.screen !== 'config') return;
         const t = $('#cfgp-tema');
-        if (t) { try { t.value = localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'light'; } catch (_) { _quiet(_); } }
+        if (t) { try { t.value = localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'auto'; } catch (_) { _quiet(_); } }
       });
     },
     show(id) {
@@ -58033,7 +58105,7 @@ else CloudStore.init();
         </div>
         <div style="margin-top:14px;display:flex;justify-content:flex-end;"><button type="button" class="btn-secondary" id="cfgp-reset">↺ Restaurar padrões de exibição</button></div>`);
       const themeSel = $('#cfgp-tema', c);
-      themeSel.value = (() => { try { return localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'light'; } catch (_) { return 'light'; } })();
+      themeSel.value = (() => { try { return localStorage.getItem('diario-estudos:theme-mode') || localStorage.getItem('diario-estudos:theme') || 'auto'; } catch (_) { return 'light'; } })();
       themeSel.addEventListener('change', () => {
         const v = themeSel.value;
         const eff = v === 'auto' ? ((window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light') : v;
