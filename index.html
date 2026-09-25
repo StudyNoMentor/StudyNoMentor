@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8fa7de0d79">
+<meta name="diario-versao" content="ve5ca48c698">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16767,6 +16767,13 @@ body:has(.nav-sheet.open) .tabs{z-index:97!important}
 /* rótulos de seção em caixa-alta: uma só régua */
 .screen .section-label{font-size:var(--fs-3xs);font-weight:800;letter-spacing:.06em;color:var(--text-faint)}
 
+/* ── Aviso de pausa (topo das telas) ───────────────────────────────────── */
+.pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;border-radius:14px;border:1px solid var(--warn);background:var(--warn-soft);color:var(--warn-text);font-size:var(--fs-sm);line-height:1.45}
+.pausa-aviso .pa-txt{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.pausa-aviso .pa-ic{flex:0 0 auto;font-size:var(--fs-lg)}
+.pausa-aviso .pa-btn{flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+@media (max-width:520px){.pausa-aviso{flex-wrap:wrap}.pausa-aviso .pa-btn{width:100%}}
+
 </style>
 
 <script id="app-code" type="application/x-diario-inert">
@@ -23093,7 +23100,18 @@ const CycleEngine = {
      onde essa pergunta mora. O teto some porque ele mentia nos dois sentidos:
      escondia o excesso real de quem estudou muito e, no fechamento, ainda
      transformava 220% em 150%.                                             */
+  /* Fração da semana que conta: dias pausados do planejamento em uso não
+     cobram meta. 7 dias com 3 pausados → a meta vale 4/7 do definido. */
+  fatorPausa(startDate, endDate) {
+    try {
+      if (typeof PlanManager === 'undefined' || !PlanManager.pausedDaysBetween || !startDate || !endDate) return 1;
+      const tot = Math.max(1, Math.round((new Date(endDate + 'T00:00:00') - new Date(startDate + 'T00:00:00')) / 86400000) + 1);
+      const pausados = PlanManager.pausedDaysBetween(startDate, endDate);
+      return Math.max(0, (tot - pausados) / tot);
+    } catch (e) { _quiet(e, 'ciclo-fator-pausa'); return 1; }
+  },
   progressoSemana(subjects, startDate, endDate, metas) {
+    const fator = this.fatorPausa(startDate, endDate);
     const lista = (subjects || []).map(s => {
       // meta editável (quando fornecida) sobrescreve a definida no ciclo/snapshot
       let definido = s.definidoMin || 0;
@@ -23101,6 +23119,7 @@ const CycleEngine = {
         const ov = metas[this.normKey(s.nome)];
         if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov, 10) || 0);
       }
+      if (fator < 1) definido = Math.round(definido * fator);
       const estudado = this.minutesStudied(s.nome, startDate, endDate);
       return { ...s, definidoMin: definido, estudadoMin: estudado, status: this.statusFor(estudado, definido) };
     });
@@ -23108,6 +23127,7 @@ const CycleEngine = {
     const totalStudiedMin = lista.reduce((a, s) => a + (s.estudadoMin || 0), 0);
     return {
       subjects: lista,
+      fatorPausa: fator,
       totalTargetMin,
       totalStudiedMin,
       // 2 casas: com metas em minutos, 1 casa esconde progresso real
@@ -30332,15 +30352,23 @@ const EvolucaoScreen = {
     const _iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const _diaAnterior = (iso) => { const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() - 1); return _iso(d); };
     const _ativo = new Set(_isoAtivos);
+    // Dias de planejamento pausado não quebram a sequência (nem somam a ela).
+    const _pausado = (iso) => { try { return typeof PlanManager !== 'undefined' && PlanManager.isDayPaused && PlanManager.isDayPaused(iso); } catch (_) { return false; } };
     let _seqAtual = 0;
     {
       let cur = todayLocal();
       if (!_ativo.has(cur)) cur = _diaAnterior(cur);   // ainda da tempo de estudar hoje
-      while (_ativo.has(cur)) { _seqAtual++; cur = _diaAnterior(cur); }
+      for (let g = 0; g < 3660; g++) {
+        if (_ativo.has(cur)) _seqAtual++;
+        else if (!_pausado(cur)) break;
+        cur = _diaAnterior(cur);
+      }
     }
     let _seqMax = 0, _run = 0, _prev = null;
     _isoAtivos.forEach(iso => {
-      _run = (_prev && _diaAnterior(iso) === _prev) ? _run + 1 : 1;
+      let ligado = false;
+      if (_prev) { let d = _diaAnterior(iso), g = 0; while (d > _prev && _pausado(d) && g++ < 3660) d = _diaAnterior(d); ligado = d === _prev; }
+      _run = ligado ? _run + 1 : 1;
       if (_run > _seqMax) _seqMax = _run;
       _prev = iso;
     });
@@ -50574,6 +50602,37 @@ window.addEventListener('planning:pause-changed', (e) => {
   const atual = document.querySelector('.screen.active');
   if (atual && atual.id) switchScreen(atual.id.replace(/^screen-/, ''));
 });
+
+/* Aviso no topo das telas: pausa em vigor no planejamento em uso ou agendada
+   para os próximos 7 dias. Quem vai viajar vê antes o que deixa de contar. */
+const PausaAviso = {
+  fmt(d) { const [y, m, dd] = String(d || '').split('-'); return dd ? `${dd}/${m}/${y}` : ''; },
+  render() {
+    try {
+      const alvo = document.querySelector('.main-content .content-wrap');
+      if (!alvo) return;
+      let el = document.getElementById('pausa-aviso');
+      const id = PlanManager.getActivePlanId(), hoje = todayLocal();
+      const cur = PlanManager.pauseInfo(id), prox = PlanManager.scheduledPause(id);
+      const dias = prox ? Math.round((new Date(prox.from + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000) : 99;
+      const tela = document.querySelector('.screen.active');
+      if ((!cur && dias > 7) || (tela && tela.id === 'screen-planejamentos')) { if (el) el.remove(); return; }
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'pausa-aviso'; el.className = 'pausa-aviso'; el.setAttribute('role', 'status');
+        alvo.insertBefore(el, alvo.firstChild);
+      }
+      const quando = dias === 0 ? 'hoje' : dias === 1 ? 'amanhã' : `em ${dias} dias`;
+      el.innerHTML = cur
+        ? `<span class="pa-ic" aria-hidden="true">⏸</span><span class="pa-txt"><b>Planejamento pausado</b> desde ${this.fmt(cur.from)}${cur.until ? ` · volta em <b>${this.fmt(cur.until)}</b>` : ' · sem data de retorno'}. Extras, metas e atrasos não contam nesses dias.</span><button type="button" class="pa-btn">Gerenciar</button>`
+        : `<span class="pa-ic" aria-hidden="true">🗓</span><span class="pa-txt"><b>Pausa agendada ${quando}</b> · de ${this.fmt(prox.from)}${prox.until ? ` até ${this.fmt(prox.until)}` : ' sem data de retorno'}. Nesses dias nada será cobrado.</span><button type="button" class="pa-btn">Gerenciar</button>`;
+      el.querySelector('.pa-btn').onclick = () => switchScreen('planejamentos');
+    } catch (e) { _quiet(e, 'pausa-aviso'); }
+  }
+};
+window.addEventListener('screen:activated', () => PausaAviso.render());
+window.addEventListener('planning:pause-changed', () => PausaAviso.render());
+window.addEventListener('data:relational-hydrated', () => PausaAviso.render());
 
 // Render inicial do seletor na sidebar
 PlanUI.renderSidebar();

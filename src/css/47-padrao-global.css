@@ -60,3 +60,10 @@ body:has(.nav-sheet.open) .tabs{z-index:97!important}
 .screen .card-header h2{font-size:var(--fs-lg);font-weight:750;letter-spacing:-.005em;line-height:1.3}
 /* rótulos de seção em caixa-alta: uma só régua */
 .screen .section-label{font-size:var(--fs-3xs);font-weight:800;letter-spacing:.06em;color:var(--text-faint)}
+
+/* ── Aviso de pausa (topo das telas) ───────────────────────────────────── */
+.pausa-aviso{display:flex;align-items:center;gap:10px;margin:0 0 14px;padding:10px 14px;border-radius:14px;border:1px solid var(--warn);background:var(--warn-soft);color:var(--warn-text);font-size:var(--fs-sm);line-height:1.45}
+.pausa-aviso .pa-txt{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.pausa-aviso .pa-ic{flex:0 0 auto;font-size:var(--fs-lg)}
+.pausa-aviso .pa-btn{flex:0 0 auto;min-height:36px;padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font:inherit;font-weight:700;cursor:pointer}
+@media (max-width:520px){.pausa-aviso{flex-wrap:wrap}.pausa-aviso .pa-btn{width:100%}}

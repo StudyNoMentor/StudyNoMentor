@@ -158,7 +158,18 @@ const CycleEngine = {
      onde essa pergunta mora. O teto some porque ele mentia nos dois sentidos:
      escondia o excesso real de quem estudou muito e, no fechamento, ainda
      transformava 220% em 150%.                                             */
+  /* Fração da semana que conta: dias pausados do planejamento em uso não
+     cobram meta. 7 dias com 3 pausados → a meta vale 4/7 do definido. */
+  fatorPausa(startDate, endDate) {
+    try {
+      if (typeof PlanManager === 'undefined' || !PlanManager.pausedDaysBetween || !startDate || !endDate) return 1;
+      const tot = Math.max(1, Math.round((new Date(endDate + 'T00:00:00') - new Date(startDate + 'T00:00:00')) / 86400000) + 1);
+      const pausados = PlanManager.pausedDaysBetween(startDate, endDate);
+      return Math.max(0, (tot - pausados) / tot);
+    } catch (e) { _quiet(e, 'ciclo-fator-pausa'); return 1; }
+  },
   progressoSemana(subjects, startDate, endDate, metas) {
+    const fator = this.fatorPausa(startDate, endDate);
     const lista = (subjects || []).map(s => {
       // meta editável (quando fornecida) sobrescreve a definida no ciclo/snapshot
       let definido = s.definidoMin || 0;
@@ -166,6 +177,7 @@ const CycleEngine = {
         const ov = metas[this.normKey(s.nome)];
         if (ov !== undefined && ov !== '' && ov !== null) definido = Math.max(0, parseInt(ov, 10) || 0);
       }
+      if (fator < 1) definido = Math.round(definido * fator);
       const estudado = this.minutesStudied(s.nome, startDate, endDate);
       return { ...s, definidoMin: definido, estudadoMin: estudado, status: this.statusFor(estudado, definido) };
     });
@@ -173,6 +185,7 @@ const CycleEngine = {
     const totalStudiedMin = lista.reduce((a, s) => a + (s.estudadoMin || 0), 0);
     return {
       subjects: lista,
+      fatorPausa: fator,
       totalTargetMin,
       totalStudiedMin,
       // 2 casas: com metas em minutos, 1 casa esconde progresso real
