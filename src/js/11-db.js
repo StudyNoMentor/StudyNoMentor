@@ -62,7 +62,18 @@ const ReviewJournal = {
       tx.onabort = () => resolve(false);
     });
   },
-  async list(profileId) {
+  /* Operações que o banco recusou de forma DEFINITIVA (card apagado em outro
+     aparelho → FK, por exemplo) não voltam para a fila: ficam marcadas como
+     "mortas" aqui, para exportação/diagnóstico, e deixam de bloquear a
+     abertura do perfil. */
+  async marcarMorta(op, erro) {
+    const x = Object.assign({}, op, { morta: true, mortaEm: Date.now(),
+      erro: { code: String(erro && erro.code || ''), message: String(erro && erro.message || erro || '') } });
+    return this.put(x);
+  },
+  async listarMortas(profileId) { return (await this.list(profileId, { mortas: true })).filter(x => x.morta); },
+  async list(profileId, opts) {
+    const incluirMortas = !!(opts && opts.mortas);
     const db = await this._open();
     if (!db) return [];
     return new Promise((resolve) => {
@@ -74,6 +85,7 @@ const ReviewJournal = {
       req.onsuccess = () => {
         let rows = Array.isArray(req.result) ? req.result : [];
         if (profileId) rows = rows.filter(x => !x.profileId || String(x.profileId) === String(profileId));
+        if (!incluirMortas) rows = rows.filter(x => !x.morta);
         rows.sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
         resolve(rows);
       };
@@ -882,6 +894,32 @@ const DB = {
   // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
   // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
   saveCards(list) { return this._set(this.KEYS.cards, list); },
+  /* ── LOTE DE CARDS ───────────────────────────────────────────────────────
+     Importações criam/atualizam milhares de cards. Sem lote, cada addCard e
+     cada updateCard faz parse + stringify da coleção inteira e gera um diff
+     próprio para o banco (O(n²) em JSON, milhares de RPCs). Dentro do lote,
+     getCards devolve a MESMA lista em memória e saveCards só a substitui; a
+     gravação real acontece UMA vez, no fim. Só aceita função síncrona: um
+     await no meio deixaria o resto do app lendo a lista do lote. */
+  withCardsBatch(fn) {
+    if (this._cardsBatch) return fn();
+    const getOrig = this.getCards, saveOrig = this.saveCards, self = this;
+    let cache = null, sujo = false, ok = false, r;
+    this._cardsBatch = true;
+    this.getCards = function () { if (!cache) cache = getOrig.call(self); return cache; };
+    this.saveCards = function (list) { cache = list; sujo = true; return true; };
+    try {
+      r = fn();
+      if (r && typeof r.then === 'function') throw new Error('withCardsBatch aceita apenas função síncrona');
+      ok = true;
+    } finally {
+      this.getCards = getOrig; this.saveCards = saveOrig; this._cardsBatch = false;
+    }
+    if (ok && sujo && saveOrig.call(this, cache) === false) {
+      throw new Error('A gravação dos cards foi recusada; nada foi importado.');
+    }
+    return r;
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por

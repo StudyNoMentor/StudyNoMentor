@@ -288,6 +288,18 @@ function showToast(text) {
 // ============================================================
 const UI = {
   _resolve: null,
+  /* ── UM DIÁLOGO POR VEZ, NENHUMA PROMESSA PENDURADA ──────────────────────
+     Existe um único modal. Antes, abrir um segundo diálogo substituía o
+     primeiro e o `await` de quem abriu o primeiro nunca terminava. Agora o
+     segundo espera na fila e abre quando o primeiro for respondido. */
+  _fila: [],
+  _ocupado: false,
+  _agendar(abrir) {
+    return new Promise((resolve) => {
+      const run = () => { this._ocupado = true; abrir(resolve); };
+      if (this._ocupado) this._fila.push(run); else run();
+    });
+  },
   _open(title, sub, bodyHtml, { okText = 'Confirmar', cancelText = 'Cancelar', danger = false, hideCancel = false } = {}) {
     const modal = document.getElementById('ui-modal');
     $id('ui-modal-title').textContent = title || '';
@@ -307,11 +319,14 @@ const UI = {
     cancel.style.display = hideCancel ? 'none' : '';
     modal.style.display = 'flex';
     const first = modal.querySelector('.cards-modal-body input, .cards-modal-body textarea, .cards-modal-body select');
-    if (first) setTimeout(() => first.focus(), 60);
+    /* Sem campo para preencher, o foco vai para um BOTÃO — e Enter aciona o
+       botão focado. Numa ação perigosa, o foco nasce no Cancelar. */
+    const alvo = first || (danger && !hideCancel ? cancel : ok);
+    if (alvo) setTimeout(() => { try { alvo.focus(); } catch (_) { _quiet(_); } }, 60);
   },
   _close() { $id('ui-modal').style.display = 'none'; },
   confirm(message, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve;
       this._mode = 'confirm';
       const body = `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
@@ -324,7 +339,7 @@ const UI = {
      habilita quando o texto confere, entao nao ha como "confirmar sem querer". */
   confirmTyped(message, opts = {}) {
     const palavra = String(opts.word || 'APAGAR').toUpperCase();
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve;
       this._mode = 'confirm';
       const body = `
@@ -354,7 +369,7 @@ const UI = {
     });
   },
   alert(message, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve; this._mode = 'confirm';
       // opts.html: conteúdo já montado por nós (ex.: Informações do card).
       // Continua passando pelo saneador, então nada vindo de card importado executa.
@@ -374,7 +389,7 @@ const UI = {
 
      Nunca passe conteúdo importado por aqui: para isso existe o `alert`. */
   detalhe(html, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve; this._mode = 'confirm';
       this._open(opts.title || 'Detalhes', opts.sub || '',
         `<div class="ui-detalhe">${html == null ? '' : html}</div>`,
@@ -382,7 +397,7 @@ const UI = {
     });
   },
   prompt(fields, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve; this._mode = 'prompt'; this._fields = fields;
       const body = fields.map(f => {
         const id = 'uip_' + f.key;
@@ -398,13 +413,18 @@ const UI = {
   _submit(ok) {
     const r = this._resolve; this._resolve = null;
     if (this._mode === 'prompt') {
-      if (!ok) { this._close(); if (r) r(null); return; }
-      const vals = {};
-      (this._fields || []).forEach(f => { const el = document.getElementById('uip_' + f.key); vals[f.key] = el ? el.value : null; });
-      this._close(); if (r) r(vals);
+      if (!ok) { this._close(); if (r) r(null); }
+      else {
+        const vals = {};
+        (this._fields || []).forEach(f => { const el = document.getElementById('uip_' + f.key); vals[f.key] = el ? el.value : null; });
+        this._close(); if (r) r(vals);
+      }
     } else {
       this._close(); if (r) r(!!ok);
     }
+    this._ocupado = false;
+    const proximo = this._fila.shift();
+    if (proximo) { this._ocupado = true; setTimeout(proximo, 0); }
   }
 };
 (function () {
@@ -419,7 +439,9 @@ const UI = {
       const m = document.getElementById('ui-modal');
       if (!m || m.style.display === 'none') return;
       if (e.key === 'Escape') UI._submit(false);
-      else if (e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA')) {
+      /* Enter num BOTÃO (ou link) é o próprio botão: com o foco no Cancelar,
+         Enter cancela. Antes, qualquer Enter confirmava — inclusive exclusões. */
+      else if (e.key === 'Enter' && !/^(TEXTAREA|BUTTON|A)$/.test(e.target.tagName)) {
         const ok = document.getElementById('ui-modal-ok');
         if (ok && ok.disabled) return;      // confirmacao por palavra ainda nao confere
         e.preventDefault(); UI._submit(true);

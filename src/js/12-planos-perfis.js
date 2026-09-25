@@ -877,6 +877,8 @@ const ProfileManager = {
     Object.keys(obj.data || {}).forEach(subKey => {
       // ignora eventuais chaves de perfil aninhadas por segurança
       if (subKey.startsWith('u:')) return;
+      // Código (extensões, Custom Scheduling) não entra por arquivo de fora.
+      if (/(^|:)cards-(extensions|custom-scheduling):/.test(subKey)) return;
       let valor = obj.data[subKey];
       // Um backup pode vir de fora (colega, grupo de estudos, download). Os cards
       // são o único conteúdo renderizado como HTML, então passam pelo saneamento

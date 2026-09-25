@@ -433,6 +433,12 @@ const AnkiImport = {
   },
   async importCollectionPackage(parsed){
     if(!parsed||parsed.format!=='colpkg')throw new Error('Collection Package inválido');
+    // Nada do estado intermediário (coleção esvaziada) vai ao banco: só o
+    // resultado final, e só o que mudou. Ver RelationalStore.lote.
+    const lote=typeof RelationalStore!=='undefined'&&RelationalStore.lote?fn=>RelationalStore.lote(fn):fn=>fn();
+    return lote(()=>this._importCollectionPackage(parsed));
+  },
+  async _importCollectionPackage(parsed){
     const backup=this._snapshotCollectionState();
     try{
       DB.saveCards([]);DB.saveDecks([]);DB.replaceRevlog([]);this._clearCanonicalCardEntities();
@@ -513,14 +519,21 @@ const AnkiImport = {
     }
 
     const cards=this._rows(db,'select id,nid,did,ord,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data,mod from cards');
+    // Índices montados uma vez: antes eram um SELECT no SQLite, um scan dos
+    // tipos de nota e um parse da coleção inteira POR CARD.
+    const midPorNota=new Map(notes.map(n=>[String(n.id),n.mid])),tiposPorId=new Map(AnkiParity.noteTypes().map(x=>[String(x.id),x])),notasLocais=new Map();
+    this._lote(()=>{
+    const porAnkiId=new Map();DB.getCards().forEach(x=>{if(x&&x.ankiId!=null)porAnkiId.set(Number(x.ankiId),x);});
     for(const ac of cards){
-      const localNid=noteMap.get(String(ac.nid))||Number(ac.nid),note=AnkiParity.getNote(localNid);if(!note)continue;
-      const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
-      const sourceNote=this._rows(db,'select mid from notes where id=?',[ac.nid])[0]||{},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
+      const localNid=noteMap.get(String(ac.nid))||Number(ac.nid);
+      if(!notasLocais.has(String(localNid)))notasLocais.set(String(localNid),AnkiParity.getNote(localNid));
+      const note=notasLocais.get(String(localNid));if(!note)continue;
+      const nt=tiposPorId.get(String(note.notetypeId));if(!nt)continue;
+      const sourceNote={mid:midPorNota.get(String(ac.nid))},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
       const stub={clozeOrd:Number(ac.ord)+1,ankiTemplateOrd:localOrd,deckId:deckMap.get(String(ac.did))||opts.deckId||null};
       const front=AnkiParity.renderTemplate(nt,note,localOrd,'question',stub,''),back=AnkiParity.renderTemplate(nt,note,localOrd,'answer',stub,front);
-      let c=DB.getCards().find(x=>Number(x.ankiId)===Number(ac.id));
-      if(!c)c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});
+      let c=porAnkiId.get(Number(ac.id));
+      if(!c){c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});porAnkiId.set(Number(ac.id),c);}
       else DB.updateCard(c.id,{deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,frente:front,verso:back,kind:nt.kind==='cloze'?'cloze':'basic'});
       const patch={ankiId:Number(ac.id),ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,ankiMod:Number(ac.mod)||0,flag:Math.max(0,Math.min(7,Number(ac.flags)||0))};
       if(opts.withScheduling!==false){
@@ -531,6 +544,7 @@ const AnkiImport = {
       }
       DB.updateCard(c.id,patch);cardMap.set(String(ac.id),c.id);
     }
+    });
     if(opts.withScheduling!==false&&this._has(db,'revlog')){
       const old=DB.getRevlog().slice(),known=new Set(old.map(r=>String(r.reviewId||r.id||'')+'|'+String(r.cardId))),rr=this._rows(db,'select id,cid,ease,ivl,lastIvl,factor,time,type from revlog order by id');
       for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:new Date(Number(r.id)).toISOString().slice(0,10),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
@@ -540,6 +554,7 @@ const AnkiImport = {
     return {cards:cards.length,notes:notes.length,decks:deckMap.size};
   },
 
+  _lote(fn){return typeof DB.withCardsBatch==='function'?DB.withCardsBatch(fn):fn();},
   _mnemoMungeField(value){
     return String(value==null?'':value).replace(/\r?\n/g,'<br>')
       .replace(/<\/?(?:\$|\$\$|latex)>/gi,(m)=>'['+m.slice(1,-1)+']')
@@ -573,7 +588,8 @@ const AnkiImport = {
       {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'}
     ]};
   },
-  importMnemosyne(parsed,opts){
+  importMnemosyne(parsed,opts){return this._lote(()=>this._importMnemosyne(parsed,opts));},
+  _importMnemosyne(parsed,opts){
     opts=opts||{};const facts=new Map();for(const r of parsed.facts){if(!facts.has(r.id))facts.set(r.id,{});facts.get(r.id)[r.key]=String(r.value||'');}
     const byFact=new Map();for(const c of parsed.cards){if(!byFact.has(c.fact_id))byFact.set(c.fact_id,[]);byFact.get(c.fact_id).push(c);}
     const types=AnkiParity.noteTypes(),byName=new Map(types.map(x=>[String(x.name||''),x]));let cardCount=0,noteCount=0;
@@ -599,7 +615,8 @@ const AnkiImport = {
     }
     CardEngine.invalidateDueCache();return {cards:cardCount,notes:noteCount};
   },
-  importText(parsed,opts){
+  importText(parsed,opts){return this._lote(()=>this._importText(parsed,opts));},
+  _importText(parsed,opts){
     opts=opts||{};const rows=parsed.rows||[],html=opts.forceIsHtml?!!opts.isHtml:(parsed.headers&&Object.prototype.hasOwnProperty.call(parsed.headers,'html')?parsed.isHtml:(opts.isHtml!=null?!!opts.isHtml:parsed.isHtml));
     const dupe=String(opts.dupeResolution||'update').toLowerCase(),match=String(opts.matchScope||'notetype').toLowerCase();
     const deckCol=Math.max(0,Number(opts.deckColumn!=null?opts.deckColumn:parsed.deckColumn)||0),ntCol=Math.max(0,Number(opts.notetypeColumn!=null?opts.notetypeColumn:parsed.notetypeColumn)||0);

@@ -375,8 +375,10 @@ window.CloudUI = CloudUI;
         const cor = (obj.profile && obj.profile.cor) || '#4f46e5';
         const row = await CloudStore.createRow({ name: nomeFinal, avatar, color: cor, payload: {} });
         ProfileManager.addMirror({ id: row.id, nome: nomeFinal, avatar, cor });
-        await RelationalStore.replaceProfileFromPayload(row.id, obj.data || {}, { reason: 'json-import' });
-        showToast('Perfil importado no banco ✓');
+        const imp = await RelationalStore.replaceProfileFromPayload(row.id, obj.data || {}, { reason: 'json-import' });
+        showToast(imp && imp.pendente
+          ? 'Perfil importado; parte ainda está sendo enviada ao banco — não feche o app até o aviso sumir.'
+          : 'Perfil importado no banco ✓');
         ProfileUI.refreshStage();
       } catch (err) {
         showToast('Erro ao importar: ' + (err.message || ''));

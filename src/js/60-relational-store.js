@@ -54,7 +54,7 @@ const RelationalStore = {
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
-  pendingCount() { return this._pending + this._dirty.size; },
+  pendingCount() { return this._pending + this._dirty.size + (this._adiadas ? this._adiadas.size : 0); },
   dirtyCount() { return this._dirty.size; },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
@@ -602,6 +602,32 @@ const RelationalStore = {
     return true;
   },
 
+  /* ── LOTE ADIADO ─────────────────────────────────────────────────────────
+     Operações que primeiro ESVAZIAM e depois reconstroem (importar um
+     Collection Package) não podem mandar o estado intermediário ao banco:
+     se falharem no meio, ou a aba fechar, o banco ficaria vazio. Dentro do
+     lote, as mutações só são anotadas (com o valor ORIGINAL de cada chave);
+     no fim, só as chaves cujo valor final difere do original vão para a
+     fila. Se a operação falhar e restaurar o estado local, nada é enviado. */
+  async lote(fn) {
+    if (this._adiadas) return fn();
+    this._adiadas = new Map();
+    this._notifyPendingState();
+    try { return await fn(); }
+    finally {
+      const anotadas = this._adiadas; this._adiadas = null;
+      let n = 0;
+      anotadas.forEach((oldRaw, k) => {
+        let atual = null;
+        try { atual = localStorage.getItem(k); } catch (e) { _quiet(e, 'rel-lote-ler'); }
+        if (atual === oldRaw) return;
+        this._markDirty(k, oldRaw); n++;
+      });
+      if (n && this.isReady()) this._scheduleDrain();
+      this._notifyPendingState();
+    }
+  },
+
   /* ── DRENAGEM ───────────────────────────────────────────────────────────── */
   _markDirty(key, oldRaw) {
     const k = String(key);
@@ -922,14 +948,32 @@ const RelationalStore = {
       } catch (e) { _quiet(e, 'review-fallback-list'); }
 
       ops.sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0));
+      let mortas=0;
       for(const op of ops){
-        await this._commitReviewOutboxOp(op);
+        try { await this._commitReviewOutboxOp(op); }
+        catch (e) {
+          /* Recusa definitiva: repetir nunca vai passar, e lançar aqui travava
+             a abertura do perfil em toda tentativa. A operação vai para a
+             "fila morta" (guardada, não apagada) e o resto segue. Erros de
+             rede/sessão continuam interrompendo — esses se resolvem sozinhos. */
+          if (!this._isPermanent(e)) throw e;
+          mortas++;
+          console.error('[RelationalStore] revisão recusada pelo banco; guardada na fila morta', op && op.reviewId, e);
+          try {
+            if (typeof ReviewJournal !== 'undefined' && ReviewJournal.marcarMorta && !String(op.id).endsWith(':fallback')) await ReviewJournal.marcarMorta(op, e);
+          } catch (e2) { _quiet(e2, 'review-dead-letter'); }
+          try { if (typeof DB !== 'undefined' && DB.confirmarRevlog) DB.confirmarRevlog(op.reviewId); } catch (e2) { _quiet(e2, 'review-dead-ack'); }
+          continue;
+        }
         try {
           if (typeof ReviewJournal !== 'undefined' && ReviewJournal.remove && !String(op.id).endsWith(':fallback')) await ReviewJournal.remove(op.id);
         } catch (e) { _quiet(e, 'review-journal-ack'); }
         try { if (typeof DB !== 'undefined' && DB.confirmarRevlog) DB.confirmarRevlog(op.reviewId); } catch (e) { _quiet(e, 'review-fallback-ack'); }
       }
-      return {ok:true,mudou:ops.length};
+      if (mortas) {
+        try { showToast('⚠ ' + mortas + ' revisão(ões) não puderam ser enviadas (o card não existe mais no banco). Elas foram guardadas neste aparelho.'); } catch (e) { _quiet(e, 'review-dead-toast'); }
+      }
+      return {ok:true,mudou:ops.length-mortas,mortas};
     })();
     try { return await this._reviewReplay; }
     finally { this._reviewReplay=null; }
@@ -965,6 +1009,9 @@ const RelationalStore = {
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
   },
+  /* Chaves que guardam CÓDIGO (extensões, Custom Scheduling) não entram por
+     backup/importação: um arquivo vindo de fora não pode plantar script. */
+  _subDeCodigo(sub) { return /(^|:)cards-(extensions|custom-scheduling):/.test(String(sub || '')); },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
     /* Reaplicar exatamente o mesmo valor não é uma mutação persistente.
@@ -996,6 +1043,11 @@ const RelationalStore = {
        escritas de UI não vão ao banco. Mas, depois que um perfil foi aberto,
        uma sessão perdida (token expirado) NÃO pode descartar o que a pessoa
        faz: a chave fica suja e é enviada quando ela entrar de novo. */
+    if (this._adiadas) {
+      const k = String(key);
+      if (!this._adiadas.has(k)) this._adiadas.set(k, oldRaw == null ? null : String(oldRaw));
+      return;
+    }
     if(!this.isReady()) {
       if (this._everHydrated) { this._markDirty(key, oldRaw); this._notifyPendingState(); }
       return;
@@ -1196,16 +1248,17 @@ const RelationalStore = {
       Object.keys(data).forEach(sub => {
         if (sub === 'planejamentos' || sub === 'active-plan') return;
         if (sub.startsWith('u:') || this._ignoreSub(sub)) return;
+        if (this._subDeCodigo(sub)) return;
         localStorage.setItem(pfx+sub, String(data[sub]));
       });
     } finally { this._applying = false; }
 
     /* Ordem deliberada: planos -> ponteiro ativo -> settings -> conteúdo de
-       cada plano. Assim as FKs sempre encontram o pai antes dos filhos. */
-    await this._persistPlans(profileId, null, JSON.stringify(plans));
-    await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan'));
-
-    const planKeys = [], profileKeys = [];
+       cada plano. Assim as FKs sempre encontram o pai antes dos filhos.
+       Sem transação no banco, uma falha no meio deixaria o perfil parcial:
+       por isso tudo o que ainda não subiu entra na FILA DURÁVEL (reenvio
+       automático, aviso na tela, beforeunload) em vez de ser abandonado. */
+    const planKeys = [], profileKeys = [], enviados = new Set();
     for (let i=0;i<localStorage.length;i++) {
       const k=localStorage.key(i);
       if (!k || !k.startsWith(pfx)) continue;
@@ -1215,8 +1268,20 @@ const RelationalStore = {
       if (m) planKeys.push({key:k,planId:m[1],sub:m[2]});
       else profileKeys.push({key:k,sub:rel});
     }
-    for (const x of profileKeys) await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key));
-    for (const x of planKeys) await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key));
+    try {
+      await this._persistPlans(profileId, null, JSON.stringify(plans)); enviados.add(pfx+'planejamentos');
+      await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan')); enviados.add(pfx+'active-plan');
+      for (const x of profileKeys) { await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key)); enviados.add(x.key); }
+      for (const x of planKeys) { await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key)); enviados.add(x.key); }
+    } catch (e) {
+      console.error('[RelationalStore] restauração interrompida; o restante fica na fila', e);
+      [pfx+'planejamentos', pfx+'active-plan'].concat(profileKeys.map(x => x.key), planKeys.map(x => x.key))
+        .forEach(k => { if (!enviados.has(k)) this._markDirty(k, null); });
+      this._lastError = e;
+      this._scheduleRetry();
+      this._notifyPendingState();
+      return { ok:true, pendente:true, secoes:Object.keys(data).length, planos:plans.length };
+    }
 
     await this.hydrateProfile(profileId,{reason:opts.reason||'backup-restore'});
     return { ok:true, secoes:Object.keys(data).length, planos:plans.length };

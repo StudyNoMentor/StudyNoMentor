@@ -1152,6 +1152,10 @@ function planCycleMode() {
     });
 
     // soltar de volta na bandeja de chips remove a matéria daquela célula (sem excluí-la do ciclo)
+    // A bandeja é FIXA no HTML (não é recriada a cada render): liga uma vez só,
+    // senão cada renderGrade somava mais um drop e um soltar executava N vezes.
+    if (!tray || tray.dataset.dropBound === '1') return;
+    tray.dataset.dropBound = '1';
     tray.addEventListener('dragover', (e) => { e.preventDefault(); tray.classList.add('drag-active'); });
     tray.addEventListener('dragleave', () => tray.classList.remove('drag-active'));
     tray.addEventListener('drop', (e) => {
@@ -1242,10 +1246,14 @@ function planCycleMode() {
   function bindCellClick(cell) {
     const dia = cell.dataset.dia, idx = parseInt(cell.dataset.idx, 10);
     const empty = cell.querySelector('.grade-cell-empty-hint');
+    /* onclick (propriedade), não addEventListener: a célula é reaproveitada ao
+       ser esvaziada e preenchida; com addEventListener cada ciclo acumulava um
+       listener, e clicar no "×" de uma célula preenchida abria o seletor junto. */
     if (empty) {
       cell.style.cursor = 'pointer';
-      cell.addEventListener('click', () => openSiglaPicker(cell, dia, idx));
+      cell.onclick = () => openSiglaPicker(cell, dia, idx);
     } else {
+      cell.onclick = null; cell.style.cursor = '';
       const label = cell.querySelector('.chip-acronym-label');
       if (label) {
         label.style.cursor = 'pointer';

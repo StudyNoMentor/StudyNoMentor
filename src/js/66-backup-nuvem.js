@@ -301,16 +301,26 @@ const CloudBackup = {
   /* Restaura a foto SOBRE o perfil ativo. Duas garantias antes de qualquer
      escrita: uma foto no banco do estado atual, para que a restauração continue
      reversível em qualquer aparelho. */
-  async restaurar(rowId) {
+  async restaurar(rowId, opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId();
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
+    /* A foto do estado ATUAL é o único caminho de volta se a restauração der
+       errado. Sem ela, não seguimos — a menos que a pessoa aceite o risco
+       explicitamente (opts.semFotoDeSeguranca), depois de avisada. */
+    if (!opts.semFotoDeSeguranca) {
+      let pre = null;
+      try { pre = await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); }
+      catch (e) { _quiet(e, 'cbk-pre'); pre = { ok: false, motivo: String(e && e.message || e) }; }
+      // Perfil vazio não tem o que proteger.
+      if (!pre || (!pre.ok && pre.motivo !== 'perfil-vazio')) return { ok: false, motivo: 'sem-foto-de-seguranca', detalhe: pre && pre.motivo };
+    }
     try {
       if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
       const r = await RelationalStore.replaceProfileFromPayload(id, foto.data, { reason: 'cloud-backup-restore' });
-      return { ok: true, secoes: r.secoes || Object.keys(foto.data).length };
+      return { ok: true, pendente: !!r.pendente, secoes: r.secoes || Object.keys(foto.data).length };
     } catch (e) {
       console.error('[CloudBackup] restauração relacional falhou', e);
       return { ok: false, motivo: 'falha-ao-aplicar' };
@@ -755,8 +765,18 @@ const CloudBackupUI = {
         { title: '↺ Restaurar do banco', okText: 'Restaurar' });
       if (!ok) return;
       showToast('Restaurando…');
-      const r = await CloudBackup.restaurar(rid);
+      let r = await CloudBackup.restaurar(rid);
+      if (!r.ok && r.motivo === 'sem-foto-de-seguranca') {
+        const mesmoAssim = await UI.confirm(
+          'Não foi possível guardar uma foto do estado ATUAL antes de restaurar' + (r.detalhe ? ' (' + r.detalhe + ')' : '') +
+          '.\n\nSe continuar, o estado atual não poderá ser recuperado pelo banco. Recomendado: baixe uma cópia do perfil antes.',
+          { title: 'Restaurar sem foto de segurança?', okText: 'Restaurar mesmo assim', danger: true });
+        if (!mesmoAssim) return;
+        showToast('Restaurando…');
+        r = await CloudBackup.restaurar(rid, { semFotoDeSeguranca: true });
+      }
       if (!r.ok) { showToast('Não foi possível restaurar: ' + (r.motivo || '')); return; }
+      if (r.pendente) { showToast('Restaurado na tela; parte ainda está sendo enviada ao banco. Não feche o app até o aviso sumir.'); return; }
       showToast(r.secoes + ' seção(ões) restaurada(s) ✓ — enviando e recarregando');
       try { await CloudStore.flushPending(); } catch (e) { _quiet(e, 'cbk-flush'); }
       setTimeout(() => recarregarApp('backup da nuvem restaurado', { imediato: true }), 700);

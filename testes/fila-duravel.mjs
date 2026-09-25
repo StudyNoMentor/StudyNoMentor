@@ -242,4 +242,51 @@ net.down = false;
 R.resumeDirty(); await R.flush();
 ok('hidratação não passa por cima de alteração não confirmada');
 
+// ── A4: lote adiado — o estado intermediário (coleção esvaziada) nunca sai
+const cardsKey = entriesKey;
+localStorage.setItem(cardsKey, JSON.stringify([{ id: 'c1', subject: 'A', durationMin: 1 }]));
+await R.flush();
+const antesLote = db.requests.length;
+await assert.rejects(() => R.lote(async () => {
+  const backup = localStorage.getItem(cardsKey);
+  localStorage.setItem(cardsKey, '[]');
+  await new Promise(r => setTimeout(r, 30));
+  assert.ok(R.pendingCount() > 0, 'lote em andamento conta como pendência (beforeunload protege)');
+  localStorage.setItem(cardsKey, backup);            // a importação falhou e restaurou
+  throw new Error('importação falhou');
+}));
+await R._tail;
+assert.equal(db.requests.length, antesLote, 'falha com restauração: nada enviado ao banco');
+assert.equal(R.dirtyCount(), 0);
+await R.lote(async () => {
+  localStorage.setItem(cardsKey, '[]');
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(db.requests.length, antesLote, 'nada sai no meio do lote');
+  localStorage.setItem(cardsKey, JSON.stringify([{ id: 'c2', subject: 'B', durationMin: 2 }]));
+});
+await R.flush();
+assert.deepEqual(banco('study_entries').map(r => r.entry_id), ['c2'], 'só o estado final chega ao banco');
+ok('lote adiado: estado intermediário nunca sai; falha restaurada não envia nada');
+
+// ── A6: revisão envenenada não impede abrir o perfil
+{
+  const mortasGuardadas = [], removidas = [];
+  ctx.ReviewJournal = {
+    async list() { return [{ id: 'op1', reviewId: 'r1', createdAt: 1 }, { id: 'op2', reviewId: 'r2', createdAt: 2 }]; },
+    async remove(id) { removidas.push(id); return true; },
+    async marcarMorta(op, e) { mortasGuardadas.push([op.id, e.code]); return true; }
+  };
+  const commitOrig = R._commitReviewOutboxOp;
+  R._commitReviewOutboxOp = async (op) => { if (op.id === 'op1') { const e = new Error('violates foreign key'); e.code = '23503'; throw e; } };
+  const r = await R.replayReviewOutbox('p1');
+  assert.equal(r.mortas, 1);
+  assert.deepEqual(mortasGuardadas, [['op1', '23503']], 'a operação recusada vai para a fila morta (não é apagada)');
+  assert.deepEqual(removidas, ['op2'], 'a operação seguinte é enviada normalmente');
+  R._commitReviewOutboxOp = async () => { throw new Error('TypeError: Failed to fetch'); };
+  await assert.rejects(() => R.replayReviewOutbox('p1'), 'erro de rede continua interrompendo (é transitório)');
+  R._commitReviewOutboxOp = commitOrig;
+  delete ctx.ReviewJournal;
+  ok('revisão recusada definitivamente vai para a fila morta e não trava a abertura do perfil');
+}
+
 console.log('FILA DURÁVEL: falha de rede, erro persistente, estado final, coalescência, lote, recusa, sessão caída, bloco pesado e hidratação protegida.');

@@ -21,7 +21,8 @@ assert.match(doc,/mathjax@3\.2\.2\/es5\/tex-chtml-full\.js/,'MathJax deve usar o
 const noAuto=R.buildSrcdoc(nt,html,'question',{id:123},null,{disableAutoplay:true});
 assert.match(noAuto,/const AUTO_PLAY=false/,'preset com autoplay desativado deve chegar ao runtime do card');
 const frame=R.renderFrame(nt,html,'question',{id:123},true);
-assert.match(frame,/sandbox="allow-scripts allow-forms allow-popups allow-modals"/);
+assert.match(frame,/sandbox="allow-scripts allow-forms allow-popups"/);
+assert.doesNotMatch(frame,/allow-modals/,'template não pode abrir alert/confirm em série');
 assert.doesNotMatch(frame,/allow-same-origin/,'sandbox nunca pode compartilhar a origem do Study');
 assert.match(frame,/srcdoc=/);
 const typedQ=R.buildSrcdoc(nt,'[[type:Front]]','question',{id:123},{fields:{Front:'Correta'}});
@@ -75,4 +76,21 @@ delete ctx.document;
 const reviewer=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
 assert.match(reviewer,/const frontDisplay = this\._flipped \? 'none' : 'block';/,'frente deve ser ocultada após o flip');
 assert.match(reviewer,/const backDisplay = this\._flipped \? 'block' : 'none';/,'verso deve substituir a frente no flip');
+// A8 — pycmd('easeN') só responde com ativação do usuário, no card da tela e com intervalo mínimo.
+{
+  const respostas=[];let ativo=true;
+  ctx.navigator={userActivation:{get isActive(){return ativo;}}};
+  ctx.CardsScreen={_reviewQueue:['c1'],_reviewIdx:0,_flipped:true,answer(g){respostas.push(g);},flip(){}};
+  ctx.DB={getCard:id=>id==='c1'?{id:'c1',ankiId:555}:null};
+  ctx.document={getElementById:()=>null};
+  const quadro=(id)=>({dataset:{ankiFrameId:id}});
+  R._ultimoPycmdEase=0;
+  ativo=false;R._handlePycmd('ease4',quadro('anki-555-answer'));
+  assert.equal(respostas.length,0,'sem ativação do usuário o template não responde o card');
+  ativo=true;R._handlePycmd('ease4',quadro('anki-999-answer'));
+  assert.equal(respostas.length,0,'quadro de outro card não responde o card da tela');
+  R._handlePycmd('ease4',quadro('anki-555-answer'));
+  for(let i=0;i<20;i++)R._handlePycmd('ease4',quadro('anki-555-answer'));
+  assert.deepEqual(respostas,['facil'],'laço de pycmd responde no máximo uma vez por intervalo');
+}
 console.log('RUNTIME ANKI: CSS, HTML expansível, JS sandboxado, TTS, MathJax e flip validados.');

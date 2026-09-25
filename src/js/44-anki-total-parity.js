@@ -344,20 +344,30 @@ const AnkiTotalParity = {
   _extensionsKey(){try{return AnkiParity._entityKey('extensions','sources');}catch(_){return 'snm-anki-extensions';}},
   _extensionSources(){try{const x=JSON.parse(localStorage.getItem(this._extensionsKey())||'[]');return Array.isArray(x)?x:[];}catch(_){return [];}},
   _saveExtensionSources(x){try{DB.setRaw(this._extensionsKey(),JSON.stringify(x||[]));}catch(_){localStorage.setItem(this._extensionsKey(),JSON.stringify(x||[]));}},
+  /* ── CÓDIGO DE TERCEIROS NÃO RODA NA ORIGEM DO APP ──────────────────────
+     Extensões locais e Custom Scheduling chegavam por chaves do perfil —
+     sincronizadas pelo banco e importáveis por backup JSON — e eram
+     executadas com new Function no MESMO contexto da sessão do Supabase.
+     Isso é execução arbitrária com acesso ao token. A execução fica
+     desligada; o código continua guardado (para exportar/copiar) e a API de
+     hooks segue disponível para o código do próprio app. */
+  EXECUCAO_DE_CODIGO_DESATIVADA:true,
   _loadUserExtensions(){
-    const api=window.AnkiStudyExtensions;if(!api)return;for(const x of this._extensionSources().filter(x=>x.enabled)){try{new Function('api','"use strict";\n'+String(x.source||''))(api);api.register({id:x.id,name:x.name||x.id,version:x.version||'user',user:true});}catch(e){console.warn('Extensão '+x.name,e);}}
+    const api=window.AnkiStudyExtensions;if(!api)return;
+    const ativas=this._extensionSources().filter(x=>x.enabled);
+    if(ativas.length)console.warn('Extensões locais não são executadas por segurança:',ativas.map(x=>x.name||x.id).join(', '));
   },
   openExtensions(){
     let m=document.getElementById('anki-extensions-modal');if(!m){const d=document.createElement('div');d.innerHTML='<div id="anki-extensions-modal" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>🧩 Extensões dos Cards</h2><p class="sub">API de hooks do Study. Extensões locais executam código escolhido por você; mantenha desativado o que não conhece.</p></div><button class="icon-btn" id="anki-ext-close">✕</button></div><div class="cards-modal-body"><div id="anki-ext-list"></div><input id="anki-ext-file" type="file" accept=".js,text/javascript" hidden></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-ext-import">Importar .js</button><span style="flex:1"></span><button class="btn-primary" id="anki-ext-done">Fechar</button></div></div></div>';document.body.appendChild(d);m=document.getElementById('anki-extensions-modal');document.getElementById('anki-ext-close').onclick=document.getElementById('anki-ext-done').onclick=()=>m.style.display='none';document.getElementById('anki-ext-import').onclick=()=>document.getElementById('anki-ext-file').click();document.getElementById('anki-ext-file').onchange=e=>this._importExtensionFile(e.target.files&&e.target.files[0]);}
     this._renderExtensions();m.style.display='flex';
   },
   _renderExtensions(){
-    const box=document.getElementById('anki-ext-list');if(!box)return;const rows=this._extensionSources();box.innerHTML='<div class="anki-ext-row built"><strong>StudyNoMentor Anki Parity</strong><span>Integrada · ativa</span></div>'+rows.map(x=>'<div class="anki-ext-row"><label><input type="checkbox" data-ext-toggle="'+this.esc(x.id)+'" '+(x.enabled?'checked':'')+'> <strong>'+this.esc(x.name||x.id)+'</strong></label><button class="icon-btn danger" data-ext-del="'+this.esc(x.id)+'">×</button></div>').join('')+(rows.length?'':'<p class="hint">Nenhuma extensão local importada.</p>');
-    box.querySelectorAll('[data-ext-toggle]').forEach(cb=>cb.onchange=()=>{const xs=this._extensionSources(),x=xs.find(y=>String(y.id)===String(cb.dataset.extToggle));if(x){x.enabled=cb.checked;this._saveExtensionSources(xs);showToast('Recarregue a página para aplicar a extensão.');}});
+    const box=document.getElementById('anki-ext-list');if(!box)return;const rows=this._extensionSources();box.innerHTML='<div class="anki-ext-row built"><strong>StudyNoMentor Anki Parity</strong><span>Integrada · ativa</span></div><p class="hint">🔒 Por segurança, extensões importadas não são executadas: o código rodaria com acesso à sua sessão e aos seus dados. Elas ficam guardadas apenas como referência.</p>'+rows.map(x=>'<div class="anki-ext-row"><label><input type="checkbox" data-ext-toggle="'+this.esc(x.id)+'" '+(x.enabled?'checked':'')+'> <strong>'+this.esc(x.name||x.id)+'</strong></label><button class="icon-btn danger" data-ext-del="'+this.esc(x.id)+'">×</button></div>').join('')+(rows.length?'':'<p class="hint">Nenhuma extensão local importada.</p>');
+    box.querySelectorAll('[data-ext-toggle]').forEach(cb=>cb.onchange=()=>{const xs=this._extensionSources(),x=xs.find(y=>String(y.id)===String(cb.dataset.extToggle));if(x){x.enabled=cb.checked;this._saveExtensionSources(xs);showToast('Extensões locais não são executadas por segurança.');}});
     box.querySelectorAll('[data-ext-del]').forEach(b=>b.onclick=()=>{this._saveExtensionSources(this._extensionSources().filter(x=>String(x.id)!==String(b.dataset.extDel)));this._renderExtensions();});
   },
   _importExtensionFile(file){
-    if(!file)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),id='user-'+Date.now().toString(36),rows=this._extensionSources();rows.push({id,name:file.name.replace(/\.js$/i,''),source:src,enabled:false});this._saveExtensionSources(rows);this._renderExtensions();showToast('Extensão importada desativada por segurança');};r.readAsText(file);
+    if(!file)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),id='user-'+Date.now().toString(36),rows=this._extensionSources();rows.push({id,name:file.name.replace(/\.js$/i,''),source:src,enabled:false});this._saveExtensionSources(rows);this._renderExtensions();showToast('Extensão guardada — extensões locais não são executadas por segurança');};r.readAsText(file);
   },
 
   /* ───────────────── CUSTOM SCHEDULING OPT-IN ───────────────── */
@@ -421,6 +431,11 @@ const AnkiTotalParity = {
   },
   _runCustomScheduling(card,grade,patch){
     const cfg=this._customCfg();if(!cfg.enabled||!String(cfg.source||'').trim())return patch;
+    // Ver EXECUCAO_DE_CODIGO_DESATIVADA: o agendamento padrão é sempre preservado.
+    if(this.EXECUCAO_DE_CODIGO_DESATIVADA){
+      if(!this._customSchedulingErrorShown){this._customSchedulingErrorShown=true;console.warn('Custom Scheduling não é executado por segurança.');}
+      return patch;
+    }
     try{
       const bundle=this._buildSchedulingStates(card,this._baseScheduler||((c,g)=>patch)),states=bundle.states,key=this._customGradeKey(grade),phase=this._customPhase(card,patch);
       const fn=new Function('states','card','grade','patch','config','"use strict";\n'+String(cfg.source||'')+'\n;return states;');
@@ -438,7 +453,7 @@ const AnkiTotalParity = {
   },
   openCustomScheduling(){
     const c=this._customCfg();UI.prompt([
-      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'Compatível com a variável states do Custom Scheduling atual do Anki. Em erro ou saída inválida, o agendamento padrão é preservado.'},
+      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'🔒 Desativado por segurança: o código rodaria com acesso à sua sessão e aos seus dados. O script fica guardado, mas o agendamento padrão (FSRS) é sempre usado.'},
       {key:'source',label:'Código JavaScript',type:'textarea',rows:14,value:c.source||'',hint:'Ex.: if (states.hard.normal?.learning) states.hard.normal.learning.scheduledSecs = 123 * 60; Também aceita o formato legado do Study com return { intervalo, _val, due... }.'}
     ],{title:'🧪 Custom Scheduling',okText:'Salvar'}).then(v=>{if(!v)return;this._saveCustomCfg({enabled:v.enabled==='1',source:String(v.source||'')});this._customSchedulingErrorShown=false;showToast('Custom Scheduling salvo');});
   },

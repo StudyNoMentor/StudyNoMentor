@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v15d708f118">
+<meta name="diario-versao" content="v1b0ade27f3">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -17571,7 +17571,18 @@ const ReviewJournal = {
       tx.onabort = () => resolve(false);
     });
   },
-  async list(profileId) {
+  /* Operações que o banco recusou de forma DEFINITIVA (card apagado em outro
+     aparelho → FK, por exemplo) não voltam para a fila: ficam marcadas como
+     "mortas" aqui, para exportação/diagnóstico, e deixam de bloquear a
+     abertura do perfil. */
+  async marcarMorta(op, erro) {
+    const x = Object.assign({}, op, { morta: true, mortaEm: Date.now(),
+      erro: { code: String(erro && erro.code || ''), message: String(erro && erro.message || erro || '') } });
+    return this.put(x);
+  },
+  async listarMortas(profileId) { return (await this.list(profileId, { mortas: true })).filter(x => x.morta); },
+  async list(profileId, opts) {
+    const incluirMortas = !!(opts && opts.mortas);
     const db = await this._open();
     if (!db) return [];
     return new Promise((resolve) => {
@@ -17583,6 +17594,7 @@ const ReviewJournal = {
       req.onsuccess = () => {
         let rows = Array.isArray(req.result) ? req.result : [];
         if (profileId) rows = rows.filter(x => !x.profileId || String(x.profileId) === String(profileId));
+        if (!incluirMortas) rows = rows.filter(x => !x.morta);
         rows.sort((a,b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
         resolve(rows);
       };
@@ -18391,6 +18403,32 @@ const DB = {
   // Devolve FALSE quando o armazenamento recusou a gravação (cota do navegador,
   // por exemplo). Quem agenda uma revisão precisa saber disso: ver CardsScreen.answer.
   saveCards(list) { return this._set(this.KEYS.cards, list); },
+  /* ── LOTE DE CARDS ───────────────────────────────────────────────────────
+     Importações criam/atualizam milhares de cards. Sem lote, cada addCard e
+     cada updateCard faz parse + stringify da coleção inteira e gera um diff
+     próprio para o banco (O(n²) em JSON, milhares de RPCs). Dentro do lote,
+     getCards devolve a MESMA lista em memória e saveCards só a substitui; a
+     gravação real acontece UMA vez, no fim. Só aceita função síncrona: um
+     await no meio deixaria o resto do app lendo a lista do lote. */
+  withCardsBatch(fn) {
+    if (this._cardsBatch) return fn();
+    const getOrig = this.getCards, saveOrig = this.saveCards, self = this;
+    let cache = null, sujo = false, ok = false, r;
+    this._cardsBatch = true;
+    this.getCards = function () { if (!cache) cache = getOrig.call(self); return cache; };
+    this.saveCards = function (list) { cache = list; sujo = true; return true; };
+    try {
+      r = fn();
+      if (r && typeof r.then === 'function') throw new Error('withCardsBatch aceita apenas função síncrona');
+      ok = true;
+    } finally {
+      this.getCards = getOrig; this.saveCards = saveOrig; this._cardsBatch = false;
+    }
+    if (ok && sujo && saveOrig.call(this, cache) === false) {
+      throw new Error('A gravação dos cards foi recusada; nada foi importado.');
+    }
+    return r;
+  },
   /* ══ HISTÓRICO DE REVISÕES ═════════════════════════════════════════════════
      O histórico é a única coleção que cresce sem teto: uma linha por resposta,
      centenas de milhares por ano. Ele mora no BANCO RELACIONAL — uma linha por
@@ -20763,6 +20801,8 @@ const ProfileManager = {
     Object.keys(obj.data || {}).forEach(subKey => {
       // ignora eventuais chaves de perfil aninhadas por segurança
       if (subKey.startsWith('u:')) return;
+      // Código (extensões, Custom Scheduling) não entra por arquivo de fora.
+      if (/(^|:)cards-(extensions|custom-scheduling):/.test(subKey)) return;
       let valor = obj.data[subKey];
       // Um backup pode vir de fora (colega, grupo de estudos, download). Os cards
       // são o único conteúdo renderizado como HTML, então passam pelo saneamento
@@ -21122,6 +21162,18 @@ function showToast(text) {
 // ============================================================
 const UI = {
   _resolve: null,
+  /* ── UM DIÁLOGO POR VEZ, NENHUMA PROMESSA PENDURADA ──────────────────────
+     Existe um único modal. Antes, abrir um segundo diálogo substituía o
+     primeiro e o `await` de quem abriu o primeiro nunca terminava. Agora o
+     segundo espera na fila e abre quando o primeiro for respondido. */
+  _fila: [],
+  _ocupado: false,
+  _agendar(abrir) {
+    return new Promise((resolve) => {
+      const run = () => { this._ocupado = true; abrir(resolve); };
+      if (this._ocupado) this._fila.push(run); else run();
+    });
+  },
   _open(title, sub, bodyHtml, { okText = 'Confirmar', cancelText = 'Cancelar', danger = false, hideCancel = false } = {}) {
     const modal = document.getElementById('ui-modal');
     $id('ui-modal-title').textContent = title || '';
@@ -21141,11 +21193,14 @@ const UI = {
     cancel.style.display = hideCancel ? 'none' : '';
     modal.style.display = 'flex';
     const first = modal.querySelector('.cards-modal-body input, .cards-modal-body textarea, .cards-modal-body select');
-    if (first) setTimeout(() => first.focus(), 60);
+    /* Sem campo para preencher, o foco vai para um BOTÃO — e Enter aciona o
+       botão focado. Numa ação perigosa, o foco nasce no Cancelar. */
+    const alvo = first || (danger && !hideCancel ? cancel : ok);
+    if (alvo) setTimeout(() => { try { alvo.focus(); } catch (_) { _quiet(_); } }, 60);
   },
   _close() { $id('ui-modal').style.display = 'none'; },
   confirm(message, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve;
       this._mode = 'confirm';
       const body = `<p style="margin:0; font-size:14px; line-height:1.55; color:var(--text-soft); white-space:pre-line;">${escapeHtml(message)}</p>`;
@@ -21158,7 +21213,7 @@ const UI = {
      habilita quando o texto confere, entao nao ha como "confirmar sem querer". */
   confirmTyped(message, opts = {}) {
     const palavra = String(opts.word || 'APAGAR').toUpperCase();
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve;
       this._mode = 'confirm';
       const body = `
@@ -21188,7 +21243,7 @@ const UI = {
     });
   },
   alert(message, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve; this._mode = 'confirm';
       // opts.html: conteúdo já montado por nós (ex.: Informações do card).
       // Continua passando pelo saneador, então nada vindo de card importado executa.
@@ -21208,7 +21263,7 @@ const UI = {
 
      Nunca passe conteúdo importado por aqui: para isso existe o `alert`. */
   detalhe(html, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve; this._mode = 'confirm';
       this._open(opts.title || 'Detalhes', opts.sub || '',
         `<div class="ui-detalhe">${html == null ? '' : html}</div>`,
@@ -21216,7 +21271,7 @@ const UI = {
     });
   },
   prompt(fields, opts = {}) {
-    return new Promise((resolve) => {
+    return this._agendar((resolve) => {
       this._resolve = resolve; this._mode = 'prompt'; this._fields = fields;
       const body = fields.map(f => {
         const id = 'uip_' + f.key;
@@ -21232,13 +21287,18 @@ const UI = {
   _submit(ok) {
     const r = this._resolve; this._resolve = null;
     if (this._mode === 'prompt') {
-      if (!ok) { this._close(); if (r) r(null); return; }
-      const vals = {};
-      (this._fields || []).forEach(f => { const el = document.getElementById('uip_' + f.key); vals[f.key] = el ? el.value : null; });
-      this._close(); if (r) r(vals);
+      if (!ok) { this._close(); if (r) r(null); }
+      else {
+        const vals = {};
+        (this._fields || []).forEach(f => { const el = document.getElementById('uip_' + f.key); vals[f.key] = el ? el.value : null; });
+        this._close(); if (r) r(vals);
+      }
     } else {
       this._close(); if (r) r(!!ok);
     }
+    this._ocupado = false;
+    const proximo = this._fila.shift();
+    if (proximo) { this._ocupado = true; setTimeout(proximo, 0); }
   }
 };
 (function () {
@@ -21253,7 +21313,9 @@ const UI = {
       const m = document.getElementById('ui-modal');
       if (!m || m.style.display === 'none') return;
       if (e.key === 'Escape') UI._submit(false);
-      else if (e.key === 'Enter' && (e.target.tagName !== 'TEXTAREA')) {
+      /* Enter num BOTÃO (ou link) é o próprio botão: com o foco no Cancelar,
+         Enter cancela. Antes, qualquer Enter confirmava — inclusive exclusões. */
+      else if (e.key === 'Enter' && !/^(TEXTAREA|BUTTON|A)$/.test(e.target.tagName)) {
         const ok = document.getElementById('ui-modal-ok');
         if (ok && ok.disabled) return;      // confirmacao por palavra ainda nao confere
         e.preventDefault(); UI._submit(true);
@@ -26991,6 +27053,12 @@ const AnkiImport = {
   },
   async importCollectionPackage(parsed){
     if(!parsed||parsed.format!=='colpkg')throw new Error('Collection Package inválido');
+    // Nada do estado intermediário (coleção esvaziada) vai ao banco: só o
+    // resultado final, e só o que mudou. Ver RelationalStore.lote.
+    const lote=typeof RelationalStore!=='undefined'&&RelationalStore.lote?fn=>RelationalStore.lote(fn):fn=>fn();
+    return lote(()=>this._importCollectionPackage(parsed));
+  },
+  async _importCollectionPackage(parsed){
     const backup=this._snapshotCollectionState();
     try{
       DB.saveCards([]);DB.saveDecks([]);DB.replaceRevlog([]);this._clearCanonicalCardEntities();
@@ -27071,14 +27139,21 @@ const AnkiImport = {
     }
 
     const cards=this._rows(db,'select id,nid,did,ord,type,queue,due,ivl,factor,reps,lapses,left,odue,odid,flags,data,mod from cards');
+    // Índices montados uma vez: antes eram um SELECT no SQLite, um scan dos
+    // tipos de nota e um parse da coleção inteira POR CARD.
+    const midPorNota=new Map(notes.map(n=>[String(n.id),n.mid])),tiposPorId=new Map(AnkiParity.noteTypes().map(x=>[String(x.id),x])),notasLocais=new Map();
+    this._lote(()=>{
+    const porAnkiId=new Map();DB.getCards().forEach(x=>{if(x&&x.ankiId!=null)porAnkiId.set(Number(x.ankiId),x);});
     for(const ac of cards){
-      const localNid=noteMap.get(String(ac.nid))||Number(ac.nid),note=AnkiParity.getNote(localNid);if(!note)continue;
-      const nt=AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)continue;
-      const sourceNote=this._rows(db,'select mid from notes where id=?',[ac.nid])[0]||{},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
+      const localNid=noteMap.get(String(ac.nid))||Number(ac.nid);
+      if(!notasLocais.has(String(localNid)))notasLocais.set(String(localNid),AnkiParity.getNote(localNid));
+      const note=notasLocais.get(String(localNid));if(!note)continue;
+      const nt=tiposPorId.get(String(note.notetypeId));if(!nt)continue;
+      const sourceNote={mid:midPorNota.get(String(ac.nid))},localOrd=(ntTemplateMaps.get(String(sourceNote.mid))||[])[Number(ac.ord)]??Number(ac.ord);
       const stub={clozeOrd:Number(ac.ord)+1,ankiTemplateOrd:localOrd,deckId:deckMap.get(String(ac.did))||opts.deckId||null};
       const front=AnkiParity.renderTemplate(nt,note,localOrd,'question',stub,''),back=AnkiParity.renderTemplate(nt,note,localOrd,'answer',stub,front);
-      let c=DB.getCards().find(x=>Number(x.ankiId)===Number(ac.id));
-      if(!c)c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});
+      let c=porAnkiId.get(Number(ac.id));
+      if(!c){c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});porAnkiId.set(Number(ac.id),c);}
       else DB.updateCard(c.id,{deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,frente:front,verso:back,kind:nt.kind==='cloze'?'cloze':'basic'});
       const patch={ankiId:Number(ac.id),ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,ankiMod:Number(ac.mod)||0,flag:Math.max(0,Math.min(7,Number(ac.flags)||0))};
       if(opts.withScheduling!==false){
@@ -27089,6 +27164,7 @@ const AnkiImport = {
       }
       DB.updateCard(c.id,patch);cardMap.set(String(ac.id),c.id);
     }
+    });
     if(opts.withScheduling!==false&&this._has(db,'revlog')){
       const old=DB.getRevlog().slice(),known=new Set(old.map(r=>String(r.reviewId||r.id||'')+'|'+String(r.cardId))),rr=this._rows(db,'select id,cid,ease,ivl,lastIvl,factor,time,type from revlog order by id');
       for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:new Date(Number(r.id)).toISOString().slice(0,10),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
@@ -27098,6 +27174,7 @@ const AnkiImport = {
     return {cards:cards.length,notes:notes.length,decks:deckMap.size};
   },
 
+  _lote(fn){return typeof DB.withCardsBatch==='function'?DB.withCardsBatch(fn):fn();},
   _mnemoMungeField(value){
     return String(value==null?'':value).replace(/\r?\n/g,'<br>')
       .replace(/<\/?(?:\$|\$\$|latex)>/gi,(m)=>'['+m.slice(1,-1)+']')
@@ -27131,7 +27208,8 @@ const AnkiImport = {
       {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'}
     ]};
   },
-  importMnemosyne(parsed,opts){
+  importMnemosyne(parsed,opts){return this._lote(()=>this._importMnemosyne(parsed,opts));},
+  _importMnemosyne(parsed,opts){
     opts=opts||{};const facts=new Map();for(const r of parsed.facts){if(!facts.has(r.id))facts.set(r.id,{});facts.get(r.id)[r.key]=String(r.value||'');}
     const byFact=new Map();for(const c of parsed.cards){if(!byFact.has(c.fact_id))byFact.set(c.fact_id,[]);byFact.get(c.fact_id).push(c);}
     const types=AnkiParity.noteTypes(),byName=new Map(types.map(x=>[String(x.name||''),x]));let cardCount=0,noteCount=0;
@@ -27157,7 +27235,8 @@ const AnkiImport = {
     }
     CardEngine.invalidateDueCache();return {cards:cardCount,notes:noteCount};
   },
-  importText(parsed,opts){
+  importText(parsed,opts){return this._lote(()=>this._importText(parsed,opts));},
+  _importText(parsed,opts){
     opts=opts||{};const rows=parsed.rows||[],html=opts.forceIsHtml?!!opts.isHtml:(parsed.headers&&Object.prototype.hasOwnProperty.call(parsed.headers,'html')?parsed.isHtml:(opts.isHtml!=null?!!opts.isHtml:parsed.isHtml));
     const dupe=String(opts.dupeResolution||'update').toLowerCase(),match=String(opts.matchScope||'notetype').toLowerCase();
     const deckCol=Math.max(0,Number(opts.deckColumn!=null?opts.deckColumn:parsed.deckColumn)||0),ntCol=Math.max(0,Number(opts.notetypeColumn!=null?opts.notetypeColumn:parsed.notetypeColumn)||0);
@@ -28363,6 +28442,10 @@ function planCycleMode() {
     });
 
     // soltar de volta na bandeja de chips remove a matéria daquela célula (sem excluí-la do ciclo)
+    // A bandeja é FIXA no HTML (não é recriada a cada render): liga uma vez só,
+    // senão cada renderGrade somava mais um drop e um soltar executava N vezes.
+    if (!tray || tray.dataset.dropBound === '1') return;
+    tray.dataset.dropBound = '1';
     tray.addEventListener('dragover', (e) => { e.preventDefault(); tray.classList.add('drag-active'); });
     tray.addEventListener('dragleave', () => tray.classList.remove('drag-active'));
     tray.addEventListener('drop', (e) => {
@@ -28453,10 +28536,14 @@ function planCycleMode() {
   function bindCellClick(cell) {
     const dia = cell.dataset.dia, idx = parseInt(cell.dataset.idx, 10);
     const empty = cell.querySelector('.grade-cell-empty-hint');
+    /* onclick (propriedade), não addEventListener: a célula é reaproveitada ao
+       ser esvaziada e preenchida; com addEventListener cada ciclo acumulava um
+       listener, e clicar no "×" de uma célula preenchida abria o seletor junto. */
     if (empty) {
       cell.style.cursor = 'pointer';
-      cell.addEventListener('click', () => openSiglaPicker(cell, dia, idx));
+      cell.onclick = () => openSiglaPicker(cell, dia, idx);
     } else {
+      cell.onclick = null; cell.style.cursor = '';
       const label = cell.querySelector('.chip-acronym-label');
       if (label) {
         label.style.cursor = 'pointer';
@@ -38635,11 +38722,32 @@ const AnkiRuntime = {
     if(!visible)return '<div class="cards-anki-frame-placeholder" aria-hidden="true"></div>';
     const id='anki-'+String(card&&(card.ankiId||card.id)||'')+'-'+String(side||'question');
     const srcdoc=this.buildSrcdoc(nt,html,side,card,note,options);
-    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups allow-modals" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
+    return '<iframe class="cards-anki-frame" data-anki-frame-id="'+this._escAttr(id)+'" sandbox="allow-scripts allow-forms allow-popups" referrerpolicy="no-referrer" title="Card Anki" scrolling="no" srcdoc="'+this._escAttr(srcdoc)+'" style="display:block;width:100%;min-height:96px;border:0;background:transparent"></iframe>';
+  },
+  /* Responder um card é decisão da pessoa, não do template. O script do card
+     (de um baralho baixado de qualquer lugar) podia mandar pycmd('ease4') em
+     laço e responder a fila inteira como "Fácil". Só aceitamos quando:
+       · há ativação do usuário recente (clique/tecla dentro do card também
+         ativa a página, pela regra de ativação do navegador);
+       · o quadro é o do card que está na tela;
+       · passou um intervalo mínimo desde a última resposta por pycmd. */
+  PYCMD_EASE_INTERVALO_MS:800,
+  _pycmdEaseOk(frame){
+    try{
+      const ua=typeof navigator!=='undefined'&&navigator.userActivation;
+      if(ua&&!ua.isActive)return false;
+      const agora=Date.now();if(this._ultimoPycmdEase&&agora-this._ultimoPycmdEase<this.PYCMD_EASE_INTERVALO_MS)return false;
+      const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx],card=id&&DB.getCard(id);
+      if(!card||!frame)return false;
+      const fid=String(frame.dataset&&frame.dataset.ankiFrameId||'');
+      if(fid.indexOf('anki-'+String(card.ankiId||card.id||'')+'-')!==0)return false;
+      this._ultimoPycmdEase=agora;return true;
+    }catch(_){return false;}
   },
   _handlePycmd(cmd,frame){
     if(cmd==='ans'){if(typeof CardsScreen!=='undefined'&&!CardsScreen._flipped)CardsScreen.flip(document.getElementById('cards-content'));return true;}
     if(/^ease[1-4]$/.test(cmd)&&typeof CardsScreen!=='undefined'){
+      if(!this._pycmdEaseOk(frame))return false;
       const map={ease1:'errei',ease2:'dificil',ease3:'bom',ease4:'facil'};if(!CardsScreen._flipped)CardsScreen.flip(document.getElementById('cards-content'));else CardsScreen.answer(map[cmd]);return true;
     }
     if(cmd==='edit'){document.getElementById('cards-act-edit')?.click();return true;}
@@ -41713,20 +41821,30 @@ const AnkiTotalParity = {
   _extensionsKey(){try{return AnkiParity._entityKey('extensions','sources');}catch(_){return 'snm-anki-extensions';}},
   _extensionSources(){try{const x=JSON.parse(localStorage.getItem(this._extensionsKey())||'[]');return Array.isArray(x)?x:[];}catch(_){return [];}},
   _saveExtensionSources(x){try{DB.setRaw(this._extensionsKey(),JSON.stringify(x||[]));}catch(_){localStorage.setItem(this._extensionsKey(),JSON.stringify(x||[]));}},
+  /* ── CÓDIGO DE TERCEIROS NÃO RODA NA ORIGEM DO APP ──────────────────────
+     Extensões locais e Custom Scheduling chegavam por chaves do perfil —
+     sincronizadas pelo banco e importáveis por backup JSON — e eram
+     executadas com new Function no MESMO contexto da sessão do Supabase.
+     Isso é execução arbitrária com acesso ao token. A execução fica
+     desligada; o código continua guardado (para exportar/copiar) e a API de
+     hooks segue disponível para o código do próprio app. */
+  EXECUCAO_DE_CODIGO_DESATIVADA:true,
   _loadUserExtensions(){
-    const api=window.AnkiStudyExtensions;if(!api)return;for(const x of this._extensionSources().filter(x=>x.enabled)){try{new Function('api','"use strict";\n'+String(x.source||''))(api);api.register({id:x.id,name:x.name||x.id,version:x.version||'user',user:true});}catch(e){console.warn('Extensão '+x.name,e);}}
+    const api=window.AnkiStudyExtensions;if(!api)return;
+    const ativas=this._extensionSources().filter(x=>x.enabled);
+    if(ativas.length)console.warn('Extensões locais não são executadas por segurança:',ativas.map(x=>x.name||x.id).join(', '));
   },
   openExtensions(){
     let m=document.getElementById('anki-extensions-modal');if(!m){const d=document.createElement('div');d.innerHTML='<div id="anki-extensions-modal" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>🧩 Extensões dos Cards</h2><p class="sub">API de hooks do Study. Extensões locais executam código escolhido por você; mantenha desativado o que não conhece.</p></div><button class="icon-btn" id="anki-ext-close">✕</button></div><div class="cards-modal-body"><div id="anki-ext-list"></div><input id="anki-ext-file" type="file" accept=".js,text/javascript" hidden></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-ext-import">Importar .js</button><span style="flex:1"></span><button class="btn-primary" id="anki-ext-done">Fechar</button></div></div></div>';document.body.appendChild(d);m=document.getElementById('anki-extensions-modal');document.getElementById('anki-ext-close').onclick=document.getElementById('anki-ext-done').onclick=()=>m.style.display='none';document.getElementById('anki-ext-import').onclick=()=>document.getElementById('anki-ext-file').click();document.getElementById('anki-ext-file').onchange=e=>this._importExtensionFile(e.target.files&&e.target.files[0]);}
     this._renderExtensions();m.style.display='flex';
   },
   _renderExtensions(){
-    const box=document.getElementById('anki-ext-list');if(!box)return;const rows=this._extensionSources();box.innerHTML='<div class="anki-ext-row built"><strong>StudyNoMentor Anki Parity</strong><span>Integrada · ativa</span></div>'+rows.map(x=>'<div class="anki-ext-row"><label><input type="checkbox" data-ext-toggle="'+this.esc(x.id)+'" '+(x.enabled?'checked':'')+'> <strong>'+this.esc(x.name||x.id)+'</strong></label><button class="icon-btn danger" data-ext-del="'+this.esc(x.id)+'">×</button></div>').join('')+(rows.length?'':'<p class="hint">Nenhuma extensão local importada.</p>');
-    box.querySelectorAll('[data-ext-toggle]').forEach(cb=>cb.onchange=()=>{const xs=this._extensionSources(),x=xs.find(y=>String(y.id)===String(cb.dataset.extToggle));if(x){x.enabled=cb.checked;this._saveExtensionSources(xs);showToast('Recarregue a página para aplicar a extensão.');}});
+    const box=document.getElementById('anki-ext-list');if(!box)return;const rows=this._extensionSources();box.innerHTML='<div class="anki-ext-row built"><strong>StudyNoMentor Anki Parity</strong><span>Integrada · ativa</span></div><p class="hint">🔒 Por segurança, extensões importadas não são executadas: o código rodaria com acesso à sua sessão e aos seus dados. Elas ficam guardadas apenas como referência.</p>'+rows.map(x=>'<div class="anki-ext-row"><label><input type="checkbox" data-ext-toggle="'+this.esc(x.id)+'" '+(x.enabled?'checked':'')+'> <strong>'+this.esc(x.name||x.id)+'</strong></label><button class="icon-btn danger" data-ext-del="'+this.esc(x.id)+'">×</button></div>').join('')+(rows.length?'':'<p class="hint">Nenhuma extensão local importada.</p>');
+    box.querySelectorAll('[data-ext-toggle]').forEach(cb=>cb.onchange=()=>{const xs=this._extensionSources(),x=xs.find(y=>String(y.id)===String(cb.dataset.extToggle));if(x){x.enabled=cb.checked;this._saveExtensionSources(xs);showToast('Extensões locais não são executadas por segurança.');}});
     box.querySelectorAll('[data-ext-del]').forEach(b=>b.onclick=()=>{this._saveExtensionSources(this._extensionSources().filter(x=>String(x.id)!==String(b.dataset.extDel)));this._renderExtensions();});
   },
   _importExtensionFile(file){
-    if(!file)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),id='user-'+Date.now().toString(36),rows=this._extensionSources();rows.push({id,name:file.name.replace(/\.js$/i,''),source:src,enabled:false});this._saveExtensionSources(rows);this._renderExtensions();showToast('Extensão importada desativada por segurança');};r.readAsText(file);
+    if(!file)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),id='user-'+Date.now().toString(36),rows=this._extensionSources();rows.push({id,name:file.name.replace(/\.js$/i,''),source:src,enabled:false});this._saveExtensionSources(rows);this._renderExtensions();showToast('Extensão guardada — extensões locais não são executadas por segurança');};r.readAsText(file);
   },
 
   /* ───────────────── CUSTOM SCHEDULING OPT-IN ───────────────── */
@@ -41790,6 +41908,11 @@ const AnkiTotalParity = {
   },
   _runCustomScheduling(card,grade,patch){
     const cfg=this._customCfg();if(!cfg.enabled||!String(cfg.source||'').trim())return patch;
+    // Ver EXECUCAO_DE_CODIGO_DESATIVADA: o agendamento padrão é sempre preservado.
+    if(this.EXECUCAO_DE_CODIGO_DESATIVADA){
+      if(!this._customSchedulingErrorShown){this._customSchedulingErrorShown=true;console.warn('Custom Scheduling não é executado por segurança.');}
+      return patch;
+    }
     try{
       const bundle=this._buildSchedulingStates(card,this._baseScheduler||((c,g)=>patch)),states=bundle.states,key=this._customGradeKey(grade),phase=this._customPhase(card,patch);
       const fn=new Function('states','card','grade','patch','config','"use strict";\n'+String(cfg.source||'')+'\n;return states;');
@@ -41807,7 +41930,7 @@ const AnkiTotalParity = {
   },
   openCustomScheduling(){
     const c=this._customCfg();UI.prompt([
-      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'Compatível com a variável states do Custom Scheduling atual do Anki. Em erro ou saída inválida, o agendamento padrão é preservado.'},
+      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'🔒 Desativado por segurança: o código rodaria com acesso à sua sessão e aos seus dados. O script fica guardado, mas o agendamento padrão (FSRS) é sempre usado.'},
       {key:'source',label:'Código JavaScript',type:'textarea',rows:14,value:c.source||'',hint:'Ex.: if (states.hard.normal?.learning) states.hard.normal.learning.scheduledSecs = 123 * 60; Também aceita o formato legado do Study com return { intervalo, _val, due... }.'}
     ],{title:'🧪 Custom Scheduling',okText:'Salvar'}).then(v=>{if(!v)return;this._saveCustomCfg({enabled:v.enabled==='1',source:String(v.source||'')});this._customSchedulingErrorShown=false;showToast('Custom Scheduling salvo');});
   },
@@ -54953,7 +55076,7 @@ const RelationalStore = {
   isReady() {
     return !!(this.enabled && window.CloudStore && CloudStore.client && CloudStore.isLoggedIn && CloudStore.isLoggedIn());
   },
-  pendingCount() { return this._pending + this._dirty.size; },
+  pendingCount() { return this._pending + this._dirty.size + (this._adiadas ? this._adiadas.size : 0); },
   dirtyCount() { return this._dirty.size; },
 
   _pfx(profileId) { return 'diario-estudos:u:' + profileId + ':'; },
@@ -55501,6 +55624,32 @@ const RelationalStore = {
     return true;
   },
 
+  /* ── LOTE ADIADO ─────────────────────────────────────────────────────────
+     Operações que primeiro ESVAZIAM e depois reconstroem (importar um
+     Collection Package) não podem mandar o estado intermediário ao banco:
+     se falharem no meio, ou a aba fechar, o banco ficaria vazio. Dentro do
+     lote, as mutações só são anotadas (com o valor ORIGINAL de cada chave);
+     no fim, só as chaves cujo valor final difere do original vão para a
+     fila. Se a operação falhar e restaurar o estado local, nada é enviado. */
+  async lote(fn) {
+    if (this._adiadas) return fn();
+    this._adiadas = new Map();
+    this._notifyPendingState();
+    try { return await fn(); }
+    finally {
+      const anotadas = this._adiadas; this._adiadas = null;
+      let n = 0;
+      anotadas.forEach((oldRaw, k) => {
+        let atual = null;
+        try { atual = localStorage.getItem(k); } catch (e) { _quiet(e, 'rel-lote-ler'); }
+        if (atual === oldRaw) return;
+        this._markDirty(k, oldRaw); n++;
+      });
+      if (n && this.isReady()) this._scheduleDrain();
+      this._notifyPendingState();
+    }
+  },
+
   /* ── DRENAGEM ───────────────────────────────────────────────────────────── */
   _markDirty(key, oldRaw) {
     const k = String(key);
@@ -55821,14 +55970,32 @@ const RelationalStore = {
       } catch (e) { _quiet(e, 'review-fallback-list'); }
 
       ops.sort((a,b)=>Number(a.createdAt||0)-Number(b.createdAt||0));
+      let mortas=0;
       for(const op of ops){
-        await this._commitReviewOutboxOp(op);
+        try { await this._commitReviewOutboxOp(op); }
+        catch (e) {
+          /* Recusa definitiva: repetir nunca vai passar, e lançar aqui travava
+             a abertura do perfil em toda tentativa. A operação vai para a
+             "fila morta" (guardada, não apagada) e o resto segue. Erros de
+             rede/sessão continuam interrompendo — esses se resolvem sozinhos. */
+          if (!this._isPermanent(e)) throw e;
+          mortas++;
+          console.error('[RelationalStore] revisão recusada pelo banco; guardada na fila morta', op && op.reviewId, e);
+          try {
+            if (typeof ReviewJournal !== 'undefined' && ReviewJournal.marcarMorta && !String(op.id).endsWith(':fallback')) await ReviewJournal.marcarMorta(op, e);
+          } catch (e2) { _quiet(e2, 'review-dead-letter'); }
+          try { if (typeof DB !== 'undefined' && DB.confirmarRevlog) DB.confirmarRevlog(op.reviewId); } catch (e2) { _quiet(e2, 'review-dead-ack'); }
+          continue;
+        }
         try {
           if (typeof ReviewJournal !== 'undefined' && ReviewJournal.remove && !String(op.id).endsWith(':fallback')) await ReviewJournal.remove(op.id);
         } catch (e) { _quiet(e, 'review-journal-ack'); }
         try { if (typeof DB !== 'undefined' && DB.confirmarRevlog) DB.confirmarRevlog(op.reviewId); } catch (e) { _quiet(e, 'review-fallback-ack'); }
       }
-      return {ok:true,mudou:ops.length};
+      if (mortas) {
+        try { showToast('⚠ ' + mortas + ' revisão(ões) não puderam ser enviadas (o card não existe mais no banco). Elas foram guardadas neste aparelho.'); } catch (e) { _quiet(e, 'review-dead-toast'); }
+      }
+      return {ok:true,mudou:ops.length-mortas,mortas};
     })();
     try { return await this._reviewReplay; }
     finally { this._reviewReplay=null; }
@@ -55864,6 +56031,9 @@ const RelationalStore = {
         || sub === 'revlog-arquivo'
         || sub.indexOf('revlog-arquivo:') === 0;
   },
+  /* Chaves que guardam CÓDIGO (extensões, Custom Scheduling) não entram por
+     backup/importação: um arquivo vindo de fora não pode plantar script. */
+  _subDeCodigo(sub) { return /(^|:)cards-(extensions|custom-scheduling):/.test(String(sub || '')); },
   onStorageMutation(key, oldRaw, newRaw) {
     if(this._applying || !this.enabled) return;
     /* Reaplicar exatamente o mesmo valor não é uma mutação persistente.
@@ -55895,6 +56065,11 @@ const RelationalStore = {
        escritas de UI não vão ao banco. Mas, depois que um perfil foi aberto,
        uma sessão perdida (token expirado) NÃO pode descartar o que a pessoa
        faz: a chave fica suja e é enviada quando ela entrar de novo. */
+    if (this._adiadas) {
+      const k = String(key);
+      if (!this._adiadas.has(k)) this._adiadas.set(k, oldRaw == null ? null : String(oldRaw));
+      return;
+    }
     if(!this.isReady()) {
       if (this._everHydrated) { this._markDirty(key, oldRaw); this._notifyPendingState(); }
       return;
@@ -56095,16 +56270,17 @@ const RelationalStore = {
       Object.keys(data).forEach(sub => {
         if (sub === 'planejamentos' || sub === 'active-plan') return;
         if (sub.startsWith('u:') || this._ignoreSub(sub)) return;
+        if (this._subDeCodigo(sub)) return;
         localStorage.setItem(pfx+sub, String(data[sub]));
       });
     } finally { this._applying = false; }
 
     /* Ordem deliberada: planos -> ponteiro ativo -> settings -> conteúdo de
-       cada plano. Assim as FKs sempre encontram o pai antes dos filhos. */
-    await this._persistPlans(profileId, null, JSON.stringify(plans));
-    await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan'));
-
-    const planKeys = [], profileKeys = [];
+       cada plano. Assim as FKs sempre encontram o pai antes dos filhos.
+       Sem transação no banco, uma falha no meio deixaria o perfil parcial:
+       por isso tudo o que ainda não subiu entra na FILA DURÁVEL (reenvio
+       automático, aviso na tela, beforeunload) em vez de ser abandonado. */
+    const planKeys = [], profileKeys = [], enviados = new Set();
     for (let i=0;i<localStorage.length;i++) {
       const k=localStorage.key(i);
       if (!k || !k.startsWith(pfx)) continue;
@@ -56114,8 +56290,20 @@ const RelationalStore = {
       if (m) planKeys.push({key:k,planId:m[1],sub:m[2]});
       else profileKeys.push({key:k,sub:rel});
     }
-    for (const x of profileKeys) await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key));
-    for (const x of planKeys) await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key));
+    try {
+      await this._persistPlans(profileId, null, JSON.stringify(plans)); enviados.add(pfx+'planejamentos');
+      await this._persistActivePlan(profileId, localStorage.getItem(pfx+'active-plan')); enviados.add(pfx+'active-plan');
+      for (const x of profileKeys) { await this._persistProfileSetting(profileId,x.sub,localStorage.getItem(x.key)); enviados.add(x.key); }
+      for (const x of planKeys) { await this._persistPlanKey(profileId,x.planId,x.sub,null,localStorage.getItem(x.key)); enviados.add(x.key); }
+    } catch (e) {
+      console.error('[RelationalStore] restauração interrompida; o restante fica na fila', e);
+      [pfx+'planejamentos', pfx+'active-plan'].concat(profileKeys.map(x => x.key), planKeys.map(x => x.key))
+        .forEach(k => { if (!enviados.has(k)) this._markDirty(k, null); });
+      this._lastError = e;
+      this._scheduleRetry();
+      this._notifyPendingState();
+      return { ok:true, pendente:true, secoes:Object.keys(data).length, planos:plans.length };
+    }
 
     await this.hydrateProfile(profileId,{reason:opts.reason||'backup-restore'});
     return { ok:true, secoes:Object.keys(data).length, planos:plans.length };
@@ -56648,8 +56836,10 @@ window.CloudUI = CloudUI;
         const cor = (obj.profile && obj.profile.cor) || '#4f46e5';
         const row = await CloudStore.createRow({ name: nomeFinal, avatar, color: cor, payload: {} });
         ProfileManager.addMirror({ id: row.id, nome: nomeFinal, avatar, cor });
-        await RelationalStore.replaceProfileFromPayload(row.id, obj.data || {}, { reason: 'json-import' });
-        showToast('Perfil importado no banco ✓');
+        const imp = await RelationalStore.replaceProfileFromPayload(row.id, obj.data || {}, { reason: 'json-import' });
+        showToast(imp && imp.pendente
+          ? 'Perfil importado; parte ainda está sendo enviada ao banco — não feche o app até o aviso sumir.'
+          : 'Perfil importado no banco ✓');
         ProfileUI.refreshStage();
       } catch (err) {
         showToast('Erro ao importar: ' + (err.message || ''));
@@ -57334,16 +57524,26 @@ const CloudBackup = {
   /* Restaura a foto SOBRE o perfil ativo. Duas garantias antes de qualquer
      escrita: uma foto no banco do estado atual, para que a restauração continue
      reversível em qualquer aparelho. */
-  async restaurar(rowId) {
+  async restaurar(rowId, opts) {
+    opts = opts || {};
     const id = ProfileManager.getActiveProfileId();
     if (!id) return { ok: false, motivo: 'sem-perfil' };
     const foto = await this.abrir(rowId);
     if (!foto || !foto.data) return { ok: false, motivo: 'foto-ilegível' };
-    try { await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); } catch (e) { _quiet(e, 'cbk-pre'); }
+    /* A foto do estado ATUAL é o único caminho de volta se a restauração der
+       errado. Sem ela, não seguimos — a menos que a pessoa aceite o risco
+       explicitamente (opts.semFotoDeSeguranca), depois de avisada. */
+    if (!opts.semFotoDeSeguranca) {
+      let pre = null;
+      try { pre = await this.criar('antes de restaurar um backup da nuvem', { forcar: true }); }
+      catch (e) { _quiet(e, 'cbk-pre'); pre = { ok: false, motivo: String(e && e.message || e) }; }
+      // Perfil vazio não tem o que proteger.
+      if (!pre || (!pre.ok && pre.motivo !== 'perfil-vazio')) return { ok: false, motivo: 'sem-foto-de-seguranca', detalhe: pre && pre.motivo };
+    }
     try {
       if (!window.RelationalStore) throw new Error('Camada relacional indisponível');
       const r = await RelationalStore.replaceProfileFromPayload(id, foto.data, { reason: 'cloud-backup-restore' });
-      return { ok: true, secoes: r.secoes || Object.keys(foto.data).length };
+      return { ok: true, pendente: !!r.pendente, secoes: r.secoes || Object.keys(foto.data).length };
     } catch (e) {
       console.error('[CloudBackup] restauração relacional falhou', e);
       return { ok: false, motivo: 'falha-ao-aplicar' };
@@ -57788,8 +57988,18 @@ const CloudBackupUI = {
         { title: '↺ Restaurar do banco', okText: 'Restaurar' });
       if (!ok) return;
       showToast('Restaurando…');
-      const r = await CloudBackup.restaurar(rid);
+      let r = await CloudBackup.restaurar(rid);
+      if (!r.ok && r.motivo === 'sem-foto-de-seguranca') {
+        const mesmoAssim = await UI.confirm(
+          'Não foi possível guardar uma foto do estado ATUAL antes de restaurar' + (r.detalhe ? ' (' + r.detalhe + ')' : '') +
+          '.\n\nSe continuar, o estado atual não poderá ser recuperado pelo banco. Recomendado: baixe uma cópia do perfil antes.',
+          { title: 'Restaurar sem foto de segurança?', okText: 'Restaurar mesmo assim', danger: true });
+        if (!mesmoAssim) return;
+        showToast('Restaurando…');
+        r = await CloudBackup.restaurar(rid, { semFotoDeSeguranca: true });
+      }
       if (!r.ok) { showToast('Não foi possível restaurar: ' + (r.motivo || '')); return; }
+      if (r.pendente) { showToast('Restaurado na tela; parte ainda está sendo enviada ao banco. Não feche o app até o aviso sumir.'); return; }
       showToast(r.secoes + ' seção(ões) restaurada(s) ✓ — enviando e recarregando');
       try { await CloudStore.flushPending(); } catch (e) { _quiet(e, 'cbk-flush'); }
       setTimeout(() => recarregarApp('backup da nuvem restaurado', { imediato: true }), 700);

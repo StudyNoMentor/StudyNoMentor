@@ -177,6 +177,56 @@ async function pontaAPonta() {
   ok(tec.pronto && tec.s2, 'depois de carregar o histórico, o retrato é gravado');
   ok(JSON.stringify(snaps) === JSON.stringify(['tec-s1', 'tec-s2']), 'o banco mantém o retrato antigo e o novo: ' + JSON.stringify(snaps));
 
+  // A1 — importação em lote: 300 notas viram UMA gravação de cards
+  const pedidosAntes = api.estado.pedidos.length;
+  const lote = await page.evaluate(async () => {
+    await RelationalStore.flush();
+    let gravacoesCards = 0;
+    const orig = RelationalStore._markDirty.bind(RelationalStore);
+    RelationalStore._markDirty = function (key, old) { if (/:cards$/.test(key)) gravacoesCards++; return orig.apply(this, arguments); };
+    const rows = []; for (let i = 0; i < 300; i++) rows.push(['Frente ' + i, 'Verso ' + i]);
+    const nt = AnkiParity.stockNotetype('basic');
+    const t0 = performance.now();
+    const r = AnkiImport.importText({ rows, isHtml: false, headers: {} }, { notetypeId: nt.id, fieldColumns: [1, 2], dupeResolution: 'duplicate', forceIsHtml: true, isHtml: false });
+    const ms = performance.now() - t0;
+    RelationalStore._markDirty = orig;
+    await RelationalStore.flush();
+    return { cards: r.cards, gravacoesCards, ms, total: DB.getCards().length };
+  });
+  const pedidosCards = api.estado.pedidos.slice(pedidosAntes).filter(p => /mutate_study_plan_rows|replace_study_plan_rows|study_cards/.test(p.caminho)).length;
+  ok(lote.cards === 300 && lote.total >= 300, 'A1: 300 notas importadas (' + lote.cards + ' cards)');
+  ok(lote.gravacoesCards === 1, 'A1: a coleção de cards é gravada uma única vez (' + lote.gravacoesCards + ')');
+  ok(linhas('study_cards', r => r.profile_id === perfil.id).length >= 300, 'A1: os cards importados chegaram ao banco');
+  ok(pedidosCards <= 5, 'A1: poucas requisições de cards ao banco (' + pedidosCards + '), em ' + Math.round(lote.ms) + ' ms');
+
+  // A5 — restaurar exige a foto de segurança; falha no meio vira pendência durável
+  const r5 = await page.evaluate(async () => {
+    DB.saveEntry({ id: 'e-antes-backup', subject: 'Penal', method: 'Questões', date: '2026-09-03', durationMin: 20, correct: 1, total: 2 });
+    await RelationalStore.flush();
+    const foto = await CloudBackup.criar('teste A5', { forcar: true });
+    const lista = await CloudBackup.listar();
+    return { foto: foto.ok, rid: lista[0] && lista[0].id };
+  });
+  ok(r5.foto && r5.rid, 'A5: foto de backup criada para o teste');
+  api.estado.falhaForcada = (req, u) => u.pathname.includes('profile_backups') && req.method === 'POST';
+  const semFoto = await page.evaluate(async (rid) => {
+    DB.saveEntry({ id: 'e-depois-backup', subject: 'Penal', method: 'Questões', date: '2026-09-04', durationMin: 25, correct: 1, total: 2 });
+    await RelationalStore.flush();
+    return CloudBackup.restaurar(rid);
+  }, r5.rid);
+  api.estado.falhaForcada = null;
+  ok(!semFoto.ok && semFoto.motivo === 'sem-foto-de-seguranca', 'A5: sem a foto do estado atual a restauração não começa (' + JSON.stringify(semFoto) + ')');
+  ok(linhas('study_entries', r => r.entry_id === 'e-depois-backup').length === 1, 'A5: o banco não foi tocado');
+  let falhas5 = 0;
+  api.estado.falhaForcada = (req, u) => u.pathname.includes('mutate_study_plan_rows') && falhas5++ < 1000;
+  const meio = await page.evaluate(async (rid) => CloudBackup.restaurar(rid), r5.rid);
+  ok(meio.ok && meio.pendente, 'A5: falha no meio da restauração não é abandonada: fica pendente (' + JSON.stringify(meio) + ')');
+  ok(await page.evaluate(() => RelationalStore.pendingCount() > 0), 'A5: as seções que não subiram estão na fila durável');
+  api.estado.falhaForcada = null;
+  await page.waitForFunction(() => RelationalStore.pendingCount() === 0, null, { timeout: 20000 });
+  ok(linhas('study_entries', r => r.entry_id === 'e-antes-backup').length === 1 && !linhas('study_entries', r => r.entry_id === 'e-depois-backup').length,
+    'A5: com o banco de volta, o estado restaurado chega completo');
+
   ok(erros.length === 0, 'ponta a ponta sem erro de página: ' + erros.join(' | '));
   await ctx.close();
 }
@@ -225,6 +275,44 @@ try {
   ok(auto.sobras.length === 0, 'AutoTeste não deixa resíduo do sandbox na RAM');
   ok(auto.falhas === 0, 'os testes de incidência continuam passando dentro do sandbox');
   ok(auto.plano !== '__autoteste__', 'o planejamento ativo é restaurado');
+
+  // ── A9: diálogos em fila, Enter no botão focado ────────────────────────────
+  const d1 = await page.evaluate(() => {
+    window.__r = [];
+    UI.confirm('primeiro').then(v => __r.push(['a', v]));
+    UI.confirm('segundo').then(v => __r.push(['b', v]));
+    return document.getElementById('ui-modal-body').textContent.trim();
+  });
+  ok(/primeiro/.test(d1), 'A9: o segundo diálogo não substitui o primeiro');
+  await page.click('#ui-modal-ok');
+  await page.waitForFunction(() => /segundo/.test(document.getElementById('ui-modal-body').textContent), null, { timeout: 3000 });
+  await page.keyboard.press('Escape');
+  await page.waitForFunction(() => __r.length === 2, null, { timeout: 3000 });
+  ok(await page.evaluate(() => JSON.stringify(__r)) === JSON.stringify([['a', true], ['b', false]]), 'A9: as duas promessas terminam, cada uma com a sua resposta');
+  await page.evaluate(() => { window.__p = UI.confirm('apagar tudo?', { danger: true }).then(v => { window.__perigo = v; }); });
+  await page.waitForTimeout(150);
+  const focado = await page.evaluate(() => document.activeElement && document.activeElement.id);
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__perigo !== undefined, null, { timeout: 3000 });
+  ok(focado === 'ui-modal-cancel' && await page.evaluate(() => window.__perigo) === false, 'A9: em ação perigosa o foco nasce no Cancelar e Enter cancela (' + focado + ')');
+
+  // ── A10: a bandeja da Grade recebe o drop uma única vez ────────────────────
+  const a10 = await page.evaluate(() => {
+    const tray = document.getElementById('grade-chip-tray');
+    let n = 0; const orig = tray.addEventListener;
+    tray.addEventListener = function (t) { if (t === 'drop') n++; return orig.apply(this, arguments); };
+    for (let i = 0; i < 4; i++) GradeScreen.render();
+    tray.addEventListener = orig;
+    return { n, bound: tray.dataset.dropBound };
+  });
+  ok(a10.n <= 1, 'A10: re-renderizar a grade não acumula listeners de drop na bandeja (' + a10.n + ')');
+
+  // ── A7: código de terceiros ────────────────────────────────────────────────
+  const a7 = await page.evaluate(() => ({
+    exec: AnkiTotalParity.EXECUCAO_DE_CODIGO_DESATIVADA === true,
+    filtro: RelationalStore._subDeCodigo('p:pl1:cards-extensions:sources') && RelationalStore._subDeCodigo('p:pl1:cards-custom-scheduling:config') && !RelationalStore._subDeCodigo('p:pl1:cards')
+  }));
+  ok(a7.exec && a7.filtro, 'A7: extensões/Custom Scheduling não executam e não entram por backup');
 
   ok(erros.length === 0, 'nenhum erro de página: ' + erros.join(' | '));
   await ctx.close();
