@@ -57,7 +57,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v782967af1b">
+<meta name="diario-versao" content="v176a5f566d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16652,6 +16652,52 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar .recent-more-btn{min-height:40px;padding:8px 18px;border-radius:11px;font-weight:700}
 #screen-registrar .recent-more-btn span{font-weight:500;color:var(--text-soft)}
 
+/* ── Estudo Novo: etapas das aulas (cartões) ───────────────────────────────
+   Entre 431 e 720px uma regra antiga forçava DUAS colunas de etapas; com o
+   rótulo fixo de 92px os campos ac/tot encolhiam até sumir (17/20 virava
+   "/"). Agora a etapa só divide a linha quando cada uma tem ≥ 270px. */
+@media (max-width:820px){
+  #screen-estudonovo .track-stages{grid-template-columns:repeat(auto-fit,minmax(270px,1fr))!important}
+  #screen-estudonovo .track-stage{grid-template-columns:minmax(78px,96px) minmax(0,1fr)!important}
+  #screen-estudonovo .track-stage .ts-inputs{flex-wrap:nowrap}
+  #screen-estudonovo .track-stage .ts-num{flex:0 1 56px!important;min-width:calc(3ch + 14px)!important;max-width:60px!important}
+}
+
+/* ── Estudo Novo: tabela da trilha no celular ─────────────────────────────
+   Nº e nome ficam presos à esquerda enquanto a situação e as etapas rolam;
+   sem rolagem vertical interna (cortava a última linha pela metade). */
+@media (max-width:700px){
+  #screen-estudonovo .en-table-wrap{max-height:none!important;margin:12px 10px 4px!important}
+  #screen-estudonovo .en-table{min-width:0!important;width:max-content!important}
+  #screen-estudonovo .en-table .col-num{width:36px!important;min-width:36px;max-width:36px;padding-left:4px!important;padding-right:4px!important;position:sticky;left:0;z-index:2}
+  #screen-estudonovo .en-table .col-nome{width:168px!important;min-width:168px!important;max-width:168px;position:sticky;left:36px;z-index:2;box-shadow:1px 0 0 var(--border)}
+  #screen-estudonovo .en-table tbody td.col-num,#screen-estudonovo .en-table tbody td.col-nome{background:var(--surface)}
+  #screen-estudonovo .en-table tbody tr.en-tb-lesson:hover td.col-num,#screen-estudonovo .en-table tbody tr.en-tb-lesson:hover td.col-nome{background:var(--surface-sunken)}
+  #screen-estudonovo .en-table thead th.col-num,#screen-estudonovo .en-table thead th.col-nome{z-index:5;background:var(--surface-sunken)}
+  #screen-estudonovo .en-table tbody tr.en-tb-total td.col-num,#screen-estudonovo .en-table tbody tr.en-tb-total td.col-nome{background:var(--surface-sunken);z-index:4}
+  /* rótulo do checkpoint acompanha a coluna presa, em vez de sumir ao rolar */
+  #screen-estudonovo .en-table .en-tb-check-lbl{position:sticky;left:14px;display:inline-block}
+  #screen-estudonovo .en-table .en-tb-name{font-size:12.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  #screen-estudonovo .en-table .en-tb-editcue{display:none}
+  #screen-estudonovo .en-table thead th.col-num{font-size:9px!important;letter-spacing:0!important;overflow:hidden;text-overflow:clip}
+  #screen-estudonovo .en-table .col-sit{width:104px!important;min-width:104px}
+  #screen-estudonovo .en-table .en-tb-badge{font-size:10.5px;padding:3px 8px}
+  #screen-estudonovo .en-table .col-pct{width:84px!important;min-width:84px}
+  #screen-estudonovo .en-table tr.en-tb-check td{text-align:left!important;padding-left:14px!important}
+}
+
+/* ── Leis Secas ─────────────────────────────────────────────────────────── */
+/* Caput em peso normal; só o rótulo do artigo em destaque */
+#screen-leis .law-art,body.leis-foco .law-art{font-weight:500!important}
+#screen-leis .law-art::first-line,body.leis-foco .law-art::first-line{color:inherit!important}
+.law-art .law-art-num{font-weight:800;color:var(--accent);margin-right:.2em}
+/* Nova lei: aviso de salvamento numa linha própria, botões juntos à direita */
+#lei-form-modal .cards-modal-foot{flex-wrap:wrap}
+#lei-form-modal .cards-modal-foot>.save-note{flex:1 1 100%!important;order:-1;font-size:11.5px}
+#lei-form-modal .cards-modal-foot>#lei-form-cancel{margin-left:auto}
+/* a busca some com menos de 4 leis (o display:flex anulava o [hidden]) */
+#screen-leis .leis-busca[hidden]{display:none!important}
+
 </style>
 
 <script id="app-code" type="application/x-diario-inert">
@@ -28902,6 +28948,8 @@ const HistoricoScreen = {
     emptyEl.style.display = 'none';
 
     // No modo consolidado as semanas são apenas leitura (podem vir de vários planejamentos)
+    // nome do planejamento só quando a trajetória mistura mais de um
+    this._variosPlanos = new Set(history.map(w => String(w._planId || ''))).size > 1;
     listEl.innerHTML = history.map(w =>
       (!consolidated && this.editingId === w.id) ? this.editTemplate(w) : this.viewTemplate(w, consolidated)
     ).join('');
@@ -28928,7 +28976,7 @@ const HistoricoScreen = {
     const perfBadge = w.avgPerformancePct !== null && w.avgPerformancePct !== undefined
       ? `<span class="status-badge ${toneFor(w.avgPerformancePct) === 'good' ? 'finalizada' : toneFor(w.avgPerformancePct) === 'warn' ? 'iniciada' : 'pendente'}">${formatPct(w.avgPerformancePct)}% acerto</span>`
       : '';
-    const planBadge = consolidated && w._planNome
+    const planBadge = consolidated && this._variosPlanos && w._planNome
       ? `<span class="plan-tag-badge">${w._planPaused ? '⏸ ' : ''}${escapeHtml(w._planNome)}</span>` : '';
     const actions = consolidated ? '' : `
             <button type="button" class="reg-act-btn btn-edit-week" title="Editar semana" aria-label="Editar semana">✎</button>
@@ -29073,7 +29121,7 @@ const HistoricoScreen = {
             </div>
           </div>
           <div class="subject-progress-head sp-foot" style="margin-top:10px; margin-bottom:0;">
-            <span class="subject-meta-tag">dificuldade ${s.dificuldade ?? '—'} · ${escapeHtml(s.fase || '—')}</span>
+            ${typeof metaDificuldadeFase === 'function' && metaDificuldadeFase(s) ? `<span class="subject-meta-tag">${metaDificuldadeFase(s)}</span>` : '<span></span>'}
             <span class="subject-meta-tag">${pct}% da meta</span>
           </div>
         </div>
@@ -32046,6 +32094,8 @@ const LeisScreen = {
     const barra = document.querySelector('.leis-busca');
     if (barra) barra.hidden = todas.length < 4;
     const q = (this._busca || '').trim().toLowerCase();
+    // nome do planejamento só quando há leis de mais de um (ou a lei é de outro)
+    const variosPlanos = new Set(todas.map(l => String(l._planId || ''))).size > 1;
     const leis = q
       ? todas.filter(l => [l.titulo, l.referencia, l.materia].some(v => String(v || '').toLowerCase().includes(q)))
       : todas;
@@ -32102,7 +32152,7 @@ const LeisScreen = {
               <span class="lei-estado"><i aria-hidden="true">${estado.ic}</i>${escapeHtml(estado.rot)}</span>
               ${l.materia ? `<span class="lei-tag mat">${escapeHtml(l.materia)}</span>` : ''}
               ${l.referencia ? `<span class="lei-tag ref">${escapeHtml(l.referencia)}</span>` : ''}
-              ${l._planNome ? `<span class="lei-tag ref">${escapeHtml(l._planNome)}${this._leiLocal(l) ? '' : ' · somente leitura'}</span>` : ''}
+              ${l._planNome && (variosPlanos || !this._leiLocal(l)) ? `<span class="lei-tag ref">${escapeHtml(l._planNome)}${this._leiLocal(l) ? '' : ' · somente leitura'}</span>` : ''}
             </span>
             <span class="lei-card-title">${escapeHtml(l.titulo)}</span>
             <span class="lei-card-stats">
@@ -32192,6 +32242,7 @@ const LeisScreen = {
     const body = document.getElementById('lei-reader-body');
     if (!body) return;
     body.innerHTML = LawEngine.toHtml(lei, DB.getLeiKeywords());
+    this._destacarRotulosDeArtigo(body);
     this._pintarFonte();
     body.classList.toggle('tool-mark', this.hlMode === 'mark');
     body.classList.toggle('tool-erase', this.hlMode === 'erase');
@@ -32214,6 +32265,23 @@ const LeisScreen = {
     }
     this.atualizarFoco();
     this._pintarBotaoMarcador(lei.bookmark != null);
+  },
+  /* Só o rótulo "Art. 1º" em destaque; o caput segue em peso normal (antes o
+     artigo inteiro saía em negrito e ::first-line pintava de roxo uma linha
+     visual arbitrária). Mexe só no primeiro nó de texto: o deslocamento das
+     marcações é medido pelo textContent, que não muda. */
+  _destacarRotulosDeArtigo(body) {
+    body.querySelectorAll('.law-art > .law-content').forEach(c => {
+      const t = c.firstChild;
+      if (!t || t.nodeType !== 3) return;
+      const m = /^\s*Art(?:\.|igo)\s*\d+[\wºª°-]*\.?/i.exec(t.nodeValue);
+      if (!m) return;
+      const sp = document.createElement('span');
+      sp.className = 'law-art-num';
+      sp.textContent = m[0];
+      t.nodeValue = t.nodeValue.slice(m[0].length);
+      c.insertBefore(sp, t);
+    });
   },
   /* Re-renderizar a lei inteira custa caro (é o innerHTML de centenas de
      blocos). Quando o usuário desliga três categorias em sequência, isso
@@ -32846,7 +32914,7 @@ const LeisScreen = {
     if (this._somenteLeituraAtual()) { showToast('Somente leitura neste planejamento'); return; }
     const lei = DB.getLei(this.currentId);
     if (!lei) return;
-    if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await UI.confirm(`Excluir a lei "${lei.titulo}"? Esta ação não pode ser desfeita.`, { title: '🗑 Excluir lei', okText: 'Excluir', danger: true })) return;
     DB.deleteLei(this.currentId);
     showToast('Lei excluída');
     this.showList();
@@ -57648,7 +57716,7 @@ else CloudStore.init();
       const acc = defs.map(() => ({ ac: 0, tot: 0, pcts: [] }));
       items.forEach(it => {
         if (it.type === 'checkpoint') {
-          rows += `<tr class="en-tb-check"><td colspan="${3 + cols}">◆ ${esc(it.label || 'Checkpoint')}</td></tr>`;
+          rows += `<tr class="en-tb-check"><td colspan="${3 + cols}"><span class="en-tb-check-lbl">◆ ${esc(it.label || 'Checkpoint')}</span></td></tr>`;
           return;
         }
         n++;

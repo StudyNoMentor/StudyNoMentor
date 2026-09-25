@@ -345,7 +345,7 @@ else CloudStore.init();
       const acc = defs.map(() => ({ ac: 0, tot: 0, pcts: [] }));
       items.forEach(it => {
         if (it.type === 'checkpoint') {
-          rows += `<tr class="en-tb-check"><td colspan="${3 + cols}">◆ ${esc(it.label || 'Checkpoint')}</td></tr>`;
+          rows += `<tr class="en-tb-check"><td colspan="${3 + cols}"><span class="en-tb-check-lbl">◆ ${esc(it.label || 'Checkpoint')}</span></td></tr>`;
           return;
         }
         n++;

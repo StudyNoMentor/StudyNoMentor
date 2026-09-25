@@ -21,6 +21,8 @@ const HistoricoScreen = {
     emptyEl.style.display = 'none';
 
     // No modo consolidado as semanas são apenas leitura (podem vir de vários planejamentos)
+    // nome do planejamento só quando a trajetória mistura mais de um
+    this._variosPlanos = new Set(history.map(w => String(w._planId || ''))).size > 1;
     listEl.innerHTML = history.map(w =>
       (!consolidated && this.editingId === w.id) ? this.editTemplate(w) : this.viewTemplate(w, consolidated)
     ).join('');
@@ -47,7 +49,7 @@ const HistoricoScreen = {
     const perfBadge = w.avgPerformancePct !== null && w.avgPerformancePct !== undefined
       ? `<span class="status-badge ${toneFor(w.avgPerformancePct) === 'good' ? 'finalizada' : toneFor(w.avgPerformancePct) === 'warn' ? 'iniciada' : 'pendente'}">${formatPct(w.avgPerformancePct)}% acerto</span>`
       : '';
-    const planBadge = consolidated && w._planNome
+    const planBadge = consolidated && this._variosPlanos && w._planNome
       ? `<span class="plan-tag-badge">${w._planPaused ? '⏸ ' : ''}${escapeHtml(w._planNome)}</span>` : '';
     const actions = consolidated ? '' : `
             <button type="button" class="reg-act-btn btn-edit-week" title="Editar semana" aria-label="Editar semana">✎</button>
@@ -192,7 +194,7 @@ const HistoricoScreen = {
             </div>
           </div>
           <div class="subject-progress-head sp-foot" style="margin-top:10px; margin-bottom:0;">
-            <span class="subject-meta-tag">dificuldade ${s.dificuldade ?? '—'} · ${escapeHtml(s.fase || '—')}</span>
+            ${typeof metaDificuldadeFase === 'function' && metaDificuldadeFase(s) ? `<span class="subject-meta-tag">${metaDificuldadeFase(s)}</span>` : '<span></span>'}
             <span class="subject-meta-tag">${pct}% da meta</span>
           </div>
         </div>
