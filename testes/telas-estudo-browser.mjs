@@ -56,6 +56,25 @@ try{
     out.inputLarg=inp?inp.getBoundingClientRect().width:0;
     return out;
   });
+  // Estudo Novo em 460px (faixa em que as etapas iam para 2 colunas e os
+  // valores sumiam) com nome longo e valores preenchidos.
+  await page.setViewportSize({width:460,height:900});
+  const en=await page.evaluate(async()=>{
+    const s='Direito Civil';
+    DB.addTrackLesson(s,'Aula 07 - Estatuto Nacional da Microempresa e da Empresa de Pequeno Porte (LC 123/06) - CAPÍTULO VII: DA FISCALIZAÇÃO');
+    const it=DB.getTrack(s).slice(-1)[0];DB.updateTrackStage(s,it.id,'r1','acertos',120);DB.updateTrackStage(s,it.id,'r1','total',150);
+    DB.addTrackCheckpoint(s,it.id);
+    EstudoNovoScreen.currentSubject=s;localStorage.setItem(DB._profilePrefix?'x':'x','');
+    document.querySelector('#en-view-seg [data-v=cartoes]')?.click();EstudoNovoScreen.render();await new Promise(r=>setTimeout(r,200));
+    const ins=[...document.querySelectorAll('.track-row-wrap[data-id="'+it.id+'"] .ts-num')];
+    const cabe=ins.every(i=>i.scrollWidth<=i.clientWidth+1&&i.getBoundingClientRect().width>=34);
+    document.querySelector('#en-view-seg [data-v=tabela]')?.click();await new Promise(r=>setTimeout(r,200));
+    const w=document.querySelector('.en-table-wrap');w.scrollLeft=500;await new Promise(r=>setTimeout(r,50));
+    const nome=document.querySelector('.en-table tbody tr.en-tb-lesson td.col-nome').getBoundingClientRect(),wr=w.getBoundingClientRect();
+    return {cabe,larg:ins.map(i=>Math.round(i.getBoundingClientRect().width)),nomePreso:nome.left>=wr.left-1&&nome.left<wr.left+60,rolou:w.scrollLeft>0};
+  });
+  ok(en.cabe,'etapas em 460px: campos mostram "120/150" inteiro ('+en.larg.join(',')+'px)');
+  ok(en.rolou&&en.nomePreso,'tabela em 460px: nome da aula fica preso ao rolar');
   ok(r.tagged===1,'registro do planejamento ativo entra nas leituras consolidadas');
   ok(r.cards>=1,'"Todos os registros" lista o registro');
   ok(r.planBadge===0,'selo do planejamento some quando há um só planejamento');
