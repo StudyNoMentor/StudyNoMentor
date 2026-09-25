@@ -218,7 +218,12 @@ const AnkiRuntime = {
     // Se o template já possui CSS próprio para .nightMode, ele continua soberano.
     // Caso contrário, removemos apenas o branco/preto padrão do Anki e deixamos o
     // fundo transparente para a superfície escura do reviewer aparecer.
-    const hasNightCss=/\.nightMode\b/.test(css);
+    /* Só cede ao template quando ele define o FUNDO no modo noturno. O Cloze
+       padrão do Anki tem `.nightMode .cloze{color:lightblue}` — cita
+       nightMode, mas só para a cor do cloze; tratá-lo como "tem CSS noturno"
+       deixava o `.card{background-color:white}` valendo no tema escuro. */
+    const semComentarios=css.replace(/\/\*[\s\S]*?\*\//g,'');
+    const hasNightCss=/\.night_?mode\b[^{}]*\{[^}]*\bbackground(?:-color)?\s*:/i.test(semComentarios);
     const themeCss='html.nightMode{color-scheme:dark}'+
       (hasNightCss?'':'html.nightMode body.card{background:transparent;color:#e8eaed}');
     const nightClass=dark?' nightMode':'';

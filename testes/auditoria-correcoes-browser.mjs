@@ -364,6 +364,15 @@ try {
   // ── Baixo: SHA-1 único (csum do Anki) continua correto ─────────────────────
   ok(await page.evaluate(() => AnkiExport._sha1First32('abc') === 0xa9993e36 && AnkiExport._sha1First32('') === 0xda39a3ee), 'csum do Anki (SHA-1, 32 bits) correto com a implementação única');
 
+  // ── Cards no tema escuro: Cloze padrão não fica com fundo branco ───────────
+  const fundo = await page.evaluate(async () => {
+    document.documentElement.setAttribute('data-theme', 'dark');
+    const nt = AnkiParity.stockNotetype('cloze');
+    const doc = AnkiRuntime.buildSrcdoc(nt, 'Texto {{c1::oculto}}', 'question', { id: 'fundo-1' }, null, { disableAutoplay: true });
+    return { temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc) };
+  });
+  ok(fundo.temFallback, 'Cloze padrão no tema escuro usa fundo transparente (não branco)');
+
   // ── A7: código de terceiros ────────────────────────────────────────────────
   const a7 = await page.evaluate(() => ({
     exec: AnkiTotalParity.EXECUCAO_DE_CODIGO_DESATIVADA === true,
