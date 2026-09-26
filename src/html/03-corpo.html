@@ -1047,10 +1047,18 @@
         <div class="field"><label for="cards-search">Buscar</label>
           <input type="text" id="cards-search" placeholder="Buscar na frente, verso, assunto ou matéria..."></div>
         <div class="field-group">
-          <div class="field"><label for="cards-f-materia">Disciplina / baralho</label>
-            <select id="cards-f-materia"><option value="">Todas</option></select></div>
-          <div class="field"><label for="cards-f-assunto">Assunto</label>
-            <select id="cards-f-assunto"><option value="">Todos os assuntos</option></select></div>
+          <div class="field"><label>Disciplina / baralho</label>
+            <div class="cards-filter-multi-wrap">
+              <select id="cards-f-materia" class="cards-filter-native" tabindex="-1" aria-hidden="true"><option value="">Todas</option></select>
+              <div id="cards-f-materia-multi" class="cards-multi-filter"></div>
+            </div>
+          </div>
+          <div class="field"><label>Assunto</label>
+            <div class="cards-filter-multi-wrap">
+              <select id="cards-f-assunto" class="cards-filter-native" tabindex="-1" aria-hidden="true"><option value="">Todos os assuntos</option></select>
+              <div id="cards-f-assunto-multi" class="cards-multi-filter"></div>
+            </div>
+          </div>
           <div class="field"><label for="cards-f-tipo">Tipo</label>
             <select id="cards-f-tipo"><option value="">Todos os tipos</option></select></div>
         </div>
