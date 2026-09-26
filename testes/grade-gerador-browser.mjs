@@ -89,6 +89,16 @@ try{
     const m2=GradeScreen.progresso().mapa;
     out.mesmoDia={seg:m2['Segunda|0'].completo,qua:m2['Quarta|0'].completo};
     GradeScreen.setView('painel');await new Promise(r=>setTimeout(r,100));
+    // A escolha sobrevive à navegação e ao formato reidratado da conta.
+    switchScreen('registrar'); switchScreen('grade');
+    out.preferenciaPainel=GradeScreen.modo()==='painel';
+    const key=DB._profilePrefix()+'pref-grade-view';
+    out.preferenciaPersistida=JSON.parse(localStorage.getItem(key))==='painel';
+    DB.setRaw(key,JSON.stringify('semana')); GradeScreen.render();
+    out.preferenciaMontar=GradeScreen.modo()==='semana';
+    DB.setRaw(key,'painel'); GradeScreen.render();
+    out.preferenciaLegada=GradeScreen.modo()==='painel';
+    out.semProxima=!document.querySelector('#ciclo-grade .gp-proxima');
     const sel=d=>document.querySelector('#ciclo-grade [data-gp-dia="'+iso(d)+'"]');
     const sex=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+4);
     sel(sex).click();await new Promise(r=>setTimeout(r,60));
@@ -110,6 +120,8 @@ try{
     out.vazio=!!document.querySelector('#ciclo-grade .gp-vazio [data-gp-acao="montar"]');
     return out;
   });
+  ok(r.preferenciaPainel&&r.preferenciaPersistida&&r.preferenciaMontar&&r.preferenciaLegada,'último modo salvo, navegação e preferência reidratada/legada');
+  ok(r.semProxima,'lista diária sem bloco redundante Próxima missão');
   ok(r.aberto,'janela abre pelo botão ✨ Sugerir grade');
   ok(r.materias===4,'lista as matérias do ciclo');
   ok(r.gpAberto,'Prioridades e cálculo abre pelo menu ⚙ Opções');
