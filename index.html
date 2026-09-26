@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vf1376f6966">
+<meta name="diario-versao" content="va6fc7dd47b">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16772,6 +16772,44 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar.reg-v2 .reg-tempo-rapido .reg-chip{min-width:0;padding:4px 6px}
 #screen-registrar.reg-v2:not([data-reg-mode="compacto"]) #step-3 .row-3{align-items:start}
 
+/* Registrar: molduras e seleção do visual aprovado. Escopo só do formulário. */
+#screen-registrar.reg-v2 #study-form{
+  --reg-outline:color-mix(in srgb,var(--accent) 42%,var(--surface));
+  --reg-shadow:0 3px 12px color-mix(in srgb,var(--accent) 9%,transparent);
+}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){
+  box-sizing:border-box;min-width:0;align-self:stretch;
+  padding:14px 16px!important;border:1.5px solid var(--reg-outline);border-radius:14px;
+  background:color-mix(in srgb,var(--accent) 2%,var(--surface));box-shadow:var(--reg-shadow);
+}
+#screen-registrar.reg-v2 #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo)>label,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-perf-head{
+  color:var(--accent-text);font-weight:800;
+}
+#screen-registrar.reg-v2 #study-form :is(input,select,textarea,.reg-chip,.reg-pill){
+  border:1.5px solid var(--reg-outline);box-shadow:0 1px 5px color-mix(in srgb,var(--accent) 5%,transparent);
+}
+#screen-registrar.reg-v2 #study-form :is(input,select,textarea):focus,
+#screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill):focus-visible{
+  border-color:var(--accent);outline:2px solid var(--accent);outline-offset:2px;
+}
+#screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill).on{
+  background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:800;
+  box-shadow:0 3px 8px color-mix(in srgb,var(--accent) 24%,transparent);
+}
+/* A marca de matéria já registrada continua única quando também selecionada. */
+#screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill).on:not(.feita)::before{
+  content:"";display:inline-block;width:.65em;height:.35em;margin-right:.5em;
+  border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-.1em) rotate(-45deg);
+}
+#screen-registrar.reg-v2 #study-form .gauge .track{stroke:color-mix(in srgb,var(--accent) 20%,var(--surface))}
+#screen-registrar.reg-v2 #study-form #submit-btn{font-size:1.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.025em}
+@media(max-width:420px){
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){padding:12px!important}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp{column-gap:10px}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp .gauge{width:64px;height:64px}
+}
+
 </style>
 
 <style id="padrao-global">
@@ -17154,22 +17192,6 @@ html[data-theme="dark"] #gate-login .cloud-auth-tab.active{box-shadow:0 1px 3px 
 .gp-foco-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .gp-foco-head h3 { margin: 0; font-size: var(--fs-lg); font-weight: 800; color: var(--text); }
 .gp-foco-total { font-size: var(--fs-sm); font-weight: 700; color: var(--text-soft); font-variant-numeric: tabular-nums; }
-
-/* destaque: próxima missão */
-.gp-proxima {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px 16px; flex-wrap: wrap;
-  padding: 14px 16px 14px 18px; border-radius: var(--r-lg); position: relative; overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--c, var(--accent)) 35%, var(--border));
-  background: color-mix(in srgb, var(--c, var(--accent)) 9%, var(--surface));
-}
-.gp-proxima::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--c, var(--accent)); }
-.gp-proxima.is-ok { --c: var(--good); }
-.gp-proxima-txt { display: grid; gap: 2px; min-width: 0; flex: 1 1 200px; }
-.gp-proxima-lbl { font-size: var(--fs-2xs, 11px); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft); }
-.gp-proxima-nome { font-size: var(--fs-xl); font-weight: 800; color: var(--text); overflow-wrap: anywhere; }
-.gp-proxima-tempo { font-size: var(--fs-sm); color: var(--text-soft); font-weight: 600; }
-.gp-proxima-btn { min-height: 42px; padding: 9px 18px; border-radius: var(--r-md); font-weight: 800; white-space: nowrap; }
-@media (max-width: 560px) { .gp-proxima-btn { flex: 1 1 100%; } }
 
 /* lista de missões */
 .gp-missoes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
@@ -29355,12 +29377,16 @@ function planCycleMode() {
     return DIAS_SEMANA.some(d => (t.grade[d] || []).some(c => { const n = normalizeCell(c); return n && n.subject; }));
   }
   function gradeViewMode() {
-    const v = gradePrefGet('grade-view', null, '');
+    // Aceita tanto o texto legado quanto a string JSON reidratada da conta.
+    let v = gradePrefGet('grade-view', null, '');
+    try { const parsed = JSON.parse(v); if (typeof parsed === 'string') v = parsed; } catch (_) { /* texto legado */ }
     if (v === 'semana') return 'semana';
     if (v === 'painel' || v === 'dia') return 'painel';
     return gradeTemAlgo() ? 'painel' : 'semana';
   }
-  function setGradeViewMode(v) { gradePrefSet('grade-view', v === 'painel' ? 'painel' : 'semana'); }
+  function setGradeViewMode(v) {
+    return DB._set(_gradePrefKey('grade-view'), v === 'painel' ? 'painel' : 'semana');
+  }
 
   /* ---- Painel "Acompanhar" ----
      Tudo sai do mesmo cálculo da tabela (gradeProgresso): a missão que aparece
@@ -29517,45 +29543,15 @@ function planCycleMode() {
     // ---- dia em foco ----
     const quando = sel.passado ? 'passado' : (sel.hoje ? 'hoje' : 'futuro');
     const tituloDia = sel.hoje ? `Hoje · ${sel.dia.toLowerCase()}, ${_dataCurta(sel.iso)}` : `${sel.dia}, ${_dataCurta(sel.iso)}`;
-    let destaque = '';
-    if (sel.hoje) {
-      const prox = sel.missoes.find(x => !x.feita);
-      if (prox) {
-        const cor = CycleEngine.colorForSubject(prox.subject) || 'var(--accent)';
-        destaque = `
-          <div class="gp-proxima" style="--c:${cor}">
-            <div class="gp-proxima-txt">
-              <span class="gp-proxima-lbl">${prox.parcial ? 'Continue de onde parou' : 'Próxima missão'}</span>
-              <span class="gp-proxima-nome">${escapeHtml(prox.subject)}</span>
-              <span class="gp-proxima-tempo">${prox.feito > 0 ? `faltam ${fmt(prox.falta)} de ${fmt(prox.meta)}` : fmt(prox.meta)}</span>
-            </div>
-            <button type="button" class="btn-primary gp-proxima-btn" data-gp-reg="${escapeHtml(prox.dia + '|' + prox.idx)}">▶ Registrar agora</button>
-          </div>`;
-      } else {
-        const alvo = D.atrasadas[0] || null;
-        const futura = !alvo && D.dias.filter(d => d.futuro).map(d => d.missoes.find(x => !x.feita)).find(Boolean);
-        const sug = alvo || futura;
-        destaque = `
-          <div class="gp-proxima is-ok">
-            <div class="gp-proxima-txt">
-              <span class="gp-proxima-lbl">${sel.missoes.length ? 'Missões de hoje concluídas' : 'Hoje é dia livre na grade'}</span>
-              <span class="gp-proxima-nome">${sel.missoes.length ? 'Tudo feito por hoje ✓' : 'Descanso planejado'}</span>
-              <span class="gp-proxima-tempo">${sug ? (alvo ? 'Quer recuperar ' : 'Quer adiantar ') + escapeHtml(sug.subject) + ' (' + fmt(sug.falta || sug.meta) + ')?' : 'Nada pendente na semana.'}</span>
-            </div>
-            ${sug ? `<button type="button" class="btn-secondary gp-proxima-btn" data-gp-reg="${escapeHtml(sug.dia + '|' + sug.idx)}">▶ ${alvo ? 'Recuperar' : 'Adiantar'}</button>` : ''}
-          </div>`;
-      }
-    }
     const lista = sel.missoes.length
       ? `<ol class="gp-missoes">${sel.missoes.map(x => missaoHtml(x, quando)).join('')}</ol>`
-      : (sel.hoje ? '' : `<p class="gp-livre">Nenhuma missão planejada para este dia.</p>`);
+      : `<p class="gp-livre">Nenhuma missão planejada para este dia.</p>`;
     const foco = `
       <section class="gp-foco" aria-label="Missões do dia">
         <header class="gp-foco-head">
           <h3>${escapeHtml(tituloDia)}</h3>
           <span class="gp-foco-total">${sel.missoes.length ? `${fmt(sel.feito)} de ${fmt(sel.meta)}` : ''}</span>
         </header>
-        ${destaque}
         ${lista}
       </section>`;
 
