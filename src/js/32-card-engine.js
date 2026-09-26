@@ -632,13 +632,17 @@ const CardEngine = {
     if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
     return (card.due || todayCards()) <= todayCards(); // agendamento por dia
   },
-  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, assunto, tipo, status, favorito, deckId }
+  // Aplica os filtros a uma lista de cards. Seleções múltiplas usam OR dentro
+  // da mesma categoria e continuam combinadas por AND entre categorias.
+  // f = { busca, materias:Set, assuntos:Set, assunto(legado), tipo, status, favorito, deckId }
   applyFilters(cards, f) {
     f = f || {};
     const busca = (f.busca || '').trim().toLowerCase();
+    const materias = f.materias instanceof Set ? f.materias : new Set(Array.isArray(f.materias) ? f.materias : []);
+    const assuntos = f.assuntos instanceof Set ? f.assuntos : new Set(Array.isArray(f.assuntos) ? f.assuntos : []);
     return cards.filter(c => {
-      if (f.materias && f.materias.size && !(c.materia && f.materias.has(c.materia)) && !(c.deckId && f.materias.has('deck:' + c.deckId))) return false;
-      if (f.assunto && (c.assunto || '') !== f.assunto) return false;
+      if (materias.size && !(c.materia && materias.has(c.materia)) && !(c.deckId && materias.has('deck:' + c.deckId))) return false;
+      if (assuntos.size ? !assuntos.has(c.assunto || '') : (f.assunto && (c.assunto || '') !== f.assunto)) return false;
       if (f.tipo && (c.tipo || '') !== f.tipo) return false;
       if (f.status && f.status !== 'todos' && (c.status || 'pendente') !== f.status) return false;
       if (f.favorito && !c.favorito) return false;

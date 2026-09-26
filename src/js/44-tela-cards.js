@@ -3,7 +3,7 @@
    ============================================================ */
 const CardsScreen = {
   tab: 'revisar',
-  filters: { busca: '', materias: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
+  filters: { busca: '', materias: new Set(), assuntos: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
   _editingId: null,
   _editingPlanId: null, // origem do card global em edição; novo card usa o plano ativo
   _reviewQueue: [], _reviewIdx: 0, _flipped: false,
@@ -23,25 +23,236 @@ const CardsScreen = {
     try { if (window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return DB.getDecks();
   },
-  materiaOptionsHtml(selectedValue) {
+  materiaFilterOptions() {
     const cards = this.collectionCards();
     const nomes = [...new Set([].concat(
       DB.getActiveSubjects().map(s => s.nome),
       cards.map(c => c.materia).filter(Boolean)
-    ))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    const subs = nomes.map(nome => `<option value="${escapeHtml(nome)}"${selectedValue === nome ? ' selected' : ''}>${escapeHtml(nome)}</option>`).join('');
-    const decks = this.collectionDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome ? ' · ' + escapeHtml(d._planNome) : ''}</option>`).join('');
-    return { subs, decks };
+    ))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+    const subjects = nomes.map(nome => ({ value: nome, label: nome, group: 'Disciplinas' }));
+    const decks = this.collectionDecks()
+      .slice()
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      .map(d => ({
+        value: 'deck:' + d.id,
+        label: '📁 ' + String(d.nome || '') + (d._planNome ? ' · ' + String(d._planNome) : ''),
+        group: 'Baralhos'
+      }));
+    return subjects.concat(decks);
+  },
+  assuntoFilterOptions() {
+    return [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      .map(t => ({ value: String(t), label: String(t), group: 'Assuntos' }));
+  },
+  materiaOptionsHtml(selectedValue) {
+    const opts = this.materiaFilterOptions();
+    const html = (group) => opts.filter(o => o.group === group).map(o =>
+      `<option value="${escapeHtml(o.value)}"${selectedValue === o.value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+    ).join('');
+    return { subs: html('Disciplinas'), decks: html('Baralhos') };
+  },
+  _filterSet(kind) {
+    if (kind === 'materia') {
+      if (!(this.filters.materias instanceof Set)) this.filters.materias = new Set(this.filters.materias || []);
+      return this.filters.materias;
+    }
+    if (!(this.filters.assuntos instanceof Set)) {
+      const legacy = this.filters.assunto ? [this.filters.assunto] : [];
+      this.filters.assuntos = new Set(legacy);
+    }
+    return this.filters.assuntos;
+  },
+  _filterSummary(kind, options, allLabel) {
+    const selected = this._filterSet(kind);
+    if (!selected.size) return { text: allLabel, count: 0, title: allLabel };
+    const labels = new Map(options.map(o => [String(o.value), String(o.label)]));
+    const picked = [...selected].map(v => labels.get(String(v)) || String(v));
+    if (picked.length === 1) return { text: picked[0], count: 1, title: picked[0] };
+    return {
+      text: picked.length + ' selecionados',
+      count: picked.length,
+      title: picked.join(', ')
+    };
+  },
+  _closeMultiFilters(except) {
+    document.querySelectorAll('#cards-filter-card .cards-multi-filter.open').forEach(host => {
+      if (except && host === except) return;
+      host.classList.remove('open');
+      const btn = host.querySelector('.cards-multi-filter-btn');
+      const panel = host.querySelector('.cards-multi-filter-panel');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      if (panel) panel.hidden = true;
+    });
+  },
+  _syncNativeFilter(kind) {
+    const selected = this._filterSet(kind);
+    const el = document.getElementById(kind === 'materia' ? 'cards-f-materia' : 'cards-f-assunto');
+    if (el) el.value = selected.size === 1 ? String([...selected][0]) : '';
+    if (kind === 'assunto') this.filters.assunto = selected.size === 1 ? String([...selected][0]) : '';
+  },
+  _renderMultiFilter(kind, hostId, options, allLabel, searchPlaceholder) {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    const selected = this._filterSet(kind);
+    const summary = this._filterSummary(kind, options, allLabel);
+    const rows = [];
+    let lastGroup = null;
+    options.forEach(o => {
+      if (o.group !== lastGroup) {
+        lastGroup = o.group;
+        rows.push(`<div class="cards-multi-filter-group">${escapeHtml(o.group || '')}</div>`);
+      }
+      const checked = selected.has(o.value);
+      const norm = String(o.label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      rows.push(`<label class="cards-multi-filter-option${checked ? ' selected' : ''}" data-filter-search="${escapeHtml(norm)}">
+        <input type="checkbox" data-filter-value="${escapeHtml(o.value)}"${checked ? ' checked' : ''}>
+        <span class="cards-multi-filter-check" aria-hidden="true">✓</span>
+        <span class="cards-multi-filter-option-label">${escapeHtml(o.label)}</span>
+      </label>`);
+    });
+
+    host.innerHTML = `
+      <button type="button" class="cards-multi-filter-btn" aria-haspopup="listbox" aria-expanded="false" title="${escapeHtml(summary.title)}">
+        <span class="cards-multi-filter-btn-label">${escapeHtml(summary.text)}</span>
+        ${summary.count > 1 ? `<span class="cards-multi-filter-badge">${summary.count}</span>` : ''}
+        <span class="cards-multi-filter-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="cards-multi-filter-panel" hidden>
+        <div class="cards-multi-filter-search-wrap">
+          <span aria-hidden="true">⌕</span>
+          <input type="search" class="cards-multi-filter-search" autocomplete="off" placeholder="${escapeHtml(searchPlaceholder)}" aria-label="${escapeHtml(searchPlaceholder)}">
+        </div>
+        <div class="cards-multi-filter-tools">
+          <span class="cards-multi-filter-selected">${selected.size ? selected.size + ' selecionado(s)' : 'Todos'}</span>
+          <button type="button" class="cards-multi-filter-clear"${selected.size ? '' : ' disabled'}>Limpar seleção</button>
+        </div>
+        <div class="cards-multi-filter-options" role="listbox" aria-multiselectable="true">
+          ${rows.join('') || '<div class="cards-multi-filter-empty">Nenhuma opção disponível.</div>'}
+          <div class="cards-multi-filter-empty cards-multi-filter-empty-search" hidden>Nenhuma opção encontrada.</div>
+        </div>
+      </div>`;
+
+    const btn = host.querySelector('.cards-multi-filter-btn');
+    const panel = host.querySelector('.cards-multi-filter-panel');
+    const search = host.querySelector('.cards-multi-filter-search');
+    const clear = host.querySelector('.cards-multi-filter-clear');
+    const optionsBox = host.querySelector('.cards-multi-filter-options');
+
+    const refreshTrigger = () => {
+      const now = this._filterSummary(kind, options, allLabel);
+      const label = btn.querySelector('.cards-multi-filter-btn-label');
+      const oldBadge = btn.querySelector('.cards-multi-filter-badge');
+      if (label) label.textContent = now.text;
+      btn.title = now.title;
+      if (now.count > 1) {
+        if (oldBadge) oldBadge.textContent = now.count;
+        else {
+          const badge = document.createElement('span');
+          badge.className = 'cards-multi-filter-badge';
+          badge.textContent = String(now.count);
+          btn.insertBefore(badge, btn.querySelector('.cards-multi-filter-chevron'));
+        }
+      } else if (oldBadge) oldBadge.remove();
+      const counter = host.querySelector('.cards-multi-filter-selected');
+      if (counter) counter.textContent = selected.size ? selected.size + ' selecionado(s)' : 'Todos';
+      if (clear) clear.disabled = !selected.size;
+    };
+    const apply = () => {
+      this._syncNativeFilter(kind);
+      this._reviewIdx = 0;
+      this._meusMostrando = 0;
+      this.invalidateReviewQueue();
+      refreshTrigger();
+      this.renderContent();
+    };
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const opening = panel.hidden;
+      this._closeMultiFilters(host);
+      panel.hidden = !opening;
+      host.classList.toggle('open', opening);
+      btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      if (opening) setTimeout(() => search && search.focus(), 0);
+    });
+
+    if (search) search.addEventListener('input', () => {
+      const q = String(search.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      let shown = 0;
+      host.querySelectorAll('.cards-multi-filter-option').forEach(row => {
+        const hit = !q || String(row.dataset.filterSearch || '').includes(q);
+        row.hidden = !hit;
+        if (hit) shown++;
+      });
+      host.querySelectorAll('.cards-multi-filter-group').forEach(group => {
+        let next = group.nextElementSibling, any = false;
+        while (next && !next.classList.contains('cards-multi-filter-group')) {
+          if (next.classList.contains('cards-multi-filter-option') && !next.hidden) any = true;
+          next = next.nextElementSibling;
+        }
+        group.hidden = !any;
+      });
+      const empty = host.querySelector('.cards-multi-filter-empty-search');
+      if (empty) empty.hidden = shown > 0 || options.length === 0;
+    });
+
+    if (optionsBox) optionsBox.addEventListener('change', (e) => {
+      const cb = e.target.closest('input[type="checkbox"][data-filter-value]');
+      if (!cb) return;
+      const value = cb.dataset.filterValue;
+      if (cb.checked) selected.add(value); else selected.delete(value);
+      const row = cb.closest('.cards-multi-filter-option');
+      if (row) row.classList.toggle('selected', cb.checked);
+      apply();
+    });
+
+    if (clear) clear.addEventListener('click', () => {
+      if (!selected.size) return;
+      selected.clear();
+      host.querySelectorAll('input[type="checkbox"][data-filter-value]').forEach(cb => { cb.checked = false; });
+      host.querySelectorAll('.cards-multi-filter-option.selected').forEach(row => row.classList.remove('selected'));
+      apply();
+    });
+
+    if (!this._multiFilterOutsideBound) {
+      this._multiFilterOutsideBound = true;
+      const closeOutside = (e) => {
+        const open = [...document.querySelectorAll('#cards-filter-card .cards-multi-filter.open')];
+        if (open.length && !open.some(item => item.contains(e.target))) this._closeMultiFilters();
+      };
+      // pointerdown fecha antes de qualquer mudança de foco; click é fallback
+      // para navegadores/webviews que sintetizam clique sem Pointer Events.
+      document.addEventListener('pointerdown', closeOutside, true);
+      document.addEventListener('click', closeOutside, true);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.querySelector('#cards-filter-card .cards-multi-filter.open')) {
+          this._closeMultiFilters();
+        }
+      }, true);
+    }
   },
   populateFilterOptions() {
     const mSel = document.getElementById('cards-f-materia');
-    const cur = mSel.value;
-    const { subs, decks } = this.materiaOptionsHtml(cur);
+    const matterOptions = this.materiaFilterOptions();
+    const selectedMatter = this._filterSet('materia');
+    const oneMatter = selectedMatter.size === 1 ? String([...selectedMatter][0]) : '';
+    const { subs, decks } = this.materiaOptionsHtml(oneMatter);
     mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
-    // tópicos existentes nos cards
-    const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
-    $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    mSel.value = oneMatter;
+
+    const assuntoOptions = this.assuntoFilterOptions();
+    const selectedAssuntos = this._filterSet('assunto');
+    const oneAssunto = selectedAssuntos.size === 1 ? String([...selectedAssuntos][0]) : '';
+    const assuntoSel = $id('cards-f-assunto');
+    assuntoSel.innerHTML = `<option value="">Todos os assuntos</option>` + assuntoOptions.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    assuntoSel.value = oneAssunto;
+    this.filters.assunto = oneAssunto;
+
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
+    this._renderMultiFilter('materia', 'cards-f-materia-multi', matterOptions, 'Todas as disciplinas/baralhos', 'Buscar disciplina ou baralho…');
+    this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
   },
   destinationDecks(planId) {
     // Card global continua pertencendo ao planejamento onde nasceu. Ao editá-lo
