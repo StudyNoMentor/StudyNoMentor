@@ -132,3 +132,84 @@
   #anki-browser-modal .anki-browser-power-tools>select{flex:1 1 100%!important}
   #anki-browser-modal .anki-browser-toolbar>.anki-browser-sort-dir{width:100%!important}
 }
+
+/* ── Cards: filtros múltiplos de disciplina/baralho e assunto ─────────── */
+#cards-filter-card,
+#cards-filter-body,
+#cards-filter-body .field-group,
+#cards-filter-body .field{overflow:visible!important}
+#cards-filter-body .cards-filter-multi-wrap{position:relative;min-width:0}
+#cards-filter-body .cards-filter-native{
+  position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
+  overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;opacity:0!important;pointer-events:none!important
+}
+#cards-filter-body .cards-multi-filter{position:relative;min-width:0}
+#cards-filter-body .cards-multi-filter-btn{
+  width:100%;min-height:42px;display:flex;align-items:center;gap:8px;text-align:left;
+  border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--text);
+  padding:9px 11px;font:inherit;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease
+}
+#cards-filter-body .cards-multi-filter-btn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:var(--surface-2)}
+#cards-filter-body .cards-multi-filter.open .cards-multi-filter-btn,
+#cards-filter-body .cards-multi-filter-btn:focus-visible{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)
+}
+#cards-filter-body .cards-multi-filter-btn-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#cards-filter-body .cards-multi-filter-badge{
+  flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 7px;
+  border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent);font-size:12px;font-weight:800
+}
+#cards-filter-body .cards-multi-filter-chevron{flex:0 0 auto;color:var(--text-soft);transition:transform .16s ease}
+#cards-filter-body .cards-multi-filter.open .cards-multi-filter-chevron{transform:rotate(180deg)}
+#cards-filter-body .cards-multi-filter-panel{
+  position:absolute;z-index:90;top:calc(100% + 7px);left:0;right:0;min-width:100%;
+  border:1px solid var(--border);border-radius:14px;background:var(--surface);
+  box-shadow:0 18px 48px rgba(15,23,42,.18);padding:9px
+}
+#cards-filter-body .cards-multi-filter-search-wrap{
+  display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:10px;
+  padding:0 9px;background:var(--surface-2)
+}
+#cards-filter-body .cards-multi-filter-search-wrap>span{color:var(--text-faint);font-size:16px}
+#cards-filter-body .cards-multi-filter-search{
+  width:100%;min-height:38px;border:0!important;outline:0!important;background:transparent!important;color:var(--text)!important;
+  box-shadow:none!important;padding:0!important
+}
+#cards-filter-body .cards-multi-filter-tools{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 2px 6px
+}
+#cards-filter-body .cards-multi-filter-selected{font-size:11.5px;color:var(--text-soft);font-weight:700}
+#cards-filter-body .cards-multi-filter-clear{
+  border:0;background:transparent;color:var(--accent);font-size:11.5px;font-weight:800;cursor:pointer;padding:4px 2px
+}
+#cards-filter-body .cards-multi-filter-clear:disabled{opacity:.42;cursor:default}
+#cards-filter-body .cards-multi-filter-options{
+  max-height:288px;overflow:auto;overscroll-behavior:contain;padding:1px 1px 2px;scrollbar-width:thin
+}
+#cards-filter-body .cards-multi-filter-group{
+  position:sticky;top:0;z-index:1;margin:6px 0 3px;padding:6px 8px 4px;background:var(--surface);
+  color:var(--text-faint);font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase
+}
+#cards-filter-body .cards-multi-filter-option{
+  display:grid;grid-template-columns:20px minmax(0,1fr);align-items:center;gap:8px;min-height:38px;
+  border-radius:9px;padding:7px 8px;color:var(--text);cursor:pointer;user-select:none
+}
+#cards-filter-body .cards-multi-filter-option:hover{background:var(--surface-2)}
+#cards-filter-body .cards-multi-filter-option.selected{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
+#cards-filter-body .cards-multi-filter-option input{position:absolute;opacity:0;pointer-events:none}
+#cards-filter-body .cards-multi-filter-check{
+  width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);
+  border-radius:5px;color:transparent;background:var(--surface);font-size:12px;font-weight:900
+}
+#cards-filter-body .cards-multi-filter-option.selected .cards-multi-filter-check{
+  border-color:var(--accent);background:var(--accent);color:#fff
+}
+#cards-filter-body .cards-multi-filter-option-label{min-width:0;overflow-wrap:anywhere;line-height:1.28}
+#cards-filter-body .cards-multi-filter-empty{padding:16px 10px;text-align:center;color:var(--text-faint);font-size:12px}
+@media (max-width:720px){
+  #cards-filter-body{padding-left:14px!important;padding-right:14px!important}
+  #cards-filter-body .cards-multi-filter-panel{position:fixed;z-index:220;left:14px;right:14px;top:auto;bottom:18px;max-height:min(72vh,520px)}
+  #cards-filter-body .cards-multi-filter-options{max-height:min(50vh,360px)}
+  #cards-filter-body .cards-multi-filter-btn{min-height:44px}
+}
+
