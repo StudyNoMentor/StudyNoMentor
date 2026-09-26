@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va6fc7dd47b">
+<meta name="diario-versao" content="v25d3837cb1">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16710,7 +16710,7 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar.reg-v2 .reg-add{border-style:dashed}
 
 /* — Compacto: layout em painel — */
-#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"materia materia materia materia data data" "aula aula aula aula aula aula" "metodo metodo metodo metodo metodo metodo" "tempo tempo tempo desemp desemp desemp" "video video video video video video" "pini pini pini pfim pfim pfim" "phint phint phint phint phint phint" "obs obs obs obs obs obs" "extras extras extras extras extras extras";column-gap:16px;row-gap:0;padding:20px 24px 6px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"materia materia materia materia data data" "aula aula aula aula aula aula" "metodo metodo metodo metodo metodo metodo" "tempo tempo tempo desemp desemp desemp" "video video video video video video" "pini pini pini pfim pfim pfim" "phint phint phint phint phint phint" "obs obs obs obs obs obs" "extras extras extras extras extras extras";column-gap:12px;row-gap:0;padding:14px 12px 4px}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .step,
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .field-group,
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .row-3{display:contents!important}
@@ -16748,7 +16748,7 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-perf-head .reg-opt{font-weight:600;letter-spacing:0;text-transform:none;color:var(--text-faint)}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-tempo .time-input input{font-family:'Space Mono',ui-monospace,monospace;font-size:var(--fs-lg);font-weight:700;text-align:center;min-width:0}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-f-obs #comment{min-height:80px!important}
-#screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{padding:14px 0 0;margin:0 24px 18px;border-top:1px solid var(--border)}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{padding:12px 0 0;margin:0 12px 14px;border-top:1px solid var(--border)}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:block;flex:1 1 220px;min-width:0;font-size:var(--fs-sm);font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo:empty{display:none}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row .save-note{order:-1;flex:1 0 100%}
@@ -16779,7 +16779,7 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 }
 #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){
   box-sizing:border-box;min-width:0;align-self:stretch;
-  padding:14px 16px!important;border:1.5px solid var(--reg-outline);border-radius:14px;
+  padding:12px 14px!important;border:1.5px solid var(--reg-outline);border-radius:14px;
   background:color-mix(in srgb,var(--accent) 2%,var(--surface));box-shadow:var(--reg-shadow);
 }
 #screen-registrar.reg-v2 #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo)>label,
@@ -16803,7 +16803,7 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
   border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-.1em) rotate(-45deg);
 }
 #screen-registrar.reg-v2 #study-form .gauge .track{stroke:color-mix(in srgb,var(--accent) 20%,var(--surface))}
-#screen-registrar.reg-v2 #study-form #submit-btn{font-size:1.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.025em}
+#screen-registrar.reg-v2 #study-form #submit-btn{font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.02em}
 @media(max-width:420px){
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){padding:12px!important}
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp{column-gap:10px}
