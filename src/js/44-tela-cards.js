@@ -217,15 +217,19 @@ const CardsScreen = {
 
     if (!this._multiFilterOutsideBound) {
       this._multiFilterOutsideBound = true;
-      document.addEventListener('pointerdown', (e) => {
-        const open = document.querySelector('#cards-filter-card .cards-multi-filter.open');
-        if (open && !open.contains(e.target)) this._closeMultiFilters();
-      }, true);
+      const closeOutside = (e) => {
+        const open = [...document.querySelectorAll('#cards-filter-card .cards-multi-filter.open')];
+        if (open.length && !open.some(item => item.contains(e.target))) this._closeMultiFilters();
+      };
+      // pointerdown fecha antes de qualquer mudança de foco; click é fallback
+      // para navegadores/webviews que sintetizam clique sem Pointer Events.
+      document.addEventListener('pointerdown', closeOutside, true);
+      document.addEventListener('click', closeOutside, true);
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && document.querySelector('#cards-filter-card .cards-multi-filter.open')) {
           this._closeMultiFilters();
         }
-      });
+      }, true);
     }
   },
   populateFilterOptions() {
