@@ -224,3 +224,41 @@
 #screen-registrar.reg-v2 .reg-tempo-rapido{flex-wrap:nowrap}
 #screen-registrar.reg-v2 .reg-tempo-rapido .reg-chip{min-width:0;padding:4px 6px}
 #screen-registrar.reg-v2:not([data-reg-mode="compacto"]) #step-3 .row-3{align-items:start}
+
+/* Registrar: molduras e seleção do visual aprovado. Escopo só do formulário. */
+#screen-registrar.reg-v2 #study-form{
+  --reg-outline:color-mix(in srgb,var(--accent) 42%,var(--surface));
+  --reg-shadow:0 3px 12px color-mix(in srgb,var(--accent) 9%,transparent);
+}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){
+  box-sizing:border-box;min-width:0;align-self:stretch;
+  padding:14px 16px!important;border:1.5px solid var(--reg-outline);border-radius:14px;
+  background:color-mix(in srgb,var(--accent) 2%,var(--surface));box-shadow:var(--reg-shadow);
+}
+#screen-registrar.reg-v2 #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo)>label,
+#screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-perf-head{
+  color:var(--accent-text);font-weight:800;
+}
+#screen-registrar.reg-v2 #study-form :is(input,select,textarea,.reg-chip,.reg-pill){
+  border:1.5px solid var(--reg-outline);box-shadow:0 1px 5px color-mix(in srgb,var(--accent) 5%,transparent);
+}
+#screen-registrar.reg-v2 #study-form :is(input,select,textarea):focus,
+#screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill):focus-visible{
+  border-color:var(--accent);outline:2px solid var(--accent);outline-offset:2px;
+}
+#screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill).on{
+  background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:800;
+  box-shadow:0 3px 8px color-mix(in srgb,var(--accent) 24%,transparent);
+}
+/* A marca de matéria já registrada continua única quando também selecionada. */
+#screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill).on:not(.feita)::before{
+  content:"";display:inline-block;width:.65em;height:.35em;margin-right:.5em;
+  border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-.1em) rotate(-45deg);
+}
+#screen-registrar.reg-v2 #study-form .gauge .track{stroke:color-mix(in srgb,var(--accent) 20%,var(--surface))}
+#screen-registrar.reg-v2 #study-form #submit-btn{font-size:1.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.025em}
+@media(max-width:420px){
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){padding:12px!important}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp{column-gap:10px}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp .gauge{width:64px;height:64px}
+}

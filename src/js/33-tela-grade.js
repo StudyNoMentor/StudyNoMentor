@@ -1448,12 +1448,16 @@ function planCycleMode() {
     return DIAS_SEMANA.some(d => (t.grade[d] || []).some(c => { const n = normalizeCell(c); return n && n.subject; }));
   }
   function gradeViewMode() {
-    const v = gradePrefGet('grade-view', null, '');
+    // Aceita tanto o texto legado quanto a string JSON reidratada da conta.
+    let v = gradePrefGet('grade-view', null, '');
+    try { const parsed = JSON.parse(v); if (typeof parsed === 'string') v = parsed; } catch (_) { /* texto legado */ }
     if (v === 'semana') return 'semana';
     if (v === 'painel' || v === 'dia') return 'painel';
     return gradeTemAlgo() ? 'painel' : 'semana';
   }
-  function setGradeViewMode(v) { gradePrefSet('grade-view', v === 'painel' ? 'painel' : 'semana'); }
+  function setGradeViewMode(v) {
+    return DB._set(_gradePrefKey('grade-view'), v === 'painel' ? 'painel' : 'semana');
+  }
 
   /* ---- Painel "Acompanhar" ----
      Tudo sai do mesmo cálculo da tabela (gradeProgresso): a missão que aparece
@@ -1610,45 +1614,15 @@ function planCycleMode() {
     // ---- dia em foco ----
     const quando = sel.passado ? 'passado' : (sel.hoje ? 'hoje' : 'futuro');
     const tituloDia = sel.hoje ? `Hoje · ${sel.dia.toLowerCase()}, ${_dataCurta(sel.iso)}` : `${sel.dia}, ${_dataCurta(sel.iso)}`;
-    let destaque = '';
-    if (sel.hoje) {
-      const prox = sel.missoes.find(x => !x.feita);
-      if (prox) {
-        const cor = CycleEngine.colorForSubject(prox.subject) || 'var(--accent)';
-        destaque = `
-          <div class="gp-proxima" style="--c:${cor}">
-            <div class="gp-proxima-txt">
-              <span class="gp-proxima-lbl">${prox.parcial ? 'Continue de onde parou' : 'Próxima missão'}</span>
-              <span class="gp-proxima-nome">${escapeHtml(prox.subject)}</span>
-              <span class="gp-proxima-tempo">${prox.feito > 0 ? `faltam ${fmt(prox.falta)} de ${fmt(prox.meta)}` : fmt(prox.meta)}</span>
-            </div>
-            <button type="button" class="btn-primary gp-proxima-btn" data-gp-reg="${escapeHtml(prox.dia + '|' + prox.idx)}">▶ Registrar agora</button>
-          </div>`;
-      } else {
-        const alvo = D.atrasadas[0] || null;
-        const futura = !alvo && D.dias.filter(d => d.futuro).map(d => d.missoes.find(x => !x.feita)).find(Boolean);
-        const sug = alvo || futura;
-        destaque = `
-          <div class="gp-proxima is-ok">
-            <div class="gp-proxima-txt">
-              <span class="gp-proxima-lbl">${sel.missoes.length ? 'Missões de hoje concluídas' : 'Hoje é dia livre na grade'}</span>
-              <span class="gp-proxima-nome">${sel.missoes.length ? 'Tudo feito por hoje ✓' : 'Descanso planejado'}</span>
-              <span class="gp-proxima-tempo">${sug ? (alvo ? 'Quer recuperar ' : 'Quer adiantar ') + escapeHtml(sug.subject) + ' (' + fmt(sug.falta || sug.meta) + ')?' : 'Nada pendente na semana.'}</span>
-            </div>
-            ${sug ? `<button type="button" class="btn-secondary gp-proxima-btn" data-gp-reg="${escapeHtml(sug.dia + '|' + sug.idx)}">▶ ${alvo ? 'Recuperar' : 'Adiantar'}</button>` : ''}
-          </div>`;
-      }
-    }
     const lista = sel.missoes.length
       ? `<ol class="gp-missoes">${sel.missoes.map(x => missaoHtml(x, quando)).join('')}</ol>`
-      : (sel.hoje ? '' : `<p class="gp-livre">Nenhuma missão planejada para este dia.</p>`);
+      : `<p class="gp-livre">Nenhuma missão planejada para este dia.</p>`;
     const foco = `
       <section class="gp-foco" aria-label="Missões do dia">
         <header class="gp-foco-head">
           <h3>${escapeHtml(tituloDia)}</h3>
           <span class="gp-foco-total">${sel.missoes.length ? `${fmt(sel.feito)} de ${fmt(sel.meta)}` : ''}</span>
         </header>
-        ${destaque}
         ${lista}
       </section>`;
 
