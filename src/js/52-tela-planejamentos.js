@@ -85,16 +85,35 @@ const PlanUI = {
         hint: `A pausa começou em ${this._fmtDia(vig.from)}. Uma data passada reativa desde aquele dia (o que venceu depois dela volta a contar); uma data futura agenda o retorno.` }
     ], { title: '▶ Reativar planejamento', sub: `"${p.nome}" volta a entrar em métricas, motores, ciclo e Extras a partir da data escolhida.`, okText: 'Reativar' });
     if (!v) return;
+    const eraConsulta = PlanManager.viewingPausedPlanId() === String(id);
     const r = PlanManager.resumePlan(id, { from: v.until || hoje });
     if (!r.ok) { await this._explicarFalhaPausa(r); return; }
     showToast(r.cancelled ? 'Pausa desfeita ✓' : (r.scheduled ? `Retorno agendado para ${this._fmtDia(r.until)} ✓` : 'Planejamento reativado ✓'));
+    // Reativado enquanto era consultado: passa a ser o planejamento em uso.
+    if (eraConsulta && !PlanManager.isPaused(id)) {
+      PlanManager.setActivePlan(id);
+      CloudStore.saveThenReload();
+      return;
+    }
     this.renderScreen(); this.renderSidebar();
+  },
+  // Abre um planejamento pausado só para consulta (nesta aba).
+  _visualizarPausado(id) {
+    if (!PlanManager.viewPausedPlan(id)) { showToast('Este planejamento não está pausado'); return; }
+    showToast('👁 Abrindo planejamento pausado para consulta…');
+    location.reload();
+  },
+  _sairDaVisualizacao() {
+    PlanManager.exitPausedPlanView();
+    location.reload();
   },
 
   // ---------- Seletor na sidebar ----------
   renderSidebar() {
     const active = PlanManager.getActivePlan();
-    $id('active-plan-name').textContent = active ? active.nome : '—';
+    const vendo = PlanManager.viewingPausedPlanId();
+    if (this._consulta === undefined) this._consulta = vendo;
+    $id('active-plan-name').textContent = active ? (vendo ? '👁 ' + active.nome + ' (pausado)' : active.nome) : '—';
     const listEl = document.getElementById('plan-switcher-list');
     const plans = PlanManager.getPlans();
     const activeId = PlanManager.getActivePlanId();
@@ -102,11 +121,11 @@ const PlanUI = {
       const paused = PlanManager.isPaused(p.id);
       const ag = !paused && PlanManager.scheduledPause(p.id);
       return `
-      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" aria-disabled="${paused ? 'true' : 'false'}">
+      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" title="${paused && p.id !== activeId ? 'Pausado — abrir só para consulta' : ''}">
         <span class="psi-dot"></span>
         <span class="psi-text">
           <span class="psi-name">${escapeHtml(p.nome)}</span>
-          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${ag ? '⏳ Pausa em ' + escapeHtml(formatDateShort(ag.from)) + ' · ' : ''}${escapeHtml(p.tipo)}</span>
+          <span class="psi-tipo">${paused ? (p.id === activeId ? '👁 Consulta · ' : '⏸ Pausado · ') : ''}${ag ? '⏳ Pausa em ' + escapeHtml(formatDateShort(ag.from)) + ' · ' : ''}${escapeHtml(p.tipo)}</span>
         </span>
         ${p.id === activeId ? '<span class="psi-check">✓</span>' : paused ? '<span class="psi-check">⏸</span>' : ''}
       </button>`;
@@ -114,12 +133,12 @@ const PlanUI = {
     listEl.querySelectorAll('.plan-switcher-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.id;
+        if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         if (PlanManager.isPaused(id)) {
-          showToast('⏸ Este planejamento está pausado. Reative-o em Planejamentos para voltar a usá-lo.');
           this.closeMenu();
+          this._visualizarPausado(id);
           return;
         }
-        if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         PlanManager.setActivePlan(id);
         CloudStore.saveThenReload(); // salva na nuvem antes de recarregar
       });
@@ -151,13 +170,15 @@ const PlanUI = {
   renderCards() {
     const wrap = document.getElementById('plan-cards-list');
     const plans = PlanManager.getPlans();
-    const activeId = PlanManager.getActivePlanId();
+    const activeId = DB._activePlanIdGravado();
+    const vendoId = PlanManager.viewingPausedPlanId();
     wrap.innerHTML = plans.map(p => {
       const entries = DB.getEntriesForPlan(p.id);
       const subjects = DB.getSubjectsForPlan(p.id).filter(s => s.ativo !== false);
       const totalMin = entries.reduce((a, e) => a + (e.durationMin || 0), 0);
       const weeks = DB.getCycleHistoryForPlan(p.id).length;
-      const isActive = p.id === activeId;
+      const isActive = p.id === activeId && !vendoId;
+      const isViewing = p.id === vendoId;
       const pause = PlanManager.pauseInfo(p.id);
       const isPaused = !!pause;
       const agendada = !isPaused && PlanManager.scheduledPause(p.id);
@@ -169,6 +190,7 @@ const PlanUI = {
               <span class="plan-type-badge">${escapeHtml(p.tipo)}</span>
               ${isActive ? '<span class="plan-active-pill">ativo</span>' : ''}
               ${isPaused ? '<span class="plan-active-pill">⏸ pausado</span>' : ''}
+              ${isViewing ? '<span class="plan-active-pill">👁 em consulta</span>' : ''}
               ${agendada ? `<span class="plan-active-pill">⏳ pausa em ${escapeHtml(this._fmtDia(agendada.from))}</span>` : ''}
             </div>
             <div class="config-row-actions">
@@ -185,7 +207,10 @@ const PlanUI = {
           ${this._pauseHint(p.id)}
           <div class="plan-card-actions">
             ${isPaused
-              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar…</button>'
+              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar…</button>' +
+                (isViewing
+                  ? '<button type="button" class="btn-secondary btn-exit-view-plan">✕ Sair da consulta</button>'
+                  : '<button type="button" class="btn-secondary btn-view-plan">👁 Visualizar</button>')
               : (isActive
                 ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
                 : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>')}
@@ -213,6 +238,10 @@ const PlanUI = {
       });
       const resumeBtn = card.querySelector('.btn-resume-plan');
       if (resumeBtn) resumeBtn.addEventListener('click', () => this._pedirRetorno(id));
+      const viewBtn = card.querySelector('.btn-view-plan');
+      if (viewBtn) viewBtn.addEventListener('click', () => this._visualizarPausado(id));
+      const exitViewBtn = card.querySelector('.btn-exit-view-plan');
+      if (exitViewBtn) exitViewBtn.addEventListener('click', () => this._sairDaVisualizacao());
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
         UI.prompt([{ key: 'nome', label: 'Novo nome do planejamento', type: 'text', value: p.nome }], { title: '✎ Renomear planejamento', okText: 'Salvar' }).then(v => {
@@ -315,6 +344,8 @@ window.addEventListener('data:relational-hydrated', () => {
 window.addEventListener('planning:pause-changed', (e) => {
   const d = (e && e.detail) || {};
   if (!d.automatic) return;
+  // A consulta terminou sozinha (o planejamento consultado voltou a operar).
+  if (PlanUI._consulta && PlanUI._consulta !== PlanManager.viewingPausedPlanId()) { location.reload(); return; }
   if (d.switchedTo) { showToast('⏸ A pausa agendada começou — abrindo outro planejamento.'); CloudStore.saveThenReload(); return; }
   PlanUI.renderSidebar();
   const atual = document.querySelector('.screen.active');
@@ -331,6 +362,18 @@ const PausaAviso = {
       if (!alvo) return;
       let el = document.getElementById('pausa-aviso');
       const id = PlanManager.getActivePlanId(), hoje = todayLocal();
+      const vendo = PlanManager.viewingPausedPlanId();
+      if (vendo) {
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'pausa-aviso'; el.className = 'pausa-aviso'; el.setAttribute('role', 'status');
+          alvo.insertBefore(el, alvo.firstChild);
+        }
+        const pv = PlanManager.getActivePlan(), iv = PlanManager.pauseInfo(vendo);
+        el.innerHTML = `<span class="pa-ic" aria-hidden="true">👁</span><span class="pa-txt"><b>Consultando "${escapeHtml(pv ? pv.nome : '')}"</b> — planejamento pausado${iv ? ` desde ${this.fmt(iv.from)}` : ''}. Somente leitura: nada pode ser alterado aqui.</span><button type="button" class="pa-btn pa-sair">Sair da consulta</button>`;
+        el.querySelector('.pa-sair').onclick = () => PlanUI._sairDaVisualizacao();
+        return;
+      }
       const cur = PlanManager.pauseInfo(id), prox = PlanManager.scheduledPause(id);
       const dias = prox ? Math.round((new Date(prox.from + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000) : 99;
       const tela = document.querySelector('.screen.active');

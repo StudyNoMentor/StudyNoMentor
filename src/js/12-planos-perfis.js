@@ -98,6 +98,21 @@ const PlanManager = {
   },
   isPaused(id) { return this.isPausedOn(id, this._hoje()); },
   isActivePlanPaused() { return this.isPaused(this.getActivePlanId()); },
+  // Planejamento pausado aberto só para consulta nesta aba (ou null).
+  viewingPausedPlanId() { try { return DB._planoEmVisualizacao(); } catch (e) { return null; } },
+  isViewingPausedPlan() { return !!this.viewingPausedPlanId(); },
+  viewPausedPlan(id) {
+    if (!this.isPaused(id) || !this.getPlans().some(p => String(p.id) === String(id))) return false;
+    DB._setPlanoEmVisualizacao(id);
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-view'); }
+    return true;
+  },
+  exitPausedPlanView() {
+    if (!this.isViewingPausedPlan()) { DB._setPlanoEmVisualizacao(null); return false; }
+    DB._setPlanoEmVisualizacao(null);
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-view-exit'); }
+    return true;
+  },
   // Dia congelado no planejamento indicado (padrão: o ativo). É a pergunta
   // que agenda, atrasos, fila de reforço, rodízio e métricas fazem.
   isDayPaused(dia, planId) {
@@ -150,7 +165,7 @@ const PlanManager = {
   /* Reposiciona o contexto ativo quando o dia de hoje cai numa pausa (pausa
      retroativa, agendada que chegou ou pausa sincronizada de outro aparelho). */
   _garantirAtivoOperacional() {
-    if (!this.isActivePlanPaused()) return null;
+    if (!this.isPaused(DB._activePlanIdGravado())) return null;
     const next = this.getOperationalPlans()[0];
     if (!next) return null;
     DB.setRaw(this.GK.active, next.id);
@@ -183,7 +198,7 @@ const PlanManager = {
     const nova = { from, until, pausedAt: now, resumedAt: until ? now : null };
     if (this._savePauseWindows(id, base.concat([nova])) === false) return { ok: false, reason: 'save-failed' };
     let switchedTo = null;
-    if (String(this.getActivePlanId()) === id && this.isPaused(id)) switchedTo = this._garantirAtivoOperacional();
+    if (String(DB._activePlanIdGravado()) === id && this.isPaused(id)) switchedTo = this._garantirAtivoOperacional();
     const scheduled = from > hoje;
     this._emitPause({ planId: id, paused: this.isPaused(id), scheduled, from, until, pausedAt: now, switchedTo });
     return { ok: true, pausedAt: now, from, until, scheduled, switchedTo };
@@ -268,6 +283,7 @@ const PlanManager = {
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
   setActivePlan(id) {
     if (this.isPaused(id)) return false;
+    DB._setPlanoEmVisualizacao(null);   // escolher um planejamento encerra a consulta
     DB.setRaw(this.GK.active, id);
     // Idem: cada planejamento tem o seu histórico.
     try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem'); }
@@ -615,7 +631,8 @@ const PlanManager = {
     // garante um planejamento ativo válido E operacional. Um planejamento
     // pausado pode continuar existindo indefinidamente, mas nunca vira o
     // contexto de escrita do app por acidente.
-    if (!this.getActivePlan() || this.isActivePlanPaused()) {
+    const gravado = DB._activePlanIdGravado();
+    if (!this.getPlans().some(p => p.id === gravado) || this.isPaused(gravado)) {
       let p = this.getOperationalPlans()[0] || null;
       if (!p && this.getPlans()[0]) {
         // Estado impossível pela UI (o último operacional não pode ser pausado),
