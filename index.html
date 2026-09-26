@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v25d3837cb1">
+<meta name="diario-versao" content="v0e06275b52">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6706,10 +6706,18 @@ window.__relationalBoot = true;
         <div class="field"><label for="cards-search">Buscar</label>
           <input type="text" id="cards-search" placeholder="Buscar na frente, verso, assunto ou matéria..."></div>
         <div class="field-group">
-          <div class="field"><label for="cards-f-materia">Disciplina / baralho</label>
-            <select id="cards-f-materia"><option value="">Todas</option></select></div>
-          <div class="field"><label for="cards-f-assunto">Assunto</label>
-            <select id="cards-f-assunto"><option value="">Todos os assuntos</option></select></div>
+          <div class="field"><label>Disciplina / baralho</label>
+            <div class="cards-filter-multi-wrap">
+              <select id="cards-f-materia" class="cards-filter-native" tabindex="-1" aria-hidden="true"><option value="">Todas</option></select>
+              <div id="cards-f-materia-multi" class="cards-multi-filter"></div>
+            </div>
+          </div>
+          <div class="field"><label>Assunto</label>
+            <div class="cards-filter-multi-wrap">
+              <select id="cards-f-assunto" class="cards-filter-native" tabindex="-1" aria-hidden="true"><option value="">Todos os assuntos</option></select>
+              <div id="cards-f-assunto-multi" class="cards-multi-filter"></div>
+            </div>
+          </div>
           <div class="field"><label for="cards-f-tipo">Tipo</label>
             <select id="cards-f-tipo"><option value="">Todos os tipos</option></select></div>
         </div>
@@ -16469,6 +16477,87 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
   #anki-browser-modal .anki-browser-power-tools>select{flex:1 1 100%!important}
   #anki-browser-modal .anki-browser-toolbar>.anki-browser-sort-dir{width:100%!important}
 }
+
+/* ── Cards: filtros múltiplos de disciplina/baralho e assunto ─────────── */
+#cards-filter-card,
+#cards-filter-body,
+#cards-filter-body .field-group,
+#cards-filter-body .field{overflow:visible!important}
+#cards-filter-body .cards-filter-multi-wrap{position:relative;min-width:0}
+#cards-filter-body .cards-filter-native{
+  position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;
+  overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important;opacity:0!important;pointer-events:none!important
+}
+#cards-filter-body .cards-multi-filter{position:relative;min-width:0}
+#cards-filter-body .cards-multi-filter-btn{
+  width:100%;min-height:42px;display:flex;align-items:center;gap:8px;text-align:left;
+  border:1px solid var(--border);border-radius:11px;background:var(--surface);color:var(--text);
+  padding:9px 11px;font:inherit;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,background .16s ease
+}
+#cards-filter-body .cards-multi-filter-btn:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--border));background:var(--surface-2)}
+#cards-filter-body .cards-multi-filter.open .cards-multi-filter-btn,
+#cards-filter-body .cards-multi-filter-btn:focus-visible{
+  outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)
+}
+#cards-filter-body .cards-multi-filter-btn-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#cards-filter-body .cards-multi-filter-badge{
+  flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;padding:0 7px;
+  border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,var(--surface));color:var(--accent-text,var(--accent));font-size:12px;font-weight:800
+}
+#cards-filter-body .cards-multi-filter-chevron{flex:0 0 auto;color:var(--text-soft);transition:transform .16s ease}
+#cards-filter-body .cards-multi-filter.open .cards-multi-filter-chevron{transform:rotate(180deg)}
+#cards-filter-body .cards-multi-filter-panel{
+  position:absolute;z-index:90;top:calc(100% + 7px);left:0;right:0;min-width:100%;
+  border:1px solid var(--border);border-radius:14px;background:var(--surface);
+  box-shadow:0 18px 48px rgba(15,23,42,.18);padding:9px
+}
+#cards-filter-body .cards-multi-filter-search-wrap{
+  display:flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:10px;
+  padding:0 9px;background:var(--surface-2)
+}
+#cards-filter-body .cards-multi-filter-search-wrap>span{color:var(--text-faint);font-size:16px}
+#cards-filter-body .cards-multi-filter-search{
+  width:100%;min-height:38px;border:0!important;outline:0!important;background:transparent!important;color:var(--text)!important;
+  box-shadow:none!important;padding:0!important
+}
+#cards-filter-body .cards-multi-filter-tools{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 2px 6px
+}
+#cards-filter-body .cards-multi-filter-selected{font-size:11.5px;color:var(--text-soft);font-weight:700}
+#cards-filter-body .cards-multi-filter-clear{
+  border:0;background:transparent;color:var(--accent-text,var(--accent));font-size:11.5px;font-weight:800;cursor:pointer;padding:4px 2px
+}
+#cards-filter-body .cards-multi-filter-clear:disabled{opacity:.42;cursor:default}
+#cards-filter-body .cards-multi-filter-options{
+  max-height:288px;overflow:auto;overscroll-behavior:contain;padding:1px 1px 2px;scrollbar-width:thin
+}
+#cards-filter-body .cards-multi-filter-group{
+  position:sticky;top:0;z-index:1;margin:6px 0 3px;padding:6px 8px 4px;background:var(--surface);
+  color:var(--text-faint);font-size:10px;font-weight:900;letter-spacing:.06em;text-transform:uppercase
+}
+#cards-filter-body .cards-multi-filter-option{
+  display:grid;grid-template-columns:20px minmax(0,1fr);align-items:center;gap:8px;min-height:38px;
+  border-radius:9px;padding:7px 8px;color:var(--text);cursor:pointer;user-select:none
+}
+#cards-filter-body .cards-multi-filter-option:hover{background:var(--surface-2)}
+#cards-filter-body .cards-multi-filter-option.selected{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
+#cards-filter-body .cards-multi-filter-option input{position:absolute;opacity:0;pointer-events:none}
+#cards-filter-body .cards-multi-filter-check{
+  width:18px;height:18px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);
+  border-radius:5px;color:transparent;background:var(--surface);font-size:12px;font-weight:900
+}
+#cards-filter-body .cards-multi-filter-option.selected .cards-multi-filter-check{
+  border-color:var(--accent);background:var(--accent);color:var(--on-accent,#fff)
+}
+#cards-filter-body .cards-multi-filter-option-label{min-width:0;overflow-wrap:anywhere;line-height:1.28}
+#cards-filter-body .cards-multi-filter-empty{padding:16px 10px;text-align:center;color:var(--text-faint);font-size:12px}
+@media (max-width:720px){
+  #cards-filter-body{padding-left:14px!important;padding-right:14px!important}
+  #cards-filter-body .cards-multi-filter-panel{position:fixed;z-index:220;left:14px;right:14px;top:auto;bottom:18px;max-height:min(72vh,520px)}
+  #cards-filter-body .cards-multi-filter-options{max-height:min(50vh,360px)}
+  #cards-filter-body .cards-multi-filter-btn{min-height:44px}
+}
+
 
 </style>
 
@@ -26303,13 +26392,17 @@ const CardEngine = {
     if (card.dueTs) return Date.now() >= card.dueTs;   // passo em minutos (aprendizado/reaprendizado)
     return (card.due || todayCards()) <= todayCards(); // agendamento por dia
   },
-  // Aplica os filtros a uma lista de cards. f = { busca, materias:Set, assunto, tipo, status, favorito, deckId }
+  // Aplica os filtros a uma lista de cards. Seleções múltiplas usam OR dentro
+  // da mesma categoria e continuam combinadas por AND entre categorias.
+  // f = { busca, materias:Set, assuntos:Set, assunto(legado), tipo, status, favorito, deckId }
   applyFilters(cards, f) {
     f = f || {};
     const busca = (f.busca || '').trim().toLowerCase();
+    const materias = f.materias instanceof Set ? f.materias : new Set(Array.isArray(f.materias) ? f.materias : []);
+    const assuntos = f.assuntos instanceof Set ? f.assuntos : new Set(Array.isArray(f.assuntos) ? f.assuntos : []);
     return cards.filter(c => {
-      if (f.materias && f.materias.size && !(c.materia && f.materias.has(c.materia)) && !(c.deckId && f.materias.has('deck:' + c.deckId))) return false;
-      if (f.assunto && (c.assunto || '') !== f.assunto) return false;
+      if (materias.size && !(c.materia && materias.has(c.materia)) && !(c.deckId && materias.has('deck:' + c.deckId))) return false;
+      if (assuntos.size ? !assuntos.has(c.assunto || '') : (f.assunto && (c.assunto || '') !== f.assunto)) return false;
       if (f.tipo && (c.tipo || '') !== f.tipo) return false;
       if (f.status && f.status !== 'todos' && (c.status || 'pendente') !== f.status) return false;
       if (f.favorito && !c.favorito) return false;
@@ -34731,7 +34824,7 @@ window.addEventListener('screen:activated', (e) => {
    ============================================================ */
 const CardsScreen = {
   tab: 'revisar',
-  filters: { busca: '', materias: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
+  filters: { busca: '', materias: new Set(), assuntos: new Set(), assunto: '', tipo: '', status: 'todos', favorito: false },
   _editingId: null,
   _editingPlanId: null, // origem do card global em edição; novo card usa o plano ativo
   _reviewQueue: [], _reviewIdx: 0, _flipped: false,
@@ -34751,25 +34844,236 @@ const CardsScreen = {
     try { if (window.StudyGlobalScope && StudyGlobalScope.decks) return StudyGlobalScope.decks(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return DB.getDecks();
   },
-  materiaOptionsHtml(selectedValue) {
+  materiaFilterOptions() {
     const cards = this.collectionCards();
     const nomes = [...new Set([].concat(
       DB.getActiveSubjects().map(s => s.nome),
       cards.map(c => c.materia).filter(Boolean)
-    ))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
-    const subs = nomes.map(nome => `<option value="${escapeHtml(nome)}"${selectedValue === nome ? ' selected' : ''}>${escapeHtml(nome)}</option>`).join('');
-    const decks = this.collectionDecks().map(d => `<option value="deck:${d.id}"${selectedValue === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome ? ' · ' + escapeHtml(d._planNome) : ''}</option>`).join('');
-    return { subs, decks };
+    ))].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' }));
+    const subjects = nomes.map(nome => ({ value: nome, label: nome, group: 'Disciplinas' }));
+    const decks = this.collectionDecks()
+      .slice()
+      .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      .map(d => ({
+        value: 'deck:' + d.id,
+        label: '📁 ' + String(d.nome || '') + (d._planNome ? ' · ' + String(d._planNome) : ''),
+        group: 'Baralhos'
+      }));
+    return subjects.concat(decks);
+  },
+  assuntoFilterOptions() {
+    return [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      .map(t => ({ value: String(t), label: String(t), group: 'Assuntos' }));
+  },
+  materiaOptionsHtml(selectedValue) {
+    const opts = this.materiaFilterOptions();
+    const html = (group) => opts.filter(o => o.group === group).map(o =>
+      `<option value="${escapeHtml(o.value)}"${selectedValue === o.value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`
+    ).join('');
+    return { subs: html('Disciplinas'), decks: html('Baralhos') };
+  },
+  _filterSet(kind) {
+    if (kind === 'materia') {
+      if (!(this.filters.materias instanceof Set)) this.filters.materias = new Set(this.filters.materias || []);
+      return this.filters.materias;
+    }
+    if (!(this.filters.assuntos instanceof Set)) {
+      const legacy = this.filters.assunto ? [this.filters.assunto] : [];
+      this.filters.assuntos = new Set(legacy);
+    }
+    return this.filters.assuntos;
+  },
+  _filterSummary(kind, options, allLabel) {
+    const selected = this._filterSet(kind);
+    if (!selected.size) return { text: allLabel, count: 0, title: allLabel };
+    const labels = new Map(options.map(o => [String(o.value), String(o.label)]));
+    const picked = [...selected].map(v => labels.get(String(v)) || String(v));
+    if (picked.length === 1) return { text: picked[0], count: 1, title: picked[0] };
+    return {
+      text: picked.length + ' selecionados',
+      count: picked.length,
+      title: picked.join(', ')
+    };
+  },
+  _closeMultiFilters(except) {
+    document.querySelectorAll('#cards-filter-card .cards-multi-filter.open').forEach(host => {
+      if (except && host === except) return;
+      host.classList.remove('open');
+      const btn = host.querySelector('.cards-multi-filter-btn');
+      const panel = host.querySelector('.cards-multi-filter-panel');
+      if (btn) btn.setAttribute('aria-expanded', 'false');
+      if (panel) panel.hidden = true;
+    });
+  },
+  _syncNativeFilter(kind) {
+    const selected = this._filterSet(kind);
+    const el = document.getElementById(kind === 'materia' ? 'cards-f-materia' : 'cards-f-assunto');
+    if (el) el.value = selected.size === 1 ? String([...selected][0]) : '';
+    if (kind === 'assunto') this.filters.assunto = selected.size === 1 ? String([...selected][0]) : '';
+  },
+  _renderMultiFilter(kind, hostId, options, allLabel, searchPlaceholder) {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    const selected = this._filterSet(kind);
+    const summary = this._filterSummary(kind, options, allLabel);
+    const rows = [];
+    let lastGroup = null;
+    options.forEach(o => {
+      if (o.group !== lastGroup) {
+        lastGroup = o.group;
+        rows.push(`<div class="cards-multi-filter-group">${escapeHtml(o.group || '')}</div>`);
+      }
+      const checked = selected.has(o.value);
+      const norm = String(o.label || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      rows.push(`<label class="cards-multi-filter-option${checked ? ' selected' : ''}" data-filter-search="${escapeHtml(norm)}">
+        <input type="checkbox" data-filter-value="${escapeHtml(o.value)}"${checked ? ' checked' : ''}>
+        <span class="cards-multi-filter-check" aria-hidden="true">✓</span>
+        <span class="cards-multi-filter-option-label">${escapeHtml(o.label)}</span>
+      </label>`);
+    });
+
+    host.innerHTML = `
+      <button type="button" class="cards-multi-filter-btn" aria-haspopup="listbox" aria-expanded="false" title="${escapeHtml(summary.title)}">
+        <span class="cards-multi-filter-btn-label">${escapeHtml(summary.text)}</span>
+        ${summary.count > 1 ? `<span class="cards-multi-filter-badge">${summary.count}</span>` : ''}
+        <span class="cards-multi-filter-chevron" aria-hidden="true">▾</span>
+      </button>
+      <div class="cards-multi-filter-panel" hidden>
+        <div class="cards-multi-filter-search-wrap">
+          <span aria-hidden="true">⌕</span>
+          <input type="search" class="cards-multi-filter-search" autocomplete="off" placeholder="${escapeHtml(searchPlaceholder)}" aria-label="${escapeHtml(searchPlaceholder)}">
+        </div>
+        <div class="cards-multi-filter-tools">
+          <span class="cards-multi-filter-selected">${selected.size ? selected.size + ' selecionado(s)' : 'Todos'}</span>
+          <button type="button" class="cards-multi-filter-clear"${selected.size ? '' : ' disabled'}>Limpar seleção</button>
+        </div>
+        <div class="cards-multi-filter-options" role="listbox" aria-multiselectable="true">
+          ${rows.join('') || '<div class="cards-multi-filter-empty">Nenhuma opção disponível.</div>'}
+          <div class="cards-multi-filter-empty cards-multi-filter-empty-search" hidden>Nenhuma opção encontrada.</div>
+        </div>
+      </div>`;
+
+    const btn = host.querySelector('.cards-multi-filter-btn');
+    const panel = host.querySelector('.cards-multi-filter-panel');
+    const search = host.querySelector('.cards-multi-filter-search');
+    const clear = host.querySelector('.cards-multi-filter-clear');
+    const optionsBox = host.querySelector('.cards-multi-filter-options');
+
+    const refreshTrigger = () => {
+      const now = this._filterSummary(kind, options, allLabel);
+      const label = btn.querySelector('.cards-multi-filter-btn-label');
+      const oldBadge = btn.querySelector('.cards-multi-filter-badge');
+      if (label) label.textContent = now.text;
+      btn.title = now.title;
+      if (now.count > 1) {
+        if (oldBadge) oldBadge.textContent = now.count;
+        else {
+          const badge = document.createElement('span');
+          badge.className = 'cards-multi-filter-badge';
+          badge.textContent = String(now.count);
+          btn.insertBefore(badge, btn.querySelector('.cards-multi-filter-chevron'));
+        }
+      } else if (oldBadge) oldBadge.remove();
+      const counter = host.querySelector('.cards-multi-filter-selected');
+      if (counter) counter.textContent = selected.size ? selected.size + ' selecionado(s)' : 'Todos';
+      if (clear) clear.disabled = !selected.size;
+    };
+    const apply = () => {
+      this._syncNativeFilter(kind);
+      this._reviewIdx = 0;
+      this._meusMostrando = 0;
+      this.invalidateReviewQueue();
+      refreshTrigger();
+      this.renderContent();
+    };
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const opening = panel.hidden;
+      this._closeMultiFilters(host);
+      panel.hidden = !opening;
+      host.classList.toggle('open', opening);
+      btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
+      if (opening) setTimeout(() => search && search.focus(), 0);
+    });
+
+    if (search) search.addEventListener('input', () => {
+      const q = String(search.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+      let shown = 0;
+      host.querySelectorAll('.cards-multi-filter-option').forEach(row => {
+        const hit = !q || String(row.dataset.filterSearch || '').includes(q);
+        row.hidden = !hit;
+        if (hit) shown++;
+      });
+      host.querySelectorAll('.cards-multi-filter-group').forEach(group => {
+        let next = group.nextElementSibling, any = false;
+        while (next && !next.classList.contains('cards-multi-filter-group')) {
+          if (next.classList.contains('cards-multi-filter-option') && !next.hidden) any = true;
+          next = next.nextElementSibling;
+        }
+        group.hidden = !any;
+      });
+      const empty = host.querySelector('.cards-multi-filter-empty-search');
+      if (empty) empty.hidden = shown > 0 || options.length === 0;
+    });
+
+    if (optionsBox) optionsBox.addEventListener('change', (e) => {
+      const cb = e.target.closest('input[type="checkbox"][data-filter-value]');
+      if (!cb) return;
+      const value = cb.dataset.filterValue;
+      if (cb.checked) selected.add(value); else selected.delete(value);
+      const row = cb.closest('.cards-multi-filter-option');
+      if (row) row.classList.toggle('selected', cb.checked);
+      apply();
+    });
+
+    if (clear) clear.addEventListener('click', () => {
+      if (!selected.size) return;
+      selected.clear();
+      host.querySelectorAll('input[type="checkbox"][data-filter-value]').forEach(cb => { cb.checked = false; });
+      host.querySelectorAll('.cards-multi-filter-option.selected').forEach(row => row.classList.remove('selected'));
+      apply();
+    });
+
+    if (!this._multiFilterOutsideBound) {
+      this._multiFilterOutsideBound = true;
+      const closeOutside = (e) => {
+        const open = [...document.querySelectorAll('#cards-filter-card .cards-multi-filter.open')];
+        if (open.length && !open.some(item => item.contains(e.target))) this._closeMultiFilters();
+      };
+      // pointerdown fecha antes de qualquer mudança de foco; click é fallback
+      // para navegadores/webviews que sintetizam clique sem Pointer Events.
+      document.addEventListener('pointerdown', closeOutside, true);
+      document.addEventListener('click', closeOutside, true);
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.querySelector('#cards-filter-card .cards-multi-filter.open')) {
+          this._closeMultiFilters();
+        }
+      }, true);
+    }
   },
   populateFilterOptions() {
     const mSel = document.getElementById('cards-f-materia');
-    const cur = mSel.value;
-    const { subs, decks } = this.materiaOptionsHtml(cur);
+    const matterOptions = this.materiaFilterOptions();
+    const selectedMatter = this._filterSet('materia');
+    const oneMatter = selectedMatter.size === 1 ? String([...selectedMatter][0]) : '';
+    const { subs, decks } = this.materiaOptionsHtml(oneMatter);
     mSel.innerHTML = `<option value="">Todas as disciplinas/baralhos</option>` + subs + decks;
-    // tópicos existentes nos cards
-    const tops = [...new Set(this.collectionCards().map(c => c.assunto).filter(Boolean))].sort();
-    $id('cards-f-assunto').innerHTML = `<option value="">Todos os assuntos</option>` + tops.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    mSel.value = oneMatter;
+
+    const assuntoOptions = this.assuntoFilterOptions();
+    const selectedAssuntos = this._filterSet('assunto');
+    const oneAssunto = selectedAssuntos.size === 1 ? String([...selectedAssuntos][0]) : '';
+    const assuntoSel = $id('cards-f-assunto');
+    assuntoSel.innerHTML = `<option value="">Todos os assuntos</option>` + assuntoOptions.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    assuntoSel.value = oneAssunto;
+    this.filters.assunto = oneAssunto;
+
     $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
+    this._renderMultiFilter('materia', 'cards-f-materia-multi', matterOptions, 'Todas as disciplinas/baralhos', 'Buscar disciplina ou baralho…');
+    this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
   },
   destinationDecks(planId) {
     // Card global continua pertencendo ao planejamento onde nasceu. Ao editá-lo
@@ -46678,6 +46982,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     const body = document.getElementById('cards-filter-body');
     if (!body) return;
     body.style.display = aberto ? 'block' : 'none';
+    if (!aberto && typeof CardsScreen !== 'undefined' && CardsScreen._closeMultiFilters) CardsScreen._closeMultiFilters();
     if (card) card.classList.toggle('collapsed', !aberto);
     const caret = document.getElementById('cards-filter-caret'); if (caret) caret.textContent = aberto ? '▾' : '▸';
     const head = document.getElementById('cards-filter-toggle'); if (head) head.setAttribute('aria-expanded', aberto ? 'true' : 'false');
@@ -46693,11 +46998,17 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   // busca
   on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  // Compatibilidade: os selects nativos ficam ocultos porque a UI principal é
+  // multisseleção. Se algum fluxo legado alterar um deles, converta para Set.
   on('cards-f-materia', 'change', (e) => {
     CardsScreen.filters.materias = e.target.value ? new Set([e.target.value]) : new Set();
-    CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+    CardsScreen._reviewIdx = 0; CardsScreen.invalidateReviewQueue(); CardsScreen.renderContent();
   });
-  on('cards-f-assunto', 'change', (e) => { CardsScreen.filters.assunto = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-assunto', 'change', (e) => {
+    CardsScreen.filters.assuntos = e.target.value ? new Set([e.target.value]) : new Set();
+    CardsScreen.filters.assunto = e.target.value || '';
+    CardsScreen._reviewIdx = 0; CardsScreen.invalidateReviewQueue(); CardsScreen.renderContent();
+  });
   on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
   // status pills
   document.querySelectorAll('#cards-f-status .cards-pill').forEach(p => p.addEventListener('click', () => {
