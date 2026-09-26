@@ -950,22 +950,50 @@
       const b = e.target.closest('[data-materia]'); if (!b) return;
       subjectSel.value = b.dataset.materia; emitir(subjectSel, 'change');
     });
+    // Chip de matéria com a sigla (nome completo no title/aria-label), para
+    // caber mais numa fileira que desliza na horizontal.
+    const siglaDe = (n) => {
+      try { return (typeof CycleEngine !== 'undefined' && CycleEngine.siglaForSubject(n)) || n; } catch (e) { return n; }
+    };
+    const chipMateria = (n, extra) => {
+      const on = n === subjectSel.value, ok = !!(extra && extra.feita);
+      const titulo = n + (ok ? ' · já registrada neste dia' : '');
+      return `<button type="button" class="reg-chip${on ? ' on' : ''}${ok ? ' feita' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${on}" title="${escapeHtml(titulo)}" aria-label="${escapeHtml(titulo)}">${ok ? '✓ ' : ''}${escapeHtml(siglaDe(n))}</button>`;
+    };
+    const fileira = (rotulo, chips) => `<span class="reg-chips-rot">${rotulo}</span><div class="reg-trilho">${chips}</div>`;
+    // Esmaece a borda do trilho do lado em que ainda há itens escondidos.
+    const bordas = (t) => {
+      if (!t || !t.classList) return;
+      const max = t.scrollWidth - t.clientWidth;
+      t.classList.toggle('tem-esq', t.scrollLeft > 2);
+      t.classList.toggle('tem-dir', max > 2 && t.scrollLeft < max - 2);
+    };
+    // Traz a escolhida para dentro do trilho sem rolar a página.
+    const mostrarMarcado = (caixa) => {
+      const t = caixa.querySelector('.reg-trilho') || caixa, b = t.querySelector('.on');
+      if (b && t.scrollWidth > t.clientWidth) {
+        const rt = t.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        if (rb.left < rt.left) t.scrollLeft += rb.left - rt.left - 24;
+        else if (rb.right > rt.right) t.scrollLeft += rb.right - rt.right + 24;
+      }
+      bordas(t);
+    };
+    [doDia, recentes].forEach(c => c.addEventListener('scroll', (e) => bordas(e.target), true));
     function pintarRecentes() {
       const ativos = new Set([...subjectSel.options].map(o => o.value).filter(Boolean));
       const grade = materiasDaGrade(ativos);
       const feitas = new Set((DB.getEntries() || []).filter(e => e && e.date === grade.iso).map(e => e.subject));
       doDia.hidden = !grade.nomes.length;
-      doDia.innerHTML = grade.nomes.length ? `<span class="reg-chips-rot">Grade · ${escapeHtml(grade.dia.slice(0, 3))}:</span>` + grade.nomes.map(n => {
-        const on = n === subjectSel.value, ok = feitas.has(n);
-        return `<button type="button" class="reg-chip${on ? ' on' : ''}${ok ? ' feita' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${on}"${ok ? ' title="Já registrada neste dia"' : ''}>${ok ? '✓ ' : ''}${escapeHtml(n)}</button>`;
-      }).join('') : '';
+      doDia.innerHTML = grade.nomes.length
+        ? fileira(`Grade<b>${escapeHtml(grade.dia.slice(0, 3))}</b>`, grade.nomes.map(n => chipMateria(n, { feita: feitas.has(n) })).join(''))
+        : '';
       const nomes = [];
       (DB.getEntries() || []).slice()
         .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || _ordemCriacao(b, a))
-        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !grade.nomes.includes(e.subject) && !nomes.includes(e.subject) && nomes.length < 4) nomes.push(e.subject); });
+        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !grade.nomes.includes(e.subject) && !nomes.includes(e.subject) && nomes.length < 8) nomes.push(e.subject); });
       recentes.hidden = !nomes.length;
-      recentes.innerHTML = nomes.length ? '<span class="reg-chips-rot">Recentes:</span>' + nomes.map(n =>
-        `<button type="button" class="reg-chip${n === subjectSel.value ? ' on' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${n === subjectSel.value}">${escapeHtml(n)}</button>`).join('') : '';
+      recentes.innerHTML = nomes.length ? fileira('Recentes', nomes.map(n => chipMateria(n)).join('')) : '';
+      mostrarMarcado(doDia); mostrarMarcado(recentes);
     }
 
     // Forma de estudo em pílulas: o <select> continua sendo o valor de verdade.
@@ -974,6 +1002,7 @@
     pilulas.setAttribute('role', 'radiogroup');
     pilulas.setAttribute('aria-label', 'Forma de estudo');
     methodSelect.insertAdjacentElement('afterend', pilulas);
+    pilulas.addEventListener('scroll', () => bordas(pilulas), { passive: true });
     pilulas.addEventListener('click', (e) => {
       const b = e.target.closest('[data-metodo]'); if (!b) return;
       methodSelect.value = b.dataset.metodo; emitir(methodSelect, 'change');
@@ -985,12 +1014,14 @@
       const atuais = [...pilulas.querySelectorAll('[data-metodo]')];
       if (atuais.length === valores.length && atuais.every((b, i) => b.dataset.metodo === valores[i])) {
         atuais.forEach(b => { const on = b.dataset.metodo === methodSelect.value; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+        mostrarMarcado(pilulas);
         return;
       }
       pilulas.innerHTML = [...methodSelect.options].map(o => {
         const on = o.value === methodSelect.value;
         return `<button type="button" role="radio" aria-checked="${on}" class="reg-pill${on ? ' on' : ''}" data-metodo="${escapeHtml(o.value)}">${escapeHtml(o.textContent)}</button>`;
       }).join('');
+      mostrarMarcado(pilulas);
     }
     new MutationObserver(pintarMetodos).observe(methodSelect, { childList: true });
 
