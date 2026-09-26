@@ -256,9 +256,16 @@
   border-left:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-.1em) rotate(-45deg);
 }
 #screen-registrar.reg-v2 #study-form .gauge .track{stroke:color-mix(in srgb,var(--accent) 20%,var(--surface))}
-#screen-registrar.reg-v2 #study-form #submit-btn{font-size:1.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.025em}
+#screen-registrar.reg-v2 #study-form #submit-btn{font-size:.95rem;font-weight:700;text-transform:uppercase;letter-spacing:.015em}
 @media(max-width:420px){
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){padding:12px!important}
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp{column-gap:10px}
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .reg-f-desemp .gauge{width:64px;height:64px}
+}
+
+/* No compacto mobile, uma única margem lateral amplia os blocos até o cartão. */
+@media(max-width:860px){
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form{padding:0 0 10px}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .steps-body{padding:10px 10px 4px}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form .submit-row{padding-left:10px;padding-right:10px}
 }
