@@ -137,7 +137,8 @@ try{
   ok(r.multiDisc,'duas disciplinas podem ser selecionadas simultaneamente');
   ok(r.multiAssunto.size===2&&r.multiAssunto.badge==='2'&&r.multiAssunto.andSemantics,'assuntos usam OR interno e AND com disciplinas');
   ok(r.searchWorks,'busca interna reduz as opções sem alterar a seleção');
-  ok(r.outsideCloses&&r.escapeCloses,'dropdown fecha por clique fora e pela tecla Escape');
+  ok(r.outsideCloses,'dropdown fecha ao clicar fora');
+  ok(r.escapeCloses,'dropdown fecha pela tecla Escape');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
