@@ -424,6 +424,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     const body = document.getElementById('cards-filter-body');
     if (!body) return;
     body.style.display = aberto ? 'block' : 'none';
+    if (!aberto && typeof CardsScreen !== 'undefined' && CardsScreen._closeMultiFilters) CardsScreen._closeMultiFilters();
     if (card) card.classList.toggle('collapsed', !aberto);
     const caret = document.getElementById('cards-filter-caret'); if (caret) caret.textContent = aberto ? '▾' : '▸';
     const head = document.getElementById('cards-filter-toggle'); if (head) head.setAttribute('aria-expanded', aberto ? 'true' : 'false');
@@ -439,11 +440,17 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   // busca
   on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  // Compatibilidade: os selects nativos ficam ocultos porque a UI principal é
+  // multisseleção. Se algum fluxo legado alterar um deles, converta para Set.
   on('cards-f-materia', 'change', (e) => {
     CardsScreen.filters.materias = e.target.value ? new Set([e.target.value]) : new Set();
-    CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+    CardsScreen._reviewIdx = 0; CardsScreen.invalidateReviewQueue(); CardsScreen.renderContent();
   });
-  on('cards-f-assunto', 'change', (e) => { CardsScreen.filters.assunto = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-assunto', 'change', (e) => {
+    CardsScreen.filters.assuntos = e.target.value ? new Set([e.target.value]) : new Set();
+    CardsScreen.filters.assunto = e.target.value || '';
+    CardsScreen._reviewIdx = 0; CardsScreen.invalidateReviewQueue(); CardsScreen.renderContent();
+  });
   on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
   // status pills
   document.querySelectorAll('#cards-f-status .cards-pill').forEach(p => p.addEventListener('click', () => {
