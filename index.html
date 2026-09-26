@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd4ce2c6fe1">
+<meta name="diario-versao" content="vf1376f6966">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16761,7 +16761,9 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 @media (max-width: 860px){
   #screen-registrar.reg-v2 > .card{overflow:clip}
   #screen-registrar.reg-v2 .submit-row,
-  #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));z-index:5;margin:0;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface);box-shadow:0 -6px 16px rgba(0,0,0,.12)}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));z-index:5;margin:0;padding:18px 14px 12px;border:0;border-radius:0 0 inherit inherit;background:linear-gradient(to bottom,transparent,var(--surface) 55%);box-shadow:none;pointer-events:none}
+  #screen-registrar.reg-v2 .submit-row > *{pointer-events:auto}
+  #screen-registrar.reg-v2 .submit-row #submit-btn{border-radius:14px;box-shadow:0 8px 22px var(--accent-ring),0 2px 6px rgba(0,0,0,.12)}
   #screen-registrar.reg-v2 .submit-row .save-note,
   #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:none}
   #screen-registrar.reg-v2 .submit-row #submit-btn{flex:1 1 auto}
