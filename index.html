@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va1106e715a">
+<meta name="diario-versao" content="vf1376f6966">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16688,6 +16688,19 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar.reg-v2 .reg-do-dia{margin-top:8px}
 #screen-registrar.reg-v2 .reg-do-dia + .reg-recentes{margin-top:6px}
 #screen-registrar.reg-v2 .reg-chip.feita:not(.on){color:var(--text-faint)}
+/* Fileiras de atalhos (Grade do dia, Recentes, Forma de estudo): rótulo em
+   coluna fixa e trilho que desliza na horizontal, com as matérias em sigla. */
+#screen-registrar.reg-v2 .reg-do-dia,#screen-registrar.reg-v2 .reg-recentes{display:grid;grid-template-columns:72px minmax(0,1fr);align-items:center;gap:6px}
+#screen-registrar.reg-v2 .reg-do-dia[hidden],#screen-registrar.reg-v2 .reg-recentes[hidden]{display:none}
+#screen-registrar.reg-v2 .reg-do-dia .reg-chips-rot,#screen-registrar.reg-v2 .reg-recentes .reg-chips-rot{margin:0;font-weight:700;text-transform:uppercase;letter-spacing:.02em;font-size:10.5px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#screen-registrar.reg-v2 .reg-chips-rot b{display:block;color:var(--accent);font-size:var(--fs-xs)}
+#screen-registrar.reg-v2 .reg-trilho,#screen-registrar.reg-v2 .reg-metodos{--fade-e:0px;--fade-d:0px;display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x proximity;scroll-padding-inline:4px;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 2px 4px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--fade-e),#000 calc(100% - var(--fade-d)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--fade-e),#000 calc(100% - var(--fade-d)),transparent)}
+#screen-registrar.reg-v2 .reg-trilho.tem-esq,#screen-registrar.reg-v2 .reg-metodos.tem-esq{--fade-e:24px}
+#screen-registrar.reg-v2 .reg-trilho.tem-dir,#screen-registrar.reg-v2 .reg-metodos.tem-dir{--fade-d:28px}
+#screen-registrar.reg-v2 .reg-trilho::-webkit-scrollbar,#screen-registrar.reg-v2 .reg-metodos::-webkit-scrollbar{display:none}
+#screen-registrar.reg-v2 .reg-trilho > *,#screen-registrar.reg-v2 .reg-metodos > *{flex:0 0 auto;scroll-snap-align:start;white-space:nowrap}
+#screen-registrar.reg-v2 .reg-trilho .reg-chip{min-width:56px;min-height:36px;padding:4px 12px;font-size:var(--fs-sm);letter-spacing:.03em}
+#screen-registrar.reg-v2 .reg-metodos::after,#screen-registrar.reg-v2 .reg-trilho::after{content:"";flex:0 0 8px}
 #screen-registrar.reg-v2 #method{display:none}
 #screen-registrar.reg-v2 .reg-data-linha{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 #screen-registrar.reg-v2 .reg-data-linha input[type="date"]{flex:1 1 150px;min-width:0}
@@ -16748,7 +16761,9 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 @media (max-width: 860px){
   #screen-registrar.reg-v2 > .card{overflow:clip}
   #screen-registrar.reg-v2 .submit-row,
-  #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));z-index:5;margin:0;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface);box-shadow:0 -6px 16px rgba(0,0,0,.12)}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row{position:sticky;bottom:calc(64px + env(safe-area-inset-bottom));z-index:5;margin:0;padding:18px 14px 12px;border:0;border-radius:0 0 inherit inherit;background:linear-gradient(to bottom,transparent,var(--surface) 55%);box-shadow:none;pointer-events:none}
+  #screen-registrar.reg-v2 .submit-row > *{pointer-events:auto}
+  #screen-registrar.reg-v2 .submit-row #submit-btn{border-radius:14px;box-shadow:0 8px 22px var(--accent-ring),0 2px 6px rgba(0,0,0,.12)}
   #screen-registrar.reg-v2 .submit-row .save-note,
   #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo{display:none}
   #screen-registrar.reg-v2 .submit-row #submit-btn{flex:1 1 auto}
@@ -17903,6 +17918,12 @@ const DB = {
      Uma única linha de saneamento na LEITURA conserta o presente e o passado:
      qualquer valor gravado torto volta a apontar para o lugar certo. */
   _activePlanId() {
+    const emVisualizacao = this._planoEmVisualizacao();
+    if (emVisualizacao) return emVisualizacao;
+    return this._activePlanIdGravado();
+  },
+  // Ponteiro persistido (sincronizado), ignorando a visualização desta aba.
+  _activePlanIdGravado() {
     try {
       let v = localStorage.getItem(this.GLOBAL_KEYS.activePlan);
       if (!v) return 'default';
@@ -17910,6 +17931,29 @@ const DB = {
       if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') v = v.slice(1, -1);
       return v || 'default';
     } catch (e) { return 'default'; }
+  },
+  /* ── VISUALIZAÇÃO DE PLANEJAMENTO PAUSADO ───────────────────────────────
+     Abrir um planejamento pausado só para consulta. O ponteiro fica na
+     sessionStorage desta aba: não sincroniza, não troca o planejamento ativo
+     gravado (que continua operacional) e some ao fechar a aba. Vale apenas
+     enquanto o planejamento existir e continuar pausado; as gravações nele já
+     são recusadas por _blockedByPlanPause. */
+  _viewPlanKey() { return this._profilePrefix() + 'view-paused-plan'; },
+  _planoEmVisualizacao() {
+    let id = null;
+    try { id = sessionStorage.getItem(this._viewPlanKey()); } catch (_) { return null; }
+    if (!id) return null;
+    try {
+      if (typeof PlanManager === 'undefined') return null;
+      if (!PlanManager.getPlans().some(p => String(p.id) === String(id))) return null;
+      return PlanManager.isPaused(id) ? String(id) : null;
+    } catch (_) { return null; }
+  },
+  _setPlanoEmVisualizacao(id) {
+    try {
+      if (id) sessionStorage.setItem(this._viewPlanKey(), String(id));
+      else sessionStorage.removeItem(this._viewPlanKey());
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'view-paused-plan'); }
   },
   // Monta o conjunto de chaves namespaced de UM planejamento qualquer (dentro do perfil ativo)
   keysForPlan(planId) {
@@ -20273,6 +20317,21 @@ const PlanManager = {
   },
   isPaused(id) { return this.isPausedOn(id, this._hoje()); },
   isActivePlanPaused() { return this.isPaused(this.getActivePlanId()); },
+  // Planejamento pausado aberto só para consulta nesta aba (ou null).
+  viewingPausedPlanId() { try { return DB._planoEmVisualizacao(); } catch (e) { return null; } },
+  isViewingPausedPlan() { return !!this.viewingPausedPlanId(); },
+  viewPausedPlan(id) {
+    if (!this.isPaused(id) || !this.getPlans().some(p => String(p.id) === String(id))) return false;
+    DB._setPlanoEmVisualizacao(id);
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-view'); }
+    return true;
+  },
+  exitPausedPlanView() {
+    if (!this.isViewingPausedPlan()) { DB._setPlanoEmVisualizacao(null); return false; }
+    DB._setPlanoEmVisualizacao(null);
+    try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem-view-exit'); }
+    return true;
+  },
   // Dia congelado no planejamento indicado (padrão: o ativo). É a pergunta
   // que agenda, atrasos, fila de reforço, rodízio e métricas fazem.
   isDayPaused(dia, planId) {
@@ -20325,7 +20384,7 @@ const PlanManager = {
   /* Reposiciona o contexto ativo quando o dia de hoje cai numa pausa (pausa
      retroativa, agendada que chegou ou pausa sincronizada de outro aparelho). */
   _garantirAtivoOperacional() {
-    if (!this.isActivePlanPaused()) return null;
+    if (!this.isPaused(DB._activePlanIdGravado())) return null;
     const next = this.getOperationalPlans()[0];
     if (!next) return null;
     DB.setRaw(this.GK.active, next.id);
@@ -20358,7 +20417,7 @@ const PlanManager = {
     const nova = { from, until, pausedAt: now, resumedAt: until ? now : null };
     if (this._savePauseWindows(id, base.concat([nova])) === false) return { ok: false, reason: 'save-failed' };
     let switchedTo = null;
-    if (String(this.getActivePlanId()) === id && this.isPaused(id)) switchedTo = this._garantirAtivoOperacional();
+    if (String(DB._activePlanIdGravado()) === id && this.isPaused(id)) switchedTo = this._garantirAtivoOperacional();
     const scheduled = from > hoje;
     this._emitPause({ planId: id, paused: this.isPaused(id), scheduled, from, until, pausedAt: now, switchedTo });
     return { ok: true, pausedAt: now, from, until, scheduled, switchedTo };
@@ -20443,6 +20502,7 @@ const PlanManager = {
   // pelo canal único para chegar à nuvem (antes só subia no blob periódico).
   setActivePlan(id) {
     if (this.isPaused(id)) return false;
+    DB._setPlanoEmVisualizacao(null);   // escolher um planejamento encerra a consulta
     DB.setRaw(this.GK.active, id);
     // Idem: cada planejamento tem o seu histórico.
     try { DB.invalidarRevlogMemoria(); } catch (e) { _quiet(e, 'plano-revlog-mem'); }
@@ -20790,7 +20850,8 @@ const PlanManager = {
     // garante um planejamento ativo válido E operacional. Um planejamento
     // pausado pode continuar existindo indefinidamente, mas nunca vira o
     // contexto de escrita do app por acidente.
-    if (!this.getActivePlan() || this.isActivePlanPaused()) {
+    const gravado = DB._activePlanIdGravado();
+    if (!this.getPlans().some(p => p.id === gravado) || this.isPaused(gravado)) {
       let p = this.getOperationalPlans()[0] || null;
       if (!p && this.getPlans()[0]) {
         // Estado impossível pela UI (o último operacional não pode ser pausado),
@@ -23711,22 +23772,50 @@ const ReforcoEngine = {
       const b = e.target.closest('[data-materia]'); if (!b) return;
       subjectSel.value = b.dataset.materia; emitir(subjectSel, 'change');
     });
+    // Chip de matéria com a sigla (nome completo no title/aria-label), para
+    // caber mais numa fileira que desliza na horizontal.
+    const siglaDe = (n) => {
+      try { return (typeof CycleEngine !== 'undefined' && CycleEngine.siglaForSubject(n)) || n; } catch (e) { return n; }
+    };
+    const chipMateria = (n, extra) => {
+      const on = n === subjectSel.value, ok = !!(extra && extra.feita);
+      const titulo = n + (ok ? ' · já registrada neste dia' : '');
+      return `<button type="button" class="reg-chip${on ? ' on' : ''}${ok ? ' feita' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${on}" title="${escapeHtml(titulo)}" aria-label="${escapeHtml(titulo)}">${ok ? '✓ ' : ''}${escapeHtml(siglaDe(n))}</button>`;
+    };
+    const fileira = (rotulo, chips) => `<span class="reg-chips-rot">${rotulo}</span><div class="reg-trilho">${chips}</div>`;
+    // Esmaece a borda do trilho do lado em que ainda há itens escondidos.
+    const bordas = (t) => {
+      if (!t || !t.classList) return;
+      const max = t.scrollWidth - t.clientWidth;
+      t.classList.toggle('tem-esq', t.scrollLeft > 2);
+      t.classList.toggle('tem-dir', max > 2 && t.scrollLeft < max - 2);
+    };
+    // Traz a escolhida para dentro do trilho sem rolar a página.
+    const mostrarMarcado = (caixa) => {
+      const t = caixa.querySelector('.reg-trilho') || caixa, b = t.querySelector('.on');
+      if (b && t.scrollWidth > t.clientWidth) {
+        const rt = t.getBoundingClientRect(), rb = b.getBoundingClientRect();
+        if (rb.left < rt.left) t.scrollLeft += rb.left - rt.left - 24;
+        else if (rb.right > rt.right) t.scrollLeft += rb.right - rt.right + 24;
+      }
+      bordas(t);
+    };
+    [doDia, recentes].forEach(c => c.addEventListener('scroll', (e) => bordas(e.target), true));
     function pintarRecentes() {
       const ativos = new Set([...subjectSel.options].map(o => o.value).filter(Boolean));
       const grade = materiasDaGrade(ativos);
       const feitas = new Set((DB.getEntries() || []).filter(e => e && e.date === grade.iso).map(e => e.subject));
       doDia.hidden = !grade.nomes.length;
-      doDia.innerHTML = grade.nomes.length ? `<span class="reg-chips-rot">Grade · ${escapeHtml(grade.dia.slice(0, 3))}:</span>` + grade.nomes.map(n => {
-        const on = n === subjectSel.value, ok = feitas.has(n);
-        return `<button type="button" class="reg-chip${on ? ' on' : ''}${ok ? ' feita' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${on}"${ok ? ' title="Já registrada neste dia"' : ''}>${ok ? '✓ ' : ''}${escapeHtml(n)}</button>`;
-      }).join('') : '';
+      doDia.innerHTML = grade.nomes.length
+        ? fileira(`Grade<b>${escapeHtml(grade.dia.slice(0, 3))}</b>`, grade.nomes.map(n => chipMateria(n, { feita: feitas.has(n) })).join(''))
+        : '';
       const nomes = [];
       (DB.getEntries() || []).slice()
         .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || _ordemCriacao(b, a))
-        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !grade.nomes.includes(e.subject) && !nomes.includes(e.subject) && nomes.length < 4) nomes.push(e.subject); });
+        .forEach(e => { if (e && e.subject && ativos.has(e.subject) && !grade.nomes.includes(e.subject) && !nomes.includes(e.subject) && nomes.length < 8) nomes.push(e.subject); });
       recentes.hidden = !nomes.length;
-      recentes.innerHTML = nomes.length ? '<span class="reg-chips-rot">Recentes:</span>' + nomes.map(n =>
-        `<button type="button" class="reg-chip${n === subjectSel.value ? ' on' : ''}" data-materia="${escapeHtml(n)}" aria-pressed="${n === subjectSel.value}">${escapeHtml(n)}</button>`).join('') : '';
+      recentes.innerHTML = nomes.length ? fileira('Recentes', nomes.map(n => chipMateria(n)).join('')) : '';
+      mostrarMarcado(doDia); mostrarMarcado(recentes);
     }
 
     // Forma de estudo em pílulas: o <select> continua sendo o valor de verdade.
@@ -23735,6 +23824,7 @@ const ReforcoEngine = {
     pilulas.setAttribute('role', 'radiogroup');
     pilulas.setAttribute('aria-label', 'Forma de estudo');
     methodSelect.insertAdjacentElement('afterend', pilulas);
+    pilulas.addEventListener('scroll', () => bordas(pilulas), { passive: true });
     pilulas.addEventListener('click', (e) => {
       const b = e.target.closest('[data-metodo]'); if (!b) return;
       methodSelect.value = b.dataset.metodo; emitir(methodSelect, 'change');
@@ -23746,12 +23836,14 @@ const ReforcoEngine = {
       const atuais = [...pilulas.querySelectorAll('[data-metodo]')];
       if (atuais.length === valores.length && atuais.every((b, i) => b.dataset.metodo === valores[i])) {
         atuais.forEach(b => { const on = b.dataset.metodo === methodSelect.value; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+        mostrarMarcado(pilulas);
         return;
       }
       pilulas.innerHTML = [...methodSelect.options].map(o => {
         const on = o.value === methodSelect.value;
         return `<button type="button" role="radio" aria-checked="${on}" class="reg-pill${on ? ' on' : ''}" data-metodo="${escapeHtml(o.value)}">${escapeHtml(o.textContent)}</button>`;
       }).join('');
+      mostrarMarcado(pilulas);
     }
     new MutationObserver(pintarMetodos).observe(methodSelect, { childList: true });
 
@@ -51752,16 +51844,35 @@ const PlanUI = {
         hint: `A pausa começou em ${this._fmtDia(vig.from)}. Uma data passada reativa desde aquele dia (o que venceu depois dela volta a contar); uma data futura agenda o retorno.` }
     ], { title: '▶ Reativar planejamento', sub: `"${p.nome}" volta a entrar em métricas, motores, ciclo e Extras a partir da data escolhida.`, okText: 'Reativar' });
     if (!v) return;
+    const eraConsulta = PlanManager.viewingPausedPlanId() === String(id);
     const r = PlanManager.resumePlan(id, { from: v.until || hoje });
     if (!r.ok) { await this._explicarFalhaPausa(r); return; }
     showToast(r.cancelled ? 'Pausa desfeita ✓' : (r.scheduled ? `Retorno agendado para ${this._fmtDia(r.until)} ✓` : 'Planejamento reativado ✓'));
+    // Reativado enquanto era consultado: passa a ser o planejamento em uso.
+    if (eraConsulta && !PlanManager.isPaused(id)) {
+      PlanManager.setActivePlan(id);
+      CloudStore.saveThenReload();
+      return;
+    }
     this.renderScreen(); this.renderSidebar();
+  },
+  // Abre um planejamento pausado só para consulta (nesta aba).
+  _visualizarPausado(id) {
+    if (!PlanManager.viewPausedPlan(id)) { showToast('Este planejamento não está pausado'); return; }
+    showToast('👁 Abrindo planejamento pausado para consulta…');
+    location.reload();
+  },
+  _sairDaVisualizacao() {
+    PlanManager.exitPausedPlanView();
+    location.reload();
   },
 
   // ---------- Seletor na sidebar ----------
   renderSidebar() {
     const active = PlanManager.getActivePlan();
-    $id('active-plan-name').textContent = active ? active.nome : '—';
+    const vendo = PlanManager.viewingPausedPlanId();
+    if (this._consulta === undefined) this._consulta = vendo;
+    $id('active-plan-name').textContent = active ? (vendo ? '👁 ' + active.nome + ' (pausado)' : active.nome) : '—';
     const listEl = document.getElementById('plan-switcher-list');
     const plans = PlanManager.getPlans();
     const activeId = PlanManager.getActivePlanId();
@@ -51769,11 +51880,11 @@ const PlanUI = {
       const paused = PlanManager.isPaused(p.id);
       const ag = !paused && PlanManager.scheduledPause(p.id);
       return `
-      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" aria-disabled="${paused ? 'true' : 'false'}">
+      <button type="button" class="plan-switcher-item ${p.id === activeId ? 'active' : ''} ${paused ? 'paused' : ''}" data-id="${p.id}" title="${paused && p.id !== activeId ? 'Pausado — abrir só para consulta' : ''}">
         <span class="psi-dot"></span>
         <span class="psi-text">
           <span class="psi-name">${escapeHtml(p.nome)}</span>
-          <span class="psi-tipo">${paused ? '⏸ Pausado · ' : ''}${ag ? '⏳ Pausa em ' + escapeHtml(formatDateShort(ag.from)) + ' · ' : ''}${escapeHtml(p.tipo)}</span>
+          <span class="psi-tipo">${paused ? (p.id === activeId ? '👁 Consulta · ' : '⏸ Pausado · ') : ''}${ag ? '⏳ Pausa em ' + escapeHtml(formatDateShort(ag.from)) + ' · ' : ''}${escapeHtml(p.tipo)}</span>
         </span>
         ${p.id === activeId ? '<span class="psi-check">✓</span>' : paused ? '<span class="psi-check">⏸</span>' : ''}
       </button>`;
@@ -51781,12 +51892,12 @@ const PlanUI = {
     listEl.querySelectorAll('.plan-switcher-item').forEach(btn => {
       btn.addEventListener('click', () => {
         const id = btn.dataset.id;
+        if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         if (PlanManager.isPaused(id)) {
-          showToast('⏸ Este planejamento está pausado. Reative-o em Planejamentos para voltar a usá-lo.');
           this.closeMenu();
+          this._visualizarPausado(id);
           return;
         }
-        if (id === PlanManager.getActivePlanId()) { this.closeMenu(); return; }
         PlanManager.setActivePlan(id);
         CloudStore.saveThenReload(); // salva na nuvem antes de recarregar
       });
@@ -51818,13 +51929,15 @@ const PlanUI = {
   renderCards() {
     const wrap = document.getElementById('plan-cards-list');
     const plans = PlanManager.getPlans();
-    const activeId = PlanManager.getActivePlanId();
+    const activeId = DB._activePlanIdGravado();
+    const vendoId = PlanManager.viewingPausedPlanId();
     wrap.innerHTML = plans.map(p => {
       const entries = DB.getEntriesForPlan(p.id);
       const subjects = DB.getSubjectsForPlan(p.id).filter(s => s.ativo !== false);
       const totalMin = entries.reduce((a, e) => a + (e.durationMin || 0), 0);
       const weeks = DB.getCycleHistoryForPlan(p.id).length;
-      const isActive = p.id === activeId;
+      const isActive = p.id === activeId && !vendoId;
+      const isViewing = p.id === vendoId;
       const pause = PlanManager.pauseInfo(p.id);
       const isPaused = !!pause;
       const agendada = !isPaused && PlanManager.scheduledPause(p.id);
@@ -51836,6 +51949,7 @@ const PlanUI = {
               <span class="plan-type-badge">${escapeHtml(p.tipo)}</span>
               ${isActive ? '<span class="plan-active-pill">ativo</span>' : ''}
               ${isPaused ? '<span class="plan-active-pill">⏸ pausado</span>' : ''}
+              ${isViewing ? '<span class="plan-active-pill">👁 em consulta</span>' : ''}
               ${agendada ? `<span class="plan-active-pill">⏳ pausa em ${escapeHtml(this._fmtDia(agendada.from))}</span>` : ''}
             </div>
             <div class="config-row-actions">
@@ -51852,7 +51966,10 @@ const PlanUI = {
           ${this._pauseHint(p.id)}
           <div class="plan-card-actions">
             ${isPaused
-              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar…</button>'
+              ? '<button type="button" class="btn-primary btn-resume-plan">▶ Reativar…</button>' +
+                (isViewing
+                  ? '<button type="button" class="btn-secondary btn-exit-view-plan">✕ Sair da consulta</button>'
+                  : '<button type="button" class="btn-secondary btn-view-plan">👁 Visualizar</button>')
               : (isActive
                 ? '<button type="button" class="btn-secondary" disabled>Planejamento atual</button>'
                 : '<button type="button" class="btn-primary btn-open-plan">Abrir este planejamento</button>')}
@@ -51880,6 +51997,10 @@ const PlanUI = {
       });
       const resumeBtn = card.querySelector('.btn-resume-plan');
       if (resumeBtn) resumeBtn.addEventListener('click', () => this._pedirRetorno(id));
+      const viewBtn = card.querySelector('.btn-view-plan');
+      if (viewBtn) viewBtn.addEventListener('click', () => this._visualizarPausado(id));
+      const exitViewBtn = card.querySelector('.btn-exit-view-plan');
+      if (exitViewBtn) exitViewBtn.addEventListener('click', () => this._sairDaVisualizacao());
       card.querySelector('.btn-rename-plan').addEventListener('click', () => {
         const p = PlanManager.getPlans().find(x => x.id === id);
         UI.prompt([{ key: 'nome', label: 'Novo nome do planejamento', type: 'text', value: p.nome }], { title: '✎ Renomear planejamento', okText: 'Salvar' }).then(v => {
@@ -51982,6 +52103,8 @@ window.addEventListener('data:relational-hydrated', () => {
 window.addEventListener('planning:pause-changed', (e) => {
   const d = (e && e.detail) || {};
   if (!d.automatic) return;
+  // A consulta terminou sozinha (o planejamento consultado voltou a operar).
+  if (PlanUI._consulta && PlanUI._consulta !== PlanManager.viewingPausedPlanId()) { location.reload(); return; }
   if (d.switchedTo) { showToast('⏸ A pausa agendada começou — abrindo outro planejamento.'); CloudStore.saveThenReload(); return; }
   PlanUI.renderSidebar();
   const atual = document.querySelector('.screen.active');
@@ -51998,6 +52121,18 @@ const PausaAviso = {
       if (!alvo) return;
       let el = document.getElementById('pausa-aviso');
       const id = PlanManager.getActivePlanId(), hoje = todayLocal();
+      const vendo = PlanManager.viewingPausedPlanId();
+      if (vendo) {
+        if (!el) {
+          el = document.createElement('div');
+          el.id = 'pausa-aviso'; el.className = 'pausa-aviso'; el.setAttribute('role', 'status');
+          alvo.insertBefore(el, alvo.firstChild);
+        }
+        const pv = PlanManager.getActivePlan(), iv = PlanManager.pauseInfo(vendo);
+        el.innerHTML = `<span class="pa-ic" aria-hidden="true">👁</span><span class="pa-txt"><b>Consultando "${escapeHtml(pv ? pv.nome : '')}"</b> — planejamento pausado${iv ? ` desde ${this.fmt(iv.from)}` : ''}. Somente leitura: nada pode ser alterado aqui.</span><button type="button" class="pa-btn pa-sair">Sair da consulta</button>`;
+        el.querySelector('.pa-sair').onclick = () => PlanUI._sairDaVisualizacao();
+        return;
+      }
       const cur = PlanManager.pauseInfo(id), prox = PlanManager.scheduledPause(id);
       const dias = prox ? Math.round((new Date(prox.from + 'T00:00:00') - new Date(hoje + 'T00:00:00')) / 86400000) : 99;
       const tela = document.querySelector('.screen.active');

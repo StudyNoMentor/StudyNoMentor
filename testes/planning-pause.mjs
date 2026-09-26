@@ -37,7 +37,11 @@ const DB={
   _set:(k,v)=>{localStorage.setItem(k,JSON.stringify(v));return true;},
   setRaw:(k,v)=>{localStorage.setItem(k,String(v));return true;},
   delRaw:(k)=>{localStorage.removeItem(k);return true;},
-  _activePlanId:()=>localStorage.getItem(pfx+'active-plan')||'default',
+  _vendo:null,
+  _planoEmVisualizacao(){const id=this._vendo;return id&&ctx.PlanManager.isPaused(id)?id:null;},
+  _setPlanoEmVisualizacao(id){this._vendo=id||null;},
+  _activePlanIdGravado:()=>localStorage.getItem(pfx+'active-plan')||'default',
+  _activePlanId(){return this._planoEmVisualizacao()||this._activePlanIdGravado();},
   keysForPlan:id=>{
     const b=pfx+'p:'+id+':';
     return {
@@ -234,7 +238,30 @@ assert.match(read('src/js/60-relational-store.js'),/pausedOnFromRecord/,'hidrata
 assert.match(read('src/js/33-tela-grade.js'),/operationalDaysBetween/,'ritmo da semana ignora dias pausados');
 assert.match(read('src/js/70-relatorio.js'),/pausedDaysBetween/,'frequência do relatório ignora dias pausados');
 
+// Consulta de planejamento pausado: somente leitura, sem mexer no ponteiro gravado.
+{
+  if(!P.getPlans().some(p=>P.isPaused(p.id))){
+    const alvo=P.getPlans().find(p=>String(p.id)!==String(DB._activePlanIdGravado()));
+    assert.equal(P.pausePlan(alvo.id).ok,true,'prepara um planejamento pausado');
+  }
+  const pausado=P.getPlans().find(p=>P.isPaused(p.id));
+  assert.ok(pausado,'há um planejamento pausado para consultar');
+  {
+    const gravado=DB._activePlanIdGravado();
+    assert.equal(P.viewPausedPlan(pausado.id),true,'planejamento pausado deve abrir para consulta');
+    assert.equal(P.getActivePlanId(),pausado.id,'contexto de leitura passa a ser o pausado');
+    assert.equal(DB._activePlanIdGravado(),gravado,'ponteiro gravado continua no operacional');
+    assert.equal(P._garantirAtivoOperacional(),null,'consulta não troca o planejamento gravado');
+    assert.equal(P.exitPausedPlanView(),true,'sair da consulta');
+    assert.equal(P.getActivePlanId(),gravado,'volta ao planejamento em uso');
+  }
+  const operacional=P.getOperationalPlans()[0];
+  assert.equal(P.viewPausedPlan(operacional.id),false,'operacional não entra em modo consulta');
+}
+
 const ui=read('src/js/52-tela-planejamentos.js');
+assert.match(ui,/btn-view-plan/,'planejamento pausado deve poder ser visualizado');
+assert.match(read('src/js/11-db.js'),/_planoEmVisualizacao\(\)/,'contexto de leitura considera a consulta');
 assert.match(ui,/btn-pause-plan/,'gestão deve expor botão Pausar');
 assert.match(ui,/btn-resume-plan/,'gestão deve expor botão Reativar');
 assert.match(ui,/type: 'date'/,'pausa e reativação devem permitir escolher a data');

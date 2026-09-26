@@ -67,7 +67,7 @@ try{
     out.paginasAbertas=getComputedStyle($('.reg-f-pini')).display!=='none'&&document.activeElement===$('#page-start');
     // nada passa da largura do cartão
     const card=$('#screen-registrar > .card').getBoundingClientRect();
-    out.estouros=[...document.querySelectorAll('#study-form *')].filter(el=>{const b=el.getBoundingClientRect();return b.width>0&&(b.right>card.right+0.5||b.left<card.left-0.5);}).map(el=>el.id||el.className).slice(0,5);
+    out.estouros=[...document.querySelectorAll('#study-form *')].filter(el=>!el.closest('.reg-trilho,.reg-metodos')||el.matches('.reg-trilho,.reg-metodos')).filter(el=>{const b=el.getBoundingClientRect();return b.width>0&&(b.right>card.right+0.5||b.left<card.left-0.5);}).map(el=>el.id||el.className).slice(0,5);
     const perf=$('.reg-f-desemp').getBoundingClientRect();
     out.perfDentro=[...document.querySelectorAll('.reg-f-desemp input, .reg-f-desemp .gauge')].every(el=>{const b=el.getBoundingClientRect();return b.left>=perf.left-0.5&&b.right<=perf.right+0.5;});
     // grava pelo fluxo de sempre; a confirmação do banco é simulada aqui

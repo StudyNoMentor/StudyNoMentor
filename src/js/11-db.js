@@ -125,6 +125,12 @@ const DB = {
      Uma única linha de saneamento na LEITURA conserta o presente e o passado:
      qualquer valor gravado torto volta a apontar para o lugar certo. */
   _activePlanId() {
+    const emVisualizacao = this._planoEmVisualizacao();
+    if (emVisualizacao) return emVisualizacao;
+    return this._activePlanIdGravado();
+  },
+  // Ponteiro persistido (sincronizado), ignorando a visualização desta aba.
+  _activePlanIdGravado() {
     try {
       let v = localStorage.getItem(this.GLOBAL_KEYS.activePlan);
       if (!v) return 'default';
@@ -132,6 +138,29 @@ const DB = {
       if (v.length > 1 && v[0] === '"' && v[v.length - 1] === '"') v = v.slice(1, -1);
       return v || 'default';
     } catch (e) { return 'default'; }
+  },
+  /* ── VISUALIZAÇÃO DE PLANEJAMENTO PAUSADO ───────────────────────────────
+     Abrir um planejamento pausado só para consulta. O ponteiro fica na
+     sessionStorage desta aba: não sincroniza, não troca o planejamento ativo
+     gravado (que continua operacional) e some ao fechar a aba. Vale apenas
+     enquanto o planejamento existir e continuar pausado; as gravações nele já
+     são recusadas por _blockedByPlanPause. */
+  _viewPlanKey() { return this._profilePrefix() + 'view-paused-plan'; },
+  _planoEmVisualizacao() {
+    let id = null;
+    try { id = sessionStorage.getItem(this._viewPlanKey()); } catch (_) { return null; }
+    if (!id) return null;
+    try {
+      if (typeof PlanManager === 'undefined') return null;
+      if (!PlanManager.getPlans().some(p => String(p.id) === String(id))) return null;
+      return PlanManager.isPaused(id) ? String(id) : null;
+    } catch (_) { return null; }
+  },
+  _setPlanoEmVisualizacao(id) {
+    try {
+      if (id) sessionStorage.setItem(this._viewPlanKey(), String(id));
+      else sessionStorage.removeItem(this._viewPlanKey());
+    } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'view-paused-plan'); }
   },
   // Monta o conjunto de chaves namespaced de UM planejamento qualquer (dentro do perfil ativo)
   keysForPlan(planId) {
