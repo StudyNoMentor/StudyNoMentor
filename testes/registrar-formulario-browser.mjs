@@ -112,11 +112,16 @@ try{
     const $=s=>document.querySelector(s);
     window.scrollTo(0,0);await new Promise(r=>setTimeout(r,200));
     const btn=$('#submit-btn').getBoundingClientRect(),tabs=$('.tabs').getBoundingClientRect();
+    const card=$('#screen-registrar > .card').getBoundingClientRect();
+    const materia=$('.reg-f-materia').getBoundingClientRect();
     const larg=document.documentElement.scrollWidth<=window.innerWidth+1;
-    return {botaoVisivel:btn.top>=0&&btn.bottom<=tabs.top+1,larg};
+    const gaps=[materia.left-card.left,card.right-materia.right];
+    const usoLargura=gaps.every(v=>v>=0&&v<=12.5);
+    return {botaoVisivel:btn.top>=0&&btn.bottom<=tabs.top+1,larg,usoLargura,gaps};
   });
   ok(m.botaoVisivel,'no celular o botão Registrar fica visível logo acima da barra de abas, sem rolar');
   ok(m.larg,'no celular nada gera rolagem horizontal');
+  ok(m.usoLargura,'os painéis internos aproveitam a largura do cartão (folgas laterais ≤12,5px): '+JSON.stringify(m.gaps));
   ok(errosMob.length===0,'celular sem erros de página: '+errosMob.join(' | '));
   await mob.close();
   console.log(`REGISTRAR — FORMULÁRIO (NAVEGADOR) OK — ${n} invariantes.`);
