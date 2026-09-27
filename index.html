@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v0e06275b52">
+<meta name="diario-versao" content="v18dd18516d">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16799,7 +16799,8 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar.reg-v2 .reg-add{border-style:dashed}
 
 /* — Compacto: layout em painel — */
-#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"materia materia materia materia data data" "aula aula aula aula aula aula" "metodo metodo metodo metodo metodo metodo" "tempo tempo tempo desemp desemp desemp" "video video video video video video" "pini pini pini pfim pfim pfim" "phint phint phint phint phint phint" "obs obs obs obs obs obs" "extras extras extras extras extras extras";column-gap:12px;row-gap:0;padding:14px 12px 4px}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form{padding:0!important}
+#screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-areas:"materia materia materia materia data data" "aula aula aula aula aula aula" "metodo metodo metodo metodo metodo metodo" "tempo tempo tempo desemp desemp desemp" "video video video video video video" "pini pini pini pfim pfim pfim" "phint phint phint phint phint phint" "obs obs obs obs obs obs" "extras extras extras extras extras extras";column-gap:12px;row-gap:0;padding:12px 10px 4px}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .step,
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .field-group,
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .row-3{display:contents!important}
@@ -16842,7 +16843,7 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .reg-resumo:empty{display:none}
 #screen-registrar.reg-v2[data-reg-mode="compacto"] .submit-row .save-note{order:-1;flex:1 0 100%}
 @media (max-width: 720px){
-  #screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"materia materia" "aula aula" "metodo metodo" "data data" "tempo tempo" "desemp desemp" "video video" "pini pfim" "phint phint" "obs obs" "extras extras";padding:14px 14px 4px}
+  #screen-registrar.reg-v2[data-reg-mode="compacto"] .steps-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"materia materia" "aula aula" "metodo metodo" "data data" "tempo tempo" "desemp desemp" "video video" "pini pfim" "phint phint" "obs obs" "extras extras";padding:10px 10px 4px}
 }
 /* No celular a barra de abas é fixa no rodapé: o botão Registrar fica logo
    acima dela, sempre à mão. overflow:clip (e não hidden) no cartão, para o
