@@ -273,12 +273,14 @@ html[data-theme="dark"] #screen-registrar.reg-v2{
   font-weight:800;box-shadow:0 2px 7px color-mix(in srgb,var(--accent) 12%,transparent);
 }
 #screen-registrar.reg-v2 #study-form .reg-pill.on{
-  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff) 0%,var(--accent) 100%);
+  background-color:var(--accent);
+  background-image:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff) 0%,var(--accent) 100%);
   color:var(--on-accent);border-color:var(--accent);font-weight:800;
   box-shadow:0 7px 18px color-mix(in srgb,var(--accent) 24%,transparent);
 }
 html[data-theme="dark"] #screen-registrar.reg-v2 #study-form .reg-pill.on{
-  background:linear-gradient(180deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 82%,#000) 100%);
+  background-color:var(--accent);
+  background-image:linear-gradient(180deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 82%,#000) 100%);
 }
 /* A marca de matéria já registrada continua única quando também selecionada. */
 #screen-registrar.reg-v2 #study-form :is(.reg-chip,.reg-pill).on:not(.feita)::before{
@@ -288,16 +290,19 @@ html[data-theme="dark"] #screen-registrar.reg-v2 #study-form .reg-pill.on{
 #screen-registrar.reg-v2 #study-form .gauge .track{stroke:color-mix(in srgb,var(--accent) 17%,var(--surface))}
 #screen-registrar.reg-v2 #study-form #submit-btn{
   font-size:1rem;font-weight:800;text-transform:uppercase;letter-spacing:.02em;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff) 0%,var(--accent) 100%);
+  background-color:var(--accent);
+  background-image:linear-gradient(180deg,color-mix(in srgb,var(--accent) 88%,#fff) 0%,var(--accent) 100%);
   border-color:var(--accent);color:var(--on-accent);
   box-shadow:0 8px 22px color-mix(in srgb,var(--accent) 22%,transparent);
 }
 #screen-registrar.reg-v2 #study-form #submit-btn:hover{
-  background:linear-gradient(180deg,var(--accent) 0%,var(--accent-hover) 100%);
+  background-color:var(--accent-hover);
+  background-image:linear-gradient(180deg,var(--accent) 0%,var(--accent-hover) 100%);
   border-color:var(--accent-hover);
 }
 html[data-theme="dark"] #screen-registrar.reg-v2 #study-form #submit-btn{
-  background:linear-gradient(180deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 82%,#000) 100%);
+  background-color:var(--accent);
+  background-image:linear-gradient(180deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 82%,#000) 100%);
 }
 @media(max-width:420px){
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){padding:12px!important}

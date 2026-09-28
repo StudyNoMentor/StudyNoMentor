@@ -28,8 +28,9 @@ if(telaSrc) ok(telaSrc.includes('CardEngine.hasContent(frente)')&&telaSrc.includ
   ok(esc>=0&&guard>=0&&esc<guard,'Esc do modo foco deve sair antes de qualquer guarda da fila');
   ok(css.includes('body.cards-foco #foco-bar {'),'foco dos Cards deve exibir apenas a barra #foco-bar');
   ok(!css.includes('body.cards-foco .foco-bar {'),'seletor genérico não pode exibir também a barra do Anki Oficial');
-  ok(src.includes('const cards = this.collectionCards();')&&src.includes('const revlog = this._statsRevlog(false);')&&src.includes('const decks = this.collectionDecks();'),
-    'auditoria deve respeitar o escopo atual dos Cards em cards/revlog/baralhos');
+  ok(src.includes("scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy")&&
+     src.includes("StudyGlobalScope.allBy('cards')")&&src.includes('const revlog = this._statsRevlog(false);')&&src.includes("StudyGlobalScope.allBy('decks')"),
+    'auditoria deve respeitar o escopo atual e, em Todos, preservar as linhas físicas para diagnosticar colisões');
   ok(src.includes("label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento'"),
     'auditoria deve declarar no JSON qual escopo foi exportado');
 }

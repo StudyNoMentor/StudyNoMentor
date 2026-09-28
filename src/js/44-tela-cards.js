@@ -2383,11 +2383,16 @@ const CardsScreen = {
     // A auditoria segue exatamente o mesmo escopo que o usuário está vendo em
     // Cards. "Todos" une a memória dos planejamentos; "Este planejamento"
     // mantém o recorte local. Os helpers preservam _planId/_planNome.
-    const cards = this.collectionCards();
+    /* Para auditoria global, leia as linhas físicas de todos os planos sem a
+       deduplicação visual da tela. Assim IDs antigos reutilizados em dois
+       planejamentos aparecem no arquivo e podem ser diagnosticados. */
+    const cards = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
+      ? StudyGlobalScope.allBy('cards') : this.collectionCards();
     const revlog = this._statsRevlog(false);
     const cfg = CardsConfig.get();
     const daily = CardsConfig._daily();
-    const decks = this.collectionDecks();
+    const decks = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
+      ? StudyGlobalScope.allBy('decks') : this.collectionDecks();
     const activePlan = (typeof PlanManager !== 'undefined' && PlanManager.getActivePlan)
       ? PlanManager.getActivePlan() : null;
     const activePlanId = activePlan ? activePlan.id : null;
@@ -2471,29 +2476,156 @@ const CardsScreen = {
     const planIds = [...new Set([]
       .concat(cards.map(c => c._planId), decks.map(d => d._planId), revlog.map(r => r && r._planId))
       .filter(Boolean))];
+
+    /* A configuração dos Cards é do PERFIL, enquanto cards/revlog/decks podem
+       vir de vários planejamentos. A auditoria v4 explicita isso e resolve
+       presets/pesos por baralho, para um auditor não precisar conhecer o código. */
+    const rawProfileWeights = Array.isArray(cfg.weights) && FSRS.pesosValidos(cfg.weights) ? cfg.weights : null;
+    const profileResolvedWeights = (CardsConfig.weights ? CardsConfig.weights() : FSRS.DEFAULT_W).slice();
+    const profileWeightsSource = rawProfileWeights ? 'profile' : 'fsrs-default';
+    const deckConfigurations = decks.map(d => {
+      const deckId = d.id;
+      const preset = CardsConfig.deckPreset ? CardsConfig.deckPreset(deckId) : null;
+      const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
+      const resolvedWeights = (CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights).slice();
+      const presetHasWeights = !!(preset && Array.isArray(preset.weights) && FSRS.pesosValidos(preset.weights));
+      return {
+        auditKey:auditKey(d._planId || activePlanId || null, deckId),
+        planId:d._planId || activePlanId || null,
+        planName:d._planNome || ((d._planId && window.StudyGlobalScope && StudyGlobalScope.planName) ? StudyGlobalScope.planName(d._planId) : null),
+        deckId, deckName:d.nome || null,
+        preset:preset ? JSON.parse(JSON.stringify(preset)) : null,
+        effectiveConfig:JSON.parse(JSON.stringify(effective)),
+        resolvedWeights,
+        weightsSource:presetHasWeights ? 'deck-preset' : profileWeightsSource
+      };
+    });
+
+    const includedPlans = planIds.map(pid => ({
+      id:pid,
+      name:(window.StudyGlobalScope && StudyGlobalScope.planName) ? StudyGlobalScope.planName(pid) : (String(pid) === String(activePlanId) && activePlan ? activePlan.nome : null),
+      paused:!!(typeof PlanManager !== 'undefined' && PlanManager.isPaused && PlanManager.isPaused(pid)),
+      cards:cards.filter(c => String(planIdOfCard(c)) === String(pid)).length,
+      decks:decks.filter(d => String(d._planId || activePlanId || '') === String(pid)).length,
+      revisionEntries:revlog.filter(r => String((r && r._planId) || activePlanId || '') === String(pid)).length
+    }));
+
+    /* Consistência independente do detector legado. Além das anomalias de
+       formato, verifica a identidade durável do revlog, reps×histórico e
+       recompõe S/D pelo histórico FSRS com os pesos efetivos do baralho. */
+    const cardKeys = new Set(Object.keys(byCard));
+    const orphanReviewEntries = [];
+    const duplicateReviewIds = [];
+    const seenReviewIds = new Map();
+    revlog.forEach((r, index) => {
+      if (!r) return;
+      const pid = r._planId || activePlanId || null;
+      const ck = auditKey(pid, r.cardId);
+      if (!cardKeys.has(ck)) orphanReviewEntries.push({ index, planId:pid, cardId:r.cardId || null, reviewId:r.reviewId || null });
+      if (r.reviewId != null) {
+        const rk = auditKey(pid, r.reviewId);
+        if (seenReviewIds.has(rk)) duplicateReviewIds.push({ planId:pid, reviewId:r.reviewId, firstIndex:seenReviewIds.get(rk), duplicateIndex:index });
+        else seenReviewIds.set(rk, index);
+      }
+    });
+    const repsMismatches = [];
+    const memoryReplay = { compared:0, withinTolerance:0, maxRelativeS:0, maxAbsoluteD:0, tolerance:{relativeS:0.005,absoluteD:0.005}, divergences:[] };
+    cards.forEach(c => {
+      const pid = planIdOfCard(c), key = auditKey(pid, c.id);
+      const logs = reviewsByCard.get(key) || [];
+      if ((c.reps || 0) !== logs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:logs.length });
+      const deckId = c.originalDeckId || c.deckId;
+      const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
+      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !logs.length) return;
+      const weights = CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights;
+      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(logs, weights) : null;
+      if (!replay) return;
+      const relS = Math.abs(c.s - replay.s) / Math.max(Math.abs(replay.s), FSRS.S_MIN || 0.001);
+      const absD = Math.abs(c.d - replay.d);
+      memoryReplay.compared++;
+      memoryReplay.maxRelativeS = Math.max(memoryReplay.maxRelativeS, relS);
+      memoryReplay.maxAbsoluteD = Math.max(memoryReplay.maxAbsoluteD, absD);
+      if (relS <= memoryReplay.tolerance.relativeS && absD <= memoryReplay.tolerance.absoluteD) memoryReplay.withinTolerance++;
+      else memoryReplay.divergences.push({ planId:pid, cardId:c.id, stored:{s:c.s,d:c.d}, replay:{s:replay.s,d:replay.d}, relativeS:relS, absoluteD:absD, reviews:replay.revisoes });
+    });
+    repsMismatches.forEach(x => anomalies.push(Object.assign({type:'reps_vs_revlog'},x)));
+    duplicateReviewIds.forEach(x => anomalies.push(Object.assign({type:'duplicate_review_id'},x)));
+    orphanReviewEntries.forEach(x => anomalies.push(Object.assign({type:'orphan_revlog'},x)));
+    memoryReplay.divergences.forEach(x => anomalies.push(Object.assign({type:'memory_replay_divergence'},x)));
+
+    const collisions = (rows) => {
+      const byId = new Map();
+      (rows || []).forEach(row => {
+        if (!row || row.id == null) return;
+        const id = String(row.id), pid = String(row._planId || activePlanId || '');
+        if (!byId.has(id)) byId.set(id, new Set());
+        byId.get(id).add(pid);
+      });
+      return [...byId.entries()].filter(([,pids]) => pids.size > 1)
+        .map(([id,pids]) => ({id,planIds:[...pids]}));
+    };
+    const cardIdCollisions = collisions(cards), deckIdCollisions = collisions(decks);
+    cardIdCollisions.forEach(x => anomalies.push(Object.assign({type:'card_id_collision_across_plans'},x)));
+    deckIdCollisions.forEach(x => anomalies.push(Object.assign({type:'deck_id_collision_across_plans'},x)));
+
+    const consistency = {
+      cardIdentity:'planId::cardId',
+      reviewIdentity:'planId::reviewId',
+      physicalRowsPreserved:scope === 'all',
+      identityCollisions:{cards:cardIdCollisions,decks:deckIdCollisions},
+      repsVsReviewLog:{checked:cards.length,mismatches:repsMismatches},
+      duplicateReviewIds,
+      orphanReviewEntries,
+      memoryReplay
+    };
+
     const payload = {
-      schema:'diario-estudos-cards-audit', version:3, exportedAt:now.toISOString(), appDate:todayCards(),
-      purpose:'Diagnóstico do agendador de cards, limites diários e possíveis repetições em loop.',
+      schema:'diario-estudos-cards-audit', version:4, exportedAt:now.toISOString(), appDate:todayCards(),
+      purpose:'Diagnóstico forense do agendador de cards, FSRS, fila, limites diários e integridade do histórico.',
       format:{
         encoding:'utf-8',
         serialization:'compact-json',
         cardKey:'planId::cardId',
-        reviewLog:'rawReviewLog é a fonte detalhada única; cards[*].reviewCount evita duplicar o histórico no arquivo.'
+        reviewLog:'rawReviewLog é a fonte detalhada única; cards[*].reviewCount evita duplicar o histórico no arquivo.',
+        historicalSnapshots:'rawReviewLog[*].s/d/phase são fotografias do instante da resposta e podem preservar estados de versões antigas. Para validar a memória atual, use grade+ts com configurationResolved e compare com consistency.memoryReplay.'
+      },
+      schedulerReference:{
+        algorithm:'FSRS-6',
+        studyModelVersion:FSRS.VERSAO || 6,
+        fsrsRs:'6.6.2',
+        ankiDifferentialOracle:'26.09.2',
+        latestCompatibleAnki:'26.09.3',
+        note:'Anki 26.09.3 não altera o scheduler/FSRS em relação a 26.09.2; o oráculo diferencial de agendamento permanece aplicável.'
       },
       scope:{
         mode:scope,
         label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento',
         activePlanId:activePlanId,
         activePlanName:activePlan ? activePlan.nome : null,
-        includedPlanIds:planIds
+        includedPlanIds:planIds,
+        includedPlans
       },
       environment:{ userAgent:navigator.userAgent, language:navigator.language, timezone:Intl.DateTimeFormat().resolvedOptions().timeZone, online:navigator.onLine },
-      // Configuração e contadores diários pertencem ao planejamento ativo; cards,
-      // baralhos e histórico obedecem ao escopo acima.
-      configurationScope:'active-plan',
-      configuration:cfg, dailyCounters:daily, decks,
+      configurationScope:'profile',
+      configuration:cfg,
+      configurationResolved:{
+        profile:{baseConfig:JSON.parse(JSON.stringify(cfg)),resolvedWeights:profileResolvedWeights,weightsSource:profileWeightsSource},
+        decks:deckConfigurations
+      },
+      dailyCountersScope:'profile',
+      dailyCounters:daily,
+      decks,
       summary:{cards:cards.length, revisionEntries:revlog.length, newCards:cards.filter(c=>CardsScreen._bucket(c)==='new').length, learningCards:cards.filter(c=>CardsScreen._bucket(c)==='learn').length, reviewCards:cards.filter(c=>CardsScreen._bucket(c)==='review').length, anomalies:anomalies.length},
-      queueSnapshot:{generatedAt:now.toISOString(), cardIds:(CardsScreen._reviewQueue || []).slice(), position:CardsScreen._reviewIdx, newRemaining:CardsConfig.newRemaining(), reviewRemaining:CardsConfig.revRemaining()},
+      queueSnapshot:{
+        generatedAt:now.toISOString(),
+        scope,
+        cardIds:(CardsScreen._reviewQueue || []).slice(),
+        position:CardsScreen._reviewIdx,
+        newRemaining:CardsConfig.newRemaining(),
+        reviewRemaining:CardsConfig.revRemaining(),
+        note:'A fila reflete o escopo exibido; os contadores diários são do perfil e, portanto, compartilhados entre planejamentos.'
+      },
+      consistency,
       cards:byCard, rawReviewLog:revlog, detectedAnomalies:anomalies
     };
     const sufixo = scope === 'all' ? 'todos-planejamentos' : 'planejamento-atual';

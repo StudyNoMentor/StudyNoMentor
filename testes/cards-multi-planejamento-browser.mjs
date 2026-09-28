@@ -111,6 +111,38 @@ try{
     matHost.querySelector('.cards-multi-filter-btn').click();
     document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
     out.escapeCloses=matHost.querySelector('.cards-multi-filter-panel').hidden;
+
+    // Auditoria v4: o arquivo global precisa ser autossuficiente e declarar
+    // corretamente que configuração/contadores pertencem ao perfil.
+    // Colisão legada proposital: a tela pode deduplicar visualmente, mas a
+    // auditoria global precisa preservar as duas linhas físicas e apontar o risco.
+    const dupId=DB.getCards()[0].id;
+    const rowsB=DB.getCardsForPlan(B).map(x=>{const y={...x};delete y._planId;delete y._planNome;return y;});
+    rowsB.push({id:dupId,deckId:'dkB',frente:'Duplicado legado',verso:'B',phase:'new'});
+    DB.saveCardsForPlan(B,rowsB);
+
+    CardsConfig.set({weights:null});
+    CardsConfig.setDeckPreset('dkB',{retention:0.88,weights:FSRS.DEFAULT_W.slice()});
+    const oldDownload=CardsScreen._download;let auditDownload=null;
+    CardsScreen._download=(name,content,mime)=>{auditDownload={name,content,mime};};
+    CardsScreen.exportAudit();
+    CardsScreen._download=oldDownload;
+    const audit=JSON.parse(auditDownload.content);
+    const cfgB=audit.configurationResolved.decks.find(x=>String(x.deckId)==='dkB');
+    out.audit={
+      filename:auditDownload.name,
+      version:audit.version,
+      configScope:audit.configurationScope,
+      dailyScope:audit.dailyCountersScope,
+      includedPlans:audit.scope.includedPlans,
+      weights:audit.configurationResolved.profile.resolvedWeights,
+      deckB:cfgB,
+      historicalSnapshots:audit.format.historicalSnapshots,
+      scheduler:audit.schedulerReference,
+      consistency:audit.consistency,
+      exportedCardKeys:Object.keys(audit.cards),
+      planBId:B
+    };
     return out;
   });
   await page.setViewportSize({width:390,height:844});
@@ -139,6 +171,15 @@ try{
   ok(r.searchWorks,'busca interna reduz as opções sem alterar a seleção');
   ok(r.outsideCloses,'dropdown fecha ao clicar fora');
   ok(r.escapeCloses,'dropdown fecha pela tecla Escape');
+  ok(r.audit.version===4&&r.audit.filename.endsWith('.json.txt'),'auditoria exporta schema v4 no formato móvel compatível');
+  ok(r.audit.configScope==='profile'&&r.audit.dailyScope==='profile','auditoria declara corretamente configuração e contadores no escopo do perfil');
+  ok(Array.isArray(r.audit.weights)&&r.audit.weights.length===21,'auditoria resolve e exporta os 21 pesos FSRS efetivamente usados');
+  ok(r.audit.deckB&&r.audit.deckB.weightsSource==='deck-preset'&&r.audit.deckB.effectiveConfig.retention===0.88&&r.audit.deckB.resolvedWeights.length===21,'auditoria exporta preset, configuração efetiva e pesos por baralho');
+  ok(r.audit.includedPlans.some(p=>p.name==='Plano B'&&p.cards>=2),'auditoria global resume cada planejamento incluído');
+  ok(String(r.audit.historicalSnapshots).includes('fotografias')&&r.audit.consistency&&r.audit.consistency.memoryReplay,'auditoria documenta snapshots históricos e inclui replay de memória');
+  ok(r.audit.scheduler.fsrsRs==='6.6.2'&&r.audit.scheduler.latestCompatibleAnki==='26.09.3','auditoria identifica FSRS e referência Anki compatível');
+  ok(r.audit.consistency.physicalRowsPreserved===true&&r.audit.consistency.identityCollisions.cards.length===1,'auditoria global detecta colisão legada de cardId entre planejamentos');
+  ok(r.audit.exportedCardKeys.some(k=>k.startsWith(r.audit.planBId+'::'))&&new Set(r.audit.exportedCardKeys.map(k=>k.split('::')[1])).size<r.audit.exportedCardKeys.length,'auditoria preserva as duas linhas físicas usando planId::cardId');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
