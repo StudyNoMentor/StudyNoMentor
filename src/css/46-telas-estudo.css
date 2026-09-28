@@ -301,7 +301,8 @@ html[data-theme="dark"] #screen-registrar.reg-v2 #study-form .reg-pill.on{
   border-color:var(--accent-hover);
 }
 html[data-theme="dark"] #screen-registrar.reg-v2 #study-form #submit-btn{
-  background:linear-gradient(180deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 82%,#000) 100%);
+  background-color:var(--accent);
+  background-image:linear-gradient(180deg,var(--accent) 0%,color-mix(in srgb,var(--accent) 82%,#000) 100%);
 }
 @media(max-width:420px){
   #screen-registrar.reg-v2[data-reg-mode="compacto"] #study-form :is(.reg-f-materia,.reg-f-aula,.reg-f-metodo,.reg-f-data,.reg-f-tempo,.reg-f-desemp){padding:12px!important}
