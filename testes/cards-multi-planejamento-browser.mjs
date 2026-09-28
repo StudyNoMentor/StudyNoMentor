@@ -140,7 +140,8 @@ try{
       historicalSnapshots:audit.format.historicalSnapshots,
       scheduler:audit.schedulerReference,
       consistency:audit.consistency,
-      exportedCardKeys:Object.keys(audit.cards)
+      exportedCardKeys:Object.keys(audit.cards),
+      planBId:B
     };
     return out;
   });
@@ -178,7 +179,7 @@ try{
   ok(String(r.audit.historicalSnapshots).includes('fotografias')&&r.audit.consistency&&r.audit.consistency.memoryReplay,'auditoria documenta snapshots históricos e inclui replay de memória');
   ok(r.audit.scheduler.fsrsRs==='6.6.2'&&r.audit.scheduler.latestCompatibleAnki==='26.09.3','auditoria identifica FSRS e referência Anki compatível');
   ok(r.audit.consistency.physicalRowsPreserved===true&&r.audit.consistency.identityCollisions.cards.length===1,'auditoria global detecta colisão legada de cardId entre planejamentos');
-  ok(r.audit.exportedCardKeys.some(k=>k.startsWith(B+'::'))&&new Set(r.audit.exportedCardKeys.map(k=>k.split('::')[1])).size<r.audit.exportedCardKeys.length,'auditoria preserva as duas linhas físicas usando planId::cardId');
+  ok(r.audit.exportedCardKeys.some(k=>k.startsWith(r.audit.planBId+'::'))&&new Set(r.audit.exportedCardKeys.map(k=>k.split('::')[1])).size<r.audit.exportedCardKeys.length,'auditoria preserva as duas linhas físicas usando planId::cardId');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
