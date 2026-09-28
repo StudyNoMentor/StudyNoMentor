@@ -39,7 +39,7 @@ from google.protobuf.json_format import MessageToDict, ParseDict
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
-ANKI_VERSION = "26.09.2"
+ANKI_VERSION = "26.09.3"
 DATA_DIR = Path(os.environ.get("ANKI_DATA_DIR", "/data/anki-official")).resolve()
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://gizhxgnbmmhhniubelbz.supabase.co").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
@@ -70,7 +70,7 @@ app = FastAPI(
     lifespan=lifespan,
     title="StudyNoMentor — Anki Official Bridge",
     version=ANKI_VERSION,
-    description="Thin authenticated bridge to the upstream Anki 26.09.2 Python/Rust backend.",
+    description="Thin authenticated bridge to the upstream Anki 26.09.3 Python/Rust backend.",
 )
 app.add_middleware(
     CORSMiddleware,
