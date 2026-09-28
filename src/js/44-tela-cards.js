@@ -2383,11 +2383,16 @@ const CardsScreen = {
     // A auditoria segue exatamente o mesmo escopo que o usuário está vendo em
     // Cards. "Todos" une a memória dos planejamentos; "Este planejamento"
     // mantém o recorte local. Os helpers preservam _planId/_planNome.
-    const cards = this.collectionCards();
+    /* Para auditoria global, leia as linhas físicas de todos os planos sem a
+       deduplicação visual da tela. Assim IDs antigos reutilizados em dois
+       planejamentos aparecem no arquivo e podem ser diagnosticados. */
+    const cards = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
+      ? StudyGlobalScope.allBy('cards') : this.collectionCards();
     const revlog = this._statsRevlog(false);
     const cfg = CardsConfig.get();
     const daily = CardsConfig._daily();
-    const decks = this.collectionDecks();
+    const decks = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
+      ? StudyGlobalScope.allBy('decks') : this.collectionDecks();
     const activePlan = (typeof PlanManager !== 'undefined' && PlanManager.getActivePlan)
       ? PlanManager.getActivePlan() : null;
     const activePlanId = activePlan ? activePlan.id : null;
@@ -2548,9 +2553,26 @@ const CardsScreen = {
     orphanReviewEntries.forEach(x => anomalies.push(Object.assign({type:'orphan_revlog'},x)));
     memoryReplay.divergences.forEach(x => anomalies.push(Object.assign({type:'memory_replay_divergence'},x)));
 
+    const collisions = (rows) => {
+      const byId = new Map();
+      (rows || []).forEach(row => {
+        if (!row || row.id == null) return;
+        const id = String(row.id), pid = String(row._planId || activePlanId || '');
+        if (!byId.has(id)) byId.set(id, new Set());
+        byId.get(id).add(pid);
+      });
+      return [...byId.entries()].filter(([,pids]) => pids.size > 1)
+        .map(([id,pids]) => ({id,planIds:[...pids]}));
+    };
+    const cardIdCollisions = collisions(cards), deckIdCollisions = collisions(decks);
+    cardIdCollisions.forEach(x => anomalies.push(Object.assign({type:'card_id_collision_across_plans'},x)));
+    deckIdCollisions.forEach(x => anomalies.push(Object.assign({type:'deck_id_collision_across_plans'},x)));
+
     const consistency = {
       cardIdentity:'planId::cardId',
       reviewIdentity:'planId::reviewId',
+      physicalRowsPreserved:scope === 'all',
+      identityCollisions:{cards:cardIdCollisions,decks:deckIdCollisions},
       repsVsReviewLog:{checked:cards.length,mismatches:repsMismatches},
       duplicateReviewIds,
       orphanReviewEntries,
