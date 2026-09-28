@@ -114,6 +114,13 @@ try{
 
     // Auditoria v4: o arquivo global precisa ser autossuficiente e declarar
     // corretamente que configuração/contadores pertencem ao perfil.
+    // Colisão legada proposital: a tela pode deduplicar visualmente, mas a
+    // auditoria global precisa preservar as duas linhas físicas e apontar o risco.
+    const dupId=DB.getCards()[0].id;
+    const rowsB=DB.getCardsForPlan(B).map(x=>{const y={...x};delete y._planId;delete y._planNome;return y;});
+    rowsB.push({id:dupId,deckId:'dkB',frente:'Duplicado legado',verso:'B',phase:'new'});
+    DB.saveCardsForPlan(B,rowsB);
+
     CardsConfig.set({weights:null});
     CardsConfig.setDeckPreset('dkB',{retention:0.88,weights:FSRS.DEFAULT_W.slice()});
     const oldDownload=CardsScreen._download;let auditDownload=null;
@@ -132,7 +139,8 @@ try{
       deckB:cfgB,
       historicalSnapshots:audit.format.historicalSnapshots,
       scheduler:audit.schedulerReference,
-      consistency:audit.consistency
+      consistency:audit.consistency,
+      exportedCardKeys:Object.keys(audit.cards)
     };
     return out;
   });
@@ -169,6 +177,8 @@ try{
   ok(r.audit.includedPlans.some(p=>p.name==='Plano B'&&p.cards>=2),'auditoria global resume cada planejamento incluído');
   ok(String(r.audit.historicalSnapshots).includes('fotografias')&&r.audit.consistency&&r.audit.consistency.memoryReplay,'auditoria documenta snapshots históricos e inclui replay de memória');
   ok(r.audit.scheduler.fsrsRs==='6.6.2'&&r.audit.scheduler.latestCompatibleAnki==='26.09.3','auditoria identifica FSRS e referência Anki compatível');
+  ok(r.audit.consistency.physicalRowsPreserved===true&&r.audit.consistency.identityCollisions.cards.length===1,'auditoria global detecta colisão legada de cardId entre planejamentos');
+  ok(r.audit.exportedCardKeys.some(k=>k.startsWith(B+'::'))&&new Set(r.audit.exportedCardKeys.map(k=>k.split('::')[1])).size<r.audit.exportedCardKeys.length,'auditoria preserva as duas linhas físicas usando planId::cardId');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
