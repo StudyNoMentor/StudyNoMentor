@@ -1487,6 +1487,130 @@
     });
   };
 
+
+  S.moveCardsUi=function(ids){
+    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    const origins=new Set(cards.map(c=>String(c._planId||this.sourcePlanForCard(c.id)||'')));
+    if(origins.size!==1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
+    const pid=[...origins][0],decks=(DB.getDecksForPlan?DB.getDecksForPlan(pid):this._tag(pid,this._rows(pid,'decks')))
+      .filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    if(!decks.length){showToast('Crie um baralho antes de mover.');return;}
+    UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{
+      if(!v)return;
+      cards.forEach(c=>this.updateCardScoped(c,(c.filteredDeckId||c.originalDeckId)?{originalDeckId:v.deck}:{deckId:v.deck},pid));
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) movido(s) ✓');
+    });
+  };
+
+  S.toggleSuspendScoped=function(ids){
+    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    const should=cards.some(c=>!c.suspenso);
+    cards.forEach(c=>this.suspendCardScoped(c,should));
+    this._refreshAnkiBrowser();showToast(should?'Card(s) suspenso(s) ✓':'Card(s) reativado(s) ✓');
+  };
+
+  S.bulkFlagScoped=function(ids){
+    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    UI.prompt([{key:'flag',label:'Bandeira',type:'select',value:'0',options:[0,1,2,3,4,5,6,7].map(n=>({value:String(n),label:n===0?'Sem bandeira':DB.FLAGS[n].nome}))}],{title:'🚩 Definir bandeira',okText:'Aplicar'}).then(v=>{
+      if(!v)return;const flag=Number(v.flag)||0;
+      cards.forEach(c=>this.updateCardScoped(c,{flag:flag>=1&&flag<=7?flag:0},c._planId));
+      this._refreshAnkiBrowser();showToast('Bandeiras atualizadas ✓');
+    });
+  };
+
+  S.createCopyFromCard=function(card){
+    if(!card)return null;
+    const pid=card._planId||this.sourcePlanForCard(card.id)||this.activePlanId();
+    const nid=AnkiProductParity.noteId(card),note=AnkiParity.getNote(nid,pid);if(!note)return null;
+    const copy=clone(note),now=new Date().toISOString();
+    copy.id=AnkiParity._allocId?AnkiParity._allocId():DB._uid();copy.ankiId=copy.id;
+    copy.guid=DB._uid();copy.ankiGuid=copy.guid;copy.createdAt=now;copy.updatedAt=now;copy._planId=pid;delete copy._planNome;
+    const saved=AnkiParity.saveNote(copy,pid),nt=AnkiProductParity._typeFor(saved);
+    AnkiProductParity.reconcileNote(saved,nt);
+    AnkiProductParity._cardsForNote(saved,pid).forEach(c=>this.updateCardScoped(c,{deckId:card.originalDeckId||card.deckId||c.deckId},pid));
+    AnkiProductParity.openNoteEditor(saved);showToast('Cópia criada ✓');return saved;
+  };
+
+  S.installAnkiUsabilityParity=function(){
+    if(this._ankiUsabilityParityInstalled||typeof AnkiProductParity==='undefined'||typeof AnkiParity==='undefined')return;
+    this._ankiUsabilityParityInstalled=true;const AP=AnkiProductParity;
+
+    AP.editTags=ids=>this.editTagsScoped(ids);
+    AP.bulkMark=ids=>this.bulkMarkScoped(ids);
+    AP.bulkFindReplace=ids=>this.bulkFindReplaceUi(ids);
+    AP.bulkSetDue=ids=>this.bulkSetDueUi(ids);
+    AP.bulkForget=ids=>this.bulkResetUi(ids);
+    AP.bulkReposition=ids=>this.bulkRepositionUi(ids);
+    AP.bulkMoveDeck=ids=>this.moveCardsUi(ids);
+    AP.toggleSuspend=ids=>this.toggleSuspendScoped(ids);
+    AP.bulkFlag=ids=>this.bulkFlagScoped(ids);
+    AP.deleteNotes=ids=>this.deleteNotesScoped(ids);
+
+    if(typeof AnkiMaxParity!=='undefined'){
+      AnkiMaxParity._bulkCardsMove=ids=>this.moveCardsUi(ids);
+      AnkiMaxParity._bulkCardsDue=ids=>this.bulkSetDueUi(ids);
+      AnkiMaxParity._bulkCardsForget=ids=>this.bulkResetUi(ids);
+      AnkiMaxParity._bulkCardsReposition=ids=>this.bulkRepositionUi(ids);
+
+      AnkiMaxParity.openReviewerActions=()=>{
+        const c=AP._currentReviewCard();if(!c)return;
+        const pid=c._planId||this.sourcePlanForCard(c.id)||this.activePlanId();
+        const note=AnkiParity.getNote(AP.noteId(c),pid);
+        const cardRef='c:'+encodeURIComponent(String(pid))+'::'+encodeURIComponent(String(c.id));
+        const opts=[];
+        if((CardsScreen._redoStack||[]).length)opts.push({value:'redo',label:'↷ Refazer última ação'});
+        opts.push(
+          {value:'mark',label:'★ Marcar/desmarcar nota'},{value:'tags',label:'🏷 Editar etiquetas'},
+          {value:'buryCard',label:'⤓ Enterrar card'},{value:'buryNote',label:'⤓ Enterrar nota'},
+          {value:'suspendCard',label:'🚫 Suspender card'},{value:'suspendNote',label:'🚫 Suspender nota'},
+          {value:'reset',label:'↺ Resetar / tornar novo'},{value:'due',label:'📅 Definir vencimento'},
+          {value:'copy',label:'⧉ Criar cópia da nota'},
+          {value:'hint',label:'💡 Mostrar dica'},{value:'allHints',label:'💡 Mostrar todas as dicas'},
+          {value:'media',label:'▶ Repetir mídia'},{value:'pauseMedia',label:'⏸ Pausar mídia'},
+          {value:'backMedia',label:'⏪ Áudio -5s'},{value:'forwardMedia',label:'⏩ Áudio +5s'},
+          {value:'tts',label:'🎙 Texto para voz'},{value:'recordVoice',label:'🎤 Gravar própria voz'},
+          {value:'replayVoice',label:'🔊 Reproduzir própria voz'},{value:'whiteboard',label:'✍ Quadro'},
+          {value:'infoPrev',label:'ℹ Informações do card anterior'},{value:'add',label:'＋ Adicionar nota'},
+          {value:'browse',label:'🗃 Navegador'},{value:'stats',label:'📊 Estatísticas'},
+          {value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}
+        );
+        UI.prompt([{key:'action',label:'Ação',type:'select',value:opts[0].value,options:opts}],{title:'⋯ Mais ações',okText:'Abrir'}).then(v=>{
+          if(!v)return;const a=v.action,cardsForNote=note?AP._cardsForNote(note,pid):[c];
+          if(a==='redo')CardsScreen.redoAnswer();
+          else if(a==='mark'&&note){
+            const on=!(note.tags||[]).some(t=>String(t).toLowerCase()==='marked');
+            let tags=(note.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');if(on)tags.push('marked');
+            AnkiParity.saveNote(Object.assign({},note,{tags}),pid);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(on?'★ Nota marcada':'Marcação removida');
+          }
+          else if(a==='tags'&&note)this.editTagsScoped([note]);
+          else if(a==='buryCard'){this.buryCardScoped(c);AnkiMaxParity._advanceRemoved([c.id]);showToast('Card enterrado até amanhã');}
+          else if(a==='buryNote'){cardsForNote.forEach(x=>this.buryCardScoped(x));AnkiMaxParity._advanceRemoved(cardsForNote.map(x=>x.id));showToast('Nota enterrada até amanhã');}
+          else if(a==='suspendCard'){this.suspendCardScoped(c,true);AnkiMaxParity._advanceRemoved([c.id]);showToast('Card suspenso');}
+          else if(a==='suspendNote'){cardsForNote.forEach(x=>this.suspendCardScoped(x,true));AnkiMaxParity._advanceRemoved(cardsForNote.map(x=>x.id));showToast('Nota suspensa');}
+          else if(a==='reset')this.bulkResetUi([cardRef]);
+          else if(a==='due')this.bulkSetDueUi([cardRef]);
+          else if(a==='copy')this.createCopyFromCard(Object.assign({},c,{_planId:pid}));
+          else if(a==='hint')AnkiMaxParity.showHints(false);
+          else if(a==='allHints')AnkiMaxParity.showHints(true);
+          else if(a==='media')AP.replayMedia(c);
+          else if(a==='pauseMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.pauseAv)AnkiRuntime.pauseAv();
+          else if(a==='backMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(-5);
+          else if(a==='forwardMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(5);
+          else if(a==='tts')AP.speakCard(c);
+          else if(a==='recordVoice')AnkiMaxParity.openVoiceRecorder();
+          else if(a==='replayVoice')AnkiMaxParity.replayOwnVoice();
+          else if(a==='whiteboard')AP.openWhiteboard();
+          else if(a==='infoPrev')AnkiMaxParity.previousCardInfo();
+          else if(a==='add')CardsScreen.openCardModal();
+          else if(a==='browse')AP.openBrowser();
+          else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}
+          else if(a==='type'&&note)AP.openChangeType([note]);
+          else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
+        });
+      };
+    }
+  };
+
   const boot = () => {
     S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
