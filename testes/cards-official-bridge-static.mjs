@@ -104,6 +104,15 @@ assert.match(backend,/def cards_official_image_occlusion_setup[\s\S]*?add_image_
 assert.match(backend,/def cards_official_add_image_occlusion_note[\s\S]*?item\.col\.add_image_occlusion_note/,'criação de Image Occlusion deve usar Collection oficial');
 assert.match(backend,/def cards_official_update_image_occlusion_note[\s\S]*?item\.col\.update_image_occlusion_note/,'edição de Image Occlusion deve usar Collection oficial');
 assert.match(imageOcclusion,/CardsOfficialBridge\.saveOfficialImageOcclusion\(this\.state,payload\)/,'editor visual de IO deve salvar pelo backend oficial');
+assert.match(imageOcclusion,/x\.toFixed\(4\)\.replace\(\/\^0\+\|0\+\$\/g,''\)/,'Image Occlusion deve usar floatToDisplay equivalente ao upstream');
+assert.match(imageOcclusion,/image-occlusion:ellipse:[\s\S]*?:rx=[\s\S]*?:ry=/,'ellipse oficial deve serializar rx\/ry');
+assert.ok(!/image-occlusion:ellipse:[^\n]*:width=/.test(imageOcclusion),'ellipse não pode gravar width\/height fora do contrato oficial');
+assert.match(backend,/def cards_official_import_apkg[\s\S]*?item\.col\.import_anki_package\(request\)/,'APKG dos Cards deve importar pela Collection oficial');
+assert.match(backend,/def cards_official_export_apkg[\s\S]*?item\.col\.export_anki_package/,'APKG dos Cards deve exportar pela Collection oficial');
+assert.match(backend,/def cards_official_import_colpkg[\s\S]*?backend\.import_collection_package/,'COLPKG dos Cards deve importar pelo backend oficial');
+assert.match(backend,/def cards_official_export_colpkg[\s\S]*?item\.col\.export_collection_package/,'COLPKG dos Cards deve exportar pela Collection oficial');
+assert.match(bridge,/async exportOfficialPackage\(kind,options\)[\s\S]*?\/api\/cards-official\/export\//,'UI deve baixar o pacote produzido pelo Anki oficial');
+assert.match(bridge,/async importOfficialPackage\(file,options\)[\s\S]*?\/api\/cards-official\/import\//,'UI deve executar importação de pacote no Anki oficial');
 assert.match(backend,/def cards_official_collection_graphs[\s\S]*?item\.col\._backend\.graphs/,'Stats dos Cards precisam vir do Graphs oficial');
 assert.match(backend,/def cards_official_custom_study[\s\S]*?item\.col\.sched\.custom_study/,'Custom Study dos Cards precisa usar scheduler oficial');
 assert.match(bridge,/async runCustomStudy\(\)[\s\S]*?\/api\/cards-official\/custom-study/,'UI de Custom Study deve chamar a coleção oficial');
@@ -160,6 +169,10 @@ for(const path of [
   '/api/cards-official/image-occlusion/image',
   '/api/cards-official/image-occlusion/note',
   '/api/cards-official/image-occlusion/note/{note_id}',
+  '/api/cards-official/import/apkg',
+  '/api/cards-official/import/colpkg',
+  '/api/cards-official/export/apkg',
+  '/api/cards-official/export/colpkg',
   '/api/cards-official/browser/ids',
   '/api/cards-official/browser/facets',
   '/api/cards-official/browser/bulk',
