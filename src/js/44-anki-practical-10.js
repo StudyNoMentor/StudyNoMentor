@@ -382,7 +382,7 @@ const AnkiPractical10 = {
     else if(a==='add')CardsScreen.openCardModal();
     else if(a==='browse')AnkiProductParity.openBrowser();
     else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}
-    else if(a==='type')AnkiProductParity.openChangeType(['n:'+nid]);
+    else if(a==='type'){const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):null;AnkiProductParity.openChangeType([n||('n:'+nid)]);}
     else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     else if(a==='delete')document.getElementById('cards-act-del')?.click();
   },
