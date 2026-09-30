@@ -86,6 +86,15 @@ assert.ok(!/DB\.setDueSpec\(/.test(bridge),'bridge Browser não pode reagendar p
 assert.ok(!/DB\.resetCard\(/.test(bridge),'bridge Browser não pode resetar pelo DB local');
 assert.match(backend,/item\.col\.models\.change_notetype_info\(/,'mapa de mudança de tipo deve vir do Anki');
 assert.match(backend,/item\.col\.models\.change_notetype_of_notes\(request\)/,'mudança de tipo deve ser executada pelo Anki');
+assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.new_field\(name\)[\s\S]*?item\.col\.models\.add_field\(nt, field\)/,'campo novo de NoteType deve nascer no NoteTypeManager oficial');
+assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.rename_field\(nt, field, name\)/,'renomear campo deve usar NoteTypeManager oficial');
+assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.remove_field\(nt, field\)[\s\S]*?item\.col\.models\.reposition_field\(nt, field, idx\)/,'remoção e ordem de campos devem usar NoteTypeManager oficial');
+assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.new_template\(name\)[\s\S]*?item\.col\.models\.add_template\(nt, template\)/,'template novo deve nascer no NoteTypeManager oficial');
+assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.remove_template\(nt, template\)[\s\S]*?item\.col\.models\.reposition_template\(nt, template, idx\)/,'remoção e ordem de templates devem usar NoteTypeManager oficial');
+assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.update_dict\(nt, skip_checks=False\)/,'persistência final de NoteType deve ser validada pelo Anki oficial');
+assert.ok(!/async updateOfficialNotetype[\s\S]{0,2200}AnkiExport\.modelSchema/.test(bridge),'bridge não pode serializar/reimplementar NoteType localmente');
+assert.match(bridge,/async updateOfficialNotetype\(old,nt,notes,meta\)[\s\S]*?JSON\.stringify\(\{edit\}\)/,'Study deve enviar somente comandos semânticos da casca para o NoteTypeManager oficial');
+assert.match(product,/fieldSources=.*?_source[\s\S]*?templateSources=.*?_sourceOrd[\s\S]*?CardsOfficialBridge\.updateOfficialNotetype\(old,clean,notes,\{fieldSources,templateSources\}\)/,'UI só deve indicar identidade visual de campos/templates; mutação pertence ao Anki');
 assert.match(bridge,/input\.new_fields=\[\.\.\.document\.querySelectorAll/,'field map da UI deve virar new_fields oficial');
 assert.match(bridge,/input\.new_templates=templates\.map/,'template map deve virar new_templates oficial');
 assert.match(bridge,/await this\._reconcileOfficialCardSet\(out\.notes\|\|\[\],out\.cards\|\|\[\]\)/,'cards locais devem seguir conjunto final oficial');
