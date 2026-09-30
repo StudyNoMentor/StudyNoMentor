@@ -440,27 +440,78 @@ const AnkiMaxStatsMedia = {
     return {duplicateCardIds:[...cardAnki.values()].filter(x=>x.length>1),orphanNotes,badOrd,badFiltered,badTypes};
   },
   async renderExtendedCheck(){
-    const body=document.getElementById('anki-check-body');if(!body)return;const s=this.structuralIssues(),wrap=document.createElement('div');wrap.id='anki-check-extended';wrap.innerHTML='<p class="hint">Verificando inventário de mídia…</p>';body.appendChild(wrap);
-    const m=await this.scanMedia();if(!document.getElementById('anki-check-extended'))return;
-    wrap.innerHTML='<h3 class="anki-section-title">Verificação ampliada</h3><div class="anki-check-grid">'+
-      [['Notas sem cards',s.orphanNotes.length],['Ordinais de template inválidos',s.badOrd.length],['Filtered cards sem home deck',s.badFiltered.length],['Note Types inválidos',s.badTypes.length],['IDs Anki de card duplicados',s.duplicateCardIds.length],['Mídias armazenadas',m.active.length],['Referências ausentes',m.missing.length],['Mídias não utilizadas',m.unused.length],['Duplicatas de mídia',m.duplicates.length],['Lixeira de mídia',m.trash.length]].map(r=>'<div><span>'+AnkiProductParity.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
-      (m.missing.length?'<details><summary>Mídia ausente</summary><div class="anki-check-details">'+m.missing.slice(0,80).map(x=>'<div>'+AnkiProductParity.esc(x.where)+' → <code>'+AnkiProductParity.esc(x.ref)+'</code></div>').join('')+'</div></details>':'')+
-      '<div class="anki-media-actions"><button class="btn-secondary" id="anki-media-tag-missing" '+(!m.noteMissing.size?'disabled':'')+'>🏷 Etiquetar notas com mídia ausente</button><button class="btn-secondary" id="anki-media-trash-unused" '+(!m.unused.length?'disabled':'')+'>🗑 Mover não utilizadas para lixeira</button><button class="btn-secondary" id="anki-media-restore" '+(!m.trash.length?'disabled':'')+'>↺ Restaurar lixeira</button><button class="btn-danger" id="anki-media-empty-trash" '+(!m.trash.length?'disabled':'')+'>Esvaziar lixeira</button></div>';
-    const tag=document.getElementById('anki-media-tag-missing');if(tag)tag.onclick=()=>this.tagMissing(m);
-    const tr=document.getElementById('anki-media-trash-unused');if(tr)tr.onclick=()=>this.trashUnused(m);
-    const rr=document.getElementById('anki-media-restore');if(rr)rr.onclick=async()=>{const n=await AnkiMediaStore.restoreAll();showToast(n+' mídia(s) restaurada(s)');AnkiProductParity.renderCheck();};
-    const et=document.getElementById('anki-media-empty-trash');if(et)et.onclick=()=>UI.confirm('Excluir permanentemente as mídias da lixeira?',{title:'Esvaziar lixeira de mídia',okText:'Excluir',danger:true}).then(async ok=>{if(!ok)return;const n=await AnkiMediaStore.emptyTrash();showToast(n+' mídia(s) removida(s)');AnkiProductParity.renderCheck();});
+    const body=document.getElementById('anki-check-body');if(!body)return;
+    const s=this.structuralIssues(),wrap=document.createElement('div');wrap.id='anki-check-extended';
+    wrap.innerHTML='<p class="hint">Executando Check Media pela Collection oficial do Anki 26.09.3…</p>';body.appendChild(wrap);
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.checkOfficialMedia!=='function'){
+      wrap.innerHTML='<p class="hint tone-bad">Backend oficial do Anki indisponível. Nenhuma verificação local foi usada como substituta.</p>';return;
+    }
+    try{
+      const m=await CardsOfficialBridge.checkOfficialMedia();
+      if(!document.getElementById('anki-check-extended'))return;
+      const unused=Array.isArray(m.unused)?m.unused:[],missing=Array.isArray(m.missing)?m.missing:[],
+        missingNotes=Array.isArray(m.missing_media_notes)?m.missing_media_notes:(Array.isArray(m.missingMediaNotes)?m.missingMediaNotes:[]),
+        haveTrash=!!(m.have_trash!=null?m.have_trash:m.haveTrash),report=String(m.report||'');
+      wrap.innerHTML='<h3 class="anki-section-title">Verificação oficial</h3><div class="anki-check-grid">'+
+        [['Notas sem cards (espelho)',s.orphanNotes.length],['Ordinais inválidos (espelho)',s.badOrd.length],['Filtered sem home deck (espelho)',s.badFiltered.length],['Note Types inválidos (espelho)',s.badTypes.length],['IDs Anki duplicados (espelho)',s.duplicateCardIds.length],['Referências ausentes',missing.length],['Mídias não utilizadas',unused.length],['Lixeira de mídia',haveTrash?1:0]]
+        .map(r=>'<div><span>'+AnkiProductParity.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
+        (report?'<details open><summary>Relatório do Check Media</summary><pre class="anki-check-report">'+AnkiProductParity.esc(report)+'</pre></details>':'')+
+        '<div class="anki-media-actions">'+
+          '<button class="btn-secondary" id="anki-media-tag-missing" '+(!missingNotes.length?'disabled':'')+'>🏷 Etiquetar notas com mídia ausente</button>'+
+          '<button class="btn-secondary" id="anki-media-trash-unused" '+(!unused.length?'disabled':'')+'>🗑 Excluir não utilizadas</button>'+
+          '<button class="btn-secondary" id="anki-media-render-latex" '+(!missing.some(x=>String(x).startsWith('latex-'))?'disabled':'')+'>∑ Renderizar LaTeX</button>'+
+          '<button class="btn-secondary" id="anki-media-restore" '+(!haveTrash?'disabled':'')+'>↺ Restaurar lixeira</button>'+
+          '<button class="btn-danger" id="anki-media-empty-trash" '+(!haveTrash?'disabled':'')+'>Esvaziar lixeira</button></div>';
+      const tag=document.getElementById('anki-media-tag-missing');if(tag)tag.onclick=()=>void this.tagMissingOfficial(missingNotes);
+      const tr=document.getElementById('anki-media-trash-unused');if(tr)tr.onclick=()=>void this.trashUnusedOfficial(unused);
+      const latex=document.getElementById('anki-media-render-latex');if(latex)latex.onclick=()=>void this.renderLatexOfficial();
+      const rr=document.getElementById('anki-media-restore');if(rr)rr.onclick=()=>void this.restoreTrashOfficial();
+      const et=document.getElementById('anki-media-empty-trash');if(et)et.onclick=()=>void this.emptyTrashOfficial();
+    }catch(e){
+      wrap.innerHTML='<p class="hint tone-bad">Check Media oficial falhou: '+AnkiProductParity.esc(e&&e.message?e.message:String(e))+'</p><p class="hint">Nenhum scanner local foi usado como fallback.</p>';
+    }
   },
-  tagMissing(scan){
-    let n=0;scan.noteMissing.forEach((refs,id)=>{const note=AnkiParity.getNote(id);if(!note)return;const tags=[...(note.tags||[])];if(!tags.some(t=>String(t).toLowerCase()==='missing-media'))tags.push('missing-media');AnkiParity.saveNote(Object.assign({},note,{tags}));n++;});showToast(n+' nota(s) etiquetada(s) com missing-media');AnkiProductParity.renderCheck();
+  async tagMissingOfficial(noteIds){
+    try{
+      const out=await CardsOfficialBridge.tagOfficialMissingMedia(noteIds);
+      if(out&&out.count)showToast(out.count+' nota(s) etiquetada(s) com missing-media pelo Anki oficial ✓');
+      else showToast('Nenhuma nota precisava da tag missing-media');
+      CardsOfficialBridge.invalidate('media-tag-missing');await CardsOfficialBridge.bootstrap(true);AnkiProductParity.renderCheck();
+    }catch(e){showToast('Não foi possível etiquetar: '+(e&&e.message?e.message:String(e)));}
   },
-  async trashUnused(scan){for(const m of scan.unused)await AnkiMediaStore.trash(m.name);showToast(scan.unused.length+' mídia(s) movida(s) para a lixeira');AnkiProductParity.renderCheck();},
-  repairAdvanced(){
-    const s=this.structuralIssues();let n=0;
-    s.badOrd.forEach(id=>{DB.updateCard(id,{ankiTemplateOrd:0});n++;});
-    s.badFiltered.forEach(id=>{const c=DB.getCard(id);if(!c)return;DB.updateCard(id,{originalDeckId:null,originalDue:null,originalDueTs:null,originalPhase:null,filteredDeckId:null,filteredPosition:null,filteredReschedule:null});n++;});
-    const seen=new Set();for(const note of AnkiParity.notes()){let g=String(note.guid||'');if(!g||seen.has(g)){g='snm-'+Number(AnkiParity._allocId()).toString(36);AnkiParity.saveNote(Object.assign({},note,{guid:g}));n++;}seen.add(g);}
-    CardEngine.invalidateDueCache();AnkiProductParity.renderCheck();CardsScreen.render();showToast(n?n+' reparo(s) avançado(s) aplicado(s) ✓':'Nada adicional para reparar');
+  async trashUnusedOfficial(files){
+    if(!files||!files.length)return;
+    const ok=await UI.confirm('Excluir '+files.length+' mídia(s) não utilizadas? O Anki moverá os arquivos para a lixeira.',{title:'Excluir mídia não utilizada',okText:'Excluir',danger:true});
+    if(!ok)return;
+    try{
+      await CardsOfficialBridge.trashOfficialMedia(files);showToast(files.length+' mídia(s) movida(s) para a lixeira pelo Anki oficial ✓');AnkiProductParity.renderCheck();
+    }catch(e){showToast('Não foi possível excluir as mídias: '+(e&&e.message?e.message:String(e)));}
+  },
+  async restoreTrashOfficial(){
+    try{await CardsOfficialBridge.restoreOfficialMediaTrash();showToast('Lixeira de mídia restaurada pelo Anki oficial ✓');AnkiProductParity.renderCheck();}
+    catch(e){showToast('Não foi possível restaurar a lixeira: '+(e&&e.message?e.message:String(e)));}
+  },
+  async emptyTrashOfficial(){
+    const ok=await UI.confirm('Excluir permanentemente as mídias da lixeira?',{title:'Esvaziar lixeira de mídia',okText:'Excluir',danger:true});if(!ok)return;
+    try{await CardsOfficialBridge.emptyOfficialMediaTrash();showToast('Lixeira de mídia esvaziada pelo Anki oficial ✓');AnkiProductParity.renderCheck();}
+    catch(e){showToast('Não foi possível esvaziar a lixeira: '+(e&&e.message?e.message:String(e)));}
+  },
+  async renderLatexOfficial(){
+    try{
+      const out=await CardsOfficialBridge.renderOfficialLatexMedia();
+      if(out&&out.ok)showToast('Todo o LaTeX foi renderizado pelo Anki oficial ✓');
+      else showToast('Erro de LaTeX na nota '+String(out&&out.note_id||'?')+': '+String(out&&out.error||'erro desconhecido'));
+      AnkiProductParity.renderCheck();
+    }catch(e){showToast('Não foi possível renderizar LaTeX: '+(e&&e.message?e.message:String(e)));}
+  },
+  async repairAdvanced(){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.checkOfficialDatabase!=='function'){showToast('Backend oficial do Anki indisponível.');return;}
+    try{
+      const out=await CardsOfficialBridge.checkOfficialDatabase();
+      await CardsOfficialBridge.optimizeOfficialDatabase();
+      CardsScreen.render();CardsScreen.updateFavCount();AnkiProductParity.renderCheck();
+      showToast((out&&out.ok?'Banco verificado':'Verificação concluída')+' pela Collection oficial do Anki ✓');
+    }catch(e){showToast('Check Database falhou: '+(e&&e.message?e.message:String(e)));}
   }
 };
 queueMicrotask(()=>AnkiMaxStatsMedia.install());
