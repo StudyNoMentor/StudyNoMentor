@@ -1006,6 +1006,160 @@ const CardsOfficialBridge = {
     AnkiMaxParity._isSortableColumn=sortable;
   },
 
+
+  _deckContext(localDeckId){
+    const d=CardsScreen.collectionDecks().find(x=>String(x.id)===String(localDeckId)),
+      pid=d&&d._planId!=null?d._planId:this._activePlanId(),
+      oid=this._officialDeckId(localDeckId,pid);
+    if(!d)throw new Error('Baralho local não encontrado.');
+    if(oid==null)throw new Error('Baralho sem identidade Anki canônica.');
+    return {deck:d,planId:pid,officialId:oid};
+  },
+  _mirrorByOfficialDeck(officialId,planId){
+    const rows=planId!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(planId,'decks'):DB.getDecks();
+    const d=(rows||[]).find(x=>String(x.ankiId!=null?x.ankiId:x.id)===String(officialId));
+    return d?Object.assign({},d,planId==null?{}:{_planId:planId}):null;
+  },
+  async _loadCustomStudyDefaults(){
+    const el=document.getElementById('cards-custom-deck');if(!el||!el.value)return;
+    try{
+      await this.bootstrap(false);
+      const ctx=this._deckContext(el.value),data=await this.request('/api/cards-official/custom-study/defaults/'+ctx.officialId),
+        mode=(document.getElementById('cards-custom-mode')||{}).value||'forgot',
+        value=document.getElementById('cards-custom-value');
+      if(value&&mode==='newLimitDelta')value.value=String(Math.max(0,Number(data.extend_new)||0));
+      if(value&&mode==='reviewLimitDelta')value.value=String(Math.max(0,Number(data.extend_review)||0));
+      const tags=Array.isArray(data.tags)?data.tags:[],
+        inc=tags.filter(x=>x&&x.include).map(x=>x.name),exc=tags.filter(x=>x&&x.exclude).map(x=>x.name),
+        ie=document.getElementById('cards-custom-tags-in'),ee=document.getElementById('cards-custom-tags-out');
+      if(ie&&inc.length)ie.value=inc.join(', ');if(ee&&exc.length)ee.value=exc.join(', ');
+    }catch(e){showToast('Padrões oficiais do Estudo Personalizado indisponíveis: '+(e.message||e));}
+  },
+  openCustomStudy(){
+    this._orig.openCustomStudy.call(CardsScreen);
+    const deck=document.getElementById('cards-custom-deck'),mode=document.getElementById('cards-custom-mode');
+    if(deck&&!deck.dataset.officialDefaults){
+      deck.dataset.officialDefaults='1';deck.addEventListener('change',()=>void this._loadCustomStudyDefaults());
+    }
+    if(mode&&!mode.dataset.officialDefaults){
+      mode.dataset.officialDefaults='1';mode.addEventListener('change',()=>void this._loadCustomStudyDefaults());
+    }
+    void this._loadCustomStudyDefaults();
+  },
+  _customStudyPayload(ctx){
+    const kind=(document.getElementById('cards-custom-mode')||{}).value||'forgot',
+      value=Math.max(0,Math.round(Number((document.getElementById('cards-custom-value')||{}).value)||0)),
+      payload={deck_id:Number(ctx.officialId)};
+    if(kind==='newLimitDelta')payload.new_limit_delta=value;
+    else if(kind==='reviewLimitDelta')payload.review_limit_delta=value;
+    else if(kind==='forgot')payload.forgot_days=value;
+    else if(kind==='ahead')payload.review_ahead_days=value;
+    else if(kind==='preview')payload.preview_days=value;
+    else if(kind==='cram'){
+      const ck=(document.getElementById('cards-custom-cram-kind')||{}).value||'due',
+        kindMap={due:0,new:1,review:2,all:3},
+        tags=id=>String((document.getElementById(id)||{}).value||'').split(',').map(x=>x.trim()).filter(Boolean);
+      payload.cram={
+        kind:kindMap[ck]==null?0:kindMap[ck],
+        card_limit:Math.max(0,Math.round(Number((document.getElementById('cards-custom-limit')||{}).value)||0)),
+        tags_to_include:tags('cards-custom-tags-in'),tags_to_exclude:tags('cards-custom-tags-out')
+      };
+    }else throw new Error('Modo de Estudo Personalizado desconhecido.');
+    return {kind,payload};
+  },
+  async runCustomStudy(){
+    const deckId=(document.getElementById('cards-custom-deck')||{}).value;
+    if(!deckId){showToast('Escolha o baralho de origem');return;}
+    try{
+      await this.bootstrap(false);
+      const ctx=this._deckContext(deckId),req=this._customStudyPayload(ctx),
+        out=await this.request('/api/cards-official/custom-study',{
+          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(req.payload)
+        }),
+        synced=await this._syncCollectionState(out.state,ctx.planId,null);
+      const modal=document.getElementById('cards-custom-modal');if(modal)modal.style.display='none';
+      this.dirty=false;this._browserCache=[];
+      if(req.kind==='newLimitDelta'||req.kind==='reviewLimitDelta'){
+        CardsScreen.render();showToast('Limite de hoje atualizado pelo Anki oficial ✓');return;
+      }
+      const state=out.state||{},filtered=(state.decks||[]).filter(x=>x&&x.filtered),
+        withCards=filtered.map(d=>({d,count:(state.cards||[]).filter(c=>Number(c.deck_id)===Number(d.id)).length})).sort((a,b)=>b.count-a.count),
+        chosen=withCards[0]&&withCards[0].d,mirror=chosen&&this._mirrorByOfficialDeck(chosen.id,ctx.planId);
+      CardsScreen.populateFilterOptions();CardsScreen.renderDeckList();
+      if(mirror)CardsScreen.irParaBaralho(mirror.id,'revisar');else CardsScreen.render();
+      showToast('Estudo Personalizado executado pelo Anki oficial'+(withCards[0]?' · '+withCards[0].count+' card(s)':'')+' ✓');
+      return synced;
+    }catch(e){showToast('Estudo Personalizado não aplicado: '+(e.message||e));}
+  },
+  _fillFilteredForm(deck){
+    if(!deck)return;
+    const cfg=this._filteredConfigFromOfficial({filtered_deck:deck}),terms=cfg.searchTerms||[],
+      t1=terms[0]||{search:'',limit:100,order:1},t2=terms[1]||{search:'',limit:100,order:1};
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v==null?'':String(v);};
+    set('cards-filtered-name',deck.name||'Baralho filtrado');set('cards-filtered-search1',t1.search||'');set('cards-filtered-limit1',t1.limit==null?100:t1.limit);
+    set('cards-filtered-search2',t2.search||'');set('cards-filtered-limit2',t2.limit==null?100:t2.limit);
+    const o1=document.getElementById('cards-filtered-order1'),o2=document.getElementById('cards-filtered-order2');
+    if(o1)o1.innerHTML=CardsScreen._filteredOrderOptions(t1.order);if(o2)o2.innerHTML=CardsScreen._filteredOrderOptions(t2.order);
+    const res=document.getElementById('cards-filtered-reschedule');if(res)res.checked=!!cfg.reschedule;
+    set('cards-filtered-again',cfg.previewAgainSecs);set('cards-filtered-hard',cfg.previewHardSecs);set('cards-filtered-good',cfg.previewGoodSecs);
+    CardsScreen.updateFilteredDeckUI();
+  },
+  async openFilteredDeckModal(deckId){
+    this._orig.openFilteredDeckModal.call(CardsScreen,deckId);
+    if(!deckId)return;
+    try{
+      await this.bootstrap(false);
+      const ctx=this._deckContext(deckId),out=await this.request('/api/cards-official/filtered-deck/'+ctx.officialId);
+      this._fillFilteredForm(out.deck);
+    }catch(e){
+      const modal=document.getElementById('cards-filtered-modal');if(modal)modal.style.display='none';
+      showToast('Baralho filtrado oficial indisponível: '+(e.message||e));
+    }
+  },
+  _filteredPayload(base,id,name){
+    const cfg=Object.assign({},base&&base.config||{}),
+      term=n=>({
+        search:String((document.getElementById('cards-filtered-search'+n)||{}).value||'').trim(),
+        limit:Math.max(0,Math.round(Number((document.getElementById('cards-filtered-limit'+n)||{}).value)||0)),
+        order:Math.max(0,Math.round(Number((document.getElementById('cards-filtered-order'+n)||{}).value)||0))
+      }),
+      a=term(1),b=term(2),terms=[a];if(b.search||b.limit)terms.push(b);
+    Object.assign(cfg,{
+      reschedule:!!(document.getElementById('cards-filtered-reschedule')||{}).checked,
+      search_terms:terms,
+      preview_again_secs:Math.max(0,Math.round(Number((document.getElementById('cards-filtered-again')||{}).value)||0)),
+      preview_hard_secs:Math.max(0,Math.round(Number((document.getElementById('cards-filtered-hard')||{}).value)||0)),
+      preview_good_secs:Math.max(0,Math.round(Number((document.getElementById('cards-filtered-good')||{}).value)||0))
+    });
+    return {id:Number(id),name:String(name),config:cfg,allow_empty:true};
+  },
+  async saveFilteredDeckModal(){
+    const localId=(document.getElementById('cards-filtered-id')||{}).value||null,
+      name=String((document.getElementById('cards-filtered-name')||{}).value||'').trim();
+    if(!name){showToast('Informe o nome do baralho');return;}
+    try{
+      await this.bootstrap(false);
+      const local=localId?CardsScreen.collectionDecks().find(x=>String(x.id)===String(localId)):null,
+        pid=local&&local._planId!=null?local._planId:this._activePlanId();
+      let oid=localId?this._officialDeckId(localId,pid):0,
+        current=await this.request('/api/cards-official/filtered-deck/'+(oid||0));
+      oid=Number(current&&current.deck&&current.deck.id)||oid;
+      if(!oid)throw new Error('O Anki não forneceu a identidade do novo filtered deck.');
+      const payload=this._filteredPayload(current.deck,oid,name);
+      await this.request('/api/cards-official/filtered-deck/'+oid,{
+        method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+      });
+      const out=await this.request('/api/cards-official/filtered-deck/'+oid+'/rebuild',{method:'POST'}),
+        synced=await this._syncCollectionState(out.state,pid,localId),
+        mirror=this._mirrorByOfficialDeck(oid,pid),count=(out.state&&out.state.cards||[]).filter(c=>Number(c.deck_id)===oid).length;
+      const modal=document.getElementById('cards-filtered-modal');if(modal)modal.style.display='none';
+      this.dirty=false;this._browserCache=[];CardsScreen.populateFilterOptions();CardsScreen.renderDeckList();
+      if(mirror)CardsScreen.irParaBaralho(mirror.id,'revisar');else CardsScreen.render();
+      showToast('Baralho filtrado reconstruído pelo Anki oficial: '+count+' card(s) ✓');
+      return synced;
+    }catch(e){showToast('Baralho filtrado não reconstruído: '+(e.message||e));}
+  },
+
   _wrapInvalidator(name){
     const fn=CardsScreen[name];if(typeof fn!=='function'||fn.__cardsOfficialWrapped)return;
     const self=this;
@@ -1020,18 +1174,24 @@ const CardsOfficialBridge = {
     this._orig.flip=CardsScreen.flip;
     this._orig.undoAnswer=CardsScreen.undoAnswer;
     this._orig.redoAnswer=CardsScreen.redoAnswer;
+    this._orig.openCustomStudy=CardsScreen.openCustomStudy;
+    this._orig.openFilteredDeckModal=CardsScreen.openFilteredDeckModal;
     CardsScreen.renderRevisar=(box)=>{void this.renderRevisar(box);};
     CardsScreen.renderStats=(box)=>{void this.renderStats(box);};
     CardsScreen.answer=(grade)=>this.answer(grade);
     CardsScreen.flip=()=>{void this.showAnswer();};
     CardsScreen.undoAnswer=()=>{void this.undo();};
     CardsScreen.redoAnswer=()=>{void this.redo();};
+    CardsScreen.openCustomStudy=()=>this.openCustomStudy();
+    CardsScreen.runCustomStudy=()=>{void this.runCustomStudy();};
+    CardsScreen.openFilteredDeckModal=(deckId)=>{void this.openFilteredDeckModal(deckId);};
+    CardsScreen.saveFilteredDeckModal=()=>{void this.saveFilteredDeckModal();};
     this._installOfficialBrowser();
 
     // Alterações de conteúdo/config invalidam a coleção oficial isolada. A
     // próxima entrada em Revisar faz novo bootstrap; respostas oficiais NÃO
     // passam por estes métodos e, portanto, não causam rebuild em loop.
-    ['saveCard','deleteCard','addDeck','runCustomStudy','saveFilteredDeckModal','doImport','reposicionarNovos','resetCardStats']
+    ['saveCard','deleteCard','addDeck','doImport','reposicionarNovos','resetCardStats']
       .forEach(n=>this._wrapInvalidator(n));
 
     window.addEventListener('screen:activated',ev=>{
