@@ -237,7 +237,7 @@ const CardsOfficialBridge = {
     const due=document.getElementById('cards-act-due');if(due)due.onclick=()=>void this.setDue();
     const mark=document.getElementById('cards-act-mark');if(mark)mark.onclick=()=>void this.mark();
     box.querySelectorAll('[data-cards-official-flag]').forEach(b=>b.onclick=()=>void this.action('flag',Number(b.dataset.cardsOfficialFlag)));
-    const ti=document.getElementById('cards-official-type-answer');if(ti)setTimeout(()=>{try{ti.focus();}catch(_){ }},0);
+    const ti=document.getElementById('cards-official-type-answer');if(ti)setTimeout(()=>{try{ti.focus();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-type-answer-focus');}},0);
     CardsScreen.atualizarFoco();
   },
 
