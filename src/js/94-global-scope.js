@@ -1589,6 +1589,7 @@
           {value:'buryCard',label:'⤓ Enterrar card'},{value:'buryNote',label:'⤓ Enterrar nota'},
           {value:'suspendCard',label:'🚫 Suspender card'},{value:'suspendNote',label:'🚫 Suspender nota'},
           {value:'reset',label:'↺ Resetar / tornar novo'},{value:'due',label:'📅 Definir vencimento'},
+          {value:'flag',label:'🚩 Definir bandeira'},{value:'deleteNote',label:'🗑 Excluir nota'},
           {value:'copy',label:'⧉ Criar cópia da nota'},
           {value:'hint',label:'💡 Mostrar dica'},{value:'allHints',label:'💡 Mostrar todas as dicas'},
           {value:'media',label:'▶ Repetir mídia'},{value:'pauseMedia',label:'⏸ Pausar mídia'},
@@ -1614,6 +1615,8 @@
           else if(a==='suspendNote'){cardsForNote.forEach(x=>this.suspendCardScoped(x,true));AnkiMaxParity._advanceRemoved(cardsForNote.map(x=>x.id));showToast('Nota suspensa');}
           else if(a==='reset')this.bulkResetUi([cardRef]);
           else if(a==='due')this.bulkSetDueUi([cardRef]);
+          else if(a==='flag')this.bulkFlagScoped([cardRef]);
+          else if(a==='deleteNote')this.deleteNotesScoped(note?[note]:[cardRef]);
           else if(a==='copy')this.createCopyFromCard(Object.assign({},c,{_planId:pid}));
           else if(a==='hint')AnkiMaxParity.showHints(false);
           else if(a==='allHints')AnkiMaxParity.showHints(true);

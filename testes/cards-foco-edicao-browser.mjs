@@ -239,20 +239,27 @@ try{
     box:document.querySelector('#ui-modal .cards-modal-box').getBoundingClientRect().toJSON()
   }));
   ok(reviewerMenu.present,'Mais ações abre o seletor de ações; estado='+JSON.stringify({before:menuBefore,after:reviewerMenu}));
-  ok(['reset','due','copy','pauseMedia','backMedia','forwardMedia'].every(x=>reviewerMenu.values.includes(x)),
-    'Mais ações expõe Reset, Set Due, Criar cópia e controles de áudio');
+  ok(['reset','due','flag','deleteNote','copy','pauseMedia','backMedia','forwardMedia'].every(x=>reviewerMenu.values.includes(x)),
+    'Mais ações expõe Reset, Set Due, Bandeira, Excluir, Criar cópia e controles de áudio');
   ok(!reviewerMenu.overflow&&reviewerMenu.box.width<=390,'modal Mais ações não estoura a largura mobile');
   await page.click('#ui-modal-cancel');await esperar(80);
 
-  // Os botões visíveis do reviewer precisam usar os MESMOS fluxos oficiais,
-  // sem manter um caminho legado diferente das ações avançadas.
+  // No celular, ações secundárias ficam deliberadamente concentradas no
+  // overflow para o reviewer não virar uma grade enorme. Elas precisam estar
+  // acessíveis em Mais ações; os chips diretos continuam disponíveis no desktop.
+  ok(!(await page.locator('#cards-act-due').isVisible())&&!(await page.locator('#cards-act-forget').isVisible())
+    &&!(await page.locator('#cards-act-del').isVisible())&&!(await page.locator('.cards-flagbar').isVisible()),
+    'mobile concentra Data, Resetar, Excluir e Bandeiras em Mais ações');
+
+  await page.setViewportSize({width:900,height:844});await esperar(80);
   await page.click('#cards-act-due');await esperar(80);
-  ok(await page.locator('#uip_spec').isVisible(),'botão Data abre Set Due avançado (N, A-B e A-B!)');
+  ok(await page.locator('#uip_spec').isVisible(),'botão Data desktop abre Set Due avançado (N, A-B e A-B!)');
   await page.click('#ui-modal-cancel');await esperar(60);
   await page.click('#cards-act-forget');await esperar(80);
-  ok(await page.locator('#uip_restore').isVisible()&&await page.locator('#uip_counts').isVisible(),'botão Resetar oferece posição original e reset opcional de contadores');
+  ok(await page.locator('#uip_restore').isVisible()&&await page.locator('#uip_counts').isVisible(),'botão Resetar desktop oferece posição original e reset opcional de contadores');
   await page.click('#ui-modal-cancel');await esperar(60);
 
+  await page.setViewportSize({width:390,height:844});await esperar(80);
   await page.evaluate(({id,pid})=>StudyGlobalScope.bulkSetDueUi(['c:'+encodeURIComponent(pid)+'::'+encodeURIComponent(id)]),mobile);
   await esperar(100);
   await page.fill('#uip_spec','3-5!');
