@@ -32,6 +32,14 @@ try{
       if(CardsOfficialBridge._orig.answer)CardsScreen.answer=CardsOfficialBridge._orig.answer;
       if(CardsOfficialBridge._orig.undoAnswer)CardsScreen.undoAnswer=CardsOfficialBridge._orig.undoAnswer;
       if(CardsOfficialBridge._orig.redoAnswer)CardsScreen.redoAnswer=CardsOfficialBridge._orig.redoAnswer;
+      // O listener screen:activated da ponte olha "dirty" diretamente. Se ele
+      // continuar true, dispara um render oficial assíncrono no mesmo #cards-content
+      // e pode sobrescrever este teste local depois que entrarFoco() já renderizou.
+      // Não ativamos backend fake nem fallback de produção: apenas impedimos a
+      // corrida externa nesta suíte explicitamente local.
+      CardsOfficialBridge.dirty=false;
+      CardsOfficialBridge.ready=true;
+      CardsOfficialBridge.review=null;
     }
   });
 
