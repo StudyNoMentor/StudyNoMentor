@@ -2257,6 +2257,15 @@ def cards_official_collection_state(
         return cards_collection_state_payload(item.col)
 
 
+@app.get("/api/cards-official/collection/full-state")
+def cards_official_collection_full_state(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return cards_collection_full_state_payload(item.col)
+
+
 @app.get("/api/cards-official/stats/graphs")
 def cards_official_collection_graphs(
     search: str = Query(default=""),
