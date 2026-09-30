@@ -1406,6 +1406,87 @@
     });
   };
 
+
+  S.bulkFindReplaceUi=function(ids){
+    const r=this._selectedBrowserRows(ids),notes=r.notes||[];if(!notes.length)return;
+    const fieldNames=[...new Set(notes.flatMap(n=>Object.keys(n.fields||{})))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    UI.prompt([
+      {key:'find',label:'Localizar',type:'text',value:''},
+      {key:'replace',label:'Substituir por',type:'text',value:''},
+      {key:'scope',label:'Onde',type:'select',value:'__all__',options:[{value:'__all__',label:'Todos os campos'},{value:'__tags__',label:'Tags'},...fieldNames.map(x=>({value:x,label:'Campo: '+x}))]},
+      {key:'regex',label:'Expressão regular',type:'select',value:'no',options:[{value:'no',label:'Não'},{value:'yes',label:'Sim'}]},
+      {key:'case',label:'Diferenciar maiúsculas/minúsculas',type:'select',value:'yes',options:[{value:'yes',label:'Sim'},{value:'no',label:'Não'}]}
+    ],{title:'🔁 Localizar e substituir',okText:'Substituir'}).then(v=>{
+      if(!v||!String(v.find||''))return;let rx;
+      try{
+        if(v.regex==='yes')rx=new RegExp(String(v.find),v.case==='no'?'gi':'g');
+        else{
+          const specials='\\^$.*+?()[]{}|';
+          const escaped=String(v.find).split('').map(ch=>specials.includes(ch)?'\\'+ch:ch).join('');
+          rx=new RegExp(escaped,v.case==='no'?'gi':'g');
+        }
+      }catch(e){showToast('Expressão regular inválida: '+e.message);return;}
+      let notesChanged=0,fieldsChanged=0;
+      notes.forEach(note=>{
+        const fields=Object.assign({},note.fields||{}),tags=(note.tags||[]).slice();let changed=false;
+        if(v.scope==='__tags__'){
+          for(let i=0;i<tags.length;i++){
+            const before=String(tags[i]),after=before.replace(rx,String(v.replace||''));
+            if(after!==before){tags[i]=after;changed=true;fieldsChanged++;}
+          }
+        }else{
+          Object.keys(fields).forEach(k=>{
+            if(v.scope!=='__all__'&&v.scope!==k)return;
+            const before=String(fields[k]||''),after=before.replace(rx,String(v.replace||''));
+            if(after!==before){fields[k]=after;changed=true;fieldsChanged++;}
+          });
+        }
+        if(changed){
+          const saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}),note._planId);
+          AnkiProductParity.reconcileNote(saved,AnkiProductParity._typeFor(saved));notesChanged++;
+        }
+      });
+      this._refreshAnkiBrowser();showToast(notesChanged+' nota(s), '+fieldsChanged+' campo/tag(s) alterado(s) ✓');
+    });
+  };
+
+  S.bulkMarkScoped=function(ids){
+    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
+    const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
+    notes.forEach(n=>{
+      let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
+      if(shouldMark)tags.push('marked');
+      AnkiParity.saveNote(Object.assign({},n,{tags:[...new Set(tags)]}),n._planId);
+    });
+    this._refreshAnkiBrowser();showToast(shouldMark?'Notas marcadas ✓':'Marcação removida ✓');
+  };
+
+  S.editTagsScoped=function(ids){
+    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
+    UI.prompt([
+      {key:'add',label:'Adicionar tags',type:'text',value:'',hint:'Separe por espaço.'},
+      {key:'remove',label:'Remover tags',type:'text',value:'',hint:'Separe por espaço.'}
+    ],{title:'🏷 Editar etiquetas',okText:'Aplicar'}).then(v=>{
+      if(!v)return;const add=String(v.add||'').split(/\s+/).filter(Boolean);
+      const rem=new Set(String(v.remove||'').split(/\s+/).filter(Boolean));
+      notes.forEach(n=>{
+        const tags=[...new Set([...(n.tags||[]),...add])].filter(t=>!rem.has(t));
+        AnkiParity.saveNote(Object.assign({},n,{tags}),n._planId);
+      });
+      this._refreshAnkiBrowser();showToast('Tags atualizadas ✓');
+    });
+  };
+
+  S.deleteNotesScoped=function(ids){
+    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
+    UI.confirm('Excluir '+notes.length+' nota(s) e seus cards? O histórico de revisões será preservado, como no Anki.',{title:'🗑 Excluir notas',okText:'Excluir',danger:true}).then(ok=>{
+      if(!ok)return;let cards=0;
+      notes.forEach(n=>{cards+=Number(this.deleteNoteScoped(n))||0;});
+      if(AnkiProductParity.browser&&AnkiProductParity.browser.selected)AnkiProductParity.browser.selected.clear();
+      this._refreshAnkiBrowser();showToast(notes.length+' nota(s) e '+cards+' card(s) excluídos; histórico preservado ✓');
+    });
+  };
+
   const boot = () => {
     S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
