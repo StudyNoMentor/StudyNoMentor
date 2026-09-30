@@ -604,7 +604,7 @@ const AnkiProductParity = {
     this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
       decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
       noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
-    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
+    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],historicalRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
     cards.forEach(c=>{
       const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
       if(c.deckId!=null&&!deckIds.has(String(c.deckId)))issues.missingDeck.push(c.id);
@@ -613,7 +613,10 @@ const AnkiProductParity = {
       if(c.s!=null&&(!Number.isFinite(Number(c.s))||Number(c.s)<=0))issues.invalidSchedule.push(c.id);
       if(c.d!=null&&(!Number.isFinite(Number(c.d))||Number(c.d)<1||Number(c.d)>10))issues.invalidSchedule.push(c.id);
     });
-    rev.forEach(r=>{if(!cardIds.has(String(r.cardId)))issues.orphanRevlog.push(r);});
+    rev.forEach(r=>{
+      if(!r||r.cardId==null||String(r.cardId).trim()==='')issues.orphanRevlog.push(r);
+      else if(!cardIds.has(String(r.cardId)))issues.historicalRevlog.push(r);
+    });
     const g=new Map();notes.forEach(n=>{if(!n.guid)return;const k=String(n.guid);if(!g.has(k))g.set(k,[]);g.get(k).push(n.id);});g.forEach(v=>{if(v.length>1)issues.duplicateGuid.push(...v);});
     const scanText=(text,where)=>{
       const s=String(text||''),refs=[];let m;const re=/(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi;while((m=re.exec(s)))refs.push(m[1]);
@@ -629,13 +632,14 @@ const AnkiProductParity = {
   renderCheck(){
     const x=this.scanCollection(),rows=[
       ['Cards sem nota',x.missingNote.length],['Notas sem tipo',x.missingType.length],['Tipo divergente no card',x.typeMismatch.length],
-      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs órfãos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
+      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs inválidos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
       ['Cards vazios',x.empty.length],['Suspenso + enterrado',x.suspendedBuried.length],['GUID duplicado',x.duplicateGuid.length],['Referências de mídia locais sem arquivo incorporado',x.missingMedia.length]
     ];
     const total=rows.reduce((a,x)=>a+x[1],0);document.getElementById('anki-check-body').innerHTML='<div class="anki-check-status '+(total?'warn':'ok')+'"><strong>'+(total?'Encontrados pontos para revisar':'Coleção consistente')+'</strong><span>'+total+' ocorrência(s)</span></div>'+
       '<div class="anki-check-grid">'+rows.map(r=>'<div><span>'+this.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
       (x.missingMedia.length?'<details><summary>Referências de mídia</summary><div class="anki-check-details">'+x.missingMedia.slice(0,50).map(m=>'<div>'+this.esc(m.where)+' → <code>'+this.esc(m.ref)+'</code></div>').join('')+'</div></details>':'')+
-      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e limpa revlogs que apontam para cards já excluídos. Não apaga cards vazios nem conteúdo de notas.</p>';
+      (x.historicalRevlog.length?'<p class="hint">ℹ '+x.historicalRevlog.length+' revisão(ões) pertencem a cards já excluídos. Esse histórico é preservado de propósito, como no Anki, e continua válido para estatísticas.</p>':'')+
+      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e descarta apenas revlogs estruturalmente inválidos (sem cardId). Não apaga histórico válido nem conteúdo de notas.</p>';
   },
 
   _bindCheck(){
@@ -647,7 +651,7 @@ const AnkiProductParity = {
         const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
         fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
         if(!(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)){
-          const ids=new Set(DB.getCards().map(c=>String(c.id))),before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>ids.has(String(r.cardId))));fixed+=before.length-DB.getRevlog().length;
+          const before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>r&&r.cardId!=null&&String(r.cardId).trim()!==''));fixed+=before.length-DB.getRevlog().length;
         }
       }
       CardEngine.invalidateDueCache();this.renderCheck();CardsScreen.render();showToast(fixed?fixed+' reparo(s) seguro(s) aplicado(s) ✓':'Nada para reparar');
