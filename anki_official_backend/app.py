@@ -2111,6 +2111,61 @@ def cards_official_fsrs_simulate(
         return pb(item.col._backend.simulate_fsrs_review(**kwargs))
 
 
+@app.post("/api/cards-official/decks")
+def cards_official_add_deck(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Informe o nome do baralho.")
+    item = cards_uc_for(user)
+    with item.lock:
+        out = item.col.decks.add_normal_deck_with_name(name)
+        return {
+            "ok": True,
+            "deck_id": int(out.id),
+            "changes": pb(out.changes) if getattr(out, "changes", None) is not None else {},
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.put("/api/cards-official/deck/{deck_id}")
+def cards_official_rename_deck(
+    deck_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(400, "Informe o novo nome do baralho.")
+    item = cards_uc_for(user)
+    with item.lock:
+        changes = item.col.decks.rename(DeckId(deck_id), name)
+        return {
+            "ok": True,
+            "deck_id": int(deck_id),
+            "changes": pb(changes) if changes is not None else {},
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.delete("/api/cards-official/deck/{deck_id}")
+def cards_official_delete_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        changes = item.col.decks.remove([DeckId(deck_id)])
+        return {
+            "ok": True,
+            "deck_id": int(deck_id),
+            "changes": pb(changes) if changes is not None else {},
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
 @app.get("/api/cards-official/deck/{deck_id}/options")
 def cards_official_deck_options(
     deck_id: int,
