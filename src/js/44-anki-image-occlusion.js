@@ -22,7 +22,6 @@ const AnkiImageOcclusion = {
     if(this._installed||typeof AnkiParity==='undefined'||typeof AnkiProductParity==='undefined')return;
     this._installed=true;
     this._patchStock();
-    this._patchRenderer();
     this._injectUi();
     this._installMenu();
     this._protectIoType();
@@ -34,11 +33,8 @@ const AnkiImageOcclusion = {
   },
 
   _patchRenderer(){
-    const orig=AnkiParity.renderTemplate.bind(AnkiParity);
-    AnkiParity.renderTemplate=function(nt,note,ord,side,card,frontSide){
-      if(AnkiImageOcclusion.isType(nt))return AnkiImageOcclusion.render(nt,note,side,card);
-      return orig(nt,note,ord,side,card,frontSide);
-    };
+    /* Renderer local desativado: o reviewer/preview usa card.question()/answer()
+       da Collection oficial, inclusive para Image Occlusion. */
   },
 
   _fieldByTag(nt,note,tag,fallback){
