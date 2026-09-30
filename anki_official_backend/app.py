@@ -1730,6 +1730,61 @@ async def cards_official_editor_media(
         }
 
 
+@app.get("/api/cards-official/media/check")
+def cards_official_media_check(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.media.check())
+
+
+@app.post("/api/cards-official/media/trash")
+def cards_official_media_trash(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    files = [str(x) for x in payload.get("files", []) if str(x)]
+    with item.lock:
+        item.col.media.trash_files(files)
+        return {"ok": True, "files": files, "check": pb(item.col.media.check())}
+
+
+@app.post("/api/cards-official/media/restore-trash")
+def cards_official_media_restore_trash(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        item.col.media.restore_trash()
+        return {"ok": True, "check": pb(item.col.media.check())}
+
+
+@app.post("/api/cards-official/media/empty-trash")
+def cards_official_media_empty_trash(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        item.col.media.empty_trash()
+        return {"ok": True, "check": pb(item.col.media.check())}
+
+
+@app.post("/api/cards-official/database/check")
+def cards_official_database_check(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        message, ok = item.col.fix_integrity()
+        return {
+            "ok": bool(ok),
+            "message": str(message),
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/database/optimize")
+def cards_official_database_optimize(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        item.col.optimize()
+        return {"ok": True}
+
+
 @app.get("/api/cards-official/media/{filename:path}")
 def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     item = cards_uc_for(user)
