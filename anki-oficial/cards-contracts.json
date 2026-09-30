@@ -97,9 +97,10 @@
       "differential_tests": [
         "testes/cards-search-differential.mjs",
         "testes/anki-oficial-search.py",
-        "testes/cards-max-reviewer-browser.mjs"
+        "testes/cards-max-reviewer-browser.mjs",
+        "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_SEARCH_SORT_BRIDGE_BROWSER_ACTIONS_PENDING"
     },
     "editor": {
       "official_files": 90,
