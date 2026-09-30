@@ -55,32 +55,12 @@ const groups=new Map();
 for(const n of notes){const k=T._normalizeDuplicate(n.fields.Front);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(n.id);}
 assert.deepEqual(groups.get('alpha'),['n1','n2'],'detecção de duplicatas usa normalização semântica');
 
-const base={due:'2026-09-22',dueTs:null,intervalo:10,_kind:'day',_val:10,status:'sei',s:20};
-const safe=T._validateSchedulePatch(base,{intervalo:12,_val:12,due:'2026-10-04',s:999,evil:true});
-assert.equal(safe.intervalo,12);
-assert.equal(safe._val,12);
-assert.equal(safe.due,'2026-10-04');
-assert.equal(safe.s,20,'custom scheduling não pode sobrescrever estado FSRS fora da allowlist');
-assert.equal(safe.evil,undefined);
-const invalid=T._validateSchedulePatch(base,{intervalo:NaN,due:'amanhã',dueTs:Infinity});
-assert.equal(invalid.intervalo,10);
-assert.equal(invalid.due,'2026-09-22');
-assert.equal(invalid.dueTs,null);
-
-// Custom Scheduling atual do Anki: scripts recebem o objeto "states".
-const sched=(card,grade)=>({phase:'learning',due:'2026-09-22',dueTs:123,_kind:'min',_val:grade==='dificil'?10:5,intervalo:0,ease:2.5,status:'sei'});
-const bundle=T._buildSchedulingStates(cards[0],sched);
-assert.equal(bundle.states.hard.normal.learning.scheduledSecs,600);
-const filteredBundle=T._buildSchedulingStates({...cards[0],originalDeckId:'d1',filteredReschedule:true},sched);
-assert.equal(filteredBundle.states.hard.filtered.rescheduling.originalState.learning.scheduledSecs,600);
-store.set(T._customKey(),JSON.stringify({enabled:true,source:'if (states.hard.normal?.learning) states.hard.normal.learning.scheduledSecs = 123 * 60;'}));
-T._baseScheduler=sched;
-const custom=T._runCustomScheduling(cards[0],'dificil',sched(cards[0],'dificil'));
-assert.equal(custom._kind,'min');
-assert.equal(custom._val,10,'código de Custom Scheduling NÃO é executado na origem do app (segurança)');
-// O mapeamento states -> patch continua correto para quando houver sandbox.
-assert.equal(T._applyStateLeaf(sched(cards[0],'dificil'),{scheduledSecs:123*60})._val,123);
-store.delete(T._customKey());
+const totalParitySource=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
+assert.ok(!/_installCustomScheduling/.test(totalParitySource),'Study não pode instalar hook sobre CardEngine.schedule');
+assert.ok(!/CardEngine\.schedule\s*=/.test(totalParitySource),'Study não pode substituir o scheduler do Anki');
+assert.ok(!/_runCustomScheduling/.test(totalParitySource),'não pode existir engine local de Custom Scheduling');
+assert.ok(!/cards-custom-scheduling-btn/.test(totalParitySource),'Custom Scheduling local não pode ser exposto na UI');
+assert.match(totalParitySource,/card_state_customizer oficial do Anki/,'arquivo deve documentar que Custom Scheduling pertence ao runtime oficial');
 
 const bytes=new Uint8Array([0,1,2,253,254,255]);
 assert.deepEqual([...T._b64ToBytes(T._bytesToB64(bytes))],[...bytes],'mídia mantém bytes no round-trip base64');
@@ -104,4 +84,4 @@ assert.match(menuSrc,/ArrowDown/,'menu Mais deve permitir navegação por setas'
 assert.match(menuSrc,/Home/,'menu Mais deve suportar Home/End');
 assert.match(menuCss,/\.cards-more-menu[\s\S]*?overflow-y:\s*auto/,'menu Mais deve rolar dentro do viewport');
 
-console.log('PARIDADE TOTAL: Browser profundo, Custom Scheduling por states, integridade e codec de media sync validados.');
+console.log('PARIDADE TOTAL: Browser profundo, ausência de Custom Scheduling local, integridade e codec de media sync validados.');
