@@ -294,6 +294,14 @@ with tempfile.TemporaryDirectory() as tmp:
 
     cempty = app.cards_official_empty_cards_report(cards_ctx)
     assert isinstance(cempty, dict)
+    # Segurança: o endpoint de limpeza só aceita IDs que o EmptyCardsReport da
+    # MESMA coleção acabou de classificar como vazios. Um card normal não pode
+    # ser apagado por uma chamada forjada.
+    try:
+        app.cards_official_delete_empty_cards({"card_ids": [ccid]}, cards_ctx)
+        raise AssertionError("Empty Cards aceitou excluir um card não vazio")
+    except app.HTTPException as exc:
+        assert exc.status_code == 400
 
     bulk = app.cards_official_browser_bulk(
         {"action": "flag", "card_ids": [ccid], "note_ids": [], "flag": 6},
