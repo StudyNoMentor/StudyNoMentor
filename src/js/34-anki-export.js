@@ -956,6 +956,7 @@ const AnkiExport = {
       withScheduling:true,
       withDeckConfigs:true,
       canonicalAnkiIds:!!options.canonicalAnkiIds,
+      preserveFiltered:!!options.preserveFiltered,
       limit:{wholeCollection:true}
     });
   }
