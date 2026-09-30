@@ -482,65 +482,18 @@ const AnkiProductParity = {
   },
 
   scanCollection(){
-    this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
-      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
-      noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
-    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],historicalRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
-    cards.forEach(c=>{
-      const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
-      if(c.deckId!=null&&!deckIds.has(String(c.deckId)))issues.missingDeck.push(c.id);
-      if(c.suspenso&&(c.enterradoAte||c.buryKind))issues.suspendedBuried.push(c.id);
-      const ph=c.phase||'new';if((ph==='review'||ph==='learning'||ph==='relearning')&&!c.due&&!c.dueTs)issues.invalidSchedule.push(c.id);
-      if(c.s!=null&&(!Number.isFinite(Number(c.s))||Number(c.s)<=0))issues.invalidSchedule.push(c.id);
-      if(c.d!=null&&(!Number.isFinite(Number(c.d))||Number(c.d)<1||Number(c.d)>10))issues.invalidSchedule.push(c.id);
-    });
-    rev.forEach(r=>{
-      if(!r||r.cardId==null||String(r.cardId).trim()==='')issues.orphanRevlog.push(r);
-      else if(!cardIds.has(String(r.cardId)))issues.historicalRevlog.push(r);
-    });
-    const g=new Map();notes.forEach(n=>{if(!n.guid)return;const k=String(n.guid);if(!g.has(k))g.set(k,[]);g.get(k).push(n.id);});g.forEach(v=>{if(v.length>1)issues.duplicateGuid.push(...v);});
-    const scanText=(text,where)=>{
-      const s=String(text||''),refs=[];let m;const re=/(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi;while((m=re.exec(s)))refs.push(m[1]);
-      const sr=/\[sound:([^\]]+)\]/gi;while((m=sr.exec(s)))refs.push(m[1]);
-      refs.forEach(x=>{const v=String(x).trim();if(!v||/^(data:|blob:|https?:|#|mailto:|javascript:)/i.test(v))return;issues.missingMedia.push({where,ref:v});});
-    };
-    notes.forEach(n=>Object.entries(n.fields||{}).forEach(([k,v])=>scanText(v,'Nota '+n.id+' / '+k)));
-    types.forEach(t=>{scanText(t.css,'Tipo '+t.name+' / CSS');(t.templates||[]).forEach(x=>{scanText(x.qfmt,'Tipo '+t.name+' / '+x.name+' frente');scanText(x.afmt,'Tipo '+t.name+' / '+x.name+' verso');});});
-    return issues;
+    return {officialOnly:true,message:'Diagnóstico acadêmico local desativado; use Collection.fix_integrity() do Anki oficial.'};
   },
-
-  openCheck(){ document.getElementById('anki-check-modal').style.display='flex';this.renderCheck(); },
+  openCheck(){
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.openOfficialCheck==='function')return CardsOfficialBridge.openOfficialCheck();
+    showToast('Verificação não executada: Anki oficial indisponível.');
+  },
   renderCheck(){
-    const x=this.scanCollection(),rows=[
-      ['Cards sem nota',x.missingNote.length],['Notas sem tipo',x.missingType.length],['Tipo divergente no card',x.typeMismatch.length],
-      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs inválidos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
-      ['Cards vazios',x.empty.length],['Suspenso + enterrado',x.suspendedBuried.length],['GUID duplicado',x.duplicateGuid.length],['Referências de mídia locais sem arquivo incorporado',x.missingMedia.length]
-    ];
-    const total=rows.reduce((a,x)=>a+x[1],0);document.getElementById('anki-check-body').innerHTML='<div class="anki-check-status '+(total?'warn':'ok')+'"><strong>'+(total?'Encontrados pontos para revisar':'Coleção consistente')+'</strong><span>'+total+' ocorrência(s)</span></div>'+
-      '<div class="anki-check-grid">'+rows.map(r=>'<div><span>'+this.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
-      (x.missingMedia.length?'<details><summary>Referências de mídia</summary><div class="anki-check-details">'+x.missingMedia.slice(0,50).map(m=>'<div>'+this.esc(m.where)+' → <code>'+this.esc(m.ref)+'</code></div>').join('')+'</div></details>':'')+
-      (x.historicalRevlog.length?'<p class="hint">ℹ '+x.historicalRevlog.length+' revisão(ões) pertencem a cards já excluídos. Esse histórico é preservado de propósito, como no Anki, e continua válido para estatísticas.</p>':'')+
-      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e descarta apenas revlogs estruturalmente inválidos (sem cardId). Não apaga histórico válido nem conteúdo de notas.</p>';
+    const body=document.getElementById('anki-check-body');
+    if(body)body.innerHTML='<p class="hint">A verificação desta coleção é executada exclusivamente pelo Anki oficial.</p>';
   },
-
   _bindCheck(){
-    document.getElementById('anki-check-safe').addEventListener('click',()=>{
-      this.ensure();const x=this.scanCollection();let fixed=0;
-      const scopedCards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();
-      scopedCards.forEach(c=>{const n=AnkiParity.getNote(this.noteId(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){DB.updateCard(c.id,{notetypeId:n.notetypeId});fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null});fixed++;}});
-      if(x.orphanRevlog.length){
-        const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
-        fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
-        if(!(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)){
-          const before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>r&&r.cardId!=null&&String(r.cardId).trim()!==''));fixed+=before.length-DB.getRevlog().length;
-        }
-      }
-      CardEngine.invalidateDueCache();this.renderCheck();CardsScreen.render();showToast(fixed?fixed+' reparo(s) seguro(s) aplicado(s) ✓':'Nada para reparar');
-    });
-    document.getElementById('anki-check-empty').addEventListener('click',()=>{
-      const n=AnkiParity.emptyCardIds().length;if(!n){showToast('Nenhum card vazio');return;}
-      UI.confirm('Excluir '+n+' card(s) vazio(s)? As notas são preservadas.',{title:'🧹 Cards vazios',okText:'Excluir cards vazios',danger:true}).then(ok=>{if(!ok)return;const done=AnkiParity.deleteEmptyCards();this.renderCheck();CardsScreen.render();showToast(done+' card(s) vazio(s) removido(s) ✓');});
-    });
+    /* Os botões são reencaminhados por CardsOfficialBridge._installOfficialCheck(). */
   },
 
   _installReviewerLayer(){
