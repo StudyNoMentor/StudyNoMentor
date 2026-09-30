@@ -81,6 +81,13 @@ try {
   erro('paridade total RNG/Cloze/LB/irmaos/presets divergiu:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'cards-anki-upstream-manifest.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim().split('\n').join(' · '));
+} catch (e) {
+  erro('inventario/contratos do upstream Anki divergiram:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+
 // ── 3a. auditorias históricas pesadas — somente sob demanda ────────────────
 if (EXAUSTIVO) {
   console.log('\n3a) cards: auditoria exaustiva histórica');
