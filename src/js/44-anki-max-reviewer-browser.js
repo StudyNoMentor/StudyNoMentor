@@ -45,7 +45,7 @@ const AnkiMaxParity = {
     try{return this._wildcardRegex(pattern,{anchored}).test(String(text==null?'':text));}catch(_){return false;}
   },
   _noteText(card,{stripCloze=false,noCombining=false}={}){
-    const note=AnkiParity.getNote(AnkiParity.noteId(card)),nt=note&&AnkiParity.getNotetype(note.notetypeId),chunks=[];
+    const note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiProductParity._getNote(AnkiProductParity.noteRefForCard(card)),nt=note&&AnkiProductParity._typeFor(note),chunks=[];
     if(note){
       (nt&&nt.fields||[]).forEach(f=>{if(f.excludeFromSearch)return;chunks.push(String(note.fields&&note.fields[f.name]||''));});
       if(!nt)chunks.push(...Object.values(note.fields||{}).map(String));
@@ -99,7 +99,7 @@ const AnkiMaxParity = {
 
       const builtin=new Set(['materia','subject','assunto','topic','tipo','type','banca','favorito','favorite','suspenso','suspended','leech','deck','baralho','is','added','rated','tag','note','card','flag','edited','introduced','nid','cid','preset','re','prop']);
       if(m&&!builtin.has(key)){
-        const note=AnkiParity.getNote(AnkiParity.noteId(card)),fields=note&&note.fields||{},names=Object.keys(fields);
+        const note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiProductParity._getNote(AnkiProductParity.noteRefForCard(card)),fields=note&&note.fields||{},names=Object.keys(fields);
         const matchingNames=names.filter(n=>AnkiMaxParity._wildMatch(n,key,true));
         if(matchingNames.length){
           return matchingNames.some(n=>{
@@ -242,16 +242,22 @@ const AnkiMaxParity = {
     return String(v==null||v===''?'—':v);
   },
 
-  _selectionKey(row){return (AnkiProductParity.browser.mode==='cards'?'c:':'n:')+String(row.card?row.card.id:row.note.id);},
+  _selectionKey(row){
+    return AnkiProductParity.browser.mode==='cards'?'c:'+String(row.card&&row.card.id||''):AnkiProductParity.noteRef(row.note);
+  },
   _resolveSelection(ids){
-    const cards=[],noteIds=new Set();
+    const cards=[],noteRefs=new Set();
     (ids||[]).forEach(raw=>{
       const s=String(raw);
-      if(s.startsWith('c:')){const c=DB.getCard(s.slice(2));if(c){cards.push(c);noteIds.add(AnkiProductParity.noteId(c));}}
-      else {const nid=s.startsWith('n:')?s.slice(2):s;noteIds.add(String(nid));cards.push(...AnkiProductParity._cardsForNote(nid));}
+      if(s.startsWith('c:')){
+        const c=DB.getCard(s.slice(2));if(c){cards.push(c);noteRefs.add(AnkiProductParity.noteRefForCard(c));}
+      }else{
+        const note=AnkiProductParity._getNote(s),ref=note?AnkiProductParity.noteRef(note):AnkiProductParity.noteRef(s);
+        noteRefs.add(ref);cards.push(...AnkiProductParity._cardsForNote(ref));
+      }
     });
-    const uniqueCards=[...new Map(cards.map(c=>[String(c.id),c])).values()];
-    return {cards:uniqueCards,noteIds:[...noteIds]};
+    const uniqueCards=[...new Map(cards.map(c=>[String(c._planId||AnkiProductParity._planIdForCard(c)||'')+'|'+String(c.id),c])).values()];
+    return {cards:uniqueCards,noteIds:[...noteRefs],noteRefs:[...noteRefs]};
   },
 
   _enhanceBrowser(){
@@ -282,7 +288,7 @@ const AnkiMaxParity = {
 
     const list=document.getElementById('anki-browser-list');
     list.addEventListener('click',e=>{const x=e.target.closest('[data-card-open]');if(!x)return;e.preventDefault();e.stopImmediatePropagation();this.previewCard(x.dataset.cardOpen);},true);
-    list.addEventListener('dblclick',e=>{const row=e.target.closest('.anki-browser-row');if(!row)return;e.preventDefault();e.stopImmediatePropagation();const nid=row.dataset.noteid;if(nid)AnkiProductParity.openNoteEditor(nid);},true);
+    list.addEventListener('dblclick',e=>{const row=e.target.closest('.anki-browser-row');if(!row)return;e.preventDefault();e.stopImmediatePropagation();const nref=row.dataset.noteid;if(nref)AnkiProductParity.openNoteEditor(nref);},true);
     document.getElementById('anki-browser-select-all').addEventListener('change',e=>{e.stopImmediatePropagation();const rows=AnkiProductParity._browserRows();AnkiProductParity.browser.selected.clear();if(e.target.checked)rows.forEach(r=>AnkiProductParity.browser.selected.add(this._selectionKey(r)));AnkiProductParity.renderBrowser();},true);
 
     this._overrideBrowserRows();
@@ -292,17 +298,17 @@ const AnkiMaxParity = {
 
   _overrideBrowserRows(){
     AnkiProductParity._browserRows=()=>{
-      AnkiProductParity.ensure();const st=AnkiProductParity.browser,types=AnkiParity.noteTypes(),typeMap=new Map(types.map(t=>[String(t.id),t])),rows=[];
+      AnkiProductParity.ensure();const st=AnkiProductParity.browser,rows=[];
       for(const note of AnkiParity.notes()){
-        const cards=AnkiProductParity._cardsForNote(note.id),nt=typeMap.get(String(note.notetypeId)),tags=(note.tags||[]).slice(),marked=tags.some(t=>String(t).toLowerCase()==='marked'),field=AnkiProductParity._sortField(note,nt);
+        const nref=AnkiProductParity.noteRef(note),cards=AnkiProductParity._cardsForNote(nref),nt=AnkiProductParity._typeFor(note),
+          tags=(note.tags||[]).slice(),marked=tags.some(t=>String(t).toLowerCase()==='marked'),field=AnkiProductParity._sortField(note,nt);
         if(st.mode==='cards'){
           for(const card of cards)rows.push({note,cards:[card],card,nt,field,tags,flag:Number(card.flag)||0,suspended:!!card.suspenso,marked});
         }else rows.push({note,cards,card:null,nt,field,tags,flag:cards.reduce((m,c)=>Math.max(m,Number(c.flag)||0),0),suspended:cards.some(c=>c.suspenso),marked});
       }
-      const raw=String(st.query||'').trim(),q=raw.toLowerCase();
-      let out=rows;
+      const raw=String(st.query||'').trim(),q=raw.toLowerCase();let out=rows;
       if(q)out=out.filter(r=>{
-        const cs=r.card?[r.card]:(r.cards.length?r.cards:[{noteId:r.note.id,ankiNoteId:r.note.id,frente:Object.values(r.note.fields||{}).join(' '),verso:''}]);
+        const cs=r.card?[r.card]:(r.cards.length?r.cards:[{noteId:r.note.id,ankiNoteId:r.note.id,_planId:r.note._planId,frente:Object.values(r.note.fields||{}).join(' '),verso:''}]);
         if(/[\w*-]+:/.test(raw)||/\b(?:or|and)\b/i.test(raw)||/[()]/.test(raw)||/[*_]/.test(raw))return cs.some(c=>{try{return AnkiParity.filteredSearchMatches(c,raw);}catch(_){return false;}});
         return [r.field,r.nt&&r.nt.name,(r.tags||[]).join(' '),...Object.values(r.note.fields||{}).map(x=>AnkiProductParity.plain(x))].join(' ').toLowerCase().includes(q);
       });
@@ -314,7 +320,7 @@ const AnkiMaxParity = {
       out.sort((a,b)=>{
         const av=this._colValue(a,key),bv=this._colValue(b,key);let z;
         if(typeof av==='number'&&typeof bv==='number')z=av-bv;else z=String(av).localeCompare(String(bv),'pt-BR',{numeric:true,sensitivity:'base'});
-        if(!z)z=String(a.card&&a.card.id||a.note.id).localeCompare(String(b.card&&b.card.id||b.note.id),undefined,{numeric:true});return z*dir;
+        if(!z)z=String(a.card&&a.card.id||AnkiProductParity.noteRef(a.note)).localeCompare(String(b.card&&b.card.id||AnkiProductParity.noteRef(b.note)),undefined,{numeric:true});return z*dir;
       });
       return out;
     };
@@ -336,9 +342,9 @@ const AnkiMaxParity = {
         x.addEventListener('keydown',e=>{if(!e.altKey||(e.key!=='ArrowLeft'&&e.key!=='ArrowRight'))return;const cs=this._selectedColumns(),i=cs.indexOf(x.dataset.colDrag),j=e.key==='ArrowLeft'?i-1:i+1;if(j<0||j>=cs.length)return;e.preventDefault();this._reorderColumns(cs[i],cs[j]);});
       });
       list.innerHTML=shown.map(r=>{
-        const sk=this._selectionKey(r),nid=String(r.note.id),sel=b.selected.has(sk),open=r.card?'data-card-open="'+AnkiProductParity.esc(r.card.id)+'"':'data-note-open="'+AnkiProductParity.esc(nid)+'"';
+        const sk=this._selectionKey(r),nref=AnkiProductParity.noteRef(r.note),sel=b.selected.has(sk),open=r.card?'data-card-open="'+AnkiProductParity.esc(r.card.id)+'"':'data-note-open="'+AnkiProductParity.esc(nref)+'"';
         const cells=cols.map((k,i)=>'<button type="button" class="anki-browser-cell '+(i===0?'anki-browser-field':'')+'" '+(i===0?open:'')+' title="'+AnkiProductParity.esc(this._formatCol(r,k))+'">'+AnkiProductParity.esc(this._formatCol(r,k))+'</button>').join('');
-        return '<div class="anki-browser-row '+(sel?'is-sel':'')+'" style="grid-template-columns:'+grid+'" data-note="'+AnkiProductParity.esc(sk)+'" data-noteid="'+AnkiProductParity.esc(nid)+'">'+
+        return '<div class="anki-browser-row '+(sel?'is-sel':'')+'" style="grid-template-columns:'+grid+'" data-note="'+AnkiProductParity.esc(sk)+'" data-noteid="'+AnkiProductParity.esc(nref)+'">'+
           '<label><input class="anki-browser-row-check" type="checkbox" '+(sel?'checked':'')+'></label>'+cells+
           '<span class="anki-browser-state">'+(r.suspended?'⏸':'')+(r.marked?' ★':'')+'</span></div>';
       }).join('')||'<div class="empty-state"><h3>Nenhum resultado</h3><p>Ajuste a busca ou os filtros.</p></div>';
@@ -351,14 +357,14 @@ const AnkiMaxParity = {
 
   previewCard(cardId){
     const c=DB.getCard(cardId),box=document.getElementById('anki-browser-preview');if(!c||!box)return;
-    const note=AnkiParity.getNote(AnkiProductParity.noteId(c)),nt=note?AnkiProductParity._typeFor(note):null;
+    const note=AnkiParity.noteForCard?AnkiParity.noteForCard(c):AnkiProductParity._getNote(AnkiProductParity.noteRefForCard(c)),nt=note?AnkiProductParity._typeFor(note):null;
     if(!note||!nt){box.innerHTML='<p class="hint">Card sem nota/tipo.</p>';return;}
     let q='',a='';try{q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,'');a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);}catch(e){a=AnkiProductParity.esc(e.message||e);}
     const frame=(html,side)=>typeof AnkiRuntime!=='undefined'?AnkiRuntime.renderFrame(nt,html,side,c,true,note,CardsConfig.forDeck(c.deckId)):'<div class="cards-face">'+_sanCard(html)+'</div>';
     box.innerHTML='<div class="anki-preview-head"><strong>'+AnkiProductParity.esc(nt.name)+'</strong><span>'+AnkiProductParity.esc(this._templateName({card:c,nt}))+'</span></div>'+
       '<div class="anki-preview-label">Pergunta</div>'+frame(q,'question')+'<div class="anki-preview-label">Resposta</div>'+frame(a,'answer')+
       '<div class="anki-preview-actions"><button type="button" class="btn-primary" id="anki-preview-edit">✎ Editar nota</button><button type="button" class="btn-secondary" id="anki-preview-info">ℹ Info do card</button></div>';
-    document.getElementById('anki-preview-edit').onclick=()=>AnkiProductParity.openNoteEditor(note.id);document.getElementById('anki-preview-info').onclick=()=>CardsScreen.cardInfo(c.id);
+    document.getElementById('anki-preview-edit').onclick=()=>AnkiProductParity.openNoteEditor(AnkiProductParity.noteRef(note));document.getElementById('anki-preview-info').onclick=()=>CardsScreen.cardInfo(c.id);
   },
 
   _overrideBrowserBulk(){
@@ -423,14 +429,15 @@ const AnkiMaxParity = {
     CardsScreen.onKey=(e)=>{if(this._handleReviewerKey(e))return;return oldKey(e);};
   },
   _isMarkedNote(note){return !!note&&(note.tags||[]).some(t=>String(t).toLowerCase()==='marked');},
-  _toggleMarkedNote(noteId){
-    const n=AnkiParity.getNote(noteId);if(!n)return false;const on=!this._isMarkedNote(n),tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');if(on)tags.push('marked');AnkiParity.saveNote(Object.assign({},n,{tags}));return on;
+  _toggleMarkedNote(noteRef){
+    const n=AnkiProductParity._getNote(noteRef);if(!n)return false;const on=!this._isMarkedNote(n),tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');if(on)tags.push('marked');
+    AnkiParity.saveNote(Object.assign({},n,{tags}),n._planId==null?undefined:n._planId);return on;
   },
   _decorateReviewerExact(){
-    const c=AnkiProductParity._currentReviewCard();if(!c)return;const nid=AnkiProductParity.noteId(c),note=AnkiParity.getNote(nid),mark=document.getElementById('cards-act-mark');
+    const c=AnkiProductParity._currentReviewCard();if(!c)return;const nref=AnkiProductParity.noteRefForCard(c),note=AnkiProductParity._getNote(nref),mark=document.getElementById('cards-act-mark');
     if(mark){
       const on=this._isMarkedNote(note);mark.textContent=on?'★ Marcada':'☆ Marcar';mark.title='Marcar/desmarcar nota (*)';
-      mark.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const now=this._toggleMarkedNote(nid);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(now?'★ Nota marcada':'Marcação removida');},true);
+      mark.addEventListener('click',e=>{e.preventDefault();e.stopImmediatePropagation();const now=this._toggleMarkedNote(nref);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(now?'★ Nota marcada':'Marcação removida');},true);
     }
     const bar=document.querySelector('.cards-flagbar');
     if(bar){
@@ -469,10 +476,10 @@ const AnkiMaxParity = {
     const bad=new Set((ids||[]).map(String));CardsScreen._reviewQueue=(CardsScreen._reviewQueue||[]).filter(id=>!bad.has(String(id)));CardsScreen._reviewIdx=Math.min(CardsScreen._reviewIdx,CardsScreen._reviewQueue.length);CardEngine.invalidateDueCache();CardsScreen.renderReviewCard(document.getElementById('cards-content'));
   },
   buryNote(card){
-    if(!card)return;const cards=AnkiProductParity._cardsForNote(AnkiProductParity.noteId(card));cards.forEach(c=>DB.buryCard(c.id));this._advanceRemoved(cards.map(c=>c.id));showToast('Nota enterrada até amanhã');
+    if(!card)return;const cards=AnkiProductParity._cardsForNote(AnkiProductParity.noteRefForCard(card));cards.forEach(c=>DB.buryCard(c.id));this._advanceRemoved(cards.map(c=>c.id));showToast('Nota enterrada até amanhã');
   },
   suspendNote(card){
-    if(!card)return;const cards=AnkiProductParity._cardsForNote(AnkiProductParity.noteId(card));cards.forEach(c=>AnkiParity.suspendCard(c.id));this._advanceRemoved(cards.map(c=>c.id));showToast('Nota suspensa');
+    if(!card)return;const cards=AnkiProductParity._cardsForNote(AnkiProductParity.noteRefForCard(card));cards.forEach(c=>AnkiParity.suspendCard(c.id));this._advanceRemoved(cards.map(c=>c.id));showToast('Nota suspensa');
   },
   suspendCard(card){
     if(!card)return;AnkiParity.suspendCard(card.id);this._advanceRemoved([card.id]);showToast('Card suspenso');
@@ -500,13 +507,13 @@ const AnkiMaxParity = {
       {value:'stats',label:'📊 Estatísticas'},{value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}
     );
     UI.prompt([{key:'action',label:'Ação',type:'select',value:opts[0].value,options:opts}],{title:'⋯ Mais ações',okText:'Abrir'}).then(v=>{
-      if(!v)return;const nid=AnkiProductParity.noteId(c),a=v.action;
-      if(a==='redo')CardsScreen.redoAnswer();else if(a==='mark'){const on=this._toggleMarkedNote(nid);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(on?'★ Nota marcada':'Marcação removida');}
-      else if(a==='tags')AnkiProductParity.editTags(['n:'+nid]);else if(a==='buryCard')this.buryCard(c);else if(a==='buryNote')this.buryNote(c);
+      if(!v)return;const nref=AnkiProductParity.noteRefForCard(c),a=v.action;
+      if(a==='redo')CardsScreen.redoAnswer();else if(a==='mark'){const on=this._toggleMarkedNote(nref);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(on?'★ Nota marcada':'Marcação removida');}
+      else if(a==='tags')AnkiProductParity.editTags([nref]);else if(a==='buryCard')this.buryCard(c);else if(a==='buryNote')this.buryNote(c);
       else if(a==='suspendCard')this.suspendCard(c);else if(a==='suspendNote')this.suspendNote(c);else if(a==='hint')this.showHints(false);else if(a==='allHints')this.showHints(true);
       else if(a==='media')AnkiProductParity.replayMedia(c);else if(a==='tts')AnkiProductParity.speakCard(c);else if(a==='recordVoice')this.openVoiceRecorder();else if(a==='replayVoice')this.replayOwnVoice();
       else if(a==='whiteboard')AnkiProductParity.openWhiteboard();else if(a==='infoPrev')this.previousCardInfo();else if(a==='add')CardsScreen.openCardModal();else if(a==='browse')AnkiProductParity.openBrowser();
-      else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}else if(a==='type')AnkiProductParity.openChangeType(['n:'+nid]);else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
+      else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}else if(a==='type')AnkiProductParity.openChangeType([nref]);else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     });
   },
 
