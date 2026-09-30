@@ -34,7 +34,7 @@
         "testes/anki-oficial-typeanswer.py",
         "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "OFFICIAL_RUNTIME_BRIDGE"
+      "status": "OFFICIAL_RUNTIME_BRIDGE_AND_LOCAL_CACHE"
     },
     "cloze": {
       "official_files": 1,
@@ -70,9 +70,10 @@
       ],
       "differential_tests": [
         "testes/cards-max-editor-io.mjs",
-        "testes/cards-product-parity.mjs"
+        "testes/cards-product-parity.mjs",
+        "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_CHANGE_NOTETYPE_BRIDGE_SCHEMA_MANAGEMENT_PENDING"
     },
     "decks_deckconfig": {
       "official_files": 65,
