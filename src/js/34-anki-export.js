@@ -500,6 +500,27 @@ const AnkiExport = {
     return this._concat(p);
   },
   _encodeDeckKind(d) {
+    if(Number(d&&d.dyn||0)){
+      // proto/anki/decks.proto @ 26.09.3:
+      // Deck.KindContainer.filtered = field 2; Deck.Filtered:
+      // reschedule=1, search_terms=2, delays=3, preview_delay=4,
+      // preview_hard_secs=5, preview_good_secs=6, preview_again_secs=7.
+      const filtered=[this._pbBool(1,d.resched!==false)];
+      for(const t of (d.terms||[])){
+        const row=Array.isArray(t)?t:[t&&t.search,t&&t.limit,t&&t.order];
+        filtered.push(this._pbBytes(2,this._concat([
+          this._pbString(1,String(row[0]||'')),
+          this._pbU32(2,Math.max(0,Math.round(Number(row[1])||0))),
+          this._pbU32(3,Math.max(0,Math.round(Number(row[2])||0)))
+        ])));
+      }
+      for(const delay of (d.delays||[]))filtered.push(this._pbFloat(3,Number(delay)||0));
+      filtered.push(this._pbU32(4,Math.max(0,Math.round(Number(d.previewDelay)||0))));
+      filtered.push(this._pbU32(5,Math.max(0,Math.round(Number(d.previewHardSecs)||0))));
+      filtered.push(this._pbU32(6,Math.max(0,Math.round(Number(d.previewGoodSecs)||0))));
+      filtered.push(this._pbU32(7,Math.max(0,Math.round(Number(d.previewAgainSecs)||0))));
+      return this._pbBytes(2,this._concat(filtered));
+    }
     const normal=[
       this._pbVar(1,Number(d.conf)||1),
       this._pbU32(2,Number(d.extendNew)||0),
