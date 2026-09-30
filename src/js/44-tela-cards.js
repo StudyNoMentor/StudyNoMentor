@@ -3584,7 +3584,21 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
     if (!foot || document.getElementById('deck-inherit-btn')) return;
     const b = document.createElement('button'); b.id = 'deck-inherit-btn'; b.type = 'button'; b.className = 'btn-secondary'; b.style.marginRight = 'auto'; b.textContent = '↩ Voltar a herdar o global';
-    b.addEventListener('click', () => { UI._submit(false); CardsConfig.clearDeckPreset(deckId); showToast('Baralho "' + deckName + '" voltou a herdar o global ✓'); });
+    b.addEventListener('click', async () => {
+      if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.inheritDeckOptions !== 'function') {
+        showToast('Preset não alterado: backend oficial do Anki indisponível.'); return;
+      }
+      const oldText=b.textContent;b.disabled=true;b.textContent='⏳ Aplicando…';
+      try {
+        await CardsOfficialBridge.inheritDeckOptions(deckId);
+        CardsConfig.clearDeckPreset(deckId);
+        UI._submit(false);
+        showToast('Baralho "' + deckName + '" voltou a herdar o global pelo Anki oficial ✓');
+      } catch (e) {
+        b.disabled=false;b.textContent=oldText;
+        showToast('Não foi possível restaurar a herança oficial: ' + (e && e.message ? e.message : String(e)));
+      }
+    });
     foot.insertBefore(b, foot.firstChild);
   }, 60);
 };
