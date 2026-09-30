@@ -31,7 +31,12 @@ try{
     // Regressão: Notes são entidades por planejamento. Com o mesmo ID no
     // plano ativo e no Plano B, o reviewer precisa usar a Note do DONO do card,
     // e uma edição global precisa persistir de volta na Note daquele plano.
-    const C=PlanManager.createPlan({nome:'Plano C',tipo:'Outro'});
+    // ID deliberadamente derivado de B: o teste precisa de um namespace
+    // inequivocamente diferente mesmo sob relógio/aleatoriedade congelados.
+    const C=String(B)+'__isolado';
+    const plansIso=PlanManager.getPlans();
+    plansIso.push({id:C,nome:'Plano C',tipo:'Outro',createdAt:new Date().toISOString()});
+    PlanManager.savePlans(plansIso);PlanManager._seedDefaults(C);
     const collisionNtId=AnkiParity._allocId(),ntDef=JSON.parse(JSON.stringify(AnkiParity._stockNotetypeDef('basic')));
     ntDef.id=collisionNtId;AnkiParity.saveNotetype(ntDef,B);AnkiParity.saveNotetype(ntDef,C);
     const collisionNoteId=AnkiParity._allocId();
