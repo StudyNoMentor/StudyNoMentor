@@ -956,26 +956,27 @@
     try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){if(typeof _quiet==='function')_quiet(e,'global-card-note-sync');}
     return salvo;
   };
-  DB.deleteCard = function(id) {
-    if (O.getCard(id)) return O.deleteCard(id);
-    const r = S.findCardRecord(id); if (!r) return;
-    DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(id)));
-    S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => String(x.cardId) !== String(id)));
-    try { CardsConfig.forgetCardId(id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
+  DB.deleteCard = function(id, planId) {
+    const r = S.findCardRecord(id, planId); if (!r) return;
+    if (String(r.planId) === String(S.activePlanId()) && planId == null && O.getCard(id)) return O.deleteCard(id);
+    if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(r.card.id))) === false) return false;
+    /* Revlog histórico é preservado, como no Anki. */
+    try { CardsConfig.forgetCardId(r.card.id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
+    return true;
   };
-  DB.deleteNoteByCard = function(id) {
-    if (O.getCard(id)) return O.deleteNoteByCard(id);
-    const r = S.findCardRecord(id); if (!r) return 0;
+  DB.deleteNoteByCard = function(id, planId) {
+    const r = S.findCardRecord(id, planId); if (!r) return 0;
+    if (String(r.planId) === String(S.activePlanId()) && planId == null && O.getCard(id)) return O.deleteNoteByCard(id);
     const nid = String(r.card.noteId || r.card.id);
     const ids = new Set(r.list.filter(c => String(c.noteId || c.id) === nid).map(c => String(c.id)));
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => !ids.has(String(c.id)))) === false) return false;
-    S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => !ids.has(String(x.cardId))));
+    /* Revlog histórico é preservado, como no Anki. */
     try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
     return ids.size;
   };
 
   DB.addRevlog = function(entry) {
-    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    const pid = entry && entry._planId != null ? entry._planId : S.sourcePlanForCard(entry && entry.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlog(entry);
     const l = S._revlogForPlan(pid), last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
@@ -994,7 +995,7 @@
   };
 
   DB.addRevlogDurable = async function(entry, cardAfter, cardPosition) {
-    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    const pid = entry && entry._planId != null ? entry._planId : S.sourcePlanForCard(entry && entry.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition);
     const l = S._revlogForPlan(pid), last = l.length ? l[l.length-1] : null;
     const pos = Math.max(l.length, Number(last && last._position)||0) + 1;
@@ -1017,7 +1018,7 @@
     return row;
   };
   DB.cancelarRevlogDurable = async function(row) {
-    const pid = S.sourcePlanForCard(row && row.cardId);
+    const pid = row && row._planId != null ? row._planId : S.sourcePlanForCard(row && row.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.cancelarRevlogDurable(row);
     const l = S._revlogForPlan(pid), i = l.findIndex(x => x && x.reviewId === row.reviewId);
     if (i >= 0) l.splice(i,1);
