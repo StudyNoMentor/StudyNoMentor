@@ -1,0 +1,189 @@
+{
+  "schema": "studynomentor-anki-cards-contracts-v1",
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "total_runtime_files": 571,
+  "categories": {
+    "scheduler": {
+      "official_files": 67,
+      "study_adapters": [
+        "src/js/30-fsrs.js",
+        "src/js/31-cards-config.js",
+        "src/js/32-card-engine.js",
+        "src/js/44-anki-parity.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/paridade-anki.mjs",
+        "testes/cards-paridade-total-anki.mjs",
+        "testes/cards-certificacao-anki.mjs",
+        "testes/cards-fsrs-optimizer-oficial.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "card_rendering": {
+      "official_files": 20,
+      "study_adapters": [
+        "src/js/44-anki-runtime.js",
+        "src/js/44-anki-parity.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/cards-runtime-anki.mjs",
+        "testes/cards-typeanswer-differential.mjs",
+        "testes/anki-oficial-typeanswer.py"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "cloze": {
+      "official_files": 1,
+      "study_adapters": [
+        "src/js/44-anki-parity.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/cards-paridade-total-anki.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "cards_notes": {
+      "official_files": 10,
+      "study_adapters": [
+        "src/js/44-anki-parity.js",
+        "src/js/44-anki-product-parity.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/cards-product-parity.mjs",
+        "testes/cards-total-parity.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "notetypes": {
+      "official_files": 21,
+      "study_adapters": [
+        "src/js/44-anki-parity.js",
+        "src/js/44-anki-max-editor.js",
+        "src/js/44-anki-product-parity.js"
+      ],
+      "differential_tests": [
+        "testes/cards-max-editor-io.mjs",
+        "testes/cards-product-parity.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "decks_deckconfig": {
+      "official_files": 65,
+      "study_adapters": [
+        "src/js/31-cards-config.js",
+        "src/js/44-anki-parity.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/cards-paridade-total-anki.mjs",
+        "testes/cards-certificacao-anki.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "search_browser": {
+      "official_files": 50,
+      "study_adapters": [
+        "src/js/44-anki-parity.js",
+        "src/js/44-anki-product-parity.js",
+        "src/js/44-anki-max-reviewer-browser.js"
+      ],
+      "differential_tests": [
+        "testes/cards-search-differential.mjs",
+        "testes/anki-oficial-search.py",
+        "testes/cards-max-reviewer-browser.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "editor": {
+      "official_files": 90,
+      "study_adapters": [
+        "src/js/44-anki-max-editor.js",
+        "src/js/46-sanitizacao-e-editor.js"
+      ],
+      "differential_tests": [
+        "testes/cards-max-editor-io.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "tags": {
+      "official_files": 31,
+      "study_adapters": [
+        "src/js/44-anki-product-parity.js",
+        "src/js/44-anki-max-reviewer-browser.js"
+      ],
+      "differential_tests": [
+        "testes/cards-product-parity.mjs",
+        "testes/cards-max-reviewer-browser.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "media": {
+      "official_files": 9,
+      "study_adapters": [
+        "src/js/34-anki-export.js",
+        "src/js/35-anki-import.js",
+        "src/js/44-anki-max-stats-media.js"
+      ],
+      "differential_tests": [
+        "testes/cards-import-formatos.mjs",
+        "testes/cards-apkg-export.mjs",
+        "testes/cards-max-stats-media.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "stats": {
+      "official_files": 72,
+      "study_adapters": [
+        "src/js/44-anki-max-stats-media.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/cards-max-stats-media.mjs",
+        "testes/cards-estatisticas-layout-browser.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "import_export": {
+      "official_files": 65,
+      "study_adapters": [
+        "src/js/34-anki-export.js",
+        "src/js/35-anki-import.js"
+      ],
+      "differential_tests": [
+        "testes/cards-import-anki-oficial.mjs",
+        "testes/cards-import-formatos.mjs",
+        "testes/cards-apkg-export.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "image_occlusion": {
+      "official_files": 61,
+      "study_adapters": [
+        "src/js/44-anki-image-occlusion.js",
+        "src/js/44-anki-max-image-occlusion.js"
+      ],
+      "differential_tests": [
+        "testes/cards-image-occlusion.mjs",
+        "testes/cards-max-editor-io.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    },
+    "operations": {
+      "official_files": 9,
+      "study_adapters": [
+        "src/js/44-anki-total-parity.js",
+        "src/js/44-anki-product-parity.js",
+        "src/js/44-tela-cards.js"
+      ],
+      "differential_tests": [
+        "testes/cards-total-parity.mjs",
+        "testes/cards-product-parity.mjs"
+      ],
+      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+    }
+  }
+}
