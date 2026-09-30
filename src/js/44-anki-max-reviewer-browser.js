@@ -451,7 +451,7 @@ const AnkiMaxParity = {
     const oldDecorate=AnkiProductParity.decorateReviewer.bind(AnkiProductParity);
     AnkiProductParity.decorateReviewer=()=>{oldDecorate();this._decorateReviewerExact();};
 
-    AnkiProductParity.openReviewerActions=()=>this.openReviewerActions();
+    AnkiProductParity.openReviewerActions=(cardHint)=>this.openReviewerActions(cardHint);
 
     const oldAnswer=CardsScreen.answer.bind(CardsScreen);
     CardsScreen.answer=async(grade)=>{const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,ok=await oldAnswer(grade);if(ok===true&&id)this._previousCardId=id;return ok;};
@@ -522,8 +522,8 @@ const AnkiMaxParity = {
   },
   previousCardInfo(){if(!this._previousCardId){showToast('Nenhum card anterior nesta sessão');return;}CardsScreen.cardInfo(this._previousCardId);},
 
-  openReviewerActions(){
-    const c=AnkiProductParity._currentReviewCard();if(!c)return;const opts=[];
+  openReviewerActions(cardHint){
+    const c=cardHint||AnkiProductParity._currentReviewCard();if(!c)return;const opts=[];
     if((CardsScreen._redoStack||[]).length)opts.push({value:'redo',label:'↷ Refazer última ação'});
     opts.push(
       {value:'mark',label:'★ Marcar/desmarcar nota'},{value:'tags',label:'🏷 Editar etiquetas'},
