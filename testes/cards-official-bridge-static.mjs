@@ -98,6 +98,13 @@ assert.match(cards,/deck-inherit-btn[\s\S]*?CardsOfficialBridge\.inheritDeckOpti
 assert.match(cards,/CardsOfficialBridge\.updateDeckOptions\(deckId, desiredCfg/,'UI de Deck Options deve chamar a ponte oficial antes de persistir o cache local');
 assert.ok(!/const rescheduled=shouldReschedule\?await CardsScreen\.rescheduleFsrsScope\(deckId\):0/.test(cards),'salvar Deck Options não pode duplicar reschedule no scheduler local');
 assert.match(backend,/def cards_official_fsrs_simulate[\s\S]*?simulate_fsrs_review/,'Simulador FSRS dos Cards precisa usar backend oficial');
+assert.match(backend,/def cards_official_fsrs_optimize[\s\S]*?item\.col\._backend\.compute_fsrs_params/,'Optimize/Health Check precisam usar compute_fsrs_params do Anki oficial');
+assert.match(bridge,/async computeFsrsParams\(deckId,healthCheck\)[\s\S]*?preset:\"[\s\S]*?-is:suspended[\s\S]*?\/api\/cards-official\/fsrs\/optimize/,'bridge FSRS deve usar a busca padrão do preset e o endpoint oficial');
+assert.match(bridge,/async optimizeFsrsPreset\(deckId\)[\s\S]*?forceCurrentPreset:true/,'Optimize Current Preset não pode criar um preset novo para o deck');
+assert.match(cards,/CardsOfficialBridge\.optimizeFsrsPreset\(deckId == null \? null : deckId\)/,'UI de Optimize deve delegar ao bridge oficial');
+assert.match(cards,/CardsOfficialBridge\.fsrsHealthCheck\(deckId==null\?null:deckId\)/,'Health Check deve delegar ao compute_fsrs_params oficial');
+assert.ok(!/FSRS\.optimizeOfficial\(this\._statsRevlog/.test(cards),'Deck Options não pode otimizar a partir do revlog local');
+assert.ok(!/FSRS\.healthCheckOfficial\(this\._statsRevlog/.test(cards),'Health Check não pode avaliar a partir do revlog local');
 assert.match(backend,/def cards_official_empty_cards_report[\s\S]*?item\.col\.get_empty_cards/,'Empty Cards dos Cards precisa usar Collection oficial');
 assert.match(backend,/def cards_official_delete_empty_cards[\s\S]*?before = pb\(item\.col\.get_empty_cards\(\)\)[\s\S]*?remove_cards_and_orphaned_notes\(ids\)[\s\S]*?"state": cards_collection_state_payload/,'Empty Cards deve validar o relatório atual, excluir pela Collection oficial e devolver estado canônico');
 assert.match(bridge,/async openEmptyCards\(\)[\s\S]*?\/api\/cards-official\/empty-cards[\s\S]*?cardIds\.slice\(1\)[\s\S]*?\/api\/cards-official\/empty-cards\/delete/,'UI Empty Cards deve usar o relatório oficial e preservar uma card quando a nota precisa ser mantida');
