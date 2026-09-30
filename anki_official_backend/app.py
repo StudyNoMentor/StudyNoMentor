@@ -1721,6 +1721,148 @@ def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(curr
 
 
 
+def _set_image_occlusion_comments(col: Collection, note_id: int, comments: str | None) -> None:
+    """Comments is the optional fifth stock field (tag=4); standalone I/O RPCs omit it."""
+    if comments is None:
+        return
+    note = col.get_note(note_id)
+    nt = note.note_type() or {}
+    field_name = None
+    for field_cfg in nt.get("flds", []):
+        if int(field_cfg.get("tag", -1) or -1) == 4:
+            field_name = str(field_cfg.get("name", ""))
+            break
+    if field_name and field_name in note:
+        note[field_name] = str(comments)
+        col.update_note(note)
+
+
+@app.post("/api/cards-official/image-occlusion/setup")
+def cards_official_image_occlusion_setup(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        changes = item.col.add_image_occlusion_notetype()
+        matches = []
+        for nt in item.col.models.all():
+            stock = int(nt.get("originalStockKind", nt.get("original_stock_kind", 0)) or 0)
+            if stock == 6:
+                matches.append({
+                    "id": int(nt["id"]),
+                    "name": str(nt.get("name", "Image Occlusion")),
+                    "notetype": nt,
+                    "use_count": int(item.col.models.use_count(nt)),
+                })
+        return {
+            "ok": True,
+            "changes": pb(changes) if changes is not None else {},
+            "notetypes": matches,
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/image-occlusion/image")
+async def cards_official_image_occlusion_image(
+    image: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    data = await _upload_bytes(image, MAX_MEDIA_BYTES)
+    item = cards_uc_for(user)
+    safe_name = os.path.basename(image.filename or "image.png")
+    if not safe_name:
+        safe_name = "image.png"
+    with item.lock:
+        safe_name = item.col.media.add_extension_based_on_mime(
+            safe_name,
+            image.content_type or "image/png",
+        )
+        stored = item.col.media.write_data(safe_name, data)
+        return {
+            "ok": True,
+            "filename": stored,
+            "content_type": image.content_type or "image/png",
+        }
+
+
+@app.post("/api/cards-official/image-occlusion/note")
+def cards_official_add_image_occlusion_note(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        before = set(int(x) for x in item.col.find_notes(""))
+        previous_deck = int(item.col.decks.get_current_id())
+        requested_deck = int(payload.get("deck_id") or previous_deck)
+        try:
+            item.col.decks.select(DeckId(requested_deck))
+            changes = item.col.add_image_occlusion_note(
+                notetype_id=int(payload.get("notetype_id") or 0),
+                image_path=str(payload.get("image_path") or ""),
+                occlusions=str(payload.get("occlusions") or ""),
+                header=str(payload.get("header") or ""),
+                back_extra=str(payload.get("back_extra") or ""),
+                tags=[str(x) for x in payload.get("tags", [])],
+            )
+        finally:
+            item.col.decks.select(DeckId(previous_deck))
+        after = set(int(x) for x in item.col.find_notes(""))
+        created = sorted(after - before)
+        if len(created) != 1:
+            raise HTTPException(500, "O Anki não retornou uma única nota de oclusão criada.")
+        note_id = created[0]
+        _set_image_occlusion_comments(item.col, note_id, payload.get("comments"))
+        note = note_state_payload(item.col, note_id)
+        cards = [card_state_payload(item.col, int(cid)) for cid in note["card_ids"]]
+        return {
+            "ok": True,
+            "changes": pb(changes) if changes is not None else {},
+            "note": note,
+            "cards": cards,
+            "state": cards_collection_state_payload(item.col),
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.get("/api/cards-official/image-occlusion/note/{note_id}")
+def cards_official_get_image_occlusion_note(
+    note_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.get_image_occlusion_note(note_id))
+
+
+@app.put("/api/cards-official/image-occlusion/note/{note_id}")
+def cards_official_update_image_occlusion_note(
+    note_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        changes = item.col.update_image_occlusion_note(
+            note_id=note_id,
+            occlusions=payload.get("occlusions"),
+            header=payload.get("header"),
+            back_extra=payload.get("back_extra"),
+            tags=[str(x) for x in payload.get("tags", [])] if "tags" in payload else None,
+        )
+        _set_image_occlusion_comments(item.col, note_id, payload.get("comments"))
+        note = note_state_payload(item.col, note_id)
+        cards = [card_state_payload(item.col, int(cid)) for cid in note["card_ids"]]
+        return {
+            "ok": True,
+            "changes": pb(changes) if changes is not None else {},
+            "note": note,
+            "cards": cards,
+            "state": cards_collection_state_payload(item.col),
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
 # ---------------------------------------------------------------------------
 # Superfícies avançadas dos Cards executadas na coleção oficial isolada
 # ---------------------------------------------------------------------------
