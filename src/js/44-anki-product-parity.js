@@ -676,16 +676,17 @@ const AnkiProductParity = {
 
   decorateReviewer(){
     const nav=document.querySelector('.cards-review-nav');if(!nav||document.getElementById('anki-review-more'))return;
+    const renderedCard=this._currentReviewCard();
     const b=document.createElement('button');b.type='button';b.className='icon-btn';b.id='anki-review-more';b.textContent='⋯ Mais ações';b.title='Ações adicionais do AnkiDroid';
-    b.addEventListener('click',()=>this.openReviewerActions());nav.appendChild(b);
+    b.addEventListener('click',()=>this.openReviewerActions(renderedCard||this._currentReviewCard()));nav.appendChild(b);
   },
 
   _currentReviewCard(){
     const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx];return id?DB.getCard(id):null;
   },
 
-  openReviewerActions(){
-    const c=this._currentReviewCard();if(!c)return;
+  openReviewerActions(cardHint){
+    const c=cardHint||this._currentReviewCard();if(!c)return;
     const opts=[
       {value:'tags',label:'🏷 Editar etiquetas'},{value:'media',label:'▶ Repetição de mídia'},{value:'tts',label:'🎙 Reproduzir voz'},
       {value:'whiteboard',label:'✍ Quadro'},{value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}
