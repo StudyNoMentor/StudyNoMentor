@@ -63,6 +63,7 @@ const FSRS={DEFAULT_W:W,migrarW:v=>Array.isArray(v)&&v.length===21?v:null};
 const AnkiParity={
   ensureIdentities(){},ensureCanonicalNotes(){},
   isFilteredDeck:d=>!!(d&&d.filtered),
+  filteredConfig:d=>structuredClone((d&&d.filteredConfig)||{reschedule:true,searchTerms:[{search:'',limit:100,order:1}],delays:[],previewDelay:10,previewAgainSecs:60,previewHardSecs:600,previewGoodSecs:0}),
   noteId:c=>Number(c.ankiNoteId),
   getNote:id=>structuredClone(notes.get(String(id))||null),
   noteTypes:()=>structuredClone(nts),
@@ -300,6 +301,58 @@ assert.equal(richMedia.items.length,2,'script e fonte embutidos precisam virar m
 assert.doesNotMatch(rich,/data:(?:text\/javascript|font\/woff2)/,'data URI avançada não deve vazar para o SQLite exportado');
 assert.match(rich,/studynomentor_[0-9a-f]+-\d+\.js/,'script deve receber arquivo de mídia');
 assert.match(rich,/studynomentor_[0-9a-f]+-\d+\.woff2/,'fonte CSS deve receber arquivo de mídia');
+
+/* ── Filtered Deck oficial: round-trip exato no bootstrap schema 18 ─────
+   O bridge usa .colpkg como armazenamento de trabalho da Collection oficial.
+   Se did/odid/odue ou KindContainer.filtered forem rederivados pelo Study,
+   reconstruir/recarregar uma sessão filtrada muda a fila do Anki. */
+const filteredDeck={
+  id:'df1',ankiId:1700000000199,nome:'Estudo Personalizado',filtered:true,kind:'filtered',
+  createdAt:'2026-09-30T12:00:00.000Z',updatedAt:'2026-09-30T12:01:00.000Z',
+  filteredConfig:{
+    reschedule:true,
+    searchTerms:[
+      {search:'deck:"Fiscal" is:due',limit:37,order:6},
+      {search:'tag:original',limit:11,order:1}
+    ],
+    delays:[1,10],previewDelay:10,previewAgainSecs:60,previewHardSecs:600,previewGoodSecs:0
+  }
+};
+decks.push(filteredDeck);
+cards.push({
+  id:'c5',ankiId:1700000000299,ankiNoteId:1700000000399,ankiTemplateOrd:0,ankiMod:1780243200,
+  deckId:'df1',originalDeckId:'d1',filteredDeckId:'df1',originalPhase:'review',
+  phase:'review',due:'2026-09-30',originalDue:'2026-09-18',intervalo:17,reps:9,lapses:2,ease:2.35,
+  ankiType:2,ankiQueue:2,ankiDue:987654,ankiRemainingSteps:0,ankiOriginalDue:18,
+  createdAt:'2026-09-30T12:00:00.000Z',updatedAt:'2026-09-30T12:01:00.000Z'
+});
+notes.set('1700000000399',{
+  id:1700000000399,ankiId:1700000000399,notetypeId:1700000000401,guid:'g-filtered',
+  fields:{Front:'Filtered exact state',Back:'Official'},tags:['filtered_test'],
+  createdAt:'2026-09-30T12:00:00.000Z',updatedAt:'2026-09-30T12:01:00.000Z'
+});
+
+const fpkg=await X.buildCollectionPackage({legacy:false,withMedia:false,preserveFiltered:true,canonicalAnkiIds:true});
+const ffiles=unzipStored(fpkg.bytes);
+const fmodern=new SQL.Database(context.fzstd.decompress(ffiles.get('collection.anki21b')));
+const fcard=fmodern.exec('select did,type,queue,due,odue,odid from cards where id=1700000000299')[0].values[0];
+assert.deepEqual(fcard,[1700000000199,2,2,987654,18,1700000000101],
+  'schema18 deve preservar did/type/queue/due/odue/odid exatamente como retornados pelo Anki oficial');
+const fkind=fmodern.exec('select kind from decks where id=1700000000199')[0].values[0][0];
+assert.equal(Number(fkind[0]),0x12,'schema18 Deck.KindContainer precisa selecionar o campo filtered (wire field 2)');
+fmodern.close();
+
+const fcompat=new SQL.Database(ffiles.get('collection.anki2'));
+const fcol=fcompat.exec('select decks from col where id=1')[0].values[0][0],fdecks=JSON.parse(fcol);
+assert.equal(fdecks['1700000000199'].dyn,1,'compatibilidade schema11 deve manter o deck como filtered/dyn');
+assert.equal(fdecks['1700000000199'].resched,true,'reschedule do filtered deck deve sobreviver');
+assert.deepEqual(fdecks['1700000000199'].terms,[
+  ['deck:"Fiscal" is:due',37,6],['tag:original',11,1]
+],'search/limit/order do filtered deck devem sobreviver sem reinterpretação local');
+const fcardLegacy=fcompat.exec('select did,type,queue,due,odue,odid from cards where id=1700000000299')[0].values[0];
+assert.deepEqual(fcardLegacy,[1700000000199,2,2,987654,18,1700000000101],
+  'schema11 de compatibilidade deve preservar o mesmo estado filtrado exato');
+fcompat.close();
 
 if(process.env.SNM_APKG_LEGACY_OUT)writeFileSync(process.env.SNM_APKG_LEGACY_OUT,Buffer.from(pkg.bytes));
 if(process.env.SNM_APKG_LATEST_OUT)writeFileSync(process.env.SNM_APKG_LATEST_OUT,Buffer.from(modern.bytes));
