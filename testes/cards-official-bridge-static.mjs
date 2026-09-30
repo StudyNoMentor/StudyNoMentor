@@ -8,6 +8,10 @@ const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const bridge=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
 const cards=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
 const statsMedia=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
+const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
+const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
+const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
+const exporter=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
 const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
@@ -89,6 +93,17 @@ assert.match(backend,/"question": card\.question\(\)/);
 assert.match(backend,/"answer": card\.answer\(\)/);
 
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
+assert.match(backend,/def cards_official_editor_media[\s\S]*?item\.col\.media\.write_data/,'mídia do editor precisa usar o MediaManager oficial');
+assert.match(maxEditor,/CardsOfficialBridge\.uploadOfficialMedia\(f,f\.name\)/,'áudio\/vídeo do editor rico devem subir pelo backend oficial');
+assert.ok(!/readAsDataURL/.test(maxEditor),'editor rico não pode persistir mídia nova como data URL');
+assert.match(sanitizer,/async function insertImageFile[\s\S]*?CardsOfficialBridge\.uploadOfficialMedia/,'imagens do RTE devem subir pelo MediaManager oficial');
+assert.match(exporter,/registerExternalMedia\(/,'exportador deve registrar bytes de mídia oficial');
+assert.match(exporter,/async _hydrateExternalMedia\(cards\)[\s\S]*?CardsOfficialBridge\._fetchMedia/,'exportador deve reidratar mídia oficial após reload');
+assert.match(exporter,/await this\._hydrateExternalMedia\(cards\)/,'bootstrap/exportação não pode empacotar coleção antes de hidratar mídia');
+assert.match(backend,/def cards_official_image_occlusion_setup[\s\S]*?add_image_occlusion_notetype/,'Image Occlusion deve usar o stock notetype oficial');
+assert.match(backend,/def cards_official_add_image_occlusion_note[\s\S]*?item\.col\.add_image_occlusion_note/,'criação de Image Occlusion deve usar Collection oficial');
+assert.match(backend,/def cards_official_update_image_occlusion_note[\s\S]*?item\.col\.update_image_occlusion_note/,'edição de Image Occlusion deve usar Collection oficial');
+assert.match(imageOcclusion,/CardsOfficialBridge\.saveOfficialImageOcclusion\(this\.state,payload\)/,'editor visual de IO deve salvar pelo backend oficial');
 assert.match(backend,/def cards_official_collection_graphs[\s\S]*?item\.col\._backend\.graphs/,'Stats dos Cards precisam vir do Graphs oficial');
 assert.match(backend,/def cards_official_custom_study[\s\S]*?item\.col\.sched\.custom_study/,'Custom Study dos Cards precisa usar scheduler oficial');
 assert.match(bridge,/async runCustomStudy\(\)[\s\S]*?\/api\/cards-official\/custom-study/,'UI de Custom Study deve chamar a coleção oficial');
@@ -140,6 +155,11 @@ for(const path of [
   '/api/cards-official/notes',
   '/api/cards-official/note/{note_id}',
   '/api/cards-official/media/{filename:path}',
+  '/api/cards-official/editor/media',
+  '/api/cards-official/image-occlusion/setup',
+  '/api/cards-official/image-occlusion/image',
+  '/api/cards-official/image-occlusion/note',
+  '/api/cards-official/image-occlusion/note/{note_id}',
   '/api/cards-official/browser/ids',
   '/api/cards-official/browser/facets',
   '/api/cards-official/browser/bulk',
