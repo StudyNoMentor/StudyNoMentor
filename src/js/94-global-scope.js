@@ -1074,14 +1074,22 @@
       try { return withPrefix(pid, fn); } finally { names.forEach(n=>{AP[n]=prev[n];}); }
     };
     const clean = x => { const y=clone(x); if (y) { delete y._planId; delete y._planNome; } return y; };
+    const parseEntityRef=(value,tag)=>{
+      const raw=String(value==null?'':value),m=new RegExp('^p:([^:]*):'+tag+':(.*)$').exec(raw);
+      if(m){try{return {planId:decodeURIComponent(m[1]),id:decodeURIComponent(m[2])};}catch(_){return {planId:m[1],id:m[2]};}}
+      const legacy=new RegExp('^'+tag+':(.*)$').exec(raw),id=legacy?legacy[1]:raw;
+      try{return {planId:null,id:decodeURIComponent(id)};}catch(_){return {planId:null,id};}
+    };
 
     AP.getNote = function(id, planId) {
+      const ref=parseEntityRef(id,'n');if(planId==null&&ref.planId!=null)planId=ref.planId;id=ref.id;
       if (planId != null) return withPrefix(planId, () => {
         const x=old.getNote.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
       });
       return S.ankiEntity('note', id);
     };
     AP.getNotetype = function(id, planId) {
+      const ref=parseEntityRef(id,'t');if(planId==null&&ref.planId!=null)planId=ref.planId;id=ref.id;
       if (planId != null) return withPrefix(planId, () => {
         const x=old.getNotetype.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
       });
@@ -1155,8 +1163,13 @@
 
     if (window.AnkiProductParity && !AnkiProductParity.__globalCardsForNote) {
       AnkiProductParity.__globalCardsForNote=true;
-      AnkiProductParity._cardsForNote=function(id){
-        const k=String(id);return S.cards().filter(c=>String(AP.noteId(c))===k);
+      AnkiProductParity._cardsForNote=function(ref){
+        const p=this._parseEntityRef?this._parseEntityRef(ref,'note'):parseEntityRef(ref,'n'),k=String(p.id);
+        return S.cards().filter(c=>{
+          if(String(AP.noteId(c))!==k)return false;
+          const pid=c&&c._planId||S.sourcePlanForCard(c&&c.id)||null;
+          return p.planId==null||String(pid||'')===String(p.planId);
+        });
       };
     }
 
