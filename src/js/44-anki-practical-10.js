@@ -408,7 +408,7 @@ const AnkiPractical10 = {
         const simples=kind==='basic'||kind==='cloze';
         if(note&&nt&&(!simples||['basic_reversed','basic_optional_reversed','typing','image_occlusion'].includes(kind))){
           if(kind==='image_occlusion'&&typeof AnkiImageOcclusion!=='undefined')AnkiImageOcclusion.openEditor(note,card.deckId||null);
-          else AnkiProductParity.openNoteEditor(note.id);
+          else AnkiProductParity.openNoteEditor(note);
           return;
         }
       }
