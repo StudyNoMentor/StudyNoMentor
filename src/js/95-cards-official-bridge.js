@@ -1160,6 +1160,117 @@ const CardsOfficialBridge = {
     }catch(e){showToast('Baralho filtrado não reconstruído: '+(e.message||e));}
   },
 
+
+  _deckOptionEnum(kind,value){
+    const maps={
+      reviewOrder:{day:0,dayThenDeck:1,deckThenDay:2,intervalsAsc:3,intervalsDesc:4,easeAsc:5,easeDesc:6,retrievabilityAsc:7,random:8,added:9,reverseAdded:10,retrievabilityDesc:11,relativeOverdueness:12},
+      newGatherOrder:{deck:0,posicao:1,posicaoDesc:2,randomNotes:3,randomCards:4,deckRandomNotes:5},
+      newSortOrder:{template:0,coleta:1,templateRandom:2,randomNoteTemplate:3,randomCard:4},
+      mix:{misturar:0,depois:1,antes:2}
+    };
+    const map=maps[kind]||{};return Object.prototype.hasOwnProperty.call(map,value)?map[value]:0;
+  },
+  _officialDeckConfigFromLocal(base,cfg,deckId,identity){
+    const row=JSON.parse(JSON.stringify(base||{})),c=Object.assign({},row.config||{}),
+      weights=(window.CardsConfig&&CardsConfig.weightsFor)?CardsConfig.weightsFor(deckId==null?null:deckId):(cfg.weights||[]);
+    row.id=Number(identity&&identity.id!=null?identity.id:(row.id||0));
+    if(identity&&identity.name!=null)row.name=String(identity.name);
+    Object.assign(c,{
+      learn_steps:Array.isArray(cfg.learnSteps)?cfg.learnSteps.map(Number).filter(Number.isFinite):[],
+      relearn_steps:Array.isArray(cfg.relearnSteps)?cfg.relearnSteps.map(Number).filter(Number.isFinite):[],
+      fsrs_params_6:Array.isArray(weights)?weights.map(Number).filter(Number.isFinite):[],
+      new_per_day:Math.max(0,Math.round(Number(cfg.newPerDay)||0)),
+      reviews_per_day:Math.max(0,Math.round(Number(cfg.revPerDay)||0)),
+      initial_ease:Number(cfg.initialEase)||2.5,
+      easy_multiplier:Number(cfg.easyMultiplier)||1.3,
+      hard_multiplier:Number(cfg.hardMultiplier)||1.2,
+      lapse_multiplier:Number(cfg.lapseMultiplier)||0,
+      interval_multiplier:Number(cfg.intervalMultiplier)||1,
+      maximum_review_interval:Math.max(1,Math.round(Number(cfg.maxInterval)||36500)),
+      minimum_lapse_interval:Math.max(1,Math.round(Number(cfg.minimumLapseInterval)||1)),
+      graduating_interval_good:Math.max(1,Math.round(Number(cfg.graduatingIntervalGood)||1)),
+      graduating_interval_easy:Math.max(1,Math.round(Number(cfg.graduatingIntervalEasy)||4)),
+      new_card_insert_order:cfg.newInsertOrder==='aleatoria'?1:0,
+      new_card_gather_priority:this._deckOptionEnum('newGatherOrder',cfg.newGatherOrder),
+      new_card_sort_order:this._deckOptionEnum('newSortOrder',cfg.newSortOrder),
+      new_mix:this._deckOptionEnum('mix',cfg.newMix),
+      review_order:this._deckOptionEnum('reviewOrder',cfg.reviewOrder),
+      interday_learning_mix:this._deckOptionEnum('mix',cfg.interdayMix),
+      leech_action:cfg.leechAction==='suspend'?0:1,
+      leech_threshold:Math.max(0,Math.round(Number(cfg.leechThreshold)||0)),
+      disable_autoplay:!!cfg.disableAutoplay,
+      cap_answer_time_to_secs:Math.max(0,Math.round(Number(cfg.capAnswerTimeToSecs)||0)),
+      show_timer:!!cfg.showTimer,
+      stop_timer_on_answer:!!cfg.stopTimerOnAnswer,
+      seconds_to_show_question:Math.max(0,Number(cfg.secondsToShowQuestion)||0),
+      seconds_to_show_answer:Math.max(0,Number(cfg.secondsToShowAnswer)||0),
+      question_action:Math.max(0,Math.min(1,Math.round(Number(cfg.questionAction)||0))),
+      answer_action:Math.max(0,Math.min(4,Math.round(Number(cfg.answerAction)||0))),
+      wait_for_audio:cfg.waitForAudio!==false,
+      skip_question_when_replaying_answer:!!cfg.skipQuestionWhenReplayingAnswer,
+      bury_new:!!cfg.buryNew,
+      bury_reviews:!!cfg.buryReviews,
+      bury_interday_learning:!!cfg.buryInterdayLearning,
+      desired_retention:Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),
+      ignore_revlogs_before_date:String(cfg.ignoreRevlogsBefore||''),
+      easy_days_percentages:Array.isArray(cfg.easyDays)&&cfg.easyDays.length===7?cfg.easyDays.map(x=>Math.max(0,Math.min(1,Number(x)||0))):[1,1,1,1,1,1,1],
+      historical_retention:Math.max(.5,Math.min(.99,Number(cfg.historicalRetention)||.9)),
+      param_search:String(cfg.paramSearch||'')
+    });
+    row.config=c;return row;
+  },
+  _saveDeckConfigIdentity(localDeckId,planId,configId){
+    if(localDeckId==null||!Number.isFinite(Number(configId))||Number(configId)<=0)return;
+    const pid=planId!=null?planId:this._activePlanId(),
+      raw=window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+      list=(raw||[]).map(x=>Object.assign({},x)),
+      hit=list.find(x=>String(x.id)===String(localDeckId));
+    if(!hit)return;
+    hit.configId=Number(configId);hit.updatedAt=new Date().toISOString();
+    const clean=x=>{const y=DB._semTransitorios?DB._semTransitorios(x):Object.assign({},x);delete y._planId;delete y._planNome;return y;},
+      saved=pid!=null?DB._set(DB.keysForPlan(pid).decks,list.map(clean)):DB.saveDecks(list.map(clean));
+    if(saved===false)throw new Error('Falha ao persistir a identidade oficial do preset.');
+  },
+  async updateDeckOptions(deckId,cfg,opts){
+    opts=Object.assign({hadPreset:false,fsrsReschedule:false,deckName:''},opts||{});
+    await this.bootstrap(false);
+    const isDeck=deckId!=null&&deckId!=='',
+      ctx=isDeck?this._deckContext(deckId):{officialId:1,planId:this._activePlanId(),deck:null},
+      current=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options'),
+      all=Array.isArray(current.all_config)?current.all_config:[],
+      currentId=Number(current.current_deck&&current.current_deck.config_id)||1;
+    let targetId=isDeck?(opts.hadPreset?currentId:0):1,
+      baseEntry=all.find(x=>Number(x&&x.config&&x.config.id)===Number(targetId||currentId))
+        ||all.find(x=>Number(x&&x.config&&x.config.id)===currentId)
+        ||{config:current.defaults||{}},
+      base=baseEntry.config||current.defaults||{},
+      name=isDeck&&!opts.hadPreset?String(opts.deckName||ctx.deck&&ctx.deck.nome||'Preset'):String(base.name||(!isDeck?'Default':opts.deckName||'Preset')),
+      conf=this._officialDeckConfigFromLocal(base,cfg,isDeck?deckId:null,{id:targetId,name});
+    const globalCfg=isDeck?CardsConfig.get():cfg,
+      payload={
+        target_deck_id:Number(ctx.officialId),
+        configs:[conf],
+        removed_config_ids:[],
+        mode:0,
+        card_state_customizer:String(current.card_state_customizer||''),
+        limits:Object.assign({},current.current_deck&&current.current_deck.limits||{}),
+        new_cards_ignore_review_limit:!!globalCfg.newCardsIgnoreReviewLimit,
+        fsrs:String(globalCfg.algo||'fsrs')!=='sm2',
+        apply_all_parent_limits:!!globalCfg.applyAllParentLimits,
+        fsrs_reschedule:!!opts.fsrsReschedule,
+        fsrs_health_check:false
+      },
+      out=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options',{
+        method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+      });
+    if(!out||!out.options)throw new Error('O Anki oficial não devolveu Deck Options após salvar.');
+    const selectedId=Number(out.options.current_deck&&out.options.current_deck.config_id)||0;
+    if(isDeck)this._saveDeckConfigIdentity(deckId,ctx.planId,selectedId);
+    await this._syncCollectionState(out.state,ctx.planId,null);
+    this.dirty=false;this._browserCache=[];
+    return out;
+  },
+
   _wrapInvalidator(name){
     const fn=CardsScreen[name];if(typeof fn!=='function'||fn.__cardsOfficialWrapped)return;
     const self=this;
