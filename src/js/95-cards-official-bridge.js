@@ -1172,7 +1172,7 @@ const CardsOfficialBridge = {
   },
   _officialDeckConfigFromLocal(base,cfg,deckId,identity){
     const row=JSON.parse(JSON.stringify(base||{})),c=Object.assign({},row.config||{}),
-      weights=(window.CardsConfig&&CardsConfig.weightsFor)?CardsConfig.weightsFor(deckId==null?null:deckId):(cfg.weights||[]);
+      weights=Array.isArray(cfg&&cfg.weights)?cfg.weights:((window.CardsConfig&&CardsConfig.weightsFor)?CardsConfig.weightsFor(deckId==null?null:deckId):[]);
     row.id=Number(identity&&identity.id!=null?identity.id:(row.id||0));
     if(identity&&identity.name!=null)row.name=String(identity.name);
     Object.assign(c,{
@@ -1239,7 +1239,7 @@ const CardsOfficialBridge = {
       current=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options'),
       all=Array.isArray(current.all_config)?current.all_config:[],
       currentId=Number(current.current_deck&&current.current_deck.config_id)||1;
-    let targetId=isDeck?(opts.hadPreset?currentId:0):1,
+    let targetId=isDeck?(opts.forceCurrentPreset?currentId:(opts.hadPreset?currentId:0)):1,
       baseEntry=all.find(x=>Number(x&&x.config&&x.config.id)===Number(targetId||currentId))
         ||all.find(x=>Number(x&&x.config&&x.config.id)===currentId)
         ||{config:current.defaults||{}},
@@ -1272,6 +1272,67 @@ const CardsOfficialBridge = {
   },
 
 
+
+
+
+  _fsrsRelearningStepsInDay(steps){
+    let count=0,total=0;
+    for(const step of Array.isArray(steps)?steps:[]){
+      total+=Number(step)||0;if(total>=1440)break;count++;
+    }
+    return count;
+  },
+  _fsrsIgnoreBeforeMs(date){
+    const raw=String(date||'').trim();if(!raw)return 0;
+    const ms=new Date(raw+'T00:00:00').getTime();return Number.isFinite(ms)?ms:0;
+  },
+  async computeFsrsParams(deckId,healthCheck){
+    await this.bootstrap(false);
+    const isDeck=deckId!=null&&deckId!=='',
+      ctx=isDeck?this._deckContext(deckId):{officialId:1,planId:this._activePlanId(),deck:null},
+      options=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options'),
+      currentId=Number(options.current_deck&&options.current_deck.config_id)||1,
+      entry=(options.all_config||[]).find(x=>Number(x&&x.config&&x.config.id)===currentId);
+    if(!entry||!entry.config)throw new Error('Preset oficial atual não encontrado para otimização FSRS.');
+    const preset=entry.config,pc=preset.config||{},presetName=String(preset.name||'Default').replace(/\\/g,'\\\\').replace(/"/g,'\\"'),
+      search=String(pc.param_search||'').trim()||('preset:"'+presetName+'" -is:suspended'),
+      payload={
+        search,
+        current_params:Array.isArray(pc.fsrs_params_6)?pc.fsrs_params_6:[],
+        ignore_revlogs_before_ms:this._fsrsIgnoreBeforeMs(pc.ignore_revlogs_before_date),
+        num_of_relearning_steps:this._fsrsRelearningStepsInDay(pc.relearn_steps),
+        health_check:!!healthCheck
+      },
+      out=await this.request('/api/cards-official/fsrs/optimize',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+      });
+    return {out,options,entry,ctx,isDeck,search,currentId};
+  },
+  async optimizeFsrsPreset(deckId){
+    const r=await this.computeFsrsParams(deckId,false),params=Array.isArray(r.out&&r.out.params)?r.out.params.map(Number).filter(Number.isFinite):[],
+      before=Array.isArray(r.entry.config.config&&r.entry.config.config.fsrs_params_6)?r.entry.config.config.fsrs_params_6.map(Number):[],
+      same=params.length===before.length&&params.every((x,i)=>Math.abs(x-before[i])<0.00005);
+    if(!params.length||same)return {params:params.length?params:before,fsrsItems:Number(r.out&&r.out.fsrs_items)||0,alreadyOptimal:true,search:r.search};
+    const localCfg=CardsConfig.forDeck(deckId==null?null:deckId),desired=Object.assign({},localCfg,{weights:params});
+    await this.updateDeckOptions(deckId,desired,{
+      hadPreset:deckId!=null&&CardsConfig.hasDeckPreset(deckId),
+      forceCurrentPreset:true,fsrsReschedule:false,
+      deckName:r.entry.config.name||''
+    });
+    const patch={weights:params.slice(),lastOptim:new Date().toISOString()};
+    if(deckId!=null&&CardsConfig.hasDeckPreset(deckId))CardsConfig.setDeckPreset(deckId,patch);else CardsConfig.set(patch);
+    CardEngine.invalidateDueCache();
+    return {params,fsrsItems:Number(r.out&&r.out.fsrs_items)||0,alreadyOptimal:false,search:r.search};
+  },
+  async fsrsHealthCheck(deckId){
+    const r=await this.computeFsrsParams(deckId,true);
+    return {
+      fsrsItems:Number(r.out&&r.out.fsrs_items)||0,
+      passed:r.out&&Object.prototype.hasOwnProperty.call(r.out,'health_check_passed')?!!r.out.health_check_passed:null,
+      params:Array.isArray(r.out&&r.out.params)?r.out.params.slice():[],
+      search:r.search
+    };
+  },
 
   async inheritDeckOptions(deckId){
     await this.bootstrap(false);
