@@ -2783,29 +2783,29 @@ const CardsScreen = {
       limit:this._ankiExportLimit()
     };
   },
-  exportAnkiNotes() {
+  async exportAnkiNotes() {
     if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
-      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextNotes!=='function')throw new Error('Exportador de notas indisponível');
-      const out=AnkiExport.buildTextNotes(this._ankiTextOptions());
-      this._download('notas-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
-      showToast('Notas do Anki exportadas: '+out.notes.toLocaleString('pt-BR')+' ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.exportOfficialText!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const out=await CardsOfficialBridge.exportOfficialText('notes',this._ankiTextOptions());
+      this._download('notas-anki_'+todayLocal()+'.txt',out.blob,'text/plain;charset=utf-8');
+      showToast('Notas exportadas pela Collection oficial do Anki: '+out.count.toLocaleString('pt-BR')+' ✓');
       $id('cards-export-modal').style.display='none';
     }catch(err){
-      console.error('Falha ao exportar notas Anki:',err);
+      console.error('Falha ao exportar notas pelo Anki oficial:',err);
       showToast('Não foi possível exportar as notas. Detalhe: '+(err&&err.message?err.message:String(err)));
     }
   },
-  exportAnki() {
+  async exportAnki() {
     if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
-      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextCards!=='function')throw new Error('Exportador de cards indisponível');
-      const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
-      this._download('cards-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
-      showToast('Cards do Anki exportados: '+out.cards.toLocaleString('pt-BR')+' ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.exportOfficialText!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const out=await CardsOfficialBridge.exportOfficialText('cards',{withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
+      this._download('cards-anki_'+todayLocal()+'.txt',out.blob,'text/plain;charset=utf-8');
+      showToast('Cards exportados pela Collection oficial do Anki: '+out.count.toLocaleString('pt-BR')+' ✓');
       $id('cards-export-modal').style.display='none';
     }catch(err){
-      console.error('Falha ao exportar cards Anki:',err);
+      console.error('Falha ao exportar cards pelo Anki oficial:',err);
       showToast('Não foi possível exportar os cards. Detalhe: '+(err&&err.message?err.message:String(err)));
     }
   },
@@ -2846,6 +2846,7 @@ const CardsScreen = {
   openImportModal() {
     this._importParsed = null;
     this._importFile = null;
+    this._officialCsvMetadata = null;
     const textOpts=document.getElementById('cards-import-text-options');if(textOpts)textOpts.style.display='none';
     const mapBox=document.getElementById('cards-import-field-mapping');if(mapBox)mapBox.innerHTML='';
     const globalTags=document.getElementById('cards-import-global-tags');if(globalTags)globalTags.value='';
@@ -2914,6 +2915,10 @@ const CardsScreen = {
       if (parsed.kind === 'json') n = parsed.cards.length;
       else if (parsed.kind === 'text') {
         n = parsed.rows.length;
+        if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.officialCsvMetadata==='function'){
+          try{this._officialCsvMetadata=await CardsOfficialBridge.officialCsvMetadata(file);}
+          catch(e){this._officialCsvMetadata=null;console.warn('CsvMetadata oficial indisponível',e);}
+        }
         const html = document.getElementById('cards-import-html');
         if (html && parsed.headers && Object.prototype.hasOwnProperty.call(parsed.headers, 'html')) html.checked = !!parsed.isHtml;
         this.renderTextImportOptions(parsed);
@@ -3123,11 +3128,33 @@ const CardsScreen = {
       const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
       count = Number(r.cards) || 0;
     } else if (this._importParsed.kind === 'text') {
+      if(!this._importFile)throw new Error('Arquivo original de texto não está mais disponível.');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialCsv!=='function')throw new Error('Backend oficial do Anki indisponível.');
       let parsed=this._importParsed;
       if(delimiterName&&parsed.source)parsed=AnkiImport.parseText(parsed.source,'texto.txt',{delimiter:delims[delimiterName]});
+      const meta=JSON.parse(JSON.stringify(this._officialCsvMetadata||{})),
+        delimiterMap={tab:0,pipe:1,semicolon:2,colon:3,comma:4,space:5},
+        nt=notetypeId?AnkiParity.getNotetype(notetypeId):null,
+        ntOfficial=nt?Number(nt.ankiId!=null?nt.ankiId:nt.id):null,
+        deckOfficial=deckId?CardsOfficialBridge._officialDeckId(deckId):null,
+        ntCol=readCol('cards-import-col-notetype'),deckCol=readCol('cards-import-col-deck'),
+        tagsCol=readCol('cards-import-col-tags'),guidCol=readCol('cards-import-col-guid');
+      if(delimiterName){meta.delimiter=delimiterMap[delimiterName];meta.force_delimiter=true;}
+      meta.is_html=!!isHtml;meta.force_is_html=true;meta.global_tags=globalTags;meta.updated_tags=updatedTags;
+      meta.dupe_resolution=dupeResolution==='preserve'?1:(dupeResolution==='duplicate'?2:0);
+      meta.match_scope=matchScope==='notetype-and-deck'?1:0;meta.tags_column=tagsCol;meta.guid_column=guidCol;
+      delete meta.global_notetype;delete meta.notetype_column;
+      if(ntCol>0)meta.notetype_column=ntCol;
+      else if(ntOfficial)meta.global_notetype={id:ntOfficial,field_columns:fieldColumns};
+      delete meta.deck_id;delete meta.deck_column;delete meta.deck_name;
+      if(deckCol>0)meta.deck_column=deckCol;else if(deckOfficial)meta.deck_id=Number(deckOfficial);
+      const official=await CardsOfficialBridge.importOfficialCsv(this._importFile,meta);
+      // Materializa o espelho Study para filtros/taxonomia; o estado acadêmico
+      // final é sobrescrito imediatamente pelo snapshot oficial.
       const r = AnkiImport.importText(parsed, {deckId,materia,isHtml,forceIsHtml:true,notetypeId,dupeResolution,matchScope,globalTags,updatedTags,
-        fieldColumns,notetypeColumn:readCol('cards-import-col-notetype'),deckColumn:readCol('cards-import-col-deck'),tagsColumn:readCol('cards-import-col-tags'),guidColumn:readCol('cards-import-col-guid')});
-      count = Number(r.notes+r.updated+r.preserved) || Number(r.cards) || 0;
+        fieldColumns,notetypeColumn:ntCol,deckColumn:deckCol,tagsColumn:tagsCol,guidColumn:guidCol});
+      await CardsOfficialBridge.syncOfficialPackageImport(official);
+      count = Number(r.notes+r.updated+r.preserved) || Number(r.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     }
     $id('cards-import-modal').style.display = 'none';
     this.render();
