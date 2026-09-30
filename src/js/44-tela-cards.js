@@ -3125,8 +3125,12 @@ const CardsScreen = {
       await CardsOfficialBridge.syncOfficialPackageImport(official);
       count = Number(r.cards) || Number(official.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
+      if(!this._importFile)throw new Error('Arquivo Mnemosyne original não está mais disponível.');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialMnemosyne!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const official=await CardsOfficialBridge.importOfficialMnemosyne(this._importFile,deckId);
       const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
-      count = Number(r.cards) || 0;
+      await CardsOfficialBridge.syncOfficialPackageImport(official);
+      count = Number(r.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'text') {
       if(!this._importFile)throw new Error('Arquivo original de texto não está mais disponível.');
       if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialCsv!=='function')throw new Error('Backend oficial do Anki indisponível.');
