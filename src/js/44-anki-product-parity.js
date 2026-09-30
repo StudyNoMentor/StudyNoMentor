@@ -272,15 +272,15 @@ const AnkiProductParity = {
   },
 
   previewNote(id){
-    const note=AnkiParity.getNote(id),box=document.getElementById('anki-browser-preview');if(!note){box.innerHTML='<p class="hint">Nota não encontrada.</p>';return;}
-    const nt=this._typeFor(note),cards=this._cardsForNote(id),card=cards[0]||{id:'preview',ankiTemplateOrd:0,clozeOrd:1,deckId:null};
+    const supplied=id&&typeof id==='object'?id:null,note=supplied||AnkiParity.getNote(id),box=document.getElementById('anki-browser-preview');if(!note){box.innerHTML='<p class="hint">Nota não encontrada.</p>';return;}
+    const nt=this._typeFor(note),cards=this._cardsForNote(note,note._planId),card=cards[0]||{id:'preview',ankiTemplateOrd:0,clozeOrd:1,deckId:null};
     let front='',back='';try{front=AnkiParity.renderTemplate(nt,note,Number(card.ankiTemplateOrd)||0,'question',card,'');back=AnkiParity.renderTemplate(nt,note,Number(card.ankiTemplateOrd)||0,'answer',card,front);}catch(e){front='Erro de template';back=this.esc(e.message||e);}
     const frame=(html,side)=>typeof AnkiRuntime!=='undefined'?AnkiRuntime.renderFrame(nt,html,side,card,true,note,CardsConfig.forDeck(card.deckId)):'<div class="cards-face">'+_sanCard(html)+'</div>';
     box.innerHTML='<div class="anki-preview-head"><strong>'+this.esc(nt&&nt.name||'Tipo de nota')+'</strong><span>'+cards.length+' card(s)</span></div>'+
       '<div class="anki-preview-label">Frente</div>'+frame(front,'question')+'<div class="anki-preview-label">Verso</div>'+frame(back,'answer')+
       '<div class="anki-preview-actions"><button type="button" class="btn-primary" id="anki-preview-edit">✎ Editar nota</button><button type="button" class="btn-secondary" id="anki-preview-type">🧩 Mudar tipo</button></div>';
-    document.getElementById('anki-preview-edit').addEventListener('click',()=>this.openNoteEditor(id));
-    document.getElementById('anki-preview-type').addEventListener('click',()=>this.openChangeType([String(id)]));
+    document.getElementById('anki-preview-edit').addEventListener('click',()=>this.openNoteEditor(note));
+    document.getElementById('anki-preview-type').addEventListener('click',()=>this.openChangeType([note]));
   },
 
   openNoteEditor(id){
