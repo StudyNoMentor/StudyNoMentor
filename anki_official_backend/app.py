@@ -18,7 +18,7 @@ from typing import Any
 
 import anki.buildinfo
 import httpx
-from anki import deck_config_pb2, import_export_pb2, scheduler_pb2, stats_pb2, notetypes_pb2
+from anki import cards_pb2, deck_config_pb2, import_export_pb2, scheduler_pb2, stats_pb2, notetypes_pb2
 from anki.collection import (
     Collection,
     ExportAnkiPackageOptions,
@@ -805,6 +805,226 @@ def cards_official_status(user: dict[str, Any] = Depends(current_user)) -> dict[
             "cards": int(item.col.card_count()),
             "notes": int(item.col.note_count()),
             "current_deck_id": int(item.col.decks.get_current_id()),
+        }
+
+
+def _legacy_stock_kind(row: dict[str, Any]) -> int:
+    raw = str(row.get("stock_kind") or row.get("kind") or "basic").strip().lower()
+    aliases = {
+        "basic": int(StockNotetypeKind.KIND_BASIC),
+        "basic_reversed": int(StockNotetypeKind.KIND_BASIC_AND_REVERSED),
+        "basic_optional_reversed": int(StockNotetypeKind.KIND_BASIC_OPTIONAL_REVERSED),
+        "typing": int(StockNotetypeKind.KIND_BASIC_TYPING),
+        "cloze": int(StockNotetypeKind.KIND_CLOZE),
+        "image_occlusion": int(StockNotetypeKind.KIND_IMAGE_OCCLUSION),
+    }
+    return aliases.get(raw, int(StockNotetypeKind.KIND_CLOZE) if row.get("kind") == "cloze" else int(StockNotetypeKind.KIND_BASIC))
+
+
+def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[str, Any]) -> None:
+    """Copia apenas dados de apresentação para objetos criados pelo NoteTypeManager oficial."""
+    fields = row.get("fields") if isinstance(row.get("fields"), list) else []
+    templates = row.get("templates") if isinstance(row.get("templates"), list) else []
+    if fields:
+        nt["flds"] = []
+        for idx, field_row in enumerate(fields):
+            name = str((field_row or {}).get("name") or f"Field {idx + 1}")
+            field = col.models.new_field(name)
+            for key in ("font", "size", "rtl", "sticky", "collapsed", "excludeFromSearch", "tag"):
+                if key in (field_row or {}):
+                    field[key] = field_row[key]
+            col.models.add_field(nt, field)
+    if templates:
+        nt["tmpls"] = []
+        for idx, template_row in enumerate(templates):
+            name = str((template_row or {}).get("name") or f"Card {idx + 1}")
+            template = col.models.new_template(name)
+            template["qfmt"] = str((template_row or {}).get("qfmt") or "")
+            template["afmt"] = str((template_row or {}).get("afmt") or "")
+            for key in ("bqfmt", "bafmt", "did", "bfont", "bsize"):
+                if key in (template_row or {}):
+                    template[key] = template_row[key]
+            col.models.add_template(nt, template)
+    if "css" in row:
+        nt["css"] = str(row.get("css") or "")
+    if fields:
+        nt["sortf"] = max(0, min(len(fields) - 1, int(row.get("sortf") or 0)))
+
+
+def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
+    if row.get("anki_type") is not None and row.get("anki_queue") is not None:
+        return int(row["anki_type"]), int(row["anki_queue"])
+    phase = str(row.get("phase") or "new").lower()
+    if phase == "learning":
+        return 1, 1
+    if phase == "review":
+        return 2, 2
+    if phase == "relearning":
+        return 3, 1
+    return 0, 0
+
+
+@app.post("/api/cards-official/migrate/legacy")
+def cards_official_migrate_legacy(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Migração única: transforma registros antigos em objetos da Collection oficial.
+
+    Não agenda nem renderiza no código Study. NoteTypes/Notes/Decks/Cards são
+    criados e persistidos pelos objetos oficiais do Anki; os campos de scheduling
+    já existentes são apenas importados como estado inicial.
+    """
+    item = cards_uc_for(user)
+    decks = payload.get("decks") if isinstance(payload.get("decks"), list) else []
+    notetypes = payload.get("notetypes") if isinstance(payload.get("notetypes"), list) else []
+    notes = payload.get("notes") if isinstance(payload.get("notes"), list) else []
+    cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
+    revlog = payload.get("revlog") if isinstance(payload.get("revlog"), list) else []
+    with item.lock:
+        if item.col.card_count() or item.col.note_count():
+            raise HTTPException(409, "A Collection oficial já contém dados; migração recusada.")
+
+        deck_map: dict[str, int] = {}
+        for row in decks:
+            legacy_id = str((row or {}).get("id") or "")
+            name = str((row or {}).get("name") or (row or {}).get("nome") or "").strip()
+            if not name:
+                continue
+            existing = next((x for x in item.col.decks.all_names_and_ids() if str(x.name) == name), None)
+            did = int(existing.id) if existing else int(item.col.decks.add_normal_deck_with_name(name).id)
+            if legacy_id:
+                deck_map[legacy_id] = did
+
+        nt_map: dict[str, int] = {}
+        for row in notetypes:
+            if not isinstance(row, dict):
+                continue
+            legacy_id = str(row.get("id") or row.get("anki_id") or "")
+            name = str(row.get("name") or "Note Type").strip()
+            existing = item.col.models.by_name(name)
+            if existing and int(item.col.models.use_count(existing)) == 0:
+                nt = existing
+            else:
+                raw = from_json_bytes(item.col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row)))
+                raw["id"] = 0
+                raw["name"] = name
+                changes = item.col.models.add_dict(raw)
+                nt = item.col.models.get(int(changes.id))
+            if not nt:
+                raise HTTPException(500, f"Falha ao criar NoteType {name}.")
+            _apply_legacy_notetype_shape(item.col, nt, row)
+            item.col.models.update_dict(nt, skip_checks=False)
+            if legacy_id:
+                nt_map[legacy_id] = int(nt["id"])
+
+        cards_by_note: dict[str, list[dict[str, Any]]] = {}
+        for card_row in cards:
+            if not isinstance(card_row, dict):
+                continue
+            cards_by_note.setdefault(str(card_row.get("note_id") or card_row.get("anki_note_id") or card_row.get("id") or ""), []).append(card_row)
+
+        note_map: dict[str, int] = {}
+        card_map: dict[str, int] = {}
+        for row in notes:
+            if not isinstance(row, dict):
+                continue
+            legacy_nid = str(row.get("id") or row.get("anki_id") or "")
+            ntid = nt_map.get(str(row.get("notetype_id") or ""))
+            nt = item.col.models.get(ntid) if ntid else item.col.models.current()
+            if not nt:
+                raise HTTPException(400, f"NoteType legado não localizado para nota {legacy_nid}.")
+            note = item.col.new_note(nt)
+            fields = row.get("fields") if isinstance(row.get("fields"), dict) else {}
+            for key in note.keys():
+                note[key] = str(fields.get(key, ""))
+            note.tags = [str(x) for x in (row.get("tags") or []) if str(x)]
+            related = cards_by_note.get(legacy_nid, [])
+            legacy_deck = str((related[0] if related else {}).get("deck_id") or "")
+            did = DeckId(deck_map.get(legacy_deck, 1))
+            item.col.add_note(note, did)
+            note_map[legacy_nid] = int(note.id)
+
+            official_cards = [item.col.get_card(cid) for cid in item.col.card_ids_of_note(note.id)]
+            by_ord = {int(card.ord): card for card in official_cards}
+            for idx, old in enumerate(related):
+                ord_ = int(old.get("template_idx") or old.get("anki_template_ord") or old.get("ord") or 0)
+                card = by_ord.get(ord_) or (official_cards[min(idx, len(official_cards) - 1)] if official_cards else None)
+                if not card:
+                    continue
+                legacy_cid = str(old.get("id") or old.get("anki_id") or "")
+                did2 = deck_map.get(str(old.get("deck_id") or ""), int(card.did))
+                ctype, queue = _legacy_card_type_queue(old)
+                card.did = DeckId(did2)
+                card.type = type(card.type)(ctype)
+                card.queue = type(card.queue)(int(old.get("anki_queue")) if old.get("anki_queue") is not None else queue)
+                if old.get("anki_due") is not None:
+                    card.due = int(old.get("anki_due") or 0)
+                elif card.queue == type(card.queue)(0):
+                    card.due = max(1, int(old.get("new_position") or old.get("posicao_nova") or card.due or 1))
+                elif card.queue == type(card.queue)(1):
+                    card.due = max(0, int((old.get("due_ts") or 0) / 1000))
+                card.ivl = max(0, int(old.get("interval") or old.get("intervalo") or 0))
+                ease = float(old.get("ease") or 0)
+                card.factor = max(0, int(old.get("ease_factor") or (ease * 1000 if 0 < ease < 10 else ease)))
+                card.reps = max(0, int(old.get("reps") or 0))
+                card.lapses = max(0, int(old.get("lapses") or 0))
+                card.left = max(0, int(old.get("remaining_steps") or old.get("anki_remaining_steps") or 0))
+                card.odue = max(0, int(old.get("original_due") or old.get("anki_original_due") or 0))
+                odid = deck_map.get(str(old.get("original_deck_id") or ""), 0)
+                card.odid = DeckId(odid)
+                card.flags = max(0, min(7, int(old.get("flag") or 0)))
+                if old.get("s") is not None and old.get("d") is not None:
+                    s = float(old.get("s") or 0)
+                    d = float(old.get("d") or 0)
+                    if s > 0 and d > 0:
+                        card.memory_state = cards_pb2.FsrsMemoryState(stability=s, difficulty=d)
+                study = {
+                    "legacy_id": legacy_cid,
+                    "materia": old.get("materia"),
+                    "assunto": old.get("assunto"),
+                    "materiaTec": old.get("materia_tec"),
+                    "banca": old.get("banca"),
+                    "tipo": old.get("tipo"),
+                }
+                card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
+                item.col.update_card(card)
+                if legacy_cid:
+                    card_map[legacy_cid] = int(card.id)
+
+        # Só linhas que já carregam a semântica canônica do revlog Anki são
+        # importadas; linhas antigas ambíguas não são reinterpretadas.
+        rev_rows: list[tuple[int, int, int, int, int, int, int, int, int]] = []
+        seen_rev_ids: set[int] = set()
+        for row in revlog:
+            if not isinstance(row, dict) or int(row.get("anki_ivl_semantica") or 0) != 2:
+                continue
+            cid = card_map.get(str(row.get("card_id") or row.get("anki_card_id") or ""))
+            if not cid:
+                continue
+            rid = max(1, int(row.get("ts") or int(time.time() * 1000)))
+            while rid in seen_rev_ids:
+                rid += 1
+            seen_rev_ids.add(rid)
+            kind = int(row.get("anki_review_kind") or 1)
+            rev_rows.append((
+                rid, cid, -1, max(0, min(4, int(row.get("grade") or 0))),
+                int(row.get("anki_interval") or 0), int(row.get("anki_last_interval") or 0),
+                max(0, int(row.get("ease_factor") or 0)), max(0, int(row.get("time") or 0)), kind,
+            ))
+        if rev_rows:
+            item.col.db.executemany(
+                "insert or ignore into revlog (id,cid,usn,ease,ivl,lastIvl,factor,time,type) values (?,?,?,?,?,?,?,?,?)",
+                rev_rows,
+            )
+
+        item.col.clear_study_queues()
+        return {
+            "ok": True,
+            "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
+            "card_map": card_map,
+            "note_map": note_map,
+            "state": cards_collection_full_state_payload(item.col),
         }
 
 
