@@ -2163,9 +2163,10 @@ const CardsScreen = {
       banca: $id('card-banca').value,
       // "tipo" (Categoria) não tem mais campo na criação/edição — omitido de
       // propósito, para não apagar o valor de cards antigos que já tinham um.
-      kind: kind === 'cloze' ? 'cloze' : 'basic',
+      kind: ['basic_reversed','basic_optional_reversed','typing'].includes(kind) ? kind : (kind === 'cloze' ? 'cloze' : 'basic'),
       frente, verso: kind === 'cloze' ? '' : verso, deckId: null, materia: null,
-      _reversed: kind === 'basic_reversed'
+      _reversed: kind === 'basic_reversed',
+      _addReverse: kind === 'basic_optional_reversed' && !!(document.getElementById('card-add-reverse')||{}).checked
     };
     if (dest.startsWith('deck:')) data.deckId = dest.slice(5);
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
