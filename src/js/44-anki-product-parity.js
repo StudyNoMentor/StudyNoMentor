@@ -597,8 +597,6 @@ const AnkiProductParity = {
       clean=JSON.parse(JSON.stringify(nt));
     clean.fields=(clean.fields||[]).map(({_source,...x})=>x);
     clean.templates=(clean.templates||[]).map(({_sourceOrd,...x})=>x);
-    const erroNt=AnkiParity.erroNotetype?AnkiParity.erroNotetype(clean):null;
-    if(erroNt){UI.alert(erroNt.replace(/<br>/g,'\n'),{title:'⚠ Tipo de nota inválido',okText:'Corrigir'});return;}
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.updateOfficialNotetype!=='function'){
       showToast('Tipo não salvo: backend oficial do Anki indisponível.');return;
     }
