@@ -3054,76 +3054,7 @@ const CardsScreen = {
     const fieldColumns=[...document.querySelectorAll('.cards-import-field-col')].sort((a,b)=>Number(a.dataset.fieldOrd)-Number(b.dataset.fieldOrd)).map(x=>Number(x.value)||0);
     let count = 0;
     if (this._importParsed.kind === 'json') {
-      // Backup JSON é restauração de ESTADO, não mera recriação de conteúdo.
-      // Mantém fase, dueTs, S/D, intervalos, lapsos, flags e demais metadados.
-      const backupDecks = this._importParsed.decks || [];
-      const atuaisDecks = DB.getDecks();
-      const idMapDeck = {};
-      backupDecks.forEach(bd => {
-        let nd = atuaisDecks.find(d => String(d.nome || '') === String(bd.nome || ''));
-        if (!nd) { nd = DB.addDeck(bd.nome); if (nd) atuaisDecks.push(nd); }
-        if (nd) idMapDeck[String(bd.id)] = nd.id;
-      });
-
-      /* ── APLICAR UM BACKUP É RESTAURAR, NÃO ACUMULAR ──────────────────────
-         O id do card é a identidade dele. Antes, um id que já existisse na
-         coleção ganhava um id NOVO — de modo que aplicar o mesmo arquivo duas
-         vezes dobrava a coleção, e o segundo conjunto vinha sem histórico
-         próprio. Agora um id conhecido ATUALIZA o card no lugar, e só um id
-         desconhecido entra como card novo. Aplicar o mesmo backup duas vezes
-         passa a ser inócuo. (Importar TSV/CSV continua acrescentando: lá não
-         há id, cada linha é conteúdo novo por definição.) */
-      const existentes = DB.getCards();
-      const porId = new Map(existentes.map(x => [String(x.id), x]));
-      const usados = new Set(porId.keys());
-      const idMapCard = {};
-      this._importParsed.cards.forEach(src => {
-        const antigo = src && src.id != null ? String(src.id) : '';
-        if (antigo) { idMapCard[antigo] = src.id; usados.add(antigo); return; }
-        let nid = DB._uid();
-        while (usados.has(String(nid))) nid = DB._uid();
-        usados.add(String(nid));
-      });
-      const novos = [];
-      this._importParsed.cards.forEach(src => {
-        const antigo = src && src.id != null ? String(src.id) : '';
-        const x = Object.assign({}, src || {});
-        x.id = antigo || DB._uid();
-        x.deckId = deckId || (x.deckId != null && idMapDeck[String(x.deckId)] != null ? idMapDeck[String(x.deckId)] : x.deckId || null);
-        x.materia = materia || x.materia || null;
-        if (x.reversedOf != null && idMapCard[String(x.reversedOf)] != null) x.reversedOf = idMapCard[String(x.reversedOf)];
-        const atual = porId.get(String(x.id));
-        if (atual) Object.assign(atual, x);   // mesmo card: restaura o estado dele
-        else { porId.set(String(x.id), x); novos.push(x); }
-      });
-      DB.saveCards(existentes.concat(novos));
-      DB.sanitizeCardsInPlace();
-
-      const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
-      if (logs.length) {
-        /* Mesma regra para o histórico: uma revisão é identificada pelo par
-           (card, instante). Reaplicar o backup não pode multiplicar as
-           revisões — isso falsearia retenção real, contadores e o treino dos
-           pesos. Só entram as linhas que ainda não existem. */
-        const atuaisLogs = DB.getRevlog();
-        const chave = (r) => String(r && r.cardId) + '|' + String(r && r.ts);
-        const conhecidas = new Set(atuaisLogs.map(chave));
-        const lastLog = atuaisLogs.length ? atuaisLogs[atuaisLogs.length - 1] : null;
-        let pos = Math.max(atuaisLogs.length, Number(lastLog && lastLog._position) || 0);
-        const inéditas = [];
-        logs.forEach(r => {
-          const x = Object.assign({}, r);
-          if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
-          if (conhecidas.has(chave(x))) return;
-          conhecidas.add(chave(x));
-          // Rebaseia a posição ao anexar o backup a uma coleção existente.
-          // Evita colisões no caminho incremental do Supabase após a importação.
-          x._position = ++pos;
-          inéditas.push(x);
-        });
-        if (inéditas.length) DB.replaceRevlog(atuaisLogs.concat(inéditas));
-      }
-      count = this._importParsed.cards.length;
+      throw new Error('Importação de backup JSON legado foi desativada nos Cards: ela alterava agendamento fora da Collection oficial. Use .apkg/.colpkg ou TXT/CSV pelo importador oficial do Anki.');
     } else if (this._importParsed.kind === 'anki-package') {
       if(!this._importFile)throw new Error('Arquivo original do pacote não está mais disponível.');
       if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialPackage!=='function')throw new Error('Backend oficial do Anki indisponível.');
@@ -3131,26 +3062,17 @@ const CardsScreen = {
         official=await CardsOfficialBridge.importOfficialPackage(this._importFile,{
           kind,withScheduling,withDeckConfigs,mergeNotetypes,updateNotes,updateNotetypes
         });
-      // O espelho local usa o parser já testado contra fixtures oficiais, mas
-      // não decide scheduling: depois da materialização, o snapshot da Collection
-      // oficial sobrescreve queue/due/ivl/S/D/revlog atual do card.
-      const r = kind==='colpkg'
-        ? await AnkiImport.importCollectionPackage(this._importParsed)
-        : await AnkiImport.importPackage(this._importParsed, { deckId:null, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
       await CardsOfficialBridge.syncOfficialPackageImport(official);
-      count = Number(r.cards) || Number(official.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
+      count = Number(official.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
       if(!this._importFile)throw new Error('Arquivo Mnemosyne original não está mais disponível.');
       if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialMnemosyne!=='function')throw new Error('Backend oficial do Anki indisponível.');
       const official=await CardsOfficialBridge.importOfficialMnemosyne(this._importFile,deckId);
-      const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
       await CardsOfficialBridge.syncOfficialPackageImport(official);
-      count = Number(r.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
+      count = Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'text') {
       if(!this._importFile)throw new Error('Arquivo original de texto não está mais disponível.');
       if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialCsv!=='function')throw new Error('Backend oficial do Anki indisponível.');
-      let parsed=this._importParsed;
-      if(delimiterName&&parsed.source)parsed=AnkiImport.parseText(parsed.source,'texto.txt',{delimiter:delims[delimiterName]});
       const meta=JSON.parse(JSON.stringify(this._officialCsvMetadata||{})),
         delimiterMap={tab:0,pipe:1,semicolon:2,colon:3,comma:4,space:5},
         nt=notetypeId?AnkiParity.getNotetype(notetypeId):null,
@@ -3168,12 +3090,8 @@ const CardsScreen = {
       delete meta.deck_id;delete meta.deck_column;delete meta.deck_name;
       if(deckCol>0)meta.deck_column=deckCol;else if(deckOfficial)meta.deck_id=Number(deckOfficial);
       const official=await CardsOfficialBridge.importOfficialCsv(this._importFile,meta);
-      // Materializa o espelho Study para filtros/taxonomia; o estado acadêmico
-      // final é sobrescrito imediatamente pelo snapshot oficial.
-      const r = AnkiImport.importText(parsed, {deckId,materia,isHtml,forceIsHtml:true,notetypeId,dupeResolution,matchScope,globalTags,updatedTags,
-        fieldColumns,notetypeColumn:ntCol,deckColumn:deckCol,tagsColumn:tagsCol,guidColumn:guidCol});
       await CardsOfficialBridge.syncOfficialPackageImport(official);
-      count = Number(r.notes+r.updated+r.preserved) || Number(r.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
+      count = Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     }
     $id('cards-import-modal').style.display = 'none';
     this.render();
