@@ -73,6 +73,10 @@ assert.equal(M.statsRevlog().length,2,'histórico de 12 meses deve respeitar o b
 M._statsState={scope:'collection',deckId:null,search:'',history:'all'};
 assert.equal(M.statsCards().length,4,'escopo coleção deve incluir todos os cards');
 assert.equal(M.statsRevlog().length,3,'todo o histórico deve incluir revisões antigas');
+assert.equal(M._isAnswerRevlog({grade:3,phase:'review'}),true,'resposta real entra nos gráficos de revisão');
+assert.equal(M._isAnswerRevlog({grade:0,phase:'manual',ankiReviewKind:'manual'}),false,'Set Due/Reset Manual permanece no histórico, mas não conta como resposta');
+assert.equal(M._isAnswerRevlog({grade:0,phase:'rescheduled',ankiReviewKind:'rescheduled'}),false,'Rescheduled não infla Reviews/Review Time');
+
 M._statsState={scope:'collection',deckId:null,search:'',history:'year'};
 
 const statsSrc=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
