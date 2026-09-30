@@ -957,9 +957,19 @@
     try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){if(typeof _quiet==='function')_quiet(e,'global-card-note-sync');}
     return salvo;
   };
+  S.preserveDeletedCardRevlogIds = function(planId, cards) {
+    const map=new Map((cards||[]).filter(c=>c&&c.ankiId!=null&&Number.isFinite(Number(c.ankiId))).map(c=>[String(c.id),Number(c.ankiId)]));
+    if(!map.size)return 0;
+    const rows=this._revlogForPlan(planId);let changed=0;
+    rows.forEach(r=>{const aid=map.get(String(r&&r.cardId));if(aid!=null&&r.ankiCardId==null){r.ankiCardId=aid;changed++;}});
+    if(changed)this.replaceRevlogPlan(planId,rows);
+    return changed;
+  };
+
   DB.deleteCard = function(id, planId) {
     const r = S.findCardRecord(id, planId); if (!r) return;
     if (String(r.planId) === String(S.activePlanId()) && planId == null && O.getCard(id)) return O.deleteCard(id);
+    S.preserveDeletedCardRevlogIds(r.planId,[r.card]);
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(r.card.id))) === false) return false;
     /* Revlog histórico é preservado, como no Anki. */
     try { CardsConfig.forgetCardId(r.card.id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
@@ -969,7 +979,9 @@
     const r = S.findCardRecord(id, planId); if (!r) return 0;
     if (String(r.planId) === String(S.activePlanId()) && planId == null && O.getCard(id)) return O.deleteNoteByCard(id);
     const nid = String(r.card.noteId || r.card.id);
-    const ids = new Set(r.list.filter(c => String(c.noteId || c.id) === nid).map(c => String(c.id)));
+    const noteCards=r.list.filter(c => String(c.noteId || c.id) === nid);
+    const ids = new Set(noteCards.map(c => String(c.id)));
+    S.preserveDeletedCardRevlogIds(r.planId,noteCards);
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => !ids.has(String(c.id)))) === false) return false;
     /* Revlog histórico é preservado, como no Anki. */
     try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
@@ -1295,8 +1307,9 @@
     if(!note)return 0;
     const pid=note._planId!=null?note._planId:this.activePlanId(),nid=String(note.id);
     const list=this._rows(pid,'cards');
-    const ids=new Set(list.filter(c=>String(window.AnkiParity?AnkiParity.noteId(c):(c.noteId||c.id))===nid).map(c=>String(c.id)));
-    if(!ids.size)return 0;
+    const noteCards=list.filter(c=>String(window.AnkiParity?AnkiParity.noteId(c):(c.noteId||c.id))===nid);
+    const ids=new Set(noteCards.map(c=>String(c.id)));if(!ids.size)return 0;
+    this.preserveDeletedCardRevlogIds(pid,noteCards);
     if(DB._set(DB.keysForPlan(pid).cards,list.filter(c=>!ids.has(String(c.id))))===false)return false;
     try{ids.forEach(cid=>CardsConfig.forgetCardId(cid));}catch(_){if(typeof _quiet==='function')_quiet(_,'global-delete-note-daily');}
     try{localStorage.removeItem(this.entityKeyForPlan(pid,'note',nid));}catch(_){if(typeof _quiet==='function')_quiet(_,'global-delete-note-entity');}
