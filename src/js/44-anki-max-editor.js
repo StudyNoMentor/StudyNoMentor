@@ -142,7 +142,18 @@ const AnkiMaxEditor = {
   },
   _insertHtml(area,html){area.focus();try{document.execCommand('insertHTML',false,html);}catch(_){area.insertAdjacentHTML('beforeend',html);}},
   _pickMedia(area,accept,tag){
-    const inp=document.createElement('input');inp.type='file';inp.accept=accept;inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),html=tag==='video'?'<video controls preload="metadata" src="'+this.esc(src)+'"></video>':'<audio controls preload="none" src="'+this.esc(src)+'"></audio>';this._insertHtml(area,html);};r.readAsDataURL(f);};inp.click();
+    const inp=document.createElement('input');inp.type='file';inp.accept=accept;
+    inp.onchange=async()=>{
+      const f=inp.files&&inp.files[0];if(!f)return;
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.uploadOfficialMedia!=='function'){showToast('Mídia não inserida: backend oficial do Anki indisponível.');return;}
+      try{
+        const out=await CardsOfficialBridge.uploadOfficialMedia(f,f.name),
+          src=this.esc(out.filename),
+          html=tag==='video'?'<video controls preload="metadata" src="'+src+'"></video>':'<audio controls preload="none" src="'+src+'"></audio>';
+        this._insertHtml(area,html);showToast('Mídia gravada pelo Anki oficial ✓');
+      }catch(e){showToast('Mídia não inserida: '+(e&&e.message?e.message:String(e)));}
+    };
+    inp.click();
   },
   async _toggleRecordInto(area,btn){
     if(this._recorders.has(area)){
@@ -152,7 +163,16 @@ const AnkiMaxEditor = {
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true}),chunks=[],rec=new MediaRecorder(stream);this._recorders.set(area,{rec,stream,chunks});btn.textContent='■';btn.title='Parar gravação';
       rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
-      rec.onstop=()=>{stream.getTracks().forEach(t=>t.stop());this._recorders.delete(area);btn.textContent='🎤';btn.title='Gravar áudio';const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'}),fr=new FileReader();fr.onload=()=>this._insertHtml(area,'<audio controls preload="none" src="'+this.esc(String(fr.result||''))+'"></audio>');fr.readAsDataURL(blob);};
+      rec.onstop=async()=>{
+        stream.getTracks().forEach(t=>t.stop());this._recorders.delete(area);btn.textContent='🎤';btn.title='Gravar áudio';
+        const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.uploadOfficialMedia!=='function'){showToast('Áudio não salvo: backend oficial do Anki indisponível.');return;}
+        try{
+          const out=await CardsOfficialBridge.uploadOfficialMedia(blob,'recording-'+Date.now()+'.webm');
+          this._insertHtml(area,'<audio controls preload="none" src="'+this.esc(out.filename)+'"></audio>');
+          showToast('Áudio gravado pelo Anki oficial ✓');
+        }catch(e){showToast('Áudio não salvo: '+(e&&e.message?e.message:String(e)));}
+      };
       rec.start();
     }catch(_){showToast('Não foi possível acessar o microfone');}
   },
