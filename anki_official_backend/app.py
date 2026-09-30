@@ -2178,6 +2178,18 @@ def cards_collection_state_payload(col: Collection) -> dict[str, Any]:
     }
 
 
+def cards_collection_full_state_payload(col: Collection) -> dict[str, Any]:
+    """Snapshot integral para espelho de UI após importações oficiais."""
+    state = cards_collection_state_payload(col)
+    note_ids = [int(x) for x in col.find_notes("")]
+    state["notetypes"] = [
+        {"notetype": nt, "use_count": int(col.models.use_count(nt))}
+        for nt in col.models.all()
+    ]
+    state["notes"] = [note_state_payload(col, nid) for nid in note_ids]
+    return state
+
+
 @app.get("/api/cards-official/collection/state")
 def cards_official_collection_state(
     user: dict[str, Any] = Depends(current_user),
@@ -2569,7 +2581,7 @@ async def cards_official_import_mnemosyne(
             return {
                 "ok": True,
                 "result": pb(result),
-                "state": cards_collection_state_payload(item.col),
+                "state": cards_collection_full_state_payload(item.col),
             }
     finally:
         _unlink_quiet(tmp)
@@ -2615,7 +2627,7 @@ async def cards_official_import_csv(
             return {
                 "ok": True,
                 "result": pb(result),
-                "state": cards_collection_state_payload(item.col),
+                "state": cards_collection_full_state_payload(item.col),
             }
     finally:
         _unlink_quiet(tmp)
@@ -2706,7 +2718,7 @@ async def cards_official_import_apkg(
             return {
                 "ok": True,
                 "result": pb(result),
-                "state": cards_collection_state_payload(item.col),
+                "state": cards_collection_full_state_payload(item.col),
             }
     finally:
         _unlink_quiet(tmp)
@@ -2754,7 +2766,7 @@ async def cards_official_import_colpkg(
                 "ok": True,
                 "cards": int(item.col.card_count()),
                 "notes": int(item.col.note_count()),
-                "state": cards_collection_state_payload(item.col),
+                "state": cards_collection_full_state_payload(item.col),
             }
     finally:
         _unlink_quiet(tmp)
