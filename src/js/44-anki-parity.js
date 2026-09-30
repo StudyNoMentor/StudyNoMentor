@@ -368,21 +368,23 @@ const AnkiParity = {
   syncCanonicalNoteFromCard(card){
     if(!card)return false;
     try{
-      this.ensureIdentities();
-      const nid=this.noteId(card),note=this.getNote(nid);if(!note)return false;
-      const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt||!nt.stockKind)return false;
+      const pid=this._planIdForCard(card);
+      if(pid==null||String(pid)===String(DB._activePlanId()))this.ensureIdentities();
+      const nid=this.noteId(card),note=this.getNote(nid,pid==null?undefined:pid);if(!note)return false;
+      const nt=this.getNotetype(note.notetypeId,pid==null?undefined:pid);if(!nt||!nt.stockKind)return false;
       const sibs=this._cardsForCardPlan(card).filter(c=>this.noteId(c)===nid),forward=sibs.find(c=>c.template!=='reverse')||card;
       const fields=Object.assign({},note.fields||{});
       if(nt.stockKind==='cloze'){fields.Text=forward.frente||'';fields['Back Extra']=forward.verso||'';}
-      else {fields.Front=forward.frente||'';fields.Back=forward.verso||'';}
-      this.saveNote(Object.assign({},note,{fields}));return true;
+      else if(['basic','basic_reversed','basic_optional_reversed','typing'].includes(nt.stockKind)){fields.Front=forward.frente||'';fields.Back=forward.verso||'';}
+      else return false;
+      this.saveNote(Object.assign({},note,{fields}),pid==null?undefined:pid);return true;
     }catch(e){_quiet(e,'canonical-note-sync');return false;}
   },
   isEmptyGeneratedCard(card){
     if(!card)return false;
     try{
-      const note=this.getNote(this.noteId(card));if(!note)return false;
-      const nt=this.noteTypes().find(x=>String(x.id)===String(note.notetypeId));if(!nt)return false;
+      const pid=this._planIdForCard(card),note=this.getNote(this.noteId(card),pid==null?undefined:pid);if(!note)return false;
+      const nt=this.getNotetype(note.notetypeId,pid==null?undefined:pid);if(!nt)return false;
       const isCloze=(nt.kind==='cloze'||nt.stockKind==='cloze'),ord=Number(card.ankiTemplateOrd)||0;
       const clozeN=isCloze?(Number(card.clozeOrd)||ord+1||1):null,tmpl=(nt.templates||[])[isCloze?0:ord]||{};
       return this._frenteVaziaAnki(nt,tmpl,this._mapaCampos(nt,note,tmpl,card,isCloze?clozeN-1:ord),isCloze,clozeN);
@@ -904,14 +906,65 @@ AnkiParity._inferLegacyNote=function(siblings){
   }
   return {stock,fields};
 };
-AnkiParity.ensureCanonicalNotes=function(cards){
-  cards=Array.isArray(cards)?cards:DB.getCards();const groups=new Map();let changed=false,created=0;
+/* Durante a migração Note/Card existiram builds em que o cache legado
+   (card.frente/verso) era atualizado sem atualizar a Note canônica. O reviewer
+   corretamente renderiza a Note, então uma Note antiga com Front vazio podia
+   mostrar o aviso do Anki mesmo com a pergunta visível no editor. Só usamos o
+   cache legado como reparo quando o CAMPO canônico está vazio e o cache parece
+   matéria-prima real, nunca HTML de resposta já renderizado pelo Anki. */
+AnkiParity._legacyCanonicalCandidate=function(v){
+  const s=String(v==null?'':v);
+  if(!this._fieldNonempty(s))return false;
+  if(/A frente deste cartão está em branco|front-of-card-is-blank/i.test(s))return false;
+  if(/Nenhuma omissão.*Cartas Vazias|no cloze.*empty cards/i.test(s))return false;
+  return true;
+};
+AnkiParity._repairStockNoteFromSiblings=function(note,nt,siblings,planId){
+  if(!note||!nt||!nt.stockKind||!Array.isArray(siblings)||!siblings.length)return note;
+  const fields=Object.assign({},note.fields||{}),inf=this._inferLegacyNote(siblings),stock=String(nt.stockKind||'');
+  let changed=false;
+  if(stock==='cloze'){
+    const raw=String(inf.fields&&inf.fields.Text||'');
+    if(!this._fieldNonempty(fields.Text)&&this._legacyCanonicalCandidate(raw)&&/\{\{c\d+(?:,\d+)*::/i.test(raw)){
+      fields.Text=raw;changed=true;
+      if(!this._fieldNonempty(fields['Back Extra'])&&this._legacyCanonicalCandidate(inf.fields&&inf.fields['Back Extra'])){
+        fields['Back Extra']=inf.fields['Back Extra'];changed=true;
+      }
+    }
+  }else if(['basic','basic_reversed','basic_optional_reversed','typing'].includes(stock)){
+    const raw=inf.fields&&inf.fields.Front;
+    if(!this._fieldNonempty(fields.Front)&&this._legacyCanonicalCandidate(raw)){
+      fields.Front=raw;changed=true;
+      const back=String(inf.fields&&inf.fields.Back||'');
+      if(!this._fieldNonempty(fields.Back)&&this._legacyCanonicalCandidate(back)&&!/<hr\b[^>]*\bid\s*=\s*["']?answer/i.test(back)){
+        fields.Back=inf.fields.Back;changed=true;
+      }
+    }
+  }
+  return changed?this.saveNote(Object.assign({},note,{fields}),planId):note;
+};
+AnkiParity.repairStockNoteFromCard=function(card){
+  if(!card)return null;
+  const pid=this._planIdForCard(card),nid=this.noteId(card),note=this.getNote(nid,pid==null?undefined:pid);
+  if(!note)return null;
+  const nt=this.getNotetype(note.notetypeId,pid==null?undefined:pid);if(!nt)return {note,nt:null,repaired:false};
+  const siblings=this._cardsForCardPlan(card).filter(c=>this.noteId(c)===nid),before=JSON.stringify(note.fields||{});
+  const fixed=this._repairStockNoteFromSiblings(note,nt,siblings,pid==null?undefined:pid);
+  return {note:fixed,nt,repaired:JSON.stringify(fixed&&fixed.fields||{})!==before};
+};
+AnkiParity.ensureCanonicalNotes=function(cards,planId){
+  cards=Array.isArray(cards)?cards:(planId!=null&&DB.getCardsForPlan?DB.getCardsForPlan(planId):DB.getCards());
+  const groups=new Map();let changed=false,created=0,repaired=0;
   cards.forEach(c=>{const nid=this.noteId(c);if(!nid)return;const k=String(nid);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(c);});
   groups.forEach((sibs,key)=>{
-    let note=this.getNote(key);
+    let note=this.getNote(key,planId);
     if(!note){
-      const inf=this._inferLegacyNote(sibs),nt=this.stockNotetype(inf.stock);
-      note=this.saveNote({id:Number(key),notetypeId:nt.id,fields:inf.fields,tags:[]});created++;
+      const inf=this._inferLegacyNote(sibs),nt=this.stockNotetype(inf.stock,planId);
+      note=this.saveNote({id:Number(key),notetypeId:nt.id,fields:inf.fields,tags:[]},planId);created++;
+    }else{
+      const nt=this.getNotetype(note.notetypeId,planId),before=JSON.stringify(note.fields||{});
+      note=this._repairStockNoteFromSiblings(note,nt,sibs,planId);
+      if(JSON.stringify(note&&note.fields||{})!==before)repaired++;
     }
     sibs.forEach((c,i)=>{
       if(c.notetypeId!==note.notetypeId){c.notetypeId=note.notetypeId;changed=true;}
@@ -923,8 +976,10 @@ AnkiParity.ensureCanonicalNotes=function(cards){
       }
     });
   });
-  if(changed)DB.saveCards(cards);
-  return {notes:groups.size,created,cardsChanged:changed};
+  if(changed){
+    if(planId!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(planId,cards);else DB.saveCards(cards);
+  }
+  return {notes:groups.size,created,repaired,cardsChanged:changed};
 };
 
 /* ── LIMIT TREE: equivalente a rslib/decks/limits.rs ───────────────────── */
