@@ -1236,15 +1236,24 @@ const CardsOfficialBridge = {
     if(window.AnkiProductParity&&AnkiProductParity.renderNotetypes)AnkiProductParity.renderNotetypes();
     return out;
   },
-  async updateOfficialNotetype(old,nt,notes){
+  async updateOfficialNotetype(old,nt,notes,meta){
     await this.bootstrap(false);
-    if(typeof AnkiExport==='undefined'||typeof AnkiExport.modelSchema!=='function')throw new Error('Serializador oficial de NoteType indisponível.');
     const oid=Number(old&&old.ankiId!=null?old.ankiId:old&&old.id);
     if(!Number.isFinite(oid)||oid<=0)throw new Error('Tipo de nota sem identidade oficial.');
-    const raw=AnkiExport.modelSchema(Object.assign({},nt,{id:oid,ankiId:oid}));
-    raw.id=oid;
+    meta=meta||{};
+    const fields=(nt.fields||[]).map((f,i)=>({
+        name:String(f&&f.name||'').trim(),
+        source_name:meta.fieldSources&&meta.fieldSources[i]!=null?String(meta.fieldSources[i]):null
+      })),
+      templates=(nt.templates||[]).map((t,i)=>({
+        name:String(t&&t.name||'').trim(),
+        qfmt:String(t&&t.qfmt||''),
+        afmt:String(t&&t.afmt||''),
+        source_ord:meta.templateSources&&meta.templateSources[i]!=null?Number(meta.templateSources[i]):null
+      })),
+      edit={name:String(nt.name||'').trim(),css:String(nt.css||''),fields,templates};
     const out=await this.request('/api/cards-official/notetypes/'+encodeURIComponent(oid),{
-      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notetype:raw})
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({edit})
     });
     if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu o NoteType atualizado.');
     const pids=this._notetypePlanIds((notes||[]).map(n=>n&&n._planId).filter(x=>x!=null));
