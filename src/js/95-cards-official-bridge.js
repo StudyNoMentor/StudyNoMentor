@@ -81,6 +81,20 @@ const CardsOfficialBridge = {
     if(!r.ok)throw new Error('Mídia oficial não encontrada: '+name);
     return r.blob();
   },
+  async uploadOfficialMedia(blobOrFile,filename){
+    await this.bootstrap(false);
+    const blob=blobOrFile instanceof Blob?blobOrFile:new Blob([blobOrFile]),
+      name=String(filename||blob.name||('media-'+Date.now())).replace(/[\\/]+/g,'_'),
+      fd=new FormData();
+    fd.append('file',blob,name);
+    const out=await this.request('/api/cards-official/editor/media',{method:'POST',body:fd});
+    if(!out||!out.filename)throw new Error('O Media Manager oficial não confirmou o arquivo.');
+    if(typeof AnkiExport!=='undefined'&&typeof AnkiExport.registerExternalMedia==='function'){
+      const bytes=new Uint8Array(await blob.arrayBuffer());
+      AnkiExport.registerExternalMedia(out.filename,bytes,out.content_type||blob.type||'application/octet-stream');
+    }
+    return out;
+  },
   async htmlWithMedia(html){
     this._clearBlobUrls();
     const doc=new DOMParser().parseFromString(String(html||''),'text/html');
