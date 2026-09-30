@@ -146,7 +146,7 @@ const AnkiMaxStatsMedia = {
         else refs.push({where,noteId,ref,embedded:false});
       });
     };
-    notes.forEach(n=>Object.entries(n.fields||{}).forEach(([k,v])=>take(v,'Nota '+n.id+' / '+k,n.id)));
+    notes.forEach(n=>{const nref=AnkiProductParity.noteRef(n);Object.entries(n.fields||{}).forEach(([k,v])=>take(v,'Nota '+n.id+' / '+k,nref));});
     types.forEach(t=>{take(t.css,'Tipo '+t.name+' / CSS',null);take(t.latexPre,'Tipo '+t.name+' / LaTeX',null);take(t.latexPost,'Tipo '+t.name+' / LaTeX',null);(t.templates||[]).forEach(x=>['qfmt','afmt','bqfmt','bafmt'].forEach(k=>take(x[k],'Tipo '+t.name+' / '+x.name+' / '+k,null)));});
     const all=await AnkiMediaStore.all(true),active=all.filter(x=>!x.trashedAt),trash=all.filter(x=>x.trashedAt),byName=new Map(active.map(x=>[x.name,x]));
     const missing=refs.filter(x=>!x.embedded&&!byName.has(x.ref));
@@ -470,9 +470,9 @@ const AnkiMaxStatsMedia = {
   },
   structuralIssues(){
     const cards=this._cardsSource(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),deckIds=new Set(this._decksSource().map(d=>String(d.id))),cardAnki=new Map(),orphanNotes=[],badOrd=[],badFiltered=[],badTypes=[];
-    cards.forEach(c=>{const k=String(c.ankiId||'');if(k){if(!cardAnki.has(k))cardAnki.set(k,[]);cardAnki.get(k).push(c.id);}const n=AnkiParity.getNote(AnkiProductParity.noteId(c)),nt=n&&AnkiProductParity._typeFor(n);if(nt&&nt.kind!=='cloze'&&(Number(c.ankiTemplateOrd)||0)>=(nt.templates||[]).length)badOrd.push(c.id);if(c.originalDeckId&&!deckIds.has(String(c.originalDeckId)))badFiltered.push(c.id);});
-    const used=new Set(cards.map(c=>String(AnkiProductParity.noteId(c))));notes.forEach(n=>{if(!used.has(String(n.id)))orphanNotes.push(n.id);});
-    types.forEach(t=>{const names=(t.fields||[]).map(f=>String(f.name||'').toLowerCase()),dup=names.length!==new Set(names).size;if(!(t.fields||[]).length||!(t.templates||[]).length||dup)badTypes.push(t.id);});
+    cards.forEach(c=>{const k=String(c.ankiId||'');if(k){if(!cardAnki.has(k))cardAnki.set(k,[]);cardAnki.get(k).push(c.id);}const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):AnkiProductParity._getNote(AnkiProductParity.noteRefForCard(c)),nt=n&&AnkiProductParity._typeFor(n);if(nt&&nt.kind!=='cloze'&&(Number(c.ankiTemplateOrd)||0)>=(nt.templates||[]).length)badOrd.push(c.id);if(c.originalDeckId&&!deckIds.has(String(c.originalDeckId)))badFiltered.push(c.id);});
+    const used=new Set(cards.map(c=>AnkiProductParity.noteRefForCard(c)));notes.forEach(n=>{if(!used.has(AnkiProductParity.noteRef(n)))orphanNotes.push(AnkiProductParity.noteRef(n));});
+    types.forEach(t=>{const names=(t.fields||[]).map(f=>String(f.name||'').toLowerCase()),dup=names.length!==new Set(names).size;if(!(t.fields||[]).length||!(t.templates||[]).length||dup)badTypes.push(AnkiProductParity.notetypeRef(t));});
     return {duplicateCardIds:[...cardAnki.values()].filter(x=>x.length>1),orphanNotes,badOrd,badFiltered,badTypes};
   },
   async renderExtendedCheck(){
@@ -488,7 +488,7 @@ const AnkiMaxStatsMedia = {
     const et=document.getElementById('anki-media-empty-trash');if(et)et.onclick=()=>UI.confirm('Excluir permanentemente as mídias da lixeira?',{title:'Esvaziar lixeira de mídia',okText:'Excluir',danger:true}).then(async ok=>{if(!ok)return;const n=await AnkiMediaStore.emptyTrash();showToast(n+' mídia(s) removida(s)');AnkiProductParity.renderCheck();});
   },
   tagMissing(scan){
-    let n=0;scan.noteMissing.forEach((refs,id)=>{const note=AnkiParity.getNote(id);if(!note)return;const tags=[...(note.tags||[])];if(!tags.some(t=>String(t).toLowerCase()==='missing-media'))tags.push('missing-media');AnkiParity.saveNote(Object.assign({},note,{tags}));n++;});showToast(n+' nota(s) etiquetada(s) com missing-media');AnkiProductParity.renderCheck();
+    let n=0;scan.noteMissing.forEach((refs,ref)=>{const note=AnkiProductParity._getNote(ref);if(!note)return;const tags=[...(note.tags||[])];if(!tags.some(t=>String(t).toLowerCase()==='missing-media'))tags.push('missing-media');AnkiParity.saveNote(Object.assign({},note,{tags}),note._planId==null?undefined:note._planId);n++;});showToast(n+' nota(s) etiquetada(s) com missing-media');AnkiProductParity.renderCheck();
   },
   async trashUnused(scan){for(const m of scan.unused)await AnkiMediaStore.trash(m.name);showToast(scan.unused.length+' mídia(s) movida(s) para a lixeira');AnkiProductParity.renderCheck();},
   repairAdvanced(){
