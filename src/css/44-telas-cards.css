@@ -226,3 +226,6 @@
   #anki-browser-modal .anki-browser-search-tools>.hint{flex:0 0 auto}
   #anki-browser-modal .anki-browser-search-tools>button{flex:0 0 auto}
 }
+
+/* Image Occlusion: o gesto sobre o canvas pertence ao editor, não ao scroll/pinch da página. */
+#anki-io-canvas{touch-action:none;user-select:none;-webkit-user-select:none}
