@@ -2812,21 +2812,21 @@ const CardsScreen = {
   async _exportAnkiPackage(kind) {
     const cards=this.collectionCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
     kind=kind==='colpkg'?'colpkg':'apkg';
-    const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg');
-    const old=btn?btn.textContent:'';
-    if(btn){btn.disabled=true;btn.textContent='⏳ Gerando .'+kind+'…';}
+    const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg'),old=btn?btn.textContent:'';
+    if(btn){btn.disabled=true;btn.textContent='⏳ Exportando pelo Anki oficial…';}
     try{
-      if(typeof AnkiExport==='undefined')throw new Error('Exportador Anki completo indisponível');
-      const fn=kind==='colpkg'?AnkiExport.buildCollectionPackage:AnkiExport.buildPackage;
-      if(typeof fn!=='function')throw new Error('Formato .'+kind+' indisponível');
-      const pkg=await fn.call(AnkiExport,this._ankiPackageOptions());
-      this._download('cards-anki_'+todayLocal()+'.'+kind,pkg.bytes,'application/octet-stream');
-      const formato=pkg.legacy?'Legacy/schema 11':'moderno/schema 18';
-      showToast('.'+kind+' '+formato+' exportado: '+pkg.cards.toLocaleString('pt-BR')+' card(s), '+
-        pkg.notes.toLocaleString('pt-BR')+' nota(s) e '+pkg.revlog.toLocaleString('pt-BR')+' revisão(ões) ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.exportOfficialPackage!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const opts=this._ankiPackageOptions(),out=await CardsOfficialBridge.exportOfficialPackage(kind,opts);
+      this._download('cards-anki_'+todayLocal()+'.'+kind,out.blob,'application/octet-stream');
+      const count=out.cards==null
+        ?(kind==='apkg'&&opts.limit&&opts.limit.deckId
+          ?cards.filter(c=>String(c.originalDeckId||c.deckId)===String(opts.limit.deckId)).length
+          :cards.length)
+        :out.cards;
+      showToast('.'+kind+' exportado pela Collection oficial do Anki · '+Number(count||0).toLocaleString('pt-BR')+' card(s) ✓');
       $id('cards-export-modal').style.display='none';
     }catch(err){
-      console.error('Falha ao exportar .'+kind+':',err);
+      console.error('Falha ao exportar .'+kind+' pelo Anki oficial:',err);
       showToast('Não foi possível gerar o .'+kind+'. Detalhe: '+(err&&err.message?err.message:String(err)));
     }finally{
       if(btn){btn.disabled=false;btn.textContent=old||(kind==='colpkg'?'Coleção (.colpkg)':'Anki (.apkg)');}
@@ -2845,6 +2845,7 @@ const CardsScreen = {
   // ---- importar ----
   openImportModal() {
     this._importParsed = null;
+    this._importFile = null;
     const textOpts=document.getElementById('cards-import-text-options');if(textOpts)textOpts.style.display='none';
     const mapBox=document.getElementById('cards-import-field-mapping');if(mapBox)mapBox.innerHTML='';
     const globalTags=document.getElementById('cards-import-global-tags');if(globalTags)globalTags.value='';
@@ -2890,6 +2891,7 @@ const CardsScreen = {
   },
   async handleImportFile(file) {
     if (!file) return;
+    this._importFile = file;
     const fn = document.getElementById('cards-import-name');
     fn.style.display = 'inline-flex'; fn.textContent = '📎 ' + file.name;
     const prev = document.getElementById('cards-import-preview');
@@ -3103,10 +3105,20 @@ const CardsScreen = {
       }
       count = this._importParsed.cards.length;
     } else if (this._importParsed.kind === 'anki-package') {
-      const r = this._importParsed.format==='colpkg'
+      if(!this._importFile)throw new Error('Arquivo original do pacote não está mais disponível.');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialPackage!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const kind=this._importParsed.format==='colpkg'?'colpkg':'apkg',
+        official=await CardsOfficialBridge.importOfficialPackage(this._importFile,{
+          kind,withScheduling,withDeckConfigs,mergeNotetypes,updateNotes,updateNotetypes
+        });
+      // O espelho local usa o parser já testado contra fixtures oficiais, mas
+      // não decide scheduling: depois da materialização, o snapshot da Collection
+      // oficial sobrescreve queue/due/ivl/S/D/revlog atual do card.
+      const r = kind==='colpkg'
         ? await AnkiImport.importCollectionPackage(this._importParsed)
-        : await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
-      count = Number(r.cards) || 0;
+        : await AnkiImport.importPackage(this._importParsed, { deckId:null, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
+      await CardsOfficialBridge.syncOfficialPackageImport(official);
+      count = Number(r.cards) || Number(official.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
       const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
       count = Number(r.cards) || 0;
