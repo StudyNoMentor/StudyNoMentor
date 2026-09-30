@@ -185,6 +185,8 @@ with tempfile.TemporaryDirectory() as tmp:
     with cards_user.lock:
         ccol = cards_user.col
         cnt = ccol.models.current()
+        cnt_id = int(cnt["id"])
+        cards_current_deck = int(ccol.decks.get_current_id())
         cnote = ccol.new_note(cnt)
         ckeys = cnote.keys()
         cnote[ckeys[0]] = "Cards bridge pergunta"
@@ -210,6 +212,37 @@ with tempfile.TemporaryDirectory() as tmp:
     assert state["review_logs"], "revlog oficial precisa voltar no snapshot"
     assert state["memory_state"] is None or {"stability", "difficulty"} <= set(state["memory_state"])
 
+    # CRUD de Note da tela Cards: criação, edição e exclusão acontecem na
+    # Collection oficial e devolvem o conjunto de cards gerado pelo Anki.
+    created_note = app.cards_official_add_note(
+        app.AddNoteBody(
+            deck_id=cards_current_deck,
+            notetype_id=cnt_id,
+            fields={ckeys[0]: "CRUD oficial pergunta", ckeys[1]: "CRUD oficial resposta"},
+            tags=["crud-official"],
+        ),
+        cards_ctx,
+    )
+    assert created_note["note"]["id"] > 0 and created_note["cards"]
+    crud_nid = int(created_note["note"]["id"])
+    crud_fields = dict(created_note["note"]["fields"])
+    crud_fields[ckeys[0]] = "CRUD oficial editado"
+    updated_note = app.cards_official_update_note(
+        crud_nid,
+        app.NoteUpdateBody(fields=crud_fields, tags=["crud-oficial-editado"]),
+        cards_ctx,
+    )
+    assert updated_note["note"]["fields"][ckeys[0]] == "CRUD oficial editado"
+    assert updated_note["cards"], "update_note oficial deve manter/gerar os cards válidos"
+    deleted_note = app.cards_official_delete_note(crud_nid, cards_ctx)
+    assert deleted_note["ok"] is True and deleted_note["deleted_note_id"] == crud_nid
+    with cards_user.lock:
+        try:
+            ccol.get_note(crud_nid)
+            raise AssertionError("nota excluída ainda existe na Collection oficial")
+        except Exception:
+            pass
+
     # Search/sort do Browser vêm de find_cards/find_notes oficiais.
     bcards = app.cards_official_browser_ids("cards", "Cards bridge pergunta", "", False, cards_ctx)
     bnotes = app.cards_official_browser_ids("notes", "Cards bridge pergunta", "", False, cards_ctx)
@@ -222,8 +255,6 @@ with tempfile.TemporaryDirectory() as tmp:
     # MESMA coleção isolada dos Cards, não a coleção do menu Anki.
     cgraphs = app.cards_official_collection_graphs("", 365, cards_ctx)
     assert "card_counts" in cgraphs and "true_retention" in cgraphs
-    with cards_user.lock:
-        cards_current_deck = int(ccol.decks.get_current_id())
     copts = app.cards_official_deck_options(cards_current_deck, cards_ctx)
     assert copts["current_deck"]["name"]
     # Um preset novo é enviado com id=0, exatamente como o frontend oficial:
