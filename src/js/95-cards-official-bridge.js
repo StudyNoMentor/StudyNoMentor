@@ -1272,6 +1272,41 @@ const CardsOfficialBridge = {
   },
 
 
+
+  async inheritDeckOptions(deckId){
+    await this.bootstrap(false);
+    const ctx=this._deckContext(deckId),
+      current=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options'),
+      all=Array.isArray(current.all_config)?current.all_config:[],
+      defaultEntry=all.find(x=>Number(x&&x.config&&x.config.id)===1),
+      conf=JSON.parse(JSON.stringify(defaultEntry&&defaultEntry.config||current.defaults||{}));
+    if(!conf||!Object.keys(conf).length)throw new Error('Preset global oficial não encontrado.');
+    conf.id=Number(conf.id)||1;
+    const globalCfg=CardsConfig.get(),payload={
+      target_deck_id:Number(ctx.officialId),
+      configs:[conf],
+      removed_config_ids:[],
+      mode:0,
+      card_state_customizer:String(current.card_state_customizer||''),
+      limits:Object.assign({},current.current_deck&&current.current_deck.limits||{}),
+      new_cards_ignore_review_limit:!!globalCfg.newCardsIgnoreReviewLimit,
+      fsrs:String(globalCfg.algo||'fsrs')!=='sm2',
+      apply_all_parent_limits:!!globalCfg.applyAllParentLimits,
+      fsrs_reschedule:false,
+      fsrs_health_check:false
+    };
+    const out=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options',{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+    });
+    const selectedId=Number(out&&out.options&&out.options.current_deck&&out.options.current_deck.config_id)||0;
+    if(selectedId!==Number(conf.id))throw new Error('O Anki oficial não confirmou a troca para o preset global.');
+    this._saveDeckConfigIdentity(deckId,ctx.planId,selectedId);
+    await this._syncCollectionState(out.state,ctx.planId,null);
+    this.dirty=false;this._browserCache=[];
+    return out;
+  },
+
+
   _emptyCardsPlainReport(html){
     const raw=String(html||'').replace(/<br\s*\/?>/gi,'\n').replace(/<\/(?:p|div|li|tr)>/gi,'\n');
     try{
