@@ -18,7 +18,7 @@ const type={id:'t1',name:'Basic',kind:'normal',fields:[{name:'Front'},{name:'Bac
   {name:'Card 1',qfmt:'{{Front}}',afmt:'{{Back}}'},
   {name:'Card 2',qfmt:'{{Back}}',afmt:'{{Front}}'}
 ]};
-const logs=[{cardId:'c1',ts:1},{cardId:'gone',ts:2}];
+const logs=[{cardId:'c1',ts:1},{cardId:'gone',ts:2,ankiCardId:999},{ts:3}];
 let uid=10;
 const ctx={
   console,globalThis:null,queueMicrotask:()=>{},escapeHtml:s=>String(s??'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])),
@@ -54,15 +54,17 @@ assert.equal(cards.filter(c=>String(c.noteId)==='n1').length,2);
 assert.equal(before.frente,'Q1');assert.equal(before.verso,'A1');
 assert.deepEqual({phase:before.phase,intervalo:before.intervalo,reps:before.reps},schedule,'reconciliação não pode zerar agendamento existente');
 
-// Check: encontra revlog órfão e estado suspenso+enterrado sem alterar nada.
+// Check: histórico de card excluído é válido; só revlog sem cardId é inválido.
 const scan=P.scanCollection();
+assert.equal(scan.historicalRevlog.length,1);
 assert.equal(scan.orphanRevlog.length,1);
 assert.equal(scan.suspendedBuried.length,1);
 
-// Reparos lógicos equivalentes aos usados pela UI.
-ctx.DB.replaceRevlog(ctx.DB.getRevlog().filter(x=>cards.some(c=>String(c.id)===String(x.cardId))));
+// Reparos seguros preservam o histórico válido e removem somente linha malformada.
+ctx.DB.replaceRevlog(ctx.DB.getRevlog().filter(x=>x&&x.cardId!=null&&String(x.cardId).trim()!==''));
 ctx.DB.updateCard('c2',{enterradoAte:null,buryKind:null});
-assert.equal(ctx.DB.getRevlog().length,1);
+assert.equal(ctx.DB.getRevlog().length,2);
+assert.equal(ctx.DB.getRevlog().some(x=>x.cardId==='gone'),true,'histórico de card excluído deve sobreviver ao reparo');
 assert.equal(cards.find(c=>c.id==='c2').enterradoAte,null);
 
 // Browser agrupa por NOTE, e não por card.
