@@ -298,8 +298,9 @@ const AnkiPractical10 = {
     sheet.querySelector('.anki-review-flag-row').addEventListener('click',e=>{
       const b=e.target.closest('[data-review-flag]');if(!b)return;
       const c=AnkiProductParity._currentReviewCard();if(!c)return;
-      const n=Number(b.dataset.reviewFlag)||0;this.closeReviewerActionSheet();DB.setFlag(c.id,n);
-      CardsScreen.renderReviewCard(document.getElementById('cards-content'));
+      const n=Number(b.dataset.reviewFlag)||0;this.closeReviewerActionSheet();
+      if(window.CardsOfficialBridge&&CardsOfficialBridge.review&&CardsOfficialBridge.review.card)void CardsOfficialBridge.action('flag',n);
+      else showToast('Bandeira não alterada: Reviewer oficial indisponível.');
     });
     document.addEventListener('keydown',e=>{
       if(e.key==='Escape'&&sheet.classList.contains('open')){e.preventDefault();this.closeReviewerActionSheet();}
@@ -362,8 +363,8 @@ const AnkiPractical10 = {
     const nid=c?AnkiProductParity.noteId(c):null;
     if(a==='undo')CardsScreen.undoAnswer();
     else if(a==='redo')CardsScreen.redoAnswer();
-    else if(a==='mark'){const on=AnkiMaxParity._toggleMarkedNote(nid);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(on?'★ Nota marcada':'Marcação removida');}
-    else if(a==='tags')AnkiProductParity.editTags(['n:'+nid]);
+    else if(a==='mark'){if(window.CardsOfficialBridge)void CardsOfficialBridge.mark();else showToast('Anki oficial indisponível.');}
+    else if(a==='tags'){if(window.CardsOfficialBridge)AnkiProductParity.editTags(['n:'+nid]);else showToast('Anki oficial indisponível.');}
     else if(a==='info')document.getElementById('cards-act-info')?.click();
     else if(a==='buryCard')AnkiMaxParity.buryCard(c);
     else if(a==='buryNote')AnkiMaxParity.buryNote(c);
@@ -373,8 +374,8 @@ const AnkiPractical10 = {
     else if(a==='due')document.getElementById('cards-act-due')?.click();
     else if(a==='hint')AnkiMaxParity.showHints(false);
     else if(a==='allHints')AnkiMaxParity.showHints(true);
-    else if(a==='media')AnkiProductParity.replayMedia(c);
-    else if(a==='tts')AnkiProductParity.speakCard(c);
+    else if(a==='media'){if(window.CardsOfficialBridge)void CardsOfficialBridge.replayCurrentAv();else showToast('Mídia oficial indisponível.');}
+    else if(a==='tts'){if(window.CardsOfficialBridge)void CardsOfficialBridge.speakCurrentTts();else showToast('TTS oficial indisponível.');}
     else if(a==='recordVoice')AnkiMaxParity.openVoiceRecorder();
     else if(a==='replayVoice')AnkiMaxParity.replayOwnVoice();
     else if(a==='whiteboard')AnkiProductParity.openWhiteboard();
@@ -384,7 +385,7 @@ const AnkiPractical10 = {
     else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}
     else if(a==='type'){const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):null;AnkiProductParity.openChangeType([n||('n:'+nid)]);}
     else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
-    else if(a==='delete')document.getElementById('cards-act-del')?.click();
+    else if(a==='delete'){if(window.CardsOfficialBridge)void CardsOfficialBridge.deleteCurrentNote();else showToast('Anki oficial indisponível.');}
   },
 
   /* ───────────────── TIPOS DE NOTA PADRÃO DO ANKI ───────────────── */
