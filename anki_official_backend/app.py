@@ -839,6 +839,54 @@ def cards_official_reviewer_answer(
         }
 
 
+@app.get("/api/cards-official/browser/ids")
+def cards_official_browser_ids(
+    mode: str = Query(default="cards"),
+    q: str = Query(default=""),
+    sort_key: str = Query(default=""),
+    reverse: bool = Query(default=False),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """A gramática e a ordenação são 100% do Collection.find_* oficial."""
+    item = cards_uc_for(user)
+    mode = mode.strip().lower()
+    if mode not in {"cards", "notes"}:
+        raise HTTPException(400, "Modo do navegador deve ser cards ou notes.")
+    with item.lock:
+        order: Any = True
+        if sort_key:
+            order = item.col.get_browser_column(sort_key)
+            if order is None:
+                raise HTTPException(400, f"Coluna de ordenação desconhecida: {sort_key}")
+        if mode == "notes":
+            ids = [int(x) for x in item.col.find_notes(q, order=order, reverse=reverse)]
+        else:
+            ids = [int(x) for x in item.col.find_cards(q, order=order, reverse=reverse)]
+        return {"mode": mode, "query": q, "sort_key": sort_key, "reverse": reverse, "total": len(ids), "ids": ids}
+
+
+@app.get("/api/cards-official/browser/facets")
+def cards_official_browser_facets(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return {
+            "tags": list(item.col.tags.all()),
+            "decks": [
+                {"id": int(getattr(d, "id", 0)), "name": d.name}
+                for d in item.col.decks.all_names_and_ids()
+            ],
+            "notetypes": [
+                {"id": int(getattr(n, "id", 0)), "name": n.name}
+                for n in item.col.models.all_names_and_ids()
+            ],
+            "columns": [pb(column) for column in item.col.all_browser_columns()],
+            "active_cards": list(item.col.load_browser_card_columns()),
+            "active_notes": list(item.col.load_browser_note_columns()),
+        }
+
+
 @app.post("/api/cards-official/undo")
 def cards_official_undo(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = cards_uc_for(user)
