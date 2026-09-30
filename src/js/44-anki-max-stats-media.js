@@ -401,16 +401,24 @@ const AnkiMaxStatsMedia = {
   async runHelpMeDecide(){
     const out=document.getElementById('anki-sim-result');if(!out)return;
     const days=Number(document.getElementById('anki-sim-days').value)||365,
-      opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500,approximate:false},
-      curve=[];out.innerHTML='<p class="hint">Calculando 70%–99% sobre a coleção completa…</p>';
-    for(let p=70;p<=99;p++){
-      const sim=await this.simulateOfficial(days,p/100,opts),total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),secs=sim.time.reduce((a,b)=>a+b,0);
-      curve.push({retention:p,reviews:total/days,minutes:secs/60/days,memorized:sim.memorized.at(-1)||0});
-      if(p%3===0)await new Promise(r=>setTimeout(r,0));
+      retention=(Number(document.getElementById('anki-sim-retention').value)||90)/100,
+      opts={additionalNew:Number(document.getElementById('anki-sim-additional').value)||0,newLimit:Number(document.getElementById('anki-sim-new-limit').value)||0,reviewLimit:Number(document.getElementById('anki-sim-review-limit').value)||0,maxInterval:Number(document.getElementById('anki-sim-max-interval').value)||36500},
+      state=this._statsState||{},deckId=state.scope==='deck'?this._statsSelectedDeckId():null;
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.simulateFsrsPreset!=='function')throw new Error('Help Me Decide oficial indisponível.');
+    out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.3…</p>';
+    try{
+      const r=await CardsOfficialBridge.simulateFsrsPreset(deckId,days,retention,opts,'optimal'),
+        optimal=Math.max(.7,Math.min(.99,Number(r.out&&r.out.optimal_retention)||0));
+      if(!optimal)throw new Error('O Anki não retornou retenção ótima para estes dados.');
+      const pct=(optimal*100).toFixed(2);
+      out.innerHTML='<h3>Help Me Decide · Anki oficial</h3><div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+pct+'%</div><div class="stat-kpi-l">retenção ótima prevista</div></div></div>'+
+        '<p class="hint">Resultado de <code>compute_optimal_retention()</code> para o preset e limites atuais.</p>'+
+        '<button type="button" class="btn-primary" id="anki-sim-use-optimal">Usar '+pct+'% no simulador</button>';
+      const b=out.querySelector('#anki-sim-use-optimal');if(b)b.onclick=()=>{document.getElementById('anki-sim-retention').value=String(Math.round(optimal*10000)/100);void this.runSimulator();};
+      return optimal;
+    }catch(e){
+      out.innerHTML='<p class="hint tone-bad">Help Me Decide falhou: '+AnkiProductParity.esc(e&&e.message||e)+'</p>';throw e;
     }
-    out.innerHTML='<h3>Help Me Decide</h3><p class="hint">Como no Anki experimental: compare a carga prevista em diferentes retenções. Clique numa linha para levar o valor ao simulador.</p><div class="anki-p10-table-wrap"><table class="anki-p10-table"><thead><tr><th>Retenção</th><th>Respostas/dia</th><th>Min/dia</th><th>Memorizados</th></tr></thead><tbody>'+curve.map(x=>'<tr data-sim-ret="'+x.retention+'" tabindex="0"><td>'+x.retention+'%</td><td>'+Math.round(x.reviews)+'</td><td>'+x.minutes.toFixed(1)+'</td><td>'+Math.round(x.memorized)+'</td></tr>').join('')+'</tbody></table></div>';
-    out.querySelectorAll('[data-sim-ret]').forEach(row=>row.onclick=()=>{document.getElementById('anki-sim-retention').value=row.dataset.simRet;void this.runSimulator();});
-    return curve;
   },
 
   /* ───────────────── CHECK DATABASE / MEDIA ───────────────── */
