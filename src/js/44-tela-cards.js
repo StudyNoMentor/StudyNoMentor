@@ -1214,7 +1214,7 @@ const CardsScreen = {
           refreshManual(); showToast('📅 Vencimento atualizado ✓');
         });
     });
-    liga('cards-act-info', () => this.cardInfo(c.id));
+    liga('cards-act-info', () => this.cardInfo(c));
     liga('cards-auto-advance', () => this.toggleAutoAdvance());
     liga('cards-act-del', () => {
       const irmaos = this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length;
@@ -1316,12 +1316,42 @@ const CardsScreen = {
   },
   /* INFORMAÇÕES DO CARD (tecla I) — equivalente ao "Card Info" do Anki:
      estado atual, memória do FSRS e o histórico completo de revisões. */
-  cardInfo(id) {
-    const c = DB.getCard(id); if (!c) return;
-    const baseLog = (window.StudyGlobalScope && StudyGlobalScope.revlogForCard) ? StudyGlobalScope.revlogForCard(id) : DB.getRevlog();
-    const log = baseLog.filter(r => r.cardId === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  cardInfo(ref) {
+    let c = null, planId = null;
+    if (window.StudyGlobalScope && StudyGlobalScope.findCardRecord) {
+      const routed = StudyGlobalScope.findCardRecord(ref, ref && typeof ref === 'object' && ref._planId != null ? ref._planId : null);
+      if (routed) {
+        planId = routed.planId;
+        c = Object.assign({}, routed.card, { _planId: routed.planId, _planNome: StudyGlobalScope.planName(routed.planId) });
+      }
+    }
+    if (!c) {
+      const id = ref && typeof ref === 'object' ? ref.id : ref;
+      c = DB.getCard(id); if (!c) return;
+      planId = c._planId != null ? c._planId : null;
+    }
+    const id = String(c.id);
+    const baseLog = (window.StudyGlobalScope && StudyGlobalScope.revlogForCard)
+      ? StudyGlobalScope.revlogForCard(c, planId)
+      : DB.getRevlog();
+    const log = baseLog.filter(r => String(r.cardId) === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
     const NOTA = { 1: '✗ Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
     const FASE = { new: 'Novo', learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
+    const MANUAL = { 'set-due': 'Manual · Definir vencimento', reset: 'Manual · Resetar card', rescheduled: 'Reagendado' };
+    const reviewLabel = r => {
+      const kind = String(r && r.ankiReviewKind || '').toLowerCase();
+      if (Number(r && r.grade) === 0 || kind === 'manual' || kind === 'rescheduled' || kind === 'reset') {
+        return MANUAL[String(r && r.action || '').toLowerCase()] || (kind === 'rescheduled' ? 'Reagendado' : 'Manual');
+      }
+      return NOTA[r.grade] || r.grade || '—';
+    };
+    const reviewInterval = r => {
+      if (Number(r && r.grade) === 0 && r && r.ankiIvlSemantica === 2) {
+        const before = Number(r.ankiLastInterval), after = Number(r.ankiInterval);
+        if (Number.isFinite(before) && Number.isFinite(after)) return before + 'd → ' + after + 'd';
+      }
+      return r && r.elapsed != null ? r.elapsed + 'd' : '';
+    };
     const linha = (r, v) => `<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">${r}</td><td style="padding:4px 0;font-family:'Space Mono',monospace">${v}</td></tr>`;
     const corpo = `
       <table style="width:100%;font-size:12.5px;border-collapse:collapse">
@@ -1342,8 +1372,8 @@ const CardsScreen = {
         <table style="width:100%;font-size:12px;border-collapse:collapse">
           ${log.slice(0, 60).map(r => `<tr style="border-top:1px solid var(--border)">
             <td style="padding:4px 8px 4px 0;color:var(--text-faint)">${r.date || ''}</td>
-            <td style="padding:4px 8px 4px 0">${NOTA[r.grade] || r.grade}</td>
-            <td style="padding:4px 0;color:var(--text-faint)">${r.elapsed != null ? r.elapsed + 'd' : ''}</td>
+            <td style="padding:4px 8px 4px 0">${reviewLabel(r)}</td>
+            <td style="padding:4px 0;color:var(--text-faint)">${reviewInterval(r)}</td>
           </tr>`).join('')}
         </table></div>` : '<p style="color:var(--text-faint);font-size:12px">Nenhuma revisão ainda.</p>'}`;
     UI.alert(corpo, { title: 'ℹ Informações do card', html: true, okText: 'Fechar' });
