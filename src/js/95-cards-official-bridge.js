@@ -842,6 +842,127 @@ const CardsOfficialBridge = {
     showToast(newIds.length+' card(s) reposicionado(s) ✓');
   },
 
+
+  _notetypePlanIds(extra){
+    const ids=[];
+    if(window.StudyGlobalScope&&StudyGlobalScope.planIdsForScope){
+      ids.push(...StudyGlobalScope.planIdsForScope());
+    }else{
+      const pid=this._activePlanId();if(pid!=null)ids.push(pid);
+    }
+    for(const x of extra||[])if(x!=null)ids.push(x);
+    return [...new Set(ids.map(String))];
+  },
+  _localNotetypeReplicas(officialId){
+    const out=[],seen=new Set(),pids=this._notetypePlanIds();
+    for(const pid of pids){
+      for(const nt of AnkiParity.noteTypes(pid)){
+        const oid=Number(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
+        if(String(oid)!==String(officialId))continue;
+        const k=String(pid)+'|'+String(nt.id);if(seen.has(k))continue;seen.add(k);
+        out.push(Object.assign({},nt,{_planId:pid}));
+      }
+    }
+    return out;
+  },
+  _removeLocalNotetypeReplicas(officialId){
+    let removed=0;
+    for(const nt of this._localNotetypeReplicas(officialId)){
+      const pid=nt._planId,key=window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan
+        ?StudyGlobalScope.entityKeyForPlan(pid,'notetype',nt.id)
+        :AnkiParity._entityKey('notetype',nt.id,pid);
+      try{
+        localStorage.removeItem(key);removed++;
+      }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-notetype-delete');}
+    }
+    return removed;
+  },
+  _stockNotetypeKind(base){
+    return ({basic:0,basic_reversed:1,basic_optional_reversed:2,typing:3,cloze:4,image_occlusion:5})[String(base||'basic')]??0;
+  },
+  async createOfficialNotetype(base,name){
+    await this.bootstrap(false);
+    const out=await this.request('/api/cards-official/notetypes/stock',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({kind:this._stockNotetypeKind(base),name:String(name||'').trim()})
+    });
+    if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu o novo tipo de nota.');
+    const pids=this._notetypePlanIds();
+    this._syncNotetypesIntoPlans([{notetype:out.notetype,use_count:out.use_count||0}],pids);
+    await this._syncCollectionState(out.state,this._activePlanId(),null);
+    this._browserCache=[];this.dirty=false;
+    if(window.AnkiProductParity&&AnkiProductParity.renderNotetypes)AnkiProductParity.renderNotetypes();
+    return out;
+  },
+  async copyOfficialNotetype(nt,name){
+    await this.bootstrap(false);
+    const oid=Number(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
+    if(!Number.isFinite(oid)||oid<=0)throw new Error('Tipo de nota sem identidade oficial.');
+    const out=await this.request('/api/cards-official/notetypes/'+encodeURIComponent(oid)+'/copy',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({name:String(name||'').trim()})
+    });
+    if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu a cópia do tipo de nota.');
+    this._syncNotetypesIntoPlans([{notetype:out.notetype,use_count:out.use_count||0}],this._notetypePlanIds());
+    await this._syncCollectionState(out.state,this._activePlanId(),null);
+    this._browserCache=[];this.dirty=false;
+    if(window.AnkiProductParity&&AnkiProductParity.renderNotetypes)AnkiProductParity.renderNotetypes();
+    return out;
+  },
+  async updateOfficialNotetype(old,nt,notes){
+    await this.bootstrap(false);
+    if(typeof AnkiExport==='undefined'||typeof AnkiExport.modelSchema!=='function')throw new Error('Serializador oficial de NoteType indisponível.');
+    const oid=Number(old&&old.ankiId!=null?old.ankiId:old&&old.id);
+    if(!Number.isFinite(oid)||oid<=0)throw new Error('Tipo de nota sem identidade oficial.');
+    const raw=AnkiExport.modelSchema(Object.assign({},nt,{id:oid,ankiId:oid}));
+    raw.id=oid;
+    const out=await this.request('/api/cards-official/notetypes/'+encodeURIComponent(oid),{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({notetype:raw})
+    });
+    if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu o NoteType atualizado.');
+    const pids=this._notetypePlanIds((notes||[]).map(n=>n&&n._planId).filter(x=>x!=null));
+    this._syncNotetypesIntoPlans([{notetype:out.notetype,use_count:out.use_count||0}],pids);
+    await this._syncOfficialNotes(out.notes||[],{skipReconcile:true});
+    await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
+    await this._syncCollectionState(out.state,this._activePlanId(),null);
+    this._browserCache=[];this.dirty=false;
+    const modal=document.getElementById('anki-nt-edit-modal');if(modal)modal.style.display='none';
+    if(window.AnkiProductParity){
+      if(AnkiProductParity.renderNotetypes)AnkiProductParity.renderNotetypes();
+      if(AnkiProductParity.renderBrowser)AnkiProductParity.renderBrowser();
+    }
+    CardsScreen.render();CardsScreen.updateFavCount();
+    return out;
+  },
+  async deleteOfficialNotetype(nt){
+    await this.bootstrap(false);
+    const oid=Number(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
+    if(!Number.isFinite(oid)||oid<=0)throw new Error('Tipo de nota sem identidade oficial.');
+    const out=await this.request('/api/cards-official/notetypes/'+encodeURIComponent(oid),{method:'DELETE'});
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a exclusão.');
+    this._removeLocalNotetypeReplicas(oid);
+    await this._syncCollectionState(out.state,this._activePlanId(),null);
+    this._browserCache=[];this.dirty=false;
+    if(window.AnkiProductParity&&AnkiProductParity.renderNotetypes)AnkiProductParity.renderNotetypes();
+    return out;
+  },
+  async restoreOfficialNotetype(nt,forceKind){
+    await this.bootstrap(false);
+    const oid=Number(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
+    if(!Number.isFinite(oid)||oid<=0)throw new Error('Tipo de nota sem identidade oficial.');
+    const out=await this.request('/api/cards-official/notetypes/'+encodeURIComponent(oid)+'/restore-stock',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({force_kind:forceKind==null?null:Number(forceKind)})
+    });
+    if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu o NoteType restaurado.');
+    this._syncNotetypesIntoPlans([{notetype:out.notetype,use_count:out.use_count||0}],this._notetypePlanIds());
+    await this._syncOfficialNotes(out.notes||[],{skipReconcile:true});
+    await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
+    await this._syncCollectionState(out.state,this._activePlanId(),null);
+    this._browserCache=[];this.dirty=false;
+    return out;
+  },
+
   async _officialNotetypes(){
     await this.bootstrap(false);
     const out=await this.request('/api/cards-official/notetypes/full');
