@@ -698,16 +698,29 @@ const AnkiExport = {
   },
 
   _cardsForLimit(options) {
-    options=options||{};const all=this._sourceCards().slice(),limit=options.limit||{};
+    options=options||{};const all=this._sourceCards().slice(),limit=options.limit||{};let selected=all;
     if(limit.deckId!=null){
       const decks=this._sourceDecks(),root=decks.find(d=>String(d.id)===String(limit.deckId));
       if(!root)return [];
       const prefix=String(root.nome||'')+'::',ids=new Set(decks.filter(d=>String(d.id)===String(root.id)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
-      return all.filter(c=>ids.has(String(c.originalDeckId||c.deckId)));
+      selected=all.filter(c=>ids.has(String(c.originalDeckId||c.deckId)));
+    }else if(Array.isArray(limit.noteIds)){
+      const ids=new Set(limit.noteIds.map(String));selected=all.filter(c=>ids.has(String(AnkiParity.noteId(c))));
+    }else if(Array.isArray(limit.cardIds)){
+      const ids=new Set(limit.cardIds.map(String));selected=all.filter(c=>ids.has(String(c.id))||ids.has(String(c.ankiId)));
     }
-    if(Array.isArray(limit.noteIds)){const ids=new Set(limit.noteIds.map(String));return all.filter(c=>ids.has(String(AnkiParity.noteId(c))));}
-    if(Array.isArray(limit.cardIds)){const ids=new Set(limit.cardIds.map(String));return all.filter(c=>ids.has(String(c.id))||ids.has(String(c.ankiId)));}
-    return all;
+    /* A coleção oficial exige IDs de card globalmente únicos. No Study, a visão
+       "todos os planejamentos" pode conter réplicas do mesmo card lógico. Para
+       o bridge oficial, exportamos UMA cópia por ankiId e depois propagamos o
+       estado oficial de volta às réplicas. Exportações normais não mudam. */
+    if(options.canonicalAnkiIds){
+      const seen=new Set();
+      selected=selected.filter(c=>{
+        const k=String(c&&c.ankiId!=null?c.ankiId:c&&c.id);
+        if(!k||seen.has(k))return false;seen.add(k);return true;
+      });
+    }
+    return selected;
   },
   _decksForCards(cards,allDecks) {
     const byId=new Map(allDecks.map(d=>[String(d.id),d])),keep=new Set();
