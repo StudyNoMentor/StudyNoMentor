@@ -591,6 +591,8 @@ def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
         "desired_retention": card.desired_retention,
         "decay": card.decay,
         "last_review_time": card.last_review_time,
+        "question": card.question(),
+        "answer": card.answer(),
         "stats": pb(col.card_stats_data(card.id)),
         "review_logs": [pb(entry) for entry in col.get_review_logs(card.id)],
     }
