@@ -20,6 +20,12 @@ const AnkiExport = {
   ].join('\n'),
 
   _enc: new TextEncoder(),
+  _externalMedia: new Map(),
+  registerExternalMedia(name,bytes,mime){
+    const key=String(name||'').trim();if(!key)return false;
+    this._externalMedia.set(key,{name:key,bytes:this._u8(bytes),mime:String(mime||'application/octet-stream')});
+    return true;
+  },
   _u8(v) {
     if (v instanceof Uint8Array) return v;
     if (v instanceof ArrayBuffer) return new Uint8Array(v);
@@ -196,6 +202,57 @@ const AnkiExport = {
     }
     return item;
   },
+  _relativeMediaNames(content){
+    const src=String(content||''),out=new Set(),accept=raw=>{
+      const name=String(raw||'').trim().replace(/^\.\//,'');
+      if(!name||/^(?:data:|blob:|https?:|about:|#|mailto:|javascript:)/i.test(name))return;
+      if(name.includes('/')||name.includes('\\'))return;
+      out.add(name);
+    };
+    let m;
+    const attr=/\b(?:src|poster)\s*=\s*["']([^"']+)["']/gi;while((m=attr.exec(src)))accept(m[1]);
+    const sound=/\[sound:([^\]]+)\]/gi;while((m=sound.exec(src)))accept(m[1]);
+    const css=/url\(\s*["']?([^)"']+)["']?\s*\)/gi;while((m=css.exec(src)))accept(m[1]);
+    return [...out];
+  },
+  _includeExternalMedia(name,media){
+    const item=this._externalMedia.get(String(name||''));if(!item)return false;
+    const key='external:'+item.name;
+    if(!media.byKey.has(key)){
+      const copy={name:item.name,bytes:this._u8(item.bytes),mime:item.mime};
+      media.byKey.set(key,copy);media.items.push(copy);
+    }
+    return true;
+  },
+  async _hydrateExternalMedia(cards){
+    const names=new Set(),scan=x=>this._relativeMediaNames(x).forEach(n=>names.add(n));
+    const seenNotes=new Set(),seenTypes=new Set();
+    for(const card of cards||[]){
+      scan(card&&card.frente);scan(card&&card.verso);
+      const note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(AnkiParity.noteId(card));
+      if(!note)continue;
+      const nk=String(note.ankiId||note.id);if(!seenNotes.has(nk)){
+        seenNotes.add(nk);Object.values(note.fields||{}).forEach(scan);
+      }
+      const nt=AnkiParity.notetypeForCard?AnkiParity.notetypeForCard(card,note):AnkiParity.getNotetype(note.notetypeId);
+      if(nt){
+        const tk=String(nt.ankiId||nt.id);if(!seenTypes.has(tk)){
+          seenTypes.add(tk);scan(nt.css);scan(nt.latexPre);scan(nt.latexPost);
+          for(const t of nt.templates||[])for(const k of ['qfmt','afmt','bqfmt','bafmt'])scan(t&&t[k]);
+        }
+      }
+    }
+    for(const name of names){
+      if(this._externalMedia.has(name))continue;
+      if(typeof window==='undefined'||!window.CardsOfficialBridge||typeof CardsOfficialBridge._fetchMedia!=='function'){
+        throw new Error('Mídia referenciada sem bytes disponíveis para exportação: '+name);
+      }
+      const blob=await CardsOfficialBridge._fetchMedia(name),
+        bytes=new Uint8Array(await blob.arrayBuffer());
+      this.registerExternalMedia(name,bytes,blob.type||'application/octet-stream');
+    }
+    return names.size;
+  },
   extractMedia(content, media) {
     let src=String(content||'');
     const store=(mime,b64)=>{
@@ -208,6 +265,7 @@ const AnkiExport = {
       (m,q,mime,b64)=>{const name=store(mime,b64);return name?'url("'+name+'")':m;});
     src=src.replace(/@import\s+(["'])data:([^;,"']+)(?:;charset=[^;,"']+)?;base64,([^"']+)\1/gi,
       (m,q,mime,b64)=>{const name=store(mime,b64);return name?'@import '+q+name+q:m;});
+    for(const name of this._relativeMediaNames(src))this._includeExternalMedia(name,media);
     return src;
   },
 
@@ -834,6 +892,7 @@ const AnkiExport = {
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
     const cards = this._cardsForLimit(options), allDecks = this._sourceDecks().slice();
+    await this._hydrateExternalMedia(cards);
     const decks = this._decksForCards(cards,allDecks,options), crt = this._collectionEpoch(cards);
     const deckMap=this._deckIdMap(decks),dj=this._deckJson(decks,options),media={items:[],byKey:new Map()};
     const notesById = new Map(), siblings = new Map(), usedNt = new Set();
