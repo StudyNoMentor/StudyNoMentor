@@ -595,6 +595,24 @@ def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
     }
 
 
+def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
+    """Fila completa oficial para a UI Cards, sem reordenar nada no JavaScript."""
+    out = reviewer_payload(col)
+    fetch_limit = max(1, int(col.card_count()))
+    queued = col.sched.get_queued_cards(fetch_limit=fetch_limit)
+    out["queue_ids"] = [int(entry.card.id) for entry in queued.cards]
+    out["counts"] = {
+        "new": int(queued.new_count),
+        "learning": int(queued.learning_count),
+        "review": int(queued.review_count),
+    }
+    out["timing"] = {
+        "today": int(col.sched.today),
+        "collection_crt": int(col.crt),
+    }
+    return out
+
+
 @app.get("/api/anki/reviewer/next")
 def reviewer_next(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
@@ -736,7 +754,7 @@ async def cards_official_bootstrap(
                 "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
                 "cards": int(item.col.card_count()),
                 "notes": int(item.col.note_count()),
-                "reviewer": reviewer_payload(item.col),
+                "reviewer": cards_reviewer_payload(item.col),
             }
     finally:
         _unlink_quiet(tmp)
@@ -748,7 +766,7 @@ def cards_official_reviewer_next(
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
-        return reviewer_payload(item.col)
+        return cards_reviewer_payload(item.col)
 
 
 @app.post("/api/cards-official/reviewer/answer")
@@ -778,8 +796,24 @@ def cards_official_reviewer_answer(
         return {
             "ok": True,
             "answered": card_state_payload(item.col, int(card.id)),
-            "reviewer": reviewer_payload(item.col),
+            "reviewer": cards_reviewer_payload(item.col),
         }
+
+
+@app.post("/api/cards-official/undo")
+def cards_official_undo(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        out = pb(item.col.undo())
+        return {"ok": True, "changes": out, "reviewer": cards_reviewer_payload(item.col)}
+
+
+@app.post("/api/cards-official/redo")
+def cards_official_redo(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        out = pb(item.col.redo())
+        return {"ok": True, "changes": out, "reviewer": cards_reviewer_payload(item.col)}
 
 
 @app.post("/api/cards-official/cards/action")
@@ -814,7 +848,7 @@ def cards_official_card_action(
         else:
             raise HTTPException(400, f"Ação não suportada: {body.action}")
         states = [card_state_payload(item.col, cid) for cid in ids]
-        return {"ok": True, "cards": states, "reviewer": reviewer_payload(item.col)}
+        return {"ok": True, "cards": states, "reviewer": cards_reviewer_payload(item.col)}
 
 
 @app.post("/api/anki/cards/action")
