@@ -169,14 +169,19 @@ const AnkiImageOcclusion = {
   },
   _bindAdvanced(){
     document.getElementById('anki-advanced-save').addEventListener('click',()=>{
-      const nt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!nt)return;const fields={};
+      const rawNt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!rawNt)return;const fields={};
       document.querySelectorAll('.anki-advanced-field').forEach(x=>fields[x.dataset.field]=x.value);
-      if(nt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
-      const deck=this._resolveDeck(document.getElementById('anki-advanced-deck').value);
+      if(rawNt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
+      const selectedDeck=document.getElementById('anki-advanced-deck').value,
+        rec=selectedDeck&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord?StudyGlobalScope.deckRecord(selectedDeck):null,
+        planId=(rec&&rec.planId)||(window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId()),
+        deck=this._resolveDeck(selectedDeck,planId);
       if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
-      const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean)});
-      AnkiProductParity.reconcileNote(note,nt);AnkiProductParity._cardsForNote(note.id).forEach(c=>DB.updateCard(c.id,{deckId:deck}));
-      document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+AnkiProductParity._cardsForNote(note.id).length+' card(s) ✓');
+      const nt=AnkiProductParity._ensureNotetypeInPlan?AnkiProductParity._ensureNotetypeInPlan(rawNt,planId):rawNt,
+        id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,
+          tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean),_planId:planId||undefined},planId||undefined);
+      AnkiProductParity.reconcileNote(note,nt);const cards=AnkiProductParity._cardsForNote(note,planId);cards.forEach(c=>DB.updateCard(c.id,{deckId:deck}));
+      document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+cards.length+' card(s) ✓');
     });
   },
 
