@@ -80,13 +80,16 @@
       "study_adapters": [
         "src/js/31-cards-config.js",
         "src/js/44-anki-parity.js",
-        "src/js/44-tela-cards.js"
+        "src/js/44-tela-cards.js",
+        "src/js/95-cards-official-bridge.js"
       ],
       "differential_tests": [
         "testes/cards-paridade-total-anki.mjs",
-        "testes/cards-certificacao-anki.mjs"
+        "testes/cards-certificacao-anki.mjs",
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_DECK_OPTIONS_CUSTOM_STUDY_FILTERED_EMPTY_CARDS_BRIDGE_CERTIFICATION_PENDING"
     },
     "search_browser": {
       "official_files": 50,
@@ -182,14 +185,16 @@
       "study_adapters": [
         "src/js/44-anki-total-parity.js",
         "src/js/44-anki-product-parity.js",
-        "src/js/44-tela-cards.js"
+        "src/js/44-tela-cards.js",
+        "src/js/95-cards-official-bridge.js"
       ],
       "differential_tests": [
         "testes/cards-total-parity.mjs",
         "testes/cards-product-parity.mjs",
-        "testes/cards-official-bridge-static.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_REVIEWER_BROWSER_ACTIONS_BRIDGE_PARTIAL"
+      "status": "OFFICIAL_REVIEWER_BROWSER_EMPTY_CARDS_ACTIONS_BRIDGE_PARTIAL"
     }
   }
 }
