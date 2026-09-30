@@ -1077,13 +1077,16 @@
 
     AP.getNote = function(id, planId) {
       if (planId != null) return withPrefix(planId, () => {
-        const x=old.getNote.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
+        // Passe o plano também ao getter original. Só trocar _planPrefix não
+        // basta: o getter base, quando recebe planId=null, faz fallback global
+        // e podia devolver uma Note homônima de OUTRO planejamento.
+        const x=old.getNote.call(AP,id,planId); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
       });
       return S.ankiEntity('note', id);
     };
     AP.getNotetype = function(id, planId) {
       if (planId != null) return withPrefix(planId, () => {
-        const x=old.getNotetype.call(AP,id); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
+        const x=old.getNotetype.call(AP,id,planId); return x?Object.assign({},x,{_planId:planId,_planNome:S.planName(planId)}):null;
       });
       return S.ankiEntity('notetype', id);
     };
