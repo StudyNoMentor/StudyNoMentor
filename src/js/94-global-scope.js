@@ -1334,6 +1334,49 @@
     return true;
   };
 
+
+  S._selectedBrowserRows=function(ids){
+    if(typeof AnkiMaxParity!=='undefined'&&AnkiMaxParity._resolveSelection)
+      return AnkiMaxParity._resolveSelection(ids||[]);
+    const notes=[],cards=[],seen=new Set();
+    (ids||[]).forEach(raw=>{
+      const n=raw&&typeof raw==='object'?raw:AnkiParity.getNote(raw);
+      if(!n)return;const k=String(n._planId||'')+'::'+String(n.id);
+      if(seen.has(k))return;seen.add(k);notes.push(n);
+      cards.push(...AnkiProductParity._cardsForNote(n,n._planId));
+    });
+    return {notes,cards,noteIds:notes.map(n=>String(n.id))};
+  };
+
+  S._refreshAnkiBrowser=function(){
+    CardEngine.invalidateDueCache();
+    if(window.CardsScreen){CardsScreen.invalidateReviewQueue();CardsScreen.render();}
+    if(window.AnkiProductParity&&document.getElementById('anki-browser-modal')&&
+       document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
+  };
+
+  S.bulkSetDueUi=function(ids){
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);
+      if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((c,i)=>this.setDueScoped(c,p,{index:i,total:cards.length}));
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) reagendado(s) ✓');
+    });
+  };
+
+  S.bulkResetUi=function(ids){
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
+    UI.prompt([
+      {key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},
+      {key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}
+    ],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;
+      cards.forEach(c=>this.resetCardScoped(c,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
+    });
+  };
+
   const boot = () => {
     S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
