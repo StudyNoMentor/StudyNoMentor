@@ -417,7 +417,7 @@ const AnkiProductParity = {
     if(!ids.length)return;
     UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
       {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},
-      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Esquecer / tornar novos'},
+      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Resetar / tornar novos'},
       {value:'reposition',label:'🔢 Reposicionar cards novos'},{value:'replace',label:'🔁 Localizar e substituir nos campos'}
     ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
       if(!v)return;
@@ -459,16 +459,23 @@ const AnkiProductParity = {
   },
 
   bulkSetDue(ids){
-    UI.prompt([{key:'days',label:'Vencer daqui a quantos dias?',type:'number',value:'1',hint:'0 = hoje. Aplica a todos os cards das notas selecionadas.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
-      if(!v)return;const days=Math.max(0,Math.round(Number(v.days)||0));let n=0;
-      ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>{DB.setDueDays(c.id,days);n++;});
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(n+' card(s) reagendado(s) ✓');
+    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',
+      hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
     });
   },
 
   bulkForget(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id));UI.confirm('Esquecer '+cards.length+' card(s)? Eles voltam ao estado de novos; o conteúdo das notas é preservado.',{title:'↺ Esquecer cards',okText:'Esquecer',danger:true}).then(ok=>{
-      if(!ok)return;cards.forEach(c=>DB.forgetCard(c.id));CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram a ser novos ✓');
+    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
+    UI.prompt([
+      {key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},
+      {key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}
+    ],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
     });
   },
 
