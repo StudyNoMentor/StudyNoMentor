@@ -1138,8 +1138,8 @@ const CardsScreen = {
           <button type="button" class="icon-btn" id="cards-act-mark" title="Marcar/desmarcar nota (*)">${c.favorito ? '★ Marcada' : '☆ Marcar'}</button>
           <button type="button" class="icon-btn" id="cards-act-bury" title="Enterrar: some da fila até amanhã (−)">⤓ Enterrar</button>
           <button type="button" class="icon-btn" id="cards-act-susp" title="Suspender: some até você reativar (@)">🚫 Suspender</button>
-          <button type="button" class="icon-btn" id="cards-act-forget" title="Esquecer: volta a ser card novo (Ctrl+Alt+N)">↺ Esquecer</button>
-          <button type="button" class="icon-btn" id="cards-act-due" title="Definir data de vencimento (Ctrl+Shift+D)">📅 Data</button>
+          <button type="button" class="icon-btn" id="cards-act-forget" title="Resetar: volta a ser novo e preserva o histórico (Ctrl+Alt+N)">↺ Resetar</button>
+          <button type="button" class="icon-btn" id="cards-act-due" title="Definir vencimento: aceita N, A-B e A-B! (Ctrl+Shift+D)">📅 Data</button>
           <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
           <button type="button" class="icon-btn ${this._autoAdvanceEnabled?'on':''}" id="cards-auto-advance" aria-pressed="${this._autoAdvanceEnabled?'true':'false'}" title="Alternar Auto Advance (Shift+A)">${this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto'}</button>
           <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)" aria-label="Excluir card (Ctrl+Del)">🗑</button>
@@ -1174,19 +1174,44 @@ const CardsScreen = {
     liga('cards-act-mark', () => { DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box); showToast(c.favorito ? 'Desmarcada' : '★ Marcada'); });
     liga('cards-act-bury', () => { const d2 = DB.buryCard(c.id); proximo(); showToast('⤓ Enterrado até ' + formatDateShort(d2)); });
     liga('cards-act-susp', () => { if (typeof AnkiParity !== 'undefined') AnkiParity.suspendCard(c.id); else DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
+    const reviewRef = () => c._planId != null
+      ? 'c:' + encodeURIComponent(String(c._planId)) + '::' + encodeURIComponent(String(c.id))
+      : 'c:' + encodeURIComponent(String(c.id));
+    const refreshManual = () => {
+      CardEngine.invalidateDueCache();
+      this.invalidateReviewQueue();
+      this.renderContent();
+      this.atualizarFoco();
+    };
     liga('cards-act-forget', () => {
-      UI.confirm('Esquecer este card? Ele volta a ser um card novo e perde o histórico de agendamento.',
-        { title: '↺ Esquecer card', okText: 'Esquecer', danger: true }).then(ok => {
-          if (!ok) return; DB.forgetCard(c.id); proximo(); showToast('↺ Card voltou a ser novo');
-        });
+      if (window.StudyGlobalScope && StudyGlobalScope.bulkResetUi) {
+        StudyGlobalScope.bulkResetUi([reviewRef()]);
+        return;
+      }
+      UI.prompt([
+        { key: 'restore', label: 'Restaurar posição original?', type: 'select', value: 'no',
+          options: [{ value: 'no', label: 'Não — enviar ao fim da fila de novos' }, { value: 'yes', label: 'Sim — usar posição original quando disponível' }] },
+        { key: 'counts', label: 'Zerar repetições e lapsos?', type: 'select', value: 'no',
+          options: [{ value: 'no', label: 'Não — preservar contadores' }, { value: 'yes', label: 'Sim — zerar contadores' }] }
+      ], { title: '↺ Resetar card', okText: 'Resetar' }).then(v => {
+        if (!v) return;
+        DB.resetCard(c.id, { restorePosition: v.restore === 'yes', resetCounts: v.counts === 'yes', log: true });
+        refreshManual(); showToast('↺ Card voltou à fila de novos; histórico preservado ✓');
+      });
     });
     liga('cards-act-due', () => {
-      UI.prompt([{ key: 'd', label: 'Vencer daqui a quantos dias?', type: 'number', value: '1',
-        hint: '0 = hoje. Equivale ao "Set Due Date" do Anki.' }],
-        { title: '📅 Definir data', okText: 'Agendar' }).then(v => {
+      if (window.StudyGlobalScope && StudyGlobalScope.bulkSetDueUi) {
+        StudyGlobalScope.bulkSetDueUi([reviewRef()]);
+        return;
+      }
+      UI.prompt([{ key: 'spec', label: 'Vencimento', type: 'text', value: '1',
+        placeholder: 'ex.: 10, 60-90 ou 60-90!',
+        hint: 'A-B distribui no intervalo. ! também redefine o intervalo de cards em revisão.' }],
+        { title: '📅 Definir vencimento', okText: 'Agendar' }).then(v => {
           if (!v) return;
-          const data = DB.setDueDays(c.id, v.d);
-          proximo(); showToast('📅 Agendado para ' + formatDateShort(data));
+          const result = DB.setDueSpec(c.id, v.spec);
+          if (!result) { showToast('Formato inválido. Use N, A-B ou A-B!.'); return; }
+          refreshManual(); showToast('📅 Vencimento atualizado ✓');
         });
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
