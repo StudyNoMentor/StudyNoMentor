@@ -441,6 +441,110 @@ const CardsOfficialBridge = {
     }catch(e){this._redo.push(txn);showToast('Não foi possível refazer: '+(e.message||e));return false;}
   },
 
+  _browserSortKey(key){
+    return ({
+      sortField:'noteFld',deck:'deck',notetype:'note',template:'template',due:'cardDue',
+      interval:'cardIvl',ease:'cardEase',stability:'stability',difficulty:'difficulty',
+      retrievability:'retrievability',reps:'cardReps',lapses:'cardLapses',
+      position:'originalPosition',tags:'noteTags',created:'noteCrt',modified:'noteMod',
+      cardModified:'cardMod'
+    })[String(key||'')]||'';
+  },
+  _browserQuery(st){
+    const parts=[],esc=v=>String(v==null?'':v).replace(/\\/g,'\\\\').replace(/"/g,'\\"');
+    const raw=String(st&&st.query||'').trim();if(raw)parts.push('('+raw+')');
+    if(st&&st.tag)parts.push('tag:"'+esc(st.tag)+'"');
+    if(st&&st.flag!=='')parts.push('flag:'+Math.max(0,Math.min(7,Number(st.flag)||0)));
+    if(st&&st.suspended==='yes')parts.push('is:suspended');
+    else if(st&&st.suspended==='no')parts.push('-is:suspended');
+    if(st&&st.marked)parts.push('tag:marked');
+    return parts.join(' ');
+  },
+  _browserBaseRows(){
+    if(!this._origBrowserRows)return[];
+    const b=AnkiProductParity.browser,saved={
+      query:b.query,tag:b.tag,flag:b.flag,suspended:b.suspended,marked:b.marked,
+      sort:b.sort,sortDir:b.sortDir,page:b.page
+    };
+    b.query='';b.tag='';b.flag='';b.suspended='all';b.marked=false;
+    try{return this._origBrowserRows();}
+    finally{Object.assign(b,saved);}
+  },
+  _browserRowOfficialId(row,mode){
+    if(mode==='cards')return this._officialId(row&&row.card);
+    const note=row&&row.note,n=Number(note&&note.ankiId!=null?note.ankiId:note&&note.id);
+    return Number.isFinite(n)&&n>0?n:null;
+  },
+  async _refreshOfficialBrowser(){
+    const seq=++this._browserSeq;
+    try{
+      await this.bootstrap(false);
+      const b=AnkiProductParity.browser,mode=b.mode==='cards'?'cards':'notes',
+        query=this._browserQuery(b),sortKey=this._browserSortKey(b.sort),
+        qs=new URLSearchParams({mode,q:query,sort_key:sortKey,reverse:b.sortDir==='desc'?'true':'false'});
+      const out=await this.request('/api/cards-official/browser/ids?'+qs.toString());
+      if(seq!==this._browserSeq)return;
+      const base=this._browserBaseRows(),map=new Map(),active=window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():null;
+      for(const row of base){
+        const id=this._browserRowOfficialId(row,mode);if(id==null)continue;
+        const prev=map.get(String(id));
+        const plan=(row.card&&row.card._planId)||(row.note&&row.note._planId)||null;
+        if(!prev||(active!=null&&String(plan)===String(active)))map.set(String(id),row);
+      }
+      const rows=[],missing=[];
+      for(const id of out.ids||[]){
+        const row=map.get(String(id));if(row)rows.push(row);else missing.push(id);
+      }
+      if(missing.length)throw new Error('Browser oficial retornou '+missing.length+' ID(s) sem objeto local correspondente: '+missing.slice(0,5).join(', '));
+      this._browserCache=rows;this._browserTotal=Number(out.total)||rows.length;this._browserError=null;
+      if(this._origBrowserRender)this._origBrowserRender();
+    }catch(e){
+      if(seq!==this._browserSeq)return;
+      this._browserError=e;this._browserCache=[];
+      const list=document.getElementById('anki-browser-list'),summary=document.getElementById('anki-browser-summary');
+      if(summary)summary.textContent='Busca oficial indisponível';
+      if(list)list.innerHTML='<div class="empty-state"><h3>Não foi possível consultar o Browser oficial</h3><p>'+escapeHtml(e&&e.message?e.message:String(e))+'</p></div>';
+    }
+  },
+  _scheduleOfficialBrowser(){
+    clearTimeout(this._browserTimer);
+    this._browserTimer=setTimeout(()=>{void this._refreshOfficialBrowser();},90);
+  },
+  async _loadOfficialBrowserFacets(){
+    try{
+      await this.bootstrap(false);
+      const out=await this.request('/api/cards-official/browser/facets'),sel=document.getElementById('anki-browser-tag');
+      if(sel){
+        const current=AnkiProductParity.browser.tag||'';
+        sel.innerHTML='<option value="">Todas as tags</option>'+(out.tags||[]).map(t=>'<option value="'+AnkiProductParity.esc(t)+'">'+AnkiProductParity.esc(t)+'</option>').join('');
+        sel.value=current;
+      }
+      this._officialBrowserFacets=out;
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-browser-facets');}
+  },
+  _installOfficialBrowser(){
+    if(!window.AnkiProductParity||!window.AnkiMaxParity||this._browserInstalled)return;
+    this._browserInstalled=true;this._browserSeq=0;this._browserCache=[];
+    this._origBrowserRows=AnkiProductParity._browserRows.bind(AnkiProductParity);
+    this._origBrowserRender=AnkiProductParity.renderBrowser.bind(AnkiProductParity);
+    this._origOpenBrowser=AnkiProductParity.openBrowser.bind(AnkiProductParity);
+    const self=this;
+    AnkiProductParity._browserRows=()=>self._browserCache||[];
+    AnkiProductParity.renderBrowser=()=>{
+      const list=document.getElementById('anki-browser-list'),summary=document.getElementById('anki-browser-summary');
+      if(summary)summary.textContent='Consultando busca oficial do Anki…';
+      if(list&&!self._browserCache.length)list.innerHTML='<div class="empty-state"><h3>Consultando…</h3><p>A gramática e a ordem vêm do Anki oficial.</p></div>';
+      self._scheduleOfficialBrowser();
+    };
+    AnkiProductParity.openBrowser=function(){
+      const out=self._origOpenBrowser.apply(this,arguments);
+      void self._loadOfficialBrowserFacets();
+      return out;
+    };
+    const sortable=key=>!!self._browserSortKey(key);
+    AnkiMaxParity._isSortableColumn=sortable;
+  },
+
   _wrapInvalidator(name){
     const fn=CardsScreen[name];if(typeof fn!=='function'||fn.__cardsOfficialWrapped)return;
     const self=this;
@@ -459,6 +563,7 @@ const CardsOfficialBridge = {
     CardsScreen.flip=()=>{void this.showAnswer();};
     CardsScreen.undoAnswer=()=>{void this.undo();};
     CardsScreen.redoAnswer=()=>{void this.redo();};
+    this._installOfficialBrowser();
 
     // Alterações de conteúdo/config invalidam a coleção oficial isolada. A
     // próxima entrada em Revisar faz novo bootstrap; respostas oficiais NÃO
