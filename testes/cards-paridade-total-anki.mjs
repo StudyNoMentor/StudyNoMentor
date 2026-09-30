@@ -78,7 +78,7 @@ ok(countsHtml.includes('🧠 <u>1</u>'),'aprendizado atual recebe o destaque do 
   const src=fs.readFileSync('src/js/44-tela-cards.js','utf8');
   ok(src.includes('cards-due-counts')&&src.includes('_reviewRemainingCounts()'),
     'reviewer renderiza o contador de fila Anki-style');
-  ok(!src.includes('CardsConfig.newDoneToday()}/' + '${CardsConfig.get().newPerDay}'),
+  ok(!src.includes('CardsConfig.newDoneToday()')&&!src.includes('CardsConfig.revDoneToday()'),
     'reviewer não confunde progresso diário com contagens restantes da fila');
 }
 
