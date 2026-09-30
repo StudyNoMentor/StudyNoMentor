@@ -408,8 +408,9 @@ const AnkiMaxStatsMedia = {
     out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.3…</p>';
     try{
       const r=await CardsOfficialBridge.simulateFsrsPreset(deckId,days,retention,opts,'optimal'),
-        optimal=Math.max(.7,Math.min(.99,Number(r.out&&r.out.optimal_retention)||0));
-      if(!optimal)throw new Error('O Anki não retornou retenção ótima para estes dados.');
+        rawOptimal=Number(r.out&&r.out.optimal_retention);
+      if(!Number.isFinite(rawOptimal)||rawOptimal<=0)throw new Error('O Anki não retornou retenção ótima para estes dados.');
+      const optimal=Math.max(.7,Math.min(.99,rawOptimal));
       const pct=(optimal*100).toFixed(2);
       out.innerHTML='<h3>Help Me Decide · Anki oficial</h3><div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+pct+'%</div><div class="stat-kpi-l">retenção ótima prevista</div></div></div>'+
         '<p class="hint">Resultado de <code>compute_optimal_retention()</code> para o preset e limites atuais.</p>'+
