@@ -1483,6 +1483,53 @@ def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(curr
 # Superfícies avançadas dos Cards executadas na coleção oficial isolada
 # ---------------------------------------------------------------------------
 
+
+def _deck_tree_flatten(node: Any) -> list[dict[str, Any]]:
+    rows = [deck_tree_payload(node)]
+    for child in getattr(node, "children", []):
+        rows.extend(_deck_tree_flatten(child))
+    return rows
+
+
+def cards_collection_state_payload(col: Collection) -> dict[str, Any]:
+    """Snapshot oficial necessário para espelhar filtered/custom study no Study.
+
+    Não recalcula busca, fila, due nem membership em JavaScript: todos os cards
+    e todos os filtered decks são serializados depois que o scheduler oficial
+    terminou a operação.
+    """
+    tree = col.sched.deck_due_tree()
+    nodes = _deck_tree_flatten(tree)
+    by_id = {int(row["deck_id"]): row for row in nodes}
+    decks: list[dict[str, Any]] = []
+    for named in col.decks.all_names_and_ids():
+        did = int(getattr(named, "id", 0))
+        node = by_id.get(did, {})
+        row: dict[str, Any] = {
+            "id": did,
+            "name": str(named.name),
+            "filtered": bool(node.get("filtered", False)),
+        }
+        if row["filtered"]:
+            row["filtered_deck"] = pb(col.sched.get_or_create_filtered_deck(DeckId(did)))
+        decks.append(row)
+    card_ids = [int(x) for x in col.find_cards("")]
+    return {
+        "decks": decks,
+        "cards": [card_state_payload(col, cid) for cid in card_ids],
+        "reviewer": cards_reviewer_payload(col),
+    }
+
+
+@app.get("/api/cards-official/collection/state")
+def cards_official_collection_state(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return cards_collection_state_payload(item.col)
+
+
 @app.get("/api/cards-official/stats/graphs")
 def cards_official_collection_graphs(
     search: str = Query(default=""),
@@ -1645,7 +1692,7 @@ def cards_official_custom_study(
         return {
             "ok": True,
             "changes": changes,
-            "reviewer": cards_reviewer_payload(item.col),
+            "state": cards_collection_state_payload(item.col),
         }
 
 
@@ -1680,7 +1727,7 @@ def cards_official_update_filtered_deck(
             "ok": True,
             "deck_id": int(out.id),
             "deck": pb(current),
-            "reviewer": cards_reviewer_payload(item.col),
+            "state": cards_collection_state_payload(item.col),
         }
 
 
@@ -1695,7 +1742,7 @@ def cards_official_rebuild_filtered_deck(
         return {
             "ok": True,
             "changes": changes,
-            "reviewer": cards_reviewer_payload(item.col),
+            "state": cards_collection_state_payload(item.col),
         }
 
 
@@ -1710,7 +1757,7 @@ def cards_official_empty_filtered_deck(
         return {
             "ok": True,
             "changes": changes,
-            "reviewer": cards_reviewer_payload(item.col),
+            "state": cards_collection_state_payload(item.col),
         }
 
 
