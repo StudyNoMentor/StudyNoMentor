@@ -123,7 +123,7 @@ const CardsOfficialBridge = {
       }
       const pkg=await AnkiExport.buildCollectionPackage({
         legacy:false,withMedia:true,withScheduling:true,withDeckConfigs:true,
-        canonicalAnkiIds:true
+        canonicalAnkiIds:true,preserveFiltered:true
       });
       const fd=new FormData();
       fd.append('package',new Blob([pkg.bytes],{type:'application/octet-stream'}),'study-cards.colpkg');
@@ -276,6 +276,8 @@ const CardsOfficialBridge = {
     const patch={
       ankiId:Number(state.id),ankiNoteId:Number(state.note_id),ankiTemplateOrd:Number(state.template_idx)||0,
       ankiMod:Number(state.mtime_secs)||Math.floor(Date.now()/1000),ankiDue:Number(state.due)||0,
+      ankiType:Number(state.type)||0,ankiQueue:Number(state.queue)||0,
+      ankiRemainingSteps:Number(state.remaining_steps)||0,ankiOriginalDue:Number(state.original_due)||0,
       phase,intervalo:Math.max(0,Number(state.interval)||0),ease:(Number(state.ease_factor)||2500)/1000,
       reps:Math.max(0,Number(state.reps)||0),lapses:Math.max(0,Number(state.lapses)||0),
       s:mem.stability==null?null:Number(mem.stability),d:mem.difficulty==null?null:Number(mem.difficulty),
@@ -285,8 +287,12 @@ const CardsOfficialBridge = {
       lastReviewTs:state.last_review_time?Number(state.last_review_time)*1000:null
     };
     patch.deckId=this._localDeckId(state.deck_id,planId,local.deckId)||local.deckId;
-    if(state.original_deck_id)patch.originalDeckId=this._localDeckId(state.original_deck_id,planId,local.originalDeckId||local.deckId);
-    else patch.originalDeckId=null;
+    if(state.original_deck_id){
+      patch.originalDeckId=this._localDeckId(state.original_deck_id,planId,local.originalDeckId||local.deckId);
+      patch.filteredDeckId=patch.deckId;patch.originalPhase=this._phase(state.type,state.queue);
+    }else{
+      patch.originalDeckId=null;patch.filteredDeckId=null;patch.originalPhase=null;patch.originalDueTs=null;
+    }
     if(patch.lastReviewTs){
       patch.lastReview=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(patch.lastReviewTs):new Date(patch.lastReviewTs).toISOString().slice(0,10);
       if(!local.firstReviewAt)patch.firstReviewAt=new Date(patch.lastReviewTs).toISOString();
@@ -304,8 +310,14 @@ const CardsOfficialBridge = {
       patch.buryKind=queue===-2?'scheduler':'user';
     }
     if(state.original_due){
-      const delta=Number(state.original_due)-(Number(timing.today)||0);
-      patch.originalDue=CardEngine.addDays(todayCards(),Number.isFinite(delta)?delta:0);
+      if(Number(state.type)===0){
+        patch.originalDue=todayCards();patch.posicaoNova=Math.max(0,Number(state.original_due)||0);patch.originalDueTs=null;
+      }else if(queue===1||queue===3||queue===4){
+        patch.originalDue=todayCards();patch.originalDueTs=Math.max(0,Number(state.original_due)||0)*1000;
+      }else{
+        const delta=Number(state.original_due)-(Number(timing.today)||0);
+        patch.originalDue=CardEngine.addDays(todayCards(),Number.isFinite(delta)?delta:0);patch.originalDueTs=null;
+      }
     }else patch.originalDue=null;
     return patch;
   },
