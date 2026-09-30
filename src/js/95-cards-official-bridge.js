@@ -1502,6 +1502,7 @@ const CardsOfficialBridge = {
     }else{
       fields[choose('Front',0)]=String(data.frente||'');
       if(names.length>1)fields[choose('Back',1)]=String(data.verso||'');
+      if(kind==='basic_optional_reversed'&&names.length>2)fields[choose('Add Reverse',2)]=data._addReverse?'1':'';
     }
     return fields;
   },
@@ -1604,7 +1605,8 @@ const CardsOfficialBridge = {
       const res=await this.updateOfficialNote(note,fields,note.tags||[],{planId:pid,seed});
       CardsScreen.closeCardModal();CardsScreen.render();CardsScreen.updateFavCount();showToast('Card atualizado pelo Anki oficial ✓');return res;
     }
-    const desiredKind=data.kind==='cloze'?'cloze':(reversed?'basic_reversed':'basic'),
+    const requested=['basic_reversed','basic_optional_reversed','typing'].includes(data.kind)?data.kind:(data.kind==='cloze'?'cloze':'basic'),
+      desiredKind=reversed?'basic_reversed':requested,
       target=await this._ensureOfficialStockNotetype(desiredKind,pid),
       fields=this._fieldsForSimple(desiredKind,target.local,data),seed=this._cardSeed(data,pid,target.local.id),
       res=await this.addOfficialNote({planId:pid,deckId:data.deckId,notetype:target.local,fields,tags:[],seed});
