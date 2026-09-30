@@ -16,9 +16,10 @@
         "testes/paridade-anki.mjs",
         "testes/cards-paridade-total-anki.mjs",
         "testes/cards-certificacao-anki.mjs",
-        "testes/cards-fsrs-optimizer-oficial.mjs"
+        "testes/cards-fsrs-optimizer-oficial.mjs",
+        "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_RUNTIME_BRIDGE"
     },
     "card_rendering": {
       "official_files": 20,
@@ -30,9 +31,10 @@
       "differential_tests": [
         "testes/cards-runtime-anki.mjs",
         "testes/cards-typeanswer-differential.mjs",
-        "testes/anki-oficial-typeanswer.py"
+        "testes/anki-oficial-typeanswer.py",
+        "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_RUNTIME_BRIDGE"
     },
     "cloze": {
       "official_files": 1,
@@ -54,7 +56,8 @@
       ],
       "differential_tests": [
         "testes/cards-product-parity.mjs",
-        "testes/cards-total-parity.mjs"
+        "testes/cards-total-parity.mjs",
+        "testes/cards-official-bridge-static.mjs"
       ],
       "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
     },
@@ -181,9 +184,10 @@
       ],
       "differential_tests": [
         "testes/cards-total-parity.mjs",
-        "testes/cards-product-parity.mjs"
+        "testes/cards-product-parity.mjs",
+        "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_RUNTIME_BRIDGE_PARTIAL"
     }
   }
 }
