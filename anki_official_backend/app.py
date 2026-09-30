@@ -34,6 +34,7 @@ from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
 from anki.sound import SoundOrVideoTag, TTSTag
 from anki.stdmodels import StockNotetypeKind
+from anki.foreign_data import mnemosyne
 from anki.utils import from_json_bytes
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -2338,6 +2339,31 @@ def _csv_delimiter(value: str | None):
     if key not in mapping:
         raise HTTPException(400, f"Separador CSV inválido: {value}")
     return mapping[key]
+
+
+@app.post("/api/cards-official/import/mnemosyne")
+async def cards_official_import_mnemosyne(
+    file: UploadFile = File(...),
+    deck_id: int | None = Query(default=None),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    name = file.filename or "mnemosyne.db"
+    if not name.lower().endswith(".db"):
+        raise HTTPException(400, "Use um banco .db do Mnemosyne.")
+    item = cards_uc_for(user)
+    tmp = await _upload_to_tempfile(file, ".db", MAX_IMPORT_BYTES)
+    try:
+        with item.lock:
+            target = DeckId(deck_id) if deck_id else item.col.decks.get_current_id()
+            foreign_json = mnemosyne.serialize(tmp, target)
+            result = item.col.import_json_string(foreign_json)
+            return {
+                "ok": True,
+                "result": pb(result),
+                "state": cards_collection_state_payload(item.col),
+            }
+    finally:
+        _unlink_quiet(tmp)
 
 
 @app.post("/api/cards-official/import/csv/metadata")
