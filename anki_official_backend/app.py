@@ -623,6 +623,7 @@ def note_state_payload(col: Collection, note_id: int) -> dict[str, Any]:
     nt = note.note_type() or {}
     return {
         "id": int(note.id),
+        "guid": str(note.guid),
         "notetype_id": int(nt.get("id", 0) or 0),
         "notetype_name": str(nt.get("name", "")),
         "fields": dict(note.items()),
