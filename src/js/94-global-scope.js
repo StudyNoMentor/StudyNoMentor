@@ -1489,8 +1489,10 @@
   };
 
   S.bulkMarkScoped=function(ids){
-    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
-    const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
+    const r=this._selectedBrowserRows(ids),notes=r.notes||[];if(!notes.length)return;
+    const currentRef=window.AnkiProductParity&&AnkiProductParity.browser&&AnkiProductParity.browser._currentSelection;
+    const current=currentRef?(this._selectedBrowserRows([currentRef]).notes||[])[0]:notes[0];
+    const shouldMark=!((current&&current.tags)||[]).some(t=>String(t).toLowerCase()==='marked');
     notes.forEach(n=>{
       let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
       if(shouldMark)tags.push('marked');
@@ -1541,18 +1543,23 @@
   };
 
   S.toggleSuspendScoped=function(ids){
-    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
-    const should=cards.some(c=>!c.suspenso);
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
+    const currentRef=window.AnkiProductParity&&AnkiProductParity.browser&&AnkiProductParity.browser._currentSelection;
+    const current=currentRef?(this._selectedBrowserRows([currentRef]).cards||[])[0]:cards[0];
+    const should=!(current&&current.suspenso);
     cards.forEach(c=>this.suspendCardScoped(c,should));
     this._refreshAnkiBrowser();showToast(should?'Card(s) suspenso(s) ✓':'Card(s) reativado(s) ✓');
   };
 
   S.bulkFlagScoped=function(ids){
-    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
     UI.prompt([{key:'flag',label:'Bandeira',type:'select',value:'0',options:[0,1,2,3,4,5,6,7].map(n=>({value:String(n),label:n===0?'Sem bandeira':DB.FLAGS[n].nome}))}],{title:'🚩 Definir bandeira',okText:'Aplicar'}).then(v=>{
       if(!v)return;const flag=Number(v.flag)||0;
-      cards.forEach(c=>this.updateCardScoped(c,{flag:flag>=1&&flag<=7?flag:0},c._planId));
-      this._refreshAnkiBrowser();showToast('Bandeiras atualizadas ✓');
+      const currentRef=window.AnkiProductParity&&AnkiProductParity.browser&&AnkiProductParity.browser._currentSelection;
+      const current=currentRef?(this._selectedBrowserRows([currentRef]).cards||[])[0]:cards[0];
+      const next=flag>=1&&flag<=7&&Number(current&&current.flag)===flag?0:(flag>=1&&flag<=7?flag:0);
+      cards.forEach(c=>this.updateCardScoped(c,{flag:next},c._planId));
+      this._refreshAnkiBrowser();showToast(next?'Bandeira aplicada ✓':'Bandeira removida ✓');
     });
   };
 
