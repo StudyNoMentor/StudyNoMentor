@@ -614,6 +614,19 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
     return out
 
 
+def note_state_payload(col: Collection, note_id: int) -> dict[str, Any]:
+    note = col.get_note(note_id)
+    nt = note.note_type() or {}
+    return {
+        "id": int(note.id),
+        "notetype_id": int(nt.get("id", 0) or 0),
+        "notetype_name": str(nt.get("name", "")),
+        "fields": dict(note.items()),
+        "tags": list(note.tags),
+        "card_ids": [int(x) for x in col.card_ids_of_note(note.id)],
+    }
+
+
 @app.get("/api/anki/reviewer/next")
 def reviewer_next(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
@@ -884,6 +897,119 @@ def cards_official_browser_facets(
             "columns": [pb(column) for column in item.col.all_browser_columns()],
             "active_cards": list(item.col.load_browser_card_columns()),
             "active_notes": list(item.col.load_browser_note_columns()),
+        }
+
+
+@app.post("/api/cards-official/browser/bulk")
+def cards_official_browser_bulk(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    action = str(payload.get("action", "")).strip()
+    card_ids = [int(x) for x in payload.get("card_ids", [])]
+    note_ids = [int(x) for x in payload.get("note_ids", [])]
+    with item.lock:
+        if not card_ids and note_ids:
+            for nid in note_ids:
+                card_ids.extend(int(x) for x in item.col.card_ids_of_note(nid))
+        card_ids = list(dict.fromkeys(card_ids))
+        note_ids = list(dict.fromkeys(note_ids))
+        changes: dict[str, Any] | None = None
+
+        if action == "move_deck":
+            if not card_ids:
+                raise HTTPException(400, "Selecione cards.")
+            item.col.set_deck(card_ids, int(payload.get("deck_id") or 0))
+        elif action == "suspend_cards":
+            item.col.sched.suspend_cards(card_ids)
+        elif action == "unsuspend_cards":
+            item.col.sched.unsuspend_cards(card_ids)
+        elif action == "bury_cards":
+            item.col.sched.bury_cards(card_ids, manual=True)
+        elif action == "unbury_cards":
+            item.col.sched.unbury_cards(card_ids)
+        elif action == "forget":
+            item.col.sched.schedule_cards_as_new(
+                card_ids,
+                restore_position=bool(payload.get("restore_position", False)),
+                reset_counts=bool(payload.get("reset_counts", False)),
+            )
+        elif action == "set_due":
+            item.col.sched.set_due_date(card_ids, str(payload.get("days") or "0"))
+        elif action == "reposition":
+            item.col.sched.reposition_new_cards(
+                card_ids=card_ids,
+                starting_from=max(0, int(payload.get("starting_from") or 1)),
+                step_size=max(1, int(payload.get("step_size") or 1)),
+                randomize=bool(payload.get("randomize", False)),
+                shift_existing=bool(payload.get("shift_existing", False)),
+            )
+        elif action == "flag":
+            flag = max(0, min(7, int(payload.get("flag") or 0)))
+            item.col.set_user_flag_for_cards(flag, card_ids)
+        elif action == "mark":
+            marked = bool(payload.get("marked", True))
+            for nid in note_ids:
+                note = item.col.get_note(nid)
+                tags = [tag for tag in note.tags if tag != "marked"]
+                if marked:
+                    tags.append("marked")
+                note.tags = tags
+                item.col.update_note(note)
+        elif action == "tags_add":
+            item.col.tags.bulk_add(note_ids, str(payload.get("tags") or ""))
+        elif action == "tags_remove":
+            item.col.tags.bulk_remove(note_ids, str(payload.get("tags") or ""))
+        elif action == "delete_notes":
+            item.col.remove_notes(note_ids)
+        elif action == "find_replace":
+            out = item.col.find_and_replace(
+                note_ids=note_ids,
+                search=str(payload.get("search") or ""),
+                replacement=str(payload.get("replacement") or ""),
+                regex=bool(payload.get("regex", False)),
+                field_name=str(payload.get("field_name") or "") or None,
+                match_case=bool(payload.get("match_case", False)),
+            )
+            changes = pb(out)
+        elif action == "change_notetype":
+            if not note_ids:
+                raise HTTPException(400, "Selecione notas.")
+            target = int(payload.get("target_notetype_id") or 0)
+            old = int(item.col.models.get_single_notetype_of_notes(note_ids))
+            info = item.col.models.change_notetype_info(
+                old_notetype_id=old,
+                new_notetype_id=target,
+            )
+            request = info.input
+            request.ClearField("note_ids")
+            request.note_ids.extend(note_ids)
+            changes = pb(item.col.models.change_notetype_of_notes(request))
+        else:
+            raise HTTPException(400, f"Ação em massa não suportada: {action}")
+
+        card_states = []
+        if action != "delete_notes":
+            for cid in card_ids:
+                try:
+                    card_states.append(card_state_payload(item.col, cid))
+                except Exception:
+                    pass
+        note_states = []
+        if action != "delete_notes":
+            for nid in note_ids:
+                try:
+                    note_states.append(note_state_payload(item.col, nid))
+                except Exception:
+                    pass
+        return {
+            "ok": True,
+            "changes": changes,
+            "cards": card_states,
+            "notes": note_states,
+            "deleted_note_ids": note_ids if action == "delete_notes" else [],
+            "reviewer": cards_reviewer_payload(item.col),
         }
 
 
