@@ -72,6 +72,12 @@ assert.match(backend,/"question": card\.question\(\)/);
 assert.match(backend,/"answer": card\.answer\(\)/);
 
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
+assert.match(backend,/def cards_official_collection_graphs[\s\S]*?item\.col\._backend\.graphs/,'Stats dos Cards precisam vir do Graphs oficial');
+assert.match(backend,/def cards_official_custom_study[\s\S]*?item\.col\.sched\.custom_study/,'Custom Study dos Cards precisa usar scheduler oficial');
+assert.match(backend,/def cards_official_rebuild_filtered_deck[\s\S]*?item\.col\.sched\.rebuild_filtered_deck/,'Filtered Deck dos Cards precisa usar scheduler oficial');
+assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
+assert.match(backend,/def cards_official_fsrs_simulate[\s\S]*?simulate_fsrs_review/,'Simulador FSRS dos Cards precisa usar backend oficial');
+assert.match(backend,/def cards_official_empty_cards_report[\s\S]*?item\.col\.get_empty_cards/,'Empty Cards dos Cards precisa usar Collection oficial');
 
 const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].map(m=>m[1]);
 for(const path of [
@@ -91,6 +97,17 @@ for(const path of [
   '/api/cards-official/notetypes/full',
   '/api/cards-official/notetypes/change-info',
   '/api/cards-official/notetypes/change',
+  '/api/cards-official/stats/graphs',
+  '/api/cards-official/fsrs/optimize',
+  '/api/cards-official/fsrs/simulate',
+  '/api/cards-official/deck/{deck_id}/options',
+  '/api/cards-official/custom-study/defaults/{deck_id}',
+  '/api/cards-official/custom-study',
+  '/api/cards-official/filtered-deck/{deck_id}',
+  '/api/cards-official/filtered-deck/{deck_id}/rebuild',
+  '/api/cards-official/filtered-deck/{deck_id}/empty',
+  '/api/cards-official/empty-cards',
+  '/api/cards-official/empty-cards/delete',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
 console.log('CARDS OFFICIAL BRIDGE: scheduler/fila/rendering/type-answer/revlog/undo-redo/search/sort ancorados no anki==26.09.3, sem fallback acadêmico local.');
