@@ -233,6 +233,14 @@ const CardsOfficialBridge = {
     await this.bootstrap(false);
     return this.request('/api/cards-official/media/empty-trash',{method:'POST'});
   },
+  async tagOfficialMissingMedia(noteIds){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/media/tag-missing',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({note_ids:[...new Set((noteIds||[]).map(Number).filter(x=>Number.isFinite(x)&&x>0))]})});
+  },
+  async renderOfficialLatexMedia(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/media/render-latex',{method:'POST'});
+  },
   async checkOfficialDatabase(){
     await this.bootstrap(false);
     const out=await this.request('/api/cards-official/database/check',{method:'POST'});
