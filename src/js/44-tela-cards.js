@@ -2254,19 +2254,27 @@ const CardsScreen = {
     }).join('');
     box.querySelectorAll('.deck-row').forEach(row => {
       const id = row.dataset.id;
-      row.querySelector('.deck-name').addEventListener('change', (e) => { DB.renameDeck(id, e.target.value); this.render(); });
+      row.querySelector('.deck-name').addEventListener('change', async (e) => {
+        const value=String(e.target.value||'').trim();
+        if(!value){this.renderDeckList();return;}
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.renameOfficialDeck!=='function'){showToast('Backend oficial do Anki indisponível.');this.renderDeckList();return;}
+        try{await CardsOfficialBridge.renameOfficialDeck(id,value);this.renderDeckList();this.render();showToast('Baralho renomeado pelo Anki oficial ✓');}
+        catch(err){showToast('Baralho não renomeado: '+(err&&err.message?err.message:String(err)));this.renderDeckList();}
+      });
       const fed = row.querySelector('.deck-filter-edit');
       if (fed) fed.addEventListener('click', () => this.openFilteredDeckModal(id));
       row.querySelector('.deck-ver').addEventListener('click', () => this.irParaBaralho(id, 'meus'));
       row.querySelector('.deck-revisar').addEventListener('click', () => this.irParaBaralho(id, 'revisar'));
       row.querySelector('.deck-del').addEventListener('click', async () => {
-        const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(id);
-        const msg = filtrado
-          ? 'Excluir este baralho filtrado? Os cards voltarão aos baralhos e agendamentos de origem.'
-          : 'Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).';
-        if (!await UI.confirm(msg)) return;
-        this._noPlanoDoBaralho(id, () => { if (filtrado) AnkiParity.emptyFilteredDeck(id); DB.deleteDeck(id); });
-        CardEngine.invalidateDueCache(); this.renderDeckList(); this.render();
+        const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(id),
+          n=cards.filter(c=>String(c.deckId)===String(id)||String(c.originalDeckId||'')===String(id)).length,
+          msg=filtrado
+            ? 'Excluir este baralho filtrado? O Anki devolverá os cards aos baralhos de origem.'
+            : 'Excluir este baralho? Como no Anki, os '+n+' card(s) nele e notas que ficarem órfãs serão excluídos.';
+        if (!await UI.confirm(msg,{title:'Excluir baralho',okText:'Excluir',danger:true})) return;
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteOfficialDeck!=='function'){showToast('Backend oficial do Anki indisponível.');return;}
+        try{await CardsOfficialBridge.deleteOfficialDeck(id);this.renderDeckList();this.render();showToast('Baralho excluído pela Collection oficial do Anki ✓');}
+        catch(err){showToast('Baralho não excluído: '+(err&&err.message?err.message:String(err)));}
       });
     });
   },
@@ -2283,11 +2291,12 @@ const CardsScreen = {
     const mSel = document.getElementById('cards-f-materia');
     if (mSel) mSel.value = 'deck:' + deckId;
   },
-  addDeck() {
-    const inp = document.getElementById('deck-new-input');
-    const d = DB.addDeck(inp.value);
-    if (!d) { showToast('Digite um nome'); return; }
-    inp.value = ''; this.renderDeckList(); this.render(); showToast('Baralho criado ✓');
+  async addDeck() {
+    const inp=document.getElementById('deck-new-input'),name=String(inp&&inp.value||'').trim();
+    if(!name){showToast('Digite um nome');return;}
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.createOfficialDeck!=='function'){showToast('Backend oficial do Anki indisponível.');return;}
+    try{await CardsOfficialBridge.createOfficialDeck(name);inp.value='';this.renderDeckList();this.render();showToast('Baralho criado pela Collection oficial do Anki ✓');}
+    catch(err){showToast('Baralho não criado: '+(err&&err.message?err.message:String(err)));}
   },
 
   // ---- Estudo Personalizado / Baralhos Filtrados (Anki 26.09.2) ----
