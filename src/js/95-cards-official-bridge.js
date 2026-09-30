@@ -382,6 +382,70 @@ const CardsOfficialBridge = {
     }
   },
 
+
+  _activePlanId(){
+    try{return window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():DB._activePlanId();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-active-plan');return null;}
+  },
+  _filteredConfigFromOfficial(row){
+    const f=row&&row.filtered_deck?row.filtered_deck:row||{},cfg=f.config||{};
+    return {
+      reschedule:cfg.reschedule!==false,
+      searchTerms:(cfg.search_terms||[]).map(t=>({
+        search:String(t&&t.search||''),
+        limit:Math.max(0,Math.round(Number(t&&t.limit)||0)),
+        order:Math.max(0,Math.round(Number(t&&t.order)||0))
+      })),
+      delays:Array.isArray(cfg.delays)?cfg.delays.map(Number).filter(Number.isFinite):[],
+      previewDelay:Math.max(0,Math.round(Number(cfg.preview_delay)||0)),
+      previewAgainSecs:Math.max(0,Math.round(Number(cfg.preview_again_secs)||0)),
+      previewHardSecs:Math.max(0,Math.round(Number(cfg.preview_hard_secs)||0)),
+      previewGoodSecs:Math.max(0,Math.round(Number(cfg.preview_good_secs)||0))
+    };
+  },
+  _saveFilteredDeckMirror(row,planId,preferredLocalId){
+    if(!row||!row.filtered)return null;
+    const oid=Number(row.id||row.deck_id||(row.filtered_deck&&row.filtered_deck.id));
+    if(!Number.isFinite(oid)||oid<=0)throw new Error('Filtered deck oficial sem identidade válida.');
+    const pid=planId!=null?planId:this._activePlanId(),
+      raw=window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+      list=(raw||[]).map(x=>Object.assign({},x)),
+      clean=x=>{const y=DB._semTransitorios?DB._semTransitorios(x):Object.assign({},x);delete y._planId;delete y._planNome;return y;};
+    let deck=list.find(x=>String(x.ankiId!=null?x.ankiId:x.id)===String(oid));
+    if(!deck&&preferredLocalId!=null)deck=list.find(x=>String(x.id)===String(preferredLocalId));
+    if(!deck)deck=list.find(x=>AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(x)&&String(x.nome||'')===String(row.name||''));
+    const now=new Date().toISOString();
+    if(!deck){deck={id:DB._uid(),createdAt:now};list.push(deck);}
+    Object.assign(deck,{
+      ankiId:oid,nome:String(row.name||(row.filtered_deck&&row.filtered_deck.name)||deck.nome||'Baralho filtrado'),
+      kind:'filtered',filtered:true,configId:null,filteredConfig:this._filteredConfigFromOfficial(row),updatedAt:now
+    });
+    const saved=pid!=null?DB._set(DB.keysForPlan(pid).decks,list.map(clean)):DB.saveDecks(list.map(clean));
+    if(saved===false)throw new Error('Falha ao persistir o filtered deck oficial no Study.');
+    return Object.assign({},deck,pid==null?{}:{_planId:pid});
+  },
+  async _syncCollectionState(state,preferredPlanId,preferredLocalDeckId){
+    if(!state)return null;
+    const decks=Array.isArray(state.decks)?state.decks:[],cards=Array.isArray(state.cards)?state.cards:[],
+      mirrors=new Map();
+    for(const row of decks.filter(x=>x&&x.filtered)){
+      const oid=Number(row.id||row.deck_id),planIds=new Set();
+      for(const cs of cards)if(Number(cs.deck_id)===oid){
+        for(const replica of this._replicas(cs.id))if(replica&&replica._planId!=null)planIds.add(String(replica._planId));
+      }
+      if(preferredPlanId!=null)planIds.add(String(preferredPlanId));
+      if(!planIds.size){
+        const active=this._activePlanId();if(active!=null)planIds.add(String(active));
+      }
+      for(const pid of planIds){
+        const mirror=this._saveFilteredDeckMirror(row,pid,preferredLocalDeckId);
+        if(mirror)mirrors.set(String(pid)+'::'+String(oid),mirror);
+      }
+    }
+    await this._syncStates(cards);
+    if(state.reviewer)this._applyReviewer(state.reviewer);
+    return {mirrors,decks,cards,reviewer:state.reviewer||null};
+  },
+
   async answer(grade){
     if(this._answering)return false;
     const rating=typeof grade==='number'?grade:({errei:1,dificil:2,bom:3,facil:4})[grade];
