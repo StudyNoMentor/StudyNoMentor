@@ -1350,22 +1350,25 @@ const DB = {
       return n;
     } catch (_) { return 0; }
   },
-  /* Excluir um card tem de levar embora TUDO que era dele. A auditoria real
-     mostrou 178 entradas de histórico para 4 cards existentes: 16 cards apagados
-     tinham deixado o histórico para trás. Pior, o contador diário guardava os IDs
-     deles e continuava consumindo a cota de 20 novos do dia — cards que nem
-     existiam mais ocupavam vaga na fila. */
+  _preserveDeletedCardRevlogIds(cards) {
+    const map=new Map((cards||[]).filter(c=>c&&c.ankiId!=null&&Number.isFinite(Number(c.ankiId))).map(c=>[String(c.id),Number(c.ankiId)]));
+    if(!map.size)return 0;
+    const rows=this.getRevlog(),changed=[];
+    rows.forEach(r=>{const aid=map.get(String(r&&r.cardId));if(aid!=null&&r.ankiCardId==null){r.ankiCardId=aid;changed.push(r);}});
+    if(changed.length)this.replaceRevlog(rows);
+    return changed.length;
+  },
+  /* Exclusão no Anki remove o card/nota, mas preserva o revlog histórico.
+     O histórico órfão é intencional: continua alimentando estatísticas globais
+     e explica o passado da coleção, embora o conteúdo excluído já não exista. */
   deleteCard(id) {
-    this.saveCards(this.getCards().filter(c => c.id !== id));
-    try {
-      const l = this.getRevlog().filter(r => r.cardId !== id);
-      this.replaceRevlog(l);
-    } catch (_) { _quiet(_); }
+    const alvo=this.getCard(id);if(alvo)this._preserveDeletedCardRevlogIds([alvo]);
+    if (this.saveCards(this.getCards().filter(c => String(c.id) !== String(id))) === false) return false;
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
+    return true;
   },
   // A interface do Anki exclui a NOTA: todos os cards/template siblings
-  // derivados dela desaparecem juntos. deleteCard() continua disponível para
-  // rotinas técnicas que realmente operam em um card individual.
+  // derivados dela desaparecem juntos. O revlog de cada card é PRESERVADO.
   deleteNoteByCard(id) {
     this.normalizeCardNotesInPlace();
     const alvo = this.getCard(id); if (!alvo) return 0;
@@ -1374,30 +1377,16 @@ const DB = {
       .filter(c => String(c.noteId || c.id) === noteId)
       .map(c => String(c.id)));
     if (!ids.size) return 0;
+    this._preserveDeletedCardRevlogIds(this.getCards().filter(c=>ids.has(String(c.id))));
     if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
-    try {
-      this.replaceRevlog(this.getRevlog().filter(r => !ids.has(String(r.cardId))));
-    } catch (e) { _quiet(e, 'delete-note-revlog'); }
     try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
     return ids.size;
   },
-  /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
-     o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
-     os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
-  /* ══════════════════════════════════════════════════════════════════════════
-     AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
-     Implementadas aqui com o MESMO significado do original. Este app tem um
-     notas podem gerar irmãos (ex.: normal + invertido). Enterrar card continua
-     individual; operações explícitas de nota usam noteId para atingir os irmãos.
-     ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
   buryCard(id, origem) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
-    // O Anki distingue enterro explícito do usuário (UserBuried) do enterro
-    // automático de irmãos (SchedBuried). A fila trata ambos como ocultos,
-    // mas a distinção importa para busca, diagnóstico e exportação fiel.
     const buryKind = origem === 'scheduler' ? 'scheduler' : 'user';
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
@@ -1414,25 +1403,81 @@ const DB = {
     }
     this.updateCard(id, patch);
   },
-  // ESQUECER (forget, Ctrl+Alt+N): devolve o card ao estado de novo, apagando
-  // a memória do FSRS. O conteúdo permanece.
-  forgetCard(id) {
-    const c = this.getCard(id); if (!c) return;
-    this.updateCard(id, {
-      phase: 'new', learnStep: 0, due: todayCards(), dueTs: null,
-      intervalo: 0, reps: 0, lapses: 0, ease: 2.5, s: null, d: null,
-      lastReview: null, status: 'pendente', leech: false
-    });
+
+  /* Registra ações manuais no mesmo espírito do revlog do Anki: rating 0 e
+     tipo Manual. Elas não entram no treino FSRS/True Retention, mas aparecem
+     no Card Info e preservam o motivo de mudanças de agenda. */
+  addManualReview(card, action, before, after) {
+    if (!card) return null;
+    const b = before || card, a = after || card, ts = Date.now();
+    const row = {
+      cardId: String(card.id), ts,
+      date: typeof todayCards === 'function' ? todayCards() : new Date(ts).toISOString().slice(0,10),
+      grade: 0, acerto: null, time: 0, elapsed: Number(b.intervalo)||0,
+      phase: 'manual', ankiReviewKind: 'manual', ankiIvlSemantica: 2,
+      ankiInterval: Number(a.intervalo)||0, ankiLastInterval: Number(b.intervalo)||0,
+      intervalo: Number(b.intervalo)||0, easeFactor: Math.round((Number(a.ease)||2.5)*1000),
+      action: String(action || 'manual')
+    };
+    if (card._planId != null) row._planId = card._planId;
+    return this.addRevlog(row);
   },
-  // DEFINIR DATA (Ctrl+Shift+D): agenda o card para daqui a N dias.
-  setDueDays(id, dias) {
-    const n = Math.max(0, Math.round(Number(dias) || 0));
+  parseDueSpec(spec) {
+    const raw = String(spec == null ? '' : spec).trim();
+    const m = /^(-?\d+)(?:\s*-\s*(-?\d+))?\s*(!)?$/.exec(raw);
+    if (!m) return null;
+    let min = Math.round(Number(m[1])), max = m[2] == null ? min : Math.round(Number(m[2]));
+    if (min > max) { const t=min; min=max; max=t; }
+    return { raw, min, max, forceInterval: !!m[3] };
+  },
+  _dueRangePick(cardId, parsed, opts) {
+    const p=parsed||{min:0,max:0}, span=Math.max(0,p.max-p.min), o=opts||{};
+    if (!span) return p.min;
+    if (Number.isFinite(Number(o.index)) && Number.isFinite(Number(o.total)) && Number(o.total)>1) {
+      return Math.round(p.min + span * (Number(o.index) / (Number(o.total)-1)));
+    }
+    const str=String(cardId||'');let h=2166136261;
+    for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}
+    return p.min + ((h>>>0) % (span+1));
+  },
+  /* Reset/Forget oficial: volta à fila de novos, preserva o revlog e permite
+     controlar posição original e contadores de reps/lapses. */
+  resetCard(id, opts) {
     const c = this.getCard(id); if (!c) return null;
-    const data = CardEngine.addDays(todayCards(), n);
-    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null, buryKind: null,
-      phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
-    return data;
+    const o=Object.assign({restorePosition:false,resetCounts:false,log:true},opts||{}), before=Object.assign({},c);
+    const original=[c.originalPosition,c.originalPos,c.ankiOriginalPosition,c.posicaoOriginal].map(Number).find(Number.isFinite);
+    const maxPos=this.getCards().reduce((m,x)=>Math.max(m,Number(x.posicaoNova)||Number(x.ankiDue)||0),0);
+    const pos=o.restorePosition&&Number.isFinite(original)?original:maxPos+1;
+    const patch = {
+      phase:'new', learnStep:0, due:todayCards(), dueTs:null, intervalo:0,
+      s:null, d:null, lastReview:null, status:'pendente',
+      enterradoAte:null, buryKind:null, suspenso:false,
+      posicaoNova:pos, ankiDue:pos
+    };
+    if (o.resetCounts) { patch.reps=0; patch.lapses=0; patch.ease=2.5; patch.leech=false; }
+    const after=this.updateCard(id,patch);
+    try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
+    if (o.log!==false && after) this.addManualReview(Object.assign({},after,{_planId:c._planId}), 'reset', before, after);
+    return after;
   },
+  // Compatibilidade: Forget agora usa a semântica não destrutiva do Reset do Anki.
+  forgetCard(id, opts) { return this.resetCard(id, opts); },
+  /* Set Due Date oficial: aceita N, A-B e sufixo !.
+     - ranges distribuem a carga;
+     - cards novos viram review e recebem intervalo igual ao atraso;
+     - reviews mantêm o intervalo, salvo quando o usuário usa !. */
+  setDueSpec(id, spec, opts) {
+    const parsed = typeof spec === 'object' && spec && Number.isFinite(spec.min) ? spec : this.parseDueSpec(spec);
+    if (!parsed) return null;
+    const c=this.getCard(id); if(!c)return null;
+    const before=Object.assign({},c), days=this._dueRangePick(c.id,parsed,opts), wasNew=(c.phase||'new')==='new';
+    const patch={due:CardEngine.addDays(todayCards(),days),dueTs:null,enterradoAte:null,buryKind:null,phase:'review',status:c.status&&c.status!=='pendente'?c.status:'sei'};
+    if(wasNew||parsed.forceInterval)patch.intervalo=Math.max(1,Math.abs(days)||1);
+    const after=this.updateCard(id,patch);
+    if(after)this.addManualReview(Object.assign({},after,{_planId:c._planId}),'set-due',before,after);
+    return after?{card:after,days,parsed}:null;
+  },
+  setDueDays(id, dias) { return this.setDueSpec(id,String(Math.round(Number(dias)||0))); },
   // BANDEIRAS do Anki atual: 1–7; a barra compacta do Study continua
   // mostrando as quatro clássicas, e as adicionais ficam nas ações avançadas.
   FLAGS: [null, { nome: 'Vermelha', cor: '#e0393f' }, { nome: 'Laranja', cor: '#e07a1f' },
@@ -1462,17 +1507,11 @@ const DB = {
   // Faxina geral: remove do histórico e dos contadores tudo que aponta para card
   // inexistente. Devolve quantos registros foram descartados.
   limparOrfaos() {
+    /* Revlogs sem card correspondente são válidos no Anki após exclusão.
+       A faxina automática limita-se aos contadores/filas transitórias. */
     const ids = new Set(this.getCards().map(c => c.id));
     let n = 0;
-    try {
-      const l = this.getRevlog();
-      const limpo = l.filter(r => ids.has(r.cardId));
-      n = l.length - limpo.length;
-      if (n) this.replaceRevlog(limpo);
-    } catch (_) { _quiet(_); }
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
-    // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
-    // é uma correção de metadados, não uma remoção de lixo.
     try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
     try { const rest = this.restaurarCumprimentoSemana(); if (rest > 0) console.info('[reparo] ' + rest + ' semana(s) do histórico com \'estudado\' e \'% cumprido\' originais restaurados'); } catch (e) { _quiet(e, 'restaurar-cumprido'); }
     try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }

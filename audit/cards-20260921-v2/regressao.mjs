@@ -427,8 +427,9 @@ for (const algo of ['fsrs', 'sm2']) {
   DB.saveCards([{ id: 'f1', phase: 'review', s: 10, d: 5, reps: 9, lapses: 4, intervalo: 40, due: A.hoje(), ease: 1.9, leech: true, status: 'sei', lastReview: E.addDays(A.hoje(), -40) }]);
   DB.forgetCard('f1');
   const c = DB.getCard('f1');
-  check('E7', 'Esquecer devolve o card ao estado novo por completo',
-    c.phase === 'new' && c.s === null && c.d === null && c.reps === 0 && c.lapses === 0 && c.intervalo === 0 && c.leech === false && c.lastReview === null, c);
+  check('E7', 'Reset devolve o card ao estado novo preservando contadores por padrão',
+    c.phase === 'new' && c.s === null && c.d === null && c.reps === 9 && c.lapses === 4
+      && c.intervalo === 0 && c.leech === true && c.lastReview === null, c);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -465,9 +466,9 @@ for (const algo of ['fsrs', 'sm2']) {
   DB.addRevlog({ ts:A.agora()+1, cardId:'lf', grade:3, date:A.hoje(), acerto:true, phase:'review' });
   DB.addRevlog({ ts:A.agora()+2, cardId:'lr', grade:3, date:A.hoje(), acerto:true, phase:'review' });
   const removidos=DB.deleteNoteByCard('lr');
-  check('E10', 'Excluir um card irmão pela interface lógica exclui a nota inteira, seus cards e seus revlogs',
+  check('E10', 'Excluir um card irmão exclui a nota inteira e preserva seus revlogs históricos',
     removidos === 2 && DB.getCard('lf') == null && DB.getCard('lr') == null
-      && DB.getRevlog().every(x => x.cardId !== 'lf' && x.cardId !== 'lr'),
+      && DB.getRevlog().filter(x => x.cardId === 'lf' || x.cardId === 'lr').length === 2,
     { removidos, cards:DB.getCards().length, revlog:DB.getRevlog().length });
 }
 

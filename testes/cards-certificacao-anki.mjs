@@ -171,6 +171,45 @@ eq(trHoje.jovem.total,2,'jovem pelo intervalo anterior < 21');
 eq(CardsScreen.trueRetention('ontem').todos.total,1,'janela de ontem');
 eq(CardsScreen.trueRetention(7).todos.total,4,'janela de 7 dias');
 
+// ── 7c) Uso real: Reset, Set Due e exclusão preservam a história ───────────
+a.reset({ algo:'fsrs', retention:.9 });
+DB.saveCards([{
+  id:'manual-op',ankiId:987654,noteId:'manual-note',deckId:null,phase:'review',status:'sei',
+  due:a.hoje(),dueTs:null,intervalo:30,reps:5,lapses:2,ease:2.5,s:30,d:5,
+  lastReview:CardEngine.addDays(a.hoje(),-30),posicaoNova:7,createdAt:'2026-01-01T00:00:00Z'
+}]);
+DB.replaceRevlog([{reviewId:'hist-1',cardId:'manual-op',ts:T0-1000,date:a.hoje(),grade:3,phase:'review',intervalo:15}]);
+
+const parsedDue=DB.parseDueSpec('60-90!');
+eq(parsedDue.raw,'60-90!','Set Due preserva a expressão informada');
+eq(parsedDue.min,60,'Set Due reconhece o início da faixa');
+eq(parsedDue.max,90,'Set Due reconhece o fim da faixa');
+eq(parsedDue.forceInterval,true,'Set Due reconhece o sufixo !');
+const semForcar=DB.setDueSpec('manual-op','10-20',{index:1,total:2});
+eq(semForcar.days,20,'faixa deve poder ser distribuída de forma determinística');
+eq(DB.getCard('manual-op').intervalo,30,'Set Due sem ! preserva intervalo de review');
+let logsManual=DB.getRevlog();
+eq(logsManual.length,2,'Set Due deve acrescentar evento manual sem apagar histórico');
+eq(logsManual.at(-1).grade,0,'Set Due manual usa rating 0');
+eq(logsManual.at(-1).ankiReviewKind,'manual','Set Due aparece como Manual no revlog');
+
+const comForcar=DB.setDueSpec('manual-op','60-90!',{index:0,total:2});
+eq(comForcar.days,60,'primeiro card da faixa deve receber o início da faixa');
+eq(DB.getCard('manual-op').intervalo,60,'sufixo ! deve redefinir intervalo do review');
+
+const repsAntes=DB.getCard('manual-op').reps,lapsesAntes=DB.getCard('manual-op').lapses;
+DB.resetCard('manual-op',{restorePosition:false,resetCounts:false,log:true});
+eq(DB.getCard('manual-op').phase,'new','Reset devolve o card à fila de novos');
+eq(DB.getCard('manual-op').reps,repsAntes,'Reset padrão preserva contador de repetições');
+eq(DB.getCard('manual-op').lapses,lapsesAntes,'Reset padrão preserva lapses');
+eq(DB.getRevlog().at(-1).action,'reset','Reset deve deixar rastro manual');
+const historicoAntesDelete=DB.getRevlog().length;
+DB.deleteCard('manual-op');
+eq(DB.getCard('manual-op'),null,'exclusão remove o card');
+eq(DB.getRevlog().length,historicoAntesDelete,'exclusão não pode apagar histórico de revisão');
+ok(DB.getRevlog().filter(r=>String(r.cardId)==='manual-op').every(r=>Number(r.ankiCardId)===987654),
+  'antes de excluir, o ankiCardId deve ser preservado no revlog para round-trip');
+
 // ── 8) Longo prazo: 6.000 cards, 365 dias, fila + agendador reais ────────────
 // Simulação diária em lote: buildQueue() e schedule() são os módulos reais; a
 // persistência é feita uma vez por dia para evitar transformar o teste em

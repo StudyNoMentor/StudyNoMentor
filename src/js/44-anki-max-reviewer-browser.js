@@ -414,7 +414,7 @@ const AnkiMaxParity = {
     AnkiProductParity.browserBulkActions=(ids)=>{
       if(!ids.length)return;UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
         {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},{value:'due',label:'📅 Definir vencimento'},
-        {value:'forget',label:'↺ Esquecer / tornar novos'},{value:'reposition',label:'🔢 Reposicionar novos'},{value:'replace',label:'🔁 Localizar e substituir'}
+        {value:'forget',label:'↺ Resetar / tornar novos'},{value:'reposition',label:'🔢 Reposicionar novos'},{value:'replace',label:'🔁 Localizar e substituir'}
       ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
         if(!v)return;if(v.action==='mark')AnkiProductParity.bulkMark(ids);else if(v.action==='replace')AnkiProductParity.bulkFindReplace(ids);
         else if(v.action==='deck')this._bulkCardsMove(ids);else if(v.action==='due')this._bulkCardsDue(ids);else if(v.action==='forget')this._bulkCardsForget(ids);else if(v.action==='reposition')this._bulkCardsReposition(ids);
@@ -429,10 +429,17 @@ const AnkiMaxParity = {
     UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{if(!v)return;cards.forEach(c=>DB.updateCard(c.id,c.originalDeckId?{originalDeckId:v.deck}:{deckId:v.deck}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) movido(s) ✓');});
   },
   _bulkCardsDue(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;UI.prompt([{key:'days',label:'Vencer daqui a quantos dias?',type:'number',value:'1'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{if(!v)return;const d=Math.max(0,Math.round(Number(v.days)||0));cards.forEach(c=>DB.setDueDays(c.id,d));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');});
+    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
+    });
   },
   _bulkCardsForget(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;UI.confirm('Esquecer '+cards.length+' card(s)?',{title:'↺ Esquecer cards',okText:'Esquecer',danger:true}).then(ok=>{if(!ok)return;cards.forEach(c=>DB.forgetCard(c.id));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram a ser novos ✓');});
+    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
+    UI.prompt([{key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},{key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
+    });
   },
   _bulkCardsReposition(ids){
     const cards=this._resolveSelection(ids).cards.filter(c=>(c.phase||'new')==='new');if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
@@ -444,7 +451,7 @@ const AnkiMaxParity = {
     const oldDecorate=AnkiProductParity.decorateReviewer.bind(AnkiProductParity);
     AnkiProductParity.decorateReviewer=()=>{oldDecorate();this._decorateReviewerExact();};
 
-    AnkiProductParity.openReviewerActions=()=>this.openReviewerActions();
+    AnkiProductParity.openReviewerActions=(cardHint)=>this.openReviewerActions(cardHint);
 
     const oldAnswer=CardsScreen.answer.bind(CardsScreen);
     CardsScreen.answer=async(grade)=>{const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,ok=await oldAnswer(grade);if(ok===true&&id)this._previousCardId=id;return ok;};
@@ -515,8 +522,8 @@ const AnkiMaxParity = {
   },
   previousCardInfo(){if(!this._previousCardId){showToast('Nenhum card anterior nesta sessão');return;}CardsScreen.cardInfo(this._previousCardId);},
 
-  openReviewerActions(){
-    const c=AnkiProductParity._currentReviewCard();if(!c)return;const opts=[];
+  openReviewerActions(cardHint){
+    const c=cardHint||AnkiProductParity._currentReviewCard();if(!c)return;const opts=[];
     if((CardsScreen._redoStack||[]).length)opts.push({value:'redo',label:'↷ Refazer última ação'});
     opts.push(
       {value:'mark',label:'★ Marcar/desmarcar nota'},{value:'tags',label:'🏷 Editar etiquetas'},

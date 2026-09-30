@@ -205,6 +205,73 @@ try{
   ok(audit.advanced.created&&audit.advanced.typeInB&&!audit.advanced.noteInActive&&audit.advanced.cards>0,'cadastro avançado copia o NoteType e grava a Note no planejamento do baralho: '+JSON.stringify(audit.advanced));
   const bad=audit.matrix.filter(x=>x.blocked?(x.after!==x.before):(x.after!==x.expected||!x.typeExists||x.face.live<1||x.face.blank>0));
   ok(bad.length===0,'matriz 6×6 de mudança de tipos sem referência vazia/desatualizada; bloqueios de IO respeitados: '+JSON.stringify(bad));
+
+  /* 4) Uso real mobile: Mais ações e Set Due avançado precisam caber na tela,
+        abrir por interação normal e produzir revlog Manual. */
+  await page.setViewportSize({width:390,height:844});
+  const mobile=await page.evaluate(()=>{
+    StudyGlobalScope.setCardsScope('plan');StudyGlobalScope.installAnkiUsabilityParity();
+    const d=DB.addDeck('UX mobile');
+    const c=DB.addCard({deckId:d.id,frente:'UX frente',verso:'UX verso',kind:'basic',phase:'review',
+      status:'sei',due:todayCards(),intervalo:12,reps:3,lapses:1,ease:2.5,s:12,d:5,ankiId:AnkiParity._allocId()});
+    AnkiParity.ensureCanonicalNotes();
+    CardsScreen.filters={materias:new Set(['deck:'+d.id])};CardsScreen.invalidateReviewQueue();CardsScreen.entrarFoco();
+    return {id:c.id,pid:StudyGlobalScope.activePlanId()};
+  });
+  await esperar(300);
+  ok(await page.locator('#anki-review-more').isVisible(),'Mais ações fica acessível no reviewer mobile');
+  const menuBefore=await page.evaluate(()=>({
+    occupied:!!UI._ocupado,queued:(UI._fila||[]).length,
+    currentId:(AnkiProductParity._currentReviewCard()||{}).id||null,
+    queueId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,
+    activePlan:StudyGlobalScope.activePlanId(),scope:StudyGlobalScope.cardsScope()
+  }));
+  await page.click('#anki-review-more');await esperar(120);
+  const reviewerMenu=await page.evaluate(()=>({
+    present:!!document.getElementById('uip_action'),
+    values:document.getElementById('uip_action')?[...document.getElementById('uip_action').options].map(o=>o.value):[],
+    occupied:!!UI._ocupado,queued:(UI._fila||[]).length,mode:UI._mode||null,
+    title:(document.getElementById('ui-modal-title')||{}).textContent||'',
+    modalDisplay:(document.getElementById('ui-modal')||{}).style&&document.getElementById('ui-modal').style.display||'',
+    currentId:(AnkiProductParity._currentReviewCard()||{}).id||null,
+    queueId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,
+    overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,
+    box:document.querySelector('#ui-modal .cards-modal-box').getBoundingClientRect().toJSON()
+  }));
+  ok(reviewerMenu.present,'Mais ações abre o seletor de ações; estado='+JSON.stringify({before:menuBefore,after:reviewerMenu}));
+  ok(['reset','due','flag','deleteNote','copy','pauseMedia','backMedia','forwardMedia'].every(x=>reviewerMenu.values.includes(x)),
+    'Mais ações expõe Reset, Set Due, Bandeira, Excluir, Criar cópia e controles de áudio');
+  ok(!reviewerMenu.overflow&&reviewerMenu.box.width<=390,'modal Mais ações não estoura a largura mobile');
+  await page.click('#ui-modal-cancel');await esperar(80);
+
+  // No celular, ações secundárias ficam deliberadamente concentradas no
+  // overflow para o reviewer não virar uma grade enorme. Elas precisam estar
+  // acessíveis em Mais ações; os chips diretos continuam disponíveis no desktop.
+  ok(!(await page.locator('#cards-act-due').isVisible())&&!(await page.locator('#cards-act-forget').isVisible())
+    &&!(await page.locator('#cards-act-del').isVisible())&&!(await page.locator('.cards-flagbar').isVisible()),
+    'mobile concentra Data, Resetar, Excluir e Bandeiras em Mais ações');
+
+  await page.setViewportSize({width:900,height:844});await esperar(80);
+  await page.click('#cards-act-due');await esperar(80);
+  ok(await page.locator('#uip_spec').isVisible(),'botão Data desktop abre Set Due avançado (N, A-B e A-B!)');
+  await page.click('#ui-modal-cancel');await esperar(60);
+  await page.click('#cards-act-forget');await esperar(80);
+  ok(await page.locator('#uip_restore').isVisible()&&await page.locator('#uip_counts').isVisible(),'botão Resetar desktop oferece posição original e reset opcional de contadores');
+  await page.click('#ui-modal-cancel');await esperar(60);
+
+  await page.setViewportSize({width:390,height:844});await esperar(80);
+  await page.evaluate(({id,pid})=>StudyGlobalScope.bulkSetDueUi(['c:'+encodeURIComponent(pid)+'::'+encodeURIComponent(id)]),mobile);
+  await esperar(100);
+  await page.fill('#uip_spec','3-5!');
+  await page.click('#ui-modal-ok');await esperar(180);
+  const dueResult=await page.evaluate(({id})=>{
+    const c=DB.getCard(id),logs=DB.getRevlog().filter(r=>String(r.cardId)===String(id));
+    return {intervalo:c.intervalo,due:c.due,last:logs.at(-1),overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth};
+  },mobile);
+  ok(dueResult.intervalo>=3&&dueResult.intervalo<=5,'Set Due mobile aplica faixa 3-5! no intervalo');
+  ok(dueResult.last&&dueResult.last.grade===0&&dueResult.last.ankiReviewKind==='manual','Set Due mobile grava evento Manual rating 0');
+  ok(!dueResult.overflow,'fluxo Set Due não cria overflow horizontal mobile');
+
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS FOCO/EDIÇÃO OK — ${n} invariantes.`);
 }finally{await browser.close();server.close();}

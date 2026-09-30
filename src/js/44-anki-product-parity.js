@@ -417,7 +417,7 @@ const AnkiProductParity = {
     if(!ids.length)return;
     UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
       {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},
-      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Esquecer / tornar novos'},
+      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Resetar / tornar novos'},
       {value:'reposition',label:'🔢 Reposicionar cards novos'},{value:'replace',label:'🔁 Localizar e substituir nos campos'}
     ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
       if(!v)return;
@@ -459,16 +459,23 @@ const AnkiProductParity = {
   },
 
   bulkSetDue(ids){
-    UI.prompt([{key:'days',label:'Vencer daqui a quantos dias?',type:'number',value:'1',hint:'0 = hoje. Aplica a todos os cards das notas selecionadas.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
-      if(!v)return;const days=Math.max(0,Math.round(Number(v.days)||0));let n=0;
-      ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>{DB.setDueDays(c.id,days);n++;});
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(n+' card(s) reagendado(s) ✓');
+    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',
+      hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
     });
   },
 
   bulkForget(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id));UI.confirm('Esquecer '+cards.length+' card(s)? Eles voltam ao estado de novos; o conteúdo das notas é preservado.',{title:'↺ Esquecer cards',okText:'Esquecer',danger:true}).then(ok=>{
-      if(!ok)return;cards.forEach(c=>DB.forgetCard(c.id));CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram a ser novos ✓');
+    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
+    UI.prompt([
+      {key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},
+      {key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}
+    ],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
     });
   },
 
@@ -604,7 +611,7 @@ const AnkiProductParity = {
     this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
       decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
       noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
-    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
+    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],historicalRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
     cards.forEach(c=>{
       const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
       if(c.deckId!=null&&!deckIds.has(String(c.deckId)))issues.missingDeck.push(c.id);
@@ -613,7 +620,10 @@ const AnkiProductParity = {
       if(c.s!=null&&(!Number.isFinite(Number(c.s))||Number(c.s)<=0))issues.invalidSchedule.push(c.id);
       if(c.d!=null&&(!Number.isFinite(Number(c.d))||Number(c.d)<1||Number(c.d)>10))issues.invalidSchedule.push(c.id);
     });
-    rev.forEach(r=>{if(!cardIds.has(String(r.cardId)))issues.orphanRevlog.push(r);});
+    rev.forEach(r=>{
+      if(!r||r.cardId==null||String(r.cardId).trim()==='')issues.orphanRevlog.push(r);
+      else if(!cardIds.has(String(r.cardId)))issues.historicalRevlog.push(r);
+    });
     const g=new Map();notes.forEach(n=>{if(!n.guid)return;const k=String(n.guid);if(!g.has(k))g.set(k,[]);g.get(k).push(n.id);});g.forEach(v=>{if(v.length>1)issues.duplicateGuid.push(...v);});
     const scanText=(text,where)=>{
       const s=String(text||''),refs=[];let m;const re=/(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi;while((m=re.exec(s)))refs.push(m[1]);
@@ -629,13 +639,14 @@ const AnkiProductParity = {
   renderCheck(){
     const x=this.scanCollection(),rows=[
       ['Cards sem nota',x.missingNote.length],['Notas sem tipo',x.missingType.length],['Tipo divergente no card',x.typeMismatch.length],
-      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs órfãos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
+      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs inválidos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
       ['Cards vazios',x.empty.length],['Suspenso + enterrado',x.suspendedBuried.length],['GUID duplicado',x.duplicateGuid.length],['Referências de mídia locais sem arquivo incorporado',x.missingMedia.length]
     ];
     const total=rows.reduce((a,x)=>a+x[1],0);document.getElementById('anki-check-body').innerHTML='<div class="anki-check-status '+(total?'warn':'ok')+'"><strong>'+(total?'Encontrados pontos para revisar':'Coleção consistente')+'</strong><span>'+total+' ocorrência(s)</span></div>'+
       '<div class="anki-check-grid">'+rows.map(r=>'<div><span>'+this.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
       (x.missingMedia.length?'<details><summary>Referências de mídia</summary><div class="anki-check-details">'+x.missingMedia.slice(0,50).map(m=>'<div>'+this.esc(m.where)+' → <code>'+this.esc(m.ref)+'</code></div>').join('')+'</div></details>':'')+
-      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e limpa revlogs que apontam para cards já excluídos. Não apaga cards vazios nem conteúdo de notas.</p>';
+      (x.historicalRevlog.length?'<p class="hint">ℹ '+x.historicalRevlog.length+' revisão(ões) pertencem a cards já excluídos. Esse histórico é preservado de propósito, como no Anki, e continua válido para estatísticas.</p>':'')+
+      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e descarta apenas revlogs estruturalmente inválidos (sem cardId). Não apaga histórico válido nem conteúdo de notas.</p>';
   },
 
   _bindCheck(){
@@ -647,7 +658,7 @@ const AnkiProductParity = {
         const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
         fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
         if(!(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)){
-          const ids=new Set(DB.getCards().map(c=>String(c.id))),before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>ids.has(String(r.cardId))));fixed+=before.length-DB.getRevlog().length;
+          const before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>r&&r.cardId!=null&&String(r.cardId).trim()!==''));fixed+=before.length-DB.getRevlog().length;
         }
       }
       CardEngine.invalidateDueCache();this.renderCheck();CardsScreen.render();showToast(fixed?fixed+' reparo(s) seguro(s) aplicado(s) ✓':'Nada para reparar');
@@ -665,16 +676,17 @@ const AnkiProductParity = {
 
   decorateReviewer(){
     const nav=document.querySelector('.cards-review-nav');if(!nav||document.getElementById('anki-review-more'))return;
+    const renderedCard=this._currentReviewCard();
     const b=document.createElement('button');b.type='button';b.className='icon-btn';b.id='anki-review-more';b.textContent='⋯ Mais ações';b.title='Ações adicionais do AnkiDroid';
-    b.addEventListener('click',()=>this.openReviewerActions());nav.appendChild(b);
+    b.addEventListener('click',()=>this.openReviewerActions(renderedCard||this._currentReviewCard()));nav.appendChild(b);
   },
 
   _currentReviewCard(){
     const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx];return id?DB.getCard(id):null;
   },
 
-  openReviewerActions(){
-    const c=this._currentReviewCard();if(!c)return;
+  openReviewerActions(cardHint){
+    const c=cardHint||this._currentReviewCard();if(!c)return;
     const opts=[
       {value:'tags',label:'🏷 Editar etiquetas'},{value:'media',label:'▶ Repetição de mídia'},{value:'tts',label:'🎙 Reproduzir voz'},
       {value:'whiteboard',label:'✍ Quadro'},{value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}

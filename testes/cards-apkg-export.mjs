@@ -122,6 +122,17 @@ for(const runtime of [
   './src/vendor/sqljs-1.2.1/sql-asm.js'
 ]) assert.ok(sw.includes(runtime),'PWA deve pré-cachear runtime dinâmico: '+runtime);
 
+// Histórico de card já excluído continua exportável se o ankiCardId foi
+// preservado no momento da exclusão.
+const historicalRows=X._revRows([],[
+  {ts:1758500000000,cardId:'gone-card',ankiCardId:1700000099999,grade:0,phase:'manual',ankiReviewKind:'manual',
+   ankiIvlSemantica:2,ankiInterval:30,ankiLastInterval:10,easeFactor:2500,time:0}
+]);
+assert.equal(historicalRows.length,1,'revlog de card excluído não pode sumir da exportação');
+assert.equal(historicalRows[0][1],1700000099999,'revlog histórico deve reutilizar o ankiCardId preservado');
+assert.equal(historicalRows[0][3],0,'ação Manual deve exportar rating 0');
+assert.equal(historicalRows[0][8],4,'ação Manual deve exportar tipo manual do Anki');
+
 // Integração real: gera o Legacy2 do Anki 26.09.2 e reabre o collection.anki21 com o MESMO sql.js vendorado.
 const pkg=await X.buildPackage();
 assert.equal(pkg.cards,2);

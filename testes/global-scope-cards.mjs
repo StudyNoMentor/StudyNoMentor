@@ -22,8 +22,8 @@ const keysForPlan=pid=>({
   savedGrades:keyFor(pid,'saved-grades')
 });
 const put=(k,v)=>ls.setItem(k,JSON.stringify(v));
-put(keysForPlan('A').cards,[{id:'a1',deckId:'da',banca:'FGV',frente:'A',verso:'1'}]);
-put(keysForPlan('B').cards,[{id:'b1',deckId:'db',banca:'CEBRASPE',frente:'B',verso:'2'}]);
+put(keysForPlan('A').cards,[{id:'a1',ankiId:101,deckId:'da',banca:'FGV',frente:'A',verso:'1'}]);
+put(keysForPlan('B').cards,[{id:'b1',ankiId:202,deckId:'db',banca:'CEBRASPE',frente:'B',verso:'2'}]);
 put(keysForPlan('A').decks,[{id:'da',nome:'Deck A'}]);
 put(keysForPlan('B').decks,[{id:'db',nome:'Deck B'}]);
 put(keysForPlan('A').revlog,[]);
@@ -222,5 +222,17 @@ assert.equal(parse(keysForPlan('B').cards,[]).some(x=>x.id==='b1'),false,'exclus
 assert.equal(parse(keysForPlan('B').cards,[]).some(x=>x.id===cardB2.id),true,'exclusão de um card não pode remover outro card da mesma origem');
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id==='a1'),true,'exclusão global não pode tocar card do plano ativo');
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'exclusão de card externo não pode tocar card novo do plano ativo');
+assert.equal(S.revlogForPlan('B').length,1,'exclusão deve preservar o histórico no planejamento de origem');
+assert.equal(S.revlogForPlan('B')[0].ankiCardId,202,'revlog preservado deve guardar o ankiCardId para exportação futura');
 
-console.log('OK: memória global, TEC estratégico por plano e Cards globais preservando a origem.');
+// Colisão física deixa de ser silenciosa: o modo global é bloqueado em vez de
+// resolver um ID homônimo para o planejamento errado.
+const bRows=parse(keysForPlan('B').cards,[]);bRows.push({id:'a1',ankiId:303,deckId:'db',frente:'colisão',verso:'x'});put(keysForPlan('B').cards,bRows);
+assert.equal(S.identityCollisions().cards.length,1,'colisão entre planejamentos deve ser detectada');
+S.setCardsScope('all');
+assert.equal(S.cardsScope(),'plan','modo Todos deve ser bloqueado enquanto houver colisão de IDs');
+put(keysForPlan('B').cards,parse(keysForPlan('B').cards,[]).filter(x=>x.ankiId!==303));
+S.setCardsScope('all');
+assert.equal(S.cardsScope(),'all','modo Todos deve voltar a funcionar após remover a colisão');
+
+console.log('OK: memória global, TEC estratégico por plano e Cards globais preservando origem, histórico e identidade.');

@@ -1138,8 +1138,8 @@ const CardsScreen = {
           <button type="button" class="icon-btn" id="cards-act-mark" title="Marcar/desmarcar nota (*)">${c.favorito ? '★ Marcada' : '☆ Marcar'}</button>
           <button type="button" class="icon-btn" id="cards-act-bury" title="Enterrar: some da fila até amanhã (−)">⤓ Enterrar</button>
           <button type="button" class="icon-btn" id="cards-act-susp" title="Suspender: some até você reativar (@)">🚫 Suspender</button>
-          <button type="button" class="icon-btn" id="cards-act-forget" title="Esquecer: volta a ser card novo (Ctrl+Alt+N)">↺ Esquecer</button>
-          <button type="button" class="icon-btn" id="cards-act-due" title="Definir data de vencimento (Ctrl+Shift+D)">📅 Data</button>
+          <button type="button" class="icon-btn" id="cards-act-forget" title="Resetar: volta a ser novo e preserva o histórico (Ctrl+Alt+N)">↺ Resetar</button>
+          <button type="button" class="icon-btn" id="cards-act-due" title="Definir vencimento: aceita N, A-B e A-B! (Ctrl+Shift+D)">📅 Data</button>
           <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
           <button type="button" class="icon-btn ${this._autoAdvanceEnabled?'on':''}" id="cards-auto-advance" aria-pressed="${this._autoAdvanceEnabled?'true':'false'}" title="Alternar Auto Advance (Shift+A)">${this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto'}</button>
           <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)" aria-label="Excluir card (Ctrl+Del)">🗑</button>
@@ -1174,19 +1174,44 @@ const CardsScreen = {
     liga('cards-act-mark', () => { DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box); showToast(c.favorito ? 'Desmarcada' : '★ Marcada'); });
     liga('cards-act-bury', () => { const d2 = DB.buryCard(c.id); proximo(); showToast('⤓ Enterrado até ' + formatDateShort(d2)); });
     liga('cards-act-susp', () => { if (typeof AnkiParity !== 'undefined') AnkiParity.suspendCard(c.id); else DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
+    const reviewRef = () => c._planId != null
+      ? 'c:' + encodeURIComponent(String(c._planId)) + '::' + encodeURIComponent(String(c.id))
+      : 'c:' + encodeURIComponent(String(c.id));
+    const refreshManual = () => {
+      CardEngine.invalidateDueCache();
+      this.invalidateReviewQueue();
+      this.renderContent();
+      this.atualizarFoco();
+    };
     liga('cards-act-forget', () => {
-      UI.confirm('Esquecer este card? Ele volta a ser um card novo e perde o histórico de agendamento.',
-        { title: '↺ Esquecer card', okText: 'Esquecer', danger: true }).then(ok => {
-          if (!ok) return; DB.forgetCard(c.id); proximo(); showToast('↺ Card voltou a ser novo');
-        });
+      if (window.StudyGlobalScope && StudyGlobalScope.bulkResetUi) {
+        StudyGlobalScope.bulkResetUi([reviewRef()]);
+        return;
+      }
+      UI.prompt([
+        { key: 'restore', label: 'Restaurar posição original?', type: 'select', value: 'no',
+          options: [{ value: 'no', label: 'Não — enviar ao fim da fila de novos' }, { value: 'yes', label: 'Sim — usar posição original quando disponível' }] },
+        { key: 'counts', label: 'Zerar repetições e lapsos?', type: 'select', value: 'no',
+          options: [{ value: 'no', label: 'Não — preservar contadores' }, { value: 'yes', label: 'Sim — zerar contadores' }] }
+      ], { title: '↺ Resetar card', okText: 'Resetar' }).then(v => {
+        if (!v) return;
+        DB.resetCard(c.id, { restorePosition: v.restore === 'yes', resetCounts: v.counts === 'yes', log: true });
+        refreshManual(); showToast('↺ Card voltou à fila de novos; histórico preservado ✓');
+      });
     });
     liga('cards-act-due', () => {
-      UI.prompt([{ key: 'd', label: 'Vencer daqui a quantos dias?', type: 'number', value: '1',
-        hint: '0 = hoje. Equivale ao "Set Due Date" do Anki.' }],
-        { title: '📅 Definir data', okText: 'Agendar' }).then(v => {
+      if (window.StudyGlobalScope && StudyGlobalScope.bulkSetDueUi) {
+        StudyGlobalScope.bulkSetDueUi([reviewRef()]);
+        return;
+      }
+      UI.prompt([{ key: 'spec', label: 'Vencimento', type: 'text', value: '1',
+        placeholder: 'ex.: 10, 60-90 ou 60-90!',
+        hint: 'A-B distribui no intervalo. ! também redefine o intervalo de cards em revisão.' }],
+        { title: '📅 Definir vencimento', okText: 'Agendar' }).then(v => {
           if (!v) return;
-          const data = DB.setDueDays(c.id, v.d);
-          proximo(); showToast('📅 Agendado para ' + formatDateShort(data));
+          const result = DB.setDueSpec(c.id, v.spec);
+          if (!result) { showToast('Formato inválido. Use N, A-B ou A-B!.'); return; }
+          refreshManual(); showToast('📅 Vencimento atualizado ✓');
         });
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
@@ -2467,6 +2492,10 @@ const CardsScreen = {
         ? StudyGlobalScope.planName(cardPlanId) : (activePlan && activePlan.nome) || null);
       const key = auditKey(cardPlanId, c.id);
       const logs = reviewsByCard.get(key) || [];
+      const schedulingLogs=logs.filter(r=>{
+        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      });
       byCard[key] = {
         auditKey:key, id:c.id, planId:cardPlanId, planName:cardPlanName,
         deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
@@ -2485,7 +2514,9 @@ const CardsScreen = {
           if (q(0.212)||q(1.2931)||q(2.3065)||q(8.2956)) return 'fsrs6-inicial';
           return 'derivado';
         })(),
-        reviewCount:logs.length
+        reviewCount:logs.length,
+        schedulingReviewCount:schedulingLogs.length,
+        manualReviewCount:logs.length-schedulingLogs.length
       };
     });
 
@@ -2557,13 +2588,20 @@ const CardsScreen = {
        recompõe S/D pelo histórico FSRS com os pesos efetivos do baralho. */
     const cardKeys = new Set(Object.keys(byCard));
     const orphanReviewEntries = [];
+    const historicalReviewEntriesWithoutCard = [];
     const duplicateReviewIds = [];
     const seenReviewIds = new Map();
     revlog.forEach((r, index) => {
       if (!r) return;
       const pid = r._planId || activePlanId || null;
       const ck = auditKey(pid, r.cardId);
-      if (!cardKeys.has(ck)) orphanReviewEntries.push({ index, planId:pid, cardId:r.cardId || null, reviewId:r.reviewId || null });
+      if (r.cardId == null || String(r.cardId).trim() === '') {
+        orphanReviewEntries.push({ index, planId:pid, cardId:null, reviewId:r.reviewId || null, reason:'missing_card_id' });
+      } else if (!cardKeys.has(ck)) {
+        /* Como no Anki, excluir uma nota/card não apaga seu histórico. Essas
+           linhas são históricas válidas, não corrupção nem "órfãos" a limpar. */
+        historicalReviewEntriesWithoutCard.push({ index, planId:pid, cardId:r.cardId, reviewId:r.reviewId || null });
+      }
       if (r.reviewId != null) {
         const rk = auditKey(pid, r.reviewId);
         if (seenReviewIds.has(rk)) duplicateReviewIds.push({ planId:pid, reviewId:r.reviewId, firstIndex:seenReviewIds.get(rk), duplicateIndex:index });
@@ -2575,12 +2613,16 @@ const CardsScreen = {
     cards.forEach(c => {
       const pid = planIdOfCard(c), key = auditKey(pid, c.id);
       const logs = reviewsByCard.get(key) || [];
-      if ((c.reps || 0) !== logs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:logs.length });
+      const schedulingLogs=logs.filter(r=>{
+        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      });
+      if ((c.reps || 0) !== schedulingLogs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:schedulingLogs.length, manualEntries:logs.length-schedulingLogs.length });
       const deckId = c.originalDeckId || c.deckId;
       const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
-      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !logs.length) return;
+      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !schedulingLogs.length) return;
       const weights = CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights;
-      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(logs, weights) : null;
+      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(schedulingLogs, weights) : null;
       if (!replay) return;
       const relS = Math.abs(c.s - replay.s) / Math.max(Math.abs(replay.s), FSRS.S_MIN || 0.001);
       const absD = Math.abs(c.d - replay.d);
@@ -2618,6 +2660,7 @@ const CardsScreen = {
       repsVsReviewLog:{checked:cards.length,mismatches:repsMismatches},
       duplicateReviewIds,
       orphanReviewEntries,
+      historicalReviewEntriesWithoutCard,
       memoryReplay
     };
 

@@ -60,4 +60,14 @@ const browserSrc=readFileSync(join(ROOT,'src/js/44-anki-max-reviewer-browser.js'
 assert.match(browserSrc,/draggable="true"/,'cabeçalhos devem ser arrastáveis para reordenar colunas');
 assert.match(browserSrc,/data-col-drag/,'reordenação de colunas deve ser persistida pelo Browser');
 
-console.log('PARIDADE MÁXIMA REVIEWER/BROWSER: busca, custom-data, seleção e colunas ao estilo Anki validados.');
+const usabilitySrc=readFileSync(join(ROOT,'src/js/94-global-scope.js'),'utf8');
+for(const action of ["value:'reset'","value:'due'","value:'copy'","value:'pauseMedia'","value:'backMedia'","value:'forwardMedia'"])
+  assert.ok(usabilitySrc.includes(action),'Mais ações deve expor '+action);
+assert.ok(usabilitySrc.includes("key:'regex'")&&usabilitySrc.includes("key:'case'")&&usabilitySrc.includes("value:'__tags__'"),
+  'Find/Replace deve oferecer regex, case sensitivity e escopo de tags/campos');
+assert.ok(usabilitySrc.includes("key:'shift'")&&usabilitySrc.includes("key:'random'"),
+  'Reposicionar deve oferecer deslocamento dos existentes e ordem aleatória');
+assert.ok(usabilitySrc.includes('identityCollisions')&&usabilitySrc.includes('modo global bloqueado'),
+  'escopo global deve ter proteção explícita contra colisões de IDs');
+
+console.log('PARIDADE MÁXIMA REVIEWER/BROWSER: busca, custom-data, seleção, colunas e ações de uso real ao estilo Anki validados.');
