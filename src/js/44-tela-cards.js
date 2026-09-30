@@ -1418,7 +1418,12 @@ const CardsScreen = {
     if ((e.ctrlKey || e.metaKey) && (e.code === 'Delete' || e.code === 'Backspace')) { e.preventDefault(); clique('cards-act-del'); return; }
     if ((e.ctrlKey || e.metaKey) && /^Digit[0-4]$/.test(e.code)) {   // bandeiras
       e.preventDefault();
-      if (idAtual) { const n = Number(e.code.slice(5)); DB.setFlag(idAtual, n); this.renderReviewCard(document.getElementById('cards-content')); }
+      const n = Number(e.code.slice(5));
+      if (window.CardsOfficialBridge && CardsOfficialBridge.review && CardsOfficialBridge.review.card) {
+        void CardsOfficialBridge.action('flag', n);
+      } else {
+        showToast('Bandeira não alterada: Reviewer oficial indisponível.');
+      }
       return;
     }
     if (e.code === 'Space') {
@@ -3183,12 +3188,10 @@ CardsScreen.openAlgoConfig = function () {
   );
   opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
   opts.push({ value: '__empty__', label: '🧹 Cards vazios · ferramenta oficial Anki…' });
-  opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Como no Anki: FSRS/SM-2 é global. Retenção, passos, limites e demais parâmetros podem variar por preset/baralho.' }],
     { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
       if (!v) return;
-      if (v.scope === '__reset__') { CardsScreen.zerarEstatisticas(); return; }
       if (v.scope === '__bancas__') { CardsScreen.openBancasModal(); return; }
       if (v.scope === '__empty__') {
         if (window.CardsOfficialBridge && typeof CardsOfficialBridge.openEmptyCards === 'function') void CardsOfficialBridge.openEmptyCards();
@@ -3199,49 +3202,8 @@ CardsScreen.openAlgoConfig = function () {
     });
 };
 
-/* ── ZERAR ESTATÍSTICAS E RESÍDUOS ──────────────────────────────────────────
-   Serve para começar um teste do zero: apaga o histórico de revisões, os
-   contadores do dia e devolve TODOS os cards ao estado "novo" (como o
-   "Esquecer"/Forget do Anki, que restaura a posição na fila de novos).
-   O CONTEÚDO dos cards é preservado — frente, verso, matéria, baralho, tudo
-   fica. Some só o que é progresso.
-   Duas confirmações de propósito: a primeira explica o que vai acontecer, a
-   segunda exige digitar ZERAR. É irreversível e não passa pelo desfazer. */
-CardsScreen.zerarEstatisticas = function () {
-  const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
-  const nCards = CardsScreen.collectionCards().length;
-  const nRev = CardsScreen._statsRevlog(false).length;
-  const scopeLabel=scope==='all'?'todos os planejamentos':'este planejamento';
-  UI.confirm(
-    'Isto vai:\n\n' +
-    '• apagar as ' + nRev.toLocaleString('pt-BR') + ' entrada(s) do histórico de revisões\n' +
-    '• devolver os ' + nCards.toLocaleString('pt-BR') + ' card(s) ao estado "novo"\n' +
-    '• zerar os contadores de hoje (novos/revisões)\n' +
-    '• limpar resíduos de cards já excluídos\n\n' +
-    'Escopo: ' + scopeLabel + '.\n' +
-    'O conteúdo dos cards NÃO é apagado — frente, verso, matéria e baralho continuam.\n' +
-    'Não há como desfazer.',
-    { title: '🧹 Zerar estatísticas dos cards', okText: 'Continuar', danger: true }
-  ).then(ok => {
-    if (!ok) return;
-    UI.prompt([{ key: 'txt', label: 'Digite ZERAR para confirmar', type: 'text', value: '',
-      hint: 'Confirmação extra porque a ação é irreversível.' }],
-      { title: '🧹 Confirmar', okText: 'Zerar agora' }).then(v => {
-        if (!v || String(v.txt || '').trim().toUpperCase() !== 'ZERAR') {
-          showToast('Cancelado — nada foi alterado');
-          return;
-        }
-        const r = (window.StudyGlobalScope&&StudyGlobalScope.zeroCardsProgress)
-          ? StudyGlobalScope.zeroCardsProgress(scope) : DB.zerarProgressoCards();
-        CardEngine.invalidateDueCache();
-        CardsScreen._meusMostrando = 0;
-        CardsScreen.invalidateReviewQueue();
-        CardsScreen._undoStack = []; CardsScreen._seenThisSession = new Set();
-        CardsScreen.render();
-        showToast('🧹 Zerado: ' + r.revlog + ' revisão(ões) e ' + r.cards + ' card(s) reiniciado(s)');
-      });
-  });
-};
+/* A antiga ação local “zerar estatísticas” foi removida: o Study não apaga/recria
+   agendamento ou revlog fora das operações expostas pelo Anki oficial. */
 CardsScreen.optimizeFsrsOfficial = async function (deckId) {
   if (CardsConfig.get().algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
   if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.optimizeFsrsPreset !== 'function')
@@ -3271,37 +3233,8 @@ CardsScreen.fsrsHealthCheck = async function(deckId){
   if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.fsrsHealthCheck!=='function')throw new Error('Health Check oficial do Anki indisponível.');
   return CardsOfficialBridge.fsrsHealthCheck(deckId==null?null:deckId);
 };
-CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
-  if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
-  const entries=(rows||[]).filter(r=>String(r.cardId)===String(card.id)).sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
-  if(!entries.length)return null;
-  let ignoreBeforeMs=0;if(cfg.ignoreRevlogsBefore){const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();}
-  const data=AnkiParity.fsrsMemoryStateData(entries,null,ignoreBeforeMs,cfg.historicalRetention,card);
-  if(!data||!data.lastReviewedAtMs)return null;
-  const w=CardsConfig.weightsFor(card.originalDeckId||card.deckId),retention=Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),
-    state=FSRS.memoryStateOfficialWithModule(mod,data,w,retention),raw=state.interval,maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
-    previous=data.previousInterval==null?0:Math.max(0,Number(data.previousInterval)||0),
-    min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),
-    lastDate=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(data.lastReviewedAtMs)):new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
-    elapsed=Math.max(0,CardEngine._daysBetween(lastDate,todayCards())),seed=AnkiParity.fuzzSeed(card,true);
-  let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
-  if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);
-  const due=CardEngine.addDays(lastDate,iv),patch={s:state.s,d:state.d,intervalo:iv,dueTs:null,updatedAt:new Date().toISOString()};
-  if(card.originalDeckId)patch.originalDue=due;else patch.due=due;
-  return {patch,interval:iv,previous,due};
-};
-CardsScreen.rescheduleFsrsScope = async function(deckId){
-  const rows=this._statsRevlog(false)||[],all=this.collectionCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
-    mod=await FSRS._loadOfficialOptimizer();
-  let changed=0;
-  for(const card of targets){
-    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),out=this._rescheduleFsrsCard(card,cfg,rows,mod);if(!out)continue;
-    DB.addRevlog({ts:Date.now()+changed,date:todayCards(),cardId:card.id,grade:0,phase:'review',ankiReviewKind:'rescheduled',intervalo:Number(card.intervalo)||0,lastInterval:Number(card.intervalo)||0,ankiLastInterval:Number(card.intervalo)||0,ankiInterval:Number(out.interval)||0,elapsed:0,time:0,s:card.s||null,d:card.d||null});
-    if(DB.updateCard(card.id,out.patch)!==false)changed++;
-  }
-  CardEngine.invalidateDueCache();return changed;
-};
-
+/* Reagendamento FSRS local removido. Reschedule Cards on Change é executado
+   exclusivamente pelo update_deck_configs/scheduler do Anki oficial. */
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
 CardsScreen.openAlgoConfigFor = function (deckId) {
   const isDeck = !!deckId;
