@@ -963,6 +963,62 @@ def cards_official_browser_ids(
         return {"mode": mode, "query": q, "sort_key": sort_key, "reverse": reverse, "total": len(ids), "ids": ids}
 
 
+
+@app.post("/api/cards-official/browser/rows")
+def cards_official_browser_rows(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Dados visíveis do Browser renderizados/calculados exclusivamente pelo Anki."""
+    item = cards_uc_for(user)
+    mode = str(payload.get("mode", "cards")).strip().lower()
+    ids = [int(x) for x in payload.get("ids", [])]
+    if mode not in {"cards", "notes"}:
+        raise HTTPException(400, "Modo do navegador deve ser cards ou notes.")
+    if len(ids) > 1000:
+        raise HTTPException(400, "Máximo de 1000 linhas por lote.")
+    with item.lock:
+        rows: list[dict[str, Any]] = []
+        if mode == "cards":
+            for cid in ids:
+                card = item.col.get_card(cid)
+                note = card.note()
+                stats = item.col.card_stats_data(card.id)
+                rows.append({
+                    "id": int(card.id),
+                    "note_id": int(note.id),
+                    "question": card.question(browser=True),
+                    "answer": card.answer(),
+                    "stats": pb(stats),
+                    "fields": dict(note.items()),
+                    "tags": list(note.tags),
+                    "flag": int(card.user_flag()),
+                    "suspended": int(card.queue) == -1,
+                })
+        else:
+            for nid in ids:
+                note = item.col.get_note(nid)
+                card_ids = [int(x) for x in item.col.card_ids_of_note(note.id)]
+                cards = []
+                for cid in card_ids:
+                    card = item.col.get_card(cid)
+                    cards.append({
+                        "id": int(card.id),
+                        "question": card.question(browser=True),
+                        "answer": card.answer(),
+                        "stats": pb(item.col.card_stats_data(card.id)),
+                        "flag": int(card.user_flag()),
+                        "suspended": int(card.queue) == -1,
+                    })
+                rows.append({
+                    "id": int(note.id),
+                    "fields": dict(note.items()),
+                    "tags": list(note.tags),
+                    "cards": cards,
+                })
+        return {"mode": mode, "rows": rows}
+
+
 @app.get("/api/cards-official/browser/facets")
 def cards_official_browser_facets(
     user: dict[str, Any] = Depends(current_user),
