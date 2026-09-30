@@ -153,8 +153,31 @@ const AnkiProductParity = {
     else showToast('Baixe o .apkg no AnkiWeb e use ↑ Importar no Study.');
   },
 
-  _cardsForNote(id){ const k=String(id),cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();return cards.filter(c=>this.noteId(c)===k); },
-  _typeFor(note){ return AnkiParity.noteTypes().find(t=>String(t.id)===String(note&&note.notetypeId))||null; },
+  _cardsForNote(id,planId){
+    const noteObj=id&&typeof id==='object'?id:null,k=String(noteObj?noteObj.id:id);
+    const pid=planId!=null?planId:(noteObj&&noteObj._planId!=null?noteObj._planId:null);
+    if(pid!=null&&DB.getCardsForPlan){
+      const nome=window.StudyGlobalScope&&StudyGlobalScope.planName?StudyGlobalScope.planName(pid):String(pid);
+      return (DB.getCardsForPlan(pid)||[]).filter(c=>this.noteId(c)===k)
+        .map(c=>Object.assign({},c,{_planId:pid,_planNome:nome}));
+    }
+    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();
+    return cards.filter(c=>this.noteId(c)===k);
+  },
+  _typeFor(note){
+    if(!note)return null;
+    if(note._planId!=null){
+      const routed=AnkiParity.getNotetype(note.notetypeId,note._planId);
+      if(routed)return routed;
+    }
+    return AnkiParity.noteTypes().find(t=>String(t.id)===String(note.notetypeId))||null;
+  },
+  _ensureNotetypeInPlan(nt,planId){
+    if(!nt||planId==null)return nt;
+    const own=AnkiParity.getNotetype(nt.id,planId);if(own)return own;
+    const copy=JSON.parse(JSON.stringify(nt));delete copy._planId;delete copy._planNome;
+    return AnkiParity.saveNotetype(copy,planId)||nt;
+  },
   _sortField(note,nt){ const f=(nt&&nt.fields||[])[Number(nt&&nt.sortf)||0]||(nt&&nt.fields||[])[0];return this.plain(note&&note.fields&&f?note.fields[f.name]:''); },
 
   _browserRows(){
@@ -283,9 +306,13 @@ const AnkiProductParity = {
 
   reconcileNote(note,nt){
     if(!note||!nt)return {created:0,updated:0,emptied:0};
-    const existing=this._cardsForNote(note.id),planId=note._planId||(existing[0]&&existing[0]._planId)||
-      (existing[0]&&window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(existing[0].id):null),
-      sourceDecks=planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):(AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks()),
+    let planId=note._planId||null;
+    let existing=this._cardsForNote(note,planId);
+    if(!planId)planId=(existing[0]&&existing[0]._planId)||
+      (existing[0]&&window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(existing[0].id):null);
+    if(planId&&!existing.length)existing=this._cardsForNote(note,planId);
+    nt=this._ensureNotetypeInPlan(nt,planId);
+    const sourceDecks=planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):(AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks()),
       deckId=(existing.find(c=>c.deckId)||{}).deckId||(sourceDecks[0]||{}).id||null;
     const desired=[];let created=0,updated=0,emptied=0;
     if(nt.kind==='cloze'){
@@ -313,22 +340,24 @@ const AnkiProductParity = {
     ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;this.ensure();
     const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
     if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
-    this._changeTypeIds=ids;this._changeTypePlanId=origins.size?[...origins][0]:null;
-    /* Nota com _planId cujo planejamento não tem tipos gravados sob a chave
-       dele (o caso comum: o tipo mora no planejamento ativo) deixava o
-       seletor VAZIO e o botão "Mudar tipo" sem destino. */
+    this._changeTypeIds=ids;this._changeTypeNotes=notes;this._changeTypePlanId=origins.size?[...origins][0]:null;
+    /* Se o planejamento de origem ainda não tem tipos materializados, exibimos
+       a coleção virtual, mas no SALVAR o tipo escolhido é copiado para a origem
+       antes de a nota apontar para ele. Isso evita referência a NoteType de outro
+       planejamento e, depois, frente "vazia" ou template desatualizado. */
     const doPlano=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
       ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : [];
-    const types=(doPlano&&doPlano.length)?doPlano:AnkiParity.noteTypes(),
-      sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
-    const first=AnkiParity.getNote(ids[0]);if(first)sel.value=String(first.notetypeId);
+    const types=(doPlano&&doPlano.length)?doPlano:AnkiParity.noteTypes();
+    this._changeTypeTargets=types;
+    const sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
+    const first=notes[0];if(first)sel.value=String(first.notetypeId);
     const render=()=>this._renderTypeMap(types.find(t=>String(t.id)===String(sel.value)));sel.onchange=render;render();
     document.getElementById('anki-change-type-modal').style.display='flex';
   },
 
   _renderTypeMap(target){
     const box=document.getElementById('anki-change-type-map');if(!target){box.innerHTML='';return;}
-    const source=AnkiParity.getNote((this._changeTypeIds||[])[0]),srcNt=this._typeFor(source),srcFields=(srcNt&&srcNt.fields||[]).map(f=>f.name);
+    const source=(this._changeTypeNotes||[])[0]||AnkiParity.getNote((this._changeTypeIds||[])[0]),srcNt=this._typeFor(source),srcFields=(srcNt&&srcNt.fields||[]).map(f=>f.name);
     box.innerHTML='<p class="hint">Mapeamento dos campos da primeira nota. Em seleção mista, nomes iguais têm prioridade e a posição é usada como fallback.</p>'+
       (target.fields||[]).map((f,i)=>'<div class="field"><label>'+this.esc(f.name)+'</label><select class="anki-type-map" data-target="'+this.esc(f.name)+'"><option value="">— vazio —</option>'+
         srcFields.map((n,j)=>'<option value="'+this.esc(n)+'" '+((n===f.name||(!srcFields.includes(f.name)&&j===i))?'selected':'')+'>'+this.esc(n)+'</option>').join('')+'</select></div>').join('');
@@ -336,19 +365,23 @@ const AnkiProductParity = {
 
   _bindChangeType(){
     document.getElementById('anki-change-type-save').addEventListener('click',()=>{
-      const target=AnkiParity.getNotetype(document.getElementById('anki-change-type-target').value);if(!target)return;
+      const selected=String(document.getElementById('anki-change-type-target').value||'');
+      const target=(this._changeTypeTargets||[]).find(t=>String(t.id)===selected)||AnkiParity.getNotetype(selected,this._changeTypePlanId||undefined);if(!target)return;
       const map={};document.querySelectorAll('#anki-change-type-map .anki-type-map').forEach(s=>map[s.dataset.target]=s.value);
       let changed=0;
       for(const id of this._changeTypeIds||[]){
-        const note=AnkiParity.getNote(id);if(!note)continue;const srcNt=this._typeFor(note),srcNames=(srcNt&&srcNt.fields||[]).map(f=>f.name),fields={};
-        (target.fields||[]).forEach((f,i)=>{const explicit=map[f.name],src=explicit||(note.fields&&Object.prototype.hasOwnProperty.call(note.fields,f.name)?f.name:srcNames[i]);fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
-        if(target.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Para mudar para Cloze, a nota precisa conter ao menos uma omissão {{c1::…}}.');return;}
-        if(Number(target.originalStockKind)===6||target.stockKind==='image_occlusion'){
-          const oc=(target.fields||[]).find(f=>Number(f.tag)===0),im=(target.fields||[]).find(f=>Number(f.tag)===1);
+        const note=(this._changeTypeNotes||[]).find(n=>String(n.id)===String(id))||AnkiParity.getNote(id,this._changeTypePlanId||undefined);if(!note)continue;
+        const planId=note._planId||this._changeTypePlanId||null,targetPlan=this._ensureNotetypeInPlan(target,planId);
+        const srcNt=this._typeFor(note),srcNames=(srcNt&&srcNt.fields||[]).map(f=>f.name),fields={};
+        (targetPlan.fields||[]).forEach((f,i)=>{const explicit=map[f.name],src=explicit||(note.fields&&Object.prototype.hasOwnProperty.call(note.fields,f.name)?f.name:srcNames[i]);fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
+        if(targetPlan.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Para mudar para Cloze, a nota precisa conter ao menos uma omissão {{c1::…}}.');return;}
+        if(Number(targetPlan.originalStockKind)===6||targetPlan.stockKind==='image_occlusion'){
+          const oc=(targetPlan.fields||[]).find(f=>Number(f.tag)===0),im=(targetPlan.fields||[]).find(f=>Number(f.tag)===1);
           if(!oc||!im||!/image-occlusion:/.test(String(fields[oc.name]||''))||!AnkiParity._fieldNonempty(fields[im.name])){showToast('Use o editor de Oclusão de Imagem para criar ou converter este tipo de nota.');return;}
         }
-        const saved=AnkiParity.saveNote(Object.assign({},note,{notetypeId:target.id,fields}));this.reconcileNote(saved,target);changed++;
+        const saved=AnkiParity.saveNote(Object.assign({},note,{notetypeId:targetPlan.id,fields}),planId==null?undefined:planId);this.reconcileNote(saved,targetPlan);changed++;
       }
+      this._changeTypeNotes=[];this._changeTypeTargets=[];
       document.getElementById('anki-change-type-modal').style.display='none';document.getElementById('anki-note-edit-modal').style.display='none';this.renderBrowser();CardsScreen.render();showToast(changed+' nota(s) alterada(s) ✓');
     });
   },
