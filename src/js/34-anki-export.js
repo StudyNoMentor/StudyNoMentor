@@ -616,7 +616,12 @@ const AnkiExport = {
     return out;
   },
   _revKind(r) {
-    const k = (typeof AnkiParity !== 'undefined' && AnkiParity._trainingKind) ? AnkiParity._trainingKind(r) : String(r.phase || 'review');
+    const explicit=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+    if(explicit==='manual')return 4;
+    if(explicit==='rescheduled'||explicit==='reschedule')return 5;
+    if(explicit==='filtered')return 3;
+    const k = (typeof AnkiParity !== 'undefined' && AnkiParity._trainingKind)
+      ? AnkiParity._trainingKind(r) : (explicit||'review');
     return ({ learning: 0, review: 1, relearning: 2, filtered: 3, manual: 4, rescheduled: 5 })[k] ?? 1;
   },
   _revRows(cards, revlog) {
