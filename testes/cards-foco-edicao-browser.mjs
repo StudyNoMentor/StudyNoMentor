@@ -176,7 +176,9 @@ try{
     AnkiMaxEditor._saveAdvancedRich();
     const newAdvanced=StudyGlobalScope._entityRows(B,'note').find(x=>!beforeNotes.has(String(x.id))&&String(x.notetypeId)===String(activeNt.id));
     out.advanced={created:!!newAdvanced,typeInB:!!AnkiParity.getNotetype(activeNt.id,B),noteInActive:newAdvanced?!!AnkiParity.getNote(newAdvanced.id,active):false,
-      cards:newAdvanced?AnkiProductParity._cardsForNote(newAdvanced,B).length:0};
+      cards:newAdvanced?AnkiProductParity._cardsForNote(newAdvanced,B).length:0,selectedType:tsel.value,selectedDeck:dsel.value,
+      notesB:StudyGlobalScope._entityRows(B,'note').map(x=>({id:String(x.id),nt:String(x.notetypeId)})),
+      typesB:StudyGlobalScope._entityRows(B,'notetype').map(x=>String(x.id))};
 
     // 6x6: todas as mudanças de tipo. Conversão genérica PARA Image Occlusion
     // é deliberadamente bloqueada, exceto IO→IO; todas as demais devem persistir.
@@ -200,7 +202,7 @@ try{
   ok(['basic_reversed','basic_optional_reversed','typing'].every(k=>audit.edits[k].fields.Front==='RICH-'+k&&audit.edits[k].fields.Back==='RICH-BACK-'+k&&audit.edits[k].face.live>0&&audit.edits[k].face.blank===0),'invertido/opcional/typing editam a Note canônica e atualizam todos os cards');
   ok(audit.edits.custom.fields.Prompt==='CUSTOM-NEW'&&audit.edits.custom.face.live>0&&audit.edits.custom.face.blank===0,'tipo custom/importado edita campos canônicos sem cache desatualizado');
   ok(audit.edits.image_occlusion.fields.Header==='IO-HEADER-NOVO'&&audit.edits.image_occlusion.fields['Back Extra']==='IO-BACK-NOVO'&&audit.edits.image_occlusion.face.live>0&&audit.edits.image_occlusion.face.blank===0,'Image Occlusion edita a Note correta e mantém cards válidos');
-  ok(audit.advanced.created&&audit.advanced.typeInB&&!audit.advanced.noteInActive&&audit.advanced.cards>0,'cadastro avançado copia o NoteType e grava a Note no planejamento do baralho');
+  ok(audit.advanced.created&&audit.advanced.typeInB&&!audit.advanced.noteInActive&&audit.advanced.cards>0,'cadastro avançado copia o NoteType e grava a Note no planejamento do baralho: '+JSON.stringify(audit.advanced));
   const bad=audit.matrix.filter(x=>x.blocked?(x.after!==x.before):(x.after!==x.expected||!x.typeExists||x.face.live<1||x.face.blank>0));
   ok(bad.length===0,'matriz 6×6 de mudança de tipos sem referência vazia/desatualizada; bloqueios de IO respeitados: '+JSON.stringify(bad));
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
