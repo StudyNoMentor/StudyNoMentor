@@ -517,14 +517,22 @@ const AnkiProductParity = {
     document.getElementById('anki-nt-add').addEventListener('click',()=>{
       UI.prompt([{key:'base',label:'Base',type:'select',value:'basic',options:[
         {value:'basic',label:'Básico'},{value:'basic_reversed',label:'Básico (e cartão invertido)'},{value:'basic_optional_reversed',label:'Básico (cartão invertido opcional)'},{value:'typing',label:'Básico (digite a resposta)'},{value:'cloze',label:'Omissão de palavras'},{value:'image_occlusion',label:'Oclusão de imagem'}
-      ]},{key:'name',label:'Nome',type:'text',value:'Novo tipo de nota'}],{title:'＋ Tipo de nota',okText:'Criar'}).then(v=>{
-        if(!v)return;const def=JSON.parse(JSON.stringify(AnkiParity._stockNotetypeDef(v.base)));def.id=AnkiParity._allocId();def.name=String(v.name||'Novo tipo de nota').trim()||'Novo tipo de nota';def.sourceStockKind=def.stockKind;delete def.stockKind;AnkiParity.saveNotetype(def);this.renderNotetypes();showToast('Tipo criado ✓');
+      ]},{key:'name',label:'Nome',type:'text',value:'Novo tipo de nota'}],{title:'＋ Tipo de nota',okText:'Criar'}).then(async v=>{
+        if(!v)return;
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.createOfficialNotetype!=='function'){showToast('Tipo não criado: backend oficial do Anki indisponível.');return;}
+        try{
+          await CardsOfficialBridge.createOfficialNotetype(v.base,String(v.name||'Novo tipo de nota').trim()||'Novo tipo de nota');
+          this.renderNotetypes();showToast('Tipo criado pelo Anki oficial ✓');
+        }catch(e){showToast('Tipo não criado: '+(e&&e.message?e.message:String(e)));}
       });
     });
     document.getElementById('anki-nt-list').addEventListener('click',e=>{
       const row=e.target.closest('.anki-nt-row');if(!row)return;const nt=AnkiParity.getNotetype(row.dataset.nt);if(!nt)return;
       if(e.target.closest('.anki-nt-edit'))this.openNotetypeEditor(nt.id);
-      else if(e.target.closest('.anki-nt-copy')){const x=JSON.parse(JSON.stringify(nt));x.id=AnkiParity._allocId();x.name=nt.name+' copy';delete x.stockKind;AnkiParity.saveNotetype(x);this.renderNotetypes();showToast('Tipo duplicado ✓');}
+      else if(e.target.closest('.anki-nt-copy')){
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.copyOfficialNotetype!=='function'){showToast('Tipo não duplicado: backend oficial do Anki indisponível.');return;}
+        void CardsOfficialBridge.copyOfficialNotetype(nt,nt.name+' copy').then(()=>{this.renderNotetypes();showToast('Tipo duplicado pelo Anki oficial ✓');}).catch(err=>showToast('Tipo não duplicado: '+(err&&err.message?err.message:String(err))));
+      }
       else if(e.target.closest('.anki-nt-delete'))this.deleteNotetype(nt.id);
     });
     document.getElementById('anki-nt-add-field').addEventListener('click',()=>this._appendFieldRow('',null));
@@ -584,27 +592,27 @@ const AnkiProductParity = {
   },
 
   _applyNotetypeEdit(old,nt,notes){
-    const cleanFields=nt.fields.map(({_source,...x})=>x),cleanTemplates=nt.templates.map(({_sourceOrd,...x})=>x),fieldSource=nt.fields.map(x=>x._source),templateSource=nt.templates.map(x=>x._sourceOrd);
-    nt.fields=cleanFields;nt.templates=cleanTemplates;
-    // Mesmas validações do Anki ao salvar o tipo de nota (mensagem oficial em pt-BR).
-    const erroNt=AnkiParity.erroNotetype?AnkiParity.erroNotetype(nt):null;
+    const clean=JSON.parse(JSON.stringify(nt));
+    clean.fields=(clean.fields||[]).map(({_source,...x})=>x);
+    clean.templates=(clean.templates||[]).map(({_sourceOrd,...x})=>x);
+    const erroNt=AnkiParity.erroNotetype?AnkiParity.erroNotetype(clean):null;
     if(erroNt){UI.alert(erroNt.replace(/<br>/g,'\n'),{title:'⚠ Tipo de nota inválido',okText:'Corrigir'});return;}
-    const savedNt=AnkiParity.saveNotetype(nt);
-    for(const note of notes){
-      const fields={};savedNt.fields.forEach((f,i)=>{const src=fieldSource[i];fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
-      const cards=this._cardsForNote(note.id);
-      cards.forEach(c=>{const oldOrd=Number(c.ankiTemplateOrd)||0,newOrd=templateSource.findIndex(x=>String(x)===String(oldOrd));if(newOrd>=0)DB.updateCard(c.id,{ankiTemplateOrd:newOrd});});
-      const saved=AnkiParity.saveNote(Object.assign({},note,{fields}));this.reconcileNote(saved,savedNt);
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.updateOfficialNotetype!=='function'){
+      showToast('Tipo não salvo: backend oficial do Anki indisponível.');return;
     }
-    document.getElementById('anki-nt-edit-modal').style.display='none';this.renderNotetypes();this.renderBrowser();CardsScreen.render();showToast('Tipo de nota atualizado ✓');
+    void CardsOfficialBridge.updateOfficialNotetype(old,clean,notes).then(()=>{
+      document.getElementById('anki-nt-edit-modal').style.display='none';
+      this.renderNotetypes();this.renderBrowser();CardsScreen.render();showToast('Tipo de nota atualizado pelo Anki oficial ✓');
+    }).catch(e=>showToast('Tipo de nota não salvo: '+(e&&e.message?e.message:String(e))));
   },
 
   deleteNotetype(id){
-    const used=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length;if(used){showToast('Este tipo ainda é usado por '+used+' nota(s). Mude o tipo delas antes de excluir.');return;}
-    UI.confirm('Excluir este tipo de nota sem uso?',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{if(!ok)return;
-      const nt=AnkiParity.getNotetype(id),key=(nt&&nt._planId&&window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan)
-        ? StudyGlobalScope.entityKeyForPlan(nt._planId,'notetype',id):AnkiParity._entityKey('notetype',id);
-      localStorage.removeItem(key);this.renderNotetypes();showToast('Tipo excluído');});
+    const nt=AnkiParity.getNotetype(id);if(!nt)return;
+    UI.confirm('Excluir este tipo de nota? O Anki oficial impedirá a operação se ainda houver notas usando o tipo.',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{
+      if(!ok)return;
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteOfficialNotetype!=='function'){showToast('Tipo não excluído: backend oficial do Anki indisponível.');return;}
+      void CardsOfficialBridge.deleteOfficialNotetype(nt).then(()=>{this.renderNotetypes();showToast('Tipo excluído pelo Anki oficial ✓');}).catch(e=>showToast('Tipo não excluído: '+(e&&e.message?e.message:String(e))));
+    });
   },
 
   scanCollection(){
