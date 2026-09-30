@@ -234,7 +234,8 @@ const AnkiExport = {
       const nk=String(note.ankiId||note.id);if(!seenNotes.has(nk)){
         seenNotes.add(nk);Object.values(note.fields||{}).forEach(scan);
       }
-      const nt=AnkiParity.notetypeForCard?AnkiParity.notetypeForCard(card,note):AnkiParity.getNotetype(note.notetypeId);
+      const nt=AnkiParity.notetypeForCard?AnkiParity.notetypeForCard(card,note):
+        (typeof AnkiParity.getNotetype==='function'?AnkiParity.getNotetype(note.notetypeId):(AnkiParity.noteTypes?AnkiParity.noteTypes().find(x=>String(x.id)===String(note.notetypeId)):null));
       if(nt){
         const tk=String(nt.ankiId||nt.id);if(!seenTypes.has(tk)){
           seenTypes.add(tk);scan(nt.css);scan(nt.latexPre);scan(nt.latexPost);
