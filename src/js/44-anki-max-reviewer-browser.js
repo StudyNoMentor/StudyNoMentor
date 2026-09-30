@@ -540,7 +540,7 @@ const AnkiMaxParity = {
     const bar=document.querySelector('.cards-flagbar');
     if(bar){
       bar.title='Bandeiras (Ctrl+1..7, Ctrl+0 remove)';
-      [5,6,7].forEach(n=>{if(bar.querySelector('[data-flag="'+n+'"]'))return;const b=document.createElement('button');b.type='button';b.className='cards-flag '+((c.flag||0)===n?'on':'');b.dataset.flag=String(n);b.style.setProperty('--fl',DB.FLAGS[n].cor);b.title=DB.FLAGS[n].nome+' (Ctrl+'+n+')';b.addEventListener('click',()=>{const v=(c.flag||0)===n?0:n;if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(c,{flag:v},c._planId);else DB.setFlag(c.id,v);CardsScreen.renderReviewCard(document.getElementById('cards-content'));});bar.appendChild(b);});
+      [5,6,7].forEach(n=>{if(bar.querySelector('[data-flag="'+n+'"]'))return;const b=document.createElement('button');b.type='button';b.className='cards-flag '+((c.flag||0)===n?'on':'');b.dataset.flag=String(n);b.style.setProperty('--fl',DB.FLAGS[n].cor);b.title=DB.FLAGS[n].nome+' (Ctrl+'+n+')';b.addEventListener('click',()=>{const v=(c.flag||0)===n?0:n;if(window.CardsOfficialBridge&&CardsOfficialBridge.review&&CardsOfficialBridge.review.card)void CardsOfficialBridge.action('flag',v);else showToast('Bandeira não alterada: Reviewer oficial indisponível.');});bar.appendChild(b);});
     }
   },
   _reviewActive(e){
@@ -550,7 +550,7 @@ const AnkiMaxParity = {
   },
   _handleReviewerKey(e){
     if(!this._reviewActive(e))return false;const c=AnkiProductParity._currentReviewCard();
-    if((e.ctrlKey||e.metaKey)&&/^Digit[5-7]$/.test(e.code)&&c){e.preventDefault();const v=Number(e.code.slice(5));if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(c,{flag:v},c._planId);else DB.setFlag(c.id,v);CardsScreen.renderReviewCard(document.getElementById('cards-content'));return true;}
+    if((e.ctrlKey||e.metaKey)&&/^Digit[5-7]$/.test(e.code)&&c){e.preventDefault();const v=Number(e.code.slice(5));if(window.CardsOfficialBridge&&CardsOfficialBridge.review&&CardsOfficialBridge.review.card)void CardsOfficialBridge.action('flag',v);else showToast('Bandeira não alterada: Reviewer oficial indisponível.');return true;}
     if(!e.ctrlKey&&!e.metaKey&&!e.altKey){
       if(e.key==='='){e.preventDefault();this.buryNote(c);return true;}
       if(e.key==='!'){e.preventDefault();this.suspendNote(c);return true;}
