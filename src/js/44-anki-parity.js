@@ -953,17 +953,18 @@ AnkiParity.repairStockNoteFromCard=function(card){
   return {note:fixed,nt,repaired:JSON.stringify(fixed&&fixed.fields||{})!==before};
 };
 AnkiParity.ensureCanonicalNotes=function(cards,planId){
+  const targetPlan=planId!=null?planId:(DB._activePlanId?DB._activePlanId():null);
   cards=Array.isArray(cards)?cards:(planId!=null&&DB.getCardsForPlan?DB.getCardsForPlan(planId):DB.getCards());
   const groups=new Map();let changed=false,created=0,repaired=0;
   cards.forEach(c=>{const nid=this.noteId(c);if(!nid)return;const k=String(nid);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(c);});
   groups.forEach((sibs,key)=>{
-    let note=this.getNote(key,planId);
+    let note=this.getNote(key,targetPlan);
     if(!note){
-      const inf=this._inferLegacyNote(sibs),nt=this.stockNotetype(inf.stock,planId);
-      note=this.saveNote({id:Number(key),notetypeId:nt.id,fields:inf.fields,tags:[]},planId);created++;
+      const inf=this._inferLegacyNote(sibs),nt=this.stockNotetype(inf.stock,targetPlan);
+      note=this.saveNote({id:Number(key),notetypeId:nt.id,fields:inf.fields,tags:[]},targetPlan);created++;
     }else{
-      const nt=this.getNotetype(note.notetypeId,planId),before=JSON.stringify(note.fields||{});
-      note=this._repairStockNoteFromSiblings(note,nt,sibs,planId);
+      const nt=this.getNotetype(note.notetypeId,targetPlan),before=JSON.stringify(note.fields||{});
+      note=this._repairStockNoteFromSiblings(note,nt,sibs,targetPlan);
       if(JSON.stringify(note&&note.fields||{})!==before)repaired++;
     }
     sibs.forEach((c,i)=>{
