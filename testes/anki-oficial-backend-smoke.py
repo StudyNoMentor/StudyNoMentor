@@ -226,6 +226,34 @@ with tempfile.TemporaryDirectory() as tmp:
         cards_current_deck = int(ccol.decks.get_current_id())
     copts = app.cards_official_deck_options(cards_current_deck, cards_ctx)
     assert copts["current_deck"]["name"]
+    # Um preset novo é enviado com id=0, exatamente como o frontend oficial:
+    # o backend aloca a identidade, aponta o deck para ela e devolve o estado
+    # canônico posterior à transação.
+    current_conf_id = int(copts["current_deck"]["config_id"])
+    selected = next(x for x in copts["all_config"] if int(x["config"]["id"]) == current_conf_id)
+    new_conf = dict(selected["config"])
+    new_conf["config"] = dict(new_conf.get("config") or {})
+    new_conf["id"] = 0
+    new_conf["name"] = "Cards Smoke Preset"
+    new_conf["config"]["new_per_day"] = int(new_conf["config"].get("new_per_day", 20)) + 1
+    cupdated = app.cards_official_update_deck_options(
+        cards_current_deck,
+        {
+            "configs": [new_conf],
+            "removed_config_ids": [],
+            "mode": 0,
+            "limits": dict(copts["current_deck"].get("limits") or {}),
+            "new_cards_ignore_review_limit": bool(copts.get("new_cards_ignore_review_limit", False)),
+            "fsrs": bool(copts.get("fsrs", True)),
+            "apply_all_parent_limits": bool(copts.get("apply_all_parent_limits", False)),
+            "fsrs_reschedule": False,
+            "fsrs_health_check": False,
+        },
+        cards_ctx,
+    )
+    allocated_conf_id = int(cupdated["options"]["current_deck"]["config_id"])
+    assert allocated_conf_id > 0 and allocated_conf_id != current_conf_id
+    assert cupdated["state"]["cards"] and cupdated["state"]["reviewer"]
     cdefaults = app.cards_official_custom_study_defaults(cards_current_deck, cards_ctx)
     assert "available_new" in cdefaults and "available_review" in cdefaults
     cfiltered = app.cards_official_get_filtered_deck(0, cards_ctx)
