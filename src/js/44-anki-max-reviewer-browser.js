@@ -294,7 +294,6 @@ const AnkiMaxParity = {
       if(kind){
         const safeKind=kind.replace(/[.*+?^$(){}|[\]\\]/g,'\\$&');
         const rx=new RegExp('(^|\\s)-?'+safeKind+':(?:"[^"]*"|\\S+)','gi');
-    this._loadBrowserPrefs();')+':(?:"[^"]*"|\\S+)','gi');
         let changed=false;
         q=q.replace(rx,(m,lead)=>{if(changed)return m;changed=true;return lead+t;}).replace(/\\s+/g,' ').trim();
         if(!changed)q=q?(q+' '+t):t;
