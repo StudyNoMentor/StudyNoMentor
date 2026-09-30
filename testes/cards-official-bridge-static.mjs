@@ -51,6 +51,18 @@ assert.match(backend,/item\.col\.get_browser_column\(sort_key\)/,'ordenação de
 assert.match(bridge,/\/api\/cards-official\/browser\/ids\?/,'Browser Study deve consultar IDs oficiais');
 assert.match(bridge,/AnkiProductParity\._browserRows=\(\)=>self\._browserCache/,'linhas exibidas devem vir da ordem oficial em cache');
 assert.ok(!/filteredSearchMatches\(/.test(bridge),'bridge oficial não pode executar parser de busca JS');
+assert.match(backend,/item\.col\.sched\.set_due_date\(card_ids,/,'bulk due deve ser oficial');
+assert.match(backend,/item\.col\.sched\.schedule_cards_as_new\(/,'bulk forget deve ser oficial');
+assert.match(backend,/item\.col\.sched\.reposition_new_cards\(/,'bulk reposition deve ser oficial');
+assert.match(backend,/item\.col\.set_user_flag_for_cards\(flag, card_ids\)/,'bulk flag deve ser oficial');
+assert.match(backend,/item\.col\.tags\.bulk_add\(/,'tags add deve ser oficial');
+assert.match(backend,/item\.col\.find_and_replace\(/,'find/replace deve ser oficial');
+assert.match(bridge,/AnkiProductParity\.toggleSuspend=ids=>void self\._browserToggleSuspend/);
+assert.match(bridge,/AnkiProductParity\.bulkFlag=ids=>void self\._browserBulkFlag/);
+assert.match(bridge,/AnkiProductParity\.editTags=ids=>void self\._browserEditTags/);
+assert.match(bridge,/AnkiMaxParity\._bulkCardsDue=ids=>void self\._browserSetDue/);
+assert.ok(!/DB\.setDueSpec\(/.test(bridge),'bridge Browser não pode reagendar pelo DB local');
+assert.ok(!/DB\.resetCard\(/.test(bridge),'bridge Browser não pode resetar pelo DB local');
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
 
 const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].map(m=>m[1]);
@@ -67,6 +79,7 @@ for(const path of [
   '/api/cards-official/media/{filename:path}',
   '/api/cards-official/browser/ids',
   '/api/cards-official/browser/facets',
+  '/api/cards-official/browser/bulk',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
 console.log('CARDS OFFICIAL BRIDGE: scheduler/fila/rendering/type-answer/revlog/undo-redo/search/sort ancorados no anki==26.09.3, sem fallback acadêmico local.');
