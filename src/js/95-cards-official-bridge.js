@@ -1220,6 +1220,69 @@ const CardsOfficialBridge = {
     CardsScreen.closeCardModal();CardsScreen.render();CardsScreen.updateFavCount();showToast('Nota excluída pelo Anki oficial ✓');return out;
   },
 
+  async ensureOfficialImageOcclusionNotetype(planId){
+    await this.bootstrap(false);
+    const out=await this.request('/api/cards-official/image-occlusion/setup',{method:'POST'});
+    const rows=(out&&out.notetypes||[]).map(x=>({notetype:x.notetype,use_count:x.use_count||0})).filter(x=>x.notetype);
+    if(!rows.length)throw new Error('O Anki oficial não disponibilizou o tipo Image Occlusion.');
+    this._syncNotetypesIntoPlans(rows,[planId]);
+    const chosen=rows[0].notetype,oid=Number(chosen.id),
+      local=AnkiParity.noteTypes(planId==null?undefined:planId).find(x=>String(Number(x.ankiId!=null?x.ankiId:x.id))===String(oid));
+    if(!local)throw new Error('Falha ao espelhar Image Occlusion no planejamento.');
+    return {officialId:oid,local,row:rows[0]};
+  },
+  async uploadOfficialImageOcclusionImage(src,filename){
+    const raw=String(src||'');if(!raw)throw new Error('Imagem ausente.');
+    let blob;
+    try{blob=await fetch(raw).then(r=>{if(!r.ok&& !raw.startsWith('data:')&&!raw.startsWith('blob:'))throw new Error('imagem inacessível');return r.blob();});}
+    catch(e){throw new Error('Não foi possível preparar a imagem para o Anki oficial.');}
+    const type=blob.type||'image/png',ext=type.includes('jpeg')?'.jpg':type.includes('webp')?'.webp':type.includes('gif')?'.gif':'.png',
+      safe=String(filename||('image-occlusion-'+Date.now()+ext)).replace(/[^A-Za-z0-9._-]+/g,'_'),
+      fd=new FormData();fd.append('image',blob,safe);
+    const out=await this.request('/api/cards-official/image-occlusion/image',{method:'POST',body:fd});
+    if(!out||!out.filename)throw new Error('O Media Manager oficial não confirmou a imagem.');
+    return out;
+  },
+  async saveOfficialImageOcclusion(state,payload){
+    payload=payload||{};state=state||{};
+    const pid=state.planId!=null?state.planId:this._activePlanId(),
+      deckId=payload.deckId||state.deckId||null,seed={deckId};
+    await this.bootstrap(false);
+    if(state.noteId){
+      const note=AnkiParity.getNote(state.noteId,pid==null?undefined:pid);
+      if(!note)throw new Error('Nota de oclusão não encontrada.');
+      const oid=this._officialNoteId(note);if(oid==null)throw new Error('Nota de oclusão sem identidade oficial.');
+      const out=await this.request('/api/cards-official/image-occlusion/note/'+encodeURIComponent(oid),{
+        method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({occlusions:payload.occlusions,header:payload.header,back_extra:payload.backExtra,comments:payload.comments,tags:payload.tags||[]})
+      });
+      if(!out||!out.note)throw new Error('O Anki oficial não devolveu a oclusão atualizada.');
+      const saved=this._materializeOfficialNote(out.note,pid,note.notetypeId),seeds={};seeds[String(out.note.id)]=seed;
+      await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
+      if(out.reviewer)this._applyReviewer(out.reviewer);
+      this.dirty=false;this._browserCache=[];
+      return {out,note:saved,cards:AnkiProductParity._cardsForNote(saved,pid)};
+    }
+    const nt=await this.ensureOfficialImageOcclusionNotetype(pid),
+      did=deckId?this._officialDeckId(deckId,pid):1;
+    if(deckId&&did==null)throw new Error('Baralho sem identidade Anki canônica.');
+    const media=await this.uploadOfficialImageOcclusionImage(payload.imageData,payload.imageFileName);
+    const out=await this.request('/api/cards-official/image-occlusion/note',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        notetype_id:Number(nt.officialId),deck_id:Number(did||1),image_path:String(media.filename),
+        occlusions:String(payload.occlusions||''),header:String(payload.header||''),back_extra:String(payload.backExtra||''),
+        comments:String(payload.comments||''),tags:Array.isArray(payload.tags)?payload.tags:[]
+      })
+    });
+    if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nova nota de oclusão.');
+    const saved=this._materializeOfficialNote(out.note,pid,nt.local.id),seeds={};seeds[String(out.note.id)]=seed;
+    await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    this.dirty=false;this._browserCache=[];
+    return {out,note:saved,cards:AnkiProductParity._cardsForNote(saved,pid),media};
+  },
+
   async _officialNotetypes(){
     await this.bootstrap(false);
     const out=await this.request('/api/cards-official/notetypes/full');
