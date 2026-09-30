@@ -1061,7 +1061,11 @@
         const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
         // siblings_for_bury.sql: fila de novos, de revisão (vencida ou não) ou de
         // aprendizado entre dias — só não repete quem já está enterrado.
-        if(bury&&!CardEngine.estaEnterrado(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
+        if(bury&&!CardEngine.estaEnterrado(s)){
+          if(S.buryCardScoped)S.buryCardScoped(Object.assign({},s,{_planId:pid}),'scheduler');
+          else DB.buryCard(s.id,'scheduler');
+          buried.push(s.id);
+        }
       });
       return buried;
     };
@@ -1289,11 +1293,11 @@
     return after;
   };
 
-  S.buryCardScoped = function(ref) {
+  S.buryCardScoped = function(ref, origem) {
     const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
-    const c=Object.assign({},r.card,{_planId:r.planId});
+    const c=Object.assign({},r.card,{_planId:r.planId}),buryKind=origem==='scheduler'?'scheduler':'user';
     return this.updateCardScoped(c,{
-      enterradoAte:CardEngine.addDays(todayCards(),1),buryKind:'user',
+      enterradoAte:CardEngine.addDays(todayCards(),1),buryKind,
       dueTsAntesEnterrar:c.dueTs==null?null:c.dueTs,dueTs:null
     },r.planId);
   };
