@@ -212,9 +212,11 @@ const AnkiImageOcclusion = {
     document.getElementById('anki-io-modal').style.display='flex';this._selectTool('rect');this._renderEditor();
   },
   _shapeFromParsed(s){
-    const p=s.props||{},base={type:s.type,ordinal:s.ordinal||0,oi:!!s.oi};
-    if(s.type==='polygon')return {...base,points:String(p.points||'').trim().split(/\s+/).map(x=>{const a=x.split(',').map(Number);return{x:a[0]||0,y:a[1]||0};})};
-    return {...base,left:this._num(p.left),top:this._num(p.top),width:this._num(p.width),height:this._num(p.height),text:p.text||''};
+    const p=s.props||{},base={type:s.type,ordinal:s.ordinal||0,oi:!!s.oi,left:this._num(p.left),top:this._num(p.top)};
+    if(s.type==='polygon')return {...base,points:String(p.points||'').trim().split(/\s+/).filter(Boolean).map(x=>{const a=x.split(',').map(Number);return{x:Number.isFinite(a[0])?a[0]:0,y:Number.isFinite(a[1])?a[1]:0};})};
+    if(s.type==='ellipse')return {...base,width:this._num(p.rx)*2,height:this._num(p.ry)*2};
+    if(s.type==='text')return {...base,text:p.text||'',scale:this._num(p.scale)||1,fs:p.fs==null?null:this._num(p.fs)};
+    return {...base,width:this._num(p.width),height:this._num(p.height)};
   },
 
   _bindEditor(){
@@ -260,7 +262,7 @@ const AnkiImageOcclusion = {
   _pointerDown(e){
     if(!this.state.img)return;const p=this._canvasPoint(e);
     if(this.state.tool==='polygon'){this.state.polygon.push(p);document.getElementById('anki-io-finish-poly').disabled=this.state.polygon.length<3;this._renderEditor();return;}
-    if(this.state.tool==='text'){UI.prompt([{key:'txt',label:'Texto',type:'text',value:''}],{title:'Texto sobre a imagem',okText:'Adicionar'}).then(v=>{if(v&&v.txt){this.state.shapes.push({type:'text',ordinal:0,oi:false,left:p.x,top:p.y,width:.1,height:.05,text:v.txt});this._renderEditor();}});return;}
+    if(this.state.tool==='text'){UI.prompt([{key:'txt',label:'Texto',type:'text',value:''}],{title:'Texto sobre a imagem',okText:'Adicionar'}).then(v=>{if(v&&v.txt){const h=Math.max(1,this.state.img&&this.state.img.naturalHeight||1);this.state.shapes.push({type:'text',ordinal:0,oi:this.state.occludeInactive,left:p.x,top:p.y,text:v.txt,scale:1,fs:40/h});this._renderEditor();}});return;}
     this.state.drawing={type:this.state.tool,start:p,end:p,ordinal:this._ordinalForNew(),oi:this.state.occludeInactive};e.currentTarget.setPointerCapture&&e.currentTarget.setPointerCapture(e.pointerId);this._renderEditor();
   },
   _pointerMove(e){if(!this.state.drawing)return;this.state.drawing.end=this._canvasPoint(e);this._renderEditor();},
@@ -285,15 +287,25 @@ const AnkiImageOcclusion = {
     const count=this.state.shapes.filter(s=>s.ordinal>0).length,ords=new Set(this.state.shapes.filter(s=>s.ordinal>0).map(s=>s.ordinal));document.getElementById('anki-io-count').textContent=count+' máscara(s) · '+ords.size+' card(s)';
     document.getElementById('anki-io-mask-list').innerHTML=this.state.shapes.map((s,i)=>'<div><span>'+escapeHtml(s.type)+' · '+(s.ordinal?'card '+s.ordinal:'anotação')+'</span><button class="icon-btn danger" data-io-del="'+i+'">×</button></div>').join('');
   },
-  _fmt(n){return (Math.round(Number(n)*10000)/10000).toString().replace(/^0\./,'.');},
+  _fmt(n){const x=Number(n);if(Number.isNaN(x)||x===0)return '.0000';return x.toFixed(4).replace(/^0+|0+$/g,'');},
   _escProp(v){return String(v||'').replace(/\\/g,'\\\\').replace(/:/g,'\\:');},
   serializeShape(s){
-    const oi=s.oi?':oi=1':'';
-    if(s.type==='polygon')return '{{c'+s.ordinal+'::image-occlusion:polygon:points='+s.points.map(p=>this._fmt(p.x)+','+this._fmt(p.y)).join(' ')+oi+'}}<br>';
-    if(s.type==='text')return '{{c0::image-occlusion:text:left='+this._fmt(s.left)+':top='+this._fmt(s.top)+':text='+this._escProp(s.text)+oi+'}}<br>';
-    let data='left='+this._fmt(s.left)+':top='+this._fmt(s.top)+':width='+this._fmt(s.width)+':height='+this._fmt(s.height);
-    if(s.type==='ellipse')data+=':rx='+this._fmt(s.width/2)+':ry='+this._fmt(s.height/2);
-    return '{{c'+s.ordinal+'::image-occlusion:'+s.type+':'+data+oi+'}}<br>';
+    // Mesmo contrato de ts/routes/image-occlusion/shapes/to-cloze.ts:
+    // left/top em todos os shapes; rect usa width/height; ellipse usa rx/ry;
+    // polygon usa points; texto usa text/scale/fs; oi é uma opção global.
+    const oi=this.state.occludeInactive?':oi=1':'',
+      base='left='+this._fmt(s.left||0)+':top='+this._fmt(s.top||0);
+    if(s.type==='polygon'){
+      const pts=Array.isArray(s.points)?s.points:[],left=pts.length?Math.min(...pts.map(p=>Number(p.x)||0)):0,top=pts.length?Math.min(...pts.map(p=>Number(p.y)||0)):0;
+      return '{{c'+s.ordinal+'::image-occlusion:polygon:left='+this._fmt(left)+':top='+this._fmt(top)+':points='+pts.map(p=>this._fmt(p.x)+','+this._fmt(p.y)).join(' ')+oi+'}}<br>';
+    }
+    if(s.type==='text'){
+      let data=base+':text='+this._escProp(s.text)+':scale='+this._fmt(s.scale==null?1:s.scale);
+      if(s.fs!=null)data+=':fs='+this._fmt(s.fs);
+      return '{{c0::image-occlusion:text:'+data+oi+'}}<br>';
+    }
+    if(s.type==='ellipse')return '{{c'+s.ordinal+'::image-occlusion:ellipse:'+base+':rx='+this._fmt((Number(s.width)||0)/2)+':ry='+this._fmt((Number(s.height)||0)/2)+oi+'}}<br>';
+    return '{{c'+s.ordinal+'::image-occlusion:rect:'+base+':width='+this._fmt(s.width)+':height='+this._fmt(s.height)+oi+'}}<br>';
   },
   serialize(){return this.state.shapes.map(s=>this.serializeShape(s)).join('');},
 
