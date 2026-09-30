@@ -305,6 +305,30 @@ const CardsOfficialBridge = {
     await UI.alert(body,{title:'ℹ Card Info · Anki oficial',html:true,okText:'Fechar'});
     return info;
   },
+  async previewBrowserCard(ref,opts){
+    opts=opts||{};await this.bootstrap(false);
+    const local=ref&&typeof ref==='object'?ref:(CardsScreen.collectionCards().find(c=>String(c.id)===String(ref))||DB.getCard(ref));
+    const box=document.getElementById('anki-browser-preview');
+    if(!local){if(box)box.innerHTML='<p class="hint">Card não encontrado.</p>';return false;}
+    const oid=this._officialId(local);if(oid==null)throw new Error('Card sem identidade Anki canônica.');
+    const state=await this.request('/api/cards-official/card/'+encodeURIComponent(oid)+'/state'),
+      pid=local._planId!=null?local._planId:this._activePlanId(),
+      note=opts.note||((AnkiParity.noteForCard&&AnkiParity.noteForCard(local))||AnkiParity.getNote(local.noteId||local.id,pid==null?undefined:pid)),
+      siblings=note&&window.AnkiProductParity?AnkiProductParity._cardsForNote(note,pid):[local],
+      stats=state.stats||{};
+    if(!box)return state;
+    box.innerHTML='<div class="anki-preview-head"><strong>'+escapeHtml(stats.notetype||'Tipo de nota')+'</strong><span>'+escapeHtml(stats.card_type||'Card')+' · '+siblings.length+' card(s)</span></div>'+
+      '<div class="anki-preview-label">Pergunta · renderer oficial</div><iframe id="anki-preview-question-frame" class="anki-study-card-frame" sandbox="allow-scripts" title="Pergunta Anki"></iframe>'+
+      '<div class="anki-preview-label">Resposta · renderer oficial</div><iframe id="anki-preview-answer-frame" class="anki-study-card-frame" sandbox="allow-scripts" title="Resposta Anki"></iframe>'+
+      '<div class="anki-preview-actions"><button type="button" class="btn-primary" id="anki-preview-edit">✎ Editar nota</button><button type="button" class="btn-secondary" id="anki-preview-info">ℹ Info do card</button></div>';
+    const [q,a]=await Promise.all([this.htmlWithMedia(state.question||''),this.htmlWithMedia(state.answer||'')]),
+      qf=document.getElementById('anki-preview-question-frame'),af=document.getElementById('anki-preview-answer-frame');
+    if(qf)qf.srcdoc=q;if(af)af.srcdoc=a;
+    const edit=document.getElementById('anki-preview-edit');if(edit&&note)edit.onclick=()=>AnkiProductParity.openNoteEditor(note);
+    const info=document.getElementById('anki-preview-info');if(info)info.onclick=()=>CardsScreen.cardInfo(local);
+    return state;
+  },
+
   async openOfficialCheck(){
     await this.bootstrap(false);
     const modal=document.getElementById('anki-check-modal'),body=document.getElementById('anki-check-body');
@@ -1808,6 +1832,13 @@ const CardsOfficialBridge = {
       const out=self._origOpenBrowser.apply(this,arguments);
       void self._loadOfficialBrowserFacets();
       return out;
+    };
+    AnkiProductParity.previewNote=(ref)=>{
+      const note=ref&&typeof ref==='object'?ref:AnkiParity.getNote(ref);
+      if(!note){showToast('Nota não encontrada.');return;}
+      const cards=AnkiProductParity._cardsForNote(note,note._planId);
+      if(!cards.length){showToast('A nota não possui card para pré-visualizar.');return;}
+      void self.previewBrowserCard(cards[0],{note}).catch(e=>showToast('Prévia oficial indisponível: '+(e.message||e)));
     };
     AnkiProductParity.toggleSuspend=ids=>void self._browserToggleSuspend(ids);
     AnkiProductParity.bulkFlag=ids=>void self._browserBulkFlag(ids);
