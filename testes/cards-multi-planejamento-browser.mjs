@@ -176,7 +176,7 @@ try{
     return {position:cs.position,left:cs.left,right:cs.right,bottom:cs.bottom,overflow:getComputedStyle(host.querySelector('.cards-multi-filter-options')).overflowY};
   });
   ok(r.foreignCanonical.before.includes('Frente canônica B')&&!r.foreignCanonical.before.includes('A frente deste cartão está em branco'),'reviewer resolve Note/NoteType no planejamento dono do card, mesmo com colisão de IDs');
-  ok(r.foreignCanonical.after.Front==='Frente editada B'&&r.foreignCanonical.after.Back==='Resposta editada B'&&r.foreignCanonical.activeAfter.Front==='','editar card global sincroniza somente a Note canônica do planejamento de origem');
+  ok(r.foreignCanonical.after.Front==='Frente editada B'&&r.foreignCanonical.after.Back==='Resposta editada B'&&r.foreignCanonical.activeAfter.Front==='','editar card global sincroniza somente a Note canônica do planejamento de origem: '+JSON.stringify(r.foreignCanonical));
   ok(r.lista.some(x=>x.startsWith('Deck B|')&&x.includes('Plano B')),'Meus baralhos mostra baralho de outro plano com o nome do plano');
   ok(r.lista.some(x=>x.startsWith('Deck Ativo|')),'Meus baralhos mantém o baralho do plano ativo');
   ok(r.destino.includes('deck:dkB'),'Criar card oferece baralho de outro plano');
