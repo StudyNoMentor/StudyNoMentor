@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v3ded968610">
+<meta name="diario-versao" content="v00a0b4384c">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -26406,9 +26406,17 @@ const CardEngine = {
     });
     return [...out].sort((a, b) => a - b);
   },
-  nextClozeOrdinal(text) {
+  highestClozeOrdinal(text) {
     const ords = this.clozeOrdinals(text);
-    return ords.length ? Math.max(...ords) + 1 : 1;
+    return ords.length ? Math.max(...ords) : 0;
+  },
+  nextClozeOrdinal(text) {
+    return Math.max(1, this.highestClozeOrdinal(text) + 1);
+  },
+  // Igual ao botão "repeat current cloze" do Anki: reutiliza o maior ordinal
+  // já presente na nota. Se ainda não existe Cloze, começa em c1.
+  sameClozeOrdinal(text) {
+    return Math.max(1, this.highestClozeOrdinal(text));
   },
   normalizeCloze(text) {
     let next = this.nextClozeOrdinal(text);
@@ -36803,11 +36811,14 @@ const CardsScreen = {
   applyKindUI() {
     const kind = $id('card-kind').value;
     const isCloze = kind === 'cloze';
-    $id('card-cloze-btn').style.display = isCloze ? 'inline-block' : 'none';
+    ['card-cloze-btn', 'card-cloze-same-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = isCloze ? 'inline-block' : 'none';
+    });
     $id('card-verso-field').style.display = isCloze ? 'none' : 'block';
-    $id('card-frente-label').innerHTML = isCloze ? 'Texto (use {{ }} para ocultar) <span class="req">*</span>' : 'Frente (pergunta) <span class="req">*</span>';
+    $id('card-frente-label').innerHTML = isCloze ? 'Texto Cloze <span class="req">*</span>' : 'Frente (pergunta) <span class="req">*</span>';
     const hint = document.getElementById('card-kind-hint');
-    if (isCloze) hint.innerHTML = 'Selecione um trecho e clique em <strong>{{ }} Ocultar</strong> — ele será escondido na frente e revelado no verso. Ótimo para lei seca.';
+    if (isCloze) hint.innerHTML = '<strong>Novo card</strong> usa c1, c2, c3… e cada número vira um card de revisão diferente. <strong>Mesmo card</strong> repete o maior número e esconde os trechos juntos na mesma revisão.';
     else if (kind === 'basic_reversed') hint.innerHTML = 'Serão criados <strong>2 cards</strong>: um frente→verso e outro verso→frente.';
     else hint.innerHTML = 'Card simples: você vê a frente e revela o verso.';
   },
@@ -45771,6 +45782,33 @@ const AutoTeste = {
     })());
   },
 
+  /* Cloze: números diferentes geram irmãos diferentes; repetir o maior número
+     oculta vários trechos no MESMO card, exatamente como o editor do Anki. */
+  cloze() {
+    const quatro = 'Art. 3º O imposto {{c1::não incide}} sobre: VIII - {{c2::saídas}} de bens por mais de {{c3::um ano}}, {{c4::antes}} da desincorporação;';
+    const ords = CardEngine.clozeOrdinals(quatro);
+    this._ok('Cloze detecta c1..c4', ords.join(',') === '1,2,3,4', ords);
+    this._ok('Novo Cloze usa maior ordinal + 1', CardEngine.nextClozeOrdinal(quatro) === 5, CardEngine.nextClozeOrdinal(quatro));
+    this._ok('Mesmo card reutiliza o maior ordinal', CardEngine.sameClozeOrdinal(quatro) === 4, CardEngine.sameClozeOrdinal(quatro));
+    this._ok('Mesmo card começa em c1 quando ainda não há Cloze', CardEngine.sameClozeOrdinal('texto') === 1);
+
+    if (typeof AnkiParity !== 'undefined') {
+      const q1 = AnkiParity.revealCloze(quatro, 1, true);
+      this._ok('c1 deixa c2/c3/c4 visíveis no card 1',
+        /data-ordinal="1"/.test(q1) && /cloze-inactive/.test(q1) &&
+        /saídas/.test(q1) && /um ano/.test(q1) && /antes/.test(q1), q1);
+
+      const junto = 'Art. 3º O imposto {{c1::não incide}} sobre: VIII - {{c1::saídas}} de bens por mais de {{c1::um ano}}, {{c1::antes}} da desincorporação;';
+      const qJunto = AnkiParity.revealCloze(junto, 1, true);
+      const ativos = (qJunto.match(/data-cloze=/g) || []).length;
+      this._ok('quatro trechos com c1 ficam ocultos juntos no mesmo card',
+        ativos === 4 && qJunto.indexOf('cloze-inactive') < 0, { ativos, qJunto });
+    }
+
+    this._ok('Editor oferece ações separadas Novo card e Mesmo card',
+      !!document.getElementById('card-cloze-btn') && !!document.getElementById('card-cloze-same-btn'));
+  },
+
   /* SM-2: cada caso vem de rslib/src/scheduler/states/review.rs. */
   sm2() {
     const salvo = CardsConfig._c, salvoK = CardsConfig._cKey;
@@ -46423,7 +46461,7 @@ const AutoTeste = {
      ['Parser TEC', 'tec'], ['Robustez', 'robustez'],
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
-     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
+     ['Cloze / editor', 'cloze'], ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
      ['Persistência relacional', 'persistenciaRelacional'],
      ['Semana fechada é registro', 'historicoFechado'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],
@@ -47076,7 +47114,8 @@ function buildRteToolbar(rte) {
       <button type="button" data-link="1" title="Inserir link" aria-label="Inserir link">🔗</button>
       <button type="button" data-img="1" title="Inserir imagem" aria-label="Inserir imagem">🖼️</button>
       <button type="button" data-table="1" title="Inserir tabela" aria-label="Inserir tabela">▦</button>
-      ${hasCloze ? `<button type="button" data-clozebtn="1" title="Ocultar seleção (cloze)" style="display:none;" id="card-cloze-btn">{{ }} Ocultar</button>` : ''}
+      ${hasCloze ? `<button type="button" data-clozebtn="1" title="Nova omissão: cria outro card Cloze (Ctrl+Shift+C)" style="display:none;" id="card-cloze-btn">{{ }} Novo card</button>
+      <button type="button" data-clozesamebtn="1" title="Mesmo número: oculta junto no mesmo card (Ctrl+Alt+Shift+C)" style="display:none;" id="card-cloze-same-btn">{{ }} Mesmo card</button>` : ''}
     </div>
     <span class="rte-sep"></span>
     <div class="rte-grp">
@@ -47143,17 +47182,37 @@ function buildRteToolbar(rte) {
       rteExec(area, 'insertHTML', t);
     });
   });
-  // cloze
+  // Cloze — paridade com o editor oficial do Anki:
+  //   Ctrl/Cmd+Shift+C       -> maior ordinal + 1 (novo card irmão)
+  //   Ctrl/Cmd+Alt+Shift+C   -> repete o maior ordinal (mesmo card)
+  // A distinção é deliberadamente visível na UI: c1/c2/c3 geram cards
+  // diferentes; repetir c1 em vários trechos os oculta juntos.
   const clozeBtn = tb.querySelector('[data-clozebtn]');
-  if (clozeBtn) clozeBtn.addEventListener('click', () => {
+  const clozeSameBtn = tb.querySelector('[data-clozesamebtn]');
+  const insertCloze = (sameNumber) => {
     area.focus();
-    const t = window.getSelection ? String(window.getSelection()).trim() : '';
+    const sel = window.getSelection ? window.getSelection() : null;
+    const dentro = !!(sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode));
+    const t = dentro ? String(sel).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    const ord = (typeof CardEngine !== 'undefined' && CardEngine.nextClozeOrdinal)
-      ? CardEngine.nextClozeOrdinal(area.innerHTML) : 1;
+    let ord = 1;
+    if (typeof CardEngine !== 'undefined') {
+      if (sameNumber && CardEngine.sameClozeOrdinal) ord = CardEngine.sameClozeOrdinal(area.innerHTML);
+      else if (CardEngine.nextClozeOrdinal) ord = CardEngine.nextClozeOrdinal(area.innerHTML);
+    }
     const token = '{{c' + ord + '::' + t + '}}';
     try { document.execCommand('insertText', false, token); }
     catch (e) { document.execCommand('insertHTML', false, token); }
+  };
+  if (clozeBtn) clozeBtn.addEventListener('click', () => insertCloze(false));
+  if (clozeSameBtn) clozeSameBtn.addEventListener('click', () => insertCloze(true));
+  if (hasCloze) area.addEventListener('keydown', (e) => {
+    const key = String(e.key || '').toLowerCase();
+    const principal = e.ctrlKey || e.metaKey;
+    if (principal && e.shiftKey && key === 'c') {
+      e.preventDefault();
+      insertCloze(!!e.altKey);
+    }
   });
   // colar: imagem direto (Ctrl+V) ou HTML já higienizado
   area.addEventListener('paste', (e) => {
