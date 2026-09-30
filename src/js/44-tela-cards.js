@@ -1217,8 +1217,14 @@ const CardsScreen = {
     // daqui evita "achatar" templates importados em uma frente/verso estáticos.
     if (typeof AnkiParity !== 'undefined') {
       try {
-        const nid = AnkiParity.noteId(c), note = nid ? AnkiParity.getNote(nid) : null;
-        const nt = note ? AnkiParity.noteTypes().find(x => String(x.id) === String(note.notetypeId)) : null;
+        // A Note é a fonte de verdade no reviewer, mas ela precisa vir do
+        // MESMO planejamento do card. Além disso, builds anteriores à migração
+        // completa podiam deixar Front/Text canônico vazio enquanto o cache
+        // legado ainda continha a pergunta; o reparo é conservador e só preenche
+        // campos canônicos vazios a partir de conteúdo legado claramente válido.
+        const routed = AnkiParity.repairStockNoteFromCard ? AnkiParity.repairStockNoteFromCard(c) : null;
+        const note = routed && routed.note ? routed.note : (AnkiParity.noteForCard ? AnkiParity.noteForCard(c) : AnkiParity.getNote(AnkiParity.noteId(c)));
+        const nt = routed && routed.nt ? routed.nt : (note && AnkiParity.notetypeForCard ? AnkiParity.notetypeForCard(c, note) : (note ? AnkiParity.getNotetype(note.notetypeId) : null));
         if (note && nt && Array.isArray(nt.templates) && nt.templates.length) {
           const ord = Number(c.ankiTemplateOrd) || 0;
           const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
