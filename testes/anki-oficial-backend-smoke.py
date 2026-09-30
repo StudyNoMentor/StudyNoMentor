@@ -218,6 +218,21 @@ with tempfile.TemporaryDirectory() as tmp:
     bfacets = app.cards_official_browser_facets(cards_ctx)
     assert bfacets["columns"] and bfacets["notetypes"]
 
+    # Stats, Deck Options, Custom Study, Filtered Decks e Empty Cards usam a
+    # MESMA coleção isolada dos Cards, não a coleção do menu Anki.
+    cgraphs = app.cards_official_collection_graphs("", 365, cards_ctx)
+    assert "card_counts" in cgraphs and "true_retention" in cgraphs
+    with cards_user.lock:
+        cards_current_deck = int(ccol.decks.get_current_id())
+    copts = app.cards_official_deck_options(cards_current_deck, cards_ctx)
+    assert copts["current_deck"]["name"]
+    cdefaults = app.cards_official_custom_study_defaults(cards_current_deck, cards_ctx)
+    assert "available_new" in cdefaults and "available_review" in cdefaults
+    cfiltered = app.cards_official_get_filtered_deck(0, cards_ctx)
+    assert "deck" in cfiltered and "orders" in cfiltered
+    cempty = app.cards_official_empty_cards_report(cards_ctx)
+    assert isinstance(cempty, dict)
+
     bulk = app.cards_official_browser_bulk(
         {"action": "flag", "card_ids": [ccid], "note_ids": [], "flag": 6},
         cards_ctx,
