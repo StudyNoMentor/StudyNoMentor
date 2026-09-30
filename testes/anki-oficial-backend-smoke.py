@@ -231,7 +231,10 @@ with tempfile.TemporaryDirectory() as tmp:
     cfiltered = app.cards_official_get_filtered_deck(0, cards_ctx)
     assert "deck" in cfiltered and "orders" in cfiltered
     filtered_deck = dict(cfiltered["deck"])
-    filtered_id = int(filtered_deck["id"])
+    # Proto3 omite escalares no valor padrão: um deck NOVO possui id=0 e o
+    # MessageToDict não emite a chave "id". O ID canônico só nasce no update.
+    filtered_id = int(filtered_deck.get("id", 0))
+    assert filtered_id == 0
     filtered_deck["name"] = "Cards Smoke Filtrado"
     filtered_deck["allow_empty"] = True
     fconfig = dict(filtered_deck.get("config") or {})
@@ -241,7 +244,8 @@ with tempfile.TemporaryDirectory() as tmp:
     ]
     filtered_deck["config"] = fconfig
     fupdated = app.cards_official_update_filtered_deck(filtered_id, filtered_deck, cards_ctx)
-    assert int(fupdated["deck_id"]) == filtered_id
+    filtered_id = int(fupdated["deck_id"])
+    assert filtered_id > 0
     frebuilt = app.cards_official_rebuild_filtered_deck(filtered_id, cards_ctx)
     assert frebuilt["state"]["decks"] and frebuilt["state"]["cards"]
     moved = next(x for x in frebuilt["state"]["cards"] if int(x["id"]) == ccid)
