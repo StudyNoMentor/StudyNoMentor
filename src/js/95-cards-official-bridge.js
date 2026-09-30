@@ -116,6 +116,33 @@ const CardsOfficialBridge = {
     }
     return out;
   },
+  async officialCsvMetadata(file,delimiter){
+    await this.bootstrap(false);if(!file)throw new Error('Arquivo de texto ausente.');
+    const qs=new URLSearchParams();if(delimiter)qs.set('delimiter',delimiter);
+    const fd=new FormData();fd.append('file',file,file.name||'import.txt');
+    const out=await this.request('/api/cards-official/import/csv/metadata'+(qs.toString()?'?'+qs.toString():''),{method:'POST',body:fd});
+    if(!out||!out.metadata)throw new Error('O Anki oficial não devolveu CsvMetadata.');
+    return out.metadata;
+  },
+  async importOfficialCsv(file,metadata){
+    await this.bootstrap(false);if(!file)throw new Error('Arquivo de texto ausente.');
+    const fd=new FormData();fd.append('file',file,file.name||'import.txt');fd.append('metadata_json',JSON.stringify(metadata||{}));
+    const out=await this.request('/api/cards-official/import/csv',{method:'POST',body:fd});
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a importação de texto.');
+    return out;
+  },
+  async exportOfficialText(kind,options){
+    kind=kind==='notes'?'notes':'cards';options=options||{};await this.bootstrap(false);
+    const qs=new URLSearchParams({with_html:String(options.withHtml!==false)}),localDeck=options.limit&&options.limit.deckId;
+    if(localDeck!=null){const ctx=this._deckContext(localDeck);qs.set('deck_id',String(ctx.officialId));}
+    if(kind==='notes'){
+      qs.set('with_tags',String(options.withTags!==false));qs.set('with_deck',String(options.withDeck!==false));
+      qs.set('with_notetype',String(options.withNotetype!==false));qs.set('with_guid',String(options.withGuid!==false));
+    }
+    const api=this.api(),token=api.token(),response=await fetch(api.apiBase()+'/api/cards-official/export/'+kind+'-text?'+qs.toString(),{headers:token?{Authorization:'Bearer '+token}:{}});
+    if(!response.ok){let message='Falha na exportação oficial de texto';try{const b=await response.json();if(b&&b.detail)message=b.detail;}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-text-export-error');}throw new Error(message);}
+    return {blob:await response.blob(),count:Number(response.headers.get(kind==='notes'?'X-Anki-Exported-Notes':'X-Anki-Exported-Cards'))||0,kind};
+  },
   async exportOfficialPackage(kind,options){
     kind=kind==='colpkg'?'colpkg':'apkg';options=options||{};
     await this.bootstrap(false);
