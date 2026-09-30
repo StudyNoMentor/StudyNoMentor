@@ -280,6 +280,7 @@ const CardsOfficialBridge = {
       reps:Math.max(0,Number(state.reps)||0),lapses:Math.max(0,Number(state.lapses)||0),
       s:mem.stability==null?null:Number(mem.stability),d:mem.difficulty==null?null:Number(mem.difficulty),
       flag:Math.max(0,Math.min(7,Number(state.flag)||0)),dueTs:null,
+      frente:state.question==null?local.frente:String(state.question),verso:state.answer==null?local.verso:String(state.answer),
       suspenso:queue===-1,enterradoAte:null,buryKind:null,
       lastReviewTs:state.last_review_time?Number(state.last_review_time)*1000:null
     };
