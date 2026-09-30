@@ -100,7 +100,7 @@
         "testes/cards-max-reviewer-browser.mjs",
         "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "OFFICIAL_SEARCH_SORT_BRIDGE_BROWSER_ACTIONS_PENDING"
+      "status": "OFFICIAL_SEARCH_SORT_BULK_BRIDGE_CHANGE_NOTETYPE_PENDING"
     },
     "editor": {
       "official_files": 90,
@@ -123,7 +123,7 @@
         "testes/cards-product-parity.mjs",
         "testes/cards-max-reviewer-browser.mjs"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_BROWSER_TAG_ACTIONS_BRIDGE"
     },
     "media": {
       "official_files": 9,
@@ -188,7 +188,7 @@
         "testes/cards-product-parity.mjs",
         "testes/cards-official-bridge-static.mjs"
       ],
-      "status": "OFFICIAL_RUNTIME_BRIDGE_PARTIAL"
+      "status": "OFFICIAL_REVIEWER_BROWSER_ACTIONS_BRIDGE_PARTIAL"
     }
   }
 }
