@@ -574,6 +574,7 @@ def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
         "deck_id": int(card.did),
         "original_deck_id": int(card.odid),
         "template_idx": int(card.ord),
+        "mtime_secs": int(card.mod),
         "type": int(card.type),
         "queue": int(card.queue),
         "due": int(card.due),
@@ -767,6 +768,16 @@ def cards_official_reviewer_next(
     item = cards_uc_for(user)
     with item.lock:
         return cards_reviewer_payload(item.col)
+
+
+@app.get("/api/cards-official/card/{card_id}/state")
+def cards_official_card_state(
+    card_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return card_state_payload(item.col, card_id)
 
 
 @app.post("/api/cards-official/reviewer/type-answer/{card_id}")
