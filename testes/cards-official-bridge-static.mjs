@@ -45,6 +45,12 @@ assert.match(backend,/item\.col\.compare_answer/);
 assert.match(backend,/card\.question\(\)/);
 assert.match(backend,/card\.answer\(\)/);
 assert.match(backend,/backend\.import_collection_package/);
+assert.match(backend,/item\.col\.find_cards\(q, order=order, reverse=reverse\)/,'busca de cards deve usar find_cards oficial');
+assert.match(backend,/item\.col\.find_notes\(q, order=order, reverse=reverse\)/,'busca de notas deve usar find_notes oficial');
+assert.match(backend,/item\.col\.get_browser_column\(sort_key\)/,'ordenação deve usar BrowserColumn oficial');
+assert.match(bridge,/\/api\/cards-official\/browser\/ids\?/,'Browser Study deve consultar IDs oficiais');
+assert.match(bridge,/AnkiProductParity\._browserRows=\(\)=>self\._browserCache/,'linhas exibidas devem vir da ordem oficial em cache');
+assert.ok(!/filteredSearchMatches\(/.test(bridge),'bridge oficial não pode executar parser de busca JS');
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
 
 const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].map(m=>m[1]);
@@ -59,6 +65,8 @@ for(const path of [
   '/api/cards-official/redo',
   '/api/cards-official/cards/action',
   '/api/cards-official/media/{filename:path}',
+  '/api/cards-official/browser/ids',
+  '/api/cards-official/browser/facets',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
-console.log('CARDS OFFICIAL BRIDGE: scheduler/fila/rendering/type-answer/revlog/undo-redo ancorados no anki==26.09.3, sem fallback acadêmico local.');
+console.log('CARDS OFFICIAL BRIDGE: scheduler/fila/rendering/type-answer/revlog/undo-redo/search/sort ancorados no anki==26.09.3, sem fallback acadêmico local.');
