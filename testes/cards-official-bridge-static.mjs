@@ -63,6 +63,14 @@ assert.match(bridge,/AnkiProductParity\.editTags=ids=>void self\._browserEditTag
 assert.match(bridge,/AnkiMaxParity\._bulkCardsDue=ids=>void self\._browserSetDue/);
 assert.ok(!/DB\.setDueSpec\(/.test(bridge),'bridge Browser não pode reagendar pelo DB local');
 assert.ok(!/DB\.resetCard\(/.test(bridge),'bridge Browser não pode resetar pelo DB local');
+assert.match(backend,/item\.col\.models\.change_notetype_info\(/,'mapa de mudança de tipo deve vir do Anki');
+assert.match(backend,/item\.col\.models\.change_notetype_of_notes\(request\)/,'mudança de tipo deve ser executada pelo Anki');
+assert.match(bridge,/input\.new_fields=\[\.\.\.document\.querySelectorAll/,'field map da UI deve virar new_fields oficial');
+assert.match(bridge,/input\.new_templates=templates\.map/,'template map deve virar new_templates oficial');
+assert.match(bridge,/await this\._reconcileOfficialCardSet\(out\.notes\|\|\[\],out\.cards\|\|\[\]\)/,'cards locais devem seguir conjunto final oficial');
+assert.match(backend,/"question": card\.question\(\)/);
+assert.match(backend,/"answer": card\.answer\(\)/);
+
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
 
 const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].map(m=>m[1]);
@@ -80,6 +88,9 @@ for(const path of [
   '/api/cards-official/browser/ids',
   '/api/cards-official/browser/facets',
   '/api/cards-official/browser/bulk',
+  '/api/cards-official/notetypes/full',
+  '/api/cards-official/notetypes/change-info',
+  '/api/cards-official/notetypes/change',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
 console.log('CARDS OFFICIAL BRIDGE: scheduler/fila/rendering/type-answer/revlog/undo-redo/search/sort ancorados no anki==26.09.3, sem fallback acadêmico local.');
