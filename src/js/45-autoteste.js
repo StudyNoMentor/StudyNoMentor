@@ -154,6 +154,33 @@ const AutoTeste = {
     })());
   },
 
+  /* Cloze: números diferentes geram irmãos diferentes; repetir o maior número
+     oculta vários trechos no MESMO card, exatamente como o editor do Anki. */
+  cloze() {
+    const quatro = 'Art. 3º O imposto {{c1::não incide}} sobre: VIII - {{c2::saídas}} de bens por mais de {{c3::um ano}}, {{c4::antes}} da desincorporação;';
+    const ords = CardEngine.clozeOrdinals(quatro);
+    this._ok('Cloze detecta c1..c4', ords.join(',') === '1,2,3,4', ords);
+    this._ok('Novo Cloze usa maior ordinal + 1', CardEngine.nextClozeOrdinal(quatro) === 5, CardEngine.nextClozeOrdinal(quatro));
+    this._ok('Mesmo card reutiliza o maior ordinal', CardEngine.sameClozeOrdinal(quatro) === 4, CardEngine.sameClozeOrdinal(quatro));
+    this._ok('Mesmo card começa em c1 quando ainda não há Cloze', CardEngine.sameClozeOrdinal('texto') === 1);
+
+    if (typeof AnkiParity !== 'undefined') {
+      const q1 = AnkiParity.revealCloze(quatro, 1, true);
+      this._ok('c1 deixa c2/c3/c4 visíveis no card 1',
+        /data-ordinal="1"/.test(q1) && /cloze-inactive/.test(q1) &&
+        /saídas/.test(q1) && /um ano/.test(q1) && /antes/.test(q1), q1);
+
+      const junto = 'Art. 3º O imposto {{c1::não incide}} sobre: VIII - {{c1::saídas}} de bens por mais de {{c1::um ano}}, {{c1::antes}} da desincorporação;';
+      const qJunto = AnkiParity.revealCloze(junto, 1, true);
+      const ativos = (qJunto.match(/data-cloze=/g) || []).length;
+      this._ok('quatro trechos com c1 ficam ocultos juntos no mesmo card',
+        ativos === 4 && qJunto.indexOf('cloze-inactive') < 0, { ativos, qJunto });
+    }
+
+    this._ok('Editor oferece ações separadas Novo card e Mesmo card',
+      !!document.getElementById('card-cloze-btn') && !!document.getElementById('card-cloze-same-btn'));
+  },
+
   /* SM-2: cada caso vem de rslib/src/scheduler/states/review.rs. */
   sm2() {
     const salvo = CardsConfig._c, salvoK = CardsConfig._cKey;
@@ -806,7 +833,7 @@ const AutoTeste = {
      ['Parser TEC', 'tec'], ['Robustez', 'robustez'],
      ['Colagem em lote', 'lote'], ['Eixo dos gráficos', 'eixo'],
      ['Aproveitamento', 'aproveitamento'], ['Ordenação', 'ordenacao'],
-     ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
+     ['Cloze / editor', 'cloze'], ['SM-2 clássico', 'sm2'], ['Filtro de treino', 'busca'],
      ['Persistência relacional', 'persistenciaRelacional'],
      ['Semana fechada é registro', 'historicoFechado'],
      ['Link nunca vira código', 'linkNuncaViraCodigo'],

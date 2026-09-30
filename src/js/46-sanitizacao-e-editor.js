@@ -306,7 +306,8 @@ function buildRteToolbar(rte) {
       <button type="button" data-link="1" title="Inserir link" aria-label="Inserir link">🔗</button>
       <button type="button" data-img="1" title="Inserir imagem" aria-label="Inserir imagem">🖼️</button>
       <button type="button" data-table="1" title="Inserir tabela" aria-label="Inserir tabela">▦</button>
-      ${hasCloze ? `<button type="button" data-clozebtn="1" title="Ocultar seleção (cloze)" style="display:none;" id="card-cloze-btn">{{ }} Ocultar</button>` : ''}
+      ${hasCloze ? `<button type="button" data-clozebtn="1" title="Nova omissão: cria outro card Cloze (Ctrl+Shift+C)" style="display:none;" id="card-cloze-btn">{{ }} Novo card</button>
+      <button type="button" data-clozesamebtn="1" title="Mesmo número: oculta junto no mesmo card (Ctrl+Alt+Shift+C)" style="display:none;" id="card-cloze-same-btn">{{ }} Mesmo card</button>` : ''}
     </div>
     <span class="rte-sep"></span>
     <div class="rte-grp">
@@ -373,17 +374,37 @@ function buildRteToolbar(rte) {
       rteExec(area, 'insertHTML', t);
     });
   });
-  // cloze
+  // Cloze — paridade com o editor oficial do Anki:
+  //   Ctrl/Cmd+Shift+C       -> maior ordinal + 1 (novo card irmão)
+  //   Ctrl/Cmd+Alt+Shift+C   -> repete o maior ordinal (mesmo card)
+  // A distinção é deliberadamente visível na UI: c1/c2/c3 geram cards
+  // diferentes; repetir c1 em vários trechos os oculta juntos.
   const clozeBtn = tb.querySelector('[data-clozebtn]');
-  if (clozeBtn) clozeBtn.addEventListener('click', () => {
+  const clozeSameBtn = tb.querySelector('[data-clozesamebtn]');
+  const insertCloze = (sameNumber) => {
     area.focus();
-    const t = window.getSelection ? String(window.getSelection()).trim() : '';
+    const sel = window.getSelection ? window.getSelection() : null;
+    const dentro = !!(sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode));
+    const t = dentro ? String(sel).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    const ord = (typeof CardEngine !== 'undefined' && CardEngine.nextClozeOrdinal)
-      ? CardEngine.nextClozeOrdinal(area.innerHTML) : 1;
+    let ord = 1;
+    if (typeof CardEngine !== 'undefined') {
+      if (sameNumber && CardEngine.sameClozeOrdinal) ord = CardEngine.sameClozeOrdinal(area.innerHTML);
+      else if (CardEngine.nextClozeOrdinal) ord = CardEngine.nextClozeOrdinal(area.innerHTML);
+    }
     const token = '{{c' + ord + '::' + t + '}}';
     try { document.execCommand('insertText', false, token); }
     catch (e) { document.execCommand('insertHTML', false, token); }
+  };
+  if (clozeBtn) clozeBtn.addEventListener('click', () => insertCloze(false));
+  if (clozeSameBtn) clozeSameBtn.addEventListener('click', () => insertCloze(true));
+  if (hasCloze) area.addEventListener('keydown', (e) => {
+    const key = String(e.key || '').toLowerCase();
+    const principal = e.ctrlKey || e.metaKey;
+    if (principal && e.shiftKey && key === 'c') {
+      e.preventDefault();
+      insertCloze(!!e.altKey);
+    }
   });
   // colar: imagem direto (Ctrl+V) ou HTML já higienizado
   area.addEventListener('paste', (e) => {

@@ -599,9 +599,17 @@ const CardEngine = {
     });
     return [...out].sort((a, b) => a - b);
   },
-  nextClozeOrdinal(text) {
+  highestClozeOrdinal(text) {
     const ords = this.clozeOrdinals(text);
-    return ords.length ? Math.max(...ords) + 1 : 1;
+    return ords.length ? Math.max(...ords) : 0;
+  },
+  nextClozeOrdinal(text) {
+    return Math.max(1, this.highestClozeOrdinal(text) + 1);
+  },
+  // Igual ao botão "repeat current cloze" do Anki: reutiliza o maior ordinal
+  // já presente na nota. Se ainda não existe Cloze, começa em c1.
+  sameClozeOrdinal(text) {
+    return Math.max(1, this.highestClozeOrdinal(text));
   },
   normalizeCloze(text) {
     let next = this.nextClozeOrdinal(text);

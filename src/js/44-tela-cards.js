@@ -1935,11 +1935,14 @@ const CardsScreen = {
   applyKindUI() {
     const kind = $id('card-kind').value;
     const isCloze = kind === 'cloze';
-    $id('card-cloze-btn').style.display = isCloze ? 'inline-block' : 'none';
+    ['card-cloze-btn', 'card-cloze-same-btn'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = isCloze ? 'inline-block' : 'none';
+    });
     $id('card-verso-field').style.display = isCloze ? 'none' : 'block';
-    $id('card-frente-label').innerHTML = isCloze ? 'Texto (use {{ }} para ocultar) <span class="req">*</span>' : 'Frente (pergunta) <span class="req">*</span>';
+    $id('card-frente-label').innerHTML = isCloze ? 'Texto Cloze <span class="req">*</span>' : 'Frente (pergunta) <span class="req">*</span>';
     const hint = document.getElementById('card-kind-hint');
-    if (isCloze) hint.innerHTML = 'Selecione um trecho e clique em <strong>{{ }} Ocultar</strong> — ele será escondido na frente e revelado no verso. Ótimo para lei seca.';
+    if (isCloze) hint.innerHTML = '<strong>Novo card</strong> usa c1, c2, c3… e cada número vira um card de revisão diferente. <strong>Mesmo card</strong> repete o maior número e esconde os trechos juntos na mesma revisão.';
     else if (kind === 'basic_reversed') hint.innerHTML = 'Serão criados <strong>2 cards</strong>: um frente→verso e outro verso→frente.';
     else hint.innerHTML = 'Card simples: você vê a frente e revela o verso.';
   },
