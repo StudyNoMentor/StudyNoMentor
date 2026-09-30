@@ -124,6 +124,15 @@ const CardsOfficialBridge = {
     if(!out||!out.metadata)throw new Error('O Anki oficial não devolveu CsvMetadata.');
     return out.metadata;
   },
+  async importOfficialMnemosyne(file,deckId){
+    await this.bootstrap(false);if(!file)throw new Error('Arquivo Mnemosyne ausente.');
+    const qs=new URLSearchParams();
+    if(deckId!=null){const ctx=this._deckContext(deckId);qs.set('deck_id',String(ctx.officialId));}
+    const fd=new FormData();fd.append('file',file,file.name||'mnemosyne.db');
+    const out=await this.request('/api/cards-official/import/mnemosyne'+(qs.toString()?'?'+qs.toString():''),{method:'POST',body:fd});
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a importação Mnemosyne.');
+    return out;
+  },
   async importOfficialCsv(file,metadata){
     await this.bootstrap(false);if(!file)throw new Error('Arquivo de texto ausente.');
     const fd=new FormData();fd.append('file',file,file.name||'import.txt');fd.append('metadata_json',JSON.stringify(metadata||{}));
