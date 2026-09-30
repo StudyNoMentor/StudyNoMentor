@@ -20,7 +20,20 @@ let n=0;const ok=(v,m)=>{n++;assert.ok(v,m);};
 try{
   await page.goto(`http://127.0.0.1:${server.address().port}/index.html`,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>window.switchScreen&&typeof CardsScreen!=='undefined'&&typeof AnkiParity!=='undefined'&&typeof AnkiProductParity!=='undefined',{timeout:30000});
-  await page.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){}});
+  await page.evaluate(()=>{
+    try{ProfileUI.hideGate();}catch(_){}
+    // Este arquivo valida edição/foco LOCAL e roda num servidor estático, sem
+    // autenticação nem backend Python. O reviewer oficial possui sua própria
+    // bateria E2E/smoke; aqui restauramos somente o renderer original para não
+    // transformar um teste de editor em teste de disponibilidade de servidor.
+    if(window.CardsOfficialBridge&&CardsOfficialBridge._orig&&CardsOfficialBridge._orig.renderRevisar){
+      CardsScreen.renderRevisar=CardsOfficialBridge._orig.renderRevisar;
+      if(CardsOfficialBridge._orig.flip)CardsScreen.flip=CardsOfficialBridge._orig.flip;
+      if(CardsOfficialBridge._orig.answer)CardsScreen.answer=CardsOfficialBridge._orig.answer;
+      if(CardsOfficialBridge._orig.undoAnswer)CardsScreen.undoAnswer=CardsOfficialBridge._orig.undoAnswer;
+      if(CardsOfficialBridge._orig.redoAnswer)CardsScreen.redoAnswer=CardsOfficialBridge._orig.redoAnswer;
+    }
+  });
 
   const esperar=ms=>page.waitForTimeout(ms);
   const frente=()=>page.evaluate(()=>{const f=document.querySelector('#cards-content .cards-front iframe');return f?(f.getAttribute('srcdoc')||''):document.querySelector('#cards-content').innerText;});
