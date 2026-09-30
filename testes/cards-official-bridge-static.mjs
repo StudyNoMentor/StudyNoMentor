@@ -47,6 +47,15 @@ assert.match(backend,/col\.get_review_logs\(card\.id\)/);
 assert.match(backend,/item\.col\.compare_answer/);
 assert.match(backend,/card\.question\(\)/);
 assert.match(backend,/card\.answer\(\)/);
+assert.match(backend,/def cards_official_add_note[\s\S]*?item\.col\.add_note\(note, did\)/,'criação de nota dos Cards deve ser oficial');
+assert.match(backend,/def cards_official_update_note[\s\S]*?item\.col\.update_note\(note\)/,'edição de nota dos Cards deve ser oficial');
+assert.match(backend,/def cards_official_delete_note[\s\S]*?item\.col\.remove_notes\(\[int\(note_id\)\]\)/,'exclusão de nota dos Cards deve ser oficial');
+assert.match(bridge,/CardsScreen\.saveCard=\(closeAfter\)=>\{void this\.saveSimpleCard\(closeAfter\)/,'editor simples deve delegar criação\/edição à Collection oficial');
+assert.match(bridge,/CardsScreen\.deleteCard=\(\)=>\{void this\.deleteSimpleCard\(\)/,'exclusão do editor simples deve delegar à Collection oficial');
+assert.match(bridge,/async addOfficialNote\(opts\)[\s\S]*?\/api\/cards-official\/notes/,'cadastro avançado deve possuir rota oficial');
+assert.match(bridge,/async updateOfficialNote\(note,fields,tags,opts\)[\s\S]*?\/api\/cards-official\/note\//,'edição rica deve possuir rota oficial');
+assert.match(bridge,/desiredKind===['"]cloze['"][\s\S]*?delete fields\[extra\]/,'editor Cloze simples deve preservar Back Extra não exposto');
+assert.match(bridge,/\['basic_reversed','basic_optional_reversed','typing'\]\.includes\(currentStock\)/,'edição simples deve preservar o stock notetype atual e seus siblings');
 assert.match(backend,/backend\.import_collection_package/);
 assert.match(backend,/item\.col\.find_cards\(q, order=order, reverse=reverse\)/,'busca de cards deve usar find_cards oficial');
 assert.match(backend,/item\.col\.find_notes\(q, order=order, reverse=reverse\)/,'busca de notas deve usar find_notes oficial');
@@ -128,6 +137,8 @@ for(const path of [
   '/api/cards-official/undo',
   '/api/cards-official/redo',
   '/api/cards-official/cards/action',
+  '/api/cards-official/notes',
+  '/api/cards-official/note/{note_id}',
   '/api/cards-official/media/{filename:path}',
   '/api/cards-official/browser/ids',
   '/api/cards-official/browser/facets',
