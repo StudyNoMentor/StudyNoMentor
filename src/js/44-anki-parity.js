@@ -494,13 +494,15 @@ AnkiParity.installConfigParity=function(){
    para um NOTE TYPE que define campos e templates; os cards são derivados.
    Guardamos cada entidade em uma chave própria do PLANO. Assim ela entra no
    study_plan_state e sincroniza sem transformar toda a coleção em um blob. */
-AnkiParity._planPrefix=function(){
-  try{return DB._profilePrefix()+'p:'+DB._activePlanId()+':';}
-  catch(_){return 'diario-estudos:p:default:';}
+AnkiParity._planPrefix=function(planId){
+  try{
+    const pid=planId!=null&&String(planId)!==''?planId:DB._activePlanId();
+    return DB._profilePrefix()+'p:'+pid+':';
+  }catch(_){return 'diario-estudos:p:'+(planId!=null?String(planId):'default')+':';}
 };
-AnkiParity._entityKey=function(kind,id){return this._planPrefix()+'cards-'+kind+':'+String(id);};
-AnkiParity._scanEntities=function(kind){
-  const prefix=this._entityKey(kind,''),out=[];
+AnkiParity._entityKey=function(kind,id,planId){return this._planPrefix(planId)+'cards-'+kind+':'+String(id);};
+AnkiParity._scanEntities=function(kind,planId){
+  const prefix=this._entityKey(kind,'',planId),out=[];
   try{
     for(let i=0;i<localStorage.length;i++){
       const k=localStorage.key(i);if(!k||!String(k).startsWith(prefix))continue;
@@ -509,12 +511,25 @@ AnkiParity._scanEntities=function(kind){
   }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
   return out;
 };
-AnkiParity.getNotetype=function(id){
-  try{return JSON.parse(localStorage.getItem(this._entityKey('notetype',id))||'null');}catch(_){return null;}
+AnkiParity._foreignEntity=function(kind,id,planId){
+  try{
+    if(typeof window!=='undefined'&&window.StudyGlobalScope&&StudyGlobalScope.ankiEntity){
+      return StudyGlobalScope.ankiEntity(kind,id,planId==null?undefined:planId)||null;
+    }
+  }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
+  return null;
 };
-AnkiParity.saveNotetype=function(nt){
+AnkiParity.getNotetype=function(id,planId){
+  try{
+    const raw=localStorage.getItem(this._entityKey('notetype',id,planId));
+    if(raw)return JSON.parse(raw);
+    return planId==null?this._foreignEntity('notetype',id,null):null;
+  }catch(_){return null;}
+};
+AnkiParity.saveNotetype=function(nt,planId){
   if(!nt||!nt.id)return false;
-  const now=new Date().toISOString(),x=JSON.parse(JSON.stringify(nt));
+  const targetPlan=planId!=null?planId:(nt._planId!=null?nt._planId:null),now=new Date().toISOString(),x=JSON.parse(JSON.stringify(nt));
+  delete x._planId;delete x._planNome;
   x.id=this._validId(x.id)||this._allocId();x.ankiId=x.id;
   x.name=String(x.name||'Note Type');x.kind=x.kind==='cloze'?'cloze':'normal';
   x.fields=Array.isArray(x.fields)?x.fields.map((f,i)=>Object.assign({
@@ -525,9 +540,14 @@ AnkiParity.saveNotetype=function(nt){
   },t||{},{ord:i})):[];
   x.css=String(x.css==null?'.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n':x.css);
   x.updatedAt=now;if(!x.createdAt)x.createdAt=now;
-  DB.setRaw(this._entityKey('notetype',x.id),JSON.stringify(x));return x;
+  DB.setRaw(this._entityKey('notetype',x.id,targetPlan),JSON.stringify(x));
+  if(targetPlan!=null&&String(targetPlan)!==String(DB._activePlanId())){
+    x._planId=targetPlan;
+    try{if(window.StudyGlobalScope&&StudyGlobalScope.planName)x._planNome=StudyGlobalScope.planName(targetPlan);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
+  }
+  return x;
 };
-AnkiParity.noteTypes=function(){return this._scanEntities('notetype').sort((a,b)=>String(a.name).localeCompare(String(b.name)));};
+AnkiParity.noteTypes=function(planId){return this._scanEntities('notetype',planId).sort((a,b)=>String(a.name).localeCompare(String(b.name)));};
 AnkiParity._stockNotetypeDef=function(kind){
   const css='.card {\n    font-family: arial;\n    font-size: 20px;\n    line-height: 1.5;\n    text-align: center;\n    color: black;\n    background-color: white;\n}\n';
   if(kind==='basic_reversed')return {
@@ -563,26 +583,46 @@ AnkiParity._stockNotetypeDef=function(kind){
     templates:[{name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}'}]
   };
 };
-AnkiParity.stockNotetype=function(kind){
+AnkiParity.stockNotetype=function(kind,planId){
   kind=kind||'basic';
-  const found=this.noteTypes().find(x=>x.stockKind===kind);if(found)return found;
-  const def=this._stockNotetypeDef(kind);def.id=this._allocId();return this.saveNotetype(def);
+  const found=this.noteTypes(planId).find(x=>x.stockKind===kind);if(found)return found;
+  const def=this._stockNotetypeDef(kind);def.id=this._allocId();return this.saveNotetype(def,planId);
 };
-AnkiParity.getNote=function(id){
-  try{return JSON.parse(localStorage.getItem(this._entityKey('note',id))||'null');}catch(_){return null;}
+AnkiParity.getNote=function(id,planId){
+  try{
+    const raw=localStorage.getItem(this._entityKey('note',id,planId));
+    if(raw)return JSON.parse(raw);
+    return planId==null?this._foreignEntity('note',id,null):null;
+  }catch(_){return null;}
 };
-AnkiParity.saveNote=function(note){
+AnkiParity.saveNote=function(note,planId){
   if(!note||!note.id)return false;
-  const now=new Date().toISOString(),x=JSON.parse(JSON.stringify(note));
+  const targetPlan=planId!=null?planId:(note._planId!=null?note._planId:null),now=new Date().toISOString(),x=JSON.parse(JSON.stringify(note));
+  delete x._planId;delete x._planNome;
   x.id=this._validId(x.id)||this._allocId();x.ankiId=x.id;
-  x.notetypeId=this._validId(x.notetypeId)||this.stockNotetype('basic').id;
+  x.notetypeId=this._validId(x.notetypeId)||this.stockNotetype('basic',targetPlan).id;
   x.fields=x.fields&&typeof x.fields==='object'&&!Array.isArray(x.fields)?x.fields:{};
   x.tags=Array.isArray(x.tags)?[...new Set(x.tags.map(String).filter(Boolean))]:[];
   x.updatedAt=now;if(!x.createdAt)x.createdAt=now;
   x.revision=Math.max(1,Number(x.revision)||0)+1;
-  DB.setRaw(this._entityKey('note',x.id),JSON.stringify(x));return x;
+  DB.setRaw(this._entityKey('note',x.id,targetPlan),JSON.stringify(x));
+  if(targetPlan!=null&&String(targetPlan)!==String(DB._activePlanId())){
+    x._planId=targetPlan;
+    try{if(window.StudyGlobalScope&&StudyGlobalScope.planName)x._planNome=StudyGlobalScope.planName(targetPlan);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-parity'); }
+  }
+  return x;
 };
-AnkiParity.notes=function(){return this._scanEntities('note');};
+AnkiParity.notes=function(planId){return this._scanEntities('note',planId);};
+AnkiParity.noteForCard=function(card){
+  if(!card)return null;
+  const pid=this._planIdForCard(card),nid=this.noteId(card);
+  return nid?this.getNote(nid,pid==null?undefined:pid):null;
+};
+AnkiParity.notetypeForCard=function(card,note){
+  note=note||this.noteForCard(card);if(!note)return null;
+  const pid=this._planIdForCard(card)||(note&&note._planId)||null;
+  return this.getNotetype(note.notetypeId,pid==null?undefined:pid);
+};
 AnkiParity._fieldNonempty=function(v){
   return String(v==null?'':v).replace(/<!--[\s\S]*?-->/g,'').replace(/<(br|div)\b[^>]*>/gi,'').replace(/<\/div>/gi,'').replace(/[ \t\r\n\f]+/g,'').length>0;
 };
