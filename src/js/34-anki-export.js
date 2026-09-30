@@ -884,7 +884,11 @@ const AnkiExport = {
     for(const original of cards){
       const filtered=!!(options.preserveFiltered&&original.originalDeckId&&String(original.deckId)!==String(original.originalDeckId));
       const c=filtered?original:this._homeState(original),did=deckMap.get(String(c.deckId))||1,cfg=CardsConfig.forDeck(c.originalDeckId||c.deckId);
-      const keep=options.withScheduling!==false,sched=keep?this.cardSchedule(filtered?Object.assign({},original,{originalDeckId:null,originalDue:null,originalDueTs:null,originalPhase:null}):original,crt,newPos):{type:0,queue:0,due:newPos,left:0};
+      const keep=options.withScheduling!==false,
+        exactFiltered=filtered&&keep&&Number.isFinite(Number(original.ankiType))&&Number.isFinite(Number(original.ankiQueue))&&Number.isFinite(Number(original.ankiDue)),
+        sched=exactFiltered
+          ?{type:Number(original.ankiType),queue:Number(original.ankiQueue),due:Number(original.ankiDue),left:Math.max(0,Math.round(Number(original.ankiRemainingSteps)||0))}
+          :(keep?this.cardSchedule(filtered?Object.assign({},original,{originalDeckId:null,originalDue:null,originalDueTs:null,originalPhase:null}):original,crt,newPos):{type:0,queue:0,due:newPos,left:0});
       const rawEase=keep?(Number(c.ease)||2.5):0,factor=keep?Math.round(rawEase<10?rawEase*1000:rawEase):0;
       const ivl=keep?Math.max(0,Math.round(Number(c.intervalo)||0)):0;
       const reps=keep?Math.max(0,Math.round(Number(c.reps)||0)):0,lapses=keep?Math.max(0,Math.round(Number(c.lapses)||0)):0;
