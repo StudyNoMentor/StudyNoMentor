@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const bridge=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
+const cards=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
 const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
@@ -88,6 +89,12 @@ assert.match(bridge,/async _syncCollectionState\([\s\S]*?await this\._syncStates
 assert.match(bridge,/ankiOriginalDue:Number\(state\.original_due\)\|\|0/,'odue oficial deve ser persistido cru para round-trip');
 assert.match(backend,/def cards_official_rebuild_filtered_deck[\s\S]*?item\.col\.sched\.rebuild_filtered_deck/,'Filtered Deck dos Cards precisa usar scheduler oficial');
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
+assert.match(backend,/def cards_official_update_deck_options[\s\S]*?item\.col\.decks\.update_deck_configs\(request\)[\s\S]*?"state": cards_collection_state_payload/,'salvar Deck Options deve executar a transação oficial e devolver estado canônico');
+assert.match(bridge,/async updateDeckOptions\(deckId,cfg,opts\)[\s\S]*?\/api\/cards-official\/deck\/'/,'bridge deve salvar Deck Options no backend oficial');
+assert.match(bridge,/targetId=isDeck\?\(opts\.hadPreset\?currentId:0\):1/,'preset novo precisa usar id=0 para o Anki alocar identidade canônica');
+assert.match(bridge,/fsrs_reschedule:!!opts\.fsrsReschedule/,'reschedule de Deck Options deve ser delegado ao scheduler oficial');
+assert.match(cards,/CardsOfficialBridge\.updateDeckOptions\(deckId, desiredCfg/,'UI de Deck Options deve chamar a ponte oficial antes de persistir o cache local');
+assert.ok(!/const rescheduled=shouldReschedule\?await CardsScreen\.rescheduleFsrsScope\(deckId\):0/.test(cards),'salvar Deck Options não pode duplicar reschedule no scheduler local');
 assert.match(backend,/def cards_official_fsrs_simulate[\s\S]*?simulate_fsrs_review/,'Simulador FSRS dos Cards precisa usar backend oficial');
 assert.match(backend,/def cards_official_empty_cards_report[\s\S]*?item\.col\.get_empty_cards/,'Empty Cards dos Cards precisa usar Collection oficial');
 
@@ -123,4 +130,4 @@ for(const path of [
   '/api/cards-official/empty-cards/delete',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
-console.log('CARDS OFFICIAL BRIDGE: reviewer/browser/stats/custom-study/filtered-decks ancorados no anki==26.09.3, com round-trip oficial e sem fallback acadêmico local.');
+console.log('CARDS OFFICIAL BRIDGE: reviewer/browser/stats/deck-options/custom-study/filtered-decks ancorados no anki==26.09.3, com round-trip oficial e sem fallback acadêmico local.');
