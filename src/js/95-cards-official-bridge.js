@@ -1271,6 +1271,82 @@ const CardsOfficialBridge = {
     return out;
   },
 
+
+  _emptyCardsPlainReport(html){
+    const raw=String(html||'').replace(/<br\s*\/?>/gi,'\n').replace(/<\/(?:p|div|li|tr)>/gi,'\n');
+    try{
+      const doc=new DOMParser().parseFromString(raw,'text/html');
+      return String(doc.body&&doc.body.textContent||'').replace(/\[anki:nid:(\d+)\]/g,'Nota $1:').replace(/\n{3,}/g,'\n\n').trim();
+    }catch(_){
+      if(typeof _quiet==='function')_quiet(_,'cards-official-empty-report');
+      return raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+    }
+  },
+  _applyEmptyCardsDeletion(report,deletedIds){
+    const deleted=new Set((deletedIds||[]).map(x=>String(x))),handledNotes=new Set();
+    for(const row of report&&report.notes||[]){
+      const rowIds=(row.card_ids||[]).map(x=>String(x)),allDeleted=rowIds.length&&rowIds.every(id=>deleted.has(id));
+      if(row.will_delete_note&&allDeleted){
+        for(const note of this._noteReplicas(row.note_id)){
+          const key=String(note._planId==null?'':note._planId)+'::'+String(note.id);
+          if(handledNotes.has(key))continue;handledNotes.add(key);
+          if(window.StudyGlobalScope&&typeof StudyGlobalScope.deleteNoteScoped==='function')StudyGlobalScope.deleteNoteScoped(note);
+          else{
+            const cards=AnkiProductParity._cardsForNote(note,note._planId==null?undefined:note._planId);
+            if(cards.length)DB.deleteNoteByCard(cards[0].id,note._planId==null?undefined:note._planId);
+          }
+        }
+        continue;
+      }
+      for(const oid of rowIds){
+        if(!deleted.has(oid))continue;
+        for(const card of this._replicas(oid)){
+          const pid=card._planId==null?undefined:card._planId;
+          DB.deleteCard(card.id,pid);
+        }
+      }
+    }
+  },
+  async openEmptyCards(){
+    try{
+      await this.bootstrap(false);
+      const report=await this.request('/api/cards-official/empty-cards'),notes=Array.isArray(report&&report.notes)?report.notes:[];
+      if(!notes.length){showToast('Nenhum card vazio encontrado pelo Anki oficial ✓');return;}
+      const total=notes.reduce((n,row)=>n+(Array.isArray(row.card_ids)?row.card_ids.length:0),0),
+        doomedNotes=notes.filter(row=>row&&row.will_delete_note).length,
+        plain=this._emptyCardsPlainReport(report.report);
+      const v=await UI.prompt([
+        {key:'keep',label:'Preservar notas que ficariam sem nenhum card?',type:'select',value:'no',
+          options:[{value:'no',label:'Não — excluir a nota se todos os cards estiverem vazios'},{value:'yes',label:'Sim — manter um card vazio para preservar a nota'}],
+          hint:'Mesma opção “Preserve notes” da ferramenta Empty Cards do Anki.'},
+        {key:'report',label:'Relatório oficial',type:'textarea',rows:10,value:plain||('Cards vazios: '+total),
+          hint:'Gerado por Collection.get_empty_cards() do Anki 26.09.3.'}
+      ],{title:'🧹 Cards vazios · Anki oficial',okText:'Continuar',
+        sub:total+' card(s) vazio(s) em '+notes.length+' nota(s)'+(doomedNotes?' · '+doomedNotes+' nota(s) ficariam sem cards':'')});
+      if(!v)return;
+      const ids=[];
+      for(const row of notes){
+        const cardIds=(row.card_ids||[]).map(Number).filter(x=>Number.isFinite(x)&&x>0);
+        if(v.keep==='yes'&&row.will_delete_note)ids.push(...cardIds.slice(1));else ids.push(...cardIds);
+      }
+      const unique=[...new Set(ids)];
+      if(!unique.length){showToast('Nenhum card precisa ser excluído para preservar as notas.');return;}
+      const ok=await UI.confirm('Excluir '+unique.length+' card(s) vazio(s) detectado(s pelo Anki oficial? O histórico existente permanece conforme as operações da Collection.',{
+        title:'🗑 Excluir cards vazios',okText:'Excluir',danger:true
+      });
+      if(!ok)return;
+      const out=await this.request('/api/cards-official/empty-cards/delete',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({card_ids:unique})
+      });
+      if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a exclusão.');
+      this._applyEmptyCardsDeletion(out.report_before||report,out.deleted_card_ids||unique);
+      await this._syncCollectionState(out.state,this._activePlanId(),null);
+      this.dirty=false;this._browserCache=[];CardsScreen.invalidateReviewQueue();CardsScreen.render();CardsScreen.updateFavCount();
+      showToast((out.deleted_card_ids||unique).length+' card(s) vazio(s) excluído(s) pelo Anki oficial ✓');
+      return out;
+    }catch(e){showToast('Cards vazios não processados: '+(e&&e.message?e.message:String(e)));}
+  },
+
   _wrapInvalidator(name){
     const fn=CardsScreen[name];if(typeof fn!=='function'||fn.__cardsOfficialWrapped)return;
     const self=this;
