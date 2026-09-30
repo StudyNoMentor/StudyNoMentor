@@ -50,10 +50,21 @@ try{
     const foreignAfter=AnkiParity.getNote(collisionNoteId,B),otherPlanAfter=AnkiParity.getNote(collisionNoteId,C);
 
     switchScreen('cards');
+    const foreignRef=AnkiProductParity.noteRefForCard(DB.getCard('cB1')),routedForeign=AnkiProductParity._getNote(foreignRef);
+    AnkiProductParity.openNoteEditor(foreignRef);
+    const editorFront=document.querySelector('#anki-note-edit-body .anki-note-field[data-field="Front"]')?.value||'';
+    document.getElementById('anki-note-edit-modal').style.display='none';
+    AnkiProductParity.openChangeType([foreignRef]);
+    const typeOptions=[...document.getElementById('anki-change-type-target').options].map(o=>o.value);
+    document.getElementById('anki-change-type-modal').style.display='none';
     const out={foreignCanonical:{
       before:foreignFaceBefore,
       after:foreignAfter&&foreignAfter.fields,
-      otherPlanAfter:otherPlanAfter&&otherPlanAfter.fields
+      otherPlanAfter:otherPlanAfter&&otherPlanAfter.fields,
+      ref:foreignRef,
+      routedPlan:routedForeign&&routedForeign._planId,
+      editorFront,
+      typeOptions
     }};
     CardsScreen.openDeckModal();
     out.lista=[...document.querySelectorAll('#deck-list .deck-row')].map(r=>r.querySelector('.deck-name').value+'|'+r.querySelector('.deck-count').textContent);
@@ -183,6 +194,8 @@ try{
   });
   ok(r.foreignCanonical.before.includes('Frente canônica B')&&!r.foreignCanonical.before.includes('A frente deste cartão está em branco'),'reviewer resolve Note/NoteType no planejamento dono do card, mesmo com colisão de IDs');
   ok(r.foreignCanonical.after.Front==='Frente editada B'&&r.foreignCanonical.after.Back==='Resposta editada B'&&r.foreignCanonical.otherPlanAfter.Front==='','editar card global sincroniza somente a Note canônica do planejamento de origem: '+JSON.stringify(r.foreignCanonical));
+  ok(r.foreignCanonical.ref.startsWith('p:')&&String(r.foreignCanonical.routedPlan)===String(r.audit.planBId)&&r.foreignCanonical.editorFront==='Frente editada B','Editor canônico resolve a identidade composta planejamento+noteId sem cair na nota homônima');
+  ok(r.foreignCanonical.typeOptions.length>=5&&r.foreignCanonical.typeOptions.every(x=>x.startsWith('p:'+encodeURIComponent(String(r.audit.planBId))+':t:')),'Mudar tipo oferece NoteTypes do planejamento de origem, com referência composta');
   ok(r.lista.some(x=>x.startsWith('Deck B|')&&x.includes('Plano B')),'Meus baralhos mostra baralho de outro plano com o nome do plano');
   ok(r.lista.some(x=>x.startsWith('Deck Ativo|')),'Meus baralhos mantém o baralho do plano ativo');
   ok(r.destino.includes('deck:dkB'),'Criar card oferece baralho de outro plano');
