@@ -631,6 +631,84 @@ def note_state_payload(col: Collection, note_id: int) -> dict[str, Any]:
     }
 
 
+@app.post("/api/cards-official/notes")
+def cards_official_add_note(
+    body: AddNoteBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Cria a Note na coleção isolada dos Cards e devolve o conjunto de cards gerado pelo Anki."""
+    item = cards_uc_for(user)
+    with item.lock:
+        nt = item.col.models.get(body.notetype_id) if body.notetype_id else item.col.models.current()
+        if not nt:
+            raise HTTPException(404, "Tipo de nota não encontrado.")
+        note = item.col.new_note(nt)
+        valid = set(note.keys())
+        for name, value in body.fields.items():
+            if name in valid:
+                note[name] = value
+        note.tags = list(body.tags)
+        did = DeckId(body.deck_id or int(item.col.decks.get_current_id()))
+        changes = item.col.add_note(note, did)
+        state = note_state_payload(item.col, int(note.id))
+        cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "note": state,
+            "cards": cards,
+            "state": cards_collection_state_payload(item.col),
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.put("/api/cards-official/note/{note_id}")
+def cards_official_update_note(
+    note_id: int,
+    body: NoteUpdateBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Atualiza campos/tags pela Collection oficial; card generation segue update_note()."""
+    item = cards_uc_for(user)
+    with item.lock:
+        note = item.col.get_note(note_id)
+        valid = set(note.keys())
+        for name, value in body.fields.items():
+            if name in valid:
+                note[name] = value
+        note.tags = list(body.tags)
+        changes = item.col.update_note(note)
+        state = note_state_payload(item.col, int(note.id))
+        cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "note": state,
+            "cards": cards,
+            "state": cards_collection_state_payload(item.col),
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.delete("/api/cards-official/note/{note_id}")
+def cards_official_delete_note(
+    note_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Remove a Note e seus cards usando a operação transacional oficial."""
+    item = cards_uc_for(user)
+    with item.lock:
+        item.col.get_note(note_id)
+        changes = item.col.remove_notes([int(note_id)])
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "deleted_note_id": int(note_id),
+            "state": cards_collection_state_payload(item.col),
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
 @app.get("/api/anki/reviewer/next")
 def reviewer_next(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
