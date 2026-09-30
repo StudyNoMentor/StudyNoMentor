@@ -1094,20 +1094,32 @@ const CardsOfficialBridge = {
     const data=CardsScreen._readCardForm();if(!data)return false;
     const reversed=!!data._reversed;delete data._reversed;
     const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId,
-      pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId()),
-      desiredKind=data.kind==='cloze'?'cloze':(reversed?'basic_reversed':'basic'),
-      target=await this._ensureOfficialStockNotetype(desiredKind,pid),
-      fields=this._fieldsForSimple(desiredKind,target.local,data),seed=this._cardSeed(data,pid,target.local.id);
+      pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId());
     if(editId){
       const card=CardsScreen.collectionCards().find(c=>String(c.id)===String(editId)&&(editPlan==null||String(c._planId||'')===String(editPlan)))||DB.getCard(editId);
       if(!card)throw new Error('Card não encontrado.');
       let note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(card.noteId||card.id,pid==null?undefined:pid);
       if(!note)throw new Error('Nota canônica do card não encontrada.');
+      const currentNt=AnkiParity.getNotetype(note.notetypeId,pid==null?undefined:pid),
+        currentStock=String(currentNt&&currentNt.stockKind||''),
+        desiredKind=data.kind==='cloze'?'cloze':(['basic_reversed','basic_optional_reversed','typing'].includes(currentStock)?currentStock:'basic'),
+        target=await this._ensureOfficialStockNotetype(desiredKind,pid),
+        fields=this._fieldsForSimple(desiredKind,target.local,data),seed=this._cardSeed(data,pid,target.local.id);
+      // O editor simples de Cloze não expõe Back Extra. Ausência de campo no
+      // PUT significa "preservar", enquanto enviar "" apagaria conteúdo válido.
+      if(desiredKind==='cloze'){
+        const names=(target.local.fields||[]).map(f=>String(f.name||''));
+        const extra=names.includes('Back Extra')?'Back Extra':names[1];
+        if(extra)delete fields[extra];
+      }
       note=await this._changeNoteToNotetype(note,target,pid);
       const res=await this.updateOfficialNote(note,fields,note.tags||[],{planId:pid,seed});
       CardsScreen.closeCardModal();CardsScreen.render();CardsScreen.updateFavCount();showToast('Card atualizado pelo Anki oficial ✓');return res;
     }
-    const res=await this.addOfficialNote({planId:pid,deckId:data.deckId,notetype:target.local,fields,tags:[],seed});
+    const desiredKind=data.kind==='cloze'?'cloze':(reversed?'basic_reversed':'basic'),
+      target=await this._ensureOfficialStockNotetype(desiredKind,pid),
+      fields=this._fieldsForSimple(desiredKind,target.local,data),seed=this._cardSeed(data,pid,target.local.id),
+      res=await this.addOfficialNote({planId:pid,deckId:data.deckId,notetype:target.local,fields,tags:[],seed});
     CardsScreen.render();CardsScreen.updateFavCount();
     const n=res.cards.length;showToast(n+(n===1?' card criado':' cards criados')+' pelo Anki oficial ✓');
     if(closeAfter)CardsScreen.closeCardModal();else{
