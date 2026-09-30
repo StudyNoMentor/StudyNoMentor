@@ -71,9 +71,10 @@ const AnkiMaxEditor = {
       document.getElementById('anki-nt-templates').appendChild(d);
     };
 
-    AnkiProductParity.openNotetypeEditor=(id)=>{
-      const nt=AnkiParity.getNotetype(id);if(!nt)return;AnkiProductParity._editingNtId=String(id);AnkiProductParity._editingNtOriginal=JSON.parse(JSON.stringify(nt));
-      document.getElementById('anki-nt-edit-sub').textContent=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length+' nota(s) usam este tipo';
+    AnkiProductParity.openNotetypeEditor=(ref)=>{
+      const nt=AnkiProductParity._getNotetype(ref);if(!nt)return;AnkiProductParity._editingNtRef=AnkiProductParity.notetypeRef(nt);AnkiProductParity._editingNtId=String(nt.id);AnkiProductParity._editingNtOriginal=JSON.parse(JSON.stringify(nt));
+      const notes=nt._planId!=null?AnkiParity.notes(nt._planId):AnkiParity.notes();
+      document.getElementById('anki-nt-edit-sub').textContent=notes.filter(n=>String(n.notetypeId)===String(nt.id)).length+' nota(s) usam este tipo';
       document.getElementById('anki-nt-name').value=nt.name||'';
       const fb=document.getElementById('anki-nt-fields');fb.innerHTML='';(nt.fields||[]).forEach(f=>AnkiProductParity._appendFieldRow(f,f.name));
       const tb=document.getElementById('anki-nt-templates');tb.innerHTML='';(nt.templates||[]).forEach((t,i)=>AnkiProductParity._appendTemplateRow(t,t.ord==null?i:t.ord));
@@ -159,21 +160,23 @@ const AnkiMaxEditor = {
 
   _patchNoteEditor(){
     const save=document.getElementById('anki-note-save');if(save)save.addEventListener('click',e=>{if(!this._richEditingNote)return;e.preventDefault();e.stopImmediatePropagation();this._saveRichNote();},true);
-    AnkiProductParity.openNoteEditor=(id)=>{
-      const note=AnkiParity.getNote(id);if(!note)return;const nt=AnkiProductParity._typeFor(note);if(typeof AnkiImageOcclusion!=='undefined'&&AnkiImageOcclusion.isType(nt)){AnkiImageOcclusion.openEditor(id,(AnkiProductParity._cardsForNote(id).find(c=>c.deckId)||{}).deckId);return;}
-      this._richEditingNote=String(id);AnkiProductParity._editingNoteId=String(id);
-      document.getElementById('anki-note-edit-title').textContent='✎ Editar nota';document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+AnkiProductParity._cardsForNote(id).length+' card(s)';
+    AnkiProductParity.openNoteEditor=(ref)=>{
+      const note=AnkiProductParity._getNote(ref);if(!note)return;const nref=AnkiProductParity.noteRef(note),nt=AnkiProductParity._typeFor(note);
+      if(typeof AnkiImageOcclusion!=='undefined'&&AnkiImageOcclusion.isType(nt)){AnkiImageOcclusion.openEditor(nref,(AnkiProductParity._cardsForNote(nref).find(c=>c.deckId)||{}).deckId);return;}
+      this._richEditingNote=nref;AnkiProductParity._editingNoteRef=nref;AnkiProductParity._editingNoteId=String(note.id);
+      document.getElementById('anki-note-edit-title').textContent='✎ Editar nota';document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+AnkiProductParity._cardsForNote(nref).length+' card(s)';
       const body=document.getElementById('anki-note-edit-body');
-      body.innerHTML=(nt&&nt.fields||[]).map((f,i)=>this._fieldEditorHtml(Object.assign({ord:i},f),note.fields&&note.fields[f.name]||'','anki-note-'+id)).join('')+
+      body.innerHTML=(nt&&nt.fields||[]).map((f,i)=>this._fieldEditorHtml(Object.assign({ord:i},f),note.fields&&note.fields[f.name]||'','anki-note-'+String(note.id))).join('')+
         '<div class="field"><label>Tags</label><input id="anki-note-tags" type="text" value="'+this.esc((note.tags||[]).join(' '))+'" placeholder="tag1 tag2::subtag"></div>';
       this._decorateRichEditors(body);document.getElementById('anki-note-edit-modal').style.display='flex';
     };
   },
   _saveRichNote(){
-    const id=this._richEditingNote,note=AnkiParity.getNote(id);if(!note)return;const nt=AnkiProductParity._typeFor(note),fields={};
+    const ref=this._richEditingNote,note=AnkiProductParity._getNote(ref);if(!note)return;const nt=AnkiProductParity._typeFor(note),fields={};
     document.querySelectorAll('#anki-note-edit-body .anki-note-field').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
-    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean),saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}));
-    AnkiProductParity.reconcileNote(saved,nt);this._richEditingNote=null;document.getElementById('anki-note-edit-modal').style.display='none';AnkiProductParity.renderBrowser();AnkiProductParity.previewNote(saved.id);CardsScreen.render();showToast('Nota atualizada ✓');
+    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean),
+      saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}),note._planId==null?undefined:note._planId);
+    AnkiProductParity.reconcileNote(saved,nt);this._richEditingNote=null;AnkiProductParity._editingNoteRef=null;document.getElementById('anki-note-edit-modal').style.display='none';AnkiProductParity.renderBrowser();AnkiProductParity.previewNote(AnkiProductParity.noteRef(saved));CardsScreen.render();showToast('Nota atualizada ✓');
   },
 
   /* ───────────────── ADVANCED ADD ───────────────── */
