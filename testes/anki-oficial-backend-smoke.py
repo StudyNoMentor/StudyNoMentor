@@ -177,6 +177,78 @@ with tempfile.TemporaryDirectory() as tmp:
         # /health não expõe caminhos do servidor.
         assert "data_dir" not in app.health()
 
+    # A tela Cards usa uma coleção OFICIAL separada do menu Anki.
+    cards_user = app.cards_pool.get("smoke-user")
+    assert cards_user.collection_path != user.collection_path
+    assert "study-cards" in str(cards_user.collection_path)
+    cards_ctx = {"id": "smoke-user"}
+    with cards_user.lock:
+        ccol = cards_user.col
+        cnt = ccol.models.current()
+        cnote = ccol.new_note(cnt)
+        ckeys = cnote.keys()
+        cnote[ckeys[0]] = "Cards bridge pergunta"
+        cnote[ckeys[1]] = "Cards bridge resposta"
+        ccol.add_note(cnote, ccol.decks.get_current_id())
+        ccid = int(cnote.cards()[0].id)
+
+    cq = app.cards_official_reviewer_next(cards_ctx)
+    assert cq["finished"] is False
+    assert ccid in cq["queue_ids"]
+    assert cq["card"]["question"]
+    assert cq["card"]["answer"]
+    assert set(cq["counts"]) == {"new", "learning", "review"}
+
+    answered = app.cards_official_reviewer_answer(
+        app.AnswerBody(card_id=ccid, rating=3, milliseconds_taken=321),
+        cards_ctx,
+    )
+    state = answered["answered"]
+    assert state["id"] == ccid
+    assert state["question"] and state["answer"]
+    assert state["reps"] >= 1
+    assert state["review_logs"], "revlog oficial precisa voltar no snapshot"
+    assert state["memory_state"] is None or {"stability", "difficulty"} <= set(state["memory_state"])
+
+    # Search/sort do Browser vêm de find_cards/find_notes oficiais.
+    bcards = app.cards_official_browser_ids("cards", "Cards bridge pergunta", "", False, cards_ctx)
+    bnotes = app.cards_official_browser_ids("notes", "Cards bridge pergunta", "", False, cards_ctx)
+    assert bcards["ids"] == [ccid]
+    assert int(cnote.id) in bnotes["ids"]
+    bfacets = app.cards_official_browser_facets(cards_ctx)
+    assert bfacets["columns"] and bfacets["notetypes"]
+
+    bulk = app.cards_official_browser_bulk(
+        {"action": "flag", "card_ids": [ccid], "note_ids": [], "flag": 6},
+        cards_ctx,
+    )
+    assert bulk["cards"][0]["flag"] == 6
+    tagged = app.cards_official_browser_bulk(
+        {"action": "tags_add", "card_ids": [], "note_ids": [int(cnote.id)], "tags": "cards-official"},
+        cards_ctx,
+    )
+    assert "cards-official" in tagged["notes"][0]["tags"]
+
+    # Change Notetype usa o mapa e a mutação oficiais e devolve o conjunto final de cards.
+    with cards_user.lock:
+        reversed_nt = ccol.models.by_name("Basic (and reversed card)")
+        old_nt = ccol.get_note(cnote.id).note_type()
+        old_id = int(old_nt["id"])
+        new_id = int(reversed_nt["id"])
+    info = app.cards_official_change_notetype_info(old_id, new_id, cards_ctx)
+    request = dict(info["input"])
+    request["note_ids"] = [int(cnote.id)]
+    changed = app.cards_official_change_notetype(request, cards_ctx)
+    assert changed["notes"][0]["notetype_id"] == new_id
+    assert changed["cards"], "Anki deve devolver os cards resultantes da mudança de tipo"
+
+    # Undo/redo da coleção Cards também pertencem ao backend oficial.
+    undo_out = app.cards_official_undo(cards_ctx)
+    assert undo_out["ok"] is True and "reviewer" in undo_out
+    redo_out = app.cards_official_redo(cards_ctx)
+    assert redo_out["ok"] is True and "reviewer" in redo_out
+
+    app.cards_pool.close_all()
     app.pool.close_all()
 
     # Pool com teto (LRU): coleções antigas e livres são fechadas.
