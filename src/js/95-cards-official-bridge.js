@@ -1137,9 +1137,16 @@ const CardsOfficialBridge = {
         const plan=(row.card&&row.card._planId)||(row.note&&row.note._planId)||null;
         if(!prev||(active!=null&&String(plan)===String(active)))map.set(String(id),row);
       }
-      const rows=[],missing=[];
-      for(const id of out.ids||[]){
-        const row=map.get(String(id));if(row)rows.push(row);else missing.push(id);
+      const ids=out.ids||[],visibleCount=Math.min(ids.length,Math.max(Number(AnkiProductParity.PAGE)||50,((Number(b.page)||0)+1)*(Number(AnkiProductParity.PAGE)||50))),
+        visibleIds=ids.slice(0,visibleCount),
+        officialRows=visibleIds.length?await this.request('/api/cards-official/browser/rows',{
+          method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode,ids:visibleIds})
+        }):{rows:[]},
+        officialMap=new Map((officialRows.rows||[]).map(x=>[String(x.id),x])),
+        rows=[],missing=[];
+      for(const id of ids){
+        const row=map.get(String(id));
+        if(row){row._officialBrowser=officialMap.get(String(id))||null;rows.push(row);}else missing.push(id);
       }
       if(missing.length)throw new Error('Browser oficial retornou '+missing.length+' ID(s) sem objeto local correspondente: '+missing.slice(0,5).join(', '));
       this._browserCache=rows;this._browserTotal=Number(out.total)||rows.length;this._browserError=null;
