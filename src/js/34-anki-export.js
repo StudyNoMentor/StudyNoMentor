@@ -624,7 +624,10 @@ const AnkiExport = {
     for (const r of revlog || []) { const k = String(r.cardId); if (!group.has(k)) group.set(k, []); group.get(k).push(r); }
     const rows = []; let uniqueLast = 0;
     for (const pair of group) {
-      const sid = pair[0], logs = pair[1], card = byCard.get(sid); if (!card) continue;
+      const sid = pair[0], logs = pair[1], card = byCard.get(sid);
+      const historicalAnkiId=(logs||[]).map(r=>Number(r&&r.ankiCardId)).find(Number.isFinite);
+      const cardAnkiId=card&&Number.isFinite(Number(card.ankiId))?Number(card.ankiId):historicalAnkiId;
+      if (!Number.isFinite(cardAnkiId)) continue;
       logs.sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0)); let prevExportIvl = 0;
       for (let i = 0; i < logs.length; i++) {
         const r = logs[i], kind = this._revKind(r), lastIvl = Number(r.intervalo) || prevExportIvl || 0;
@@ -632,7 +635,7 @@ const AnkiExport = {
         if (r.ankiIvlSemantica === 2 && r.ankiInterval != null && r.ankiLastInterval != null) {
           // Linha gravada já na semântica do Anki: exporta exatamente o que foi registrado.
           let id2 = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id2 <= uniqueLast) id2 = uniqueLast + 1; uniqueLast = id2;
-          rows.push([id2, Number(card.ankiId), -1, Math.min(4, Math.max(0, Math.round(Number(r.grade) || 0))), Math.round(Number(r.ankiInterval) || 0),
+          rows.push([id2, cardAnkiId, -1, Math.min(4, Math.max(0, Math.round(Number(r.grade) || 0))), Math.round(Number(r.ankiInterval) || 0),
             Math.round(Number(r.ankiLastInterval) || 0), Math.max(0, Math.round(Number(r.easeFactor) || 0)), Math.max(0, Math.round(Number(r.time) || 0)), kind]);
           prevExportIvl = Number(r.ankiInterval) || 0;
           continue;
@@ -640,10 +643,10 @@ const AnkiExport = {
         if (kind === 0 || kind === 2) {
           const next = logs[i + 1];
           const sec = next ? Math.max(1, Math.round(((Number(next.ts) || 0) - (Number(r.ts) || 0)) / 1000))
-            : (card.dueTs ? Math.max(1, Math.round((Number(card.dueTs) - (Number(r.ts) || 0)) / 1000)) : 0);
-          ivl = sec > 0 ? -sec : (Number(card.intervalo) || 0);
+            : (card&&card.dueTs ? Math.max(1, Math.round((Number(card.dueTs) - (Number(r.ts) || 0)) / 1000)) : 0);
+          ivl = sec > 0 ? -sec : (Number(card&&card.intervalo) || 0);
         } else {
-          const next = logs[i + 1]; ivl = next ? (Number(next.intervalo) || 0) : (Number(card.intervalo) || 0);
+          const next = logs[i + 1]; ivl = next ? (Number(next.intervalo) || 0) : (Number(card&&card.intervalo) || Number(r.ankiInterval) || 0);
           ivl = Math.max(0, Math.round(ivl));
         }
         let id = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id <= uniqueLast) id = uniqueLast + 1; uniqueLast = id;
@@ -651,8 +654,8 @@ const AnkiExport = {
         // factor DAQUELA revisão quando o histórico o registrou; o ease atual do
         // card é só o último recurso (antes era usado para o histórico inteiro).
         const easeDaRevisao = [r.easeFactor, r.factor, r.ease].map(Number).find(x => Number.isFinite(x) && x > 0);
-        const rawEase = easeDaRevisao || Number(card.ease) || 2.5;
-        rows.push([id, Number(card.ankiId), -1, ease, ivl, Math.round(lastIvl), Math.round(rawEase < 10 ? rawEase * 1000 : rawEase),
+        const rawEase = easeDaRevisao || Number(card&&card.ease) || 2.5;
+        rows.push([id, cardAnkiId, -1, ease, ivl, Math.round(lastIvl), Math.round(rawEase < 10 ? rawEase * 1000 : rawEase),
           Math.max(0, Math.round(Number(r.time) || 0)), kind]);
         prevExportIvl = ivl;
       }
