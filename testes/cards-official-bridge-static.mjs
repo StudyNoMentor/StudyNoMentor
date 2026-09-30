@@ -92,7 +92,7 @@ assert.match(backend,/def cards_official_rebuild_filtered_deck[\s\S]*?item\.col\
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
 assert.match(backend,/def cards_official_update_deck_options[\s\S]*?item\.col\.decks\.update_deck_configs\(request\)[\s\S]*?"state": cards_collection_state_payload/,'salvar Deck Options deve executar a transação oficial e devolver estado canônico');
 assert.match(bridge,/async updateDeckOptions\(deckId,cfg,opts\)[\s\S]*?\/api\/cards-official\/deck\/'/,'bridge deve salvar Deck Options no backend oficial');
-assert.match(bridge,/targetId=isDeck\?\(opts\.hadPreset\?currentId:0\):1/,'preset novo precisa usar id=0 para o Anki alocar identidade canônica');
+assert.match(bridge,/targetId=isDeck\?\(opts\.forceCurrentPreset\?currentId:\(opts\.hadPreset\?currentId:0\)\):1/,'preset novo precisa usar id=0 e operações sobre o preset atual precisam preservar sua identidade canônica');
 assert.match(bridge,/fsrs_reschedule:!!opts\.fsrsReschedule/,'reschedule de Deck Options deve ser delegado ao scheduler oficial');
 assert.match(bridge,/async inheritDeckOptions\(deckId\)[\s\S]*?configs:\[conf\][\s\S]*?_saveDeckConfigIdentity\(deckId,ctx\.planId,selectedId\)/,'restaurar herança precisa reatribuir o deck ao preset global na Collection oficial');
 assert.match(cards,/deck-inherit-btn[\s\S]*?CardsOfficialBridge\.inheritDeckOptions\(deckId\)[\s\S]*?CardsConfig\.clearDeckPreset\(deckId\)/,'cache local só pode limpar o preset depois que o Anki oficial confirmar a herança');
