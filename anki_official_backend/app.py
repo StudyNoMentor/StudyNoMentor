@@ -769,6 +769,34 @@ def cards_official_reviewer_next(
         return cards_reviewer_payload(item.col)
 
 
+@app.post("/api/cards-official/reviewer/type-answer/{card_id}")
+def cards_official_reviewer_type_answer(
+    card_id: int,
+    body: TypeAnswerBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        card = item.col.get_card(card_id)
+        ctx = type_answer_context(item.col, card)
+        if not ctx or not ctx.get("enabled"):
+            return {"enabled": False, "answer_html": TYPE_ANSWER_PATTERN.sub("", card.answer())}
+        comparison = item.col.compare_answer(str(ctx["expected"]), body.provided, bool(ctx["combining"]))
+        answer_html = card.answer()
+        had_separator = '<hr id=answer>' in answer_html
+        stripped = answer_html.replace('<hr id=answer>', '')
+        replacement = (
+            f'<div class="anki-type-answer-comparison" '
+            f'style="font-family:{html.escape(str(ctx["font"]), quote=True)};font-size:{int(ctx["size"])}px">'
+            f'{comparison}</div>'
+        )
+        if had_separator:
+            replacement = '<hr id=answer>' + replacement
+        if TYPE_ANSWER_PATTERN.search(stripped):
+            answer_html = TYPE_ANSWER_PATTERN.sub(replacement, stripped, count=1)
+        return {"enabled": True, "answer_html": answer_html, "comparison": comparison}
+
+
 @app.post("/api/cards-official/reviewer/answer")
 def cards_official_reviewer_answer(
     body: AnswerBody,
@@ -845,9 +873,23 @@ def cards_official_card_action(
             if flag < 0 or flag > 7:
                 raise HTTPException(400, "Flag deve estar entre 0 e 7.")
             item.col.set_user_flag_for_cards(flag, ids)
+        elif body.action == "mark":
+            seen: set[int] = set()
+            for cid in ids:
+                note = item.col.get_card(cid).note()
+                if int(note.id) in seen:
+                    continue
+                seen.add(int(note.id))
+                if "marked" in note.tags:
+                    note.tags = [tag for tag in note.tags if tag != "marked"]
+                else:
+                    note.tags.append("marked")
+                item.col.update_note(note)
+        elif body.action == "delete_notes":
+            item.col.remove_notes_by_card(ids)
         else:
             raise HTTPException(400, f"Ação não suportada: {body.action}")
-        states = [card_state_payload(item.col, cid) for cid in ids]
+        states = [] if body.action == "delete_notes" else [card_state_payload(item.col, cid) for cid in ids]
         return {"ok": True, "cards": states, "reviewer": cards_reviewer_payload(item.col)}
 
 
@@ -1162,6 +1204,18 @@ async def editor_media(
 @app.get("/api/anki/media/{filename:path}")
 def media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     item = uc_for(user)
+    safe_name = os.path.basename(filename)
+    if safe_name != filename:
+        raise HTTPException(400, "Nome de mídia inválido.")
+    path = Path(item.col.media.dir()) / safe_name
+    if not path.is_file():
+        raise HTTPException(404, "Mídia não encontrada.")
+    return FileResponse(path)
+
+
+@app.get("/api/cards-official/media/{filename:path}")
+def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
+    item = cards_uc_for(user)
     safe_name = os.path.basename(filename)
     if safe_name != filename:
         raise HTTPException(400, "Nome de mídia inválido.")
