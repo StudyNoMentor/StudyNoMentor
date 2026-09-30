@@ -1782,13 +1782,28 @@ def cards_official_delete_empty_cards(
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
-    ids = [int(x) for x in payload.get("card_ids", [])]
+    ids = sorted({int(x) for x in payload.get("card_ids", []) if int(x) > 0})
     with item.lock:
+        # A lista vem do EmptyCardsReport oficial. Não tentamos decidir no
+        # servidor web quais cards são "vazios": a mesma Collection do Anki
+        # executa remove_cards_and_orphaned_notes(), exatamente como
+        # aqt/emptycards.py. O snapshot posterior permite espelhar o resultado.
+        before = pb(item.col.get_empty_cards())
+        empty_ids = {
+            int(card_id)
+            for note in before.get("notes", [])
+            for card_id in note.get("card_ids", [])
+        }
+        invalid = [card_id for card_id in ids if card_id not in empty_ids]
+        if invalid:
+            raise HTTPException(400, "Cards não constam no EmptyCardsReport atual: " + ", ".join(map(str, invalid)))
         changes = pb(item.col.remove_cards_and_orphaned_notes(ids))
         return {
             "ok": True,
+            "deleted_card_ids": ids,
+            "report_before": before,
             "changes": changes,
-            "reviewer": cards_reviewer_payload(item.col),
+            "state": cards_collection_state_payload(item.col),
         }
 
 
