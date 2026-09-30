@@ -1206,7 +1206,7 @@ const CardsOfficialBridge = {
     showToast('Tipo de nota alterado pelo Anki oficial ✓');
     this._changeTypeSelection=null;this._changeTypeInfo=null;
   },
-  async _reconcileOfficialCardSet(noteStates,cardStates){
+  async _reconcileOfficialCardSet(noteStates,cardStates,seedByNote){
     const byNote=new Map();
     for(const state of cardStates||[]){
       const k=String(state.note_id);if(!byNote.has(k))byNote.set(k,[]);byNote.get(k).push(state);
@@ -1218,7 +1218,9 @@ const CardsOfficialBridge = {
         const pid=note._planId!=null?note._planId:null,nt=AnkiParity.getNotetype(note.notetypeId,pid==null?undefined:pid),
           current=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
           same=current.filter(c=>String(c.ankiNoteId||c.noteId)===String(ns.id)||String(c.noteId)===String(note.id)),
-          seed=same[0]||{},existingByOfficial=new Map(same.map(c=>[String(this._officialId(c)),Object.assign({},c,pid==null?{}:{_planId:pid})]));
+          externalSeed=seedByNote&&seedByNote[String(ns.id)]||{},
+          seed=Object.assign({},same[0]||{},externalSeed),
+          existingByOfficial=new Map(same.map(c=>[String(this._officialId(c)),Object.assign({},c,pid==null?{}:{_planId:pid})]));
         for(const state of officialCards){
           let card=existingByOfficial.get(String(state.id));
           if(!card){
@@ -1240,6 +1242,9 @@ const CardsOfficialBridge = {
             template:nt&&nt.kind==='cloze'?'cloze:'+(Number(state.template_idx)+1):(Number(state.template_idx)===1?'reverse':'forward'),
             clozeOrd:nt&&nt.kind==='cloze'?Number(state.template_idx)+1:null
           });
+          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo']){
+            if(Object.prototype.hasOwnProperty.call(externalSeed,k))patch[k]=externalSeed[k];
+          }
           if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(card,patch,pid);
           else DB.updateCard(card.id,patch);
         }
@@ -1781,12 +1786,16 @@ const CardsOfficialBridge = {
     this._orig.redoAnswer=CardsScreen.redoAnswer;
     this._orig.openCustomStudy=CardsScreen.openCustomStudy;
     this._orig.openFilteredDeckModal=CardsScreen.openFilteredDeckModal;
+    this._orig.saveCard=CardsScreen.saveCard;
+    this._orig.deleteCard=CardsScreen.deleteCard;
     CardsScreen.renderRevisar=(box)=>{void this.renderRevisar(box);};
     CardsScreen.renderStats=(box)=>{void this.renderStats(box);};
     CardsScreen.answer=(grade)=>this.answer(grade);
     CardsScreen.flip=()=>{void this.showAnswer();};
     CardsScreen.undoAnswer=()=>{void this.undo();};
     CardsScreen.redoAnswer=()=>{void this.redo();};
+    CardsScreen.saveCard=(closeAfter)=>{void this.saveSimpleCard(closeAfter).catch(e=>showToast('Card não salvo: '+(e&&e.message?e.message:String(e))));};
+    CardsScreen.deleteCard=()=>{void this.deleteSimpleCard().catch(e=>showToast('Nota não excluída: '+(e&&e.message?e.message:String(e))));};
     CardsScreen.openCustomStudy=()=>this.openCustomStudy();
     CardsScreen.runCustomStudy=()=>{void this.runCustomStudy();};
     CardsScreen.openFilteredDeckModal=(deckId)=>{void this.openFilteredDeckModal(deckId);};
@@ -1796,7 +1805,7 @@ const CardsOfficialBridge = {
     // Alterações de conteúdo/config invalidam a coleção oficial isolada. A
     // próxima entrada em Revisar faz novo bootstrap; respostas oficiais NÃO
     // passam por estes métodos e, portanto, não causam rebuild em loop.
-    ['saveCard','deleteCard','addDeck','doImport','reposicionarNovos','resetCardStats']
+    ['addDeck','doImport','reposicionarNovos','resetCardStats']
       .forEach(n=>this._wrapInvalidator(n));
 
     window.addEventListener('screen:activated',ev=>{
