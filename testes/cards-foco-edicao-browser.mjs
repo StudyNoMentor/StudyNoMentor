@@ -335,7 +335,21 @@ try{
   const touch=await touchContext.newPage(),touchErrors=[];touch.on('pageerror',e=>touchErrors.push(e.message));
   await touch.goto(`http://127.0.0.1:${server.address().port}/index.html`,{waitUntil:'domcontentloaded'});
   await touch.waitForFunction(()=>window.switchScreen&&typeof CardsScreen!=='undefined'&&typeof AnkiProductParity!=='undefined',{timeout:30000});
-  await touch.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){}const d=DB.addDeck('Touch E2E');DB.addCard({deckId:d.id,frente:'TOUCH',verso:'OK',phase:'review',status:'sei',due:todayCards(),intervalo:4,reps:2,lapses:0,ease:2.5,s:4,d:5});switchScreen('cards');CardsScreen.filters={materias:new Set(['deck:'+d.id])};CardsScreen.invalidateReviewQueue();CardsScreen.entrarFoco();});
+  await touch.evaluate(()=>{
+    try{ProfileUI.hideGate();}catch(_){}
+    // Segunda página = segundo runtime. Também precisa ficar explicitamente
+    // local nesta suíte; do contrário o screen:activated tenta falar com o
+    // backend oficial inexistente do servidor estático e sobrepõe o reviewer.
+    if(window.CardsOfficialBridge&&CardsOfficialBridge._orig&&CardsOfficialBridge._orig.renderRevisar){
+      CardsScreen.renderRevisar=CardsOfficialBridge._orig.renderRevisar;
+      if(CardsOfficialBridge._orig.flip)CardsScreen.flip=CardsOfficialBridge._orig.flip;
+      if(CardsOfficialBridge._orig.answer)CardsScreen.answer=CardsOfficialBridge._orig.answer;
+      CardsOfficialBridge.dirty=false;CardsOfficialBridge.ready=true;CardsOfficialBridge.review=null;
+    }
+    const d=DB.addDeck('Touch E2E');
+    DB.addCard({deckId:d.id,frente:'TOUCH',verso:'OK',phase:'review',status:'sei',due:todayCards(),intervalo:4,reps:2,lapses:0,ease:2.5,s:4,d:5});
+    switchScreen('cards');CardsScreen.filters={materias:new Set(['deck:'+d.id])};CardsScreen.invalidateReviewQueue();CardsScreen.entrarFoco();
+  });
   await touch.waitForTimeout(250);
   const moreBox=await touch.locator('#anki-review-more').boundingBox();ok(!!moreBox,'Mais ações tem alvo tátil no contexto mobile real');
   await touch.touchscreen.tap(moreBox.x+moreBox.width/2,moreBox.y+moreBox.height/2);await touch.waitForTimeout(100);
