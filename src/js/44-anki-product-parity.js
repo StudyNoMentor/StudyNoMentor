@@ -337,10 +337,12 @@ const AnkiProductParity = {
   },
 
   openChangeType(ids){
-    ids=(ids||[]).map(String).filter(Boolean);if(!ids.length)return;this.ensure();
-    const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
+    const refs=(ids||[]).filter(Boolean);if(!refs.length)return;this.ensure();
+    const notes=refs.map(x=>x&&typeof x==='object'?x:AnkiParity.getNote(x)).filter(Boolean),
+      noteIds=notes.map(n=>String(n.id)),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
+    if(!notes.length)return;
     if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
-    this._changeTypeIds=ids;this._changeTypeNotes=notes;this._changeTypePlanId=origins.size?[...origins][0]:null;
+    this._changeTypeIds=noteIds;this._changeTypeNotes=notes;this._changeTypePlanId=origins.size?[...origins][0]:null;
     /* Se o planejamento de origem ainda não tem tipos materializados, exibimos
        a coleção virtual, mas no SALVAR o tipo escolhido é copiado para a origem
        antes de a nota apontar para ele. Isso evita referência a NoteType de outro
