@@ -48,7 +48,7 @@ const AnkiMediaStore = {
 const AnkiMaxStatsMedia = {
   install(){
     if(this._installed||typeof CardsScreen==='undefined'||typeof AnkiProductParity==='undefined')return;
-    this._installed=true;this._patchImportExport();this._patchStats();this._patchCheck();this._injectSimulator();
+    this._installed=true;this._patchCheck();this._injectSimulator();
   },
 
   _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
@@ -67,37 +67,9 @@ const AnkiMaxStatsMedia = {
     const name=String(root.nome||''),prefix=name+'::';
     return new Set(decks.filter(d=>String(d.id)===String(rootId)||String(d.nome||'').startsWith(prefix)).map(d=>String(d.id)));
   },
-  statsCards(){
-    let cards=this._cardsSource();
-    const st=this._statsState||{},scope=st.scope||'deck';
-    if(scope==='deck'){
-      const ids=this._statsDeckIds(this._statsSelectedDeckId());
-      if(ids)cards=cards.filter(c=>ids.has(String(c.deckId)));
-    }else if(scope==='search'&&String(st.search||'').trim()){
-      const q=String(st.search).trim();
-      if(typeof AnkiParity!=='undefined'&&AnkiParity.filteredSearchMatches)cards=cards.filter(c=>{try{return AnkiParity.filteredSearchMatches(c,q);}catch(_){return false;}});
-    }
-    return cards;
-  },
-  statsRevlog(applyHistory=true){
-    let rows=this._revlogSource()||[];const st=this._statsState||{},scope=st.scope||'deck';
-    if(scope!=='collection'){
-      const ids=new Set();
-      for(const c of this.statsCards()){if(c&&c.id!=null)ids.add(String(c.id));if(c&&c.ankiId!=null)ids.add(String(c.ankiId));}
-      rows=rows.filter(r=>ids.has(String(r.cardId==null?r.ankiCardId:r.cardId)));
-    }
-    if(applyHistory&&st.history!=='all'){
-      const cut=CardEngine.addDays(todayCards(),-364);
-      rows=rows.filter(r=>{const d=this._revDate(r);return !d||d>=cut;});
-    }
-    return rows;
-  },
-  _statsHistoryDays(){
-    if((this._statsState||{}).history!=='all')return 365;
-    const rows=this.statsRevlog(false),today=todayCards();let earliest=today;
-    for(const r of rows){const d=this._revDate(r);if(d&&d<earliest)earliest=d;}
-    return Math.max(1,Math.min(36500,CardEngine._daysBetween(earliest,today)+1));
-  },
+  statsCards(){return [];},
+  statsRevlog(){return [];},
+  _statsHistoryDays(){return (this._statsState||{}).history==='all'?0:365;},
   _statsControlsHtml(){
     const st=this._statsState||{},decks=this._decksSource().slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')),
       selected=this._statsSelectedDeckId(),esc=(v)=>typeof AnkiProductParity!=='undefined'&&AnkiProductParity.esc?AnkiProductParity.esc(v):String(v||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -110,20 +82,8 @@ const AnkiMaxStatsMedia = {
 
   /* ───────────────── MEDIA STORE / ROUND-TRIP ───────────────── */
   _patchImportExport(){
-    if(typeof AnkiImport!=='undefined'&&!AnkiImport.__mediaStorePatched){
-      AnkiImport.__mediaStorePatched=true;const old=AnkiImport.importPackage.bind(AnkiImport);
-      AnkiImport.importPackage=async(parsed,opts)=>{const out=await old(parsed,opts);try{if(parsed&&parsed.pkg&&parsed.pkg.media)await AnkiMediaStore.putAll(parsed.pkg.media);}catch(e){console.warn('Media store import',e);}return out;};
-    }
-    if(typeof AnkiExport!=='undefined'&&!AnkiExport.__mediaStorePatched){
-      AnkiExport.__mediaStorePatched=true;const old=AnkiExport.buildCollection.bind(AnkiExport);
-      AnkiExport.buildCollection=async(opts)=>{
-        const col=await old(opts);if(opts&&opts.withMedia===false)return col;
-        try{
-          const stored=await AnkiMediaStore.all(false),seenName=new Set((col.media||[]).map(x=>String(x.name))),seenFp=new Set((col.media||[]).map(x=>AnkiMediaStore.fingerprint(x.bytes)));
-          for(const m of stored){if(seenName.has(m.name)||seenFp.has(m.fingerprint))continue;(col.media||(col.media=[])).push({name:m.name,bytes:AnkiMediaStore._u8(m.bytes),mime:m.mime||''});seenName.add(m.name);seenFp.add(m.fingerprint);}
-        }catch(e){console.warn('Media store export',e);}return col;
-      };
-    }
+    /* Import/export acadêmico local desativado. Pacotes e mídia passam pelo
+       importador/exportador/MediaManager oficiais no CardsOfficialBridge. */
   },
 
   _mediaRefsFrom(text){
@@ -334,29 +294,6 @@ const AnkiMaxStatsMedia = {
     }
   },
 
-  _simNumericCardId(card,index){
-    const raw=card&&card.ankiId!=null?Number(card.ankiId):NaN;
-    if(Number.isSafeInteger(raw)&&raw>0)return raw;
-    const key=String(card&&card.id!=null?card.id:index),h=typeof FSRS!=='undefined'&&FSRS._hash?FSRS._hash(key):index+1;
-    return 1000000000+(Number(h)>>>0);
-  },
-  _simSignedDays(a,b){
-    const x=new Date(String(a||'')+'T00:00:00'),y=new Date(String(b||'')+'T00:00:00');
-    const n=Math.round((y-x)/86400000);return Number.isFinite(n)?n:0;
-  },
-  _simNextDayAtSec(cfg){
-    const now=new Date(),cut=new Date(now),hour=Math.max(0,Math.min(23,(cfg&&cfg.rolloverHour!=null&&Number.isFinite(Number(cfg.rolloverHour)))?Number(cfg.rolloverHour):4));
-    cut.setHours(hour,0,0,0);if(cut<=now)cut.setDate(cut.getDate()+1);
-    return Math.floor(cut.getTime()/1000);
-  },
-  _simReviewKind(row){
-    const explicit=row&&(row.ankiReviewKind!=null?row.ankiReviewKind:row.reviewKind);
-    if(Number.isInteger(Number(explicit))&&Number(explicit)>=0&&Number(explicit)<=5)return Number(explicit);
-    const k=String(explicit==null?'':explicit).toLowerCase();
-    if(k==='learning')return 0;if(k==='review')return 1;if(k==='relearning')return 2;if(k==='filtered'||k==='cram')return 3;if(k==='manual')return 4;if(k==='rescheduled')return 5;
-    const p=String(row&&row.phase||row&&row.kind||'review').toLowerCase();
-    if(p==='learning')return 0;if(p==='relearning')return 2;if(p==='filtered'||p==='cram')return 3;if(p==='manual')return 4;if(p==='rescheduled')return 5;return 1;
-  },
   async simulateOfficial(days,retention,opts){
     opts=opts||{};days=Math.max(1,Math.min(3650,Math.round(Number(days)||365)));retention=Math.max(.7,Math.min(.99,Number(retention)||.9));
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.simulateFsrsPreset!=='function')throw new Error('Simulador oficial do Anki indisponível.');
@@ -432,16 +369,10 @@ const AnkiMaxStatsMedia = {
     const old=AnkiProductParity.renderCheck.bind(AnkiProductParity);
     AnkiProductParity.renderCheck=()=>{old();this.renderExtendedCheck();};
   },
-  structuralIssues(){
-    const cards=this._cardsSource(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),deckIds=new Set(this._decksSource().map(d=>String(d.id))),cardAnki=new Map(),orphanNotes=[],badOrd=[],badFiltered=[],badTypes=[];
-    cards.forEach(c=>{const k=String(c.ankiId||'');if(k){if(!cardAnki.has(k))cardAnki.set(k,[]);cardAnki.get(k).push(c.id);}const n=AnkiParity.getNote(AnkiProductParity.noteId(c)),nt=n&&AnkiProductParity._typeFor(n);if(nt&&nt.kind!=='cloze'&&(Number(c.ankiTemplateOrd)||0)>=(nt.templates||[]).length)badOrd.push(c.id);if(c.originalDeckId&&!deckIds.has(String(c.originalDeckId)))badFiltered.push(c.id);});
-    const used=new Set(cards.map(c=>String(AnkiProductParity.noteId(c))));notes.forEach(n=>{if(!used.has(String(n.id)))orphanNotes.push(n.id);});
-    types.forEach(t=>{const names=(t.fields||[]).map(f=>String(f.name||'').toLowerCase()),dup=names.length!==new Set(names).size;if(!(t.fields||[]).length||!(t.templates||[]).length||dup)badTypes.push(t.id);});
-    return {duplicateCardIds:[...cardAnki.values()].filter(x=>x.length>1),orphanNotes,badOrd,badFiltered,badTypes};
-  },
+  structuralIssues(){return {officialOnly:true};},
   async renderExtendedCheck(){
     const body=document.getElementById('anki-check-body');if(!body)return;
-    const s=this.structuralIssues(),wrap=document.createElement('div');wrap.id='anki-check-extended';
+    const wrap=document.createElement('div');wrap.id='anki-check-extended';
     wrap.innerHTML='<p class="hint">Executando Check Media pela Collection oficial do Anki 26.09.3…</p>';body.appendChild(wrap);
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.checkOfficialMedia!=='function'){
       wrap.innerHTML='<p class="hint tone-bad">Backend oficial do Anki indisponível. Nenhuma verificação local foi usada como substituta.</p>';return;
@@ -452,8 +383,8 @@ const AnkiMaxStatsMedia = {
       const unused=Array.isArray(m.unused)?m.unused:[],missing=Array.isArray(m.missing)?m.missing:[],
         missingNotes=Array.isArray(m.missing_media_notes)?m.missing_media_notes:(Array.isArray(m.missingMediaNotes)?m.missingMediaNotes:[]),
         haveTrash=!!(m.have_trash!=null?m.have_trash:m.haveTrash),report=String(m.report||'');
-      wrap.innerHTML='<h3 class="anki-section-title">Verificação oficial</h3><div class="anki-check-grid">'+
-        [['Notas sem cards (espelho)',s.orphanNotes.length],['Ordinais inválidos (espelho)',s.badOrd.length],['Filtered sem home deck (espelho)',s.badFiltered.length],['Note Types inválidos (espelho)',s.badTypes.length],['IDs Anki duplicados (espelho)',s.duplicateCardIds.length],['Referências ausentes',missing.length],['Mídias não utilizadas',unused.length],['Lixeira de mídia',haveTrash?1:0]]
+      wrap.innerHTML='<h3 class="anki-section-title">Check Media · Anki oficial</h3><div class="anki-check-grid">'+
+        [['Referências ausentes',missing.length],['Mídias não utilizadas',unused.length],['Lixeira de mídia',haveTrash?1:0]]
         .map(r=>'<div><span>'+AnkiProductParity.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
         (report?'<details open><summary>Relatório do Check Media</summary><pre class="anki-check-report">'+AnkiProductParity.esc(report)+'</pre></details>':'')+
         '<div class="anki-media-actions">'+
