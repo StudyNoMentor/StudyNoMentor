@@ -1350,10 +1350,19 @@ const DB = {
       return n;
     } catch (_) { return 0; }
   },
+  _preserveDeletedCardRevlogIds(cards) {
+    const map=new Map((cards||[]).filter(c=>c&&c.ankiId!=null&&Number.isFinite(Number(c.ankiId))).map(c=>[String(c.id),Number(c.ankiId)]));
+    if(!map.size)return 0;
+    const rows=this.getRevlog(),changed=[];
+    rows.forEach(r=>{const aid=map.get(String(r&&r.cardId));if(aid!=null&&r.ankiCardId==null){r.ankiCardId=aid;changed.push(r);}});
+    if(changed.length)this.replaceRevlog(rows);
+    return changed.length;
+  },
   /* Exclusão no Anki remove o card/nota, mas preserva o revlog histórico.
      O histórico órfão é intencional: continua alimentando estatísticas globais
      e explica o passado da coleção, embora o conteúdo excluído já não exista. */
   deleteCard(id) {
+    const alvo=this.getCard(id);if(alvo)this._preserveDeletedCardRevlogIds([alvo]);
     if (this.saveCards(this.getCards().filter(c => String(c.id) !== String(id))) === false) return false;
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
     return true;
@@ -1368,6 +1377,7 @@ const DB = {
       .filter(c => String(c.noteId || c.id) === noteId)
       .map(c => String(c.id)));
     if (!ids.size) return 0;
+    this._preserveDeletedCardRevlogIds(this.getCards().filter(c=>ids.has(String(c.id))));
     if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
     try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
     return ids.size;
