@@ -64,6 +64,7 @@ UPLOAD_CHUNK = 1024 * 1024
 async def lifespan(_app: FastAPI):
     yield
     pool.close_all()
+    cards_pool.close_all()
 
 
 app = FastAPI(
@@ -130,10 +131,11 @@ class CollectionPool:
     aberta para sempre: memória e descritores cresciam sem limite. A mais
     antiga só é fechada quando ninguém a está usando (lock livre)."""
 
-    def __init__(self, max_open: int = MAX_OPEN_COLLECTIONS) -> None:
+    def __init__(self, max_open: int = MAX_OPEN_COLLECTIONS, namespace: str = "") -> None:
         self._items: "OrderedDict[str, UserCollection]" = OrderedDict()
         self._guard = threading.RLock()
         self._max_open = max_open
+        self._namespace = namespace.strip().strip("/")
 
     def _evict_locked(self) -> None:
         while len(self._items) > self._max_open:
@@ -160,6 +162,8 @@ class CollectionPool:
                 self._items.move_to_end(user_id)
                 return existing
             root = DATA_DIR / user_id
+            if self._namespace:
+                root = root / self._namespace
             root.mkdir(parents=True, exist_ok=True)
             collection_path = root / "collection.anki2"
             col = Collection(str(collection_path))
@@ -185,6 +189,9 @@ class CollectionPool:
 
 
 pool = CollectionPool()
+# Coleção isolada usada pela tela Cards. Ela executa o MESMO backend oficial
+# do Anki, mas nunca mistura os cards do Study com a coleção do menu Anki Oficial.
+cards_pool = CollectionPool(namespace="study-cards")
 
 # token -> (expira_em, usuario). Guardamos só o hash do token.
 _token_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -303,11 +310,19 @@ async def current_user(
     return user
 
 
-def uc_for(user: dict[str, Any]) -> UserCollection:
+def _validated_user_id(user: dict[str, Any]) -> str:
     uid = str(user["id"])
     if not uid or any(ch not in "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_" for ch in uid):
         raise HTTPException(400, "Identificador de usuário inválido.")
-    return pool.get(uid)
+    return uid
+
+
+def uc_for(user: dict[str, Any]) -> UserCollection:
+    return pool.get(_validated_user_id(user))
+
+
+def cards_uc_for(user: dict[str, Any]) -> UserCollection:
+    return cards_pool.get(_validated_user_id(user))
 
 
 def av_tags(card: Card, answer: bool = False) -> list[dict[str, Any]]:
@@ -549,6 +564,37 @@ def reviewer_payload(col: Collection) -> dict[str, Any]:
     return out
 
 
+def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
+    """Estado canônico de um card, serializado diretamente da API oficial."""
+    card = col.get_card(card_id)
+    memory = pb(card.memory_state) if card.memory_state is not None else None
+    return {
+        "id": int(card.id),
+        "note_id": int(card.nid),
+        "deck_id": int(card.did),
+        "original_deck_id": int(card.odid),
+        "template_idx": int(card.ord),
+        "type": int(card.type),
+        "queue": int(card.queue),
+        "due": int(card.due),
+        "interval": int(card.ivl),
+        "ease_factor": int(card.factor),
+        "reps": int(card.reps),
+        "lapses": int(card.lapses),
+        "remaining_steps": int(card.left),
+        "original_due": int(card.odue),
+        "flag": int(card.user_flag()),
+        "original_position": card.original_position,
+        "custom_data": str(card.custom_data or ""),
+        "memory_state": memory,
+        "desired_retention": card.desired_retention,
+        "decay": card.decay,
+        "last_review_time": card.last_review_time,
+        "stats": pb(col.card_stats_data(card.id)),
+        "review_logs": [pb(entry) for entry in col.get_review_logs(card.id)],
+    }
+
+
 @app.get("/api/anki/reviewer/next")
 def reviewer_next(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
@@ -622,6 +668,153 @@ def reviewer_answer(body: AnswerBody, user: dict[str, Any] = Depends(current_use
         answer.milliseconds_taken = body.milliseconds_taken
         item.col.sched.answer_card(answer)
         return reviewer_payload(item.col)
+
+
+
+# ---------------------------------------------------------------------------
+# Cards do Study executados pelo backend OFICIAL do Anki
+# ---------------------------------------------------------------------------
+
+@app.get("/api/cards-official/status")
+def cards_official_status(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return {
+            "connected": True,
+            "engine": "Anki official",
+            "collection": "study-cards",
+            "pinned_version": ANKI_VERSION,
+            "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+            "cards": int(item.col.card_count()),
+            "notes": int(item.col.note_count()),
+            "current_deck_id": int(item.col.decks.get_current_id()),
+        }
+
+
+@app.post("/api/cards-official/bootstrap")
+async def cards_official_bootstrap(
+    package: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Substitui a coleção isolada dos Cards por um .colpkg e deixa o Anki normalizá-la."""
+    name = package.filename or "study-cards.colpkg"
+    if not name.lower().endswith(".colpkg"):
+        raise HTTPException(400, "O bootstrap dos Cards exige um .colpkg.")
+    item = cards_uc_for(user)
+    tmp = await _upload_to_tempfile(package, ".colpkg", MAX_IMPORT_BYTES)
+    try:
+        with item.lock:
+            backup = item.root / f"before-cards-bootstrap-{int(time.time())}.anki2"
+            if item.collection_path.exists():
+                item.col.close()
+                shutil.copy2(item.collection_path, backup)
+                item.col.reopen()
+            backend = item.col._backend
+            item.col.close()
+            try:
+                media_folder, media_db = media_paths_from_col_path(str(item.collection_path))
+                backend.import_collection_package(
+                    import_export_pb2.ImportCollectionPackageRequest(
+                        col_path=str(item.collection_path),
+                        backup_path=tmp,
+                        media_folder=media_folder,
+                        media_db=media_db,
+                    )
+                )
+            except BaseException:
+                if backup.exists():
+                    try:
+                        shutil.copy2(backup, item.collection_path)
+                    except OSError:
+                        pass
+                raise
+            finally:
+                item.col.reopen()
+            return {
+                "ok": True,
+                "engine": "Anki official",
+                "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+                "cards": int(item.col.card_count()),
+                "notes": int(item.col.note_count()),
+                "reviewer": reviewer_payload(item.col),
+            }
+    finally:
+        _unlink_quiet(tmp)
+
+
+@app.get("/api/cards-official/reviewer/next")
+def cards_official_reviewer_next(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return reviewer_payload(item.col)
+
+
+@app.post("/api/cards-official/reviewer/answer")
+def cards_official_reviewer_answer(
+    body: AnswerBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        queued = item.col.sched.get_queued_cards(fetch_limit=1)
+        if not queued.cards:
+            raise HTTPException(409, "A fila oficial dos Cards não possui card atual.")
+        q = queued.cards[0]
+        if int(q.card.id) != body.card_id:
+            raise HTTPException(409, "O card atual da fila oficial dos Cards mudou; recarregue.")
+        card = item.col.get_card(q.card.id)
+        card.start_timer()
+        rating = {
+            1: CardAnswer.AGAIN,
+            2: CardAnswer.HARD,
+            3: CardAnswer.GOOD,
+            4: CardAnswer.EASY,
+        }[body.rating]
+        answer = item.col.sched.build_answer(card=card, states=q.states, rating=rating)
+        answer.milliseconds_taken = body.milliseconds_taken
+        item.col.sched.answer_card(answer)
+        return {
+            "ok": True,
+            "answered": card_state_payload(item.col, int(card.id)),
+            "reviewer": reviewer_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/cards/action")
+def cards_official_card_action(
+    body: CardActionBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    ids = [int(x) for x in body.card_ids]
+    if not ids:
+        raise HTTPException(400, "Nenhum card informado.")
+    with item.lock:
+        if body.action == "suspend":
+            item.col.sched.suspend_cards(ids)
+        elif body.action == "unsuspend":
+            item.col.sched.unsuspend_cards(ids)
+        elif body.action == "bury":
+            item.col.sched.bury_cards(ids, manual=True)
+        elif body.action == "unbury":
+            item.col.sched.unbury_cards(ids)
+        elif body.action == "forget":
+            item.col.sched.schedule_cards_as_new(ids, reset_counts=False)
+        elif body.action == "set_due":
+            if body.value is None:
+                raise HTTPException(400, "Informe a data relativa do Anki, ex.: 5 ou 5-7.")
+            item.col.sched.set_due_date(ids, str(body.value))
+        elif body.action == "flag":
+            flag = int(body.value or 0)
+            if flag < 0 or flag > 7:
+                raise HTTPException(400, "Flag deve estar entre 0 e 7.")
+            item.col.set_user_flag_for_cards(flag, ids)
+        else:
+            raise HTTPException(400, f"Ação não suportada: {body.action}")
+        states = [card_state_payload(item.col, cid) for cid in ids]
+        return {"ok": True, "cards": states, "reviewer": reviewer_payload(item.col)}
 
 
 @app.post("/api/anki/cards/action")
