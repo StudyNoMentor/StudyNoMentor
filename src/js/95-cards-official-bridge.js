@@ -442,6 +442,101 @@ const CardsOfficialBridge = {
     }catch(e){this._redo.push(txn);showToast('Não foi possível refazer: '+(e.message||e));return false;}
   },
 
+
+  _statsSearch(){
+    const M=window.AnkiMaxStatsMedia,st=M&&M._statsState?M._statsState:{scope:'collection',history:'year',search:''};
+    if(st.scope==='search')return String(st.search||'').trim();
+    if(st.scope!=='deck')return '';
+    const did=M&&M._statsSelectedDeckId?M._statsSelectedDeckId():'';
+    if(!did)return '';
+    const d=CardsScreen.collectionDecks().find(x=>String(x.id)===String(did));
+    return d&&d.nome?'deck:"'+String(d.nome).replace(/\\/g,'\\\\').replace(/"/g,'\\"')+'"':'';
+  },
+  _statsDays(){
+    const M=window.AnkiMaxStatsMedia,st=M&&M._statsState?M._statsState:null;
+    return st&&st.history==='all'?0:365;
+  },
+  _statsMap(map){
+    return Object.entries(map||{}).map(([k,v])=>[Number(k),Number(v)||0]).filter(x=>Number.isFinite(x[0])).sort((a,b)=>a[0]-b[0]);
+  },
+  _statsBars(map,maxBars){
+    const rows=this._statsMap(map);if(!rows.length)return'<p class="hint">Sem dados.</p>';
+    const n=Math.max(1,Number(maxBars)||36),step=Math.max(1,Math.ceil(rows.length/n)),grouped=[];
+    for(let i=0;i<rows.length;i+=step){
+      const part=rows.slice(i,i+step),sum=part.reduce((a,x)=>a+x[1],0);
+      grouped.push([part[0][0],sum]);
+    }
+    const mx=Math.max(1,...grouped.map(x=>x[1]));
+    return '<div class="anki-stat-bars">'+grouped.map(([k,v])=>'<div title="'+escapeHtml(String(k))+': '+v+'"><i style="height:'+Math.max(v?3:0,Math.round(v/mx*100))+'%"></i><span>'+escapeHtml(String(k))+'</span></div>').join('')+'</div>';
+  },
+  _statsNestedBars(map,maxBars){
+    const flat={};for(const [k,row] of Object.entries(map||{}))flat[k]=Object.values(row||{}).reduce((a,v)=>a+(Number(v)||0),0);
+    return this._statsBars(flat,maxBars);
+  },
+  _statsRetentionRow(label,x){
+    x=x||{};const pass=Number(x.young_passed||0)+Number(x.mature_passed||0),
+      fail=Number(x.young_failed||0)+Number(x.mature_failed||0),tot=pass+fail;
+    return '<tr><td>'+escapeHtml(label)+'</td><td>'+tot+'</td><td>'+pass+'</td><td>'+(tot?(pass/tot*100).toFixed(1)+'%':'—')+'</td></tr>';
+  },
+  _statsHours(hours){
+    const rows=Array.isArray(hours&&hours.all_time)?hours.all_time:[];
+    if(!rows.length)return'<p class="hint">Sem dados.</p>';
+    return '<div class="anki-stat-table-wrap"><table><thead><tr><th>Hora</th><th>Respostas</th><th>Corretas</th><th>Acerto</th></tr></thead><tbody>'+
+      rows.map((x,i)=>{const total=Number(x.total)||0,correct=Number(x.correct)||0;return'<tr><td>'+String(i).padStart(2,'0')+'h</td><td>'+total+'</td><td>'+correct+'</td><td>'+(total?(correct/total*100).toFixed(1)+'%':'—')+'</td></tr>';}).join('')+
+      '</tbody></table></div>';
+  },
+  _statsButtons(buttons){
+    const periods=[['Último mês','one_month'],['3 meses','three_months'],['1 ano','one_year'],['Todo histórico','all_time']];
+    return '<div class="anki-stat-table-wrap"><table><thead><tr><th>Período</th><th>Learning 1–4</th><th>Jovens 1–4</th><th>Maduros 1–4</th></tr></thead><tbody>'+
+      periods.map(([label,key])=>{const x=buttons&&buttons[key]||{},fmt=a=>(Array.isArray(a)?a:[0,0,0,0]).map(Number).join(' · ');return'<tr><td>'+label+'</td><td>'+fmt(x.learning)+'</td><td>'+fmt(x.young)+'</td><td>'+fmt(x.mature)+'</td></tr>';}).join('')+
+      '</tbody></table></div>';
+  },
+  async renderStats(box){
+    box=box||document.getElementById('cards-content');if(!box)return;
+    if(!CardsScreen.collectionCards().length){box.innerHTML=CardsScreen.emptyState('Sem estatísticas ainda','Crie e revise alguns cards para ver seus dados.');return;}
+    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.3 está processando a coleção dos Cards.</p></div></div>';
+    try{
+      await this.bootstrap(false);
+      const qs=new URLSearchParams({search:this._statsSearch(),days:String(this._statsDays())}),
+        data=await this.request('/api/cards-official/stats/graphs?'+qs.toString()),
+        counts=data.card_counts&&data.card_counts.excluding_inactive||{},today=data.today||{},ret=data.true_retention||{},
+        controls=window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._statsControlsHtml?AnkiMaxStatsMedia._statsControlsHtml():'',
+        reviews=data.reviews||{},fsrs=!!data.fsrs;
+      box.innerHTML='<div class="stats-page cards-official-stats">'+controls+
+        '<div class="stat-kpis">'+
+          '<div class="stat-kpi"><div class="stat-kpi-v accent">'+Number(counts.newCards||0).toLocaleString('pt-BR')+'</div><div class="stat-kpi-l">Novos</div></div>'+
+          '<div class="stat-kpi"><div class="stat-kpi-v">'+(Number(counts.learn||0)+Number(counts.relearn||0)).toLocaleString('pt-BR')+'</div><div class="stat-kpi-l">Aprendendo</div></div>'+
+          '<div class="stat-kpi"><div class="stat-kpi-v good">'+Number(counts.mature||0).toLocaleString('pt-BR')+'</div><div class="stat-kpi-l">Maduros</div></div>'+
+          '<div class="stat-kpi"><div class="stat-kpi-v">'+Number(counts.suspended||0).toLocaleString('pt-BR')+'</div><div class="stat-kpi-l">Suspensos</div></div>'+
+        '</div>'+
+        '<section class="card stat-card"><div class="card-header"><div><h2>Hoje</h2><p class="sub">Dados produzidos pelo StatsService oficial · virada '+String(data.rollover_hour==null?'—':data.rollover_hour)+'h.</p></div></div>'+
+          '<div class="stat-kpis"><div class="stat-kpi"><div class="stat-kpi-v">'+Number(today.answer_count||0)+'</div><div class="stat-kpi-l">Respostas</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+((Number(today.answer_millis||0)/60000)||0).toFixed(1)+'m</div><div class="stat-kpi-l">Tempo</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+Number(today.correct_count||0)+'</div><div class="stat-kpi-l">Corretas</div></div><div class="stat-kpi"><div class="stat-kpi-v">'+Number(today.mature_count||0)+'</div><div class="stat-kpi-l">Maduros respondidos</div></div></div></section>'+
+        '<div class="stat-grid">'+
+          '<section class="card stat-card"><div class="card-header"><div><h2>📆 Future Due</h2><p class="sub">Carga futura calculada pelo scheduler.</p></div></div>'+this._statsBars((data.future_due||{}).future_due,32)+'</section>'+
+          '<section class="card stat-card"><div class="card-header"><div><h2>🔥 Revisões</h2><p class="sub">Learning, relearning, jovens, maduras e filtradas.</p></div></div>'+this._statsNestedBars(reviews.count,32)+'</section>'+
+          '<section class="card stat-card"><div class="card-header"><div><h2>⏱ Tempo de revisão</h2><p class="sub">Tempo por dia, separado pelas classes oficiais.</p></div></div>'+this._statsNestedBars(reviews.time,32)+'</section>'+
+          '<section class="card stat-card"><div class="card-header"><div><h2>＋ Adicionados</h2><p class="sub">Cards adicionados por dia.</p></div></div>'+this._statsBars((data.added||{}).added,32)+'</section>'+
+        '</div>'+
+        '<div class="stat-grid">'+
+          '<section class="card stat-card"><div class="card-header"><div><h2>↔ Intervalos</h2></div></div>'+this._statsBars((data.intervals||{}).intervals,28)+'</section>'+
+          (fsrs?'<section class="card stat-card"><div class="card-header"><div><h2>🧠 Estabilidade</h2></div></div>'+this._statsBars((data.stability||{}).intervals,28)+'</section>':'')+
+          (fsrs?'<section class="card stat-card"><div class="card-header"><div><h2>🎯 Recuperabilidade</h2><p class="sub">Média '+Number((data.retrievability||{}).average||0).toFixed(2)+'</p></div></div>'+this._statsBars((data.retrievability||{}).retrievability,28)+'</section>':'')+
+          '<section class="card stat-card"><div class="card-header"><div><h2>'+(fsrs?'🧩 Dificuldade':'🙂 Facilidade')+'</h2><p class="sub">Média '+Number(((fsrs?data.difficulty:data.eases)||{}).average||0).toFixed(2)+'</p></div></div>'+this._statsBars(((fsrs?data.difficulty:data.eases)||{}).eases,28)+'</section>'+
+        '</div>'+
+        '<section class="card stat-card"><div class="card-header"><div><h2>✓ True Retention</h2><p class="sub">Again = falha; Hard/Good/Easy = acerto. Cálculo oficial.</p></div></div><div class="anki-stat-table-wrap"><table><thead><tr><th>Período</th><th>Respostas</th><th>Corretas</th><th>Retenção</th></tr></thead><tbody>'+
+          this._statsRetentionRow('Hoje',ret.today)+this._statsRetentionRow('Ontem',ret.yesterday)+this._statsRetentionRow('Semana',ret.week)+this._statsRetentionRow('Mês',ret.month)+this._statsRetentionRow('Ano',ret.year)+this._statsRetentionRow('Tudo',ret.all_time)+
+        '</tbody></table></div></section>'+
+        '<div class="stat-grid"><section class="card stat-card"><div class="card-header"><div><h2>🕒 Por hora</h2></div></div>'+this._statsHours(data.hours||{})+'</section>'+
+        '<section class="card stat-card"><div class="card-header"><div><h2>🔢 Botões</h2><p class="sub">Distribuição 1–4 por maturidade e período.</p></div></div>'+this._statsButtons(data.buttons||{})+'</section></div>'+
+      '</div>';
+      if(window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._bindStatsUi)AnkiMaxStatsMedia._bindStatsUi();
+    }catch(e){
+      console.error('Cards official stats:',e);
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⚠</div><h3>Estatísticas oficiais indisponíveis</h3><p>'+escapeHtml(e&&e.message?e.message:String(e))+'</p><p class="hint">Nenhum cálculo local foi usado como fallback.</p><button type="button" class="btn-secondary" id="cards-official-stats-retry">Tentar novamente</button></div></div>';
+      const b=document.getElementById('cards-official-stats-retry');if(b)b.onclick=()=>void this.renderStats(box);
+    }
+  },
+
   _browserSortKey(key){
     return ({
       sortField:'noteFld',deck:'deck',notetype:'note',template:'template',due:'cardDue',
@@ -844,11 +939,13 @@ const CardsOfficialBridge = {
   install(){
     if(!window.CardsScreen||this._installed)return;this._installed=true;
     this._orig.renderRevisar=CardsScreen.renderRevisar;
+    this._orig.renderStats=CardsScreen.renderStats;
     this._orig.answer=CardsScreen.answer;
     this._orig.flip=CardsScreen.flip;
     this._orig.undoAnswer=CardsScreen.undoAnswer;
     this._orig.redoAnswer=CardsScreen.redoAnswer;
     CardsScreen.renderRevisar=(box)=>{void this.renderRevisar(box);};
+    CardsScreen.renderStats=(box)=>{void this.renderStats(box);};
     CardsScreen.answer=(grade)=>this.answer(grade);
     CardsScreen.flip=()=>{void this.showAnswer();};
     CardsScreen.undoAnswer=()=>{void this.undo();};
