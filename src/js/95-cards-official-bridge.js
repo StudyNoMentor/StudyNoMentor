@@ -196,10 +196,13 @@ const CardsOfficialBridge = {
     if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a importação.');
     return out;
   },
-  async syncOfficialPackageImport(out){
-    if(!out||!out.state)return out;
-    const state=out.state,pid=this._activePlanId();
-    if(!Array.isArray(state.notetypes)||!Array.isArray(state.notes))throw new Error('A importação oficial não devolveu o snapshot integral da Collection.');
+  async _syncOfficialFullState(state,planId){
+    if(!state||!Array.isArray(state.notetypes)||!Array.isArray(state.notes))throw new Error('Snapshot integral da Collection oficial ausente.');
+    const pid=planId!=null?planId:this._activePlanId(),
+      officialNotes=new Set((state.notes||[]).map(x=>String(x.id))),
+      officialNotetypes=new Set((state.notetypes||[]).map(x=>String(x&&x.notetype&&x.notetype.id)).filter(Boolean)),
+      officialCards=new Set((state.cards||[]).map(x=>String(x.id))),
+      officialDecks=new Set((state.decks||[]).map(x=>String(x&&x.id)).filter(Boolean));
     for(const row of state.decks||[]){
       if(row&&row.filtered)this._saveFilteredDeckMirror(row,pid,null);
       else if(row)this._saveNormalDeckMirror(row,pid,null);
@@ -210,10 +213,65 @@ const CardsOfficialBridge = {
       this._materializeOfficialNote(ns,pid,fallback);
     }
     await this._reconcileOfficialCardSet(state.notes,state.cards||[]);
+
+    // O snapshot oficial é autoritativo. Esta poda só remove espelhos Study;
+    // nenhuma decisão acadêmica é tomada aqui.
+    for(const note of AnkiParity.notes(pid==null?undefined:pid)){
+      const oid=String(note&&note.ankiId!=null?note.ankiId:note&&note.id);
+      if(officialNotes.has(oid))continue;
+      const cards=AnkiProductParity._cardsForNote(note,pid==null?undefined:pid);
+      if(cards.length)DB.deleteNoteByCard(cards[0].id,pid==null?undefined:pid);
+      try{localStorage.removeItem(AnkiParity._entityKey('note',note.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-note');}
+    }
+    for(const nt of AnkiParity.noteTypes(pid==null?undefined:pid)){
+      const oid=String(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
+      if(officialNotetypes.has(oid))continue;
+      try{localStorage.removeItem(AnkiParity._entityKey('notetype',nt.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-notetype');}
+    }
+    const cardsNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
+      keptCards=(cardsNow||[]).filter(card=>officialCards.has(String(this._officialId(card))));
+    if(pid!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(pid,keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
+    else DB.saveCards(keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
+
+    const decksNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+      keptDecks=(decksNow||[]).filter(deck=>officialDecks.has(String(deck&&deck.ankiId!=null?deck.ankiId:deck&&deck.id))),
+      cleanDeck=x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;};
+    if(pid!=null)DB._set(DB.keysForPlan(pid).decks,keptDecks.map(cleanDeck));else DB.saveDecks(keptDecks.map(cleanDeck));
+
     await this._syncCollectionState(state,pid,null);
     if(state.reviewer)this._applyReviewer(state.reviewer);
     this.ready=true;this.dirty=false;this._browserCache=[];CardsScreen.invalidateReviewQueue();
+    return state;
+  },
+  async syncOfficialPackageImport(out){
+    if(!out||!out.state)return out;
+    await this._syncOfficialFullState(out.state,this._activePlanId());
     return out;
+  },
+  async historyStatus(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/history/status');
+  },
+  async undoCollectionOfficial(){
+    await this.bootstrap(false);
+    const out=await this.request('/api/cards-official/history/undo',{method:'POST'});
+    if(!out||!out.state)throw new Error('O Anki oficial não devolveu o estado após desfazer.');
+    await this._syncOfficialFullState(out.state,this._activePlanId());
+    CardsScreen.render();if(window.AnkiProductParity&&AnkiProductParity.renderBrowser)AnkiProductParity.renderBrowser();
+    return out;
+  },
+  async redoCollectionOfficial(){
+    await this.bootstrap(false);
+    const out=await this.request('/api/cards-official/history/redo',{method:'POST'});
+    if(!out||!out.state)throw new Error('O Anki oficial não devolveu o estado após refazer.');
+    await this._syncOfficialFullState(out.state,this._activePlanId());
+    CardsScreen.render();if(window.AnkiProductParity&&AnkiProductParity.renderBrowser)AnkiProductParity.renderBrowser();
+    return out;
+  },
+  async findOfficialDuplicates(field,search){
+    await this.bootstrap(false);
+    const qs=new URLSearchParams({field:String(field||''),search:String(search||'')});
+    return this.request('/api/cards-official/browser/duplicates?'+qs.toString());
   },
   async htmlWithMedia(html){
     this._clearBlobUrls();
