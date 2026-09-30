@@ -454,60 +454,36 @@ const AnkiMaxParity = {
     document.getElementById('anki-preview-edit').onclick=()=>AnkiProductParity.openNoteEditor(note);document.getElementById('anki-preview-info').onclick=()=>CardsScreen.cardInfo(c);
   },
 
+  _officialBrowserCall(name,ids){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge[name]!=='function'){
+      showToast('Ação não executada: Browser oficial do Anki indisponível.');return;
+    }
+    return CardsOfficialBridge[name](ids);
+  },
   _overrideBrowserBulk(){
-    const original={
-      editTags:AnkiProductParity.editTags.bind(AnkiProductParity),openChangeType:AnkiProductParity.openChangeType.bind(AnkiProductParity),
-      deleteNotes:AnkiProductParity.deleteNotes.bind(AnkiProductParity),bulkMark:AnkiProductParity.bulkMark.bind(AnkiProductParity),
-      bulkFindReplace:AnkiProductParity.bulkFindReplace.bind(AnkiProductParity)
-    };
-    AnkiProductParity.editTags=(ids)=>original.editTags(this._resolveSelection(ids).noteIds);
-    AnkiProductParity.openChangeType=(ids)=>{const r=this._resolveSelection(ids);return original.openChangeType(r.notes.length?r.notes:r.noteIds);};
-    AnkiProductParity.deleteNotes=(ids)=>original.deleteNotes(this._resolveSelection(ids).noteIds);
-    AnkiProductParity.bulkMark=(ids)=>original.bulkMark(this._resolveSelection(ids).noteIds);
-    AnkiProductParity.bulkFindReplace=(ids)=>original.bulkFindReplace(this._resolveSelection(ids).noteIds);
-
-    AnkiProductParity.toggleSuspend=(ids)=>{
-      const r=this._resolveSelection(ids),cards=r.cards,should=cards.some(c=>!c.suspenso);
-      cards.forEach(c=>should?AnkiParity.suspendCard(c.id):DB.updateCard(c.id,{suspenso:false}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(should?'Card(s) suspenso(s) ✓':'Card(s) reativado(s) ✓');
-    };
-    AnkiProductParity.bulkFlag=(ids)=>{
-      const cards=this._resolveSelection(ids).cards;
-      UI.prompt([{key:'flag',label:'Bandeira',type:'select',value:'0',options:[0,1,2,3,4,5,6,7].map(n=>({value:String(n),label:n===0?'Sem bandeira':DB.FLAGS[n].nome}))}],{title:'🚩 Definir bandeira',okText:'Aplicar'}).then(v=>{if(!v)return;cards.forEach(c=>DB.setFlag(c.id,Number(v.flag)||0));AnkiProductParity.renderBrowser();CardsScreen.render();showToast('Bandeiras atualizadas ✓');});
-    };
+    AnkiProductParity.toggleSuspend=(ids)=>this._officialBrowserCall('_browserToggleSuspend',ids);
+    AnkiProductParity.bulkFlag=(ids)=>this._officialBrowserCall('_browserBulkFlag',ids);
+    AnkiProductParity.bulkMark=(ids)=>this._officialBrowserCall('_browserBulkMark',ids);
+    AnkiProductParity.editTags=(ids)=>this._officialBrowserCall('_browserEditTags',ids);
+    AnkiProductParity.bulkFindReplace=(ids)=>this._officialBrowserCall('_browserFindReplace',ids);
+    AnkiProductParity.deleteNotes=(ids)=>this._officialBrowserCall('_browserDeleteNotes',ids);
+    AnkiProductParity.openChangeType=(ids)=>this._officialBrowserCall('_openOfficialChangeType',ids);
     AnkiProductParity.browserBulkActions=(ids)=>{
-      if(!ids.length)return;UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
+      if(!ids||!ids.length)return;
+      UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
         {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},{value:'due',label:'📅 Definir vencimento'},
-        {value:'forget',label:'↺ Resetar / tornar novos'},{value:'reposition',label:'🔢 Reposicionar novos'},{value:'replace',label:'🔁 Localizar e substituir'}
+        {value:'forget',label:'↺ Esquecer / tornar novos'},{value:'reposition',label:'🔢 Reposicionar novos'},{value:'replace',label:'🔁 Localizar e substituir'}
       ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
-        if(!v)return;if(v.action==='mark')AnkiProductParity.bulkMark(ids);else if(v.action==='replace')AnkiProductParity.bulkFindReplace(ids);
-        else if(v.action==='deck')this._bulkCardsMove(ids);else if(v.action==='due')this._bulkCardsDue(ids);else if(v.action==='forget')this._bulkCardsForget(ids);else if(v.action==='reposition')this._bulkCardsReposition(ids);
+        if(!v)return;
+        const map={mark:'_browserBulkMark',deck:'_browserMove',due:'_browserSetDue',forget:'_browserForget',reposition:'_browserReposition',replace:'_browserFindReplace'};
+        this._officialBrowserCall(map[v.action],ids);
       });
     };
   },
-  _bulkCardsMove(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
-    const origins=new Set(cards.map(c=>String(c._planId||(window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
-    if(origins.size>1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
-    const pid=origins.size?[...origins][0]:null,decks=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));if(!decks.length)return;
-    UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{if(!v)return;cards.forEach(c=>DB.updateCard(c.id,c.originalDeckId?{originalDeckId:v.deck}:{deckId:v.deck}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) movido(s) ✓');});
-  },
-  _bulkCardsDue(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
-    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
-      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
-      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
-    });
-  },
-  _bulkCardsForget(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
-    UI.prompt([{key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},{key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
-      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
-    });
-  },
-  _bulkCardsReposition(ids){
-    const cards=this._resolveSelection(ids).cards.filter(c=>(c.phase||'new')==='new');if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
-    UI.prompt([{key:'start',label:'Posição inicial',type:'number',value:'1'},{key:'step',label:'Passo',type:'number',value:'1'}],{title:'🔢 Reposicionar novos',okText:'Aplicar'}).then(v=>{if(!v)return;const start=Math.max(0,Math.round(Number(v.start)||0)),step=Math.max(1,Math.round(Number(v.step)||1));cards.sort((a,b)=>(Number(a.posicaoNova)||0)-(Number(b.posicaoNova)||0)).forEach((c,i)=>DB.updateCard(c.id,{posicaoNova:start+i*step,ankiDue:start+i*step}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reposicionado(s) ✓');});
-  },
+  _bulkCardsMove(ids){return this._officialBrowserCall('_browserMove',ids);},
+  _bulkCardsDue(ids){return this._officialBrowserCall('_browserSetDue',ids);},
+  _bulkCardsForget(ids){return this._officialBrowserCall('_browserForget',ids);},
+  _bulkCardsReposition(ids){return this._officialBrowserCall('_browserReposition',ids);},
 
   /* ───────────────────────── REVIEWER ───────────────────────── */
   _enhanceReviewer(){
