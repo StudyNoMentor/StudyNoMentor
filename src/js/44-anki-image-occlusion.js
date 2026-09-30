@@ -142,11 +142,17 @@ const AnkiImageOcclusion = {
     ['basic','basic_reversed','basic_optional_reversed','typing','cloze','image_occlusion'].forEach(k=>AnkiParity.stockNotetype(k));
     return AnkiParity.noteTypes();
   },
-  _normalDecks(planId){return (planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):DB.getDecks()).filter(d=>!AnkiParity.isFilteredDeck(d));},
+  _normalDecks(planId){
+    let decks;
+    if(planId&&DB.getDecksForPlan)decks=DB.getDecksForPlan(planId);
+    else if(window.StudyGlobalScope&&StudyGlobalScope.cardsScope&&StudyGlobalScope.cardsScope()==='all'&&StudyGlobalScope.decks)decks=StudyGlobalScope.decks('all');
+    else decks=DB.getDecks();
+    return (decks||[]).filter(d=>!AnkiParity.isFilteredDeck(d));
+  },
   _deckOptions(sel,planId){
     const decks=this._normalDecks(planId);
     if(!decks.length)return '<option value="__default__" selected>📁 Padrão</option>';
-    return decks.map(d=>'<option value="'+escapeHtml(String(d.id))+'" '+(String(sel||'')===String(d.id)?'selected':'')+'>'+escapeHtml(d.nome)+'</option>').join('');
+    return decks.map(d=>'<option value="'+escapeHtml(String(d.id))+'" '+(String(sel||'')===String(d.id)?'selected':'')+'>'+escapeHtml(String(d.nome||'Baralho')+(d._planNome?' · '+d._planNome:''))+'</option>').join('');
   },
   _resolveDeck(value,planId){
     if(value&&value!=='__default__')return String(value);
