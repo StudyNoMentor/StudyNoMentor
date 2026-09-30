@@ -50,6 +50,11 @@ assert.match(backend,/item\.col\.find_notes\(q, order=order, reverse=reverse\)/,
 assert.match(backend,/item\.col\.get_browser_column\(sort_key\)/,'ordenação deve usar BrowserColumn oficial');
 assert.match(bridge,/\/api\/cards-official\/browser\/ids\?/,'Browser Study deve consultar IDs oficiais');
 assert.match(bridge,/AnkiProductParity\._browserRows=\(\)=>self\._browserCache/,'linhas exibidas devem vir da ordem oficial em cache');
+assert.match(bridge,/CardsScreen\.renderStats=\(box\)=>\{void this\.renderStats\(box\);\};/,'aba Stats dos Cards deve ser tomada pelo bridge oficial');
+assert.match(bridge,/\/api\/cards-official\/stats\/graphs\?/,'Stats dos Cards devem consultar GraphsService da coleção isolada');
+assert.match(bridge,/Nenhum cálculo local foi usado como fallback/,'falha de Stats não pode cair para cálculo local');
+assert.ok(!/this\._orig\.renderStats\(/.test(bridge),'Stats oficial não pode executar renderer local como fallback');
+
 assert.ok(!/filteredSearchMatches\(/.test(bridge),'bridge oficial não pode executar parser de busca JS');
 assert.match(backend,/item\.col\.sched\.set_due_date\(card_ids,/,'bulk due deve ser oficial');
 assert.match(backend,/item\.col\.sched\.schedule_cards_as_new\(/,'bulk forget deve ser oficial');
