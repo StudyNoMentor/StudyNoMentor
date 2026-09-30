@@ -536,7 +536,7 @@ const AnkiMaxParity = {
       else if(a==='suspendCard')this.suspendCard(c);else if(a==='suspendNote')this.suspendNote(c);else if(a==='hint')this.showHints(false);else if(a==='allHints')this.showHints(true);
       else if(a==='media')AnkiProductParity.replayMedia(c);else if(a==='tts')AnkiProductParity.speakCard(c);else if(a==='recordVoice')this.openVoiceRecorder();else if(a==='replayVoice')this.replayOwnVoice();
       else if(a==='whiteboard')AnkiProductParity.openWhiteboard();else if(a==='infoPrev')this.previousCardInfo();else if(a==='add')CardsScreen.openCardModal();else if(a==='browse')AnkiProductParity.openBrowser();
-      else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}else if(a==='type')AnkiProductParity.openChangeType(['n:'+nid]);else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
+      else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}else if(a==='type'){const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):null;AnkiProductParity.openChangeType([n||('n:'+nid)]);}else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     });
   },
 
