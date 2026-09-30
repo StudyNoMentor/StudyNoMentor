@@ -2557,13 +2557,20 @@ const CardsScreen = {
        recompõe S/D pelo histórico FSRS com os pesos efetivos do baralho. */
     const cardKeys = new Set(Object.keys(byCard));
     const orphanReviewEntries = [];
+    const historicalReviewEntriesWithoutCard = [];
     const duplicateReviewIds = [];
     const seenReviewIds = new Map();
     revlog.forEach((r, index) => {
       if (!r) return;
       const pid = r._planId || activePlanId || null;
       const ck = auditKey(pid, r.cardId);
-      if (!cardKeys.has(ck)) orphanReviewEntries.push({ index, planId:pid, cardId:r.cardId || null, reviewId:r.reviewId || null });
+      if (r.cardId == null || String(r.cardId).trim() === '') {
+        orphanReviewEntries.push({ index, planId:pid, cardId:null, reviewId:r.reviewId || null, reason:'missing_card_id' });
+      } else if (!cardKeys.has(ck)) {
+        /* Como no Anki, excluir uma nota/card não apaga seu histórico. Essas
+           linhas são históricas válidas, não corrupção nem "órfãos" a limpar. */
+        historicalReviewEntriesWithoutCard.push({ index, planId:pid, cardId:r.cardId, reviewId:r.reviewId || null });
+      }
       if (r.reviewId != null) {
         const rk = auditKey(pid, r.reviewId);
         if (seenReviewIds.has(rk)) duplicateReviewIds.push({ planId:pid, reviewId:r.reviewId, firstIndex:seenReviewIds.get(rk), duplicateIndex:index });
@@ -2618,6 +2625,7 @@ const CardsScreen = {
       repsVsReviewLog:{checked:cards.length,mismatches:repsMismatches},
       duplicateReviewIds,
       orphanReviewEntries,
+      historicalReviewEntriesWithoutCard,
       memoryReplay
     };
 
