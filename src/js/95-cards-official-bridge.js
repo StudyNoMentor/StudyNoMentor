@@ -135,7 +135,7 @@ const CardsOfficialBridge = {
       response=await fetch(base+'/api/cards-official/export/'+kind+'?'+qs.toString(),{headers:token?{Authorization:'Bearer '+token}:{}});
     if(!response.ok){
       let message='Falha na exportação oficial .'+kind;
-      try{const body=await response.json();if(body&&body.detail)message=body.detail;}catch(_){}
+      try{const body=await response.json();if(body&&body.detail)message=body.detail;}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-export-error-body');}
       throw new Error(message);
     }
     return {
