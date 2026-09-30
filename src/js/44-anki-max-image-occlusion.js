@@ -118,6 +118,15 @@ const AnkiMaxImageOcclusion = {
 
   _patchPointerModel(){
     const oldDown=AnkiImageOcclusion._pointerDown.bind(AnkiImageOcclusion),oldMove=AnkiImageOcclusion._pointerMove.bind(AnkiImageOcclusion),oldUp=AnkiImageOcclusion._pointerUp.bind(AnkiImageOcclusion);
+    const canvas=document.getElementById('anki-io-canvas');
+    if(canvas&&!canvas.dataset.maxPointerCancel){
+      canvas.dataset.maxPointerCancel='1';
+      canvas.addEventListener('pointercancel',e=>{
+        const s=this._ensureState();s.drag=null;s.drawing=null;
+        try{if(canvas.hasPointerCapture&&canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);}catch(_){/* noop */}
+        AnkiImageOcclusion._renderEditor();this._syncButtons();
+      });
+    }
     AnkiImageOcclusion._pointerDown=(e)=>{
       const s=this._ensureState();if(!s.img)return;
       if(s.tool!=='select'){
