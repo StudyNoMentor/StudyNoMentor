@@ -579,6 +579,76 @@ const CardsOfficialBridge = {
       previewGoodSecs:Math.max(0,Math.round(Number(cfg.preview_good_secs)||0))
     };
   },
+  _saveNormalDeckMirror(row,planId,preferredLocalId){
+    if(!row||row.filtered)return null;
+    const oid=Number(row.id||row.deck_id);if(!Number.isFinite(oid)||oid<=0)throw new Error('Baralho oficial sem identidade válida.');
+    const pid=planId!=null?planId:this._activePlanId(),
+      raw=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+      list=(raw||[]).map(x=>Object.assign({},x)),
+      clean=x=>{const y=DB._semTransitorios?DB._semTransitorios(x):Object.assign({},x);delete y._planId;delete y._planNome;return y;};
+    let deck=list.find(x=>String(x.ankiId!=null?x.ankiId:x.id)===String(oid));
+    if(!deck&&preferredLocalId!=null)deck=list.find(x=>String(x.id)===String(preferredLocalId));
+    const now=new Date().toISOString();
+    if(!deck){deck={id:DB._uid(),createdAt:now};list.push(deck);}
+    Object.assign(deck,{ankiId:oid,nome:String(row.name||deck.nome||'Baralho'),kind:'normal',filtered:false,updatedAt:now});
+    delete deck.filteredConfig;
+    const saved=pid!=null?DB._set(DB.keysForPlan(pid).decks,list.map(clean)):DB.saveDecks(list.map(clean));
+    if(saved===false)throw new Error('Falha ao persistir o baralho oficial no Study.');
+    return Object.assign({},deck,pid==null?{}:{_planId:pid});
+  },
+  _removeLocalDeckMirror(localDeckId,planId){
+    const pid=planId!=null?planId:this._activePlanId(),
+      raw=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+      list=(raw||[]).filter(x=>String(x.id)!==String(localDeckId)).map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;});
+    const saved=pid!=null?DB._set(DB.keysForPlan(pid).decks,list):DB.saveDecks(list);
+    if(saved===false)throw new Error('Falha ao remover o espelho local do baralho.');
+    return true;
+  },
+  async createOfficialDeck(name){
+    await this.bootstrap(false);const pid=this._activePlanId(),out=await this.request('/api/cards-official/decks',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:String(name||'').trim()})
+    });
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a criação do baralho.');
+    const row=(out.state&&out.state.decks||[]).find(x=>Number(x.id||x.deck_id)===Number(out.deck_id));
+    if(!row)throw new Error('O Anki oficial não devolveu o baralho criado.');
+    const deck=this._saveNormalDeckMirror(row,pid,null);
+    this.dirty=false;return {out,deck};
+  },
+  async renameOfficialDeck(localDeckId,name){
+    await this.bootstrap(false);const ctx=this._deckContext(localDeckId),out=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId),{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:String(name||'').trim()})
+    });
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou o novo nome.');
+    const row=(out.state&&out.state.decks||[]).find(x=>Number(x.id||x.deck_id)===Number(ctx.officialId));
+    if(!row)throw new Error('Baralho renomeado não retornou no snapshot oficial.');
+    const deck=row.filtered?this._saveFilteredDeckMirror(row,ctx.planId,localDeckId):this._saveNormalDeckMirror(row,ctx.planId,localDeckId);
+    this.dirty=false;return {out,deck};
+  },
+  async deleteOfficialDeck(localDeckId){
+    await this.bootstrap(false);const ctx=this._deckContext(localDeckId),out=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId),{method:'DELETE'});
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a exclusão do baralho.');
+    for(const nid of out.deleted_note_ids||[]){
+      for(const note of this._noteReplicas(nid)){
+        if(window.StudyGlobalScope&&typeof StudyGlobalScope.deleteNoteScoped==='function')StudyGlobalScope.deleteNoteScoped(note);
+        else{
+          const cards=AnkiProductParity._cardsForNote(note,note._planId==null?undefined:note._planId);
+          if(cards.length)DB.deleteNoteByCard(cards[0].id,note._planId==null?undefined:note._planId);
+        }
+      }
+    }
+    const deletedNotes=new Set((out.deleted_note_ids||[]).map(String));
+    for(const cid of out.deleted_card_ids||[]){
+      for(const card of this._replicas(cid)){
+        if(deletedNotes.has(String(card.ankiNoteId||card.noteId)))continue;
+        DB.deleteCard(card.id,card._planId==null?undefined:card._planId);
+      }
+    }
+    this._removeLocalDeckMirror(localDeckId,ctx.planId);
+    await this._syncCollectionState(out.state,ctx.planId,null);
+    this.dirty=false;this._browserCache=[];CardsScreen.invalidateReviewQueue();
+    return out;
+  },
+
   _saveFilteredDeckMirror(row,planId,preferredLocalId){
     if(!row||!row.filtered)return null;
     const oid=Number(row.id||row.deck_id||(row.filtered_deck&&row.filtered_deck.id));
