@@ -459,7 +459,7 @@ const AnkiProductParity = {
   editTags(ids){
     if(!ids.length)return;UI.prompt([{key:'add',label:'Adicionar tags',type:'text',value:'',hint:'Separe por espaço.'},{key:'remove',label:'Remover tags',type:'text',value:'',hint:'Separe por espaço.'}],{title:'🏷 Editar etiquetas',okText:'Aplicar'}).then(v=>{
       if(!v)return;const add=String(v.add||'').split(/\s+/).filter(Boolean),rem=new Set(String(v.remove||'').split(/\s+/).filter(Boolean));
-      ids.forEach(id=>{const n=AnkiParity.getNote(id);if(!n)return;n.tags=[...new Set([...(n.tags||[]),...add])].filter(t=>!rem.has(t));AnkiParity.saveNote(n);});
+      ids.forEach(id=>{const n=this._getNote(id);if(!n)return;n.tags=[...new Set([...(n.tags||[]),...add])].filter(t=>!rem.has(t));AnkiParity.saveNote(n,n._planId==null?undefined:n._planId);});
       this.openBrowser();showToast('Tags atualizadas ✓');
     });
   },
@@ -494,12 +494,12 @@ const AnkiProductParity = {
   },
 
   bulkMark(ids){
-    const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean);
+    const notes=ids.map(id=>this._getNote(id)).filter(Boolean);
     const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
     notes.forEach(n=>{
       let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
       if(shouldMark)tags.push('marked');
-      AnkiParity.saveNote(Object.assign({},n,{tags:[...new Set(tags)]}));
+      AnkiParity.saveNote(Object.assign({},n,{tags:[...new Set(tags)]}),n._planId==null?undefined:n._planId);
     });
     this.renderBrowser();CardsScreen.render();showToast(shouldMark?'Notas marcadas ✓':'Marcação removida ✓');
   },
@@ -548,9 +548,9 @@ const AnkiProductParity = {
   bulkFindReplace(ids){
     UI.prompt([{key:'find',label:'Localizar',type:'text',value:''},{key:'replace',label:'Substituir por',type:'text',value:''}],{title:'🔁 Localizar e substituir',okText:'Substituir'}).then(v=>{
       if(!v||!String(v.find||''))return;const needle=String(v.find),replacement=String(v.replace||'');let notesChanged=0,fieldsChanged=0;
-      ids.forEach(id=>{const note=AnkiParity.getNote(id);if(!note)return;const fields=Object.assign({},note.fields||{});let changed=false;
+      ids.forEach(id=>{const note=this._getNote(id);if(!note)return;const fields=Object.assign({},note.fields||{});let changed=false;
         Object.keys(fields).forEach(k=>{const before=String(fields[k]||'');if(before.includes(needle)){fields[k]=before.split(needle).join(replacement);fieldsChanged++;changed=true;}});
-        if(changed){const saved=AnkiParity.saveNote(Object.assign({},note,{fields}));this.reconcileNote(saved,this._typeFor(saved));notesChanged++;}
+        if(changed){const saved=AnkiParity.saveNote(Object.assign({},note,{fields}),note._planId==null?undefined:note._planId);this.reconcileNote(saved,this._typeFor(saved));notesChanged++;}
       });
       this.renderBrowser();CardsScreen.render();showToast(notesChanged+' nota(s), '+fieldsChanged+' campo(s) alterado(s) ✓');
     });
@@ -558,7 +558,17 @@ const AnkiProductParity = {
 
   deleteNotes(ids){
     if(!ids.length)return;UI.confirm('Excluir '+ids.length+' nota(s) e todos os seus cards/históricos? Não há como desfazer.',{title:'🗑 Excluir notas',okText:'Excluir',danger:true}).then(ok=>{
-      if(!ok)return;ids.forEach(id=>{const cards=this._cardsForNote(id);cards.forEach(c=>DB.deleteNoteByCard(c.id));try{localStorage.removeItem(AnkiParity._entityKey('note',id));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-product-parity'); };});
+      if(!ok)return;
+      ids.forEach(ref=>{
+        const note=this._getNote(ref);if(!note)return;const cards=this._cardsForNote(this.noteRef(note)),pid=note._planId||null;
+        this._inPlan(pid,()=>{if(cards[0])DB.deleteNoteByCard(cards[0].id);});
+        try{
+          const key=pid&&window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan
+            ? StudyGlobalScope.entityKeyForPlan(pid,'note',note.id)
+            : AnkiParity._entityKey('note',note.id,pid==null?undefined:pid);
+          localStorage.removeItem(key);
+        }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-product-parity'); }
+      });
       this.browser.selected.clear();this.renderBrowser();CardsScreen.render();showToast('Notas excluídas');
     });
   },
@@ -566,7 +576,10 @@ const AnkiProductParity = {
   openNotetypes(){ this.ensure();document.getElementById('anki-notetypes-modal').style.display='flex';this.renderNotetypes(); },
   renderNotetypes(){
     const notes=AnkiParity.notes(),list=document.getElementById('anki-nt-list');
-    list.innerHTML=AnkiParity.noteTypes().map(nt=>{const n=notes.filter(x=>String(x.notetypeId)===String(nt.id)).length;return '<div class="anki-nt-row" data-nt="'+this.esc(nt.id)+'"><div><strong>'+this.esc(nt.name)+'</strong><span>'+n+' nota(s) · '+(nt.fields||[]).length+' campo(s) · '+(nt.templates||[]).length+' template(s)</span></div><div><button class="icon-btn anki-nt-edit" title="Editar">✎</button><button class="icon-btn anki-nt-copy" title="Duplicar">⧉</button><button class="icon-btn danger anki-nt-delete" title="Excluir">×</button></div></div>';}).join('')||'<p class="hint">Nenhum tipo de nota.</p>';
+    list.innerHTML=AnkiParity.noteTypes().map(nt=>{
+      const ref=this.notetypeRef(nt),n=notes.filter(x=>String(x.notetypeId)===String(nt.id)&&String(x._planId||'')===String(nt._planId||'')).length;
+      return '<div class="anki-nt-row" data-nt="'+this.esc(ref)+'"><div><strong>'+this.esc(nt.name)+'</strong><span>'+n+' nota(s) · '+(nt.fields||[]).length+' campo(s) · '+(nt.templates||[]).length+' template(s)</span></div><div><button class="icon-btn anki-nt-edit" title="Editar">✎</button><button class="icon-btn anki-nt-copy" title="Duplicar">⧉</button><button class="icon-btn danger anki-nt-delete" title="Excluir">×</button></div></div>';
+    }).join('')||'<p class="hint">Nenhum tipo de nota.</p>';
   },
 
   _bindNotetypes(){
@@ -578,10 +591,10 @@ const AnkiProductParity = {
       });
     });
     document.getElementById('anki-nt-list').addEventListener('click',e=>{
-      const row=e.target.closest('.anki-nt-row');if(!row)return;const nt=AnkiParity.getNotetype(row.dataset.nt);if(!nt)return;
-      if(e.target.closest('.anki-nt-edit'))this.openNotetypeEditor(nt.id);
-      else if(e.target.closest('.anki-nt-copy')){const x=JSON.parse(JSON.stringify(nt));x.id=AnkiParity._allocId();x.name=nt.name+' copy';delete x.stockKind;AnkiParity.saveNotetype(x);this.renderNotetypes();showToast('Tipo duplicado ✓');}
-      else if(e.target.closest('.anki-nt-delete'))this.deleteNotetype(nt.id);
+      const row=e.target.closest('.anki-nt-row');if(!row)return;const nt=this._getNotetype(row.dataset.nt);if(!nt)return;
+      if(e.target.closest('.anki-nt-edit'))this.openNotetypeEditor(this.notetypeRef(nt));
+      else if(e.target.closest('.anki-nt-copy')){const x=JSON.parse(JSON.stringify(nt));x.id=AnkiParity._allocId();x.name=nt.name+' copy';delete x.stockKind;AnkiParity.saveNotetype(x,nt._planId==null?undefined:nt._planId);this.renderNotetypes();showToast('Tipo duplicado ✓');}
+      else if(e.target.closest('.anki-nt-delete'))this.deleteNotetype(this.notetypeRef(nt));
     });
     document.getElementById('anki-nt-add-field').addEventListener('click',()=>this._appendFieldRow('',null));
     document.getElementById('anki-nt-add-template').addEventListener('click',()=>this._appendTemplateRow({name:'Card '+(document.querySelectorAll('#anki-nt-templates .anki-template-editor').length+1),qfmt:'',afmt:'{{FrontSide}}'},null));
@@ -597,9 +610,10 @@ const AnkiProductParity = {
     else if(e.target.closest('[data-remove]'))row.remove();
   },
 
-  openNotetypeEditor(id){
-    const nt=AnkiParity.getNotetype(id);if(!nt)return;this._editingNtId=String(id);this._editingNtOriginal=JSON.parse(JSON.stringify(nt));
-    document.getElementById('anki-nt-edit-sub').textContent=(AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length)+' nota(s) usam este tipo';
+  openNotetypeEditor(ref){
+    const nt=this._getNotetype(ref);if(!nt)return;this._editingNtRef=this.notetypeRef(nt);this._editingNtId=String(nt.id);this._editingNtOriginal=JSON.parse(JSON.stringify(nt));
+    const notes=nt._planId!=null?AnkiParity.notes(nt._planId):AnkiParity.notes();
+    document.getElementById('anki-nt-edit-sub').textContent=(notes.filter(n=>String(n.notetypeId)===String(nt.id)).length)+' nota(s) usam este tipo';
     document.getElementById('anki-nt-name').value=nt.name||'';
     const fb=document.getElementById('anki-nt-fields');fb.innerHTML='';(nt.fields||[]).forEach(f=>this._appendFieldRow(f.name,f.name));
     const tb=document.getElementById('anki-nt-templates');tb.innerHTML='';(nt.templates||[]).forEach((t,i)=>this._appendTemplateRow(t,i));
@@ -632,7 +646,7 @@ const AnkiProductParity = {
       return Object.assign({},JSON.parse(JSON.stringify(base)),{name:String(r.querySelector('.anki-template-name').value||('Card '+(i+1))).trim(),ord:i,qfmt:r.querySelector('.anki-qfmt').value,afmt:r.querySelector('.anki-afmt').value,_sourceOrd:sourceOrd});
     });
     nt.css=document.getElementById('anki-nt-css').value;
-    const notes=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(nt.id));
+    const notes=(old._planId!=null?AnkiParity.notes(old._planId):AnkiParity.notes()).filter(n=>String(n.notetypeId)===String(nt.id));
     const removed=(old.fields||[]).filter(f=>!nt.fields.some(nf=>nf._source===f.name));
     const dataLoss=removed.some(f=>notes.some(n=>AnkiParity._fieldNonempty(n.fields&&n.fields[f.name])));
     const proceed=()=>this._applyNotetypeEdit(old,nt,notes);
@@ -640,26 +654,36 @@ const AnkiProductParity = {
   },
 
   _applyNotetypeEdit(old,nt,notes){
-    const cleanFields=nt.fields.map(({_source,...x})=>x),cleanTemplates=nt.templates.map(({_sourceOrd,...x})=>x),fieldSource=nt.fields.map(x=>x._source),templateSource=nt.templates.map(x=>x._sourceOrd);
+    const cleanFields=nt.fields.map(({_source,...x})=>x),cleanTemplates=nt.templates.map(({_sourceOrd,...x})=>x),
+      fieldSource=nt.fields.map(x=>x._source),templateSource=nt.templates.map(x=>x._sourceOrd),
+      retained=new Set(templateSource.filter(x=>x!==''&&x!=null).map(x=>Number(x)));
     nt.fields=cleanFields;nt.templates=cleanTemplates;
-    // Mesmas validações do Anki ao salvar o tipo de nota (mensagem oficial em pt-BR).
     const erroNt=AnkiParity.erroNotetype?AnkiParity.erroNotetype(nt):null;
     if(erroNt){UI.alert(erroNt.replace(/<br>/g,'\n'),{title:'⚠ Tipo de nota inválido',okText:'Corrigir'});return;}
-    const savedNt=AnkiParity.saveNotetype(nt);
+    const savedNt=AnkiParity.saveNotetype(nt,old._planId==null?undefined:old._planId);
     for(const note of notes){
       const fields={};savedNt.fields.forEach((f,i)=>{const src=fieldSource[i];fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
-      const cards=this._cardsForNote(note.id);
-      cards.forEach(c=>{const oldOrd=Number(c.ankiTemplateOrd)||0,newOrd=templateSource.findIndex(x=>String(x)===String(oldOrd));if(newOrd>=0)DB.updateCard(c.id,{ankiTemplateOrd:newOrd});});
-      const saved=AnkiParity.saveNote(Object.assign({},note,{fields}));this.reconcileNote(saved,savedNt);
+      const ref=this.noteRef(note),pid=note._planId||old._planId||null;
+      this._inPlan(pid,()=>{
+        const cards=this._cardsForNote(ref).slice();
+        cards.forEach(c=>{
+          const oldOrd=Number(c.ankiTemplateOrd)||0,newOrd=templateSource.findIndex(x=>String(x)===String(oldOrd));
+          if(!retained.has(oldOrd)){DB.deleteCard(c.id);return;}
+          if(newOrd>=0)DB.updateCard(c.id,{ankiTemplateOrd:newOrd,notetypeId:savedNt.id,template:newOrd===1?'reverse':'forward'});
+        });
+      });
+      const saved=AnkiParity.saveNote(Object.assign({},note,{fields}),pid==null?undefined:pid);this.reconcileNote(saved,savedNt);
     }
     document.getElementById('anki-nt-edit-modal').style.display='none';this.renderNotetypes();this.renderBrowser();CardsScreen.render();showToast('Tipo de nota atualizado ✓');
   },
 
-  deleteNotetype(id){
-    const used=AnkiParity.notes().filter(n=>String(n.notetypeId)===String(id)).length;if(used){showToast('Este tipo ainda é usado por '+used+' nota(s). Mude o tipo delas antes de excluir.');return;}
+  deleteNotetype(ref){
+    const nt=this._getNotetype(ref);if(!nt)return;const notes=nt._planId!=null?AnkiParity.notes(nt._planId):AnkiParity.notes(),
+      used=notes.filter(n=>String(n.notetypeId)===String(nt.id)).length;
+    if(used){showToast('Este tipo ainda é usado por '+used+' nota(s). Mude o tipo delas antes de excluir.');return;}
     UI.confirm('Excluir este tipo de nota sem uso?',{title:'Excluir tipo de nota',okText:'Excluir',danger:true}).then(ok=>{if(!ok)return;
-      const nt=AnkiParity.getNotetype(id),key=(nt&&nt._planId&&window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan)
-        ? StudyGlobalScope.entityKeyForPlan(nt._planId,'notetype',id):AnkiParity._entityKey('notetype',id);
+      const key=(nt._planId&&window.StudyGlobalScope&&StudyGlobalScope.entityKeyForPlan)
+        ? StudyGlobalScope.entityKeyForPlan(nt._planId,'notetype',nt.id):AnkiParity._entityKey('notetype',nt.id,nt._planId==null?undefined:nt._planId);
       localStorage.removeItem(key);this.renderNotetypes();showToast('Tipo excluído');});
   },
 
