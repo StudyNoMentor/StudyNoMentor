@@ -1183,8 +1183,7 @@ const CardsOfficialBridge = {
       hit=all.find(nt=>String(Number(nt.ankiId!=null?nt.ankiId:nt.id))===String(officialId));
     return hit?hit.id:fallback;
   },
-  async _syncOfficialNotes(states,opts){
-    opts=opts||{};
+  async _syncOfficialNotes(states){
     for(const state of states||[]){
       const reps=this._noteReplicas(state.id);
       for(const note of reps){
@@ -1200,10 +1199,6 @@ const CardsOfficialBridge = {
         for(const card of cards){
           if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(card,{favorito:marked},pid);
         }
-        if(!opts.skipReconcile)try{
-          const nt=AnkiParity.getNotetype(saved.notetypeId,pid==null?undefined:pid);
-          if(nt&&window.AnkiProductParity&&AnkiProductParity.reconcileNote)AnkiProductParity.reconcileNote(saved,nt);
-        }catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-note-reconcile');}
       }
     }
   },
@@ -1217,6 +1212,7 @@ const CardsOfficialBridge = {
     });
     await this._syncStates(out.cards||[]);
     await this._syncOfficialNotes(out.notes||[]);
+    await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
     if(out.reviewer)this._applyReviewer(out.reviewer);
     this._browserCache=[];this._scheduleOfficialBrowser();CardsScreen.updateFavCount();
     return {out,selection:sel};
@@ -1381,7 +1377,7 @@ const CardsOfficialBridge = {
     if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu o NoteType atualizado.');
     const pids=this._notetypePlanIds((notes||[]).map(n=>n&&n._planId).filter(x=>x!=null));
     this._syncNotetypesIntoPlans([{notetype:out.notetype,use_count:out.use_count||0}],pids);
-    await this._syncOfficialNotes(out.notes||[],{skipReconcile:true});
+    await this._syncOfficialNotes(out.notes||[]);
     await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
     await this._syncCollectionState(out.state,this._activePlanId(),null);
     this._browserCache=[];this.dirty=false;
@@ -1415,7 +1411,7 @@ const CardsOfficialBridge = {
     });
     if(!out||!out.notetype)throw new Error('O Anki oficial não devolveu o NoteType restaurado.');
     this._syncNotetypesIntoPlans([{notetype:out.notetype,use_count:out.use_count||0}],this._notetypePlanIds());
-    await this._syncOfficialNotes(out.notes||[],{skipReconcile:true});
+    await this._syncOfficialNotes(out.notes||[]);
     await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
     await this._syncCollectionState(out.state,this._activePlanId(),null);
     this._browserCache=[];this.dirty=false;
@@ -1734,7 +1730,7 @@ const CardsOfficialBridge = {
     });
     const targetId=Number(input.new_notetype_id),planIds=(sel.local.notes||[]).map(n=>n._planId!=null?n._planId:null);
     this._syncNotetypesIntoPlans(this._changeTypeRows||[],planIds);
-    await this._syncOfficialNotes(out.notes||[],{skipReconcile:true});
+    await this._syncOfficialNotes(out.notes||[]);
     await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
     if(out.reviewer)this._applyReviewer(out.reviewer);
     document.getElementById('anki-change-type-modal').style.display='none';
