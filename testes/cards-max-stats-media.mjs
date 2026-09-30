@@ -80,15 +80,21 @@ assert.equal(M._isAnswerRevlog({grade:0,phase:'rescheduled',ankiReviewKind:'resc
 M._statsState={scope:'collection',deckId:null,search:'',history:'year'};
 
 const statsSrc=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
+const bridgeSrc=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
+const backendSrc=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 assert.doesNotMatch(statsSrc,/Calcular retenção mínima recomendada/,'CMRR removido do Anki 25.07 não deve continuar exposto na UI atual');
 assert.match(statsSrc,/anki-sim-additional/,'simulador deve expor cards novos adicionais');
 assert.match(statsSrc,/anki-sim-review-limit/,'simulador deve expor máximo de revisões por dia');
-assert.match(statsSrc,/approximate:false/,'simulador da UI deve usar coleção completa');
 assert.doesNotMatch(statsSrc,/_sampleCards\(/,'simulador legado amostrado não deve coexistir com o oficial');
 assert.doesNotMatch(statsSrc,/\bsimulate\(days,retention,opts\)/,'não deve existir segundo motor de simulação em JavaScript');
-assert.match(statsSrc,/r\.ankiInterval!=null\?r\.ankiInterval/,'simulador deve usar o intervalo pós-resposta do revlog Anki');
-assert.match(statsSrc,/r\.ankiLastInterval!=null\?r\.ankiLastInterval/,'simulador deve preservar o last_interval pré-resposta');
-assert.match(statsSrc,/for\(let p=70;p<=99;p\+\+\)/,'Help Me Decide deve avaliar integralmente 70%–99%');
+assert.doesNotMatch(statsSrc,/simulate_json\(/,'simulador não pode reconstruir revlog/cards localmente quando a Collection oficial está disponível');
+assert.match(statsSrc,/CardsOfficialBridge\.simulateFsrsPreset\(deckId,days,retention,opts,'review'\)/,'simulador deve delegar a carga futura à Collection oficial');
+assert.match(bridgeSrc,/params:Array\.isArray\(pc\.fsrs_params_6\)/,'simulador deve usar os parâmetros do preset oficial');
+assert.match(bridgeSrc,/easy_days_percentages:/,'simulador deve enviar Easy Days do preset oficial');
+assert.match(bridgeSrc,/review_order:/,'simulador deve enviar a ordem de revisão oficial');
+assert.match(backendSrc,/mode == "optimal"[\s\S]*?compute_optimal_retention/,'Help Me Decide deve usar compute_optimal_retention do backend oficial');
+assert.match(statsSrc,/optimal_retention/,'Help Me Decide deve consumir a retenção ótima devolvida pelo Anki');
+assert.doesNotMatch(statsSrc,/for\(let p=70;p<=99;p\+\+\)/,'Help Me Decide não pode aproximar a retenção ótima por varredura local');
 assert.match(statsSrc,/Help Me Decide/,'simulador deve expor Help Me Decide');
 assert.match(statsSrc,/Card Counts/,'estatísticas devem expor Card Counts');
 assert.match(statsSrc,/Review Time/,'estatísticas devem expor Review Time');
