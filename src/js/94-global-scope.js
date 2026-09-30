@@ -1377,6 +1377,35 @@
     });
   };
 
+
+  S.bulkRepositionUi=function(ids){
+    const r=this._selectedBrowserRows(ids),cards=(r.cards||[]).filter(c=>(c.phase||'new')==='new');
+    if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
+    UI.prompt([
+      {key:'start',label:'Posição inicial',type:'number',value:'1'},
+      {key:'step',label:'Passo',type:'number',value:'1'},
+      {key:'random',label:'Ordem dos selecionados',type:'select',value:'keep',options:[{value:'keep',label:'Manter ordem atual'},{value:'random',label:'Aleatória'}]},
+      {key:'shift',label:'Deslocar cards existentes?',type:'select',value:'yes',options:[{value:'yes',label:'Sim'},{value:'no',label:'Não'}]}
+    ],{title:'🔢 Reposicionar novos',okText:'Aplicar'}).then(v=>{
+      if(!v)return;
+      const start=Math.max(0,Math.round(Number(v.start)||0)),step=Math.max(1,Math.round(Number(v.step)||1));
+      const groups=new Map();
+      cards.forEach(c=>{const pid=String(c._planId||this.activePlanId());if(!groups.has(pid))groups.set(pid,[]);groups.get(pid).push(c);});
+      groups.forEach((sel,pid)=>{
+        if(v.random==='random')sel.sort(()=>Math.random()-.5);
+        else sel.sort((a,b)=>(Number(a.posicaoNova)||0)-(Number(b.posicaoNova)||0)||String(a.id).localeCompare(String(b.id)));
+        if(v.shift==='yes'){
+          const selected=new Set(sel.map(c=>String(c.id))),delta=sel.length*step;
+          this._tag(pid,this._rows(pid,'cards')).filter(c=>(c.phase||'new')==='new'&&!selected.has(String(c.id))&&(Number(c.posicaoNova)||0)>=start).forEach(c=>
+            this.updateCardScoped(c,{posicaoNova:(Number(c.posicaoNova)||0)+delta,ankiDue:(Number(c.ankiDue)||Number(c.posicaoNova)||0)+delta},pid)
+          );
+        }
+        sel.forEach((c,i)=>this.updateCardScoped(c,{posicaoNova:start+i*step,ankiDue:start+i*step},pid));
+      });
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) reposicionado(s) ✓');
+    });
+  };
+
   const boot = () => {
     S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
