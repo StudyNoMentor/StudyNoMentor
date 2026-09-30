@@ -1334,6 +1334,42 @@ const CardsOfficialBridge = {
     };
   },
 
+
+
+  async simulateFsrsPreset(deckId,days,retention,opts,mode){
+    opts=opts||{};mode=mode||'review';
+    await this.bootstrap(false);
+    const isDeck=deckId!=null&&deckId!=='',
+      ctx=isDeck?this._deckContext(deckId):{officialId:1,planId:this._activePlanId(),deck:null},
+      options=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options'),
+      currentId=Number(options.current_deck&&options.current_deck.config_id)||1,
+      entry=(options.all_config||[]).find(x=>Number(x&&x.config&&x.config.id)===currentId);
+    if(!entry||!entry.config)throw new Error('Preset oficial atual não encontrado para o simulador FSRS.');
+    const preset=entry.config,pc=preset.config||{},presetName=String(preset.name||'Default').replace(/\\/g,'\\\\').replace(/"/g,'\\"'),
+      search=String(pc.param_search||'').trim()||('preset:"'+presetName+'" -is:suspended'),
+      payload={
+        params:Array.isArray(pc.fsrs_params_6)?pc.fsrs_params_6:[],
+        desired_retention:Math.max(.7,Math.min(.99,Number(retention)||.9)),
+        deck_size:Math.max(0,Math.min(100000,Math.round(Number(opts.additionalNew)||0))),
+        days_to_simulate:Math.max(1,Math.min(3650,Math.round(Number(days)||365))),
+        new_limit:Math.max(0,Math.round(opts.newLimit==null?Number(pc.new_per_day)||0:Number(opts.newLimit)||0)),
+        review_limit:Math.max(0,Math.round(opts.reviewLimit==null?Number(pc.reviews_per_day)||0:Number(opts.reviewLimit)||0)),
+        max_interval:Math.max(1,Math.min(36500,Math.round(opts.maxInterval==null?Number(pc.maximum_review_interval)||36500:Number(opts.maxInterval)||36500))),
+        search,
+        new_cards_ignore_review_limit:!!options.new_cards_ignore_review_limit,
+        easy_days_percentages:Array.isArray(pc.easy_days_percentages)&&pc.easy_days_percentages.length===7?pc.easy_days_percentages:[1,1,1,1,1,1,1],
+        review_order:Number.isFinite(Number(pc.review_order))?Number(pc.review_order):0,
+        historical_retention:Math.max(.5,Math.min(.99,Number(pc.historical_retention)||.9)),
+        learning_step_count:Array.isArray(pc.learn_steps)?pc.learn_steps.length:0,
+        relearning_step_count:Array.isArray(pc.relearn_steps)?pc.relearn_steps.length:0
+      };
+    if(Number(pc.leech_action)===0&&Number(pc.leech_threshold)>0)payload.suspend_after_lapse_count=Math.round(Number(pc.leech_threshold));
+    const out=await this.request('/api/cards-official/fsrs/simulate?mode='+encodeURIComponent(mode),{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+    });
+    return {out,payload,search,presetName,currentId};
+  },
+
   async inheritDeckOptions(deckId){
     await this.bootstrap(false);
     const ctx=this._deckContext(deckId),
