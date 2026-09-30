@@ -409,10 +409,11 @@
       return out;
     },
     cleanOrphanRevlog(scope) {
+      /* Revlog de card excluído é histórico válido no Anki. Aqui só removemos
+         linhas estruturalmente inválidas, sem cardId. */
       let removed=0;
       this.planIdsForScope(scope).forEach(pid=>{
-        const ids=new Set(this._rows(pid,'cards').map(c=>String(c.id)));
-        const before=this._revlogForPlan(pid),after=before.filter(r=>ids.has(String(r.cardId)));
+        const before=this._revlogForPlan(pid),after=before.filter(r=>r&&r.cardId!=null&&String(r.cardId).trim()!=='');
         removed+=before.length-after.length;if(after.length!==before.length)this.replaceRevlogPlan(pid,after);
       });
       return removed;
