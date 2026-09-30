@@ -1478,6 +1478,64 @@ def cards_official_redo(user: dict[str, Any] = Depends(current_user)) -> dict[st
         return {"ok": True, "changes": out, "reviewer": cards_reviewer_payload(item.col)}
 
 
+@app.get("/api/cards-official/history/status")
+def cards_official_history_status(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.undo_status())
+
+
+@app.post("/api/cards-official/history/undo")
+def cards_official_history_undo(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        out = item.col.undo()
+        return {
+            "ok": True,
+            "changes": pb(out),
+            "state": cards_collection_full_state_payload(item.col),
+            "status": pb(item.col.undo_status()),
+        }
+
+
+@app.post("/api/cards-official/history/redo")
+def cards_official_history_redo(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        out = item.col.redo()
+        return {
+            "ok": True,
+            "changes": pb(out),
+            "state": cards_collection_full_state_payload(item.col),
+            "status": pb(item.col.undo_status()),
+        }
+
+
+@app.get("/api/cards-official/browser/duplicates")
+def cards_official_browser_duplicates(
+    field: str = Query(..., min_length=1),
+    search: str = Query(default=""),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        groups = item.col.find_dupes(field, search)
+        return {
+            "field": field,
+            "search": search,
+            "groups": [
+                {"value": value, "note_ids": [int(nid) for nid in nids]}
+                for value, nids in groups
+            ],
+        }
+
+
 @app.get("/api/cards-official/card-info/{card_id}")
 def cards_official_card_info(
     card_id: int,
