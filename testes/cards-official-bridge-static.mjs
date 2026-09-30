@@ -10,6 +10,7 @@ const cards=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
 const statsMedia=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
 const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
 const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
+const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const exporter=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
