@@ -1550,19 +1550,26 @@
   };
 
   S.installAnkiUsabilityParity=function(){
-    if(this._ankiUsabilityParityInstalled||typeof AnkiProductParity==='undefined'||typeof AnkiParity==='undefined')return;
-    this._ankiUsabilityParityInstalled=true;const AP=AnkiProductParity;
+    if(typeof AnkiProductParity==='undefined'||typeof AnkiParity==='undefined')return;
+    const AP=AnkiProductParity;
 
-    AP.editTags=ids=>this.editTagsScoped(ids);
-    AP.bulkMark=ids=>this.bulkMarkScoped(ids);
-    AP.bulkFindReplace=ids=>this.bulkFindReplaceUi(ids);
-    AP.bulkSetDue=ids=>this.bulkSetDueUi(ids);
-    AP.bulkForget=ids=>this.bulkResetUi(ids);
-    AP.bulkReposition=ids=>this.bulkRepositionUi(ids);
-    AP.bulkMoveDeck=ids=>this.moveCardsUi(ids);
-    AP.toggleSuspend=ids=>this.toggleSuspendScoped(ids);
-    AP.bulkFlag=ids=>this.bulkFlagScoped(ids);
-    AP.deleteNotes=ids=>this.deleteNotesScoped(ids);
+    // Esta instalação precisa ser idempotente. O Max é carregado em uma camada
+    // posterior e pode sobrescrever AP.openReviewerActions depois do primeiro
+    // boot. Em chamadas seguintes (ativação da tela/testes), reaplicamos apenas
+    // os bridges que dependem dele sem duplicar listeners nem estado.
+    if(!this._ankiUsabilityParityInstalled){
+      this._ankiUsabilityParityInstalled=true;
+      AP.editTags=ids=>this.editTagsScoped(ids);
+      AP.bulkMark=ids=>this.bulkMarkScoped(ids);
+      AP.bulkFindReplace=ids=>this.bulkFindReplaceUi(ids);
+      AP.bulkSetDue=ids=>this.bulkSetDueUi(ids);
+      AP.bulkForget=ids=>this.bulkResetUi(ids);
+      AP.bulkReposition=ids=>this.bulkRepositionUi(ids);
+      AP.bulkMoveDeck=ids=>this.moveCardsUi(ids);
+      AP.toggleSuspend=ids=>this.toggleSuspendScoped(ids);
+      AP.bulkFlag=ids=>this.bulkFlagScoped(ids);
+      AP.deleteNotes=ids=>this.deleteNotesScoped(ids);
+    }
 
     if(typeof AnkiMaxParity!=='undefined'){
       AnkiMaxParity._bulkCardsMove=ids=>this.moveCardsUi(ids);
@@ -1626,6 +1633,12 @@
           else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
         });
       };
+
+      // O botão "Mais ações" é criado pela camada Product e chama AP.
+      // Aponte AP explicitamente para o bridge plan-aware atual, inclusive
+      // quando AnkiMaxParity.install() tiver sido executado depois do boot.
+      AP.openReviewerActions=(cardHint)=>AnkiMaxParity.openReviewerActions(cardHint);
+      this._ankiUsabilityParityMaxInstalled=true;
     }
   };
 
