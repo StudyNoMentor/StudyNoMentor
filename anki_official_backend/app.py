@@ -1708,6 +1708,27 @@ def media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     return FileResponse(path)
 
 
+@app.post("/api/cards-official/editor/media")
+async def cards_official_editor_media(
+    file: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    data = await _upload_bytes(file, MAX_MEDIA_BYTES)
+    item = cards_uc_for(user)
+    with item.lock:
+        desired = os.path.basename(file.filename or "media")
+        desired = item.col.media.add_extension_based_on_mime(
+            desired,
+            file.content_type or "application/octet-stream",
+        )
+        stored = item.col.media.write_data(desired, data)
+        return {
+            "ok": True,
+            "filename": stored,
+            "content_type": file.content_type or "application/octet-stream",
+        }
+
+
 @app.get("/api/cards-official/media/{filename:path}")
 def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     item = cards_uc_for(user)
