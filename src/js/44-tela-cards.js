@@ -3130,6 +3130,7 @@ CardsScreen.openAlgoConfig = function () {
     decks.map(d => ({ value: d.id, label: '📁 ' + CardsScreen._rotuloBaralho(d, decks) + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
   );
   opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
+  opts.push({ value: '__empty__', label: '🧹 Cards vazios · ferramenta oficial Anki…' });
   opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Como no Anki: FSRS/SM-2 é global. Retenção, passos, limites e demais parâmetros podem variar por preset/baralho.' }],
@@ -3137,6 +3138,11 @@ CardsScreen.openAlgoConfig = function () {
       if (!v) return;
       if (v.scope === '__reset__') { CardsScreen.zerarEstatisticas(); return; }
       if (v.scope === '__bancas__') { CardsScreen.openBancasModal(); return; }
+      if (v.scope === '__empty__') {
+        if (window.CardsOfficialBridge && typeof CardsOfficialBridge.openEmptyCards === 'function') void CardsOfficialBridge.openEmptyCards();
+        else showToast('Ferramenta Empty Cards oficial indisponível.');
+        return;
+      }
       CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
     });
 };
