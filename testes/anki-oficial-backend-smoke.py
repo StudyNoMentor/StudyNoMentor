@@ -254,6 +254,22 @@ with tempfile.TemporaryDirectory() as tmp:
     allocated_conf_id = int(cupdated["options"]["current_deck"]["config_id"])
     assert allocated_conf_id > 0 and allocated_conf_id != current_conf_id
     assert cupdated["state"]["cards"] and cupdated["state"]["reviewer"]
+    inherited = app.cards_official_update_deck_options(
+        cards_current_deck,
+        {
+            "configs": [dict(selected["config"])],
+            "removed_config_ids": [],
+            "mode": 0,
+            "limits": dict(copts["current_deck"].get("limits") or {}),
+            "new_cards_ignore_review_limit": bool(copts.get("new_cards_ignore_review_limit", False)),
+            "fsrs": bool(copts.get("fsrs", True)),
+            "apply_all_parent_limits": bool(copts.get("apply_all_parent_limits", False)),
+            "fsrs_reschedule": False,
+            "fsrs_health_check": False,
+        },
+        cards_ctx,
+    )
+    assert int(inherited["options"]["current_deck"]["config_id"]) == current_conf_id
     cdefaults = app.cards_official_custom_study_defaults(cards_current_deck, cards_ctx)
     assert "available_new" in cdefaults and "available_review" in cdefaults
     cfiltered = app.cards_official_get_filtered_deck(0, cards_ctx)
