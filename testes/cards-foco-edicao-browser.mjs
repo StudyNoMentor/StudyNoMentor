@@ -272,6 +272,60 @@ try{
   ok(dueResult.last&&dueResult.last.grade===0&&dueResult.last.ankiReviewKind==='manual','Set Due mobile grava evento Manual rating 0');
   ok(!dueResult.overflow,'fluxo Set Due não cria overflow horizontal mobile');
 
+  // Card Info deve explicar a operação manual, em vez de mostrar um rating 0
+  // opaco. Também passamos a identidade qualificada para provar roteamento.
+  await page.evaluate(({id,pid})=>{
+    const c=DB.getCard(id);CardsScreen.cardInfo(Object.assign({},c,{_planId:pid}));
+  },mobile);
+  await esperar(80);
+  const infoText=await page.locator('#ui-modal').innerText();
+  ok(infoText.includes('Manual · Definir vencimento'),'Card Info nomeia Set Due como evento Manual legível');
+  ok(!/\n0\n/.test(infoText),'Card Info não expõe rating 0 cru para operação manual');
+  await page.click('#ui-modal-ok');await esperar(60);
+
+  /* 5) Browser como o Anki: modificadores de busca e seleção Ctrl/Shift. */
+  await page.setViewportSize({width:1050,height:820});await esperar(60);
+  await page.evaluate(()=>{AnkiProductParity.openBrowser();});
+  await esperar(100);
+  await page.locator('[data-browser-term="is:new"]').click();
+  ok((await page.locator('#anki-browser-search').inputValue())==='is:new','clique simples substitui a busca, como sidebar do Anki');
+  await page.locator('[data-browser-term="tag:marked"]').click({modifiers:['Control']});
+  ok((await page.locator('#anki-browser-search').inputValue())==='is:new tag:marked','Ctrl adiciona termo com AND');
+  await page.locator('[data-browser-term="is:review"]').click({modifiers:['Control','Shift']});
+  const replaced=await page.locator('#anki-browser-search').inputValue();
+  ok(replaced.includes('is:review')&&replaced.includes('tag:marked')&&!replaced.includes('is:new'),'Ctrl+Shift substitui termo do mesmo tipo e preserva o restante');
+  await page.locator('[data-browser-term="is:suspended"]').click({modifiers:['Alt']});
+  ok((await page.locator('#anki-browser-search').inputValue())==='-is:suspended','Alt nega o termo de busca');
+
+  await page.evaluate(()=>{AnkiProductParity.browser.query='';document.getElementById('anki-browser-search').value='';AnkiProductParity.renderBrowser();});
+  await esperar(80);
+  const rows=page.locator('#anki-browser-list .anki-browser-row');
+  ok(await rows.count()>=3,'Browser possui linhas suficientes para validar seleção múltipla real');
+  await rows.nth(0).click();await esperar(40);
+  await page.locator('#anki-browser-list .anki-browser-row').nth(2).click({modifiers:['Shift']});await esperar(50);
+  ok(await page.evaluate(()=>AnkiProductParity.browser.selected.size)===3,'Shift seleciona intervalo de linhas');
+  await page.locator('#anki-browser-list .anki-browser-row').nth(1).click({modifiers:['Control']});await esperar(50);
+  ok(await page.evaluate(()=>AnkiProductParity.browser.selected.size)===2,'Ctrl alterna uma linha sem perder as demais');
+  ok(await page.locator('#anki-browser-list .anki-browser-row[aria-selected="true"]').count()===2,'estado aria-selected acompanha a seleção visível');
+  await page.locator('#anki-browser-modal [data-ap-close="anki-browser-modal"]').first().click();await esperar(50);
+
+  /* 6) Toque real Playwright + rotação: dedo → botão → modal → retorno. */
+  const touchContext=await browser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+  const touch=await touchContext.newPage(),touchErrors=[];touch.on('pageerror',e=>touchErrors.push(e.message));
+  await touch.goto(`http://127.0.0.1:${server.address().port}/index.html`,{waitUntil:'domcontentloaded'});
+  await touch.waitForFunction(()=>window.switchScreen&&typeof CardsScreen!=='undefined'&&typeof AnkiProductParity!=='undefined',{timeout:30000});
+  await touch.evaluate(()=>{try{ProfileUI.hideGate();}catch(_){}const d=DB.addDeck('Touch E2E');DB.addCard({deckId:d.id,frente:'TOUCH',verso:'OK',phase:'review',status:'sei',due:todayCards(),intervalo:4,reps:2,lapses:0,ease:2.5,s:4,d:5});switchScreen('cards');CardsScreen.filters={materias:new Set(['deck:'+d.id])};CardsScreen.invalidateReviewQueue();CardsScreen.entrarFoco();});
+  await touch.waitForTimeout(250);
+  const moreBox=await touch.locator('#anki-review-more').boundingBox();ok(!!moreBox,'Mais ações tem alvo tátil no contexto mobile real');
+  await touch.touchscreen.tap(moreBox.x+moreBox.width/2,moreBox.y+moreBox.height/2);await touch.waitForTimeout(100);
+  ok(await touch.locator('#uip_action').isVisible(),'tap real abre Mais ações');
+  const cancelBox=await touch.locator('#ui-modal-cancel').boundingBox();await touch.touchscreen.tap(cancelBox.x+cancelBox.width/2,cancelBox.y+cancelBox.height/2);await touch.waitForTimeout(60);
+  await touch.setViewportSize({width:844,height:390});await touch.waitForTimeout(80);
+  ok(!await touch.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),'rotação para paisagem não cria overflow horizontal');
+  ok(await touch.locator('#anki-review-more').isVisible(),'Mais ações continua acessível após rotação');
+  await touchContext.close();
+  ok(touchErrors.length===0,'E2E touch sem erros de página: '+touchErrors.join(' | '));
+
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS FOCO/EDIÇÃO OK — ${n} invariantes.`);
 }finally{await browser.close();server.close();}

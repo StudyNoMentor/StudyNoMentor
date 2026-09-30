@@ -298,6 +298,17 @@ const AnkiImport = {
     return null;
   },
   _phase(type,queue){type=Number(type);queue=Number(queue);if(type===0)return 'new';if(type===1||queue===1||queue===3)return 'learning';if(type===3)return 'relearning';return 'review';},
+  _revKind(type){return ({0:'learning',1:'review',2:'relearning',3:'filtered',4:'manual',5:'rescheduled'})[Number(type)]||'review';},
+  _revlogRow(r,cid){
+    const kind=this._revKind(r&&r.type);
+    return {
+      id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),
+      date:(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(r.id)):new Date(Number(r.id)).toISOString().slice(0,10)),
+      grade:Number(r.ease),phase:kind,intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,
+      ankiInterval:Number(r.ivl)||0,ankiLastInterval:Number(r.lastIvl)||0,
+      ankiReviewKind:kind,ankiIvlSemantica:2,easeFactor:Number(r.factor)||2500
+    };
+  },
   _dueDate(crt,due){
     const d=new Date(Number(crt||0)*1000+Number(due||0)*86400000);if(!isFinite(d))return todayCards();
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -563,7 +574,10 @@ const AnkiImport = {
     });
     if(opts.withScheduling!==false&&this._has(db,'revlog')){
       const old=DB.getRevlog().slice(),known=new Set(old.map(r=>String(r.reviewId||r.id||'')+'|'+String(r.cardId))),rr=this._rows(db,'select id,cid,ease,ivl,lastIvl,factor,time,type from revlog order by id');
-      for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(r.id)):new Date(Number(r.id)).toISOString().slice(0,10)),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
+      for(const r of rr){
+        const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);
+        old.push(this._revlogRow(r,cid));
+      }
       DB.replaceRevlog(old);
     }
     db.close();AnkiParity.ensureCanonicalNotes();CardEngine.invalidateDueCache();

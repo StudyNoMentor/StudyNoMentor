@@ -213,3 +213,19 @@
   #cards-filter-body .cards-multi-filter-btn{min-height:44px}
 }
 
+
+
+/* Browser Anki: busca rápida com os mesmos modificadores do sidebar original. */
+#anki-browser-modal .anki-browser-search-tools{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 10px}
+#anki-browser-modal .anki-browser-search-tools>.hint{margin-right:2px;font-size:12px;color:var(--text-faint)}
+#anki-browser-modal .anki-browser-search-tools>button{min-height:32px;padding:5px 9px;font-size:12px;white-space:nowrap}
+#anki-browser-modal .anki-browser-row[tabindex="0"]{outline:none}
+#anki-browser-modal .anki-browser-row[tabindex="0"]:focus-visible{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 58%,transparent)}
+@media(max-width:700px){
+  #anki-browser-modal .anki-browser-search-tools{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px;scrollbar-width:thin}
+  #anki-browser-modal .anki-browser-search-tools>.hint{flex:0 0 auto}
+  #anki-browser-modal .anki-browser-search-tools>button{flex:0 0 auto}
+}
+
+/* Image Occlusion: o gesto sobre o canvas pertence ao editor, não ao scroll/pinch da página. */
+#anki-io-canvas{touch-action:none;user-select:none;-webkit-user-select:none}

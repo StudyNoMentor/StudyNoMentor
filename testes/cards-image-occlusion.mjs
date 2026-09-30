@@ -59,4 +59,13 @@ assert.match(a,/snm-io-highlight/,'verso deve revelar a região ativa com destaq
 assert.match(a,/Extra/,'Back Extra deve aparecer no verso');
 assert.doesNotMatch(q,/Comentário/,'Comments não deve aparecer no card');
 
+// Uso touch: o canvas precisa capturar o gesto do editor e limpar qualquer drag
+// quando o navegador cancela o pointer (rotação, gesto do SO, perda de captura).
+const maxIoSrc=readFileSync(join(ROOT,'src/js/44-anki-max-image-occlusion.js'),'utf8');
+const cardsCss=readFileSync(join(ROOT,'src/css/44-telas-cards.css'),'utf8');
+assert.match(maxIoSrc,/addEventListener\('pointercancel'/,'camada avançada deve tratar pointercancel');
+assert.match(maxIoSrc,/s\.drag=null;s\.drawing=null/,'pointercancel deve encerrar desenho e arraste');
+assert.match(cardsCss,/#anki-io-canvas\{touch-action:none/,'canvas IO deve reservar gestos touch ao editor');
+
+
 console.log('IMAGE OCCLUSION: stock kind 6, campos estruturais, serialização oficial e renderização validados.');

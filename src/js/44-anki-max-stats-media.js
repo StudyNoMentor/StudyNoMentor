@@ -166,9 +166,16 @@ const AnkiMaxStatsMedia = {
     CardsScreen.renderStats=(box)=>{const out=old(box);try{this._bindStatsUi();}catch(e){console.warn('Stats parity',e);}return out;};
   },
   _revDate(r){if(r&&/^\d{4}-\d{2}-\d{2}$/.test(String(r.date||'')))return String(r.date);const ts=Number(r&&r.ts)||0;return ts?(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(ts):new Date(ts).toISOString().slice(0,10)):'';},
+  _isAnswerRevlog(r){
+    if(!r)return false;
+    const kind=typeof CardsScreen!=='undefined'&&CardsScreen._revlogAnki?CardsScreen._revlogAnki(r):null;
+    const k=String(kind&&kind.tipo||r.ankiReviewKind||r.phase||'review').toLowerCase();
+    if(k==='manual'||k==='rescheduled'||k==='reset'||Number(r.grade)===0)return false;
+    return Number(r.grade)>=1&&Number(r.grade)<=4;
+  },
   _dayMap(days){
     const span=Math.max(1,Number(days)||this._statsHistoryDays()),m=new Map(),today=todayCards();for(let i=span-1;i>=0;i--)m.set(CardEngine.addDays(today,-i),{count:0,time:0,learning:0,review:0,relearning:0,filtered:0,good:0,total:0});
-    for(const r of this.statsRevlog()){const d=this._revDate(r),x=m.get(d);if(!x)continue;x.count++;x.time+=Math.max(0,Number(r.time)||0);const ph=String(r.phase||'review');if(ph==='learning')x.learning++;else if(ph==='relearning')x.relearning++;else if(Number(r.ankiReviewKind)===3)x.filtered++;else x.review++;if(Number(r.grade)>=2)x.good++;x.total++;}
+    for(const r of this.statsRevlog()){if(!this._isAnswerRevlog(r))continue;const d=this._revDate(r),x=m.get(d);if(!x)continue;x.count++;x.time+=Math.max(0,Number(r.time)||0);const ph=String(r.phase||'review');if(ph==='learning')x.learning++;else if(ph==='relearning')x.relearning++;else if(Number(r.ankiReviewKind)===3)x.filtered++;else x.review++;if(Number(r.grade)>=2)x.good++;x.total++;}
     return m;
   },
   /* Séries por dia: começam no primeiro dia com dado (mínimo 14 dias) e são
@@ -207,7 +214,7 @@ const AnkiMaxStatsMedia = {
       '<div class="anki-cal-leg"><span>menos</span><span class="anki-cal-day l0"></span><span class="anki-cal-day l1"></span><span class="anki-cal-day l2"></span><span class="anki-cal-day l3"></span><span class="anki-cal-day l4"></span><span>mais</span></div></div></div>';
   },
   _hourlyHtml(){
-    const h=Array.from({length:24},()=>({n:0,ok:0,time:0}));for(const r of this.statsRevlog()){const ts=Number(r.ts)||0;if(!ts)continue;const d=new Date(ts),x=h[d.getHours()];x.n++;x.time+=Number(r.time)||0;if(Number(r.grade)>=2)x.ok++;}
+    const h=Array.from({length:24},()=>({n:0,ok:0,time:0}));for(const r of this.statsRevlog()){if(!this._isAnswerRevlog(r))continue;const ts=Number(r.ts)||0;if(!ts)continue;const d=new Date(ts),x=h[d.getHours()];x.n++;x.time+=Number(r.time)||0;if(Number(r.grade)>=2)x.ok++;}
     const max=Math.max(1,...h.map(x=>x.n)),pico=h.reduce((b,x,i)=>x.n>h[b].n?i:b,0);
     return '<div class="card stat-card"><div class="card-header"><div><h2>🕒 Distribuição por hora</h2><p class="sub">Revisões e acerto por horário'+(h[pico].n?' · pico às '+pico+'h':'')+'</p></div></div><div class="stat-body"><div class="anki-hourly">'+
       h.map((x,i)=>'<div class="anki-hour" title="'+i+'h · '+x.n+' revisões · '+(x.n?Math.round(x.ok/x.n*100):0)+'% acerto"><div class="anki-hour-fill" style="height:'+(x.n?Math.max(4,Math.round(x.n/max*100)):0)+'%"></div></div>').join('')+

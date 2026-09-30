@@ -60,6 +60,14 @@ assert.deepEqual(Array.from(advanced.columns),['Back','Front','Deck','Tags','GUI
 assert.equal(advanced.deckColumn,3);assert.equal(advanced.tagsColumn,4);assert.equal(advanced.guidColumn,5);
 const forced=I.parseText('#separator:comma\nA,B','forced.txt',{delimiter:'|'});
 assert.equal(forced.delimiter,'|','force_delimiter precisa prevalecer sobre cabeçalho');
+// Revlog importado precisa sobreviver a um novo export sem perder o tipo oficial.
+assert.equal(I._revKind(4),'manual','revlog type=4 do Anki deve continuar Manual');
+assert.equal(I._revKind(5),'rescheduled','revlog type=5 do Anki deve continuar Rescheduled');
+const manualRow=I._revlogRow({id:1700000000000,ease:0,ivl:30,lastIvl:10,factor:2500,time:0,type:4},'card-manual');
+assert.equal(manualRow.ankiReviewKind,'manual');
+assert.equal(manualRow.ankiIvlSemantica,2);
+assert.equal(manualRow.ankiInterval,30);assert.equal(manualRow.ankiLastInterval,10);assert.equal(manualRow.easeFactor,2500);
+
 
 const state={decks:[],cards:[],notes:new Map(),types:[],next:100};
 const basic={id:1,ankiId:1,name:'Basic',kind:'normal',fields:[{name:'Front'},{name:'Back'}],

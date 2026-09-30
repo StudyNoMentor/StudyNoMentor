@@ -125,45 +125,61 @@
       return sc === 'all' ? this.operationalAllBy('incidencia') : this.forScope('incidencia', sc);
     },
 
-    findRecord(suffix, id) {
-      const active = this.activePlanId();
-      const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
-      for (const pid of ids) {
-        const list = this._rows(pid, suffix);
+    scopedRef(kind, planId, id) {
+      const k = kind === 'card' || kind === 'c' ? 'c' : kind === 'deck' || kind === 'd' ? 'd' : 'n';
+      return k + ':' + encodeURIComponent(String(planId == null ? '' : planId)) + '::' + encodeURIComponent(String(id == null ? '' : id));
+    },
+    parseScopedRef(ref, fallbackKind) {
+      if (ref && typeof ref === 'object') return {
+        kind: ref._kind || fallbackKind || 'card',
+        id: String(ref.id == null ? '' : ref.id),
+        planId: ref._planId != null ? ref._planId : null,
+        row: ref
+      };
+      const raw = String(ref == null ? '' : ref), pref = /^([cnd]):/.exec(raw);
+      const kind = pref ? ({ c:'card', n:'note', d:'deck' }[pref[1]] || fallbackKind || 'card') : (fallbackKind || 'card');
+      const body = pref ? raw.slice(2) : raw, cut = body.indexOf('::');
+      if (cut < 0) return { kind, id: body, planId: null, row: null };
+      let planId = body.slice(0, cut), id = body.slice(cut + 2);
+      try { planId = decodeURIComponent(planId); id = decodeURIComponent(id); } catch (_) { /* legado */ }
+      return { kind, id, planId, row: null };
+    },
+    _recordsById(suffix, id) {
+      const out = [];
+      this.plans().forEach(p => {
+        const list = this._rows(p.id, suffix);
         const idx = list.findIndex(x => String(x && x.id) === String(id));
-        if (idx >= 0) return { planId: pid, list, index: idx, row: list[idx] };
+        if (idx >= 0) out.push({ planId:p.id, list, index:idx, row:list[idx] });
+      });
+      return out;
+    },
+    findRecord(suffix, id, planId) {
+      const ref = this.parseScopedRef(id, suffix === 'cards' ? 'card' : suffix === 'decks' ? 'deck' : 'note');
+      const explicitPlan = planId != null ? planId : ref.planId;
+      if (explicitPlan != null) {
+        const list = this._rows(explicitPlan, suffix), idx = list.findIndex(x => String(x && x.id) === String(ref.id));
+        return idx >= 0 ? { planId:explicitPlan, list, index:idx, row:list[idx] } : null;
       }
-      return null;
+      const matches = this._recordsById(suffix, ref.id);
+      // Camada global: ID cru só é aceito quando é globalmente inequívoco.
+      // Em colisão, falhamos fechado em vez de escolher silenciosamente o plano ativo.
+      return matches.length === 1 ? matches[0] : null;
     },
     findCardRecord(id, planId) {
-      const raw = id && typeof id === 'object' ? id : null;
-      const cardId = String(raw ? raw.id : id);
-      const explicitPlan = planId != null ? planId : (raw && raw._planId != null ? raw._planId : null);
-      const active = this.activePlanId();
-      const ids = explicitPlan != null ? [explicitPlan]
-        : [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
-      for (const pid of ids) {
-        const list = this._rows(pid, 'cards');
-        const idx = list.findIndex(c => String(c.id) === cardId);
-        if (idx >= 0) return { planId: pid, list, index: idx, card: list[idx] };
-      }
-      return null;
+      const r = this.findRecord('cards', id, planId);
+      return r ? { planId:r.planId, list:r.list, index:r.index, card:r.row } : null;
     },
     sourcePlanForCard(id, planId) {
       const r = this.findCardRecord(id, planId);
       return r ? r.planId : null;
     },
-    cardPosition(id) {
-      const r = this.findCardRecord(id);
+    cardPosition(id, planId) {
+      const r = this.findCardRecord(id, planId);
       return r ? r.index + 1 : 1;
     },
-    deckRecord(id) {
-      for (const p of this.plans()) {
-        const list = this._rows(p.id, 'decks');
-        const d = list.find(x => String(x.id) === String(id));
-        if (d) return { planId: p.id, deck: d };
-      }
-      return null;
+    deckRecord(id, planId) {
+      const r = this.findRecord('decks', id, planId);
+      return r ? { planId:r.planId, deck:r.row } : null;
     },
     deckForCard(card) {
       if (!card || !card.deckId) return null;
@@ -207,14 +223,17 @@
       });
     },
     ankiEntity(kind, id, planId) {
-      const ids = planId != null ? [planId] : [this.activePlanId()].concat(this.plans().map(p => p.id));
+      const ref = this.parseScopedRef(id, kind === 'note' ? 'note' : kind);
+      const explicitPlan = planId != null ? planId : ref.planId;
+      const matches = [];
+      const ids = explicitPlan != null ? [explicitPlan] : this.plans().map(p => p.id);
       const seen = new Set();
       for (const pid of ids) {
         if (!pid || seen.has(String(pid))) continue; seen.add(String(pid));
-        const row = this._entityRows(pid, kind).find(x => String(x.id) === String(id) || String(x.ankiId) === String(id));
-        if (row) return row;
+        const row = this._entityRows(pid, kind).find(x => String(x.id) === String(ref.id) || String(x.ankiId) === String(ref.id));
+        if (row) matches.push(row);
       }
-      return null;
+      return matches.length === 1 ? matches[0] : null;
     },
     ankiEntityEntries(planId) {
       const prefix = DB._profilePrefix() + 'p:' + String(planId) + ':cards-', rows = [];
@@ -290,8 +309,9 @@
       }))));
       return out;
     },
-    revlogForCard(id) {
-      const pid = this.sourcePlanForCard(id);
+    revlogForCard(id, planId) {
+      const ref = this.parseScopedRef(id, 'card');
+      const pid = planId != null ? planId : (ref.planId != null ? ref.planId : this.sourcePlanForCard(ref.id));
       return pid ? this._revlogForPlan(pid) : [];
     },
     _savePending(planId, row) {
@@ -1469,8 +1489,10 @@
   };
 
   S.bulkMarkScoped=function(ids){
-    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
-    const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
+    const r=this._selectedBrowserRows(ids),notes=r.notes||[];if(!notes.length)return;
+    const currentRef=window.AnkiProductParity&&AnkiProductParity.browser&&AnkiProductParity.browser._currentSelection;
+    const current=currentRef?(this._selectedBrowserRows([currentRef]).notes||[])[0]:notes[0];
+    const shouldMark=!((current&&current.tags)||[]).some(t=>String(t).toLowerCase()==='marked');
     notes.forEach(n=>{
       let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
       if(shouldMark)tags.push('marked');
@@ -1521,18 +1543,23 @@
   };
 
   S.toggleSuspendScoped=function(ids){
-    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
-    const should=cards.some(c=>!c.suspenso);
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
+    const currentRef=window.AnkiProductParity&&AnkiProductParity.browser&&AnkiProductParity.browser._currentSelection;
+    const current=currentRef?(this._selectedBrowserRows([currentRef]).cards||[])[0]:cards[0];
+    const should=!(current&&current.suspenso);
     cards.forEach(c=>this.suspendCardScoped(c,should));
     this._refreshAnkiBrowser();showToast(should?'Card(s) suspenso(s) ✓':'Card(s) reativado(s) ✓');
   };
 
   S.bulkFlagScoped=function(ids){
-    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
     UI.prompt([{key:'flag',label:'Bandeira',type:'select',value:'0',options:[0,1,2,3,4,5,6,7].map(n=>({value:String(n),label:n===0?'Sem bandeira':DB.FLAGS[n].nome}))}],{title:'🚩 Definir bandeira',okText:'Aplicar'}).then(v=>{
       if(!v)return;const flag=Number(v.flag)||0;
-      cards.forEach(c=>this.updateCardScoped(c,{flag:flag>=1&&flag<=7?flag:0},c._planId));
-      this._refreshAnkiBrowser();showToast('Bandeiras atualizadas ✓');
+      const currentRef=window.AnkiProductParity&&AnkiProductParity.browser&&AnkiProductParity.browser._currentSelection;
+      const current=currentRef?(this._selectedBrowserRows([currentRef]).cards||[])[0]:cards[0];
+      const next=flag>=1&&flag<=7&&Number(current&&current.flag)===flag?0:(flag>=1&&flag<=7?flag:0);
+      cards.forEach(c=>this.updateCardScoped(c,{flag:next},c._planId));
+      this._refreshAnkiBrowser();showToast(next?'Bandeira aplicada ✓':'Bandeira removida ✓');
     });
   };
 
