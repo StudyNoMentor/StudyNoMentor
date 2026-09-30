@@ -57,11 +57,14 @@ CardsScreen.buildQueue=realBuild;
 
 // ── Reviewer: contagens restantes iguais ao queued_cards do Anki v3 ────────
 A.reset({newPerDay:20,revPerDay:200});
-const cntR1=DB.addCard({frente:'R1',verso:'a',phase:'review',due:A.hoje(),intervalo:3,reps:2,s:3,d:5});
-const cntN1=DB.addCard({frente:'N1',verso:'a',phase:'new',due:A.hoje(),posicaoNova:1});
-const cntL1=DB.addCard({frente:'L1',verso:'a',phase:'learning',due:A.hoje(),dueTs:A.agora()-1000,learnStep:0,reps:1});
-const cntR2=DB.addCard({frente:'R2',verso:'a',phase:'review',due:A.hoje(),intervalo:5,reps:2,s:5,d:5});
-const cntN2=DB.addCard({frente:'N2',verso:'a',phase:'new',due:A.hoje(),posicaoNova:2});
+const cntR1=DB.addCard({frente:'R1',verso:'a'});
+DB.updateCard(cntR1.id,{phase:'review',due:A.hoje(),intervalo:3,reps:2,s:3,d:5});
+const cntN1=DB.addCard({frente:'N1',verso:'a',posicaoNova:1});
+const cntL1=DB.addCard({frente:'L1',verso:'a'});
+DB.updateCard(cntL1.id,{phase:'learning',due:A.hoje(),dueTs:A.agora()-1000,learnStep:0,reps:1});
+const cntR2=DB.addCard({frente:'R2',verso:'a'});
+DB.updateCard(cntR2.id,{phase:'review',due:A.hoje(),intervalo:5,reps:2,s:5,d:5});
+const cntN2=DB.addCard({frente:'N2',verso:'a',posicaoNova:2});
 CardsScreen._reviewQueue=[cntR1.id,cntN1.id,cntL1.id,cntR2.id,cntN2.id];
 CardsScreen._reviewIdx=0;
 eq(CardsScreen._reviewRemainingCounts(),{new:2,learning:1,review:2,current:'review'},
