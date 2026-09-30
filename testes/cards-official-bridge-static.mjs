@@ -97,6 +97,10 @@ assert.match(cards,/CardsOfficialBridge\.updateDeckOptions\(deckId, desiredCfg/,
 assert.ok(!/const rescheduled=shouldReschedule\?await CardsScreen\.rescheduleFsrsScope\(deckId\):0/.test(cards),'salvar Deck Options não pode duplicar reschedule no scheduler local');
 assert.match(backend,/def cards_official_fsrs_simulate[\s\S]*?simulate_fsrs_review/,'Simulador FSRS dos Cards precisa usar backend oficial');
 assert.match(backend,/def cards_official_empty_cards_report[\s\S]*?item\.col\.get_empty_cards/,'Empty Cards dos Cards precisa usar Collection oficial');
+assert.match(backend,/def cards_official_delete_empty_cards[\s\S]*?before = pb\(item\.col\.get_empty_cards\(\)\)[\s\S]*?remove_cards_and_orphaned_notes\(ids\)[\s\S]*?"state": cards_collection_state_payload/,'Empty Cards deve validar o relatório atual, excluir pela Collection oficial e devolver estado canônico');
+assert.match(bridge,/async openEmptyCards\(\)[\s\S]*?\/api\/cards-official\/empty-cards[\s\S]*?cardIds\.slice\(1\)[\s\S]*?\/api\/cards-official\/empty-cards\/delete/,'UI Empty Cards deve usar o relatório oficial e preservar uma card quando a nota precisa ser mantida');
+assert.match(bridge,/StudyGlobalScope\.deleteNoteScoped\(note\)/,'nota órfã removida oficialmente deve ser espelhada em todos os planejamentos');
+assert.match(cards,/value: '__empty__'[\s\S]*?CardsOfficialBridge\.openEmptyCards/,'ferramenta Empty Cards precisa estar acessível pela UI Cards');
 
 const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].map(m=>m[1]);
 for(const path of [
