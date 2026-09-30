@@ -436,7 +436,7 @@ const CardsOfficialBridge = {
     try{
       const out=await this.request('/api/cards-official/redo',{method:'POST'});
       const state=await this.request('/api/cards-official/card/'+encodeURIComponent(txn.officialId)+'/state');
-      await this._persistAnswered(state,false);this._undo.push(txn);this._sessionAnswered++;
+      const replayTxn=await this._persistAnswered(state,false);this._undo.push(replayTxn);if(this._undo.length>50)this._undo.shift();this._sessionAnswered++;
       this._applyReviewer(out.reviewer);await this.renderCurrent(document.getElementById('cards-content'));showToast('Revisão refeita ↷');return true;
     }catch(e){this._redo.push(txn);showToast('Não foi possível refazer: '+(e.message||e));return false;}
   },
