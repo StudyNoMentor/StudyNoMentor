@@ -359,11 +359,11 @@ const AnkiPractical10 = {
   },
   _runReviewerSheetAction(a){
     const c=AnkiProductParity._currentReviewCard();if(!c&& !['undo','redo','add','browse','stats'].includes(a))return;
-    const nid=c?AnkiProductParity.noteId(c):null;
+    const nid=c?AnkiProductParity.noteId(c):null,nref=c?AnkiProductParity.noteRefForCard(c):null;
     if(a==='undo')CardsScreen.undoAnswer();
     else if(a==='redo')CardsScreen.redoAnswer();
     else if(a==='mark'){const on=AnkiMaxParity._toggleMarkedNote(nid);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(on?'★ Nota marcada':'Marcação removida');}
-    else if(a==='tags')AnkiProductParity.editTags(['n:'+nid]);
+    else if(a==='tags')AnkiProductParity.editTags([nref]);
     else if(a==='info')document.getElementById('cards-act-info')?.click();
     else if(a==='buryCard')AnkiMaxParity.buryCard(c);
     else if(a==='buryNote')AnkiMaxParity.buryNote(c);
@@ -382,7 +382,7 @@ const AnkiPractical10 = {
     else if(a==='add')CardsScreen.openCardModal();
     else if(a==='browse')AnkiProductParity.openBrowser();
     else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}
-    else if(a==='type')AnkiProductParity.openChangeType(['n:'+nid]);
+    else if(a==='type')AnkiProductParity.openChangeType([nref]);
     else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     else if(a==='delete')document.getElementById('cards-act-del')?.click();
   },
@@ -406,8 +406,9 @@ const AnkiPractical10 = {
            do Anki — senão a revisão continuava mostrando os campos antigos. */
         const simples=kind==='basic'||kind==='cloze';
         if(note&&nt&&(!simples||['basic_reversed','basic_optional_reversed','typing','image_occlusion'].includes(kind))){
-          if(kind==='image_occlusion'&&typeof AnkiImageOcclusion!=='undefined')AnkiImageOcclusion.openEditor(note.id,card.deckId||null);
-          else AnkiProductParity.openNoteEditor(note.id);
+          const nref=AnkiProductParity.noteRefForCard(card);
+          if(kind==='image_occlusion'&&typeof AnkiImageOcclusion!=='undefined')AnkiImageOcclusion.openEditor(nref,card.deckId||null);
+          else AnkiProductParity.openNoteEditor(nref);
           return;
         }
       }
