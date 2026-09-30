@@ -109,119 +109,63 @@ const AnkiTotalParity = {
     const sel=document.getElementById('anki-browser-saved-search'),id=sel&&sel.value;if(!id){showToast('Selecione uma busca salva');return;}
     const rows=this._savedSearches().filter(x=>String(x.id)!==String(id));this._writeSavedSearches(rows);this._refreshSavedSearchSelect();showToast('Busca removida');
   },
-  _normalizeDuplicate(v){return AnkiProductParity.plain(v).normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');},
   _findDuplicates(){
     const names=[...new Set(AnkiParity.noteTypes().flatMap(t=>(t.fields||[]).map(f=>String(f.name||'')).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     if(!names.length){showToast('Nenhum campo disponível');return;}
-    UI.prompt([
-      {key:'field',label:'Campo',type:'select',value:names[0],options:names.map(n=>({value:n,label:n}))},
-      {key:'min',label:'Tamanho mínimo do texto',type:'number',value:1,min:1,max:9999}
-    ],{title:'≡ Encontrar duplicatas',okText:'Localizar'}).then(v=>{
-      if(!v)return;const min=Math.max(1,Number(v.min)||1),groups=new Map();
-      for(const n of AnkiParity.notes()){
-        const raw=n.fields&&n.fields[v.field];if(raw==null)continue;const key=this._normalizeDuplicate(raw);if(key.length<min)continue;
-        if(!groups.has(key))groups.set(key,[]);groups.get(key).push(String(n.id));
-      }
-      const ids=[...groups.values()].filter(g=>g.length>1).flat();
-      this._duplicateIds=new Set(ids);AnkiProductParity.browser.page=0;AnkiProductParity.browser.selected.clear();AnkiProductParity.renderBrowser();this._syncDuplicateButton();
-      showToast(ids.length?ids.length+' nota(s) em grupos duplicados':'Nenhuma duplicata encontrada');
-    });
+    UI.prompt([{key:'field',label:'Campo',type:'select',value:names[0],options:names.map(n=>({value:n,label:n}))}],
+      {title:'≡ Encontrar duplicatas · Anki oficial',okText:'Localizar'}).then(async v=>{
+        if(!v)return;
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.findOfficialDuplicates!=='function'){showToast('Busca de duplicatas oficial indisponível.');return;}
+        try{
+          const out=await CardsOfficialBridge.findOfficialDuplicates(v.field,String(AnkiProductParity.browser&&AnkiProductParity.browser.query||'')),
+            ids=(out.groups||[]).flatMap(g=>g.note_ids||[]).map(String);
+          this._duplicateIds=new Set(ids);AnkiProductParity.browser.page=0;AnkiProductParity.browser.selected.clear();AnkiProductParity.renderBrowser();this._syncDuplicateButton();
+          showToast(ids.length?ids.length+' nota(s) em grupos duplicados · Anki oficial ✓':'Nenhuma duplicata encontrada pelo Anki oficial');
+        }catch(e){showToast('Busca de duplicatas falhou: '+(e&&e.message?e.message:String(e)));}
+      });
   },
   _clearDuplicates(){this._duplicateIds=null;AnkiProductParity.browser.page=0;AnkiProductParity.browser.selected.clear();AnkiProductParity.renderBrowser();this._syncDuplicateButton();},
   _syncDuplicateButton(){
     const b=document.getElementById('anki-browser-clear-duplicates');if(b)b.style.display=this._duplicateIds&&this._duplicateIds.size?'':'none';
   },
 
-  /* ───────────────── UNDO/REDO TRANSVERSAL ───────────────── */
-  _entityEntries(){
-    const prefixes=[];try{prefixes.push(AnkiParity._entityKey('note',''),AnkiParity._entityKey('notetype',''));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-    const rows=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&prefixes.some(p=>k.startsWith(p)))rows.push([k,localStorage.getItem(k)]);}}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-    return {prefixes,rows};
+  /* ───────────────── UNDO/REDO TRANSVERSAL ─────────────────
+     A casca não fotografa nem restaura Cards/Revlog. O histórico pertence à
+     Collection oficial e os botões abaixo chamam Collection.undo()/redo(). */
+  checkpoint(){},
+  async undoGlobal(){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.undoCollectionOfficial!=='function'){showToast('Undo oficial indisponível.');return false;}
+    try{await CardsOfficialBridge.undoCollectionOfficial();showToast('↶ Desfeito pelo Anki oficial ✓');await this._syncUndoButtons();return true;}
+    catch(e){showToast('Nada para desfazer no Anki: '+(e&&e.message?e.message:String(e)));await this._syncUndoButtons();return false;}
   },
-  _snapshot(label){
-    const ent=this._entityEntries();
-    return {label:String(label||'Ação'),ts:Date.now(),cards:this.clone(DB.getCards()),revlog:this.clone(DB.getRevlog()),decks:this.clone(DB.getDecks()),entityPrefixes:ent.prefixes,entities:ent.rows};
+  async redoGlobal(){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.redoCollectionOfficial!=='function'){showToast('Redo oficial indisponível.');return false;}
+    try{await CardsOfficialBridge.redoCollectionOfficial();showToast('↷ Refeito pelo Anki oficial ✓');await this._syncUndoButtons();return true;}
+    catch(e){showToast('Nada para refazer no Anki: '+(e&&e.message?e.message:String(e)));await this._syncUndoButtons();return false;}
   },
-  checkpoint(label){
-    if(this._restoring)return;const now=Date.now(),last=this._undo[this._undo.length-1];
-    if(last&&last.label===label&&now-last.ts<120)return;
-    this._undo.push(this._snapshot(label));if(this._undo.length>20)this._undo.shift();this._redo=[];this._syncUndoButtons();
-  },
-  _restoreSnapshot(s){
-    if(!s)return false;this._restoring=true;
+  async _syncUndoButtons(){
+    const u=document.getElementById('anki-browser-global-undo'),r=document.getElementById('anki-browser-global-redo');
+    if(!u&&!r)return;
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.historyStatus!=='function'){if(u)u.disabled=true;if(r)r.disabled=true;return;}
     try{
-      DB.saveCards(this.clone(s.cards||[]));DB.saveDecks(this.clone(s.decks||[]));
-      if(DB.replaceRevlog)DB.replaceRevlog(this.clone(s.revlog||[]));
-      else DB.setRaw(DB.REVLOG_KEY,JSON.stringify(s.revlog||[]));
-      try{
-        const kill=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(s.entityPrefixes||[]).some(p=>k.startsWith(p)))kill.push(k);}
-        kill.forEach(k=>localStorage.removeItem(k));(s.entities||[]).forEach(([k,v])=>localStorage.setItem(k,v));
-      }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-      CardEngine.invalidateDueCache();
-      if(typeof CardsScreen!=='undefined'&&CardsScreen.render)CardsScreen.render();
-      if(typeof AnkiProductParity!=='undefined'&&document.getElementById('anki-browser-modal')&&document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
-      return true;
-    }finally{this._restoring=false;this._syncUndoButtons();}
+      const status=await CardsOfficialBridge.historyStatus();
+      if(u){u.disabled=!status.undo;u.title=status.undo?'Desfazer: '+status.undo:'Nada para desfazer';}
+      if(r){r.disabled=!status.redo;r.title=status.redo?'Refazer: '+status.redo:'Nada para refazer';}
+    }catch(_){if(u)u.disabled=true;if(r)r.disabled=true;}
   },
-  undoGlobal(){
-    const s=this._undo.pop();if(!s){showToast('Nada para desfazer');return false;}this._redo.push(this._snapshot(s.label));this._restoreSnapshot(s);showToast('↶ '+s.label);return true;
-  },
-  redoGlobal(){
-    const s=this._redo.pop();if(!s){showToast('Nada para refazer');return false;}this._undo.push(this._snapshot(s.label));this._restoreSnapshot(s);showToast('↷ '+s.label);return true;
-  },
-  _syncUndoButtons(){
-    const u=document.getElementById('anki-browser-global-undo'),r=document.getElementById('anki-browser-global-redo');if(u)u.disabled=!this._undo.length;if(r)r.disabled=!this._redo.length;
-  },
-  _wrapCheckpoint(obj,name,label){
-    if(!obj||typeof obj[name]!=='function'||obj[name].__ankiUndo)return;const old=obj[name];
-    const self=this;function wrapped(...args){self.checkpoint(label);return old.apply(this,args);}wrapped.__ankiUndo=true;obj[name]=wrapped;
-  },
-  _installGlobalUndo(){
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsMove','Mover cards');
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsDue','Definir vencimento');
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsForget','Esquecer cards');
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsReposition','Reposicionar cards');
-    this._wrapCheckpoint(AnkiProductParity,'deleteNotes','Excluir notas');
-    this._wrapCheckpoint(AnkiProductParity,'bulkMark','Marcar notas');
-    this._wrapCheckpoint(AnkiProductParity,'toggleSuspend','Suspender/ativar');
-    this._wrapCheckpoint(AnkiProductParity,'bulkFlag','Alterar bandeiras');
-    this._wrapCheckpoint(AnkiProductParity,'bulkFindReplace','Localizar e substituir');
-    this._wrapCheckpoint(AnkiProductParity,'_applyNotetypeEdit','Editar tipo de nota');
-    if(typeof AnkiMaxEditor!=='undefined')this._wrapCheckpoint(AnkiMaxEditor,'_saveRichNote','Editar nota');
-    if(typeof AnkiImageOcclusion!=='undefined')this._wrapCheckpoint(AnkiImageOcclusion,'save','Editar oclusão');
-  },
+  _wrapCheckpoint(){},
+  _installGlobalUndo(){void this._syncUndoButtons();},
 
   /* Cards adicionados, contagem, tempo, facilidade, estabilidade e dificuldade
      já fazem parte da página única de estatísticas (CardsScreen.renderStats).
      Este módulo anexava cópias próprias — a tela repetia os mesmos gráficos. */
   _installStatsParity(){},
 
-  /* ───────────────── CHECK COLLECTION MAIS PROFUNDO ───────────────── */
-  deepIssues(){
-    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
-      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes();
-    const cardIds=new Set(cards.map(c=>String(c.id))),deckIds=new Set(decks.map(d=>String(d.id))),noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id)));
-    const missingNotes=cards.filter(c=>!noteIds.has(String(AnkiParity.noteId(c)))).map(c=>c.id);
-    const missingDeck=cards.filter(c=>c.deckId!=null&&!deckIds.has(String(c.deckId))).map(c=>c.id);
-    const orphanRevlog=logs.filter(r=>r.cardId!=null&&!cardIds.has(String(r.cardId)));
-    const invalidNotetype=notes.filter(n=>!typeIds.has(String(n.notetypeId))).map(n=>n.id);
-    const invalidSchedule=cards.filter(c=>{
-      const badNum=['s','d','intervalo','reps','lapses'].some(k=>c[k]!=null&&!Number.isFinite(Number(c[k])));
-      const badDate=c.due&&!/^\d{4}-\d{2}-\d{2}$/.test(String(c.due));
-      const badTs=c.dueTs!=null&&!Number.isFinite(Number(c.dueTs));return badNum||badDate||badTs;
-    }).map(c=>c.id);
-    const guid=new Map();notes.forEach(n=>{const g=String(n.guid||'');if(!g)return;if(!guid.has(g))guid.set(g,[]);guid.get(g).push(n.id);});
-    const duplicateGuid=[...guid.values()].filter(x=>x.length>1);
-    return {missingNotes,missingDeck,orphanRevlog,invalidNotetype,invalidSchedule,duplicateGuid};
-  },
-  _installDeepCheck(){
-    if(typeof AnkiMaxStatsMedia==='undefined'||typeof AnkiMaxStatsMedia.renderExtendedCheck!=='function')return;
-    const old=AnkiMaxStatsMedia.renderExtendedCheck.bind(AnkiMaxStatsMedia);
-    AnkiMaxStatsMedia.renderExtendedCheck=async()=>{await old();const host=document.getElementById('anki-check-extended');if(!host||document.getElementById('anki-check-deep'))return;const s=this.deepIssues(),d=document.createElement('div');d.id='anki-check-deep';d.innerHTML=
-      '<h3 class="anki-section-title">Integridade profunda</h3><div class="anki-check-grid">'+
-      [['Cards sem nota',s.missingNotes.length],['Cards sem baralho',s.missingDeck.length],['Revlog órfão',s.orphanRevlog.length],['Notas sem tipo',s.invalidNotetype.length],['Agendamento inválido',s.invalidSchedule.length],['GUIDs duplicados',s.duplicateGuid.length]].map(x=>'<div><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')+'</div>';host.appendChild(d);};
-    const foot=document.querySelector('#anki-check-modal .cards-modal-foot');if(foot&&!document.getElementById('anki-media-sync-now')){const b=document.createElement('button');b.type='button';b.className='btn-secondary';b.id='anki-media-sync-now';b.textContent='☁ Sincronizar mídia';b.onclick=()=>this.syncMedia(true);foot.insertBefore(b,foot.firstChild);}
-  },
+  /* ───────────────── CHECK COLLECTION ─────────────────
+     Diagnóstico/reparo acadêmico local removido. A tela principal usa
+     Collection.fix_integrity() por CardsOfficialBridge. */
+  deepIssues(){return {officialOnly:true};},
+  _installDeepCheck(){},
 
   /* ───────────────── MEDIA SYNC MULTIDISPOSITIVO ───────────────── */
   _mediaContext(){
