@@ -655,7 +655,7 @@ def cards_official_add_note(
         cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
         return {
             "ok": True,
-            "changes": pb(changes),
+            "changes": pb(changes) if changes is not None else {},
             "note": state,
             "cards": cards,
             "state": cards_collection_state_payload(item.col),
