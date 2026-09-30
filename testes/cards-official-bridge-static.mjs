@@ -100,7 +100,8 @@ assert.match(backend,/def cards_official_media_restore_trash[\s\S]*?item\.col\.m
 assert.match(backend,/def cards_official_media_empty_trash[\s\S]*?item\.col\.media\.empty_trash\(\)/,'Empty Trash deve ser oficial');
 assert.match(backend,/def cards_official_media_tag_missing[\s\S]*?item\.col\.tags\.bulk_add\(note_ids, "missing-media"\)/,'Tag Missing deve seguir mediacheck.py oficial');
 assert.match(backend,/def cards_official_media_render_latex[\s\S]*?item\.col\.media\.render_all_latex\(\)/,'Render LaTeX deve usar o MediaManager oficial');
-assert.match(bridge,/_officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.voices[\s\S]*?tag&&tag\.lang/,'seleção de voz deve consumir voices/lang do TTSTag oficial');\nassert.match(bridge,/async _playOfficialTts\(tag\)[\s\S]*?tag&&tag\.field_text[\s\S]*?this\._officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.lang[\s\S]*?tag&&tag\.speed/,'TTS web deve consumir integralmente o TTSTag calculado pelo Anki');
+assert.match(bridge,/_officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.voices[\s\S]*?tag&&tag\.lang/,'seleção de voz deve consumir voices/lang do TTSTag oficial');
+assert.match(bridge,/async _playOfficialTts\(tag\)[\s\S]*?tag&&tag\.field_text[\s\S]*?this\._officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.lang[\s\S]*?tag&&tag\.speed/,'TTS web deve consumir integralmente o TTSTag calculado pelo Anki');
 assert.match(bridge,/async checkOfficialMedia\(\)[\s\S]*?\/api\/cards-official\/media\/check/,'UI Check Media deve consultar a Collection oficial');
 assert.match(backend,/def cards_official_database_check[\s\S]*?item\.col\.fix_integrity\(\)/,'Check Database deve usar fix_integrity oficial');
 assert.match(backend,/def cards_official_database_optimize[\s\S]*?item\.col\.optimize\(\)/,'Optimize deve usar Collection oficial');
