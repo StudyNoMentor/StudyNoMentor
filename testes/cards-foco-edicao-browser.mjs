@@ -244,6 +244,15 @@ try{
   ok(!reviewerMenu.overflow&&reviewerMenu.box.width<=390,'modal Mais ações não estoura a largura mobile');
   await page.click('#ui-modal-cancel');await esperar(80);
 
+  // Os botões visíveis do reviewer precisam usar os MESMOS fluxos oficiais,
+  // sem manter um caminho legado diferente das ações avançadas.
+  await page.click('#cards-act-due');await esperar(80);
+  ok(await page.locator('#uip_spec').isVisible(),'botão Data abre Set Due avançado (N, A-B e A-B!)');
+  await page.click('#ui-modal-cancel');await esperar(60);
+  await page.click('#cards-act-forget');await esperar(80);
+  ok(await page.locator('#uip_restore').isVisible()&&await page.locator('#uip_counts').isVisible(),'botão Resetar oferece posição original e reset opcional de contadores');
+  await page.click('#ui-modal-cancel');await esperar(60);
+
   await page.evaluate(({id,pid})=>StudyGlobalScope.bulkSetDueUi(['c:'+encodeURIComponent(pid)+'::'+encodeURIComponent(id)]),mobile);
   await esperar(100);
   await page.fill('#uip_spec','3-5!');
