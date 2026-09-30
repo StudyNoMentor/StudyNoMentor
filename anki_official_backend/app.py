@@ -1757,6 +1757,53 @@ def cards_official_media_restore_trash(user: dict[str, Any] = Depends(current_us
         return {"ok": True, "check": pb(item.col.media.check())}
 
 
+@app.post("/api/cards-official/media/tag-missing")
+def cards_official_media_tag_missing(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    note_ids = sorted({int(x) for x in payload.get("note_ids", []) if int(x) > 0})
+    with item.lock:
+        # Mesmo fluxo do aqt/mediacheck.py: a lista vem do CheckMediaResponse
+        # oficial e a propria Collection aplica a tag canonica missing-media.
+        current = pb(item.col.media.check())
+        allowed = {
+            int(x)
+            for x in (
+                current.get("missing_media_notes")
+                or current.get("missingMediaNotes")
+                or []
+            )
+        }
+        invalid = [nid for nid in note_ids if nid not in allowed]
+        if invalid:
+            raise HTTPException(400, "Notas não constam no CheckMediaResponse atual: " + ", ".join(map(str, invalid)))
+        changes = item.col.tags.bulk_add(note_ids, "missing-media") if note_ids else None
+        return {
+            "ok": True,
+            "count": len(note_ids),
+            "changes": pb(changes) if changes is not None else {},
+            "check": pb(item.col.media.check()),
+        }
+
+
+@app.post("/api/cards-official/media/render-latex")
+def cards_official_media_render_latex(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        out = item.col.media.render_all_latex()
+        if out is None:
+            return {"ok": True, "error": None, "note_id": None, "check": pb(item.col.media.check())}
+        note_id, error = out
+        return {
+            "ok": False,
+            "error": str(error),
+            "note_id": int(note_id),
+            "check": pb(item.col.media.check()),
+        }
+
+
 @app.post("/api/cards-official/media/empty-trash")
 def cards_official_media_empty_trash(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = cards_uc_for(user)
