@@ -1068,20 +1068,93 @@ def cards_official_update_notetype(
     payload: dict[str, Any],
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
-    """Salva schema/fields/templates pela API oficial, que também gera/remove cards."""
+    """Converte controles da casca Study em operações oficiais do NoteTypeManager."""
     item = cards_uc_for(user)
-    raw = payload.get("notetype")
-    if not isinstance(raw, dict):
-        raise HTTPException(400, "NoteType ausente.")
-    raw = dict(raw)
-    raw["id"] = int(notetype_id)
+    edit = payload.get("edit")
+    if not isinstance(edit, dict):
+        raise HTTPException(400, "Edição de NoteType ausente.")
+
+    desired_fields = edit.get("fields")
+    desired_templates = edit.get("templates")
+    if not isinstance(desired_fields, list) or not isinstance(desired_templates, list):
+        raise HTTPException(400, "Campos/templates inválidos.")
+
     with item.lock:
-        before = item.col.models.get(notetype_id)
-        if not before:
+        nt = item.col.models.get(notetype_id)
+        if not nt:
             raise HTTPException(404, "Tipo de nota não encontrado.")
         note_ids = [int(x) for x in item.col.models.nids(notetype_id)]
-        changes = item.col.models.update_dict(raw, skip_checks=False)
+
+        # Os objetos-base vêm da Collection oficial. O Study só informa qual
+        # controle visual corresponde a qual campo/template preexistente.
+        original_fields = {str(field.get("name", "")): field for field in nt["flds"]}
+        original_templates = {
+            int(template.get("ord", idx) if template.get("ord") is not None else idx): template
+            for idx, template in enumerate(nt["tmpls"])
+        }
+
+        field_rows = []
+        referenced_fields: set[str] = set()
+        for row in desired_fields:
+            if not isinstance(row, dict):
+                raise HTTPException(400, "Campo inválido.")
+            name = str(row.get("name", "")).strip()
+            if not name:
+                raise HTTPException(400, "Nome de campo vazio.")
+            source_name = row.get("source_name")
+            field = original_fields.get(str(source_name)) if source_name is not None else None
+            if field is None:
+                field = item.col.models.new_field(name)
+                item.col.models.add_field(nt, field)
+            else:
+                referenced_fields.add(str(source_name))
+                if str(field.get("name", "")) != name:
+                    item.col.models.rename_field(nt, field, name)
+            field_rows.append(field)
+
+        for source_name, field in original_fields.items():
+            if source_name not in referenced_fields:
+                item.col.models.remove_field(nt, field)
+        for idx, field in enumerate(field_rows):
+            item.col.models.reposition_field(nt, field, idx)
+
+        template_rows = []
+        referenced_templates: set[int] = set()
+        for row in desired_templates:
+            if not isinstance(row, dict):
+                raise HTTPException(400, "Template inválido.")
+            name = str(row.get("name", "")).strip()
+            if not name:
+                raise HTTPException(400, "Nome de template vazio.")
+            source_ord = row.get("source_ord")
+            template = None
+            if source_ord is not None:
+                try:
+                    source_ord_int = int(source_ord)
+                except (TypeError, ValueError) as exc:
+                    raise HTTPException(400, "Ordinal de template inválido.") from exc
+                template = original_templates.get(source_ord_int)
+                if template is not None:
+                    referenced_templates.add(source_ord_int)
+            if template is None:
+                template = item.col.models.new_template(name)
+                item.col.models.add_template(nt, template)
+            template["name"] = name
+            template["qfmt"] = str(row.get("qfmt", ""))
+            template["afmt"] = str(row.get("afmt", ""))
+            template_rows.append(template)
+
+        for source_ord, template in original_templates.items():
+            if source_ord not in referenced_templates:
+                item.col.models.remove_template(nt, template)
+        for idx, template in enumerate(template_rows):
+            item.col.models.reposition_template(nt, template, idx)
+
+        nt["name"] = str(edit.get("name", nt.get("name", ""))).strip() or nt["name"]
+        nt["css"] = str(edit.get("css", nt.get("css", "")))
+        changes = item.col.models.update_dict(nt, skip_checks=False)
         updated = item.col.models.get(notetype_id)
+
         notes = []
         cards = []
         for nid in note_ids:
