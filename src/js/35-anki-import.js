@@ -563,7 +563,17 @@ const AnkiImport = {
     });
     if(opts.withScheduling!==false&&this._has(db,'revlog')){
       const old=DB.getRevlog().slice(),known=new Set(old.map(r=>String(r.reviewId||r.id||'')+'|'+String(r.cardId))),rr=this._rows(db,'select id,cid,ease,ivl,lastIvl,factor,time,type from revlog order by id');
-      for(const r of rr){const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);old.push({id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),date:(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(r.id)):new Date(Number(r.id)).toISOString().slice(0,10)),grade:Number(r.ease),intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,ankiInterval:Number(r.ivl)||0,ankiReviewKind:Number(r.type)});}
+      for(const r of rr){
+        const cid=cardMap.get(String(r.cid));if(!cid)continue;const key='anki-'+r.id+'|'+cid;if(known.has(key))continue;known.add(key);
+        const kind=({0:'learning',1:'review',2:'relearning',3:'filtered',4:'manual',5:'rescheduled'})[Number(r.type)]||'review';
+        old.push({
+          id:'anki-'+r.id,reviewId:'anki-'+r.id,cardId:cid,ts:Number(r.id),
+          date:(typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(r.id)):new Date(Number(r.id)).toISOString().slice(0,10)),
+          grade:Number(r.ease),phase:kind,intervalo:Number(r.lastIvl)||0,time:Number(r.time)||0,
+          ankiInterval:Number(r.ivl)||0,ankiLastInterval:Number(r.lastIvl)||0,
+          ankiReviewKind:kind,ankiIvlSemantica:2,easeFactor:Number(r.factor)||2500
+        });
+      }
       DB.replaceRevlog(old);
     }
     db.close();AnkiParity.ensureCanonicalNotes();CardEngine.invalidateDueCache();
