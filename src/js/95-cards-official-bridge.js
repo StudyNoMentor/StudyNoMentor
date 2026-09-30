@@ -811,6 +811,49 @@ const CardsOfficialBridge = {
       return true;
     }catch(e){showToast('Ação não aplicada: '+(e.message||e));return false;}
   },
+  async actionCards(action,refs,value){
+    const locals=(refs||[]).map(ref=>ref&&typeof ref==='object'?ref:(CardsScreen.collectionCards().find(c=>String(c.id)===String(ref))||DB.getCard(ref))).filter(Boolean),
+      ids=[...new Set(locals.map(x=>this._officialId(x)).filter(x=>x!=null).map(Number))];
+    if(!ids.length)throw new Error('Nenhum card com identidade oficial.');
+    const out=await this.request('/api/cards-official/cards/action',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,card_ids:ids,value:value==null?null:value})
+    });
+    await this._syncStates(out.cards||[]);
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    await this.renderCurrent(document.getElementById('cards-content'));
+    return out;
+  },
+  async deleteCurrentNote(){
+    if(!this.review||!this.review.card)return false;
+    const local=this._localForOfficialId(this.review.card.id);if(!local)throw new Error('Card atual não localizado no Study.');
+    const pid=local._planId!=null?local._planId:this._activePlanId(),
+      note=AnkiParity.noteForCard?AnkiParity.noteForCard(local):AnkiParity.getNote(local.noteId||local.id,pid==null?undefined:pid);
+    if(!note)throw new Error('Nota canônica não encontrada.');
+    const siblings=AnkiProductParity._cardsForNote(note,pid);
+    const ok=await UI.confirm(siblings.length>1?'Excluir esta nota e seus '+siblings.length+' cards?':'Excluir esta nota?',{
+      title:'🗑 Excluir nota · Anki oficial',okText:'Excluir',danger:true
+    });
+    if(!ok)return false;
+    const out=await this.deleteOfficialNote(note);
+    if(out&&out.reviewer)this._applyReviewer(out.reviewer);
+    await this.renderCurrent(document.getElementById('cards-content'));
+    CardsScreen.updateFavCount();
+    showToast('Nota excluída pelo Anki oficial ✓');
+    return true;
+  },
+  async replayCurrentAv(){
+    if(!this.review||!this.review.card)return false;
+    const card=this.review.card,tags=CardsScreen._flipped?card.answer_av_tags:card.question_av_tags;
+    await this.playAv(tags||[]);return true;
+  },
+  async speakCurrentTts(){
+    if(!this.review||!this.review.card)return false;
+    const card=this.review.card,tags=(CardsScreen._flipped?card.answer_av_tags:card.question_av_tags)||[],
+      tts=tags.filter(x=>x&&x.kind==='tts');
+    if(!tts.length){showToast('Nenhum TTS fornecido pelo renderer oficial neste lado do card.');return false;}
+    await this.playAv(tts);return true;
+  },
   async setDue(){
     const v=await UI.prompt([{key:'due',label:'Dias / intervalo do Anki',type:'text',value:'1',hint:'Ex.: 5 ou 5-7'}],{title:'📅 Definir vencimento',okText:'Aplicar'});
     if(v&&String(v.due||'').trim())await this.action('set_due',String(v.due).trim());
