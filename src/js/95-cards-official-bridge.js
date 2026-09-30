@@ -1366,7 +1366,7 @@ const CardsOfficialBridge = {
       }
       const unique=[...new Set(ids)];
       if(!unique.length){showToast('Nenhum card precisa ser excluído para preservar as notas.');return;}
-      const ok=await UI.confirm('Excluir '+unique.length+' card(s) vazio(s) detectado(s pelo Anki oficial? O histórico existente permanece conforme as operações da Collection.',{
+      const ok=await UI.confirm('Excluir '+unique.length+' card(s) vazio(s) detectado(s) pelo Anki oficial? O histórico existente permanece conforme as operações da Collection.',{
         title:'🗑 Excluir cards vazios',okText:'Excluir',danger:true
       });
       if(!ok)return;
