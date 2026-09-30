@@ -10,6 +10,31 @@ const AnkiProductParity = {
   esc(v){ return escapeHtml(String(v==null?'':v)); },
   plain(v){ try{return AnkiParity._stripHtml(String(v==null?'':v)).replace(/\s+/g,' ').trim();}catch(_){return String(v||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();} },
   noteId(card){ try{return String(AnkiParity.noteId(card));}catch(_){return String(card&&card.noteId||card&&card.id||'');} },
+  _planIdForCard(card){
+    if(!card)return null;
+    try{if(AnkiParity._planIdForCard){const p=AnkiParity._planIdForCard(card);if(p!=null&&String(p)!=='')return String(p);}}catch(_){}
+    if(card._planId!=null&&String(card._planId)!=='')return String(card._planId);
+    try{if(window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard){const p=StudyGlobalScope.sourcePlanForCard(card.id);if(p!=null&&String(p)!=='')return String(p);}}catch(_){}
+    return null;
+  },
+  _parseEntityRef(ref,kind){
+    const tag=kind==='notetype'?'t':'n';
+    if(ref&&typeof ref==='object')return {id:String(ref.id==null?'':ref.id),planId:ref._planId!=null?String(ref._planId):(ref.planId!=null?String(ref.planId):null)};
+    const raw=String(ref==null?'':ref),m=new RegExp('^p:([^:]*):'+tag+':(.*)$').exec(raw);
+    if(m){try{return {planId:decodeURIComponent(m[1]),id:decodeURIComponent(m[2])};}catch(_){return {planId:m[1],id:m[2]};}}
+    const legacy=new RegExp('^'+tag+':(.*)$').exec(raw),id=legacy?legacy[1]:raw;
+    try{return {planId:null,id:decodeURIComponent(id)};}catch(_){return {planId:null,id};}
+  },
+  _entityRef(kind,entityOrId,planId){
+    const p=this._parseEntityRef(entityOrId,kind),pid=planId!=null?String(planId):p.planId,tag=kind==='notetype'?'t':'n';
+    return pid!=null&&pid!==''?'p:'+encodeURIComponent(pid)+':'+tag+':'+encodeURIComponent(p.id):tag+':'+encodeURIComponent(p.id);
+  },
+  noteRef(noteOrId,planId){return this._entityRef('note',noteOrId,planId);},
+  notetypeRef(ntOrId,planId){return this._entityRef('notetype',ntOrId,planId);},
+  noteRefForCard(card){return this.noteRef(this.noteId(card),this._planIdForCard(card));},
+  _getNote(ref){const p=this._parseEntityRef(ref,'note');return AnkiParity.getNote(p.id,p.planId==null?undefined:p.planId);},
+  _getNotetype(ref,planId){const p=this._parseEntityRef(ref,'notetype'),pid=planId!=null?planId:p.planId;return AnkiParity.getNotetype(p.id,pid==null?undefined:pid);},
+  _inPlan(planId,fn){try{if(planId&&window.StudyGlobalScope&&StudyGlobalScope.inPlan)return StudyGlobalScope.inPlan(planId,fn);}catch(_){}return fn();},
   ensure(){ try{AnkiParity.ensureCanonicalNotes();}catch(e){console.warn('Falha ao normalizar notas',e);} },
 
   install(){
@@ -74,7 +99,7 @@ const AnkiProductParity = {
 
       <div id="anki-change-type-modal" class="cards-modal anki-product-modal" style="display:none">
         <div class="cards-modal-box cards-modal-lg">
-          <div class="cards-modal-head"><div><h2>🧩 Mudar tipo de nota</h2><p class="sub">O agendamento dos cards correspondentes é preservado; cards que deixam de ser gerados viram “cards vazios”, como no Anki.</p></div><button type="button" class="icon-btn" data-ap-close="anki-change-type-modal">✕</button></div>
+          <div class="cards-modal-head"><div><h2>🧩 Mudar tipo de nota</h2><p class="sub">Como no Anki 26.09.3: campos e templates são mapeados; cards mapeados preservam o agendamento e templates antigos não mapeados são removidos.</p></div><button type="button" class="icon-btn" data-ap-close="anki-change-type-modal">✕</button></div>
           <div class="cards-modal-body">
             <div class="field"><label>Tipo de destino</label><select id="anki-change-type-target"></select></div>
             <div id="anki-change-type-map"></div>
