@@ -2323,6 +2323,123 @@ def _import_update_condition(value: str) -> int:
     }.get(str(value or "if-newer").lower(), import_export_pb2.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_IF_NEWER)
 
 
+def _csv_delimiter(value: str | None):
+    if value is None or str(value).strip() == "":
+        return None
+    key = str(value).strip().lower()
+    mapping = {
+        "tab": import_export_pb2.CsvMetadata.TAB,
+        "pipe": import_export_pb2.CsvMetadata.PIPE,
+        "semicolon": import_export_pb2.CsvMetadata.SEMICOLON,
+        "colon": import_export_pb2.CsvMetadata.COLON,
+        "comma": import_export_pb2.CsvMetadata.COMMA,
+        "space": import_export_pb2.CsvMetadata.SPACE,
+    }
+    if key not in mapping:
+        raise HTTPException(400, f"Separador CSV inválido: {value}")
+    return mapping[key]
+
+
+@app.post("/api/cards-official/import/csv/metadata")
+async def cards_official_csv_metadata(
+    file: UploadFile = File(...),
+    delimiter: str | None = Query(default=None),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    tmp = await _upload_to_tempfile(file, Path(file.filename or "import.txt").suffix or ".txt", MAX_IMPORT_BYTES)
+    try:
+        with item.lock:
+            meta = item.col.get_csv_metadata(tmp, _csv_delimiter(delimiter))
+            return {"ok": True, "metadata": pb(meta)}
+    finally:
+        _unlink_quiet(tmp)
+
+
+@app.post("/api/cards-official/import/csv")
+async def cards_official_import_csv(
+    file: UploadFile = File(...),
+    metadata_json: str = Form(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    tmp = await _upload_to_tempfile(file, Path(file.filename or "import.txt").suffix or ".txt", MAX_IMPORT_BYTES)
+    try:
+        try:
+            raw = json.loads(metadata_json)
+        except Exception as exc:
+            raise HTTPException(400, f"Metadados CSV inválidos: {exc}") from exc
+        metadata = import_export_pb2.CsvMetadata()
+        try:
+            ParseDict(raw, metadata, ignore_unknown_fields=False)
+        except Exception as exc:
+            raise HTTPException(400, f"Contrato CsvMetadata inválido: {exc}") from exc
+        request = import_export_pb2.ImportCsvRequest(path=tmp, metadata=metadata)
+        with item.lock:
+            result = item.col.import_csv(request)
+            return {
+                "ok": True,
+                "result": pb(result),
+                "state": cards_collection_state_payload(item.col),
+            }
+    finally:
+        _unlink_quiet(tmp)
+
+
+@app.get("/api/cards-official/export/notes-text")
+def cards_official_export_notes_text(
+    deck_id: int | None = Query(default=None),
+    with_html: bool = Query(default=True),
+    with_tags: bool = Query(default=True),
+    with_deck: bool = Query(default=True),
+    with_notetype: bool = Query(default=True),
+    with_guid: bool = Query(default=True),
+    user: dict[str, Any] = Depends(current_user),
+):
+    item = cards_uc_for(user)
+    tmp = _new_tempfile(".txt")
+    try:
+        with item.lock:
+            count = item.col.export_note_csv(
+                out_path=tmp,
+                limit=DeckIdLimit(DeckId(deck_id)) if deck_id else None,
+                with_html=bool(with_html),
+                with_tags=bool(with_tags),
+                with_deck=bool(with_deck),
+                with_notetype=bool(with_notetype),
+                with_guid=bool(with_guid),
+            )
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    response = _file_response(tmp, "StudyNoMentor-Cards-notes.txt", "text/plain; charset=utf-8")
+    response.headers["X-Anki-Exported-Notes"] = str(int(count))
+    return response
+
+
+@app.get("/api/cards-official/export/cards-text")
+def cards_official_export_cards_text(
+    deck_id: int | None = Query(default=None),
+    with_html: bool = Query(default=True),
+    user: dict[str, Any] = Depends(current_user),
+):
+    item = cards_uc_for(user)
+    tmp = _new_tempfile(".txt")
+    try:
+        with item.lock:
+            count = item.col.export_card_csv(
+                out_path=tmp,
+                limit=DeckIdLimit(DeckId(deck_id)) if deck_id else None,
+                with_html=bool(with_html),
+            )
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    response = _file_response(tmp, "StudyNoMentor-Cards-cards.txt", "text/plain; charset=utf-8")
+    response.headers["X-Anki-Exported-Cards"] = str(int(count))
+    return response
+
+
 @app.post("/api/cards-official/import/apkg")
 async def cards_official_import_apkg(
     package: UploadFile = File(...),
