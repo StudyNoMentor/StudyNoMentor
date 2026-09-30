@@ -205,6 +205,44 @@ try{
   ok(audit.advanced.created&&audit.advanced.typeInB&&!audit.advanced.noteInActive&&audit.advanced.cards>0,'cadastro avançado copia o NoteType e grava a Note no planejamento do baralho: '+JSON.stringify(audit.advanced));
   const bad=audit.matrix.filter(x=>x.blocked?(x.after!==x.before):(x.after!==x.expected||!x.typeExists||x.face.live<1||x.face.blank>0));
   ok(bad.length===0,'matriz 6×6 de mudança de tipos sem referência vazia/desatualizada; bloqueios de IO respeitados: '+JSON.stringify(bad));
+
+  /* 4) Uso real mobile: Mais ações e Set Due avançado precisam caber na tela,
+        abrir por interação normal e produzir revlog Manual. */
+  await page.setViewportSize({width:390,height:844});
+  const mobile=await page.evaluate(()=>{
+    StudyGlobalScope.setCardsScope('plan');StudyGlobalScope.installAnkiUsabilityParity();
+    const d=DB.addDeck('UX mobile');
+    const c=DB.addCard({deckId:d.id,frente:'UX frente',verso:'UX verso',kind:'basic',phase:'review',
+      status:'sei',due:todayCards(),intervalo:12,reps:3,lapses:1,ease:2.5,s:12,d:5,ankiId:AnkiParity._allocId()});
+    AnkiParity.ensureCanonicalNotes();
+    CardsScreen.filters={materias:new Set(['deck:'+d.id])};CardsScreen.invalidateReviewQueue();CardsScreen.entrarFoco();
+    return {id:c.id,pid:StudyGlobalScope.activePlanId()};
+  });
+  await esperar(300);
+  ok(await page.locator('#anki-review-more').isVisible(),'Mais ações fica acessível no reviewer mobile');
+  await page.click('#anki-review-more');await esperar(120);
+  const reviewerMenu=await page.evaluate(()=>({
+    values:[...document.getElementById('uip_action').options].map(o=>o.value),
+    overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,
+    box:document.querySelector('#ui-modal .cards-modal-box').getBoundingClientRect().toJSON()
+  }));
+  ok(['reset','due','copy','pauseMedia','backMedia','forwardMedia'].every(x=>reviewerMenu.values.includes(x)),
+    'Mais ações expõe Reset, Set Due, Criar cópia e controles de áudio');
+  ok(!reviewerMenu.overflow&&reviewerMenu.box.width<=390,'modal Mais ações não estoura a largura mobile');
+  await page.click('#ui-modal-cancel');await esperar(80);
+
+  await page.evaluate(({id,pid})=>StudyGlobalScope.bulkSetDueUi(['c:'+encodeURIComponent(pid)+'::'+encodeURIComponent(id)]),mobile);
+  await esperar(100);
+  await page.fill('#uip_spec','3-5!');
+  await page.click('#ui-modal-ok');await esperar(180);
+  const dueResult=await page.evaluate(({id})=>{
+    const c=DB.getCard(id),logs=DB.getRevlog().filter(r=>String(r.cardId)===String(id));
+    return {intervalo:c.intervalo,due:c.due,last:logs.at(-1),overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth};
+  },mobile);
+  ok(dueResult.intervalo>=3&&dueResult.intervalo<=5,'Set Due mobile aplica faixa 3-5! no intervalo');
+  ok(dueResult.last&&dueResult.last.grade===0&&dueResult.last.ankiReviewKind==='manual','Set Due mobile grava evento Manual rating 0');
+  ok(!dueResult.overflow,'fluxo Set Due não cria overflow horizontal mobile');
+
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS FOCO/EDIÇÃO OK — ${n} invariantes.`);
 }finally{await browser.close();server.close();}
