@@ -182,19 +182,66 @@ const CardsOfficialBridge = {
     }
     return '<!doctype html>'+doc.documentElement.outerHTML;
   },
+  _officialTtsVoice(tag){
+    if(typeof speechSynthesis==='undefined'||!speechSynthesis.getVoices)return null;
+    const voices=speechSynthesis.getVoices()||[],wanted=Array.isArray(tag&&tag.voices)?tag.voices.map(String):[],
+      lang=String(tag&&tag.lang||'').toLowerCase();
+    for(const name of wanted){
+      const hit=voices.find(v=>String(v.name||'')===name);if(hit)return hit;
+    }
+    if(lang){
+      const exact=voices.find(v=>String(v.lang||'').toLowerCase()===lang);if(exact)return exact;
+      const prefix=lang.split('-')[0],near=voices.find(v=>String(v.lang||'').toLowerCase().split('-')[0]===prefix);if(near)return near;
+    }
+    return null;
+  },
+  async _playOfficialTts(tag){
+    if(typeof speechSynthesis==='undefined'||typeof SpeechSynthesisUtterance==='undefined')return false;
+    const text=String(tag&&tag.field_text||'');if(!text)return false;
+    return new Promise(resolve=>{
+      const u=new SpeechSynthesisUtterance(text),voice=this._officialTtsVoice(tag);
+      if(tag&&tag.lang)u.lang=String(tag.lang);
+      if(voice)u.voice=voice;
+      const speed=Number(tag&&tag.speed);if(Number.isFinite(speed)&&speed>0)u.rate=Math.max(.1,Math.min(10,speed));
+      u.onend=u.onerror=()=>resolve(true);
+      try{speechSynthesis.speak(u);}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-tts');resolve(false);}
+    });
+  },
   async playAv(tags){
     for(const tag of tags||[]){
-      if(tag.kind==='tts'){
-        // A engine oficial fornece a fila/voz pedida; não inventamos outra voz
-        // como fallback. A superfície web de TTS será certificada separadamente.
-        continue;
-      }
+      if(tag.kind==='tts'){await this._playOfficialTts(tag);continue;}
       if(tag.kind!=='media'||!tag.filename)continue;
       try{
         const blob=await this._fetchMedia(tag.filename),url=URL.createObjectURL(blob);this._blobUrls.push(url);
         await new Promise(resolve=>{const a=new Audio(url);a.onended=resolve;a.onerror=resolve;const p=a.play();if(p&&p.catch)p.catch(resolve);});
       }catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-av');}
     }
+  },
+  async checkOfficialMedia(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/media/check');
+  },
+  async trashOfficialMedia(files){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/media/trash',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:[...new Set((files||[]).map(String).filter(Boolean))]})});
+  },
+  async restoreOfficialMediaTrash(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/media/restore-trash',{method:'POST'});
+  },
+  async emptyOfficialMediaTrash(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/media/empty-trash',{method:'POST'});
+  },
+  async checkOfficialDatabase(){
+    await this.bootstrap(false);
+    const out=await this.request('/api/cards-official/database/check',{method:'POST'});
+    if(out&&out.state)await this._syncCollectionState(out.state,this._activePlanId(),null);
+    return out;
+  },
+  async optimizeOfficialDatabase(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/database/optimize',{method:'POST'});
   },
 
   async bootstrap(force){
