@@ -1414,6 +1414,17 @@ def cards_official_redo(user: dict[str, Any] = Depends(current_user)) -> dict[st
         return {"ok": True, "changes": out, "reviewer": cards_reviewer_payload(item.col)}
 
 
+@app.get("/api/cards-official/card-info/{card_id}")
+def cards_official_card_info(
+    card_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Card Info oficial: dados produzidos por Collection.card_stats_data()."""
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.card_stats_data(int(card_id)))
+
+
 @app.post("/api/cards-official/cards/action")
 def cards_official_card_action(
     body: CardActionBody,
