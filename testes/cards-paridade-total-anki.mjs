@@ -55,6 +55,33 @@ CardsScreen.renderRevisar({innerHTML:''});
 eq(queueBuilds,2,'invalidação explícita reconstrói a fila');
 CardsScreen.buildQueue=realBuild;
 
+// ── Reviewer: contagens restantes iguais ao queued_cards do Anki v3 ────────
+A.reset({newPerDay:20,revPerDay:200});
+const cntR1=DB.addCard({frente:'R1',verso:'a',phase:'review',due:A.hoje(),intervalo:3,reps:2,s:3,d:5});
+const cntN1=DB.addCard({frente:'N1',verso:'a',phase:'new',due:A.hoje(),posicaoNova:1});
+const cntL1=DB.addCard({frente:'L1',verso:'a',phase:'learning',due:A.hoje(),dueTs:A.agora()-1000,learnStep:0,reps:1});
+const cntR2=DB.addCard({frente:'R2',verso:'a',phase:'review',due:A.hoje(),intervalo:5,reps:2,s:5,d:5});
+const cntN2=DB.addCard({frente:'N2',verso:'a',phase:'new',due:A.hoje(),posicaoNova:2});
+CardsScreen._reviewQueue=[cntR1.id,cntN1.id,cntL1.id,cntR2.id,cntN2.id];
+CardsScreen._reviewIdx=0;
+eq(CardsScreen._reviewRemainingCounts(),{new:2,learning:1,review:2,current:'review'},
+  'reviewer conta novos + aprendizado + revisões restantes, incluindo o atual');
+let countsHtml=CardsScreen._reviewRemainingHtml(CardsScreen._reviewRemainingCounts());
+ok(countsHtml.includes('🔄 <u>2</u>')&&countsHtml.includes('🆕 2')&&countsHtml.includes('🧠 1'),
+  'categoria do card atual é sublinhada como no dueCounts do Anki');
+CardsScreen._reviewIdx=2;
+eq(CardsScreen._reviewRemainingCounts(),{new:1,learning:1,review:1,current:'learn'},
+  'contagens diminuem com a posição e aprendizado torna-se a categoria atual');
+countsHtml=CardsScreen._reviewRemainingHtml(CardsScreen._reviewRemainingCounts());
+ok(countsHtml.includes('🧠 <u>1</u>'),'aprendizado atual recebe o destaque do reviewer');
+{
+  const src=fs.readFileSync('src/js/44-tela-cards.js','utf8');
+  ok(src.includes('cards-due-counts')&&src.includes('_reviewRemainingCounts()'),
+    'reviewer renderiza o contador de fila Anki-style');
+  ok(!src.includes('CardsConfig.newDoneToday()}/' + '${CardsConfig.get().newPerDay}'),
+    'reviewer não confunde progresso diário com contagens restantes da fila');
+}
+
 // ── FSRS-6 short-term: semântica exata do Anki 26.09.2 ──────────────────
 // Oráculo: get_scheduling_states do anki==26.09.2 devolve S inalterado no
 // "Difícil" intradiário (S=0,2 -> 0,2), embora o multiplicador bruto seja < 1.
