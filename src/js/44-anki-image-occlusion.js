@@ -174,20 +174,20 @@ const AnkiImageOcclusion = {
     box.innerHTML=(nt.fields||[]).map(f=>'<div class="field"><label>'+escapeHtml(f.name)+'</label><textarea class="anki-advanced-field anki-code-area" data-field="'+escapeHtml(f.name)+'" rows="3"></textarea></div>').join('');
   },
   _bindAdvanced(){
-    document.getElementById('anki-advanced-save').addEventListener('click',()=>{
-      const rawNt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!rawNt)return;const fields={};
-      document.querySelectorAll('.anki-advanced-field').forEach(x=>fields[x.dataset.field]=x.value);
-      if(rawNt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
+    document.getElementById('anki-advanced-save').addEventListener('click',async()=>{
+      const rawNt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!rawNt)return;
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.addOfficialNote!=='function'){showToast('Nota não criada: Anki oficial indisponível.');return;}
+      const fields={};document.querySelectorAll('.anki-advanced-field').forEach(x=>fields[x.dataset.field]=x.value);
       const selectedDeck=document.getElementById('anki-advanced-deck').value,
         rec=selectedDeck&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord?StudyGlobalScope.deckRecord(selectedDeck):null,
         planId=(rec&&rec.planId)||(window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId()),
-        deck=this._resolveDeck(selectedDeck,planId);
-      if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
-      const nt=AnkiProductParity._ensureNotetypeInPlan?AnkiProductParity._ensureNotetypeInPlan(rawNt,planId):rawNt,
-        id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,
-          tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean),_planId:planId||undefined},planId||undefined);
-      AnkiProductParity.reconcileNote(note,nt);const cards=AnkiProductParity._cardsForNote(note,planId);cards.forEach(c=>DB.updateCard(c.id,{deckId:deck}));
-      document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+cards.length+' card(s) ✓');
+        deck=this._resolveDeck(selectedDeck,planId),tags=String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean);
+      if(!deck){showToast('Não foi possível preparar o baralho.');return;}
+      try{
+        const res=await CardsOfficialBridge.addOfficialNote({planId,deckId:deck,notetype:rawNt,fields,tags,seed:{deckId:deck}});
+        document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();CardsScreen.updateFavCount();
+        showToast('Nota adicionada pelo Anki oficial · '+res.cards.length+' card(s) ✓');
+      }catch(e){showToast('Nota não criada: '+(e&&e.message?e.message:String(e)));}
     });
   },
 
