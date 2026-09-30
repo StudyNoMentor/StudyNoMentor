@@ -193,7 +193,8 @@ ok(AnkiParity.emptyCardIds().map(String).includes(String(c2.id)),'ordinal Cloze 
 eq(DB.getRevlog().filter(r=>String(r.cardId)===String(c2.id)).length,1,'Empty Card preserva histórico antes da limpeza explícita');
 eq(AnkiParity.deleteEmptyCards(),1,'Empty Cards remove somente o card que deixou de gerar pergunta');
 eq(DB.getCards().filter(c=>String(c.noteId||c.id)===String(base.noteId||base.id)).length,1,'Empty Cards preserva o irmão Cloze ainda válido');
-eq(DB.getRevlog().filter(r=>String(r.cardId)===String(c2.id)).length,0,'Empty Cards remove o revlog do card efetivamente excluído');
+eq(DB.getRevlog().filter(r=>String(r.cardId)===String(c2.id)).length,1,'Empty Cards preserva o revlog histórico do card excluído');
+eq(DB.getRevlog().find(r=>String(r.cardId)===String(c2.id)).ankiCardId,c2.ankiId,'Empty Cards preserva o ankiCardId para round-trip');
 
 // ── Sibling bury/suspend ─────────────────────────────────────────────────
 A.reset({buryNew:true,buryReviews:true,buryInterdayLearning:true});
