@@ -398,7 +398,8 @@ const AnkiPractical10 = {
     const oldOpen=CardsScreen.openCardModal.bind(CardsScreen);
     CardsScreen.openCardModal=(id)=>{
       if(id){
-        const card=DB.getCard(id),note=card&&AnkiParity.getNote(AnkiProductParity.noteId(card)),nt=note&&AnkiParity.getNotetype(note.notetypeId),kind=nt&&nt.stockKind;
+        const card=DB.getCard(id),note=card&&(AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(AnkiProductParity.noteId(card))),
+          nt=note&&(AnkiParity.notetypeForCard?AnkiParity.notetypeForCard(card,note):AnkiParity.getNotetype(note.notetypeId)),kind=nt&&nt.stockKind;
         /* O formulário simples só sabe gravar Frente/Verso dos tipos padrão
            Básico e Cloze. Qualquer outro tipo (em especial os importados do
            Anki, que renderizam da NOTA) edita os campos da nota, como o Editor

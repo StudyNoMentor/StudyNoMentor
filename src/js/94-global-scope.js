@@ -945,7 +945,12 @@
       Object.assign(c,p); c.updatedAt=now; c.ankiMod=Math.floor(Date.now()/1000);
     });
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list) === false) return false;
-    return DB.getCard(id);
+    const salvo=DB.getCard(id);
+    // O caminho local já sincroniza a Note canônica em 11-db.js. O roteamento
+    // multi-planejamento precisa fazer o mesmo, senão o editor atualiza o cache
+    // do card e o reviewer continua renderizando uma Note antiga/vazia.
+    try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){if(typeof _quiet==='function')_quiet(e,'global-card-note-sync');}
+    return salvo;
   };
   DB.deleteCard = function(id) {
     if (O.getCard(id)) return O.deleteCard(id);
@@ -1082,16 +1087,25 @@
       });
       return S.ankiEntity('notetype', id);
     };
-    AP.notes = function(){ return S.ankiEntities('note'); };
-    AP.noteTypes = function(){ return S.ankiEntities('notetype').sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''))); };
-    AP.saveNote = function(note) {
-      const pid=(note&&note._planId)||S.activePlanId(), x=clean(note);
-      const saved=withOriginalEntities(pid,()=>old.saveNote.call(AP,x));
+    AP.notes = function(planId){
+      if(planId!=null)return S._entityRows(planId,'note');
+      return S.ankiEntities('note');
+    };
+    AP.noteTypes = function(planId){
+      const rows=planId!=null?S._entityRows(planId,'notetype'):S.ankiEntities('notetype');
+      return rows.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+    };
+    AP.saveNote = function(note, planId) {
+      // planId explícito tem precedência. Sem isso, chamadas novas do reviewer
+      // multi-planejamento eram interceptadas por esta ponte antiga e acabavam
+      // gravando a Note no planejamento ativo.
+      const pid=planId!=null?planId:((note&&note._planId)||S.activePlanId()), x=clean(note);
+      const saved=withOriginalEntities(pid,()=>old.saveNote.call(AP,x,pid));
       return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
     };
-    AP.saveNotetype = function(nt) {
-      const pid=(nt&&nt._planId)||S.activePlanId(), x=clean(nt);
-      const saved=withOriginalEntities(pid,()=>old.saveNotetype.call(AP,x));
+    AP.saveNotetype = function(nt, planId) {
+      const pid=planId!=null?planId:((nt&&nt._planId)||S.activePlanId()), x=clean(nt);
+      const saved=withOriginalEntities(pid,()=>old.saveNotetype.call(AP,x,pid));
       return saved?Object.assign({},saved,{_planId:pid,_planNome:S.planName(pid)}):saved;
     };
     AP.stockNotetype = function(kind, planId) {
