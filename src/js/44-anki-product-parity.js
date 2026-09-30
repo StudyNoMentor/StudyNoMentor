@@ -592,7 +592,9 @@ const AnkiProductParity = {
   },
 
   _applyNotetypeEdit(old,nt,notes){
-    const clean=JSON.parse(JSON.stringify(nt));
+    const fieldSources=(nt.fields||[]).map(f=>f&&f._source!=null?String(f._source):null),
+      templateSources=(nt.templates||[]).map(t=>Number.isFinite(Number(t&&t._sourceOrd))?Number(t._sourceOrd):null),
+      clean=JSON.parse(JSON.stringify(nt));
     clean.fields=(clean.fields||[]).map(({_source,...x})=>x);
     clean.templates=(clean.templates||[]).map(({_sourceOrd,...x})=>x);
     const erroNt=AnkiParity.erroNotetype?AnkiParity.erroNotetype(clean):null;
@@ -600,7 +602,7 @@ const AnkiProductParity = {
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.updateOfficialNotetype!=='function'){
       showToast('Tipo não salvo: backend oficial do Anki indisponível.');return;
     }
-    void CardsOfficialBridge.updateOfficialNotetype(old,clean,notes).then(()=>{
+    void CardsOfficialBridge.updateOfficialNotetype(old,clean,notes,{fieldSources,templateSources}).then(()=>{
       document.getElementById('anki-nt-edit-modal').style.display='none';
       this.renderNotetypes();this.renderBrowser();CardsScreen.render();showToast('Tipo de nota atualizado pelo Anki oficial ✓');
     }).catch(e=>showToast('Tipo de nota não salvo: '+(e&&e.message?e.message:String(e))));
