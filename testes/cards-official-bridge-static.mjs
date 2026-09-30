@@ -21,6 +21,7 @@ for(const forbidden of [
   assert.ok(!bridge.includes(forbidden),'reviewer oficial não pode cair para '+forbidden);
 }
 assert.match(bridge,/canonicalAnkiIds:true/,'bootstrap precisa deduplicar replicas pelo ankiId');
+assert.match(bridge,/canonicalAnkiIds:true,preserveFiltered:true/,'bootstrap oficial precisa preservar filtered deck e odid\/odue entre recargas');
 assert.match(bridge,/\/api\/cards-official\/bootstrap/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
@@ -79,6 +80,12 @@ assert.match(backend,/"answer": card\.answer\(\)/);
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
 assert.match(backend,/def cards_official_collection_graphs[\s\S]*?item\.col\._backend\.graphs/,'Stats dos Cards precisam vir do Graphs oficial');
 assert.match(backend,/def cards_official_custom_study[\s\S]*?item\.col\.sched\.custom_study/,'Custom Study dos Cards precisa usar scheduler oficial');
+assert.match(bridge,/async runCustomStudy\(\)[\s\S]*?\/api\/cards-official\/custom-study/,'UI de Custom Study deve chamar a coleção oficial');
+assert.ok(!/AnkiParity\.customStudy\(/.test(bridge),'bridge oficial não pode executar Custom Study local');
+assert.match(bridge,/async saveFilteredDeckModal\(\)[\s\S]*?\/api\/cards-official\/filtered-deck\//,'UI de filtered deck deve salvar\/reconstruir no scheduler oficial');
+assert.ok(!/AnkiParity\.saveFilteredDeck\(/.test(bridge),'bridge oficial não pode reconstruir filtered deck localmente');
+assert.match(bridge,/async _syncCollectionState\([\s\S]*?await this\._syncStates\(cards\)/,'estado filtrado oficial deve voltar ao Study antes da próxima serialização');
+assert.match(bridge,/ankiOriginalDue:Number\(state\.original_due\)\|\|0/,'odue oficial deve ser persistido cru para round-trip');
 assert.match(backend,/def cards_official_rebuild_filtered_deck[\s\S]*?item\.col\.sched\.rebuild_filtered_deck/,'Filtered Deck dos Cards precisa usar scheduler oficial');
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
 assert.match(backend,/def cards_official_fsrs_simulate[\s\S]*?simulate_fsrs_review/,'Simulador FSRS dos Cards precisa usar backend oficial');
@@ -102,6 +109,7 @@ for(const path of [
   '/api/cards-official/notetypes/full',
   '/api/cards-official/notetypes/change-info',
   '/api/cards-official/notetypes/change',
+  '/api/cards-official/collection/state',
   '/api/cards-official/stats/graphs',
   '/api/cards-official/fsrs/optimize',
   '/api/cards-official/fsrs/simulate',
@@ -115,4 +123,4 @@ for(const path of [
   '/api/cards-official/empty-cards/delete',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
-console.log('CARDS OFFICIAL BRIDGE: scheduler/fila/rendering/type-answer/revlog/undo-redo/search/sort ancorados no anki==26.09.3, sem fallback acadêmico local.');
+console.log('CARDS OFFICIAL BRIDGE: reviewer/browser/stats/custom-study/filtered-decks ancorados no anki==26.09.3, com round-trip oficial e sem fallback acadêmico local.');
