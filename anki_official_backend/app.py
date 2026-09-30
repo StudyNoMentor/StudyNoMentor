@@ -32,6 +32,8 @@ from anki.decks import DeckId, DeckCollapseScope
 from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
 from anki.sound import SoundOrVideoTag, TTSTag
+from anki.stdmodels import StockNotetypeKind
+from anki.utils import from_json_bytes
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -913,6 +915,167 @@ def cards_official_notetypes_full(
                 {"notetype": nt, "use_count": int(item.col.models.use_count(nt))}
                 for nt in item.col.models.all()
             ]
+        }
+
+
+@app.post("/api/cards-official/notetypes/stock")
+def cards_official_create_stock_notetype(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Cria o tipo a partir do stock notetype da própria versão fixada do Anki."""
+    item = cards_uc_for(user)
+    kind = int(payload.get("kind", 0))
+    name = str(payload.get("name", "")).strip()
+    valid_kinds = {
+        int(StockNotetypeKind.KIND_BASIC),
+        int(StockNotetypeKind.KIND_BASIC_AND_REVERSED),
+        int(StockNotetypeKind.KIND_BASIC_OPTIONAL_REVERSED),
+        int(StockNotetypeKind.KIND_BASIC_TYPING),
+        int(StockNotetypeKind.KIND_CLOZE),
+        int(StockNotetypeKind.KIND_IMAGE_OCCLUSION),
+    }
+    if kind not in valid_kinds:
+        raise HTTPException(400, "Stock NoteType inválido.")
+    with item.lock:
+        raw = from_json_bytes(item.col._backend.get_stock_notetype_legacy(kind))
+        raw["id"] = 0
+        if name:
+            raw["name"] = name
+        changes = item.col.models.add_dict(raw)
+        ntid = int(changes.id)
+        created = item.col.models.get(ntid)
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "notetype": created,
+            "use_count": int(item.col.models.use_count(created)),
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/notetypes/{notetype_id}/copy")
+def cards_official_copy_notetype(
+    notetype_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        source = item.col.models.get(notetype_id)
+        if not source:
+            raise HTTPException(404, "Tipo de nota não encontrado.")
+        cloned = item.col.models.copy(source, add=False)
+        name = str(payload.get("name", "")).strip()
+        if name:
+            cloned["name"] = name
+        changes = item.col.models.add_dict(cloned)
+        ntid = int(changes.id)
+        created = item.col.models.get(ntid)
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "notetype": created,
+            "use_count": int(item.col.models.use_count(created)),
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.put("/api/cards-official/notetypes/{notetype_id}")
+def cards_official_update_notetype(
+    notetype_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Salva schema/fields/templates pela API oficial, que também gera/remove cards."""
+    item = cards_uc_for(user)
+    raw = payload.get("notetype")
+    if not isinstance(raw, dict):
+        raise HTTPException(400, "NoteType ausente.")
+    raw = dict(raw)
+    raw["id"] = int(notetype_id)
+    with item.lock:
+        before = item.col.models.get(notetype_id)
+        if not before:
+            raise HTTPException(404, "Tipo de nota não encontrado.")
+        note_ids = [int(x) for x in item.col.models.nids(notetype_id)]
+        changes = item.col.models.update_dict(raw, skip_checks=False)
+        updated = item.col.models.get(notetype_id)
+        notes = []
+        cards = []
+        for nid in note_ids:
+            try:
+                ns = note_state_payload(item.col, nid)
+            except Exception:
+                continue
+            notes.append(ns)
+            for cid in ns["card_ids"]:
+                try:
+                    cards.append(card_state_payload(item.col, int(cid)))
+                except Exception:
+                    pass
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "notetype": updated,
+            "use_count": int(item.col.models.use_count(updated)),
+            "notes": notes,
+            "cards": cards,
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.delete("/api/cards-official/notetypes/{notetype_id}")
+def cards_official_delete_notetype(
+    notetype_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        nt = item.col.models.get(notetype_id)
+        if not nt:
+            raise HTTPException(404, "Tipo de nota não encontrado.")
+        used = int(item.col.models.use_count(nt))
+        if used:
+            raise HTTPException(409, f"Tipo de nota ainda é usado por {used} nota(s).")
+        changes = item.col.models.remove(notetype_id)
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "deleted_notetype_id": int(notetype_id),
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/notetypes/{notetype_id}/restore-stock")
+def cards_official_restore_notetype(
+    notetype_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    force = payload.get("force_kind")
+    force_kind = None if force is None else int(force)
+    with item.lock:
+        if not item.col.models.get(notetype_id):
+            raise HTTPException(404, "Tipo de nota não encontrado.")
+        changes = item.col.models.restore_notetype_to_stock(notetype_id, force_kind)
+        updated = item.col.models.get(notetype_id)
+        note_ids = [int(x) for x in item.col.models.nids(notetype_id)]
+        notes = [note_state_payload(item.col, nid) for nid in note_ids]
+        cards = [
+            card_state_payload(item.col, int(cid))
+            for ns in notes
+            for cid in ns["card_ids"]
+        ]
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "notetype": updated,
+            "use_count": int(item.col.models.use_count(updated)),
+            "notes": notes,
+            "cards": cards,
+            "state": cards_collection_state_payload(item.col),
         }
 
 
