@@ -99,7 +99,7 @@ const AnkiProductParity = {
 
       <div id="anki-change-type-modal" class="cards-modal anki-product-modal" style="display:none">
         <div class="cards-modal-box cards-modal-lg">
-          <div class="cards-modal-head"><div><h2>🧩 Mudar tipo de nota</h2><p class="sub">O agendamento dos cards correspondentes é preservado; cards que deixam de ser gerados viram “cards vazios”, como no Anki.</p></div><button type="button" class="icon-btn" data-ap-close="anki-change-type-modal">✕</button></div>
+          <div class="cards-modal-head"><div><h2>🧩 Mudar tipo de nota</h2><p class="sub">Como no Anki 26.09.3: campos e templates são mapeados; cards mapeados preservam o agendamento e templates antigos não mapeados são removidos.</p></div><button type="button" class="icon-btn" data-ap-close="anki-change-type-modal">✕</button></div>
           <div class="cards-modal-body">
             <div class="field"><label>Tipo de destino</label><select id="anki-change-type-target"></select></div>
             <div id="anki-change-type-map"></div>
@@ -690,22 +690,24 @@ const AnkiProductParity = {
   scanCollection(){
     this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
       decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
-      noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
+      deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
     const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
     cards.forEach(c=>{
-      const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
-      if(c.deckId!=null&&!deckIds.has(String(c.deckId)))issues.missingDeck.push(c.id);
+      const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):this._getNote(this.noteRefForCard(c)),nt=n?this._typeFor(n):null;
+      if(!n)issues.missingNote.push(c.id);else if(!nt)issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
+      const deckOk=c.deckId==null||(window.StudyGlobalScope&&StudyGlobalScope.deckForCard?!!StudyGlobalScope.deckForCard(c):deckIds.has(String(c.deckId)));
+      if(!deckOk)issues.missingDeck.push(c.id);
       if(c.suspenso&&(c.enterradoAte||c.buryKind))issues.suspendedBuried.push(c.id);
       const ph=c.phase||'new';if((ph==='review'||ph==='learning'||ph==='relearning')&&!c.due&&!c.dueTs)issues.invalidSchedule.push(c.id);
       if(c.s!=null&&(!Number.isFinite(Number(c.s))||Number(c.s)<=0))issues.invalidSchedule.push(c.id);
       if(c.d!=null&&(!Number.isFinite(Number(c.d))||Number(c.d)<1||Number(c.d)>10))issues.invalidSchedule.push(c.id);
     });
     rev.forEach(r=>{if(!cardIds.has(String(r.cardId)))issues.orphanRevlog.push(r);});
-    const g=new Map();notes.forEach(n=>{if(!n.guid)return;const k=String(n.guid);if(!g.has(k))g.set(k,[]);g.get(k).push(n.id);});g.forEach(v=>{if(v.length>1)issues.duplicateGuid.push(...v);});
+    const g=new Map();notes.forEach(n=>{if(!n.guid)return;const k=String(n._planId||'')+'|'+String(n.guid);if(!g.has(k))g.set(k,[]);g.get(k).push(n.id);});g.forEach(v=>{if(v.length>1)issues.duplicateGuid.push(...v);});
     const scanText=(text,where)=>{
-      const s=String(text||''),refs=[];let m;const re=/(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi;while((m=re.exec(s)))refs.push(m[1]);
-      const sr=/\[sound:([^\]]+)\]/gi;while((m=sr.exec(s)))refs.push(m[1]);
-      refs.forEach(x=>{const v=String(x).trim();if(!v||/^(data:|blob:|https?:|#|mailto:|javascript:)/i.test(v))return;issues.missingMedia.push({where,ref:v});});
+      const x=String(text||''),refs=[];let m;const re=/(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi;while((m=re.exec(x)))refs.push(m[1]);
+      const sr=/\[sound:([^\]]+)\]/gi;while((m=sr.exec(x)))refs.push(m[1]);
+      refs.forEach(v0=>{const v=String(v0).trim();if(!v||/^(data:|blob:|https?:|#|mailto:|javascript:)/i.test(v))return;issues.missingMedia.push({where,ref:v});});
     };
     notes.forEach(n=>Object.entries(n.fields||{}).forEach(([k,v])=>scanText(v,'Nota '+n.id+' / '+k)));
     types.forEach(t=>{scanText(t.css,'Tipo '+t.name+' / CSS');(t.templates||[]).forEach(x=>{scanText(x.qfmt,'Tipo '+t.name+' / '+x.name+' frente');scanText(x.afmt,'Tipo '+t.name+' / '+x.name+' verso');});});
@@ -729,7 +731,7 @@ const AnkiProductParity = {
     document.getElementById('anki-check-safe').addEventListener('click',()=>{
       this.ensure();const x=this.scanCollection();let fixed=0;
       const scopedCards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards();
-      scopedCards.forEach(c=>{const n=AnkiParity.getNote(this.noteId(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){DB.updateCard(c.id,{notetypeId:n.notetypeId});fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null});fixed++;}});
+      scopedCards.forEach(c=>{const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):this._getNote(this.noteRefForCard(c));if(n&&String(c.notetypeId||'')!==String(n.notetypeId)){this._inPlan(this._planIdForCard(c),()=>DB.updateCard(c.id,{notetypeId:n.notetypeId}));fixed++;}if(c.suspenso&&(c.enterradoAte||c.buryKind)){this._inPlan(this._planIdForCard(c),()=>DB.updateCard(c.id,{enterradoAte:null,buryKind:null,dueTsAntesEnterrar:null}));fixed++;}});
       if(x.orphanRevlog.length){
         const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
         fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
@@ -768,26 +770,26 @@ const AnkiProductParity = {
     ];
     if((CardsScreen._redoStack||[]).length)opts.unshift({value:'redo',label:'↷ Refazer última ação'});
     UI.prompt([{key:'action',label:'Ação',type:'select',value:opts[0].value,options:opts}],{title:'⋯ Mais ações',okText:'Abrir'}).then(v=>{
-      if(!v)return;const nid=this.noteId(c);
+      if(!v)return;const nref=this.noteRefForCard(c);
       if(v.action==='redo')CardsScreen.redoAnswer();
-      else if(v.action==='tags')this.editTags([nid]);
+      else if(v.action==='tags')this.editTags([nref]);
       else if(v.action==='media')this.replayMedia(c);
       else if(v.action==='tts')this.speakCard(c);
       else if(v.action==='whiteboard')this.openWhiteboard();
-      else if(v.action==='type')this.openChangeType([nid]);
+      else if(v.action==='type')this.openChangeType([nref]);
       else if(v.action==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     });
   },
 
   _visibleCardHtml(c){
-    const note=AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note);if(note&&nt){const q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,''),a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);return CardsScreen._flipped?a:q;}return CardsScreen._flipped?(c.verso||''):(c.frente||'');
+    const note=AnkiParity.noteForCard?AnkiParity.noteForCard(c):this._getNote(this.noteRefForCard(c)),nt=this._typeFor(note);if(note&&nt){const q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,''),a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);return CardsScreen._flipped?a:q;}return CardsScreen._flipped?(c.verso||''):(c.frente||'');
   },
 
   async replayMedia(c){
     if(!c)return false;
     let parts=[];
     try{
-      const note=AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note),ord=Number(c.ankiTemplateOrd)||0;
+      const note=AnkiParity.noteForCard?AnkiParity.noteForCard(c):this._getNote(this.noteRefForCard(c)),nt=this._typeFor(note),ord=Number(c.ankiTemplateOrd)||0;
       if(note&&nt){
         const q=AnkiParity.renderTemplate(nt,note,ord,'question',c,''),a=AnkiParity.renderTemplate(nt,note,ord,'answer',c,q);
         const answerOnly=(q&&String(a).includes(String(q)))?String(a).replace(String(q),''):String(a);
