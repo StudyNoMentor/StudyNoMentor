@@ -3499,17 +3499,37 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       graduatingIntervalGood: Math.min(999, Math.max(1, parseInt(v.graduatingIntervalGood, 10) || 1)),
       graduatingIntervalEasy: Math.min(999, Math.max(1, parseInt(v.graduatingIntervalEasy, 10) || 4))
     };
-    if (isDeck) { CardsConfig.setDeckPreset(deckId, patch); showToast('Preset do baralho "' + deckName + '" salvo ✓'); }
-    else {
+    if (!isDeck) {
       patch.algo = v.algo === 'sm2' ? 'sm2' : 'fsrs';
       patch.newCardsIgnoreReviewLimit = v.newCardsIgnoreReviewLimit === '1';
       patch.applyAllParentLimits = v.applyAllParentLimits === '1';
-      CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
-    const shouldReschedule=v.fsrsReschedule==='1'&&patch.algo!=='sm2'&&CardsConfig.get().algo==='fsrs';
-    const rescheduled=shouldReschedule?await CardsScreen.rescheduleFsrsScope(deckId):0;
+    const desiredCfg = Object.assign({}, cfg, patch);
+    const effectiveAlgo = isDeck ? CardsConfig.get().algo : desiredCfg.algo;
+    const shouldReschedule = v.fsrsReschedule === '1' && effectiveAlgo === 'fsrs';
+    if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.updateDeckOptions !== 'function') {
+      showToast('Deck Options não salvas: backend oficial do Anki indisponível.');
+      return;
+    }
+    try {
+      await CardsOfficialBridge.updateDeckOptions(deckId, desiredCfg, {
+        hadPreset: !!hasPreset,
+        fsrsReschedule: shouldReschedule,
+        deckName: deckName || 'Default'
+      });
+    } catch (e) {
+      showToast('Deck Options não salvas pelo Anki oficial: ' + (e && e.message ? e.message : String(e)));
+      return;
+    }
+    if (isDeck) {
+      CardsConfig.setDeckPreset(deckId, patch);
+      showToast('Preset do baralho "' + deckName + '" salvo pelo Anki oficial ✓');
+    } else {
+      CardsConfig.set(patch);
+      showToast('Configuração global salva pelo Anki oficial ✓');
+    }
     CardEngine.invalidateDueCache();
-    if(rescheduled)showToast('🔄 '+rescheduled.toLocaleString('pt-BR')+' card(s) reagendado(s) com FSRS ✓');
+    if (shouldReschedule) showToast('🔄 Reagendamento FSRS concluído pelo scheduler oficial do Anki ✓');
     if (CardsScreen.tab === 'revisar') {
       CardsScreen.invalidateReviewQueue();
       CardsScreen.renderContent();
