@@ -94,6 +94,16 @@ assert.match(backend,/"answer": card\.answer\(\)/);
 
 assert.match(backend,/@app\.get\("\/api\/cards-official\/media\/\{filename:path\}"\)/);
 assert.match(backend,/def cards_official_editor_media[\s\S]*?item\.col\.media\.write_data/,'mídia do editor precisa usar o MediaManager oficial');
+assert.match(backend,/def cards_official_media_check[\s\S]*?item\.col\.media\.check\(\)/,'Check Media dos Cards deve usar MediaManager oficial');
+assert.match(backend,/def cards_official_media_trash[\s\S]*?item\.col\.media\.trash_files\(files\)/,'Delete Unused deve mover arquivos pela lixeira oficial');
+assert.match(backend,/def cards_official_media_restore_trash[\s\S]*?item\.col\.media\.restore_trash\(\)/,'Restore Deleted deve ser oficial');
+assert.match(backend,/def cards_official_media_empty_trash[\s\S]*?item\.col\.media\.empty_trash\(\)/,'Empty Trash deve ser oficial');
+assert.match(backend,/def cards_official_media_tag_missing[\s\S]*?item\.col\.tags\.bulk_add\(note_ids, "missing-media"\)/,'Tag Missing deve seguir mediacheck.py oficial');
+assert.match(backend,/def cards_official_media_render_latex[\s\S]*?item\.col\.media\.render_all_latex\(\)/,'Render LaTeX deve usar o MediaManager oficial');
+assert.match(bridge,/async _playOfficialTts\(tag\)[\s\S]*?tag&&tag\.field_text[\s\S]*?tag&&tag\.lang[\s\S]*?tag&&tag\.voices[\s\S]*?tag&&tag\.speed/,'TTS web deve consumir integralmente o TTSTag calculado pelo Anki');
+assert.match(bridge,/async checkOfficialMedia\(\)[\s\S]*?\/api\/cards-official\/media\/check/,'UI Check Media deve consultar a Collection oficial');
+assert.match(backend,/def cards_official_database_check[\s\S]*?item\.col\.fix_integrity\(\)/,'Check Database deve usar fix_integrity oficial');
+assert.match(backend,/def cards_official_database_optimize[\s\S]*?item\.col\.optimize\(\)/,'Optimize deve usar Collection oficial');
 assert.match(maxEditor,/CardsOfficialBridge\.uploadOfficialMedia\(f,f\.name\)/,'áudio\/vídeo do editor rico devem subir pelo backend oficial');
 assert.ok(!/readAsDataURL/.test(maxEditor),'editor rico não pode persistir mídia nova como data URL');
 assert.match(sanitizer,/async function insertImageFile[\s\S]*?CardsOfficialBridge\.uploadOfficialMedia/,'imagens do RTE devem subir pelo MediaManager oficial');
@@ -165,6 +175,14 @@ for(const path of [
   '/api/cards-official/note/{note_id}',
   '/api/cards-official/media/{filename:path}',
   '/api/cards-official/editor/media',
+  '/api/cards-official/media/check',
+  '/api/cards-official/media/trash',
+  '/api/cards-official/media/restore-trash',
+  '/api/cards-official/media/empty-trash',
+  '/api/cards-official/media/tag-missing',
+  '/api/cards-official/media/render-latex',
+  '/api/cards-official/database/check',
+  '/api/cards-official/database/optimize',
   '/api/cards-official/image-occlusion/setup',
   '/api/cards-official/image-occlusion/image',
   '/api/cards-official/image-occlusion/note',
