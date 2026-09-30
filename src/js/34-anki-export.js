@@ -415,14 +415,28 @@ const AnkiExport = {
       collapsed:false,browserCollapsed:false,desc:'',dyn:0,conf:1,extendNew:0,extendRev:0
     };
     for(const d of decks){
-      const id=Number(d.ankiId),cfg=CardsConfig.forDeck(d.id);
+      const id=Number(d.ankiId),cfg=CardsConfig.forDeck(d.id),isFiltered=!!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d));
       const cfgId=options.withDeckConfigs?(p.keys.get(p.keyFor(d))||1):1;
-      obj[String(id)]={
-        id,mod:this._mod(d.updatedAt||d.createdAt),name:String(d.nome||'Deck'),usn:-1,
-        lrnToday:[0,0],revToday:[0,0],newToday:[0,0],timeToday:[0,0],
-        collapsed:!!d.collapsed,browserCollapsed:!!d.browserCollapsed,desc:String(d.desc||''),
-        dyn:0,conf:cfgId,extendNew:0,extendRev:0,desiredRetention:Math.round((Number(cfg.retention)||.9)*100)
-      };
+      if(isFiltered&&options.preserveFiltered){
+        const fc=AnkiParity.filteredConfig(d),terms=(fc.searchTerms||[]).map(t=>[String(t.search||''),Math.max(0,Math.round(Number(t.limit)||0)),Math.max(0,Math.round(Number(t.order)||0))]);
+        obj[String(id)]={
+          id,mod:this._mod(d.updatedAt||d.createdAt),name:String(d.nome||'Deck'),usn:-1,
+          lrnToday:[0,0],revToday:[0,0],newToday:[0,0],timeToday:[0,0],
+          collapsed:!!d.collapsed,browserCollapsed:!!d.browserCollapsed,desc:'',dyn:1,
+          resched:fc.reschedule!==false,terms,separate:true,
+          previewDelay:Math.max(0,Math.round(Number(fc.previewDelay)||0)),
+          previewAgainSecs:Math.max(0,Math.round(Number(fc.previewAgainSecs)||0)),
+          previewHardSecs:Math.max(0,Math.round(Number(fc.previewHardSecs)||0)),
+          previewGoodSecs:Math.max(0,Math.round(Number(fc.previewGoodSecs)||0))
+        };
+      }else{
+        obj[String(id)]={
+          id,mod:this._mod(d.updatedAt||d.createdAt),name:String(d.nome||'Deck'),usn:-1,
+          lrnToday:[0,0],revToday:[0,0],newToday:[0,0],timeToday:[0,0],
+          collapsed:!!d.collapsed,browserCollapsed:!!d.browserCollapsed,desc:String(d.desc||''),
+          dyn:0,conf:cfgId,extendNew:0,extendRev:0,desiredRetention:Math.round((Number(cfg.retention)||.9)*100)
+        };
+      }
     }
     let dconf;
     if(!options.withDeckConfigs){
@@ -722,7 +736,8 @@ const AnkiExport = {
     }
     return selected;
   },
-  _decksForCards(cards,allDecks) {
+  _decksForCards(cards,allDecks,options) {
+    options=options||{};
     const byId=new Map(allDecks.map(d=>[String(d.id),d])),keep=new Set();
     const addAncestors=(d)=>{
       if(!d)return;keep.add(String(d.id));
@@ -732,8 +747,11 @@ const AnkiExport = {
         if(p)keep.add(String(p.id));
       }
     };
-    cards.forEach(c=>addAncestors(byId.get(String(c.originalDeckId||c.deckId))));
-    return allDecks.filter(d=>keep.has(String(d.id))&&!AnkiParity.isFilteredDeck(d));
+    cards.forEach(c=>{
+      addAncestors(byId.get(String(c.originalDeckId||c.deckId)));
+      if(options.preserveFiltered&&c.deckId&&String(c.deckId)!==String(c.originalDeckId||''))addAncestors(byId.get(String(c.deckId)));
+    });
+    return allDecks.filter(d=>keep.has(String(d.id))&&(options.preserveFiltered||!AnkiParity.isFilteredDeck(d)));
   },
 
   buildTextNotes(options) {
@@ -795,7 +813,7 @@ const AnkiExport = {
     if (typeof AnkiParity === 'undefined') throw new Error('Camada de paridade Anki indisponível');
     AnkiParity.ensureIdentities(); AnkiParity.ensureCanonicalNotes();
     const cards = this._cardsForLimit(options), allDecks = this._sourceDecks().slice();
-    const decks = this._decksForCards(cards,allDecks), crt = this._collectionEpoch(cards);
+    const decks = this._decksForCards(cards,allDecks,options), crt = this._collectionEpoch(cards);
     const deckMap=this._deckIdMap(decks),dj=this._deckJson(decks,options),media={items:[],byKey:new Map()};
     const notesById = new Map(), siblings = new Map(), usedNt = new Set();
     for (const c of cards) {
@@ -843,16 +861,19 @@ const AnkiExport = {
 
     const cs=db.prepare('INSERT INTO cards VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');let newPos=1;
     for(const original of cards){
-      const c=this._homeState(original),did=deckMap.get(String(c.deckId))||1,cfg=CardsConfig.forDeck(c.deckId);
-      const keep=options.withScheduling!==false,sched=keep?this.cardSchedule(original,crt,newPos):{type:0,queue:0,due:newPos,left:0};
+      const filtered=!!(options.preserveFiltered&&original.originalDeckId&&String(original.deckId)!==String(original.originalDeckId));
+      const c=filtered?original:this._homeState(original),did=deckMap.get(String(c.deckId))||1,cfg=CardsConfig.forDeck(c.originalDeckId||c.deckId);
+      const keep=options.withScheduling!==false,sched=keep?this.cardSchedule(filtered?Object.assign({},original,{originalDeckId:null,originalDue:null,originalDueTs:null,originalPhase:null}):original,crt,newPos):{type:0,queue:0,due:newPos,left:0};
       const rawEase=keep?(Number(c.ease)||2.5):0,factor=keep?Math.round(rawEase<10?rawEase*1000:rawEase):0;
       const ivl=keep?Math.max(0,Math.round(Number(c.intervalo)||0)):0;
       const reps=keep?Math.max(0,Math.round(Number(c.reps)||0)):0,lapses=keep?Math.max(0,Math.round(Number(c.lapses)||0)):0;
       const flags=keep?Math.max(0,Math.min(7,Math.round(Number(c.flag)||0))):0;
       const data=keep?this.cardData(c,cfg):JSON.stringify({pos:Math.max(0,newPos-1)});
+      const odid=filtered?(deckMap.get(String(original.originalDeckId))||0):0;
+      const odue=filtered?(Number(original.ankiOriginalDue)||this._dueDay(original.originalDue||original.due,crt)):0;
       cs.run([Number(original.ankiId),Number(original.ankiNoteId),did,Math.max(0,Number(original.ankiTemplateOrd)||0),
         Number(original.ankiMod)||this._mod(original.updatedAt||original.createdAt),-1,sched.type,sched.queue,sched.due,
-        ivl,factor,reps,lapses,sched.left,0,0,flags,data]);
+        ivl,factor,reps,lapses,sched.left,odue,odid,flags,data]);
       newPos++;
     }
     cs.free();
@@ -870,7 +891,7 @@ const AnkiExport = {
     options=Object.assign({legacy:true,withMedia:true,withScheduling:true,withDeckConfigs:true},options||{});
     const legacy=options.legacy!==false,collectionOpts={
       withScheduling:options.withScheduling!==false,withDeckConfigs:options.withDeckConfigs!==false,limit:options.limit||{},
-      canonicalAnkiIds:!!options.canonicalAnkiIds
+      canonicalAnkiIds:!!options.canonicalAnkiIds,preserveFiltered:!!options.preserveFiltered
     };
     const col=await this.buildCollection(Object.assign({schema:legacy?11:18},collectionOpts)),mediaMap={},mediaEntries=[];
     const compatibility=legacy?col:await this.buildCollection(Object.assign({schema:11},collectionOpts));
