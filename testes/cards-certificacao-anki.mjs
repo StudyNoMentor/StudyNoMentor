@@ -181,7 +181,10 @@ DB.saveCards([{
 DB.replaceRevlog([{reviewId:'hist-1',cardId:'manual-op',ts:T0-1000,date:a.hoje(),grade:3,phase:'review',intervalo:15}]);
 
 const parsedDue=DB.parseDueSpec('60-90!');
-eq(parsedDue,{raw:'60-90!',min:60,max:90,forceInterval:true},'Set Due deve aceitar faixa + !');
+eq(parsedDue.raw,'60-90!','Set Due preserva a expressão informada');
+eq(parsedDue.min,60,'Set Due reconhece o início da faixa');
+eq(parsedDue.max,90,'Set Due reconhece o fim da faixa');
+eq(parsedDue.forceInterval,true,'Set Due reconhece o sufixo !');
 const semForcar=DB.setDueSpec('manual-op','10-20',{index:1,total:2});
 eq(semForcar.days,20,'faixa deve poder ser distribuída de forma determinística');
 eq(DB.getCard('manual-op').intervalo,30,'Set Due sem ! preserva intervalo de review');
