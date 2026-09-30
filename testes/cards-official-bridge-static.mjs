@@ -93,6 +93,8 @@ assert.match(backend,/def cards_official_update_deck_options[\s\S]*?item\.col\.d
 assert.match(bridge,/async updateDeckOptions\(deckId,cfg,opts\)[\s\S]*?\/api\/cards-official\/deck\/'/,'bridge deve salvar Deck Options no backend oficial');
 assert.match(bridge,/targetId=isDeck\?\(opts\.hadPreset\?currentId:0\):1/,'preset novo precisa usar id=0 para o Anki alocar identidade canônica');
 assert.match(bridge,/fsrs_reschedule:!!opts\.fsrsReschedule/,'reschedule de Deck Options deve ser delegado ao scheduler oficial');
+assert.match(bridge,/async inheritDeckOptions\(deckId\)[\s\S]*?configs:\[conf\][\s\S]*?_saveDeckConfigIdentity\(deckId,ctx\.planId,selectedId\)/,'restaurar herança precisa reatribuir o deck ao preset global na Collection oficial');
+assert.match(cards,/deck-inherit-btn[\s\S]*?CardsOfficialBridge\.inheritDeckOptions\(deckId\)[\s\S]*?CardsConfig\.clearDeckPreset\(deckId\)/,'cache local só pode limpar o preset depois que o Anki oficial confirmar a herança');
 assert.match(cards,/CardsOfficialBridge\.updateDeckOptions\(deckId, desiredCfg/,'UI de Deck Options deve chamar a ponte oficial antes de persistir o cache local');
 assert.ok(!/const rescheduled=shouldReschedule\?await CardsScreen\.rescheduleFsrsScope\(deckId\):0/.test(cards),'salvar Deck Options não pode duplicar reschedule no scheduler local');
 assert.match(backend,/def cards_official_fsrs_simulate[\s\S]*?simulate_fsrs_review/,'Simulador FSRS dos Cards precisa usar backend oficial');
