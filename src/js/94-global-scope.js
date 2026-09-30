@@ -1570,8 +1570,8 @@
       AnkiMaxParity._bulkCardsForget=ids=>this.bulkResetUi(ids);
       AnkiMaxParity._bulkCardsReposition=ids=>this.bulkRepositionUi(ids);
 
-      AnkiMaxParity.openReviewerActions=()=>{
-        const c=AP._currentReviewCard();if(!c)return;
+      AnkiMaxParity.openReviewerActions=(cardHint)=>{
+        const c=cardHint||AP._currentReviewCard();if(!c)return;
         const pid=c._planId||this.sourcePlanForCard(c.id)||this.activePlanId();
         const note=AnkiParity.getNote(AP.noteId(c),pid);
         const cardRef='c:'+encodeURIComponent(String(pid))+'::'+encodeURIComponent(String(c.id));
