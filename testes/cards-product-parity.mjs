@@ -45,27 +45,15 @@ vm.runInContext(readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8
 const P=vm.runInContext('AnkiProductParity',ctx);
 assert.ok(P,'camada de paridade deve ser exportada');
 
-// Reconcile: preserva o card ordinal 0/agendamento e cria somente o irmão ausente.
-const before=cards.find(c=>c.id==='c1');
-const schedule={phase:before.phase,intervalo:before.intervalo,reps:before.reps};
+// A camada Product é somente casca: não reconcilia cards nem repara coleção.
+const before=cards.find(c=>c.id==='c1'),countBefore=cards.length;
 const r=P.reconcileNote(notes.get('n1'),type);
-assert.equal(r.created,1);
-assert.equal(cards.filter(c=>String(c.noteId)==='n1').length,2);
-assert.equal(before.frente,'Q1');assert.equal(before.verso,'A1');
-assert.deepEqual({phase:before.phase,intervalo:before.intervalo,reps:before.reps},schedule,'reconciliação não pode zerar agendamento existente');
+assert.equal(r.officialOnly,true);
+assert.equal(cards.length,countBefore,'casca não pode gerar card localmente');
+assert.equal(before.frente,'old');assert.equal(before.verso,'old');
 
-// Check: histórico de card excluído é válido; só revlog sem cardId é inválido.
 const scan=P.scanCollection();
-assert.equal(scan.historicalRevlog.length,1);
-assert.equal(scan.orphanRevlog.length,1);
-assert.equal(scan.suspendedBuried.length,1);
-
-// Reparos seguros preservam o histórico válido e removem somente linha malformada.
-ctx.DB.replaceRevlog(ctx.DB.getRevlog().filter(x=>x&&x.cardId!=null&&String(x.cardId).trim()!==''));
-ctx.DB.updateCard('c2',{enterradoAte:null,buryKind:null});
-assert.equal(ctx.DB.getRevlog().length,2);
-assert.equal(ctx.DB.getRevlog().some(x=>x.cardId==='gone'),true,'histórico de card excluído deve sobreviver ao reparo');
-assert.equal(cards.find(c=>c.id==='c2').enterradoAte,null);
+assert.equal(scan.officialOnly,true,'diagnóstico acadêmico local deve permanecer desativado');
 
 // Browser agrupa por NOTE, e não por card.
 const rows=P._browserRows();
@@ -79,4 +67,4 @@ const markedRows=P._browserRows();
 assert.deepEqual(Array.from(markedRows,x=>String(x.note.id)),['n2']);
 P.browser.marked=false;
 
-console.log('PARIDADE DE PRODUTO: browser por notas, reconciliação sem perder agendamento e manutenção segura validados.');
+console.log('PARIDADE DE PRODUTO: browser shell e ausência de reconciliação/manutenção acadêmica local validados.');
