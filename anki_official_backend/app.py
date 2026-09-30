@@ -1647,7 +1647,13 @@ def cards_official_update_deck_options(
         except Exception as exc:
             raise HTTPException(400, f"Deck Options inválidas: {exc}") from exc
         item.col.decks.update_deck_configs(request)
-        return pb(item.col.decks.get_deck_configs_for_update(DeckId(deck_id)))
+        return {
+            "options": pb(item.col.decks.get_deck_configs_for_update(DeckId(deck_id))),
+            # Alterar Deck Options pode ajustar passos, ordenar novos e, com
+            # fsrs_reschedule, recomputar memória/vencimento. O Study recebe
+            # exatamente o estado posterior à transação oficial.
+            "state": cards_collection_state_payload(item.col),
+        }
 
 
 @app.get("/api/cards-official/custom-study/defaults/{deck_id}")
