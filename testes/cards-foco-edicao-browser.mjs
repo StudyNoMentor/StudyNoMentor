@@ -220,12 +220,25 @@ try{
   });
   await esperar(300);
   ok(await page.locator('#anki-review-more').isVisible(),'Mais ações fica acessível no reviewer mobile');
+  const menuBefore=await page.evaluate(()=>({
+    occupied:!!UI._ocupado,queued:(UI._fila||[]).length,
+    currentId:(AnkiProductParity._currentReviewCard()||{}).id||null,
+    queueId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,
+    activePlan:StudyGlobalScope.activePlanId(),scope:StudyGlobalScope.cardsScope()
+  }));
   await page.click('#anki-review-more');await esperar(120);
   const reviewerMenu=await page.evaluate(()=>({
-    values:[...document.getElementById('uip_action').options].map(o=>o.value),
+    present:!!document.getElementById('uip_action'),
+    values:document.getElementById('uip_action')?[...document.getElementById('uip_action').options].map(o=>o.value):[],
+    occupied:!!UI._ocupado,queued:(UI._fila||[]).length,mode:UI._mode||null,
+    title:(document.getElementById('ui-modal-title')||{}).textContent||'',
+    modalDisplay:(document.getElementById('ui-modal')||{}).style&&document.getElementById('ui-modal').style.display||'',
+    currentId:(AnkiProductParity._currentReviewCard()||{}).id||null,
+    queueId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,
     overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,
     box:document.querySelector('#ui-modal .cards-modal-box').getBoundingClientRect().toJSON()
   }));
+  ok(reviewerMenu.present,'Mais ações abre o seletor de ações; estado='+JSON.stringify({before:menuBefore,after:reviewerMenu}));
   ok(['reset','due','copy','pauseMedia','backMedia','forwardMedia'].every(x=>reviewerMenu.values.includes(x)),
     'Mais ações expõe Reset, Set Due, Criar cópia e controles de áudio');
   ok(!reviewerMenu.overflow&&reviewerMenu.box.width<=390,'modal Mais ações não estoura a largura mobile');
