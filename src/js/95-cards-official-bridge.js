@@ -253,6 +253,86 @@ const CardsOfficialBridge = {
       }catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-av');}
     }
   },
+  _officialCardInfoValue(value){
+    if(value==null||value==='')return '—';
+    if(typeof value==='number')return Number.isFinite(value)?String(value):'—';
+    if(typeof value==='object')return escapeHtml(JSON.stringify(value));
+    return escapeHtml(String(value));
+  },
+  _officialCardInfoDate(value){
+    const n=Number(value);if(!Number.isFinite(n)||n<=0)return '—';
+    const ms=n<1e12?n*1000:n;
+    try{return new Date(ms).toLocaleString('pt-BR');}catch(_){return String(value);}
+  },
+  async openCardInfo(ref){
+    await this.bootstrap(false);
+    const local=ref&&typeof ref==='object'?ref:(CardsScreen.collectionCards().find(c=>String(c.id)===String(ref))||DB.getCard(ref));
+    if(!local)throw new Error('Card não encontrado.');
+    const oid=this._officialId(local);if(oid==null)throw new Error('Card sem identidade Anki canônica.');
+    const info=await this.request('/api/cards-official/card-info/'+encodeURIComponent(oid));
+    const row=(label,value)=>'<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">'+escapeHtml(label)+'</td><td style="padding:4px 0;font-family:Space Mono,monospace">'+value+'</td></tr>',
+      ms=info.memory_state||{},rev=Array.isArray(info.revlog)?info.revlog:[],
+      body='<table style="width:100%;font-size:12.5px;border-collapse:collapse">'+
+        row('Baralho',this._officialCardInfoValue(info.deck))+
+        row('Baralho original',this._officialCardInfoValue(info.original_deck))+
+        row('Tipo de nota',this._officialCardInfoValue(info.notetype))+
+        row('Tipo de card',this._officialCardInfoValue(info.card_type))+
+        row('Preset',this._officialCardInfoValue(info.preset))+
+        row('Adicionado',this._officialCardInfoDate(info.added))+
+        row('Primeira revisão',this._officialCardInfoDate(info.first_review))+
+        row('Última revisão',this._officialCardInfoDate(info.latest_review))+
+        row('Vencimento',this._officialCardInfoDate(info.due_date))+
+        row('Posição',this._officialCardInfoValue(info.due_position))+
+        row('Intervalo',this._officialCardInfoValue(info.interval))+
+        row('Facilidade',this._officialCardInfoValue(info.ease))+
+        row('Revisões',this._officialCardInfoValue(info.reviews))+
+        row('Lapsos',this._officialCardInfoValue(info.lapses))+
+        row('Estabilidade',this._officialCardInfoValue(ms.stability))+
+        row('Dificuldade',this._officialCardInfoValue(ms.difficulty))+
+        row('Recuperabilidade',this._officialCardInfoValue(info.fsrs_retrievability))+
+        row('Retenção desejada',this._officialCardInfoValue(info.desired_retention))+
+        row('Tempo médio (s)',this._officialCardInfoValue(info.average_secs))+
+        row('Tempo total (s)',this._officialCardInfoValue(info.total_secs))+
+      '</table>'+
+      '<p style="margin:14px 0 6px;font-weight:700;font-size:12.5px">Histórico oficial ('+rev.length+')</p>'+
+      (rev.length?'<div style="max-height:260px;overflow:auto"><table style="width:100%;font-size:12px;border-collapse:collapse">'+
+        rev.map(x=>'<tr style="border-top:1px solid var(--border)">'+
+          '<td style="padding:4px 8px 4px 0;color:var(--text-faint)">'+this._officialCardInfoDate(x.time)+'</td>'+
+          '<td style="padding:4px 8px 4px 0">rating '+this._officialCardInfoValue(x.button_chosen)+'</td>'+
+          '<td style="padding:4px 8px 4px 0">kind '+this._officialCardInfoValue(x.review_kind)+'</td>'+
+          '<td style="padding:4px 0;color:var(--text-faint)">'+this._officialCardInfoValue(x.last_interval)+' → '+this._officialCardInfoValue(x.interval)+'</td>'+
+        '</tr>').join('')+'</table></div>':'<p class="hint">Nenhuma revisão registrada pelo Anki.</p>');
+    await UI.alert(body,{title:'ℹ Card Info · Anki oficial',html:true,okText:'Fechar'});
+    return info;
+  },
+  async openOfficialCheck(){
+    await this.bootstrap(false);
+    const modal=document.getElementById('anki-check-modal'),body=document.getElementById('anki-check-body');
+    if(modal)modal.style.display='flex';
+    if(body)body.innerHTML='<div class="anki-check-status"><strong>Collection oficial do Anki</strong><span>Use “Verificar/Reparar” para executar Collection.fix_integrity().</span></div><p class="hint">Nenhum diagnóstico acadêmico é calculado pelo Study.</p>';
+  },
+  _installOfficialCheck(){
+    if(!window.AnkiProductParity)return;
+    const self=this;AnkiProductParity.openCheck=()=>void self.openOfficialCheck().catch(e=>showToast('Verificação oficial indisponível: '+(e.message||e)));
+    const safe=document.getElementById('anki-check-safe');
+    if(safe){
+      const clean=safe.cloneNode(true);safe.replaceWith(clean);clean.textContent='🛠 Verificar/Reparar · Anki oficial';
+      clean.addEventListener('click',async()=>{
+        clean.disabled=true;const old=clean.textContent;clean.textContent='⏳ Executando…';
+        try{
+          const out=await self.checkOfficialDatabase(),body=document.getElementById('anki-check-body');
+          if(body)body.innerHTML='<div class="anki-check-status '+(out.ok?'ok':'warn')+'"><strong>'+escapeHtml(out.ok?'Verificação concluída':'O Anki reportou problemas')+'</strong><span>'+escapeHtml(out.message||'')+'</span></div><p class="hint">Resultado produzido por Collection.fix_integrity() do Anki oficial.</p>';
+          CardsScreen.render();
+        }catch(e){showToast('Verificação oficial falhou: '+(e.message||e));}
+        finally{clean.disabled=false;clean.textContent=old;}
+      });
+    }
+    const empty=document.getElementById('anki-check-empty');
+    if(empty){
+      const clean=empty.cloneNode(true);empty.replaceWith(clean);clean.textContent='🧹 Empty Cards · Anki oficial';
+      clean.addEventListener('click',()=>void self.openEmptyCards());
+    }
+  },
   async checkOfficialMedia(){
     await this.bootstrap(false);
     return this.request('/api/cards-official/media/check');
@@ -2207,6 +2287,7 @@ const CardsOfficialBridge = {
     CardsScreen.flip=()=>{void this.showAnswer();};
     CardsScreen.undoAnswer=()=>{void this.undo();};
     CardsScreen.redoAnswer=()=>{void this.redo();};
+    CardsScreen.cardInfo=(ref)=>{void this.openCardInfo(ref).catch(e=>showToast('Card Info oficial indisponível: '+(e&&e.message?e.message:String(e))));};
     CardsScreen.saveCard=(closeAfter)=>{void this.saveSimpleCard(closeAfter).catch(e=>showToast('Card não salvo: '+(e&&e.message?e.message:String(e))));};
     CardsScreen.deleteCard=()=>{void this.deleteSimpleCard().catch(e=>showToast('Nota não excluída: '+(e&&e.message?e.message:String(e))));};
     CardsScreen.openCustomStudy=()=>this.openCustomStudy();
@@ -2214,6 +2295,7 @@ const CardsOfficialBridge = {
     CardsScreen.openFilteredDeckModal=(deckId)=>{void this.openFilteredDeckModal(deckId);};
     CardsScreen.saveFilteredDeckModal=()=>{void this.saveFilteredDeckModal();};
     this._installOfficialBrowser();
+    this._installOfficialCheck();
 
     // Alterações de conteúdo/config invalidam a coleção oficial isolada. A
     // próxima entrada em Revisar faz novo bootstrap; respostas oficiais NÃO
