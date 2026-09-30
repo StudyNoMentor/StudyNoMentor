@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v984911eea9">
+<meta name="diario-versao" content="v46164bb699">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -19301,22 +19301,25 @@ const DB = {
       return n;
     } catch (_) { return 0; }
   },
-  /* Excluir um card tem de levar embora TUDO que era dele. A auditoria real
-     mostrou 178 entradas de histórico para 4 cards existentes: 16 cards apagados
-     tinham deixado o histórico para trás. Pior, o contador diário guardava os IDs
-     deles e continuava consumindo a cota de 20 novos do dia — cards que nem
-     existiam mais ocupavam vaga na fila. */
+  _preserveDeletedCardRevlogIds(cards) {
+    const map=new Map((cards||[]).filter(c=>c&&c.ankiId!=null&&Number.isFinite(Number(c.ankiId))).map(c=>[String(c.id),Number(c.ankiId)]));
+    if(!map.size)return 0;
+    const rows=this.getRevlog(),changed=[];
+    rows.forEach(r=>{const aid=map.get(String(r&&r.cardId));if(aid!=null&&r.ankiCardId==null){r.ankiCardId=aid;changed.push(r);}});
+    if(changed.length)this.replaceRevlog(rows);
+    return changed.length;
+  },
+  /* Exclusão no Anki remove o card/nota, mas preserva o revlog histórico.
+     O histórico órfão é intencional: continua alimentando estatísticas globais
+     e explica o passado da coleção, embora o conteúdo excluído já não exista. */
   deleteCard(id) {
-    this.saveCards(this.getCards().filter(c => c.id !== id));
-    try {
-      const l = this.getRevlog().filter(r => r.cardId !== id);
-      this.replaceRevlog(l);
-    } catch (_) { _quiet(_); }
+    const alvo=this.getCard(id);if(alvo)this._preserveDeletedCardRevlogIds([alvo]);
+    if (this.saveCards(this.getCards().filter(c => String(c.id) !== String(id))) === false) return false;
     try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
+    return true;
   },
   // A interface do Anki exclui a NOTA: todos os cards/template siblings
-  // derivados dela desaparecem juntos. deleteCard() continua disponível para
-  // rotinas técnicas que realmente operam em um card individual.
+  // derivados dela desaparecem juntos. O revlog de cada card é PRESERVADO.
   deleteNoteByCard(id) {
     this.normalizeCardNotesInPlace();
     const alvo = this.getCard(id); if (!alvo) return 0;
@@ -19325,30 +19328,16 @@ const DB = {
       .filter(c => String(c.noteId || c.id) === noteId)
       .map(c => String(c.id)));
     if (!ids.size) return 0;
+    this._preserveDeletedCardRevlogIds(this.getCards().filter(c=>ids.has(String(c.id))));
     if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
-    try {
-      this.replaceRevlog(this.getRevlog().filter(r => !ids.has(String(r.cardId))));
-    } catch (e) { _quiet(e, 'delete-note-revlog'); }
     try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
     return ids.size;
   },
-  /* Zera TODO o progresso dos cards, preservando o conteúdo. Equivale a aplicar
-     o "Esquecer" (Forget) do Anki em todos os cards, mais limpar o histórico e
-     os contadores do dia. Devolve o que foi afetado, para o aviso na tela. */
-  /* ══════════════════════════════════════════════════════════════════════════
-     AÇÕES DO REVIEWER DO ANKI (qt/aqt/reviewer.py :: _shortcutKeys)
-     Implementadas aqui com o MESMO significado do original. Este app tem um
-     notas podem gerar irmãos (ex.: normal + invertido). Enterrar card continua
-     individual; operações explícitas de nota usam noteId para atingir os irmãos.
-     ═══════════════════════════════════════════════════════════════════════ */
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
   buryCard(id, origem) {
     const c = this.getCard(id); if (!c) return null;
     const amanha = CardEngine.addDays(todayCards(), 1);
-    // O Anki distingue enterro explícito do usuário (UserBuried) do enterro
-    // automático de irmãos (SchedBuried). A fila trata ambos como ocultos,
-    // mas a distinção importa para busca, diagnóstico e exportação fiel.
     const buryKind = origem === 'scheduler' ? 'scheduler' : 'user';
     // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
     // apenas o ocultamos enquanto o card está enterrado.
@@ -19365,25 +19354,81 @@ const DB = {
     }
     this.updateCard(id, patch);
   },
-  // ESQUECER (forget, Ctrl+Alt+N): devolve o card ao estado de novo, apagando
-  // a memória do FSRS. O conteúdo permanece.
-  forgetCard(id) {
-    const c = this.getCard(id); if (!c) return;
-    this.updateCard(id, {
-      phase: 'new', learnStep: 0, due: todayCards(), dueTs: null,
-      intervalo: 0, reps: 0, lapses: 0, ease: 2.5, s: null, d: null,
-      lastReview: null, status: 'pendente', leech: false
-    });
+
+  /* Registra ações manuais no mesmo espírito do revlog do Anki: rating 0 e
+     tipo Manual. Elas não entram no treino FSRS/True Retention, mas aparecem
+     no Card Info e preservam o motivo de mudanças de agenda. */
+  addManualReview(card, action, before, after) {
+    if (!card) return null;
+    const b = before || card, a = after || card, ts = Date.now();
+    const row = {
+      cardId: String(card.id), ts,
+      date: typeof todayCards === 'function' ? todayCards() : new Date(ts).toISOString().slice(0,10),
+      grade: 0, acerto: null, time: 0, elapsed: Number(b.intervalo)||0,
+      phase: 'manual', ankiReviewKind: 'manual', ankiIvlSemantica: 2,
+      ankiInterval: Number(a.intervalo)||0, ankiLastInterval: Number(b.intervalo)||0,
+      intervalo: Number(b.intervalo)||0, easeFactor: Math.round((Number(a.ease)||2.5)*1000),
+      action: String(action || 'manual')
+    };
+    if (card._planId != null) row._planId = card._planId;
+    return this.addRevlog(row);
   },
-  // DEFINIR DATA (Ctrl+Shift+D): agenda o card para daqui a N dias.
-  setDueDays(id, dias) {
-    const n = Math.max(0, Math.round(Number(dias) || 0));
+  parseDueSpec(spec) {
+    const raw = String(spec == null ? '' : spec).trim();
+    const m = /^(-?\d+)(?:\s*-\s*(-?\d+))?\s*(!)?$/.exec(raw);
+    if (!m) return null;
+    let min = Math.round(Number(m[1])), max = m[2] == null ? min : Math.round(Number(m[2]));
+    if (min > max) { const t=min; min=max; max=t; }
+    return { raw, min, max, forceInterval: !!m[3] };
+  },
+  _dueRangePick(cardId, parsed, opts) {
+    const p=parsed||{min:0,max:0}, span=Math.max(0,p.max-p.min), o=opts||{};
+    if (!span) return p.min;
+    if (Number.isFinite(Number(o.index)) && Number.isFinite(Number(o.total)) && Number(o.total)>1) {
+      return Math.round(p.min + span * (Number(o.index) / (Number(o.total)-1)));
+    }
+    const str=String(cardId||'');let h=2166136261;
+    for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}
+    return p.min + ((h>>>0) % (span+1));
+  },
+  /* Reset/Forget oficial: volta à fila de novos, preserva o revlog e permite
+     controlar posição original e contadores de reps/lapses. */
+  resetCard(id, opts) {
     const c = this.getCard(id); if (!c) return null;
-    const data = CardEngine.addDays(todayCards(), n);
-    this.updateCard(id, { due: data, dueTs: null, enterradoAte: null, buryKind: null,
-      phase: (c.phase === 'new' ? 'review' : c.phase), status: c.status || 'sei' });
-    return data;
+    const o=Object.assign({restorePosition:false,resetCounts:false,log:true},opts||{}), before=Object.assign({},c);
+    const original=[c.originalPosition,c.originalPos,c.ankiOriginalPosition,c.posicaoOriginal].map(Number).find(Number.isFinite);
+    const maxPos=this.getCards().reduce((m,x)=>Math.max(m,Number(x.posicaoNova)||Number(x.ankiDue)||0),0);
+    const pos=o.restorePosition&&Number.isFinite(original)?original:maxPos+1;
+    const patch = {
+      phase:'new', learnStep:0, due:todayCards(), dueTs:null, intervalo:0,
+      s:null, d:null, lastReview:null, status:'pendente',
+      enterradoAte:null, buryKind:null, suspenso:false,
+      posicaoNova:pos, ankiDue:pos
+    };
+    if (o.resetCounts) { patch.reps=0; patch.lapses=0; patch.ease=2.5; patch.leech=false; }
+    const after=this.updateCard(id,patch);
+    try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
+    if (o.log!==false && after) this.addManualReview(Object.assign({},after,{_planId:c._planId}), 'reset', before, after);
+    return after;
   },
+  // Compatibilidade: Forget agora usa a semântica não destrutiva do Reset do Anki.
+  forgetCard(id, opts) { return this.resetCard(id, opts); },
+  /* Set Due Date oficial: aceita N, A-B e sufixo !.
+     - ranges distribuem a carga;
+     - cards novos viram review e recebem intervalo igual ao atraso;
+     - reviews mantêm o intervalo, salvo quando o usuário usa !. */
+  setDueSpec(id, spec, opts) {
+    const parsed = typeof spec === 'object' && spec && Number.isFinite(spec.min) ? spec : this.parseDueSpec(spec);
+    if (!parsed) return null;
+    const c=this.getCard(id); if(!c)return null;
+    const before=Object.assign({},c), days=this._dueRangePick(c.id,parsed,opts), wasNew=(c.phase||'new')==='new';
+    const patch={due:CardEngine.addDays(todayCards(),days),dueTs:null,enterradoAte:null,buryKind:null,phase:'review',status:c.status&&c.status!=='pendente'?c.status:'sei'};
+    if(wasNew||parsed.forceInterval)patch.intervalo=Math.max(1,Math.abs(days)||1);
+    const after=this.updateCard(id,patch);
+    if(after)this.addManualReview(Object.assign({},after,{_planId:c._planId}),'set-due',before,after);
+    return after?{card:after,days,parsed}:null;
+  },
+  setDueDays(id, dias) { return this.setDueSpec(id,String(Math.round(Number(dias)||0))); },
   // BANDEIRAS do Anki atual: 1–7; a barra compacta do Study continua
   // mostrando as quatro clássicas, e as adicionais ficam nas ações avançadas.
   FLAGS: [null, { nome: 'Vermelha', cor: '#e0393f' }, { nome: 'Laranja', cor: '#e07a1f' },
@@ -19413,17 +19458,11 @@ const DB = {
   // Faxina geral: remove do histórico e dos contadores tudo que aponta para card
   // inexistente. Devolve quantos registros foram descartados.
   limparOrfaos() {
+    /* Revlogs sem card correspondente são válidos no Anki após exclusão.
+       A faxina automática limita-se aos contadores/filas transitórias. */
     const ids = new Set(this.getCards().map(c => c.id));
     let n = 0;
-    try {
-      const l = this.getRevlog();
-      const limpo = l.filter(r => ids.has(r.cardId));
-      n = l.length - limpo.length;
-      if (n) this.replaceRevlog(limpo);
-    } catch (_) { _quiet(_); }
     try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
-    // A cura de cards FSRS roda em silêncio (não entra na contagem de "órfãos"):
-    // é uma correção de metadados, não uma remoção de lixo.
     try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
     try { const rest = this.restaurarCumprimentoSemana(); if (rest > 0) console.info('[reparo] ' + rest + ' semana(s) do histórico com \'estudado\' e \'% cumprido\' originais restaurados'); } catch (e) { _quiet(e, 'restaurar-cumprido'); }
     try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }
@@ -27113,7 +27152,12 @@ const AnkiExport = {
     return out;
   },
   _revKind(r) {
-    const k = (typeof AnkiParity !== 'undefined' && AnkiParity._trainingKind) ? AnkiParity._trainingKind(r) : String(r.phase || 'review');
+    const explicit=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+    if(explicit==='manual')return 4;
+    if(explicit==='rescheduled'||explicit==='reschedule')return 5;
+    if(explicit==='filtered')return 3;
+    const k = (typeof AnkiParity !== 'undefined' && AnkiParity._trainingKind)
+      ? AnkiParity._trainingKind(r) : (explicit||'review');
     return ({ learning: 0, review: 1, relearning: 2, filtered: 3, manual: 4, rescheduled: 5 })[k] ?? 1;
   },
   _revRows(cards, revlog) {
@@ -27121,7 +27165,10 @@ const AnkiExport = {
     for (const r of revlog || []) { const k = String(r.cardId); if (!group.has(k)) group.set(k, []); group.get(k).push(r); }
     const rows = []; let uniqueLast = 0;
     for (const pair of group) {
-      const sid = pair[0], logs = pair[1], card = byCard.get(sid); if (!card) continue;
+      const sid = pair[0], logs = pair[1], card = byCard.get(sid);
+      const historicalAnkiId=(logs||[]).map(r=>Number(r&&r.ankiCardId)).find(Number.isFinite);
+      const cardAnkiId=card&&Number.isFinite(Number(card.ankiId))?Number(card.ankiId):historicalAnkiId;
+      if (!Number.isFinite(cardAnkiId)) continue;
       logs.sort((a, b) => (Number(a.ts) || 0) - (Number(b.ts) || 0)); let prevExportIvl = 0;
       for (let i = 0; i < logs.length; i++) {
         const r = logs[i], kind = this._revKind(r), lastIvl = Number(r.intervalo) || prevExportIvl || 0;
@@ -27129,7 +27176,7 @@ const AnkiExport = {
         if (r.ankiIvlSemantica === 2 && r.ankiInterval != null && r.ankiLastInterval != null) {
           // Linha gravada já na semântica do Anki: exporta exatamente o que foi registrado.
           let id2 = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id2 <= uniqueLast) id2 = uniqueLast + 1; uniqueLast = id2;
-          rows.push([id2, Number(card.ankiId), -1, Math.min(4, Math.max(0, Math.round(Number(r.grade) || 0))), Math.round(Number(r.ankiInterval) || 0),
+          rows.push([id2, cardAnkiId, -1, Math.min(4, Math.max(0, Math.round(Number(r.grade) || 0))), Math.round(Number(r.ankiInterval) || 0),
             Math.round(Number(r.ankiLastInterval) || 0), Math.max(0, Math.round(Number(r.easeFactor) || 0)), Math.max(0, Math.round(Number(r.time) || 0)), kind]);
           prevExportIvl = Number(r.ankiInterval) || 0;
           continue;
@@ -27137,10 +27184,10 @@ const AnkiExport = {
         if (kind === 0 || kind === 2) {
           const next = logs[i + 1];
           const sec = next ? Math.max(1, Math.round(((Number(next.ts) || 0) - (Number(r.ts) || 0)) / 1000))
-            : (card.dueTs ? Math.max(1, Math.round((Number(card.dueTs) - (Number(r.ts) || 0)) / 1000)) : 0);
-          ivl = sec > 0 ? -sec : (Number(card.intervalo) || 0);
+            : (card&&card.dueTs ? Math.max(1, Math.round((Number(card.dueTs) - (Number(r.ts) || 0)) / 1000)) : 0);
+          ivl = sec > 0 ? -sec : (Number(card&&card.intervalo) || 0);
         } else {
-          const next = logs[i + 1]; ivl = next ? (Number(next.intervalo) || 0) : (Number(card.intervalo) || 0);
+          const next = logs[i + 1]; ivl = next ? (Number(next.intervalo) || 0) : (Number(card&&card.intervalo) || Number(r.ankiInterval) || 0);
           ivl = Math.max(0, Math.round(ivl));
         }
         let id = Math.max(1, Math.round(Number(r.ts) || Date.now())); if (id <= uniqueLast) id = uniqueLast + 1; uniqueLast = id;
@@ -27148,8 +27195,8 @@ const AnkiExport = {
         // factor DAQUELA revisão quando o histórico o registrou; o ease atual do
         // card é só o último recurso (antes era usado para o histórico inteiro).
         const easeDaRevisao = [r.easeFactor, r.factor, r.ease].map(Number).find(x => Number.isFinite(x) && x > 0);
-        const rawEase = easeDaRevisao || Number(card.ease) || 2.5;
-        rows.push([id, Number(card.ankiId), -1, ease, ivl, Math.round(lastIvl), Math.round(rawEase < 10 ? rawEase * 1000 : rawEase),
+        const rawEase = easeDaRevisao || Number(card&&card.ease) || 2.5;
+        rows.push([id, cardAnkiId, -1, ease, ivl, Math.round(lastIvl), Math.round(rawEase < 10 ? rawEase * 1000 : rawEase),
           Math.max(0, Math.round(Number(r.time) || 0)), kind]);
         prevExportIvl = ivl;
       }
@@ -36014,8 +36061,8 @@ const CardsScreen = {
           <button type="button" class="icon-btn" id="cards-act-mark" title="Marcar/desmarcar nota (*)">${c.favorito ? '★ Marcada' : '☆ Marcar'}</button>
           <button type="button" class="icon-btn" id="cards-act-bury" title="Enterrar: some da fila até amanhã (−)">⤓ Enterrar</button>
           <button type="button" class="icon-btn" id="cards-act-susp" title="Suspender: some até você reativar (@)">🚫 Suspender</button>
-          <button type="button" class="icon-btn" id="cards-act-forget" title="Esquecer: volta a ser card novo (Ctrl+Alt+N)">↺ Esquecer</button>
-          <button type="button" class="icon-btn" id="cards-act-due" title="Definir data de vencimento (Ctrl+Shift+D)">📅 Data</button>
+          <button type="button" class="icon-btn" id="cards-act-forget" title="Resetar: volta a ser novo e preserva o histórico (Ctrl+Alt+N)">↺ Resetar</button>
+          <button type="button" class="icon-btn" id="cards-act-due" title="Definir vencimento: aceita N, A-B e A-B! (Ctrl+Shift+D)">📅 Data</button>
           <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
           <button type="button" class="icon-btn ${this._autoAdvanceEnabled?'on':''}" id="cards-auto-advance" aria-pressed="${this._autoAdvanceEnabled?'true':'false'}" title="Alternar Auto Advance (Shift+A)">${this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto'}</button>
           <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)" aria-label="Excluir card (Ctrl+Del)">🗑</button>
@@ -36050,19 +36097,44 @@ const CardsScreen = {
     liga('cards-act-mark', () => { DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box); showToast(c.favorito ? 'Desmarcada' : '★ Marcada'); });
     liga('cards-act-bury', () => { const d2 = DB.buryCard(c.id); proximo(); showToast('⤓ Enterrado até ' + formatDateShort(d2)); });
     liga('cards-act-susp', () => { if (typeof AnkiParity !== 'undefined') AnkiParity.suspendCard(c.id); else DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
+    const reviewRef = () => c._planId != null
+      ? 'c:' + encodeURIComponent(String(c._planId)) + '::' + encodeURIComponent(String(c.id))
+      : 'c:' + encodeURIComponent(String(c.id));
+    const refreshManual = () => {
+      CardEngine.invalidateDueCache();
+      this.invalidateReviewQueue();
+      this.renderContent();
+      this.atualizarFoco();
+    };
     liga('cards-act-forget', () => {
-      UI.confirm('Esquecer este card? Ele volta a ser um card novo e perde o histórico de agendamento.',
-        { title: '↺ Esquecer card', okText: 'Esquecer', danger: true }).then(ok => {
-          if (!ok) return; DB.forgetCard(c.id); proximo(); showToast('↺ Card voltou a ser novo');
-        });
+      if (window.StudyGlobalScope && StudyGlobalScope.bulkResetUi) {
+        StudyGlobalScope.bulkResetUi([reviewRef()]);
+        return;
+      }
+      UI.prompt([
+        { key: 'restore', label: 'Restaurar posição original?', type: 'select', value: 'no',
+          options: [{ value: 'no', label: 'Não — enviar ao fim da fila de novos' }, { value: 'yes', label: 'Sim — usar posição original quando disponível' }] },
+        { key: 'counts', label: 'Zerar repetições e lapsos?', type: 'select', value: 'no',
+          options: [{ value: 'no', label: 'Não — preservar contadores' }, { value: 'yes', label: 'Sim — zerar contadores' }] }
+      ], { title: '↺ Resetar card', okText: 'Resetar' }).then(v => {
+        if (!v) return;
+        DB.resetCard(c.id, { restorePosition: v.restore === 'yes', resetCounts: v.counts === 'yes', log: true });
+        refreshManual(); showToast('↺ Card voltou à fila de novos; histórico preservado ✓');
+      });
     });
     liga('cards-act-due', () => {
-      UI.prompt([{ key: 'd', label: 'Vencer daqui a quantos dias?', type: 'number', value: '1',
-        hint: '0 = hoje. Equivale ao "Set Due Date" do Anki.' }],
-        { title: '📅 Definir data', okText: 'Agendar' }).then(v => {
+      if (window.StudyGlobalScope && StudyGlobalScope.bulkSetDueUi) {
+        StudyGlobalScope.bulkSetDueUi([reviewRef()]);
+        return;
+      }
+      UI.prompt([{ key: 'spec', label: 'Vencimento', type: 'text', value: '1',
+        placeholder: 'ex.: 10, 60-90 ou 60-90!',
+        hint: 'A-B distribui no intervalo. ! também redefine o intervalo de cards em revisão.' }],
+        { title: '📅 Definir vencimento', okText: 'Agendar' }).then(v => {
           if (!v) return;
-          const data = DB.setDueDays(c.id, v.d);
-          proximo(); showToast('📅 Agendado para ' + formatDateShort(data));
+          const result = DB.setDueSpec(c.id, v.spec);
+          if (!result) { showToast('Formato inválido. Use N, A-B ou A-B!.'); return; }
+          refreshManual(); showToast('📅 Vencimento atualizado ✓');
         });
     });
     liga('cards-act-info', () => this.cardInfo(c.id));
@@ -37343,6 +37415,10 @@ const CardsScreen = {
         ? StudyGlobalScope.planName(cardPlanId) : (activePlan && activePlan.nome) || null);
       const key = auditKey(cardPlanId, c.id);
       const logs = reviewsByCard.get(key) || [];
+      const schedulingLogs=logs.filter(r=>{
+        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      });
       byCard[key] = {
         auditKey:key, id:c.id, planId:cardPlanId, planName:cardPlanName,
         deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
@@ -37361,7 +37437,9 @@ const CardsScreen = {
           if (q(0.212)||q(1.2931)||q(2.3065)||q(8.2956)) return 'fsrs6-inicial';
           return 'derivado';
         })(),
-        reviewCount:logs.length
+        reviewCount:logs.length,
+        schedulingReviewCount:schedulingLogs.length,
+        manualReviewCount:logs.length-schedulingLogs.length
       };
     });
 
@@ -37433,13 +37511,20 @@ const CardsScreen = {
        recompõe S/D pelo histórico FSRS com os pesos efetivos do baralho. */
     const cardKeys = new Set(Object.keys(byCard));
     const orphanReviewEntries = [];
+    const historicalReviewEntriesWithoutCard = [];
     const duplicateReviewIds = [];
     const seenReviewIds = new Map();
     revlog.forEach((r, index) => {
       if (!r) return;
       const pid = r._planId || activePlanId || null;
       const ck = auditKey(pid, r.cardId);
-      if (!cardKeys.has(ck)) orphanReviewEntries.push({ index, planId:pid, cardId:r.cardId || null, reviewId:r.reviewId || null });
+      if (r.cardId == null || String(r.cardId).trim() === '') {
+        orphanReviewEntries.push({ index, planId:pid, cardId:null, reviewId:r.reviewId || null, reason:'missing_card_id' });
+      } else if (!cardKeys.has(ck)) {
+        /* Como no Anki, excluir uma nota/card não apaga seu histórico. Essas
+           linhas são históricas válidas, não corrupção nem "órfãos" a limpar. */
+        historicalReviewEntriesWithoutCard.push({ index, planId:pid, cardId:r.cardId, reviewId:r.reviewId || null });
+      }
       if (r.reviewId != null) {
         const rk = auditKey(pid, r.reviewId);
         if (seenReviewIds.has(rk)) duplicateReviewIds.push({ planId:pid, reviewId:r.reviewId, firstIndex:seenReviewIds.get(rk), duplicateIndex:index });
@@ -37451,12 +37536,16 @@ const CardsScreen = {
     cards.forEach(c => {
       const pid = planIdOfCard(c), key = auditKey(pid, c.id);
       const logs = reviewsByCard.get(key) || [];
-      if ((c.reps || 0) !== logs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:logs.length });
+      const schedulingLogs=logs.filter(r=>{
+        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      });
+      if ((c.reps || 0) !== schedulingLogs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:schedulingLogs.length, manualEntries:logs.length-schedulingLogs.length });
       const deckId = c.originalDeckId || c.deckId;
       const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
-      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !logs.length) return;
+      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !schedulingLogs.length) return;
       const weights = CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights;
-      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(logs, weights) : null;
+      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(schedulingLogs, weights) : null;
       if (!replay) return;
       const relS = Math.abs(c.s - replay.s) / Math.max(Math.abs(replay.s), FSRS.S_MIN || 0.001);
       const absD = Math.abs(c.d - replay.d);
@@ -37494,6 +37583,7 @@ const CardsScreen = {
       repsVsReviewLog:{checked:cards.length,mismatches:repsMismatches},
       duplicateReviewIds,
       orphanReviewEntries,
+      historicalReviewEntriesWithoutCard,
       memoryReplay
     };
 
@@ -40814,7 +40904,7 @@ const AnkiProductParity = {
     if(!ids.length)return;
     UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
       {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},
-      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Esquecer / tornar novos'},
+      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Resetar / tornar novos'},
       {value:'reposition',label:'🔢 Reposicionar cards novos'},{value:'replace',label:'🔁 Localizar e substituir nos campos'}
     ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
       if(!v)return;
@@ -40856,16 +40946,23 @@ const AnkiProductParity = {
   },
 
   bulkSetDue(ids){
-    UI.prompt([{key:'days',label:'Vencer daqui a quantos dias?',type:'number',value:'1',hint:'0 = hoje. Aplica a todos os cards das notas selecionadas.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
-      if(!v)return;const days=Math.max(0,Math.round(Number(v.days)||0));let n=0;
-      ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>{DB.setDueDays(c.id,days);n++;});
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(n+' card(s) reagendado(s) ✓');
+    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',
+      hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
     });
   },
 
   bulkForget(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id));UI.confirm('Esquecer '+cards.length+' card(s)? Eles voltam ao estado de novos; o conteúdo das notas é preservado.',{title:'↺ Esquecer cards',okText:'Esquecer',danger:true}).then(ok=>{
-      if(!ok)return;cards.forEach(c=>DB.forgetCard(c.id));CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram a ser novos ✓');
+    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
+    UI.prompt([
+      {key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},
+      {key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}
+    ],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));
+      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
     });
   },
 
@@ -41001,7 +41098,7 @@ const AnkiProductParity = {
     this.ensure();const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes(),
       decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),rev=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
       noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id))),deckIds=new Set(decks.map(d=>String(d.id))),cardIds=new Set(cards.map(c=>String(c.id)));
-    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
+    const issues={missingNote:[],missingType:[],typeMismatch:[],missingDeck:[],orphanRevlog:[],historicalRevlog:[],invalidSchedule:[],empty:AnkiParity.emptyCardIds(),suspendedBuried:[],duplicateGuid:[],missingMedia:[]};
     cards.forEach(c=>{
       const nid=this.noteId(c),n=AnkiParity.getNote(nid);if(!n)issues.missingNote.push(c.id);else if(!typeIds.has(String(n.notetypeId)))issues.missingType.push(n.id);else if(String(c.notetypeId||'')!==String(n.notetypeId))issues.typeMismatch.push(c.id);
       if(c.deckId!=null&&!deckIds.has(String(c.deckId)))issues.missingDeck.push(c.id);
@@ -41010,7 +41107,10 @@ const AnkiProductParity = {
       if(c.s!=null&&(!Number.isFinite(Number(c.s))||Number(c.s)<=0))issues.invalidSchedule.push(c.id);
       if(c.d!=null&&(!Number.isFinite(Number(c.d))||Number(c.d)<1||Number(c.d)>10))issues.invalidSchedule.push(c.id);
     });
-    rev.forEach(r=>{if(!cardIds.has(String(r.cardId)))issues.orphanRevlog.push(r);});
+    rev.forEach(r=>{
+      if(!r||r.cardId==null||String(r.cardId).trim()==='')issues.orphanRevlog.push(r);
+      else if(!cardIds.has(String(r.cardId)))issues.historicalRevlog.push(r);
+    });
     const g=new Map();notes.forEach(n=>{if(!n.guid)return;const k=String(n.guid);if(!g.has(k))g.set(k,[]);g.get(k).push(n.id);});g.forEach(v=>{if(v.length>1)issues.duplicateGuid.push(...v);});
     const scanText=(text,where)=>{
       const s=String(text||''),refs=[];let m;const re=/(?:src|href|poster)\s*=\s*["']([^"']+)["']/gi;while((m=re.exec(s)))refs.push(m[1]);
@@ -41026,13 +41126,14 @@ const AnkiProductParity = {
   renderCheck(){
     const x=this.scanCollection(),rows=[
       ['Cards sem nota',x.missingNote.length],['Notas sem tipo',x.missingType.length],['Tipo divergente no card',x.typeMismatch.length],
-      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs órfãos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
+      ['Cards em baralho inexistente',x.missingDeck.length],['Revlogs inválidos',x.orphanRevlog.length],['Agendamento inválido',x.invalidSchedule.length],
       ['Cards vazios',x.empty.length],['Suspenso + enterrado',x.suspendedBuried.length],['GUID duplicado',x.duplicateGuid.length],['Referências de mídia locais sem arquivo incorporado',x.missingMedia.length]
     ];
     const total=rows.reduce((a,x)=>a+x[1],0);document.getElementById('anki-check-body').innerHTML='<div class="anki-check-status '+(total?'warn':'ok')+'"><strong>'+(total?'Encontrados pontos para revisar':'Coleção consistente')+'</strong><span>'+total+' ocorrência(s)</span></div>'+
       '<div class="anki-check-grid">'+rows.map(r=>'<div><span>'+this.esc(r[0])+'</span><strong>'+r[1]+'</strong></div>').join('')+'</div>'+
       (x.missingMedia.length?'<details><summary>Referências de mídia</summary><div class="anki-check-details">'+x.missingMedia.slice(0,50).map(m=>'<div>'+this.esc(m.where)+' → <code>'+this.esc(m.ref)+'</code></div>').join('')+'</div></details>':'')+
-      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e limpa revlogs que apontam para cards já excluídos. Não apaga cards vazios nem conteúdo de notas.</p>';
+      (x.historicalRevlog.length?'<p class="hint">ℹ '+x.historicalRevlog.length+' revisão(ões) pertencem a cards já excluídos. Esse histórico é preservado de propósito, como no Anki, e continua válido para estatísticas.</p>':'')+
+      '<p class="hint">“Reparos seguros” normaliza relações Nota↔Card, remove enterramento de cards suspensos e descarta apenas revlogs estruturalmente inválidos (sem cardId). Não apaga histórico válido nem conteúdo de notas.</p>';
   },
 
   _bindCheck(){
@@ -41044,7 +41145,7 @@ const AnkiProductParity = {
         const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
         fixed+=(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)?StudyGlobalScope.cleanOrphanRevlog(scope):0;
         if(!(window.StudyGlobalScope&&StudyGlobalScope.cleanOrphanRevlog)){
-          const ids=new Set(DB.getCards().map(c=>String(c.id))),before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>ids.has(String(r.cardId))));fixed+=before.length-DB.getRevlog().length;
+          const before=DB.getRevlog();DB.replaceRevlog(before.filter(r=>r&&r.cardId!=null&&String(r.cardId).trim()!==''));fixed+=before.length-DB.getRevlog().length;
         }
       }
       CardEngine.invalidateDueCache();this.renderCheck();CardsScreen.render();showToast(fixed?fixed+' reparo(s) seguro(s) aplicado(s) ✓':'Nada para reparar');
@@ -41062,16 +41163,17 @@ const AnkiProductParity = {
 
   decorateReviewer(){
     const nav=document.querySelector('.cards-review-nav');if(!nav||document.getElementById('anki-review-more'))return;
+    const renderedCard=this._currentReviewCard();
     const b=document.createElement('button');b.type='button';b.className='icon-btn';b.id='anki-review-more';b.textContent='⋯ Mais ações';b.title='Ações adicionais do AnkiDroid';
-    b.addEventListener('click',()=>this.openReviewerActions());nav.appendChild(b);
+    b.addEventListener('click',()=>this.openReviewerActions(renderedCard||this._currentReviewCard()));nav.appendChild(b);
   },
 
   _currentReviewCard(){
     const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx];return id?DB.getCard(id):null;
   },
 
-  openReviewerActions(){
-    const c=this._currentReviewCard();if(!c)return;
+  openReviewerActions(cardHint){
+    const c=cardHint||this._currentReviewCard();if(!c)return;
     const opts=[
       {value:'tags',label:'🏷 Editar etiquetas'},{value:'media',label:'▶ Repetição de mídia'},{value:'tts',label:'🎙 Reproduzir voz'},
       {value:'whiteboard',label:'✍ Quadro'},{value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}
@@ -41890,7 +41992,7 @@ const AnkiMaxParity = {
     AnkiProductParity.browserBulkActions=(ids)=>{
       if(!ids.length)return;UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
         {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},{value:'due',label:'📅 Definir vencimento'},
-        {value:'forget',label:'↺ Esquecer / tornar novos'},{value:'reposition',label:'🔢 Reposicionar novos'},{value:'replace',label:'🔁 Localizar e substituir'}
+        {value:'forget',label:'↺ Resetar / tornar novos'},{value:'reposition',label:'🔢 Reposicionar novos'},{value:'replace',label:'🔁 Localizar e substituir'}
       ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
         if(!v)return;if(v.action==='mark')AnkiProductParity.bulkMark(ids);else if(v.action==='replace')AnkiProductParity.bulkFindReplace(ids);
         else if(v.action==='deck')this._bulkCardsMove(ids);else if(v.action==='due')this._bulkCardsDue(ids);else if(v.action==='forget')this._bulkCardsForget(ids);else if(v.action==='reposition')this._bulkCardsReposition(ids);
@@ -41905,10 +42007,17 @@ const AnkiMaxParity = {
     UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{if(!v)return;cards.forEach(c=>DB.updateCard(c.id,c.originalDeckId?{originalDeckId:v.deck}:{deckId:v.deck}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) movido(s) ✓');});
   },
   _bulkCardsDue(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;UI.prompt([{key:'days',label:'Vencer daqui a quantos dias?',type:'number',value:'1'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{if(!v)return;const d=Math.max(0,Math.round(Number(v.days)||0));cards.forEach(c=>DB.setDueDays(c.id,d));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');});
+    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
+    });
   },
   _bulkCardsForget(ids){
-    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;UI.confirm('Esquecer '+cards.length+' card(s)?',{title:'↺ Esquecer cards',okText:'Esquecer',danger:true}).then(ok=>{if(!ok)return;cards.forEach(c=>DB.forgetCard(c.id));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram a ser novos ✓');});
+    const cards=this._resolveSelection(ids).cards;if(!cards.length)return;
+    UI.prompt([{key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},{key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));CardEngine.invalidateDueCache();AnkiProductParity.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
+    });
   },
   _bulkCardsReposition(ids){
     const cards=this._resolveSelection(ids).cards.filter(c=>(c.phase||'new')==='new');if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
@@ -41920,7 +42029,7 @@ const AnkiMaxParity = {
     const oldDecorate=AnkiProductParity.decorateReviewer.bind(AnkiProductParity);
     AnkiProductParity.decorateReviewer=()=>{oldDecorate();this._decorateReviewerExact();};
 
-    AnkiProductParity.openReviewerActions=()=>this.openReviewerActions();
+    AnkiProductParity.openReviewerActions=(cardHint)=>this.openReviewerActions(cardHint);
 
     const oldAnswer=CardsScreen.answer.bind(CardsScreen);
     CardsScreen.answer=async(grade)=>{const id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null,ok=await oldAnswer(grade);if(ok===true&&id)this._previousCardId=id;return ok;};
@@ -41991,8 +42100,8 @@ const AnkiMaxParity = {
   },
   previousCardInfo(){if(!this._previousCardId){showToast('Nenhum card anterior nesta sessão');return;}CardsScreen.cardInfo(this._previousCardId);},
 
-  openReviewerActions(){
-    const c=AnkiProductParity._currentReviewCard();if(!c)return;const opts=[];
+  openReviewerActions(cardHint){
+    const c=cardHint||AnkiProductParity._currentReviewCard();if(!c)return;const opts=[];
     if((CardsScreen._redoStack||[]).length)opts.push({value:'redo',label:'↷ Refazer última ação'});
     opts.push(
       {value:'mark',label:'★ Marcar/desmarcar nota'},{value:'tags',label:'🏷 Editar etiquetas'},
@@ -63791,20 +63900,20 @@ else CloudStore.init();
       return sc === 'all' ? this.allBy(suffix) : this._tag(this.activePlanId(), this._rows(this.activePlanId(), suffix));
     },
     cards(scope) {
-      const rows = this.forScope('cards', scope);
+      const rows = this.forScope('cards', scope), sc = scope || this.cardsScope();
       const seen = new Set();
       return rows.filter(c => {
-        const k = String(c && c.id);
-        if (!k || seen.has(k)) return false;
+        const id=String(c&&c.id||''), k=sc==='all' ? String(c&&c._planId||'')+'::'+id : id;
+        if (!id || seen.has(k)) return false;
         seen.add(k); return true;
       });
     },
     decks(scope) {
-      const rows = this.forScope('decks', scope);
+      const rows = this.forScope('decks', scope), sc = scope || this.cardsScope();
       const seen = new Set();
       return rows.filter(d => {
-        const k = String(d && d.id);
-        if (!k || seen.has(k)) return false;
+        const id=String(d&&d.id||''), k=sc==='all' ? String(d&&d._planId||'')+'::'+id : id;
+        if (!id || seen.has(k)) return false;
         seen.add(k); return true;
       });
     },
@@ -63833,18 +63942,22 @@ else CloudStore.init();
       }
       return null;
     },
-    findCardRecord(id) {
+    findCardRecord(id, planId) {
+      const raw = id && typeof id === 'object' ? id : null;
+      const cardId = String(raw ? raw.id : id);
+      const explicitPlan = planId != null ? planId : (raw && raw._planId != null ? raw._planId : null);
       const active = this.activePlanId();
-      const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
+      const ids = explicitPlan != null ? [explicitPlan]
+        : [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
       for (const pid of ids) {
         const list = this._rows(pid, 'cards');
-        const idx = list.findIndex(c => String(c.id) === String(id));
+        const idx = list.findIndex(c => String(c.id) === cardId);
         if (idx >= 0) return { planId: pid, list, index: idx, card: list[idx] };
       }
       return null;
     },
-    sourcePlanForCard(id) {
-      const r = this.findCardRecord(id);
+    sourcePlanForCard(id, planId) {
+      const r = this.findCardRecord(id, planId);
       return r ? r.planId : null;
     },
     cardPosition(id) {
@@ -64103,10 +64216,11 @@ else CloudStore.init();
       return out;
     },
     cleanOrphanRevlog(scope) {
+      /* Revlog de card excluído é histórico válido no Anki. Aqui só removemos
+         linhas estruturalmente inválidas, sem cardId. */
       let removed=0;
       this.planIdsForScope(scope).forEach(pid=>{
-        const ids=new Set(this._rows(pid,'cards').map(c=>String(c.id)));
-        const before=this._revlogForPlan(pid),after=before.filter(r=>ids.has(String(r.cardId)));
+        const before=this._revlogForPlan(pid),after=before.filter(r=>r&&r.cardId!=null&&String(r.cardId).trim()!=='');
         removed+=before.length-after.length;if(after.length!==before.length)this.replaceRevlogPlan(pid,after);
       });
       return removed;
@@ -64650,26 +64764,39 @@ else CloudStore.init();
     try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){if(typeof _quiet==='function')_quiet(e,'global-card-note-sync');}
     return salvo;
   };
-  DB.deleteCard = function(id) {
-    if (O.getCard(id)) return O.deleteCard(id);
-    const r = S.findCardRecord(id); if (!r) return;
-    DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(id)));
-    S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => String(x.cardId) !== String(id)));
-    try { CardsConfig.forgetCardId(id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
+  S.preserveDeletedCardRevlogIds = function(planId, cards) {
+    const map=new Map((cards||[]).filter(c=>c&&c.ankiId!=null&&Number.isFinite(Number(c.ankiId))).map(c=>[String(c.id),Number(c.ankiId)]));
+    if(!map.size)return 0;
+    const rows=this._revlogForPlan(planId);let changed=0;
+    rows.forEach(r=>{const aid=map.get(String(r&&r.cardId));if(aid!=null&&r.ankiCardId==null){r.ankiCardId=aid;changed++;}});
+    if(changed)this.replaceRevlogPlan(planId,rows);
+    return changed;
   };
-  DB.deleteNoteByCard = function(id) {
-    if (O.getCard(id)) return O.deleteNoteByCard(id);
-    const r = S.findCardRecord(id); if (!r) return 0;
+
+  DB.deleteCard = function(id, planId) {
+    const r = S.findCardRecord(id, planId); if (!r) return;
+    if (String(r.planId) === String(S.activePlanId()) && planId == null && O.getCard(id)) return O.deleteCard(id);
+    S.preserveDeletedCardRevlogIds(r.planId,[r.card]);
+    if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => String(c.id) !== String(r.card.id))) === false) return false;
+    /* Revlog histórico é preservado, como no Anki. */
+    try { CardsConfig.forgetCardId(r.card.id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
+    return true;
+  };
+  DB.deleteNoteByCard = function(id, planId) {
+    const r = S.findCardRecord(id, planId); if (!r) return 0;
+    if (String(r.planId) === String(S.activePlanId()) && planId == null && O.getCard(id)) return O.deleteNoteByCard(id);
     const nid = String(r.card.noteId || r.card.id);
-    const ids = new Set(r.list.filter(c => String(c.noteId || c.id) === nid).map(c => String(c.id)));
+    const noteCards=r.list.filter(c => String(c.noteId || c.id) === nid);
+    const ids = new Set(noteCards.map(c => String(c.id)));
+    S.preserveDeletedCardRevlogIds(r.planId,noteCards);
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list.filter(c => !ids.has(String(c.id)))) === false) return false;
-    S.replaceRevlogPlan(r.planId, S._revlogForPlan(r.planId).filter(x => !ids.has(String(x.cardId))));
+    /* Revlog histórico é preservado, como no Anki. */
     try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
     return ids.size;
   };
 
   DB.addRevlog = function(entry) {
-    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    const pid = entry && entry._planId != null ? entry._planId : S.sourcePlanForCard(entry && entry.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlog(entry);
     const l = S._revlogForPlan(pid), last = l.length ? l[l.length - 1] : null;
     const pos = Math.max(l.length, Number(last && last._position) || 0) + 1;
@@ -64688,7 +64815,7 @@ else CloudStore.init();
   };
 
   DB.addRevlogDurable = async function(entry, cardAfter, cardPosition) {
-    const pid = S.sourcePlanForCard(entry && entry.cardId);
+    const pid = entry && entry._planId != null ? entry._planId : S.sourcePlanForCard(entry && entry.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.addRevlogDurable(entry, cardAfter, cardPosition);
     const l = S._revlogForPlan(pid), last = l.length ? l[l.length-1] : null;
     const pos = Math.max(l.length, Number(last && last._position)||0) + 1;
@@ -64711,7 +64838,7 @@ else CloudStore.init();
     return row;
   };
   DB.cancelarRevlogDurable = async function(row) {
-    const pid = S.sourcePlanForCard(row && row.cardId);
+    const pid = row && row._planId != null ? row._planId : S.sourcePlanForCard(row && row.cardId);
     if (!pid || String(pid) === String(S.activePlanId())) return O.cancelarRevlogDurable(row);
     const l = S._revlogForPlan(pid), i = l.findIndex(x => x && x.reviewId === row.reviewId);
     if (i >= 0) l.splice(i,1);
@@ -64741,7 +64868,11 @@ else CloudStore.init();
         const bury=(ph==='new'&&cfg.buryNew)||(ph==='review'&&cfg.buryReviews)||(inter&&cfg.buryInterdayLearning);
         // siblings_for_bury.sql: fila de novos, de revisão (vencida ou não) ou de
         // aprendizado entre dias — só não repete quem já está enterrado.
-        if(bury&&!CardEngine.estaEnterrado(s)){DB.buryCard(s.id,'scheduler');buried.push(s.id);}
+        if(bury&&!CardEngine.estaEnterrado(s)){
+          if(S.buryCardScoped)S.buryCardScoped(Object.assign({},s,{_planId:pid}),'scheduler');
+          else DB.buryCard(s.id,'scheduler');
+          buried.push(s.id);
+        }
       });
       return buried;
     };
@@ -64895,14 +65026,441 @@ else CloudStore.init();
     }
   };
 
+
+  /* ── Paridade de uso real com Anki 26.09.3: identidade e ações manuais. ── */
+  S.updateCardScoped = function(ref, patch, planId) {
+    const r=this.findCardRecord(ref,planId);if(!r)return null;
+    let p=DB._semTransitorios?DB._semTransitorios(patch):patch;
+    if(p&&('frente' in p||'verso' in p)){
+      p=Object.assign({},p);
+      if('frente' in p)p.frente=_sanCard(p.frente);
+      if('verso' in p)p.verso=_sanCard(p.verso);
+    }
+    const c=r.list[r.index];Object.assign(c,p||{});c.updatedAt=new Date().toISOString();
+    if(!(p&&p.ankiMod!=null))c.ankiMod=Math.floor(Date.now()/1000);
+    if(DB._set(DB.keysForPlan(r.planId).cards,r.list)===false)return false;
+    return Object.assign({},c,{_planId:r.planId,_planNome:this.planName(r.planId)});
+  };
+
+  S.appendManualRevlog = function(ref, action, before, after) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);
+    const pid=r?r.planId:(ref&&ref._planId);if(pid==null)return null;
+    const card=r?r.card:ref,b=before||card||{},a=after||card||{},ts=Date.now();
+    const list=this._revlogForPlan(pid),last=list.length?list[list.length-1]:null;
+    const row=DB._normalizarReviewId({
+      _position:Math.max(list.length,Number(last&&last._position)||0)+1,
+      cardId:String(card&&card.id||''),ts,date:todayCards(),grade:0,acerto:null,time:0,
+      elapsed:Number(b.intervalo)||0,phase:'manual',ankiReviewKind:'manual',ankiIvlSemantica:2,
+      ankiInterval:Number(a.intervalo)||0,ankiLastInterval:Number(b.intervalo)||0,
+      intervalo:Number(b.intervalo)||0,easeFactor:Math.round((Number(a.ease)||2.5)*1000),
+      action:String(action||'manual')
+    },true);
+    list.push(row);const key=DB.keysForPlan(pid).revlog;
+    try{
+      if(DB._bancoRelacionalPronto&&DB._bancoRelacionalPronto()&&window.RelationalStore&&RelationalStore.queueRevlogAppend)
+        RelationalStore.queueRevlogAppend(key,row);
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'global-manual-revlog');}
+    if(this._savePending(pid,row)===false){
+      const i=list.findIndex(x=>x&&x.reviewId===row.reviewId);if(i>=0)list.splice(i,1);return false;
+    }
+    return Object.assign({},row,{_planId:pid,_planNome:this.planName(pid)});
+  };
+
+  S.setDueScoped = function(ref, spec, opts) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    const parsed=typeof spec==='object'&&spec&&Number.isFinite(spec.min)?spec:DB.parseDueSpec(spec);
+    if(!parsed)return null;
+    const c=Object.assign({},r.card,{_planId:r.planId}),before=Object.assign({},c);
+    const days=DB._dueRangePick(c.id,parsed,opts),wasNew=(c.phase||'new')==='new';
+    const patch={
+      due:CardEngine.addDays(todayCards(),days),dueTs:null,enterradoAte:null,buryKind:null,
+      phase:'review',status:c.status&&c.status!=='pendente'?c.status:'sei'
+    };
+    if(wasNew||parsed.forceInterval)patch.intervalo=Math.max(1,Math.abs(days)||1);
+    const after=this.updateCardScoped(c,patch,r.planId);
+    if(after)this.appendManualRevlog(after,'set-due',before,after);
+    return after?{card:after,days,parsed}:null;
+  };
+
+  S.resetCardScoped = function(ref, opts) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    const c=Object.assign({},r.card,{_planId:r.planId}),before=Object.assign({},c);
+    const o=Object.assign({restorePosition:false,resetCounts:false,log:true},opts||{});
+    const original=[c.originalPosition,c.originalPos,c.ankiOriginalPosition,c.posicaoOriginal].map(Number).find(Number.isFinite);
+    const maxPos=r.list.reduce((m,x)=>Math.max(m,Number(x.posicaoNova)||Number(x.ankiDue)||0),0);
+    const pos=o.restorePosition&&Number.isFinite(original)?original:maxPos+1;
+    const patch={
+      phase:'new',learnStep:0,due:todayCards(),dueTs:null,intervalo:0,s:null,d:null,lastReview:null,
+      status:'pendente',enterradoAte:null,buryKind:null,suspenso:false,posicaoNova:pos,ankiDue:pos
+    };
+    if(o.resetCounts){patch.reps=0;patch.lapses=0;patch.ease=2.5;patch.leech=false;}
+    const after=this.updateCardScoped(c,patch,r.planId);
+    try{CardsConfig.forgetCardId(c.id);}catch(_){if(typeof _quiet==='function')_quiet(_,'global-reset-daily');}
+    if(o.log!==false&&after)this.appendManualRevlog(after,'reset',before,after);
+    return after;
+  };
+
+  S.buryCardScoped = function(ref, origem) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    const c=Object.assign({},r.card,{_planId:r.planId}),buryKind=origem==='scheduler'?'scheduler':'user';
+    return this.updateCardScoped(c,{
+      enterradoAte:CardEngine.addDays(todayCards(),1),buryKind,
+      dueTsAntesEnterrar:c.dueTs==null?null:c.dueTs,dueTs:null
+    },r.planId);
+  };
+
+  S.suspendCardScoped = function(ref, value) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    return this.updateCardScoped(Object.assign({},r.card,{_planId:r.planId}),{suspenso:value!==false},r.planId);
+  };
+
+  S.deleteNoteScoped = function(note) {
+    if(!note)return 0;
+    const pid=note._planId!=null?note._planId:this.activePlanId(),nid=String(note.id);
+    const list=this._rows(pid,'cards');
+    const noteCards=list.filter(c=>String(window.AnkiParity?AnkiParity.noteId(c):(c.noteId||c.id))===nid);
+    const ids=new Set(noteCards.map(c=>String(c.id)));if(!ids.size)return 0;
+    this.preserveDeletedCardRevlogIds(pid,noteCards);
+    if(DB._set(DB.keysForPlan(pid).cards,list.filter(c=>!ids.has(String(c.id))))===false)return false;
+    try{ids.forEach(cid=>CardsConfig.forgetCardId(cid));}catch(_){if(typeof _quiet==='function')_quiet(_,'global-delete-note-daily');}
+    try{localStorage.removeItem(this.entityKeyForPlan(pid,'note',nid));}catch(_){if(typeof _quiet==='function')_quiet(_,'global-delete-note-entity');}
+    return ids.size;
+  };
+
+  S.identityCollisions = function() {
+    const collect=suffix=>{
+      const m=new Map();
+      this.allBy(suffix).forEach(x=>{
+        if(!x||x.id==null)return;const id=String(x.id),pid=String(x._planId||'');
+        if(!m.has(id))m.set(id,new Set());m.get(id).add(pid);
+      });
+      return [...m.entries()].filter(([,pids])=>pids.size>1).map(([id,pids])=>({id,planIds:[...pids]}));
+    };
+    return {cards:collect('cards'),decks:collect('decks')};
+  };
+  const _setCardsScopeUnsafe=S.setCardsScope.bind(S);
+  S.setCardsScope=function(v){
+    if(v!=='plan'){
+      const c=this.identityCollisions();
+      if(c.cards.length||c.decks.length){
+        showToast('IDs duplicados entre planejamentos: modo global bloqueado para evitar editar o card errado.');
+        return _setCardsScopeUnsafe('plan');
+      }
+    }
+    return _setCardsScopeUnsafe(v);
+  };
+  S.ensureGlobalIdentitySafe=function(){
+    const c=this.identityCollisions();this._lastIdentityCollisions=c;
+    if(this.cardsScope()==='all'&&(c.cards.length||c.decks.length)){
+      _setCardsScopeUnsafe('plan');
+      setTimeout(()=>showToast('Proteção ativa: colisão de IDs detectada; Cards ficou no planejamento atual.'),0);
+      return false;
+    }
+    return true;
+  };
+
+
+  S._selectedBrowserRows=function(ids){
+    if(typeof AnkiMaxParity!=='undefined'&&AnkiMaxParity._resolveSelection)
+      return AnkiMaxParity._resolveSelection(ids||[]);
+    const notes=[],cards=[],seen=new Set();
+    (ids||[]).forEach(raw=>{
+      const n=raw&&typeof raw==='object'?raw:AnkiParity.getNote(raw);
+      if(!n)return;const k=String(n._planId||'')+'::'+String(n.id);
+      if(seen.has(k))return;seen.add(k);notes.push(n);
+      cards.push(...AnkiProductParity._cardsForNote(n,n._planId));
+    });
+    return {notes,cards,noteIds:notes.map(n=>String(n.id))};
+  };
+
+  S._refreshAnkiBrowser=function(){
+    CardEngine.invalidateDueCache();
+    if(window.CardsScreen){CardsScreen.invalidateReviewQueue();CardsScreen.render();}
+    if(window.AnkiProductParity&&document.getElementById('anki-browser-modal')&&
+       document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
+  };
+
+  S.bulkSetDueUi=function(ids){
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
+    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
+      if(!v)return;const p=DB.parseDueSpec(v.spec);
+      if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
+      cards.forEach((c,i)=>this.setDueScoped(c,p,{index:i,total:cards.length}));
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) reagendado(s) ✓');
+    });
+  };
+
+  S.bulkResetUi=function(ids){
+    const r=this._selectedBrowserRows(ids),cards=r.cards||[];if(!cards.length)return;
+    UI.prompt([
+      {key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},
+      {key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}
+    ],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
+      if(!v)return;
+      cards.forEach(c=>this.resetCardScoped(c,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
+    });
+  };
+
+
+  S.bulkRepositionUi=function(ids){
+    const r=this._selectedBrowserRows(ids),cards=(r.cards||[]).filter(c=>(c.phase||'new')==='new');
+    if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
+    UI.prompt([
+      {key:'start',label:'Posição inicial',type:'number',value:'1'},
+      {key:'step',label:'Passo',type:'number',value:'1'},
+      {key:'random',label:'Ordem dos selecionados',type:'select',value:'keep',options:[{value:'keep',label:'Manter ordem atual'},{value:'random',label:'Aleatória'}]},
+      {key:'shift',label:'Deslocar cards existentes?',type:'select',value:'yes',options:[{value:'yes',label:'Sim'},{value:'no',label:'Não'}]}
+    ],{title:'🔢 Reposicionar novos',okText:'Aplicar'}).then(v=>{
+      if(!v)return;
+      const start=Math.max(0,Math.round(Number(v.start)||0)),step=Math.max(1,Math.round(Number(v.step)||1));
+      const groups=new Map();
+      cards.forEach(c=>{const pid=String(c._planId||this.activePlanId());if(!groups.has(pid))groups.set(pid,[]);groups.get(pid).push(c);});
+      groups.forEach((sel,pid)=>{
+        if(v.random==='random')sel.sort(()=>Math.random()-.5);
+        else sel.sort((a,b)=>(Number(a.posicaoNova)||0)-(Number(b.posicaoNova)||0)||String(a.id).localeCompare(String(b.id)));
+        if(v.shift==='yes'){
+          const selected=new Set(sel.map(c=>String(c.id))),delta=sel.length*step;
+          this._tag(pid,this._rows(pid,'cards')).filter(c=>(c.phase||'new')==='new'&&!selected.has(String(c.id))&&(Number(c.posicaoNova)||0)>=start).forEach(c=>
+            this.updateCardScoped(c,{posicaoNova:(Number(c.posicaoNova)||0)+delta,ankiDue:(Number(c.ankiDue)||Number(c.posicaoNova)||0)+delta},pid)
+          );
+        }
+        sel.forEach((c,i)=>this.updateCardScoped(c,{posicaoNova:start+i*step,ankiDue:start+i*step},pid));
+      });
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) reposicionado(s) ✓');
+    });
+  };
+
+
+  S.bulkFindReplaceUi=function(ids){
+    const r=this._selectedBrowserRows(ids),notes=r.notes||[];if(!notes.length)return;
+    const fieldNames=[...new Set(notes.flatMap(n=>Object.keys(n.fields||{})))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    UI.prompt([
+      {key:'find',label:'Localizar',type:'text',value:''},
+      {key:'replace',label:'Substituir por',type:'text',value:''},
+      {key:'scope',label:'Onde',type:'select',value:'__all__',options:[{value:'__all__',label:'Todos os campos'},{value:'__tags__',label:'Tags'},...fieldNames.map(x=>({value:x,label:'Campo: '+x}))]},
+      {key:'regex',label:'Expressão regular',type:'select',value:'no',options:[{value:'no',label:'Não'},{value:'yes',label:'Sim'}]},
+      {key:'case',label:'Diferenciar maiúsculas/minúsculas',type:'select',value:'yes',options:[{value:'yes',label:'Sim'},{value:'no',label:'Não'}]}
+    ],{title:'🔁 Localizar e substituir',okText:'Substituir'}).then(v=>{
+      if(!v||!String(v.find||''))return;let rx;
+      try{
+        if(v.regex==='yes')rx=new RegExp(String(v.find),v.case==='no'?'gi':'g');
+        else{
+          const specials='\\^$.*+?()[]{}|';
+          const escaped=String(v.find).split('').map(ch=>specials.includes(ch)?'\\'+ch:ch).join('');
+          rx=new RegExp(escaped,v.case==='no'?'gi':'g');
+        }
+      }catch(e){showToast('Expressão regular inválida: '+e.message);return;}
+      let notesChanged=0,fieldsChanged=0;
+      notes.forEach(note=>{
+        const fields=Object.assign({},note.fields||{}),tags=(note.tags||[]).slice();let changed=false;
+        if(v.scope==='__tags__'){
+          for(let i=0;i<tags.length;i++){
+            const before=String(tags[i]),after=before.replace(rx,String(v.replace||''));
+            if(after!==before){tags[i]=after;changed=true;fieldsChanged++;}
+          }
+        }else{
+          Object.keys(fields).forEach(k=>{
+            if(v.scope!=='__all__'&&v.scope!==k)return;
+            const before=String(fields[k]||''),after=before.replace(rx,String(v.replace||''));
+            if(after!==before){fields[k]=after;changed=true;fieldsChanged++;}
+          });
+        }
+        if(changed){
+          const saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}),note._planId);
+          AnkiProductParity.reconcileNote(saved,AnkiProductParity._typeFor(saved));notesChanged++;
+        }
+      });
+      this._refreshAnkiBrowser();showToast(notesChanged+' nota(s), '+fieldsChanged+' campo/tag(s) alterado(s) ✓');
+    });
+  };
+
+  S.bulkMarkScoped=function(ids){
+    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
+    const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
+    notes.forEach(n=>{
+      let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
+      if(shouldMark)tags.push('marked');
+      AnkiParity.saveNote(Object.assign({},n,{tags:[...new Set(tags)]}),n._planId);
+    });
+    this._refreshAnkiBrowser();showToast(shouldMark?'Notas marcadas ✓':'Marcação removida ✓');
+  };
+
+  S.editTagsScoped=function(ids){
+    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
+    UI.prompt([
+      {key:'add',label:'Adicionar tags',type:'text',value:'',hint:'Separe por espaço.'},
+      {key:'remove',label:'Remover tags',type:'text',value:'',hint:'Separe por espaço.'}
+    ],{title:'🏷 Editar etiquetas',okText:'Aplicar'}).then(v=>{
+      if(!v)return;const add=String(v.add||'').split(/\s+/).filter(Boolean);
+      const rem=new Set(String(v.remove||'').split(/\s+/).filter(Boolean));
+      notes.forEach(n=>{
+        const tags=[...new Set([...(n.tags||[]),...add])].filter(t=>!rem.has(t));
+        AnkiParity.saveNote(Object.assign({},n,{tags}),n._planId);
+      });
+      this._refreshAnkiBrowser();showToast('Tags atualizadas ✓');
+    });
+  };
+
+  S.deleteNotesScoped=function(ids){
+    const notes=this._selectedBrowserRows(ids).notes||[];if(!notes.length)return;
+    UI.confirm('Excluir '+notes.length+' nota(s) e seus cards? O histórico de revisões será preservado, como no Anki.',{title:'🗑 Excluir notas',okText:'Excluir',danger:true}).then(ok=>{
+      if(!ok)return;let cards=0;
+      notes.forEach(n=>{cards+=Number(this.deleteNoteScoped(n))||0;});
+      if(AnkiProductParity.browser&&AnkiProductParity.browser.selected)AnkiProductParity.browser.selected.clear();
+      this._refreshAnkiBrowser();showToast(notes.length+' nota(s) e '+cards+' card(s) excluídos; histórico preservado ✓');
+    });
+  };
+
+
+  S.moveCardsUi=function(ids){
+    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    const origins=new Set(cards.map(c=>String(c._planId||this.sourcePlanForCard(c.id)||'')));
+    if(origins.size!==1){showToast('Para mover em lote, selecione cards do mesmo planejamento de origem.');return;}
+    const pid=[...origins][0],decks=(DB.getDecksForPlan?DB.getDecksForPlan(pid):this._tag(pid,this._rows(pid,'decks')))
+      .filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
+    if(!decks.length){showToast('Crie um baralho antes de mover.');return;}
+    UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{
+      if(!v)return;
+      cards.forEach(c=>this.updateCardScoped(c,(c.filteredDeckId||c.originalDeckId)?{originalDeckId:v.deck}:{deckId:v.deck},pid));
+      this._refreshAnkiBrowser();showToast(cards.length+' card(s) movido(s) ✓');
+    });
+  };
+
+  S.toggleSuspendScoped=function(ids){
+    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    const should=cards.some(c=>!c.suspenso);
+    cards.forEach(c=>this.suspendCardScoped(c,should));
+    this._refreshAnkiBrowser();showToast(should?'Card(s) suspenso(s) ✓':'Card(s) reativado(s) ✓');
+  };
+
+  S.bulkFlagScoped=function(ids){
+    const cards=this._selectedBrowserRows(ids).cards||[];if(!cards.length)return;
+    UI.prompt([{key:'flag',label:'Bandeira',type:'select',value:'0',options:[0,1,2,3,4,5,6,7].map(n=>({value:String(n),label:n===0?'Sem bandeira':DB.FLAGS[n].nome}))}],{title:'🚩 Definir bandeira',okText:'Aplicar'}).then(v=>{
+      if(!v)return;const flag=Number(v.flag)||0;
+      cards.forEach(c=>this.updateCardScoped(c,{flag:flag>=1&&flag<=7?flag:0},c._planId));
+      this._refreshAnkiBrowser();showToast('Bandeiras atualizadas ✓');
+    });
+  };
+
+  S.createCopyFromCard=function(card){
+    if(!card)return null;
+    const pid=card._planId||this.sourcePlanForCard(card.id)||this.activePlanId();
+    const nid=AnkiProductParity.noteId(card),note=AnkiParity.getNote(nid,pid);if(!note)return null;
+    const copy=clone(note),now=new Date().toISOString();
+    copy.id=AnkiParity._allocId?AnkiParity._allocId():DB._uid();copy.ankiId=copy.id;
+    copy.guid=DB._uid();copy.ankiGuid=copy.guid;copy.createdAt=now;copy.updatedAt=now;copy._planId=pid;delete copy._planNome;
+    const saved=AnkiParity.saveNote(copy,pid),nt=AnkiProductParity._typeFor(saved);
+    AnkiProductParity.reconcileNote(saved,nt);
+    AnkiProductParity._cardsForNote(saved,pid).forEach(c=>this.updateCardScoped(c,{deckId:card.originalDeckId||card.deckId||c.deckId},pid));
+    AnkiProductParity.openNoteEditor(saved);showToast('Cópia criada ✓');return saved;
+  };
+
+  S.installAnkiUsabilityParity=function(){
+    if(typeof AnkiProductParity==='undefined'||typeof AnkiParity==='undefined')return;
+    const AP=AnkiProductParity;
+
+    // Esta instalação precisa ser idempotente. O Max é carregado em uma camada
+    // posterior e pode sobrescrever AP.openReviewerActions depois do primeiro
+    // boot. Em chamadas seguintes (ativação da tela/testes), reaplicamos apenas
+    // os bridges que dependem dele sem duplicar listeners nem estado.
+    if(!this._ankiUsabilityParityInstalled){
+      this._ankiUsabilityParityInstalled=true;
+      AP.editTags=ids=>this.editTagsScoped(ids);
+      AP.bulkMark=ids=>this.bulkMarkScoped(ids);
+      AP.bulkFindReplace=ids=>this.bulkFindReplaceUi(ids);
+      AP.bulkSetDue=ids=>this.bulkSetDueUi(ids);
+      AP.bulkForget=ids=>this.bulkResetUi(ids);
+      AP.bulkReposition=ids=>this.bulkRepositionUi(ids);
+      AP.bulkMoveDeck=ids=>this.moveCardsUi(ids);
+      AP.toggleSuspend=ids=>this.toggleSuspendScoped(ids);
+      AP.bulkFlag=ids=>this.bulkFlagScoped(ids);
+      AP.deleteNotes=ids=>this.deleteNotesScoped(ids);
+    }
+
+    if(typeof AnkiMaxParity!=='undefined'){
+      AnkiMaxParity._bulkCardsMove=ids=>this.moveCardsUi(ids);
+      AnkiMaxParity._bulkCardsDue=ids=>this.bulkSetDueUi(ids);
+      AnkiMaxParity._bulkCardsForget=ids=>this.bulkResetUi(ids);
+      AnkiMaxParity._bulkCardsReposition=ids=>this.bulkRepositionUi(ids);
+
+      AnkiMaxParity.openReviewerActions=(cardHint)=>{
+        const c=cardHint||AP._currentReviewCard();if(!c)return;
+        const pid=c._planId||this.sourcePlanForCard(c.id)||this.activePlanId();
+        const note=AnkiParity.getNote(AP.noteId(c),pid);
+        const cardRef='c:'+encodeURIComponent(String(pid))+'::'+encodeURIComponent(String(c.id));
+        const opts=[];
+        if((CardsScreen._redoStack||[]).length)opts.push({value:'redo',label:'↷ Refazer última ação'});
+        opts.push(
+          {value:'mark',label:'★ Marcar/desmarcar nota'},{value:'tags',label:'🏷 Editar etiquetas'},
+          {value:'buryCard',label:'⤓ Enterrar card'},{value:'buryNote',label:'⤓ Enterrar nota'},
+          {value:'suspendCard',label:'🚫 Suspender card'},{value:'suspendNote',label:'🚫 Suspender nota'},
+          {value:'reset',label:'↺ Resetar / tornar novo'},{value:'due',label:'📅 Definir vencimento'},
+          {value:'flag',label:'🚩 Definir bandeira'},{value:'deleteNote',label:'🗑 Excluir nota'},
+          {value:'copy',label:'⧉ Criar cópia da nota'},
+          {value:'hint',label:'💡 Mostrar dica'},{value:'allHints',label:'💡 Mostrar todas as dicas'},
+          {value:'media',label:'▶ Repetir mídia'},{value:'pauseMedia',label:'⏸ Pausar mídia'},
+          {value:'backMedia',label:'⏪ Áudio -5s'},{value:'forwardMedia',label:'⏩ Áudio +5s'},
+          {value:'tts',label:'🎙 Texto para voz'},{value:'recordVoice',label:'🎤 Gravar própria voz'},
+          {value:'replayVoice',label:'🔊 Reproduzir própria voz'},{value:'whiteboard',label:'✍ Quadro'},
+          {value:'infoPrev',label:'ℹ Informações do card anterior'},{value:'add',label:'＋ Adicionar nota'},
+          {value:'browse',label:'🗃 Navegador'},{value:'stats',label:'📊 Estatísticas'},
+          {value:'type',label:'🧩 Mudar tipo de nota'},{value:'deck',label:'⚙ Opções de baralho'}
+        );
+        UI.prompt([{key:'action',label:'Ação',type:'select',value:opts[0].value,options:opts}],{title:'⋯ Mais ações',okText:'Abrir'}).then(v=>{
+          if(!v)return;const a=v.action,cardsForNote=note?AP._cardsForNote(note,pid):[c];
+          if(a==='redo')CardsScreen.redoAnswer();
+          else if(a==='mark'&&note){
+            const on=!(note.tags||[]).some(t=>String(t).toLowerCase()==='marked');
+            let tags=(note.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');if(on)tags.push('marked');
+            AnkiParity.saveNote(Object.assign({},note,{tags}),pid);CardsScreen.renderReviewCard(document.getElementById('cards-content'));showToast(on?'★ Nota marcada':'Marcação removida');
+          }
+          else if(a==='tags'&&note)this.editTagsScoped([note]);
+          else if(a==='buryCard'){this.buryCardScoped(c);AnkiMaxParity._advanceRemoved([c.id]);showToast('Card enterrado até amanhã');}
+          else if(a==='buryNote'){cardsForNote.forEach(x=>this.buryCardScoped(x));AnkiMaxParity._advanceRemoved(cardsForNote.map(x=>x.id));showToast('Nota enterrada até amanhã');}
+          else if(a==='suspendCard'){this.suspendCardScoped(c,true);AnkiMaxParity._advanceRemoved([c.id]);showToast('Card suspenso');}
+          else if(a==='suspendNote'){cardsForNote.forEach(x=>this.suspendCardScoped(x,true));AnkiMaxParity._advanceRemoved(cardsForNote.map(x=>x.id));showToast('Nota suspensa');}
+          else if(a==='reset')this.bulkResetUi([cardRef]);
+          else if(a==='due')this.bulkSetDueUi([cardRef]);
+          else if(a==='flag')this.bulkFlagScoped([cardRef]);
+          else if(a==='deleteNote')this.deleteNotesScoped(note?[note]:[cardRef]);
+          else if(a==='copy')this.createCopyFromCard(Object.assign({},c,{_planId:pid}));
+          else if(a==='hint')AnkiMaxParity.showHints(false);
+          else if(a==='allHints')AnkiMaxParity.showHints(true);
+          else if(a==='media')AP.replayMedia(c);
+          else if(a==='pauseMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.pauseAv)AnkiRuntime.pauseAv();
+          else if(a==='backMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(-5);
+          else if(a==='forwardMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(5);
+          else if(a==='tts')AP.speakCard(c);
+          else if(a==='recordVoice')AnkiMaxParity.openVoiceRecorder();
+          else if(a==='replayVoice')AnkiMaxParity.replayOwnVoice();
+          else if(a==='whiteboard')AP.openWhiteboard();
+          else if(a==='infoPrev')AnkiMaxParity.previousCardInfo();
+          else if(a==='add')CardsScreen.openCardModal();
+          else if(a==='browse')AP.openBrowser();
+          else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}
+          else if(a==='type'&&note)AP.openChangeType([note]);
+          else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
+        });
+      };
+
+      // O botão "Mais ações" é criado pela camada Product e chama AP.
+      // Aponte AP explicitamente para o bridge plan-aware atual, inclusive
+      // quando AnkiMaxParity.install() tiver sido executado depois do boot.
+      AP.openReviewerActions=(cardHint)=>AnkiMaxParity.openReviewerActions(cardHint);
+      this._ankiUsabilityParityMaxInstalled=true;
+    }
+  };
+
   const boot = () => {
-    S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+    S.installAnkiEntityScope(); S.installAnkiUsabilityParity(); S.ensureGlobalIdentitySafe();
+    S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
   window.addEventListener('screen:activated', e => {
     const s = e && e.detail && e.detail.screen;
-    if (s === 'cards') { S.installCardsUi(); S.refreshCards(); }
+    if (s === 'cards') { S.installAnkiUsabilityParity(); S.ensureGlobalIdentitySafe(); S.installCardsUi(); S.refreshCards(); }
     if (s === 'anki') {
       S.installAnkiUi();
       if (S.selectedBanks().length) S.applyAnkiBankFilter(false).catch(err => {
