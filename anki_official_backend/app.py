@@ -24,6 +24,7 @@ from anki.collection import (
     ExportAnkiPackageOptions,
     CardIdsLimit,
     NoteIdsLimit,
+    DeckIdLimit,
     ImportAnkiPackageOptions,
     ImportAnkiPackageRequest,
 )
@@ -2210,6 +2211,150 @@ def cards_official_delete_empty_cards(
             "changes": changes,
             "state": cards_collection_state_payload(item.col),
         }
+
+
+def _import_update_condition(value: str) -> int:
+    return {
+        "if-newer": import_export_pb2.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_IF_NEWER,
+        "always": import_export_pb2.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_ALWAYS,
+        "never": import_export_pb2.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_NEVER,
+    }.get(str(value or "if-newer").lower(), import_export_pb2.IMPORT_ANKI_PACKAGE_UPDATE_CONDITION_IF_NEWER)
+
+
+@app.post("/api/cards-official/import/apkg")
+async def cards_official_import_apkg(
+    package: UploadFile = File(...),
+    with_scheduling: bool = Query(default=True),
+    with_deck_configs: bool = Query(default=True),
+    merge_notetypes: bool = Query(default=True),
+    update_notes: str = Query(default="if-newer"),
+    update_notetypes: str = Query(default="if-newer"),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    name = package.filename or "import.apkg"
+    if not name.lower().endswith((".apkg", ".zip")):
+        raise HTTPException(400, "Use um pacote .apkg do Anki.")
+    item = cards_uc_for(user)
+    tmp = await _upload_to_tempfile(package, ".apkg", MAX_IMPORT_BYTES)
+    try:
+        with item.lock:
+            request = ImportAnkiPackageRequest(
+                package_path=tmp,
+                options=ImportAnkiPackageOptions(
+                    merge_notetypes=bool(merge_notetypes),
+                    update_notes=_import_update_condition(update_notes),
+                    update_notetypes=_import_update_condition(update_notetypes),
+                    with_scheduling=bool(with_scheduling),
+                    with_deck_configs=bool(with_deck_configs),
+                ),
+            )
+            result = item.col.import_anki_package(request)
+            return {
+                "ok": True,
+                "result": pb(result),
+                "state": cards_collection_state_payload(item.col),
+            }
+    finally:
+        _unlink_quiet(tmp)
+
+
+@app.post("/api/cards-official/import/colpkg")
+async def cards_official_import_colpkg(
+    package: UploadFile = File(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    name = package.filename or "collection.colpkg"
+    if not name.lower().endswith((".colpkg", ".apkg")):
+        raise HTTPException(400, "Use um pacote de coleção do Anki.")
+    item = cards_uc_for(user)
+    tmp = await _upload_to_tempfile(package, ".colpkg", MAX_IMPORT_BYTES)
+    backup = item.root / f"before-cards-colpkg-import-{int(time.time())}.anki2"
+    try:
+        with item.lock:
+            if item.collection_path.exists():
+                item.col.close()
+                shutil.copy2(item.collection_path, backup)
+                item.col.reopen()
+            backend = item.col._backend
+            item.col.close()
+            try:
+                media_folder, media_db = media_paths_from_col_path(str(item.collection_path))
+                backend.import_collection_package(
+                    import_export_pb2.ImportCollectionPackageRequest(
+                        col_path=str(item.collection_path),
+                        backup_path=tmp,
+                        media_folder=media_folder,
+                        media_db=media_db,
+                    )
+                )
+            except BaseException:
+                if backup.exists():
+                    try:
+                        shutil.copy2(backup, item.collection_path)
+                    except OSError:
+                        pass
+                raise
+            finally:
+                item.col.reopen()
+            return {
+                "ok": True,
+                "cards": int(item.col.card_count()),
+                "notes": int(item.col.note_count()),
+                "state": cards_collection_state_payload(item.col),
+            }
+    finally:
+        _unlink_quiet(tmp)
+
+
+@app.get("/api/cards-official/export/apkg")
+def cards_official_export_apkg(
+    deck_id: int | None = Query(default=None),
+    with_scheduling: bool = Query(default=True),
+    with_deck_configs: bool = Query(default=True),
+    with_media: bool = Query(default=True),
+    legacy: bool = Query(default=False),
+    user: dict[str, Any] = Depends(current_user),
+):
+    item = cards_uc_for(user)
+    tmp = _new_tempfile(".apkg")
+    try:
+        with item.lock:
+            count = item.col.export_anki_package(
+                out_path=tmp,
+                options=ExportAnkiPackageOptions(
+                    with_scheduling=bool(with_scheduling),
+                    with_deck_configs=bool(with_deck_configs),
+                    with_media=bool(with_media),
+                    legacy=bool(legacy),
+                ),
+                limit=DeckIdLimit(DeckId(deck_id)) if deck_id else None,
+            )
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    response = _file_response(tmp, "StudyNoMentor-Cards.apkg", "application/octet-stream")
+    response.headers["X-Anki-Exported-Cards"] = str(int(count))
+    return response
+
+
+@app.get("/api/cards-official/export/colpkg")
+def cards_official_export_colpkg(
+    with_media: bool = Query(default=True),
+    legacy: bool = Query(default=False),
+    user: dict[str, Any] = Depends(current_user),
+):
+    item = cards_uc_for(user)
+    tmp = _new_tempfile(".colpkg")
+    try:
+        with item.lock:
+            try:
+                item.col.export_collection_package(tmp, include_media=bool(with_media), legacy=bool(legacy))
+            finally:
+                item.col.reopen()
+    except BaseException:
+        _unlink_quiet(tmp)
+        raise
+    return _file_response(tmp, "StudyNoMentor-Cards.colpkg", "application/octet-stream")
 
 
 @app.post("/api/anki/database/check")
