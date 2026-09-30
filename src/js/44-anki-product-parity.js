@@ -445,11 +445,9 @@ const AnkiProductParity = {
       for(const ref of this._changeTypeIds||[]){
         const note=this._getNote(ref);if(!note)continue;const srcNt=this._typeFor(note),fields={};
         (target.fields||[]).forEach(f=>{const idx=fieldMap[f.name];fields[f.name]=idx!=null&&srcNt&&srcNt.fields&&srcNt.fields[idx]&&note.fields?note.fields[srcNt.fields[idx].name]||'':'';});
-        if(target.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Para mudar para Cloze, a nota precisa conter ao menos uma omissão {{c1::…}}.');return;}
-        if(Number(target.originalStockKind)===6||target.stockKind==='image_occlusion'){
-          const oc=(target.fields||[]).find(f=>Number(f.tag)===0),im=(target.fields||[]).find(f=>Number(f.tag)===1);
-          if(!oc||!im||!/image-occlusion:/.test(String(fields[oc.name]||''))||!AnkiParity._fieldNonempty(fields[im.name])){showToast('Use o editor de Oclusão de Imagem para criar ou converter este tipo de nota.');return;}
-        }
+        // O Anki permite concluir a mudança mesmo que o novo tipo gere cards
+        // vazios (ex.: Basic -> Cloze sem uma omissão pronta). A manutenção
+        // posterior segue Empty Cards; não bloqueamos a conversão aqui.
         this._applyChangeNotetype(note,srcNt,target,fields,templateMap);changed++;
       }
       document.getElementById('anki-change-type-modal').style.display='none';document.getElementById('anki-note-edit-modal').style.display='none';this.renderBrowser();CardsScreen.render();showToast(changed+' nota(s) alterada(s) ✓');
