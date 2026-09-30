@@ -88,6 +88,13 @@ try {
   erro('inventario/contratos do upstream Anki divergiram:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
+try {
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'cards-official-bridge-static.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim());
+} catch (e) {
+  erro('reviewer Cards voltou a divergir do backend oficial Anki:\n' + String(e.stdout || '') + String(e.stderr || ''));
+}
+
 // ── 3a. auditorias históricas pesadas — somente sob demanda ────────────────
 if (EXAUSTIVO) {
   console.log('\n3a) cards: auditoria exaustiva histórica');
