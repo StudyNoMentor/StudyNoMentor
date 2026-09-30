@@ -141,6 +141,12 @@ assert.ok(!/AnkiParity\.saveFilteredDeck\(/.test(bridge),'bridge oficial não po
 assert.match(bridge,/async _syncCollectionState\([\s\S]*?await this\._syncStates\(cards\)/,'estado filtrado oficial deve voltar ao Study antes da próxima serialização');
 assert.match(bridge,/ankiOriginalDue:Number\(state\.original_due\)\|\|0/,'odue oficial deve ser persistido cru para round-trip');
 assert.match(backend,/def cards_official_rebuild_filtered_deck[\s\S]*?item\.col\.sched\.rebuild_filtered_deck/,'Filtered Deck dos Cards precisa usar scheduler oficial');
+assert.match(backend,/def cards_official_add_deck[\s\S]*?add_normal_deck_with_name/,'criação de baralho deve usar DeckManager oficial');
+assert.match(backend,/def cards_official_rename_deck[\s\S]*?item\.col\.decks\.rename/,'renomear baralho deve usar DeckManager oficial');
+assert.match(backend,/def cards_official_delete_deck[\s\S]*?item\.col\.decks\.remove/,'excluir baralho deve usar DeckManager oficial');
+assert.match(cards,/CardsOfficialBridge\.createOfficialDeck\(name\)/,'UI de criação de baralho deve ser uma casca sobre o Anki');
+assert.match(cards,/CardsOfficialBridge\.renameOfficialDeck\(id,value\)/,'UI de renomear baralho deve ser uma casca sobre o Anki');
+assert.match(cards,/CardsOfficialBridge\.deleteOfficialDeck\(id\)/,'UI de exclusão de baralho deve ser uma casca sobre o Anki');
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
 assert.match(backend,/def cards_official_update_deck_options[\s\S]*?item\.col\.decks\.update_deck_configs\(request\)[\s\S]*?"state": cards_collection_state_payload/,'salvar Deck Options deve executar a transação oficial e devolver estado canônico');
 assert.match(bridge,/async updateDeckOptions\(deckId,cfg,opts\)[\s\S]*?\/api\/cards-official\/deck\/'/,'bridge deve salvar Deck Options no backend oficial');
@@ -215,6 +221,8 @@ for(const path of [
   '/api/cards-official/stats/graphs',
   '/api/cards-official/fsrs/optimize',
   '/api/cards-official/fsrs/simulate',
+  '/api/cards-official/decks',
+  '/api/cards-official/deck/{deck_id}',
   '/api/cards-official/deck/{deck_id}/options',
   '/api/cards-official/custom-study/defaults/{deck_id}',
   '/api/cards-official/custom-study',
