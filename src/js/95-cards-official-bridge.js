@@ -963,6 +963,171 @@ const CardsOfficialBridge = {
     return out;
   },
 
+  _stockName(kind){
+    return ({basic:'Basic',basic_reversed:'Basic (and reversed card)',basic_optional_reversed:'Basic (optional reversed card)',typing:'Basic (type in the answer)',cloze:'Cloze',image_occlusion:'Image Occlusion'})[String(kind||'basic')]||'Basic';
+  },
+  async _ensureOfficialNotetype(nt,planId){
+    if(!nt)throw new Error('Tipo de nota ausente.');
+    await this.bootstrap(false);
+    const oid=Number(nt.ankiId!=null?nt.ankiId:nt.id);
+    let rows=await this._officialNotetypes(),row=rows.find(x=>Number(x&&x.notetype&&x.notetype.id)===oid);
+    if(!row){
+      this.invalidate('notetype-not-in-official-collection');
+      await this.bootstrap(true);
+      rows=await this._officialNotetypes();
+      row=rows.find(x=>Number(x&&x.notetype&&x.notetype.id)===oid);
+    }
+    if(!row)throw new Error('Tipo de nota não existe na coleção oficial do Anki.');
+    this._syncNotetypesIntoPlans([row],[planId]);
+    const local=AnkiParity.noteTypes(planId==null?undefined:planId).find(x=>String(Number(x.ankiId!=null?x.ankiId:x.id))===String(oid))||nt;
+    return {officialId:oid,local,row};
+  },
+  async _ensureOfficialStockNotetype(kind,planId){
+    const name=this._stockName(kind),types=AnkiParity.noteTypes(planId==null?undefined:planId);
+    let local=types.find(x=>x.stockKind===kind)||types.find(x=>String(x.name||'')===name);
+    await this.bootstrap(false);
+    let rows=await this._officialNotetypes(),row=null;
+    if(local){
+      const oid=Number(local.ankiId!=null?local.ankiId:local.id);
+      row=rows.find(x=>Number(x&&x.notetype&&x.notetype.id)===oid);
+    }
+    if(!row)row=rows.find(x=>String(x&&x.notetype&&x.notetype.name||'')===name);
+    if(!row){
+      const out=await this.request('/api/cards-official/notetypes/stock',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({kind:this._stockNotetypeKind(kind),name})
+      });
+      if(!out||!out.notetype)throw new Error('O Anki oficial não criou o tipo de nota '+name+'.');
+      row={notetype:out.notetype,use_count:out.use_count||0};
+    }
+    this._syncNotetypesIntoPlans([row],[planId]);
+    const oid=Number(row.notetype.id);
+    local=AnkiParity.noteTypes(planId==null?undefined:planId).find(x=>String(Number(x.ankiId!=null?x.ankiId:x.id))===String(oid));
+    if(!local)throw new Error('Falha ao espelhar o tipo de nota oficial no planejamento.');
+    if(!local.stockKind)local=AnkiParity.saveNotetype(Object.assign({},local,{stockKind:kind}),planId==null?undefined:planId)||local;
+    return {officialId:oid,local,row};
+  },
+  _fieldsForSimple(kind,nt,data){
+    const names=(nt&&nt.fields||[]).map(f=>String(f.name||'')).filter(Boolean),fields={};
+    const choose=(preferred,index)=>names.includes(preferred)?preferred:(names[index]||preferred);
+    if(kind==='cloze'){
+      fields[choose('Text',0)]=String(data.frente||'');
+      if(names.length>1)fields[choose('Back Extra',1)]=String(data.verso||'');
+    }else{
+      fields[choose('Front',0)]=String(data.frente||'');
+      if(names.length>1)fields[choose('Back',1)]=String(data.verso||'');
+    }
+    return fields;
+  },
+  _materializeOfficialNote(state,planId,fallbackNotetypeId){
+    if(!state||state.id==null)throw new Error('Estado oficial da nota ausente.');
+    const pid=planId!=null?planId:this._activePlanId(),
+      ntid=this._localNotetypeId(state.notetype_id,pid,fallbackNotetypeId),
+      existing=this._noteReplicas(state.id).find(n=>String(n._planId==null?'':n._planId)===String(pid==null?'':pid)),
+      base=existing||{id:Number(state.id),ankiId:Number(state.id),guid:String(state.guid||('snm-'+Number(state.id).toString(36))),notetypeId:ntid,fields:{},tags:[]};
+    const saved=AnkiParity.saveNote(Object.assign({},base,{
+      id:base.id||Number(state.id),ankiId:Number(state.id),guid:String(state.guid||base.guid||''),
+      notetypeId:ntid,fields:Object.assign({},state.fields||{}),tags:Array.isArray(state.tags)?state.tags.slice():[]
+    }),pid==null?undefined:pid);
+    if(!saved)throw new Error('Falha ao materializar nota oficial '+state.id+' no Study.');
+    return saved;
+  },
+  _cardSeed(data,planId,notetypeId){
+    return {deckId:data.deckId||null,materia:data.materia||null,assunto:data.assunto||'',materiaTec:data.materiaTec||'',banca:data.banca||'',tipo:data.tipo||'',kind:data.kind==='cloze'?'cloze':'basic',notetypeId:notetypeId||null,_planId:planId==null?undefined:planId};
+  },
+  async addOfficialNote(opts){
+    opts=opts||{};
+    const pid=opts.planId!=null?opts.planId:this._activePlanId(),nt=await this._ensureOfficialNotetype(opts.notetype,pid),
+      did=opts.deckId?this._officialDeckId(opts.deckId,pid):1;
+    if(opts.deckId&&did==null)throw new Error('Baralho sem identidade Anki canônica.');
+    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:opts.fields||{},tags:opts.tags||[]})});
+    if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota criada.');
+    const note=this._materializeOfficialNote(out.note,pid,nt.local.id),seeds={};
+    seeds[String(out.note.id)]=Object.assign({},opts.seed||{},{notetypeId:nt.local.id});
+    await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    this.dirty=false;this._browserCache=[];
+    return {out,note,cards:AnkiProductParity._cardsForNote(note,pid)};
+  },
+  async updateOfficialNote(note,fields,tags,opts){
+    opts=opts||{};if(!note)throw new Error('Nota não encontrada.');
+    await this.bootstrap(false);
+    const pid=note._planId!=null?note._planId:(opts.planId!=null?opts.planId:this._activePlanId()),oid=this._officialNoteId(note);
+    if(oid==null)throw new Error('Nota sem identidade Anki canônica.');
+    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:fields||{},tags:Array.isArray(tags)?tags:[]})});
+    if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota atualizada.');
+    const saved=this._materializeOfficialNote(out.note,pid,note.notetypeId),seeds={};seeds[String(out.note.id)]=Object.assign({},opts.seed||{});
+    await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    this.dirty=false;this._browserCache=[];
+    return {out,note:saved,cards:AnkiProductParity._cardsForNote(saved,pid)};
+  },
+  async deleteOfficialNote(note){
+    if(!note)throw new Error('Nota não encontrada.');
+    await this.bootstrap(false);
+    const oid=this._officialNoteId(note);if(oid==null)throw new Error('Nota sem identidade Anki canônica.');
+    const reps=this._noteReplicas(oid),out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'DELETE'});
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a exclusão da nota.');
+    for(const rep of reps){
+      const pid=rep._planId!=null?rep._planId:null,cards=AnkiProductParity._cardsForNote(rep,pid);
+      if(cards.length)DB.deleteNoteByCard(cards[0].id,pid==null?undefined:pid);
+      try{localStorage.removeItem(AnkiParity._entityKey('note',rep.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-delete-note');}
+    }
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    this.dirty=false;this._browserCache=[];return out;
+  },
+  async _changeNoteToNotetype(note,target,pid){
+    const oldNt=AnkiParity.getNotetype(note.notetypeId,pid==null?undefined:pid),
+      oldId=Number(oldNt&&oldNt.ankiId!=null?oldNt.ankiId:oldNt&&oldNt.id),newId=Number(target&&target.officialId);
+    if(oldId===newId)return note;
+    const qs=new URLSearchParams({old_notetype_id:String(oldId),new_notetype_id:String(newId)}),
+      info=await this.request('/api/cards-official/notetypes/change-info?'+qs.toString()),input=JSON.parse(JSON.stringify(info.input||{}));
+    input.note_ids=[Number(this._officialNoteId(note))];
+    const out=await this.request('/api/cards-official/notetypes/change',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(input)});
+    const ns=(out.notes||[]).find(x=>String(x.id)===String(this._officialNoteId(note)));
+    if(!ns)throw new Error('O Anki oficial não devolveu a nota após a mudança de tipo.');
+    const saved=this._materializeOfficialNote(ns,pid,target.local.id);
+    await this._reconcileOfficialCardSet(out.notes||[],out.cards||[]);
+    return saved;
+  },
+  async saveSimpleCard(closeAfter){
+    const data=CardsScreen._readCardForm();if(!data)return false;
+    const reversed=!!data._reversed;delete data._reversed;
+    const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId,
+      pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId()),
+      desiredKind=data.kind==='cloze'?'cloze':(reversed?'basic_reversed':'basic'),
+      target=await this._ensureOfficialStockNotetype(desiredKind,pid),
+      fields=this._fieldsForSimple(desiredKind,target.local,data),seed=this._cardSeed(data,pid,target.local.id);
+    if(editId){
+      const card=CardsScreen.collectionCards().find(c=>String(c.id)===String(editId)&&(editPlan==null||String(c._planId||'')===String(editPlan)))||DB.getCard(editId);
+      if(!card)throw new Error('Card não encontrado.');
+      let note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(card.noteId||card.id,pid==null?undefined:pid);
+      if(!note)throw new Error('Nota canônica do card não encontrada.');
+      note=await this._changeNoteToNotetype(note,target,pid);
+      const res=await this.updateOfficialNote(note,fields,note.tags||[],{planId:pid,seed});
+      CardsScreen.closeCardModal();CardsScreen.render();CardsScreen.updateFavCount();showToast('Card atualizado pelo Anki oficial ✓');return res;
+    }
+    const res=await this.addOfficialNote({planId:pid,deckId:data.deckId,notetype:target.local,fields,tags:[],seed});
+    CardsScreen.render();CardsScreen.updateFavCount();
+    const n=res.cards.length;showToast(n+(n===1?' card criado':' cards criados')+' pelo Anki oficial ✓');
+    if(closeAfter)CardsScreen.closeCardModal();else{
+      const fr=document.getElementById('card-frente'),ve=document.getElementById('card-verso');if(fr)fr.innerHTML='';if(ve)ve.innerHTML='';if(fr)fr.focus();
+    }
+    return res;
+  },
+  async deleteSimpleCard(){
+    if(!CardsScreen._editingId)return false;
+    const id=CardsScreen._editingId,pid=CardsScreen._editingPlanId,
+      card=CardsScreen.collectionCards().find(c=>String(c.id)===String(id)&&(pid==null||String(c._planId||'')===String(pid)))||DB.getCard(id);
+    if(!card)throw new Error('Card não encontrado.');
+    const note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(card.noteId||card.id,pid==null?undefined:pid);
+    if(!note)throw new Error('Nota canônica não encontrada.');
+    const siblings=AnkiProductParity._cardsForNote(note,pid),msg=siblings.length>1?'Excluir esta nota e seus '+siblings.length+' cards?':'Excluir esta nota?';
+    if(!await UI.confirm(msg))return false;
+    const out=await this.deleteOfficialNote(note);
+    CardsScreen.closeCardModal();CardsScreen.render();CardsScreen.updateFavCount();showToast('Nota excluída pelo Anki oficial ✓');return out;
+  },
+
   async _officialNotetypes(){
     await this.bootstrap(false);
     const out=await this.request('/api/cards-official/notetypes/full');
