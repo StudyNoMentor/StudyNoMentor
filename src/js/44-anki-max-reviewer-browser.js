@@ -9,123 +9,13 @@ const AnkiMaxParity = {
   install(){
     if(this._installed||typeof AnkiProductParity==='undefined'||typeof AnkiParity==='undefined'||typeof CardsScreen==='undefined')return;
     this._installed=true;
-    this._patchSearch();
     this._enhanceBrowser();
     this._enhanceReviewer();
     this._injectVoiceModal();
   },
 
-  /* ───────────────────────── BUSCA ANKI ───────────────────────── */
-  _norm(v){return String(v==null?'':v).toLowerCase();},
-  _noCombining(v){
-    return String(v==null?'':v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ß/g,'s').replace(/ẞ/g,'S');
-  },
-  _stripClozes(v){
-    return String(v==null?'':v).replace(/\{\{c\d+(?:,\d+)*::([\s\S]*?)(?:::[\s\S]*?)?\}\}/gi,'$1');
-  },
-  _escapeRxChar(ch){return String(ch).replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&');},
-  _wildcardRegex(pattern,{anchored=false,word=false}={}){
-    const p=String(pattern==null?'':pattern);let out='',esc=false;
-    for(const ch of p){
-      if(esc){out+=this._escapeRxChar(ch);esc=false;continue;}
-      if(ch==='\\'){esc=true;continue;}
-      if(ch==='*')out+='.*';
-      else if(ch==='_')out+='.';
-      else out+=this._escapeRxChar(ch);
-    }
-    if(esc)out+='\\\\';
-    if(word){
-      const left=p.startsWith('*')?'':'(?:^|[^\\p{L}\\p{N}_])';
-      const right=p.endsWith('*')?'':'(?=$|[^\\p{L}\\p{N}_])';
-      return new RegExp(left+'('+out+')'+right,'iu');
-    }
-    return new RegExp((anchored?'^':'')+out+(anchored?'$':''),'iu');
-  },
-  _wildMatch(text,pattern,anchored=false){
-    try{return this._wildcardRegex(pattern,{anchored}).test(String(text==null?'':text));}catch(_){return false;}
-  },
-  _noteText(card,{stripCloze=false,noCombining=false}={}){
-    const note=AnkiParity.getNote(AnkiParity.noteId(card)),nt=note&&AnkiParity.getNotetype(note.notetypeId),chunks=[];
-    if(note){
-      (nt&&nt.fields||[]).forEach(f=>{if(f.excludeFromSearch)return;chunks.push(String(note.fields&&note.fields[f.name]||''));});
-      if(!nt)chunks.push(...Object.values(note.fields||{}).map(String));
-    }else chunks.push(card.frente||'',card.verso||'');
-    let s=chunks.join(' ').replace(/<[^>]+>/g,' ');
-    if(stripCloze)s=this._stripClozes(s);if(noCombining)s=this._noCombining(s);return s;
-  },
-  _customData(card){
-    if(card&&card.customData&&typeof card.customData==='object')return card.customData;
-    if(card&&card.ankiCustomData&&typeof card.ankiCustomData==='object')return card.ankiCustomData;
-    if(card&&typeof card.ankiData==='object'&&card.ankiData)return card.ankiData;
-    return {};
-  },
-
-  _patchSearch(){
-    const originalTerm=AnkiParity._filteredTermMatches.bind(AnkiParity);
-    AnkiParity._filteredTermMatches=(card,term)=>{
-      term=AnkiParity._stripOuterParens(String(term||'').trim());if(!term)return true;
-      if(term[0]==='-')return !AnkiParity._filteredTermMatches(card,term.slice(1));
-      if(/^not:/i.test(term))return !AnkiParity._filteredTermMatches(card,term.slice(4));
-
-      const m=term.match(/^([^:]+):(.*)$/),key=m?m[1].toLowerCase():'',raw=m?m[2]:'';
-      const val=String(raw||'').replace(/^"(.*)"$/,'$1');
-
-      if(key==='w'){
-        try{return AnkiMaxParity._wildcardRegex(val,{word:true}).test(AnkiMaxParity._noteText(card));}catch(_){return false;}
-      }
-      if(key==='nc')return AnkiMaxParity._wildMatch(AnkiMaxParity._noCombining(AnkiMaxParity._noteText(card)),AnkiMaxParity._noCombining(val),false);
-      if(key==='sc')return AnkiMaxParity._wildMatch(AnkiMaxParity._stripClozes(AnkiMaxParity._noteText(card)),val,false);
-      if(key==='has-cd')return Object.prototype.hasOwnProperty.call(AnkiMaxParity._customData(card),val);
-      if(key==='tag'){
-        const tags=AnkiParity._noteTagsForCard(card);
-        if(val.toLowerCase()==='none')return tags.length===0;
-        return tags.some(t=>AnkiMaxParity._wildMatch(t,val,false)||String(t).toLowerCase().startsWith(String(val).toLowerCase()+'::'));
-      }
-      if(key==='deck'&&val.toLowerCase()==='filtered')return !!(card.filteredDeckId||card.originalDeckId);
-      if(key==='is'){
-        const v=val.toLowerCase();
-        if(v==='buried-sibling')return CardEngine.estaEnterrado(card)&&String(card.buryKind||'')==='scheduler';
-        if(v==='buried-manually')return CardEngine.estaEnterrado(card)&&String(card.buryKind||'')==='user';
-      }
-      if(key==='prop'){
-        let pm=val.match(/^cdn:([^<>=!]+)(<=|>=|!=|=|<|>)(-?\d+(?:\.\d+)?)$/i);
-        if(pm){
-          const a=Number(AnkiMaxParity._customData(card)[pm[1]]),b=Number(pm[3]),op=pm[2];if(!Number.isFinite(a))return false;
-          return op==='<='?a<=b:op==='>='?a>=b:op==='!='?a!==b:op==='<'?a<b:op==='>'?a>b:a===b;
-        }
-        pm=val.match(/^cds:([^=]+)=(.*)$/i);
-        if(pm)return AnkiMaxParity._wildMatch(String(AnkiMaxParity._customData(card)[pm[1]]??''),pm[2],true);
-      }
-
-      const builtin=new Set(['materia','subject','assunto','topic','tipo','type','banca','favorito','favorite','suspenso','suspended','leech','deck','baralho','is','added','rated','tag','note','card','flag','edited','introduced','nid','cid','preset','re','prop']);
-      if(m&&!builtin.has(key)){
-        const note=AnkiParity.getNote(AnkiParity.noteId(card)),fields=note&&note.fields||{},names=Object.keys(fields);
-        const matchingNames=names.filter(n=>AnkiMaxParity._wildMatch(n,key,true));
-        if(matchingNames.length){
-          return matchingNames.some(n=>{
-            let txt=String(fields[n]??''),needle=val,mode='normal';
-            if(/^re:/i.test(needle)){mode='regex';needle=needle.slice(3);}
-            else if(/^nc:/i.test(needle)){mode='nc';needle=needle.slice(3);txt=AnkiMaxParity._noCombining(txt);needle=AnkiMaxParity._noCombining(needle);}
-            if(mode==='regex'){try{return new RegExp(needle,'iu').test(txt);}catch(_){return false;}}
-            if(needle==='*')return true;
-            if(needle==='_ *'.replace(' ',''))return txt.length>0;
-            if(needle==='')return txt.length===0;
-            return AnkiMaxParity._wildMatch(txt,needle,true);
-          });
-        }
-      }
-
-      if(!m&&/[*_]/.test(term))return AnkiMaxParity._wildMatch(AnkiMaxParity._noteText(card),term,false);
-      return originalTerm(card,term);
-    };
-
-    const originalSearch=AnkiParity.filteredSearchMatches.bind(AnkiParity);
-    AnkiParity.filteredSearchMatches=function(card,expr){
-      expr=String(expr||'').trim();if(!expr)return true;
-      expr=expr.replace(/\s+and\s+/ig,' ');
-      try{return originalSearch(card,expr);}catch(_){return false;}
-    };
-  },
+  /* A gramática de busca pertence exclusivamente a Collection.find_cards/find_notes
+     no backend oficial. Este módulo não instala parser local. */
 
   /* ───────────────────────── BROWSER ───────────────────────── */
   _browserPrefsKey(){try{return AnkiParity._entityKey('browser','prefs');}catch(_){return 'snm-anki-browser-prefs';}},
@@ -169,65 +59,66 @@ const AnkiMaxParity = {
     if(a<0||z<0||a===z)return false;
     const [moved]=cols.splice(a,1);cols.splice(z,0,moved);b.columns=cols;this._saveBrowserPrefs();AnkiProductParity.renderBrowser();return true;
   },
-  _deckName(card){const id=card&&(card.originalDeckId||card.deckId),ds=AnkiParity._decksForCardPlan?AnkiParity._decksForCardPlan(card):DB.getDecks(),d=ds.find(x=>String(x.id)===String(id));return d?String(d.nome||''):'';},
-  _templateName(row){
-    const c=row.card||(row.cards&&row.cards[0]);if(!c||!row.nt)return '';const i=Number(c.ankiTemplateOrd)||0;return String(row.nt.templates&&row.nt.templates[i]&&row.nt.templates[i].name||('Card '+(i+1)));
+  _officialBrowserCards(row){
+    const data=row&&row._officialBrowser;
+    if(!data)return [];
+    return Array.isArray(data.cards)?data.cards:[data];
   },
-  _renderSides(row){
-    const c=row.card||(row.cards&&row.cards[0]);if(!c||!row.note||!row.nt)return {q:'',a:''};
-    try{
-      const q=AnkiProductParity.plain(AnkiParity.renderTemplate(row.nt,row.note,Number(c.ankiTemplateOrd)||0,'question',c,''));
-      let a=AnkiProductParity.plain(AnkiParity.renderTemplate(row.nt,row.note,Number(c.ankiTemplateOrd)||0,'answer',c,q));
-      // Igual ao Browser do Anki: se a resposta começa repetindo a pergunta,
-      // a coluna Answer mostra somente o trecho adicional.
-      if(q&&a.startsWith(q))a=a.slice(q.length).trim();
-      return {q,a};
-    }catch(_){return {q:'',a:''};}
+  _officialStats(row){
+    return this._officialBrowserCards(row).map(x=>x&&x.stats).filter(Boolean);
   },
-  plain(v){return AnkiProductParity.plain(v);},
-  _eligibleNoteCards(row){return (row.cards||[]).filter(c=>!c.suspenso&&!CardEngine.estaEnterrado(c)&&!c.originalDeckId);},
-  _avgCard(row,fn,filter){
-    const xs=(row.cards||[]).filter(c=>!filter||filter(c)).map(fn).map(Number).filter(Number.isFinite);
+  _officialAverage(row,read){
+    const xs=this._officialStats(row).map(read).map(Number).filter(Number.isFinite);
     return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:0;
   },
+  _renderSides(row){
+    const c=this._officialBrowserCards(row)[0];if(!c)return {q:'',a:''};
+    const q=AnkiProductParity.plain(c.question||''),a=AnkiProductParity.plain(c.answer||'');
+    return {q,a};
+  },
+  plain(v){return AnkiProductParity.plain(v);},
   _colValue(row,key){
-    const noteMode=AnkiProductParity.browser.mode==='notes',cards=row.cards||[],c=row.card||cards[0],sides=(key==='question'||key==='answer')?this._renderSides(row):null;
+    const noteMode=AnkiProductParity.browser.mode==='notes',official=this._officialBrowserCards(row),first=official[0]||null,
+      stats=first&&first.stats||{},allStats=official.map(x=>x&&x.stats).filter(Boolean),sides=(key==='question'||key==='answer')?this._renderSides(row):null,
+      avg=fn=>{const xs=allStats.map(fn).map(Number).filter(Number.isFinite);return xs.length?xs.reduce((a,b)=>a+b,0)/xs.length:0;};
     if(key==='sortField')return row.field||'';
-    if(key==='question')return sides.q;if(key==='answer')return sides.a;
+    if(key==='question')return sides.q;
+    if(key==='answer')return sides.a;
     if(key==='deck'){
-      if(!noteMode)return this._deckName(c);
-      const names=[...new Set(cards.map(x=>this._deckName(x)).filter(Boolean))];return names.length===1?names[0]:names.length;
+      const names=[...new Set(allStats.map(x=>String(x.deck||'')).filter(Boolean))];
+      return names.length===1?names[0]:(names.length?names.length:'');
     }
-    if(key==='notetype')return String(row.nt&&row.nt.name||'');
-    if(key==='template')return noteMode?cards.length:this._templateName(row);
-    if(key==='cards')return noteMode?cards.length:this._templateName(row);
+    if(key==='notetype')return String(stats.notetype||'');
+    if(key==='template'||key==='cards')return noteMode?official.length:String(stats.card_type||'');
     if(key==='due'){
-      if(!noteMode)return c?(c.dueTs?Number(c.dueTs):String(c.due||'')):'';
-      const eligible=this._eligibleNoteCards(row).filter(x=>(x.phase||'new')!=='new');
-      if(!eligible.length)return '';
-      const score=x=>x.dueTs!=null?Number(x.dueTs):(Date.parse(String(x.due||'')+'T00:00:00')||Infinity);
-      return eligible.slice().sort((a,b)=>score(a)-score(b))[0].dueTs||eligible.slice().sort((a,b)=>score(a)-score(b))[0].due||'';
+      const dates=allStats.map(x=>Number(x.due_date)).filter(x=>Number.isFinite(x)&&x>0);
+      return dates.length?Math.min(...dates)*1000:'';
     }
-    if(key==='interval')return noteMode?this._avgCard(row,x=>x.intervalo,x=>['review','relearning'].includes(String(x.phase||''))):Number(c&&c.intervalo)||0;
-    if(key==='ease')return noteMode?this._avgCard(row,x=>x.ease,x=>String(x.phase||'new')!=='new'):Number(c&&c.ease)||0;
-    if(key==='stability')return noteMode?this._avgCard(row,x=>x.s,x=>x.s!=null):Number(c&&c.s)||0;
-    if(key==='difficulty')return noteMode?this._avgCard(row,x=>x.d,x=>x.d!=null):Number(c&&c.d)||0;
-    if(key==='retrievability'){
-      const rv=x=>{try{return Number(CardEngine.retrievabilityDe(x,todayCards(),CardsConfig.weightsFor(x.originalDeckId||x.deckId)))||0;}catch(_){return 0;}};
-      return noteMode?this._avgCard(row,rv,x=>x.s!=null):(c?rv(c):0);
-    }
-    if(key==='reps')return noteMode?cards.reduce((n,x)=>n+(Number(x.reps)||0),0):Number(c&&c.reps)||0;
-    if(key==='lapses')return noteMode?cards.reduce((n,x)=>n+(Number(x.lapses)||0),0):Number(c&&c.lapses)||0;
+    if(key==='interval')return avg(x=>x.interval);
+    if(key==='ease')return avg(x=>Number(x.ease)/1000);
+    if(key==='stability')return avg(x=>x.memory_state&&x.memory_state.stability);
+    if(key==='difficulty')return avg(x=>x.memory_state&&x.memory_state.difficulty);
+    if(key==='retrievability')return avg(x=>x.fsrs_retrievability);
+    if(key==='reps')return allStats.reduce((n,x)=>n+(Number(x.reviews)||0),0);
+    if(key==='lapses')return allStats.reduce((n,x)=>n+(Number(x.lapses)||0),0);
     if(key==='position'){
-      if(!noteMode)return Number(c&&(c.posicaoNova||c.ankiDue))||0;
-      const ns=cards.filter(x=>String(x.phase||'new')==='new').map(x=>Number(x.posicaoNova||x.ankiDue)).filter(Number.isFinite);return ns.length?Math.min(...ns):0;
+      const pos=allStats.map(x=>Number(x.due_position)).filter(Number.isFinite);return pos.length?Math.min(...pos):0;
     }
-    if(key==='flag')return noteMode?cards.reduce((m,x)=>Math.max(m,Number(x.flag)||0),0):Number(c&&c.flag)||0;
-    if(key==='tags')return (row.tags||[]).join(' ');
-    if(key==='created')return String((row.note&&row.note.createdAt)||(c&&c.createdAt)||'');
+    if(key==='flag')return official.reduce((m,x)=>Math.max(m,Number(x&&x.flag)||0),0);
+    if(key==='tags'){
+      const tags=row&&row._officialBrowser&&Array.isArray(row._officialBrowser.tags)?row._officialBrowser.tags:(row.tags||[]);
+      return tags.join(' ');
+    }
+    if(key==='created'){
+      const ts=allStats.map(x=>Number(x.added)).filter(x=>Number.isFinite(x)&&x>0);return ts.length?Math.min(...ts)*1000:'';
+    }
     if(key==='modified')return String(row.note&&row.note.updatedAt||'');
-    if(key==='cardModified')return noteMode?cards.reduce((m,x)=>String(x.updatedAt||'')>m?String(x.updatedAt||''):m,''):String(c&&c.updatedAt||'');
-    if(key==='noteId')return String(row.note&&row.note.id||'');if(key==='cardId')return String(c&&c.id||'');return '';
+    if(key==='cardModified'){
+      const cards=row.cards||[];return noteMode?cards.reduce((m,x)=>String(x.updatedAt||'')>m?String(x.updatedAt||''):m,''):String((row.card&&row.card.updatedAt)||'');
+    }
+    if(key==='noteId')return String((first&&first.note_id)||(row.note&&row.note.id)||'');
+    if(key==='cardId')return String((first&&first.id)||(row.card&&row.card.id)||'');
+    return '';
   },
   _formatCol(row,key){
     const v=this._colValue(row,key),c=row.card||(row.cards&&row.cards[0]);
@@ -378,39 +269,13 @@ const AnkiMaxParity = {
     list.addEventListener('dblclick',e=>{const row=e.target.closest('.anki-browser-row');if(!row)return;e.preventDefault();e.stopImmediatePropagation();const r=this._resolveSelection([row.dataset.note]);if(r.notes[0])AnkiProductParity.openNoteEditor(r.notes[0]);},true);
     document.getElementById('anki-browser-select-all').addEventListener('change',e=>{e.stopImmediatePropagation();const rows=AnkiProductParity._browserRows(),b=AnkiProductParity.browser;b.selected.clear();if(e.target.checked)rows.forEach(r=>b.selected.add(this._selectionKey(r)));b._selectionAnchor=null;b._currentSelection=null;AnkiProductParity.renderBrowser();},true);
 
-    this._overrideBrowserRows();
     this._overrideBrowserRender();
     this._overrideBrowserBulk();
   },
 
   _overrideBrowserRows(){
-    AnkiProductParity._browserRows=()=>{
-      AnkiProductParity.ensure();const st=AnkiProductParity.browser,rows=[];
-      for(const note of AnkiParity.notes()){
-        const cards=AnkiProductParity._cardsForNote(note,note._planId),nt=AnkiProductParity._typeFor(note),tags=(note.tags||[]).slice(),marked=tags.some(t=>String(t).toLowerCase()==='marked'),field=AnkiProductParity._sortField(note,nt);
-        if(st.mode==='cards'){
-          for(const card of cards)rows.push({note,cards:[card],card,nt,field,tags,flag:Number(card.flag)||0,suspended:!!card.suspenso,marked});
-        }else rows.push({note,cards,card:null,nt,field,tags,flag:cards.reduce((m,c)=>Math.max(m,Number(c.flag)||0),0),suspended:cards.some(c=>c.suspenso),marked});
-      }
-      const raw=String(st.query||'').trim(),q=raw.toLowerCase();
-      let out=rows;
-      if(q)out=out.filter(r=>{
-        const cs=r.card?[r.card]:(r.cards.length?r.cards:[{noteId:r.note.id,ankiNoteId:r.note.id,frente:Object.values(r.note.fields||{}).join(' '),verso:''}]);
-        if(/[\w*-]+:/.test(raw)||/\b(?:or|and)\b/i.test(raw)||/[()]/.test(raw)||/[*_]/.test(raw))return cs.some(c=>{try{return AnkiParity.filteredSearchMatches(c,raw);}catch(_){return false;}});
-        return [r.field,r.nt&&r.nt.name,(r.tags||[]).join(' '),...Object.values(r.note.fields||{}).map(x=>AnkiProductParity.plain(x))].join(' ').toLowerCase().includes(q);
-      });
-      if(st.tag)out=out.filter(r=>r.tags.some(t=>String(t)===st.tag||String(t).startsWith(st.tag+'::')));
-      if(st.flag!=='')out=out.filter(r=>Number(r.flag)===Number(st.flag));
-      if(st.suspended==='yes')out=out.filter(r=>r.suspended);else if(st.suspended==='no')out=out.filter(r=>!r.suspended);
-      if(st.marked)out=out.filter(r=>r.marked);
-      const sortable=this._availableColumns(st.mode).filter(k=>this._isSortableColumn(k)),key=sortable.includes(st.sort)?st.sort:(this._defaultColumns(st.mode).find(k=>this._isSortableColumn(k))||sortable[0]),dir=st.sortDir==='desc'?-1:1;
-      out.sort((a,b)=>{
-        const av=this._colValue(a,key),bv=this._colValue(b,key);let z;
-        if(typeof av==='number'&&typeof bv==='number')z=av-bv;else z=String(av).localeCompare(String(bv),'pt-BR',{numeric:true,sensitivity:'base'});
-        if(!z)z=String(a.card&&a.card.id||a.note.id).localeCompare(String(b.card&&b.card.id||b.note.id),undefined,{numeric:true});return z*dir;
-      });
-      return out;
-    };
+    /* A ordem e o pertencimento das linhas vêm do cache hidratado por
+       CardsOfficialBridge._refreshOfficialBrowser(). */
   },
 
   _overrideBrowserRender(){
