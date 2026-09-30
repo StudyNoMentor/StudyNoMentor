@@ -224,14 +224,22 @@ assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id==='a1'),true,'exclus�
 assert.equal(parse(keysForPlan('A').cards,[]).some(x=>x.id===novo.id),true,'exclusão de card externo não pode tocar card novo do plano ativo');
 assert.equal(S.revlogForPlan('B').length,1,'exclusão deve preservar o histórico no planejamento de origem');
 assert.equal(S.revlogForPlan('B')[0].ankiCardId,202,'revlog preservado deve guardar o ankiCardId para exportação futura');
+assert.equal(S.revlogForCard(S.scopedRef('card','B','b1')).length,1,'revlog de card excluído continua recuperável pela identidade plan-qualified');
 
-// Colisão física deixa de ser silenciosa: o modo global é bloqueado em vez de
-// resolver um ID homônimo para o planejamento errado.
+// Colisão física deixa de ser silenciosa: ID cru jamais pode escolher um plano
+// arbitrariamente; identidade planId::id resolve cada homônimo sem ambiguidade.
 const bRows=parse(keysForPlan('B').cards,[]);bRows.push({id:'a1',ankiId:303,deckId:'db',frente:'colisão',verso:'x'});put(keysForPlan('B').cards,bRows);
 assert.equal(S.identityCollisions().cards.length,1,'colisão entre planejamentos deve ser detectada');
+assert.equal(S.findCardRecord('a1'),null,'lookup global por ID cru deve falhar fechado quando há homônimo');
+assert.equal(S.findCardRecord(S.scopedRef('card','A','a1')).planId,'A','identidade qualificada deve resolver o card A');
+assert.equal(S.findCardRecord(S.scopedRef('card','B','a1')).planId,'B','identidade qualificada deve resolver o card B');
+const bDecks=parse(keysForPlan('B').decks,[]);bDecks.push({id:'da',nome:'Deck homônimo'});put(keysForPlan('B').decks,bDecks);
+assert.equal(S.deckRecord('da'),null,'deck por ID cru também deve falhar fechado quando ambíguo');
+assert.equal(S.deckRecord(S.scopedRef('deck','A','da')).planId,'A','deck qualificado deve preservar a origem');
 S.setCardsScope('all');
 assert.equal(S.cardsScope(),'plan','modo Todos deve ser bloqueado enquanto houver colisão de IDs');
 put(keysForPlan('B').cards,parse(keysForPlan('B').cards,[]).filter(x=>x.ankiId!==303));
+put(keysForPlan('B').decks,parse(keysForPlan('B').decks,[]).filter(x=>x.nome!=='Deck homônimo'));
 S.setCardsScope('all');
 assert.equal(S.cardsScope(),'all','modo Todos deve voltar a funcionar após remover a colisão');
 
