@@ -2157,10 +2157,16 @@ def cards_official_delete_deck(
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
+        before_cards = {int(x) for x in item.col.find_cards("")}
+        before_notes = {int(x) for x in item.col.find_notes("")}
         changes = item.col.decks.remove([DeckId(deck_id)])
+        after_cards = {int(x) for x in item.col.find_cards("")}
+        after_notes = {int(x) for x in item.col.find_notes("")}
         return {
             "ok": True,
             "deck_id": int(deck_id),
+            "deleted_card_ids": sorted(before_cards - after_cards),
+            "deleted_note_ids": sorted(before_notes - after_notes),
             "changes": pb(changes) if changes is not None else {},
             "state": cards_collection_state_payload(item.col),
         }
