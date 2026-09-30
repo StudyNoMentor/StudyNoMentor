@@ -1612,13 +1612,14 @@
   };
 
   const boot = () => {
-    S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+    S.installAnkiEntityScope(); S.installAnkiUsabilityParity(); S.ensureGlobalIdentitySafe();
+    S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
   window.addEventListener('screen:activated', e => {
     const s = e && e.detail && e.detail.screen;
-    if (s === 'cards') { S.installCardsUi(); S.refreshCards(); }
+    if (s === 'cards') { S.installAnkiUsabilityParity(); S.ensureGlobalIdentitySafe(); S.installCardsUi(); S.refreshCards(); }
     if (s === 'anki') {
       S.installAnkiUi();
       if (S.selectedBanks().length) S.applyAnkiBankFilter(false).catch(err => {
