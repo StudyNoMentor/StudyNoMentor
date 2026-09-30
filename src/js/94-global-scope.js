@@ -93,20 +93,20 @@
       return sc === 'all' ? this.allBy(suffix) : this._tag(this.activePlanId(), this._rows(this.activePlanId(), suffix));
     },
     cards(scope) {
-      const rows = this.forScope('cards', scope);
+      const rows = this.forScope('cards', scope), sc = scope || this.cardsScope();
       const seen = new Set();
       return rows.filter(c => {
-        const k = String(c && c.id);
-        if (!k || seen.has(k)) return false;
+        const id=String(c&&c.id||''), k=sc==='all' ? String(c&&c._planId||'')+'::'+id : id;
+        if (!id || seen.has(k)) return false;
         seen.add(k); return true;
       });
     },
     decks(scope) {
-      const rows = this.forScope('decks', scope);
+      const rows = this.forScope('decks', scope), sc = scope || this.cardsScope();
       const seen = new Set();
       return rows.filter(d => {
-        const k = String(d && d.id);
-        if (!k || seen.has(k)) return false;
+        const id=String(d&&d.id||''), k=sc==='all' ? String(d&&d._planId||'')+'::'+id : id;
+        if (!id || seen.has(k)) return false;
         seen.add(k); return true;
       });
     },
@@ -135,18 +135,22 @@
       }
       return null;
     },
-    findCardRecord(id) {
+    findCardRecord(id, planId) {
+      const raw = id && typeof id === 'object' ? id : null;
+      const cardId = String(raw ? raw.id : id);
+      const explicitPlan = planId != null ? planId : (raw && raw._planId != null ? raw._planId : null);
       const active = this.activePlanId();
-      const ids = [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
+      const ids = explicitPlan != null ? [explicitPlan]
+        : [active].concat(this.plans().map(p => p.id).filter(x => String(x) !== String(active)));
       for (const pid of ids) {
         const list = this._rows(pid, 'cards');
-        const idx = list.findIndex(c => String(c.id) === String(id));
+        const idx = list.findIndex(c => String(c.id) === cardId);
         if (idx >= 0) return { planId: pid, list, index: idx, card: list[idx] };
       }
       return null;
     },
-    sourcePlanForCard(id) {
-      const r = this.findCardRecord(id);
+    sourcePlanForCard(id, planId) {
+      const r = this.findCardRecord(id, planId);
       return r ? r.planId : null;
     },
     cardPosition(id) {
