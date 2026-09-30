@@ -198,8 +198,20 @@ const CardsOfficialBridge = {
   },
   async syncOfficialPackageImport(out){
     if(!out||!out.state)return out;
-    await this._syncStates(out.state.cards||[]);
-    if(out.state.reviewer)this._applyReviewer(out.state.reviewer);
+    const state=out.state,pid=this._activePlanId();
+    if(!Array.isArray(state.notetypes)||!Array.isArray(state.notes))throw new Error('A importação oficial não devolveu o snapshot integral da Collection.');
+    for(const row of state.decks||[]){
+      if(row&&row.filtered)this._saveFilteredDeckMirror(row,pid,null);
+      else if(row)this._saveNormalDeckMirror(row,pid,null);
+    }
+    this._syncNotetypesIntoPlans(state.notetypes,[pid]);
+    for(const ns of state.notes){
+      const fallback=this._localNotetypeId(ns.notetype_id,pid,null);
+      this._materializeOfficialNote(ns,pid,fallback);
+    }
+    await this._reconcileOfficialCardSet(state.notes,state.cards||[]);
+    await this._syncCollectionState(state,pid,null);
+    if(state.reviewer)this._applyReviewer(state.reviewer);
     this.ready=true;this.dirty=false;this._browserCache=[];CardsScreen.invalidateReviewQueue();
     return out;
   },
