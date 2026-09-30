@@ -95,6 +95,27 @@ const CardsOfficialBridge = {
     }
     return out;
   },
+  async _externalizeDataMedia(html,prefix){
+    let out=String(html==null?'':html),seq=0;
+    const re=/\b(src|poster)=(["'])data:([^;,"']+)(?:;charset=[^;,"']+)?;base64,([^"']+)\2/gi;
+    const matches=[...out.matchAll(re)];
+    for(const m of matches){
+      const dataUrl='data:'+m[3]+';base64,'+m[4],
+        blob=await fetch(dataUrl).then(r=>r.blob()),
+        ext=(String(m[3]).split('/')[1]||'bin').replace(/[^a-z0-9]+/gi,'').replace(/^jpeg$/i,'jpg')||'bin',
+        uploaded=await this.uploadOfficialMedia(blob,String(prefix||'pasted')+'-'+Date.now()+'-'+(++seq)+'.'+ext),
+        replacement=m[1]+'='+m[2]+uploaded.filename+m[2];
+      out=out.replace(m[0],replacement);
+    }
+    return out;
+  },
+  async _externalizeDataMediaFields(fields,prefix){
+    const out=Object.assign({},fields||{});
+    for(const key of Object.keys(out)){
+      out[key]=await this._externalizeDataMedia(out[key],String(prefix||'field')+'-'+String(key).replace(/[^A-Za-z0-9_-]+/g,'_'));
+    }
+    return out;
+  },
   async htmlWithMedia(html){
     this._clearBlobUrls();
     const doc=new DOMParser().parseFromString(String(html||''),'text/html');
@@ -1134,7 +1155,8 @@ const CardsOfficialBridge = {
     const pid=opts.planId!=null?opts.planId:this._activePlanId(),nt=await this._ensureOfficialNotetype(opts.notetype,pid),
       did=opts.deckId?this._officialDeckId(opts.deckId,pid):1;
     if(opts.deckId&&did==null)throw new Error('Baralho sem identidade Anki canônica.');
-    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:opts.fields||{},tags:opts.tags||[]})});
+    const officialFields=await this._externalizeDataMediaFields(opts.fields||{},'note');
+    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:officialFields,tags:opts.tags||[]})});
     if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota criada.');
     const note=this._materializeOfficialNote(out.note,pid,nt.local.id),seeds={};
     seeds[String(out.note.id)]=Object.assign({},opts.seed||{},{notetypeId:nt.local.id});
@@ -1148,7 +1170,8 @@ const CardsOfficialBridge = {
     await this.bootstrap(false);
     const pid=note._planId!=null?note._planId:(opts.planId!=null?opts.planId:this._activePlanId()),oid=this._officialNoteId(note);
     if(oid==null)throw new Error('Nota sem identidade Anki canônica.');
-    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:fields||{},tags:Array.isArray(tags)?tags:[]})});
+    const officialFields=await this._externalizeDataMediaFields(fields||{},'note');
+    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:officialFields,tags:Array.isArray(tags)?tags:[]})});
     if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota atualizada.');
     const saved=this._materializeOfficialNote(out.note,pid,note.notetypeId),seeds={};seeds[String(out.note.id)]=Object.assign({},opts.seed||{});
     await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
