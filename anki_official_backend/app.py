@@ -900,6 +900,72 @@ def cards_official_browser_facets(
         }
 
 
+@app.get("/api/cards-official/notetypes/full")
+def cards_official_notetypes_full(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return {
+            "notetypes": [
+                {"notetype": nt, "use_count": int(item.col.models.use_count(nt))}
+                for nt in item.col.models.all()
+            ]
+        }
+
+
+@app.get("/api/cards-official/notetypes/change-info")
+def cards_official_change_notetype_info(
+    old_notetype_id: int = Query(...),
+    new_notetype_id: int = Query(...),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(
+            item.col.models.change_notetype_info(
+                old_notetype_id=old_notetype_id,
+                new_notetype_id=new_notetype_id,
+            )
+        )
+
+
+@app.post("/api/cards-official/notetypes/change")
+def cards_official_change_notetype(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    request = notetypes_pb2.ChangeNotetypeRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Mudança de tipo inválida: {exc}") from exc
+    note_ids = [int(x) for x in request.note_ids]
+    with item.lock:
+        changes = item.col.models.change_notetype_of_notes(request)
+        notes = []
+        cards = []
+        for nid in note_ids:
+            try:
+                note_state = note_state_payload(item.col, nid)
+            except Exception:
+                continue
+            notes.append(note_state)
+            for cid in note_state["card_ids"]:
+                try:
+                    cards.append(card_state_payload(item.col, int(cid)))
+                except Exception:
+                    pass
+        return {
+            "ok": True,
+            "changes": pb(changes),
+            "notes": notes,
+            "cards": cards,
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
 @app.post("/api/cards-official/browser/bulk")
 def cards_official_browser_bulk(
     payload: dict[str, Any],
