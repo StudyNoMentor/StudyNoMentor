@@ -869,7 +869,8 @@ const AnkiExport = {
   async buildPackage(options) {
     options=Object.assign({legacy:true,withMedia:true,withScheduling:true,withDeckConfigs:true},options||{});
     const legacy=options.legacy!==false,collectionOpts={
-      withScheduling:options.withScheduling!==false,withDeckConfigs:options.withDeckConfigs!==false,limit:options.limit||{}
+      withScheduling:options.withScheduling!==false,withDeckConfigs:options.withDeckConfigs!==false,limit:options.limit||{},
+      canonicalAnkiIds:!!options.canonicalAnkiIds
     };
     const col=await this.buildCollection(Object.assign({schema:legacy?11:18},collectionOpts)),mediaMap={},mediaEntries=[];
     const compatibility=legacy?col:await this.buildCollection(Object.assign({schema:11},collectionOpts));
@@ -908,6 +909,7 @@ const AnkiExport = {
       withMedia:options.withMedia!==false,
       withScheduling:true,
       withDeckConfigs:true,
+      canonicalAnkiIds:!!options.canonicalAnkiIds,
       limit:{wholeCollection:true}
     });
   }
