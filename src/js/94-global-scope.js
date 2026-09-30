@@ -945,7 +945,12 @@
       Object.assign(c,p); c.updatedAt=now; c.ankiMod=Math.floor(Date.now()/1000);
     });
     if (DB._set(DB.keysForPlan(r.planId).cards, r.list) === false) return false;
-    return DB.getCard(id);
+    const salvo=DB.getCard(id);
+    // O caminho local já sincroniza a Note canônica em 11-db.js. O roteamento
+    // multi-planejamento precisa fazer o mesmo, senão o editor atualiza o cache
+    // do card e o reviewer continua renderizando uma Note antiga/vazia.
+    try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){if(typeof _quiet==='function')_quiet(e,'global-card-note-sync');}
+    return salvo;
   };
   DB.deleteCard = function(id) {
     if (O.getCard(id)) return O.deleteCard(id);
