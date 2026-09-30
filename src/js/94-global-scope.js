@@ -1202,6 +1202,138 @@
     }
   };
 
+
+  /* ── Paridade de uso real com Anki 26.09.3: identidade e ações manuais. ── */
+  S.updateCardScoped = function(ref, patch, planId) {
+    const r=this.findCardRecord(ref,planId);if(!r)return null;
+    let p=DB._semTransitorios?DB._semTransitorios(patch):patch;
+    if(p&&('frente' in p||'verso' in p)){
+      p=Object.assign({},p);
+      if('frente' in p)p.frente=_sanCard(p.frente);
+      if('verso' in p)p.verso=_sanCard(p.verso);
+    }
+    const c=r.list[r.index];Object.assign(c,p||{});c.updatedAt=new Date().toISOString();
+    if(!(p&&p.ankiMod!=null))c.ankiMod=Math.floor(Date.now()/1000);
+    if(DB._set(DB.keysForPlan(r.planId).cards,r.list)===false)return false;
+    return Object.assign({},c,{_planId:r.planId,_planNome:this.planName(r.planId)});
+  };
+
+  S.appendManualRevlog = function(ref, action, before, after) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);
+    const pid=r?r.planId:(ref&&ref._planId);if(pid==null)return null;
+    const card=r?r.card:ref,b=before||card||{},a=after||card||{},ts=Date.now();
+    const list=this._revlogForPlan(pid),last=list.length?list[list.length-1]:null;
+    const row=DB._normalizarReviewId({
+      _position:Math.max(list.length,Number(last&&last._position)||0)+1,
+      cardId:String(card&&card.id||''),ts,date:todayCards(),grade:0,acerto:null,time:0,
+      elapsed:Number(b.intervalo)||0,phase:'manual',ankiReviewKind:'manual',ankiIvlSemantica:2,
+      ankiInterval:Number(a.intervalo)||0,ankiLastInterval:Number(b.intervalo)||0,
+      intervalo:Number(b.intervalo)||0,easeFactor:Math.round((Number(a.ease)||2.5)*1000),
+      action:String(action||'manual')
+    },true);
+    list.push(row);const key=DB.keysForPlan(pid).revlog;
+    try{
+      if(DB._bancoRelacionalPronto&&DB._bancoRelacionalPronto()&&window.RelationalStore&&RelationalStore.queueRevlogAppend)
+        RelationalStore.queueRevlogAppend(key,row);
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'global-manual-revlog');}
+    if(this._savePending(pid,row)===false){
+      const i=list.findIndex(x=>x&&x.reviewId===row.reviewId);if(i>=0)list.splice(i,1);return false;
+    }
+    return Object.assign({},row,{_planId:pid,_planNome:this.planName(pid)});
+  };
+
+  S.setDueScoped = function(ref, spec, opts) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    const parsed=typeof spec==='object'&&spec&&Number.isFinite(spec.min)?spec:DB.parseDueSpec(spec);
+    if(!parsed)return null;
+    const c=Object.assign({},r.card,{_planId:r.planId}),before=Object.assign({},c);
+    const days=DB._dueRangePick(c.id,parsed,opts),wasNew=(c.phase||'new')==='new';
+    const patch={
+      due:CardEngine.addDays(todayCards(),days),dueTs:null,enterradoAte:null,buryKind:null,
+      phase:'review',status:c.status&&c.status!=='pendente'?c.status:'sei'
+    };
+    if(wasNew||parsed.forceInterval)patch.intervalo=Math.max(1,Math.abs(days)||1);
+    const after=this.updateCardScoped(c,patch,r.planId);
+    if(after)this.appendManualRevlog(after,'set-due',before,after);
+    return after?{card:after,days,parsed}:null;
+  };
+
+  S.resetCardScoped = function(ref, opts) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    const c=Object.assign({},r.card,{_planId:r.planId}),before=Object.assign({},c);
+    const o=Object.assign({restorePosition:false,resetCounts:false,log:true},opts||{});
+    const original=[c.originalPosition,c.originalPos,c.ankiOriginalPosition,c.posicaoOriginal].map(Number).find(Number.isFinite);
+    const maxPos=r.list.reduce((m,x)=>Math.max(m,Number(x.posicaoNova)||Number(x.ankiDue)||0),0);
+    const pos=o.restorePosition&&Number.isFinite(original)?original:maxPos+1;
+    const patch={
+      phase:'new',learnStep:0,due:todayCards(),dueTs:null,intervalo:0,s:null,d:null,lastReview:null,
+      status:'pendente',enterradoAte:null,buryKind:null,suspenso:false,posicaoNova:pos,ankiDue:pos
+    };
+    if(o.resetCounts){patch.reps=0;patch.lapses=0;patch.ease=2.5;patch.leech=false;}
+    const after=this.updateCardScoped(c,patch,r.planId);
+    try{CardsConfig.forgetCardId(c.id);}catch(_){if(typeof _quiet==='function')_quiet(_,'global-reset-daily');}
+    if(o.log!==false&&after)this.appendManualRevlog(after,'reset',before,after);
+    return after;
+  };
+
+  S.buryCardScoped = function(ref) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    const c=Object.assign({},r.card,{_planId:r.planId});
+    return this.updateCardScoped(c,{
+      enterradoAte:CardEngine.addDays(todayCards(),1),buryKind:'user',
+      dueTsAntesEnterrar:c.dueTs==null?null:c.dueTs,dueTs:null
+    },r.planId);
+  };
+
+  S.suspendCardScoped = function(ref, value) {
+    const r=this.findCardRecord(ref,(ref&&ref._planId)!=null?ref._planId:null);if(!r)return null;
+    return this.updateCardScoped(Object.assign({},r.card,{_planId:r.planId}),{suspenso:value!==false},r.planId);
+  };
+
+  S.deleteNoteScoped = function(note) {
+    if(!note)return 0;
+    const pid=note._planId!=null?note._planId:this.activePlanId(),nid=String(note.id);
+    const list=this._rows(pid,'cards');
+    const ids=new Set(list.filter(c=>String(window.AnkiParity?AnkiParity.noteId(c):(c.noteId||c.id))===nid).map(c=>String(c.id)));
+    if(!ids.size)return 0;
+    if(DB._set(DB.keysForPlan(pid).cards,list.filter(c=>!ids.has(String(c.id))))===false)return false;
+    try{ids.forEach(cid=>CardsConfig.forgetCardId(cid));}catch(_){if(typeof _quiet==='function')_quiet(_,'global-delete-note-daily');}
+    try{localStorage.removeItem(this.entityKeyForPlan(pid,'note',nid));}catch(_){if(typeof _quiet==='function')_quiet(_,'global-delete-note-entity');}
+    return ids.size;
+  };
+
+  S.identityCollisions = function() {
+    const collect=suffix=>{
+      const m=new Map();
+      this.allBy(suffix).forEach(x=>{
+        if(!x||x.id==null)return;const id=String(x.id),pid=String(x._planId||'');
+        if(!m.has(id))m.set(id,new Set());m.get(id).add(pid);
+      });
+      return [...m.entries()].filter(([,pids])=>pids.size>1).map(([id,pids])=>({id,planIds:[...pids]}));
+    };
+    return {cards:collect('cards'),decks:collect('decks')};
+  };
+  const _setCardsScopeUnsafe=S.setCardsScope.bind(S);
+  S.setCardsScope=function(v){
+    if(v!=='plan'){
+      const c=this.identityCollisions();
+      if(c.cards.length||c.decks.length){
+        showToast('IDs duplicados entre planejamentos: modo global bloqueado para evitar editar o card errado.');
+        return _setCardsScopeUnsafe('plan');
+      }
+    }
+    return _setCardsScopeUnsafe(v);
+  };
+  S.ensureGlobalIdentitySafe=function(){
+    const c=this.identityCollisions();this._lastIdentityCollisions=c;
+    if(this.cardsScope()==='all'&&(c.cards.length||c.decks.length)){
+      _setCardsScopeUnsafe('plan');
+      setTimeout(()=>showToast('Proteção ativa: colisão de IDs detectada; Cards ficou no planejamento atual.'),0);
+      return false;
+    }
+    return true;
+  };
+
   const boot = () => {
     S.installAnkiEntityScope(); S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
   };
