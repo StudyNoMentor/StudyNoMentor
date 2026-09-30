@@ -467,21 +467,16 @@ const CardsOfficialBridge = {
     if(this.ready&&!this.dirty&&!force)return this.review;
     this._bootPromise=(async()=>{
       if(!this.api().token())throw new Error('Entre na conta do Study para usar o motor oficial dos Cards.');
-      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildCollectionPackage!=='function')throw new Error('Exportador canônico dos Cards indisponível.');
-      if(typeof AnkiParity!=='undefined'){
-        if(AnkiParity.ensureIdentities)AnkiParity.ensureIdentities();
-        if(AnkiParity.ensureCanonicalNotes)AnkiParity.ensureCanonicalNotes();
+      const status=await this.request('/api/cards-official/status'),
+        localCount=(this._scopeCards()||[]).length,
+        officialCount=Math.max(Number(status&&status.cards)||0,Number(status&&status.notes)||0);
+      if(!officialCount&&localCount){
+        throw new Error('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study. A migração única para o Anki oficial precisa ser concluída antes da revisão.');
       }
-      const pkg=await AnkiExport.buildCollectionPackage({
-        legacy:false,withMedia:true,withScheduling:true,withDeckConfigs:true,
-        canonicalAnkiIds:true,preserveFiltered:true
-      });
-      const fd=new FormData();
-      fd.append('package',new Blob([pkg.bytes],{type:'application/octet-stream'}),'study-cards.colpkg');
-      const out=await this.request('/api/cards-official/bootstrap',{method:'POST',body:fd});
-      if(!out||!out.ok)throw new Error('O Anki oficial não confirmou o bootstrap dos Cards.');
+      const state=await this.request('/api/cards-official/collection/full-state');
+      await this._syncOfficialFullState(state,this._activePlanId());
       this.ready=true;this.dirty=false;this._sessionAnswered=0;this._sessionStartTotal=null;
-      this._undo=[];this._redo=[];this._applyReviewer(out.reviewer||{finished:true,counts:{},queue_ids:[]});
+      this._undo=[];this._redo=[];this._applyReviewer(state.reviewer||{finished:true,counts:{},queue_ids:[]});
       return this.review;
     })().finally(()=>{this._bootPromise=null;});
     return this._bootPromise;
