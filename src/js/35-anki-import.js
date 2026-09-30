@@ -481,12 +481,32 @@ const AnkiImport = {
     const col=this._rows(db,'select crt from col where id=1')[0]||{},deckMap=new Map(),cardMap=new Map(),ntMap=new Map(),ntFieldMaps=new Map(),ntTemplateMaps=new Map(),noteMap=new Map();
     const existingDecks=DB.getDecks().slice();
     for(const d of Object.values(meta.decks||{})){
-      if(Number(d.dyn||0))continue;
+      const filtered=Number(d.dyn||0)!==0;
       let hit=existingDecks.find(x=>Number(x.ankiId)===Number(d.id)||String(x.nome)===String(d.name));
-      if(!hit){hit={id:DB._uid(),ankiId:Number(d.id),nome:String(d.name||'Default'),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),configId:String(d.conf||'default')};existingDecks.push(hit);}
-      else {hit.ankiId=Number(d.id);hit.nome=String(d.name||hit.nome);hit.configId=String(d.conf||hit.configId||'default');hit.updatedAt=new Date().toISOString();}
+      const now=new Date().toISOString();
+      if(!hit){hit={id:DB._uid(),ankiId:Number(d.id),nome:String(d.name||'Default'),createdAt:now,updatedAt:now};existingDecks.push(hit);}
+      hit.ankiId=Number(d.id);hit.nome=String(d.name||hit.nome);hit.updatedAt=now;
+      if(filtered){
+        hit.kind='filtered';hit.filtered=true;hit.configId=null;
+        hit.filteredConfig={
+          reschedule:d.resched!==false,
+          searchTerms:(d.terms||[]).map(t=>({
+            search:String((Array.isArray(t)?t[0]:t&&t.search)||''),
+            limit:Math.max(0,Math.round(Number(Array.isArray(t)?t[1]:t&&t.limit)||0)),
+            order:Math.max(0,Math.round(Number(Array.isArray(t)?t[2]:t&&t.order)||0))
+          })),
+          delays:Array.isArray(d.delays)?d.delays.map(Number).filter(Number.isFinite):[],
+          previewDelay:Math.max(0,Math.round(Number(d.previewDelay)||0)),
+          previewAgainSecs:Math.max(0,Math.round(Number(d.previewAgainSecs)||0)),
+          previewHardSecs:Math.max(0,Math.round(Number(d.previewHardSecs)||0)),
+          previewGoodSecs:Math.max(0,Math.round(Number(d.previewGoodSecs)||0))
+        };
+      }else{
+        hit.kind=hit.kind==='filtered'?undefined:hit.kind;hit.filtered=false;delete hit.filteredConfig;
+        hit.configId=String(d.conf||hit.configId||'default');
+        if(opts.withDeckConfigs!==false&&meta.dconf&&meta.dconf[String(d.conf)])CardsConfig.setDeckPreset(hit.id,this._deckCfg(meta.dconf[String(d.conf)]));
+      }
       deckMap.set(String(d.id),hit.id);
-      if(opts.withDeckConfigs!==false&&meta.dconf&&meta.dconf[String(d.conf)])CardsConfig.setDeckPreset(hit.id,this._deckCfg(meta.dconf[String(d.conf)]));
     }
     DB.saveDecks(existingDecks);
     try{if(opts.withScheduling!==false&&Number(col.crt)>0&&!CardsConfig.get().ankiCrt)CardsConfig.set({ankiCrt:Number(col.crt)});}catch(e){if(typeof _quiet==='function')_quiet(e,'anki-crt');}
@@ -562,11 +582,33 @@ const AnkiImport = {
       let c=porAnkiId.get(Number(ac.id));
       if(!c){c=DB.addCard({deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiId:Number(ac.id),kind:nt.kind==='cloze'?'cloze':'basic',template:nt.kind==='cloze'?'cloze:'+(Number(ac.ord)+1):'forward',clozeOrd:nt.kind==='cloze'?Number(ac.ord)+1:null,frente:front,verso:back});porAnkiId.set(Number(ac.id),c);}
       else DB.updateCard(c.id,{deckId:stub.deckId,noteId:localNid,ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,frente:front,verso:back,kind:nt.kind==='cloze'?'cloze':'basic'});
-      const patch={ankiId:Number(ac.id),ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,ankiMod:Number(ac.mod)||0,flag:Math.max(0,Math.min(7,Number(ac.flags)||0))};
+      const patch={
+        ankiId:Number(ac.id),ankiNoteId:localNid,ankiTemplateOrd:localOrd||0,ankiMod:Number(ac.mod)||0,
+        ankiType:Number(ac.type)||0,ankiQueue:Number(ac.queue)||0,ankiDue:Number(ac.due)||0,
+        ankiRemainingSteps:Number(ac.left)||0,ankiOriginalDue:Number(ac.odue)||0,
+        flag:Math.max(0,Math.min(7,Number(ac.flags)||0))
+      };
       if(opts.withScheduling!==false){
-        const data=(()=>{try{return JSON.parse(ac.data||'{}')}catch(_){return {}}})(),phase=this._phase(ac.type,ac.queue);
+        const data=(()=>{try{return JSON.parse(ac.data||'{}')}catch(e){if(typeof _quiet==='function')_quiet(e,'anki-import-card-data');return {}}})(),phase=this._phase(ac.type,ac.queue);
         Object.assign(patch,{phase,intervalo:Math.max(0,Number(ac.ivl)||0),ease:(Number(ac.factor)||2500)/1000,reps:Number(ac.reps)||0,lapses:Number(ac.lapses)||0,s:data.s==null?null:Number(data.s),d:data.d==null?null:Number(data.d),dueTs:null});
-        if(phase==='new')patch.posicaoNova=Number(ac.due)||0;else if(Number(ac.queue)===1||Number(ac.queue)===3)patch.dueTs=Number(ac.due)*1000;else patch.due=this._dueDate(col.crt,ac.due);
+        const originalDeckId=Number(ac.odid)?deckMap.get(String(ac.odid)):null;
+        if(originalDeckId){
+          patch.originalDeckId=originalDeckId;patch.originalPhase=this._phase(ac.type,ac.queue);
+          if(Number(ac.type)===0){
+            patch.posicaoNova=Math.max(0,Number(ac.odue)||0);
+          }else if(Number(ac.queue)===1||Number(ac.queue)===3){
+            patch.originalDueTs=Number(ac.odue)*1000;patch.originalDue=todayCards();
+          }else{
+            patch.originalDue=this._dueDate(col.crt,ac.odue);patch.originalDueTs=null;
+          }
+          patch.filteredDeckId=stub.deckId;
+        }else if(phase==='new')patch.posicaoNova=Number(ac.due)||0;
+        if(phase!=='new'){
+          if(Number(ac.queue)===1||Number(ac.queue)===3)patch.dueTs=Number(ac.due)*1000;
+          else patch.due=this._dueDate(col.crt,ac.due);
+        }else if(originalDeckId){
+          patch.due=todayCards();
+        }
         if(Number(ac.queue)===-1)patch.suspenso=true;if(Number(ac.queue)===-2||Number(ac.queue)===-3){patch.enterradoAte=CardEngine.addDays(todayCards(),1);patch.buryKind=Number(ac.queue)===-3?'user':'scheduler';}
       }
       DB.updateCard(c.id,patch);cardMap.set(String(ac.id),c.id);
