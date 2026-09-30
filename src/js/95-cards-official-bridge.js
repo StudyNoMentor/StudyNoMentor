@@ -116,6 +116,57 @@ const CardsOfficialBridge = {
     }
     return out;
   },
+  async exportOfficialPackage(kind,options){
+    kind=kind==='colpkg'?'colpkg':'apkg';options=options||{};
+    await this.bootstrap(false);
+    const qs=new URLSearchParams({
+      with_media:String(options.withMedia!==false),
+      legacy:String(!!options.legacy)
+    });
+    if(kind==='apkg'){
+      qs.set('with_scheduling',String(options.withScheduling!==false));
+      qs.set('with_deck_configs',String(options.withDeckConfigs!==false));
+      const localDeck=options.limit&&options.limit.deckId;
+      if(localDeck!=null){
+        const ctx=this._deckContext(localDeck);qs.set('deck_id',String(ctx.officialId));
+      }
+    }
+    const api=this.api(),base=api.apiBase(),token=api.token(),
+      response=await fetch(base+'/api/cards-official/export/'+kind+'?'+qs.toString(),{headers:token?{Authorization:'Bearer '+token}:{}});
+    if(!response.ok){
+      let message='Falha na exportação oficial .'+kind;
+      try{const body=await response.json();if(body&&body.detail)message=body.detail;}catch(_){}
+      throw new Error(message);
+    }
+    return {
+      blob:await response.blob(),
+      cards:Number(response.headers.get('X-Anki-Exported-Cards'))||null,
+      kind,legacy:!!options.legacy
+    };
+  },
+  async importOfficialPackage(file,options){
+    options=options||{};if(!file)throw new Error('Arquivo de importação ausente.');
+    await this.bootstrap(false);
+    const kind=options.kind==='colpkg'?'colpkg':'apkg',qs=new URLSearchParams();
+    if(kind==='apkg'){
+      qs.set('with_scheduling',String(options.withScheduling!==false));
+      qs.set('with_deck_configs',String(options.withDeckConfigs!==false));
+      qs.set('merge_notetypes',String(options.mergeNotetypes!==false));
+      qs.set('update_notes',String(options.updateNotes||'if-newer'));
+      qs.set('update_notetypes',String(options.updateNotetypes||'if-newer'));
+    }
+    const fd=new FormData();fd.append('package',file,file.name||('import.'+kind));
+    const out=await this.request('/api/cards-official/import/'+kind+(qs.toString()?'?'+qs.toString():''),{method:'POST',body:fd});
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a importação.');
+    return out;
+  },
+  async syncOfficialPackageImport(out){
+    if(!out||!out.state)return out;
+    await this._syncStates(out.state.cards||[]);
+    if(out.state.reviewer)this._applyReviewer(out.state.reviewer);
+    this.ready=true;this.dirty=false;this._browserCache=[];CardsScreen.invalidateReviewQueue();
+    return out;
+  },
   async htmlWithMedia(html){
     this._clearBlobUrls();
     const doc=new DOMParser().parseFromString(String(html||''),'text/html');
