@@ -284,9 +284,10 @@ const AnkiProductParity = {
   },
 
   openNoteEditor(id){
-    const note=AnkiParity.getNote(id);if(!note)return;const nt=this._typeFor(note);this._editingNoteId=String(id);
+    const supplied=id&&typeof id==='object'?id:null,note=supplied||AnkiParity.getNote(id);if(!note)return;const nt=this._typeFor(note);
+    this._editingNoteId=String(note.id);this._editingNoteRef={id:String(note.id),planId:note._planId||null};
     document.getElementById('anki-note-edit-title').textContent='✎ Editar nota';
-    document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+this._cardsForNote(id).length+' card(s)';
+    document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+this._cardsForNote(note,note._planId).length+' card(s)';
     const body=document.getElementById('anki-note-edit-body');
     body.innerHTML=(nt&&nt.fields||[]).map((f,i)=>'<div class="field"><label>'+this.esc(f.name)+'</label><textarea class="anki-note-field anki-code-area" data-field="'+this.esc(f.name)+'" rows="4">'+this.esc(note.fields&&note.fields[f.name]||'')+'</textarea></div>').join('')+
       '<div class="field"><label>Tags</label><input id="anki-note-tags" type="text" value="'+this.esc((note.tags||[]).join(' '))+'" placeholder="tag1 tag2::subtag"></div>';
@@ -295,13 +296,17 @@ const AnkiProductParity = {
 
   _bindNoteEdit(){
     document.getElementById('anki-note-save').addEventListener('click',()=>{
-      const note=AnkiParity.getNote(this._editingNoteId);if(!note)return;const nt=this._typeFor(note),fields={};
+      const ref=this._editingNoteRef||{id:this._editingNoteId,planId:null},
+        note=AnkiParity.getNote(ref.id,ref.planId==null?undefined:ref.planId);if(!note)return;const nt=this._typeFor(note),fields={};
       document.querySelectorAll('#anki-note-edit-body .anki-note-field').forEach(t=>fields[t.dataset.field]=t.value);
       const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean);
-      const saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}));this.reconcileNote(saved,nt);
-      document.getElementById('anki-note-edit-modal').style.display='none';this.renderBrowser();this.previewNote(saved.id);CardsScreen.render();showToast('Nota atualizada ✓');
+      const saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}),ref.planId==null?undefined:ref.planId);this.reconcileNote(saved,nt);
+      document.getElementById('anki-note-edit-modal').style.display='none';this.renderBrowser();this.previewNote(saved);CardsScreen.render();showToast('Nota atualizada ✓');
     });
-    document.getElementById('anki-note-change-type').addEventListener('click',()=>{if(this._editingNoteId)this.openChangeType([this._editingNoteId]);});
+    document.getElementById('anki-note-change-type').addEventListener('click',()=>{
+      const ref=this._editingNoteRef||{id:this._editingNoteId,planId:null};if(!ref.id)return;
+      const n=AnkiParity.getNote(ref.id,ref.planId==null?undefined:ref.planId);if(n)this.openChangeType([n]);
+    });
   },
 
   reconcileNote(note,nt){
@@ -682,20 +687,20 @@ const AnkiProductParity = {
       else if(v.action==='media')this.replayMedia(c);
       else if(v.action==='tts')this.speakCard(c);
       else if(v.action==='whiteboard')this.openWhiteboard();
-      else if(v.action==='type')this.openChangeType([nid]);
+      else if(v.action==='type'){const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):null;this.openChangeType([n||nid]);}
       else if(v.action==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     });
   },
 
   _visibleCardHtml(c){
-    const note=AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note);if(note&&nt){const q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,''),a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);return CardsScreen._flipped?a:q;}return CardsScreen._flipped?(c.verso||''):(c.frente||'');
+    const note=AnkiParity.noteForCard?AnkiParity.noteForCard(c):AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note);if(note&&nt){const q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,''),a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);return CardsScreen._flipped?a:q;}return CardsScreen._flipped?(c.verso||''):(c.frente||'');
   },
 
   async replayMedia(c){
     if(!c)return false;
     let parts=[];
     try{
-      const note=AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note),ord=Number(c.ankiTemplateOrd)||0;
+      const note=AnkiParity.noteForCard?AnkiParity.noteForCard(c):AnkiParity.getNote(this.noteId(c)),nt=this._typeFor(note),ord=Number(c.ankiTemplateOrd)||0;
       if(note&&nt){
         const q=AnkiParity.renderTemplate(nt,note,ord,'question',c,''),a=AnkiParity.renderTemplate(nt,note,ord,'answer',c,q);
         const answerOnly=(q&&String(a).includes(String(q)))?String(a).replace(String(q),''):String(a);
