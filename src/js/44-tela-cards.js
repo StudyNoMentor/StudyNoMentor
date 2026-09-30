@@ -2467,6 +2467,10 @@ const CardsScreen = {
         ? StudyGlobalScope.planName(cardPlanId) : (activePlan && activePlan.nome) || null);
       const key = auditKey(cardPlanId, c.id);
       const logs = reviewsByCard.get(key) || [];
+      const schedulingLogs=logs.filter(r=>{
+        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      });
       byCard[key] = {
         auditKey:key, id:c.id, planId:cardPlanId, planName:cardPlanName,
         deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
@@ -2485,7 +2489,9 @@ const CardsScreen = {
           if (q(0.212)||q(1.2931)||q(2.3065)||q(8.2956)) return 'fsrs6-inicial';
           return 'derivado';
         })(),
-        reviewCount:logs.length
+        reviewCount:logs.length,
+        schedulingReviewCount:schedulingLogs.length,
+        manualReviewCount:logs.length-schedulingLogs.length
       };
     });
 
@@ -2582,12 +2588,16 @@ const CardsScreen = {
     cards.forEach(c => {
       const pid = planIdOfCard(c), key = auditKey(pid, c.id);
       const logs = reviewsByCard.get(key) || [];
-      if ((c.reps || 0) !== logs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:logs.length });
+      const schedulingLogs=logs.filter(r=>{
+        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
+        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      });
+      if ((c.reps || 0) !== schedulingLogs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:schedulingLogs.length, manualEntries:logs.length-schedulingLogs.length });
       const deckId = c.originalDeckId || c.deckId;
       const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
-      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !logs.length) return;
+      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !schedulingLogs.length) return;
       const weights = CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights;
-      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(logs, weights) : null;
+      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(schedulingLogs, weights) : null;
       if (!replay) return;
       const relS = Math.abs(c.s - replay.s) / Math.max(Math.abs(replay.s), FSRS.S_MIN || 0.001);
       const absD = Math.abs(c.d - replay.d);
