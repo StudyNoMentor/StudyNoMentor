@@ -993,6 +993,10 @@ def cards_official_browser_rows(
                     "fields": dict(note.items()),
                     "tags": list(note.tags),
                     "flag": int(card.user_flag()),
+                    "queue": int(card.queue),
+                    "type": int(card.type),
+                    "due": int(card.due),
+                    "original_deck_id": int(card.odid),
                     "suspended": int(card.queue) == -1,
                 })
         else:
@@ -1008,6 +1012,10 @@ def cards_official_browser_rows(
                         "answer": card.answer(),
                         "stats": pb(item.col.card_stats_data(card.id)),
                         "flag": int(card.user_flag()),
+                        "queue": int(card.queue),
+                        "type": int(card.type),
+                        "due": int(card.due),
+                        "original_deck_id": int(card.odid),
                         "suspended": int(card.queue) == -1,
                     })
                 rows.append({
