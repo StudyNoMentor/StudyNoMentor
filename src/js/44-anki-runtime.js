@@ -294,7 +294,7 @@ const AnkiRuntime = {
       const [,side,raw]=cmd.split(':'),idx=Math.max(0,Number(raw)||0),id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx],card=id&&DB.getCard(id);
       if(!card||typeof AnkiProductParity==='undefined')return false;
       try{
-        const note=AnkiParity.getNote(AnkiProductParity.noteId(card)),nt=note&&AnkiProductParity._typeFor(note),ord=Number(card.ankiTemplateOrd)||0;
+        const note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiProductParity._getNote(AnkiProductParity.noteRefForCard(card)),nt=note&&AnkiProductParity._typeFor(note),ord=Number(card.ankiTemplateOrd)||0;
         if(!note||!nt)return false;const q=AnkiParity.renderTemplate(nt,note,ord,'question',card,''),a=AnkiParity.renderTemplate(nt,note,ord,'answer',card,q),
           html=side==='q'?q:a,items=this._collectMarkupAv(html),item=items[idx];if(item)this._playSingleParentItem(item);return !!item;
       }catch(_){return false;}
