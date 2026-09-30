@@ -50,6 +50,13 @@ assert.match(typedQ,/snm-anki-show-answer/,'Enter no campo digitado deve revelar
 assert.match(typedQ,/window\.pycmd/,'template sandbox deve expor bridge pycmd compatível');
 assert.match(typedQ,/playQueue\(avNodes\(\)\)/,'runtime deve reproduzir fila AV inteira em ordem');
 assert.match(typedQ,/snm-anki-av-state/,'runtime deve reportar estado AV ao Auto Advance');
+assert.equal(typeof R.pauseAv,'function','runtime deve expor Pause Audio do reviewer original');
+assert.equal(typeof R.seekAv,'function','runtime deve expor avanço/retrocesso de áudio');
+const runtimeSrc=readFileSync(join(ROOT,'src/js/44-anki-runtime.js'),'utf8');
+assert.match(runtimeSrc,/controlVisible\('snm-anki-pause'\)/,'Pause deve alcançar a mídia dentro do iframe');
+assert.match(runtimeSrc,/controlVisible\('snm-anki-seek',Number\(seconds\)\|\|0\)/,'Seek deve alcançar a mídia dentro do iframe');
+assert.match(runtimeSrc,/currentTime=Math\.max\(0,/,'retrocesso não pode produzir tempo negativo');
+
 R.clearTyped({id:123});
 assert.equal(R._typedAnswers.has('123|Front'),false,'resposta digitada deve ser limpa ao avançar o card');
 assert.equal(R._needsMath('Preço: R$ 100'),false,'valor monetário não deve carregar MathJax');
