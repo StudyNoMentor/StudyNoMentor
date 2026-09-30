@@ -443,15 +443,10 @@ const AnkiMaxParity = {
   },
 
   previewCard(cardId){
-    const c=cardId&&typeof cardId==='object'?cardId:DB.getCard(cardId),box=document.getElementById('anki-browser-preview');if(!c||!box)return;
-    const note=AnkiParity.noteForCard?AnkiParity.noteForCard(c):AnkiParity.getNote(AnkiProductParity.noteId(c)),nt=note?AnkiProductParity._typeFor(note):null;
-    if(!note||!nt){box.innerHTML='<p class="hint">Card sem nota/tipo.</p>';return;}
-    let q='',a='';try{q=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'question',c,'');a=AnkiParity.renderTemplate(nt,note,Number(c.ankiTemplateOrd)||0,'answer',c,q);}catch(e){a=AnkiProductParity.esc(e.message||e);}
-    const frame=(html,side)=>typeof AnkiRuntime!=='undefined'?AnkiRuntime.renderFrame(nt,html,side,c,true,note,CardsConfig.forDeck(c.deckId)):'<div class="cards-face">'+_sanCard(html)+'</div>';
-    box.innerHTML='<div class="anki-preview-head"><strong>'+AnkiProductParity.esc(nt.name)+'</strong><span>'+AnkiProductParity.esc(this._templateName({card:c,nt}))+'</span></div>'+
-      '<div class="anki-preview-label">Pergunta</div>'+frame(q,'question')+'<div class="anki-preview-label">Resposta</div>'+frame(a,'answer')+
-      '<div class="anki-preview-actions"><button type="button" class="btn-primary" id="anki-preview-edit">✎ Editar nota</button><button type="button" class="btn-secondary" id="anki-preview-info">ℹ Info do card</button></div>';
-    document.getElementById('anki-preview-edit').onclick=()=>AnkiProductParity.openNoteEditor(note);document.getElementById('anki-preview-info').onclick=()=>CardsScreen.cardInfo(c);
+    const c=cardId&&typeof cardId==='object'?cardId:DB.getCard(cardId);
+    if(!c){const box=document.getElementById('anki-browser-preview');if(box)box.innerHTML='<p class="hint">Card não encontrado.</p>';return;}
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.previewBrowserCard!=='function'){showToast('Prévia não renderizada: Anki oficial indisponível.');return;}
+    void CardsOfficialBridge.previewBrowserCard(c).catch(e=>showToast('Prévia oficial indisponível: '+(e&&e.message?e.message:String(e))));
   },
 
   _officialBrowserCall(name,ids){
