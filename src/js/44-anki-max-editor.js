@@ -160,19 +160,23 @@ const AnkiMaxEditor = {
   _patchNoteEditor(){
     const save=document.getElementById('anki-note-save');if(save)save.addEventListener('click',e=>{if(!this._richEditingNote)return;e.preventDefault();e.stopImmediatePropagation();this._saveRichNote();},true);
     AnkiProductParity.openNoteEditor=(id)=>{
-      const note=AnkiParity.getNote(id);if(!note)return;const nt=AnkiProductParity._typeFor(note);if(typeof AnkiImageOcclusion!=='undefined'&&AnkiImageOcclusion.isType(nt)){AnkiImageOcclusion.openEditor(id,(AnkiProductParity._cardsForNote(id).find(c=>c.deckId)||{}).deckId);return;}
-      this._richEditingNote=String(id);AnkiProductParity._editingNoteId=String(id);
-      document.getElementById('anki-note-edit-title').textContent='✎ Editar nota';document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+AnkiProductParity._cardsForNote(id).length+' card(s)';
+      const supplied=id&&typeof id==='object'?id:null,note=supplied||AnkiParity.getNote(id);if(!note)return;
+      const nt=AnkiProductParity._typeFor(note),cards=AnkiProductParity._cardsForNote(note,note._planId);
+      if(typeof AnkiImageOcclusion!=='undefined'&&AnkiImageOcclusion.isType(nt)){AnkiImageOcclusion.openEditor(note,(cards.find(c=>c.deckId)||{}).deckId);return;}
+      this._richEditingNote={id:String(note.id),planId:note._planId||null};AnkiProductParity._editingNoteId=String(note.id);
+      document.getElementById('anki-note-edit-title').textContent='✎ Editar nota';document.getElementById('anki-note-edit-sub').textContent=(nt&&nt.name||'Tipo de nota')+' · '+cards.length+' card(s)';
       const body=document.getElementById('anki-note-edit-body');
-      body.innerHTML=(nt&&nt.fields||[]).map((f,i)=>this._fieldEditorHtml(Object.assign({ord:i},f),note.fields&&note.fields[f.name]||'','anki-note-'+id)).join('')+
+      body.innerHTML=(nt&&nt.fields||[]).map((f,i)=>this._fieldEditorHtml(Object.assign({ord:i},f),note.fields&&note.fields[f.name]||'','anki-note-'+note.id)).join('')+
         '<div class="field"><label>Tags</label><input id="anki-note-tags" type="text" value="'+this.esc((note.tags||[]).join(' '))+'" placeholder="tag1 tag2::subtag"></div>';
       this._decorateRichEditors(body);document.getElementById('anki-note-edit-modal').style.display='flex';
     };
   },
   _saveRichNote(){
-    const id=this._richEditingNote,note=AnkiParity.getNote(id);if(!note)return;const nt=AnkiProductParity._typeFor(note),fields={};
+    const ctx=this._richEditingNote;if(!ctx)return;const note=AnkiParity.getNote(ctx.id,ctx.planId==null?undefined:ctx.planId);if(!note)return;
+    const nt=AnkiProductParity._typeFor(note),fields={};
     document.querySelectorAll('#anki-note-edit-body .anki-note-field').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
-    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean),saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}));
+    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean),
+      saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}),ctx.planId==null?undefined:ctx.planId);
     AnkiProductParity.reconcileNote(saved,nt);this._richEditingNote=null;document.getElementById('anki-note-edit-modal').style.display='none';AnkiProductParity.renderBrowser();AnkiProductParity.previewNote(saved.id);CardsScreen.render();showToast('Nota atualizada ✓');
   },
 
@@ -191,12 +195,18 @@ const AnkiMaxEditor = {
     };
   },
   _saveAdvancedRich(){
-    const nt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!nt)return;const fields={};
+    const rawNt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!rawNt)return;const fields={};
     document.querySelectorAll('#anki-advanced-fields .anki-advanced-field-max').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
-    if(nt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
-    const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean)});
-    AnkiProductParity.reconcileNote(note,nt);const deck=document.getElementById('anki-advanced-deck').value;AnkiProductParity._cardsForNote(note.id).forEach(c=>DB.updateCard(c.id,{deckId:deck||null}));this._stickyWrite(nt,fields);
-    document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+AnkiProductParity._cardsForNote(note.id).length+' card(s) ✓');
+    if(rawNt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
+    const deck=document.getElementById('anki-advanced-deck').value,
+      rec=deck&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord?StudyGlobalScope.deckRecord(deck):null,
+      planId=(rec&&rec.planId)||(window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId()),
+      nt=AnkiProductParity._ensureNotetypeInPlan?AnkiProductParity._ensureNotetypeInPlan(rawNt,planId):rawNt,
+      id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,
+        tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean),_planId:planId||undefined},planId||undefined);
+    AnkiProductParity.reconcileNote(note,nt);const cards=AnkiProductParity._cardsForNote(note,planId);
+    cards.forEach(c=>DB.updateCard(c.id,{deckId:deck||null}));this._stickyWrite(nt,fields);
+    document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+cards.length+' card(s) ✓');
   }
 };
 queueMicrotask(()=>AnkiMaxEditor.install());

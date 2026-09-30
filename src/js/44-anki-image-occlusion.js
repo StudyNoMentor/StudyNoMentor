@@ -142,11 +142,17 @@ const AnkiImageOcclusion = {
     ['basic','basic_reversed','basic_optional_reversed','typing','cloze','image_occlusion'].forEach(k=>AnkiParity.stockNotetype(k));
     return AnkiParity.noteTypes();
   },
-  _normalDecks(planId){return (planId&&DB.getDecksForPlan?DB.getDecksForPlan(planId):DB.getDecks()).filter(d=>!AnkiParity.isFilteredDeck(d));},
+  _normalDecks(planId){
+    let decks;
+    if(planId&&DB.getDecksForPlan)decks=DB.getDecksForPlan(planId);
+    else if(window.StudyGlobalScope&&StudyGlobalScope.cardsScope&&StudyGlobalScope.cardsScope()==='all'&&StudyGlobalScope.decks)decks=StudyGlobalScope.decks('all');
+    else decks=DB.getDecks();
+    return (decks||[]).filter(d=>!AnkiParity.isFilteredDeck(d));
+  },
   _deckOptions(sel,planId){
     const decks=this._normalDecks(planId);
     if(!decks.length)return '<option value="__default__" selected>📁 Padrão</option>';
-    return decks.map(d=>'<option value="'+escapeHtml(String(d.id))+'" '+(String(sel||'')===String(d.id)?'selected':'')+'>'+escapeHtml(d.nome)+'</option>').join('');
+    return decks.map(d=>'<option value="'+escapeHtml(String(d.id))+'" '+(String(sel||'')===String(d.id)?'selected':'')+'>'+escapeHtml(String(d.nome||'Baralho')+(d._planNome?' · '+d._planNome:''))+'</option>').join('');
   },
   _resolveDeck(value,planId){
     if(value&&value!=='__default__')return String(value);
@@ -169,33 +175,38 @@ const AnkiImageOcclusion = {
   },
   _bindAdvanced(){
     document.getElementById('anki-advanced-save').addEventListener('click',()=>{
-      const nt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!nt)return;const fields={};
+      const rawNt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!rawNt)return;const fields={};
       document.querySelectorAll('.anki-advanced-field').forEach(x=>fields[x.dataset.field]=x.value);
-      if(nt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
-      const deck=this._resolveDeck(document.getElementById('anki-advanced-deck').value);
+      if(rawNt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
+      const selectedDeck=document.getElementById('anki-advanced-deck').value,
+        rec=selectedDeck&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord?StudyGlobalScope.deckRecord(selectedDeck):null,
+        planId=(rec&&rec.planId)||(window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId()),
+        deck=this._resolveDeck(selectedDeck,planId);
       if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
-      const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean)});
-      AnkiProductParity.reconcileNote(note,nt);AnkiProductParity._cardsForNote(note.id).forEach(c=>DB.updateCard(c.id,{deckId:deck}));
-      document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+AnkiProductParity._cardsForNote(note.id).length+' card(s) ✓');
+      const nt=AnkiProductParity._ensureNotetypeInPlan?AnkiProductParity._ensureNotetypeInPlan(rawNt,planId):rawNt,
+        id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,
+          tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean),_planId:planId||undefined},planId||undefined);
+      AnkiProductParity.reconcileNote(note,nt);const cards=AnkiProductParity._cardsForNote(note,planId);cards.forEach(c=>DB.updateCard(c.id,{deckId:deck}));
+      document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+cards.length+' card(s) ✓');
     });
   },
 
   openEditor(noteId,deckId){
-    const existing=noteId?AnkiParity.getNote(noteId):null;
+    const supplied=noteId&&typeof noteId==='object'?noteId:null,existing=supplied||(noteId?AnkiParity.getNote(noteId):null),
+      noteKey=existing?existing.id:noteId;
     let planId=existing&&existing._planId||null;
     if(!planId&&deckId&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord){const r=StudyGlobalScope.deckRecord(deckId);if(r)planId=r.planId;}
     const nt=(existing&&AnkiProductParity._typeFor(existing))||AnkiParity.stockNotetype('image_occlusion',planId);
-    this.state={noteId:noteId?String(noteId):null,planId:planId||null,deckId:deckId||null,imageData:'',img:null,shapes:[],tool:'rect',drawing:null,polygon:[],occludeInactive:false,groupMode:'each',groupOrdinal:1};
+    this.state={noteId:noteKey!=null?String(noteKey):null,planId:planId||null,deckId:deckId||null,imageData:'',img:null,shapes:[],tool:'rect',drawing:null,polygon:[],occludeInactive:false,groupMode:'each',groupOrdinal:1};
     document.getElementById('anki-io-deck').innerHTML=this._deckOptions(deckId||(this._normalDecks(planId)[0]||{}).id,planId);
     document.getElementById('anki-io-header').value='';document.getElementById('anki-io-back').value='';document.getElementById('anki-io-comments').value='';document.getElementById('anki-io-tags').value='';document.getElementById('anki-io-file').value='';
-    if(noteId){
-      const note=AnkiParity.getNote(noteId),type=AnkiProductParity._typeFor(note)||nt;if(note){
-        const occ=this._fieldByTag(type,note,0,0),image=this._fieldByTag(type,note,1,1);this.state.shapes=this.parse(occ).map(s=>this._shapeFromParsed(s));this.state.occludeInactive=this.state.shapes.some(s=>s.oi);
-        document.getElementById('anki-io-header').value=this._fieldByTag(type,note,2,2);document.getElementById('anki-io-back').value=this._fieldByTag(type,note,3,3);document.getElementById('anki-io-comments').value=this._fieldByTag(type,note,4,4);document.getElementById('anki-io-tags').value=(note.tags||[]).join(' ');
-        const cards=AnkiProductParity._cardsForNote(noteId),d=cards.find(c=>c.deckId);if(d)this.state.deckId=d.deckId;
-        document.getElementById('anki-io-deck').innerHTML=this._deckOptions(this.state.deckId,this.state.planId);
-        const m=/\bsrc=["']([^"']+)["']/i.exec(image);if(m)this._loadImageSrc(m[1]);
-      }
+    if(existing){
+      const note=existing,type=AnkiProductParity._typeFor(note)||nt;
+      const occ=this._fieldByTag(type,note,0,0),image=this._fieldByTag(type,note,1,1);this.state.shapes=this.parse(occ).map(s=>this._shapeFromParsed(s));this.state.occludeInactive=this.state.shapes.some(s=>s.oi);
+      document.getElementById('anki-io-header').value=this._fieldByTag(type,note,2,2);document.getElementById('anki-io-back').value=this._fieldByTag(type,note,3,3);document.getElementById('anki-io-comments').value=this._fieldByTag(type,note,4,4);document.getElementById('anki-io-tags').value=(note.tags||[]).join(' ');
+      const cards=AnkiProductParity._cardsForNote(note,this.state.planId),d=cards.find(c=>c.deckId);if(d)this.state.deckId=d.deckId;
+      document.getElementById('anki-io-deck').innerHTML=this._deckOptions(this.state.deckId,this.state.planId);
+      const m=/\bsrc=["']([^"']+)["']/i.exec(image);if(m)this._loadImageSrc(m[1]);
     }
     document.getElementById('anki-io-occlude-inactive').checked=this.state.occludeInactive;document.getElementById('anki-io-group-mode').value=this.state.groupMode;
     document.getElementById('anki-io-modal').style.display='flex';this._selectTool('rect');this._renderEditor();
@@ -278,19 +289,20 @@ const AnkiImageOcclusion = {
 
   save(){
     if(!this.state.imageData){showToast('Escolha uma imagem');return;}if(!this.state.shapes.some(s=>Number(s.ordinal)>0)){showToast('Desenhe ao menos uma máscara');return;}
-    const oldNote=this.state.noteId?AnkiParity.getNote(this.state.noteId):null,
+    const oldNote=this.state.noteId?AnkiParity.getNote(this.state.noteId,this.state.planId||undefined):null,
       nt=(oldNote&&AnkiProductParity._typeFor(oldNote))||AnkiParity.stockNotetype('image_occlusion',this.state.planId),
       byTag=(tag,fallback)=>(nt.fields||[]).find(f=>Number(f.tag)===tag)||(nt.fields||[])[fallback],fields={};
     fields[byTag(0,0).name]=this.serialize();fields[byTag(1,1).name]='<img src="'+AnkiParity._escAttr(this.state.imageData)+'">';fields[byTag(2,2).name]=document.getElementById('anki-io-header').value;fields[byTag(3,3).name]=document.getElementById('anki-io-back').value;fields[byTag(4,4).name]=document.getElementById('anki-io-comments').value;
     const tags=String(document.getElementById('anki-io-tags').value||'').split(/\s+/).filter(Boolean),deck=this._resolveDeck(document.getElementById('anki-io-deck').value,this.state.planId);let note;
     if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
-    if(this.state.noteId){note=AnkiParity.saveNote(Object.assign({},oldNote,{notetypeId:nt.id,fields,tags}));}
-    else{const id=AnkiParity._allocId();note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-io-'+Number(id).toString(36),notetypeId:nt.id,fields,tags,_planId:this.state.planId||undefined});}
-    AnkiProductParity.reconcileNote(note,nt);AnkiProductParity._cardsForNote(note.id).forEach(c=>DB.updateCard(c.id,{deckId:deck}));document.getElementById('anki-io-modal').style.display='none';CardsScreen.render();showToast('Oclusão salva · '+AnkiProductParity._cardsForNote(note.id).filter(c=>AnkiParity._fieldNonempty(c.frente)).length+' card(s) ✓');
+    if(this.state.noteId){note=AnkiParity.saveNote(Object.assign({},oldNote,{notetypeId:nt.id,fields,tags}),this.state.planId||undefined);}
+    else{const id=AnkiParity._allocId();note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-io-'+Number(id).toString(36),notetypeId:nt.id,fields,tags,_planId:this.state.planId||undefined},this.state.planId||undefined);}
+    AnkiProductParity.reconcileNote(note,nt);const cards=AnkiProductParity._cardsForNote(note,this.state.planId);
+    cards.forEach(c=>DB.updateCard(c.id,{deckId:deck}));document.getElementById('anki-io-modal').style.display='none';CardsScreen.render();showToast('Oclusão salva · '+cards.filter(c=>AnkiParity._fieldNonempty(c.frente)).length+' card(s) ✓');
   },
 
   _protectIoType(){
-    const oldEdit=AnkiProductParity.openNoteEditor.bind(AnkiProductParity);AnkiProductParity.openNoteEditor=(id)=>{const note=AnkiParity.getNote(id),nt=AnkiProductParity._typeFor(note);if(this.isType(nt)){this.openEditor(id,(AnkiProductParity._cardsForNote(id).find(c=>c.deckId)||{}).deckId);return;}oldEdit(id);};
+    const oldEdit=AnkiProductParity.openNoteEditor.bind(AnkiProductParity);AnkiProductParity.openNoteEditor=(id)=>{const note=id&&typeof id==='object'?id:AnkiParity.getNote(id),nt=AnkiProductParity._typeFor(note);if(this.isType(nt)){this.openEditor(note,(AnkiProductParity._cardsForNote(note,note&&note._planId).find(c=>c.deckId)||{}).deckId);return;}oldEdit(id);};
     const oldNt=AnkiProductParity.openNotetypeEditor.bind(AnkiProductParity);AnkiProductParity.openNotetypeEditor=(id)=>{oldNt(id);const nt=AnkiParity.getNotetype(id);if(!this.isType(nt))return;requestAnimationFrame(()=>{const rows=[...document.querySelectorAll('#anki-nt-fields .anki-field-row')];(nt.fields||[]).forEach((f,i)=>{if(f.preventDeletion&&rows[i]){const b=rows[i].querySelector('[data-remove]');if(b){b.disabled=true;b.title='Campo estrutural do Image Occlusion';}}});});};
   }
 };

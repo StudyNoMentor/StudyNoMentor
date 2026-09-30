@@ -382,7 +382,7 @@ const AnkiPractical10 = {
     else if(a==='add')CardsScreen.openCardModal();
     else if(a==='browse')AnkiProductParity.openBrowser();
     else if(a==='stats'){const t=document.querySelector('.cards-tab[data-ctab="stats"]');if(t)t.click();}
-    else if(a==='type')AnkiProductParity.openChangeType(['n:'+nid]);
+    else if(a==='type'){const n=AnkiParity.noteForCard?AnkiParity.noteForCard(c):null;AnkiProductParity.openChangeType([n||('n:'+nid)]);}
     else if(a==='deck')CardsScreen.openAlgoConfigFor(c.deckId||null);
     else if(a==='delete')document.getElementById('cards-act-del')?.click();
   },
@@ -397,30 +397,60 @@ const AnkiPractical10 = {
 
     const oldOpen=CardsScreen.openCardModal.bind(CardsScreen);
     CardsScreen.openCardModal=(id)=>{
+      let card=null,note=null,nt=null,kind=null;
+      this._simpleEditCanonical=null;
       if(id){
-        const card=DB.getCard(id),note=card&&(AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(AnkiProductParity.noteId(card))),
-          nt=note&&(AnkiParity.notetypeForCard?AnkiParity.notetypeForCard(card,note):AnkiParity.getNotetype(note.notetypeId)),kind=nt&&nt.stockKind;
-        /* O formulário simples só sabe gravar Frente/Verso dos tipos padrão
-           Básico e Cloze. Qualquer outro tipo (em especial os importados do
-           Anki, que renderizam da NOTA) edita os campos da nota, como o Editor
-           do Anki — senão a revisão continuava mostrando os campos antigos. */
+        card=DB.getCard(id);note=card&&(AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(AnkiProductParity.noteId(card)));
+        nt=note&&(AnkiParity.notetypeForCard?AnkiParity.notetypeForCard(card,note):AnkiParity.getNotetype(note.notetypeId));kind=nt&&nt.stockKind;
+        /* O formulário simples só sabe gravar os tipos stock Basic/Cloze.
+           Tipos invertidos, typing, image occlusion e tipos importados/custom
+           editam diretamente os CAMPOS da Note canônica. */
         const simples=kind==='basic'||kind==='cloze';
         if(note&&nt&&(!simples||['basic_reversed','basic_optional_reversed','typing','image_occlusion'].includes(kind))){
-          if(kind==='image_occlusion'&&typeof AnkiImageOcclusion!=='undefined')AnkiImageOcclusion.openEditor(note.id,card.deckId||null);
-          else AnkiProductParity.openNoteEditor(note.id);
+          if(kind==='image_occlusion'&&typeof AnkiImageOcclusion!=='undefined')AnkiImageOcclusion.openEditor(note,card.deckId||null);
+          else AnkiProductParity.openNoteEditor(note);
           return;
         }
       }
       this._ensureSimpleNoteTypes();this._injectSimpleTypeFields();
-      const out=oldOpen(id);this._applySimpleNoteTypeUI();return out;
+      const out=oldOpen(id);
+      /* O cache card.frente/verso pode ser HTML já renderizado pelo template
+         (especialmente depois de "Mudar tipo") ou uma cópia antiga. Ao editar
+         Basic/Cloze stock, a fonte de verdade é a Note. */
+      if(id&&note&&nt&&(kind==='basic'||kind==='cloze')){
+        const front=document.getElementById('card-frente'),back=document.getElementById('card-verso'),sel=document.getElementById('card-kind');
+        if(kind==='cloze'){
+          if(front)front.innerHTML=String(note.fields&&note.fields.Text||'');
+          if(back)back.innerHTML='';
+          if(sel)sel.value='cloze';
+          this._simpleEditCanonical={noteId:note.id,planId:note._planId||CardsScreen._editingPlanId||null,kind,backExtra:String(note.fields&&note.fields['Back Extra']||'')};
+        }else{
+          if(front)front.innerHTML=String(note.fields&&note.fields.Front||'');
+          if(back)back.innerHTML=String(note.fields&&note.fields.Back||'');
+          if(sel)sel.value='basic';
+          this._simpleEditCanonical={noteId:note.id,planId:note._planId||CardsScreen._editingPlanId||null,kind,backExtra:''};
+        }
+      }
+      this._applySimpleNoteTypeUI();return out;
     };
 
     const oldSave=CardsScreen.saveCard.bind(CardsScreen);
     CardsScreen.saveCard=(closeAfter)=>{
-      const sel=document.getElementById('card-kind'),kind=sel&&sel.value;
+      const sel=document.getElementById('card-kind'),kind=sel&&sel.value,ctx=this._simpleEditCanonical;
       if(kind==='image_occlusion')return this._launchSimpleImageOcclusion();
       if(['basic_reversed','basic_optional_reversed','typing'].includes(kind))return this._saveCanonicalSimpleType(kind,closeAfter);
-      return oldSave(closeAfter);
+      const out=oldSave(closeAfter);
+      /* O formulário Cloze simples não expõe Back Extra. Editar o Text não
+         pode apagar esse campo canônico (importações/edições avançadas usam-no). */
+      if(ctx&&ctx.kind==='cloze'&&ctx.backExtra){
+        const n=AnkiParity.getNote(ctx.noteId,ctx.planId==null?undefined:ctx.planId);
+        if(n){
+          const fields=Object.assign({},n.fields||{}, {'Back Extra':ctx.backExtra});
+          AnkiParity.saveNote(Object.assign({},n,{fields}),ctx.planId==null?undefined:ctx.planId);
+        }
+      }
+      this._simpleEditCanonical=null;
+      return out;
     };
 
     const sel=document.getElementById('card-kind');
@@ -482,15 +512,20 @@ const AnkiPractical10 = {
     if(another)another.style.display=isIO?'none':(CardsScreen._editingId?'none':'inline-block');
   },
   _simpleDestination(){
-    const el=document.getElementById('card-destino');let dest=String(el&&el.value||'');
+    const el=document.getElementById('card-destino');let dest=String(el&&el.value||''),planId=CardsScreen._editingPlanId||null;
     if(!dest){showToast('Escolha o baralho');return null;}
     if(dest.startsWith('novo:')){
-      const nome=dest.slice(5),pid=CardsScreen._editingPlanId||null,
+      const nome=dest.slice(5),pid=planId,
         decks=pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks(),
         existing=decks.find(d=>d.nome===nome),deck=existing||(pid&&DB.addDeckForPlan?DB.addDeckForPlan(pid,nome):DB.addDeck(nome));
       dest='deck:'+deck.id;if(el)el.value=dest;
     }
-    return {raw:dest,deckId:dest.startsWith('deck:')?dest.slice(5):null,materia:dest.startsWith('sub:')?dest.slice(4):null};
+    const deckId=dest.startsWith('deck:')?dest.slice(5):null;
+    if(deckId&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord){
+      const r=StudyGlobalScope.deckRecord(deckId);if(r)planId=r.planId;
+    }
+    if(!planId)planId=(window.StudyGlobalScope&&StudyGlobalScope.activePlanId)?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId();
+    return {raw:dest,deckId,materia:dest.startsWith('sub:')?dest.slice(4):null,planId};
   },
   _simpleMetadataPatch(dst){
     return {
@@ -507,10 +542,11 @@ const AnkiPractical10 = {
     const frente=String(front&&front.innerHTML||'').trim(),verso=String(back&&back.innerHTML||'').trim();
     if(!CardEngine.hasContent(frente)){showToast('Preencha a frente');return false;}
     if(!CardEngine.hasContent(verso)){showToast('Preencha o verso');return false;}
-    const nt=AnkiParity.stockNotetype(kind),fields={Front:frente,Back:verso};
+    const nt=AnkiParity.stockNotetype(kind,dst.planId),fields={Front:frente,Back:verso};
     if(kind==='basic_optional_reversed')fields['Add Reverse']=document.getElementById('card-add-reverse')?.checked?'1':'';
-    const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:[]});
-    const result=AnkiProductParity.reconcileNote(note,nt),patch=this._simpleMetadataPatch(dst),cards=AnkiProductParity._cardsForNote(note.id);
+    const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:[],_planId:dst.planId||undefined},dst.planId||undefined);
+    const result=AnkiProductParity.reconcileNote(note,nt),patch=this._simpleMetadataPatch(dst),
+      cards=AnkiProductParity._cardsForNote(note,dst.planId);
     cards.forEach(c=>DB.updateCard(c.id,patch));CardEngine.invalidateDueCache();
     const n=cards.filter(c=>CardEngine.hasContent(c.frente)).length||Number(result&&result.created)||cards.length;
     showToast((n||1)+' card(s) criado(s) · '+nt.name+' ✓');
