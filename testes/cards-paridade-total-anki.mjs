@@ -431,6 +431,20 @@ eq(bnt.stockKind,'basic','Basic aponta para stock notetype Basic');
 eq(bnt.templates[0].qfmt,'{{Front}}','template Basic preserva qfmt oficial');
 eq(bnt.templates[0].afmt,'{{FrontSide}}\n\n<hr id=answer>\n\n{{Back}}','template Basic preserva afmt oficial');
 
+// Regressão: cache legado preenchido + Note canônica antiga/vazia não pode
+// fazer o reviewer dizer que a frente está em branco (caso real do editor).
+const staleLegacy=DB.addCard({frente:'Pergunta fiscal visível',verso:'Resposta fiscal visível',kind:'basic'});
+AnkiParity.ensureIdentities();AnkiParity.ensureCanonicalNotes();
+const staleCard=DB.getCard(staleLegacy.id),staleNote=AnkiParity.getNote(staleCard.ankiNoteId);
+AnkiParity.saveNote(Object.assign({},staleNote,{fields:{Front:'',Back:''}}));
+CardsScreen._flipped=false;
+const staleHtml=CardsScreen.faceHtml(DB.getCard(staleLegacy.id));
+const staleFixed=AnkiParity.getNote(staleCard.ankiNoteId);
+ok(staleHtml.includes('Pergunta fiscal visível')&&!staleHtml.includes('A frente deste cartão está em branco'),
+  'reviewer auto-repara Note stock vazia quando o card legado contém uma frente válida');
+eq(staleFixed.fields,{Front:'Pergunta fiscal visível',Back:'Resposta fiscal visível'},
+  'reparo canônico recupera Front/Back sem perder o conteúdo que o editor já exibia');
+
 const rs=DB.getCards().filter(x=>String(x.noteId)==='rev-note');
 ok(rs.every(x=>x.ankiNoteId===rs[0].ankiNoteId),'irmãos forward/reverse compartilham Note');
 const rnote=AnkiParity.getNote(rs[0].ankiNoteId), rnt=AnkiParity.getNotetype(rs[0].notetypeId);
