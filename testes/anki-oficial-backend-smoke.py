@@ -230,6 +230,36 @@ with tempfile.TemporaryDirectory() as tmp:
     assert "available_new" in cdefaults and "available_review" in cdefaults
     cfiltered = app.cards_official_get_filtered_deck(0, cards_ctx)
     assert "deck" in cfiltered and "orders" in cfiltered
+    filtered_deck = dict(cfiltered["deck"])
+    filtered_id = int(filtered_deck["id"])
+    filtered_deck["name"] = "Cards Smoke Filtrado"
+    filtered_deck["allow_empty"] = True
+    fconfig = dict(filtered_deck.get("config") or {})
+    fconfig["reschedule"] = True
+    fconfig["search_terms"] = [
+        {"search": "Cards bridge pergunta", "limit": 20, "order": 1}
+    ]
+    filtered_deck["config"] = fconfig
+    fupdated = app.cards_official_update_filtered_deck(filtered_id, filtered_deck, cards_ctx)
+    assert int(fupdated["deck_id"]) == filtered_id
+    frebuilt = app.cards_official_rebuild_filtered_deck(filtered_id, cards_ctx)
+    assert frebuilt["state"]["decks"] and frebuilt["state"]["cards"]
+    moved = next(x for x in frebuilt["state"]["cards"] if int(x["id"]) == ccid)
+    assert int(moved["deck_id"]) == filtered_id
+    assert int(moved["original_deck_id"]) == cards_current_deck
+    fstate = app.cards_official_collection_state(cards_ctx)
+    assert any(int(d["id"]) == filtered_id and d["filtered"] for d in fstate["decks"])
+    fempty = app.cards_official_empty_filtered_deck(filtered_id, cards_ctx)
+    restored = next(x for x in fempty["state"]["cards"] if int(x["id"]) == ccid)
+    assert int(restored["deck_id"]) == cards_current_deck
+    assert int(restored.get("original_deck_id", 0)) == 0
+
+    custom = app.cards_official_custom_study(
+        {"deck_id": cards_current_deck, "new_limit_delta": 1},
+        cards_ctx,
+    )
+    assert custom["ok"] is True and custom["state"]["reviewer"]
+
     cempty = app.cards_official_empty_cards_report(cards_ctx)
     assert isinstance(cempty, dict)
 
