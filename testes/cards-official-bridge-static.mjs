@@ -117,6 +117,13 @@ assert.match(imageOcclusion,/CardsOfficialBridge\.saveOfficialImageOcclusion\(th
 assert.match(imageOcclusion,/x\.toFixed\(4\)\.replace\(\/\^0\+\|0\+\$\/g,''\)/,'Image Occlusion deve usar floatToDisplay equivalente ao upstream');
 assert.match(imageOcclusion,/image-occlusion:ellipse:[\s\S]*?:rx=[\s\S]*?:ry=/,'ellipse oficial deve serializar rx\/ry');
 assert.ok(!/image-occlusion:ellipse:[^\n]*:width=/.test(imageOcclusion),'ellipse não pode gravar width\/height fora do contrato oficial');
+assert.match(backend,/def cards_official_csv_metadata[\s\S]*?item\.col\.get_csv_metadata/,'CsvMetadata deve vir do importador oficial');
+assert.match(backend,/def cards_official_import_csv[\s\S]*?item\.col\.import_csv\(request\)/,'TXT\/CSV deve importar pela Collection oficial');
+assert.match(backend,/def cards_official_export_notes_text[\s\S]*?item\.col\.export_note_csv/,'Notes in Plain Text deve ser exportado pelo Anki oficial');
+assert.match(backend,/def cards_official_export_cards_text[\s\S]*?item\.col\.export_card_csv/,'Cards in Plain Text deve ser exportado pelo Anki oficial');
+assert.match(cards,/CardsOfficialBridge\.importOfficialCsv\(this\._importFile,meta\)/,'execução da importação de texto da UI deve passar pelo Anki oficial');
+assert.match(cards,/CardsOfficialBridge\.exportOfficialText\('notes'/,'exportação de notas da UI deve ser oficial');
+assert.match(cards,/CardsOfficialBridge\.exportOfficialText\('cards'/,'exportação de cards da UI deve ser oficial');
 assert.match(backend,/def cards_official_import_apkg[\s\S]*?item\.col\.import_anki_package\(request\)/,'APKG dos Cards deve importar pela Collection oficial');
 assert.match(backend,/def cards_official_export_apkg[\s\S]*?item\.col\.export_anki_package/,'APKG dos Cards deve exportar pela Collection oficial');
 assert.match(backend,/def cards_official_import_colpkg[\s\S]*?backend\.import_collection_package/,'COLPKG dos Cards deve importar pelo backend oficial');
@@ -187,6 +194,10 @@ for(const path of [
   '/api/cards-official/image-occlusion/image',
   '/api/cards-official/image-occlusion/note',
   '/api/cards-official/image-occlusion/note/{note_id}',
+  '/api/cards-official/import/csv/metadata',
+  '/api/cards-official/import/csv',
+  '/api/cards-official/export/notes-text',
+  '/api/cards-official/export/cards-text',
   '/api/cards-official/import/apkg',
   '/api/cards-official/import/colpkg',
   '/api/cards-official/export/apkg',
