@@ -3191,17 +3191,10 @@ CardsScreen.zerarEstatisticas = function () {
   });
 };
 CardsScreen.optimizeFsrsOfficial = async function (deckId) {
-  const globalCfg = CardsConfig.get();
-  if (globalCfg.algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
-  const cfg = CardsConfig.forDeck(deckId == null ? null : deckId);
-  if (!FSRS || typeof FSRS.optimizeOfficial !== 'function') throw new Error('Otimizador oficial FSRS indisponível.');
-
-  const out = await FSRS.optimizeOfficial(this._statsRevlog(false), { deckId: deckId == null ? null : deckId, cfg, cards:this._fsrsCardsForPreset(deckId) });
-  const patch = { weights: out.params.slice(), lastOptim: new Date().toISOString() };
-  if (deckId != null) CardsConfig.setDeckPreset(deckId, patch);
-  else CardsConfig.set(patch);
-  CardEngine.invalidateDueCache();
-  return out;
+  if (CardsConfig.get().algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
+  if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.optimizeFsrsPreset !== 'function')
+    throw new Error('Otimizador oficial do Anki indisponível.');
+  return CardsOfficialBridge.optimizeFsrsPreset(deckId == null ? null : deckId);
 };
 
 CardsScreen._fsrsCardsForPreset = function(deckId){
@@ -3211,24 +3204,20 @@ CardsScreen._fsrsCardsForPreset = function(deckId){
 };
 CardsScreen.optimizeAllFsrsPresets = async function(){
   if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes de otimizar parâmetros.');
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.optimizeFsrsPreset!=='function')throw new Error('Otimizador oficial do Anki indisponível.');
   const scopes=[null,...Object.keys(CardsConfig._getPresets?CardsConfig._getPresets():{})],results=[];
   for(const deckId of scopes){
-    const cards=this._fsrsCardsForPreset(deckId);if(!cards.length){results.push({deckId,skipped:'empty'});continue;}
-    const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId);
     try{
-      const out=await FSRS.optimizeOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
-      const patch={weights:out.params.slice(),lastOptim:new Date().toISOString()};
-      if(deckId==null)CardsConfig.set(patch);else CardsConfig.setDeckPreset(deckId,patch);
-      results.push({deckId,reviewCount:out.reviewCount,cardCount:out.cardCount,ok:true});
+      const out=await CardsOfficialBridge.optimizeFsrsPreset(deckId);
+      results.push({deckId,fsrsItems:out.fsrsItems,alreadyOptimal:out.alreadyOptimal,ok:true});
     }catch(e){results.push({deckId,ok:false,error:e&&e.message?e.message:String(e)});}
-    await new Promise(r=>setTimeout(r,0));
   }
   CardEngine.invalidateDueCache();return results;
 };
 CardsScreen.fsrsHealthCheck = async function(deckId){
   if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
-  const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
-  return FSRS.healthCheckOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.fsrsHealthCheck!=='function')throw new Error('Health Check oficial do Anki indisponível.');
+  return CardsOfficialBridge.fsrsHealthCheck(deckId==null?null:deckId);
 };
 CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
   if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
@@ -3556,8 +3545,9 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       const old = b.textContent; b.disabled = true; b.textContent = '⏳ Otimizando…';
       try {
         const out = await CardsScreen.optimizeFsrsOfficial(deckId);
-        showToast('FSRS otimizado com ' + out.reviewCount.toLocaleString('pt-BR') + ' revisões de ' +
-          out.cardCount.toLocaleString('pt-BR') + ' card(s) ✓');
+        showToast(out.alreadyOptimal
+          ? 'FSRS: parâmetros já estão ótimos para ' + out.fsrsItems.toLocaleString('pt-BR') + ' item(ns) ✓'
+          : 'FSRS otimizado pelo Anki oficial com ' + out.fsrsItems.toLocaleString('pt-BR') + ' item(ns) ✓');
         UI._submit(false);
         setTimeout(() => CardsScreen.openAlgoConfigFor(deckId), 0);
       } catch (e) {
@@ -3567,14 +3557,14 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     });
     foot.insertBefore(b, foot.firstChild);
     const health=document.createElement('button');health.id='cards-fsrs-health-btn';health.type='button';health.className='btn-secondary';health.textContent='🩺 Health Check';
-    health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check: dados insuficientes ('+h.fsrsItems+' itens; requer >300)');else showToast((h.passed?'✅':'⚠')+' Health Check '+(h.passed?'aprovado':'requer atenção')+' · loss '+h.adjustedLogLoss.toFixed(2)+' · RMSE '+h.adjustedRmse.toFixed(2));}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
+    health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check oficial: resultado indisponível ('+h.fsrsItems+' itens)');else showToast((h.passed?'✅':'⚠')+' Health Check oficial '+(h.passed?'aprovado':'requer atenção')+' · '+h.fsrsItems.toLocaleString('pt-BR')+' item(ns)');}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
     foot.insertBefore(health,b.nextSibling);
     const decide=document.createElement('button');decide.id='cards-fsrs-help-decide-btn';decide.type='button';decide.className='btn-secondary';decide.textContent='🤔 Help Me Decide';
     decide.addEventListener('click',()=>{try{UI._submit(false);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); };setTimeout(()=>{if(typeof AnkiMaxStatsMedia!=='undefined'&&AnkiMaxStatsMedia.openSimulator){AnkiMaxStatsMedia.openSimulator();const x=document.getElementById('anki-sim-help');if(x)x.click();}else showToast('Simulador FSRS indisponível');},0);});
     foot.insertBefore(decide,health.nextSibling);
     if(!isDeck){
       const all=document.createElement('button');all.id='cards-optimize-all-fsrs-btn';all.type='button';all.className='btn-secondary';all.textContent='🧠 Otimizar todos os presets';
-      all.addEventListener('click',async()=>{const old=all.textContent;all.disabled=true;all.textContent='⏳ Otimizando presets…';try{const rs=await CardsScreen.optimizeAllFsrsPresets(),ok=rs.filter(x=>x.ok).length,skip=rs.length-ok;showToast('FSRS: '+ok+' preset(s) otimizado(s)'+(skip?' · '+skip+' sem dados suficientes':'')+' ✓');}catch(e){showToast('Falha ao otimizar presets: '+(e&&e.message?e.message:String(e)));}finally{all.disabled=false;all.textContent=old;}});
+      all.addEventListener('click',async()=>{const old=all.textContent;all.disabled=true;all.textContent='⏳ Otimizando presets…';try{const rs=await CardsScreen.optimizeAllFsrsPresets(),ok=rs.filter(x=>x.ok).length,fail=rs.length-ok,optimal=rs.filter(x=>x.ok&&x.alreadyOptimal).length;showToast('FSRS oficial: '+ok+' preset(s) processado(s)'+(optimal?' · '+optimal+' já ótimo(s)':'')+(fail?' · '+fail+' com erro':'')+' ✓');}catch(e){showToast('Falha ao otimizar presets: '+(e&&e.message?e.message:String(e)));}finally{all.disabled=false;all.textContent=old;}});
       foot.insertBefore(all,health.nextSibling);
     }
   }, 60);
