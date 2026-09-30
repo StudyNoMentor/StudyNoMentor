@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd86493521b">
+<meta name="diario-versao" content="v3ded968610">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -35940,6 +35940,36 @@ const CardsScreen = {
       });
     }
   },
+  /* Contagens restantes no mesmo formato conceitual do reviewer v3 do Anki:
+     novos + aprendizado + revisões. Diferente do antigo 0/20 · 0/200, estes
+     números descrevem a FILA restante e incluem o card atual. Entradas repetidas
+     de aprendizado contam novamente, como CardQueues do Anki. */
+  _reviewRemainingCounts() {
+    const out = { new: 0, learning: 0, review: 0, current: null };
+    const fila = this._reviewQueue || [];
+    const ini = Math.max(0, Math.min(Number(this._reviewIdx) || 0, fila.length));
+    for (let i = ini; i < fila.length; i++) {
+      const card = DB.getCard(fila[i]);
+      if (!card) continue;
+      const bucket = this._bucket(card);
+      if (bucket === 'new') out.new++;
+      else if (bucket === 'learn') out.learning++;
+      else out.review++;
+    }
+    const atual = fila[ini] ? DB.getCard(fila[ini]) : null;
+    out.current = atual ? this._bucket(atual) : null;
+    return out;
+  },
+  _reviewRemainingHtml(contagens) {
+    const n = contagens || { new: 0, learning: 0, review: 0, current: null };
+    const parte = (bucket, icon, value) => {
+      const numero = n.current === bucket ? '<u>' + value + '</u>' : String(value);
+      return '<span class="cards-due-count cards-due-' + bucket + '">' + icon + ' ' + numero + '</span>';
+    };
+    return parte('new', '🆕', n.new) + ' + '
+      + parte('learn', '🧠', n.learning) + ' + '
+      + parte('review', '🔄', n.review);
+  },
   renderReviewCard(box) {
     const total = this._reviewQueue.length;
     const id = this._reviewQueue[this._reviewIdx];
@@ -35949,12 +35979,15 @@ const CardsScreen = {
     if(String(this._reviewCardId||'')!==String(id)){
       this._reviewCardId=id;this._reviewStartedAt=Date.now();this._answerShownAt=null;
     }
-    const done = this._reviewIdx; // já revisados nesta sessão
+    const done = this._reviewIdx; // posição na fila da sessão; aprendizado pode reaparecer
+    const remaining = this._reviewRemainingCounts();
+    const remainingTitle = 'Restantes na fila: ' + remaining.new + ' novos + '
+      + remaining.learning + ' em aprendizagem + ' + remaining.review + ' revisões';
     box.innerHTML = `
       <div class="card cards-review-wrap">
-        <div class="cards-review-progress"><span title="Posição atual na fila">Card ${done + 1} de ${total}</span>
+        <div class="cards-review-progress"><span title="Posição na fila desta sessão; inclui novos, aprendizagem e revisões">Card ${done + 1} de ${total}</span>
           <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
-          <span class="cards-limit-chip" title="Cards únicos respondidos hoje: novos / limite diário e revisões / limite diário">🆕 ${CardsConfig.newDoneToday()}/${CardsConfig.get().newPerDay} · 🔄 ${CardsConfig.revDoneToday()}/${CardsConfig.get().revPerDay}</span>
+          <span class="cards-limit-chip cards-due-counts" title="${escapeHtml(remainingTitle)}" aria-label="${escapeHtml(remainingTitle)}">${this._reviewRemainingHtml(remaining)}</span>
           ${cfgReview.showTimer?'<span class="cards-limit-chip" title="Tempo desta resposta (respeita o teto do preset)">⏱ <span id="cards-review-timer">0.0s</span></span>':''}
         </div>
         <div class="cards-review-meta">
