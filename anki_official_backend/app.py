@@ -1478,6 +1478,267 @@ def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(curr
     return FileResponse(path)
 
 
+
+# ---------------------------------------------------------------------------
+# Superfícies avançadas dos Cards executadas na coleção oficial isolada
+# ---------------------------------------------------------------------------
+
+@app.get("/api/cards-official/stats/graphs")
+def cards_official_collection_graphs(
+    search: str = Query(default=""),
+    days: int = Query(default=365, ge=0, le=36500),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col._backend.graphs(search=search, days=days))
+
+
+@app.post("/api/cards-official/fsrs/optimize")
+def cards_official_fsrs_optimize(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    request = scheduler_pb2.ComputeFsrsParamsRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Parâmetros FSRS inválidos: {exc}") from exc
+    with item.lock:
+        return pb(
+            item.col._backend.compute_fsrs_params(
+                search=request.search,
+                current_params=list(request.current_params),
+                ignore_revlogs_before_ms=request.ignore_revlogs_before_ms,
+                num_of_relearning_steps=request.num_of_relearning_steps,
+                health_check=request.health_check,
+            )
+        )
+
+
+@app.post("/api/cards-official/fsrs/simulate")
+def cards_official_fsrs_simulate(
+    payload: dict[str, Any],
+    mode: str = Query(default="review"),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    request = scheduler_pb2.SimulateFsrsReviewRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Simulação FSRS inválida: {exc}") from exc
+    with item.lock:
+        kwargs = {
+            "params": list(request.params),
+            "desired_retention": request.desired_retention,
+            "deck_size": request.deck_size,
+            "days_to_simulate": request.days_to_simulate,
+            "new_limit": request.new_limit,
+            "review_limit": request.review_limit,
+            "max_interval": request.max_interval,
+            "search": request.search,
+            "new_cards_ignore_review_limit": request.new_cards_ignore_review_limit,
+            "easy_days_percentages": list(request.easy_days_percentages),
+            "review_order": request.review_order,
+            "historical_retention": request.historical_retention,
+            "learning_step_count": request.learning_step_count,
+            "relearning_step_count": request.relearning_step_count,
+        }
+        if request.HasField("suspend_after_lapse_count"):
+            kwargs["suspend_after_lapse_count"] = request.suspend_after_lapse_count
+        if mode == "workload":
+            return pb(item.col._backend.simulate_fsrs_workload(**kwargs))
+        if mode == "optimal":
+            return pb(item.col._backend.compute_optimal_retention(**kwargs))
+        return pb(item.col._backend.simulate_fsrs_review(**kwargs))
+
+
+@app.get("/api/cards-official/deck/{deck_id}/options")
+def cards_official_deck_options(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.decks.get_deck_configs_for_update(DeckId(deck_id)))
+
+
+@app.put("/api/cards-official/deck/{deck_id}/options")
+def cards_official_update_deck_options(
+    deck_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        if "all_config" in payload:
+            request_payload = {
+                "target_deck_id": deck_id,
+                "configs": [
+                    entry.get("config", {})
+                    for entry in payload.get("all_config", [])
+                    if isinstance(entry, dict) and entry.get("config")
+                ],
+                "removed_config_ids": payload.get("removed_config_ids", []),
+                "mode": payload.get("mode", 0),
+                "card_state_customizer": payload.get("card_state_customizer", ""),
+                "limits": (payload.get("current_deck") or {}).get("limits", {}),
+                "new_cards_ignore_review_limit": payload.get("new_cards_ignore_review_limit", False),
+                "fsrs": payload.get("fsrs", False),
+                "apply_all_parent_limits": payload.get("apply_all_parent_limits", False),
+                "fsrs_reschedule": payload.get("fsrs_reschedule", False),
+                "fsrs_health_check": payload.get("fsrs_health_check", False),
+            }
+        else:
+            request_payload = dict(payload)
+            request_payload.setdefault("target_deck_id", deck_id)
+        request = deck_config_pb2.UpdateDeckConfigsRequest()
+        try:
+            ParseDict(request_payload, request, ignore_unknown_fields=False)
+        except Exception as exc:
+            raise HTTPException(400, f"Deck Options inválidas: {exc}") from exc
+        item.col.decks.update_deck_configs(request)
+        return pb(item.col.decks.get_deck_configs_for_update(DeckId(deck_id)))
+
+
+@app.get("/api/cards-official/custom-study/defaults/{deck_id}")
+def cards_official_custom_study_defaults(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        out = item.col.sched.custom_study_defaults(DeckId(deck_id))
+        return {
+            "tags": [
+                {
+                    "name": str(tag.name),
+                    "include": bool(tag.include),
+                    "exclude": bool(tag.exclude),
+                }
+                for tag in out.tags
+            ],
+            "extend_new": int(out.extend_new),
+            "extend_review": int(out.extend_review),
+            "available_new": int(out.available_new),
+            "available_review": int(out.available_review),
+            "available_new_in_children": int(out.available_new_in_children),
+            "available_review_in_children": int(out.available_review_in_children),
+        }
+
+
+@app.post("/api/cards-official/custom-study")
+def cards_official_custom_study(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    request = scheduler_pb2.CustomStudyRequest()
+    try:
+        ParseDict(payload, request, ignore_unknown_fields=False)
+    except Exception as exc:
+        raise HTTPException(400, f"Estudo personalizado inválido: {exc}") from exc
+    with item.lock:
+        changes = pb(item.col.sched.custom_study(request))
+        return {
+            "ok": True,
+            "changes": changes,
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.get("/api/cards-official/filtered-deck/{deck_id}")
+def cards_official_get_filtered_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return {
+            "deck": pb(item.col.sched.get_or_create_filtered_deck(DeckId(deck_id))),
+            "orders": list(item.col.sched.filtered_deck_order_labels()),
+        }
+
+
+@app.put("/api/cards-official/filtered-deck/{deck_id}")
+def cards_official_update_filtered_deck(
+    deck_id: int,
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        current = item.col.sched.get_or_create_filtered_deck(DeckId(deck_id))
+        try:
+            ParseDict(payload, current, ignore_unknown_fields=False)
+        except Exception as exc:
+            raise HTTPException(400, f"Baralho filtrado inválido: {exc}") from exc
+        out = item.col.sched.add_or_update_filtered_deck(current)
+        return {
+            "ok": True,
+            "deck_id": int(out.id),
+            "deck": pb(current),
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/filtered-deck/{deck_id}/rebuild")
+def cards_official_rebuild_filtered_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        changes = pb(item.col.sched.rebuild_filtered_deck(DeckId(deck_id)))
+        return {
+            "ok": True,
+            "changes": changes,
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/filtered-deck/{deck_id}/empty")
+def cards_official_empty_filtered_deck(
+    deck_id: int,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        changes = pb(item.col.sched.empty_filtered_deck(DeckId(deck_id)))
+        return {
+            "ok": True,
+            "changes": changes,
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
+@app.get("/api/cards-official/empty-cards")
+def cards_official_empty_cards_report(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.get_empty_cards())
+
+
+@app.post("/api/cards-official/empty-cards/delete")
+def cards_official_delete_empty_cards(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    ids = [int(x) for x in payload.get("card_ids", [])]
+    with item.lock:
+        changes = pb(item.col.remove_cards_and_orphaned_notes(ids))
+        return {
+            "ok": True,
+            "changes": changes,
+            "reviewer": cards_reviewer_payload(item.col),
+        }
+
+
 @app.post("/api/anki/database/check")
 def check_database(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
