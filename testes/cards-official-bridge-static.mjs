@@ -117,6 +117,8 @@ assert.match(imageOcclusion,/CardsOfficialBridge\.saveOfficialImageOcclusion\(th
 assert.match(imageOcclusion,/x\.toFixed\(4\)\.replace\(\/\^0\+\|0\+\$\/g,''\)/,'Image Occlusion deve usar floatToDisplay equivalente ao upstream');
 assert.match(imageOcclusion,/image-occlusion:ellipse:[\s\S]*?:rx=[\s\S]*?:ry=/,'ellipse oficial deve serializar rx\/ry');
 assert.ok(!/image-occlusion:ellipse:[^\n]*:width=/.test(imageOcclusion),'ellipse não pode gravar width\/height fora do contrato oficial');
+assert.match(backend,/def cards_official_import_mnemosyne[\s\S]*?mnemosyne\.serialize[\s\S]*?item\.col\.import_json_string/,'Mnemosyne deve usar o serializer upstream do Anki');
+assert.match(cards,/CardsOfficialBridge\.importOfficialMnemosyne\(this\._importFile,deckId\)/,'UI Mnemosyne deve executar primeiro no Anki oficial');
 assert.match(backend,/def cards_official_csv_metadata[\s\S]*?item\.col\.get_csv_metadata/,'CsvMetadata deve vir do importador oficial');
 assert.match(backend,/def cards_official_import_csv[\s\S]*?item\.col\.import_csv\(request\)/,'TXT\/CSV deve importar pela Collection oficial');
 assert.match(backend,/def cards_official_export_notes_text[\s\S]*?item\.col\.export_note_csv/,'Notes in Plain Text deve ser exportado pelo Anki oficial');
@@ -194,6 +196,7 @@ for(const path of [
   '/api/cards-official/image-occlusion/image',
   '/api/cards-official/image-occlusion/note',
   '/api/cards-official/image-occlusion/note/{note_id}',
+  '/api/cards-official/import/mnemosyne',
   '/api/cards-official/import/csv/metadata',
   '/api/cards-official/import/csv',
   '/api/cards-official/export/notes-text',
