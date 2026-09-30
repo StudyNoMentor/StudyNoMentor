@@ -144,22 +144,23 @@ const AnkiPractical10 = {
       '</div></details>';
   },
   _renderBrowserSidebar(){
-    const a=document.getElementById('anki-browser-sidebar');if(!a||typeof AnkiParity==='undefined')return;
-    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),notes=AnkiParity.notes(),
-      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),types=AnkiParity.noteTypes();
-    const saved=typeof AnkiTotalParity!=='undefined'?AnkiTotalParity._savedSearches():[];
-    const tags=new Map();notes.forEach(n=>(n.tags||[]).forEach(t=>tags.set(String(t),(tags.get(String(t))||0)+1)));
-    const deckItems=decks.filter(d=>!AnkiParity.isFilteredDeck(d)).sort((x,y)=>String(x.nome).localeCompare(String(y.nome),'pt-BR')).map(d=>({kind:'deck',value:d.nome,label:'📁 '+d.nome,count:cards.filter(c=>String(c.deckId)===String(d.id)).length}));
-    const typeItems=types.slice().sort((x,y)=>String(x.name).localeCompare(String(y.name),'pt-BR')).map(t=>({kind:'notetype',value:t.name,label:'🧩 '+t.name,count:notes.filter(n=>String(n.notetypeId)===String(t.id)).length}));
-    const tagItems=[...tags.entries()].sort((a,b)=>a[0].localeCompare(b[0],'pt-BR')).slice(0,80).map(([t,n])=>({kind:'tag',value:t,label:'🏷 '+t,count:n}));
-    const stateItems=[
-      {kind:'query',value:'is:due',label:'Vencidos',count:cards.filter(c=>AnkiParity.filteredSearchMatches(c,'is:due')).length},
-      {kind:'query',value:'is:new',label:'Novos',count:cards.filter(c=>AnkiParity.filteredSearchMatches(c,'is:new')).length},
-      {kind:'suspended',value:'yes',label:'Suspensos',count:cards.filter(c=>c.suspenso).length},
-      {kind:'marked',value:'1',label:'Marcados',count:notes.filter(n=>(n.tags||[]).some(t=>String(t).toLowerCase()==='marked')).length}
-    ];
-    const flagItems=[1,2,3,4,5,6,7].map(n=>({kind:'flag',value:String(n),label:'Bandeira '+n,count:cards.filter(c=>Number(c.flag)===n).length}));
-    const savedItems=saved.map(x=>({kind:'saved',value:String(x.id),label:'★ '+x.name}));
+    const a=document.getElementById('anki-browser-sidebar');if(!a)return;
+    const bridge=window.CardsOfficialBridge,facets=bridge&&bridge._officialBrowserFacets;
+    if(!facets){
+      a.innerHTML='<div class="anki-browser-side-head"><strong>Sidebar</strong></div><p class="hint">Consultando facetas do Anki oficial…</p>';
+      if(bridge&&typeof bridge._loadOfficialBrowserFacets==='function')void bridge._loadOfficialBrowserFacets().then(()=>this._renderBrowserSidebar());
+      return;
+    }
+    const saved=typeof AnkiTotalParity!=='undefined'?AnkiTotalParity._savedSearches():[],
+      deckItems=(facets.decks||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(d=>({kind:'deck',value:d.name,label:'📁 '+d.name})),
+      typeItems=(facets.notetypes||[]).slice().sort((x,y)=>String(x.name||'').localeCompare(String(y.name||''),'pt-BR')).map(t=>({kind:'notetype',value:t.name,label:'🧩 '+t.name})),
+      tagItems=(facets.tags||[]).slice().sort((a,b)=>String(a).localeCompare(String(b),'pt-BR')).slice(0,80).map(t=>({kind:'tag',value:t,label:'🏷 '+t})),
+      stateItems=[
+        {kind:'query',value:'is:due',label:'Vencidos'},{kind:'query',value:'is:new',label:'Novos'},
+        {kind:'suspended',value:'yes',label:'Suspensos'},{kind:'marked',value:'1',label:'Marcados'}
+      ],
+      flagItems=[1,2,3,4,5,6,7].map(n=>({kind:'flag',value:String(n),label:'Bandeira '+n})),
+      savedItems=saved.map(x=>({kind:'saved',value:String(x.id),label:'★ '+x.name}));
     a.innerHTML='<div class="anki-browser-side-head"><strong>Sidebar</strong><button type="button" class="icon-btn" data-browser-filter="clear" title="Limpar filtros">×</button></div>'+
       (savedItems.length?this._sideSection('Buscas salvas',savedItems):'')+
       this._sideSection('Estados',stateItems)+this._sideSection('Baralhos',deckItems,false)+this._sideSection('Tipos de nota',typeItems,false)+this._sideSection('Etiquetas',tagItems,false)+this._sideSection('Bandeiras',flagItems,false);
@@ -437,21 +438,10 @@ const AnkiPractical10 = {
 
     const oldSave=CardsScreen.saveCard.bind(CardsScreen);
     CardsScreen.saveCard=(closeAfter)=>{
-      const sel=document.getElementById('card-kind'),kind=sel&&sel.value,ctx=this._simpleEditCanonical;
+      const sel=document.getElementById('card-kind'),kind=sel&&sel.value;
       if(kind==='image_occlusion')return this._launchSimpleImageOcclusion();
-      if(['basic_reversed','basic_optional_reversed','typing'].includes(kind))return this._saveCanonicalSimpleType(kind,closeAfter);
-      const out=oldSave(closeAfter);
-      /* O formulário Cloze simples não expõe Back Extra. Editar o Text não
-         pode apagar esse campo canônico (importações/edições avançadas usam-no). */
-      if(ctx&&ctx.kind==='cloze'&&ctx.backExtra){
-        const n=AnkiParity.getNote(ctx.noteId,ctx.planId==null?undefined:ctx.planId);
-        if(n){
-          const fields=Object.assign({},n.fields||{}, {'Back Extra':ctx.backExtra});
-          AnkiParity.saveNote(Object.assign({},n,{fields}),ctx.planId==null?undefined:ctx.planId);
-        }
-      }
       this._simpleEditCanonical=null;
-      return out;
+      return oldSave(closeAfter);
     };
 
     const sel=document.getElementById('card-kind');
@@ -528,36 +518,11 @@ const AnkiPractical10 = {
     if(!planId)planId=(window.StudyGlobalScope&&StudyGlobalScope.activePlanId)?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId();
     return {raw:dest,deckId,materia:dest.startsWith('sub:')?dest.slice(4):null,planId};
   },
-  _simpleMetadataPatch(dst){
-    return {
-      assunto:String((document.getElementById('card-assunto')||{}).value||''),
-      materiaTec:String((document.getElementById('card-materia-tec')||{}).value||''),
-      banca:String((document.getElementById('card-banca')||{}).value||''),
-      deckId:dst.deckId||null,materia:dst.materia||null
-    };
-  },
   _saveCanonicalSimpleType(kind,closeAfter){
-    if(typeof AnkiParity==='undefined'||typeof AnkiProductParity==='undefined')return false;
-    const dst=this._simpleDestination();if(!dst)return false;
-    const front=document.getElementById('card-frente'),back=document.getElementById('card-verso');
-    const frente=String(front&&front.innerHTML||'').trim(),verso=String(back&&back.innerHTML||'').trim();
-    if(!CardEngine.hasContent(frente)){showToast('Preencha a frente');return false;}
-    if(!CardEngine.hasContent(verso)){showToast('Preencha o verso');return false;}
-    const nt=AnkiParity.stockNotetype(kind,dst.planId),fields={Front:frente,Back:verso};
-    if(kind==='basic_optional_reversed')fields['Add Reverse']=document.getElementById('card-add-reverse')?.checked?'1':'';
-    const id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,tags:[],_planId:dst.planId||undefined},dst.planId||undefined);
-    const result=AnkiProductParity.reconcileNote(note,nt),patch=this._simpleMetadataPatch(dst),
-      cards=AnkiProductParity._cardsForNote(note,dst.planId);
-    cards.forEach(c=>DB.updateCard(c.id,patch));CardEngine.invalidateDueCache();
-    const n=cards.filter(c=>CardEngine.hasContent(c.frente)).length||Number(result&&result.created)||cards.length;
-    showToast((n||1)+' card(s) criado(s) · '+nt.name+' ✓');
-    if(closeAfter)CardsScreen.closeCardModal();
-    else{
-      if(front)front.innerHTML='';if(back)back.innerHTML='';const rev=document.getElementById('card-add-reverse');if(rev)rev.checked=false;
-      if(front)front.focus();
-    }
-    CardsScreen.render();return true;
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.saveSimpleCard!=='function'){showToast('Card não salvo: Anki oficial indisponível.');return false;}
+    return CardsOfficialBridge.saveSimpleCard(closeAfter);
   },
+
   _launchSimpleImageOcclusion(){
     if(typeof AnkiImageOcclusion==='undefined'||typeof AnkiImageOcclusion.openEditor!=='function'){showToast('Editor de Oclusão de Imagem indisponível');return false;}
     const dst=this._simpleDestination();if(!dst)return false;
@@ -589,7 +554,6 @@ const AnkiPractical10 = {
     wrap(CardsScreen,'addDeck','deck:add:before','deck:add:after');
     wrap(AnkiProductParity,'openBrowser','browser:open:before','browser:open:after');
     wrap(AnkiProductParity,'openNoteEditor','editor:open:before','editor:open:after');
-    wrap(AnkiProductParity,'reconcileNote','note:reconcile:before','note:reconcile:after');
     if(typeof AnkiTotalParity!=='undefined')wrap(AnkiTotalParity,'syncMedia','media:sync:before','media:sync:after');
   }
 };
