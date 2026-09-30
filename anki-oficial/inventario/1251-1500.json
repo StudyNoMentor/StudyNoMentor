@@ -1,0 +1,2259 @@
+{
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "range": [
+    1251,
+    1500
+  ],
+  "files": [
+    {
+      "index": 1251,
+      "path": "rslib/src/scheduler/states/relearning.rs",
+      "blob_sha": "3bffd27f7c5d165f28d1e5ebf376733d50ab682b",
+      "size": 23087,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1252,
+      "path": "rslib/src/scheduler/states/rescheduling_filter.rs",
+      "blob_sha": "6e9794f99a7a719cb336d8113518be61c8322039",
+      "size": 1924,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1253,
+      "path": "rslib/src/scheduler/states/review.rs",
+      "blob_sha": "603f98b225cbd80e6f7860946046d067e6713289",
+      "size": 13539,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1254,
+      "path": "rslib/src/scheduler/states/steps.rs",
+      "blob_sha": "5cb11f9305db7985f1538d8c113e00ecdc2aa19e",
+      "size": 4828,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1255,
+      "path": "rslib/src/scheduler/timespan.rs",
+      "blob_sha": "9ae53d78c3e1d8a2757c9429cfaf64ccb5cf3a7d",
+      "size": 6769,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1256,
+      "path": "rslib/src/scheduler/timing.rs",
+      "blob_sha": "3d79138ceeadea1bc7ad2df22c067c5ed7a04ccc",
+      "size": 15940,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1257,
+      "path": "rslib/src/scheduler/upgrade.rs",
+      "blob_sha": "66a52b1807d6640cf6d841dfdfec2a3bb39f3c94",
+      "size": 6728,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 1258,
+      "path": "rslib/src/search/builder.rs",
+      "blob_sha": "0c22ff1eba5060b1fda789a09c937918d90044ac",
+      "size": 8417,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1259,
+      "path": "rslib/src/search/card_mod_order.sql",
+      "blob_sha": "efbaf70e371b6871403106a0f8939dd7f6cc53a2",
+      "size": 211,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1260,
+      "path": "rslib/src/search/deck_order.sql",
+      "blob_sha": "823f6dada51dffb967b8a5a109619bd2233c41b9",
+      "size": 193,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1261,
+      "path": "rslib/src/search/mod.rs",
+      "blob_sha": "0dd52dbc3e3994d863e0d0e84f3c6083787445c1",
+      "size": 15602,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1262,
+      "path": "rslib/src/search/note_cards_order.sql",
+      "blob_sha": "edbca1f76a378616b166e8ff2b95b24f398be591",
+      "size": 211,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1263,
+      "path": "rslib/src/search/note_decks_order.sql",
+      "blob_sha": "51e9091247067c7d2a87927676783ad33b14f63b",
+      "size": 370,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1264,
+      "path": "rslib/src/search/note_due_order.sql",
+      "blob_sha": "bca21c5261e987969533f7639c633777701ac69d",
+      "size": 253,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1265,
+      "path": "rslib/src/search/note_ease_order.sql",
+      "blob_sha": "5ad8eef5ed9c323aa7c3b5081eea8007c73f06c6",
+      "size": 230,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1266,
+      "path": "rslib/src/search/note_interval_order.sql",
+      "blob_sha": "375bf10bfc9343d07083725fd9370e8815d0c7a4",
+      "size": 232,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1267,
+      "path": "rslib/src/search/note_lapses_order.sql",
+      "blob_sha": "061b271e206a79ab23f446555c34e7cad066f2e8",
+      "size": 214,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1268,
+      "path": "rslib/src/search/note_original_position_order.sql",
+      "blob_sha": "aa79b0b6bd347b123317a32b2b73fd3e14bf4fde",
+      "size": 313,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1269,
+      "path": "rslib/src/search/note_reps_order.sql",
+      "blob_sha": "833fdeb659ab681300c538a999037d33f9efc98d",
+      "size": 212,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1270,
+      "path": "rslib/src/search/notetype_order.sql",
+      "blob_sha": "a5e07b086209746fcf06a821f7d901f5f2aff594",
+      "size": 199,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1271,
+      "path": "rslib/src/search/parser.rs",
+      "blob_sha": "cd19270a3bfe82c398de2c4ca2416c9943becd3d",
+      "size": 40631,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1272,
+      "path": "rslib/src/search/service/browser_table.rs",
+      "blob_sha": "803532f7ed9935cb8268f811bac3f6e48b58d22f",
+      "size": 1152,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1273,
+      "path": "rslib/src/search/service/mod.rs",
+      "blob_sha": "e9dcf57f95acfa4abb95538828f366b4aeafd36c",
+      "size": 19880,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1274,
+      "path": "rslib/src/search/service/search_node.rs",
+      "blob_sha": "46179345577f2630f3df6128f38754f68cb997e1",
+      "size": 25821,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1275,
+      "path": "rslib/src/search/sqlwriter.rs",
+      "blob_sha": "ded3fbda7ded3d16bbbe539321263ad81e65210a",
+      "size": 55960,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1276,
+      "path": "rslib/src/search/template_order.sql",
+      "blob_sha": "96b7ecd1d6686f7e98575408376439f071579a96",
+      "size": 250,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1277,
+      "path": "rslib/src/search/writer.rs",
+      "blob_sha": "6d3c79b642754e48666dfe1d69d3b73e2b0b8d3e",
+      "size": 9840,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1278,
+      "path": "rslib/src/serde.rs",
+      "blob_sha": "b0bcfc695dda51278e5703e81b1bd24ee3177261",
+      "size": 2591,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1279,
+      "path": "rslib/src/services.rs",
+      "blob_sha": "27f25cf33dff01fe6eba5f70460006929add8e44",
+      "size": 342,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1280,
+      "path": "rslib/src/stats/card.rs",
+      "blob_sha": "98d908b0871797c9d747863ab64b071f5fa7c327",
+      "size": 11791,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1281,
+      "path": "rslib/src/stats/graphs/added.rs",
+      "blob_sha": "3b288fd5c273cd5660bc7e620ffafbdc5a801ffd",
+      "size": 717,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1282,
+      "path": "rslib/src/stats/graphs/buttons.rs",
+      "blob_sha": "7c6fd03c828e55683e45b5398971a0dcb08ed75c",
+      "size": 3027,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1283,
+      "path": "rslib/src/stats/graphs/card_counts.rs",
+      "blob_sha": "0855d5776576c8ec55531647b71160e37467844a",
+      "size": 1665,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1284,
+      "path": "rslib/src/stats/graphs/eases.rs",
+      "blob_sha": "80c1caccceac94ebda5c7d644060cf04c09964e0",
+      "size": 2296,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1285,
+      "path": "rslib/src/stats/graphs/future_due.rs",
+      "blob_sha": "6a00a07f158e491af96f3eca86bedb2edfcf98b6",
+      "size": 1681,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1286,
+      "path": "rslib/src/stats/graphs/hours.rs",
+      "blob_sha": "5fcd2ea2dffe1412dac06f189cc8b70f0c26ef63",
+      "size": 2060,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1287,
+      "path": "rslib/src/stats/graphs/intervals.rs",
+      "blob_sha": "7fef9e77e04f399f87b71acca062536172fd11ef",
+      "size": 1076,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1288,
+      "path": "rslib/src/stats/graphs/mod.rs",
+      "blob_sha": "62c96e1ffcd0a57ea33807266943e8e11d3eef23",
+      "size": 3838,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1289,
+      "path": "rslib/src/stats/graphs/retention.rs",
+      "blob_sha": "231a892f0663addf5982a14202a96b0148712432",
+      "size": 3204,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1290,
+      "path": "rslib/src/stats/graphs/retrievability.rs",
+      "blob_sha": "19401e6767c323b676fa407712c05579efd80389",
+      "size": 2281,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1291,
+      "path": "rslib/src/stats/graphs/reviews.rs",
+      "blob_sha": "7c78dabaec43132042361d5e80ab8c15b127e312",
+      "size": 1927,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1292,
+      "path": "rslib/src/stats/graphs/today.rs",
+      "blob_sha": "5ae4d29371e45da1ade9a2b1b7a00ae23e7d9e16",
+      "size": 1736,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1293,
+      "path": "rslib/src/stats/mod.rs",
+      "blob_sha": "eee4ab335fa58eb12611f7a3b340591c341e4922",
+      "size": 207,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1294,
+      "path": "rslib/src/stats/service.rs",
+      "blob_sha": "e9ae86f3c14baeeda763373e05de45cf8de43745",
+      "size": 1954,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1295,
+      "path": "rslib/src/stats/today.rs",
+      "blob_sha": "d9680c2829811726836db9e985878674bde0f814",
+      "size": 1486,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1296,
+      "path": "rslib/src/storage/card/active_new_cards.sql",
+      "blob_sha": "a97206898831e16fb2f6e08b4916722d68d349ad",
+      "size": 144,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1297,
+      "path": "rslib/src/storage/card/add_card.sql",
+      "blob_sha": "659723648ad52679ca7abffcb3076f9cbd14e5e1",
+      "size": 519,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1298,
+      "path": "rslib/src/storage/card/add_card_if_unique.sql",
+      "blob_sha": "80b3a63947973595544f50ff483fe54bb1334367",
+      "size": 349,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1299,
+      "path": "rslib/src/storage/card/add_or_update.sql",
+      "blob_sha": "646ce35951a6553799398ac1b64d957eaee3a9f0",
+      "size": 350,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1300,
+      "path": "rslib/src/storage/card/at_or_above_position.sql",
+      "blob_sha": "73ed0f475a20a9752e4e7379c01b4cf2fc74a304",
+      "size": 74,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1301,
+      "path": "rslib/src/storage/card/congrats.sql",
+      "blob_sha": "e720feb04be7dcbb0b8c8554a8b1a9aaec14d1ac",
+      "size": 611,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1302,
+      "path": "rslib/src/storage/card/data.rs",
+      "blob_sha": "aeee0fbb5d2c806d5bfa030d1c6db8a1dce7dd71",
+      "size": 5877,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1303,
+      "path": "rslib/src/storage/card/deck_due_counts.sql",
+      "blob_sha": "83d827e3e6fe690b99106e3d87aaf06911794e2b",
+      "size": 241,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1304,
+      "path": "rslib/src/storage/card/due_cards.sql",
+      "blob_sha": "149cc0f276e44bef5f1fb390d67ab53ba8c795bb",
+      "size": 203,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1305,
+      "path": "rslib/src/storage/card/filtered.rs",
+      "blob_sha": "f6d83b990814654aa5946bb21ae68a32f635e284",
+      "size": 2479,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1306,
+      "path": "rslib/src/storage/card/fix_due_new.sql",
+      "blob_sha": "327c5522ee6fc03bfd9e85a7272994b0b588f7dc",
+      "size": 297,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1307,
+      "path": "rslib/src/storage/card/fix_due_other.sql",
+      "blob_sha": "6c072e5b289c6d78bc2722f01a596c9c0d17bf4d",
+      "size": 324,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1308,
+      "path": "rslib/src/storage/card/fix_ivl.sql",
+      "blob_sha": "d8a1894be4286fa1fc76d66ae9e23038f6edffa7",
+      "size": 131,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1309,
+      "path": "rslib/src/storage/card/fix_low_ease.sql",
+      "blob_sha": "c2c5d22e136a2628b1dc5e1b435b8e21f357af11",
+      "size": 136,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1310,
+      "path": "rslib/src/storage/card/fix_mod.sql",
+      "blob_sha": "7b15b0e5471f261c6930431acc0a1ae1aa3d0e23",
+      "size": 77,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1311,
+      "path": "rslib/src/storage/card/fix_odue.sql",
+      "blob_sha": "4e8156f742302e449e297d90edb1c18f4c882910",
+      "size": 466,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1312,
+      "path": "rslib/src/storage/card/fix_ordinal.sql",
+      "blob_sha": "ebda0e447527c480e01a568752f3d6911ebf52dc",
+      "size": 107,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1313,
+      "path": "rslib/src/storage/card/get_card.sql",
+      "blob_sha": "0ba5d9b894c8816af160d08a2aca64f9fa5acea7",
+      "size": 189,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1314,
+      "path": "rslib/src/storage/card/get_card_entry.sql",
+      "blob_sha": "d7d76ab87d21bdb32141edff3b3592fb3468e15d",
+      "size": 90,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1315,
+      "path": "rslib/src/storage/card/get_ignored_before_count.sql",
+      "blob_sha": "b21e2fb74702abe44d3facef2cd7daf8f438e54c",
+      "size": 92,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1316,
+      "path": "rslib/src/storage/card/intraday_due.sql",
+      "blob_sha": "a24874659bd50888e7f36b48a972b0ff443f39f5",
+      "size": 185,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1317,
+      "path": "rslib/src/storage/card/mod.rs",
+      "blob_sha": "82ee61c1354eb7280578d4d7ae410b6b86d9d6df",
+      "size": 35463,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1318,
+      "path": "rslib/src/storage/card/new_cards.sql",
+      "blob_sha": "3230ec6b693cfb777e9c9cbaa973c3f67e69b5d5",
+      "size": 103,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1319,
+      "path": "rslib/src/storage/card/search_cards_of_notes_into_table.sql",
+      "blob_sha": "0387fd566bf14d4dc1d16d9695d9953174bb06d8",
+      "size": 99,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1320,
+      "path": "rslib/src/storage/card/search_cids_setup.sql",
+      "blob_sha": "7da26c813b7347d18e84d95e595baecba283d80f",
+      "size": 104,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1321,
+      "path": "rslib/src/storage/card/search_cids_setup_ordered.sql",
+      "blob_sha": "e3671338d5c83eb1d3ef04087571ad23183e33c6",
+      "size": 92,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1322,
+      "path": "rslib/src/storage/card/siblings_for_bury.sql",
+      "blob_sha": "7731b45ec146c747cf500db561eb9a7007043915",
+      "size": 303,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1323,
+      "path": "rslib/src/storage/card/update_card.sql",
+      "blob_sha": "8a9a685318922d602c366ef141ae4f3ce3d06a4e",
+      "size": 229,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1324,
+      "path": "rslib/src/storage/collection_timestamps.rs",
+      "blob_sha": "09b64cf5de49cab6ffd996aaaac9d71ec017c2c9",
+      "size": 1835,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1325,
+      "path": "rslib/src/storage/config/add.sql",
+      "blob_sha": "16531c36eaf6a606fe4323f609af13f07d5f8418",
+      "size": 79,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1326,
+      "path": "rslib/src/storage/config/get.sql",
+      "blob_sha": "73a86c2df72c3cd0b8eea23ecaaa90e624a63932",
+      "size": 36,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1327,
+      "path": "rslib/src/storage/config/get_entry.sql",
+      "blob_sha": "be64ae323f8e8af27c92eb26abd4aeb9ecccac6c",
+      "size": 57,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1328,
+      "path": "rslib/src/storage/config/mod.rs",
+      "blob_sha": "c20b5c34a718467ff8e33f9f507157df57ad4fe2",
+      "size": 4095,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1329,
+      "path": "rslib/src/storage/dbcheck/invalid_ids_count.sql",
+      "blob_sha": "a028adc14ff0e9aa160cac2eb302e2a519bd80fb",
+      "size": 204,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1330,
+      "path": "rslib/src/storage/dbcheck/invalid_ids_create.sql",
+      "blob_sha": "b7efc8bd7ec789e949d52ba93e23100c2a578bd6",
+      "size": 653,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1331,
+      "path": "rslib/src/storage/dbcheck/invalid_ids_drop.sql",
+      "blob_sha": "4327ef1d22d2f3d38a4618369d9821c5cbf40f2b",
+      "size": 33,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1332,
+      "path": "rslib/src/storage/dbcheck/invalid_ids_update.sql",
+      "blob_sha": "9f5bc3706a04d0c8ed7a9a39ebbf86856f9edf6b",
+      "size": 264,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1333,
+      "path": "rslib/src/storage/dbcheck/mod.rs",
+      "blob_sha": "0da6c84ee45bea5bc9db270af03a04360d2b76fc",
+      "size": 4146,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1334,
+      "path": "rslib/src/storage/deck/active_deck_ids_sorted.sql",
+      "blob_sha": "60c031a33123bd311d119337b40ebab2bc086df3",
+      "size": 88,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1335,
+      "path": "rslib/src/storage/deck/add_or_update_deck.sql",
+      "blob_sha": "7e35c190246c71a44b89bdc3c3a752b5d8bb7af9",
+      "size": 98,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1336,
+      "path": "rslib/src/storage/deck/all_decks_and_original_of_search_cards.sql",
+      "blob_sha": "fb5716327095a9ccb96c6513060396ff549fd552",
+      "size": 149,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1337,
+      "path": "rslib/src/storage/deck/all_decks_of_search_notes.sql",
+      "blob_sha": "d6012ef3d999db1a5337cc3bd7ce5bc0cc2e7e31",
+      "size": 118,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1338,
+      "path": "rslib/src/storage/deck/alloc_id.sql",
+      "blob_sha": "ec3512702819c455ccc966ec59839db6e868c1b8",
+      "size": 141,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1339,
+      "path": "rslib/src/storage/deck/cards_for_deck.sql",
+      "blob_sha": "973affc2894a1f91511d61f135003970daff0a7c",
+      "size": 78,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1340,
+      "path": "rslib/src/storage/deck/due_counts.sql",
+      "blob_sha": "021b4caf2fd486d509c913b0400f6eabf7c38bf4",
+      "size": 455,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1341,
+      "path": "rslib/src/storage/deck/get_deck.sql",
+      "blob_sha": "8afd87aa12d2c844ad462d2c3ce77c74622d23da",
+      "size": 67,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1342,
+      "path": "rslib/src/storage/deck/missing-decks.sql",
+      "blob_sha": "e2c79691cb74b8537ca501d5ae8c755bd7a738d5",
+      "size": 83,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1343,
+      "path": "rslib/src/storage/deck/mod.rs",
+      "blob_sha": "d47d03894f1e2358a7fa5ae9483c4af1b76a51c4",
+      "size": 14743,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1344,
+      "path": "rslib/src/storage/deck/update_active.sql",
+      "blob_sha": "7da982e47a785e89f794034c3ef2bd6b1605e742",
+      "size": 102,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1345,
+      "path": "rslib/src/storage/deck/update_deck.sql",
+      "blob_sha": "b250edb79bd3adbfcef3c5b4b2329c6cb05c8f76",
+      "size": 93,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1346,
+      "path": "rslib/src/storage/deckconfig/add.sql",
+      "blob_sha": "e21f9e932601d3861aa0a881a7d4104a78a7a493",
+      "size": 301,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1347,
+      "path": "rslib/src/storage/deckconfig/add_if_unique.sql",
+      "blob_sha": "5160244662d1daaa3c5a4fd22fb979d4ffa17363",
+      "size": 95,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1348,
+      "path": "rslib/src/storage/deckconfig/add_or_update.sql",
+      "blob_sha": "d0def6223951e65c7d2004a2a2a57b386830b8fa",
+      "size": 96,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1349,
+      "path": "rslib/src/storage/deckconfig/get.sql",
+      "blob_sha": "99ad604c4846b28cbddf7deb855ee2a95d1f3877",
+      "size": 65,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1350,
+      "path": "rslib/src/storage/deckconfig/mod.rs",
+      "blob_sha": "5cc39cfc8840405a983a00778dd40b5aed67bdd8",
+      "size": 9085,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1351,
+      "path": "rslib/src/storage/deckconfig/update.sql",
+      "blob_sha": "b43a430eaeceb6a598e03086a337c4d9b6dbd0bd",
+      "size": 88,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1352,
+      "path": "rslib/src/storage/graves/add.sql",
+      "blob_sha": "05ca02417aac88200cdf920544e9b52109180f1c",
+      "size": 64,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1353,
+      "path": "rslib/src/storage/graves/mod.rs",
+      "blob_sha": "d00721c7150b263c2e414e5d2f27b4ee6fc4434d",
+      "size": 2851,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1354,
+      "path": "rslib/src/storage/graves/remove.sql",
+      "blob_sha": "a1430c405ddc8cccd05856e390d8b9d9acb6750c",
+      "size": 47,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1355,
+      "path": "rslib/src/storage/mod.rs",
+      "blob_sha": "015f4fdc72810a923994fcbc6d41300c17053c8d",
+      "size": 1961,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1356,
+      "path": "rslib/src/storage/note/add.sql",
+      "blob_sha": "ceac21533969ba2be135aa9fac96d669f375c66d",
+      "size": 400,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1357,
+      "path": "rslib/src/storage/note/add_if_unique.sql",
+      "blob_sha": "1dd408bbe636a6c44bb702d285548fafe0c6b30b",
+      "size": 230,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1358,
+      "path": "rslib/src/storage/note/add_or_update.sql",
+      "blob_sha": "dd8008c785a46a14a98744fc32d756814b4fe9e7",
+      "size": 231,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1359,
+      "path": "rslib/src/storage/note/get.sql",
+      "blob_sha": "53c8129ef5cf63ec3c88dadb24280f5a1b9dce6a",
+      "size": 95,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1360,
+      "path": "rslib/src/storage/note/get_tags.sql",
+      "blob_sha": "5bcd2be0ebfbe4222f5df0240ba332ff47f4c62c",
+      "size": 42,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1361,
+      "path": "rslib/src/storage/note/get_without_fields.sql",
+      "blob_sha": "61fe1702ca537179265e748b8f8580232a3e6400",
+      "size": 93,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1362,
+      "path": "rslib/src/storage/note/is_orphaned.sql",
+      "blob_sha": "bd7dfe39f7932281bfd050b486a5575b1cc73394",
+      "size": 46,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1363,
+      "path": "rslib/src/storage/note/mod.rs",
+      "blob_sha": "554753717798b878dd296ed18f598160aab31ced",
+      "size": 13705,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1364,
+      "path": "rslib/src/storage/note/notes_types_checksums_decks.sql",
+      "blob_sha": "21514235ba4d7fb15562e3608b2abb1706a504ad",
+      "size": 179,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1365,
+      "path": "rslib/src/storage/note/search_nids_setup.sql",
+      "blob_sha": "f769c8047e37141642cc753179287be4296db122",
+      "size": 104,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1366,
+      "path": "rslib/src/storage/note/update.sql",
+      "blob_sha": "8adf9dd6960667276a9c10aa1d1281650b2db3e1",
+      "size": 119,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1367,
+      "path": "rslib/src/storage/note/update_tags.sql",
+      "blob_sha": "9bbfc13c25863f470f9552dde8278cececba359f",
+      "size": 60,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1368,
+      "path": "rslib/src/storage/notetype/add_notetype.sql",
+      "blob_sha": "9cb83ae212a565143654fd9cd7ca5b972737a77c",
+      "size": 295,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1369,
+      "path": "rslib/src/storage/notetype/add_or_update.sql",
+      "blob_sha": "d8054f7bda02765d3490affee70066d060c67c5b",
+      "size": 94,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1370,
+      "path": "rslib/src/storage/notetype/existing_cards.sql",
+      "blob_sha": "82bc71836d2898b1799f55741e37680c8f91443f",
+      "size": 348,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1371,
+      "path": "rslib/src/storage/notetype/field_names_for_notes.sql",
+      "blob_sha": "ab9b656f05aa8c92343ff860a186c31197d464ca",
+      "size": 94,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1372,
+      "path": "rslib/src/storage/notetype/get_fields.sql",
+      "blob_sha": "b0bd97b4a07579f5a820498ef1c59974453347c2",
+      "size": 68,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1373,
+      "path": "rslib/src/storage/notetype/get_notetype.sql",
+      "blob_sha": "91ed61f59f0663c766421f03bfd33b9107027006",
+      "size": 63,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1374,
+      "path": "rslib/src/storage/notetype/get_notetype_names.sql",
+      "blob_sha": "ebbbb61e2676e89d5b38aa8e610b9261bb2975e9",
+      "size": 32,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1375,
+      "path": "rslib/src/storage/notetype/get_templates.sql",
+      "blob_sha": "dc42818f4ac3b035bc909763839469902b08ac10",
+      "size": 92,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1376,
+      "path": "rslib/src/storage/notetype/get_use_counts.sql",
+      "blob_sha": "dc28ce1c91bf28c81f6489a6ff80bdfd060ee498",
+      "size": 128,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1377,
+      "path": "rslib/src/storage/notetype/highest_card_ord.sql",
+      "blob_sha": "5cefaf39fbfbe46b5d59cfebbcb48ba29ffbc919",
+      "size": 105,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1378,
+      "path": "rslib/src/storage/notetype/mod.rs",
+      "blob_sha": "692b68887e8a64b19c56245626c14a1478853ea7",
+      "size": 14095,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1379,
+      "path": "rslib/src/storage/notetype/update_fields.sql",
+      "blob_sha": "ce141936fe003c7839d2b954074557d652161b7c",
+      "size": 65,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1380,
+      "path": "rslib/src/storage/notetype/update_notetype_config.sql",
+      "blob_sha": "19a034222efe3f3abb8efa07e6298d8ffa34ab78",
+      "size": 69,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1381,
+      "path": "rslib/src/storage/notetype/update_templates.sql",
+      "blob_sha": "b60f2e57740b2c20c21ea6c86057a5fba2452de4",
+      "size": 90,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1382,
+      "path": "rslib/src/storage/revlog/add.sql",
+      "blob_sha": "fae7953b8650d8413f4cc11ad4314bf9e4ac4014",
+      "size": 399,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1383,
+      "path": "rslib/src/storage/revlog/fix_props.sql",
+      "blob_sha": "7806abb756139dc5a5fd0cbb50f72ae357e0bf0e",
+      "size": 585,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1384,
+      "path": "rslib/src/storage/revlog/get.sql",
+      "blob_sha": "5460e71f0a8d414f95fe5f5c393a3dfe4927087c",
+      "size": 121,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1385,
+      "path": "rslib/src/storage/revlog/mod.rs",
+      "blob_sha": "31ff613fa3ac32565acb4417c8311617f9534318",
+      "size": 7333,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1386,
+      "path": "rslib/src/storage/revlog/studied_today.sql",
+      "blob_sha": "7772992d839c05e99337c009cd41bd5046d9bf07",
+      "size": 108,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1387,
+      "path": "rslib/src/storage/revlog/studied_today_by_deck.sql",
+      "blob_sha": "0cb5871d27f4a00e0d4fb9f91501223d232e3e8b",
+      "size": 266,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1388,
+      "path": "rslib/src/storage/revlog/time_of_last_review.sql",
+      "blob_sha": "0b90fa065c0962dbaf5aaa4c8768b4690f8f8cc8",
+      "size": 140,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1389,
+      "path": "rslib/src/storage/revlog/v2_upgrade.sql",
+      "blob_sha": "8a2cbef529c40ec40c09308e86132ad7ac346036",
+      "size": 76,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1390,
+      "path": "rslib/src/storage/schema11.sql",
+      "blob_sha": "418c5bdb55406e2c7c0f3698a541e3fea1bd1055",
+      "size": 2114,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1391,
+      "path": "rslib/src/storage/sqlite.rs",
+      "blob_sha": "e1f5efb0e1c3221c48691a45bc84504010f49641",
+      "size": 24006,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1392,
+      "path": "rslib/src/storage/sync.rs",
+      "blob_sha": "256566d68b1c2bde24843793aad52c9b9130bda6",
+      "size": 2030,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1393,
+      "path": "rslib/src/storage/sync_check.rs",
+      "blob_sha": "7693a592192a71ebf64e2cefd0bd2dfdf135295b",
+      "size": 1755,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1394,
+      "path": "rslib/src/storage/tag/add.sql",
+      "blob_sha": "3f1f63656c20eeea3dfce77c173e446a008f6176",
+      "size": 68,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1395,
+      "path": "rslib/src/storage/tag/alloc_id.sql",
+      "blob_sha": "9a5c80562370222713d00d8536759f33b6bfe250",
+      "size": 139,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1396,
+      "path": "rslib/src/storage/tag/get.sql",
+      "blob_sha": "3bc48697c69549c57b9bc296b0b0e48219a8dfdd",
+      "size": 40,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1397,
+      "path": "rslib/src/storage/tag/mod.rs",
+      "blob_sha": "459b09c47784b381fb9f1f2414ef1120bcdd9bec",
+      "size": 5800,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1398,
+      "path": "rslib/src/storage/tag/update.sql",
+      "blob_sha": "bbb345254b2d93cfcd8f1469c5a8ba1c1da610d0",
+      "size": 67,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1399,
+      "path": "rslib/src/storage/upgrades/mod.rs",
+      "blob_sha": "781db6ef000c7e22117e1afee9b7718e47c491ea",
+      "size": 3826,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1400,
+      "path": "rslib/src/storage/upgrades/schema11_downgrade.sql",
+      "blob_sha": "8666e6d5f945fbb9a72fd8c833f36deda10d07da",
+      "size": 218,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1401,
+      "path": "rslib/src/storage/upgrades/schema14_upgrade.sql",
+      "blob_sha": "cd602ce179d3cd250196639136ccb41b3f26860e",
+      "size": 461,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1402,
+      "path": "rslib/src/storage/upgrades/schema15_upgrade.sql",
+      "blob_sha": "65465b295801af5b37ac1b3079096406b1a84aca",
+      "size": 1273,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1403,
+      "path": "rslib/src/storage/upgrades/schema17_upgrade.sql",
+      "blob_sha": "c8abf52ee27738b781f72fe049b732812657f8c7",
+      "size": 175,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1404,
+      "path": "rslib/src/storage/upgrades/schema18_downgrade.sql",
+      "blob_sha": "bd0eaa88ebba0ac66000a4b8a84b304532971ea8",
+      "size": 266,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1405,
+      "path": "rslib/src/storage/upgrades/schema18_upgrade.sql",
+      "blob_sha": "600676f46982bdbfa567bccf7d4ef95eddf1eeca",
+      "size": 368,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1406,
+      "path": "rslib/src/sync/collection/changes.rs",
+      "blob_sha": "af3789b1c8eaf01d8b5f1c3f199f30195fade26b",
+      "size": 11155,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1407,
+      "path": "rslib/src/sync/collection/chunks.rs",
+      "blob_sha": "7873c89c1e704f49470cabc5ee7a4b97906461fb",
+      "size": 13055,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1408,
+      "path": "rslib/src/sync/collection/download.rs",
+      "blob_sha": "72d9f33e666075a077b6f9ae48f372edc334bcc5",
+      "size": 2256,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1409,
+      "path": "rslib/src/sync/collection/finish.rs",
+      "blob_sha": "b69fbcad7c331bce8d088952d7a8a9b14da4458b",
+      "size": 1277,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1410,
+      "path": "rslib/src/sync/collection/graves.rs",
+      "blob_sha": "c5f8256430fd4c62edcfceec1bb9e80f08c0e987",
+      "size": 2043,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1411,
+      "path": "rslib/src/sync/collection/meta.rs",
+      "blob_sha": "928416aefc0c650c0902524c0ad0da78ed139142",
+      "size": 6430,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1412,
+      "path": "rslib/src/sync/collection/mod.rs",
+      "blob_sha": "618e2f787300016f9b9259663f58ae5b026fab5b",
+      "size": 357,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1413,
+      "path": "rslib/src/sync/collection/normal.rs",
+      "blob_sha": "74d4756f10448bad9b1d93559d8bdd7480db793f",
+      "size": 6055,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1414,
+      "path": "rslib/src/sync/collection/progress.rs",
+      "blob_sha": "619d06512c211a36708e887e401f21486a70a414",
+      "size": 816,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1415,
+      "path": "rslib/src/sync/collection/protocol.rs",
+      "blob_sha": "fbeee3a01aa6e9568fc6752607900ae5308e19cf",
+      "size": 3842,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1416,
+      "path": "rslib/src/sync/collection/sanity.rs",
+      "blob_sha": "17afece06d99cd0339f1994fef9c0284340adf29",
+      "size": 3595,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1417,
+      "path": "rslib/src/sync/collection/start.rs",
+      "blob_sha": "4523b3adb73fae00aab0862044a7b4b36ac62dd2",
+      "size": 5696,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1418,
+      "path": "rslib/src/sync/collection/status.rs",
+      "blob_sha": "4875ea72b14243fd5fb44caed4512bfdf9ec1854",
+      "size": 2489,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1419,
+      "path": "rslib/src/sync/collection/tests.rs",
+      "blob_sha": "04b8693e6ccf2a8cc21f5f0cb82a500ca6881b1f",
+      "size": 24797,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1420,
+      "path": "rslib/src/sync/collection/upload.rs",
+      "blob_sha": "5247a8010932b99f617921984e78ade657185f4e",
+      "size": 4808,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1421,
+      "path": "rslib/src/sync/error.rs",
+      "blob_sha": "b26b6c39217c378571b955d47c4118c2e2288870",
+      "size": 3959,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1422,
+      "path": "rslib/src/sync/http_client/full_sync.rs",
+      "blob_sha": "d1e7d56e94988fc769ae486b48cf52251f6436f8",
+      "size": 3028,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1423,
+      "path": "rslib/src/sync/http_client/io_monitor.rs",
+      "blob_sha": "602b672dde6e7779dd1a92c8cb1241e109e4a957",
+      "size": 9721,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1424,
+      "path": "rslib/src/sync/http_client/mod.rs",
+      "blob_sha": "7366cfbbe9d33d20d1506a4d09bccffb61deae79",
+      "size": 3292,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1425,
+      "path": "rslib/src/sync/http_client/protocol.rs",
+      "blob_sha": "47c675f660048cb88c2bb0b460ebeccaea53422b",
+      "size": 5185,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1426,
+      "path": "rslib/src/sync/http_server/handlers.rs",
+      "blob_sha": "441501b62a525ce84f89562df48a20111f314755",
+      "size": 9374,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1427,
+      "path": "rslib/src/sync/http_server/logging.rs",
+      "blob_sha": "05bfb87cbae0daf77448598d39ebf11c1b2d912e",
+      "size": 1198,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1428,
+      "path": "rslib/src/sync/http_server/media_manager/download.rs",
+      "blob_sha": "617858a37d046005f2eda1b1196997b8a324c6fc",
+      "size": 1896,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1429,
+      "path": "rslib/src/sync/http_server/media_manager/mod.rs",
+      "blob_sha": "8eae3d97f407d8f52e8cdf390def72a8acea9087",
+      "size": 1751,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1430,
+      "path": "rslib/src/sync/http_server/media_manager/upload.rs",
+      "blob_sha": "6a37cba6134965d73c3846efef3c095b8139524e",
+      "size": 3607,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1431,
+      "path": "rslib/src/sync/http_server/mod.rs",
+      "blob_sha": "ddac266706e5e175b18217ce722d95b705839743",
+      "size": 9953,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1432,
+      "path": "rslib/src/sync/http_server/routes.rs",
+      "blob_sha": "072ad61401791baae95e1ea2274b50a85261e38e",
+      "size": 4492,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1433,
+      "path": "rslib/src/sync/http_server/user.rs",
+      "blob_sha": "bfbacbce3044e503f72d58c623ae3d5a94e08ff2",
+      "size": 3188,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1434,
+      "path": "rslib/src/sync/login.rs",
+      "blob_sha": "0e61312cc9db1828923929a609611080eaea258e",
+      "size": 1472,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1435,
+      "path": "rslib/src/sync/media/begin.rs",
+      "blob_sha": "976c5b55a3b1ea6b30796e2fb4f42e79a6bca1a2",
+      "size": 1129,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1436,
+      "path": "rslib/src/sync/media/changes.rs",
+      "blob_sha": "5f94e855318529f1ea98119ec1c29a3e79f74143",
+      "size": 4625,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1437,
+      "path": "rslib/src/sync/media/database/client/changetracker.rs",
+      "blob_sha": "2d2220c7c305bd819b11b62bf6141819e2a93bb5",
+      "size": 11057,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1438,
+      "path": "rslib/src/sync/media/database/client/mod.rs",
+      "blob_sha": "fe3e7c84014c65f97111f0278fae21efe6fbadac",
+      "size": 12050,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1439,
+      "path": "rslib/src/sync/media/database/client/schema.sql",
+      "blob_sha": "46d6354b2b33c39f3284d9198ce96425d4d3daf8",
+      "size": 322,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1440,
+      "path": "rslib/src/sync/media/database/mod.rs",
+      "blob_sha": "da14a1d6718f1b103cfc3a840df111f4ea4a7905",
+      "size": 162,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1441,
+      "path": "rslib/src/sync/media/database/server/entry/changes.rs",
+      "blob_sha": "81991823d34152808fa5905296dd315b0d1c5eb9",
+      "size": 804,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1442,
+      "path": "rslib/src/sync/media/database/server/entry/changes.sql",
+      "blob_sha": "853dbcf08bd9f4ac0f07d4e8e9201dd4e3a52a1e",
+      "size": 137,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1443,
+      "path": "rslib/src/sync/media/database/server/entry/download.rs",
+      "blob_sha": "9894b55f288b1b598a5dfdd10eb0ebf8977f65c7",
+      "size": 2425,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1444,
+      "path": "rslib/src/sync/media/database/server/entry/get_entry.sql",
+      "blob_sha": "8246329831de055057c3168db620b425197a271c",
+      "size": 72,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1445,
+      "path": "rslib/src/sync/media/database/server/entry/mod.rs",
+      "blob_sha": "f109b58fbf999b816f1c83ab5ee98ae4f7f792f7",
+      "size": 3513,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1446,
+      "path": "rslib/src/sync/media/database/server/entry/set_entry.sql",
+      "blob_sha": "76070f2a3f5de6c5aef17d80670ddf7fb9c9cddf",
+      "size": 86,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1447,
+      "path": "rslib/src/sync/media/database/server/entry/upload.rs",
+      "blob_sha": "73042f4249f5b8768fb8c1b0cb4c9e9558ec5260",
+      "size": 3279,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1448,
+      "path": "rslib/src/sync/media/database/server/meta/get_meta.sql",
+      "blob_sha": "9e0437d3e5122448fc45ffef770af66761acd28d",
+      "size": 65,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1449,
+      "path": "rslib/src/sync/media/database/server/meta/mod.rs",
+      "blob_sha": "68ce1cba25a6a606f2a703736bfa0310eb128439",
+      "size": 3546,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1450,
+      "path": "rslib/src/sync/media/database/server/meta/set_meta.sql",
+      "blob_sha": "80e6752a1f651c1f6581f40e644873a50dc0cb06",
+      "size": 76,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1451,
+      "path": "rslib/src/sync/media/database/server/mod.rs",
+      "blob_sha": "0c2ef648adeb9758a91f454c5e4bac6e12d0ff2d",
+      "size": 1000,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1452,
+      "path": "rslib/src/sync/media/database/server/schema_v3.sql",
+      "blob_sha": "3517562fdd39640023ed0beb01dc4a944bf8257e",
+      "size": 358,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1453,
+      "path": "rslib/src/sync/media/database/server/schema_v4.sql",
+      "blob_sha": "e04d253432935fbc4f0a0010dd9f52cfd3e17a9b",
+      "size": 979,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1454,
+      "path": "rslib/src/sync/media/download.rs",
+      "blob_sha": "345f39907b3619b8e768e5b6f89004a560afd843",
+      "size": 1457,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1455,
+      "path": "rslib/src/sync/media/mod.rs",
+      "blob_sha": "69616aa794975d577974973ce7a0fc5781d50497",
+      "size": 1067,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1456,
+      "path": "rslib/src/sync/media/progress.rs",
+      "blob_sha": "c1ff77c859bfacd591ba1196712f647840dc1260",
+      "size": 481,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1457,
+      "path": "rslib/src/sync/media/protocol.rs",
+      "blob_sha": "f68c9e8c66116acec3d3c37ddacf18ac0950ea12",
+      "size": 2987,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1458,
+      "path": "rslib/src/sync/media/sanity.rs",
+      "blob_sha": "d09ee38ec562c9d6e418dac972f0d079fb1369ac",
+      "size": 456,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1459,
+      "path": "rslib/src/sync/media/syncer.rs",
+      "blob_sha": "3e159128019338c578eec8c865b3fcf0a17899d9",
+      "size": 9279,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1460,
+      "path": "rslib/src/sync/media/tests.rs",
+      "blob_sha": "245b75e482e2f97f76db70d2e41d4261dbbde374",
+      "size": 10020,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1461,
+      "path": "rslib/src/sync/media/upload.rs",
+      "blob_sha": "1abef5d8520219e0f8eb29a6f726d3e42efb0bac",
+      "size": 3744,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1462,
+      "path": "rslib/src/sync/media/zip.rs",
+      "blob_sha": "d9b04f5e34d449338b00a9959b8fca56eeeebec5",
+      "size": 5426,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1463,
+      "path": "rslib/src/sync/mod.rs",
+      "blob_sha": "447c6f35194753040ffd95f47606c8a232b6d43d",
+      "size": 289,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1464,
+      "path": "rslib/src/sync/request/header_and_stream.rs",
+      "blob_sha": "917bd1ce4947a3b383cd9468cf30d527a48c102a",
+      "size": 4763,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1465,
+      "path": "rslib/src/sync/request/mod.rs",
+      "blob_sha": "329aa44dd884d809b8e4eb374dce3d1812d0e376",
+      "size": 6003,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1466,
+      "path": "rslib/src/sync/request/multipart.rs",
+      "blob_sha": "842a94a8885fa66ac02014fd7d45737f971aa607",
+      "size": 3539,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1467,
+      "path": "rslib/src/sync/response.rs",
+      "blob_sha": "843dd1447a582a029c61fd72358c9a6b1f299f11",
+      "size": 2592,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1468,
+      "path": "rslib/src/sync/version.rs",
+      "blob_sha": "80098dcffb7305981cfd120b827f31efb9ee61e4",
+      "size": 2597,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1469,
+      "path": "rslib/src/tags/bulkadd.rs",
+      "blob_sha": "80c87ad286d321b25219921646ef91fa47aa7277",
+      "size": 2655,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1470,
+      "path": "rslib/src/tags/complete.rs",
+      "blob_sha": "2b36402553e2927a7f11bbef1365fa471937dac4",
+      "size": 3176,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1471,
+      "path": "rslib/src/tags/findreplace.rs",
+      "blob_sha": "b60b5ed881360e52f2ad096f894f79722bbcad7f",
+      "size": 4409,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1472,
+      "path": "rslib/src/tags/matcher.rs",
+      "blob_sha": "d3c6ad88b2a3bc581d950845a1b4d1bcce4ba90e",
+      "size": 5094,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1473,
+      "path": "rslib/src/tags/mod.rs",
+      "blob_sha": "51b091ab8e0cf2a4cd44a635907d7800343aa3b6",
+      "size": 1344,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1474,
+      "path": "rslib/src/tags/notes.rs",
+      "blob_sha": "9d24356e9850b1901b9fb244a7dffa4397c08a86",
+      "size": 1056,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1475,
+      "path": "rslib/src/tags/register.rs",
+      "blob_sha": "428be8d74cc6b014bc8e18c193a94737b6366e83",
+      "size": 7769,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1476,
+      "path": "rslib/src/tags/remove.rs",
+      "blob_sha": "187b386698b1acb00ea10c2134e24f911605d5f0",
+      "size": 3930,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1477,
+      "path": "rslib/src/tags/rename.rs",
+      "blob_sha": "d37f78af94cb6156b91f4ebdaf08cf8b188b8aed",
+      "size": 2445,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1478,
+      "path": "rslib/src/tags/reparent.rs",
+      "blob_sha": "4976b760e074a2b3cd353827cd0016ef9362927b",
+      "size": 7977,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1479,
+      "path": "rslib/src/tags/service.rs",
+      "blob_sha": "0400111211f36e9bd1e665f1b47b1ad5da0dade6",
+      "size": 13373,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1480,
+      "path": "rslib/src/tags/tree.rs",
+      "blob_sha": "32f98d72e4a36d39ae3e29e512aac8d7b0b40acd",
+      "size": 7120,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1481,
+      "path": "rslib/src/tags/undo.rs",
+      "blob_sha": "7a7e26d6b13fac737ce2e9be794ca9d9d25ecc05",
+      "size": 1899,
+      "repository_area": "rslib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 1482,
+      "path": "rslib/src/template.rs",
+      "blob_sha": "7ee840b09671496dd9529f5df6b8a6c6e79c4722",
+      "size": 44372,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1483,
+      "path": "rslib/src/template_filters.rs",
+      "blob_sha": "66e9ecb3730d8eed23bc1bb9a5bef055fb78e2fd",
+      "size": 9108,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1484,
+      "path": "rslib/src/tests.rs",
+      "blob_sha": "0aa874499dfd4a4f23bacaecac721bd334409284",
+      "size": 7804,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1485,
+      "path": "rslib/src/text.rs",
+      "blob_sha": "2bc873ab750d7b5355dbcfd33de734afcf5135b5",
+      "size": 20422,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1486,
+      "path": "rslib/src/timestamp.rs",
+      "blob_sha": "8a6ac4eb76597ce27841f6d6fa3d5aab8000a8b2",
+      "size": 3148,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1487,
+      "path": "rslib/src/typeanswer.rs",
+      "blob_sha": "9bf3dc47c0b6ba60f246f609959a4d7757ba5e1d",
+      "size": 13316,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1488,
+      "path": "rslib/src/types.rs",
+      "blob_sha": "5f1a006198ca767d3743f31b09cebefc92ad6b62",
+      "size": 2330,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1489,
+      "path": "rslib/src/undo/changes.rs",
+      "blob_sha": "36c897fddd505a2191623f3e2aa810907ae9c922",
+      "size": 3270,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1490,
+      "path": "rslib/src/undo/mod.rs",
+      "blob_sha": "cd5d68d6b38f33ba45b1f17517e6407486b10c36",
+      "size": 17313,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1491,
+      "path": "rslib/src/updates.rs",
+      "blob_sha": "fa4c6efaabf28b42a267b62717459c21f6904033",
+      "size": 3117,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1492,
+      "path": "rslib/src/version.rs",
+      "blob_sha": "29f8403040a02946b85e56a6351b2a638432c3ad",
+      "size": 1032,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1493,
+      "path": "rslib/sync/Cargo.toml",
+      "blob_sha": "d23b4f380fd99f90d6e27afa449cf23d2f51a3a4",
+      "size": 476,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1494,
+      "path": "rslib/sync/main.rs",
+      "blob_sha": "0ec1fcb200d32975de1019d0b262e1ab9bcc160b",
+      "size": 706,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1495,
+      "path": "rslib/tests/support/mediacheck.anki2",
+      "blob_sha": "5580db4ef5419c21e76d9f0d31cfe1bb87f88656",
+      "size": 65536,
+      "repository_area": "rslib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1496,
+      "path": "run",
+      "blob_sha": "89c7dbd70b00c89d1e74aa1ebeecf82e09c4de6b",
+      "size": 802,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1497,
+      "path": "run.bat",
+      "blob_sha": "08a0b2f8ae1c4353827db477f7320e4eaca290ef",
+      "size": 455,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1498,
+      "path": "rust-toolchain.toml",
+      "blob_sha": "114edf2ac46b5ef7a7e1cf719d039377dc544fd8",
+      "size": 141,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1499,
+      "path": "sonar-project.properties",
+      "blob_sha": "61d5437d475059b86b72837d91c7fd71a8abd77e",
+      "size": 1275,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1500,
+      "path": "tools/__init__.py",
+      "blob_sha": "a68c4095c5f0f3ad44acedaf4b9bd2d4e32d9a7b",
+      "size": 525,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    }
+  ]
+}
