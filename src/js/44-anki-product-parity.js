@@ -341,171 +341,37 @@ const AnkiProductParity = {
     CardEngine.invalidateDueCache();return {created,updated,emptied};
   },
 
-  openChangeType(ids){
-    const refs=(ids||[]).filter(Boolean);if(!refs.length)return;this.ensure();
-    const notes=refs.map(x=>x&&typeof x==='object'?x:AnkiParity.getNote(x)).filter(Boolean),
-      noteIds=notes.map(n=>String(n.id)),origins=new Set(notes.map(n=>String(n._planId||'')).filter(Boolean));
-    if(!notes.length)return;
-    if(origins.size>1){showToast('Mude o tipo de notas de um planejamento por vez.');return;}
-    this._changeTypeIds=noteIds;this._changeTypeNotes=notes;this._changeTypePlanId=origins.size?[...origins][0]:null;
-    /* Se o planejamento de origem ainda não tem tipos materializados, exibimos
-       a coleção virtual, mas no SALVAR o tipo escolhido é copiado para a origem
-       antes de a nota apontar para ele. Isso evita referência a NoteType de outro
-       planejamento e, depois, frente "vazia" ou template desatualizado. */
-    const doPlano=(this._changeTypePlanId&&window.StudyGlobalScope&&StudyGlobalScope._entityRows)
-      ? StudyGlobalScope._entityRows(this._changeTypePlanId,'notetype') : [];
-    const types=(doPlano&&doPlano.length)?doPlano:AnkiParity.noteTypes();
-    this._changeTypeTargets=types;
-    const sel=document.getElementById('anki-change-type-target');sel.innerHTML=types.map(t=>'<option value="'+this.esc(t.id)+'">'+this.esc(t.name)+'</option>').join('');
-    const first=notes[0];if(first)sel.value=String(first.notetypeId);
-    const render=()=>this._renderTypeMap(types.find(t=>String(t.id)===String(sel.value)));sel.onchange=render;render();
-    document.getElementById('anki-change-type-modal').style.display='flex';
+  _officialBrowserCall(name,ids){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge[name]!=='function'){
+      showToast('Ação não executada: Browser oficial do Anki indisponível.');return;
+    }
+    return CardsOfficialBridge[name](ids);
   },
-
-  _renderTypeMap(target){
-    const box=document.getElementById('anki-change-type-map');if(!target){box.innerHTML='';return;}
-    const source=(this._changeTypeNotes||[])[0]||AnkiParity.getNote((this._changeTypeIds||[])[0]),srcNt=this._typeFor(source),srcFields=(srcNt&&srcNt.fields||[]).map(f=>f.name);
-    box.innerHTML='<p class="hint">Mapeamento dos campos da primeira nota. Em seleção mista, nomes iguais têm prioridade e a posição é usada como fallback.</p>'+
-      (target.fields||[]).map((f,i)=>'<div class="field"><label>'+this.esc(f.name)+'</label><select class="anki-type-map" data-target="'+this.esc(f.name)+'"><option value="">— vazio —</option>'+
-        srcFields.map((n,j)=>'<option value="'+this.esc(n)+'" '+((n===f.name||(!srcFields.includes(f.name)&&j===i))?'selected':'')+'>'+this.esc(n)+'</option>').join('')+'</select></div>').join('');
-  },
-
-  _bindChangeType(){
-    document.getElementById('anki-change-type-save').addEventListener('click',()=>{
-      const selected=String(document.getElementById('anki-change-type-target').value||'');
-      const target=(this._changeTypeTargets||[]).find(t=>String(t.id)===selected)||AnkiParity.getNotetype(selected,this._changeTypePlanId||undefined);if(!target)return;
-      const map={};document.querySelectorAll('#anki-change-type-map .anki-type-map').forEach(s=>map[s.dataset.target]=s.value);
-      let changed=0;
-      for(const id of this._changeTypeIds||[]){
-        const note=(this._changeTypeNotes||[]).find(n=>String(n.id)===String(id))||AnkiParity.getNote(id,this._changeTypePlanId||undefined);if(!note)continue;
-        const planId=note._planId||this._changeTypePlanId||null,targetPlan=this._ensureNotetypeInPlan(target,planId);
-        const srcNt=this._typeFor(note),srcNames=(srcNt&&srcNt.fields||[]).map(f=>f.name),fields={};
-        (targetPlan.fields||[]).forEach((f,i)=>{const explicit=map[f.name],src=explicit||(note.fields&&Object.prototype.hasOwnProperty.call(note.fields,f.name)?f.name:srcNames[i]);fields[f.name]=src&&note.fields?note.fields[src]||'':'';});
-        if(targetPlan.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Para mudar para Cloze, a nota precisa conter ao menos uma omissão {{c1::…}}.');return;}
-        if(Number(targetPlan.originalStockKind)===6||targetPlan.stockKind==='image_occlusion'){
-          const oc=(targetPlan.fields||[]).find(f=>Number(f.tag)===0),im=(targetPlan.fields||[]).find(f=>Number(f.tag)===1);
-          if(!oc||!im||!/image-occlusion:/.test(String(fields[oc.name]||''))||!AnkiParity._fieldNonempty(fields[im.name])){showToast('Use o editor de Oclusão de Imagem para criar ou converter este tipo de nota.');return;}
-        }
-        const saved=AnkiParity.saveNote(Object.assign({},note,{notetypeId:targetPlan.id,fields}),planId==null?undefined:planId);this.reconcileNote(saved,targetPlan);changed++;
-      }
-      this._changeTypeNotes=[];this._changeTypeTargets=[];
-      document.getElementById('anki-change-type-modal').style.display='none';document.getElementById('anki-note-edit-modal').style.display='none';this.renderBrowser();CardsScreen.render();showToast(changed+' nota(s) alterada(s) ✓');
-    });
-  },
-
-  editTags(ids){
-    if(!ids.length)return;UI.prompt([{key:'add',label:'Adicionar tags',type:'text',value:'',hint:'Separe por espaço.'},{key:'remove',label:'Remover tags',type:'text',value:'',hint:'Separe por espaço.'}],{title:'🏷 Editar etiquetas',okText:'Aplicar'}).then(v=>{
-      if(!v)return;const add=String(v.add||'').split(/\s+/).filter(Boolean),rem=new Set(String(v.remove||'').split(/\s+/).filter(Boolean));
-      ids.forEach(id=>{const n=AnkiParity.getNote(id);if(!n)return;n.tags=[...new Set([...(n.tags||[]),...add])].filter(t=>!rem.has(t));AnkiParity.saveNote(n);});
-      this.openBrowser();showToast('Tags atualizadas ✓');
-    });
-  },
-
-  toggleSuspend(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id)),shouldSuspend=cards.some(c=>!c.suspenso);
-    cards.forEach(c=>shouldSuspend?AnkiParity.suspendCard(c.id):DB.updateCard(c.id,{suspenso:false}));
-    CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(shouldSuspend?'Notas suspensas ✓':'Notas reativadas ✓');
-  },
-
-  bulkFlag(ids){
-    UI.prompt([{key:'flag',label:'Bandeira',type:'select',value:'0',options:[0,1,2,3,4,5,6,7].map(n=>({value:String(n),label:n===0?'Sem bandeira':(['','Vermelha','Laranja','Verde','Azul','Rosa','Turquesa','Roxa'][n])}))}],{title:'🚩 Definir bandeira',okText:'Aplicar'}).then(v=>{
-      if(!v)return;ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>DB.setFlag(c.id,Number(v.flag)||0));this.renderBrowser();CardsScreen.render();showToast('Bandeiras atualizadas ✓');
-    });
-  },
-
+  openChangeType(ids){return this._officialBrowserCall('_openOfficialChangeType',ids);},
+  _renderTypeMap(){},
+  _bindChangeType(){},
+  editTags(ids){return this._officialBrowserCall('_browserEditTags',ids);},
+  toggleSuspend(ids){return this._officialBrowserCall('_browserToggleSuspend',ids);},
+  bulkFlag(ids){return this._officialBrowserCall('_browserBulkFlag',ids);},
   browserBulkActions(ids){
-    if(!ids.length)return;
+    if(!ids||!ids.length)return;
     UI.prompt([{key:'action',label:'Ação',type:'select',value:'mark',options:[
       {value:'mark',label:'★ Marcar/desmarcar notas'},{value:'deck',label:'📁 Mover para baralho'},
-      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Resetar / tornar novos'},
+      {value:'due',label:'📅 Definir vencimento'},{value:'forget',label:'↺ Esquecer / tornar novos'},
       {value:'reposition',label:'🔢 Reposicionar cards novos'},{value:'replace',label:'🔁 Localizar e substituir nos campos'}
     ]}],{title:'⋯ Ações do navegador',okText:'Continuar'}).then(v=>{
       if(!v)return;
-      if(v.action==='mark')this.bulkMark(ids);
-      else if(v.action==='deck')this.bulkMoveDeck(ids);
-      else if(v.action==='due')this.bulkSetDue(ids);
-      else if(v.action==='forget')this.bulkForget(ids);
-      else if(v.action==='reposition')this.bulkReposition(ids);
-      else if(v.action==='replace')this.bulkFindReplace(ids);
+      const map={mark:'_browserBulkMark',deck:'_browserMove',due:'_browserSetDue',forget:'_browserForget',reposition:'_browserReposition',replace:'_browserFindReplace'};
+      this._officialBrowserCall(map[v.action],ids);
     });
   },
-
-  bulkMark(ids){
-    const notes=ids.map(id=>AnkiParity.getNote(id)).filter(Boolean);
-    const shouldMark=notes.some(n=>!(n.tags||[]).some(t=>String(t).toLowerCase()==='marked'));
-    notes.forEach(n=>{
-      let tags=(n.tags||[]).filter(t=>String(t).toLowerCase()!=='marked');
-      if(shouldMark)tags.push('marked');
-      AnkiParity.saveNote(Object.assign({},n,{tags:[...new Set(tags)]}));
-    });
-    this.renderBrowser();CardsScreen.render();showToast(shouldMark?'Notas marcadas ✓':'Marcação removida ✓');
-  },
-
-  bulkMoveDeck(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id)),origins=new Set(cards.map(c=>String(c._planId||
-      (window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
-    if(origins.size>1){showToast('Para mover em lote, selecione notas do mesmo planejamento de origem.');return;}
-    const pid=origins.size?[...origins][0]:null,decks=(pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks()).filter(d=>!(AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d)));
-    if(!decks.length){showToast('Crie um baralho antes de mover.');return;}
-    UI.prompt([{key:'deck',label:'Baralho de destino',type:'select',value:String(decks[0].id),options:decks.map(d=>({value:String(d.id),label:d.nome}))}],{title:'📁 Mover cards',okText:'Mover'}).then(v=>{
-      if(!v)return;let n=0;
-      ids.flatMap(id=>this._cardsForNote(id)).forEach(c=>{
-        if(c.filteredDeckId||c.originalDeckId){DB.updateCard(c.id,{originalDeckId:v.deck});}
-        else DB.updateCard(c.id,{deckId:v.deck});
-        n++;
-      });
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(n+' card(s) movido(s) ✓');
-    });
-  },
-
-  bulkSetDue(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
-    UI.prompt([{key:'spec',label:'Vencimento',type:'text',value:'1',placeholder:'ex.: 10, 60-90 ou 60-90!',
-      hint:'A-B distribui os cards no intervalo. ! também redefine o intervalo dos reviews.'}],{title:'📅 Definir vencimento',okText:'Agendar'}).then(v=>{
-      if(!v)return;const p=DB.parseDueSpec(v.spec);if(!p){showToast('Formato inválido. Use N, A-B ou A-B!.');return;}
-      cards.forEach((card,i)=>DB.setDueSpec(card.id,p,{index:i,total:cards.length}));
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reagendado(s) ✓');
-    });
-  },
-
-  bulkForget(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id));if(!cards.length)return;
-    UI.prompt([
-      {key:'restore',label:'Restaurar posição original?',type:'select',value:'no',options:[{value:'no',label:'Não — enviar ao fim da fila de novos'},{value:'yes',label:'Sim — usar posição original quando disponível'}]},
-      {key:'counts',label:'Zerar repetições e lapsos?',type:'select',value:'no',options:[{value:'no',label:'Não — preservar contadores'},{value:'yes',label:'Sim — zerar contadores'}]}
-    ],{title:'↺ Resetar cards',okText:'Resetar'}).then(v=>{
-      if(!v)return;cards.forEach(card=>DB.resetCard(card.id,{restorePosition:v.restore==='yes',resetCounts:v.counts==='yes',log:true}));
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) voltaram à fila de novos; histórico preservado ✓');
-    });
-  },
-
-  bulkReposition(ids){
-    const cards=ids.flatMap(id=>this._cardsForNote(id)).filter(c=>(c.phase||'new')==='new');
-    if(!cards.length){showToast('Nenhum card novo na seleção.');return;}
-    UI.prompt([{key:'start',label:'Posição inicial',type:'number',value:'1'},{key:'step',label:'Passo',type:'number',value:'1'}],{title:'🔢 Reposicionar novos',okText:'Aplicar'}).then(v=>{
-      if(!v)return;const start=Math.max(0,Math.round(Number(v.start)||0)),step=Math.max(1,Math.round(Number(v.step)||1));
-      cards.sort((a,b)=>(Number(a.posicaoNova)||0)-(Number(b.posicaoNova)||0)||String(a.id).localeCompare(String(b.id))).forEach((c,i)=>DB.updateCard(c.id,{posicaoNova:start+i*step,ankiDue:start+i*step}));
-      CardEngine.invalidateDueCache();this.renderBrowser();CardsScreen.render();showToast(cards.length+' card(s) reposicionado(s) ✓');
-    });
-  },
-
-  bulkFindReplace(ids){
-    UI.prompt([{key:'find',label:'Localizar',type:'text',value:''},{key:'replace',label:'Substituir por',type:'text',value:''}],{title:'🔁 Localizar e substituir',okText:'Substituir'}).then(v=>{
-      if(!v||!String(v.find||''))return;const needle=String(v.find),replacement=String(v.replace||'');let notesChanged=0,fieldsChanged=0;
-      ids.forEach(id=>{const note=AnkiParity.getNote(id);if(!note)return;const fields=Object.assign({},note.fields||{});let changed=false;
-        Object.keys(fields).forEach(k=>{const before=String(fields[k]||'');if(before.includes(needle)){fields[k]=before.split(needle).join(replacement);fieldsChanged++;changed=true;}});
-        if(changed){const saved=AnkiParity.saveNote(Object.assign({},note,{fields}));this.reconcileNote(saved,this._typeFor(saved));notesChanged++;}
-      });
-      this.renderBrowser();CardsScreen.render();showToast(notesChanged+' nota(s), '+fieldsChanged+' campo(s) alterado(s) ✓');
-    });
-  },
-
-  deleteNotes(ids){
-    if(!ids.length)return;UI.confirm('Excluir '+ids.length+' nota(s) e todos os seus cards/históricos? Não há como desfazer.',{title:'🗑 Excluir notas',okText:'Excluir',danger:true}).then(ok=>{
-      if(!ok)return;ids.forEach(id=>{const cards=this._cardsForNote(id);cards.forEach(c=>DB.deleteNoteByCard(c.id));try{localStorage.removeItem(AnkiParity._entityKey('note',id));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-product-parity'); };});
-      this.browser.selected.clear();this.renderBrowser();CardsScreen.render();showToast('Notas excluídas');
-    });
-  },
+  bulkMark(ids){return this._officialBrowserCall('_browserBulkMark',ids);},
+  bulkMoveDeck(ids){return this._officialBrowserCall('_browserMove',ids);},
+  bulkSetDue(ids){return this._officialBrowserCall('_browserSetDue',ids);},
+  bulkForget(ids){return this._officialBrowserCall('_browserForget',ids);},
+  bulkReposition(ids){return this._officialBrowserCall('_browserReposition',ids);},
+  bulkFindReplace(ids){return this._officialBrowserCall('_browserFindReplace',ids);},
+  deleteNotes(ids){return this._officialBrowserCall('_browserDeleteNotes',ids);},
 
   openNotetypes(){ this.ensure();document.getElementById('anki-notetypes-modal').style.display='flex';this.renderNotetypes(); },
   renderNotetypes(){
