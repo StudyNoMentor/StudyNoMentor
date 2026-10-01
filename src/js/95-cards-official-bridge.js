@@ -26,6 +26,10 @@ const CardsOfficialBridge = {
   _blobUrls:[],
   _undo:[],
   _redo:[],
+  _autoAdvanceEnabled:false,
+  _autoTimer:null,
+  _timerTick:null,
+  _autoToken:0,
   _orig:{},
 
   api(){
@@ -542,6 +546,62 @@ const CardsOfficialBridge = {
     return [1,2,3,4,5,6,7].map(n=>'<button type="button" class="anki-study-flag '+(Number(flag)===n?'on':'')+
       '" data-cards-official-flag="'+n+'" style="--fl:'+colors[n]+'" title="Bandeira '+n+'"></button>').join('');
   },
+  _clearReviewerAutomation(){
+    this._autoToken++;
+    clearTimeout(this._autoTimer);clearInterval(this._timerTick);
+    this._autoTimer=null;this._timerTick=null;
+  },
+  _elapsedMs(auto){
+    auto=auto||{};
+    const start=Number(CardsScreen._reviewStartedAt)||Date.now(),
+      end=(auto.stop_timer_on_answer&&CardsScreen._answerShownAt)?Number(CardsScreen._answerShownAt):Date.now();
+    let ms=Math.max(0,end-start),cap=Math.max(0,Number(auto.max_answer_seconds)||0)*1000;
+    if(cap>0)ms=Math.min(ms,cap);
+    return Math.round(ms);
+  },
+  _runWhenAudioReady(auto,token,fn){
+    if(token!==this._autoToken||!this._autoAdvanceEnabled)return;
+    if(auto&&auto.wait_for_audio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
+      this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,fn),250);return;
+    }
+    fn();
+  },
+  _armReviewerAutomation(oc,answerSide){
+    this._clearReviewerAutomation();if(!oc)return;
+    const auto=oc.auto_advance||{},token=this._autoToken,timer=document.getElementById('cards-review-timer');
+    if(timer&&auto.show_timer){
+      const tick=()=>{if(token===this._autoToken)timer.textContent=(this._elapsedMs(auto)/1000).toFixed(1)+'s';};
+      tick();this._timerTick=setInterval(tick,250);
+    }
+    const btn=document.getElementById('cards-auto-advance');
+    if(btn){btn.classList.toggle('on',this._autoAdvanceEnabled);btn.setAttribute('aria-pressed',String(this._autoAdvanceEnabled));btn.textContent=this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto';}
+    if(!this._autoAdvanceEnabled)return;
+    const seconds=Number(answerSide?auto.seconds_to_show_answer:auto.seconds_to_show_question)||0;
+    if(!(seconds>0))return;
+    this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,()=>{
+      if(token!==this._autoToken||!this.review||!this.review.card||Number(this.review.card.id)!==Number(oc.id))return;
+      if(!answerSide){
+        if(Number(auto.question_action)===0)void this.showAnswer();
+        else showToast('⏰ Lembrete do Auto Advance');
+        return;
+      }
+      switch(Number(auto.answer_action)){
+        case 0:void this.action('bury');break;
+        case 1:void this.answer(1);break;
+        case 2:void this.answer(3);break;
+        case 3:void this.answer(2);break;
+        default:showToast('⏰ Lembrete do Auto Advance');
+      }
+    }),seconds*1000);
+  },
+  toggleAutoAdvance(force){
+    this._autoAdvanceEnabled=typeof force==='boolean'?force:!this._autoAdvanceEnabled;
+    if(!this._autoAdvanceEnabled)this._clearReviewerAutomation();
+    const oc=this.review&&this.review.card;if(oc)this._armReviewerAutomation(oc,!!CardsScreen._flipped);
+    showToast(this._autoAdvanceEnabled?'⏩ Auto Advance ligado':'⏸ Auto Advance desligado');
+    return this._autoAdvanceEnabled;
+  },
+
   async renderCurrent(box){
     box=box||document.getElementById('cards-content');if(!box)return;
     const q=this.review;
@@ -562,7 +622,8 @@ const CardsOfficialBridge = {
     box.innerHTML='<div class="card cards-review-wrap anki-study-review-card">'+
       '<div class="cards-review-progress"><span>'+this._sessionAnswered+' respondidos</span>'+
       '<div class="cards-review-bar"><div style="width:'+pct+'%"></div></div>'+
-      '<span class="cards-limit-chip cards-due-counts" title="Contagens calculadas pelo scheduler oficial">🆕 '+this.counts.new+' · 🧠 '+this.counts.learning+' · 🔄 '+this.counts.review+'</span></div>'+
+      '<span class="cards-limit-chip cards-due-counts" title="Contagens calculadas pelo scheduler oficial">🆕 '+this.counts.new+' · 🧠 '+this.counts.learning+' · 🔄 '+this.counts.review+'</span>'+
+      ((oc.auto_advance||{}).show_timer?'<span class="cards-limit-chip" id="cards-review-timer">0.0s</span>':'')+'</div>'+
       '<div class="cards-review-meta"><span class="lei-tag mat">'+escapeHtml(CardsScreen.materiaLabel(local))+'</span>'+
       (local.assunto?'<span class="lei-tag ref">'+escapeHtml(local.assunto)+'</span>':'')+
       (local.tipo?'<span class="cards-type-tag">'+escapeHtml(local.tipo)+'</span>':'')+
@@ -577,6 +638,7 @@ const CardsOfficialBridge = {
         '<button type="button" class="icon-btn" id="cards-act-forget">↺ Esquecer</button>'+
         '<button type="button" class="icon-btn" id="cards-act-due">📅 Data</button>'+
         '<button type="button" class="icon-btn" id="cards-act-info">ℹ Info</button>'+
+        '<button type="button" class="icon-btn" id="cards-auto-advance" aria-pressed="'+String(this._autoAdvanceEnabled)+'">'+(this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto')+'</button>'+
         '<span class="cards-flagbar">'+this._flagButtons(oc.flag)+'</span>'+
       '</div>'+
       '<div class="cards-kbd-hint-row"><span class="cards-kbd-hint"><kbd>Espaço</kbd> resposta · <kbd>1</kbd>–<kbd>4</kbd> avaliar · <kbd>Ctrl+Z</kbd> desfazer</span></div>'+
@@ -588,6 +650,7 @@ const CardsOfficialBridge = {
     const flip=document.getElementById('cards-flip');if(flip)flip.onclick=()=>void this.showAnswer();
     const edit=document.getElementById('cards-review-edit');if(edit)edit.onclick=()=>CardsScreen.openCardModal(local.id);
     const info=document.getElementById('cards-act-info');if(info)info.onclick=()=>CardsScreen.cardInfo(local);
+    const autoBtn=document.getElementById('cards-auto-advance');if(autoBtn)autoBtn.onclick=()=>this.toggleAutoAdvance();
     const bury=document.getElementById('cards-act-bury');if(bury)bury.onclick=()=>void this.action('bury');
     const susp=document.getElementById('cards-act-susp');if(susp)susp.onclick=()=>void this.action('suspend');
     const forget=document.getElementById('cards-act-forget');if(forget)forget.onclick=()=>void this.action('forget');
@@ -595,7 +658,7 @@ const CardsOfficialBridge = {
     const mark=document.getElementById('cards-act-mark');if(mark)mark.onclick=()=>void this.mark();
     box.querySelectorAll('[data-cards-official-flag]').forEach(b=>b.onclick=()=>void this.action('flag',Number(b.dataset.cardsOfficialFlag)));
     const ti=document.getElementById('cards-official-type-answer');if(ti)setTimeout(()=>{try{ti.focus();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-type-answer-focus');}},0);
-    CardsScreen.atualizarFoco();
+    CardsScreen.atualizarFoco();this._armReviewerAutomation(oc,false);
   },
 
   async showAnswer(){
@@ -619,7 +682,7 @@ const CardsOfficialBridge = {
         '<span class="a-kbd">'+b.rating+'</span><strong>'+(names[b.rating-1]||b.rating)+'</strong><span>'+escapeHtml(b.label||'')+'</span></button>').join('');
       actions.querySelectorAll('[data-g]').forEach(b=>b.onclick=()=>void this.answer(Number(b.dataset.g)));
     }
-    void this.playAv(oc.answer_av_tags||[]);
+    void this.playAv(oc.answer_av_tags||[]);this._armReviewerAutomation(oc,true);
   },
 
   _phase(type,queue){
@@ -877,10 +940,9 @@ const CardsOfficialBridge = {
     if(this._answering)return false;
     const rating=typeof grade==='number'?grade:({errei:1,dificil:2,bom:3,facil:4})[grade];
     if(!rating||!this.review||!this.review.card)return false;
-    this._answering=true;
+    this._answering=true;this._clearReviewerAutomation();
     try{
-      const local=this._localForOfficialId(this.review.card.id);
-      const ms=local&&CardsScreen._reviewElapsedMs?CardsScreen._reviewElapsedMs(CardsConfig.forDeck(local.deckId)):0;
+      const ms=this._elapsedMs((this.review.card&&this.review.card.auto_advance)||{});
       const out=await this.request('/api/cards-official/reviewer/answer',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({card_id:Number(this.review.card.id),rating,milliseconds_taken:Math.max(0,Math.round(ms||0))})
@@ -900,6 +962,7 @@ const CardsOfficialBridge = {
 
   async action(action,value){
     if(!this.review||!this.review.card)return false;
+    this._clearReviewerAutomation();
     try{
       const out=await this.request('/api/cards-official/cards/action',{
         method:'POST',headers:{'Content-Type':'application/json'},
