@@ -238,6 +238,7 @@ const CardsOfficialBridge = {
       const targets=new Set(this._deckReplicas(row.id).map(d=>d._planId).filter(x=>x!=null));
       for(const cs of cardStates)if(Number(cs.deck_id)===Number(row.id)){
         for(const replica of this._replicas(cs.id))if(replica&&replica._planId!=null)targets.add(replica._planId);
+        for(const pid of this._studyFromState(cs).planIds||[])if(allPlans.some(x=>String(x)===String(pid)))targets.add(pid);
       }
       if(!targets.size&&active!=null)targets.add(active);
       for(const pid of targets)this._saveNormalDeckMirror(row,pid,null);
@@ -250,6 +251,9 @@ const CardsOfficialBridge = {
       const targets=new Set(this._localNotetypeReplicas(ntid).map(nt=>nt._planId).filter(x=>x!=null));
       for(const ns of state.notes||[])if(Number(ns.notetype_id)===ntid){
         for(const note of this._noteReplicas(ns.id))if(note&&note._planId!=null)targets.add(note._planId);
+        for(const cs of cardStates)if(Number(cs.note_id)===Number(ns.id)){
+          for(const pid of this._studyFromState(cs).planIds||[])if(allPlans.some(x=>String(x)===String(pid)))targets.add(pid);
+        }
       }
       if(!targets.size&&active!=null)targets.add(active);
       this._syncNotetypesIntoPlans([row],[...targets]);
@@ -260,6 +264,9 @@ const CardsOfficialBridge = {
     // reconciliado pelo Anki oficial.
     for(const ns of state.notes||[]){
       const reps=this._noteReplicas(ns.id),targets=new Set(reps.map(n=>n._planId).filter(x=>x!=null));
+      for(const cs of cardStates)if(Number(cs.note_id)===Number(ns.id)){
+        for(const pid of this._studyFromState(cs).planIds||[])if(allPlans.some(x=>String(x)===String(pid)))targets.add(pid);
+      }
       if(!targets.size&&active!=null)targets.add(active);
       for(const pid of targets){
         const fallback=this._localNotetypeId(ns.notetype_id,pid,null);
@@ -741,6 +748,11 @@ const CardsOfficialBridge = {
           anki_review_kind:Number.isFinite(Number(rev.ankiReviewKind))?Number(rev.ankiReviewKind):1
         });
       }
+    }
+    for(const row of payload.cards){
+      const linked=refs.card.get(String(row.id))||[];
+      row.plan_ids=[...new Set(linked.map(x=>x.pid).filter(x=>x!=null).map(String))];
+      row.favorito=linked.some(x=>!!(x.row&&x.row.favorito));
     }
     if(!payload.cards.length)throw new Error('Migração oficial sem cards legados para migrar.');
     if(!payload.notes.length)throw new Error('Migração oficial bloqueada: Notes legadas ausentes.');
@@ -2034,7 +2046,36 @@ const CardsOfficialBridge = {
     return saved;
   },
   _cardSeed(data,planId,notetypeId){
-    return {deckId:data.deckId||null,materia:data.materia||null,assunto:data.assunto||'',materiaTec:data.materiaTec||'',banca:data.banca||'',tipo:data.tipo||'',kind:data.kind==='cloze'?'cloze':'basic',notetypeId:notetypeId||null,_planId:planId==null?undefined:planId};
+    data=data||{};
+    const out={deckId:data.deckId||null,kind:data.kind==='cloze'?'cloze':'basic',notetypeId:notetypeId||null};
+    if(planId!=null)out._planId=planId;
+    for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
+      if(Object.prototype.hasOwnProperty.call(data,k))out[k]=data[k];
+    }
+    return out;
+  },
+  _studyMeta(seed,planId){
+    seed=seed||{};const out={};
+    for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
+      if(Object.prototype.hasOwnProperty.call(seed,k))out[k]=seed[k];
+    }
+    const rawPlans=Array.isArray(seed.planIds)?seed.planIds:(Array.isArray(seed.plan_ids)?seed.plan_ids:(planId!=null?[planId]:[]));
+    out.plan_ids=[...new Set(rawPlans.filter(x=>x!=null&&String(x)!=='').map(String))];
+    return out;
+  },
+  _studyFromState(state){
+    const raw=String(state&&state.custom_data||'').trim();if(!raw)return{};
+    try{
+      const root=JSON.parse(raw),s=root&&root.study;
+      if(!s||typeof s!=='object'||Array.isArray(s))return{};
+      const out={};
+      for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
+        if(Object.prototype.hasOwnProperty.call(s,k))out[k]=s[k];
+      }
+      const plans=Array.isArray(s.planIds)?s.planIds:(Array.isArray(s.plan_ids)?s.plan_ids:[]);
+      out.planIds=[...new Set(plans.filter(x=>x!=null&&String(x)!=='').map(String))];
+      return out;
+    }catch(_){return{};}
   },
   async addOfficialNote(opts){
     opts=opts||{};
@@ -2042,7 +2083,7 @@ const CardsOfficialBridge = {
       did=opts.deckId?this._officialDeckId(opts.deckId,pid):1;
     if(opts.deckId&&did==null)throw new Error('Baralho sem identidade Anki canônica.');
     const officialFields=await this._externalizeDataMediaFields(opts.fields||{},'note');
-    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:officialFields,tags:opts.tags||[]})});
+    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:officialFields,tags:opts.tags||[],study:this._studyMeta(opts.seed||{},pid)})});
     if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota criada.');
     const note=this._materializeOfficialNote(out.note,pid,nt.local.id),seeds={};
     seeds[String(out.note.id)]=Object.assign({},opts.seed||{},{notetypeId:nt.local.id});
@@ -2057,7 +2098,7 @@ const CardsOfficialBridge = {
     const pid=note._planId!=null?note._planId:(opts.planId!=null?opts.planId:this._activePlanId()),oid=this._officialNoteId(note);
     if(oid==null)throw new Error('Nota sem identidade Anki canônica.');
     const officialFields=await this._externalizeDataMediaFields(fields||{},'note');
-    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:officialFields,tags:Array.isArray(tags)?tags:[]})});
+    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:officialFields,tags:Array.isArray(tags)?tags:[],study:this._studyMeta(opts.seed||{},pid)})});
     if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota atualizada.');
     const saved=this._materializeOfficialNote(out.note,pid,note.notetypeId),seeds={};seeds[String(out.note.id)]=Object.assign({},opts.seed||{});
     await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
@@ -2320,15 +2361,17 @@ const CardsOfficialBridge = {
           existingByOfficial=new Map(same.map(c=>[String(this._officialId(c)),Object.assign({},c,pid==null?{}:{_planId:pid})]));
         for(const state of officialCards){
           let card=existingByOfficial.get(String(state.id));
+          const stateStudy=this._studyFromState(state),createSeed=Object.assign({},seed,stateStudy,externalSeed);
           if(!card){
             const data={
               ankiId:Number(state.id),ankiNoteId:Number(state.note_id),noteId:note.id,notetypeId:note.notetypeId,
               ankiTemplateOrd:Number(state.template_idx)||0,
-              deckId:this._localDeckId(state.deck_id,pid,seed.deckId)||seed.deckId||null,
-              materia:seed.materia||null,assunto:seed.assunto||'',materiaTec:seed.materiaTec||'',banca:seed.banca||'',tipo:seed.tipo||'',
+              deckId:this._localDeckId(state.deck_id,pid,createSeed.deckId)||createSeed.deckId||null,
+              materia:createSeed.materia||null,assunto:createSeed.assunto||'',materiaTec:createSeed.materiaTec||'',banca:createSeed.banca||'',tipo:createSeed.tipo||'',
               kind:nt&&nt.kind==='cloze'?'cloze':'basic',
               template:nt&&nt.kind==='cloze'?'cloze:'+(Number(state.template_idx)+1):(Number(state.template_idx)===1?'reverse':'forward'),
-              clozeOrd:nt&&nt.kind==='cloze'?Number(state.template_idx)+1:null,frente:'',verso:''
+              clozeOrd:nt&&nt.kind==='cloze'?Number(state.template_idx)+1:null,frente:'',verso:'',
+              favorito:!!createSeed.favorito
             };
             card=pid!=null&&DB.addCardForPlan?DB.addCardForPlan(pid,data):DB.addCard(data);
             if(!card)throw new Error('Falha ao criar réplica do card oficial '+state.id+'.');
