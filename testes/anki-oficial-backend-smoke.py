@@ -226,12 +226,24 @@ with tempfile.TemporaryDirectory() as tmp:
                     "d": 6.0,
                 }
             ],
-            "revlog": [],
+            "revlog": [
+                {
+                    "card_id": "card:p1",
+                    "ts": 1700000000000,
+                    "grade": 3,
+                    "anki_interval": 12,
+                    "anki_last_interval": 5,
+                    "ease_factor": 2500,
+                    "time": 432,
+                    "anki_review_kind": 0,
+                    "anki_ivl_semantica": 2,
+                }
+            ],
         },
         legacy_ctx,
     )
     assert migrated["ok"] is True
-    assert migrated["migrated"] == {"decks": 1, "notetypes": 1, "notes": 1, "cards": 1, "revlog": 0}
+    assert migrated["migrated"] == {"decks": 1, "notetypes": 1, "notes": 1, "cards": 1, "revlog": 1}
     assert migrated["deck_map"]["deck:p1"] > 0
     assert migrated["notetype_map"]["nt:basic"] > 0
     official_legacy_cid = int(migrated["card_map"]["card:p1"])
@@ -255,6 +267,11 @@ with tempfile.TemporaryDirectory() as tmp:
         # custom_data é reservado ao scheduler oficial e tem limite <100 bytes;
         # a migração não o usa como armazenamento de metadados da casca.
         assert legacy_card.custom_data == ""
+        revrow = legacy_item.col.db.first(
+            "select ease,ivl,lastIvl,factor,time,type from revlog where cid = ? order by id",
+            official_legacy_cid,
+        )
+        assert revrow == (3, 12, 5, 2500, 432, 0), revrow
         assert legacy_item.col.card_count() == 1
         assert legacy_item.col.note_count() == 1
 
@@ -263,6 +280,113 @@ with tempfile.TemporaryDirectory() as tmp:
         raise AssertionError("segunda migração sobre Collection preenchida deveria ser recusada")
     except app.HTTPException as exc:
         assert exc.status_code == 409
+
+    # Ordinais/siblings e NoteTypes homônimos: cada tipo legado distinto
+    # precisa virar um NoteType oficial próprio, e cada card precisa conservar
+    # seu ordinal gerado pelo Anki.
+    shapes_ctx = {"id": "legacy-shapes-user"}
+    shapes_item = app.cards_uc_for(shapes_ctx)
+    shaped = app.cards_official_migrate_legacy(
+        {
+            "decks": [{"id": "deck:shapes", "name": "Legado Shapes"}],
+            "notetypes": [
+                {
+                    "id": "nt:reverse",
+                    "name": "Legacy Mesmo Nome",
+                    "stock_kind": "basic_reversed",
+                },
+                {
+                    "id": "nt:cloze",
+                    "name": "Legacy Mesmo Nome",
+                    "stock_kind": "cloze",
+                },
+            ],
+            "notes": [
+                {
+                    "id": "note:reverse",
+                    "notetype_id": "nt:reverse",
+                    "fields": {"Front": "Frente reversa", "Back": "Verso reverso"},
+                    "tags": [],
+                },
+                {
+                    "id": "note:cloze",
+                    "notetype_id": "nt:cloze",
+                    "fields": {
+                        "Text": "{{c1::Primeiro}} e {{c2::Segundo}}",
+                        "Back Extra": "Extra",
+                    },
+                    "tags": [],
+                },
+            ],
+            "cards": [
+                {
+                    "id": "card:reverse:0",
+                    "note_id": "note:reverse",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 0,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 1,
+                },
+                {
+                    "id": "card:reverse:1",
+                    "note_id": "note:reverse",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 1,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 2,
+                },
+                {
+                    "id": "card:cloze:1",
+                    "note_id": "note:cloze",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 0,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 3,
+                },
+                {
+                    "id": "card:cloze:2",
+                    "note_id": "note:cloze",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 1,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 4,
+                },
+            ],
+            "revlog": [],
+        },
+        shapes_ctx,
+    )
+    assert shaped["migrated"] == {"decks": 1, "notetypes": 2, "notes": 2, "cards": 4, "revlog": 0}
+    reverse_ntid = int(shaped["notetype_map"]["nt:reverse"])
+    cloze_ntid = int(shaped["notetype_map"]["nt:cloze"])
+    assert reverse_ntid != cloze_ntid
+    reverse_ids = {
+        int(shaped["card_map"]["card:reverse:0"]),
+        int(shaped["card_map"]["card:reverse:1"]),
+    }
+    cloze_ids = {
+        int(shaped["card_map"]["card:cloze:1"]),
+        int(shaped["card_map"]["card:cloze:2"]),
+    }
+    assert len(reverse_ids) == 2
+    assert len(cloze_ids) == 2
+    with shapes_item.lock:
+        reverse_note = shapes_item.col.get_note(int(shaped["note_map"]["note:reverse"]))
+        cloze_note = shapes_item.col.get_note(int(shaped["note_map"]["note:cloze"]))
+        assert set(int(x) for x in shapes_item.col.card_ids_of_note(reverse_note.id)) == reverse_ids
+        assert set(int(x) for x in shapes_item.col.card_ids_of_note(cloze_note.id)) == cloze_ids
+        assert {int(shapes_item.col.get_card(cid).ord) for cid in reverse_ids} == {0, 1}
+        assert {int(shapes_item.col.get_card(cid).ord) for cid in cloze_ids} == {0, 1}
+        reverse_nt = shapes_item.col.models.get(reverse_ntid)
+        cloze_nt = shapes_item.col.models.get(cloze_ntid)
+        assert reverse_nt and cloze_nt
+        assert reverse_nt["name"] != cloze_nt["name"], "Anki deve tornar nomes homônimos únicos"
+        assert len(reverse_nt["tmpls"]) == 2
+        assert int(cloze_nt["type"]) == 1
 
     # A tela Cards usa uma coleção OFICIAL separada do menu Anki.
     cards_user = app.cards_pool.get("smoke-user")
