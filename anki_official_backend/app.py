@@ -942,13 +942,19 @@ def cards_official_migrate_legacy(
                 deck_map[legacy_id] = did
 
         nt_map: dict[str, int] = {}
+        claimed_nt_ids: set[int] = set()
         for row in notetypes:
             if not isinstance(row, dict):
                 continue
             legacy_id = str(row.get("id") or row.get("anki_id") or "")
             name = str(row.get("name") or "Note Type").strip()
             existing = item.col.models.by_name(name)
-            if existing and int(item.col.models.use_count(existing)) == 0:
+            existing_id = int(existing["id"]) if existing else 0
+            if (
+                existing
+                and int(item.col.models.use_count(existing)) == 0
+                and existing_id not in claimed_nt_ids
+            ):
                 nt = existing
             else:
                 raw = from_json_bytes(item.col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row)))
@@ -960,6 +966,7 @@ def cards_official_migrate_legacy(
                 raise HTTPException(500, f"Falha ao criar NoteType {name}.")
             _apply_legacy_notetype_shape(item.col, nt, row)
             item.col.models.update_dict(nt, skip_checks=False)
+            claimed_nt_ids.add(int(nt["id"]))
             if legacy_id:
                 nt_map[legacy_id] = int(nt["id"])
 
@@ -980,6 +987,9 @@ def cards_official_migrate_legacy(
             if not nt:
                 raise HTTPException(400, f"NoteType legado não localizado para nota {legacy_nid}.")
             note = item.col.new_note(nt)
+            legacy_guid = str(row.get("guid") or "").strip()
+            if legacy_guid:
+                note.guid = legacy_guid
             fields = row.get("fields") if isinstance(row.get("fields"), dict) else {}
             for key in note.keys():
                 note[key] = str(fields.get(key, ""))
@@ -1054,7 +1064,8 @@ def cards_official_migrate_legacy(
             while rid in seen_rev_ids:
                 rid += 1
             seen_rev_ids.add(rid)
-            kind = int(row.get("anki_review_kind") or 1)
+            raw_kind = row.get("anki_review_kind")
+            kind = int(raw_kind) if raw_kind is not None else 1
             rev_rows.append((
                 rid, cid, -1, max(0, min(4, int(row.get("grade") or 0))),
                 int(row.get("anki_interval") or 0), int(row.get("anki_last_interval") or 0),
@@ -1074,7 +1085,9 @@ def cards_official_migrate_legacy(
                 f"Migração incompleta: {len(card_map)}/{len(cards)} Cards foram mapeados de forma única.",
             )
 
-        item.col.clear_study_queues()
+        # Scheduler v3 do Anki 26.09.3 invalida/reconstrói as filas
+        # automaticamente após operações da Collection. A antiga API
+        # clear_study_queues() não existe no pylib atual e não deve ser emulada.
         return {
             "ok": True,
             "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
