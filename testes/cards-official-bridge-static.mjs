@@ -14,7 +14,6 @@ const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8')
 const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
 const practical=readFileSync(join(ROOT,'src/js/44-anki-practical-10.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
-const exporter=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
 const importer=readFileSync(join(ROOT,'src/js/35-anki-import.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
@@ -22,6 +21,8 @@ const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8
 
 assert.match(req,/^anki==26\.09\.3$/m,'backend precisa fixar exatamente anki==26.09.3');
 assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar no build publicado');
+assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
+assert.ok(!bridge.includes('AnkiExport.'),'bridge oficial não pode depender de exportador local');
 
 for(const forbidden of [
   'CardEngine.schedule(',
@@ -121,7 +122,6 @@ assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.model
 assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.new_template\(name\)[\s\S]*?item\.col\.models\.add_template\(nt, template\)/,'template novo deve nascer no NoteTypeManager oficial');
 assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.remove_template\(nt, template\)[\s\S]*?item\.col\.models\.reposition_template\(nt, template, idx\)/,'remoção e ordem de templates devem usar NoteTypeManager oficial');
 assert.match(backend,/def cards_official_update_notetype[\s\S]*?item\.col\.models\.update_dict\(nt, skip_checks=False\)/,'persistência final de NoteType deve ser validada pelo Anki oficial');
-assert.ok(!/async updateOfficialNotetype[\s\S]{0,2200}AnkiExport\.modelSchema/.test(bridge),'bridge não pode serializar/reimplementar NoteType localmente');
 assert.match(bridge,/async updateOfficialNotetype\(old,nt,notes,meta\)[\s\S]*?JSON\.stringify\(\{edit\}\)/,'Study deve enviar somente comandos semânticos da casca para o NoteTypeManager oficial');
 assert.match(product,/fieldSources=.*?_source[\s\S]*?templateSources=.*?_sourceOrd[\s\S]*?CardsOfficialBridge\.updateOfficialNotetype\(old,clean,notes,\{fieldSources,templateSources\}\)/,'UI só deve indicar identidade visual de campos/templates; mutação pertence ao Anki');
 assert.match(bridge,/input\.new_fields=\[\.\.\.document\.querySelectorAll/,'field map da UI deve virar new_fields oficial');
@@ -146,9 +146,6 @@ assert.match(backend,/def cards_official_database_optimize[\s\S]*?item\.col\.opt
 assert.match(maxEditor,/CardsOfficialBridge\.uploadOfficialMedia\(f,f\.name\)/,'áudio\/vídeo do editor rico devem subir pelo backend oficial');
 assert.ok(!/readAsDataURL/.test(maxEditor),'editor rico não pode persistir mídia nova como data URL');
 assert.match(sanitizer,/async function insertImageFile[\s\S]*?CardsOfficialBridge\.uploadOfficialMedia/,'imagens do RTE devem subir pelo MediaManager oficial');
-assert.match(exporter,/registerExternalMedia\(/,'exportador deve registrar bytes de mídia oficial');
-assert.match(exporter,/async _hydrateExternalMedia\(cards\)[\s\S]*?CardsOfficialBridge\._fetchMedia/,'exportador deve reidratar mídia oficial após reload');
-assert.match(exporter,/await this\._hydrateExternalMedia\(cards\)/,'bootstrap/exportação não pode empacotar coleção antes de hidratar mídia');
 assert.match(backend,/def cards_official_image_occlusion_setup[\s\S]*?add_image_occlusion_notetype/,'Image Occlusion deve usar o stock notetype oficial');
 assert.match(backend,/def cards_official_add_image_occlusion_note[\s\S]*?item\.col\.add_image_occlusion_note/,'criação de Image Occlusion deve usar Collection oficial');
 assert.match(backend,/def cards_official_update_image_occlusion_note[\s\S]*?item\.col\.update_image_occlusion_note/,'edição de Image Occlusion deve usar Collection oficial');
