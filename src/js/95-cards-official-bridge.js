@@ -69,6 +69,21 @@ const CardsOfficialBridge = {
     const key=String(officialId);
     return this._allCards().filter(c=>String(this._officialId(c))===key);
   },
+  _deckReplicas(officialId){
+    const key=String(officialId),out=[],seen=new Set(),
+      plans=window.StudyGlobalScope&&StudyGlobalScope.plans?StudyGlobalScope.plans():[{id:this._activePlanId()}];
+    for(const p of plans){
+      const pid=p&&p.id!=null?p.id:null,
+        rows=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks();
+      for(const d of rows||[]){
+        const oid=String(d&&d.ankiId!=null?d.ankiId:d&&d.id);
+        if(oid!==key)continue;
+        const k=String(pid==null?'':pid)+'|'+String(d.id);if(seen.has(k))continue;seen.add(k);
+        out.push(Object.assign({},d,pid==null?{}:{_planId:pid}));
+      }
+    }
+    return out;
+  },
   _localForOfficialId(officialId){
     const key=String(officialId),scope=this._scopeCards();
     let hit=scope.find(c=>String(this._officialId(c))===key);
@@ -208,51 +223,83 @@ const CardsOfficialBridge = {
   },
   async _syncOfficialFullState(state,planId){
     if(!state||!Array.isArray(state.notetypes)||!Array.isArray(state.notes))throw new Error('Snapshot integral da Collection oficial ausente.');
-    const pid=planId!=null?planId:this._activePlanId(),
+    const active=planId!=null?planId:this._activePlanId(),
       officialNotes=new Set((state.notes||[]).map(x=>String(x.id))),
       officialNotetypes=new Set((state.notetypes||[]).map(x=>String(x&&x.notetype&&x.notetype.id)).filter(Boolean)),
       officialCards=new Set((state.cards||[]).map(x=>String(x.id))),
-      officialDecks=new Set((state.decks||[]).map(x=>String(x&&x.id)).filter(Boolean));
+      officialDecks=new Set((state.decks||[]).map(x=>String(x&&x.id)).filter(Boolean)),
+      allPlans=window.StudyGlobalScope&&StudyGlobalScope.plans?StudyGlobalScope.plans().map(p=>p.id):[active].filter(x=>x!=null),
+      cardStates=Array.isArray(state.cards)?state.cards:[];
+
+    // Decks normais só são projetados onde já existem ou onde há cards daquele
+    // deck. Um deck novo/importado, sem origem conhecida, nasce no plano ativo.
     for(const row of state.decks||[]){
-      if(row&&row.filtered)this._saveFilteredDeckMirror(row,pid,null);
-      else if(row)this._saveNormalDeckMirror(row,pid,null);
+      if(!row||row.filtered)continue;
+      const targets=new Set(this._deckReplicas(row.id).map(d=>d._planId).filter(x=>x!=null));
+      for(const cs of cardStates)if(Number(cs.deck_id)===Number(row.id)){
+        for(const replica of this._replicas(cs.id))if(replica&&replica._planId!=null)targets.add(replica._planId);
+      }
+      if(!targets.size&&active!=null)targets.add(active);
+      for(const pid of targets)this._saveNormalDeckMirror(row,pid,null);
     }
-    this._syncNotetypesIntoPlans(state.notetypes,[pid]);
-    for(const ns of state.notes){
-      const fallback=this._localNotetypeId(ns.notetype_id,pid,null);
-      this._materializeOfficialNote(ns,pid,fallback);
+
+    // NoteTypes seguem as Notes que os utilizam. Isso evita replicar toda a
+    // Collection oficial em cada planejamento do Study.
+    for(const row of state.notetypes||[]){
+      const ntid=Number(row&&row.notetype&&row.notetype.id);if(!ntid)continue;
+      const targets=new Set(this._localNotetypeReplicas(ntid).map(nt=>nt._planId).filter(x=>x!=null));
+      for(const ns of state.notes||[])if(Number(ns.notetype_id)===ntid){
+        for(const note of this._noteReplicas(ns.id))if(note&&note._planId!=null)targets.add(note._planId);
+      }
+      if(!targets.size&&active!=null)targets.add(active);
+      this._syncNotetypesIntoPlans([row],[...targets]);
+    }
+
+    // Notes já projetadas mantêm seus planejamentos. Notes novas de importação
+    // entram somente no plano ativo; o conjunto de cards correspondente é então
+    // reconciliado pelo Anki oficial.
+    for(const ns of state.notes||[]){
+      const reps=this._noteReplicas(ns.id),targets=new Set(reps.map(n=>n._planId).filter(x=>x!=null));
+      if(!targets.size&&active!=null)targets.add(active);
+      for(const pid of targets){
+        const fallback=this._localNotetypeId(ns.notetype_id,pid,null);
+        this._materializeOfficialNote(ns,pid,fallback);
+      }
     }
     await this._reconcileOfficialCardSet(state.notes,state.cards||[]);
 
-    // O snapshot oficial é autoritativo. Esta poda só remove espelhos Study;
-    // nenhuma decisão acadêmica é tomada aqui.
-    for(const note of AnkiParity.notes(pid==null?undefined:pid)){
-      const oid=String(note&&note.ankiId!=null?note.ankiId:note&&note.id);
-      if(officialNotes.has(oid))continue;
-      const cards=AnkiProductParity._cardsForNote(note,pid==null?undefined:pid);
-      if(cards.length)DB.deleteNoteByCard(cards[0].id,pid==null?undefined:pid);
-      try{localStorage.removeItem(AnkiParity._entityKey('note',note.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-note');}
-    }
-    for(const nt of AnkiParity.noteTypes(pid==null?undefined:pid)){
-      const oid=String(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
-      if(officialNotetypes.has(oid))continue;
-      try{localStorage.removeItem(AnkiParity._entityKey('notetype',nt.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-notetype');}
-    }
-    const cardsNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
-      keptCards=(cardsNow||[]).filter(card=>officialCards.has(String(this._officialId(card))));
-    if(pid!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(pid,keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
-    else DB.saveCards(keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
+    // O snapshot oficial é autoritativo, mas a poda é feita plano a plano.
+    // Assim removemos espelhos órfãos sem espalhar entidades entre planos.
+    for(const pid of allPlans){
+      for(const note of AnkiParity.notes(pid==null?undefined:pid)){
+        const oid=String(note&&note.ankiId!=null?note.ankiId:note&&note.id);
+        if(officialNotes.has(oid))continue;
+        const cards=AnkiProductParity._cardsForNote(note,pid==null?undefined:pid);
+        if(cards.length)DB.deleteNoteByCard(cards[0].id,pid==null?undefined:pid);
+        try{localStorage.removeItem(AnkiParity._entityKey('note',note.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-note');}
+      }
+      for(const nt of AnkiParity.noteTypes(pid==null?undefined:pid)){
+        const oid=String(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
+        if(officialNotetypes.has(oid))continue;
+        try{localStorage.removeItem(AnkiParity._entityKey('notetype',nt.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-notetype');}
+      }
+      const cardsNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
+        keptCards=(cardsNow||[]).filter(card=>officialCards.has(String(this._officialId(card))));
+      if(pid!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(pid,keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
+      else DB.saveCards(keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
 
-    const decksNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
-      keptDecks=(decksNow||[]).filter(deck=>officialDecks.has(String(deck&&deck.ankiId!=null?deck.ankiId:deck&&deck.id))),
-      cleanDeck=x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;};
-    if(pid!=null)DB._set(DB.keysForPlan(pid).decks,keptDecks.map(cleanDeck));else DB.saveDecks(keptDecks.map(cleanDeck));
+      const decksNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+        keptDecks=(decksNow||[]).filter(deck=>officialDecks.has(String(deck&&deck.ankiId!=null?deck.ankiId:deck&&deck.id))),
+        cleanDeck=x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;};
+      if(pid!=null)DB._set(DB.keysForPlan(pid).decks,keptDecks.map(cleanDeck));else DB.saveDecks(keptDecks.map(cleanDeck));
+    }
 
-    await this._syncCollectionState(state,pid,null);
+    await this._syncCollectionState(state,active,null);
     if(state.reviewer)this._applyReviewer(state.reviewer);
     this.ready=true;this.dirty=false;this._browserCache=[];CardsScreen.invalidateReviewQueue();
     return state;
   },
+
   async syncOfficialPackageImport(out){
     if(!out||!out.state)return out;
     await this._syncOfficialFullState(out.state,this._activePlanId());
