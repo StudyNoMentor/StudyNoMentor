@@ -411,6 +411,62 @@ with tempfile.TemporaryDirectory() as tmp:
     assert redo_out["ok"] is True and "reviewer" in redo_out
 
     app.cards_pool.close_all()
+    # Migração automática legado -> Collection oficial. Esse é o caminho
+    # usado pelos Cards quando o backend oficial está vazio na primeira abertura.
+    legacy_user = {"id": "legacy-cards-migration-user"}
+    legacy_payload = {
+        "decks": [{"id": "deck:plan:p1:d1", "name": "Legado"}],
+        "notetypes": [{
+            "id": "notetype:plan:p1:nt1",
+            "name": "Legado Basic",
+            "kind": "basic",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"}],
+        }],
+        "notes": [{
+            "id": "note:plan:p1:n1",
+            "notetype_id": "notetype:plan:p1:nt1",
+            "fields": {"Front": "Pergunta legada", "Back": "Resposta legada"},
+            "tags": ["legacy"],
+        }],
+        "cards": [{
+            "id": "card:plan:p1:c1",
+            "note_id": "note:plan:p1:n1",
+            "deck_id": "deck:plan:p1:d1",
+            "template_idx": 0,
+            "phase": "new",
+            "new_position": 1,
+            "interval": 0,
+            "ease_factor": 2500,
+            "reps": 0,
+            "lapses": 0,
+            "remaining_steps": 0,
+            "flag": 0,
+            "materia": "Direito Tributário",
+            "assunto": "ICMS",
+            "banca": "CEBRASPE",
+        }],
+        "revlog": [],
+    }
+    migrated = app.cards_official_migrate_legacy(legacy_payload, legacy_user)
+    assert migrated["ok"] is True
+    assert migrated["migrated"]["decks"] == 1
+    assert migrated["migrated"]["notetypes"] == 1
+    assert migrated["migrated"]["notes"] == 1
+    assert migrated["migrated"]["cards"] == 1
+    assert migrated["deck_map"]["deck:plan:p1:d1"] > 0
+    assert migrated["notetype_map"]["notetype:plan:p1:nt1"] > 0
+    assert migrated["note_map"]["note:plan:p1:n1"] > 0
+    assert migrated["card_map"]["card:plan:p1:c1"] > 0
+    migrated_state = migrated["state"]
+    assert len(migrated_state["cards"]) == 1 and migrated_state["cards"][0]["question"]
+    assert len(migrated_state["notes"]) == 1
+    try:
+        app.cards_official_migrate_legacy(legacy_payload, legacy_user)
+        raise AssertionError("segunda migração deveria ser recusada")
+    except app.HTTPException as exc:
+        assert exc.status_code == 409
+
     app.pool.close_all()
 
     # Pool com teto (LRU): coleções antigas e livres são fechadas.
