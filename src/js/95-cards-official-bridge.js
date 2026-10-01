@@ -773,8 +773,8 @@ const CardsOfficialBridge = {
     if(saved===false)throw new Error('Falha ao remover o espelho local do baralho.');
     return true;
   },
-  async createOfficialDeck(name){
-    await this.bootstrap(false);const pid=this._activePlanId(),out=await this.request('/api/cards-official/decks',{
+  async createOfficialDeck(name,planId){
+    await this.bootstrap(false);const pid=planId!=null?planId:this._activePlanId(),out=await this.request('/api/cards-official/decks',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:String(name||'').trim()})
     });
     if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a criação do baralho.');
@@ -1647,8 +1647,14 @@ const CardsOfficialBridge = {
   async saveSimpleCard(closeAfter){
     const data=CardsScreen._readCardForm();if(!data)return false;
     const reversed=!!data._reversed;delete data._reversed;
-    const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId,
-      pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId());
+    const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId;
+    let pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId());
+    if(!editId&&data._newDeckName){
+      const created=await this.createOfficialDeck(data._newDeckName,pid);
+      if(!created||!created.deck)throw new Error('O Anki oficial não devolveu o baralho padrão criado.');
+      data.deckId=created.deck.id;delete data._newDeckName;pid=created.deck._planId!=null?created.deck._planId:pid;
+      const dest=document.getElementById('card-destino');if(dest)dest.value='deck:'+data.deckId;
+    }
     if(editId){
       const card=CardsScreen.collectionCards().find(c=>String(c.id)===String(editId)&&(editPlan==null||String(c._planId||'')===String(editPlan)))||DB.getCard(editId);
       if(!card)throw new Error('Card não encontrado.');
