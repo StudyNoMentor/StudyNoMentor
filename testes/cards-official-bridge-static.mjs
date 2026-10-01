@@ -51,6 +51,9 @@ assert.doesNotMatch(bridge,/Collection oficial dos Cards está vazia, mas existe
 assert.match(bridge,/migrated!==expected/,'migração deve falhar fechada se nem todos os cards receberem identidade oficial');
 assert.match(backend,/"deck_map": deck_map/,'backend deve devolver mapa oficial de Decks');
 assert.match(backend,/"notetype_map": nt_map/,'backend deve devolver mapa oficial de NoteTypes');
+assert.match(bridge,/legacyGroups=new Map\(\)/,'legado sem Note\/NoteType deve ser reconstruído antes da migração oficial');
+assert.match(bridge,/kind=cloze\?'cloze':\(reversed\?'basic_reversed':'basic'\)/,'legado antigo deve escolher NoteType stock compatível');
+assert.match(bridge,/String\(card\.template\|\|''\)==='reverse'\|\|card\.reversedOf\?1:0/,'card invertido legado deve migrar para template ord 1');
 assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
 assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
 assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
