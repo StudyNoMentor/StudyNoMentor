@@ -63,6 +63,28 @@ Base reconciliada: a branch já contém `main@ae54ed3d` pelo merge `71f988e5`,
 preservando a implementação Anki e a exclusão de `anki-oficial` no Pages.
 Os contratos abaixo estão concluídos na métrica de integração oficial. A auditoria comportamental exaustiva por arquivo permanece uma métrica separada.
 
+### Migração legado → Collection oficial — 2026-10-01
+
+Este lote fecha a transição dos Cards já existentes sem criar um segundo motor. A
+Collection oficial continua sendo a única fonte de verdade acadêmica; planejamento,
+matéria, assunto, banca, tipo e favorito permanecem na casca Study ligados aos IDs
+canônicos devolvidos pelo Anki.
+
+- [x] Collection vazia + Cards legados dispara migração única automática antes do reviewer, abrangendo todos os planejamentos.
+- [x] Decks, NoteTypes, Notes e Cards são materializados por objetos/managers da Collection oficial; legado anterior à camada Note/NoteType recebe apenas a forma transitória necessária para ser entregue ao NoteTypeManager oficial.
+- [x] Migração backend é atômica: snapshot físico da Collection é restaurado se ocorrer exceção ou mapeamento 1:1 incompleto/ambíguo.
+- [x] Estado compatível é transportado sem recalcular um scheduler local: queue/type/due, interval, ease, reps/lapses, S/D, flag, suspensão/enterro e revlog com semântica Anki conhecida.
+- [x] GUID existente da Note é preservado; quando o legado não possui GUID, a casca gera uma identidade determinística somente para permitir recuperação idempotente do vínculo após reload.
+- [x] `anki_review_kind=0` é preservado como Learning; NoteTypes homônimos distintos não reutilizam silenciosamente a mesma estrutura durante a migração.
+- [x] `card.custom_data` não é usado como banco de planejamento/banca/assunto. O campo permanece pertencendo ao contrato oficial do Anki/add-ons; compatibilidade antiga é somente leitura.
+- [x] Se a Collection já foi migrada mas houve interrupção antes de todos os espelhos Study receberem `ankiId`, o bootstrap recupera o vínculo por GUID + template ordinal e falha fechado em caso ambíguo, sem remigrar a Collection.
+- [x] Não existe emulação de `clear_study_queues()`: o Scheduler v3 do Anki 26.09.3 invalida/reconstrói suas filas conforme o runtime oficial.
+- [x] Gates estáticos verificam ausência de CardEngine/CardsConfig/fallbacks e o smoke real com `anki==26.09.3` valida round-trip da migração, rollback, GUID, Learning revlog e preservação de `custom_data`.
+
+Este fechamento **não altera** a métrica de certificação comportamental exaustiva
+por arquivo acima. A integração arquitetural segue 571/571; certificação individual
+continua exigindo evidência específica por arquivo, caso e extremo.
+
 ### Remoção das implementações locais — 2026-10-01
 
 - [x] Removidos `30-fsrs.js`, `31-cards-config.js` e `32-card-engine.js`.
