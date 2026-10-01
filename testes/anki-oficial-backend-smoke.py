@@ -862,7 +862,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert int(selection_col.decks.get_current_id()) == int(selection_out["deck_map"]["d"])
     # Não substitui a seleção explícita de outro baralho vazio.
     empty_id = selection_col.decks.add_normal_deck_with_name("Vazio escolhido").id
-    selection_col.decks.select(app.DeckId(empty_id))
+    app.cards_official_reviewer_scope(app.SelectDeckBody(deck_id=int(empty_id)), selection_user)
     empty_queue = app.cards_official_reviewer_next(selection_user)
     assert empty_queue["finished"] is True
     assert int(selection_col.decks.get_current_id()) == int(empty_id)
@@ -876,6 +876,59 @@ with tempfile.TemporaryDirectory() as tmp:
     child_queue = app.cards_official_reviewer_next(selection_user)
     assert child_queue["finished"] is False
     assert int(selection_col.decks.get_current_id()) == 1
+
+
+    # Todos os baralhos: continuar em decks independentes sem alterar due.
+    multi_user = {"id": "all-decks-reviewer-regression"}
+    multi_col = app.cards_uc_for(multi_user).col
+    multi_ids = []
+    for label in ("A", "B", "C"):
+        did = multi_col.decks.add_normal_deck_with_name("Multi " + label).id
+        for idx in range(2):
+            note = multi_col.new_note(multi_col.models.by_name("Basic"))
+            note["Front"], note["Back"] = label + str(idx), "Resposta"
+            multi_col.add_note(note, app.DeckId(did))
+        multi_ids.append(int(did))
+    scope = app.cards_official_reviewer_scope(app.SelectDeckBody(deck_id=0), multi_user)
+    assert scope["review_scope"]["total_cards"] == 6
+    visited = set()
+    for _ in range(3):
+        assert not scope["finished"]
+        selected = int(scope["review_scope"]["selected_deck_id"])
+        visited.add(selected)
+        for cid in multi_col.find_cards(""):
+            card = multi_col.get_card(cid)
+            if int(card.did) == selected:
+                card.queue = -1
+                multi_col.update_card(card)
+        scope = app.cards_official_reviewer_next(multi_user)
+    assert visited == set(multi_ids) and scope["finished"]
+    assert multi_col.card_count() == 6
+    assert scope["review_scope"]["total_cards"] == 6
+
+    # Reconciliação é aditiva e idempotente; cards existentes não perdem reps.
+    reconcile_user = {"id": "partial-collection-reconciliation"}
+    reconcile_payload = json.loads(json.dumps(reversed_payload))
+    reconcile_payload["notes"][0]["guid"] = "partialexisting"
+    initial = app.cards_official_migrate_legacy(reconcile_payload, reconcile_user)
+    reconcile_col = app.cards_uc_for(reconcile_user).col
+    preserved_id = int(initial["card_map"]["c1"])
+    preserved_card = reconcile_col.get_card(preserved_id)
+    preserved_card.reps = 9
+    reconcile_col.update_card(preserved_card)
+    reconcile_payload["reconcile"] = True
+    second_note = dict(reconcile_payload["notes"][0], id="n2", guid="partialmissing")
+    reconcile_payload["notes"].append(second_note)
+    reconcile_payload["cards"].extend([
+        dict(reconcile_payload["cards"][0], id="c3", note_id="n2"),
+        dict(reconcile_payload["cards"][1], id="c4", note_id="n2"),
+    ])
+    for _ in range(2):
+        reconciled = app.cards_official_migrate_legacy(reconcile_payload, reconcile_user)
+        assert reconciled["ok"] and len(reconciled["card_map"]) == 4
+        assert int(reconciled["card_map"]["c1"]) == preserved_id
+        assert reconcile_col.get_card(preserved_id).reps == 9
+        assert reconcile_col.card_count() == 4 and reconcile_col.note_count() == 2
 
     # Estado legado sem anki_* moderno: due relativo, review, S/D e
     # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
