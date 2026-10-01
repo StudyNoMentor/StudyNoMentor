@@ -626,7 +626,16 @@ const CardsOfficialBridge = {
         decks=rows(pid,'decks')||[],nts=entityRows(pid,'notetype')||[],notes=entityRows(pid,'note')||[],cards=rows(pid,'cards')||[],
         deckById=new Map(decks.map(x=>[String(x.id),x])),
         ntById=new Map(nts.map(x=>[String(x.id),x])),
-        noteById=new Map(notes.map(x=>[String(x.id),x]));
+        noteById=new Map(notes.map(x=>[String(x.id),x])),
+        cardById=new Map(cards.map(x=>[String(x&&x.id),x]));
+      const legacyNoteRef=card=>{
+        if(!card)return'';
+        if(card.reversedOf){
+          const original=cardById.get(String(card.reversedOf));
+          if(original)return original.noteId||original.ankiNoteId||original.id;
+        }
+        return card.noteId||card.ankiNoteId||card.id;
+      };
       const deckKeyOf=id=>{
         const d=deckById.get(String(id));if(d)return this._legacyStableKey('deck',d,pid);
         return 'deck:plan:'+String(pid==null?'':pid)+':'+String(id==null?'':id);
@@ -664,7 +673,7 @@ const CardsOfficialBridge = {
       const legacyGroups=new Map();
       for(const card of cards){
         if(!card)continue;
-        const raw=String(card.noteId||card.ankiNoteId||card.id);
+        const raw=String(legacyNoteRef(card));
         if(noteById.has(raw))continue;
         if(!legacyGroups.has(raw))legacyGroups.set(raw,[]);
         legacyGroups.get(raw).push(card);
@@ -721,8 +730,9 @@ const CardsOfficialBridge = {
       for(const card of cards){
         if(!card)continue;
         const key=this._legacyStableKey('card',card,pid),
-          noteKey=noteKeyOf(card.noteId||card.ankiNoteId||card.id,card.ankiNoteId),
-          noteRef=noteById.get(String(card.noteId||card.ankiNoteId||card.id));
+          legacyNoteId=legacyNoteRef(card),
+          noteKey=noteKeyOf(legacyNoteId,card.ankiNoteId),
+          noteRef=noteById.get(String(legacyNoteId));
         if(!seen.note.has(noteKey)&&!noteRef)throw new Error('Migração oficial bloqueada: card legado '+String(card.id)+' sem Note correspondente.');
         pushRef('card',key,pid,card,{noteKey});
         if(seen.card.has(key))continue;seen.card.add(key);
