@@ -179,8 +179,9 @@ with tempfile.TemporaryDirectory() as tmp:
         # /health não expõe caminhos do servidor.
         assert "data_dir" not in app.health()
 
-    # Migração única do legado: a casca envia estado/metadados antigos, mas
-    # Deck/NoteType/Note/Card passam a existir somente como objetos oficiais.
+    # Migração única do legado: a casca envia somente estado acadêmico ao
+    # backend; metadados de planejamento/banca permanecem no espelho Study.
+    # Deck/NoteType/Note/Card passam a existir como objetos oficiais.
     legacy_ctx = {"id": "legacy-migration-user"}
     legacy_item = app.cards_uc_for(legacy_ctx)
     with legacy_item.lock:
@@ -223,36 +224,6 @@ with tempfile.TemporaryDirectory() as tmp:
                     "flag": 2,
                     "s": 4.5,
                     "d": 6.0,
-                    "materia": "Direito",
-                    "assunto": "Licitações",
-                    "materia_tec": "Lei 14.133",
-                    "banca": "CEBRASPE",
-                    "tipo": "revisão",
-                    "favorito": True,
-                    "study_replicas": [
-                        {
-                            "planId": "p1",
-                            "localId": "uuid-local-1",
-                            "localDeckId": "deck-local-1",
-                            "materia": "Direito",
-                            "assunto": "Licitações",
-                            "materiaTec": "Lei 14.133",
-                            "banca": "CEBRASPE",
-                            "tipo": "revisão",
-                            "favorito": True,
-                        },
-                        {
-                            "planId": "p2",
-                            "localId": "uuid-local-2",
-                            "localDeckId": "deck-local-2",
-                            "materia": "Direito",
-                            "assunto": "Licitações",
-                            "materiaTec": "Lei 14.133",
-                            "banca": "CEBRASPE",
-                            "tipo": "revisão",
-                            "favorito": True,
-                        },
-                    ],
                 }
             ],
             "revlog": [],
@@ -281,11 +252,9 @@ with tempfile.TemporaryDirectory() as tmp:
         assert abs(float(legacy_card.memory_state.difficulty) - 6.0) < 1e-6
         assert legacy_note.guid == "legacyguid"
         assert "marked" in legacy_note.tags
-        study_meta = json.loads(legacy_card.custom_data)["study"]
-        assert study_meta["materia"] == "Direito"
-        assert study_meta["favorito"] is True
-        assert [x["planId"] for x in study_meta["replicas"]] == ["p1", "p2"]
-        assert study_meta["replicas"][0]["localId"] == "uuid-local-1"
+        # custom_data é reservado ao scheduler oficial e tem limite <100 bytes;
+        # a migração não o usa como armazenamento de metadados da casca.
+        assert legacy_card.custom_data == ""
         assert legacy_item.col.card_count() == 1
         assert legacy_item.col.note_count() == 1
 
