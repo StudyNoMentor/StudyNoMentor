@@ -222,10 +222,10 @@ const CardsOfficialBridge = {
         touchedPlans.add(pk);
       };
 
-    // A Collection é global; a projeção Study não é. O custom_data oficial
-    // registra em quais planejamentos cada card deve aparecer. Réplicas já
-    // existentes também entram como fonte, o que torna reload e migração
-    // idempotentes sem recalcular nenhuma decisão acadêmica.
+    // A Collection é global; a projeção Study não é. O espelho persistente do
+    // Study registra em quais planejamentos cada card aparece; o Anki conserva
+    // apenas o estado acadêmico. Isso torna reload e migração idempotentes sem
+    // recalcular nenhuma decisão acadêmica nem abusar de card.custom_data.
     for(const cs of state.cards||[]){
       const targets=this._studyTargetsForState(cs,pid);
       for(const target of targets){
@@ -797,11 +797,7 @@ const CardsOfficialBridge = {
       const rep=group.representative,card=rep.card,pid=rep.planId,
         sched=this._legacyScheduleRow(card,timingToday),
         deckKey=card.deckId==null?'':(deckKeyByLocal.get(localKey(pid,card.deckId))||this._legacyScopedKey('deck',pid,card.deckId)),
-        originalDeckKey=card.originalDeckId==null?'':(deckKeyByLocal.get(localKey(pid,card.originalDeckId))||this._legacyScopedKey('deck',pid,card.originalDeckId)),
-        replicas=group.refs.map(r=>({
-          planId:r.planId,localId:r.localId,localDeckId:r.card.deckId==null?null:r.card.deckId,
-          materia:r.card.materia||null,assunto:r.card.assunto||'',materiaTec:r.card.materiaTec||'',banca:r.card.banca||'',tipo:r.card.tipo||'',favorito:!!r.card.favorito
-        }));
+        originalDeckKey=card.originalDeckId==null?'':(deckKeyByLocal.get(localKey(pid,card.originalDeckId))||this._legacyScopedKey('deck',pid,card.originalDeckId));
       payload.cards.push({
         id:group.key,note_id:group.noteKey,deck_id:deckKey,template_idx:this._legacyTemplateOrd(card),
         anki_type:sched.type,anki_queue:sched.queue,anki_due:sched.due,anki_original_due:sched.odue,
@@ -809,9 +805,7 @@ const CardsOfficialBridge = {
         interval:Math.max(0,Number(card.intervalo)||0),ease:Number(card.ease)||2.5,
         ease_factor:Number(card.easeFactor)||0,reps:Math.max(0,Number(card.reps)||0),lapses:Math.max(0,Number(card.lapses)||0),
         remaining_steps:Math.max(0,Number(card.ankiRemainingSteps!=null?card.ankiRemainingSteps:card.remainingSteps)||0),
-        flag:Math.max(0,Math.min(7,Number(card.flag)||0)),s:card.s==null?null:Number(card.s),d:card.d==null?null:Number(card.d),
-        materia:card.materia||null,assunto:card.assunto||'',materia_tec:card.materiaTec||'',banca:card.banca||'',tipo:card.tipo||'',
-        favorito:!!card.favorito,study_replicas:replicas
+        flag:Math.max(0,Math.min(7,Number(card.flag)||0)),s:card.s==null?null:Number(card.s),d:card.d==null?null:Number(card.d)
       });
     }
 
@@ -849,12 +843,15 @@ const CardsOfficialBridge = {
       const pid=planId!=null?planId:fallbackPlanId,k=String(pid==null?'':pid);
       if(seen.has(k))return;seen.add(k);out.push({planId:pid,seed:seed||{}});
     };
+    for(const rep of this._replicas(state&&state.id)||[])push(rep._planId,Object.assign({},rep));
+    // Compatibilidade somente de leitura com experiências antigas que tenham
+    // gravado um payload Study pequeno em custom_data. Novas migrações nunca
+    // escrevem metadados da casca nesse campo do Anki (<100 bytes).
     if(Array.isArray(meta.replicas)){
       for(const r of meta.replicas||[])if(r&&typeof r==='object')push(r.planId,{
         localId:r.localId,deckId:r.localDeckId,materia:r.materia||null,assunto:r.assunto||'',materiaTec:r.materiaTec||'',banca:r.banca||'',tipo:r.tipo||'',favorito:!!r.favorito
       });
     }
-    for(const rep of this._replicas(state&&state.id)||[])push(rep._planId,Object.assign({},rep));
     if(!out.length)push(fallbackPlanId,{
       materia:meta.materia||null,assunto:meta.assunto||'',materiaTec:meta.materiaTec||'',banca:meta.banca||'',tipo:meta.tipo||'',favorito:!!meta.favorito
     });
