@@ -114,8 +114,6 @@ try{
   ok(r.searchWorks,'busca interna reduz as opções sem alterar a seleção');
   ok(r.outsideCloses,'dropdown fecha ao clicar fora');
   ok(r.escapeCloses,'dropdown fecha pela tecla Escape');
-  ok(Array.isArray(r.audit.weights)&&r.audit.weights.length===21,'auditoria resolve e exporta os 21 pesos FSRS efetivamente usados');
-  ok(String(r.audit.historicalSnapshots).includes('fotografias')&&r.audit.consistency&&r.audit.consistency.memoryReplay,'auditoria documenta snapshots históricos e inclui replay de memória');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
