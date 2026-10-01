@@ -11,6 +11,7 @@ const statsMedia=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'ut
 const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
 const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
 const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8');
+const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const exporter=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
@@ -85,6 +86,9 @@ assert.match(bridge,/CardsScreen\.renderStats=\(box\)=>\{void this\.renderStats\
 assert.match(bridge,/\/api\/cards-official\/stats\/graphs\?/,'Stats dos Cards devem consultar GraphsService da coleção isolada');
 assert.match(bridge,/Nenhum cálculo local foi usado como fallback/,'falha de Stats não pode cair para cálculo local');
 assert.ok(!/this\._orig\.renderStats\(/.test(bridge),'Stats oficial não pode executar renderer local como fallback');
+assert.ok(!statsMedia.includes('AnkiMediaStore'),'Cards não pode manter MediaStore IndexedDB paralelo ao MediaManager oficial');
+assert.ok(!total.includes('study_anki_media'),'Cards não pode sincronizar mídia por tabela Study paralela');
+assert.ok(!total.includes('content_b64'),'mídia não pode manter payload base64 paralelo ao backend oficial');
 
 assert.ok(!/filteredSearchMatches\(/.test(bridge),'bridge oficial não pode executar parser de busca JS');
 assert.match(backend,/item\.col\.sched\.set_due_date\(card_ids,/,'bulk due deve ser oficial');
