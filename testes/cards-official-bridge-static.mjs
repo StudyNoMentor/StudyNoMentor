@@ -47,6 +47,10 @@ assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>St
 assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
 assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
 assert.match(backend,/def cards_official_collection_full_state[\s\S]*?cards_collection_full_state_payload\(item\.col\)/,'full-state deve ser extraído da Collection oficial');
+assert.match(backend,/def cards_official_preferences[\s\S]*?item\.col\.get_preferences\(\)/,'Preferences devem ser lidas da Collection oficial');
+assert.match(backend,/def cards_official_update_preferences[\s\S]*?item\.col\.set_preferences\(prefs\)/,'Preferences devem ser persistidas pela Collection oficial');
+assert.match(practical,/CardsOfficialBridge\.updateOfficialPreferences\(\{scheduling:\{rollover,learn_ahead_secs:/,'rollover e learn-ahead da UI devem ser oficiais');
+assert.ok(!/CardsConfig\.set\(\{[\s\S]{0,350}disableAutoplay/.test(practical),'Preferências globais não podem duplicar Deck Options localmente');
 assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_note\(/,'migração legada deve materializar notas por objetos oficiais do Anki');
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
@@ -257,6 +261,7 @@ for(const path of [
   '/api/cards-official/notetypes/full',
   '/api/cards-official/notetypes/change-info',
   '/api/cards-official/notetypes/change',
+  '/api/cards-official/preferences',
   '/api/cards-official/collection/state',
   '/api/cards-official/collection/full-state',
   '/api/cards-official/stats/graphs',
