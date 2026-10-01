@@ -57,7 +57,7 @@ const critical=[
 for(const [name,re] of critical)assert.match(bridge,re,'recurso acadêmico não termina no Anki oficial: '+name);
 
 const forbidden=[
-  /\bCardEngine\./,/\bCardsConfig\./,/\bAnkiMediaStore\b,/filteredSearchMatches\(/,
+  /\bCardEngine\./,/\bCardsConfig\./,/\bAnkiMediaStore\b/,/filteredSearchMatches\(/,
   /CardEngine\.schedule\(/,/CardEngine\.previewIntervals\(/,/AnkiParity\.customStudy\(/,/AnkiParity\.saveFilteredDeck\(/
 ];
 for(const re of forbidden)assert.doesNotMatch(all,re,'motor/recurso acadêmico local proibido reapareceu: '+re);
