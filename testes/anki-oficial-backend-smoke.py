@@ -816,6 +816,32 @@ with tempfile.TemporaryDirectory() as tmp:
         note = collision_col.get_note(int(out["note_map"]["n"]))
         assert note["Front"] == "Pergunta" and note["Back"] == "Resposta"
 
+    # Frentes válidas também falhavam: campos recriados com ord=None eram
+    # interpretados como remoções; o Anki colocava Front nas duas perguntas.
+    for field_names in (("Front", "Back"), ("Pergunta", "Resposta"), ("Back", "Front")):
+        valid_user = {"id": "legacy-valid-reversed-" + "-".join(field_names)}
+        valid_payload = json.loads(json.dumps(reversed_payload))
+        left, right = field_names
+        valid_payload["notetypes"][0]["fields"] = [{"name": left}, {"name": right}]
+        valid_payload["notetypes"][0]["templates"] = [
+            {"name": "Card 1", "qfmt": "{{" + left + "}}",
+             "afmt": "{{FrontSide}}<hr id=answer>{{" + right + "}}"},
+            {"name": "Card 2", "qfmt": "{{" + right + "}}",
+             "afmt": "{{FrontSide}}<hr id=answer>{{" + left + "}}"},
+        ]
+        valid_payload["notes"][0]["fields"] = {left: "Conteúdo A", right: "Conteúdo B"}
+        valid_out = app.cards_official_migrate_legacy(valid_payload, valid_user)
+        assert valid_out["ok"] and len(valid_out["card_map"]) == 2
+        valid_col = app.cards_uc_for(valid_user).col
+        valid_nt = valid_col.models.get(int(valid_out["notetype_map"]["nt"]))
+        assert [x["qfmt"] for x in valid_nt["tmpls"]] == ["{{" + left + "}}", "{{" + right + "}}"]
+        valid_note = valid_col.get_note(int(valid_out["note_map"]["n"]))
+        assert valid_note[left] == "Conteúdo A" and valid_note[right] == "Conteúdo B"
+        first = valid_col.get_card(int(valid_out["card_map"]["c1"]))
+        second = valid_col.get_card(int(valid_out["card_map"]["c2"]))
+        assert first.ord == 0 and second.ord == 1
+        assert "Conteúdo A" in first.question() and "Conteúdo B" in second.question()
+
     # Estado legado sem anki_* moderno: due relativo, review, S/D e
     # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
     schedule_user = {"id": "legacy-cards-schedule-user"}
