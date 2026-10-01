@@ -64,7 +64,8 @@ const proibidos=[
   'testes/cards-foco-edicao-browser.mjs',
   'testes/cards-reparo-memoria-browser.mjs',
   'testes/cards-10of10-final.mjs',
-  'src/js/34-anki-export.js'
+  'src/js/34-anki-export.js',
+  'src/js/44-anki-runtime.js'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');

@@ -177,27 +177,8 @@ async function pontaAPonta() {
   ok(tec.pronto && tec.s2, 'depois de carregar o histórico, o retrato é gravado');
   ok(JSON.stringify(snaps) === JSON.stringify(['tec-s1', 'tec-s2']), 'o banco mantém o retrato antigo e o novo: ' + JSON.stringify(snaps));
 
-  // A1 — importação em lote: 300 notas viram UMA gravação de cards
-  const pedidosAntes = api.estado.pedidos.length;
-  const lote = await page.evaluate(async () => {
-    await RelationalStore.flush();
-    let gravacoesCards = 0;
-    const orig = RelationalStore._markDirty.bind(RelationalStore);
-    RelationalStore._markDirty = function (key, old) { if (/:cards$/.test(key)) gravacoesCards++; return orig.apply(this, arguments); };
-    const rows = []; for (let i = 0; i < 300; i++) rows.push(['Frente ' + i, 'Verso ' + i]);
-    const nt = AnkiParity.stockNotetype('basic');
-    const t0 = performance.now();
-    const r = AnkiImport.importText({ rows, isHtml: false, headers: {} }, { notetypeId: nt.id, fieldColumns: [1, 2], dupeResolution: 'duplicate', forceIsHtml: true, isHtml: false });
-    const ms = performance.now() - t0;
-    RelationalStore._markDirty = orig;
-    await RelationalStore.flush();
-    return { cards: r.cards, gravacoesCards, ms, total: DB.getCards().length };
-  });
-  const pedidosCards = api.estado.pedidos.slice(pedidosAntes).filter(p => /mutate_study_plan_rows|replace_study_plan_rows|study_cards/.test(p.caminho)).length;
-  ok(lote.cards === 300 && lote.total >= 300, 'A1: 300 notas importadas (' + lote.cards + ' cards)');
-  ok(lote.gravacoesCards === 1, 'A1: a coleção de cards é gravada uma única vez (' + lote.gravacoesCards + ')');
-  ok(linhas('study_cards', r => r.profile_id === perfil.id).length >= 300, 'A1: os cards importados chegaram ao banco');
-  ok(pedidosCards <= 5, 'A1: poucas requisições de cards ao banco (' + pedidosCards + '), em ' + Math.round(lote.ms) + ' ms');
+  // Importação acadêmica agora é verificada no smoke da Collection oficial.
+  // Este teste permanece dedicado a persistência, backup e UI do Study.
 
   // A5 — restaurar exige a foto de segurança; falha no meio vira pendência durável
   const r5 = await page.evaluate(async () => {
@@ -361,17 +342,19 @@ try {
   }));
   ok(incid.comRaiz === 100 && incid.semRaiz === 100, 'incidência: total da disciplina não é inflado pela "Sem Classificação" (' + JSON.stringify(incid) + ')');
 
-  // ── Baixo: SHA-1 único (csum do Anki) continua correto ─────────────────────
-  ok(await page.evaluate(() => AnkiExport._sha1First32('abc') === 0xa9993e36 && AnkiExport._sha1First32('') === 0xda39a3ee), 'csum do Anki (SHA-1, 32 bits) correto com a implementação única');
-
-  // ── Cards no tema escuro: Cloze padrão não fica com fundo branco ───────────
+  // ── Cards: tema do HTML oficial no iframe isolado ──────────────────────
   const fundo = await page.evaluate(async () => {
     document.documentElement.setAttribute('data-theme', 'dark');
-    const nt = AnkiParity.stockNotetype('cloze');
-    const doc = AnkiRuntime.buildSrcdoc(nt, 'Texto {{c1::oculto}}', 'question', { id: 'fundo-1' }, null, { disableAutoplay: true });
-    return { temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc) };
+    const doc = await CardsOfficialBridge.htmlWithMedia('<style>.card{background:white;color:black}.nightMode .cloze{color:lightblue}</style><span class="cloze">[...]</span>');
+    const custom = await CardsOfficialBridge.htmlWithMedia('<style>.nightMode{background:#111;color:#eee}</style>Template');
+    return {
+      temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc),
+      nightMode: /<html class="nightMode">/.test(doc),
+      respeitaCustom: !/html\.nightMode body\.card\{background:transparent/.test(custom)
+    };
   });
-  ok(fundo.temFallback, 'Cloze padrão no tema escuro usa fundo transparente (não branco)');
+  ok(fundo.temFallback && fundo.nightMode, 'HTML oficial no tema escuro recebe nightMode e fundo transparente');
+  ok(fundo.respeitaCustom, 'CSS noturno do template oficial permanece soberano');
 
   // ── A7: código de terceiros ────────────────────────────────────────────────
   const a7 = await page.evaluate(() => ({

@@ -107,11 +107,12 @@ const AnkiImageOcclusion = {
     if(!decks.length)return '<option value="__default__" selected>📁 Padrão</option>';
     return decks.map(d=>'<option value="'+escapeHtml(String(d.id))+'" '+(String(sel||'')===String(d.id)?'selected':'')+'>'+escapeHtml(String(d.nome||'Baralho')+(d._planNome?' · '+d._planNome:''))+'</option>').join('');
   },
-  _resolveDeck(value,planId){
+  async _resolveDeck(value,planId){
     if(value&&value!=='__default__')return String(value);
     const first=this._normalDecks(planId)[0];if(first)return String(first.id);
-    const created=planId&&DB.addDeckForPlan?DB.addDeckForPlan(planId,'Padrão'):DB.addDeck('Padrão');
-    return created&&created.id!=null?String(created.id):null;
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.createOfficialDeck!=='function')throw new Error('Baralho oficial indisponível.');
+    const created=await CardsOfficialBridge.createOfficialDeck('Padrão',planId);
+    return created&&created.deck&&created.deck.id!=null?String(created.deck.id):null;
   },
 
   async openAdvancedAdd(){
@@ -137,9 +138,10 @@ const AnkiImageOcclusion = {
       const selectedDeck=document.getElementById('anki-advanced-deck').value,
         rec=selectedDeck&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord?StudyGlobalScope.deckRecord(selectedDeck):null,
         planId=(rec&&rec.planId)||(window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId()),
-        deck=this._resolveDeck(selectedDeck,planId),tags=String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean);
-      if(!deck){showToast('Não foi possível preparar o baralho.');return;}
+        tags=String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean);
       try{
+        const deck=await this._resolveDeck(selectedDeck,planId);
+        if(!deck){showToast('Não foi possível preparar o baralho.');return;}
         const res=await CardsOfficialBridge.addOfficialNote({planId,deckId:deck,notetype:rawNt,fields,tags,seed:{deckId:deck}});
         document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();CardsScreen.updateFavCount();
         showToast('Nota adicionada pelo Anki oficial · '+res.cards.length+' card(s) ✓');
@@ -268,15 +270,15 @@ const AnkiImageOcclusion = {
   async save(){
     if(!this.state.imageData){showToast('Escolha uma imagem');return;}if(!this.state.shapes.some(s=>Number(s.ordinal)>0)){showToast('Desenhe ao menos uma máscara');return;}
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.saveOfficialImageOcclusion!=='function'){showToast('Oclusão não salva: backend oficial do Anki indisponível.');return;}
-    const deck=this._resolveDeck(document.getElementById('anki-io-deck').value,this.state.planId);
-    if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
-    const payload={
-      deckId:deck,imageData:this.state.imageData,imageFileName:this.state.imageFileName,
-      occlusions:this.serialize(),header:document.getElementById('anki-io-header').value,
-      backExtra:document.getElementById('anki-io-back').value,comments:document.getElementById('anki-io-comments').value,
-      tags:String(document.getElementById('anki-io-tags').value||'').split(/\s+/).filter(Boolean)
-    };
     try{
+      const deck=await this._resolveDeck(document.getElementById('anki-io-deck').value,this.state.planId);
+      if(!deck){showToast('Não foi possível preparar o baralho Padrão.');return;}
+      const payload={
+        deckId:deck,imageData:this.state.imageData,imageFileName:this.state.imageFileName,
+        occlusions:this.serialize(),header:document.getElementById('anki-io-header').value,
+        backExtra:document.getElementById('anki-io-back').value,comments:document.getElementById('anki-io-comments').value,
+        tags:String(document.getElementById('anki-io-tags').value||'').split(/\s+/).filter(Boolean)
+      };
       const res=await CardsOfficialBridge.saveOfficialImageOcclusion(this.state,payload);
       document.getElementById('anki-io-modal').style.display='none';CardsScreen.render();CardsScreen.updateFavCount();
       showToast('Oclusão salva pelo Anki oficial · '+res.cards.length+' card(s) ✓');

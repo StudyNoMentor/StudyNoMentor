@@ -301,6 +301,13 @@ const CardsOfficialBridge = {
   async htmlWithMedia(html){
     this._clearBlobUrls();
     const doc=new DOMParser().parseFromString(String(html||''),'text/html');
+    const dark=document.documentElement.getAttribute('data-theme')==='dark';
+    doc.documentElement.classList.toggle('nightMode',dark);
+    doc.body.classList.add('card');doc.body.classList.toggle('nightMode',dark);
+    const css=Array.from(doc.querySelectorAll('style')).map(s=>s.textContent||'').join('\n').replace(/\/\*[\s\S]*?\*\//g,'');
+    if(dark&&!/\.night_?mode\b[^{}]*\{[^}]*\bbackground(?:-color)?\s*:/i.test(css)){
+      const style=doc.createElement('style');style.textContent='html.nightMode body.card{background:transparent;color:#e8eaed}';doc.head.appendChild(style);
+    }
     for(const el of Array.from(doc.querySelectorAll('[src]'))){
       const src=(el.getAttribute('src')||'').trim();
       if(!src||/^(?:https?:|data:|blob:|about:|#)/i.test(src))continue;

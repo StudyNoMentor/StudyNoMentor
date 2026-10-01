@@ -1648,9 +1648,9 @@
           else if(a==='hint')AnkiMaxParity.showHints(false);
           else if(a==='allHints')AnkiMaxParity.showHints(true);
           else if(a==='media')AP.replayMedia(c);
-          else if(a==='pauseMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.pauseAv)AnkiRuntime.pauseAv();
-          else if(a==='backMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(-5);
-          else if(a==='forwardMedia'&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(5);
+          else if(a==='pauseMedia'&&window.CardsOfficialBridge)CardsOfficialBridge.pauseAv();
+          else if(a==='backMedia'&&window.CardsOfficialBridge)CardsOfficialBridge.seekAv(-5);
+          else if(a==='forwardMedia'&&window.CardsOfficialBridge)CardsOfficialBridge.seekAv(5);
           else if(a==='tts')AP.speakCard(c);
           else if(a==='recordVoice')AnkiMaxParity.openVoiceRecorder();
           else if(a==='replayVoice')AnkiMaxParity.replayOwnVoice();
