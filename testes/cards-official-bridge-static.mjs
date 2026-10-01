@@ -12,6 +12,7 @@ const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
 const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
 const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8');
 const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
+const practical=readFileSync(join(ROOT,'src/js/44-anki-practical-10.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const exporter=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
@@ -90,6 +91,9 @@ assert.ok(!statsMedia.includes('AnkiMediaStore'),'Cards não pode manter MediaSt
 assert.ok(!total.includes('study_anki_media'),'Cards não pode sincronizar mídia por tabela Study paralela');
 assert.ok(!total.includes('content_b64'),'mídia não pode manter payload base64 paralelo ao backend oficial');
 assert.ok(!product.includes('ensureCanonicalNotes('),'casca Cards não pode normalizar notas localmente ao carregar');
+assert.doesNotMatch(cards,/_readCardForm\(\)[\s\S]{0,1600}DB\.addDeck\(/,'primeiro baralho não pode ser criado localmente pelo formulário');
+assert.doesNotMatch(practical,/_addSubdeck\(id\)[\s\S]{0,1200}DB\.addDeck/,'subbaralho deve nascer no DeckManager oficial');
+assert.doesNotMatch(practical,/_simpleDestination\(\)[\s\S]{0,1600}DB\.addDeck/,'destino auxiliar não pode criar baralho local');
 
 assert.ok(!/filteredSearchMatches\(/.test(bridge),'bridge oficial não pode executar parser de busca JS');
 assert.match(backend,/item\.col\.sched\.set_due_date\(card_ids,/,'bulk due deve ser oficial');
@@ -175,6 +179,7 @@ assert.match(backend,/def cards_official_add_deck[\s\S]*?add_normal_deck_with_na
 assert.match(backend,/def cards_official_rename_deck[\s\S]*?item\.col\.decks\.rename/,'renomear baralho deve usar DeckManager oficial');
 assert.match(backend,/def cards_official_delete_deck[\s\S]*?item\.col\.decks\.remove/,'excluir baralho deve usar DeckManager oficial');
 assert.match(cards,/CardsOfficialBridge\.createOfficialDeck\(name\)/,'UI de criação de baralho deve ser uma casca sobre o Anki');
+assert.match(bridge,/async createOfficialDeck\(name,planId\)[\s\S]*?\/api\/cards-official\/decks/,'qualquer criação de baralho deve passar pelo DeckManager oficial');
 assert.match(cards,/CardsOfficialBridge\.renameOfficialDeck\(id,value\)/,'UI de renomear baralho deve ser uma casca sobre o Anki');
 assert.match(cards,/CardsOfficialBridge\.deleteOfficialDeck\(id\)/,'UI de exclusão de baralho deve ser uma casca sobre o Anki');
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
