@@ -21,11 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
       - name: Mirror main into Railway production source
         shell: bash
         run: |
           set -euo pipefail
-          test "${GITHUB_REF_NAME}" = "main" || test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"
+          MAIN_SHA="$(git rev-parse HEAD)"
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
           git push --force origin HEAD:refs/heads/feat/anki-official-engine-20260923
-          echo "Railway source branch synchronized to ${GITHUB_SHA}."
+          echo "Railway source branch synchronized to main@$MAIN_SHA."
