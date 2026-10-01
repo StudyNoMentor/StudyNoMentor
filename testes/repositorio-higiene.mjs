@@ -41,7 +41,28 @@ const proibidos=[
   'testes/rodar-auditoria-browser.mjs','testes/stress-extras-tec.mjs','testes/resultado-stress-extras-tec.json',
   'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs','testes/reforco-cenarios.mjs',
   'src/css/04-tec-inline.css','docs/robusto-auditoria-json.md',
-  'src/js/13-backups-locais.js','src/js/61-session-guard.js','src/js/65-recuperacao.js'
+  'src/js/13-backups-locais.js','src/js/61-session-guard.js','src/js/65-recuperacao.js',
+  'testes/paridade-anki.mjs',
+  'testes/robustez-config.mjs',
+  'testes/referencia-anki.js',
+  'testes/cards-paridade-total-anki.mjs',
+  'testes/cards-certificacao-anki.mjs',
+  'testes/cards-practical-10.mjs',
+  'testes/cards-product-parity.mjs',
+  'testes/cards-total-parity.mjs',
+  'testes/cards-max-stats-media.mjs',
+  'testes/cards-max-reviewer-browser.mjs',
+  'testes/cards-search-differential.mjs',
+  'testes/cards-typeanswer-differential.mjs',
+  'testes/anki-oficial-search.py',
+  'testes/anki-oficial-typeanswer.py',
+  'testes/anki-oficial-roundtrip.py',
+  'testes/cards-apkg-export.mjs',
+  'testes/cards-import-formatos.mjs',
+  'testes/cards-import-anki-oficial.mjs',
+  'testes/cards-fsrs-optimizer-oficial.mjs',
+  'testes/cards-foco-edicao-browser.mjs',
+  'testes/cards-reparo-memoria-browser.mjs'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
