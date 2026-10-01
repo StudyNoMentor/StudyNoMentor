@@ -61,6 +61,8 @@ const legacyMigrationBackend=backend.slice(backend.indexOf('def cards_official_m
 assert.ok(!bridge.includes('study_replicas:replicas'),'payload enviado ao Anki não deve transportar metadados de planejamento/banca/assunto');
 assert.ok(!legacyMigrationBackend.includes('card.custom_data ='),'migração não pode usar custom_data como banco de metadados do Study');
 assert.ok(backend.includes('"deck_map": deck_map')&&backend.includes('"notetype_map": nt_map')&&backend.includes('"card_map": card_map')&&backend.includes('"note_map": note_map'),'backend deve devolver todos os mapas canônicos necessários à casca');
+assert.match(legacyMigrationBackend,/claimed_nt_ids: set\[int\] = set\(\)[\s\S]*?existing_id not in claimed_nt_ids/,'NoteTypes homônimos distintos não podem sobrescrever a mesma estrutura durante a migração');
+assert.match(legacyMigrationBackend,/raw_kind = row\.get\("anki_review_kind"\)[\s\S]*?kind = int\(raw_kind\) if raw_kind is not None else 1/,'revlog Learning (kind 0) deve permanecer 0');
 assert.match(bridge,/for\(const ref of snapshot\.cardRefs\.get\(legacy\)\|\|\[\]\)[\s\S]*?StudyGlobalScope\.updateCardScoped/,'migração deve preservar metadados nas réplicas Study enquanto liga cada uma ao ID oficial');
 assert.match(bridge,/_studyTargetsForState\(state,fallbackPlanId\)[\s\S]*?this\._replicas\(state&&state\.id\)/,'full-state deve reconstruir projeções a partir dos espelhos persistentes do Study');
 assert.ok(bridge.includes('noteTargets=new Map(),deckTargets=new Map(),ntTargets=new Map(),touchedPlans=new Set()'),'snapshot integral deve ser projetado por planejamento, não copiado inteiro no planejamento ativo');
