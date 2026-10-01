@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v3b70f179c6">
+<meta name="diario-versao" content="ve157e098ea">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -57427,7 +57427,7 @@ const CardsOfficialBridge = {
           bqfmt:String(t&&t.bqfmt||''),bafmt:String(t&&t.bafmt||''),did:t&&t.did||null,bfont:String(t&&t.bfont||''),bsize:Number(t&&t.bsize)||0
         }));
         notetypeRows.set(key,{
-          id:key,name:String(nt.name||'Study Legacy Note Type'),stock_kind:String(nt.stockKind||(nt.kind==='cloze'?'cloze':'basic')),
+          id:key,name:String(nt.name||'Study Legacy Note Type'),stock_kind:String(nt.stockKind||fallbackKind||(nt.kind==='cloze'?'cloze':'basic')),
           kind:nt.kind==='cloze'?'cloze':'normal',sortf:Math.max(0,Number(nt.sortf)||0),css:String(nt.css||''),fields,templates
         });
       }
