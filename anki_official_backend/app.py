@@ -949,6 +949,9 @@ def cards_official_migrate_legacy(
             if not nt:
                 raise HTTPException(400, f"NoteType legado não localizado para nota {legacy_nid}.")
             note = item.col.new_note(nt)
+            legacy_guid = str(row.get("guid") or "").strip()
+            if legacy_guid:
+                note.guid = legacy_guid
             fields = row.get("fields") if isinstance(row.get("fields"), dict) else {}
             for key in note.keys():
                 note[key] = str(fields.get(key, ""))
