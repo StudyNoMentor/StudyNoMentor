@@ -46,11 +46,14 @@ try{
         difficulty:{eases:{1:2,2:5,3:13,4:18,5:9,6:5,7:3,8:2,9:1,10:1},average:4.3}
       };
       CardsOfficialBridge.bootstrap=async()=>true;
+      // A projeção oficial também precisa conter um card: sem ela o renderer
+      // mostra corretamente o estado vazio antes de consultar GraphsService.
+      CardsScreen.collectionCards=()=>[{id:'layout-card',ankiId:1}];
       CardsOfficialBridge.request=async path=>{
         if(String(path).includes('/api/cards-official/stats/graphs'))return graph;
         throw new Error('endpoint inesperado no teste de layout: '+path);
       };
-      switchScreen('cards');CardsScreen.tab='stats';
+      CardsScreen.tab='stats';switchScreen('cards');
       const box=document.getElementById('cards-content');
       await CardsOfficialBridge.renderStats(box);
       const vw=document.documentElement.clientWidth;
