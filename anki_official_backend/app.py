@@ -840,7 +840,10 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
     """Copia a forma legada sem substituir um template stock por uma cópia inválida."""
     fields = row.get("fields") if isinstance(row.get("fields"), list) else []
     templates = row.get("templates") if isinstance(row.get("templates"), list) else []
-    stock_templates = [dict(template) for template in (nt.get("tmpls") or [])]
+    stock_notetype = from_json_bytes(
+        col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row))
+    )
+    stock_templates = [dict(template) for template in (stock_notetype.get("tmpls") or [])]
 
     # Alguns espelhos antigos do Study gravaram dois templates de "Basic (and
     # reversed card)" com a mesma frente. O Anki rejeita corretamente esse
