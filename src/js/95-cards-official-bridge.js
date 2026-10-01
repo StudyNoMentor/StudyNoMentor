@@ -700,7 +700,7 @@ const CardsOfficialBridge = {
     if(card&&card.suspenso)queue=-1;
     else if(card&&card.enterradoAte)queue=card.buryKind==='scheduler'?-2:-3;
     let due=numberOrMissing(card&&card.ankiDue);
-    if(type===2&&/^\\d{4}-\\d{2}-\\d{2}$/.test(String(card&&card.due||'')))due=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card.due));
+    if(type===2&&/^\d{4}-\d{2}-\d{2}$/.test(String(card&&card.due||'')))due=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card.due));
     if(!Number.isFinite(due)){
       if(type===0)due=Math.max(1,Number(card&&card.posicaoNova)||1);
       else if(queue===1||queue===4)due=Math.max(0,Math.floor((Number(card&&card.dueTs)||0)/1000));
