@@ -467,6 +467,32 @@ with tempfile.TemporaryDirectory() as tmp:
     except app.HTTPException as exc:
         assert exc.status_code == 409
 
+    # Mapeamento ambíguo deve abortar e restaurar fisicamente a Collection.
+    rollback_user = {"id": "legacy-cards-rollback-user"}
+    bad_payload = {
+        "decks": [{"id": "d", "name": "Rollback"}],
+        "notetypes": [{
+            "id": "nt", "name": "Rollback Basic", "kind": "basic",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"}],
+        }],
+        "notes": [{"id": "n", "notetype_id": "nt", "fields": {"Front": "Q", "Back": "A"}, "tags": []}],
+        "cards": [
+            {"id": "c1", "note_id": "n", "deck_id": "d", "template_idx": 0, "phase": "new"},
+            {"id": "c2", "note_id": "n", "deck_id": "d", "template_idx": 0, "phase": "new"},
+        ],
+        "revlog": [],
+    }
+    try:
+        app.cards_official_migrate_legacy(bad_payload, rollback_user)
+        raise AssertionError("mapeamento duplicado deveria abortar")
+    except app.HTTPException as exc:
+        assert exc.status_code == 422
+    rollback_col = app.cards_uc_for(rollback_user)
+    with rollback_col.lock:
+        assert rollback_col.col.card_count() == 0
+        assert rollback_col.col.note_count() == 0
+
     app.pool.close_all()
 
     # Pool com teto (LRU): coleções antigas e livres são fechadas.
