@@ -16,6 +16,7 @@ with tempfile.TemporaryDirectory() as tmp:
     health = app.health()
     assert health["pinned_version"] == "26.09.3"
     assert health["runtime_version"] == health["pinned_version"]
+    assert "source_rev" in health and "source_branch" in health and "source_main" in health
     assert health["engine"] == "anki"
 
     user = app.pool.get("smoke-user")
@@ -178,6 +179,216 @@ with tempfile.TemporaryDirectory() as tmp:
 
         # /health não expõe caminhos do servidor.
         assert "data_dir" not in app.health()
+
+    # Migração única do legado: a casca envia somente estado acadêmico ao
+    # backend; metadados de planejamento/banca permanecem no espelho Study.
+    # Deck/NoteType/Note/Card passam a existir como objetos oficiais.
+    legacy_ctx = {"id": "legacy-migration-user"}
+    legacy_item = app.cards_uc_for(legacy_ctx)
+    with legacy_item.lock:
+        legacy_today = int(legacy_item.col.sched.today)
+        assert legacy_item.col.card_count() == 0
+        assert legacy_item.col.note_count() == 0
+
+    migrated = app.cards_official_migrate_legacy(
+        {
+            "decks": [{"id": "deck:p1", "name": "Legado Fiscal"}],
+            "notetypes": [
+                {
+                    "id": "nt:basic",
+                    "name": "Study Legacy Basic",
+                    "stock_kind": "basic",
+                }
+            ],
+            "notes": [
+                {
+                    "id": "note:p1",
+                    "notetype_id": "nt:basic",
+                    "guid": "legacyguid",
+                    "fields": {"Front": "Pergunta legado", "Back": "Resposta legado"},
+                    "tags": ["legacy", "marked"],
+                }
+            ],
+            "cards": [
+                {
+                    "id": "card:p1",
+                    "note_id": "note:p1",
+                    "deck_id": "deck:p1",
+                    "template_idx": 0,
+                    "anki_type": 2,
+                    "anki_queue": 2,
+                    "anki_due": legacy_today + 3,
+                    "interval": 12,
+                    "ease": 2.5,
+                    "reps": 7,
+                    "lapses": 1,
+                    "flag": 2,
+                    "s": 4.5,
+                    "d": 6.0,
+                }
+            ],
+            "revlog": [
+                {
+                    "card_id": "card:p1",
+                    "ts": 1700000000000,
+                    "grade": 3,
+                    "anki_interval": 12,
+                    "anki_last_interval": 5,
+                    "ease_factor": 2500,
+                    "time": 432,
+                    "anki_review_kind": 0,
+                    "anki_ivl_semantica": 2,
+                }
+            ],
+        },
+        legacy_ctx,
+    )
+    assert migrated["ok"] is True
+    assert migrated["migrated"] == {"decks": 1, "notetypes": 1, "notes": 1, "cards": 1, "revlog": 1}
+    assert migrated["deck_map"]["deck:p1"] > 0
+    assert migrated["notetype_map"]["nt:basic"] > 0
+    official_legacy_cid = int(migrated["card_map"]["card:p1"])
+    official_legacy_nid = int(migrated["note_map"]["note:p1"])
+    assert official_legacy_cid > 0 and official_legacy_nid > 0
+    assert any(int(x["id"]) == official_legacy_cid for x in migrated["state"]["cards"])
+    assert any(int(x["id"]) == official_legacy_nid for x in migrated["state"]["notes"])
+
+    with legacy_item.lock:
+        legacy_card = legacy_item.col.get_card(official_legacy_cid)
+        legacy_note = legacy_item.col.get_note(official_legacy_nid)
+        assert legacy_card.ivl == 12
+        assert legacy_card.reps == 7
+        assert legacy_card.lapses == 1
+        assert legacy_card.user_flag() == 2
+        assert legacy_card.memory_state is not None
+        assert abs(float(legacy_card.memory_state.stability) - 4.5) < 1e-6
+        assert abs(float(legacy_card.memory_state.difficulty) - 6.0) < 1e-6
+        assert legacy_note.guid == "legacyguid"
+        assert "marked" in legacy_note.tags
+        # custom_data é reservado ao scheduler oficial e tem limite <100 bytes;
+        # a migração não o usa como armazenamento de metadados da casca.
+        assert legacy_card.custom_data == ""
+        revrow = legacy_item.col.db.first(
+            "select ease,ivl,lastIvl,factor,time,type from revlog where cid = ? order by id",
+            official_legacy_cid,
+        )
+        assert list(revrow) == [3, 12, 5, 2500, 432, 0], revrow
+        assert legacy_item.col.card_count() == 1
+        assert legacy_item.col.note_count() == 1
+
+    try:
+        app.cards_official_migrate_legacy({"cards": []}, legacy_ctx)
+        raise AssertionError("segunda migração sobre Collection preenchida deveria ser recusada")
+    except app.HTTPException as exc:
+        assert exc.status_code == 409
+
+    # Ordinais/siblings e NoteTypes homônimos: cada tipo legado distinto
+    # precisa virar um NoteType oficial próprio, e cada card precisa conservar
+    # seu ordinal gerado pelo Anki.
+    shapes_ctx = {"id": "legacy-shapes-user"}
+    shapes_item = app.cards_uc_for(shapes_ctx)
+    shaped = app.cards_official_migrate_legacy(
+        {
+            "decks": [{"id": "deck:shapes", "name": "Legado Shapes"}],
+            "notetypes": [
+                {
+                    "id": "nt:reverse",
+                    "name": "Legacy Mesmo Nome",
+                    "stock_kind": "basic_reversed",
+                },
+                {
+                    "id": "nt:cloze",
+                    "name": "Legacy Mesmo Nome",
+                    "stock_kind": "cloze",
+                },
+            ],
+            "notes": [
+                {
+                    "id": "note:reverse",
+                    "notetype_id": "nt:reverse",
+                    "fields": {"Front": "Frente reversa", "Back": "Verso reverso"},
+                    "tags": [],
+                },
+                {
+                    "id": "note:cloze",
+                    "notetype_id": "nt:cloze",
+                    "fields": {
+                        "Text": "{{c1::Primeiro}} e {{c2::Segundo}}",
+                        "Back Extra": "Extra",
+                    },
+                    "tags": [],
+                },
+            ],
+            "cards": [
+                {
+                    "id": "card:reverse:0",
+                    "note_id": "note:reverse",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 0,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 1,
+                },
+                {
+                    "id": "card:reverse:1",
+                    "note_id": "note:reverse",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 1,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 2,
+                },
+                {
+                    "id": "card:cloze:1",
+                    "note_id": "note:cloze",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 0,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 3,
+                },
+                {
+                    "id": "card:cloze:2",
+                    "note_id": "note:cloze",
+                    "deck_id": "deck:shapes",
+                    "template_idx": 1,
+                    "anki_type": 0,
+                    "anki_queue": 0,
+                    "new_position": 4,
+                },
+            ],
+            "revlog": [],
+        },
+        shapes_ctx,
+    )
+    assert shaped["migrated"] == {"decks": 1, "notetypes": 2, "notes": 2, "cards": 4, "revlog": 0}
+    reverse_ntid = int(shaped["notetype_map"]["nt:reverse"])
+    cloze_ntid = int(shaped["notetype_map"]["nt:cloze"])
+    assert reverse_ntid != cloze_ntid
+    reverse_ids = {
+        int(shaped["card_map"]["card:reverse:0"]),
+        int(shaped["card_map"]["card:reverse:1"]),
+    }
+    cloze_ids = {
+        int(shaped["card_map"]["card:cloze:1"]),
+        int(shaped["card_map"]["card:cloze:2"]),
+    }
+    assert len(reverse_ids) == 2
+    assert len(cloze_ids) == 2
+    with shapes_item.lock:
+        reverse_note = shapes_item.col.get_note(int(shaped["note_map"]["note:reverse"]))
+        cloze_note = shapes_item.col.get_note(int(shaped["note_map"]["note:cloze"]))
+        assert set(int(x) for x in shapes_item.col.card_ids_of_note(reverse_note.id)) == reverse_ids
+        assert set(int(x) for x in shapes_item.col.card_ids_of_note(cloze_note.id)) == cloze_ids
+        assert {int(shapes_item.col.get_card(cid).ord) for cid in reverse_ids} == {0, 1}
+        assert {int(shapes_item.col.get_card(cid).ord) for cid in cloze_ids} == {0, 1}
+        reverse_nt = shapes_item.col.models.get(reverse_ntid)
+        cloze_nt = shapes_item.col.models.get(cloze_ntid)
+        assert reverse_nt and cloze_nt
+        assert reverse_nt["name"] != cloze_nt["name"], "Anki deve tornar nomes homônimos únicos"
+        assert len(reverse_nt["tmpls"]) == 2
+        assert int(cloze_nt["type"]) == 1
+
 
     # A tela Cards usa uma coleção OFICIAL separada do menu Anki.
     cards_user = app.cards_pool.get("smoke-user")
@@ -533,6 +744,23 @@ with tempfile.TemporaryDirectory() as tmp:
     questions = {str(card["question"]) for card in reversed["state"]["cards"]}
     assert any("Pergunta" in question for question in questions)
     assert any("Resposta" in question for question in questions)
+
+    # Tipo customizado incompatível: a validação oficial deve retornar 422
+    # (com CORS na API) e restaurar a coleção, em vez de gerar Failed to fetch.
+    invalid_user = {"id": "legacy-invalid-custom-notetype-user"}
+    invalid_payload = json.loads(json.dumps(reversed_payload))
+    invalid_payload["notetypes"][0]["fields"].append({"name": "Extra"})
+    invalid_payload["notes"][0]["fields"]["Extra"] = "Custom"
+    try:
+        app.cards_official_migrate_legacy(invalid_payload, invalid_user)
+        raise AssertionError("tipo customizado inválido deveria retornar 422")
+    except app.HTTPException as exc:
+        assert exc.status_code == 422
+        assert "NoteType legado incompatível" in str(exc.detail)
+    invalid_item = app.cards_uc_for(invalid_user)
+    with invalid_item.lock:
+        assert invalid_item.col.card_count() == 0
+        assert invalid_item.col.note_count() == 0
 
     # Estado legado sem anki_* moderno: due relativo, review, S/D e
     # suspensão são traduzidos para o Card oficial sem recalcular scheduler.

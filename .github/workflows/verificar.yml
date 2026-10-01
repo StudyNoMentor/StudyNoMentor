@@ -49,6 +49,7 @@ jobs:
           set -euo pipefail
           node --check build.mjs
           node --check verificar.mjs
+          python testes/anki-production-sync.py
           for f in src/js/*.js; do node --check "$f"; done
           node build.mjs
           # Checagens 1–4 do CONTRIBUINDO (montagem byte a byte, sintaxe por

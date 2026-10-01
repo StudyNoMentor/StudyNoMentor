@@ -453,12 +453,22 @@ class AddNoteBody(BaseModel):
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    revision_file = Path(__file__).with_name("DEPLOY_REVISION")
+    source_main = None
+    if revision_file.is_file():
+        for line in revision_file.read_text(encoding="utf-8").splitlines():
+            if line.startswith("source-main: "):
+                source_main = line.removeprefix("source-main: ").strip() or None
+                break
     return {
         "ok": True,
         "engine": "anki",
         "pinned_version": ANKI_VERSION,
         "runtime_version": ANKI_RUNTIME_VERSION,
         "build": "railpack",
+        "source_rev": os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("STUDY_BACKEND_SOURCE_REV"),
+        "source_branch": os.getenv("RAILWAY_GIT_BRANCH"),
+        "source_main": source_main,
     }
 
 
