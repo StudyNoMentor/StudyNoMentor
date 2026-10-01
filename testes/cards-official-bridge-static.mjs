@@ -45,17 +45,8 @@ for(const forbidden of [
   assert.ok(!cards.includes(forbidden),'casca Cards não pode manter motor acadêmico legado: '+forbidden);
 }
 assert.match(bridge,/\/api\/cards-official\/collection\/full-state/,'bootstrap deve carregar o snapshot integral da Collection oficial persistente');
-assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'Collection vazia deve migrar legado automaticamente pelo backend oficial');
-assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?await this\._migrateLegacyCollection\(\)/,'bootstrap deve executar migração única automática antes da revisão');
-assert.doesNotMatch(bridge,/Collection oficial dos Cards está vazia, mas existem Cards legados/,'bootstrap não pode parar exigindo migração manual');
-assert.match(bridge,/migrated!==expected/,'migração deve falhar fechada se nem todos os cards receberem identidade oficial');
-assert.match(backend,/"deck_map": deck_map/,'backend deve devolver mapa oficial de Decks');
-assert.match(backend,/"notetype_map": nt_map/,'backend deve devolver mapa oficial de NoteTypes');
-assert.match(bridge,/legacyGroups=new Map\(\)/,'legado sem Note\/NoteType deve ser reconstruído antes da migração oficial');
-assert.match(bridge,/kind=cloze\?'cloze':\(reversed\?'basic_reversed':'basic'\)/,'legado antigo deve escolher NoteType stock compatível');
-assert.match(bridge,/String\(card\.template\|\|''\)==='reverse'\|\|card\.reversedOf\?1:0/,'card invertido legado deve migrar para template ord 1');
 assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
-assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
+assert.ok(bridge.includes('const oid=Number(card&&card.ankiId)')&&bridge.includes('officialCards.has(String(oid))'),'espelhos Study com identidade oficial devem seguir o snapshot do Anki sem apagar legado não mapeado');
 assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
 assert.match(backend,/def cards_official_collection_full_state[\s\S]*?cards_collection_full_state_payload\(item\.col\)/,'full-state deve ser extraído da Collection oficial');
 assert.match(backend,/def cards_official_preferences[\s\S]*?item\.col\.get_preferences\(\)/,'Preferences devem ser lidas da Collection oficial');
@@ -63,6 +54,25 @@ assert.match(backend,/def cards_official_update_preferences[\s\S]*?item\.col\.se
 assert.match(practical,/CardsOfficialBridge\.updateOfficialPreferences\(\{scheduling:\{rollover,learn_ahead_secs:/,'rollover e learn-ahead da UI devem ser oficiais');
 assert.ok(!/CardsConfig\.set\(\{[\s\S]{0,350}disableAutoplay/.test(practical),'Preferências globais não podem duplicar Deck Options localmente');
 assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_note\(/,'migração legada deve materializar notas por objetos oficiais do Anki');
+assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'bootstrap dos Cards deve acionar a migração oficial quando a Collection estiver vazia');
+assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?this\._migrateLegacyCollection\(\)/,'Cards legados devem migrar automaticamente em vez de bloquear o reviewer');
+assert.ok(!bridge.includes('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study'),'erro antigo de migração manual não pode continuar no runtime');
+const legacyMigrationBackend=backend.slice(backend.indexOf('def cards_official_migrate_legacy'),backend.indexOf('@app.post("/api/cards-official/bootstrap")'));
+assert.ok(!bridge.includes('study_replicas:replicas'),'payload enviado ao Anki não deve transportar metadados de planejamento/banca/assunto');
+assert.ok(!legacyMigrationBackend.includes('card.custom_data ='),'migração não pode usar custom_data como banco de metadados do Study');
+assert.ok(backend.includes('"deck_map": deck_map')&&backend.includes('"notetype_map": nt_map')&&backend.includes('"card_map": card_map')&&backend.includes('"note_map": note_map'),'backend deve devolver todos os mapas canônicos necessários à casca');
+assert.match(legacyMigrationBackend,/claimed_nt_ids: set\[int\] = set\(\)[\s\S]*?existing_id not in claimed_nt_ids/,'NoteTypes homônimos distintos não podem sobrescrever a mesma estrutura durante a migração');
+assert.match(legacyMigrationBackend,/raw_kind = row\.get\("anki_review_kind"\)[\s\S]*?kind = int\(raw_kind\) if raw_kind is not None else 1/,'revlog Learning (kind 0) deve permanecer 0');
+assert.ok(!legacyMigrationBackend.includes('item.col.clear_study_queues('),'migração deve seguir Scheduler v3 oficial, que invalida filas automaticamente');
+assert.match(bridge,/for\(const ref of snapshot\.cardRefs\.get\(legacy\)\|\|\[\]\)[\s\S]*?StudyGlobalScope\.updateCardScoped/,'migração deve preservar metadados nas réplicas Study enquanto liga cada uma ao ID oficial');
+assert.match(bridge,/_studyTargetsForState\(state,fallbackPlanId\)[\s\S]*?this\._replicas\(state&&state\.id\)/,'full-state deve reconstruir projeções a partir dos espelhos persistentes do Study');
+assert.ok(bridge.includes('noteTargets=new Map(),deckTargets=new Map(),ntTargets=new Map(),touchedPlans=new Set()'),'snapshot integral deve ser projetado por planejamento, não copiado inteiro no planejamento ativo');
+
+assert.match(bridge,/_legacyGuid\(key\)[\s\S]*?return 'snm'/,'Notes sem GUID precisam receber identidade determinística para recuperação idempotente');
+assert.match(bridge,/guid:String\(localNote&&localNote\.guid\|\|this\._legacyGuid\(ng\.key\)\)/,'snapshot legado deve preservar GUID existente ou gerar GUID determinístico');
+assert.match(bridge,/async _recoverLegacyIdentityFromOfficialState\(state\)[\s\S]*?officialNotesByGuid[\s\S]*?officialCardsByNoteOrd/,'reload após migração parcial deve recuperar IDs por GUID + template ord sem remigrar a Collection');
+assert.match(bridge,/else\{[\s\S]*?collection\/full-state[\s\S]*?await this\._recoverLegacyIdentityFromOfficialState\(state\)/,'Collection já preenchida deve tentar recuperar espelhos legados sem ankiId');
+assert.match(bridge,/claimed\.get\(String\(officialCard\.id\)\)[\s\S]*?Recuperação da migração oficial ambígua/,'recuperação não pode fundir silenciosamente dois cards legados no mesmo card oficial');
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
 assert.match(bridge,/\/api\/cards-official\/undo/);
