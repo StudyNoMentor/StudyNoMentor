@@ -645,6 +645,67 @@ const CardsOfficialBridge = {
         if(seen.note.has(key))continue;seen.note.add(key);
         payload.notes.push({id:key,notetype_id:ntKey,fields:Object.assign({},n.fields||{}),tags:Array.isArray(n.tags)?n.tags.slice():[]});
       }
+
+      // Legado anterior à camada Note/NoteType: reconstruímos apenas a forma
+      // necessária para entregar os dados ao NoteTypeManager oficial. Depois
+      // da migração, os IDs e a geração de cards pertencem integralmente ao Anki.
+      const legacyGroups=new Map();
+      for(const card of cards){
+        if(!card)continue;
+        const raw=String(card.noteId||card.ankiNoteId||card.id);
+        if(noteById.has(raw))continue;
+        if(!legacyGroups.has(raw))legacyGroups.set(raw,[]);
+        legacyGroups.get(raw).push(card);
+      }
+      const syntheticShape=kind=>{
+        if(kind==='cloze')return {
+          fields:[{name:'Text'},{name:'Back Extra'}],
+          templates:[{name:'Cloze',qfmt:'{{cloze:Text}}',afmt:'{{cloze:Text}}<br>{{Back Extra}}'}]
+        };
+        if(kind==='basic_reversed')return {
+          fields:[{name:'Front'},{name:'Back'}],
+          templates:[
+            {name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}<hr id=answer>{{Back}}'},
+            {name:'Card 2',qfmt:'{{Back}}',afmt:'{{FrontSide}}<hr id=answer>{{Front}}'}
+          ]
+        };
+        return {
+          fields:[{name:'Front'},{name:'Back'}],
+          templates:[{name:'Card 1',qfmt:'{{Front}}',afmt:'{{FrontSide}}<hr id=answer>{{Back}}'}]
+        };
+      };
+      for(const [raw,group] of legacyGroups){
+        const primary=group.find(x=>String(x.template||'')!=='reverse'&&!x.reversedOf)||group[0],
+          cloze=group.some(x=>x.kind==='cloze'||String(x.template||'').startsWith('cloze')),
+          reversed=!cloze&&group.some(x=>String(x.template||'')==='reverse'||x.reversedOf)||(!cloze&&group.length>1),
+          kind=cloze?'cloze':(reversed?'basic_reversed':'basic'),
+          ntLocalId='__legacy_'+kind,
+          shape=syntheticShape(kind);
+        let nt=ntById.get(ntLocalId);
+        if(!nt){
+          nt={id:ntLocalId,name:'Study Legacy '+(kind==='cloze'?'Cloze':kind==='basic_reversed'?'Basic + Reversed':'Basic'),
+            kind,stockKind:kind,fields:shape.fields,templates:shape.templates,css:''};
+          ntById.set(ntLocalId,nt);
+        }
+        const ntKey=this._legacyStableKey('notetype',nt,pid);
+        pushRef('notetype',ntKey,pid,nt);
+        if(!seen.notetype.has(ntKey)){
+          seen.notetype.add(ntKey);
+          payload.notetypes.push(Object.assign({},nt,{id:ntKey,stock_kind:kind}));
+        }
+        const fields=kind==='cloze'
+          ?{Text:String(primary.frente||''),'Back Extra':String(primary.verso||'')}
+          :{Front:String(primary.frente||''),Back:String(primary.verso||'')},
+          note={id:raw,notetypeId:ntLocalId,fields,tags:[]},
+          noteKey=this._legacyStableKey('note',note,pid);
+        noteById.set(raw,note);
+        pushRef('note',noteKey,pid,note,{notetypeKey:ntKey});
+        if(!seen.note.has(noteKey)){
+          seen.note.add(noteKey);
+          payload.notes.push({id:noteKey,notetype_id:ntKey,fields,tags:[]});
+        }
+      }
+
       for(const card of cards){
         if(!card)continue;
         const key=this._legacyStableKey('card',card,pid),
@@ -655,7 +716,7 @@ const CardsOfficialBridge = {
         if(seen.card.has(key))continue;seen.card.add(key);
         payload.cards.push({
           id:key,note_id:noteKey,deck_id:deckKeyOf(card.deckId),original_deck_id:card.originalDeckId?deckKeyOf(card.originalDeckId):'',
-          template_idx:Number(card.ankiTemplateOrd!=null?card.ankiTemplateOrd:(card.clozeOrd?Number(card.clozeOrd)-1:0))||0,
+          template_idx:Number(card.ankiTemplateOrd!=null?card.ankiTemplateOrd:(card.clozeOrd?Number(card.clozeOrd)-1:(String(card.template||'')==='reverse'||card.reversedOf?1:0)))||0,
           anki_type:card.ankiType!=null?Number(card.ankiType):null,anki_queue:card.ankiQueue!=null?Number(card.ankiQueue):null,
           anki_due:card.ankiDue!=null?Number(card.ankiDue):null,new_position:Number(card.posicaoNova)||0,
           due_ts:Number(card.dueTs)||0,interval:Number(card.intervalo)||0,
