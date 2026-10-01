@@ -200,7 +200,7 @@ const AnkiPractical10 = {
       document.getElementById('anki-pref-sync').onclick=()=>{m.style.display='none';AnkiProductParity.openCheck();};
       document.getElementById('anki-pref-save').onclick=()=>void this._savePreferences();
     }
-    const local=CardsConfig.get(),b=AnkiProductParity.browser;let rollover=Number(local.rolloverHour)||4,learnAhead=Math.max(0,Number(local.learnAheadMin==null?20:local.learnAheadMin));
+    const b=AnkiProductParity.browser;let rollover=4,learnAhead=20;
     try{
       if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.getOfficialPreferences==='function'){
         const prefs=await CardsOfficialBridge.getOfficialPreferences(),s=prefs&&prefs.scheduling||{};
@@ -230,9 +230,6 @@ const AnkiPractical10 = {
     }
     try{
       await CardsOfficialBridge.updateOfficialPreferences({scheduling:{rollover,learn_ahead_secs:Math.round(learnAhead*60)}});
-      // Estes dois campos locais são apenas espelho para partes visuais ainda
-      // carregadas antes do backend; a decisão de fila pertence à Collection.
-      CardsConfig.set({rolloverHour:rollover,learnAheadMin:learnAhead});
       AnkiProductParity.browser.mode=val('pref-browser-mode')==='cards'?'cards':'notes';
       AnkiProductParity.browser.sortDir=val('pref-browser-dir')==='desc'?'desc':'asc';
       if(typeof AnkiMaxParity!=='undefined')AnkiMaxParity._saveBrowserPrefs();
