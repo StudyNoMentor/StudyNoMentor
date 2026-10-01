@@ -848,11 +848,13 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
     # a única evidência estrutural é frente vazia/duplicada, preservamos os
     # templates stock produzidos pelo próprio NoteTypeManager; não fabricamos
     # qfmt/afmt em Python.
+    restore_stock_templates = False
     if templates and stock_templates and len(templates) == len(stock_templates):
         fronts = [str((template or {}).get("qfmt") or "").strip() for template in templates]
         nonempty = [front for front in fronts if front]
         if any(not front for front in fronts) or len(set(nonempty)) != len(nonempty):
             templates = []
+            restore_stock_templates = True
     if fields:
         nt["flds"] = []
         for idx, field_row in enumerate(fields):
@@ -862,6 +864,10 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
                 if key in (field_row or {}):
                     field[key] = field_row[key]
             col.models.add_field(nt, field)
+    if restore_stock_templates:
+        # add_field() pode ajustar estruturas dependentes do schema; a cópia
+        # stock precisa ser recolocada depois dessa etapa.
+        nt["tmpls"] = stock_templates
     if templates:
         nt["tmpls"] = []
         for idx, template_row in enumerate(templates):
