@@ -777,6 +777,8 @@ with tempfile.TemporaryDirectory() as tmp:
     # (com CORS na API) e restaurar a coleção, em vez de gerar Failed to fetch.
     invalid_user = {"id": "legacy-invalid-custom-notetype-user"}
     invalid_payload = json.loads(json.dumps(reversed_payload))
+    invalid_payload["notetypes"][0]["name"] = "Custom duplicated front"
+    invalid_payload["notetypes"][0]["stock_kind"] = "basic"
     invalid_payload["notetypes"][0]["fields"].append({"name": "Extra"})
     invalid_payload["notes"][0]["fields"]["Extra"] = "Custom"
     try:
