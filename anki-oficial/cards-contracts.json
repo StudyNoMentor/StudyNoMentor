@@ -2,6 +2,13 @@
   "schema": "studynomentor-anki-cards-contracts-v1",
   "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
   "total_runtime_files": 571,
+  "integration": {
+    "status": "OFFICIAL_RUNTIME_DELEGATION_COMPLETE",
+    "integrated_runtime_files": 571,
+    "coverage_percent": 100,
+    "runtime": "anki==26.09.3",
+    "rule": "Cada categoria CARDS_RUNTIME delega o comportamento acadêmico ao backend oficial; a UI Study apenas projeta estado e comandos."
+  },
   "categories": {
     "scheduler": {
       "official_files": 67,
