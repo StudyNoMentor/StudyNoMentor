@@ -24,13 +24,12 @@ assert.match(cloud,/_prefsHydratedUid/,'preferências globais devem ser hidratad
 assert.match(rel,/if\(oldRaw===newRaw\) return;/,'escrita idêntica deve ser descartada antes do UPSERT');
 assert.match(rel,/CloudStore\.serviceStatus==='restricted'/,'fila SQL deve parar retentativas sob 402');
 
-// O payload base64 de mídia só pode ser baixado depois de comparar metadados.
-assert.match(media,/select\('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,deleted_at,updated_at'\)/,
-  'primeira leitura de mídia deve conter apenas metadados');
-assert.doesNotMatch(media,/select\('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,content_b64,deleted_at,updated_at'\)/,
-  'leitura integral de content_b64 para toda a coleção não pode reaparecer');
-assert.match(media,/\.in\('media_name',names\)/,'conteúdo de mídia deve ser buscado apenas para nomes alterados');
-assert.match(media,/MEDIA_SYNC_MIN_MS:5\*60\*1000/,'sincronização automática de mídia deve ser limitada');
+// A mídia pertence ao MediaManager oficial. Uma tabela/payload paralelo no
+// Supabase duplicaria conteúdo e tráfego sem ser a fonte canônica.
+assert.doesNotMatch(media,/study_anki_media|content_b64/,'mídia paralela no Supabase não pode voltar');
+const bridge=read('src/js/95-cards-official-bridge.js');
+assert.match(bridge,/\/api\/cards-official\/media\//,'mídia deve vir do backend oficial');
+assert.doesNotMatch(bridge,/study_anki_media|content_b64/,'ponte não pode buscar mídia paralela no Supabase');
 
 // O indicador precisa representar a resposta real do backend, não só SDK carregado.
 assert.match(cloud,/res\.status === 402 \? 'restricted' : 'ok'/,'HTTP 402 deve marcar serviço restrito');
@@ -47,4 +46,4 @@ assert.match(cloud,/from\(this\.TABLE\)\.select\('id'\)\.limit\(1\)/,
 assert.doesNotMatch(cloud,/setInterval[\s\S]{0,180}_probeServiceOnce/,
   'sonda pré-login não pode virar polling');
 
-console.log('EGRESS SUPABASE: polling, auth, no-op writes, quota e mídia incremental validados.');
+console.log('EGRESS SUPABASE: polling, auth, no-op writes, quota e ausência de mídia paralela validados.');
