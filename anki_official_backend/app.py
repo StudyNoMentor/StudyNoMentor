@@ -663,6 +663,18 @@ def _study_metadata_payload(raw: dict[str, Any] | None) -> dict[str, Any]:
     plans = raw.get("plan_ids") or raw.get("planIds")
     if isinstance(plans, list):
         out["planIds"] = list(dict.fromkeys(str(x) for x in plans if str(x)))
+    by_plan = raw.get("by_plan") or raw.get("byPlan")
+    if isinstance(by_plan, dict):
+        cleaned: dict[str, dict[str, Any]] = {}
+        for plan_id, meta in by_plan.items():
+            if not isinstance(meta, dict) or not str(plan_id):
+                continue
+            row = {key: meta[key] for key in _STUDY_META_KEYS if key in meta}
+            if row:
+                cleaned[str(plan_id)] = row
+        if cleaned:
+            out["byPlan"] = cleaned
+            out["planIds"] = list(dict.fromkeys([*(out.get("planIds") or []), *cleaned.keys()]))
     return out
 
 
@@ -690,7 +702,19 @@ def _apply_study_metadata_to_cards(
             root = parsed
         previous = root.get("study")
         merged = dict(previous) if isinstance(previous, dict) else {}
-        merged.update(meta)
+        old_plans = merged.get("planIds") if isinstance(merged.get("planIds"), list) else []
+        new_plans = meta.get("planIds") if isinstance(meta.get("planIds"), list) else []
+        old_by = merged.get("byPlan") if isinstance(merged.get("byPlan"), dict) else {}
+        new_by = meta.get("byPlan") if isinstance(meta.get("byPlan"), dict) else {}
+        merged.update({k: v for k, v in meta.items() if k not in ("planIds", "byPlan")})
+        merged["planIds"] = list(dict.fromkeys([*(str(x) for x in old_plans), *(str(x) for x in new_plans)]))
+        merged_by = {str(k): dict(v) for k, v in old_by.items() if isinstance(v, dict)}
+        for plan_id, row in new_by.items():
+            current = dict(merged_by.get(str(plan_id), {}))
+            current.update(row)
+            merged_by[str(plan_id)] = current
+        if merged_by:
+            merged["byPlan"] = merged_by
         root["study"] = merged
         card.custom_data = json.dumps(root, ensure_ascii=False, separators=(",", ":"))
         col.update_card(card)
@@ -1077,6 +1101,7 @@ def cards_official_migrate_legacy(
                     "tipo": old.get("tipo"),
                     "favorito": bool(old.get("favorito", False)),
                     "planIds": [str(x) for x in (old.get("plan_ids") or []) if str(x)],
+                    "byPlan": old.get("study_by_plan") if isinstance(old.get("study_by_plan"), dict) else {},
                 }
                 card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
                 item.col.update_card(card)
