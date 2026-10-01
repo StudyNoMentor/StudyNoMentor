@@ -15,6 +15,7 @@ const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
 const practical=readFileSync(join(ROOT,'src/js/44-anki-practical-10.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const exporter=readFileSync(join(ROOT,'src/js/34-anki-export.js'),'utf8');
+const importer=readFileSync(join(ROOT,'src/js/35-anki-import.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
 const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
@@ -91,6 +92,8 @@ assert.ok(!statsMedia.includes('AnkiMediaStore'),'Cards não pode manter MediaSt
 assert.ok(!total.includes('study_anki_media'),'Cards não pode sincronizar mídia por tabela Study paralela');
 assert.ok(!total.includes('content_b64'),'mídia não pode manter payload base64 paralelo ao backend oficial');
 assert.ok(!product.includes('ensureCanonicalNotes('),'casca Cards não pode normalizar notas localmente ao carregar');
+assert.ok(!/\bDB\.(?:addCard|updateCard|addDeck|saveCards|addRevlog)/.test(importer),'importador local deve ser apenas inspetor; mutação pertence ao Anki oficial');
+assert.ok(!/AnkiParity\.(?:saveNote|saveNotetype|ensureIdentities)/.test(importer),'importador local não pode materializar Notes/NoteTypes');
 assert.doesNotMatch(cards,/_readCardForm\(\)[\s\S]{0,1600}DB\.addDeck\(/,'primeiro baralho não pode ser criado localmente pelo formulário');
 assert.doesNotMatch(practical,/_addSubdeck\(id\)[\s\S]{0,1200}DB\.addDeck/,'subbaralho deve nascer no DeckManager oficial');
 assert.doesNotMatch(practical,/_simpleDestination\(\)[\s\S]{0,1600}DB\.addDeck/,'destino auxiliar não pode criar baralho local');
