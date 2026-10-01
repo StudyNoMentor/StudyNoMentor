@@ -212,41 +212,118 @@ const CardsOfficialBridge = {
       officialNotes=new Set((state.notes||[]).map(x=>String(x.id))),
       officialNotetypes=new Set((state.notetypes||[]).map(x=>String(x&&x.notetype&&x.notetype.id)).filter(Boolean)),
       officialCards=new Set((state.cards||[]).map(x=>String(x.id))),
-      officialDecks=new Set((state.decks||[]).map(x=>String(x&&x.id)).filter(Boolean));
-    for(const row of state.decks||[]){
-      if(row&&row.filtered)this._saveFilteredDeckMirror(row,pid,null);
-      else if(row)this._saveNormalDeckMirror(row,pid,null);
+      officialDecks=new Set((state.decks||[]).map(x=>String(x&&x.id)).filter(Boolean)),
+      noteTargets=new Map(),deckTargets=new Map(),ntTargets=new Map(),touchedPlans=new Set(),
+      planKey=x=>String(x==null?'':x),
+      addPlan=(map,key,targetPlan,value)=>{
+        key=String(key==null?'':key);if(!map.has(key))map.set(key,new Map());
+        const bucket=map.get(key),pk=planKey(targetPlan);
+        if(!bucket.has(pk)||value!=null)bucket.set(pk,{planId:targetPlan,value:value==null?null:value});
+        touchedPlans.add(pk);
+      };
+
+    // A Collection é global; a projeção Study não é. O custom_data oficial
+    // registra em quais planejamentos cada card deve aparecer. Réplicas já
+    // existentes também entram como fonte, o que torna reload e migração
+    // idempotentes sem recalcular nenhuma decisão acadêmica.
+    for(const cs of state.cards||[]){
+      const targets=this._studyTargetsForState(cs,pid);
+      for(const target of targets){
+        addPlan(noteTargets,cs.note_id,target.planId,null);
+        addPlan(deckTargets,cs.deck_id,target.planId,target.seed&&target.seed.deckId);
+      }
     }
-    this._syncNotetypesIntoPlans(state.notetypes,[pid]);
-    for(const ns of state.notes){
-      const fallback=this._localNotetypeId(ns.notetype_id,pid,null);
-      this._materializeOfficialNote(ns,pid,fallback);
+    for(const ns of state.notes||[]){
+      const plans=noteTargets.get(String(ns.id));
+      if(!plans||!plans.size)addPlan(noteTargets,ns.id,pid,null);
+      const resolved=noteTargets.get(String(ns.id));
+      for(const target of resolved.values())addPlan(ntTargets,ns.notetype_id,target.planId,null);
+    }
+    if(!touchedPlans.size)touchedPlans.add(planKey(pid));
+
+    const deckRows=new Map((state.decks||[]).filter(Boolean).map(row=>[String(row.id),row]));
+    for(const row of state.decks||[]){
+      if(!row)continue;
+      const targets=deckTargets.get(String(row.id));
+      if(targets&&targets.size){
+        for(const target of targets.values()){
+          if(row.filtered)this._saveFilteredDeckMirror(row,target.planId,target.value);
+          else this._saveNormalDeckMirror(row,target.planId,target.value);
+        }
+      }else{
+        // Baralhos vazios não têm card do qual inferir o plano. Eles continuam
+        // visíveis no planejamento que solicitou o snapshot.
+        if(row.filtered)this._saveFilteredDeckMirror(row,pid,null);
+        else this._saveNormalDeckMirror(row,pid,null);
+        touchedPlans.add(planKey(pid));
+      }
+    }
+
+    const ntRows=new Map((state.notetypes||[]).filter(x=>x&&x.notetype).map(x=>[String(x.notetype.id),x]));
+    for(const [ntid,targets] of ntTargets){
+      const row=ntRows.get(String(ntid));if(!row)continue;
+      this._syncNotetypesIntoPlans([row],[...targets.values()].map(x=>x.planId));
+    }
+    // Tipos sem nota continuam acessíveis no planejamento ativo (como os stock
+    // NoteTypes recém-criados pelo Anki), mas não são replicados artificialmente
+    // para todos os planejamentos.
+    for(const row of state.notetypes||[]){
+      if(!row||!row.notetype||ntTargets.has(String(row.notetype.id)))continue;
+      this._syncNotetypesIntoPlans([row],[pid]);
+    }
+
+    for(const ns of state.notes||[]){
+      const targets=noteTargets.get(String(ns.id))||new Map([[planKey(pid),{planId:pid}]]);
+      for(const target of targets.values()){
+        const fallback=this._localNotetypeId(ns.notetype_id,target.planId,null);
+        this._materializeOfficialNote(ns,target.planId,fallback);
+      }
     }
     await this._reconcileOfficialCardSet(state.notes,state.cards||[]);
 
-    // O snapshot oficial é autoritativo. Esta poda só remove espelhos Study;
-    // nenhuma decisão acadêmica é tomada aqui.
-    for(const note of AnkiParity.notes(pid==null?undefined:pid)){
-      const oid=String(note&&note.ankiId!=null?note.ankiId:note&&note.id);
-      if(officialNotes.has(oid))continue;
-      const cards=AnkiProductParity._cardsForNote(note,pid==null?undefined:pid);
-      if(cards.length)DB.deleteNoteByCard(cards[0].id,pid==null?undefined:pid);
-      try{localStorage.removeItem(AnkiParity._entityKey('note',note.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-note');}
-    }
-    for(const nt of AnkiParity.noteTypes(pid==null?undefined:pid)){
-      const oid=String(nt&&nt.ankiId!=null?nt.ankiId:nt&&nt.id);
-      if(officialNotetypes.has(oid))continue;
-      try{localStorage.removeItem(AnkiParity._entityKey('notetype',nt.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-notetype');}
-    }
-    const cardsNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
-      keptCards=(cardsNow||[]).filter(card=>officialCards.has(String(this._officialId(card))));
-    if(pid!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(pid,keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
-    else DB.saveCards(keptCards.map(x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;}));
+    // Poda somente espelhos que possuem identidade oficial. Registros legados
+    // ainda não mapeados jamais são apagados por um snapshot parcial/falha de
+    // migração. Entidades locais órfãs sem identidade são removidas apenas
+    // quando nenhum card do mesmo planejamento ainda as referencia.
+    const plans=[...touchedPlans].map(k=>k===''?null:k);
+    for(const targetPlan of plans){
+      const cardRows=targetPlan!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(targetPlan,'cards'):DB.getCards(),
+        keptCards=(cardRows||[]).filter(card=>{
+          const oid=Number(card&&card.ankiId);
+          return !(Number.isFinite(oid)&&oid>0)||officialCards.has(String(oid));
+        }),
+        clean=x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;};
+      if(targetPlan!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(targetPlan,keptCards.map(clean));
+      else DB.saveCards(keptCards.map(clean));
 
-    const decksNow=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
-      keptDecks=(decksNow||[]).filter(deck=>officialDecks.has(String(deck&&deck.ankiId!=null?deck.ankiId:deck&&deck.id))),
-      cleanDeck=x=>{const y=Object.assign({},x);delete y._planId;delete y._planNome;return y;};
-    if(pid!=null)DB._set(DB.keysForPlan(pid).decks,keptDecks.map(cleanDeck));else DB.saveDecks(keptDecks.map(cleanDeck));
+      const referencedNotes=new Set(keptCards.map(c=>String(c&&c.noteId)).filter(Boolean)),
+        notes=AnkiParity.notes(targetPlan==null?undefined:targetPlan);
+      for(const note of notes){
+        const oid=Number(note&&note.ankiId);
+        const staleOfficial=Number.isFinite(oid)&&oid>0&&!officialNotes.has(String(oid));
+        const orphanLocal=!(Number.isFinite(oid)&&oid>0)&&!referencedNotes.has(String(note&&note.id));
+        if(!staleOfficial&&!orphanLocal)continue;
+        try{localStorage.removeItem(AnkiParity._entityKey('note',note.id,targetPlan==null?undefined:targetPlan));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-note');}
+      }
+
+      const remainingNotes=AnkiParity.notes(targetPlan==null?undefined:targetPlan),
+        referencedTypes=new Set(remainingNotes.map(n=>String(n&&n.notetypeId)).filter(Boolean));
+      for(const nt of AnkiParity.noteTypes(targetPlan==null?undefined:targetPlan)){
+        const oid=Number(nt&&nt.ankiId);
+        const staleOfficial=Number.isFinite(oid)&&oid>0&&!officialNotetypes.has(String(oid));
+        const orphanLocal=!(Number.isFinite(oid)&&oid>0)&&!referencedTypes.has(String(nt&&nt.id));
+        if(!staleOfficial&&!orphanLocal)continue;
+        try{localStorage.removeItem(AnkiParity._entityKey('notetype',nt.id,targetPlan==null?undefined:targetPlan));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-full-prune-notetype');}
+      }
+
+      const deckRowsLocal=targetPlan!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(targetPlan,'decks'):DB.getDecks(),
+        keptDecks=(deckRowsLocal||[]).filter(deck=>{
+          const oid=Number(deck&&deck.ankiId);
+          return !(Number.isFinite(oid)&&oid>0)||officialDecks.has(String(oid));
+        });
+      if(targetPlan!=null)DB._set(DB.keysForPlan(targetPlan).decks,keptDecks.map(clean));
+      else DB.saveDecks(keptDecks.map(clean));
+    }
 
     await this._syncCollectionState(state,pid,null);
     if(state.reviewer)this._applyReviewer(state.reviewer);
@@ -658,7 +735,7 @@ const CardsOfficialBridge = {
         const fields=(nt.fields||[]).map((f,i)=>({
           name:String(f&&f.name||('Field '+(i+1))),font:f&&f.font!=null?f.font:(f&&f.fontName)||'Arial',
           size:Number(f&&f.size!=null?f.size:f&&f.fontSize)||20,rtl:!!(f&&f.rtl),sticky:!!(f&&f.sticky),
-          collapsed:!!(f&&f.collapsed),excludeFromSearch:!!(f&&f.excludeFromSearch),tag:f&&f.tag==null?null:Number(f.tag)
+          collapsed:!!(f&&f.collapsed),excludeFromSearch:!!(f&&f.excludeFromSearch),tag:f&&f.tag!=null?Number(f.tag):null
         }));
         const templates=(nt.templates||[]).map((t,i)=>({
           name:String(t&&t.name||('Card '+(i+1))),qfmt:String(t&&t.qfmt||''),afmt:String(t&&t.afmt||''),
