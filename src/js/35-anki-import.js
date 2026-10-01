@@ -139,7 +139,21 @@ const AnkiImport = {
     }
     return {version,collection,media,files};
   },
-  async _SQL(){return AnkiExport&&typeof AnkiExport._loadSqlJs==='function'?AnkiExport._loadSqlJs():Promise.reject(new Error('sql.js indisponível'));},
+  async _SQL(){
+    if(typeof globalThis.initSqlJs==='function')return globalThis.initSqlJs();
+    if(typeof document==='undefined')throw new Error('sql.js requer ambiente de navegador');
+    await new Promise((resolve,reject)=>{
+      const old=document.querySelector('script[data-snm-sqljs]');
+      if(old){
+        if(typeof globalThis.initSqlJs==='function'){resolve();return;}
+        old.addEventListener('load',resolve,{once:true});old.addEventListener('error',reject,{once:true});return;
+      }
+      const s=document.createElement('script');s.src='./src/vendor/sqljs-1.2.1/sql-asm.js';s.dataset.snmSqljs='1';
+      s.onload=resolve;s.onerror=()=>reject(new Error('Falha ao carregar sql.js local'));document.head.appendChild(s);
+    });
+    if(typeof globalThis.initSqlJs!=='function')throw new Error('sql.js local não inicializou');
+    return globalThis.initSqlJs();
+  },
   _rows(db,sql,params){
     const st=db.prepare(sql);if(params)st.bind(params);const out=[];while(st.step())out.push(st.getAsObject());st.free();return out;
   },
