@@ -507,6 +507,43 @@ with tempfile.TemporaryDirectory() as tmp:
     except app.HTTPException as exc:
         assert exc.status_code == 409
 
+    # Estado legado sem anki_* moderno: due relativo, review, S/D e
+    # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
+    schedule_user = {"id": "legacy-cards-schedule-user"}
+    schedule_payload = {
+        "decks": [{"id": "d", "name": "Schedule"}],
+        "notetypes": [{
+            "id": "nt", "name": "Schedule Basic", "kind": "basic",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"}],
+        }],
+        "notes": [{"id": "n", "notetype_id": "nt", "fields": {"Front": "Q", "Back": "A"}, "tags": []}],
+        "cards": [{
+            "id": "c", "note_id": "n", "deck_id": "d", "template_idx": 0,
+            "phase": "review", "due_offset_days": 4, "interval": 12,
+            "ease_factor": 2300, "reps": 9, "lapses": 2, "suspenso": True,
+            "s": 8.5, "d": 5.1, "plan_ids": ["plano-x"],
+            "study_by_plan": {"plano-x": {"assunto": "Agenda", "banca": "CEBRASPE"}},
+        }],
+        "revlog": [],
+    }
+    scheduled = app.cards_official_migrate_legacy(schedule_payload, schedule_user)
+    schedule_item = app.cards_uc_for(schedule_user)
+    with schedule_item.lock:
+        scard = schedule_item.col.get_card(int(scheduled["card_map"]["c"]))
+        assert int(scard.type) == 2
+        assert int(scard.queue) == -1
+        assert int(scard.due) == int(schedule_item.col.sched.today) + 4
+        assert int(scard.ivl) == 12 and int(scard.factor) == 2300
+        assert int(scard.reps) == 9 and int(scard.lapses) == 2
+        assert scard.memory_state is not None
+        assert abs(float(scard.memory_state.stability) - 8.5) < 1e-6
+        smeta = json.loads(scard.custom_data)["study"]
+        assert smeta["planIds"] == ["plano-x"]
+        assert smeta["byPlan"]["plano-x"]["assunto"] == "Agenda"
+    assert app._legacy_card_type_queue({"phase": "review", "bury_kind": "user"}) == (2, -3)
+    assert app._legacy_card_type_queue({"phase": "review", "bury_kind": "scheduler"}) == (2, -2)
+
     # Mapeamento ambíguo deve abortar e restaurar fisicamente a Collection.
     rollback_user = {"id": "legacy-cards-rollback-user"}
     bad_payload = {
