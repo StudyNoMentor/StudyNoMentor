@@ -305,121 +305,12 @@ const CardsScreen = {
     const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
   },
 
-  _statsCards() {
-    try {
-      if (window.StudyGlobalScope && StudyGlobalScope.cardsScope && StudyGlobalScope.cardsScope() === 'all') return this.collectionCards();
-      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
-    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
-    return this.collectionCards();
-  },
-  _statsRevlog(applyHistory) {
-    try {
-      if (window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog();
-      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
-    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
-    return DB.getRevlog() || [];
+  _mirrorRevlog() {
+    try{if(window.StudyGlobalScope&&StudyGlobalScope.revlog)return StudyGlobalScope.revlog();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-mirror-revlog');}
+    return DB.getRevlog()||[];
   },
 
-  /* ── TRUE RETENTION ───────────────────────────────────────────────────────
-     A estatística que responde "a retenção que eu realmente tenho bate com a
-     meta que configurei?". O Anki a separa por MATURIDADE porque as duas contam
-     histórias diferentes: cards jovens (intervalo < 21 dias) ainda estão sendo
-     aprendidos e erram muito; cards maduros medem retenção de verdade.
-     Só contam revisões de LONGO PRAZO — repetir um card no mesmo dia não diz
-     nada sobre esquecimento. */
-  /* Semântica de revlog do Anki para uma linha do histórico: tipo (a partir do
-     estado ANTES da resposta) e last_interval (dias; passos em -segundos).
-     Linhas antigas do Study não tinham essa semântica: (re)aprendizado é tido
-     como passo intradiário (exato para passos < 1 dia). */
-  _revlogAnki(r) {
-    if (!r) return null;
-    const expl = String(r.ankiReviewKind || '').toLowerCase();
-    const ph = String(r.phase || 'review').toLowerCase();
-    let tipo = (expl === 'manual' || expl === 'rescheduled' || expl === 'reset' || expl === 'filtered') ? expl
-      : (ph === 'new' || ph === 'learning') ? 'learning' : ph === 'relearning' ? 'relearning' : ph === 'filtered' ? 'filtered' : 'review';
-    if (r.ankiIvlSemantica === 2 && r.ankiReviewKind) tipo = String(r.ankiReviewKind);
-    let last;
-    if (r.ankiIvlSemantica === 2 && r.ankiLastInterval != null) last = Number(r.ankiLastInterval);
-    else last = (tipo === 'review') ? Number(r.intervalo != null ? r.intervalo : (r.elapsed || 0)) : (tipo === 'learning' && ph === 'new' ? 0 : -60);
-    return { tipo, last, ease: Number(r.easeFactor != null ? r.easeFactor : 2500) };
-  },
-  /* stats/graphs/retention.rs::calculate_true_retention — toda resposta com nota
-     que afeta o agendamento (não manual/reagendada, não "cramming"), de revisão
-     ou vinda de intervalo ≥ 1 dia. Jovem/maduro pelo intervalo ANTERIOR (< 21).
-     Janelas pelo horário a partir da próxima virada: hoje, ontem, 7, 30, 365, tudo. */
-  trueRetention(dias) {
-    const revlog = this._statsRevlog();
-    const fim = proximaViradaTs(), dia = 86400000;
-    let ini = 0, ate = fim;
-    if (dias === 'ontem') { ini = fim - 2 * dia; ate = fim - dia; }
-    else if (dias) ini = fim - Math.max(1, Number(dias)) * dia;
-    const acc = { jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 }, todos: { total: 0, acertos: 0 } };
-    revlog.forEach(r => {
-      const g = Number(r && r.grade); if (!(g >= 1 && g <= 4)) return;
-      const k = this._revlogAnki(r); if (!k) return;
-      if (k.tipo === 'manual' || k.tipo === 'rescheduled' || k.tipo === 'reset') return;
-      if (k.tipo === 'filtered' && !(k.ease > 0)) return;              // cramming
-      if (!(k.tipo === 'review' || k.last <= -86400 || k.last >= 1)) return;
-      const ts = Number(r.ts) || 0; if (ts < ini || ts >= ate) return;
-      const alvo = k.last < 21 ? acc.jovem : acc.maduro;
-      alvo.total++; acc.todos.total++;
-      if (g > 1) { alvo.acertos++; acc.todos.acertos++; }
-    });
-    const pct = (o) => o.total ? Math.round((o.acertos / o.total) * 1000) / 10 : null;
-    return {
-      jovem: Object.assign({ pct: pct(acc.jovem) }, acc.jovem),
-      maduro: Object.assign({ pct: pct(acc.maduro) }, acc.maduro),
-      todos: Object.assign({ pct: pct(acc.todos) }, acc.todos),
-      mesmoDia: 0,
-      meta: Math.round((CardsConfig.get().retention || 0.9) * 100)
-    };
-  },
-
-  /* ── PREVISÃO DE CARGA ────────────────────────────────────────────────────
-     Quantos cards vencem por dia daqui para a frente. Serve para responder
-     "posso aumentar o limite de novos?" ANTES de aumentar e se arrepender. */
-  previsaoCarga(dias) {
-    dias = dias || 30;
-    const hoje = todayCards();
-    const mapa = {};
-    for (let i = 0; i <= dias; i++) mapa[CardEngine.addDays(hoje, i)] = 0;
-    let atrasados = 0;
-    this._statsCards().forEach(c => {
-      if (c.suspenso || !c.due) return;
-      if (this._bucket(c) === 'new') return;
-      if (c.due < hoje) { atrasados++; return; }
-      if (mapa[c.due] !== undefined) mapa[c.due]++;
-    });
-    const serie = Object.keys(mapa).sort().map(d => ({ dia: d, n: mapa[d] }));
-    const total = serie.reduce((a, x) => a + x.n, 0);
-    return {
-      serie, atrasados, total,
-      media: serie.length ? Math.round(total / serie.length * 10) / 10 : 0,
-      pico: serie.reduce((a, x) => Math.max(a, x.n), 0)
-    };
-  },
-
-  /* ── REPOSICIONAR CARDS NOVOS ─────────────────────────────────────────────
-     Equivale ao "Reposition" do Anki: reordena a fila de cards novos sem tocar
-     em nada mais. Útil quando você adiciona 200 cards de uma matéria nova e
-     quer intercalá-los com os que já estavam esperando, em vez de empurrar
-     todos para o fim. */
-  reposicionarNovos(modo, escopo) {
-    const cards = this.collectionCards().filter(c => this._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
-    if (!cards.length) return 0;
-    let ordem = cards.slice();
-    if (modo === 'aleatoria') {
-      for (let i = ordem.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = ordem[i]; ordem[i] = ordem[j]; ordem[j] = t; }
-    } else if (modo === 'inverso') {
-      ordem.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    } else {
-      ordem.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
-    }
-    ordem.forEach((c, i) => DB.updateCard(c.id, { posicaoNova: i }));
-    return ordem.length;
-  },
-
-  // ---- conteúdo (revisar ou meus cards) ----
+  // ---- conteúdo (revisar ou meus cards) ----  // ---- conteúdo (revisar ou meus cards) ----
   renderContent() {
     const box = document.getElementById('cards-content');
     if (this.tab !== 'revisar' && this._autoAdvanceEnabled) this._disableAutoAdvanceSilently();
@@ -427,61 +318,25 @@ const CardsScreen = {
     else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
   },
-  /* O Anki 26.09.2 mantém CardQueues em memória e só reconstrói a fila
-     quando uma operação altera elegibilidade, ordem, limites ou o deck. */
-  invalidateReviewQueue() {
-    this._reviewQueue = [];
-    this._reviewIdx = 0;
-    this._reviewCardId = null;
-    this._flipped = false;
+  invalidateReviewQueue(){
+    this._reviewQueue=[];this._reviewIdx=0;this._reviewCardId=null;this._flipped=false;
   },
-  materiaLabel(c) {
-    if (c.deckId) {
-      let d = null;
-      try { d = window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null; } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
-      if (!d) d = DB.getDecks().find(x => x.id === c.deckId);
-      return d ? '📁 ' + d.nome : '📁 (baralho removido)';
+  materiaLabel(c){
+    if(c.deckId){
+      let d=null;try{d=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-materia-label');}
+      if(!d)d=DB.getDecks().find(x=>x.id===c.deckId);
+      return d?'📁 '+d.nome:'📁 (baralho removido)';
     }
-    return c.materia || 'Sem disciplina';
+    return c.materia||'Sem disciplina';
   },
-  // classifica um card para os limites diários
-  _bucket(c) {
-    const ph = c.phase || (((c.reps || 0) > 0 && (c.intervalo || 0) > 0) ? 'review' : 'new');
-    if (ph === 'new') return 'new';
-    if (ph === 'learning' || ph === 'relearning') return 'learn';
-    return 'review';
+  _bucket(c){
+    const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
+    if(ph==='new')return'new';if(ph==='learning'||ph==='relearning')return'learn';return'review';
   },
-  /* O Anki toma as opções de Display Order do baralho SELECIONADO para estudar,
-     e não do preset de cada card individual. Neste app, "Revisar só este
-     baralho" é representado por um único filtro deck:<id>; nesse caso a fila
-     usa o preset daquele baralho. Em "Todos", usamos a configuração global. */
-  _queueConfig() {
-    const sel = this.filters && this.filters.materias;
-    if (sel && sel.size === 1) {
-      const unico = [...sel][0];
-      if (typeof unico === 'string' && unico.startsWith('deck:')) {
-        return CardsConfig.forDeck(unico.slice(5));
-      }
-    }
-    return CardsConfig.get();
-  },
-  // Compatibilidade apenas: a fila pertence ao scheduler oficial.
-  buildQueue() {
-    const bridge=window.CardsOfficialBridge;
-    if(!bridge||!bridge.review)return [];
+  buildQueue(){
+    const bridge=window.CardsOfficialBridge;if(!bridge||!bridge.review)return[];
     return (bridge.review.queue_ids||[]).map(id=>bridge._localForOfficialId(id)).filter(Boolean).map(c=>c.id);
   },
-  // Anki mostra um card de aprendizado antes da hora quando não há mais nada na fila
-  // (learn ahead limit = 20 min). Fora disso, informa quanto falta.
-  // "Limite para aprender adiantado" das Preferências (Anki: collapseTime).
-  _learnAheadFixo: null,
-  get LEARN_AHEAD_MIN() {
-    if (this._learnAheadFixo != null) return this._learnAheadFixo;
-    const v = Number(CardsConfig.get().learnAheadMin);
-    return Number.isFinite(v) && v >= 0 ? v : 20;
-  },
-  set LEARN_AHEAD_MIN(v) { this._learnAheadFixo = v; },
-  _learnAheadQueue() { return []; },
   renderRevisar(box) {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderRevisar==='function'){void CardsOfficialBridge.renderRevisar(box);return;}
     if(box)box.innerHTML=this.emptyState('Motor oficial indisponível','A revisão não usa fila local como fallback.');
@@ -491,84 +346,10 @@ const CardsScreen = {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderStats==='function'){void CardsOfficialBridge.renderStats(box);return;}
     if(box)box.innerHTML=this.emptyState('Estatísticas oficiais indisponíveis','Nenhum cálculo local foi usado como fallback.');
   },
-  _statTrueRetention(dica) {
-    const p = [];
-    // Mesmos períodos da tabela "Retenção real" do Anki.
-    [[1, 'Hoje'], ['ontem', 'Ontem'], [7, 'Última semana'], [30, 'Último mês'], [365, 'Último ano'], [null, 'Todo o período']].forEach(([d, rot]) => {
-      const t = this.trueRetention(d);
-      if (!t.todos.total) return;
-      const cor = (v) => v == null ? '' : (v >= t.meta ? 'good' : v >= t.meta - 5 ? 'warn' : 'bad');
-      const cel = (o) => o.total ? `<td class="tone-${cor(o.pct)}"><strong>${o.pct.toFixed(1)}%</strong><span class="tr-frac">${o.acertos}/${o.total}</span></td>` : '<td class="tr-vazio">—</td>';
-      p.push(`<tr><th>${rot}</th>${cel(t.jovem)}${cel(t.maduro)}${cel(t.todos)}</tr>`);
-    });
-    if (!p.length) return '';
-    const meta = this.trueRetention(null).meta;
-    return `<div class="card stat-card">
-      <div class="card-header"><div><h2>🎯 Retenção real (True Retention)</h2>
-      <p class="sub">Como no Anki: revisões e (re)aprendizado vindo de intervalo ≥ 1 dia; passos do mesmo dia ficam de fora. Again = falha; Hard/Good/Easy = acerto. Meta configurada: ${meta}%.</p></div></div>
-      <div class="stat-body"><div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
-      ${dica ? `<p class="stat-note">${dica}</p>` : ''}</div>
-    </div>`;
-  },
-
-  /* ── BOTÕES DE RESPOSTA (Anki: Answer Buttons) ────────────────────────────
-     Quanto você aperta cada botão, separado por fase. Diagnóstico direto: muito
-     "Errei" em revisão significa intervalos longos demais; muito "Fácil"
-     significa o contrário — e a retenção-alvo deveria mudar, não os cards. */
-  _statBotoes() {
-    const revlog = this._statsRevlog();
-    if (revlog.length < 5) return '';
-    const NOMES = { 1: 'Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
-    const TONS = { 1: 'bad', 2: 'warn', 3: 'accent', 4: 'good' };
-    const fases = { learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
-    const linhas = [];
-    Object.keys(fases).forEach(fase => {
-      const sub = revlog.filter(r => (r.phase || 'review') === fase);
-      if (!sub.length) return;
-      const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
-      sub.forEach(r => { if (cnt[r.grade] !== undefined) cnt[r.grade]++; });
-      const barras = [1, 2, 3, 4].map(g => {
-        const pc = Math.round(cnt[g] / sub.length * 1000) / 10;
-        return `<div class="ab-col" data-tip="${NOMES[g]}: ${cnt[g]} (${pc}%)">
-          <div class="ab-bar"><div class="ab-fill tone-${TONS[g]}" style="height:${cnt[g] ? Math.max(3, pc) : 0}%"></div></div>
-          <span class="ab-pc">${cnt[g] ? (pc >= 1 ? Math.round(pc) : '<1') + '%' : '0'}</span><span class="ab-lb">${NOMES[g]}</span></div>`;
-      }).join('');
-      linhas.push(`<div class="ab-grupo"><div class="ab-tit">${fases[fase]}<span>${sub.length}</span></div><div class="ab-cols">${barras}</div></div>`);
-    });
-    if (!linhas.length) return '';
-    return `<div class="card stat-card">
-      <div class="card-header"><div><h2>🔘 Botões de resposta</h2>
-      <p class="sub">Muito "Errei" em revisão = intervalos longos demais. Muito "Fácil" = o oposto — mexa na retenção-alvo, não nos cards.</p></div></div>
-      <div class="stat-body"><div class="ab-wrap">${linhas.join('')}</div></div></div>`;
-  },
-
-  /* ── DISTRIBUIÇÃO DE ESTABILIDADE E DIFICULDADE (Anki: Card Stability /
-     Card Difficulty) ─────────────────────────────────────────────────────────
-     Só faz sentido com FSRS: mostra como a coleção se espalha nos dois eixos do
-     modelo de memória. Uma massa concentrada em dificuldade alta indica material
-     mal formulado — card difícil demais costuma ser card mal escrito. */
-  _statDistribuicao() {
-    const cards = this._statsCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
-    if (cards.length < 5) return '';
-    const FAIXAS_S = [[0, 1, '< 1d'], [1, 7, '1–7d'], [7, 21, '7–21d'], [21, 90, '21–90d'], [90, 365, '90d–1a'], [365, Infinity, '> 1a']];
-    const FAIXAS_D = [[1, 3, 'Muito fácil'], [3, 5, 'Fácil'], [5, 7, 'Médio'], [7, 9, 'Difícil'], [9, 10.01, 'Muito difícil']];
-    const hist = (faixas, valor, tone) => {
-      const c = faixas.map(([a, b]) => cards.filter(x => valor(x) >= a && valor(x) < b).length);
-      const mx = Math.max(1, ...c);
-      return faixas.map(([, , rot], i) => `<div class="hd-col" data-tip="${rot}: ${c[i]} card(s)">
-        <div class="hd-bar"><div class="hd-fill ${tone}" style="height:${c[i] ? Math.max(4, Math.round(c[i] / mx * 100)) : 0}%"></div></div>
-        <span class="hd-n">${c[i]}</span><span class="hd-lb">${rot}</span></div>`).join('');
-    };
-    const medS = cards.reduce((a, c) => a + c.s, 0) / cards.length;
-    const medD = cards.reduce((a, c) => a + c.d, 0) / cards.length;
-    return `<div class="stat-grid">
-      <div class="card stat-card"><div class="card-header"><div><h2>📈 Estabilidade</h2>
-        <p class="sub">Quanto tempo a memória dura. Média: ${medS < 1 ? medS.toFixed(2) + ' dia' : Math.round(medS) + ' dias'}</p></div></div>
-        <div class="stat-body"><div class="hd-wrap">${hist(FAIXAS_S, c => c.s, 'tone-accent')}</div></div></div>
-      <div class="card stat-card"><div class="card-header"><div><h2>🧱 Dificuldade</h2>
-        <p class="sub">Média: ${medD.toFixed(1)} de 10. Concentração no topo costuma indicar card mal formulado, não assunto difícil.</p></div></div>
-        <div class="stat-body"><div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div></div>
-    </div>`;
+  _reviewElapsedMs(){
+    return window.CardsOfficialBridge&&typeof CardsOfficialBridge._elapsedMs==='function'
+      ?CardsOfficialBridge._elapsedMs((CardsOfficialBridge.review&&CardsOfficialBridge.review.card&&CardsOfficialBridge.review.card.auto_advance)||{})
+      :0;
   },
   _reviewElapsedMs(cfg) {
     const start=Number(this._reviewStartedAt)||Date.now();
@@ -577,147 +358,22 @@ const CardsScreen = {
     if(cap>0)ms=Math.min(ms,cap);
     return Math.round(ms);
   },
-  _resumeAutoAdvanceIfReady(){
-    const p=this._reviewAutoPending;if(!p||!this._autoAdvanceEnabled)return;
-    if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying())return;
-    const id=(this._reviewQueue||[])[this._reviewIdx];
-    if(String(id||'')!==String(p.cardId||'')){this._reviewAutoPending=null;return;}
-    this._reviewAutoPending=null;try{p.fn();}catch(e){_quiet(e,'auto-advance-resume');}
-  },
-  _runAutoAdvanceAction(c,cfg,fn){
-    if(!this._autoAdvanceEnabled)return;
-    if(typeof document!=='undefined'&&document.hasFocus&&!document.hasFocus()){this._disableAutoAdvanceSilently();return;}
-    if(this.tab!=='revisar'){this._disableAutoAdvanceSilently();return;}
-    if(cfg&&cfg.waitForAudio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
-      this._reviewAutoPending={cardId:c.id,fn};return;
-    }
-    fn();
-  },
   _disableAutoAdvanceSilently(){
-    this._autoAdvanceEnabled=false;this._reviewAutoPending=null;
-    clearTimeout(this._reviewAutoTimer);clearInterval(this._reviewTimer);
-    const b=document.getElementById('cards-auto-advance');if(b){b.classList.remove('on');b.setAttribute('aria-pressed','false');b.textContent='⏩ Auto';}
+    if(window.CardsOfficialBridge){
+      CardsOfficialBridge._autoAdvanceEnabled=false;
+      if(typeof CardsOfficialBridge._clearReviewerAutomation==='function')CardsOfficialBridge._clearReviewerAutomation();
+    }
   },
   toggleAutoAdvance(force){
-    const next=typeof force==='boolean'?force:!this._autoAdvanceEnabled;
-    if(!next){this._disableAutoAdvanceSilently();showToast('⏸ Auto Advance desligado');return;}
-    this._autoAdvanceEnabled=true;this._reviewAutoPending=null;clearTimeout(this._reviewAutoTimer);
-    const id=(this._reviewQueue||[])[this._reviewIdx],c=id&&DB.getCard(id);
-    if(c)this._armReviewerAutomation(c,CardsConfig.forDeck(c.deckId));
-    const b=document.getElementById('cards-auto-advance');if(b){b.classList.add('on');b.setAttribute('aria-pressed','true');b.textContent='⏩ Auto ligado';}
-    showToast('⏩ Auto Advance ligado');
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.toggleAutoAdvance==='function')return CardsOfficialBridge.toggleAutoAdvance(force);
+    showToast('Auto Advance oficial indisponível.');return false;
   },
-  _armReviewerAutomation(c,cfg) {
-    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);this._reviewAutoPending=null;
-    const tick=()=>{
-      const el=document.getElementById('cards-review-timer');if(!el)return;
-      el.textContent=(this._reviewElapsedMs(cfg)/1000).toFixed(1)+'s';
-    };
-    if(cfg&&cfg.showTimer){tick();this._reviewTimer=setInterval(tick,250);}
-    if(!this._autoAdvanceEnabled)return;
-    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))this._runAutoAdvanceAction(c,cfg,fn);},ms);};
-    if(!this._flipped&&cfg&&Number(cfg.secondsToShowQuestion)>0){
-      const rem=Math.max(0,Number(cfg.secondsToShowQuestion)*1000-(Date.now()-(Number(this._reviewStartedAt)||Date.now())));
-      run(rem,()=>{if(Number(cfg.questionAction)===0)this.flip(document.getElementById('cards-content'));else showToast('⏰ Tempo da pergunta concluído');});
-    }else if(this._flipped&&cfg&&Number(cfg.secondsToShowAnswer)>0){
-      const base=Number(this._answerShownAt)||Date.now(),rem=Math.max(0,Number(cfg.secondsToShowAnswer)*1000-(Date.now()-base));
-      run(rem,()=>{
-        const a=Number(cfg.answerAction)||0;
-        if(a===0){const b=document.getElementById('cards-act-bury');if(b)b.click();}
-        else if(a===1)this.answer('errei');
-        else if(a===2)this.answer('bom');
-        else if(a===3)this.answer('dificil');
-        else showToast('⏰ Tempo da resposta concluído');
-      });
-    }
-  },
-  /* Contagens restantes no mesmo formato conceitual do reviewer v3 do Anki:
-     novos + aprendizado + revisões. Diferente do antigo 0/20 · 0/200, estes
-     números descrevem a FILA restante e incluem o card atual. Entradas repetidas
-     de aprendizado contam novamente, como CardQueues do Anki. */
-  _reviewRemainingCounts() {
-    const out = { new: 0, learning: 0, review: 0, current: null };
-    const fila = this._reviewQueue || [];
-    const ini = Math.max(0, Math.min(Number(this._reviewIdx) || 0, fila.length));
-    for (let i = ini; i < fila.length; i++) {
-      const card = DB.getCard(fila[i]);
-      if (!card) continue;
-      const bucket = this._bucket(card);
-      if (bucket === 'new') out.new++;
-      else if (bucket === 'learn') out.learning++;
-      else out.review++;
-    }
-    const atual = fila[ini] ? DB.getCard(fila[ini]) : null;
-    out.current = atual ? this._bucket(atual) : null;
-    return out;
-  },
-  _reviewRemainingHtml(contagens) {
-    const n = contagens || { new: 0, learning: 0, review: 0, current: null };
-    const parte = (bucket, icon, value) => {
-      const numero = n.current === bucket ? '<u>' + value + '</u>' : String(value);
-      return '<span class="cards-due-count cards-due-' + bucket + '">' + icon + ' ' + numero + '</span>';
-    };
-    return parte('new', '🆕', n.new) + ' + '
-      + parte('learn', '🧠', n.learning) + ' + '
-      + parte('review', '🔄', n.review);
-  },
-  renderReviewCard(box) {
+
+  renderReviewCard(box) {  renderReviewCard(box) {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderCurrent==='function'){void CardsOfficialBridge.renderCurrent(box);return;}
     if(box)box.innerHTML=this.emptyState('Motor oficial indisponível','O reviewer local está desativado.');
   },
-  faceHtml(c) {
-    // Cards vindos do Anki mantêm a nota/tipo/template canônicos. Renderizar
-    // daqui evita "achatar" templates importados em uma frente/verso estáticos.
-    if (typeof AnkiParity !== 'undefined') {
-      try {
-        // A Note é a fonte de verdade no reviewer, mas ela precisa vir do
-        // MESMO planejamento do card. Além disso, builds anteriores à migração
-        // completa podiam deixar Front/Text canônico vazio enquanto o cache
-        // legado ainda continha a pergunta; o reparo é conservador e só preenche
-        // campos canônicos vazios a partir de conteúdo legado claramente válido.
-        const routed = AnkiParity.repairStockNoteFromCard ? AnkiParity.repairStockNoteFromCard(c) : null;
-        const note = routed && routed.note ? routed.note : (AnkiParity.noteForCard ? AnkiParity.noteForCard(c) : AnkiParity.getNote(AnkiParity.noteId(c)));
-        const nt = routed && routed.nt ? routed.nt : (note && AnkiParity.notetypeForCard ? AnkiParity.notetypeForCard(c, note) : (note ? AnkiParity.getNotetype(note.notetypeId) : null));
-        if (note && nt && Array.isArray(nt.templates) && nt.templates.length) {
-          const ord = Number(c.ankiTemplateOrd) || 0;
-          const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
-          const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
-          // Note Types importados do Anki podem conter CSS, JavaScript, fontes,
-          // MathJax, TTS e HTML arbitrário. Eles rodam dentro de um iframe
-          // sandboxado de origem opaca: mantém a compatibilidade sem dar ao
-          // conteúdo do card acesso ao DOM/storage/Supabase do Study.
-          if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
-            // No reviewer do Anki, o lado da pergunta é SUBSTITUÍDO pelo lado
-            // da resposta no flip. Não mantenha o contêiner da frente visível
-            // com um placeholder vazio: além do espaço fantasma, o afmt pode
-            // trazer {{FrontSide}} e acabaria duplicando visualmente a pergunta.
-            const frontDisplay = this._flipped ? 'none' : 'block';
-            const backDisplay = this._flipped ? 'block' : 'none';
-            return '<div class="cards-face cards-front cards-anki-template" style="display:' + frontDisplay + '">' +
-              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note, CardsConfig.forDeck(c.deckId)) +
-              '</div><div class="cards-face cards-back cards-anki-template" style="display:' + backDisplay + '">' +
-              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note, CardsConfig.forDeck(c.deckId)) + '</div>';
-          }
-          const front = _sanCard(frontRaw), back = _sanCard(backRaw);
-          return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
-            <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
-        }
-      } catch (e) { _quiet(e, 'anki-template-render'); }
-    }
-    // Legado Study: saneia na saída e mantém o renderer local.
-    const cFrente = _sanCard(c.frente), cVerso = _sanCard(c.verso);
-    if (c.kind === 'cloze') {
-      const ord = Number(c.clozeOrd || ((c.template || '').match(/^cloze:(\\d+)$/) || [])[1]) || 1;
-      const front = CardEngine.clozeRender(cFrente, false, ord);
-      const back = CardEngine.clozeRender(cFrente, true, ord) + (CardEngine.plain(cVerso) ? `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">${cVerso}` : '');
-      return `<div class="cards-face cards-front">${front || '<em>(vazio)</em>'}</div>
-        <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${back}</div>`;
-    }
-    return `<div class="cards-face cards-front">${cFrente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
-      <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${cVerso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>`;
-  },
-
-  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.
+  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.
   // Se algum fluxo legado chamar este método, ele consome somente os estados
   // já calculados por get_queued_cards()/describe_next_states() no backend.
   renderActions(box, c) {
@@ -733,71 +389,14 @@ const CardsScreen = {
     el.innerHTML=buttons.map(b=>'<button type="button" class="cards-ans4 '+(classes[Number(b.rating)-1]||'')+'" data-g="'+Number(b.rating)+'"><span class="a-kbd">'+Number(b.rating)+'</span>'+names[Number(b.rating)-1]+'<span>'+escapeHtml(b.label||'')+'</span></button>').join('');
     el.querySelectorAll('[data-g]').forEach(b=>b.addEventListener('click',()=>bridge&&bridge.answer?void bridge.answer(Number(b.dataset.g)):showToast('Motor oficial do Anki indisponível.')));
   },
-  /* INFORMAÇÕES DO CARD (tecla I) — equivalente ao "Card Info" do Anki:
-     estado atual, memória do FSRS e o histórico completo de revisões. */
-  cardInfo(ref) {
-    let c = null, planId = null;
-    if (window.StudyGlobalScope && StudyGlobalScope.findCardRecord) {
-      const routed = StudyGlobalScope.findCardRecord(ref, ref && typeof ref === 'object' && ref._planId != null ? ref._planId : null);
-      if (routed) {
-        planId = routed.planId;
-        c = Object.assign({}, routed.card, { _planId: routed.planId, _planNome: StudyGlobalScope.planName(routed.planId) });
-      }
+  cardInfo(ref){
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.openCardInfo==='function'){
+      void CardsOfficialBridge.openCardInfo(ref).catch(e=>showToast('Card Info oficial indisponível: '+(e&&e.message?e.message:String(e))));
+      return;
     }
-    if (!c) {
-      const id = ref && typeof ref === 'object' ? ref.id : ref;
-      c = DB.getCard(id); if (!c) return;
-      planId = c._planId != null ? c._planId : null;
-    }
-    const id = String(c.id);
-    const baseLog = (window.StudyGlobalScope && StudyGlobalScope.revlogForCard)
-      ? StudyGlobalScope.revlogForCard(c, planId)
-      : DB.getRevlog();
-    const log = baseLog.filter(r => String(r.cardId) === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    const NOTA = { 1: '✗ Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
-    const FASE = { new: 'Novo', learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
-    const MANUAL = { 'set-due': 'Manual · Definir vencimento', reset: 'Manual · Resetar card', rescheduled: 'Reagendado' };
-    const reviewLabel = r => {
-      const kind = String(r && r.ankiReviewKind || '').toLowerCase();
-      if (Number(r && r.grade) === 0 || kind === 'manual' || kind === 'rescheduled' || kind === 'reset') {
-        return MANUAL[String(r && r.action || '').toLowerCase()] || (kind === 'rescheduled' ? 'Reagendado' : 'Manual');
-      }
-      return NOTA[r.grade] || r.grade || '—';
-    };
-    const reviewInterval = r => {
-      if (Number(r && r.grade) === 0 && r && r.ankiIvlSemantica === 2) {
-        const before = Number(r.ankiLastInterval), after = Number(r.ankiInterval);
-        if (Number.isFinite(before) && Number.isFinite(after)) return before + 'd → ' + after + 'd';
-      }
-      return r && r.elapsed != null ? r.elapsed + 'd' : '';
-    };
-    const linha = (r, v) => `<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">${r}</td><td style="padding:4px 0;font-family:'Space Mono',monospace">${v}</td></tr>`;
-    const corpo = `
-      <table style="width:100%;font-size:12.5px;border-collapse:collapse">
-        ${linha('Estado', FASE[c.phase] || c.phase || '—')}
-        ${linha('Vencimento', c.dueTs ? new Date(c.dueTs).toLocaleString('pt-BR') : (c.due || '—'))}
-        ${linha('Estabilidade (S)', c.s != null ? Number(c.s).toFixed(2) + ' dias' : '—')}
-        ${linha('Dificuldade (D)', c.d != null ? Number(c.d).toFixed(2) + ' / 10' : '—')}
-        ${linha('Revisões', c.reps || 0)}
-        ${linha('Lapsos', c.lapses || 0)}
-        ${linha('Intervalo', c.intervalo ? c.intervalo + ' dia(s)' : '—')}
-        ${linha('Suspenso', c.suspenso ? 'sim' : 'não')}
-        ${linha('Enterrado até', c.enterradoAte || '—')}
-        ${linha('Bandeira', (c.flag && DB.FLAGS[c.flag]) ? DB.FLAGS[c.flag].nome : '—')}
-        ${linha('Criado em', (c.createdAt || '').slice(0, 10) || '—')}
-      </table>
-      <p style="margin:14px 0 6px;font-weight:700;font-size:12.5px">Histórico (${log.length})</p>
-      ${log.length ? `<div style="max-height:230px;overflow:auto">
-        <table style="width:100%;font-size:12px;border-collapse:collapse">
-          ${log.slice(0, 60).map(r => `<tr style="border-top:1px solid var(--border)">
-            <td style="padding:4px 8px 4px 0;color:var(--text-faint)">${r.date || ''}</td>
-            <td style="padding:4px 8px 4px 0">${reviewLabel(r)}</td>
-            <td style="padding:4px 0;color:var(--text-faint)">${reviewInterval(r)}</td>
-          </tr>`).join('')}
-        </table></div>` : '<p style="color:var(--text-faint);font-size:12px">Nenhuma revisão ainda.</p>'}`;
-    UI.alert(corpo, { title: 'ℹ Informações do card', html: true, okText: 'Fechar' });
+    showToast('Card Info oficial indisponível.');
   },
-  flip() { if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.showAnswer==='function')void CardsOfficialBridge.showAnswer(); },
+  flip() {  flip() { if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.showAnswer==='function')void CardsOfficialBridge.showAnswer(); },
   // atalhos de teclado durante a revisão
   onKey(e) {
     // só na tela de cards, aba revisar, com um card na tela e sem modal aberto
@@ -905,22 +504,6 @@ const CardsScreen = {
     if (u) u.disabled = !(this._undoStack || []).length;
   },
   // navega entre os cards da fila sem avaliar (pular)
-  navCard(dir) {
-    if (!this._reviewQueue || this._reviewQueue.length === 0) return;
-    /* Só AVANÇA. Voltar foi removido: no Anki não existe "card anterior" — a fila
-       anda para frente e a única forma de mudar uma nota é desfazer. Enquanto
-       existiu, dava para reavaliar o mesmo card em rajada; uma auditoria real
-       mostrou 4 cards com 178 entradas no histórico, uma delas com 28 revisões
-       do mesmo card, 164 delas com menos de 2 segundos entre si. */
-    if (dir < 0) return;
-    const ni = this._reviewIdx + dir;
-    if (ni < 0 || ni >= this._reviewQueue.length) return;
-    this._reviewIdx = ni;
-    this._flipped = false;
-    this.renderReviewCard(document.getElementById('cards-content'));
-  },
-  // DESFAZER (Anki: Ctrl+Z) — restaura o card, apaga a revisão do histórico e devolve
-  // o contador diário. Substitui o antigo "Anterior", que reavaliava o card em dobro.
   undoAnswer() {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.undo==='function')void CardsOfficialBridge.undo();
   },
@@ -1568,7 +1151,7 @@ const CardsScreen = {
        planejamentos aparecem no arquivo e podem ser diagnosticados. */
     const cards = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
       ? StudyGlobalScope.allBy('cards') : this.collectionCards();
-    const revlog = this._statsRevlog(false);
+    const revlog = this._mirrorRevlog();
     const cfg = CardsConfig.get();
     const daily = CardsConfig._daily();
     const decks = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
@@ -1919,7 +1502,7 @@ const CardsScreen = {
   exportColpkg() { return this._exportAnkiPackage('colpkg'); },
   exportJson() {
     const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
-    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 3, exportedAt: new Date().toISOString(), scope, decks: this.collectionDecks(), cards: this.collectionCards(), revlog: this._statsRevlog(false) };
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 3, exportedAt: new Date().toISOString(), scope, decks: this.collectionDecks(), cards: this.collectionCards(), revlog: this._mirrorRevlog() };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Backup exportado ✓');
     $id('cards-export-modal').style.display = 'none';
