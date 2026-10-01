@@ -439,6 +439,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "notes": [{
             "id": "note:plan:p1:n1",
             "notetype_id": "notetype:plan:p1:nt1",
+            "guid": "study-guid-legacy-1",
             "fields": {"Front": "Pergunta legada", "Back": "Resposta legada"},
             "tags": ["legacy"],
         }],
@@ -459,7 +460,17 @@ with tempfile.TemporaryDirectory() as tmp:
             "assunto": "ICMS",
             "banca": "CEBRASPE",
         }],
-        "revlog": [],
+        "revlog": [{
+            "card_id": "card:plan:p1:c1",
+            "ts": 1700000000123,
+            "grade": 3,
+            "anki_interval": 1,
+            "anki_last_interval": 0,
+            "ease_factor": 2500,
+            "time": 321,
+            "anki_review_kind": 0,
+            "anki_ivl_semantica": 2,
+        }],
     }
     migrated = app.cards_official_migrate_legacy(legacy_payload, legacy_user)
     assert migrated["ok"] is True
@@ -467,6 +478,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert migrated["migrated"]["notetypes"] == 1
     assert migrated["migrated"]["notes"] == 1
     assert migrated["migrated"]["cards"] == 1
+    assert migrated["migrated"]["revlog"] == 1
     assert migrated["deck_map"]["deck:plan:p1:d1"] > 0
     assert migrated["notetype_map"]["notetype:plan:p1:nt1"] > 0
     assert migrated["note_map"]["note:plan:p1:n1"] > 0
@@ -474,6 +486,12 @@ with tempfile.TemporaryDirectory() as tmp:
     migrated_state = migrated["state"]
     assert len(migrated_state["cards"]) == 1 and migrated_state["cards"][0]["question"]
     assert len(migrated_state["notes"]) == 1
+    legacy_item = app.cards_uc_for(legacy_user)
+    with legacy_item.lock:
+        legacy_note = legacy_item.col.get_note(int(migrated["note_map"]["note:plan:p1:n1"]))
+        assert legacy_note.guid == "study-guid-legacy-1"
+        legacy_card_id = int(migrated["card_map"]["card:plan:p1:c1"])
+        assert int(legacy_item.col.db.scalar("select type from revlog where cid = ? order by id desc limit 1", legacy_card_id)) == 0
     try:
         app.cards_official_migrate_legacy(legacy_payload, legacy_user)
         raise AssertionError("segunda migração deveria ser recusada")
