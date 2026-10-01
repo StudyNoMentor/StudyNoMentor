@@ -38,7 +38,7 @@ Existência de botão, função ou comentário **não** conta como paridade.
 - [x] Backend recusa versão instalada divergente ou ausente antes de abrir coleções; o health reporta somente a versão real validada.
 - [x] Testados versão ausente/divergente, pin divergente e checkout ausente; contratos da ponte e runtime dos Cards passaram localmente.
 - [x] Retirado o workflow obsoleto que tentava reconstruir o motor FSRS WASM removido.
-- [ ] Executar o smoke com o pacote Anki real e as suítes de navegador no CI deste commit.
+- [x] Smoke com o pacote Anki real e todas as suítes de navegador aprovados no [CI 2011](https://github.com/StudyNoMentor/StudyNoMentor/actions/runs/36854806093), código `70a5bc2999022d5fb5c09f2b4b28db82f9cb87a2`.
 
 Esses itens verificam integridade e rastreabilidade. Não alteram a contagem de
 certificações individuais nem incorporam patches posteriores à 26.09.3.
@@ -66,7 +66,7 @@ Os contratos abaixo permanecem pendentes de certificação integral.
 - [x] Removidos leitores locais de pacotes e vendors sem uso (FSRS WASM, SQLite e Zstd).
 - [x] Excluídos autotestes de motores removidos e verificações de WASM/ZIP que ficaram obsoletas.
 - [x] As ações acadêmicas do escopo global delegam à ponte oficial; o escopo mantém somente seleção e metadados do Study.
-- [ ] Validar o lote inteiro no CI, incluindo o novo round-trip CSV com o Anki real e os testes de navegador atualizados.
+- [x] Lote validado no CI 2011, incluindo o round-trip CSV com o Anki real e os testes de navegador atualizados. As fixtures de layout e as asserções obsoletas de FSRS local foram corrigidas antes da aprovação.
 
 A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um motor Anki nem certificam todas as interações da interface. A certificação por arquivo acima continua pendente; este lote não autoriza declarar paridade integral.
 
