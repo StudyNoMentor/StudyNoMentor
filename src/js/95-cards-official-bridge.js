@@ -558,7 +558,7 @@ const CardsOfficialBridge = {
       payload={decks:[],notetypes:[],notes:[],cards:[],revlog:[]},
       refs={deck:new Map(),notetype:new Map(),note:new Map(),card:new Map()},
       seen={deck:new Set(),notetype:new Set(),note:new Set(),card:new Set(),revlog:new Set()},
-      pushRef=(kind,key,pid,row)=>{if(!refs[kind].has(key))refs[kind].set(key,[]);refs[kind].get(key).push({pid,row});},
+      pushRef=(kind,key,pid,row,meta)=>{if(!refs[kind].has(key))refs[kind].set(key,[]);refs[kind].get(key).push(Object.assign({pid,row},meta||{}));},
       rows=(pid,suffix)=>scope&&scope._rows?scope._rows(pid,suffix):(suffix==='cards'?DB.getCards():suffix==='decks'?DB.getDecks():[]),
       entityRows=(pid,kind)=>scope&&scope._entityRows?scope._entityRows(pid,kind):(kind==='note'?AnkiParity.notes(pid):AnkiParity.noteTypes(pid)),
       revRows=pid=>scope&&scope.revlogForPlan?scope.revlogForPlan(pid):(DB.getRevlog?DB.getRevlog():[]);
@@ -594,7 +594,7 @@ const CardsOfficialBridge = {
       }
       for(const n of notes){
         if(!n)continue;const key=this._legacyStableKey('note',n,pid),ntKey=ntKeyOf(n.notetypeId);
-        pushRef('note',key,pid,n);
+        pushRef('note',key,pid,n,{notetypeKey:ntKey});
         if(seen.note.has(key))continue;seen.note.add(key);
         payload.notes.push({id:key,notetype_id:ntKey,fields:Object.assign({},n.fields||{}),tags:Array.isArray(n.tags)?n.tags.slice():[]});
       }
@@ -604,7 +604,7 @@ const CardsOfficialBridge = {
           noteKey=noteKeyOf(card.noteId||card.ankiNoteId||card.id,card.ankiNoteId),
           noteRef=noteById.get(String(card.noteId||card.ankiNoteId||card.id));
         if(!seen.note.has(noteKey)&&!noteRef)throw new Error('Migração oficial bloqueada: card legado '+String(card.id)+' sem Note correspondente.');
-        pushRef('card',key,pid,card);
+        pushRef('card',key,pid,card,{noteKey});
         if(seen.card.has(key))continue;seen.card.add(key);
         payload.cards.push({
           id:key,note_id:noteKey,deck_id:deckKeyOf(card.deckId),original_deck_id:card.originalDeckId?deckKeyOf(card.originalDeckId):'',
@@ -657,16 +657,14 @@ const CardsOfficialBridge = {
     }
     for(const [key,items] of refs.note)for(const it of items){
       const oid=Number(noteMap[key]);if(!oid)continue;
-      const oldNtKey=this._legacyStableKey('notetype',{id:it.row.notetypeId,ankiId:(AnkiParity.getNotetype(it.row.notetypeId,it.pid)||{}).ankiId},it.pid),
-        ntid=Number(ntMap[oldNtKey])||Number(it.row.notetypeId);
+      const ntid=Number(ntMap[it.notetypeKey])||Number(it.row.notetypeId);
       try{localStorage.removeItem(AnkiParity._entityKey('note',it.row.id,it.pid));}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-legacy-note-remove');}
       const note=Object.assign({},it.row,{id:oid,ankiId:oid,notetypeId:ntid});delete note._planId;delete note._planNome;
       AnkiParity.saveNote(note,it.pid);
     }
     for(const [key,items] of refs.card)for(const it of items){
       const cid=Number(cardMap[key]);if(!cid)continue;
-      const noteKey=it.row.ankiNoteId&&Number(it.row.ankiNoteId)>0?'note:anki:'+Number(it.row.ankiNoteId):'note:plan:'+String(it.pid==null?'':it.pid)+':'+String(it.row.noteId||it.row.id),
-        nid=Number(noteMap[noteKey])||null,
+      const nid=Number(noteMap[it.noteKey])||null,
         nt=AnkiParity.getNote(nid,it.pid),patch={ankiId:cid};
       if(nid){patch.ankiNoteId=nid;patch.noteId=nid;}
       if(nt&&nt.notetypeId)patch.notetypeId=nt.notetypeId;
