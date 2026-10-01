@@ -98,6 +98,9 @@ assert.ok(!/AnkiParity\.(?:saveNote|saveNotetype|ensureIdentities)/.test(importe
 assert.doesNotMatch(cards,/_readCardForm\(\)[\s\S]{0,1600}DB\.addDeck\(/,'primeiro baralho não pode ser criado localmente pelo formulário');
 assert.doesNotMatch(cards,/saveCard\(closeAfter\)[\s\S]{0,1600}\bDB\.(?:addCard|updateCardNote)\(/,'salvar card deve delegar para Collection oficial');
 assert.doesNotMatch(cards,/async deleteCard\(\)[\s\S]{0,900}\bDB\.deleteNoteByCard\(/,'excluir nota deve delegar para Collection oficial');
+assert.doesNotMatch(cards,/data-unsusp[\s\S]{0,900}\bDB\.updateCard\(/,'reativar card na lista deve usar scheduler oficial');
+assert.doesNotMatch(cards,/data-del[\s\S]{0,900}\bDB\.deleteCard\(/,'exclusão na lista deve seguir a exclusão de nota do Anki');
+assert.match(bridge,/async deleteNoteForCard\(ref,ask\)[\s\S]*?this\.deleteOfficialNote\(note\)/,'lista deve excluir nota pela Collection oficial');
 assert.doesNotMatch(practical,/_addSubdeck\(id\)[\s\S]{0,1200}DB\.addDeck/,'subbaralho deve nascer no DeckManager oficial');
 assert.doesNotMatch(practical,/_simpleDestination\(\)[\s\S]{0,1600}DB\.addDeck/,'destino auxiliar não pode criar baralho local');
 
