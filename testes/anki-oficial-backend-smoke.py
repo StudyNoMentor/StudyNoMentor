@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -177,6 +178,122 @@ with tempfile.TemporaryDirectory() as tmp:
 
         # /health não expõe caminhos do servidor.
         assert "data_dir" not in app.health()
+
+    # Migração única do legado: a casca envia estado/metadados antigos, mas
+    # Deck/NoteType/Note/Card passam a existir somente como objetos oficiais.
+    legacy_ctx = {"id": "legacy-migration-user"}
+    legacy_item = app.cards_uc_for(legacy_ctx)
+    with legacy_item.lock:
+        legacy_today = int(legacy_item.col.sched.today)
+        assert legacy_item.col.card_count() == 0
+        assert legacy_item.col.note_count() == 0
+
+    migrated = app.cards_official_migrate_legacy(
+        {
+            "decks": [{"id": "deck:p1", "name": "Legado Fiscal"}],
+            "notetypes": [
+                {
+                    "id": "nt:basic",
+                    "name": "Study Legacy Basic",
+                    "stock_kind": "basic",
+                }
+            ],
+            "notes": [
+                {
+                    "id": "note:p1",
+                    "notetype_id": "nt:basic",
+                    "guid": "legacyguid",
+                    "fields": {"Front": "Pergunta legado", "Back": "Resposta legado"},
+                    "tags": ["legacy", "marked"],
+                }
+            ],
+            "cards": [
+                {
+                    "id": "card:p1",
+                    "note_id": "note:p1",
+                    "deck_id": "deck:p1",
+                    "template_idx": 0,
+                    "anki_type": 2,
+                    "anki_queue": 2,
+                    "anki_due": legacy_today + 3,
+                    "interval": 12,
+                    "ease": 2.5,
+                    "reps": 7,
+                    "lapses": 1,
+                    "flag": 2,
+                    "s": 4.5,
+                    "d": 6.0,
+                    "materia": "Direito",
+                    "assunto": "Licitações",
+                    "materia_tec": "Lei 14.133",
+                    "banca": "CEBRASPE",
+                    "tipo": "revisão",
+                    "favorito": True,
+                    "study_replicas": [
+                        {
+                            "planId": "p1",
+                            "localId": "uuid-local-1",
+                            "localDeckId": "deck-local-1",
+                            "materia": "Direito",
+                            "assunto": "Licitações",
+                            "materiaTec": "Lei 14.133",
+                            "banca": "CEBRASPE",
+                            "tipo": "revisão",
+                            "favorito": True,
+                        },
+                        {
+                            "planId": "p2",
+                            "localId": "uuid-local-2",
+                            "localDeckId": "deck-local-2",
+                            "materia": "Direito",
+                            "assunto": "Licitações",
+                            "materiaTec": "Lei 14.133",
+                            "banca": "CEBRASPE",
+                            "tipo": "revisão",
+                            "favorito": True,
+                        },
+                    ],
+                }
+            ],
+            "revlog": [],
+        },
+        legacy_ctx,
+    )
+    assert migrated["ok"] is True
+    assert migrated["migrated"] == {"decks": 1, "notetypes": 1, "notes": 1, "cards": 1, "revlog": 0}
+    assert migrated["deck_map"]["deck:p1"] > 0
+    assert migrated["notetype_map"]["nt:basic"] > 0
+    official_legacy_cid = int(migrated["card_map"]["card:p1"])
+    official_legacy_nid = int(migrated["note_map"]["note:p1"])
+    assert official_legacy_cid > 0 and official_legacy_nid > 0
+    assert any(int(x["id"]) == official_legacy_cid for x in migrated["state"]["cards"])
+    assert any(int(x["id"]) == official_legacy_nid for x in migrated["state"]["notes"])
+
+    with legacy_item.lock:
+        legacy_card = legacy_item.col.get_card(official_legacy_cid)
+        legacy_note = legacy_item.col.get_note(official_legacy_nid)
+        assert legacy_card.ivl == 12
+        assert legacy_card.reps == 7
+        assert legacy_card.lapses == 1
+        assert legacy_card.user_flag() == 2
+        assert legacy_card.memory_state is not None
+        assert abs(float(legacy_card.memory_state.stability) - 4.5) < 1e-6
+        assert abs(float(legacy_card.memory_state.difficulty) - 6.0) < 1e-6
+        assert legacy_note.guid == "legacyguid"
+        assert "marked" in legacy_note.tags
+        study_meta = json.loads(legacy_card.custom_data)["study"]
+        assert study_meta["materia"] == "Direito"
+        assert study_meta["favorito"] is True
+        assert [x["planId"] for x in study_meta["replicas"]] == ["p1", "p2"]
+        assert study_meta["replicas"][0]["localId"] == "uuid-local-1"
+        assert legacy_item.col.card_count() == 1
+        assert legacy_item.col.note_count() == 1
+
+    try:
+        app.cards_official_migrate_legacy({"cards": []}, legacy_ctx)
+        raise AssertionError("segunda migração sobre Collection preenchida deveria ser recusada")
+    except app.HTTPException as exc:
+        assert exc.status_code == 409
 
     # A tela Cards usa uma coleção OFICIAL separada do menu Anki.
     cards_user = app.cards_pool.get("smoke-user")
@@ -462,8 +579,6 @@ with tempfile.TemporaryDirectory() as tmp:
         assert user2.col.find_cards("Sobrevive")
     # A prévia e a importação usam o mesmo parser CSV nativo, inclusive aspas,
     # novas linhas, cabeçalho aparente dentro de um campo e Unicode.
-    import json
-
     class CsvUpload(FakeUpload):
         filename = "cards.tsv"
 
