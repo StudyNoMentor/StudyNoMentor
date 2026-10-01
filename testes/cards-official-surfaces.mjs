@@ -77,8 +77,8 @@ for(const re of [
 for(const m of outsideBridge.matchAll(/DB\.updateCard\([^\n]+/g)){
   assert.match(m[0],/favorito/,'DB.updateCard fora da ponte só pode alterar metadado visual do Study: '+m[0]);
 }
-assert.match(bridge,/legacyGroups=new Map\(\)/,'migração precisa aceitar legado anterior a Note\/NoteType');
-assert.match(bridge,/__legacy_'\+kind/,'migração antiga precisa sintetizar NoteType transitório');
-assert.match(bridge,/String\(card\.template\|\|''\)==='reverse'\|\|card\.reversedOf\?1:0/,'card invertido legado precisa manter ord 1');
+assert.match(bridge,/const noteKind=ng=>[\s\S]*?return'basic'/,'migração precisa inferir NoteType para legado anterior a Note/NoteType');
+assert.match(bridge,/registerNotetype\(localNt,pid,kind\)[\s\S]*?kind==='cloze'\?[\s\S]*?Front:String\(forward\.frente/,'migração antiga precisa sintetizar somente a forma transitória entregue ao NoteTypeManager oficial');
+assert.match(bridge,/_legacyTemplateOrd\(card\)[\s\S]*?t==='reverse'\|\|card&&card\.reversedOf\?1:0/,'card invertido legado precisa manter ord 1');
 
 console.log('CARDS OFFICIAL SURFACES: '+buttonIds.length+' botões estáticos com handler; '+clientPrefixes.length+' famílias de rotas ligadas ao backend oficial; recursos críticos sem fallback local.');
