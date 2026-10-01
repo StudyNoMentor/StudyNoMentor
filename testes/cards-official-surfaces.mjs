@@ -36,8 +36,12 @@ for(const id of buttonIds)assert.ok(all.includes(id),'botão Cards sem handler/r
 assert.ok(buttonIds.length>=40,'cobertura de botões Cards inesperadamente baixa: '+buttonIds.length);
 
 const critical=[
-  ['criar/salvar nota',/CardsScreen\.saveCard=.*saveSimpleCard[\s\S]*?async saveSimpleCard\([\s\S]*?addOfficialNote\([\s\S]*?async addOfficialNote\([\s\S]*?\/api\/cards-official\/notes/],
-  ['excluir nota',/CardsScreen\.deleteCard=.*deleteSimpleCard[\s\S]*?async deleteSimpleCard\([\s\S]*?deleteOfficialNote\([\s\S]*?async deleteOfficialNote\([\s\S]*?\/api\/cards-official\/note\//],
+  ['hook criar/salvar',/CardsScreen\.saveCard=.*saveSimpleCard/],
+  ['salvar chama Note oficial',/async saveSimpleCard\([\s\S]*?addOfficialNote\(/],
+  ['criar Note no backend oficial',/async addOfficialNote\([\s\S]*?\/api\/cards-official\/notes/],
+  ['hook excluir',/CardsScreen\.deleteCard=.*deleteSimpleCard/],
+  ['excluir chama Note oficial',/async deleteSimpleCard\([\s\S]*?deleteOfficialNote\(/],
+  ['excluir Note no backend oficial',/async deleteOfficialNote\([\s\S]*?\/api\/cards-official\/note\//],
   ['reviewer',/\/api\/cards-official\/reviewer\/answer/],
   ['type answer',/\/api\/cards-official\/reviewer\/type-answer\//],
   ['custom study',/async runCustomStudy\(\)[\s\S]*?\/api\/cards-official\/custom-study/],
