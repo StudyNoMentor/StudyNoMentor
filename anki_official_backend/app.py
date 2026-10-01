@@ -837,27 +837,43 @@ def _legacy_stock_kind(row: dict[str, Any]) -> int:
 
 
 def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[str, Any]) -> None:
-    """Copia a forma legada sem substituir um template stock por uma cópia inválida."""
+    """Copia a forma legada sem substituir um stock válido por um clone inválido."""
     fields = row.get("fields") if isinstance(row.get("fields"), list) else []
     templates = row.get("templates") if isinstance(row.get("templates"), list) else []
+    legacy_field_count = len(fields)
     stock_notetype = from_json_bytes(
         col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row))
     )
+    stock_fields = [dict(field) for field in (stock_notetype.get("flds") or [])]
     stock_templates = [dict(template) for template in (stock_notetype.get("tmpls") or [])]
 
-    # Alguns espelhos antigos do Study gravaram dois templates de "Basic (and
-    # reversed card)" com a mesma frente. O Anki rejeita corretamente esse
-    # NoteType. Quando a quantidade de templates coincide com o stock oficial e
-    # a única evidência estrutural é frente vazia/duplicada, preservamos os
-    # templates stock produzidos pelo próprio NoteTypeManager; não fabricamos
-    # qfmt/afmt em Python.
-    restore_stock_templates = False
+    # Espelhos antigos do Study podiam persistir Basic+Reverse com duas frentes
+    # idênticas (ou vazias). O Anki 26.09.3 rejeita esse NoteType. Nesse caso,
+    # quando o shape de campos é compatível com o stock, reconstruímos o par
+    # campos+templates a partir de get_stock_notetype_legacy(). Assim os ords,
+    # qfmt/afmt e identidade estrutural continuam sendo definidos pelo Anki.
+    restore_stock_shape = False
     if templates and stock_templates and len(templates) == len(stock_templates):
         fronts = [str((template or {}).get("qfmt") or "").strip() for template in templates]
         nonempty = [front for front in fronts if front]
-        if any(not front for front in fronts) or len(set(nonempty)) != len(nonempty):
-            templates = []
-            restore_stock_templates = True
+        invalid_fronts = any(not front for front in fronts) or len(set(nonempty)) != len(nonempty)
+        compatible_fields = not fields or len(fields) == len(stock_fields)
+        restore_stock_shape = invalid_fronts and compatible_fields
+
+    if restore_stock_shape:
+        nt["flds"] = [dict(field) for field in stock_fields]
+        nt["tmpls"] = [dict(template) for template in stock_templates]
+        for idx, field_row in enumerate(fields):
+            field = nt["flds"][idx]
+            name = str((field_row or {}).get("name") or field.get("name") or f"Field {idx + 1}")
+            if name != str(field.get("name") or ""):
+                col.models.rename_field(nt, field, name)
+            for key in ("font", "size", "rtl", "sticky", "collapsed", "excludeFromSearch", "tag"):
+                if key in (field_row or {}):
+                    field[key] = field_row[key]
+        fields = []
+        templates = []
+
     if fields:
         nt["flds"] = []
         for idx, field_row in enumerate(fields):
@@ -867,10 +883,6 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
                 if key in (field_row or {}):
                     field[key] = field_row[key]
             col.models.add_field(nt, field)
-    if restore_stock_templates:
-        # add_field() pode ajustar estruturas dependentes do schema; a cópia
-        # stock precisa ser recolocada depois dessa etapa.
-        nt["tmpls"] = stock_templates
     if templates:
         nt["tmpls"] = []
         for idx, template_row in enumerate(templates):
@@ -884,9 +896,8 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
             col.models.add_template(nt, template)
     if "css" in row:
         nt["css"] = str(row.get("css") or "")
-    if fields:
-        nt["sortf"] = max(0, min(len(fields) - 1, int(row.get("sortf") or 0)))
-
+    if legacy_field_count:
+        nt["sortf"] = max(0, min(legacy_field_count - 1, int(row.get("sortf") or 0)))
 
 def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
     if row.get("anki_type") is not None and row.get("anki_queue") is not None:
