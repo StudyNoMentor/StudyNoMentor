@@ -249,7 +249,9 @@ const CardsScreen = {
     assuntoSel.value = oneAssunto;
     this.filters.assunto = oneAssunto;
 
-    $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    const tipos=[...new Set(this.collectionCards().map(c=>c.tipo).filter(Boolean))]
+      .sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'}));
+    $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + tipos.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
 
     this._renderMultiFilter('materia', 'cards-f-materia-multi', matterOptions, 'Todas as disciplinas/baralhos', 'Buscar disciplina ou baralho…');
     this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
@@ -296,7 +298,22 @@ const CardsScreen = {
     return `<option value="">Escolha onde este card fica...</option>` + legadoOpt + deckOpts;
   },
   currentFilteredCards() {
-    let out = CardEngine.applyFilters(this.collectionCards(), this.filters);
+    const f=this.filters||{},busca=String(f.busca||'').trim().toLowerCase(),
+      materias=f.materias instanceof Set?f.materias:new Set(Array.isArray(f.materias)?f.materias:[]),
+      assuntos=f.assuntos instanceof Set?f.assuntos:new Set(Array.isArray(f.assuntos)?f.assuntos:[]);
+    let out=this.collectionCards().filter(c=>{
+      if(materias.size&&!(c.materia&&materias.has(c.materia))&&!(c.deckId&&materias.has('deck:'+c.deckId)))return false;
+      if(assuntos.size?!assuntos.has(c.assunto||''):(f.assunto&&(c.assunto||'')!==f.assunto))return false;
+      if(f.tipo&&(c.tipo||'')!==f.tipo)return false;
+      if(f.status&&f.status!=='todos'&&(c.status||'pendente')!==f.status)return false;
+      if(f.favorito&&!c.favorito)return false;
+      if(busca){
+        const hay=((c.frente||'')+' '+(c.verso||'')+' '+(c.assunto||'')+' '+(c.materia||'')+' '+(c.materiaTec||''))
+          .toLowerCase().replace(/<[^>]+>/g,' ');
+        if(!hay.includes(busca))return false;
+      }
+      return true;
+    });
     try { if (window.StudyGlobalScope && StudyGlobalScope.filterCardsByBanca) out = StudyGlobalScope.filterCardsByBanca(out); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return out;
   },
@@ -532,7 +549,7 @@ const CardsScreen = {
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
           </div>
-          <div class="mini-card-front">${c.kind === 'cloze' ? CardEngine.clozeRender(frenteSan, false) : (frenteSan || '<em style="color:var(--text-faint)">(vazio)</em>')}</div>
+          <div class="mini-card-front">${frenteSan || '<em style="color:var(--text-faint)">(vazio)</em>'}</div>
           <div class="mini-card-foot">
             <span class="cards-status-dot ${c.status || 'pendente'}"></span>
             <span class="mini-card-status">${c.status === 'sei' ? 'Sei' : c.status === 'naosei' ? 'Não sei' : 'Pendente'}</span>
@@ -558,7 +575,8 @@ const CardsScreen = {
       box.innerHTML = this.emptyState('Nenhum card nos filtros', 'Ajuste a busca ou os filtros acima.');
       return;
     }
-    const st = CardEngine.stats(filtered);
+    const st={pendente:0,sei:0,naosei:0,suspensos:0};
+    filtered.forEach(c=>{const k=c.status||'pendente';st[k]=(st[k]||0)+1;if(c.suspenso)st.suspensos++;});
     // Ao voltar de uma edição, mantém a quantidade que já estava aberta — senão a
     // lista "encolheria" sozinha depois de você carregar mais e mexer num card.
     // O teto existe para que um re-render nunca volte a montar milhares de cards
@@ -633,16 +651,16 @@ const CardsScreen = {
       UI.confirm(
         'Excluir ' + qtd + ' card(s)? Esta ação não pode ser desfeita.',
         { title: '🗑 Excluir cards', okText: 'Excluir ' + qtd, danger: true }
-      ).then((ok) => {
+      ).then(async(ok) => {
         if (!ok) return;
-        const ids = new Set(sel);
-        if (window.StudyGlobalScope && StudyGlobalScope.deleteCards) StudyGlobalScope.deleteCards(ids);
-        else DB.saveCards(DB.getCards().filter(c => !ids.has(c.id)));
-        CardEngine.invalidateDueCache();
-        sel.clear();
-        this._meusMostrando = 0;
-        this.render();
-        showToast(qtd + ' card(s) excluído(s) 🗑');
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteNotesForCardRefs!=='function'){
+          showToast('Exclusão não executada: Collection oficial indisponível.');return;
+        }
+        try{
+          const out=await CardsOfficialBridge.deleteNotesForCardRefs([...sel]);
+          sel.clear();this._meusMostrando=0;this.render();
+          showToast(out.deletedNotes+' nota(s) excluída(s) pelo Anki oficial ✓');
+        }catch(e){showToast('Exclusão não executada: '+(e&&e.message?e.message:String(e)));}
       });
     });
     // Mover em massa: reatribui o baralho dos cards selecionados — sem tocar
@@ -662,21 +680,17 @@ const CardsScreen = {
         .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') })));
       UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
         { title: '📁 Mover para baralho', okText: 'Mover' }
-      ).then((v) => {
+      ).then(async(v) => {
         if (!v) return;
-        const ids = new Set(sel);
-        const deckId = v.deck === '__nenhum__' ? null : v.deck;
-        if (window.StudyGlobalScope && StudyGlobalScope.moveCards) StudyGlobalScope.moveCards(ids, deckId);
-        else {
-          const list = DB.getCards();
-          list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
-          DB.saveCards(list);
+        if(v.deck==='__nenhum__'){showToast('Escolha um baralho oficial de destino.');return;}
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.moveCardRefsToDeck!=='function'){
+          showToast('Movimentação não executada: Collection oficial indisponível.');return;
         }
-        CardEngine.invalidateDueCache();
-        sel.clear();
-        this._meusMostrando = 0;
-        this.render();
-        showToast(qtd + ' card(s) movido(s) ✓');
+        try{
+          const out=await CardsOfficialBridge.moveCardRefsToDeck([...sel],v.deck,sourcePlanId);
+          sel.clear();this._meusMostrando=0;this.render();
+          showToast(out.moved+' card(s) movido(s) pelo Anki oficial ✓');
+        }catch(e){showToast('Movimentação não executada: '+(e&&e.message?e.message:String(e)));}
       });
     });
     syncSel();
@@ -854,10 +868,20 @@ const CardsScreen = {
   // Há algo que se perderia ao fechar? Para as áreas ricas olha o innerHTML, não o
   // innerText: um card com apenas uma IMAGEM colada tem texto vazio e seria
   // descartado como se estivesse em branco.
+  _plainRich(html){
+    const box=document.createElement('div');box.innerHTML=String(html||'');
+    return String(box.textContent||'').replace(/\u00a0/g,' ').trim();
+  },
+  _richHasContent(html){
+    const raw=String(html||'');
+    if(this._plainRich(raw))return true;
+    return /\[sound:[^\]]+\]/i.test(raw)||/<(?:img|picture|audio|video|svg|canvas|object|embed|iframe|math)\b/i.test(raw)
+      ||/\b(?:src|poster)\s*=\s*["'][^"']+["']/i.test(raw)||/url\(\s*["']?[^)"']+/i.test(raw);
+  },
   cardTemConteudo() {
     const rico = (id) => {
       const e = document.getElementById(id);
-      return !!(e && CardEngine.hasContent(e.innerHTML || ''));
+      return !!(e && this._richHasContent(e.innerHTML || ''));
     };
     const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
     return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-materia-tec') || campo('card-banca');
@@ -881,14 +905,12 @@ const CardsScreen = {
     const verso = $id('card-verso').innerHTML.trim();
     if (!dest) { showToast('Escolha o baralho'); return null; }
     if (kind === 'cloze') {
-      // Compatibilidade do editor: {{texto}} é um atalho aceito pela UI,
-      // mas o backend/Anki trabalha com {{cN::texto}}.
-      frente = CardEngine.normalizeCloze(frente);
-      if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
-      if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
+      if (!this._richHasContent(frente)) { showToast('Escreva o texto do cloze'); return null; }
+      // A casca não tokeniza nem normaliza Cloze: {{cN::...}} segue intacto
+      // para o NoteType/gerador de cards oficial decidir o conjunto resultante.
     } else {
-      if (!CardEngine.hasContent(frente)) { showToast('Preencha a frente'); return null; }
-      if (!CardEngine.hasContent(verso)) { showToast('Preencha o verso'); return null; }
+      if (!this._richHasContent(frente)) { showToast('Preencha a frente'); return null; }
+      if (!this._richHasContent(verso)) { showToast('Preencha o verso'); return null; }
     }
     const data = {
       assunto: $id('card-assunto').value,
