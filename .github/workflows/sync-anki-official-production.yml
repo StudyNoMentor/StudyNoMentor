@@ -19,17 +19,43 @@ concurrency:
 jobs:
   sync-deploy-branch:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
         with:
           ref: main
           fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Railway deployment credentials
+        shell: bash
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::Configure the repository Actions secret RAILWAY_TOKEN with a Railway production project token. Branch synchronization alone does not trigger a reliable deployment."
+            exit 1
+          fi
       - name: Synchronize validated main into Railway production source
         shell: bash
         run: |
           set -euo pipefail
           bash tools/sync-anki-production.sh
+      - name: Deploy the latest configured Railway source
+        shell: bash
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_CALLER: skill:use-railway@1.3.5
+          RAILWAY_AGENT_SESSION: github-actions-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # A regular redeploy rebuilds the previous commit. --from-source
+          # explicitly fetches the branch synchronized in the preceding step.
+          npx --yes @railway/cli@5.23.3 redeploy --from-source --yes --json \
+            --project b397b7ee-53fe-4eb6-b04d-55233b005c6d \
+            --environment c6de10ac-41e0-4a43-8606-0c98800e9b71 \
+            --service c4a51e33-12b9-40b7-af5a-1ca38e2d17cf
       - name: Verify the deployed Anki revision
         shell: bash
         run: |
@@ -37,7 +63,7 @@ jobs:
           import json, subprocess, time, urllib.request
           expected = subprocess.check_output(["git", "rev-parse", "origin/main"], text=True).strip()
           url = 'https://anki-official-production.up.railway.app/health'
-          for attempt in range(30):
+          for attempt in range(50):
               try:
                   with urllib.request.urlopen(url, timeout=10) as response:
                       health = json.load(response)
