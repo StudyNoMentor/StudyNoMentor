@@ -676,13 +676,11 @@ const CardsScreen = {
       const sourcePlanId=origins.size?[...origins][0]:null;
       const decks=this.destinationDecks(sourcePlanId);
       if (!decks.length) { showToast('Crie um baralho primeiro no planejamento de origem'); return; }
-      const opts = [{ value: '__nenhum__', label: '— Sem baralho —' }]
-        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') })));
+      const opts = decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') }));
       UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
         { title: '📁 Mover para baralho', okText: 'Mover' }
       ).then(async(v) => {
         if (!v) return;
-        if(v.deck==='__nenhum__'){showToast('Escolha um baralho oficial de destino.');return;}
         if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.moveCardRefsToDeck!=='function'){
           showToast('Movimentação não executada: Collection oficial indisponível.');return;
         }
