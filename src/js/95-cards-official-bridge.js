@@ -1741,6 +1741,14 @@ const CardsOfficialBridge = {
     if(!local.stockKind)local=AnkiParity.saveNotetype(Object.assign({},local,{stockKind:kind}),planId==null?undefined:planId)||local;
     return {officialId:oid,local,row};
   },
+  async ensureOfficialStandardNotetypes(planId){
+    const pid=planId!=null?planId:this._activePlanId(),out=[];
+    for(const kind of ['basic','basic_reversed','basic_optional_reversed','typing','cloze']){
+      out.push(await this._ensureOfficialStockNotetype(kind,pid));
+    }
+    out.push(await this.ensureOfficialImageOcclusionNotetype(pid));
+    return out;
+  },
   _fieldsForSimple(kind,nt,data){
     const names=(nt&&nt.fields||[]).map(f=>String(f.name||'')).filter(Boolean),fields={};
     const choose=(preferred,index)=>names.includes(preferred)?preferred:(names[index]||preferred);
