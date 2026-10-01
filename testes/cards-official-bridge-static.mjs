@@ -89,6 +89,7 @@ assert.ok(!/this\._orig\.renderStats\(/.test(bridge),'Stats oficial não pode ex
 assert.ok(!statsMedia.includes('AnkiMediaStore'),'Cards não pode manter MediaStore IndexedDB paralelo ao MediaManager oficial');
 assert.ok(!total.includes('study_anki_media'),'Cards não pode sincronizar mídia por tabela Study paralela');
 assert.ok(!total.includes('content_b64'),'mídia não pode manter payload base64 paralelo ao backend oficial');
+assert.ok(!product.includes('ensureCanonicalNotes('),'casca Cards não pode normalizar notas localmente ao carregar');
 
 assert.ok(!/filteredSearchMatches\(/.test(bridge),'bridge oficial não pode executar parser de busca JS');
 assert.match(backend,/item\.col\.sched\.set_due_date\(card_ids,/,'bulk due deve ser oficial');
