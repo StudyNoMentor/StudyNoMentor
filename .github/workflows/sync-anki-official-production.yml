@@ -29,5 +29,5 @@ jobs:
           set -euo pipefail
           MAIN_SHA="$(git rev-parse HEAD)"
           test "$(git rev-parse origin/main)" = "$MAIN_SHA"
-          git push --force origin HEAD:refs/heads/feat/anki-official-engine-20260923
+          git push origin HEAD:refs/heads/feat/anki-official-engine-20260923
           echo "Railway source branch synchronized to main@$MAIN_SHA."
