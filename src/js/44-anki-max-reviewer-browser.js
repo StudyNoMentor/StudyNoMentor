@@ -394,9 +394,9 @@ const AnkiMaxParity = {
       if(e.code==='KeyH'){e.preventDefault();this.showHints(false);return true;}
       if(e.code==='KeyG'){e.preventDefault();this.showHints(true);return true;}
       if(e.code==='KeyR'){e.preventDefault();if(window.CardsOfficialBridge)void CardsOfficialBridge.replayCurrentAv();else showToast('Mídia oficial indisponível.');return true;}
-      if(e.code==='Digit5'){e.preventDefault();if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.pauseAv)AnkiRuntime.pauseAv();return true;}
-      if(e.code==='Digit6'){e.preventDefault();if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(-5);return true;}
-      if(e.code==='Digit7'){e.preventDefault();if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.seekAv)AnkiRuntime.seekAv(5);return true;}
+      if(e.code==='Digit5'){e.preventDefault();if(window.CardsOfficialBridge&&CardsOfficialBridge.pauseAv)CardsOfficialBridge.pauseAv();return true;}
+      if(e.code==='Digit6'){e.preventDefault();if(window.CardsOfficialBridge&&CardsOfficialBridge.seekAv)CardsOfficialBridge.seekAv(-5);return true;}
+      if(e.code==='Digit7'){e.preventDefault();if(window.CardsOfficialBridge&&CardsOfficialBridge.seekAv)CardsOfficialBridge.seekAv(5);return true;}
       if(e.code==='KeyV'&&e.shiftKey){e.preventDefault();this.openVoiceRecorder();return true;}
       if(e.code==='KeyV'){e.preventDefault();this.replayOwnVoice();return true;}
       if(e.code==='KeyB'){e.preventDefault();AnkiProductParity.openBrowser();return true;}
