@@ -67,12 +67,12 @@ certificação individual dos 571 arquivos upstream.
 - [x] Decks, NoteTypes, Notes e Cards legados são materializados por `DeckManager`, `NoteTypeManager`, `Collection.new_note/add_note` e `Collection.update_card` do Anki oficial.
 - [x] O UUID/local ID do Study permanece como identidade da casca; `ankiId`/`ankiNoteId` passam a referenciar as identidades canônicas geradas pelo Anki.
 - [x] Estado acadêmico existente é transportado como estado inicial: queue/type/due, interval, ease, reps, lapses, steps, flags, S/D e revlog canônico quando a semântica Anki já era conhecida.
-- [x] `custom_data.study.replicas` preserva planejamento, baralho local, matéria, assunto, matéria TEC, banca, tipo e favorito para reconstruir a projeção multi-planejamento após reload/relogin.
+- [x] Planejamento, baralho local, matéria, assunto, matéria TEC, banca, tipo e favorito permanecem no espelho persistente do Study; a migração usa `card_map`/`note_map` para ligá-los aos IDs oficiais sem ocupar `Card.custom_data` (limitado pelo Anki a <100 bytes).
 - [x] O `full-state` deixou de copiar a Collection inteira para o planejamento ativo: Notes/NoteTypes/Decks/Cards são projetados somente nos planejamentos registrados para cada card; registros sem identidade oficial não são apagados por snapshot parcial.
 
 Os testes deste lote incluem uma Collection legada real migrada para
-`anki==26.09.3`, preservação de GUID/tags/FSRS/metadados e recusa de uma
-segunda migração sobre Collection já preenchida.
+`anki==26.09.3`, preservação de GUID/tags/FSRS, separação explícita dos
+metadados da casca e recusa de uma segunda migração sobre Collection já preenchida.
 
 ### Remoção das implementações locais — 2026-10-01
 
