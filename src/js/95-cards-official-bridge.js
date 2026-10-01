@@ -2034,10 +2034,10 @@ const CardsOfficialBridge = {
   },
   async openFilteredDeckModal(deckId){
     this._orig.openFilteredDeckModal.call(CardsScreen,deckId);
-    if(!deckId)return;
     try{
       await this.bootstrap(false);
-      const ctx=this._deckContext(deckId),out=await this.request('/api/cards-official/filtered-deck/'+ctx.officialId);
+      const officialId=deckId?this._deckContext(deckId).officialId:0,
+        out=await this.request('/api/cards-official/filtered-deck/'+officialId);
       this._fillFilteredForm(out.deck);
     }catch(e){
       const modal=document.getElementById('cards-filtered-modal');if(modal)modal.style.display='none';
