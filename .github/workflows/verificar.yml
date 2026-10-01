@@ -82,7 +82,11 @@ jobs:
 
       - name: Runtime Anki
         if: github.event_name != 'push'
-        run: timeout 120s node testes/cards-runtime-anki.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout 120s node testes/cards-runtime-anki.mjs
+          timeout 120s node testes/cards-official-surfaces.mjs
 
       - name: Concorrência multidevice
         if: github.event_name != 'push'
