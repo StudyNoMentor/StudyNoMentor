@@ -1932,15 +1932,10 @@ const CardsScreen = {
     this.closeCardModal();
   },
   _readCardForm() {
-    let dest = $id('card-destino').value;
-    // "novo:Nome" = baralho padrão oferecido quando o perfil ainda não tem destino
-    // nenhum. Só é criado de fato agora, quando o card vai ser salvo.
-    if (dest.startsWith('novo:')) {
-      const nome = dest.slice(5);
-      const existente = DB.getDecks().find(d => d.nome === nome);
-      const deck = existente || DB.addDeck(nome);
-      dest = 'deck:' + deck.id;
-    }
+    const dest = $id('card-destino').value;
+    // "novo:Nome" declara a intenção de criar o destino. A criação em si
+    // pertence ao DeckManager oficial e acontece no CardsOfficialBridge.
+    const newDeckName=dest.startsWith('novo:')?String(dest.slice(5)||'').trim():'';
     const kind = $id('card-kind').value;
     let frente = $id('card-frente').innerHTML.trim();
     const verso = $id('card-verso').innerHTML.trim();
@@ -1968,6 +1963,7 @@ const CardsScreen = {
     };
     if (dest.startsWith('deck:')) data.deckId = dest.slice(5);
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
+    if(newDeckName)data._newDeckName=newDeckName;
     return data;
   },
   saveCard(closeAfter) {
