@@ -234,20 +234,59 @@ with tempfile.TemporaryDirectory() as tmp:
             notetype_id=cnt_id,
             fields={ckeys[0]: "CRUD oficial pergunta", ckeys[1]: "CRUD oficial resposta"},
             tags=["crud-official"],
+            study={
+                "materia": "Direito Tributário",
+                "assunto": "ICMS",
+                "banca": "CEBRASPE",
+                "plan_ids": ["plano-a"],
+                "by_plan": {"plano-a": {"assunto": "ICMS", "banca": "CEBRASPE", "favorito": True}},
+            },
         ),
         cards_ctx,
     )
     assert created_note["note"]["id"] > 0 and created_note["cards"]
     crud_nid = int(created_note["note"]["id"])
+    crud_cid = int(created_note["cards"][0]["id"])
+    with cards_user.lock:
+        study_custom = json.loads(ccol.get_card(crud_cid).custom_data)["study"]
+        assert study_custom["materia"] == "Direito Tributário"
+        assert study_custom["planIds"] == ["plano-a"]
+        assert study_custom["byPlan"]["plano-a"]["favorito"] is True
     crud_fields = dict(created_note["note"]["fields"])
     crud_fields[ckeys[0]] = "CRUD oficial editado"
     updated_note = app.cards_official_update_note(
         crud_nid,
-        app.NoteUpdateBody(fields=crud_fields, tags=["crud-oficial-editado"]),
+        app.NoteUpdateBody(
+            fields=crud_fields,
+            tags=["crud-oficial-editado"],
+            study={
+                "assunto": "ICMS ST",
+                "plan_ids": ["plano-b"],
+                "by_plan": {"plano-b": {"assunto": "ICMS ST", "banca": "FGV"}},
+            },
+        ),
         cards_ctx,
     )
     assert updated_note["note"]["fields"][ckeys[0]] == "CRUD oficial editado"
     assert updated_note["cards"], "update_note oficial deve manter/gerar os cards válidos"
+    with cards_user.lock:
+        study_custom = json.loads(ccol.get_card(crud_cid).custom_data)["study"]
+        assert set(study_custom["planIds"]) == {"plano-a", "plano-b"}
+        assert study_custom["byPlan"]["plano-a"]["assunto"] == "ICMS"
+        assert study_custom["byPlan"]["plano-b"]["assunto"] == "ICMS ST"
+
+        # customData não JSON pode pertencer ao Card State Customizer/add-on.
+        # O Study não pode convertê-lo para JSON nem sobrescrevê-lo.
+        protected = ccol.get_card(crud_cid)
+        protected.custom_data = "addon-owned-format"
+        ccol.update_card(protected)
+    app.cards_official_update_note(
+        crud_nid,
+        app.NoteUpdateBody(fields=crud_fields, tags=["crud-oficial-editado"], study={"assunto": "não deve sobrescrever"}),
+        cards_ctx,
+    )
+    with cards_user.lock:
+        assert ccol.get_card(crud_cid).custom_data == "addon-owned-format"
     deleted_note = app.cards_official_delete_note(crud_nid, cards_ctx)
     assert deleted_note["ok"] is True and deleted_note["deleted_note_id"] == crud_nid
     with cards_user.lock:
