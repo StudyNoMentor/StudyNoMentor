@@ -243,7 +243,6 @@ const CardsOfficialBridge = {
       const targets=new Set(this._deckReplicas(row.id).map(d=>d._planId).filter(x=>x!=null));
       for(const cs of cardStates)if(Number(cs.deck_id)===Number(row.id)){
         for(const replica of this._replicas(cs.id))if(replica&&replica._planId!=null)targets.add(replica._planId);
-        for(const pid of this._studyFromState(cs).planIds||[])if(allPlans.some(x=>String(x)===String(pid)))targets.add(pid);
       }
       if(!targets.size&&active!=null)targets.add(active);
       for(const pid of targets)this._saveNormalDeckMirror(row,pid,null);
@@ -257,7 +256,6 @@ const CardsOfficialBridge = {
       for(const ns of state.notes||[])if(Number(ns.notetype_id)===ntid){
         for(const note of this._noteReplicas(ns.id))if(note&&note._planId!=null)targets.add(note._planId);
         for(const cs of cardStates)if(Number(cs.note_id)===Number(ns.id)){
-          for(const pid of this._studyFromState(cs).planIds||[])if(allPlans.some(x=>String(x)===String(pid)))targets.add(pid);
         }
       }
       if(!targets.size&&active!=null)targets.add(active);
@@ -270,7 +268,6 @@ const CardsOfficialBridge = {
     for(const ns of state.notes||[]){
       const reps=this._noteReplicas(ns.id),targets=new Set(reps.map(n=>n._planId).filter(x=>x!=null));
       for(const cs of cardStates)if(Number(cs.note_id)===Number(ns.id)){
-        for(const pid of this._studyFromState(cs).planIds||[])if(allPlans.some(x=>String(x)===String(pid)))targets.add(pid);
       }
       if(!targets.size&&active!=null)targets.add(active);
       for(const pid of targets){
@@ -766,20 +763,6 @@ const CardsOfficialBridge = {
           ease_factor:Number(rev.easeFactor||rev.ease_factor)||0,
           anki_review_kind:Number.isFinite(Number(rev.ankiReviewKind))?Number(rev.ankiReviewKind):1
         });
-      }
-    }
-    for(const row of payload.cards){
-      const linked=refs.card.get(String(row.id))||[];
-      row.plan_ids=[...new Set(linked.map(x=>x.pid).filter(x=>x!=null).map(String))];
-      row.favorito=linked.some(x=>!!(x.row&&x.row.favorito));
-      row.study_by_plan={};
-      for(const it of linked){
-        if(it.pid==null||!it.row)continue;
-        const meta={};
-        for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
-          if(Object.prototype.hasOwnProperty.call(it.row,k))meta[k]=it.row[k];
-        }
-        row.study_by_plan[String(it.pid)]=meta;
       }
     }
     if(!payload.cards.length)throw new Error('Migração oficial sem cards legados para migrar.');
@@ -2082,45 +2065,13 @@ const CardsOfficialBridge = {
     }
     return out;
   },
-  _studyMeta(seed,planId){
-    seed=seed||{};const out={},meta={};
-    for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
-      if(Object.prototype.hasOwnProperty.call(seed,k)){out[k]=seed[k];meta[k]=seed[k];}
-    }
-    const rawPlans=Array.isArray(seed.planIds)?seed.planIds:(Array.isArray(seed.plan_ids)?seed.plan_ids:(planId!=null?[planId]:[]));
-    out.plan_ids=[...new Set(rawPlans.filter(x=>x!=null&&String(x)!=='').map(String))];
-    if(planId!=null&&Object.keys(meta).length)out.by_plan={[String(planId)]:meta};
-    if(seed.by_plan&&typeof seed.by_plan==='object')out.by_plan=Object.assign({},out.by_plan||{},seed.by_plan);
-    if(seed.byPlan&&typeof seed.byPlan==='object')out.by_plan=Object.assign({},out.by_plan||{},seed.byPlan);
-    return out;
-  },
-  _studyFromState(state,planId){
-    const raw=String(state&&state.custom_data||'').trim();if(!raw)return{};
-    try{
-      const root=JSON.parse(raw),s=root&&root.study;
-      if(!s||typeof s!=='object'||Array.isArray(s))return{};
-      const out={};
-      for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
-        if(Object.prototype.hasOwnProperty.call(s,k))out[k]=s[k];
-      }
-      const plans=Array.isArray(s.planIds)?s.planIds:(Array.isArray(s.plan_ids)?s.plan_ids:[]);
-      out.planIds=[...new Set(plans.filter(x=>x!=null&&String(x)!=='').map(String))];
-      const by=s.byPlan&&typeof s.byPlan==='object'?s.byPlan:(s.by_plan&&typeof s.by_plan==='object'?s.by_plan:null);
-      if(planId!=null&&by&&by[String(planId)]&&typeof by[String(planId)]==='object'){
-        for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
-          if(Object.prototype.hasOwnProperty.call(by[String(planId)],k))out[k]=by[String(planId)][k];
-        }
-      }
-      return out;
-    }catch(_){return{};}
-  },
   async addOfficialNote(opts){
     opts=opts||{};
     const pid=opts.planId!=null?opts.planId:this._activePlanId(),nt=await this._ensureOfficialNotetype(opts.notetype,pid),
       did=opts.deckId?this._officialDeckId(opts.deckId,pid):1;
     if(opts.deckId&&did==null)throw new Error('Baralho sem identidade Anki canônica.');
     const officialFields=await this._externalizeDataMediaFields(opts.fields||{},'note');
-    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:officialFields,tags:opts.tags||[],study:this._studyMeta(opts.seed||{},pid)})});
+    const out=await this.request('/api/cards-official/notes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(did||1),notetype_id:Number(nt.officialId),fields:officialFields,tags:opts.tags||[]})});
     if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota criada.');
     const note=this._materializeOfficialNote(out.note,pid,nt.local.id),seeds={};
     seeds[String(out.note.id)]=Object.assign({},opts.seed||{},{notetypeId:nt.local.id});
@@ -2135,7 +2086,7 @@ const CardsOfficialBridge = {
     const pid=note._planId!=null?note._planId:(opts.planId!=null?opts.planId:this._activePlanId()),oid=this._officialNoteId(note);
     if(oid==null)throw new Error('Nota sem identidade Anki canônica.');
     const officialFields=await this._externalizeDataMediaFields(fields||{},'note');
-    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:officialFields,tags:Array.isArray(tags)?tags:[],study:this._studyMeta(opts.seed||{},pid)})});
+    const out=await this.request('/api/cards-official/note/'+encodeURIComponent(oid),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({fields:officialFields,tags:Array.isArray(tags)?tags:[]})});
     if(!out||!out.note)throw new Error('O Anki oficial não devolveu a nota atualizada.');
     const saved=this._materializeOfficialNote(out.note,pid,note.notetypeId),seeds={};seeds[String(out.note.id)]=Object.assign({},opts.seed||{});
     await this._reconcileOfficialCardSet([out.note],out.cards||[],seeds);
@@ -2398,7 +2349,7 @@ const CardsOfficialBridge = {
           existingByOfficial=new Map(same.map(c=>[String(this._officialId(c)),Object.assign({},c,pid==null?{}:{_planId:pid})]));
         for(const state of officialCards){
           let card=existingByOfficial.get(String(state.id));
-          const wasMissing=!card,stateStudy=this._studyFromState(state,pid),createSeed=Object.assign({},seed,stateStudy,externalSeed);
+          const createSeed=Object.assign({},seed,externalSeed);
           if(!card){
             const data={
               ankiId:Number(state.id),ankiNoteId:Number(state.note_id),noteId:note.id,notetypeId:note.notetypeId,
@@ -2421,7 +2372,6 @@ const CardsOfficialBridge = {
           });
           for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo','favorito']){
             if(Object.prototype.hasOwnProperty.call(externalSeed,k))patch[k]=externalSeed[k];
-            else if(wasMissing&&Object.prototype.hasOwnProperty.call(stateStudy,k))patch[k]=stateStudy[k];
           }
           if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(card,patch,pid);
           else DB.updateCard(card.id,patch);
