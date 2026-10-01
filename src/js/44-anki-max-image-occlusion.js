@@ -231,4 +231,5 @@ const AnkiMaxImageOcclusion = {
     });
   }
 };
+window.AnkiMaxImageOcclusion=AnkiMaxImageOcclusion;
 queueMicrotask(()=>AnkiMaxImageOcclusion.install());

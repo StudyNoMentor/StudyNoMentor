@@ -1383,13 +1383,6 @@ const DB = {
     try { const rest = this.restaurarCumprimentoSemana(); if (rest > 0) console.info('[reparo] ' + rest + ' semana(s) do histórico com \'estudado\' e \'% cumprido\' originais restaurados'); } catch (e) { _quiet(e, 'restaurar-cumprido'); }
     return n;
   },
-  /* CURA de cards FSRS legados (migração indolor, roda no boot).
-     Versões antigas graduavam um card para 'review' sem gravar o campo
-     `intervalo` (ficava 0). Isso NÃO quebrava o agendamento — o `due` está
-     correto e o próprio scheduler tem fallback (ivPrevio calcula por lastReview↔due)
-     — mas deixava a EXIBIÇÃO e as ESTATÍSTICAS erradas (intervalo 0 dias num card
-     maduro). Aqui reconstruímos o intervalo a partir de lastReview↔due, sem tocar
-     no S/D nem no agendamento. Também sanea S/D fora de faixa e NaN. */
   /* ── MIGRAÇÃO: aproveitamento do histórico para a régua agregada ───────────
      As semanas fechadas guardam `avgPerformancePct` calculado no fechamento.
      Mudar a fórmula sem tocar nelas deixaria o gráfico "por semana fechada"

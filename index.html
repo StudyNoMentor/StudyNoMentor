@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vd429023c9b">
+<meta name="diario-versao" content="v237f46de5f">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -19350,13 +19350,6 @@ const DB = {
     try { const rest = this.restaurarCumprimentoSemana(); if (rest > 0) console.info('[reparo] ' + rest + ' semana(s) do histórico com \'estudado\' e \'% cumprido\' originais restaurados'); } catch (e) { _quiet(e, 'restaurar-cumprido'); }
     return n;
   },
-  /* CURA de cards FSRS legados (migração indolor, roda no boot).
-     Versões antigas graduavam um card para 'review' sem gravar o campo
-     `intervalo` (ficava 0). Isso NÃO quebrava o agendamento — o `due` está
-     correto e o próprio scheduler tem fallback (ivPrevio calcula por lastReview↔due)
-     — mas deixava a EXIBIÇÃO e as ESTATÍSTICAS erradas (intervalo 0 dias num card
-     maduro). Aqui reconstruímos o intervalo a partir de lastReview↔due, sem tocar
-     no S/D nem no agendamento. Também sanea S/D fora de faixa e NaN. */
   /* ── MIGRAÇÃO: aproveitamento do histórico para a régua agregada ───────────
      As semanas fechadas guardam `avgPerformancePct` calculado no fechamento.
      Mudar a fórmula sem tocar nelas deixaria o gráfico "por semana fechada"
@@ -33965,6 +33958,7 @@ const AnkiProductParity = {
   }
 };
 
+window.AnkiProductParity=AnkiProductParity;
 queueMicrotask(()=>AnkiProductParity.install());
 
 /* ============================================================
@@ -34259,6 +34253,7 @@ const AnkiImageOcclusion = {
     const oldNt=AnkiProductParity.openNotetypeEditor.bind(AnkiProductParity);AnkiProductParity.openNotetypeEditor=(id)=>{oldNt(id);const nt=AnkiParity.getNotetype(id);if(!this.isType(nt))return;requestAnimationFrame(()=>{const rows=[...document.querySelectorAll('#anki-nt-fields .anki-field-row')];(nt.fields||[]).forEach((f,i)=>{if(f.preventDeletion&&rows[i]){const b=rows[i].querySelector('[data-remove]');if(b){b.disabled=true;b.title='Campo estrutural do Image Occlusion';}}});});};
   }
 };
+window.AnkiImageOcclusion=AnkiImageOcclusion;
 queueMicrotask(()=>AnkiImageOcclusion.install());
 
 /* ============================================================
@@ -34740,6 +34735,7 @@ const AnkiMaxParity = {
   },
   replayOwnVoice(){if(!this._voiceUrl){showToast('Nenhuma gravação de voz nesta sessão');return;}try{new Audio(this._voiceUrl).play().catch(()=>showToast('Não foi possível reproduzir a gravação'));}catch(_){showToast('Não foi possível reproduzir a gravação');}}
 };
+window.AnkiMaxParity=AnkiMaxParity;
 queueMicrotask(()=>AnkiMaxParity.install());
 
 /* ============================================================
@@ -34982,6 +34978,7 @@ const AnkiMaxEditor = {
     }catch(e){showToast('Nota não criada: '+(e&&e.message?e.message:String(e)));}
   }
 };
+window.AnkiMaxEditor=AnkiMaxEditor;
 queueMicrotask(()=>AnkiMaxEditor.install());
 
 /* ============================================================
@@ -35217,6 +35214,7 @@ const AnkiMaxImageOcclusion = {
     });
   }
 };
+window.AnkiMaxImageOcclusion=AnkiMaxImageOcclusion;
 queueMicrotask(()=>AnkiMaxImageOcclusion.install());
 
 /* ============================================================
@@ -35507,6 +35505,7 @@ const AnkiMaxStatsMedia = {
     }catch(e){showToast('Check Database falhou: '+(e&&e.message?e.message:String(e)));}
   }
 };
+window.AnkiMaxStatsMedia=AnkiMaxStatsMedia;
 queueMicrotask(()=>AnkiMaxStatsMedia.install());
 
 /* ============================================================
@@ -35706,6 +35705,7 @@ const AnkiFinalParity = {
     return true;
   }
 };
+window.AnkiFinalParity=AnkiFinalParity;
 queueMicrotask(()=>AnkiFinalParity.install());
 
 /* ============================================================
@@ -35941,6 +35941,7 @@ const AnkiTotalParity = {
     this._loadUserExtensions();
   }
 };
+window.AnkiTotalParity=AnkiTotalParity;
 queueMicrotask(()=>AnkiTotalParity.install());
 
 /* ============================================================
@@ -36479,10 +36480,11 @@ const AnkiPractical10 = {
     if(typeof AnkiTotalParity!=='undefined')wrap(AnkiTotalParity,'syncMedia','media:sync:before','media:sync:after');
   }
 };
+window.AnkiPractical10=AnkiPractical10;
 queueMicrotask(()=>AnkiPractical10.install());
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   ANKI OFICIAL — cliente fino para anki==26.09.2
+   ANKI OFICIAL — cliente fino para anki==26.09.3
    ---------------------------------------------------------------------------
    Regra arquitetural: este módulo NÃO usa FSRS/CardEngine/CardsConfig/DB cards
    do Study. Toda mutação acadêmica passa pelo backend oficial do Anki.
@@ -36629,7 +36631,7 @@ const AnkiOfficial = {
       this.status = await this.request('/api/anki/status');
       const badge = this.badge();
       if (badge) {
-        badge.textContent = 'Engine: Anki ' + (this.status.runtime_version || this.status.pinned_version || '26.09.2');
+        badge.textContent = 'Engine: Anki ' + (this.status.runtime_version || this.status.pinned_version || '26.09.3');
         badge.classList.remove('bad'); badge.classList.add('ok');
       }
       return true;
@@ -36646,7 +36648,7 @@ const AnkiOfficial = {
     });
     const sub = document.querySelector('#screen-anki .page-subtitle');
     const labels = {
-      review: 'Revise com o scheduler oficial do Anki 26.09.2.',
+      review: 'Revise com o scheduler oficial do Anki 26.09.3.',
       browser: 'Pesquise e edite sua coleção real com a busca oficial do Anki.',
       decks: 'Escolha o baralho e veja as contagens calculadas pelo scheduler oficial.',
       add: 'Adicione uma nota diretamente à coleção Anki.',
@@ -37317,7 +37319,7 @@ window.addEventListener('screen:activated', (ev) => {
 /* ============================================================
    ANKI OFICIAL — SUPERFÍCIES AVANÇADAS
    UI integrada ao Study. Toda operação de coleção/agendamento
-   abaixo é delegada ao backend anki==26.09.2.
+   abaixo é delegada ao backend anki==26.09.3.
    ============================================================ */
 const AnkiOfficialSurfaces = {
   installed:false,
@@ -37956,7 +37958,7 @@ const AnkiOfficialSurfaces = {
       <div class="field"><label>Parâmetros atuais</label><textarea id="anki-fsrs-params" class="anki-code-area">${this.esc((params||[]).join(' '))}</textarea></div>
       <div class="anki-surface-actions"><button class="btn-primary" id="anki-fsrs-opt">Otimizar + Health Check</button><button class="btn-secondary" id="anki-fsrs-sim">Simular reviews</button><button class="btn-secondary" id="anki-fsrs-work">Simular workload</button><button class="btn-secondary" id="anki-fsrs-optret">Help Me Decide</button></div>
       <pre class="anki-surface-result" id="anki-fsrs-result">Aguardando operação…</pre>`;
-    this.modal('🧠 FSRS oficial','Optimizer, Health Check, Simulator e Optimal Retention do backend 26.09.2.',body);
+    this.modal('🧠 FSRS oficial','Optimizer, Health Check, Simulator e Optimal Retention do backend 26.09.3.',body);
     const currentParams=()=>document.getElementById('anki-fsrs-params').value.trim().split(/[\s,]+/).map(Number).filter(Number.isFinite);
     document.getElementById('anki-fsrs-opt').onclick=async()=>{
       try{const out=await this.api('/api/anki/fsrs/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({search:document.getElementById('anki-fsrs-search').value,current_params:currentParams(),ignore_revlogs_before_ms:0,num_of_relearning_steps:1,health_check:true})});document.getElementById('anki-fsrs-result').textContent=JSON.stringify(out,null,2);if(out.params)document.getElementById('anki-fsrs-params').value=out.params.join(' ');}catch(e){this.toast(e.message,'error');}
@@ -38103,9 +38105,6 @@ const AutoTeste = {
   },
   _perto(a, b, tol) { return Math.abs(a - b) <= (tol == null ? 1e-9 : tol) * Math.max(1, Math.abs(b)); },
 
-  /* Vetores de referência: gerados uma vez a partir da implementação oficial
-     do FSRS-6 e congelados aqui. Se alguém mexer numa fórmula por engano, um
-     destes falha imediatamente. */
   aproveitamento() {
     const ent = [
       { date: '2026-01-01', total: 3, correct: 3 },      // 100% em 3 questões

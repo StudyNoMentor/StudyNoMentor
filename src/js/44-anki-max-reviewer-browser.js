@@ -477,4 +477,5 @@ const AnkiMaxParity = {
   },
   replayOwnVoice(){if(!this._voiceUrl){showToast('Nenhuma gravação de voz nesta sessão');return;}try{new Audio(this._voiceUrl).play().catch(()=>showToast('Não foi possível reproduzir a gravação'));}catch(_){showToast('Não foi possível reproduzir a gravação');}}
 };
+window.AnkiMaxParity=AnkiMaxParity;
 queueMicrotask(()=>AnkiMaxParity.install());

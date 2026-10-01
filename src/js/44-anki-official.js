@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   ANKI OFICIAL — cliente fino para anki==26.09.2
+   ANKI OFICIAL — cliente fino para anki==26.09.3
    ---------------------------------------------------------------------------
    Regra arquitetural: este módulo NÃO usa FSRS/CardEngine/CardsConfig/DB cards
    do Study. Toda mutação acadêmica passa pelo backend oficial do Anki.
@@ -146,7 +146,7 @@ const AnkiOfficial = {
       this.status = await this.request('/api/anki/status');
       const badge = this.badge();
       if (badge) {
-        badge.textContent = 'Engine: Anki ' + (this.status.runtime_version || this.status.pinned_version || '26.09.2');
+        badge.textContent = 'Engine: Anki ' + (this.status.runtime_version || this.status.pinned_version || '26.09.3');
         badge.classList.remove('bad'); badge.classList.add('ok');
       }
       return true;
@@ -163,7 +163,7 @@ const AnkiOfficial = {
     });
     const sub = document.querySelector('#screen-anki .page-subtitle');
     const labels = {
-      review: 'Revise com o scheduler oficial do Anki 26.09.2.',
+      review: 'Revise com o scheduler oficial do Anki 26.09.3.',
       browser: 'Pesquise e edite sua coleção real com a busca oficial do Anki.',
       decks: 'Escolha o baralho e veja as contagens calculadas pelo scheduler oficial.',
       add: 'Adicione uma nota diretamente à coleção Anki.',

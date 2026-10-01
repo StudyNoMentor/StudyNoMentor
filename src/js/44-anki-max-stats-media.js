@@ -286,4 +286,5 @@ const AnkiMaxStatsMedia = {
     }catch(e){showToast('Check Database falhou: '+(e&&e.message?e.message:String(e)));}
   }
 };
+window.AnkiMaxStatsMedia=AnkiMaxStatsMedia;
 queueMicrotask(()=>AnkiMaxStatsMedia.install());

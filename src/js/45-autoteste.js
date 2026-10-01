@@ -9,9 +9,6 @@ const AutoTeste = {
   },
   _perto(a, b, tol) { return Math.abs(a - b) <= (tol == null ? 1e-9 : tol) * Math.max(1, Math.abs(b)); },
 
-  /* Vetores de referência: gerados uma vez a partir da implementação oficial
-     do FSRS-6 e congelados aqui. Se alguém mexer numa fórmula por engano, um
-     destes falha imediatamente. */
   aproveitamento() {
     const ent = [
       { date: '2026-01-01', total: 3, correct: 3 },      // 100% em 3 questões

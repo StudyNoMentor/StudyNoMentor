@@ -1,7 +1,7 @@
 /* ============================================================
    ANKI OFICIAL — SUPERFÍCIES AVANÇADAS
    UI integrada ao Study. Toda operação de coleção/agendamento
-   abaixo é delegada ao backend anki==26.09.2.
+   abaixo é delegada ao backend anki==26.09.3.
    ============================================================ */
 const AnkiOfficialSurfaces = {
   installed:false,
@@ -640,7 +640,7 @@ const AnkiOfficialSurfaces = {
       <div class="field"><label>Parâmetros atuais</label><textarea id="anki-fsrs-params" class="anki-code-area">${this.esc((params||[]).join(' '))}</textarea></div>
       <div class="anki-surface-actions"><button class="btn-primary" id="anki-fsrs-opt">Otimizar + Health Check</button><button class="btn-secondary" id="anki-fsrs-sim">Simular reviews</button><button class="btn-secondary" id="anki-fsrs-work">Simular workload</button><button class="btn-secondary" id="anki-fsrs-optret">Help Me Decide</button></div>
       <pre class="anki-surface-result" id="anki-fsrs-result">Aguardando operação…</pre>`;
-    this.modal('🧠 FSRS oficial','Optimizer, Health Check, Simulator e Optimal Retention do backend 26.09.2.',body);
+    this.modal('🧠 FSRS oficial','Optimizer, Health Check, Simulator e Optimal Retention do backend 26.09.3.',body);
     const currentParams=()=>document.getElementById('anki-fsrs-params').value.trim().split(/[\s,]+/).map(Number).filter(Number.isFinite);
     document.getElementById('anki-fsrs-opt').onclick=async()=>{
       try{const out=await this.api('/api/anki/fsrs/optimize',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({search:document.getElementById('anki-fsrs-search').value,current_params:currentParams(),ignore_revlogs_before_ms:0,num_of_relearning_steps:1,health_check:true})});document.getElementById('anki-fsrs-result').textContent=JSON.stringify(out,null,2);if(out.params)document.getElementById('anki-fsrs-params').value=out.params.join(' ');}catch(e){this.toast(e.message,'error');}

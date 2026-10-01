@@ -290,4 +290,5 @@ const AnkiImageOcclusion = {
     const oldNt=AnkiProductParity.openNotetypeEditor.bind(AnkiProductParity);AnkiProductParity.openNotetypeEditor=(id)=>{oldNt(id);const nt=AnkiParity.getNotetype(id);if(!this.isType(nt))return;requestAnimationFrame(()=>{const rows=[...document.querySelectorAll('#anki-nt-fields .anki-field-row')];(nt.fields||[]).forEach((f,i)=>{if(f.preventDeletion&&rows[i]){const b=rows[i].querySelector('[data-remove]');if(b){b.disabled=true;b.title='Campo estrutural do Image Occlusion';}}});});};
   }
 };
+window.AnkiImageOcclusion=AnkiImageOcclusion;
 queueMicrotask(()=>AnkiImageOcclusion.install());

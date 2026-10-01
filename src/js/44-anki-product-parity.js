@@ -538,4 +538,5 @@ const AnkiProductParity = {
   }
 };
 
+window.AnkiProductParity=AnkiProductParity;
 queueMicrotask(()=>AnkiProductParity.install());

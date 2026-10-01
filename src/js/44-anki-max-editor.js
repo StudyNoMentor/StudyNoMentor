@@ -238,4 +238,5 @@ const AnkiMaxEditor = {
     }catch(e){showToast('Nota não criada: '+(e&&e.message?e.message:String(e)));}
   }
 };
+window.AnkiMaxEditor=AnkiMaxEditor;
 queueMicrotask(()=>AnkiMaxEditor.install());

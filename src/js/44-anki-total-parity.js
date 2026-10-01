@@ -231,4 +231,5 @@ const AnkiTotalParity = {
     this._loadUserExtensions();
   }
 };
+window.AnkiTotalParity=AnkiTotalParity;
 queueMicrotask(()=>AnkiTotalParity.install());

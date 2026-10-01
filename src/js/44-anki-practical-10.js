@@ -534,4 +534,5 @@ const AnkiPractical10 = {
     if(typeof AnkiTotalParity!=='undefined')wrap(AnkiTotalParity,'syncMedia','media:sync:before','media:sync:after');
   }
 };
+window.AnkiPractical10=AnkiPractical10;
 queueMicrotask(()=>AnkiPractical10.install());

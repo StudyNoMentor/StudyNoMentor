@@ -195,4 +195,5 @@ const AnkiFinalParity = {
     return true;
   }
 };
+window.AnkiFinalParity=AnkiFinalParity;
 queueMicrotask(()=>AnkiFinalParity.install());

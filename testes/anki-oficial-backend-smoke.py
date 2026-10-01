@@ -470,15 +470,22 @@ with tempfile.TemporaryDirectory() as tmp:
     csv_bytes = '#separator:Tab\n#html:true\n"Frente ç\n#continuação do campo"\t"Resposta <b>oficial</b>"\n'.encode("utf-8")
     meta_out = asyncio.run(app.cards_official_csv_metadata(CsvUpload(csv_bytes), delimiter=None, user=csv_user))
     meta = meta_out["metadata"]
-    assert meta["preview"][0]["vals"] == ["Frente ç\n#continuação do campo", "Resposta <b>oficial</b>"]
+    csv_path = Path(tmp) / "oracle.tsv"
+    csv_path.write_bytes(csv_bytes)
+    oracle = app.pool.get("csv-native-oracle")
+    with oracle.lock:
+        native_meta = oracle.col.get_csv_metadata(str(csv_path), None)
+        assert meta.get("preview") == app.pb(native_meta).get("preview"), "a ponte deve preservar a prévia nativa"
+        oracle.col.import_csv(app.import_export_pb2.ImportCsvRequest(path=str(csv_path), metadata=native_meta))
+        oracle_fields = [oracle.col.get_note(nid).fields for nid in oracle.col.find_notes("")]
+        oracle_card_count = oracle.col.card_count()
     imported_csv = asyncio.run(app.cards_official_import_csv(CsvUpload(csv_bytes), metadata_json=json.dumps(meta), user=csv_user))
-    assert imported_csv["ok"] and len(imported_csv["state"]["notes"]) == 1
+    assert imported_csv["ok"]
     native_csv = app.cards_uc_for(csv_user)
     with native_csv.lock:
-        csv_nid = native_csv.col.find_notes("Frente ç")[0]
-        csv_note = native_csv.col.get_note(csv_nid)
-        assert csv_note.fields == ["Frente ç\n#continuação do campo", "Resposta <b>oficial</b>"]
-        assert native_csv.col.card_count() == 1
+        actual_fields = [native_csv.col.get_note(nid).fields for nid in native_csv.col.find_notes("")]
+        assert actual_fields == oracle_fields and actual_fields, "a importação deve corresponder ao Anki nativo"
+        assert native_csv.col.card_count() == oracle_card_count
 
     app.pool.close_all()
 
