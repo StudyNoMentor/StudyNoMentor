@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v21f0d17c6f">
+<meta name="diario-versao" content="vda7ab10563">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -57620,8 +57620,9 @@ const CardsOfficialBridge = {
     const q=this.review;
     if(!q||q.finished||!q.card){
       CardsScreen._reviewQueue=[];CardsScreen._reviewIdx=0;CardsScreen._flipped=false;
-      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3>'+
-        '<p>A fila oficial do Anki não possui mais cards disponíveis agora.</p>'+
+      const answered=Number(this._sessionAnswered)||0;
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">'+(answered?'🎉':'📚')+'</div><h3>'+(answered?'Sessão concluída!':'Nenhum card disponível agora')+'</h3>'+
+        '<p>'+(answered?'A fila oficial do Anki não possui mais cards disponíveis agora.':'O baralho selecionado não tem cards disponíveis na fila oficial. Datas de revisão, limites diários, suspensão e enterramento podem limitar a fila.')+'</p>'+
         '<button type="button" class="btn-primary" id="cards-official-restart">Ver se há mais</button></div></div>';
       const rb=document.getElementById('cards-official-restart');if(rb)rb.onclick=async()=>{try{this._applyReviewer(await this.request('/api/cards-official/reviewer/next'));await this.renderCurrent(box);}catch(e){showToast(e.message);}};
       CardsScreen.updateFavCount();CardsScreen.atualizarFoco();return;
