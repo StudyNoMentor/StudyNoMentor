@@ -55,6 +55,13 @@ const CardsOfficialBridge = {
     const n=Number(card&&card.ankiId!=null?card.ankiId:card&&card.id);
     return Number.isFinite(n)&&n>0?n:null;
   },
+  _addDays(iso,days){
+    const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if(!m)return String(iso||'');
+    const d=new Date(Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])));
+    d.setUTCDate(d.getUTCDate()+(Number(days)||0));
+    return d.toISOString().slice(0,10);
+  },
   _replicas(officialId){
     const key=String(officialId);
     return this._allCards().filter(c=>String(this._officialId(c))===key);
@@ -723,10 +730,10 @@ const CardsOfficialBridge = {
       patch.dueTs=Math.max(0,Number(state.due)||0)*1000;patch.due=todayCards();
     }else{
       const delta=Number(state.due)-(Number(timing.today)||0);
-      patch.due=CardEngine.addDays(todayCards(),Number.isFinite(delta)?delta:0);
+      patch.due=this._addDays(todayCards(),Number.isFinite(delta)?delta:0);
     }
     if(queue===-2||queue===-3){
-      patch.enterradoAte=CardEngine.addDays(todayCards(),1);
+      patch.enterradoAte=this._addDays(todayCards(),1);
       patch.buryKind=queue===-2?'scheduler':'user';
     }
     if(state.original_due){
@@ -736,7 +743,7 @@ const CardsOfficialBridge = {
         patch.originalDue=todayCards();patch.originalDueTs=Math.max(0,Number(state.original_due)||0)*1000;
       }else{
         const delta=Number(state.original_due)-(Number(timing.today)||0);
-        patch.originalDue=CardEngine.addDays(todayCards(),Number.isFinite(delta)?delta:0);patch.originalDueTs=null;
+        patch.originalDue=this._addDays(todayCards(),Number.isFinite(delta)?delta:0);patch.originalDueTs=null;
       }
     }else patch.originalDue=null;
     return patch;
@@ -1108,7 +1115,7 @@ const CardsOfficialBridge = {
         learn=Number(x.learn)||0,relearn=Number(x.relearn)||0,
         young=Number(x.young)||0,mature=Number(x.mature)||0,filtered=Number(x.filtered)||0,
         raw=learn+relearn+young+mature+filtered;
-      out.set(CardEngine.addDays(todayCards(),off),{
+      out.set(this._addDays(todayCards(),off),{
         count:isTime?raw/60000:raw,
         learning:isTime?learn/60000:learn,
         relearning:isTime?relearn/60000:relearn,
@@ -1183,7 +1190,7 @@ const CardsOfficialBridge = {
   _statsOfficialAddedHtml(map){
     const M=window.AnkiMaxStatsMedia,src=map||{},keys=Object.keys(src).map(Number).filter(Number.isFinite),
       min=Math.min(-13,...keys),max=Math.max(0,...keys),m=new Map();
-    for(let off=min;off<=max;off++)m.set(CardEngine.addDays(todayCards(),off),Number(src[String(off)]||src[off]||0));
+    for(let off=min;off<=max;off++)m.set(this._addDays(todayCards(),off),Number(src[String(off)]||src[off]||0));
     const serie=M&&M._serie?M._serie([...m.entries()],x=>Number(x[1])>0):null;
     const body=serie&&serie.grupos&&serie.grupos.length?M._serieHtml(serie,g=>g.itens.reduce((a,b)=>a+Number(b||0),0),[['review',g=>g.itens.reduce((a,b)=>a+Number(b||0),0)]],n=>Number(n||0).toLocaleString('pt-BR'),''):'<div class="stat-body"><p class="hint">Sem dados.</p></div>';
     return '<section class="card stat-card"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards adicionados por período · fonte oficial.</p></div></div>'+body+'</section>';
