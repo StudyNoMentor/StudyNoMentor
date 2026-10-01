@@ -239,7 +239,7 @@ const AnkiPractical10 = {
       document.getElementById('anki-cards-preferences').style.display='none';
       showToast('Preferências salvas pela Collection oficial do Anki ✓');
     }catch(e){showToast('Preferências não salvas: '+(e&&e.message?e.message:String(e)));}
-  }
+  },
 
 
   /* ───────────────── REVIEWER / MOBILE 10/10 ─────────────────
