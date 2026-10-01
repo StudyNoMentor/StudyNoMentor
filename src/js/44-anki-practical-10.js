@@ -191,10 +191,10 @@ const AnkiPractical10 = {
   },
   openPreferences(){
     let m=document.getElementById('anki-cards-preferences');if(!m){
-      const w=document.createElement('div');w.innerHTML='<div id="anki-cards-preferences" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>⚙ Preferências dos Cards</h2><p class="sub">Preferências por perfil para revisão, Browser e sincronização.</p></div><button class="icon-btn" id="anki-pref-close">✕</button></div><div class="cards-modal-body" id="anki-pref-body"></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-pref-algo">Opções avançadas / presets</button><button class="btn-secondary" id="anki-pref-sync">Sincronizar mídia agora</button><span style="flex:1"></span><button class="btn-primary" id="anki-pref-save">Salvar</button></div></div></div>';document.body.appendChild(w);m=document.getElementById('anki-cards-preferences');
+      const w=document.createElement('div');w.innerHTML='<div id="anki-cards-preferences" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>⚙ Preferências dos Cards</h2><p class="sub">Preferências por perfil para revisão, Browser e sincronização.</p></div><button class="icon-btn" id="anki-pref-close">✕</button></div><div class="cards-modal-body" id="anki-pref-body"></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-pref-algo">Opções avançadas / presets</button><button class="btn-secondary" id="anki-pref-sync">Verificar mídia</button><span style="flex:1"></span><button class="btn-primary" id="anki-pref-save">Salvar</button></div></div></div>';document.body.appendChild(w);m=document.getElementById('anki-cards-preferences');
       document.getElementById('anki-pref-close').onclick=()=>m.style.display='none';
       document.getElementById('anki-pref-algo').onclick=()=>{m.style.display='none';CardsScreen.openAlgoConfig();};
-      document.getElementById('anki-pref-sync').onclick=()=>typeof AnkiTotalParity!=='undefined'&&AnkiTotalParity.syncMedia(true);
+      document.getElementById('anki-pref-sync').onclick=()=>{m.style.display='none';AnkiProductParity.openCheck();};
       document.getElementById('anki-pref-save').onclick=()=>this._savePreferences();
     }
     const c=CardsConfig.get(),bp=typeof AnkiMaxParity!=='undefined'?AnkiMaxParity._loadBrowserPrefs():null,b=AnkiProductParity.browser;
@@ -211,7 +211,7 @@ const AnkiPractical10 = {
       '</div><h3 class="anki-section-title">Browser</h3><div class="field-group">'+
       '<div class="field"><label>Modo inicial</label><select id="pref-browser-mode"><option value="notes" '+(b.mode!=='cards'?'selected':'')+'>Notas</option><option value="cards" '+(b.mode==='cards'?'selected':'')+'>Cards</option></select></div>'+
       '<div class="field"><label>Ordenação</label><select id="pref-browser-dir"><option value="asc" '+(b.sortDir!=='desc'?'selected':'')+'>Crescente</option><option value="desc" '+(b.sortDir==='desc'?'selected':'')+'>Decrescente</option></select></div>'+
-      '</div><p class="hint">Colunas e modo do Browser continuam persistidos automaticamente por perfil. Sync e backups usam a infraestrutura do Study.</p>';
+      '</div><p class="hint">Colunas e modo do Browser continuam persistidos automaticamente por perfil. A mídia é centralizada no MediaManager oficial do Anki; não há cópia binária paralela no Study.</p>';
     m.style.display='flex';
   },
   _prefSelect(id,label,value){return '<div class="field"><label>'+label+'</label><select id="'+id+'"><option value="1" '+(value==='1'?'selected':'')+'>Sim</option><option value="0" '+(value==='0'?'selected':'')+'>Não</option></select></div>';},
