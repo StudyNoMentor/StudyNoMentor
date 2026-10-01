@@ -351,13 +351,6 @@ const CardsScreen = {
       ?CardsOfficialBridge._elapsedMs((CardsOfficialBridge.review&&CardsOfficialBridge.review.card&&CardsOfficialBridge.review.card.auto_advance)||{})
       :0;
   },
-  _reviewElapsedMs(cfg) {
-    const start=Number(this._reviewStartedAt)||Date.now();
-    const end=(cfg&&cfg.stopTimerOnAnswer&&this._answerShownAt)?Number(this._answerShownAt):Date.now();
-    let ms=Math.max(0,end-start),cap=Math.max(0,Number(cfg&&cfg.capAnswerTimeToSecs)||0)*1000;
-    if(cap>0)ms=Math.min(ms,cap);
-    return Math.round(ms);
-  },
   _disableAutoAdvanceSilently(){
     if(window.CardsOfficialBridge){
       CardsOfficialBridge._autoAdvanceEnabled=false;
@@ -369,11 +362,11 @@ const CardsScreen = {
     showToast('Auto Advance oficial indisponível.');return false;
   },
 
-  renderReviewCard(box) {  renderReviewCard(box) {
+  renderReviewCard(box) {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderCurrent==='function'){void CardsOfficialBridge.renderCurrent(box);return;}
     if(box)box.innerHTML=this.emptyState('Motor oficial indisponível','O reviewer local está desativado.');
   },
-  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.
+  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.
   // Se algum fluxo legado chamar este método, ele consome somente os estados
   // já calculados por get_queued_cards()/describe_next_states() no backend.
   renderActions(box, c) {
@@ -396,7 +389,7 @@ const CardsScreen = {
     }
     showToast('Card Info oficial indisponível.');
   },
-  flip() {  flip() { if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.showAnswer==='function')void CardsOfficialBridge.showAnswer(); },
+  flip() { if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.showAnswer==='function')void CardsOfficialBridge.showAnswer(); },
   // atalhos de teclado durante a revisão
   onKey(e) {
     // só na tela de cards, aba revisar, com um card na tela e sem modal aberto
