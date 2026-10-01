@@ -2468,6 +2468,37 @@ def cards_collection_full_state_payload(col: Collection) -> dict[str, Any]:
     return state
 
 
+@app.get("/api/cards-official/preferences")
+def cards_official_preferences(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        return pb(item.col.get_preferences())
+
+
+@app.put("/api/cards-official/preferences")
+def cards_official_update_preferences(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        prefs = item.col.get_preferences()
+        scheduling = payload.get("scheduling") if isinstance(payload.get("scheduling"), dict) else {}
+        if "rollover" in scheduling:
+            prefs.scheduling.rollover = max(0, min(23, int(scheduling["rollover"])))
+        if "learn_ahead_secs" in scheduling:
+            prefs.scheduling.learn_ahead_secs = max(0, min(86400, int(scheduling["learn_ahead_secs"])))
+        changes = item.col.set_preferences(prefs)
+        return {
+            "ok": True,
+            "preferences": pb(item.col.get_preferences()),
+            "changes": pb(changes),
+            "state": cards_collection_state_payload(item.col),
+        }
+
+
 @app.get("/api/cards-official/collection/state")
 def cards_official_collection_state(
     user: dict[str, Any] = Depends(current_user),
