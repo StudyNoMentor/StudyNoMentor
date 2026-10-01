@@ -61,6 +61,10 @@ jobs:
         if: github.event_name != 'push'
         run: timeout 30s node testes/floating-lists.mjs
 
+      - name: Contrato central dos Cards
+        if: github.event_name != 'push'
+        run: timeout 120s node testes/cards-paridade-total-anki.mjs
+
       - name: Escopo global e motor pós-edital
         if: github.event_name != 'push'
         shell: bash
@@ -70,6 +74,18 @@ jobs:
           timeout 30s node testes/motor-sugestao-regra.mjs
           timeout 30s node testes/grade-gerador.mjs
 
+      - name: Exportação de pacotes
+        if: github.event_name != 'push'
+        env:
+          SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
+          SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
+          SNM_COLPKG_OUT: ${{ runner.temp }}/snm-study.colpkg
+        run: timeout 120s node testes/cards-apkg-export.mjs
+
+      - name: Importação de formatos
+        if: github.event_name != 'push'
+        run: timeout 120s node testes/cards-import-formatos.mjs
+
       - name: Runtime Anki
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-runtime-anki.mjs
@@ -78,6 +94,29 @@ jobs:
         if: github.event_name != 'push'
         run: timeout 120s node testes/cards-concorrencia-multidevice.mjs
 
+      - name: FSRS oficial (otimizador, Health Check, simulador)
+        if: github.event_name != 'push'
+        run: timeout 180s node testes/cards-fsrs-optimizer-oficial.mjs
+
+      - name: Round-trip com Anki oficial 26.09.3
+        if: github.event_name != 'push'
+        shell: bash
+        env:
+          SNM_APKG_LEGACY_OUT: ${{ runner.temp }}/snm-study-legacy.apkg
+          SNM_APKG_LATEST_OUT: ${{ runner.temp }}/snm-study-latest.apkg
+          SNM_ANKI_OFFICIAL_OUT: ${{ runner.temp }}/anki-oficial-latest.apkg
+          SNM_ANKI_SEARCH_EXPECTED: ${{ runner.temp }}/anki-search-expected.json
+          SNM_ANKI_TYPEANSWER_EXPECTED: ${{ runner.temp }}/anki-typeanswer-expected.json
+        run: |
+          set -euo pipefail
+          timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 'anki==26.09.3'
+          timeout 120s python testes/anki-oficial-roundtrip.py
+          timeout 120s python testes/anki-oficial-search.py
+          timeout 120s node testes/cards-search-differential.mjs
+          timeout 120s python testes/anki-oficial-typeanswer.py
+          timeout 120s node testes/cards-typeanswer-differential.mjs
+          timeout 120s node testes/cards-import-anki-oficial.mjs
+
       - name: Backend Anki Oficial
         if: github.event_name != 'push'
         shell: bash
@@ -85,6 +124,10 @@ jobs:
           set -euo pipefail
           timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 -r anki_official_backend/requirements.txt
           ANKI_DATA_DIR="${RUNNER_TEMP}/anki-official" timeout 120s python testes/anki-oficial-backend-smoke.py
+
+      - name: Regressões críticas dos Cards
+        if: github.event_name != 'push'
+        run: timeout 120s node audit/cards-20260921-v2/regressao.mjs
 
       - name: Sincronizar artefatos gerados na main
         if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
@@ -121,12 +164,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for t in testes/repositorio-higiene.mjs testes/cards-image-occlusion.mjs \
-                   testes/cards-max-editor-io.mjs testes/extras-estabilidade.mjs \
+          for t in testes/repositorio-higiene.mjs testes/cards-10of10-final.mjs testes/cards-image-occlusion.mjs \
+                   testes/cards-max-editor-io.mjs testes/cards-max-stats-media.mjs testes/cards-practical-10.mjs \
+                   testes/cards-product-parity.mjs testes/cards-total-parity.mjs testes/extras-estabilidade.mjs \
                    testes/governanca-premium.mjs testes/governanca-rebalanceamento.mjs testes/lei-rodizio-perf.mjs \
                    testes/reforco-fila.mjs testes/ui-organizacao-extras-tec.mjs; do
             echo "::group::$t"; timeout 120s node "$t"; echo "::endgroup::"
           done
+          # Longo prazo: 6.000 cards × 365 dias com fila e agendador reais.
+          timeout 600s node testes/cards-certificacao-anki.mjs
 
       - name: Suítes de navegador
         shell: bash
@@ -138,7 +184,7 @@ jobs:
           # Verificação completa (checagens 5–8: console limpo, navegação,
           # AutoTeste, persistência ponta a ponta e contraste WCAG).
           timeout 900s node verificar.mjs
-          for t in testes/auditoria-correcoes-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/pausa-metricas-browser.mjs testes/abertura-browser.mjs testes/extras-estabilidade-browser.mjs \
+          for t in testes/auditoria-correcoes-browser.mjs testes/cards-max-reviewer-browser.mjs testes/cards-foco-edicao-browser.mjs testes/cards-estatisticas-layout-browser.mjs testes/cards-reparo-memoria-browser.mjs testes/cards-multi-planejamento-browser.mjs testes/grade-gerador-browser.mjs testes/telas-estudo-browser.mjs testes/padrao-visual-browser.mjs testes/pausa-metricas-browser.mjs testes/abertura-browser.mjs testes/extras-estabilidade-browser.mjs \
                    testes/extras-ux100-browser.mjs testes/site-performance-browser.mjs \
                    testes/startup-reforco-browser.mjs testes/ux-hierarquia-browser.mjs \
                    testes/ux-stability-browser.mjs testes/registrar-formulario-browser.mjs; do

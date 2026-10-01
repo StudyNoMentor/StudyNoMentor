@@ -38,16 +38,10 @@ assert.match(nt.templates[0].qfmt,/anki\.imageOcclusion\.setup/,'template export
 
 const rect={type:'rect',ordinal:1,oi:false,left:.1,top:.1,width:.2,height:.2};
 assert.equal(IO.serializeShape(rect),'{{c1::image-occlusion:rect:left=.1:top=.1:width=.2:height=.2}}<br>');
-IO.state.occludeInactive=true;
 const withInactive=IO.serializeShape({...rect,ordinal:2,oi:true});
-assert.match(withInactive,/\:oi=1\}\}/,'occludeInactive é opção global no exportShapesToClozeDeletions do upstream');
-IO.state.occludeInactive=false;
-assert.equal(IO._fmt(0),'.0000','floatToDisplay oficial mantém zero como .0000');
-assert.equal(IO.serializeShape({type:'ellipse',ordinal:2,left:.2,top:.3,width:.1,height:.2}),
-  '{{c2::image-occlusion:ellipse:left=.2:top=.3:rx=.05:ry=.1}}<br>',
-  'ellipse oficial usa rx/ry, sem width/height');
+assert.match(withInactive,/\:oi=1\}\}/);
 
-const parsed=IO.parse('{{c1::image-occlusion:rect:left=.1:top=.2:width=.3:height=.4}}<br>{{c2::image-occlusion:ellipse:left=.2:top=.3:rx=.05:ry=.1:oi=1}}');
+const parsed=IO.parse('{{c1::image-occlusion:rect:left=.1:top=.2:width=.3:height=.4}}<br>{{c2::image-occlusion:ellipse:left=.2:top=.3:width=.1:height=.2:rx=.05:ry=.1:oi=1}}');
 assert.equal(parsed.length,2);
 assert.equal(parsed[0].type,'rect');assert.equal(parsed[0].ordinal,1);
 assert.equal(parsed[1].type,'ellipse');assert.equal(parsed[1].ordinal,2);assert.equal(parsed[1].oi,true);

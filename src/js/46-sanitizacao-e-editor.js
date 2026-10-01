@@ -81,9 +81,8 @@ function sanitizeCardHtml(html) {
         if (nome === 'href' || nome === 'src') {
           // \u0000-\u0020 fora: "java\tscript:" e afins driblariam a checagem
           const url = val.trim().replace(/[\u0000-\u0020]/g, '');
-          const localMedia = /^[^./\\:][^/\\:]{0,254}$/.test(url);
           const ok = (nome === 'src')
-            ? (/^data:(?:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+);base64,/i.test(url) || /^https?:\/\//i.test(url) || localMedia)
+            ? (/^data:(?:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+);base64,/i.test(url) || /^https?:\/\//i.test(url))
             : /^(https?:|mailto:)/i.test(url);
           if (!ok) el.removeAttribute(a.name);
         }
@@ -147,26 +146,6 @@ function rteSanitize(html) {
   return tmp.innerHTML;
 }
 function rteExec(area, cmd, val) { area.focus(); try { document.execCommand(cmd, false, val || null); } catch (e) { _quiet(e); } }
-async function insertImageFile(area, file) {
-  if (!file || !String(file.type || '').startsWith('image/')) return false;
-  if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.uploadOfficialMedia !== 'function') {
-    showToast('Imagem não inserida: backend oficial do Anki indisponível.');
-    return false;
-  }
-  try {
-    const out = await CardsOfficialBridge.uploadOfficialMedia(file, file.name || ('image-' + Date.now() + '.png'));
-    area.focus();
-    const html = '<img src="' + String(out.filename || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '" alt="">';
-    try { document.execCommand('insertHTML', false, html); }
-    catch (_) { area.insertAdjacentHTML('beforeend', html); }
-    showToast('Imagem gravada pelo Anki oficial ✓');
-    return true;
-  } catch (e) {
-    showToast('Imagem não inserida: ' + (e && e.message ? e.message : String(e)));
-    return false;
-  }
-}
-window.insertImageFile = insertImageFile;
 // Converte HTML em TEXTO PURO preservando as quebras de linha (blocos/br viram \n).
 // Base do botão "Limpar formatação" — remove cor, fonte, fundo, negrito etc. do texto colado.
 function rtePlainFromHtml(html) {
