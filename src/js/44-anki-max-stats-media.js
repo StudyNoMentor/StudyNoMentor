@@ -168,11 +168,12 @@ const AnkiMaxStatsMedia = {
     const out=document.getElementById('anki-sim-result');if(!out)return;
     const days=Number((document.getElementById('anki-sim-days')||{}).value)||365,
       retention=(Number((document.getElementById('anki-sim-retention')||{}).value)||90)/100,
+      opts=this._simOptions(),
       state=this._statsState||{},deckId=state.scope==='deck'?this._statsSelectedDeckId():null;
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.simulateFsrsPreset!=='function')throw new Error('Help Me Decide oficial indisponível.');
     out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.3…</p>';
     try{
-      const r=await CardsOfficialBridge.simulateFsrsPreset(deckId,days,retention,this._simOptions(),'optimal'),
+      const r=await CardsOfficialBridge.simulateFsrsPreset(deckId,days,retention,opts,'optimal'),
         rawOptimal=Number(r.out&&r.out.optimal_retention);
       if(!Number.isFinite(rawOptimal)||rawOptimal<=0)throw new Error('O Anki não retornou retenção ótima para estes dados.');
       const optimal=Math.max(.7,Math.min(.99,rawOptimal)),pct=(optimal*100).toFixed(2);
