@@ -629,6 +629,28 @@ def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
 
 def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
     """Fila completa oficial para a UI Cards, sem reordenar nada no JavaScript."""
+    # Uma Collection recém-migrada pode manter Default (id 1) selecionado,
+    # vazio, enquanto todos os cards pertencem a baralhos importados.
+    # Não altere seleções explícitas de outros decks nem Default com cards.
+    if int(col.decks.get_current_id()) == 1:
+        tree = col.sched.deck_due_tree()
+        nodes = _deck_tree_flatten(tree)
+        default = next((node for node in nodes if int(node["deck_id"]) == 1), None)
+        # O Anki pode omitir Default da árvore quando ele está vazio.
+        if default is None or int(default["total_including_children"]) == 0:
+            candidates = [
+                node for node in nodes
+                if int(node["deck_id"]) not in (0, 1)
+                and not node["filtered"]
+                and int(node["total_including_children"]) > 0
+            ]
+            available = [
+                node for node in candidates
+                if int(node["new_count"]) + int(node["learn_count"]) + int(node["review_count"]) > 0
+            ]
+            target = next(iter(available or candidates), None)
+            if target:
+                col.decks.select(DeckId(int(target["deck_id"])))
     out = reviewer_payload(col)
     fetch_limit = max(1, int(col.card_count()))
     queued = col.sched.get_queued_cards(fetch_limit=fetch_limit)

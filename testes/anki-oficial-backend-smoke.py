@@ -842,6 +842,41 @@ with tempfile.TemporaryDirectory() as tmp:
         assert first.ord == 0 and second.ord == 1
         assert "Conteúdo A" in first.question() and "Conteúdo B" in second.question()
 
+    # A migração distribui cards em decks próprios, mas pode deixar o
+    # Default vazio selecionado. A fila deve abrir um deck populado.
+    selection_user = {"id": "legacy-empty-default-reviewer"}
+    selection_payload = json.loads(json.dumps(reversed_payload))
+    selection_payload["decks"][0]["name"] = "Baralho importado"
+    selection_out = app.cards_official_migrate_legacy(selection_payload, selection_user)
+    selection_col = app.cards_uc_for(selection_user).col
+    assert selection_out["state"]["reviewer"]["finished"] is False
+    assert int(selection_col.decks.get_current_id()) == int(selection_out["deck_map"]["d"])
+    assert set(selection_out["state"]["reviewer"]["queue_ids"]).issubset(
+        {int(cid) for cid in selection_out["card_map"].values()}
+    )
+    assert selection_out["state"]["reviewer"]["queue_ids"]
+    # Recupera também coleções já migradas quando Default ficou selecionado.
+    selection_col.decks.select(app.DeckId(1))
+    recovered = app.cards_official_reviewer_next(selection_user)
+    assert recovered["finished"] is False
+    assert int(selection_col.decks.get_current_id()) == int(selection_out["deck_map"]["d"])
+    # Não substitui a seleção explícita de outro baralho vazio.
+    empty_id = selection_col.decks.add_normal_deck_with_name("Vazio escolhido").id
+    selection_col.decks.select(app.DeckId(empty_id))
+    empty_queue = app.cards_official_reviewer_next(selection_user)
+    assert empty_queue["finished"] is True
+    assert int(selection_col.decks.get_current_id()) == int(empty_id)
+    # Default com um sub-baralho populado é um escopo de estudo válido.
+    child_id = selection_col.decks.add_normal_deck_with_name("Default::Filho").id
+    child_nt = selection_col.models.by_name("Basic")
+    child_note = selection_col.new_note(child_nt)
+    child_note["Front"], child_note["Back"] = "Filho pergunta", "Filho resposta"
+    selection_col.add_note(child_note, app.DeckId(child_id))
+    selection_col.decks.select(app.DeckId(1))
+    child_queue = app.cards_official_reviewer_next(selection_user)
+    assert child_queue["finished"] is False
+    assert int(selection_col.decks.get_current_id()) == 1
+
     # Estado legado sem anki_* moderno: due relativo, review, S/D e
     # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
     schedule_user = {"id": "legacy-cards-schedule-user"}
