@@ -66,4 +66,19 @@ const forbidden=[
 ];
 for(const re of forbidden)assert.doesNotMatch(all,re,'motor/recurso acadêmico local proibido reapareceu: '+re);
 
+const outsideBridge=sourceFiles.filter(p=>!p.endsWith('95-cards-official-bridge.js'))
+  .map(p=>readFileSync(join(ROOT,p),'utf8')).join('\n');
+for(const re of [
+  /DB\.addCard(?:ForPlan)?\(/,/DB\.deleteCard\(/,/DB\.deleteNoteByCard\(/,
+  /DB\.addRevlog(?:Durable)?\(/,/DB\.addDeck\(/,/DB\.resetCard\(/,/DB\.setDueSpec\(/
+]){
+  assert.doesNotMatch(outsideBridge,re,'mutação acadêmica local fora da ponte oficial: '+re);
+}
+for(const m of outsideBridge.matchAll(/DB\.updateCard\([^\n]+/g)){
+  assert.match(m[0],/favorito/,'DB.updateCard fora da ponte só pode alterar metadado visual do Study: '+m[0]);
+}
+assert.match(bridge,/legacyGroups=new Map\(\)/,'migração precisa aceitar legado anterior a Note\/NoteType');
+assert.match(bridge,/__legacy_'\+kind/,'migração antiga precisa sintetizar NoteType transitório');
+assert.match(bridge,/String\(card\.template\|\|''\)==='reverse'\|\|card\.reversedOf\?1:0/,'card invertido legado precisa manter ord 1');
+
 console.log('CARDS OFFICIAL SURFACES: '+buttonIds.length+' botões estáticos com handler; '+clientPrefixes.length+' famílias de rotas ligadas ao backend oficial; recursos críticos sem fallback local.');
