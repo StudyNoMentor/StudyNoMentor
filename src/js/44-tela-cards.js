@@ -1570,7 +1570,7 @@ const CardsScreen = {
     showToast('Motor oficial do Anki indisponível. A resposta não foi gravada.');
     return false;
   },
-  // Quantos cards a lista mostra por vez.  // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
+  // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
   // incluídas — e refazia a lista inteira a cada clique numa estrela. Com alguns
   // milhares de cards isso congelava a tela por segundos.
@@ -2134,7 +2134,7 @@ const CardsScreen = {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.runCustomStudy==='function')return CardsOfficialBridge.runCustomStudy();
     showToast('Estudo Personalizado exige o motor oficial do Anki.');
   },
-  _filteredOrderOptions(selected) {  _filteredOrderOptions(selected) {
+  _filteredOrderOptions(selected) {
     const vals=[
       [0,'Mais antigos revisados primeiro'],[1,'Aleatória'],[2,'Intervalo crescente'],
       [3,'Intervalo decrescente'],[4,'Mais lapsos'],[5,'Adicionados primeiro'],
@@ -2144,24 +2144,14 @@ const CardsScreen = {
     return vals.map(x=>'<option value="'+x[0]+'"'+(Number(selected)===x[0]?' selected':'')+'>'+x[1]+'</option>').join('');
   },
   openFilteredDeckModal(deckId) {
-    if(typeof AnkiParity==='undefined')return;
-    const d=deckId?this.collectionDecks().find(x=>String(x.id)===String(deckId)):null;
-    const cfg=d?AnkiParity.filteredConfig(d):AnkiParity.filteredDefaults();
-    document.getElementById('cards-filtered-id').value=d?d.id:'';
-    document.getElementById('cards-filtered-name').value=d?d.nome:'Baralho filtrado';
-    const t1=(cfg.searchTerms&&cfg.searchTerms[0])||{search:'',limit:100,order:1};
-    const t2=(cfg.searchTerms&&cfg.searchTerms[1])||{search:'',limit:100,order:1};
-    document.getElementById('cards-filtered-search1').value=t1.search||'';
-    document.getElementById('cards-filtered-limit1').value=t1.limit==null?100:t1.limit;
-    document.getElementById('cards-filtered-order1').innerHTML=this._filteredOrderOptions(t1.order);
-    document.getElementById('cards-filtered-search2').value=t2.search||'';
-    document.getElementById('cards-filtered-limit2').value=t2.limit==null?100:t2.limit;
-    document.getElementById('cards-filtered-order2').innerHTML=this._filteredOrderOptions(t2.order);
-    document.getElementById('cards-filtered-reschedule').checked=!!cfg.reschedule;
-    document.getElementById('cards-filtered-again').value=cfg.previewAgainSecs==null?60:cfg.previewAgainSecs;
-    document.getElementById('cards-filtered-hard').value=cfg.previewHardSecs==null?600:cfg.previewHardSecs;
-    document.getElementById('cards-filtered-good').value=cfg.previewGoodSecs==null?0:cfg.previewGoodSecs;
-    document.getElementById('cards-filtered-modal').style.display='flex';
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v==null?'':String(v);};
+    set('cards-filtered-id',deckId||'');set('cards-filtered-name','Baralho filtrado');
+    set('cards-filtered-search1','');set('cards-filtered-limit1',100);set('cards-filtered-search2','');set('cards-filtered-limit2',100);
+    const o1=document.getElementById('cards-filtered-order1'),o2=document.getElementById('cards-filtered-order2');
+    if(o1)o1.innerHTML=this._filteredOrderOptions(1);if(o2)o2.innerHTML=this._filteredOrderOptions(1);
+    const res=document.getElementById('cards-filtered-reschedule');if(res)res.checked=false;
+    set('cards-filtered-again',60);set('cards-filtered-hard',600);set('cards-filtered-good',0);
+    const modal=document.getElementById('cards-filtered-modal');if(modal)modal.style.display='flex';
     this.updateFilteredDeckUI();
   },
   updateFilteredDeckUI() {
@@ -2173,7 +2163,7 @@ const CardsScreen = {
     showToast('Baralho filtrado exige o motor oficial do Anki.');
   },
 
-  // ---- bancas  // ---- bancas (lista oferecida no seletor "Banca" da criação de card) ----
+  // ---- bancas (lista oferecida no seletor "Banca" da criação de card) ----
   openBancasModal() { this.renderBancasList(); $id('bancas-modal').style.display = 'flex'; },
   renderBancasList() {
     const box = document.getElementById('banca-list');
