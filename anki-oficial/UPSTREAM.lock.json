@@ -3,7 +3,7 @@
   "repository": "ankitects/anki",
   "release": "26.09.3",
   "release_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
-  "main_radar_commit": "d1d484c8249a8266a6fe9203694f9087726c6ba2",
+  "main_radar_commit": "7a4db0038e4d5570cc3a297a2b47f8fefbfc309c",
   "total_files": 2107,
   "cards_runtime_files": 571,
   "outside_cards_runtime_files": 1536,

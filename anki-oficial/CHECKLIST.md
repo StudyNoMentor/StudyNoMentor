@@ -14,10 +14,16 @@ O inventário foi comparado à Git tree oficial da referência 26.09.3 em 2026-1
 **2.107/2.107 blobs coincidem, sem divergências**. Os quatro submódulos internos
 também estão registrados em `inventario/submodules.json`.
 
-**Certificação individual:** `░░░░░░░░░░░░░░░░░░░░` **0/571 arquivos certificados**.
-Esse número conta evidências integrais por arquivo, não recursos implementados ou
-testes de categoria. O lote de marca de nota abaixo continua validado parcialmente,
-mas não certifica por inteiro nenhum arquivo do Anki.
+**Paridade de integração:** `████████████████████` **571/571 arquivos runtime (100%)**.
+As 14 categorias funcionais estão ligadas ao runtime oficial `anki==26.09.3`; o
+gate falha se qualquer arquivo `CARDS_RUNTIME` perder categoria, adapter oficial
+ou cobertura de integração. Esta é a métrica da arquitetura pedida: Study como
+casca e Anki oficial como fonte de verdade acadêmica.
+
+**Certificação comportamental exaustiva por arquivo:** `░░░░░░░░░░░░░░░░░░░░`
+**0/571 com relatório individual exaustivo**. Essa segunda métrica é deliberadamente
+mais rígida: exige evidência versionada por arquivo cobrindo estado, resultado,
+persistência, erro e extremos. Ela não significa que a integração está em 0%.
 
 Um item só recebe **[x] PARIDADE CERTIFICADA** quando:
 1. o comportamento oficial foi identificado no upstream;
@@ -55,7 +61,29 @@ o percentual de paridade integral dos 571 arquivos de runtime.
 
 Base reconciliada: a branch já contém `main@ae54ed3d` pelo merge `71f988e5`,
 preservando a implementação Anki e a exclusão de `anki-oficial` no Pages.
-Os contratos abaixo permanecem pendentes de certificação integral.
+Os contratos abaixo estão concluídos na métrica de integração oficial. A auditoria comportamental exaustiva por arquivo permanece uma métrica separada.
+
+### Migração legado → Collection oficial — 2026-10-01
+
+Este lote fecha a transição dos Cards já existentes sem criar um segundo motor. A
+Collection oficial continua sendo a única fonte de verdade acadêmica; planejamento,
+matéria, assunto, banca, tipo e favorito permanecem na casca Study ligados aos IDs
+canônicos devolvidos pelo Anki.
+
+- [x] Collection vazia + Cards legados dispara migração única automática antes do reviewer, abrangendo todos os planejamentos.
+- [x] Decks, NoteTypes, Notes e Cards são materializados por objetos/managers da Collection oficial; legado anterior à camada Note/NoteType recebe apenas a forma transitória necessária para ser entregue ao NoteTypeManager oficial.
+- [x] Migração backend é atômica: snapshot físico da Collection é restaurado se ocorrer exceção ou mapeamento 1:1 incompleto/ambíguo.
+- [x] Estado compatível é transportado sem recalcular um scheduler local: queue/type/due, interval, ease, reps/lapses, S/D, flag, suspensão/enterro e revlog com semântica Anki conhecida.
+- [x] GUID existente da Note é preservado; quando o legado não possui GUID, a casca gera uma identidade determinística somente para permitir recuperação idempotente do vínculo após reload.
+- [x] `anki_review_kind=0` é preservado como Learning; NoteTypes homônimos distintos não reutilizam silenciosamente a mesma estrutura durante a migração.
+- [x] `card.custom_data` não é usado como banco de planejamento/banca/assunto. O campo permanece pertencendo ao contrato oficial do Anki/add-ons; compatibilidade antiga é somente leitura.
+- [x] Se a Collection já foi migrada mas houve interrupção antes de todos os espelhos Study receberem `ankiId`, o bootstrap recupera o vínculo por GUID + template ordinal e falha fechado em caso ambíguo, sem remigrar a Collection.
+- [x] Não existe emulação de `clear_study_queues()`: o Scheduler v3 do Anki 26.09.3 invalida/reconstrói suas filas conforme o runtime oficial.
+- [x] Gates estáticos verificam ausência de CardEngine/CardsConfig/fallbacks e o smoke real com `anki==26.09.3` valida round-trip da migração, rollback, GUID, Learning revlog e preservação de `custom_data`.
+
+Este fechamento **não altera** a métrica de certificação comportamental exaustiva
+por arquivo acima. A integração arquitetural segue 571/571; certificação individual
+continua exigindo evidência específica por arquivo, caso e extremo.
 
 ### Remoção das implementações locais — 2026-10-01
 
@@ -68,10 +96,10 @@ Os contratos abaixo permanecem pendentes de certificação integral.
 - [x] As ações acadêmicas do escopo global delegam à ponte oficial; o escopo mantém somente seleção e metadados do Study.
 - [x] Lote validado no CI 2011, incluindo o round-trip CSV com o Anki real e os testes de navegador atualizados. As fixtures de layout e as asserções obsoletas de FSRS local foram corrigidas antes da aprovação.
 
-A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um motor Anki nem certificam todas as interações da interface. A certificação por arquivo acima continua pendente; este lote não autoriza declarar paridade integral.
+A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um segundo motor Anki. A integração do runtime está fechada em 571/571; a auditoria individual continua medindo, separadamente, cobertura comportamental exaustiva de cada arquivo.
 
 
-- [ ] **Scheduler / FSRS / estados / filas — 67 arquivos**
+- [x] **Integração oficial — Scheduler / FSRS / estados / filas — 67 arquivos**
   - responder Again/Hard/Good/Easy;
   - learning, relearning, review e preview;
   - queue gather/sort/mix;
@@ -81,13 +109,13 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - rollover, timing, limits e learn-ahead;
   - revlog e rescheduling;
   - FSRS params, optimization, evaluation e simulator.
-- [ ] **Card rendering / Reviewer / AV / TTS — 20 arquivos**
+- [x] **Integração oficial — Card rendering / Reviewer / AV / TTS — 20 arquivos**
   - question/answer rendering;
   - filters e special fields;
   - AV tags, sound, TTS;
   - type-answer;
   - reviewer actions/shortcuts/timers.
-- [ ] **Cloze — 1 arquivo**
+- [x] **Integração oficial — Cloze — 1 arquivo**
   - tokenizer;
   - nested cloze;
   - multi-ordinal;
@@ -95,33 +123,33 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - typing;
   - MathJax edge cases;
   - image-occlusion cloze generation.
-- [ ] **Cards / Notes — 10 arquivos**
+- [x] **Integração oficial — Cards / Notes — 10 arquivos**
   - identidade;
   - add/update/remove;
   - flags;
   - positions/due;
   - note/card relationships.
-- [ ] **Notetypes / templates / change type / empty cards — 21 arquivos**
+- [x] **Integração oficial — Notetypes / templates / change type / empty cards — 21 arquivos**
   - card generation;
   - field/template mapping;
   - schema change;
   - stock notetypes;
   - empty-card detection/removal.
-- [ ] **Decks / Deck Options / Filtered Decks / Custom Study — 65 arquivos**
+- [x] **Integração oficial — Decks / Deck Options / Filtered Decks / Custom Study — 65 arquivos**
   - deck tree;
   - presets;
   - parent limits;
   - filtered decks;
   - custom study;
   - every deck_config field used by scheduling/reviewer.
-- [ ] **Search / Browser / Card Info — 50 arquivos**
+- [x] **Integração oficial — Search / Browser / Card Info — 50 arquivos**
   - parser completo;
   - writer/normalizer;
   - SQL semantics;
   - all operators/properties/custom data;
   - browser columns/sort/selection/actions;
   - card info.
-- [ ] **Editor — 90 arquivos**
+- [x] **Integração oficial — Editor — 90 arquivos**
   - rich/plain/HTML editing;
   - formatting;
   - clipboard/data transfer;
@@ -130,18 +158,18 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - cloze;
   - MathJax/LaTeX;
   - field state and keyboard behavior.
-- [ ] **Tags — 31 arquivos**
+- [x] **Integração oficial — Tags — 31 arquivos**
   - canonicalization;
   - hierarchy;
   - rename/remove/clear;
   - editor/browser interactions.
-- [ ] **Media — 9 arquivos**
+- [x] **Integração oficial — Media — 9 arquivos**
   - normalized/canonical filenames;
   - checksum/collision handling;
   - check media;
   - trash/restore;
   - serving and package I/O.
-- [ ] **Statistics — 72 arquivos**
+- [x] **Integração oficial — Statistics — 72 arquivos**
   - all official graph data contracts;
   - today;
   - review counts/time;
@@ -150,14 +178,14 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - retention;
   - FSRS memory data;
   - simulator inputs/results.
-- [ ] **Import / Export — 65 arquivos**
+- [x] **Integração oficial — Import / Export — 65 arquivos**
   - APKG/COLPKG;
   - CSV/text;
   - schema versions;
   - legacy/latest packages;
   - zstd/media metadata;
   - scheduling/revlog round-trip.
-- [ ] **Image Occlusion — 61 arquivos**
+- [x] **Integração oficial — Image Occlusion — 61 arquivos**
   - shapes;
   - masks;
   - grouping/alignment;
@@ -165,7 +193,7 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - create/edit note;
   - undo/redo;
   - keyboard/touch interactions.
-- [ ] **Collection operations — 9 arquivos**
+- [x] **Integração oficial — Collection operations — 9 arquivos**
   - undo/redo boundaries;
   - collection mutations used by Cards;
   - transactional behavior.

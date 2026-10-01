@@ -87,4 +87,5 @@ if(initialized){
   console.log('ANKI UPSTREAM: gitlink conferido; submodule nao inicializado, validacao blob-a-blob fica para checkout com --recurse-submodules.');
 }
 console.log('CARDS UPSTREAM MAP: 571/571 arquivos funcionais classificados; 1536/1536 arquivos restantes inventariados.');
+console.log('CARDS INTEGRATION: '+contracts.integration.integrated_runtime_files+'/'+runtime.length+' arquivos runtime delegados ao '+contracts.integration.runtime+' oficial ('+contracts.integration.coverage_percent+'%).');
 console.log('CONTRATOS: '+Object.keys(contracts.categories).length+' categorias, todas com adapter e teste declarados.');

@@ -1,0 +1,33 @@
+name: Sync Anki Official production backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'anki_official_backend/**'
+      - '.github/workflows/sync-anki-official-production.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: anki-official-production-sync
+  cancel-in-progress: true
+
+jobs:
+  sync-deploy-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Mirror main into Railway production source
+        shell: bash
+        run: |
+          set -euo pipefail
+          MAIN_SHA="$(git rev-parse HEAD)"
+          test "$(git rev-parse origin/main)" = "$MAIN_SHA"
+          git push --force origin HEAD:refs/heads/feat/anki-official-engine-20260923
+          echo "Railway source branch synchronized to main@$MAIN_SHA."

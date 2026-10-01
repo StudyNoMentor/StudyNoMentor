@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 import tempfile
@@ -239,8 +240,17 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert created_note["note"]["id"] > 0 and created_note["cards"]
     crud_nid = int(created_note["note"]["id"])
+    crud_cid = int(created_note["cards"][0]["id"])
     crud_fields = dict(created_note["note"]["fields"])
     crud_fields[ckeys[0]] = "CRUD oficial editado"
+
+    # A casca Study não usa custom_data como banco paralelo. Além do limite
+    # oficial (<100 bytes), esse objeto JSON pode pertencer a Card State Customizer.
+    with cards_user.lock:
+        protected = ccol.get_card(crud_cid)
+        protected.custom_data = '{"addon":1}'
+        ccol.update_card(protected)
+
     updated_note = app.cards_official_update_note(
         crud_nid,
         app.NoteUpdateBody(fields=crud_fields, tags=["crud-oficial-editado"]),
@@ -248,6 +258,9 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert updated_note["note"]["fields"][ckeys[0]] == "CRUD oficial editado"
     assert updated_note["cards"], "update_note oficial deve manter/gerar os cards válidos"
+    with cards_user.lock:
+        assert ccol.get_card(crud_cid).custom_data == '{"addon":1}'
+
     deleted_note = app.cards_official_delete_note(crud_nid, cards_ctx)
     assert deleted_note["ok"] is True and deleted_note["deleted_note_id"] == crud_nid
     with cards_user.lock:
@@ -411,6 +424,140 @@ with tempfile.TemporaryDirectory() as tmp:
     assert redo_out["ok"] is True and "reviewer" in redo_out
 
     app.cards_pool.close_all()
+    # Migração automática legado -> Collection oficial. Esse é o caminho
+    # usado pelos Cards quando o backend oficial está vazio na primeira abertura.
+    legacy_user = {"id": "legacy-cards-migration-user"}
+    legacy_payload = {
+        "decks": [{"id": "deck:plan:p1:d1", "name": "Legado"}],
+        "notetypes": [{
+            "id": "notetype:plan:p1:nt1",
+            "name": "Legado Basic",
+            "kind": "basic",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"}],
+        }],
+        "notes": [{
+            "id": "note:plan:p1:n1",
+            "notetype_id": "notetype:plan:p1:nt1",
+            "guid": "study-guid-legacy-1",
+            "fields": {"Front": "Pergunta legada", "Back": "Resposta legada"},
+            "tags": ["legacy"],
+        }],
+        "cards": [{
+            "id": "card:plan:p1:c1",
+            "note_id": "note:plan:p1:n1",
+            "deck_id": "deck:plan:p1:d1",
+            "template_idx": 0,
+            "phase": "new",
+            "new_position": 1,
+            "interval": 0,
+            "ease_factor": 2500,
+            "reps": 0,
+            "lapses": 0,
+            "remaining_steps": 0,
+            "flag": 0,
+            "materia": "Direito Tributário",
+            "assunto": "ICMS",
+            "banca": "CEBRASPE",
+        }],
+        "revlog": [{
+            "card_id": "card:plan:p1:c1",
+            "ts": 1700000000123,
+            "grade": 3,
+            "anki_interval": 1,
+            "anki_last_interval": 0,
+            "ease_factor": 2500,
+            "time": 321,
+            "anki_review_kind": 0,
+            "anki_ivl_semantica": 2,
+        }],
+    }
+    migrated = app.cards_official_migrate_legacy(legacy_payload, legacy_user)
+    assert migrated["ok"] is True
+    assert migrated["migrated"]["decks"] == 1
+    assert migrated["migrated"]["notetypes"] == 1
+    assert migrated["migrated"]["notes"] == 1
+    assert migrated["migrated"]["cards"] == 1
+    assert migrated["migrated"]["revlog"] == 1
+    assert migrated["deck_map"]["deck:plan:p1:d1"] > 0
+    assert migrated["notetype_map"]["notetype:plan:p1:nt1"] > 0
+    assert migrated["note_map"]["note:plan:p1:n1"] > 0
+    assert migrated["card_map"]["card:plan:p1:c1"] > 0
+    migrated_state = migrated["state"]
+    assert len(migrated_state["cards"]) == 1 and migrated_state["cards"][0]["question"]
+    assert len(migrated_state["notes"]) == 1
+    legacy_item = app.cards_uc_for(legacy_user)
+    with legacy_item.lock:
+        legacy_note = legacy_item.col.get_note(int(migrated["note_map"]["note:plan:p1:n1"]))
+        assert legacy_note.guid == "study-guid-legacy-1"
+        legacy_card_id = int(migrated["card_map"]["card:plan:p1:c1"])
+        assert int(legacy_item.col.db.scalar("select type from revlog where cid = ? order by id desc limit 1", legacy_card_id)) == 0
+    try:
+        app.cards_official_migrate_legacy(legacy_payload, legacy_user)
+        raise AssertionError("segunda migração deveria ser recusada")
+    except app.HTTPException as exc:
+        assert exc.status_code == 409
+
+    # Estado legado sem anki_* moderno: due relativo, review, S/D e
+    # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
+    schedule_user = {"id": "legacy-cards-schedule-user"}
+    schedule_payload = {
+        "decks": [{"id": "d", "name": "Schedule"}],
+        "notetypes": [{
+            "id": "nt", "name": "Schedule Basic", "kind": "basic",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"}],
+        }],
+        "notes": [{"id": "n", "notetype_id": "nt", "fields": {"Front": "Q", "Back": "A"}, "tags": []}],
+        "cards": [{
+            "id": "c", "note_id": "n", "deck_id": "d", "template_idx": 0,
+            "phase": "review", "due_offset_days": 4, "interval": 12,
+            "ease_factor": 2300, "reps": 9, "lapses": 2, "suspenso": True,
+            "s": 8.5, "d": 5.1,
+        }],
+        "revlog": [],
+    }
+    scheduled = app.cards_official_migrate_legacy(schedule_payload, schedule_user)
+    schedule_item = app.cards_uc_for(schedule_user)
+    with schedule_item.lock:
+        scard = schedule_item.col.get_card(int(scheduled["card_map"]["c"]))
+        assert int(scard.type) == 2
+        assert int(scard.queue) == -1
+        assert int(scard.due) == int(schedule_item.col.sched.today) + 4
+        assert int(scard.ivl) == 12 and int(scard.factor) == 2300
+        assert int(scard.reps) == 9 and int(scard.lapses) == 2
+        assert scard.memory_state is not None
+        assert abs(float(scard.memory_state.stability) - 8.5) < 1e-6
+        assert str(scard.custom_data or "") == ""
+    assert app._legacy_card_type_queue({"phase": "review", "bury_kind": "user"}) == (2, -3)
+    assert app._legacy_card_type_queue({"phase": "review", "bury_kind": "scheduler"}) == (2, -2)
+
+    # Mapeamento ambíguo deve abortar e restaurar fisicamente a Collection.
+    rollback_user = {"id": "legacy-cards-rollback-user"}
+    bad_payload = {
+        "decks": [{"id": "d", "name": "Rollback"}],
+        "notetypes": [{
+            "id": "nt", "name": "Rollback Basic", "kind": "basic",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [{"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"}],
+        }],
+        "notes": [{"id": "n", "notetype_id": "nt", "fields": {"Front": "Q", "Back": "A"}, "tags": []}],
+        "cards": [
+            {"id": "c1", "note_id": "n", "deck_id": "d", "template_idx": 0, "phase": "new"},
+            {"id": "c2", "note_id": "n", "deck_id": "d", "template_idx": 0, "phase": "new"},
+        ],
+        "revlog": [],
+    }
+    try:
+        app.cards_official_migrate_legacy(bad_payload, rollback_user)
+        raise AssertionError("mapeamento duplicado deveria abortar")
+    except app.HTTPException as exc:
+        assert exc.status_code == 422
+    rollback_col = app.cards_uc_for(rollback_user)
+    with rollback_col.lock:
+        assert rollback_col.col.card_count() == 0
+        assert rollback_col.col.note_count() == 0
+
     app.pool.close_all()
 
     # Pool com teto (LRU): coleções antigas e livres são fechadas.

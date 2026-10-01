@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -870,12 +870,43 @@ def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
         return int(row["anki_type"]), int(row["anki_queue"])
     phase = str(row.get("phase") or "new").lower()
     if phase == "learning":
-        return 1, 1
-    if phase == "review":
-        return 2, 2
-    if phase == "relearning":
-        return 3, 1
-    return 0, 0
+        ctype, queue = 1, 1
+    elif phase == "review":
+        ctype, queue = 2, 2
+    elif phase == "relearning":
+        ctype, queue = 3, 1
+    else:
+        ctype, queue = 0, 0
+    if bool(row.get("suspenso")):
+        queue = -1
+    elif row.get("bury_kind") or row.get("buried_until"):
+        queue = -3 if str(row.get("bury_kind") or "").lower() in ("user", "manual") else -2
+    return ctype, queue
+
+
+@contextmanager
+def _collection_snapshot_guard(item: UserCollection, label: str):
+    """Rollback físico para operações de migração que precisam ser atômicas."""
+    backup = item.root / f"before-{label}-{int(time.time() * 1000)}.anki2"
+    if not item.collection_path.exists():
+        raise HTTPException(500, "Collection oficial não encontrada para snapshot.")
+    item.col.close()
+    shutil.copy2(item.collection_path, backup)
+    item.col.reopen()
+    try:
+        yield
+    except BaseException:
+        try:
+            item.col.close()
+        except Exception:
+            pass
+        try:
+            shutil.copy2(backup, item.collection_path)
+        finally:
+            item.col.reopen()
+        raise
+    finally:
+        _unlink_quiet(str(backup))
 
 
 @app.post("/api/cards-official/migrate/legacy")
@@ -895,7 +926,7 @@ def cards_official_migrate_legacy(
     notes = payload.get("notes") if isinstance(payload.get("notes"), list) else []
     cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
     revlog = payload.get("revlog") if isinstance(payload.get("revlog"), list) else []
-    with item.lock:
+    with item.lock, _collection_snapshot_guard(item, "cards-legacy-migration"):
         if item.col.card_count() or item.col.note_count():
             raise HTTPException(409, "A Collection oficial já contém dados; migração recusada.")
 
@@ -911,13 +942,19 @@ def cards_official_migrate_legacy(
                 deck_map[legacy_id] = did
 
         nt_map: dict[str, int] = {}
+        claimed_nt_ids: set[int] = set()
         for row in notetypes:
             if not isinstance(row, dict):
                 continue
             legacy_id = str(row.get("id") or row.get("anki_id") or "")
             name = str(row.get("name") or "Note Type").strip()
             existing = item.col.models.by_name(name)
-            if existing and int(item.col.models.use_count(existing)) == 0:
+            existing_id = int(existing["id"]) if existing else 0
+            if (
+                existing
+                and int(item.col.models.use_count(existing)) == 0
+                and existing_id not in claimed_nt_ids
+            ):
                 nt = existing
             else:
                 raw = from_json_bytes(item.col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row)))
@@ -929,6 +966,7 @@ def cards_official_migrate_legacy(
                 raise HTTPException(500, f"Falha ao criar NoteType {name}.")
             _apply_legacy_notetype_shape(item.col, nt, row)
             item.col.models.update_dict(nt, skip_checks=False)
+            claimed_nt_ids.add(int(nt["id"]))
             if legacy_id:
                 nt_map[legacy_id] = int(nt["id"])
 
@@ -949,6 +987,9 @@ def cards_official_migrate_legacy(
             if not nt:
                 raise HTTPException(400, f"NoteType legado não localizado para nota {legacy_nid}.")
             note = item.col.new_note(nt)
+            legacy_guid = str(row.get("guid") or "").strip()
+            if legacy_guid:
+                note.guid = legacy_guid
             fields = row.get("fields") if isinstance(row.get("fields"), dict) else {}
             for key in note.keys():
                 note[key] = str(fields.get(key, ""))
@@ -974,17 +1015,26 @@ def cards_official_migrate_legacy(
                 card.queue = type(card.queue)(int(old.get("anki_queue")) if old.get("anki_queue") is not None else queue)
                 if old.get("anki_due") is not None:
                     card.due = int(old.get("anki_due") or 0)
-                elif card.queue == type(card.queue)(0):
+                elif ctype == 0:
                     card.due = max(1, int(old.get("new_position") or old.get("posicao_nova") or card.due or 1))
-                elif card.queue == type(card.queue)(1):
-                    card.due = max(0, int((old.get("due_ts") or 0) / 1000))
+                elif ctype in (1, 3):
+                    if old.get("due_ts"):
+                        card.due = max(0, int(float(old.get("due_ts") or 0) / 1000))
+                elif ctype == 2 and old.get("due_offset_days") is not None:
+                    card.due = max(0, int(item.col.sched.today) + int(old.get("due_offset_days") or 0))
                 card.ivl = max(0, int(old.get("interval") or old.get("intervalo") or 0))
                 ease = float(old.get("ease") or 0)
                 card.factor = max(0, int(old.get("ease_factor") or (ease * 1000 if 0 < ease < 10 else ease)))
                 card.reps = max(0, int(old.get("reps") or 0))
                 card.lapses = max(0, int(old.get("lapses") or 0))
-                card.left = max(0, int(old.get("remaining_steps") or old.get("anki_remaining_steps") or 0))
-                card.odue = max(0, int(old.get("original_due") or old.get("anki_original_due") or 0))
+                if old.get("remaining_steps") is not None or old.get("anki_remaining_steps") is not None:
+                    card.left = max(0, int(old.get("remaining_steps") or old.get("anki_remaining_steps") or 0))
+                if old.get("original_due") is not None or old.get("anki_original_due") is not None:
+                    card.odue = max(0, int(old.get("original_due") or old.get("anki_original_due") or 0))
+                elif old.get("original_due_ts"):
+                    card.odue = max(0, int(float(old.get("original_due_ts") or 0) / 1000))
+                elif old.get("original_due_offset_days") is not None:
+                    card.odue = max(0, int(item.col.sched.today) + int(old.get("original_due_offset_days") or 0))
                 odid = deck_map.get(str(old.get("original_deck_id") or ""), 0)
                 card.odid = DeckId(odid)
                 card.flags = max(0, min(7, int(old.get("flag") or 0)))
@@ -993,15 +1043,9 @@ def cards_official_migrate_legacy(
                     d = float(old.get("d") or 0)
                     if s > 0 and d > 0:
                         card.memory_state = cards_pb2.FsrsMemoryState(stability=s, difficulty=d)
-                study = {
-                    "legacy_id": legacy_cid,
-                    "materia": old.get("materia"),
-                    "assunto": old.get("assunto"),
-                    "materiaTec": old.get("materia_tec"),
-                    "banca": old.get("banca"),
-                    "tipo": old.get("tipo"),
-                }
-                card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
+                # custom_data pertence ao contrato oficial do Anki/Card State Customizer.
+                # Metadados de matéria/assunto/banca/plano ficam na casca Study,
+                # ligada ao card pelo card_map devolvido abaixo.
                 item.col.update_card(card)
                 if legacy_cid:
                     card_map[legacy_cid] = int(card.id)
@@ -1020,7 +1064,8 @@ def cards_official_migrate_legacy(
             while rid in seen_rev_ids:
                 rid += 1
             seen_rev_ids.add(rid)
-            kind = int(row.get("anki_review_kind") or 1)
+            raw_kind = row.get("anki_review_kind")
+            kind = int(raw_kind) if raw_kind is not None else 1
             rev_rows.append((
                 rid, cid, -1, max(0, min(4, int(row.get("grade") or 0))),
                 int(row.get("anki_interval") or 0), int(row.get("anki_last_interval") or 0),
@@ -1032,10 +1077,22 @@ def cards_official_migrate_legacy(
                 rev_rows,
             )
 
-        item.col.clear_study_queues()
+        if len(note_map) != len(notes):
+            raise HTTPException(422, f"Migração incompleta: {len(note_map)}/{len(notes)} Notes foram materializadas.")
+        if len(card_map) != len(cards) or len(set(card_map.values())) != len(cards):
+            raise HTTPException(
+                422,
+                f"Migração incompleta: {len(card_map)}/{len(cards)} Cards foram mapeados de forma única.",
+            )
+
+        # Scheduler v3 do Anki 26.09.3 invalida/reconstrói as filas
+        # automaticamente após operações da Collection. A antiga API
+        # clear_study_queues() não existe no pylib atual e não deve ser emulada.
         return {
             "ok": True,
             "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
+            "deck_map": deck_map,
+            "notetype_map": nt_map,
             "card_map": card_map,
             "note_map": note_map,
             "state": cards_collection_full_state_payload(item.col),
