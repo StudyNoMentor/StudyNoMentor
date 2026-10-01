@@ -27,6 +27,17 @@ for(const forbidden of [
 ]){
   assert.ok(!bridge.includes(forbidden),'reviewer oficial não pode cair para '+forbidden);
 }
+
+for(const forbidden of [
+  'CardEngine.schedule(',
+  'CardEngine.previewIntervals(',
+  'DB.resetCard(',
+  'DB.setDueSpec(',
+  'AnkiParity.customStudy(',
+  'AnkiParity.saveFilteredDeck('
+]){
+  assert.ok(!cards.includes(forbidden),'casca Cards não pode manter motor acadêmico legado: '+forbidden);
+}
 assert.match(bridge,/\/api\/cards-official\/collection\/full-state/,'bootstrap deve carregar o snapshot integral da Collection oficial persistente');
 assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
 assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
