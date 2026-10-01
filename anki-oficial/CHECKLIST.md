@@ -67,6 +67,8 @@ certificação individual dos 571 arquivos upstream.
 - [x] Decks, NoteTypes, Notes e Cards legados são materializados por `DeckManager`, `NoteTypeManager`, `Collection.new_note/add_note` e `Collection.update_card` do Anki oficial.
 - [x] O UUID/local ID do Study permanece como identidade da casca; `ankiId`/`ankiNoteId` passam a referenciar as identidades canônicas geradas pelo Anki.
 - [x] Estado acadêmico existente é transportado como estado inicial: queue/type/due, interval, ease, reps, lapses, steps, flags, S/D e revlog canônico quando a semântica Anki já era conhecida.
+- [x] Revlog preserva `review_kind=0` (Learning) sem coercão para Review; Basic reverso e Cloze multi-ordinal são mapeados pelos `ord` gerados pelo Anki.
+- [x] NoteTypes legados homônimos, porém estruturalmente distintos, recebem identidades oficiais distintas; a unicidade de nome é resolvida pelo próprio `NoteTypeManager.ensure_name_unique()` do Anki.
 - [x] Planejamento, baralho local, matéria, assunto, matéria TEC, banca, tipo e favorito permanecem no espelho persistente do Study; a migração usa `card_map`/`note_map` para ligá-los aos IDs oficiais sem ocupar `Card.custom_data` (limitado pelo Anki a <100 bytes).
 - [x] O `full-state` deixou de copiar a Collection inteira para o planejamento ativo: Notes/NoteTypes/Decks/Cards são projetados somente nos planejamentos registrados para cada card; registros sem identidade oficial não são apagados por snapshot parcial.
 
