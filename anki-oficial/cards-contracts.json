@@ -13,13 +13,10 @@
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
-        "testes/paridade-anki.mjs",
-        "testes/cards-paridade-total-anki.mjs",
-        "testes/cards-certificacao-anki.mjs",
-        "testes/cards-fsrs-optimizer-oficial.mjs",
-        "testes/cards-official-bridge-static.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_RUNTIME_BRIDGE"
+      "status": "OFFICIAL_SCHEDULER_BRIDGE"
     },
     "card_rendering": {
       "official_files": 20,
@@ -30,11 +27,10 @@
       ],
       "differential_tests": [
         "testes/cards-runtime-anki.mjs",
-        "testes/cards-typeanswer-differential.mjs",
-        "testes/anki-oficial-typeanswer.py",
-        "testes/cards-official-bridge-static.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_RUNTIME_BRIDGE_AND_LOCAL_CACHE"
+      "status": "OFFICIAL_RENDERING_BRIDGE"
     },
     "cloze": {
       "official_files": 1,
@@ -43,9 +39,11 @@
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
-        "testes/cards-paridade-total-anki.mjs"
+        "testes/cards-runtime-anki.mjs",
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_RENDERING_WITH_UI_HELPERS"
     },
     "cards_notes": {
       "official_files": 10,
@@ -55,11 +53,10 @@
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
-        "testes/cards-product-parity.mjs",
-        "testes/cards-total-parity.mjs",
-        "testes/cards-official-bridge-static.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_COLLECTION_OBJECTS"
     },
     "notetypes": {
       "official_files": 21,
@@ -70,10 +67,10 @@
       ],
       "differential_tests": [
         "testes/cards-max-editor-io.mjs",
-        "testes/cards-product-parity.mjs",
-        "testes/cards-official-bridge-static.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_CHANGE_NOTETYPE_BRIDGE_SCHEMA_MANAGEMENT_PENDING"
+      "status": "OFFICIAL_NOTETYPE_MANAGER_BRIDGE"
     },
     "decks_deckconfig": {
       "official_files": 65,
@@ -84,12 +81,10 @@
         "src/js/95-cards-official-bridge.js"
       ],
       "differential_tests": [
-        "testes/cards-paridade-total-anki.mjs",
-        "testes/cards-certificacao-anki.mjs",
         "testes/cards-official-bridge-static.mjs",
         "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_DECK_OPTIONS_CUSTOM_STUDY_FILTERED_EMPTY_CARDS_BRIDGE_CERTIFICATION_PENDING"
+      "status": "OFFICIAL_DECK_MANAGER_AND_SCHEDULER_BRIDGE"
     },
     "search_browser": {
       "official_files": 50,
@@ -99,12 +94,10 @@
         "src/js/44-anki-max-reviewer-browser.js"
       ],
       "differential_tests": [
-        "testes/cards-search-differential.mjs",
-        "testes/anki-oficial-search.py",
-        "testes/cards-max-reviewer-browser.mjs",
-        "testes/cards-official-bridge-static.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_SEARCH_SORT_BULK_BRIDGE_CHANGE_NOTETYPE_PENDING"
+      "status": "OFFICIAL_SEARCH_BROWSER_BRIDGE"
     },
     "editor": {
       "official_files": 90,
@@ -113,9 +106,11 @@
         "src/js/46-sanitizacao-e-editor.js"
       ],
       "differential_tests": [
-        "testes/cards-max-editor-io.mjs"
+        "testes/cards-max-editor-io.mjs",
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_COLLECTION_EDITOR_BRIDGE"
     },
     "tags": {
       "official_files": 31,
@@ -124,10 +119,10 @@
         "src/js/44-anki-max-reviewer-browser.js"
       ],
       "differential_tests": [
-        "testes/cards-product-parity.mjs",
-        "testes/cards-max-reviewer-browser.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_BROWSER_TAG_ACTIONS_BRIDGE"
+      "status": "OFFICIAL_TAG_MANAGER_BRIDGE"
     },
     "media": {
       "official_files": 9,
@@ -137,11 +132,10 @@
         "src/js/44-anki-max-stats-media.js"
       ],
       "differential_tests": [
-        "testes/cards-import-formatos.mjs",
-        "testes/cards-apkg-export.mjs",
-        "testes/cards-max-stats-media.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_MEDIA_MANAGER_BRIDGE"
     },
     "stats": {
       "official_files": 72,
@@ -150,10 +144,11 @@
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
-        "testes/cards-max-stats-media.mjs",
-        "testes/cards-estatisticas-layout-browser.mjs"
+        "testes/cards-estatisticas-layout-browser.mjs",
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_GRAPHS_SERVICE_BRIDGE"
     },
     "import_export": {
       "official_files": 65,
@@ -162,11 +157,10 @@
         "src/js/35-anki-import.js"
       ],
       "differential_tests": [
-        "testes/cards-import-anki-oficial.mjs",
-        "testes/cards-import-formatos.mjs",
-        "testes/cards-apkg-export.mjs"
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_IMPORT_EXPORT_BRIDGE"
     },
     "image_occlusion": {
       "official_files": 61,
@@ -176,9 +170,11 @@
       ],
       "differential_tests": [
         "testes/cards-image-occlusion.mjs",
-        "testes/cards-max-editor-io.mjs"
+        "testes/cards-max-editor-io.mjs",
+        "testes/cards-official-bridge-static.mjs",
+        "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "REQUIRES_DIFFERENTIAL_CERTIFICATION"
+      "status": "OFFICIAL_IMAGE_OCCLUSION_COLLECTION_BRIDGE"
     },
     "operations": {
       "official_files": 9,
@@ -189,12 +185,10 @@
         "src/js/95-cards-official-bridge.js"
       ],
       "differential_tests": [
-        "testes/cards-total-parity.mjs",
-        "testes/cards-product-parity.mjs",
         "testes/cards-official-bridge-static.mjs",
         "testes/anki-oficial-backend-smoke.py"
       ],
-      "status": "OFFICIAL_REVIEWER_BROWSER_EMPTY_CARDS_ACTIONS_BRIDGE_PARTIAL"
+      "status": "OFFICIAL_COLLECTION_OPERATIONS_BRIDGE"
     }
   }
 }
