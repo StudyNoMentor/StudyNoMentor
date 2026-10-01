@@ -241,15 +241,30 @@ try {
   nav = await chromium.launch({ executablePath: navegadorLocal });
 }
 const pag = await nav.newPage({ viewport: { width: 1280, height: 900 } });
+// As dependências de rede não fazem parte da verificação de navegação. Serve
+// o mesmo build fixado por SRI e evita que um CDN lento bloqueie o carregamento.
+const libInicial=join(RAIZ,'node_modules/@supabase/supabase-js/dist/umd/supabase.js');
+if(existsSync(libInicial))await pag.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@*/dist/umd/supabase.js',r=>r.fulfill({status:200,contentType:'text/javascript',headers:{'access-control-allow-origin':'*'},body:readFileSync(libInicial)}));
+await pag.route('https://fonts.googleapis.com/**',r=>r.fulfill({status:200,contentType:'text/css',body:''}));
 const ruido = [];
 pag.on('pageerror', (e) => ruido.push('excecao: ' + e.message));
 // erros de rede sao esperados num ambiente sem acesso aos CDNs; nao contam.
 pag.on('console', (m) => { if (m.type() === 'error' && !/net::|ERR_/.test(m.text())) ruido.push('console: ' + m.text().slice(0, 160)); });
+const diagnostico=await pag.context().newCDPSession(pag);
+await diagnostico.send('Profiler.enable');
+await diagnostico.send('Profiler.start');
 try {
   await pag.goto(base, { waitUntil: 'domcontentloaded' });
   await pag.waitForFunction(() => window.AutoTeste && window.switchScreen, { timeout: 30000 });
   ruido.length ? erro('erros no carregamento:\n    ' + ruido.slice(0, 8).join('\n    ')) : ok('carregou limpo');
-} catch (e) { erro('o app nao inicializou: ' + e.message); }
+} catch (e) {
+  erro('o app nao inicializou: ' + e.message);
+  const {profile}=await diagnostico.send('Profiler.stop');
+  console.error('Funções ativas durante a falha:',profile.nodes.filter(n=>n.hitCount).sort((a,b)=>b.hitCount-a.hitCount).slice(0,8).map(n=>({funcao:n.callFrame.functionName,linha:n.callFrame.lineNumber,amostras:n.hitCount})));
+  await nav.close();servidor.close();process.exit(1);
+}
+await diagnostico.send('Profiler.stop');
+await diagnostico.detach();
 
 console.log('\n6) telas + suite interna');
 try {
