@@ -458,6 +458,8 @@ def health() -> dict[str, Any]:
         "pinned_version": ANKI_VERSION,
         "runtime_version": ANKI_RUNTIME_VERSION,
         "build": "railpack",
+        "source_rev": os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("STUDY_BACKEND_SOURCE_REV"),
+        "source_branch": os.getenv("RAILWAY_GIT_BRANCH"),
     }
 
 
