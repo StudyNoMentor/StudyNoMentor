@@ -408,11 +408,19 @@ function buildRteToolbar(rte) {
     const dentro = !!(sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode));
     const t = dentro ? String(sel).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    let ord = 1;
-    if (typeof CardEngine !== 'undefined') {
-      if (sameNumber && CardEngine.sameClozeOrdinal) ord = CardEngine.sameClozeOrdinal(area.innerHTML);
-      else if (CardEngine.nextClozeOrdinal) ord = CardEngine.nextClozeOrdinal(area.innerHTML);
+    // Upstream Anki 26.09.3: ts/routes/editor/ClozeButtons.svelte
+    // clozePattern + getCurrentHighestCloze(). A escolha do ordinal é lógica
+    // oficial do próprio editor web do Anki, não um parser acadêmico do Study.
+    const clozePattern=/\{\{c(\d+)::/gu,
+      scope=area.closest('.cards-modal')||area.parentElement,
+      fields=scope?[...scope.querySelectorAll('.rte')]:[area];
+    let highest=0;
+    for(const field of fields){
+      const html=String(field&&field.innerHTML||'');clozePattern.lastIndex=0;
+      let match=null;
+      while((match=clozePattern.exec(html)))highest=Math.max(highest,Number(match[1])||0);
     }
+    const ord=Math.max(1,sameNumber?highest:highest+1);
     const token = '{{c' + ord + '::' + t + '}}';
     try { document.execCommand('insertText', false, token); }
     catch (e) { document.execCommand('insertHTML', false, token); }
