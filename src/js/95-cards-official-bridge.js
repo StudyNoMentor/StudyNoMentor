@@ -244,6 +244,21 @@ const CardsOfficialBridge = {
     await this._syncOfficialFullState(out.state,this._activePlanId());
     return out;
   },
+  async getOfficialPreferences(){
+    await this.bootstrap(false);
+    return this.request('/api/cards-official/preferences');
+  },
+  async updateOfficialPreferences(patch){
+    await this.bootstrap(false);
+    const out=await this.request('/api/cards-official/preferences',{
+      method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(patch||{})
+    });
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou as preferências.');
+    if(out.state)await this._syncCollectionState(out.state,this._activePlanId(),null);
+    this.dirty=false;
+    return out.preferences||{};
+  },
+
   async historyStatus(){
     await this.bootstrap(false);
     return this.request('/api/cards-official/history/status');
