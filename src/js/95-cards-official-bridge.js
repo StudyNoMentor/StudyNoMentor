@@ -1626,6 +1626,18 @@ const CardsOfficialBridge = {
     if(out.reviewer)this._applyReviewer(out.reviewer);
     this.dirty=false;this._browserCache=[];return out;
   },
+  async deleteNoteForCard(ref,ask){
+    const card=ref&&typeof ref==='object'?ref:(CardsScreen.collectionCards().find(c=>String(c.id)===String(ref))||DB.getCard(ref));
+    if(!card)throw new Error('Card não encontrado.');
+    const pid=card._planId!=null?card._planId:this._activePlanId(),
+      note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(card.noteId||card.id,pid==null?undefined:pid);
+    if(!note)throw new Error('Nota canônica não encontrada.');
+    const siblings=AnkiProductParity._cardsForNote(note,pid),msg=siblings.length>1?'Excluir esta nota e seus '+siblings.length+' cards?':'Excluir esta nota?';
+    if(ask!==false&&!await UI.confirm(msg,{title:'Excluir nota',okText:'Excluir',danger:true}))return false;
+    const out=await this.deleteOfficialNote(note);
+    CardsScreen.render();CardsScreen.updateFavCount();
+    return out;
+  },
   async _changeNoteToNotetype(note,target,pid){
     const oldNt=AnkiParity.getNotetype(note.notetypeId,pid==null?undefined:pid),
       oldId=Number(oldNt&&oldNt.ankiId!=null?oldNt.ankiId:oldNt&&oldNt.id),newId=Number(target&&target.officialId);
