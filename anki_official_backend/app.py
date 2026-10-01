@@ -425,6 +425,7 @@ class CreateDeckBody(BaseModel):
 class NoteUpdateBody(BaseModel):
     fields: dict[str, str]
     tags: list[str] = []
+    study: dict[str, Any] | None = None
 
 
 class AnswerBody(BaseModel):
@@ -448,6 +449,7 @@ class AddNoteBody(BaseModel):
     notetype_id: int | None = None
     fields: dict[str, str]
     tags: list[str] = []
+    study: dict[str, Any] | None = None
 
 
 @app.get("/health")
@@ -648,6 +650,52 @@ def note_state_payload(col: Collection, note_id: int) -> dict[str, Any]:
     }
 
 
+_STUDY_META_KEYS = ("materia", "assunto", "materiaTec", "banca", "tipo", "favorito")
+
+
+def _study_metadata_payload(raw: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, Any] = {}
+    for key in _STUDY_META_KEYS:
+        if key in raw:
+            out[key] = raw[key]
+    plans = raw.get("plan_ids") or raw.get("planIds")
+    if isinstance(plans, list):
+        out["planIds"] = list(dict.fromkeys(str(x) for x in plans if str(x)))
+    return out
+
+
+def _apply_study_metadata_to_cards(
+    col: Collection,
+    card_ids: list[int],
+    study: dict[str, Any] | None,
+) -> None:
+    meta = _study_metadata_payload(study)
+    if not meta:
+        return
+    for cid in card_ids:
+        card = col.get_card(cid)
+        root: dict[str, Any] = {}
+        raw = str(card.custom_data or "").strip()
+        if raw:
+            try:
+                parsed = json.loads(raw)
+            except (TypeError, ValueError):
+                # customData não JSON pode pertencer a Card State Customizer/add-on.
+                # Não alteramos esse contrato para guardar metadados da casca.
+                continue
+            if not isinstance(parsed, dict):
+                continue
+            root = parsed
+        previous = root.get("study")
+        merged = dict(previous) if isinstance(previous, dict) else {}
+        merged.update(meta)
+        root["study"] = merged
+        card.custom_data = json.dumps(root, ensure_ascii=False, separators=(",", ":"))
+        col.update_card(card)
+
+
 @app.post("/api/cards-official/notes")
 def cards_official_add_note(
     body: AddNoteBody,
@@ -668,6 +716,7 @@ def cards_official_add_note(
         did = DeckId(body.deck_id or int(item.col.decks.get_current_id()))
         changes = item.col.add_note(note, did)
         state = note_state_payload(item.col, int(note.id))
+        _apply_study_metadata_to_cards(item.col, state["card_ids"], body.study)
         cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
         return {
             "ok": True,
@@ -696,6 +745,7 @@ def cards_official_update_note(
         note.tags = list(body.tags)
         changes = item.col.update_note(note)
         state = note_state_payload(item.col, int(note.id))
+        _apply_study_metadata_to_cards(item.col, state["card_ids"], body.study)
         cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
         return {
             "ok": True,
@@ -1025,6 +1075,8 @@ def cards_official_migrate_legacy(
                     "materiaTec": old.get("materia_tec"),
                     "banca": old.get("banca"),
                     "tipo": old.get("tipo"),
+                    "favorito": bool(old.get("favorito", False)),
+                    "planIds": [str(x) for x in (old.get("plan_ids") or []) if str(x)],
                 }
                 card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
                 item.col.update_card(card)
