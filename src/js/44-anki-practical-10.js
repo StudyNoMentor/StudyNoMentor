@@ -245,36 +245,8 @@ const AnkiPractical10 = {
      2) "Mais ações" abre a lista inteira em um toque;
      3) o criador simples expõe todos os tipos padrão do Anki. */
   _installReviewerMobileParity(){
-    this._patchResponsiveCardFrames();
     this._installReviewerActionSheet();
   },
-  _patchResponsiveCardFrames(){
-    if(typeof AnkiRuntime==='undefined'||AnkiRuntime.__p10ResponsiveMedia)return;
-    const oldBuild=AnkiRuntime.buildSrcdoc.bind(AnkiRuntime);
-    AnkiRuntime.buildSrcdoc=(...args)=>{
-      let doc=oldBuild(...args);
-      const responsive='<style id="snm-responsive-media">'+
-        'html,body{max-width:100%!important;min-width:0!important;box-sizing:border-box}'+
-        'body{overflow-x:auto!important;overflow-y:hidden;overflow-wrap:anywhere;word-break:break-word}'+
-        'img,video,svg{max-width:100%!important;height:auto!important;object-fit:contain}'+
-        'canvas,iframe,object,embed{max-width:100%!important}'+
-        'pre{max-width:100%!important;overflow-x:auto!important;white-space:pre-wrap}'+
-        'mjx-container,.MathJax,.MathJax_Display{max-width:100%!important;overflow-x:auto!important;overflow-y:hidden}'+
-        '</style>';
-      if(!doc.includes('id="snm-responsive-media"'))doc=doc.replace('</head>',responsive+'</head>');
-      return doc;
-    };
-    const oldFrame=AnkiRuntime.renderFrame.bind(AnkiRuntime);
-    AnkiRuntime.renderFrame=(...args)=>{
-      let frame=oldFrame(...args);
-      frame=frame.replace(' scrolling="no"',' scrolling="auto"');
-      frame=frame.replace('style="display:block;width:100%;min-height:',
-        'style="display:block;width:100%;max-width:100%;min-width:0;box-sizing:border-box;min-height:');
-      return frame;
-    };
-    AnkiRuntime.__p10ResponsiveMedia=true;
-  },
-
   _installReviewerActionSheet(){
     if(typeof AnkiMaxParity==='undefined'||AnkiMaxParity.__p10DirectActions)return;
     this._ensureReviewerActionSheet();
