@@ -13,7 +13,7 @@ assert.doesNotMatch(source,/sandbox="[^"]*allow-same-origin/);
 const frame={srcdoc:''},input={value:'Pariz',style:{}},face={classList:{remove(){},add(){}}};
 const context={window:{},document:{getElementById(id){
   return {'cards-official-frame':frame,'cards-official-type-answer':input,'cards-official-face':face}[id]||null;
-}},CardsScreen:{_flipped:false},console};
+}},CardsScreen:{_flipped:false},console,queueMicrotask(){}};
 runInNewContext(source,context);
 const bridge=context.window.CardsOfficialBridge;
 const officialHtml='<style>.card{color:red}</style><details open><summary>Dica</summary>Resposta</details><script>window.fromTemplate=true</script>';

@@ -2754,5 +2754,8 @@ const CardsOfficialBridge = {
 };
 
 window.CardsOfficialBridge=CardsOfficialBridge;
-CardsOfficialBridge.install();
+// As camadas de UI instalam seus controles em microtasks. A ponte deve ser a
+// última a registrar ações acadêmicas, para nenhum wrapper posterior restaurar
+// uma operação local ou capturar uma referência intermediária do Browser.
+queueMicrotask(()=>CardsOfficialBridge.install());
 })();

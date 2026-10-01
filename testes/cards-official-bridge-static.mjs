@@ -305,7 +305,7 @@ const notes=[{id:11,ankiId:99,notetypeId:7,_planId:'a'},
              {id:22,ankiId:99,notetypeId:7,_planId:'b'}];
 const mirrors=notes.flatMap(n=>[0,1].map(ord=>({id:n.id+':'+ord,noteId:n.id,_planId:n._planId,favorito:true})));
 const toasts=[];
-const context={window:{},document:{getElementById:()=>null},
+const context={window:{},document:{getElementById:()=>null},queueMicrotask(){},
   showToast:message=>toasts.push(message),
   CardsScreen:{updateFavCount(){}},
   AnkiParity:{saveNote(note){return note;}},
