@@ -61,6 +61,10 @@ assert.match(bridge,/const replayTxn=await this\._persistAnswered\(state,false\)
 assert.match(bridge,/queue===1\|\|queue===4/,'Learn/PreviewRepeat usam timestamp oficial');
 assert.match(bridge,/Number\(state\.due\)-\(Number\(timing\.today\)\|\|0\)/,'Review/DayLearn usam dia oficial');
 assert.match(bridge,/state\.review_logs&&state\.review_logs\[0\]/,'revlog local deve vir do log oficial');
+assert.match(bridge,/oc\.auto_advance\|\|\{\}/,'Auto Advance deve consumir o DeckConfig oficial devolvido pelo reviewer');
+assert.match(bridge,/this\._elapsedMs\(\(this\.review\.card&&this\.review\.card\.auto_advance\)\|\|\{\}\)/,'tempo da resposta deve usar maxTaken e stopTimer oficiais');
+assert.ok(!/trueRetention\(|previsaoCarga\(|_statBotoes\(|_statDistribuicao\(|_statsCards\(/.test(cards),'casca Cards não pode manter Stats acadêmicos locais mortos');
+assert.ok(!/_armReviewerAutomation\(c,cfg\)|CardsConfig\.forDeck\(c\.deckId\)/.test(cards),'Auto Advance da casca não pode depender de configuração acadêmica local');
 assert.match(bridge,/mem\.stability/);
 assert.match(bridge,/mem\.difficulty/);
 
