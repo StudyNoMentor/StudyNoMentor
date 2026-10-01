@@ -374,4 +374,19 @@ assert.equal(live._legacyScheduleRow({phase:'review',ankiType:2,ankiQueue:2,anki
 assert.equal(live._legacyTemplateOrd({ankiTemplateOrd:0,template:'reverse'}),0,'zero explícito continua válido');
 live._legacyDateDelta=originalDateDelta;
 
+
+const staleCard={id:'stale',ankiId:999,_planId:'a'};
+const snapshotMethod=live._legacyMigrationSnapshot,scopeMethod=live._scopeCards;
+live._scopeCards=()=>[staleCard];
+live._legacyMigrationSnapshot=()=>({
+  payload:{notes:[{id:'legacy-note',guid:'matching-guid'}],cards:[{id:'legacy-card',note_id:'legacy-note',template_idx:0}]},
+  cardRefs:new Map([['legacy-card',[{card:staleCard,planId:'a',localId:'stale'}]]])
+});
+assert.equal(await live._recoverLegacyIdentityFromOfficialState({
+  reviewer:{timing:{today:1}},
+  notes:[{id:99,guid:'matching-guid'}],cards:[{id:101,note_id:99,template_idx:0}]
+}),1,'ID positivo ausente na Collection precisa ser reconciliado');
+assert.equal(staleCard.ankiId,101);
+live._legacyMigrationSnapshot=snapshotMethod;live._scopeCards=scopeMethod;
+
 console.log('CARDS OFFICIAL BRIDGE: contratos estáticos e sincronização de marca oficial entre irmãos/planos verificados. Round-trip oficial exige o smoke Python.');

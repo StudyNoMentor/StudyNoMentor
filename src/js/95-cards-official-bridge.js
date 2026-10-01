@@ -892,7 +892,8 @@ const CardsOfficialBridge = {
   },
   async _recoverLegacyIdentityFromOfficialState(state){
     const allLocal=window.StudyGlobalScope&&StudyGlobalScope.allBy?StudyGlobalScope.allBy('cards'):(this._scopeCards()||[]),
-      pending=(allLocal||[]).filter(card=>!(Number.isFinite(Number(card&&card.ankiId))&&Number(card.ankiId)>0));
+      officialIds=new Set((state&&state.cards||[]).map(card=>String(card.id))),
+      pending=(allLocal||[]).filter(card=>!officialIds.has(String(card&&card.ankiId)));
     if(!pending.length||!state||!Array.isArray(state.notes)||!Array.isArray(state.cards))return 0;
     const timingToday=Number(state.reviewer&&state.reviewer.timing&&state.reviewer.timing.today)||0,
       snapshot=this._legacyMigrationSnapshot(timingToday),
@@ -902,7 +903,7 @@ const CardsOfficialBridge = {
       claimed=new Map();
     let recovered=0;
     for(const row of snapshot.payload.cards||[]){
-      const refs=(snapshot.cardRefs.get(row.id)||[]).filter(ref=>!(Number.isFinite(Number(ref&&ref.card&&ref.card.ankiId))&&Number(ref.card.ankiId)>0));
+      const refs=(snapshot.cardRefs.get(row.id)||[]).filter(ref=>!officialIds.has(String(ref&&ref.card&&ref.card.ankiId)));
       if(!refs.length)continue;
       const legacyNote=legacyNotes.get(String(row.note_id)),
         officialNote=legacyNote&&officialNotesByGuid.get(String(legacyNote.guid||'')),
@@ -974,7 +975,8 @@ const CardsOfficialBridge = {
           await this._recoverLegacyIdentityFromOfficialState(state);
           const timingToday=Number(state.reviewer&&state.reviewer.timing&&state.reviewer.timing.today)||0,
             snapshot=this._legacyMigrationSnapshot(timingToday),
-            pending=(snapshot.payload.cards||[]).filter(row=>(snapshot.cardRefs.get(row.id)||[]).some(ref=>!(Number(ref.card.ankiId)>0))),
+            officialIds=new Set((state.cards||[]).map(card=>String(card.id))),
+            pending=(snapshot.payload.cards||[]).filter(row=>(snapshot.cardRefs.get(row.id)||[]).some(ref=>!officialIds.has(String(ref.card.ankiId)))),
             pendingNotes=new Set(pending.map(row=>String(row.note_id)));
           if(pending.length){
             snapshot.payload.cards=pending;
