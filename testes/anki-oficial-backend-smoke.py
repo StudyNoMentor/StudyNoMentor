@@ -792,6 +792,30 @@ with tempfile.TemporaryDirectory() as tmp:
         assert invalid_item.col.card_count() == 0
         assert invalid_item.col.note_count() == 0
 
+    # Um NoteType vazio com nome stock e shape antigo não pode impedir
+    # o reparo. O modelo original permanece vazio e o Anki cria o par correto.
+    for malformed_shape in ("one-template", "extra-field"):
+        collision_user = {"id": "legacy-reversed-collision-" + malformed_shape}
+        collision_col = app.cards_uc_for(collision_user).col
+        existing = collision_col.models.by_name("Basic (and reversed card)")
+        if malformed_shape == "one-template":
+            collision_col.models.remove_template(existing, existing["tmpls"][1])
+        else:
+            collision_col.models.add_field(existing, collision_col.models.new_field("Old Extra"))
+        collision_col.models.update_dict(existing, skip_checks=False)
+        existing_id = int(existing["id"])
+        out = app.cards_official_migrate_legacy(
+            json.loads(json.dumps(reversed_payload)), collision_user
+        )
+        assert out["ok"] and len(out["card_map"]) == 2
+        assert int(out["notetype_map"]["nt"]) != existing_id
+        assert collision_col.models.use_count(collision_col.models.get(existing_id)) == 0
+        questions = {str(card["question"]) for card in out["state"]["cards"]}
+        assert any("Pergunta" in question for question in questions)
+        assert any("Resposta" in question for question in questions)
+        note = collision_col.get_note(int(out["note_map"]["n"]))
+        assert note["Front"] == "Pergunta" and note["Back"] == "Resposta"
+
     # Estado legado sem anki_* moderno: due relativo, review, S/D e
     # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
     schedule_user = {"id": "legacy-cards-schedule-user"}
