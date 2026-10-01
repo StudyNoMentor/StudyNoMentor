@@ -745,10 +745,40 @@ with tempfile.TemporaryDirectory() as tmp:
     assert any("Pergunta" in question for question in questions)
     assert any("Resposta" in question for question in questions)
 
+    # Snapshot real antigo: sem stockKind, o primeiro card básico causava o
+    # fallback "basic", mesmo com nome e dois templates do tipo reverso.
+    for stock_kind in (None, "basic", "normal"):
+        old_reversed_payload = json.loads(json.dumps(reversed_payload))
+        if stock_kind is None:
+            old_reversed_payload["notetypes"][0].pop("stock_kind")
+        else:
+            old_reversed_payload["notetypes"][0]["stock_kind"] = stock_kind
+        old_user = {"id": "legacy-reversed-missing-stock-" + str(stock_kind)}
+        out = app.cards_official_migrate_legacy(old_reversed_payload, old_user)
+        assert out["ok"] and len(out["state"]["cards"]) == 2
+        assert len(out["card_map"]) == 2 and len(out["note_map"]) == 1
+        fronts = {str(card["question"]) for card in out["state"]["cards"]}
+        assert any("Pergunta" in front for front in fronts)
+        assert any("Resposta" in front for front in fronts)
+
+    # Campos extras devem sobreviver ao reparo sem impedir o par reverso.
+    extra_payload = json.loads(json.dumps(reversed_payload))
+    extra_payload["notetypes"][0]["stock_kind"] = "basic"
+    extra_payload["notetypes"][0]["fields"].append({"name": "Origem"})
+    extra_payload["notes"][0]["fields"]["Origem"] = "Anotação preservada"
+    extra_user = {"id": "legacy-reversed-extra-field"}
+    extra_out = app.cards_official_migrate_legacy(extra_payload, extra_user)
+    assert extra_out["ok"] and len(extra_out["state"]["cards"]) == 2
+    extra_col = app.cards_uc_for(extra_user).col
+    extra_note = extra_col.get_note(int(extra_out["note_map"]["n"]))
+    assert extra_note["Origem"] == "Anotação preservada"
+
     # Tipo customizado incompatível: a validação oficial deve retornar 422
     # (com CORS na API) e restaurar a coleção, em vez de gerar Failed to fetch.
     invalid_user = {"id": "legacy-invalid-custom-notetype-user"}
     invalid_payload = json.loads(json.dumps(reversed_payload))
+    invalid_payload["notetypes"][0]["name"] = "Custom duplicated front"
+    invalid_payload["notetypes"][0]["stock_kind"] = "basic"
     invalid_payload["notetypes"][0]["fields"].append({"name": "Extra"})
     invalid_payload["notes"][0]["fields"]["Extra"] = "Custom"
     try:
