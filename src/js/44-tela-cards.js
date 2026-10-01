@@ -491,7 +491,7 @@ const CardsScreen = {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderStats==='function'){void CardsOfficialBridge.renderStats(box);return;}
     if(box)box.innerHTML=this.emptyState('Estatísticas oficiais indisponíveis','Nenhum cálculo local foi usado como fallback.');
   },
-  _statTrueRetention(dica) {  _statTrueRetention(dica) {
+  _statTrueRetention(dica) {
     const p = [];
     // Mesmos períodos da tabela "Retenção real" do Anki.
     [[1, 'Hoje'], ['ontem', 'Ontem'], [7, 'Última semana'], [30, 'Último mês'], [365, 'Último ano'], [null, 'Todo o período']].forEach(([d, rot]) => {
@@ -665,7 +665,7 @@ const CardsScreen = {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderCurrent==='function'){void CardsOfficialBridge.renderCurrent(box);return;}
     if(box)box.innerHTML=this.emptyState('Motor oficial indisponível','O reviewer local está desativado.');
   },
-  faceHtml(c) {  faceHtml(c) {
+  faceHtml(c) {
     // Cards vindos do Anki mantêm a nota/tipo/template canônicos. Renderizar
     // daqui evita "achatar" templates importados em uma frente/verso estáticos.
     if (typeof AnkiParity !== 'undefined') {
@@ -874,7 +874,7 @@ const CardsScreen = {
   _inserirAprendAnki(){},
   _ordenarComoAnki(){},
   _skipNotDue(){},
-  entrarFoco() {  entrarFoco() {
+  entrarFoco() {
     this.tab = 'revisar';
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
     // Modos foco são mutuamente exclusivos. Uma classe antiga do Anki Oficial
@@ -928,7 +928,7 @@ const CardsScreen = {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.redo==='function')return CardsOfficialBridge.redo();
     return false;
   },
-  async answer(grade) {  async answer(grade) {
+  async answer(grade) {
     if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.answer==='function')return CardsOfficialBridge.answer(grade);
     showToast('Motor oficial do Anki indisponível. A resposta não foi gravada.');
     return false;
