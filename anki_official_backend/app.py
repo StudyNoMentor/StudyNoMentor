@@ -652,7 +652,7 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
             if target:
                 col.decks.select(DeckId(int(target["deck_id"])))
     out = reviewer_payload(col)
-    all_decks = bool(col.get_config("study_review_all_decks", True))
+    all_decks = bool(col.get_config("study_review_all_decks", True)) and not bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn"))
     if out.get("finished") and all_decks and not bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn")):
         current = int(col.decks.get_current_id())
         for node in _deck_tree_flatten(col.sched.deck_due_tree()):
@@ -1331,6 +1331,8 @@ def cards_official_reviewer_scope(
         item.col.set_config("study_review_all_decks", did == 0)
         if did:
             item.col.decks.select(DeckId(did))
+        elif bool((item.col.decks.get(item.col.decks.get_current_id()) or {}).get("dyn")):
+            item.col.decks.select(DeckId(1))
         return cards_reviewer_payload(item.col)
 
 
