@@ -65,6 +65,11 @@ const CardsOfficialBridge = {
     d.setUTCDate(d.getUTCDate()+(Number(days)||0));
     return d.toISOString().slice(0,10);
   },
+  _dayOffset(iso,base){
+    const parse=v=>{const m=String(v||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?Date.UTC(Number(m[1]),Number(m[2])-1,Number(m[3])):null;},
+      a=parse(iso),b=parse(base||((typeof todayCards==='function')?todayCards():new Date().toISOString().slice(0,10)));
+    return a==null||b==null?null:Math.round((a-b)/86400000);
+  },
   _replicas(officialId){
     const key=String(officialId);
     return this._allCards().filter(c=>String(this._officialId(c))===key);
@@ -726,7 +731,11 @@ const CardsOfficialBridge = {
           template_idx:Number(card.ankiTemplateOrd!=null?card.ankiTemplateOrd:(card.clozeOrd?Number(card.clozeOrd)-1:(String(card.template||'')==='reverse'||card.reversedOf?1:0)))||0,
           anki_type:card.ankiType!=null?Number(card.ankiType):null,anki_queue:card.ankiQueue!=null?Number(card.ankiQueue):null,
           anki_due:card.ankiDue!=null?Number(card.ankiDue):null,new_position:Number(card.posicaoNova)||0,
-          due_ts:Number(card.dueTs)||0,interval:Number(card.intervalo)||0,
+          due_ts:Number(card.dueTs)||0,due_offset_days:this._dayOffset(card.due),interval:Number(card.intervalo)||0,
+          suspenso:!!card.suspenso,bury_kind:card.buryKind||null,buried_until:card.enterradoAte||null,
+          learn_step:Number(card.learnStep)||0,
+          original_due_offset_days:this._dayOffset(card.originalDue),
+          original_due_ts:Number(card.originalDueTs)||0,
           ease_factor:Math.round((Number(card.ease)||2.5)*1000),reps:Number(card.reps)||0,lapses:Number(card.lapses)||0,
           remaining_steps:Number(card.ankiRemainingSteps)||0,original_due:Number(card.ankiOriginalDue)||0,flag:Number(card.flag)||0,
           s:card.s==null?null:Number(card.s),d:card.d==null?null:Number(card.d),phase:card.phase||'new',
