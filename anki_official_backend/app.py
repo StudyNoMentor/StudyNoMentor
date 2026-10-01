@@ -1039,7 +1039,9 @@ def cards_official_migrate_legacy(
                 rev_rows,
             )
 
-        item.col.clear_study_queues()
+        # Scheduler v3 do Anki 26.09.3 invalida/reconstrói as filas
+        # automaticamente após operações da Collection. A antiga API
+        # clear_study_queues() não existe no pylib atual e não deve ser emulada.
         return {
             "ok": True,
             "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
