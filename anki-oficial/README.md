@@ -31,6 +31,23 @@ Paridade perfeita significa **resultado observável igual ao Anki oficial**, nã
 
 O gate `testes/cards-anki-upstream-manifest.mjs` garante que os 2107 arquivos estejam cobertos pelo inventário e que nenhum dos 571 arquivos de Cards fique sem categoria/contrato.
 
+No CI, o checkout é recursivo e o gate roda com `--require-upstream`: a ausência
+da fonte oficial faz a verificação falhar. Para reproduzir:
+
+```sh
+git submodule update --init --recursive
+node testes/cards-anki-upstream-manifest.mjs --require-upstream
+python testes/anki-oficial-version.py
+```
+
+O gate também confere que `requirements.txt`, o backend e o inventário apontem
+a mesma release. O backend recusa iniciar com uma versão Anki diferente ou sem
+versão identificável, antes de abrir coleções. `/health` informa a versão real
+validada; nunca substitui uma versão ausente pela versão esperada.
+
+O antigo workflow de geração de FSRS WASM foi retirado: o FSRS dos Cards é
+executado pelo pacote oficial no backend, conforme os contratos desta pasta.
+
 ## Auditoria individual e progresso
 
 [`AUDITORIA-POR-ARQUIVO.md`](AUDITORIA-POR-ARQUIVO.md) lista cada arquivo upstream

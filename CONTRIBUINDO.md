@@ -62,7 +62,7 @@ A separação em `src/` entrega a manutenibilidade sem pagar nenhum desses preç
 
 ```bash
 # 1. edite os arquivos em src/ (nunca o index.html direto)
-$EDITOR src/js/32-card-engine.js
+$EDITOR src/js/95-cards-official-bridge.js
 
 # 2. regrave o index.html
 node build.mjs
@@ -89,7 +89,7 @@ reste divergência.
 |---|----------|:---:|
 | 1 | `src/` monta exatamente o `index.html` publicado | não |
 | 2 | cada módulo de `src/js` tem sintaxe válida isoladamente | não |
-| 3 | o agendador bate com o Anki — 21.080 pontos (`testes/paridade-anki.mjs`) e sobrevive a configuração corrompida (`testes/robustez-config.mjs`) | não |
+| 3 | inventário upstream, ponte oficial dos Cards e contratos de runtime (`testes/cards-anki-upstream-manifest.mjs`, `testes/cards-official-bridge-static.mjs`, `testes/cards-runtime-anki.mjs`) | não |
 | 4 | id duplicado, tag estrutural desbalanceada, CSP íntegra, trava anti-moldura presente | não |
 | 5 | o app carrega no Chromium sem **um único** erro de console | sim |
 | 6 | as telas principais navegam, `AutoTeste` passa e invariantes críticas de interface continuam válidas | sim |
@@ -104,76 +104,43 @@ navegador — incluindo `testes/auditoria-correcoes-browser.mjs`. Todo arquivo
 `testes/*.mjs` precisa estar referenciado na CI ou no `verificar.mjs`
 (`testes/repositorio-higiene.mjs` reprova o que ficar de fora).
 
-## As duas suítes de teste
+## Cards e fonte oficial Anki
 
-### `testes/paridade-anki.mjs` — teste diferencial (Node, sem navegador)
+Os Cards delegam scheduling, FSRS, filas, busca, rendering e operações de
+coleção ao pacote `anki==26.09.3` por `anki_official_backend/app.py` e
+`src/js/95-cards-official-bridge.js`. Mudanças nesses comportamentos devem usar
+as APIs oficiais e preservar os resultados na projeção do Study. A versão do
+runtime é conferida antes de abrir qualquer coleção.
 
-Recorta os módulos puros (`src/js/30-fsrs.js`, `31`, `32`), roda cada um num
-contexto isolado e compara **21.080 pontos** contra `testes/referencia-anki.js`
-— um porte linha a linha de `fsrs-rs/src/model.rs`,
-`fsrs-rs/src/parameter_clipper.rs` e `anki/rslib/.../fuzz.rs`.
+`anki-oficial/upstream` aponta o repositório literal `ankitects/anki`, no commit
+registrado em `anki-oficial/UPSTREAM.lock.json`. Não editar os fontes desse
+submódulo. Para atualizar a referência, alinhar pacote, gitlink, inventário,
+contratos e evidências na mesma alteração.
 
-Cobre três coisas distintas:
-
-- **fórmulas** (~12.700 comparações numéricas, tolerância 1e-12);
-- **comportamento que o Anki impõe acima das fórmulas** (~8.300 asserções): a
-  ordem Difícil < Bom < Fácil, o piso de crescimento, os limites de S/D/intervalo,
-  o "Errei" voltando ao primeiro passo;
-- **limites do otimizador** (`parameter_clipper.rs`), incluindo o teto dinâmico
-  de w17/w18.
-
-Ao atualizar a referência, **traduza o Rust de novo** — nunca "ajuste até bater
-com o app". Se os dois divergirem, quem está errado é o app até prova em
-contrário.
-
-```bash
-node testes/paridade-anki.mjs
+```sh
+git submodule update --init --recursive
+node testes/cards-anki-upstream-manifest.mjs --require-upstream
+node testes/cards-official-bridge-static.mjs
+node testes/cards-runtime-anki.mjs
+python testes/anki-oficial-version.py
+python -m pip install -r anki_official_backend/requirements.txt
+python testes/anki-oficial-backend-smoke.py
 ```
 
-### `testes/robustez-config.mjs` — configuração que vem de fora
+O gate de inventário verifica todos os 2.107 blobs e os quatro gitlinks
+internos. A opção `--require-upstream`, obrigatória no CI, recusa checkout sem
+a fonte oficial. O teste de versão verifica também a recusa de runtimes
+incompatíveis ou sem versão, sem exigir dependências Python externas.
 
-A tela de opções valida o que você digita. A **nuvem, um backup importado e o
-armazenamento editado à mão** não validam nada. Este teste joga 12 configurações
-inválidas (`learnSteps: ["abc"]`, `maxInterval: "muito"`, `retention: 0`…) contra
-as 4 fases × 4 notas e exige que nenhuma produza um card com `due: "NaN-NaN-NaN"`
-ou `dueTs: NaN` — um card assim **nunca mais vence**: some da fila em silêncio.
+`anki-oficial/AUDITORIA-POR-ARQUIVO.md` contém o checklist individual.
+`audit-status.json` conserva as evidências de certificação. Conferir fontes,
+executar o motor oficial e passar testes de categoria não certifica todas as
+interações do editor, browser, reviewer, estatísticas ou Image Occlusion.
+O checklist distingue inventário completo de paridade integral demonstrada.
 
-O saneamento vive em `CardsConfig._sanear()`, no funil único de leitura
-(`get()` / `forDeck()`). Se você adicionar uma opção nova que entra em cálculo,
-**adicione a validação dela lá** e um caso aqui.
-
-```bash
-node testes/robustez-config.mjs
-```
-
-### `AutoTeste` — suíte interna (navegador)
-
-O próprio app carrega 164 asserções. No console do navegador:
-
-```js
-AutoTeste.rodar()     // 164 asserções: FSRS-6, fuzz, agendador, parser TEC,
-                      // robustez, SM-2, filtros, gráficos, garantia de salvamento
-__diag()              // erros engolidos, ids ausentes, contadores
-```
-
-Os vetores de referência do FSRS em `src/js/45-autoteste.js` foram gerados por
-uma implementação **independente** (semântica de `fsrs-rs` / `py-fsrs`) e estão
-congelados ali de propósito: um vetor extraído do próprio código sob teste não
-testaria nada.
-
-## Fidelidade ao Anki
-
-O agendador replica o Anki 25.07+ (FSRS-6). Quando divergir da referência, a
-referência ganha. As fontes são:
-
-- `ankitects/anki` → `rslib/src/scheduler/states/` (`learning.rs`,
-  `relearning.rs`, `review.rs`, `fuzz.rs`, `steps.rs`)
-- `open-spaced-repetition/fsrs-rs` → `src/model.rs`, `src/parameter_clipper.rs`
-
-Os pontos onde o código dá um passo além da fórmula (pisos entre os botões,
-`fuzz_factor` único por resposta, tetos dinâmicos do otimizador) estão comentados
-no lugar com o arquivo de origem. **Não remova esses comentários** — eles são o
-que permite reconferir a paridade sem reler o Rust inteiro.
+O `AutoTeste` no navegador continua validando as invariantes próprias do Study.
+Para diagnóstico, usar `AutoTeste.rodar()` e `__diag()`; a lista de asserções
+atual vive em `src/js/45-autoteste.js`.
 
 ## Cor e contraste
 
@@ -253,7 +220,7 @@ pela metade.
 - **Nada de `eval`, `new Function` ou `setTimeout('string')`.** A CSP barraria,
   mas o hábito é o que protege. Extensões locais e Custom Scheduling do Cards
   guardam o código, mas **não o executam** (rodariam com acesso à sessão). A
-  CSP libera só `'wasm-unsafe-eval'` (o otimizador FSRS oficial é WASM).
+  otimização FSRS é delegada ao backend oficial.
 - **Erro engolido deixa rastro.** `catch (e) { _quiet(e, 'contexto'); }`, nunca
   `catch (e) {}`.
 - **`$id()` em vez de `getElementById()`** quando o elemento pode não existir:

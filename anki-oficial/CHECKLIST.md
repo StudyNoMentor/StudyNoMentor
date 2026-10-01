@@ -30,6 +30,19 @@ Existência de botão, função ou comentário **não** conta como paridade.
 
 ## Contratos funcionais
 
+### Integridade da fonte e do runtime — 2026-10-01
+
+- [x] Conferidos os 2.107 caminhos, SHAs e tamanhos contra a Git tree oficial da referência congelada; nenhuma divergência.
+- [x] Checkout recursivo e `--require-upstream` obrigatórios no job principal do CI; ausência da fonte oficial reprova o gate.
+- [x] Gate alinha a release do inventário, o pin de `requirements.txt` e a versão declarada do backend.
+- [x] Backend recusa versão instalada divergente ou ausente antes de abrir coleções; o health reporta somente a versão real validada.
+- [x] Testados versão ausente/divergente, pin divergente e checkout ausente; contratos da ponte e runtime dos Cards passaram localmente.
+- [x] Retirado o workflow obsoleto que tentava reconstruir o motor FSRS WASM removido.
+- [ ] Executar o smoke com o pacote Anki real e as suítes de navegador no CI deste commit.
+
+Esses itens verificam integridade e rastreabilidade. Não alteram a contagem de
+certificações individuais nem incorporam patches posteriores à 26.09.3.
+
 ### Continuação — 2026-10-01: marca de nota no revisor
 
 Progresso deste lote: **4/4 verificações concluídas (100%)**. Isso não representa

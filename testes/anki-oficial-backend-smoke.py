@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     health = app.health()
     assert health["pinned_version"] == "26.09.3"
+    assert health["runtime_version"] == health["pinned_version"]
     assert health["engine"] == "anki"
 
     user = app.pool.get("smoke-user")

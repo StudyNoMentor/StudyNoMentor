@@ -44,6 +44,20 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 
 ANKI_VERSION = "26.09.3"
+
+
+def verify_anki_runtime() -> str:
+    """Recusa outro motor antes de abrir ou alterar qualquer coleção."""
+    runtime = getattr(anki.buildinfo, "version", None)
+    if runtime != ANKI_VERSION:
+        raise RuntimeError(
+            f"Anki runtime incompatível: esperado {ANKI_VERSION}, recebido {runtime!r}. "
+            "Instale anki_official_backend/requirements.txt antes de iniciar o backend."
+        )
+    return runtime
+
+
+ANKI_RUNTIME_VERSION = verify_anki_runtime()
 DATA_DIR = Path(os.environ.get("ANKI_DATA_DIR", "/data/anki-official")).resolve()
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://gizhxgnbmmhhniubelbz.supabase.co").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
@@ -442,7 +456,7 @@ def health() -> dict[str, Any]:
         "ok": True,
         "engine": "anki",
         "pinned_version": ANKI_VERSION,
-        "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+        "runtime_version": ANKI_RUNTIME_VERSION,
         "build": "railpack",
     }
 
@@ -455,7 +469,7 @@ def status(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
             "connected": True,
             "engine": "Anki official",
             "pinned_version": ANKI_VERSION,
-            "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+            "runtime_version": ANKI_RUNTIME_VERSION,
             "collection_path": item.collection_path.name,
             "cards": int(item.col.card_count()),
             "notes": int(item.col.note_count()),
@@ -801,7 +815,7 @@ def cards_official_status(user: dict[str, Any] = Depends(current_user)) -> dict[
             "engine": "Anki official",
             "collection": "study-cards",
             "pinned_version": ANKI_VERSION,
-            "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+            "runtime_version": ANKI_RUNTIME_VERSION,
             "cards": int(item.col.card_count()),
             "notes": int(item.col.note_count()),
             "current_deck_id": int(item.col.decks.get_current_id()),
@@ -1070,7 +1084,7 @@ async def cards_official_bootstrap(
             return {
                 "ok": True,
                 "engine": "Anki official",
-                "runtime_version": getattr(anki.buildinfo, "version", ANKI_VERSION),
+                "runtime_version": ANKI_RUNTIME_VERSION,
                 "cards": int(item.col.card_count()),
                 "notes": int(item.col.note_count()),
                 "reviewer": cards_reviewer_payload(item.col),

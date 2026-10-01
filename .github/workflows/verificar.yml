@@ -26,15 +26,22 @@ jobs:
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
           # Baixa a fonte oficial para o gate comparar todos os blobs e os
-          # quatro gitlinks internos. Estes não precisam de checkout no CI.
-          submodules: true
+          # quatro repositórios internos, todos nos commits oficiais.
+          submodules: recursive
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Fonte literal Anki — inventário integral obrigatório
+        run: node testes/cards-anki-upstream-manifest.mjs --require-upstream
       - uses: actions/setup-python@v5
         if: github.event_name != 'push'
         with:
           python-version: '3.13'
+
+      - name: Recusar runtime Anki divergente
+        if: github.event_name != 'push'
+        run: python testes/anki-oficial-version.py
 
       - name: Build e sintaxe
         shell: bash

@@ -8,6 +8,13 @@ import { fileURLToPath } from 'node:url';
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const A=join(ROOT,'anki-oficial');
 const lock=JSON.parse(readFileSync(join(A,'UPSTREAM.lock.json'),'utf8'));
+const requirements=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
+assert.ok(requirements.split(/\r?\n/).includes('anki=='+lock.release),'pacote instalado precisa coincidir com a release inventariada');
+const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
+assert.ok(backend.includes('ANKI_VERSION = "'+lock.release+'"'),'backend precisa executar a release inventariada');
+const upstream=join(A,'upstream');
+const initialized=existsSync(join(upstream,'.git'))||existsSync(join(upstream,'rslib'));
+assert.ok(!process.argv.includes('--require-upstream')||initialized,'checkout literal do Anki obrigatório: execute git submodule update --init --recursive');
 const contracts=JSON.parse(readFileSync(join(A,'cards-contracts.json'),'utf8'));
 const chunks=readdirSync(join(A,'inventario')).filter(x=>/^\d{4}-\d{4}\.json$/.test(x)).sort();
 const files=chunks.flatMap(x=>JSON.parse(readFileSync(join(A,'inventario',x),'utf8')).files||[]);
@@ -59,8 +66,7 @@ assert.match(gm,/url = https:\/\/github\.com\/ankitects\/anki\.git/);
 const treeLine=execFileSync('git',['ls-tree','HEAD','anki-oficial/upstream'],{cwd:ROOT,encoding:'utf8'}).trim();
 assert.match(treeLine,new RegExp('^160000 commit '+lock.release_commit+'\\tanki-oficial/upstream$'),'gitlink nao aponta o commit oficial travado');
 
-const upstream=join(A,'upstream');
-if(existsSync(join(upstream,'.git'))||existsSync(join(upstream,'rslib'))){
+if(initialized){
   const head=execFileSync('git',['-C',upstream,'rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim();
   assert.equal(head,lock.release_commit,'submodule checkout em commit diferente');
   const dirty=execFileSync('git',['-C',upstream,'status','--porcelain','--untracked-files=all'],{cwd:ROOT,encoding:'utf8'}).trim();
