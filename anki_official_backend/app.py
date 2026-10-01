@@ -911,13 +911,19 @@ def cards_official_migrate_legacy(
                 deck_map[legacy_id] = did
 
         nt_map: dict[str, int] = {}
+        claimed_nt_ids: set[int] = set()
         for row in notetypes:
             if not isinstance(row, dict):
                 continue
             legacy_id = str(row.get("id") or row.get("anki_id") or "")
             name = str(row.get("name") or "Note Type").strip()
             existing = item.col.models.by_name(name)
-            if existing and int(item.col.models.use_count(existing)) == 0:
+            existing_id = int(existing["id"]) if existing else 0
+            if (
+                existing
+                and int(item.col.models.use_count(existing)) == 0
+                and existing_id not in claimed_nt_ids
+            ):
                 nt = existing
             else:
                 raw = from_json_bytes(item.col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row)))
@@ -929,6 +935,7 @@ def cards_official_migrate_legacy(
                 raise HTTPException(500, f"Falha ao criar NoteType {name}.")
             _apply_legacy_notetype_shape(item.col, nt, row)
             item.col.models.update_dict(nt, skip_checks=False)
+            claimed_nt_ids.add(int(nt["id"]))
             if legacy_id:
                 nt_map[legacy_id] = int(nt["id"])
 
