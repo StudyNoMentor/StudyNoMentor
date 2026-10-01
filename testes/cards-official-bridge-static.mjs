@@ -57,9 +57,12 @@ assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_no
 assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'bootstrap dos Cards deve acionar a migração oficial quando a Collection estiver vazia');
 assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?this\._migrateLegacyCollection\(\)/,'Cards legados devem migrar automaticamente em vez de bloquear o reviewer');
 assert.ok(!bridge.includes('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study'),'erro antigo de migração manual não pode continuar no runtime');
-assert.ok(bridge.includes('study_replicas:replicas'),'payload legado deve preservar réplicas e metadados por planejamento');
-assert.ok(backend.includes('"replicas": old.get("study_replicas")')&&backend.includes('"deck_map": deck_map')&&backend.includes('"notetype_map": nt_map'),'backend deve persistir réplicas e devolver todos os mapas canônicos');
-assert.match(bridge,/_studyTargetsForState\(state,fallbackPlanId\)[\s\S]*?meta\.replicas/,'full-state deve reconstruir projeções de planejamento a partir do custom_data oficial');
+const legacyMigrationBackend=backend.slice(backend.indexOf('def cards_official_migrate_legacy'),backend.indexOf('@app.post("/api/cards-official/bootstrap")'));
+assert.ok(!bridge.includes('study_replicas:replicas'),'payload enviado ao Anki não deve transportar metadados de planejamento/banca/assunto');
+assert.ok(!legacyMigrationBackend.includes('card.custom_data ='),'migração não pode usar custom_data como banco de metadados do Study');
+assert.ok(backend.includes('"deck_map": deck_map')&&backend.includes('"notetype_map": nt_map')&&backend.includes('"card_map": card_map')&&backend.includes('"note_map": note_map'),'backend deve devolver todos os mapas canônicos necessários à casca');
+assert.match(bridge,/for\(const ref of snapshot\.cardRefs\.get\(legacy\)\|\|\[\]\)[\s\S]*?StudyGlobalScope\.updateCardScoped/,'migração deve preservar metadados nas réplicas Study enquanto liga cada uma ao ID oficial');
+assert.match(bridge,/_studyTargetsForState\(state,fallbackPlanId\)[\s\S]*?this\._replicas\(state&&state\.id\)/,'full-state deve reconstruir projeções a partir dos espelhos persistentes do Study');
 assert.ok(bridge.includes('noteTargets=new Map(),deckTargets=new Map(),ntTargets=new Map(),touchedPlans=new Set()'),'snapshot integral deve ser projetado por planejamento, não copiado inteiro no planejamento ativo');
 
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
