@@ -1025,16 +1025,25 @@ def cards_official_migrate_legacy(
                 continue
             legacy_id = str(row.get("id") or row.get("anki_id") or "")
             name = str(row.get("name") or "Note Type").strip()
+            stock = from_json_bytes(
+                item.col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row))
+            )
             existing = item.col.models.by_name(name)
             existing_id = int(existing["id"]) if existing else 0
             if (
                 existing
                 and int(item.col.models.use_count(existing)) == 0
                 and existing_id not in claimed_nt_ids
+                # Um modelo vazio com o mesmo nome pode ser um clone legado
+                # de outro stock. Reutilizá-lo desativa o reparo de templates
+                # e mantém kind/identidades incompatíveis com o motor oficial.
+                and int(existing.get("type", 0)) == int(stock.get("type", 0))
+                and len(existing.get("flds") or []) == len(stock.get("flds") or [])
+                and len(existing.get("tmpls") or []) == len(stock.get("tmpls") or [])
             ):
                 nt = existing
             else:
-                raw = from_json_bytes(item.col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row)))
+                raw = stock
                 raw["id"] = 0
                 raw["name"] = name
                 changes = item.col.models.add_dict(raw)
