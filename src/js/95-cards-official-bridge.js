@@ -546,6 +546,148 @@ const CardsOfficialBridge = {
     return this.request('/api/cards-official/database/optimize',{method:'POST'});
   },
 
+  _legacyStableKey(kind,row,planId){
+    const official=Number(row&&row.ankiId);
+    if(Number.isSafeInteger(official)&&official>0)return kind+':anki:'+official;
+    const id=row&&row.id!=null?String(row.id):'';
+    return kind+':plan:'+String(planId==null?'':planId)+':'+id;
+  },
+  _legacyMigrationPayload(){
+    const scope=window.StudyGlobalScope,
+      plans=scope&&scope.plans?scope.plans():[{id:this._activePlanId()}],
+      payload={decks:[],notetypes:[],notes:[],cards:[],revlog:[]},
+      refs={deck:new Map(),notetype:new Map(),note:new Map(),card:new Map()},
+      seen={deck:new Set(),notetype:new Set(),note:new Set(),card:new Set(),revlog:new Set()},
+      pushRef=(kind,key,pid,row)=>{if(!refs[kind].has(key))refs[kind].set(key,[]);refs[kind].get(key).push({pid,row});},
+      rows=(pid,suffix)=>scope&&scope._rows?scope._rows(pid,suffix):(suffix==='cards'?DB.getCards():suffix==='decks'?DB.getDecks():[]),
+      entityRows=(pid,kind)=>scope&&scope._entityRows?scope._entityRows(pid,kind):(kind==='note'?AnkiParity.notes(pid):AnkiParity.noteTypes(pid)),
+      revRows=pid=>scope&&scope.revlogForPlan?scope.revlogForPlan(pid):(DB.getRevlog?DB.getRevlog():[]);
+    for(const plan of plans){
+      const pid=plan&&plan.id!=null?plan.id:this._activePlanId(),
+        decks=rows(pid,'decks')||[],nts=entityRows(pid,'notetype')||[],notes=entityRows(pid,'note')||[],cards=rows(pid,'cards')||[],
+        deckById=new Map(decks.map(x=>[String(x.id),x])),
+        ntById=new Map(nts.map(x=>[String(x.id),x])),
+        noteById=new Map(notes.map(x=>[String(x.id),x]));
+      const deckKeyOf=id=>{
+        const d=deckById.get(String(id));if(d)return this._legacyStableKey('deck',d,pid);
+        return 'deck:plan:'+String(pid==null?'':pid)+':'+String(id==null?'':id);
+      };
+      const ntKeyOf=id=>{
+        const nt=ntById.get(String(id));if(nt)return this._legacyStableKey('notetype',nt,pid);
+        return 'notetype:plan:'+String(pid==null?'':pid)+':'+String(id==null?'':id);
+      };
+      const noteKeyOf=(id,official)=>{
+        if(Number.isSafeInteger(Number(official))&&Number(official)>0)return 'note:anki:'+Number(official);
+        const n=noteById.get(String(id));if(n)return this._legacyStableKey('note',n,pid);
+        return 'note:plan:'+String(pid==null?'':pid)+':'+String(id==null?'':id);
+      };
+      for(const d of decks){
+        if(!d||d.filtered===true||d.kind==='filtered')continue;
+        const key=this._legacyStableKey('deck',d,pid);pushRef('deck',key,pid,d);
+        if(seen.deck.has(key))continue;seen.deck.add(key);
+        payload.decks.push(Object.assign({},d,{id:key,name:String(d.nome||d.name||'').trim()}));
+      }
+      for(const nt of nts){
+        if(!nt)continue;const key=this._legacyStableKey('notetype',nt,pid);pushRef('notetype',key,pid,nt);
+        if(seen.notetype.has(key))continue;seen.notetype.add(key);
+        payload.notetypes.push(Object.assign({},nt,{id:key,stock_kind:nt.stockKind||nt.kind||'basic'}));
+      }
+      for(const n of notes){
+        if(!n)continue;const key=this._legacyStableKey('note',n,pid),ntKey=ntKeyOf(n.notetypeId);
+        pushRef('note',key,pid,n);
+        if(seen.note.has(key))continue;seen.note.add(key);
+        payload.notes.push({id:key,notetype_id:ntKey,fields:Object.assign({},n.fields||{}),tags:Array.isArray(n.tags)?n.tags.slice():[]});
+      }
+      for(const card of cards){
+        if(!card)continue;
+        const key=this._legacyStableKey('card',card,pid),
+          noteKey=noteKeyOf(card.noteId||card.ankiNoteId||card.id,card.ankiNoteId),
+          noteRef=noteById.get(String(card.noteId||card.ankiNoteId||card.id));
+        if(!seen.note.has(noteKey)&&!noteRef)throw new Error('Migração oficial bloqueada: card legado '+String(card.id)+' sem Note correspondente.');
+        pushRef('card',key,pid,card);
+        if(seen.card.has(key))continue;seen.card.add(key);
+        payload.cards.push({
+          id:key,note_id:noteKey,deck_id:deckKeyOf(card.deckId),original_deck_id:card.originalDeckId?deckKeyOf(card.originalDeckId):'',
+          template_idx:Number(card.ankiTemplateOrd!=null?card.ankiTemplateOrd:(card.clozeOrd?Number(card.clozeOrd)-1:0))||0,
+          anki_type:card.ankiType!=null?Number(card.ankiType):null,anki_queue:card.ankiQueue!=null?Number(card.ankiQueue):null,
+          anki_due:card.ankiDue!=null?Number(card.ankiDue):null,new_position:Number(card.posicaoNova)||0,
+          due_ts:Number(card.dueTs)||0,interval:Number(card.intervalo)||0,
+          ease_factor:Math.round((Number(card.ease)||2.5)*1000),reps:Number(card.reps)||0,lapses:Number(card.lapses)||0,
+          remaining_steps:Number(card.ankiRemainingSteps)||0,original_due:Number(card.ankiOriginalDue)||0,flag:Number(card.flag)||0,
+          s:card.s==null?null:Number(card.s),d:card.d==null?null:Number(card.d),phase:card.phase||'new',
+          materia:card.materia||null,assunto:card.assunto||'',materia_tec:card.materiaTec||'',banca:card.banca||'',tipo:card.tipo||''
+        });
+      }
+      for(const rev of revRows(pid)||[]){
+        if(!rev)continue;
+        const localCard=cards.find(x=>String(x.id)===String(rev.cardId)),cardKey=localCard?this._legacyStableKey('card',localCard,pid):null;
+        if(!cardKey)continue;
+        const rkey=String(rev.reviewId||rev.officialReviewTime||rev.ts||'')+'|'+cardKey+'|'+String(rev.grade||'');
+        if(seen.revlog.has(rkey))continue;seen.revlog.add(rkey);
+        payload.revlog.push({
+          card_id:cardKey,ts:Number(rev.ts)||Date.now(),grade:Number(rev.grade)||0,time:Number(rev.time)||0,
+          anki_ivl_semantica:Number(rev.ankiIvlSemantica||rev.anki_ivl_semantica)||0,
+          anki_interval:Number(rev.ankiInterval||rev.anki_interval)||0,
+          anki_last_interval:Number(rev.ankiLastInterval||rev.anki_last_interval)||0,
+          ease_factor:Number(rev.easeFactor||rev.ease_factor)||0,
+          anki_review_kind:Number.isFinite(Number(rev.ankiReviewKind))?Number(rev.ankiReviewKind):1
+        });
+      }
+    }
+    if(!payload.cards.length)throw new Error('Migração oficial sem cards legados para migrar.');
+    if(!payload.notes.length)throw new Error('Migração oficial bloqueada: Notes legadas ausentes.');
+    if(!payload.notetypes.length)throw new Error('Migração oficial bloqueada: NoteTypes legados ausentes.');
+    return {payload,refs};
+  },
+  _replaceLegacyDeckRef(pid,oldDeck,newId){
+    const scope=window.StudyGlobalScope,list=scope&&scope._rows?scope._rows(pid,'decks'):DB.getDecks(),
+      idx=(list||[]).findIndex(x=>String(x.id)===String(oldDeck.id));
+    if(idx<0)return;
+    const next=list.slice(),row=Object.assign({},next[idx],{ankiId:Number(newId),updatedAt:new Date().toISOString()});next[idx]=row;
+    if(pid!=null)DB._set(DB.keysForPlan(pid).decks,next);else DB.saveDecks(next);
+  },
+  _applyLegacyMigrationMaps(out,refs){
+    const deckMap=out&&out.deck_map||{},ntMap=out&&out.notetype_map||{},noteMap=out&&out.note_map||{},cardMap=out&&out.card_map||{};
+    for(const [key,items] of refs.deck)for(const it of items)if(deckMap[key])this._replaceLegacyDeckRef(it.pid,it.row,deckMap[key]);
+    for(const [key,items] of refs.notetype)for(const it of items){
+      const oid=Number(ntMap[key]);if(!oid)continue;
+      try{localStorage.removeItem(AnkiParity._entityKey('notetype',it.row.id,it.pid));}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-legacy-nt-remove');}
+      const nt=Object.assign({},it.row,{id:oid,ankiId:oid});delete nt._planId;delete nt._planNome;
+      AnkiParity.saveNotetype(nt,it.pid);
+    }
+    for(const [key,items] of refs.note)for(const it of items){
+      const oid=Number(noteMap[key]);if(!oid)continue;
+      const oldNtKey=this._legacyStableKey('notetype',{id:it.row.notetypeId,ankiId:(AnkiParity.getNotetype(it.row.notetypeId,it.pid)||{}).ankiId},it.pid),
+        ntid=Number(ntMap[oldNtKey])||Number(it.row.notetypeId);
+      try{localStorage.removeItem(AnkiParity._entityKey('note',it.row.id,it.pid));}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-legacy-note-remove');}
+      const note=Object.assign({},it.row,{id:oid,ankiId:oid,notetypeId:ntid});delete note._planId;delete note._planNome;
+      AnkiParity.saveNote(note,it.pid);
+    }
+    for(const [key,items] of refs.card)for(const it of items){
+      const cid=Number(cardMap[key]);if(!cid)continue;
+      const noteKey=it.row.ankiNoteId&&Number(it.row.ankiNoteId)>0?'note:anki:'+Number(it.row.ankiNoteId):'note:plan:'+String(it.pid==null?'':it.pid)+':'+String(it.row.noteId||it.row.id),
+        nid=Number(noteMap[noteKey])||null,
+        nt=AnkiParity.getNote(nid,it.pid),patch={ankiId:cid};
+      if(nid){patch.ankiNoteId=nid;patch.noteId=nid;}
+      if(nt&&nt.notetypeId)patch.notetypeId=nt.notetypeId;
+      const saved=window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped
+        ?StudyGlobalScope.updateCardScoped(it.row,patch,it.pid):DB.updateCard(it.row.id,patch);
+      if(saved===false)throw new Error('Falha ao atualizar identidade oficial do card legado '+String(it.row.id)+'.');
+    }
+  },
+  async _migrateLegacyCollection(){
+    const snapshot=this._legacyMigrationPayload(),
+      out=await this.request('/api/cards-official/migrate/legacy',{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot.payload)
+      });
+    if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a migração legada.');
+    const expected=[...snapshot.refs.card.keys()].length,migrated=Number(out.migrated&&out.migrated.cards)||0;
+    if(migrated!==expected)throw new Error('Migração oficial incompleta: '+migrated+'/'+expected+' cards receberam identidade oficial.');
+    this._applyLegacyMigrationMaps(out,snapshot.refs);
+    await this._syncCollectionState(out.state,this._activePlanId(),null);
+    return out;
+  },
+
   async bootstrap(force){
     if(this._bootPromise)return this._bootPromise;
     if(this.ready&&!this.dirty&&!force)return this.review;
@@ -555,7 +697,8 @@ const CardsOfficialBridge = {
         localCount=(this._scopeCards()||[]).length,
         officialCount=Math.max(Number(status&&status.cards)||0,Number(status&&status.notes)||0);
       if(!officialCount&&localCount){
-        throw new Error('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study. A migração única para o Anki oficial precisa ser concluída antes da revisão.');
+        const migrated=await this._migrateLegacyCollection();
+        if(!migrated||!migrated.state)throw new Error('A migração única para o Anki oficial não devolveu estado canônico.');
       }
       const state=await this.request('/api/cards-official/collection/full-state');
       this.preferences=await this.request('/api/cards-official/preferences');
