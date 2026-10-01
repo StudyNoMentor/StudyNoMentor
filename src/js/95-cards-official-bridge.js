@@ -2190,9 +2190,86 @@ const CardsOfficialBridge = {
     };
     const map=maps[kind]||{};return Object.prototype.hasOwnProperty.call(map,value)?map[value]:0;
   },
+  _deckOptionUiEnum(kind,value){
+    const maps={
+      reviewOrder:['day','dayThenDeck','deckThenDay','intervalsAsc','intervalsDesc','easeAsc','easeDesc','retrievabilityAsc','random','added','reverseAdded','retrievabilityDesc','relativeOverdueness'],
+      newGatherOrder:['deck','posicao','posicaoDesc','randomNotes','randomCards','deckRandomNotes'],
+      newSortOrder:['template','coleta','templateRandom','randomNoteTemplate','randomCard'],
+      mix:['misturar','depois','antes']
+    };
+    const map=maps[kind]||[],idx=Number(value);
+    return Number.isInteger(idx)&&map[idx]!=null?map[idx]:map[0];
+  },
+  _officialDeckOptionsUi(options,isDeck){
+    options=options||{};
+    const all=Array.isArray(options.all_config)?options.all_config:[],
+      currentId=Number(options.current_deck&&options.current_deck.config_id)||1,
+      entry=all.find(x=>Number(x&&x.config&&x.config.id)===currentId)
+        ||all.find(x=>Number(x&&x.config&&x.config.id)===1)
+        ||{config:options.defaults||{}},
+      row=entry.config||options.defaults||{},c=row.config||{},
+      cfg={
+        weights:Array.isArray(c.fsrs_params_6)?c.fsrs_params_6.map(Number).filter(Number.isFinite):[],
+        learnSteps:Array.isArray(c.learn_steps)?c.learn_steps.map(Number).filter(Number.isFinite):[],
+        relearnSteps:Array.isArray(c.relearn_steps)?c.relearn_steps.map(Number).filter(Number.isFinite):[],
+        newPerDay:Math.max(0,Number(c.new_per_day)||0),revPerDay:Math.max(0,Number(c.reviews_per_day)||0),
+        initialEase:Number(c.initial_ease)||2.5,easyMultiplier:Number(c.easy_multiplier)||1.3,
+        hardMultiplier:Number(c.hard_multiplier)||1.2,lapseMultiplier:Number(c.lapse_multiplier)||0,
+        intervalMultiplier:Number(c.interval_multiplier)||1,maxInterval:Math.max(1,Number(c.maximum_review_interval)||36500),
+        minimumLapseInterval:Math.max(1,Number(c.minimum_lapse_interval)||1),
+        graduatingIntervalGood:Math.max(1,Number(c.graduating_interval_good)||1),
+        graduatingIntervalEasy:Math.max(1,Number(c.graduating_interval_easy)||4),
+        newInsertOrder:Number(c.new_card_insert_order)===1?'aleatoria':'sequencial',
+        newGatherOrder:this._deckOptionUiEnum('newGatherOrder',c.new_card_gather_priority),
+        newSortOrder:this._deckOptionUiEnum('newSortOrder',c.new_card_sort_order),
+        newMix:this._deckOptionUiEnum('mix',c.new_mix),reviewOrder:this._deckOptionUiEnum('reviewOrder',c.review_order),
+        interdayMix:this._deckOptionUiEnum('mix',c.interday_learning_mix),
+        leechAction:Number(c.leech_action)===0?'suspend':'tag',leechThreshold:Math.max(0,Number(c.leech_threshold)||0),
+        disableAutoplay:!!c.disable_autoplay,capAnswerTimeToSecs:Math.max(0,Number(c.cap_answer_time_to_secs)||0),
+        showTimer:!!c.show_timer,stopTimerOnAnswer:!!c.stop_timer_on_answer,
+        secondsToShowQuestion:Math.max(0,Number(c.seconds_to_show_question)||0),
+        secondsToShowAnswer:Math.max(0,Number(c.seconds_to_show_answer)||0),
+        questionAction:Math.max(0,Math.min(1,Number(c.question_action)||0)),
+        answerAction:Math.max(0,Math.min(4,Number(c.answer_action)||0)),
+        waitForAudio:c.wait_for_audio!==false,skipQuestionWhenReplayingAnswer:!!c.skip_question_when_replaying_answer,
+        buryNew:!!c.bury_new,buryReviews:!!c.bury_reviews,buryInterdayLearning:!!c.bury_interday_learning,
+        retention:Math.max(.7,Math.min(.99,Number(c.desired_retention)||.9)),
+        ignoreRevlogsBefore:String(c.ignore_revlogs_before_date||''),
+        easyDays:Array.isArray(c.easy_days_percentages)&&c.easy_days_percentages.length===7?c.easy_days_percentages.map(Number):[1,1,1,1,1,1,1],
+        historicalRetention:Math.max(.5,Math.min(.99,Number(c.historical_retention)||.9)),
+        paramSearch:String(c.param_search||'')
+      },
+      global={
+        algo:options.fsrs===false?'sm2':'fsrs',
+        newCardsIgnoreReviewLimit:!!options.new_cards_ignore_review_limit,
+        applyAllParentLimits:!!options.apply_all_parent_limits
+      };
+    return {config:cfg,global,hasPreset:!!isDeck&&currentId!==1,currentId,entry,options};
+  },
+  async getDeckOptionsUi(deckId){
+    await this.bootstrap(false);
+    const isDeck=deckId!=null&&deckId!=='',
+      ctx=isDeck?this._deckContext(deckId):{officialId:1,planId:this._activePlanId(),deck:null},
+      options=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId)+'/options');
+    return Object.assign(this._officialDeckOptionsUi(options,isDeck),{ctx,isDeck});
+  },
+  async officialFsrsScopes(){
+    const out=[],seen=new Set(),global=await this.getDeckOptionsUi(null);
+    if(global.global.algo!=='fsrs')return out;
+    out.push({deckId:null,configId:global.currentId});seen.add(String(global.currentId));
+    for(const deck of (CardsScreen.collectionDecks?CardsScreen.collectionDecks():[])){
+      if(!deck||deck.id==null)continue;
+      try{
+        const row=await this.getDeckOptionsUi(deck.id),key=String(row.currentId);
+        if(seen.has(key))continue;
+        seen.add(key);out.push({deckId:deck.id,configId:row.currentId});
+      }catch(_){ if(typeof _quiet==='function')_quiet(_,'cards-official-fsrs-scopes'); }
+    }
+    return out;
+  },
   _officialDeckConfigFromLocal(base,cfg,deckId,identity){
     const row=JSON.parse(JSON.stringify(base||{})),c=Object.assign({},row.config||{}),
-      weights=Array.isArray(cfg&&cfg.weights)?cfg.weights:((window.CardsConfig&&CardsConfig.weightsFor)?CardsConfig.weightsFor(deckId==null?null:deckId):[]);
+      weights=Array.isArray(cfg&&cfg.weights)?cfg.weights:(Array.isArray(c.fsrs_params_6)?c.fsrs_params_6:[]);
     row.id=Number(identity&&identity.id!=null?identity.id:(row.id||0));
     if(identity&&identity.name!=null)row.name=String(identity.name);
     Object.assign(c,{
@@ -2266,7 +2343,11 @@ const CardsOfficialBridge = {
       base=baseEntry.config||current.defaults||{},
       name=isDeck&&!opts.hadPreset?String(opts.deckName||ctx.deck&&ctx.deck.nome||'Preset'):String(base.name||(!isDeck?'Default':opts.deckName||'Preset')),
       conf=this._officialDeckConfigFromLocal(base,cfg,isDeck?deckId:null,{id:targetId,name});
-    const globalCfg=isDeck?CardsConfig.get():cfg,
+    const globalCfg=isDeck?{
+        newCardsIgnoreReviewLimit:!!current.new_cards_ignore_review_limit,
+        algo:current.fsrs===false?'sm2':'fsrs',
+        applyAllParentLimits:!!current.apply_all_parent_limits
+      }:cfg,
       payload={
         target_deck_id:Number(ctx.officialId),
         configs:[conf],
@@ -2333,15 +2414,12 @@ const CardsOfficialBridge = {
       before=Array.isArray(r.entry.config.config&&r.entry.config.config.fsrs_params_6)?r.entry.config.config.fsrs_params_6.map(Number):[],
       same=params.length===before.length&&params.every((x,i)=>Math.abs(x-before[i])<0.00005);
     if(!params.length||same)return {params:params.length?params:before,fsrsItems:Number(r.out&&r.out.fsrs_items)||0,alreadyOptimal:true,search:r.search};
-    const localCfg=CardsConfig.forDeck(deckId==null?null:deckId),desired=Object.assign({},localCfg,{weights:params});
+    const ui=await this.getDeckOptionsUi(deckId==null?null:deckId),desired=Object.assign({},ui.config,{weights:params});
     await this.updateDeckOptions(deckId,desired,{
-      hadPreset:deckId!=null&&CardsConfig.hasDeckPreset(deckId),
+      hadPreset:ui.hasPreset,
       forceCurrentPreset:true,fsrsReschedule:false,
       deckName:r.entry.config.name||''
     });
-    const patch={weights:params.slice(),lastOptim:new Date().toISOString()};
-    if(deckId!=null&&CardsConfig.hasDeckPreset(deckId))CardsConfig.setDeckPreset(deckId,patch);else CardsConfig.set(patch);
-    CardEngine.invalidateDueCache();
     return {params,fsrsItems:Number(r.out&&r.out.fsrs_items)||0,alreadyOptimal:false,search:r.search};
   },
   async fsrsHealthCheck(deckId){
@@ -2399,7 +2477,11 @@ const CardsOfficialBridge = {
       conf=JSON.parse(JSON.stringify(defaultEntry&&defaultEntry.config||current.defaults||{}));
     if(!conf||!Object.keys(conf).length)throw new Error('Preset global oficial não encontrado.');
     conf.id=Number(conf.id)||1;
-    const globalCfg=CardsConfig.get(),payload={
+    const globalCfg={
+      newCardsIgnoreReviewLimit:!!current.new_cards_ignore_review_limit,
+      algo:current.fsrs===false?'sm2':'fsrs',
+      applyAllParentLimits:!!current.apply_all_parent_limits
+    },payload={
       target_deck_id:Number(ctx.officialId),
       configs:[conf],
       removed_config_ids:[],
