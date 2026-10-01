@@ -636,7 +636,8 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
         tree = col.sched.deck_due_tree()
         nodes = _deck_tree_flatten(tree)
         default = next((node for node in nodes if int(node["deck_id"]) == 1), None)
-        if default and int(default["total_including_children"]) == 0:
+        # O Anki pode omitir Default da árvore quando ele está vazio.
+        if default is None or int(default["total_including_children"]) == 0:
             candidates = [
                 node for node in nodes
                 if int(node["deck_id"]) not in (0, 1)
