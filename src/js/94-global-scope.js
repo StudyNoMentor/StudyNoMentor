@@ -381,28 +381,15 @@
       return this.replaceRevlogPlan(planId, l);
     },
 
-    deleteCards(ids) {
-      const set = ids instanceof Set ? ids : new Set(ids || []);
-      const notes = new Set();
-      set.forEach(id => {
-        const r = this.findCardRecord(id); if (!r) return;
-        const nk = String(r.planId) + '|' + String(r.card.noteId || r.card.id);
-        if (notes.has(nk)) return; notes.add(nk);
-        DB.deleteNoteByCard(id);
-      });
+    async deleteCards(ids) {
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteNotesForCardRefs!=='function')
+        throw new Error('Anki oficial indisponível para excluir cards.');
+      return CardsOfficialBridge.deleteNotesForCardRefs([...(ids instanceof Set?ids:new Set(ids||[]))]);
     },
-    moveCards(ids, deckId) {
-      const set = ids instanceof Set ? ids : new Set(ids || []);
-      const target = deckId ? this.deckRecord(deckId) : null;
-      let moved = 0, skipped = 0;
-      set.forEach(id => {
-        const r = this.findCardRecord(id); if (!r) return;
-        if (target && String(target.planId) !== String(r.planId)) { skipped++; return; }
-        if (DB.updateCard(id, { deckId: deckId || null }) !== false) moved++;
-      });
-      if (skipped && typeof showToast === 'function')
-        showToast(moved + ' card(s) movido(s); ' + skipped + ' mantido(s) porque o baralho pertence a outro planejamento.');
-      return { moved, skipped };
+    async moveCards(ids, deckId) {
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.moveCardRefsToDeck!=='function')
+        throw new Error('Anki oficial indisponível para mover cards.');
+      return CardsOfficialBridge.moveCardRefsToDeck([...(ids instanceof Set?ids:new Set(ids||[]))],deckId,this.activePlanId());
     },
 
     cleanOrphanRevlog(scope) {
