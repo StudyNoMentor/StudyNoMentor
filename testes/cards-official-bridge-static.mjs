@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runInNewContext } from 'node:vm';
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const bridge=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
@@ -158,7 +159,7 @@ assert.match(backend,/def cards_official_media_empty_trash[\s\S]*?item\.col\.med
 assert.match(backend,/def cards_official_media_tag_missing[\s\S]*?item\.col\.tags\.bulk_add\(note_ids, "missing-media"\)/,'Tag Missing deve seguir mediacheck.py oficial');
 assert.match(backend,/def cards_official_media_render_latex[\s\S]*?item\.col\.media\.render_all_latex\(\)/,'Render LaTeX deve usar o MediaManager oficial');
 assert.match(bridge,/_officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.voices[\s\S]*?tag&&tag\.lang/,'seleção de voz deve consumir voices/lang do TTSTag oficial');
-assert.match(bridge,/async _playOfficialTts\(tag\)[\s\S]*?tag&&tag\.field_text[\s\S]*?this\._officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.lang[\s\S]*?tag&&tag\.speed/,'TTS web deve consumir integralmente o TTSTag calculado pelo Anki');
+assert.match(bridge,/async _playOfficialTts\(tag,token\)[\s\S]*?tag&&tag\.field_text[\s\S]*?this\._officialTtsVoice\(tag\)[\s\S]*?tag&&tag\.lang[\s\S]*?tag&&tag\.speed/,'TTS web deve consumir integralmente o TTSTag calculado pelo Anki');
 assert.match(bridge,/async checkOfficialMedia\(\)[\s\S]*?\/api\/cards-official\/media\/check/,'UI Check Media deve consultar a Collection oficial');
 assert.match(backend,/def cards_official_database_check[\s\S]*?item\.col\.fix_integrity\(\)/,'Check Database deve usar fix_integrity oficial');
 assert.match(backend,/def cards_official_database_optimize[\s\S]*?item\.col\.optimize\(\)/,'Optimize deve usar Collection oficial');
@@ -297,4 +298,42 @@ for(const path of [
   '/api/cards-official/empty-cards/delete',
 ]) assert.ok(routes.includes(path),'rota oficial ausente: '+path);
 
-console.log('CARDS OFFICIAL BRIDGE: reviewer/browser/stats/deck-options/custom-study/filtered-decks ancorados no anki==26.09.3, com round-trip oficial e sem fallback acadêmico local.');
+// Executa a ponte real: a nota devolvida pelo servidor é a autoridade, mesmo
+// quando o card do revisor tem uma marca antiga. Irmãos e outros planos seguem
+// as tags oficiais; uma falha de rede não pode alterar nenhum espelho.
+const notes=[{id:11,ankiId:99,notetypeId:7,_planId:'a'},
+             {id:22,ankiId:99,notetypeId:7,_planId:'b'}];
+const mirrors=notes.flatMap(n=>[0,1].map(ord=>({id:n.id+':'+ord,noteId:n.id,_planId:n._planId,favorito:true})));
+const toasts=[];
+const context={window:{},document:{getElementById:()=>null},
+  showToast:message=>toasts.push(message),
+  CardsScreen:{updateFavCount(){}},
+  AnkiParity:{saveNote(note){return note;}},
+  AnkiProductParity:{_cardsForNote(note,pid){return mirrors.filter(c=>c.noteId===note.id&&c._planId===pid);}},
+  StudyGlobalScope:{updateCardScoped(card,patch,pid){assert.equal(card._planId,pid);Object.assign(card,patch);return card;}}
+};
+context.window.StudyGlobalScope=context.StudyGlobalScope;
+runInNewContext(bridge,context);
+const live=context.window.CardsOfficialBridge;
+live._noteReplicas=()=>notes;
+live._localNotetypeId=()=>7;
+live._applyReviewer=()=>{};
+live.renderCurrent=async()=>{};
+live.review={card:{id:101,marked:false}};
+let tags=[];
+live.request=async(path,opts)=>{
+  assert.equal(path,'/api/cards-official/cards/action');
+  assert.deepEqual(JSON.parse(opts.body),{action:'mark',card_ids:[101],value:null});
+  return {notes:[{id:99,notetype_id:7,fields:{Front:'official'},tags}],reviewer:{}};
+};
+await live.mark();
+assert.ok(mirrors.every(c=>c.favorito===false),'tags oficiais vazias desmarcam todos os irmãos e planos');
+tags=['marked'];
+await live.mark();
+assert.ok(mirrors.every(c=>c.favorito===true),'tag oficial marca todos os irmãos e planos');
+live.request=async()=>{throw new Error('offline');};
+await live.mark();
+assert.ok(mirrors.every(c=>c.favorito===true),'falha oficial preserva os espelhos');
+assert.equal(toasts.at(-1),'offline');
+
+console.log('CARDS OFFICIAL BRIDGE: contratos estáticos e sincronização de marca oficial entre irmãos/planos verificados. Round-trip oficial exige o smoke Python.');

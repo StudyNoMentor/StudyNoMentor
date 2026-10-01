@@ -201,6 +201,19 @@ with tempfile.TemporaryDirectory() as tmp:
     assert cq["card"]["answer"]
     assert set(cq["counts"]) == {"new", "learning", "review"}
 
+    # A marca pertence à nota. IDs repetidos não podem alterná-la duas vezes,
+    # e a casca recebe tags oficiais em ambas as direções.
+    marked = app.cards_official_card_action(
+        app.CardActionBody(action="mark", card_ids=[ccid, ccid]), cards_ctx
+    )
+    assert len(marked["notes"]) == 1
+    assert marked["notes"][0]["id"] == int(cnote.id)
+    assert "marked" in marked["notes"][0]["tags"]
+    unmarked = app.cards_official_card_action(
+        app.CardActionBody(action="mark", card_ids=[ccid]), cards_ctx
+    )
+    assert "marked" not in unmarked["notes"][0]["tags"]
+
     answered = app.cards_official_reviewer_answer(
         app.AnswerBody(card_id=ccid, rating=3, milliseconds_taken=321),
         cards_ctx,

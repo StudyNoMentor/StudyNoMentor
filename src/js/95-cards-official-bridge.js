@@ -1084,10 +1084,10 @@ const CardsOfficialBridge = {
   },
   async mark(){
     if(!this.review||!this.review.card)return;
-    const oc=this.review.card,replicas=this._replicas(oc.id),next=!oc.marked;
+    const oc=this.review.card;
     try{
       const out=await this.request('/api/cards-official/cards/action',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'mark',card_ids:[Number(oc.id)],value:null})});
-      for(const r of replicas)StudyGlobalScope.updateCardScoped(r,{favorito:next},r._planId);
+      await this._syncOfficialNotes(out.notes||[]);
       this._applyReviewer(out.reviewer);await this.renderCurrent(document.getElementById('cards-content'));CardsScreen.updateFavCount();
     }catch(e){showToast(e.message||String(e));}
   },

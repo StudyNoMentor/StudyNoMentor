@@ -1813,7 +1813,8 @@ def cards_official_card_action(
         else:
             raise HTTPException(400, f"Ação não suportada: {body.action}")
         states = [] if body.action == "delete_notes" else [card_state_payload(item.col, cid) for cid in ids]
-        return {"ok": True, "cards": states, "reviewer": cards_reviewer_payload(item.col)}
+        notes = [note_state_payload(item.col, nid) for nid in sorted(seen)] if body.action == "mark" else []
+        return {"ok": True, "cards": states, "notes": notes, "reviewer": cards_reviewer_payload(item.col)}
 
 
 @app.post("/api/anki/cards/action")

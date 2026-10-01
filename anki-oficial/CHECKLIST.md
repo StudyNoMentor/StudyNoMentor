@@ -19,6 +19,20 @@ Existência de botão, função ou comentário **não** conta como paridade.
 
 ## Contratos funcionais
 
+### Continuação — 2026-10-01: marca de nota no revisor
+
+Progresso deste lote: **3/4 verificações concluídas (75%)**. Isso não representa
+o percentual de paridade integral dos 571 arquivos de runtime.
+
+- [x] `anki_official_backend/app.py`: ação `mark` devolve as notas afetadas com tags oficiais, uma vez por nota.
+- [x] `src/js/95-cards-official-bridge.js`: o revisor sincroniza essas notas, incluindo cards irmãos e réplicas entre planejamentos, sem calcular a marca localmente.
+- [x] `testes/cards-official-bridge-static.mjs`: contratos estáticos e execução da ponte para marca/desmarca, estado antigo do revisor e falha de rede passaram. Checagem TTS atualizada para a assinatura com token de cancelamento.
+- [ ] `testes/anki-oficial-backend-smoke.py`: acrescentadas as verificações de retorno de tags e IDs repetidos; execução com `anki==26.09.3` pendente neste ambiente (pacote ausente e proxy indisponível).
+
+Base reconciliada: a branch já contém `main@ae54ed3d` pelo merge `71f988e5`,
+preservando a implementação Anki e a exclusão de `anki-oficial` no Pages.
+Os contratos abaixo permanecem pendentes de certificação integral.
+
 - [ ] **Scheduler / FSRS / estados / filas — 67 arquivos**
   - responder Again/Hard/Good/Easy;
   - learning, relearning, review e preview;
