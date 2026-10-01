@@ -10,7 +10,7 @@ Esta pasta ancora a paridade dos **Cards do StudyNoMentor** no repositório ofic
 
 Logo, após `git submodule update --init --recursive`, o conteúdo de `anki-oficial/upstream` é o próprio repositório oficial naquele commit — não uma transcrição manual.
 
-O commit `d1d484c8249a8266a6fe9203694f9087726c6ba2` é apenas radar do `main` posterior à release e não muda o alvo de produção até nova release estável.
+O commit `7a4db0038e4d5570cc3a297a2b47f8fefbfc309c` é o radar do `main` consultado em 2026-10-01. Ele está 15 commits à frente da release e não muda o alvo de produção até nova release estável.
 
 ## Cobertura do repositório inteiro
 
@@ -47,6 +47,21 @@ validada; nunca substitui uma versão ausente pela versão esperada.
 
 O antigo workflow de geração de FSRS WASM foi retirado: o FSRS dos Cards é
 executado pelo pacote oficial no backend, conforme os contratos desta pasta.
+
+## Duas métricas diferentes: integração e certificação exaustiva
+
+**Paridade de integração do runtime: 571/571 (100%)**. Todas as categorias `CARDS_RUNTIME`
+possuem adapter para `anki_official_backend/app.py` + `95-cards-official-bridge.js`,
+e o gate reprova se essa cobertura cair. Isso mede a arquitetura pedida: o Study
+é a casca e o comportamento acadêmico suportado é delegado ao runtime oficial
+`anki==26.09.3`, sem reativar CardEngine/CardsConfig/FSRS locais.
+
+**Certificação comportamental exaustiva por arquivo** é uma métrica mais rigorosa
+e independente. Ela só sobe quando existe evidência individual versionada cobrindo
+estado, resultado, persistência, erro e extremos daquele arquivo. Não confundir
+essa métrica com a integração: um arquivo pode estar 100% integrado por executar
+o próprio runtime oficial e ainda não ter um relatório individual de combinações
+exaustivas.
 
 ## Auditoria individual e progresso
 
