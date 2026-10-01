@@ -24,6 +24,9 @@ const CardsOfficialBridge = {
   _sessionAnswered:0,
   _sessionStartTotal:null,
   _blobUrls:[],
+  _avToken:0,
+  _activeAudio:null,
+  _avPlaying:false,
   _undo:[],
   _redo:[],
   _autoAdvanceEnabled:false,
@@ -323,10 +326,45 @@ const CardsOfficialBridge = {
     }
     return null;
   },
-  async _playOfficialTts(tag){
+  _setAvPlaying(active){
+    this._avPlaying=!!active;
+    if(!this._avPlaying&&CardsScreen._resumeAutoAdvanceIfReady){
+      try{CardsScreen._resumeAutoAdvanceIfReady();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-av-resume');}
+    }
+  },
+  isAvPlaying(){return !!this._avPlaying;},
+  stopAv(){
+    this._avToken++;
+    try{if(this._activeAudio){this._activeAudio.pause();this._activeAudio=null;}}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-av-stop');}
+    try{if(typeof speechSynthesis!=='undefined')speechSynthesis.cancel();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-tts-stop');}
+    this._setAvPlaying(false);
+  },
+  pauseAv(){
+    try{
+      if(this._activeAudio){
+        if(this._activeAudio.paused){const p=this._activeAudio.play();if(p&&p.catch)p.catch(()=>{});}
+        else this._activeAudio.pause();
+        return true;
+      }
+      if(typeof speechSynthesis!=='undefined'){
+        if(speechSynthesis.paused)speechSynthesis.resume();else speechSynthesis.pause();
+        return true;
+      }
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-av-pause');}
+    return false;
+  },
+  seekAv(seconds){
+    try{
+      if(!this._activeAudio)return false;
+      this._activeAudio.currentTime=Math.max(0,(this._activeAudio.currentTime||0)+(Number(seconds)||0));
+      return true;
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-av-seek');return false;}
+  },
+  async _playOfficialTts(tag,token){
     if(typeof speechSynthesis==='undefined'||typeof SpeechSynthesisUtterance==='undefined')return false;
     const text=String(tag&&tag.field_text||'');if(!text)return false;
     return new Promise(resolve=>{
+      if(token!==this._avToken)return resolve(false);
       const u=new SpeechSynthesisUtterance(text),voice=this._officialTtsVoice(tag);
       if(tag&&tag.lang)u.lang=String(tag.lang);
       if(voice)u.voice=voice;
@@ -336,14 +374,30 @@ const CardsOfficialBridge = {
     });
   },
   async playAv(tags){
-    for(const tag of tags||[]){
-      if(tag.kind==='tts'){await this._playOfficialTts(tag);continue;}
-      if(tag.kind!=='media'||!tag.filename)continue;
-      try{
-        const blob=await this._fetchMedia(tag.filename),url=URL.createObjectURL(blob);this._blobUrls.push(url);
-        await new Promise(resolve=>{const a=new Audio(url);a.onended=resolve;a.onerror=resolve;const p=a.play();if(p&&p.catch)p.catch(resolve);});
-      }catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-av');}
+    this.stopAv();
+    const list=Array.isArray(tags)?tags:[],token=++this._avToken;
+    if(!list.length)return false;
+    this._setAvPlaying(true);
+    try{
+      for(const tag of list){
+        if(token!==this._avToken)break;
+        if(tag.kind==='tts'){await this._playOfficialTts(tag,token);continue;}
+        if(tag.kind!=='media'||!tag.filename)continue;
+        try{
+          const blob=await this._fetchMedia(tag.filename),url=URL.createObjectURL(blob);this._blobUrls.push(url);
+          await new Promise(resolve=>{
+            if(token!==this._avToken)return resolve();
+            const a=new Audio(url);this._activeAudio=a;
+            const done=()=>{if(this._activeAudio===a)this._activeAudio=null;resolve();};
+            a.onended=done;a.onerror=done;
+            const p=a.play();if(p&&p.catch)p.catch(done);
+          });
+        }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-av');}
+      }
+    }finally{
+      if(token===this._avToken)this._setAvPlaying(false);
     }
+    return true;
   },
   _officialCardInfoValue(value){
     if(value==null||value==='')return '—';
@@ -568,7 +622,7 @@ const CardsOfficialBridge = {
   },
   _runWhenAudioReady(auto,token,fn){
     if(token!==this._autoToken||!this._autoAdvanceEnabled)return;
-    if(auto&&auto.wait_for_audio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
+    if(auto&&auto.wait_for_audio&&this.isAvPlaying()){
       this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,fn),250);return;
     }
     fn();
