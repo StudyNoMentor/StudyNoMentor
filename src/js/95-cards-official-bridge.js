@@ -753,6 +753,15 @@ const CardsOfficialBridge = {
       const linked=refs.card.get(String(row.id))||[];
       row.plan_ids=[...new Set(linked.map(x=>x.pid).filter(x=>x!=null).map(String))];
       row.favorito=linked.some(x=>!!(x.row&&x.row.favorito));
+      row.study_by_plan={};
+      for(const it of linked){
+        if(it.pid==null||!it.row)continue;
+        const meta={};
+        for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
+          if(Object.prototype.hasOwnProperty.call(it.row,k))meta[k]=it.row[k];
+        }
+        row.study_by_plan[String(it.pid)]=meta;
+      }
     }
     if(!payload.cards.length)throw new Error('Migração oficial sem cards legados para migrar.');
     if(!payload.notes.length)throw new Error('Migração oficial bloqueada: Notes legadas ausentes.');
@@ -2055,15 +2064,18 @@ const CardsOfficialBridge = {
     return out;
   },
   _studyMeta(seed,planId){
-    seed=seed||{};const out={};
+    seed=seed||{};const out={},meta={};
     for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
-      if(Object.prototype.hasOwnProperty.call(seed,k))out[k]=seed[k];
+      if(Object.prototype.hasOwnProperty.call(seed,k)){out[k]=seed[k];meta[k]=seed[k];}
     }
     const rawPlans=Array.isArray(seed.planIds)?seed.planIds:(Array.isArray(seed.plan_ids)?seed.plan_ids:(planId!=null?[planId]:[]));
     out.plan_ids=[...new Set(rawPlans.filter(x=>x!=null&&String(x)!=='').map(String))];
+    if(planId!=null&&Object.keys(meta).length)out.by_plan={[String(planId)]:meta};
+    if(seed.by_plan&&typeof seed.by_plan==='object')out.by_plan=Object.assign({},out.by_plan||{},seed.by_plan);
+    if(seed.byPlan&&typeof seed.byPlan==='object')out.by_plan=Object.assign({},out.by_plan||{},seed.byPlan);
     return out;
   },
-  _studyFromState(state){
+  _studyFromState(state,planId){
     const raw=String(state&&state.custom_data||'').trim();if(!raw)return{};
     try{
       const root=JSON.parse(raw),s=root&&root.study;
@@ -2074,6 +2086,12 @@ const CardsOfficialBridge = {
       }
       const plans=Array.isArray(s.planIds)?s.planIds:(Array.isArray(s.plan_ids)?s.plan_ids:[]);
       out.planIds=[...new Set(plans.filter(x=>x!=null&&String(x)!=='').map(String))];
+      const by=s.byPlan&&typeof s.byPlan==='object'?s.byPlan:(s.by_plan&&typeof s.by_plan==='object'?s.by_plan:null);
+      if(planId!=null&&by&&by[String(planId)]&&typeof by[String(planId)]==='object'){
+        for(const k of ['materia','assunto','materiaTec','banca','tipo','favorito']){
+          if(Object.prototype.hasOwnProperty.call(by[String(planId)],k))out[k]=by[String(planId)][k];
+        }
+      }
       return out;
     }catch(_){return{};}
   },
@@ -2361,7 +2379,7 @@ const CardsOfficialBridge = {
           existingByOfficial=new Map(same.map(c=>[String(this._officialId(c)),Object.assign({},c,pid==null?{}:{_planId:pid})]));
         for(const state of officialCards){
           let card=existingByOfficial.get(String(state.id));
-          const stateStudy=this._studyFromState(state),createSeed=Object.assign({},seed,stateStudy,externalSeed);
+          const wasMissing=!card,stateStudy=this._studyFromState(state,pid),createSeed=Object.assign({},seed,stateStudy,externalSeed);
           if(!card){
             const data={
               ankiId:Number(state.id),ankiNoteId:Number(state.note_id),noteId:note.id,notetypeId:note.notetypeId,
@@ -2382,8 +2400,9 @@ const CardsOfficialBridge = {
             template:nt&&nt.kind==='cloze'?'cloze:'+(Number(state.template_idx)+1):(Number(state.template_idx)===1?'reverse':'forward'),
             clozeOrd:nt&&nt.kind==='cloze'?Number(state.template_idx)+1:null
           });
-          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo']){
+          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo','favorito']){
             if(Object.prototype.hasOwnProperty.call(externalSeed,k))patch[k]=externalSeed[k];
+            else if(wasMissing&&Object.prototype.hasOwnProperty.call(stateStudy,k))patch[k]=stateStudy[k];
           }
           if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(card,patch,pid);
           else DB.updateCard(card.id,patch);
