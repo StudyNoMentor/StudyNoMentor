@@ -46,7 +46,7 @@ for(const forbidden of [
 }
 assert.match(bridge,/\/api\/cards-official\/collection\/full-state/,'bootstrap deve carregar o snapshot integral da Collection oficial persistente');
 assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
-assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
+assert.ok(bridge.includes('const oid=Number(card&&card.ankiId)')&&bridge.includes('officialCards.has(String(oid))'),'espelhos Study com identidade oficial devem seguir o snapshot do Anki sem apagar legado não mapeado');
 assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
 assert.match(backend,/def cards_official_collection_full_state[\s\S]*?cards_collection_full_state_payload\(item\.col\)/,'full-state deve ser extraído da Collection oficial');
 assert.match(backend,/def cards_official_preferences[\s\S]*?item\.col\.get_preferences\(\)/,'Preferences devem ser lidas da Collection oficial');
@@ -54,6 +54,14 @@ assert.match(backend,/def cards_official_update_preferences[\s\S]*?item\.col\.se
 assert.match(practical,/CardsOfficialBridge\.updateOfficialPreferences\(\{scheduling:\{rollover,learn_ahead_secs:/,'rollover e learn-ahead da UI devem ser oficiais');
 assert.ok(!/CardsConfig\.set\(\{[\s\S]{0,350}disableAutoplay/.test(practical),'Preferências globais não podem duplicar Deck Options localmente');
 assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_note\(/,'migração legada deve materializar notas por objetos oficiais do Anki');
+assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'bootstrap dos Cards deve acionar a migração oficial quando a Collection estiver vazia');
+assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?this\._migrateLegacyCollection\(\)/,'Cards legados devem migrar automaticamente em vez de bloquear o reviewer');
+assert.ok(!bridge.includes('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study'),'erro antigo de migração manual não pode continuar no runtime');
+assert.ok(bridge.includes('study_replicas:replicas'),'payload legado deve preservar réplicas e metadados por planejamento');
+assert.ok(backend.includes('"replicas": old.get("study_replicas")')&&backend.includes('"deck_map": deck_map')&&backend.includes('"notetype_map": nt_map'),'backend deve persistir réplicas e devolver todos os mapas canônicos');
+assert.match(bridge,/_studyTargetsForState\(state,fallbackPlanId\)[\s\S]*?meta\.replicas/,'full-state deve reconstruir projeções de planejamento a partir do custom_data oficial');
+assert.ok(bridge.includes('noteTargets=new Map(),deckTargets=new Map(),ntTargets=new Map(),touchedPlans=new Set()'),'snapshot integral deve ser projetado por planejamento, não copiado inteiro no planejamento ativo');
+
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
 assert.match(bridge,/\/api\/cards-official\/undo/);
