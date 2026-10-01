@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 from collections import OrderedDict
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -878,6 +878,31 @@ def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
     return 0, 0
 
 
+@contextmanager
+def _collection_snapshot_guard(item: UserCollection, label: str):
+    """Rollback físico para operações de migração que precisam ser atômicas."""
+    backup = item.root / f"before-{label}-{int(time.time() * 1000)}.anki2"
+    if not item.collection_path.exists():
+        raise HTTPException(500, "Collection oficial não encontrada para snapshot.")
+    item.col.close()
+    shutil.copy2(item.collection_path, backup)
+    item.col.reopen()
+    try:
+        yield
+    except BaseException:
+        try:
+            item.col.close()
+        except Exception:
+            pass
+        try:
+            shutil.copy2(backup, item.collection_path)
+        finally:
+            item.col.reopen()
+        raise
+    finally:
+        _unlink_quiet(str(backup))
+
+
 @app.post("/api/cards-official/migrate/legacy")
 def cards_official_migrate_legacy(
     payload: dict[str, Any],
@@ -895,7 +920,7 @@ def cards_official_migrate_legacy(
     notes = payload.get("notes") if isinstance(payload.get("notes"), list) else []
     cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
     revlog = payload.get("revlog") if isinstance(payload.get("revlog"), list) else []
-    with item.lock:
+    with item.lock, _collection_snapshot_guard(item, "cards-legacy-migration"):
         if item.col.card_count() or item.col.note_count():
             raise HTTPException(409, "A Collection oficial já contém dados; migração recusada.")
 
@@ -1030,6 +1055,14 @@ def cards_official_migrate_legacy(
             item.col.db.executemany(
                 "insert or ignore into revlog (id,cid,usn,ease,ivl,lastIvl,factor,time,type) values (?,?,?,?,?,?,?,?,?)",
                 rev_rows,
+            )
+
+        if len(note_map) != len(notes):
+            raise HTTPException(422, f"Migração incompleta: {len(note_map)}/{len(notes)} Notes foram materializadas.")
+        if len(card_map) != len(cards) or len(set(card_map.values())) != len(cards):
+            raise HTTPException(
+                422,
+                f"Migração incompleta: {len(card_map)}/{len(cards)} Cards foram mapeados de forma única.",
             )
 
         item.col.clear_study_queues()
