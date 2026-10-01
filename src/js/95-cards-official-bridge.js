@@ -89,10 +89,6 @@ const CardsOfficialBridge = {
     fd.append('file',blob,name);
     const out=await this.request('/api/cards-official/editor/media',{method:'POST',body:fd});
     if(!out||!out.filename)throw new Error('O Media Manager oficial não confirmou o arquivo.');
-    if(typeof AnkiExport!=='undefined'&&typeof AnkiExport.registerExternalMedia==='function'){
-      const bytes=new Uint8Array(await blob.arrayBuffer());
-      AnkiExport.registerExternalMedia(out.filename,bytes,out.content_type||blob.type||'application/octet-stream');
-    }
     return out;
   },
   async _externalizeDataMedia(html,prefix){
