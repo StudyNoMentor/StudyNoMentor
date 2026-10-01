@@ -11,7 +11,7 @@
 
    MOTORES (puros — não tocam o DOM, portáveis)
      FSRS ........................ FSRS-6 fiel ao fsrs-rs do Anki + otimizador
-     CardEngine .................. agendador: passos, fuzz, leech, load balance
+     CardsOfficialBridge ......... cliente do scheduler oficial do Anki
      TecEngine ................... parser hierárquico do relatório TecConcursos
      ReforcoEngine / CycleEngine / LawEngine / MotorSugestao / MotorCiclo
 

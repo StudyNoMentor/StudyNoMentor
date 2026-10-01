@@ -26,12 +26,7 @@ assert.deepEqual([...new Set(declarados)].sort(),fontes,
 // Vendors são runtimes estáticos carregados sob demanda e NÃO entram no bundle
 // concatenado. A whitelist exata mantém o gate estrito: vendor/ não vira um
 // lugar onde JS órfão pode ser escondido.
-const vendorsPermitidos=[
-  'vendor/fsrs-6.6.2/fsrs_optimizer.js',
-  // zstd do .apkg/.colpkg do Anki 2.1.50+ (35-anki-import.js, sob demanda).
-  'vendor/fzstd-0.1.1/fzstd.js',
-  'vendor/sqljs-1.2.1/sql-asm.js'
-].sort();
+const vendorsPermitidos=[];
 const vendors=vendorAbs.map(relSrc).sort();
 assert.deepEqual(vendors,vendorsPermitidos,
   'src/vendor só pode conter os runtimes estáticos explicitamente auditados');
@@ -41,7 +36,34 @@ const proibidos=[
   'testes/rodar-auditoria-browser.mjs','testes/stress-extras-tec.mjs','testes/resultado-stress-extras-tec.json',
   'testes/plano-robusto-v4.mjs','testes/plano-robusto-foco-questoes-v7.mjs','testes/reforco-cenarios.mjs',
   'src/css/04-tec-inline.css','docs/robusto-auditoria-json.md',
-  'src/js/13-backups-locais.js','src/js/61-session-guard.js','src/js/65-recuperacao.js'
+  'src/js/13-backups-locais.js','src/js/61-session-guard.js','src/js/65-recuperacao.js',
+  'testes/paridade-anki.mjs',
+  'testes/robustez-config.mjs',
+  'testes/referencia-anki.js',
+  'testes/cards-paridade-total-anki.mjs',
+  'testes/cards-certificacao-anki.mjs',
+  'testes/cards-practical-10.mjs',
+  'testes/cards-product-parity.mjs',
+  'testes/cards-total-parity.mjs',
+  'testes/cards-max-stats-media.mjs',
+  'testes/cards-max-reviewer-browser.mjs',
+  'testes/cards-search-differential.mjs',
+  'testes/cards-typeanswer-differential.mjs',
+  'testes/anki-oficial-search.py',
+  'testes/anki-oficial-typeanswer.py',
+  'testes/anki-oficial-roundtrip.py',
+  'testes/cards-apkg-export.mjs',
+  'testes/cards-import-formatos.mjs',
+  'testes/cards-import-anki-oficial.mjs',
+  'testes/cards-fsrs-optimizer-oficial.mjs',
+  'testes/cards-foco-edicao-browser.mjs',
+  'testes/cards-reparo-memoria-browser.mjs',
+  'testes/cards-10of10-final.mjs',
+  'src/js/34-anki-export.js',
+  'src/js/44-anki-runtime.js',
+  'src/js/30-fsrs.js',
+  'src/js/31-cards-config.js',
+  'src/js/32-card-engine.js'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');

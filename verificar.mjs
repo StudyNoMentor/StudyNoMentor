@@ -60,47 +60,19 @@ for (const m of mods) {
 }
 if (!ruins) ok(`${mods.length} modulos analisam isoladamente`);
 
-// ── 3. paridade com o Anki (teste diferencial, sem navegador) ──────────────
-console.log('\n3) agendador: paridade com o Anki + robustez da configuracao');
+// ── 3. integração Cards -> Anki oficial ────────────────────────────────────
+console.log('\n3) Cards: upstream oficial + bridge sem motor acadêmico local');
 try {
-  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'paridade-anki.mjs')], { stdio: 'pipe' });
-  ok(String(saida).trim());
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes/cards-anki-upstream-manifest.mjs')], { stdio: 'pipe' });
+  ok(String(saida).trim().split('\n').join(' · '));
 } catch (e) {
-  erro('divergencia contra a referencia:\n' + String(e.stdout || '') + String(e.stderr || ''));
+  erro('inventario/contratos do upstream Anki divergiram:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 try {
-  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'robustez-config.mjs')], { stdio: 'pipe' });
+  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes/cards-official-bridge-static.mjs')], { stdio: 'pipe' });
   ok(String(saida).trim());
 } catch (e) {
-  erro('configuracao invalida ainda torna cards inagendaveis:\n' + String(e.stdout || '') + String(e.stderr || ''));
-}
-try {
-  const saida = execFileSync(process.execPath, [join(RAIZ, 'testes', 'cards-paridade-total-anki.mjs')], { stdio: 'pipe' });
-  ok(String(saida).trim());
-} catch (e) {
-  erro('paridade total RNG/Cloze/LB/irmaos/presets divergiu:\n' + String(e.stdout || '') + String(e.stderr || ''));
-}
-
-// ── 3a. auditorias históricas pesadas — somente sob demanda ────────────────
-if (EXAUSTIVO) {
-  console.log('\n3a) cards: auditoria exaustiva histórica');
-  for (const [rotulo, pasta, arquivo] of [
-    ['29 casos funcionais da auditoria', 'cards-20260921', 'functions.mjs'],
-    // Esta é a única simulação anual mantida no fluxo exaustivo: cobre
-    // FSRS/SM-2, 6.000 cards, 365 dias e múltiplos cenários.
-    ['simulacao anual FSRS/SM-2', 'cards-20260921', 'simulate.mjs'],
-    ['68 verificacoes da 2a auditoria dos cards', 'cards-20260921-v2', 'regressao.mjs']
-  ]) {
-    try {
-      execFileSync(process.execPath, [join(RAIZ, 'audit', pasta, arquivo)], { stdio: 'pipe', maxBuffer: 64 * 1024 * 1024 });
-      ok(rotulo);
-    } catch (e) {
-      const detalhe = (String(e.stdout || '') + String(e.stderr || '')).slice(-16000);
-      erro(rotulo + ' falhou:\n' + detalhe);
-    }
-  }
-} else {
-  console.log('\n3a) auditorias históricas pesadas: PULADAS (use --exaustivo)');
+  erro('bridge Cards voltou a divergir da Collection oficial do Anki:\n' + String(e.stdout || '') + String(e.stderr || ''));
 }
 
 /* ── 3b. FIDELIDADE DA IMPORTACAO DO TEC ───────────────────────────────────
@@ -269,6 +241,11 @@ try {
   nav = await chromium.launch({ executablePath: navegadorLocal });
 }
 const pag = await nav.newPage({ viewport: { width: 1280, height: 900 } });
+// As dependências de rede não fazem parte da verificação de navegação. Serve
+// o mesmo build fixado por SRI e evita que um CDN lento bloqueie o carregamento.
+const libInicial=join(RAIZ,'node_modules/@supabase/supabase-js/dist/umd/supabase.js');
+if(existsSync(libInicial))await pag.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@*/dist/umd/supabase.js',r=>r.fulfill({status:200,contentType:'text/javascript',headers:{'access-control-allow-origin':'*'},body:readFileSync(libInicial)}));
+await pag.route('https://fonts.googleapis.com/**',r=>r.fulfill({status:200,contentType:'text/css',body:''}));
 const ruido = [];
 pag.on('pageerror', (e) => ruido.push('excecao: ' + e.message));
 // erros de rede sao esperados num ambiente sem acesso aos CDNs; nao contam.
@@ -277,7 +254,10 @@ try {
   await pag.goto(base, { waitUntil: 'domcontentloaded' });
   await pag.waitForFunction(() => window.AutoTeste && window.switchScreen, { timeout: 30000 });
   ruido.length ? erro('erros no carregamento:\n    ' + ruido.slice(0, 8).join('\n    ')) : ok('carregou limpo');
-} catch (e) { erro('o app nao inicializou: ' + e.message); }
+} catch (e) {
+  erro('o app nao inicializou: ' + e.message);
+  await nav.close();servidor.close();process.exit(1);
+}
 
 console.log('\n6) telas + suite interna');
 try {

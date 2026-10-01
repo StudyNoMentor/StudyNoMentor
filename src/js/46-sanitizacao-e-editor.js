@@ -81,8 +81,9 @@ function sanitizeCardHtml(html) {
         if (nome === 'href' || nome === 'src') {
           // \u0000-\u0020 fora: "java\tscript:" e afins driblariam a checagem
           const url = val.trim().replace(/[\u0000-\u0020]/g, '');
+          const localMedia = /^[^./\\:][^/\\:]{0,254}$/.test(url);
           const ok = (nome === 'src')
-            ? (/^data:(?:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+);base64,/i.test(url) || /^https?:\/\//i.test(url))
+            ? (/^data:(?:image\/(?:png|jpe?g|gif|webp|bmp|svg\+xml)|audio\/[a-z0-9.+-]+|video\/[a-z0-9.+-]+);base64,/i.test(url) || /^https?:\/\//i.test(url) || localMedia)
             : /^(https?:|mailto:)/i.test(url);
           if (!ok) el.removeAttribute(a.name);
         }
@@ -146,6 +147,26 @@ function rteSanitize(html) {
   return tmp.innerHTML;
 }
 function rteExec(area, cmd, val) { area.focus(); try { document.execCommand(cmd, false, val || null); } catch (e) { _quiet(e); } }
+async function insertImageFile(area, file) {
+  if (!file || !String(file.type || '').startsWith('image/')) return false;
+  if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.uploadOfficialMedia !== 'function') {
+    showToast('Imagem não inserida: backend oficial do Anki indisponível.');
+    return false;
+  }
+  try {
+    const out = await CardsOfficialBridge.uploadOfficialMedia(file, file.name || ('image-' + Date.now() + '.png'));
+    area.focus();
+    const html = '<img src="' + String(out.filename || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;') + '" alt="">';
+    try { document.execCommand('insertHTML', false, html); }
+    catch (_) { area.insertAdjacentHTML('beforeend', html); }
+    showToast('Imagem gravada pelo Anki oficial ✓');
+    return true;
+  } catch (e) {
+    showToast('Imagem não inserida: ' + (e && e.message ? e.message : String(e)));
+    return false;
+  }
+}
+window.insertImageFile = insertImageFile;
 // Converte HTML em TEXTO PURO preservando as quebras de linha (blocos/br viram \n).
 // Base do botão "Limpar formatação" — remove cor, fonte, fundo, negrito etc. do texto colado.
 function rtePlainFromHtml(html) {
@@ -387,11 +408,19 @@ function buildRteToolbar(rte) {
     const dentro = !!(sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode));
     const t = dentro ? String(sel).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    let ord = 1;
-    if (typeof CardEngine !== 'undefined') {
-      if (sameNumber && CardEngine.sameClozeOrdinal) ord = CardEngine.sameClozeOrdinal(area.innerHTML);
-      else if (CardEngine.nextClozeOrdinal) ord = CardEngine.nextClozeOrdinal(area.innerHTML);
+    // Upstream Anki 26.09.3: ts/routes/editor/ClozeButtons.svelte
+    // clozePattern + getCurrentHighestCloze(). A escolha do ordinal é lógica
+    // oficial do próprio editor web do Anki, não um parser acadêmico do Study.
+    const clozePattern=/\{\{c(\d+)::/gu,
+      scope=area.closest('.cards-modal')||area.parentElement,
+      fields=scope?[...scope.querySelectorAll('.rte')]:[area];
+    let highest=0;
+    for(const field of fields){
+      const html=String(field&&field.innerHTML||'');clozePattern.lastIndex=0;
+      let match=null;
+      while((match=clozePattern.exec(html)))highest=Math.max(highest,Number(match[1])||0);
     }
+    const ord=Math.max(1,sameNumber?highest:highest+1);
     const token = '{{c' + ord + '::' + t + '}}';
     try { document.execCommand('insertText', false, token); }
     catch (e) { document.execCommand('insertHTML', false, token); }
@@ -563,15 +592,10 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
   });
   on('cards-deck-btn', 'click', () => CardsScreen.openDeckModal());
   on('cards-export-btn', 'click', () => CardsScreen.openExportModal());
-  on('cards-empty-btn', 'click', async () => {
-    if (typeof AnkiParity === 'undefined') return;
-    const ids = AnkiParity.emptyCardIds();
-    if (!ids.length) { showToast('Nenhum card vazio ✓'); return; }
-    const ok = await UI.confirm('Foram encontrados ' + ids.length + ' card(s) vazio(s). Remover esses cards e o histórico deles?', { title:'🧹 Cards vazios', okText:'Remover', danger:true });
-    if (!ok) return;
-    const n = AnkiParity.deleteEmptyCards();
-    CardsScreen.render();
-    showToast(n + ' card(s) vazio(s) removido(s) ✓');
+  on('cards-empty-btn', 'click', () => {
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.openEmptyCards==='function'){
+      void CardsOfficialBridge.openEmptyCards();
+    }else showToast('Empty Cards oficial indisponível.');
   });
   on('cards-audit-export-btn', 'click', () => CardsScreen.exportAudit());
   on('cards-import-btn', 'click', () => CardsScreen.openImportModal());

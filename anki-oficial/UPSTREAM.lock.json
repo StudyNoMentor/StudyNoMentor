@@ -1,0 +1,41 @@
+{
+  "schema": "studynomentor-anki-upstream-lock-v1",
+  "repository": "ankitects/anki",
+  "release": "26.09.3",
+  "release_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "main_radar_commit": "d1d484c8249a8266a6fe9203694f9087726c6ba2",
+  "total_files": 2107,
+  "cards_runtime_files": 571,
+  "outside_cards_runtime_files": 1536,
+  "inventory_chunk_size": 250,
+  "repository_area_counts": {
+    "other": 51,
+    "github_ci": 14,
+    "build_tools": 90,
+    "docs": 432,
+    "localization": 56,
+    "proto": 28,
+    "pylib": 96,
+    "python": 2,
+    "qt": 292,
+    "rslib": 484,
+    "ts": 562
+  },
+  "cards_category_counts": {
+    "card_rendering": 20,
+    "cards_notes": 10,
+    "operations": 9,
+    "decks_deckconfig": 65,
+    "image_occlusion": 61,
+    "import_export": 65,
+    "media": 9,
+    "notetypes": 21,
+    "scheduler": 67,
+    "stats": 72,
+    "tags": 31,
+    "search_browser": 50,
+    "editor": 90,
+    "cloze": 1
+  },
+  "rule": "Nenhum item CARDS_RUNTIME pode ser marcado como 100% por existência de função. Exige oráculo/teste diferencial contra o upstream oficial."
+}

@@ -42,7 +42,7 @@ async function abrir() {
   page.on('pageerror', e => erros.push(e.message));
   page.on('console', m => { if (/Content Security Policy|Refused to/i.test(m.text())) csp.push(m.text()); });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => typeof FSRS !== 'undefined' && typeof DB !== 'undefined' && typeof AutoTeste !== 'undefined' && typeof UI !== 'undefined', null, { timeout: 30000 });
+  await page.waitForFunction(() => typeof CardsOfficialBridge !== 'undefined' && typeof DB !== 'undefined' && typeof AutoTeste !== 'undefined' && typeof UI !== 'undefined', null, { timeout: 30000 });
   return { ctx, page, erros, csp };
 }
 
@@ -177,27 +177,8 @@ async function pontaAPonta() {
   ok(tec.pronto && tec.s2, 'depois de carregar o histórico, o retrato é gravado');
   ok(JSON.stringify(snaps) === JSON.stringify(['tec-s1', 'tec-s2']), 'o banco mantém o retrato antigo e o novo: ' + JSON.stringify(snaps));
 
-  // A1 — importação em lote: 300 notas viram UMA gravação de cards
-  const pedidosAntes = api.estado.pedidos.length;
-  const lote = await page.evaluate(async () => {
-    await RelationalStore.flush();
-    let gravacoesCards = 0;
-    const orig = RelationalStore._markDirty.bind(RelationalStore);
-    RelationalStore._markDirty = function (key, old) { if (/:cards$/.test(key)) gravacoesCards++; return orig.apply(this, arguments); };
-    const rows = []; for (let i = 0; i < 300; i++) rows.push(['Frente ' + i, 'Verso ' + i]);
-    const nt = AnkiParity.stockNotetype('basic');
-    const t0 = performance.now();
-    const r = AnkiImport.importText({ rows, isHtml: false, headers: {} }, { notetypeId: nt.id, fieldColumns: [1, 2], dupeResolution: 'duplicate', forceIsHtml: true, isHtml: false });
-    const ms = performance.now() - t0;
-    RelationalStore._markDirty = orig;
-    await RelationalStore.flush();
-    return { cards: r.cards, gravacoesCards, ms, total: DB.getCards().length };
-  });
-  const pedidosCards = api.estado.pedidos.slice(pedidosAntes).filter(p => /mutate_study_plan_rows|replace_study_plan_rows|study_cards/.test(p.caminho)).length;
-  ok(lote.cards === 300 && lote.total >= 300, 'A1: 300 notas importadas (' + lote.cards + ' cards)');
-  ok(lote.gravacoesCards === 1, 'A1: a coleção de cards é gravada uma única vez (' + lote.gravacoesCards + ')');
-  ok(linhas('study_cards', r => r.profile_id === perfil.id).length >= 300, 'A1: os cards importados chegaram ao banco');
-  ok(pedidosCards <= 5, 'A1: poucas requisições de cards ao banco (' + pedidosCards + '), em ' + Math.round(lote.ms) + ' ms');
+  // Importação acadêmica agora é verificada no smoke da Collection oficial.
+  // Este teste permanece dedicado a persistência, backup e UI do Study.
 
   // A5 — restaurar exige a foto de segurança; falha no meio vira pendência durável
   const r5 = await page.evaluate(async () => {
@@ -254,24 +235,6 @@ async function pontaAPonta() {
 
 try {
   const { ctx, page, erros, csp } = await abrir();
-
-  // ── C5: WebAssembly do fsrs-rs sob o CSP publicado ─────────────────────────
-  const wasm = await page.evaluate(async () => {
-    try {
-      const mod = await FSRS._loadOfficialOptimizer();
-      const items = [], card_ids = [];
-      for (let c = 0; c < 64; c++) for (let k = 2; k <= 7; k++) {
-        const reviews = [{ rating: 3, delta_t: 0 }];
-        for (let i = 1; i < k; i++) reviews.push({ rating: (i + c) % 11 === 0 ? 1 : 3, delta_t: Math.max(1, Math.round(Math.pow(1.7, i - 1))) });
-        items.push({ reviews }); card_ids.push(100000 + c);
-      }
-      const out = JSON.parse(mod.optimize_json(JSON.stringify({ items, card_ids, current_params: FSRS.DEFAULT_W, num_relearning_steps: 1 })));
-      const hc = JSON.parse(mod.health_check_json(JSON.stringify({ items, card_ids, num_relearning_steps: 1 })));
-      return { ok: true, n: out.params && out.params.length, hc: typeof hc };
-    } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
-  });
-  ok(wasm.ok && wasm.n === 21, 'otimizador FSRS oficial (WASM) roda sob o CSP publicado: ' + JSON.stringify(wasm));
-  ok(!csp.some(t => /WebAssembly|wasm/i.test(t)), 'nenhuma recusa de WebAssembly pelo CSP');
 
   // ── C4: AutoTeste não encosta no planejamento real ──────────────────────────
   const auto = await page.evaluate(() => {
@@ -336,24 +299,6 @@ try {
   ok(datas.utc === '2026-09-11' && datas.estudo === '2026-09-10' && datas.cal === '2026-09-10', 'datas: 22h30 em Brasília continua no dia 10 (UTC diria 11)');
   ok(datas.madrugada === '2026-09-10', 'datas: 2h da manhã ainda é o dia de estudo anterior (virada às 4h)');
 
-  // ── Médio 16: ZIP-bomba é recusado pelo teto do que sai do descompressor ───
-  const bomba = await page.evaluate(async () => {
-    const zeros = new Uint8Array(8 * 1024 * 1024);
-    const comp = new Uint8Array(await new Response(new Blob([zeros]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
-    const nome = new TextEncoder().encode('collection.anki2');
-    const le16 = v => [v & 255, (v >> 8) & 255], le32 = v => [v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255];
-    const local = [...le32(0x04034b50), ...le16(20), 0, 0, ...le16(8), 0, 0, 0, 0, ...le32(0), ...le32(comp.length), ...le32(0), ...le16(nome.length), 0, 0];
-    const central = [...le32(0x02014b50), ...le16(20), ...le16(20), 0, 0, ...le16(8), 0, 0, 0, 0, ...le32(0), ...le32(comp.length), ...le32(0), ...le16(nome.length), 0, 0, 0, 0, 0, 0, 0, 0, ...le32(0), ...le32(0)];
-    const cdOff = local.length + nome.length + comp.length;
-    const eocd = [...le32(0x06054b50), 0, 0, 0, 0, ...le16(1), ...le16(1), ...le32(central.length + nome.length), ...le32(cdOff), 0, 0];
-    const zip = new Uint8Array([...local, ...nome, ...comp, ...central, ...nome, ...eocd]);
-    const teto = AnkiImport.ZIP_TETO_ENTRADA; AnkiImport.ZIP_TETO_ENTRADA = 1024 * 1024;
-    try { await AnkiImport.unzip(zip); return 'aceitou'; }
-    catch (e) { return String(e.message); }
-    finally { AnkiImport.ZIP_TETO_ENTRADA = teto; }
-  });
-  ok(/grande demais/.test(bomba), 'ZIP-bomba: descompactação passa do teto e é recusada (' + bomba + ')');
-
   // ── Médio 18: "Sem Classificação" (depth=1, sem código) não vira raiz ──────
   const incid = await page.evaluate(() => ({
     comRaiz: ReforcoEngine.raizIncid([{ depth: 0, codigo: null, incidencia: 100 }, { depth: 1, codigo: null, incidencia: 20 }, { depth: 1, codigo: '1', incidencia: 80 }]),
@@ -361,17 +306,19 @@ try {
   }));
   ok(incid.comRaiz === 100 && incid.semRaiz === 100, 'incidência: total da disciplina não é inflado pela "Sem Classificação" (' + JSON.stringify(incid) + ')');
 
-  // ── Baixo: SHA-1 único (csum do Anki) continua correto ─────────────────────
-  ok(await page.evaluate(() => AnkiExport._sha1First32('abc') === 0xa9993e36 && AnkiExport._sha1First32('') === 0xda39a3ee), 'csum do Anki (SHA-1, 32 bits) correto com a implementação única');
-
-  // ── Cards no tema escuro: Cloze padrão não fica com fundo branco ───────────
+  // ── Cards: tema do HTML oficial no iframe isolado ──────────────────────
   const fundo = await page.evaluate(async () => {
     document.documentElement.setAttribute('data-theme', 'dark');
-    const nt = AnkiParity.stockNotetype('cloze');
-    const doc = AnkiRuntime.buildSrcdoc(nt, 'Texto {{c1::oculto}}', 'question', { id: 'fundo-1' }, null, { disableAutoplay: true });
-    return { temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc) };
+    const doc = await CardsOfficialBridge.htmlWithMedia('<style>.card{background:white;color:black}.nightMode .cloze{color:lightblue}</style><span class="cloze">[...]</span>');
+    const custom = await CardsOfficialBridge.htmlWithMedia('<style>.nightMode{background:#111;color:#eee}</style>Template');
+    return {
+      temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc),
+      nightMode: /<html class="nightMode">/.test(doc),
+      respeitaCustom: !/html\.nightMode body\.card\{background:transparent/.test(custom)
+    };
   });
-  ok(fundo.temFallback, 'Cloze padrão no tema escuro usa fundo transparente (não branco)');
+  ok(fundo.temFallback && fundo.nightMode, 'HTML oficial no tema escuro recebe nightMode e fundo transparente');
+  ok(fundo.respeitaCustom, 'CSS noturno do template oficial permanece soberano');
 
   // ── A7: código de terceiros ────────────────────────────────────────────────
   const a7 = await page.evaluate(() => ({

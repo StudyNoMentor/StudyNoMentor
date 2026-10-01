@@ -1,0 +1,2259 @@
+{
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "range": [
+    1751,
+    2000
+  ],
+  "files": [
+    {
+      "index": 1751,
+      "path": "ts/lib/tslib/shortcuts.ts",
+      "blob_sha": "0cb0b2f2dbba7d1c64ba9f4b92b274375df5752b",
+      "size": 4926,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1752,
+      "path": "ts/lib/tslib/styling.ts",
+      "blob_sha": "cac1df4c8de2854be8b77ab662b52cf899fd3155",
+      "size": 872,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1753,
+      "path": "ts/lib/tslib/time.test.ts",
+      "blob_sha": "801550f9e641f93b02b3467a00167df24ce81f8a",
+      "size": 1464,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1754,
+      "path": "ts/lib/tslib/time.ts",
+      "blob_sha": "25d70eef3914311ae405007dec9d44e5dc700582",
+      "size": 6272,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1755,
+      "path": "ts/lib/tslib/typing.ts",
+      "blob_sha": "1523eb1b80733b63ce4dd376bf26ebc7b9d58956",
+      "size": 476,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1756,
+      "path": "ts/lib/tslib/ui.ts",
+      "blob_sha": "46af055a4cf20e6d7d16cbdca8b1ec905ecf8bf0",
+      "size": 353,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1757,
+      "path": "ts/lib/tslib/uuid.ts",
+      "blob_sha": "803d33e7d45631cc23d47731f09cfe8dfa0d8f13",
+      "size": 571,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1758,
+      "path": "ts/lib/tslib/wrap.ts",
+      "blob_sha": "e22c3e6d85f8f7ea77d6cb7c0af52f5a13e0f02c",
+      "size": 1765,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1759,
+      "path": "ts/licenses.json",
+      "blob_sha": "d5b530947e260e20774ec602af49aab7eced04bc",
+      "size": 36197,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1760,
+      "path": "ts/mathjax/index.ts",
+      "blob_sha": "b31738e897bd78002fed0e641c4b37c435c42be2",
+      "size": 808,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1761,
+      "path": "ts/mathjax/mathjax-types.d.ts",
+      "blob_sha": "e892a026e1512dff4fe8399c151c13cc7ee90395",
+      "size": 338,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1762,
+      "path": "ts/page.html",
+      "blob_sha": "39acc6792838b3df7676f96396feab20c44883ac",
+      "size": 281,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1763,
+      "path": "ts/reviewer/answering.ts",
+      "blob_sha": "03f1b94865cc3d7119db4dce5620bdbff945d8b3",
+      "size": 2690,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1764,
+      "path": "ts/reviewer/browser_selector.ts",
+      "blob_sha": "f941497602f4791fd90bdef9074a99e6a255b6e2",
+      "size": 1103,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1765,
+      "path": "ts/reviewer/images.ts",
+      "blob_sha": "293d83d05df62d382c9316939c8d96f93f040185",
+      "size": 1405,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1766,
+      "path": "ts/reviewer/index.ts",
+      "blob_sha": "3f9ad675625524b4f6e507f826e38b59e8a42756",
+      "size": 9639,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1767,
+      "path": "ts/reviewer/index_wrapper.ts",
+      "blob_sha": "2d3eaa8c5906e8318b8fa980e0cfa1e6c1c547aa",
+      "size": 326,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1768,
+      "path": "ts/reviewer/lib.test.ts",
+      "blob_sha": "d2fc81664004e6aaddac278e9e48a427806334a0",
+      "size": 5702,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1769,
+      "path": "ts/reviewer/mathjax.test.ts",
+      "blob_sha": "3d782f8ee801517d72145edb3e2c19afc1d062c1",
+      "size": 4878,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1770,
+      "path": "ts/reviewer/preload.ts",
+      "blob_sha": "8f63b639a62cf9db772e01ff89af3a987e0ce56f",
+      "size": 3915,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1771,
+      "path": "ts/reviewer/reviewer.scss",
+      "blob_sha": "c48d5324a1dba2bc99020e099b8d1588f706c4b4",
+      "size": 2308,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1772,
+      "path": "ts/reviewer/reviewer_extras.scss",
+      "blob_sha": "11eb378b323243fa2e9afd6ef4cd414b1ec977cf",
+      "size": 41,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1773,
+      "path": "ts/reviewer/reviewer_extras.ts",
+      "blob_sha": "107b0ffd556b4e6921e373cd565e0aee81efd668",
+      "size": 840,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 1774,
+      "path": "ts/routes/+error.svelte",
+      "blob_sha": "3dfb64e220824edcabdbbe549438b258a8bf84b5",
+      "size": 250,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1775,
+      "path": "ts/routes/+layout.svelte",
+      "blob_sha": "d943dca7f9e88da3fed251b8192e0ce02914a106",
+      "size": 433,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1776,
+      "path": "ts/routes/+layout.ts",
+      "blob_sha": "489a56fa55a61b64bd11c04a594801c30ec091a1",
+      "size": 433,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1777,
+      "path": "ts/routes/base.scss",
+      "blob_sha": "c5eb426a61e90d9b45876c14c5ff99f3e9046445",
+      "size": 855,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1778,
+      "path": "ts/routes/card-info/CardInfo.svelte",
+      "blob_sha": "938c7d92a7194cb3146cc1341ce00b1134a1e39f",
+      "size": 1702,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1779,
+      "path": "ts/routes/card-info/CardInfoPlaceholder.svelte",
+      "blob_sha": "f81e777e21f3fce9bba6ff06c590062fd45f4e73",
+      "size": 480,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1780,
+      "path": "ts/routes/card-info/CardStats.svelte",
+      "blob_sha": "949a2be0e7d0c8cf70336e0fdf39bb6b1e089dc9",
+      "size": 841,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1781,
+      "path": "ts/routes/card-info/ForgettingCurve.svelte",
+      "blob_sha": "19af5e703b0f0f426341556b44534ad8bb31d302",
+      "size": 4013,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1782,
+      "path": "ts/routes/card-info/Revlog.svelte",
+      "blob_sha": "02e9b12f4358653b91bdfe8bbf0eb2f0198a3300",
+      "size": 7654,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1783,
+      "path": "ts/routes/card-info/[cardId]/+page.svelte",
+      "blob_sha": "f0c84e90859fc2d359d556c0d415981fb4987591",
+      "size": 880,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1784,
+      "path": "ts/routes/card-info/[cardId]/+page.ts",
+      "blob_sha": "c751001a94d62d6777cc57ccf4e955b3de38c538",
+      "size": 595,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1785,
+      "path": "ts/routes/card-info/[cardId]/[previousId]/+page.svelte",
+      "blob_sha": "447bbb63f6457c02c306f6088dac7449ecce7f5c",
+      "size": 1293,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1786,
+      "path": "ts/routes/card-info/[cardId]/[previousId]/+page.ts",
+      "blob_sha": "afa18f82fd60fa60f90243698e267af37592ed42",
+      "size": 797,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1787,
+      "path": "ts/routes/card-info/forgetting-curve.ts",
+      "blob_sha": "c2a9f25804dde2bc0b1460b5c7144c36384fb3d7",
+      "size": 12724,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1788,
+      "path": "ts/routes/card-info/lib.test.ts",
+      "blob_sha": "1d698070b6bb2ec2a2560897fffb86d62983fccf",
+      "size": 2790,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1789,
+      "path": "ts/routes/card-info/lib.ts",
+      "blob_sha": "262a2aab7052640e7fad0fca31b26e30f9e49ea1",
+      "size": 4378,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 1790,
+      "path": "ts/routes/change-notetype/Alert.svelte",
+      "blob_sha": "78b129346e926b2ab172bb86609301c8040fb7f8",
+      "size": 1957,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1791,
+      "path": "ts/routes/change-notetype/ChangeNotetypePage.svelte",
+      "blob_sha": "db25aea2e64a17d8d6c5696257392a241ccd6231",
+      "size": 1899,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1792,
+      "path": "ts/routes/change-notetype/Mapper.svelte",
+      "blob_sha": "3e1a23500733910c5ed05209e849b7f876be42c9",
+      "size": 717,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1793,
+      "path": "ts/routes/change-notetype/MapperRow.svelte",
+      "blob_sha": "f06509b10d3510682056cd09ef734330c2e07e8b",
+      "size": 1044,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1794,
+      "path": "ts/routes/change-notetype/NotetypeSelector.svelte",
+      "blob_sha": "2eaeae7703918f455343768b8ed8089ef7bc22a0",
+      "size": 1474,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1795,
+      "path": "ts/routes/change-notetype/SaveButton.svelte",
+      "blob_sha": "dda694db0b41c0347b9b3a1f9b6be72cbc55a3db",
+      "size": 1187,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1796,
+      "path": "ts/routes/change-notetype/StickyHeader.svelte",
+      "blob_sha": "116cfa4444a017e347fce1e941c48b0bf0d548a7",
+      "size": 1088,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1797,
+      "path": "ts/routes/change-notetype/[...notetypeIds]/+page.svelte",
+      "blob_sha": "9285435bfa920ba71496d94b33f59482a1bed897",
+      "size": 349,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1798,
+      "path": "ts/routes/change-notetype/[...notetypeIds]/+page.ts",
+      "blob_sha": "4c9a9d48df2e2584bb82b9d48052c2dafd6b264a",
+      "size": 862,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1799,
+      "path": "ts/routes/change-notetype/change-notetype-base.scss",
+      "blob_sha": "22aeed358676e4ea2f050143f6d4e252f7ec8173",
+      "size": 488,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1800,
+      "path": "ts/routes/change-notetype/index.ts",
+      "blob_sha": "4fd56507a530a76c029fed5e350d0ff28c52f9bc",
+      "size": 1370,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1801,
+      "path": "ts/routes/change-notetype/lib.test.ts",
+      "blob_sha": "f0b666879b1b7605638e5e4ec520770011da6c11",
+      "size": 4248,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1802,
+      "path": "ts/routes/change-notetype/lib.ts",
+      "blob_sha": "029236099c021beaeac16e45999a54bd56f22ed7",
+      "size": 6694,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1803,
+      "path": "ts/routes/congrats/+page.svelte",
+      "blob_sha": "cab3febdfaf01f3794d44ee3aa77b16196797b0e",
+      "size": 328,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1804,
+      "path": "ts/routes/congrats/+page.ts",
+      "blob_sha": "9f894ef4450a964cad06b2714d850458dbb092f0",
+      "size": 344,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1805,
+      "path": "ts/routes/congrats/CongratsPage.svelte",
+      "blob_sha": "94187479ea2b0182a7908ed9c69e6b287399d819",
+      "size": 2924,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1806,
+      "path": "ts/routes/congrats/congrats-base.scss",
+      "blob_sha": "319c1f415289d462c8c7cf1340e96515cc30c41f",
+      "size": 161,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1807,
+      "path": "ts/routes/congrats/index.ts",
+      "blob_sha": "995b82c8fb9c71e0e31f5c562931df1e42bc319e",
+      "size": 1209,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1808,
+      "path": "ts/routes/congrats/lib.ts",
+      "blob_sha": "dab4b6b0e01f17a71f2f1cc4a8ba3a60e0ae1b73",
+      "size": 907,
+      "repository_area": "ts",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1809,
+      "path": "ts/routes/deck-options/Addons.svelte",
+      "blob_sha": "34f7a655c54eb48e2bf4d4f2893ac93114e17d7a",
+      "size": 651,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1810,
+      "path": "ts/routes/deck-options/AdvancedOptions.svelte",
+      "blob_sha": "917f0a6bfdbbc9ccef2f8e68afdd470049fee8bc",
+      "size": 12372,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1811,
+      "path": "ts/routes/deck-options/AudioOptions.svelte",
+      "blob_sha": "9a0b158e474df29bea5de2efdfa9ca40e4117bc3",
+      "size": 3060,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1812,
+      "path": "ts/routes/deck-options/AutoAdvance.svelte",
+      "blob_sha": "13f310fab71151be32e19f0561540fd7e9659bdf",
+      "size": 5277,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1813,
+      "path": "ts/routes/deck-options/BuryOptions.svelte",
+      "blob_sha": "e034ba0ca40cea873f9943e8362bf090e9fe8257",
+      "size": 3835,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1814,
+      "path": "ts/routes/deck-options/CardStateCustomizer.svelte",
+      "blob_sha": "4cb52087bfc6641b3a9566c0dc91e8d237677f72",
+      "size": 1391,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1815,
+      "path": "ts/routes/deck-options/ConfigSelector.svelte",
+      "blob_sha": "d2b9dfca96f1e0ed17702aad1ad82abe061f3496",
+      "size": 3793,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1816,
+      "path": "ts/routes/deck-options/DailyLimits.svelte",
+      "blob_sha": "0e08ea38d63df198d782ea15c11e29010b883691",
+      "size": 7764,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1817,
+      "path": "ts/routes/deck-options/DateInput.svelte",
+      "blob_sha": "b690266eeea171d9ac2a9f96eee3bfee361912a9",
+      "size": 845,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1818,
+      "path": "ts/routes/deck-options/DeckOptionsPage.svelte",
+      "blob_sha": "00d300418a08926ad5fcedf272641f4ff12e87db",
+      "size": 4965,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1819,
+      "path": "ts/routes/deck-options/DisplayOrder.svelte",
+      "blob_sha": "956400cc8c666bd6f1428a8b65729dc646c4c1a9",
+      "size": 7268,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1820,
+      "path": "ts/routes/deck-options/EasyDays.svelte",
+      "blob_sha": "e1fe4507d6787a5e615c2d4605aa379e9731eefa",
+      "size": 1886,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1821,
+      "path": "ts/routes/deck-options/EasyDaysInput.svelte",
+      "blob_sha": "c5fb4909a2f012f71e22627e61e2b981f248e9f0",
+      "size": 2454,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1822,
+      "path": "ts/routes/deck-options/FsrsOptions.svelte",
+      "blob_sha": "dba2ee75ac9898d9d9ad4e9fead841598d98f5cc",
+      "size": 18151,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1823,
+      "path": "ts/routes/deck-options/FsrsOptionsOuter.svelte",
+      "blob_sha": "85e7f31793861778ae5bb3052b3a7d5866df5b7c",
+      "size": 4105,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1824,
+      "path": "ts/routes/deck-options/GlobalLabel.svelte",
+      "blob_sha": "888f1343acc30dda027dd60dbfb93ab0ccb64616",
+      "size": 616,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1825,
+      "path": "ts/routes/deck-options/HtmlAddon.svelte",
+      "blob_sha": "5b2d428515be588dd56d10bf6bde7b2b14b321ab",
+      "size": 302,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1826,
+      "path": "ts/routes/deck-options/LapseOptions.svelte",
+      "blob_sha": "d1d0896641596a4b57db48cf8cdaf4fb51815d77",
+      "size": 5691,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1827,
+      "path": "ts/routes/deck-options/NewOptions.svelte",
+      "blob_sha": "192be087c50bd240a8163212f70191e0960da3f3",
+      "size": 6511,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1828,
+      "path": "ts/routes/deck-options/ParamsInput.svelte",
+      "blob_sha": "67aaa5b2ce09a6eeba9cf0257dff1b41188655b8",
+      "size": 3003,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1829,
+      "path": "ts/routes/deck-options/ParamsInputRow.svelte",
+      "blob_sha": "07081ac49fad0d0e1dd2e3b94671977f21656990",
+      "size": 559,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1830,
+      "path": "ts/routes/deck-options/ParamsSearchRow.svelte",
+      "blob_sha": "a509dc28c0db54bb8d85b1c616abae0655329c25",
+      "size": 394,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1831,
+      "path": "ts/routes/deck-options/SaveButton.svelte",
+      "blob_sha": "d46b1a750f53f6d67d20e615b218ee9170b81f83",
+      "size": 4309,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1832,
+      "path": "ts/routes/deck-options/SimulatorModal.svelte",
+      "blob_sha": "3fed873bff727352a66e3411923f921cb0a86b2a",
+      "size": 26105,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1833,
+      "path": "ts/routes/deck-options/SpinBoxFloatRow.svelte",
+      "blob_sha": "3b16f32d8cc83e5bae8824f2a1b620c86411a3b4",
+      "size": 1114,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1834,
+      "path": "ts/routes/deck-options/SpinBoxRow.svelte",
+      "blob_sha": "85feea8300c8ba14025fe12288488099f988fc4f",
+      "size": 986,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1835,
+      "path": "ts/routes/deck-options/StepsInput.svelte",
+      "blob_sha": "7f3fd42c9c24ddce72d1f40b22bf71717bd310cf",
+      "size": 558,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1836,
+      "path": "ts/routes/deck-options/StepsInputRow.svelte",
+      "blob_sha": "1b9fd2f25a5b8d7eb4dda589d220d1420e9b3f1e",
+      "size": 815,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1837,
+      "path": "ts/routes/deck-options/TabbedValue.svelte",
+      "blob_sha": "87dc4ed2c2fed955d990f302c299a350b9f50b11",
+      "size": 2480,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1838,
+      "path": "ts/routes/deck-options/TextInputModal.svelte",
+      "blob_sha": "318977e55c971746fd1f5ca277bfde8cf20a6b34",
+      "size": 2161,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1839,
+      "path": "ts/routes/deck-options/TimerOptions.svelte",
+      "blob_sha": "5f5e917365370d9bd7a5abe066d29cb4916b3d63",
+      "size": 4461,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1840,
+      "path": "ts/routes/deck-options/Warning.svelte",
+      "blob_sha": "f7549e6ca95ace7a4617f3f8b16761e1aca34227",
+      "size": 570,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1841,
+      "path": "ts/routes/deck-options/[deckId]/+page.svelte",
+      "blob_sha": "08e056de56e4c4fa5de14417abdd1aab84a797f4",
+      "size": 1220,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1842,
+      "path": "ts/routes/deck-options/[deckId]/+page.ts",
+      "blob_sha": "aef4dd6fe8896eac5d0a8abbac261736370b5fa7",
+      "size": 560,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1843,
+      "path": "ts/routes/deck-options/choices.ts",
+      "blob_sha": "07a55aad2f9ce00df1637c4bd164b49100bf1e37",
+      "size": 7825,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1844,
+      "path": "ts/routes/deck-options/deck-options-base.scss",
+      "blob_sha": "c5eb426a61e90d9b45876c14c5ff99f3e9046445",
+      "size": 855,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1845,
+      "path": "ts/routes/deck-options/index.ts",
+      "blob_sha": "3b88c4d0ce9ad5e400d02f8747d35c542699e817",
+      "size": 1907,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1846,
+      "path": "ts/routes/deck-options/lib.test.ts",
+      "blob_sha": "f8da32efdaf78ffcd95022f643f75cc8f9595919",
+      "size": 9299,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1847,
+      "path": "ts/routes/deck-options/lib.ts",
+      "blob_sha": "a024c4adaba477b29ca1bd2293e3c74c4582b121",
+      "size": 17298,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1848,
+      "path": "ts/routes/deck-options/steps.test.ts",
+      "blob_sha": "1ccd7b92366e420e0b8ff309854d37521a265dc0",
+      "size": 975,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1849,
+      "path": "ts/routes/deck-options/steps.ts",
+      "blob_sha": "6ba5389c95bd66035c29adf286db9309841e7596",
+      "size": 2019,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 1850,
+      "path": "ts/routes/editor/+page.svelte",
+      "blob_sha": "6426136123ba23fc05a9522b236044b1115eec75",
+      "size": 697,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1851,
+      "path": "ts/routes/editor/ActionButton.svelte",
+      "blob_sha": "14e074bee68a5a0da0dbfb96d4d737c96e68369f",
+      "size": 754,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1852,
+      "path": "ts/routes/editor/ActionButtons.svelte",
+      "blob_sha": "289c04e566c40ce5120df58e912fc961b190ad14",
+      "size": 1058,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1853,
+      "path": "ts/routes/editor/AddButton.svelte",
+      "blob_sha": "145e40c75b9742e6844ad88682961c0e50d08045",
+      "size": 644,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1854,
+      "path": "ts/routes/editor/CloseButton.svelte",
+      "blob_sha": "ab00385311cf308b1346c11edda75e29f94ab502",
+      "size": 760,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1855,
+      "path": "ts/routes/editor/ClozeButtons.svelte",
+      "blob_sha": "dfe4fb7c3d76c9f66cddd32624a8965f6ab286ad",
+      "size": 3566,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1856,
+      "path": "ts/routes/editor/CodeMirror.svelte",
+      "blob_sha": "3b1831267684b3efd433efaa0f34e064e07dc8d6",
+      "size": 3175,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1857,
+      "path": "ts/routes/editor/CollapseBadge.svelte",
+      "blob_sha": "d004116e5a950d641e4243bc142b5514a5d9974c",
+      "size": 970,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1858,
+      "path": "ts/routes/editor/CollapseLabel.svelte",
+      "blob_sha": "57efba4eb2486cf5daf867c40d55506a427bc9ae",
+      "size": 841,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1859,
+      "path": "ts/routes/editor/DuplicateLink.svelte",
+      "blob_sha": "2120b7786963f30b9943234bfc572f2846a4ed57",
+      "size": 1315,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1860,
+      "path": "ts/routes/editor/EditingArea.svelte",
+      "blob_sha": "33c2e6d1531f4eb57ade31755e61884982d413a7",
+      "size": 3114,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1861,
+      "path": "ts/routes/editor/EditorField.svelte",
+      "blob_sha": "da04d2627461ea04ed808b828db1d086aa5a30a4",
+      "size": 4730,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1862,
+      "path": "ts/routes/editor/FieldDescription.svelte",
+      "blob_sha": "316b3e0f06148b615067ff463bdfce4cb931fa96",
+      "size": 1427,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1863,
+      "path": "ts/routes/editor/FieldState.svelte",
+      "blob_sha": "d0cc344443f9c99c7818d0d89ceaa00510b013b3",
+      "size": 865,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1864,
+      "path": "ts/routes/editor/Fields.svelte",
+      "blob_sha": "c9186887310ef34ae74f0203c75b2a0ecef32dbf",
+      "size": 862,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1865,
+      "path": "ts/routes/editor/HandleBackground.svelte",
+      "blob_sha": "34aa66cc5630dac84475a038660dc6c909715028",
+      "size": 583,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1866,
+      "path": "ts/routes/editor/HandleControl.svelte",
+      "blob_sha": "db301618ef1138dde9c6412dca46f7e88c48250b",
+      "size": 3626,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1867,
+      "path": "ts/routes/editor/HandleLabel.svelte",
+      "blob_sha": "df9b29483ecca69163d766764e96aa8e56ca8067",
+      "size": 923,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1868,
+      "path": "ts/routes/editor/HelpButton.svelte",
+      "blob_sha": "32053489fb76fa241fbdcc7ff25d21178bc26d94",
+      "size": 783,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1869,
+      "path": "ts/routes/editor/HistoryButton.svelte",
+      "blob_sha": "2e2a47086381005f9f7be6a403c9b316d4972497",
+      "size": 1046,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1870,
+      "path": "ts/routes/editor/HistoryModal.svelte",
+      "blob_sha": "fc927df1e38be555d49b2dd29955551955ea9f3e",
+      "size": 3655,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1871,
+      "path": "ts/routes/editor/LabelContainer.svelte",
+      "blob_sha": "3b60ad579dc87cac37ae8e6648104cd4b983f7e2",
+      "size": 896,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1872,
+      "path": "ts/routes/editor/LabelName.svelte",
+      "blob_sha": "ea3c7e0b43d2b6ade3aec4185176a0a82ea00865",
+      "size": 180,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1873,
+      "path": "ts/routes/editor/NoteEditor.svelte",
+      "blob_sha": "fa3c2ef24ea8caed59515f14c7017f89dcc509fd",
+      "size": 57392,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1874,
+      "path": "ts/routes/editor/Notification.svelte",
+      "blob_sha": "46989c1fb8b06dc44a325ca29531f8d37fdfe1e6",
+      "size": 532,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1875,
+      "path": "ts/routes/editor/PlainTextBadge.svelte",
+      "blob_sha": "75f6e58629b5f1785dbd3339e5a89b4e21a28324",
+      "size": 1887,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1876,
+      "path": "ts/routes/editor/PreviewButton.svelte",
+      "blob_sha": "e020bbcff52946960370a4c140d3c3f29fb85777",
+      "size": 1115,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1877,
+      "path": "ts/routes/editor/RichTextBadge.svelte",
+      "blob_sha": "acb4ddc57ffb286a25b7b83c0c781b64a984a0ef",
+      "size": 1887,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1878,
+      "path": "ts/routes/editor/StickyBadge.svelte",
+      "blob_sha": "1916736d42380c37c4f8a02fbb512174bce3aa9d",
+      "size": 2645,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1879,
+      "path": "ts/routes/editor/base.ts",
+      "blob_sha": "abf5455c3d3913c7528d73f0e9551f21394dbb7b",
+      "size": 2016,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1880,
+      "path": "ts/routes/editor/code-mirror.ts",
+      "blob_sha": "17038f1de5a2732437bdbc44863ecd59a5470bec",
+      "size": 3818,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1881,
+      "path": "ts/routes/editor/context-menu.svelte.ts",
+      "blob_sha": "728611b6cac36d0fe4d7bb466af96925ab98ebe2",
+      "size": 4242,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1882,
+      "path": "ts/routes/editor/decorated-elements.ts",
+      "blob_sha": "e2257b3a818e2afcde36e913d3e71699d8bcdc5a",
+      "size": 1178,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1883,
+      "path": "ts/routes/editor/destroyable.ts",
+      "blob_sha": "54dba71de042577a724e7de3708d6b8288d5b322",
+      "size": 1107,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1884,
+      "path": "ts/routes/editor/editor-base.scss",
+      "blob_sha": "19d81628c3971ddde7722973a8fdc31928d5d5a9",
+      "size": 392,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1885,
+      "path": "ts/routes/editor/editor-toolbar/AddonButtons.svelte",
+      "blob_sha": "4e95eb1179e3ca132d5c0452054bf60f6583ee42",
+      "size": 2371,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1886,
+      "path": "ts/routes/editor/editor-toolbar/BlockButtons.svelte",
+      "blob_sha": "f2bd7342f7aa7954a537f4d963ac6b96c104015a",
+      "size": 8600,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1887,
+      "path": "ts/routes/editor/editor-toolbar/BoldButton.svelte",
+      "blob_sha": "d6b580b563349c16cffa48be8762cabe78d75ea2",
+      "size": 1296,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1888,
+      "path": "ts/routes/editor/editor-toolbar/ColorPicker.svelte",
+      "blob_sha": "f5934441cd22ecab7af32f8637fb60863f3d6afa",
+      "size": 822,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1889,
+      "path": "ts/routes/editor/editor-toolbar/CommandIconButton.svelte",
+      "blob_sha": "8179a93ea583065f79a0890d9fde9cdd1a22376b",
+      "size": 2124,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1890,
+      "path": "ts/routes/editor/editor-toolbar/EditorChoosers.svelte",
+      "blob_sha": "10267a9e9d44228ceb9eda494790d3666c0fdc05",
+      "size": 1373,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1891,
+      "path": "ts/routes/editor/editor-toolbar/EditorToolbar.svelte",
+      "blob_sha": "10d11b28e5392102454c2e436fcc71d78c5deeb7",
+      "size": 4317,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1892,
+      "path": "ts/routes/editor/editor-toolbar/HighlightColorButton.svelte",
+      "blob_sha": "102ca76bf3602e6fa788f06e1bcd0fd0f3645f25",
+      "size": 4305,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1893,
+      "path": "ts/routes/editor/editor-toolbar/ImageOcclusionButton.svelte",
+      "blob_sha": "712ed967608cb5472773e695a5e184e0c13304bc",
+      "size": 2643,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1894,
+      "path": "ts/routes/editor/editor-toolbar/InlineButtons.svelte",
+      "blob_sha": "0a4dec468599f7e840c29858c571880df3182248",
+      "size": 2284,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1895,
+      "path": "ts/routes/editor/editor-toolbar/ItalicButton.svelte",
+      "blob_sha": "c31b8e93bb32f69a04c831c264b83e575219bf7c",
+      "size": 1258,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1896,
+      "path": "ts/routes/editor/editor-toolbar/LatexButton.svelte",
+      "blob_sha": "78731fa818fb05eda3482d1dad489144554a8509",
+      "size": 3876,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1897,
+      "path": "ts/routes/editor/editor-toolbar/NotetypeButtons.svelte",
+      "blob_sha": "c446ad4fcb5507c9aa51256bd1702a4fd3df6ed6",
+      "size": 2519,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1898,
+      "path": "ts/routes/editor/editor-toolbar/OptionsButton.svelte",
+      "blob_sha": "10bb0540aeed3df2f819f863b016aab525545aa0",
+      "size": 2887,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1899,
+      "path": "ts/routes/editor/editor-toolbar/OptionsButtons.svelte",
+      "blob_sha": "f85520103fad6f34f759b5f3c84fe25bf4b38e37",
+      "size": 863,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1900,
+      "path": "ts/routes/editor/editor-toolbar/RemoveFormatButton.svelte",
+      "blob_sha": "eba6eb6b487b68718c7da5306e453ea7b3284c23",
+      "size": 4504,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1901,
+      "path": "ts/routes/editor/editor-toolbar/RichTextClozeButtons.svelte",
+      "blob_sha": "74d7b8db87b0d17bfec94217e1b0be21f420df0f",
+      "size": 845,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1902,
+      "path": "ts/routes/editor/editor-toolbar/SubscriptButton.svelte",
+      "blob_sha": "1b0a2dd075e8d59e9528a7a734ee3fc23b90b1c7",
+      "size": 1278,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1903,
+      "path": "ts/routes/editor/editor-toolbar/SuperscriptButton.svelte",
+      "blob_sha": "85d89647572f2ed67c35d7decb2ce4b68d55c295",
+      "size": 1280,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1904,
+      "path": "ts/routes/editor/editor-toolbar/TemplateButtons.svelte",
+      "blob_sha": "1a01a3c31ed80495bf50cd470e174f500479f67b",
+      "size": 4793,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1905,
+      "path": "ts/routes/editor/editor-toolbar/TextAttributeButton.svelte",
+      "blob_sha": "cf10cba4e33445f2ad00b3bae1b3be0f85e10521",
+      "size": 2448,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1906,
+      "path": "ts/routes/editor/editor-toolbar/TextColorButton.svelte",
+      "blob_sha": "59903c012981e573feaf5cd2f516293f4d685f4e",
+      "size": 5040,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1907,
+      "path": "ts/routes/editor/editor-toolbar/UnderlineButton.svelte",
+      "blob_sha": "142c4f2a118a4366fa164c36efbe6ac9b658d0f4",
+      "size": 818,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1908,
+      "path": "ts/routes/editor/editor-toolbar/WithColorHelper.svelte",
+      "blob_sha": "10d43b5be1adcea7e61ec12100771c91ebeda060",
+      "size": 660,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1909,
+      "path": "ts/routes/editor/editor-toolbar/index.ts",
+      "blob_sha": "d36b61614d142758189cd828965226c586288776",
+      "size": 333,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1910,
+      "path": "ts/routes/editor/helpers.ts",
+      "blob_sha": "04247343ba1dad1b3cf731d9bfe1c85abff4dfba",
+      "size": 893,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1911,
+      "path": "ts/routes/editor/image-overlay/FloatButtons.svelte",
+      "blob_sha": "08d4388561e1720910868756fc104d1efc3052df",
+      "size": 1916,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1912,
+      "path": "ts/routes/editor/image-overlay/ImageOverlay.svelte",
+      "blob_sha": "8aee3bfc918c7b0ade9744ab6e5cc2745a0f5b3a",
+      "size": 11422,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1913,
+      "path": "ts/routes/editor/image-overlay/SizeSelect.svelte",
+      "blob_sha": "b9d2c1640c29e7e43fb9b588a4b8a50f0f5d7f87",
+      "size": 1536,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1914,
+      "path": "ts/routes/editor/image-overlay/index.ts",
+      "blob_sha": "53c9739b1a2c64d69b42952dc0e90b9794e320da",
+      "size": 210,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1915,
+      "path": "ts/routes/editor/index.ts",
+      "blob_sha": "d3de21cc3d167ce4286ebeeaec9337a3803e304a",
+      "size": 275,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1916,
+      "path": "ts/routes/editor/legacy.scss",
+      "blob_sha": "4a5479515de656abea8b39f8ecc0907123f7a708",
+      "size": 865,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1917,
+      "path": "ts/routes/editor/mathjax-overlay/MathjaxButtons.svelte",
+      "blob_sha": "06f620114cedd51a29d222e75bf86cbf6bb064bb",
+      "size": 1762,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1918,
+      "path": "ts/routes/editor/mathjax-overlay/MathjaxEditor.svelte",
+      "blob_sha": "f357bfd35163e2a4bc7ca1a38ce3dd4ef10c6e2f",
+      "size": 4547,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1919,
+      "path": "ts/routes/editor/mathjax-overlay/MathjaxOverlay.svelte",
+      "blob_sha": "09fe33a5edb078890c90c7d6711ad96eb946cf6c",
+      "size": 10011,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1920,
+      "path": "ts/routes/editor/mathjax-overlay/index.ts",
+      "blob_sha": "2bc5967a882528304215059621baedc3d9301300",
+      "size": 216,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1921,
+      "path": "ts/routes/editor/old-editor-adapter.ts",
+      "blob_sha": "260164116fb5bec3c36958d24e049af34d35f2ea",
+      "size": 781,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1922,
+      "path": "ts/routes/editor/plain-text-input/PlainTextInput.svelte",
+      "blob_sha": "83d8b1c5105f8dcb7f6e0cff6b4363d149655cfe",
+      "size": 5460,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1923,
+      "path": "ts/routes/editor/plain-text-input/index.ts",
+      "blob_sha": "5c045154fe37ff996a214c1da34331f0710d8035",
+      "size": 323,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1924,
+      "path": "ts/routes/editor/plain-text-input/remove-prohibited.ts",
+      "blob_sha": "d7a8847a714a6295140ca849c1ec104893b49ed0",
+      "size": 889,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1925,
+      "path": "ts/routes/editor/plain-text-input/transform.ts",
+      "blob_sha": "718b5ddde8e273cad072824d251c53581dec2a24",
+      "size": 410,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1926,
+      "path": "ts/routes/editor/rich-text-input/CustomStyles.svelte",
+      "blob_sha": "1562427766d6b662ebaba402253ea5119b51dc39",
+      "size": 2524,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1927,
+      "path": "ts/routes/editor/rich-text-input/RichTextInput.svelte",
+      "blob_sha": "112c4b55a0d4f2684796423d522b48d6971dfc88",
+      "size": 9098,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1928,
+      "path": "ts/routes/editor/rich-text-input/RichTextStyles.svelte",
+      "blob_sha": "6438e741f4d7fb126f0d4b596d7c8de4f2cb4a58",
+      "size": 3482,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1929,
+      "path": "ts/routes/editor/rich-text-input/StyleLink.svelte",
+      "blob_sha": "18e9aa42b52c5e401e2cbfebf6d95d482a7fe2bc",
+      "size": 630,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1930,
+      "path": "ts/routes/editor/rich-text-input/StyleTag.svelte",
+      "blob_sha": "8594149414e9266f4220df0f60be5d5410f114fa",
+      "size": 665,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1931,
+      "path": "ts/routes/editor/rich-text-input/data-transfer.test.ts",
+      "blob_sha": "06e8cd0607a185184737408849166e1e75706d42",
+      "size": 5314,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1932,
+      "path": "ts/routes/editor/rich-text-input/data-transfer.ts",
+      "blob_sha": "33c9ef43bc1565124da0b66f6a96b77ff2fb276d",
+      "size": 15538,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1933,
+      "path": "ts/routes/editor/rich-text-input/index.ts",
+      "blob_sha": "80b9576cb818cd312e76a5e7ae225fa62b9eb17c",
+      "size": 332,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1934,
+      "path": "ts/routes/editor/rich-text-input/normalizing-node-store.ts",
+      "blob_sha": "9b1cd2d0aaec21ce856dff50c748122c57752ba3",
+      "size": 875,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1935,
+      "path": "ts/routes/editor/rich-text-input/rich-text-resolve.ts",
+      "blob_sha": "a97fbb96c6213af2162ed4c9647fba2d077e545e",
+      "size": 1509,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1936,
+      "path": "ts/routes/editor/rich-text-input/transform.ts",
+      "blob_sha": "6a656375385e366f3d3b6c0153208df29f530cf6",
+      "size": 1752,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1937,
+      "path": "ts/routes/editor/surround.ts",
+      "blob_sha": "73455526b575e3757c47c0ae6379cbd3350d6424",
+      "size": 12730,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1938,
+      "path": "ts/routes/editor/types.ts",
+      "blob_sha": "c7005009a8c00052511324edca65464ba123f7c1",
+      "size": 759,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 1939,
+      "path": "ts/routes/graphs/+page.svelte",
+      "blob_sha": "de669b113e63047bdf5d7f0a87378bb850881827",
+      "size": 1463,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1940,
+      "path": "ts/routes/graphs/AddedGraph.svelte",
+      "blob_sha": "28567bc7d53192b9dc5aac82b45c0ac383fcbddd",
+      "size": 1870,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1941,
+      "path": "ts/routes/graphs/AxisTicks.svelte",
+      "blob_sha": "2176a1381682a5ce004c735ac7a4a1e781014613",
+      "size": 587,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1942,
+      "path": "ts/routes/graphs/ButtonsGraph.svelte",
+      "blob_sha": "52c06867eb1ee71bf777ebb72d635a43c0eda8cc",
+      "size": 1568,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1943,
+      "path": "ts/routes/graphs/CalendarGraph.svelte",
+      "blob_sha": "c8d0f4ff8341e6d169a58742773586ef24559209",
+      "size": 2666,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1944,
+      "path": "ts/routes/graphs/CardCounts.svelte",
+      "blob_sha": "60b0c421d12bb9dc3f3129ffbb83abc7a4ece426",
+      "size": 4232,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1945,
+      "path": "ts/routes/graphs/CumulativeOverlay.svelte",
+      "blob_sha": "0c19cb55b19aef9474fb88d5137190b9ca3247be",
+      "size": 802,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1946,
+      "path": "ts/routes/graphs/DifficultyGraph.svelte",
+      "blob_sha": "fecb94edc46890bced052db93f2786d004bc9419",
+      "size": 1703,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1947,
+      "path": "ts/routes/graphs/EaseGraph.svelte",
+      "blob_sha": "112604a6e4e5921cbf9bb6e078d0ae930b717c16",
+      "size": 1421,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1948,
+      "path": "ts/routes/graphs/FutureDue.svelte",
+      "blob_sha": "3ed75a32ea964445c810351351fdeda03362ec4e",
+      "size": 2211,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1949,
+      "path": "ts/routes/graphs/Graph.svelte",
+      "blob_sha": "c8da588c58742e030e1f28b104dd2e76c1837d6e",
+      "size": 2230,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1950,
+      "path": "ts/routes/graphs/GraphRangeRadios.svelte",
+      "blob_sha": "5ab1430bc4304da95248e0b00b7dc82d6c45ed5f",
+      "size": 1536,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1951,
+      "path": "ts/routes/graphs/GraphsPage.svelte",
+      "blob_sha": "64ce63e8b3f691babe114f1878992ea84be85b2f",
+      "size": 2526,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1952,
+      "path": "ts/routes/graphs/HistogramGraph.svelte",
+      "blob_sha": "7afb78c1cacad3f730d54ae24b2589544775196d",
+      "size": 967,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1953,
+      "path": "ts/routes/graphs/HourGraph.svelte",
+      "blob_sha": "c8c8c83ab9e9f2e905eeb31556c6881530d2818e",
+      "size": 1639,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1954,
+      "path": "ts/routes/graphs/HoverColumns.svelte",
+      "blob_sha": "68b247fe8d831552cd6d4ef965b84c4c9477347e",
+      "size": 428,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1955,
+      "path": "ts/routes/graphs/InputBox.svelte",
+      "blob_sha": "88dc68d6816ef259f0ff162e0c07319c6a33ff66",
+      "size": 609,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1956,
+      "path": "ts/routes/graphs/IntervalsGraph.svelte",
+      "blob_sha": "7e752f1b860e2b4a37d16a602fcf96b26adaf883",
+      "size": 2479,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1957,
+      "path": "ts/routes/graphs/NoDataOverlay.svelte",
+      "blob_sha": "749bab72f4edd2c6471d39b665216b8f35e893e7",
+      "size": 708,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1958,
+      "path": "ts/routes/graphs/PercentageRange.svelte",
+      "blob_sha": "7f65bcec64b69b4243d91f780eb766b136f933d6",
+      "size": 1041,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1959,
+      "path": "ts/routes/graphs/RangeBox.svelte",
+      "blob_sha": "f4daf45d9c71ce111f74c32952fe99addb178526",
+      "size": 4093,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1960,
+      "path": "ts/routes/graphs/RetrievabilityGraph.svelte",
+      "blob_sha": "b6c2f69f7d295af82d3264d6b5c098cbbf694804",
+      "size": 1710,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1961,
+      "path": "ts/routes/graphs/ReviewsGraph.svelte",
+      "blob_sha": "530995ba9f68ec9722561b0612cfb5889c6141b5",
+      "size": 2428,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1962,
+      "path": "ts/routes/graphs/StabilityGraph.svelte",
+      "blob_sha": "73aa3e8f9f6408913e52b9cbca219535e457d925",
+      "size": 2755,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1963,
+      "path": "ts/routes/graphs/TableData.svelte",
+      "blob_sha": "4e634418ebee8926da322665630720aad7aa7aa7",
+      "size": 861,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1964,
+      "path": "ts/routes/graphs/TodayStats.svelte",
+      "blob_sha": "9bd3525e1b961a997334cce47fc91e682864c639",
+      "size": 828,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1965,
+      "path": "ts/routes/graphs/Tooltip.svelte",
+      "blob_sha": "d6b64df2c93102188256182b0e800cfe0e3cc65c",
+      "size": 1528,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1966,
+      "path": "ts/routes/graphs/TrueRetention.svelte",
+      "blob_sha": "12d17079b5a944773f7556450dafc2bedc7bd978",
+      "size": 4226,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1967,
+      "path": "ts/routes/graphs/TrueRetentionCombined.svelte",
+      "blob_sha": "5a9efc814576be492da07386e348773abe1e347c",
+      "size": 2654,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1968,
+      "path": "ts/routes/graphs/TrueRetentionSingle.svelte",
+      "blob_sha": "9199717f89928909ed90f285f124736ff39863ee",
+      "size": 2085,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1969,
+      "path": "ts/routes/graphs/WithGraphData.svelte",
+      "blob_sha": "5a9d3e9962caed1bc05766b2ad15b7733ad1e105",
+      "size": 1633,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1970,
+      "path": "ts/routes/graphs/_true-retention-base.scss",
+      "blob_sha": "21b7cbfe2bdbfefa3abc52d2f2a101bb959f9d34",
+      "size": 284,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1971,
+      "path": "ts/routes/graphs/added.ts",
+      "blob_sha": "f60bb03aaf50d44493c5ab567d680ffdfd7ee6ee",
+      "size": 3848,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1972,
+      "path": "ts/routes/graphs/buttons.ts",
+      "blob_sha": "606380590c8ed146aef4db00175af662219ca508",
+      "size": 8170,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1973,
+      "path": "ts/routes/graphs/calendar.ts",
+      "blob_sha": "86392309549b0f9630a524d1d6abee54293b2cba",
+      "size": 7484,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1974,
+      "path": "ts/routes/graphs/card-counts.ts",
+      "blob_sha": "e31c0a5b9e8fdcbf5844c452086bb8e2aa6fcd02",
+      "size": 5492,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1975,
+      "path": "ts/routes/graphs/difficulty.ts",
+      "blob_sha": "4f36ecdcf3a21fe5fa093fb31cb3b3524bb34d2b",
+      "size": 3075,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1976,
+      "path": "ts/routes/graphs/ease.ts",
+      "blob_sha": "26de020963a38eec1f0f10e075a6cf78beec7b05",
+      "size": 3857,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1977,
+      "path": "ts/routes/graphs/future-due.ts",
+      "blob_sha": "6100470b7dbe1d689f84b495a2ce29b562bb7888",
+      "size": 5160,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1978,
+      "path": "ts/routes/graphs/graph-helpers.ts",
+      "blob_sha": "47f0249b4999b80e66aa61d3d59e76ffa543c0b3",
+      "size": 2712,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1979,
+      "path": "ts/routes/graphs/graph-styles.ts",
+      "blob_sha": "1361d7f6745d32818a8c7d8a81193fc5b6ea0ad1",
+      "size": 524,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1980,
+      "path": "ts/routes/graphs/graphs-base.scss",
+      "blob_sha": "128a610095287299fe98955a75ec645cfa5121dd",
+      "size": 121,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1981,
+      "path": "ts/routes/graphs/histogram-graph.ts",
+      "blob_sha": "a101c985af7690d349986ed10322eff198b58bcb",
+      "size": 5935,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1982,
+      "path": "ts/routes/graphs/hours.ts",
+      "blob_sha": "3f3b077713d0fc63179a16250df9912ca2968879",
+      "size": 6267,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1983,
+      "path": "ts/routes/graphs/index.ts",
+      "blob_sha": "9e3c5e4ce2da0dd32dbf2a8cda41e38f392d53cd",
+      "size": 2005,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1984,
+      "path": "ts/routes/graphs/intervals.ts",
+      "blob_sha": "ffd41b2384c713ff98c94b7f505e8d005053bc5c",
+      "size": 5954,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1985,
+      "path": "ts/routes/graphs/percentageRange.ts",
+      "blob_sha": "6094ef2e02767b0d35039fd894d428cccc37fd8e",
+      "size": 2044,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1986,
+      "path": "ts/routes/graphs/retrievability.ts",
+      "blob_sha": "6a1a391d20ad94a614b708e88825c57bf2e216ae",
+      "size": 3549,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1987,
+      "path": "ts/routes/graphs/reviews.ts",
+      "blob_sha": "64cbdb63b8ca7f4b4ae52dbefcf8eeeaa63a17ae",
+      "size": 15026,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1988,
+      "path": "ts/routes/graphs/simulator.ts",
+      "blob_sha": "43c653b04e968d5556f013a4ebbfb32384b1fd33",
+      "size": 13404,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1989,
+      "path": "ts/routes/graphs/today.ts",
+      "blob_sha": "6b9e537645f55e8dd41d68e59099e8b8f9546e68",
+      "size": 1787,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1990,
+      "path": "ts/routes/graphs/tooltip-utils.svelte.ts",
+      "blob_sha": "acb0c5b8f298963813b9da932a3a066bfdd2143a",
+      "size": 1236,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1991,
+      "path": "ts/routes/graphs/true-retention.ts",
+      "blob_sha": "4ad2fc4641b501429515eb9ee1cc00ad459fea6c",
+      "size": 2967,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 1992,
+      "path": "ts/routes/image-occlusion/ImageOcclusionPage.svelte",
+      "blob_sha": "725c3ce7e96ed3eadd596268f64583b2d3b9a0bf",
+      "size": 2396,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1993,
+      "path": "ts/routes/image-occlusion/ImageOcclusionPicker.svelte",
+      "blob_sha": "14124229b3d2e36c6963279dd9826e4a9dbe73b6",
+      "size": 1401,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1994,
+      "path": "ts/routes/image-occlusion/MaskEditor.svelte",
+      "blob_sha": "3c9d826f5ea56a8efa279b43944f6756864093eb",
+      "size": 3757,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1995,
+      "path": "ts/routes/image-occlusion/Notes.svelte",
+      "blob_sha": "37549f7ddbf54eb44f1a94fa6df1c0a2ba987c58",
+      "size": 2534,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1996,
+      "path": "ts/routes/image-occlusion/StickyFooter.svelte",
+      "blob_sha": "c8652f6914c336c1f383a3e81f2f06c6951308fb",
+      "size": 1410,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1997,
+      "path": "ts/routes/image-occlusion/Tags.svelte",
+      "blob_sha": "aeb5322b46bfcbaab03fba4d1213c133e75216b3",
+      "size": 675,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1998,
+      "path": "ts/routes/image-occlusion/Toast.svelte",
+      "blob_sha": "f34abd7a1baedab2f3547d9699f457d94bf92efd",
+      "size": 1745,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 1999,
+      "path": "ts/routes/image-occlusion/Toolbar.svelte",
+      "blob_sha": "aaed490f5341a6367c1b9570b6f92ac035550c5e",
+      "size": 19206,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 2000,
+      "path": "ts/routes/image-occlusion/[...imagePathOrNoteId]/+page.svelte",
+      "blob_sha": "3f9ce29ce0f7aeec717496095c2c5558d6bdb0d7",
+      "size": 347,
+      "repository_area": "ts",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    }
+  ]
+}

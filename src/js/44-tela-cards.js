@@ -249,7 +249,9 @@ const CardsScreen = {
     assuntoSel.value = oneAssunto;
     this.filters.assunto = oneAssunto;
 
-    $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + CardEngine.TIPOS.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    const tipos=[...new Set(this.collectionCards().map(c=>c.tipo).filter(Boolean))]
+      .sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'}));
+    $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + tipos.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
 
     this._renderMultiFilter('materia', 'cards-f-materia-multi', matterOptions, 'Todas as disciplinas/baralhos', 'Buscar disciplina ou baralho…');
     this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
@@ -296,7 +298,22 @@ const CardsScreen = {
     return `<option value="">Escolha onde este card fica...</option>` + legadoOpt + deckOpts;
   },
   currentFilteredCards() {
-    let out = CardEngine.applyFilters(this.collectionCards(), this.filters);
+    const f=this.filters||{},busca=String(f.busca||'').trim().toLowerCase(),
+      materias=f.materias instanceof Set?f.materias:new Set(Array.isArray(f.materias)?f.materias:[]),
+      assuntos=f.assuntos instanceof Set?f.assuntos:new Set(Array.isArray(f.assuntos)?f.assuntos:[]);
+    let out=this.collectionCards().filter(c=>{
+      if(materias.size&&!(c.materia&&materias.has(c.materia))&&!(c.deckId&&materias.has('deck:'+c.deckId)))return false;
+      if(assuntos.size?!assuntos.has(c.assunto||''):(f.assunto&&(c.assunto||'')!==f.assunto))return false;
+      if(f.tipo&&(c.tipo||'')!==f.tipo)return false;
+      if(f.status&&f.status!=='todos'&&(c.status||'pendente')!==f.status)return false;
+      if(f.favorito&&!c.favorito)return false;
+      if(busca){
+        const hay=((c.frente||'')+' '+(c.verso||'')+' '+(c.assunto||'')+' '+(c.materia||'')+' '+(c.materiaTec||''))
+          .toLowerCase().replace(/<[^>]+>/g,' ');
+        if(!hay.includes(busca))return false;
+      }
+      return true;
+    });
     try { if (window.StudyGlobalScope && StudyGlobalScope.filterCardsByBanca) out = StudyGlobalScope.filterCardsByBanca(out); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
     return out;
   },
@@ -305,121 +322,12 @@ const CardsScreen = {
     const el = document.getElementById('cards-fav-count'); if (el) el.textContent = n;
   },
 
-  _statsCards() {
-    try {
-      if (window.StudyGlobalScope && StudyGlobalScope.cardsScope && StudyGlobalScope.cardsScope() === 'all') return this.collectionCards();
-      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsCards) return AnkiMaxStatsMedia.statsCards();
-    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
-    return this.collectionCards();
-  },
-  _statsRevlog(applyHistory) {
-    try {
-      if (window.StudyGlobalScope && StudyGlobalScope.revlog) return StudyGlobalScope.revlog();
-      if (typeof AnkiMaxStatsMedia !== 'undefined' && AnkiMaxStatsMedia.statsRevlog) return AnkiMaxStatsMedia.statsRevlog(applyHistory !== false);
-    } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
-    return DB.getRevlog() || [];
+  _mirrorRevlog() {
+    try{if(window.StudyGlobalScope&&StudyGlobalScope.revlog)return StudyGlobalScope.revlog();}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-mirror-revlog');}
+    return DB.getRevlog()||[];
   },
 
-  /* ── TRUE RETENTION ───────────────────────────────────────────────────────
-     A estatística que responde "a retenção que eu realmente tenho bate com a
-     meta que configurei?". O Anki a separa por MATURIDADE porque as duas contam
-     histórias diferentes: cards jovens (intervalo < 21 dias) ainda estão sendo
-     aprendidos e erram muito; cards maduros medem retenção de verdade.
-     Só contam revisões de LONGO PRAZO — repetir um card no mesmo dia não diz
-     nada sobre esquecimento. */
-  /* Semântica de revlog do Anki para uma linha do histórico: tipo (a partir do
-     estado ANTES da resposta) e last_interval (dias; passos em -segundos).
-     Linhas antigas do Study não tinham essa semântica: (re)aprendizado é tido
-     como passo intradiário (exato para passos < 1 dia). */
-  _revlogAnki(r) {
-    if (!r) return null;
-    const expl = String(r.ankiReviewKind || '').toLowerCase();
-    const ph = String(r.phase || 'review').toLowerCase();
-    let tipo = (expl === 'manual' || expl === 'rescheduled' || expl === 'reset' || expl === 'filtered') ? expl
-      : (ph === 'new' || ph === 'learning') ? 'learning' : ph === 'relearning' ? 'relearning' : ph === 'filtered' ? 'filtered' : 'review';
-    if (r.ankiIvlSemantica === 2 && r.ankiReviewKind) tipo = String(r.ankiReviewKind);
-    let last;
-    if (r.ankiIvlSemantica === 2 && r.ankiLastInterval != null) last = Number(r.ankiLastInterval);
-    else last = (tipo === 'review') ? Number(r.intervalo != null ? r.intervalo : (r.elapsed || 0)) : (tipo === 'learning' && ph === 'new' ? 0 : -60);
-    return { tipo, last, ease: Number(r.easeFactor != null ? r.easeFactor : 2500) };
-  },
-  /* stats/graphs/retention.rs::calculate_true_retention — toda resposta com nota
-     que afeta o agendamento (não manual/reagendada, não "cramming"), de revisão
-     ou vinda de intervalo ≥ 1 dia. Jovem/maduro pelo intervalo ANTERIOR (< 21).
-     Janelas pelo horário a partir da próxima virada: hoje, ontem, 7, 30, 365, tudo. */
-  trueRetention(dias) {
-    const revlog = this._statsRevlog();
-    const fim = proximaViradaTs(), dia = 86400000;
-    let ini = 0, ate = fim;
-    if (dias === 'ontem') { ini = fim - 2 * dia; ate = fim - dia; }
-    else if (dias) ini = fim - Math.max(1, Number(dias)) * dia;
-    const acc = { jovem: { total: 0, acertos: 0 }, maduro: { total: 0, acertos: 0 }, todos: { total: 0, acertos: 0 } };
-    revlog.forEach(r => {
-      const g = Number(r && r.grade); if (!(g >= 1 && g <= 4)) return;
-      const k = this._revlogAnki(r); if (!k) return;
-      if (k.tipo === 'manual' || k.tipo === 'rescheduled' || k.tipo === 'reset') return;
-      if (k.tipo === 'filtered' && !(k.ease > 0)) return;              // cramming
-      if (!(k.tipo === 'review' || k.last <= -86400 || k.last >= 1)) return;
-      const ts = Number(r.ts) || 0; if (ts < ini || ts >= ate) return;
-      const alvo = k.last < 21 ? acc.jovem : acc.maduro;
-      alvo.total++; acc.todos.total++;
-      if (g > 1) { alvo.acertos++; acc.todos.acertos++; }
-    });
-    const pct = (o) => o.total ? Math.round((o.acertos / o.total) * 1000) / 10 : null;
-    return {
-      jovem: Object.assign({ pct: pct(acc.jovem) }, acc.jovem),
-      maduro: Object.assign({ pct: pct(acc.maduro) }, acc.maduro),
-      todos: Object.assign({ pct: pct(acc.todos) }, acc.todos),
-      mesmoDia: 0,
-      meta: Math.round((CardsConfig.get().retention || 0.9) * 100)
-    };
-  },
-
-  /* ── PREVISÃO DE CARGA ────────────────────────────────────────────────────
-     Quantos cards vencem por dia daqui para a frente. Serve para responder
-     "posso aumentar o limite de novos?" ANTES de aumentar e se arrepender. */
-  previsaoCarga(dias) {
-    dias = dias || 30;
-    const hoje = todayCards();
-    const mapa = {};
-    for (let i = 0; i <= dias; i++) mapa[CardEngine.addDays(hoje, i)] = 0;
-    let atrasados = 0;
-    this._statsCards().forEach(c => {
-      if (c.suspenso || !c.due) return;
-      if (this._bucket(c) === 'new') return;
-      if (c.due < hoje) { atrasados++; return; }
-      if (mapa[c.due] !== undefined) mapa[c.due]++;
-    });
-    const serie = Object.keys(mapa).sort().map(d => ({ dia: d, n: mapa[d] }));
-    const total = serie.reduce((a, x) => a + x.n, 0);
-    return {
-      serie, atrasados, total,
-      media: serie.length ? Math.round(total / serie.length * 10) / 10 : 0,
-      pico: serie.reduce((a, x) => Math.max(a, x.n), 0)
-    };
-  },
-
-  /* ── REPOSICIONAR CARDS NOVOS ─────────────────────────────────────────────
-     Equivale ao "Reposition" do Anki: reordena a fila de cards novos sem tocar
-     em nada mais. Útil quando você adiciona 200 cards de uma matéria nova e
-     quer intercalá-los com os que já estavam esperando, em vez de empurrar
-     todos para o fim. */
-  reposicionarNovos(modo, escopo) {
-    const cards = this.collectionCards().filter(c => this._bucket(c) === 'new' && (!escopo || c.deckId === escopo));
-    if (!cards.length) return 0;
-    let ordem = cards.slice();
-    if (modo === 'aleatoria') {
-      for (let i = ordem.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = ordem[i]; ordem[i] = ordem[j]; ordem[j] = t; }
-    } else if (modo === 'inverso') {
-      ordem.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-    } else {
-      ordem.sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')));
-    }
-    ordem.forEach((c, i) => DB.updateCard(c.id, { posicaoNova: i }));
-    return ordem.length;
-  },
-
-  // ---- conteúdo (revisar ou meus cards) ----
+  // ---- conteúdo (revisar ou meus cards) ----  // ---- conteúdo (revisar ou meus cards) ----
   renderContent() {
     const box = document.getElementById('cards-content');
     if (this.tab !== 'revisar' && this._autoAdvanceEnabled) this._disableAutoAdvanceSilently();
@@ -427,958 +335,78 @@ const CardsScreen = {
     else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
   },
-  /* O Anki 26.09.2 mantém CardQueues em memória e só reconstrói a fila
-     quando uma operação altera elegibilidade, ordem, limites ou o deck. */
-  invalidateReviewQueue() {
-    this._reviewQueue = [];
-    this._reviewIdx = 0;
-    this._reviewCardId = null;
-    this._flipped = false;
+  invalidateReviewQueue(){
+    this._reviewQueue=[];this._reviewIdx=0;this._reviewCardId=null;this._flipped=false;
   },
-  materiaLabel(c) {
-    if (c.deckId) {
-      let d = null;
-      try { d = window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null; } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); }
-      if (!d) d = DB.getDecks().find(x => x.id === c.deckId);
-      return d ? '📁 ' + d.nome : '📁 (baralho removido)';
+  materiaLabel(c){
+    if(c.deckId){
+      let d=null;try{d=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-materia-label');}
+      if(!d)d=DB.getDecks().find(x=>x.id===c.deckId);
+      return d?'📁 '+d.nome:'📁 (baralho removido)';
     }
-    return c.materia || 'Sem disciplina';
+    return c.materia||'Sem disciplina';
   },
-  // classifica um card para os limites diários
-  _bucket(c) {
-    const ph = c.phase || (((c.reps || 0) > 0 && (c.intervalo || 0) > 0) ? 'review' : 'new');
-    if (ph === 'new') return 'new';
-    if (ph === 'learning' || ph === 'relearning') return 'learn';
-    return 'review';
+  _bucket(c){
+    const ph=c.phase||(((c.reps||0)>0&&(c.intervalo||0)>0)?'review':'new');
+    if(ph==='new')return'new';if(ph==='learning'||ph==='relearning')return'learn';return'review';
   },
-  /* O Anki toma as opções de Display Order do baralho SELECIONADO para estudar,
-     e não do preset de cada card individual. Neste app, "Revisar só este
-     baralho" é representado por um único filtro deck:<id>; nesse caso a fila
-     usa o preset daquele baralho. Em "Todos", usamos a configuração global. */
-  _queueConfig() {
-    const sel = this.filters && this.filters.materias;
-    if (sel && sel.size === 1) {
-      const unico = [...sel][0];
-      if (typeof unico === 'string' && unico.startsWith('deck:')) {
-        return CardsConfig.forDeck(unico.slice(5));
-      }
-    }
-    return CardsConfig.get();
-  },
-  // Monta a fila do dia respeitando os LIMITES diários (novos/revisões) — como o Anki.
-  buildQueue() {
-    if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
-    // LoadBalancer::new roda junto com a montagem da fila (build_queues).
-    if (typeof AnkiParity !== 'undefined' && AnkiParity.lbCongelar) AnkiParity.lbCongelar();
-    // cards suspensos (leech) ficam fora da fila, como no Anki
-    const filtered = this.currentFilteredCards().filter(c => !c.suspenso);
-    const due = filtered.filter(c => CardEngine.isDue(c));
-    const selectedDeckIdEarly = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
-    const selectedFilteredDeck = selectedDeckIdEarly && typeof AnkiParity !== 'undefined'
-      ? AnkiParity.isFilteredDeck(selectedDeckIdEarly) : false;
-    /* Baralho filtrado: o limite de cards foi aplicado ao CONSTRUIR o baralho.
-       O Anki não reaplica new/review-per-day do baralho de origem aqui. A ordem
-       vem da posição atribuída pelo filtro; preview repeats só reaparecem quando
-       o dueTs vence. */
-    if (selectedFilteredDeck) {
-      // Não dependa apenas do filtro visual para isolar um filtered deck.
-      // O scheduler do Anki trabalha sobre o baralho selecionado; portanto,
-      // mesmo em harness/headless ou chamadas programáticas, nenhum card do
-      // baralho de origem pode vazar para esta fila.
-      const inFilteredDeck = filtered.filter(c => String(c.deckId) === String(selectedDeckIdEarly));
-      const ordered = inFilteredDeck.filter(c => CardEngine.isDue(c)).sort((a,b) =>
-        (Number(a.filteredPosition)||0) - (Number(b.filteredPosition)||0)
-        || Number(a.dueTs||0) - Number(b.dueTs||0)
-      );
-      const pending = inFilteredDeck.filter(c => c.dueTs && c.dueTs > Date.now()).sort((a,b)=>a.dueTs-b.dueTs);
-      this._queueMeta = {
-        bloqueadosNovos:0,bloqueadosRev:0,
-        proximoTs:pending.length?pending[0].dueTs:null,
-        pendentes:pending.length,
-        suspensos:inFilteredDeck.filter(c=>c.suspenso).length,
-        filteredDeck:true
-      };
-      return ordered.map(c=>c.id);
-    }
-    const newRem = CardsConfig.newRemaining(), revRem = CardsConfig.revRemaining();
-    /* `novos` precisa ser reatribuível: o modo 'materiaRodizio' constrói uma
-       lista intercalada nova em vez de ordenar no lugar. Com `const` isso
-       lançava TypeError e derrubava a montagem da fila inteira. */
-    let novos = []; const revisoes = [], aprendAgora = [], aprendDia = [];
-    due.forEach(c => {
-      const b = this._bucket(c);
-      if (b === 'new') novos.push(c);
-      else if (b === 'review') revisoes.push(c);
-      else if (c.dueTs) aprendAgora.push(c); // intradiário: prioridade absoluta
-      else aprendDia.push(c);                // cruzou a virada: conta como review
-    });
-    // queue/learning.rs::cmp_by_reps_then_due: quem já tem repetições vem antes
-    // dos que nunca foram respondidos; depois, pelo vencimento.
-    aprendAgora.sort((a, b) => (((a.reps || 0) === 0) - ((b.reps || 0) === 0)) || Number(a.dueTs || 0) - Number(b.dueTs || 0));
-    /* ── ORDEM DAS REVISÕES ───────────────────────────────────────────────────
-       Ordena ANTES de aplicar o limite: com acúmulo, quais revisões entram
-       importa tanto quanto a ordem em que aparecem. O padrão do Anki 26.09.2
-       é data de vencimento e, em empate, uma ordem pseudoaleatória estável. */
-    /* ── NewCardGatherPriority ────────────────────────────────────────────────
-       Decide QUAIS novos entram quando há mais candidatos que o limite diário.
-       Importa mais do que parece: colar 40 assuntos de uma matéria fazia os
-       próximos dias virarem monotemáticos. */
-    const posDe = (c) => (typeof c.posicaoNova === 'number' ? c.posicaoNova : Number.MAX_SAFE_INTEGER);
-    const criacaoDe = (c) => String(c.createdAt || '');
-    const cfgQ = this._queueConfig();
-    const decksOrdenados = this.collectionDecks().slice().sort((a,b) =>
-      String(a.nome||'').localeCompare(String(b.nome||''), 'pt-BR'));
-    const ordemDeck = new Map(decksOrdenados.map((d,i) => [String(d.id), i]));
-    const rankDeck = (c) => c && c.deckId != null
-      ? (ordemDeck.get(String(c.deckId)) ?? Number.MAX_SAFE_INTEGER)
-      : Number.MAX_SAFE_INTEGER;
-    const ordTemplate = (c) => {
-      const raw = Number(c && c.ankiTemplateOrd);
-      return Number.isFinite(raw) ? Math.max(0, raw) : (c && c.template === 'reverse' ? 1 : 0);
-    };
-    const COLETA = {
-      posicao:     (a, b) => posDe(a) - posDe(b) || ordTemplate(a) - ordTemplate(b) || criacaoDe(a).localeCompare(criacaoDe(b)),
-      posicaoDesc: (a, b) => posDe(b) - posDe(a) || ordTemplate(a) - ordTemplate(b) || criacaoDe(b).localeCompare(criacaoDe(a))
-    };
-    const gather = cfgQ.newGatherOrder || 'deck';
-    if (gather === 'deck') {
-      // Anki: decks em ordem alfabética/preorder; dentro de cada um, menor posição.
-      novos.sort((a,b) => rankDeck(a) - rankDeck(b) || COLETA.posicao(a,b));
-    } else if (gather === 'deckRandomNotes') {
-      // Anki: cada deck continua em ordem; dentro dele as NOTES são pseudoaleatórias,
-      // e irmãos da mesma nota ficam consecutivos por ordinal de template.
-      const grupos = new Map();
-      novos.forEach(c => {
-        const k = c && c.deckId != null ? String(c.deckId) : '__sem_deck__';
-        if (!grupos.has(k)) grupos.set(k, []);
-        grupos.get(k).push(c);
-      });
-      const lotes = Array.from(grupos.values()).sort((a,b) => rankDeck(a[0]) - rankDeck(b[0]));
-      novos = lotes.flatMap(g => (typeof AnkiParity !== 'undefined')
-        ? AnkiParity.stableNewSort(g,'gatherRandomNotes')
-        : g.slice().sort(COLETA.posicao));
-    } else if (gather === 'posicao') {
-      novos.sort(COLETA.posicao);
-    } else if (gather === 'posicaoDesc') {
-      novos.sort(COLETA.posicaoDesc);
-    } else if (gather === 'randomNotes') {
-      novos = (typeof AnkiParity !== 'undefined')
-        ? AnkiParity.stableNewSort(novos,'gatherRandomNotes')
-        : novos.slice().sort(COLETA.posicao);
-    } else if (gather === 'randomCards') {
-      novos = (typeof AnkiParity !== 'undefined')
-        ? AnkiParity.stableNewSort(novos,'gatherRandomCards')
-        : novos.slice().sort(COLETA.posicao);
-    }
-
-    // NewCardSortOrder: reordena o lote JÁ LIMITADO (builder/mod.rs::build chama
-    // sort_new depois de gather_cards) — ver ordenarNovos() abaixo.
-    const sortNovos = cfgQ.newSortOrder || 'template';
-    const ordenarNovos = (novos) => {
-    if (sortNovos === 'template') {
-      novos = (typeof AnkiParity !== 'undefined')
-        ? AnkiParity.stableNewSort(novos,'template')
-        : novos.slice().sort((a,b)=>ordTemplate(a)-ordTemplate(b));
-    } else if (sortNovos === 'templateRandom') {
-      if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'templateRandom');
-    } else if (sortNovos === 'randomNoteTemplate') {
-      if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'randomNoteTemplate');
-    } else if (sortNovos === 'randomCard') {
-      if (typeof AnkiParity !== 'undefined') novos = AnkiParity.stableNewSort(novos,'randomCard');
-    }
-    return novos;
-    };
-    /* ── ReviewCardOrder ──────────────────────────────────────────────────────
-       Réplica das variantes do Anki que fazem sentido aqui. Ficaram de fora as
-       que dependem de múltiplos baralhos aninhados (DAY_THEN_DECK,
-       DECK_THEN_DAY) — este app tem baralhos planos.
-
-       'relativeOverdueness' merece nota: é a razão entre o atraso e o intervalo
-       marcado. Um card de 3 dias atrasado 3 dias (razão 2,0) corre MUITO mais
-       risco que um de 300 dias atrasado 3 (razão 1,01), mesmo o segundo estando
-       "mais vencido" em dias absolutos. É a ordem que o Anki usa por padrão no
-       agendador v3 clássico. */
-    const hojeQ = todayCards(), wQ = CardsConfig.weights(), fsrsQ = CardsConfig.get().algo === 'fsrs';
-    /* extract_fsrs_retrievability (storage/sqlite.rs): com last_review_time o
-       Anki mede o tempo decorrido em SEGUNDOS; sem ele, em dias inteiros
-       desde due − ivl. */
-    const R = (c) => {
-      const ts = Number(c && c.lastReviewTs);
-      if (ts > 0 && typeof c.s === 'number' && c.s > 0) return FSRS.R(Math.max(0, Date.now() - ts) / 86400000, c.s, wQ);
-      return CardEngine.retrievabilityDe(c, hojeQ, wQ);
-    };
-    // Dias desde o vencimento, com sinal (card vencido > 0).
-    const diasVencido = (c) => Math.round((new Date(hojeQ + 'T00:00:00') - new Date(String(c.due || hojeQ) + 'T00:00:00')) / 86400000);
-    /* RelativeOverdueness: no FSRS a retenção atual relativa à desejada da
-       predefinição (mesma ordem de R crescente); no SM-2,
-       -(1 + (hoje − due + 0,001) / ivl) crescente. */
-    const sobreatraso = (c) => fsrsQ && typeof c.s === 'number' && c.s > 0
-      ? R(c) : -(1 + (diasVencido(c) + 0.001) / Math.max(1, c.intervalo || 1));
-    const nidDe = (c) => { const n = Number(c && (c.ankiNoteId || c.ankiId)); return Number.isFinite(n) && n > 0 ? n : Date.parse(c && c.createdAt || '') || 0; };
-    const ordemRev = cfgQ.reviewOrder || 'day';
-    // Desempate exato do backend: SQLite fnvhash(card.id, card.mod), FNV-1a
-    // 64-bit sobre os dois i64. ankiId/ankiMod preservam essa identidade sem
-    // substituir os UUIDs internos usados pela sincronização do Study.
-    const rndCache = new Map();
-    const rndRev = c => {
-      const k = String(c && c.id || '');
-      if (rndCache.has(k)) return rndCache.get(k);
-      const v = (typeof AnkiParity !== 'undefined')
-        ? AnkiParity.reviewTie(c)
-        : BigInt(Math.max(0, Number(c && c.ankiId) || 0));
-      rndCache.set(k, v); return v;
-    };
-    const cmpRnd = (a, b) => { const x=rndRev(a), y=rndRev(b); return x < y ? -1 : (x > y ? 1 : 0); };
-    const ORDENADORES = {
-      retrievabilityAsc:  (a, b) => R(a) - R(b) || cmpRnd(a, b),
-      retrievabilityDesc: (a, b) => R(b) - R(a) || cmpRnd(a, b),
-      relativeOverdueness:(a, b) => sobreatraso(a) - sobreatraso(b) || cmpRnd(a, b),
-      day:                (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
-      dayThenDeck:        (a, b) => String(a.due || '').localeCompare(String(b.due || '')) || rankDeck(a) - rankDeck(b) || cmpRnd(a, b),
-      deckThenDay:        (a, b) => rankDeck(a) - rankDeck(b) || String(a.due || '').localeCompare(String(b.due || '')) || cmpRnd(a, b),
-      intervalsAsc:       (a, b) => (a.intervalo || 0) - (b.intervalo || 0) || cmpRnd(a, b),
-      intervalsDesc:      (a, b) => (b.intervalo || 0) - (a.intervalo || 0) || cmpRnd(a, b),
-      // review_order_sql: no FSRS "facilidade crescente" = dificuldade DECRESCENTE.
-      easeAsc:            (a, b) => (fsrsQ ? (b.d || 0) - (a.d || 0) : (a.ease || 0) - (b.ease || 0)) || cmpRnd(a, b),
-      easeDesc:           (a, b) => (fsrsQ ? (a.d || 0) - (b.d || 0) : (b.ease || 0) - (a.ease || 0)) || cmpRnd(a, b),
-      // "nid asc, ord asc" / "nid desc, ord asc"
-      added:              (a, b) => nidDe(a) - nidDe(b) || ordTemplate(a) - ordTemplate(b) || cmpRnd(a, b),
-      reverseAdded:       (a, b) => nidDe(b) - nidDe(a) || ordTemplate(a) - ordTemplate(b) || cmpRnd(a, b),
-      random:             (a, b) => cmpRnd(a, b)
-    };
-    const cmp = ORDENADORES[ordemRev];
-    // O aprendizado entre dias usa a MESMA cláusula de ordem das revisões.
-    if (cmp) { revisoes.sort(cmp); aprendDia.sort(cmp); }
-    /* O campo new_per_day_minimum ainda existe no protobuf do Anki, mas o
-       backend atual o marca explicitamente como "not currently used". Não
-       deixamos um campo legado alterar a fila. A única exceção oficial ao
-       bloqueio de novos pelo teto de revisões é o interruptor global
-       newCardsIgnoreReviewLimit. */
-    const bloqueiaNovosPorReview = !cfgQ.newCardsIgnoreReviewLimit && revRem <= 0;
-    const newRemEfetivo = bloqueiaNovosPorReview ? 0 : newRem;
-
-    /* ── LIMIT TREE HIERÁRQUICA (rslib/decks/limits.rs) ─────────────────────
-       Um ÚNICO estado mutável é compartilhado por novos, interday learning e
-       reviews. Assim, ao aceitar um card, todos os nós aplicáveis (baralho e,
-       conforme a opção global, pais) perdem a vaga imediatamente. Isso evita
-       ultrapassar o teto de um pai somando vários filhos e faz novos consumirem
-       o teto de reviews quando a opção global do Anki assim exige. */
-    const selectedDeckId = (typeof AnkiParity !== 'undefined') ? AnkiParity.selectedDeckId() : null;
-    const limitTree = (typeof AnkiParity !== 'undefined') ? AnkiParity.limitState(selectedDeckId) : null;
-    const fallbackTaken = new Map();
-    /* ENTERRAR NA COLETA (builder/burying.rs + gathering.rs): cada nota vista
-       guarda o modo de enterro da predefinição; um irmão que chega depois é
-       pulado — sem gastar vaga do limite — conforme o tipo dele. O
-       aprendizado intradiário marca a nota, mas nunca é pulado. */
-    const notasVistas = new Map();
-    const chaveNota = (c) => String(c && (c.noteId || c.id));
-    const modoEnterro = (c) => { const k = CardsConfig.forDeck(c.originalDeckId || c.deckId) || {}; return { novo: !!k.buryNew, rev: !!k.buryReviews, dia: !!k.buryInterdayLearning }; };
-    const verNota = (c) => {
-      const k = chaveNota(c), m = modoEnterro(c), antes = notasVistas.get(k);
-      notasVistas.set(k, antes ? { novo: antes.novo || m.novo, rev: antes.rev || m.rev, dia: antes.dia || m.dia } : m);
-      return antes || null;
-    };
-    filtered.filter(c => c.dueTs && (c.due || todayCards()) <= todayCards() && !CardEngine.estaEnterrado(c)).forEach(verNota);
-    const enterrarNaColeta = (card, tipoFila) => { const antes = verNota(card); return !!(antes && antes[tipoFila]); };
-    const limitarPorArvore = (lista, limiteGlobal, kind, tipoFila) => {
-      const out = [];
-      for (const card of lista) {
-        if (out.length >= limiteGlobal) break;
-        if (limitTree) {
-          if (!limitTree.can(card, kind)) continue;
-          if (enterrarNaColeta(card, tipoFila)) continue;
-          limitTree.take(card, kind);
-        } else {
-          /* Fallback para carregamento isolado/legado sem a camada de paridade.
-             As consultas *RemainingForDeck() refletem apenas o que já foi
-             confirmado hoje; durante a construção da fila precisamos consumir
-             também as vagas aceitas nesta própria passagem. Sem esse saldo
-             local, um deck com limite 1 aceitava todos os seus cards porque cada
-             iteração continuava enxergando o mesmo "1 restante". */
-          const did = card.deckId == null ? '__sem_deck__' : String(card.deckId);
-          const key = kind + ':' + did;
-          const usados = fallbackTaken.get(key) || 0;
-          const remDeck = (kind === 'new'
-            ? CardsConfig.newRemainingForDeck(card.deckId)
-            : CardsConfig.revRemainingForDeck(card.deckId)) - usados;
-          if (remDeck <= 0) continue;
-          if (enterrarNaColeta(card, tipoFila)) continue;
-          if (kind === 'new' && !cfgQ.newCardsIgnoreReviewLimit) {
-            const revKey = 'review:' + did;
-            const revUsados = fallbackTaken.get(revKey) || 0;
-            const revRemDeck = CardsConfig.revRemainingForDeck(card.deckId) - revUsados;
-            if (revRemDeck <= 0) continue;
-            fallbackTaken.set(revKey, revUsados + 1);
-          }
-          fallbackTaken.set(key, usados + 1);
-        }
-        out.push(card);
-      }
-      return out;
-    };
-
-    /* gathering.rs: aprendizado entre dias → revisões → novos. Cada revisão
-       aceita reduz o teto de novos (novos = mín(novos, revisões restantes));
-       aceitar um novo NÃO consome vaga de revisão durante a montagem. */
-    const aprendDiaLim = limitarPorArvore(aprendDia, revRem, 'review', 'dia');
-    const revLim = limitarPorArvore(
-      revisoes,
-      Math.max(0, revRem - aprendDiaLim.length),
-      'review', 'rev'
-    );
-    const restoRev = Math.max(0, revRem - aprendDiaLim.length - revLim.length);
-    const novosLim = ordenarNovos(limitarPorArvore(novos,
-      cfgQ.newCardsIgnoreReviewLimit ? newRemEfetivo : Math.min(newRemEfetivo, restoRev), 'new', 'novo'));
-    /* ── MISTURA NOVOS x REVISOES (rslib/scheduler/queue/builder/intersperser.rs) ──
-       O padrao do Anki e new_mix: MixWithReviews, e a mistura NAO e aleatoria:
-       os novos sao DISTRIBUIDOS proporcionalmente entre as revisoes, de modo que
-       fiquem espacados por igual do inicio ao fim da sessao.
-
-       O app embaralhava (shuffle). Com 20 novos e 200 revisoes, o acaso podia
-       amontoar varios novos seguidos — cansativo, porque card novo custa muito
-       mais esforco que uma revisao — ou joga-los todos para o fim.
-
-       ratio = (len1 + 1) / (len2 + 1); a cada passo entra o item do lado cujo
-       indice relativo esta "atrasado". Replica exata dos vetores de teste do Anki. */
-    const intercalar = (um, dois) => {
-      const n1 = um.length, n2 = dois.length;
-      const ratio = (n1 + 1) / (n2 + 1);
-      const out = [];
-      let i1 = 0, i2 = 0;
-      while (i1 < n1 || i2 < n2) {
-        if (i1 < n1 && i2 < n2) {
-          if (((i2 + 1) * ratio) < (i1 + 1)) out.push(dois[i2++]);
-          else out.push(um[i1++]);
-        } else if (i1 < n1) out.push(um[i1++]);
-        else out.push(dois[i2++]);
-      }
-      return out;
-    };
-    /* ── ReviewMix ────────────────────────────────────────────────────────────
-       Duas decisões independentes no Anki, ambas com três valores:
-       MIX_WITH_REVIEWS (padrão) · AFTER_REVIEWS · BEFORE_REVIEWS.
-
-       · newMix      — onde entram os cards NOVOS.
-       · interdayMix — onde entram os de APRENDIZADO que atravessaram a virada
-                       do dia. Antes eles vinham sempre primeiro, fixo; muita
-                       gente prefere despachar as revisões antes de retomar o
-                       que ficou pela metade.
-       "Misturar" usa o intercalador proporcional acima, não sorteio. */
-    const cfgMix = cfgQ;
-    // builder/mod.rs: Intersperser::new(base, grupo) — a base conduz.
-    const aplicarMix = (grupo, base, modo) => {
-      if (!grupo.length) return base;
-      if (modo === 'antes') return grupo.concat(base);
-      if (modo === 'depois') return base.concat(grupo);
-      return intercalar(base, grupo);
-    };
-    /* NÃO embaralhar aqui. O código antigo fazia shuffle() nos dois grupos
-       porque não existia opção de ordenação — o acaso era a única política.
-       Agora reviewOrder, newGatherOrder e newSortOrder decidem a ordem de
-       propósito, e embaralhar depois ANULA as três: era o caso de
-       'materiaRodizio' montar C,T,C,T e o shuffle devolver C,C,C,T,T,T.
-       Quem quiser acaso escolhe 'Aleatória' nas opções. */
-    // merge_day_learning e DEPOIS merge_new, nesta ordem.
-    let corpo = revLim.slice();
-    corpo = aplicarMix(aprendDiaLim.slice(), corpo, cfgMix.interdayMix || 'misturar');
-    corpo = aplicarMix(novosLim.slice(), corpo, cfgMix.newMix || 'misturar');
-    // Passos intradiários vencidos precedem review/new para respeitar o atraso
-    // configurado o mais de perto possível (regra explícita do Anki).
-    corpo = aprendAgora.concat(corpo);
-    const queue = corpo.map(c => c.id);
-    CardEngine._intercalar = intercalar;
-    // cards em aprendizado cujo passo ainda não venceu (base do "learn ahead" do Anki)
-    const pendentes = filtered
-      .filter(c => c.dueTs && c.dueTs > Date.now() && (c.due || todayCards()) <= todayCards())
-      .sort((a, b) => a.dueTs - b.dueTs);
-    this._queueMeta = {
-      bloqueadosNovos: Math.max(0, novos.length - novosLim.length),
-      bloqueadosRev: Math.max(0, revisoes.length + aprendDia.length - revLim.length - aprendDiaLim.length),
-      proximoTs: pendentes.length ? pendentes[0].dueTs : null,
-      pendentes: pendentes.length,
-      suspensos: this.currentFilteredCards().filter(c => c.suspenso).length
-    };
-    return queue;
-  },
-  // Anki mostra um card de aprendizado antes da hora quando não há mais nada na fila
-  // (learn ahead limit = 20 min). Fora disso, informa quanto falta.
-  // "Limite para aprender adiantado" das Preferências (Anki: collapseTime).
-  _learnAheadFixo: null,
-  get LEARN_AHEAD_MIN() {
-    if (this._learnAheadFixo != null) return this._learnAheadFixo;
-    const v = Number(CardsConfig.get().learnAheadMin);
-    return Number.isFinite(v) && v >= 0 ? v : 20;
-  },
-  set LEARN_AHEAD_MIN(v) { this._learnAheadFixo = v; },
-  _learnAheadQueue() {
-    const limite = Date.now() + this.LEARN_AHEAD_MIN * 60000;
-    return this.currentFilteredCards()
-      .filter(c => !c.suspenso && !CardEngine.estaEnterrado(c) && c.dueTs && c.dueTs > Date.now() && c.dueTs <= limite)
-      .sort((a, b) => a.dueTs - b.dueTs)
-      .map(c => c.id);
+  buildQueue(){
+    const bridge=window.CardsOfficialBridge;if(!bridge||!bridge.review)return[];
+    return (bridge.review.queue_ids||[]).map(id=>bridge._localForOfficialId(id)).filter(Boolean).map(c=>c.id);
   },
   renderRevisar(box) {
-    if (this.collectionCards().length === 0) {
-      box.innerHTML = this.emptyState('Nenhum card ainda', 'Clique em <strong>＋ Criar card</strong> no topo para começar.');
-      return;
-    }
-    /* Igual ao CardQueues do Anki: enquanto existe uma fila ativa válida,
-       rerenders e alternância de UI não reembaralham a rodada restante. */
-    const cachedId = this._reviewQueue && this._reviewQueue[this._reviewIdx];
-    const cacheValido = !!(cachedId && DB.getCard(cachedId));
-    if (!cacheValido) {
-      this._reviewQueue = this.buildQueue();
-      this._reviewIdx = 0;
-      this._aprendAnki = null;
-    }
-    const m = this._queueMeta || {};
-    if (this._reviewQueue.length === 0) {
-      // "Learn ahead" do Anki: se só restam passos de aprendizado, antecipa os que estão
-      // dentro de 20 min; senão, mostra quanto falta em vez de dizer que acabou.
-      if (m.proximoTs) {
-        const faltaMin = Math.max(0, Math.ceil((m.proximoTs - Date.now()) / 60000));
-        if (faltaMin <= this.LEARN_AHEAD_MIN) this._reviewQueue = this._learnAheadQueue();
-        if (!this._reviewQueue || this._reviewQueue.length === 0) {
-          box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Aguardando o próximo passo</h3>
-            <p>Você tem <b>${m.pendentes}</b> card(s) em aprendizado. O próximo volta em <b id="cards-eta">${faltaMin} min</b>.</p>
-            <button type="button" class="btn-secondary" id="cards-review-refresh">Atualizar agora</button></div></div>`;
-          const rb = document.getElementById('cards-review-refresh');
-          if (rb) rb.addEventListener('click', () => this.renderContent());
-          clearTimeout(this._etaTimer);
-          this._etaTimer = setTimeout(() => { if (this.tab === 'revisar') this.renderContent(); }, Math.min(60000, Math.max(5000, (m.proximoTs - Date.now()) + 500)));
-          return;
-        }
-      } else {
-        const extra = (m.bloqueadosNovos || m.bloqueadosRev)
-          ? `<p style="margin-top:10px;color:var(--text-soft)">Você atingiu o limite diário. Restam <b>${m.bloqueadosNovos}</b> novo(s) e <b>${m.bloqueadosRev}</b> revisão(ões) para amanhã — ajuste em <strong>⚙ Algoritmo</strong> se quiser continuar.</p>` : '';
-        const susp = m.suspensos ? `<p style="margin-top:10px;color:var(--text-soft)">🚫 <b>${m.suspensos}</b> card(s) suspenso(s) por excesso de erros — reative em <strong>Meus cards</strong>.</p>` : '';
-        box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">✅</div><h3>Tudo em dia por aqui!</h3><p>Não há cards para revisar agora com os filtros atuais.</p>${extra}${susp}</div></div>`;
-        return;
-      }
-    }
-    this._reviewIdx = Math.min(this._reviewIdx, this._reviewQueue.length - 1);
-    this._flipped = false;
-    this.renderReviewCard(box);
-    this.atualizarFoco();
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderRevisar==='function'){void CardsOfficialBridge.renderRevisar(box);return;}
+    if(box)box.innerHTML=this.emptyState('Motor oficial indisponível','A revisão não usa fila local como fallback.');
   },
   // ===== Painel de estatísticas FSRS (retenção real, previsão, maturidade) =====
   renderStats(box) {
-    const cards = this._statsCards();
-    if (cards.length === 0) { box.innerHTML = this.emptyState('Sem estatísticas ainda', 'Crie e revise alguns cards para ver seus dados.'); return; }
-    const cfg = CardsConfig.get();
-    const revlog = this._statsRevlog();
-    /* Os KPIs de retenção e a tabela "Retenção real" abaixo leem a MESMA
-       função. Antes cada um tinha sua conta e os dois números apareciam lado a
-       lado, com o mesmo rótulo e valores diferentes. */
-    const trTudo = this.trueRetention(null), tr30 = this.trueRetention(30);
-    const retReal = trTudo.todos.pct;
-    const ret30 = tr30.todos.pct;
-    const est = (c) => (c.s != null ? c.s : (c.intervalo || 0));
-    const novos = cards.filter(c => this._bucket(c) === 'new').length;
-    const aprend = cards.filter(c => this._bucket(c) === 'learn').length;
-    const jovens = cards.filter(c => this._bucket(c) === 'review' && est(c) < 21).length;
-    const maduros = cards.filter(c => this._bucket(c) === 'review' && est(c) >= 21).length;
-    const prev = [];
-    for (let i = 0; i < 14; i++) { const dia = CardEngine.addDays(todayCards(), i); prev.push({ dia, n: cards.filter(c => !c.dueTs && (c.due || todayCards()) === dia && this._bucket(c) === 'review').length }); }
-    const maxPrev = Math.max(1, ...prev.map(p => p.n));
-    const act = [];
-    for (let i = 13; i >= 0; i--) { const dia = CardEngine.addDays(todayCards(), -i); act.push({ dia, n: revlog.filter(r => r.date === dia).length }); }
-    const maxAct = Math.max(1, ...act.map(a => a.n));
-    const dueNow = cards.filter(c => CardEngine.isDue(c)).length;
-    const custom = FSRS.pesosValidos(cfg.weights);
-    const kpi = (v, l, tone) => `<div class="stat-kpi"><div class="stat-kpi-v ${tone || ''}">${v}</div><div class="stat-kpi-l">${l}</div></div>`;
-    // Número em cima da própria barra; com muitas barras, rótulo do eixo em dias alternados (não se sobrepõem no celular).
-    const bars = (arr, max, lbl, tone, uni) => arr.map((p, i) => { const h = Math.round((p.n / max) * 100); return `<div class="stat-bar" data-tip="${escapeHtml(formatDateShort(p.dia))}: ${p.n || 0} ${uni || ''}"><span class="stat-bar-n">${p.n || ''}</span><div class="stat-bar-fill ${tone}" style="height:${p.n ? Math.max(6, h) : 0}%"></div><span class="stat-bar-x${arr.length > 8 && i % 2 ? ' alt' : ''}">${lbl(p.dia)}</span></div>`; }).join('');
-    const dm = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7);
-    const wd = (iso) => ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][new Date(iso + 'T00:00:00').getDay()];
-    /* Uma página só, na ordem da tela de estatísticas do Anki (escopo →
-       hoje → contagens/previsão → calendário → revisões → retenção → botões →
-       memória → horários → adicionados). Antes três camadas anexavam painéis
-       próprios e a tela repetia contagem, estabilidade, intervalos etc. */
-    const M = (typeof AnkiMaxStatsMedia !== 'undefined') ? AnkiMaxStatsMedia : null;
-    const parte = (fn) => { try { return fn() || ''; } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-stats'); return ''; } };
-    const temSm2 = cards.some(c => (c.algo || cfg.algo) !== 'fsrs' && Number(c.ease) > 0);
-    const previsao = `<div class="card stat-card"><div class="card-header"><div><h2>📅 Previsão de carga</h2><p class="sub">${(() => {
-          const p = this.previsaoCarga(30);
-          return `Próximos 14 dias · em 30 dias: ${p.total} revisão(ões), média de ${p.media}/dia, pico de ${p.pico}` +
-                 (p.atrasados ? ` · <strong class="tone-warn">${p.atrasados} atrasada(s)</strong>` : '');
-        })()}</p></div></div><div class="stat-chart">${bars(prev, maxPrev, dm, 'accent')}</div></div>`;
-    const atividade = `<div class="card stat-card"><div class="card-header"><div><h2>🔥 Atividade recente</h2><p class="sub">Revisões feitas nos últimos 14 dias · histórico: ${revlog.length}</p></div></div><div class="stat-chart">${bars(act, maxAct, wd, 'good')}</div></div>`;
-    box.innerHTML = `<div class="stats-page">
-      ${M ? parte(() => M._statsControlsHtml()) : ''}
-      <div class="stat-kpis">
-        ${kpi(retReal != null ? retReal + '%' : '—', 'Retenção real (tudo)', retReal != null && retReal >= cfg.retention * 100 ? 'good' : (retReal != null ? 'warn' : ''))}
-        ${kpi(ret30 != null ? ret30 + '%' : '—', 'Retenção (30 dias)', ret30 != null && ret30 >= cfg.retention * 100 ? 'good' : (ret30 != null ? 'warn' : ''))}
-        ${kpi(Math.round(cfg.retention * 100) + '%', 'Meta configurada', 'accent')}
-        ${kpi(dueNow, 'Para revisar agora', dueNow ? 'warn' : 'good')}
-      </div>
-      ${M ? parte(() => M._todayHtml()) : ''}
-      <div class="stat-grid">${M ? parte(() => M._cardCountsHtml()) : ''}${previsao}</div>
-      ${M ? parte(() => M._calendarHtml()) : ''}
-      <div class="stat-grid">${M ? parte(() => M._reviewsHtml()) + parte(() => M._reviewTimeHtml()) : atividade}</div>
-      ${this._statTrueRetention(trTudo.maduro.total < 10 ? `💡 A retenção real fica precisa após ~10 revisões de cards maduros (você tem ${trTudo.maduro.total}).` : '')}
-      ${this._statBotoes()}
-      ${M ? parte(() => M._memoryHtml()) : ''}
-      ${this._statDistribuicao()}
-      ${M && temSm2 ? parte(() => M._easeHtml()) : ''}
-      <div class="stat-grid">${M ? parte(() => M._hourlyHtml()) + parte(() => M._addedHtml()) : ''}</div>
-      ${M ? parte(() => M._simCardHtml()) : ''}
-    </div>`;
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderStats==='function'){void CardsOfficialBridge.renderStats(box);return;}
+    if(box)box.innerHTML=this.emptyState('Estatísticas oficiais indisponíveis','Nenhum cálculo local foi usado como fallback.');
   },
-
-  /* ── TRUE RETENTION (Anki: aba Estatísticas → True Retention) ──────────────
-     A tabela que responde "a retenção que eu TENHO bate com a que eu PEDI?".
-     Separada por maturidade porque as duas contam histórias diferentes: card
-     jovem (< 21 dias) ainda está sendo aprendido e erra muito; card maduro é
-     que mede retenção de verdade. Revisões do mesmo dia ficam de fora — repetir
-     um card em dez minutos não diz nada sobre esquecimento. */
-  _statTrueRetention(dica) {
-    const p = [];
-    // Mesmos períodos da tabela "Retenção real" do Anki.
-    [[1, 'Hoje'], ['ontem', 'Ontem'], [7, 'Última semana'], [30, 'Último mês'], [365, 'Último ano'], [null, 'Todo o período']].forEach(([d, rot]) => {
-      const t = this.trueRetention(d);
-      if (!t.todos.total) return;
-      const cor = (v) => v == null ? '' : (v >= t.meta ? 'good' : v >= t.meta - 5 ? 'warn' : 'bad');
-      const cel = (o) => o.total ? `<td class="tone-${cor(o.pct)}"><strong>${o.pct.toFixed(1)}%</strong><span class="tr-frac">${o.acertos}/${o.total}</span></td>` : '<td class="tr-vazio">—</td>';
-      p.push(`<tr><th>${rot}</th>${cel(t.jovem)}${cel(t.maduro)}${cel(t.todos)}</tr>`);
-    });
-    if (!p.length) return '';
-    const meta = this.trueRetention(null).meta;
-    return `<div class="card stat-card">
-      <div class="card-header"><div><h2>🎯 Retenção real (True Retention)</h2>
-      <p class="sub">Como no Anki: revisões e (re)aprendizado vindo de intervalo ≥ 1 dia; passos do mesmo dia ficam de fora. Again = falha; Hard/Good/Easy = acerto. Meta configurada: ${meta}%.</p></div></div>
-      <div class="stat-body"><div class="tr-wrap"><table class="tr-table"><thead><tr><th></th><th>Jovens<span class="tr-sub">&lt; 21d</span></th><th>Maduros<span class="tr-sub">≥ 21d</span></th><th>Todos</th></tr></thead><tbody>${p.join('')}</tbody></table></div>
-      ${dica ? `<p class="stat-note">${dica}</p>` : ''}</div>
-    </div>`;
-  },
-
-  /* ── BOTÕES DE RESPOSTA (Anki: Answer Buttons) ────────────────────────────
-     Quanto você aperta cada botão, separado por fase. Diagnóstico direto: muito
-     "Errei" em revisão significa intervalos longos demais; muito "Fácil"
-     significa o contrário — e a retenção-alvo deveria mudar, não os cards. */
-  _statBotoes() {
-    const revlog = this._statsRevlog();
-    if (revlog.length < 5) return '';
-    const NOMES = { 1: 'Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
-    const TONS = { 1: 'bad', 2: 'warn', 3: 'accent', 4: 'good' };
-    const fases = { learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
-    const linhas = [];
-    Object.keys(fases).forEach(fase => {
-      const sub = revlog.filter(r => (r.phase || 'review') === fase);
-      if (!sub.length) return;
-      const cnt = { 1: 0, 2: 0, 3: 0, 4: 0 };
-      sub.forEach(r => { if (cnt[r.grade] !== undefined) cnt[r.grade]++; });
-      const barras = [1, 2, 3, 4].map(g => {
-        const pc = Math.round(cnt[g] / sub.length * 1000) / 10;
-        return `<div class="ab-col" data-tip="${NOMES[g]}: ${cnt[g]} (${pc}%)">
-          <div class="ab-bar"><div class="ab-fill tone-${TONS[g]}" style="height:${cnt[g] ? Math.max(3, pc) : 0}%"></div></div>
-          <span class="ab-pc">${cnt[g] ? (pc >= 1 ? Math.round(pc) : '<1') + '%' : '0'}</span><span class="ab-lb">${NOMES[g]}</span></div>`;
-      }).join('');
-      linhas.push(`<div class="ab-grupo"><div class="ab-tit">${fases[fase]}<span>${sub.length}</span></div><div class="ab-cols">${barras}</div></div>`);
-    });
-    if (!linhas.length) return '';
-    return `<div class="card stat-card">
-      <div class="card-header"><div><h2>🔘 Botões de resposta</h2>
-      <p class="sub">Muito "Errei" em revisão = intervalos longos demais. Muito "Fácil" = o oposto — mexa na retenção-alvo, não nos cards.</p></div></div>
-      <div class="stat-body"><div class="ab-wrap">${linhas.join('')}</div></div></div>`;
-  },
-
-  /* ── DISTRIBUIÇÃO DE ESTABILIDADE E DIFICULDADE (Anki: Card Stability /
-     Card Difficulty) ─────────────────────────────────────────────────────────
-     Só faz sentido com FSRS: mostra como a coleção se espalha nos dois eixos do
-     modelo de memória. Uma massa concentrada em dificuldade alta indica material
-     mal formulado — card difícil demais costuma ser card mal escrito. */
-  _statDistribuicao() {
-    const cards = this._statsCards().filter(c => typeof c.s === 'number' && typeof c.d === 'number');
-    if (cards.length < 5) return '';
-    const FAIXAS_S = [[0, 1, '< 1d'], [1, 7, '1–7d'], [7, 21, '7–21d'], [21, 90, '21–90d'], [90, 365, '90d–1a'], [365, Infinity, '> 1a']];
-    const FAIXAS_D = [[1, 3, 'Muito fácil'], [3, 5, 'Fácil'], [5, 7, 'Médio'], [7, 9, 'Difícil'], [9, 10.01, 'Muito difícil']];
-    const hist = (faixas, valor, tone) => {
-      const c = faixas.map(([a, b]) => cards.filter(x => valor(x) >= a && valor(x) < b).length);
-      const mx = Math.max(1, ...c);
-      return faixas.map(([, , rot], i) => `<div class="hd-col" data-tip="${rot}: ${c[i]} card(s)">
-        <div class="hd-bar"><div class="hd-fill ${tone}" style="height:${c[i] ? Math.max(4, Math.round(c[i] / mx * 100)) : 0}%"></div></div>
-        <span class="hd-n">${c[i]}</span><span class="hd-lb">${rot}</span></div>`).join('');
-    };
-    const medS = cards.reduce((a, c) => a + c.s, 0) / cards.length;
-    const medD = cards.reduce((a, c) => a + c.d, 0) / cards.length;
-    return `<div class="stat-grid">
-      <div class="card stat-card"><div class="card-header"><div><h2>📈 Estabilidade</h2>
-        <p class="sub">Quanto tempo a memória dura. Média: ${medS < 1 ? medS.toFixed(2) + ' dia' : Math.round(medS) + ' dias'}</p></div></div>
-        <div class="stat-body"><div class="hd-wrap">${hist(FAIXAS_S, c => c.s, 'tone-accent')}</div></div></div>
-      <div class="card stat-card"><div class="card-header"><div><h2>🧱 Dificuldade</h2>
-        <p class="sub">Média: ${medD.toFixed(1)} de 10. Concentração no topo costuma indicar card mal formulado, não assunto difícil.</p></div></div>
-        <div class="stat-body"><div class="hd-wrap">${hist(FAIXAS_D, c => c.d, 'tone-warn')}</div></div></div>
-    </div>`;
-  },
-  _reviewElapsedMs(cfg) {
-    const start=Number(this._reviewStartedAt)||Date.now();
-    const end=(cfg&&cfg.stopTimerOnAnswer&&this._answerShownAt)?Number(this._answerShownAt):Date.now();
-    let ms=Math.max(0,end-start),cap=Math.max(0,Number(cfg&&cfg.capAnswerTimeToSecs)||0)*1000;
-    if(cap>0)ms=Math.min(ms,cap);
-    return Math.round(ms);
-  },
-  _resumeAutoAdvanceIfReady(){
-    const p=this._reviewAutoPending;if(!p||!this._autoAdvanceEnabled)return;
-    if(typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying())return;
-    const id=(this._reviewQueue||[])[this._reviewIdx];
-    if(String(id||'')!==String(p.cardId||'')){this._reviewAutoPending=null;return;}
-    this._reviewAutoPending=null;try{p.fn();}catch(e){_quiet(e,'auto-advance-resume');}
-  },
-  _runAutoAdvanceAction(c,cfg,fn){
-    if(!this._autoAdvanceEnabled)return;
-    if(typeof document!=='undefined'&&document.hasFocus&&!document.hasFocus()){this._disableAutoAdvanceSilently();return;}
-    if(this.tab!=='revisar'){this._disableAutoAdvanceSilently();return;}
-    if(cfg&&cfg.waitForAudio&&typeof AnkiRuntime!=='undefined'&&AnkiRuntime.isAvPlaying&&AnkiRuntime.isAvPlaying()){
-      this._reviewAutoPending={cardId:c.id,fn};return;
-    }
-    fn();
+  _reviewElapsedMs(){
+    return window.CardsOfficialBridge&&typeof CardsOfficialBridge._elapsedMs==='function'
+      ?CardsOfficialBridge._elapsedMs((CardsOfficialBridge.review&&CardsOfficialBridge.review.card&&CardsOfficialBridge.review.card.auto_advance)||{})
+      :0;
   },
   _disableAutoAdvanceSilently(){
-    this._autoAdvanceEnabled=false;this._reviewAutoPending=null;
-    clearTimeout(this._reviewAutoTimer);clearInterval(this._reviewTimer);
-    const b=document.getElementById('cards-auto-advance');if(b){b.classList.remove('on');b.setAttribute('aria-pressed','false');b.textContent='⏩ Auto';}
+    if(window.CardsOfficialBridge){
+      CardsOfficialBridge._autoAdvanceEnabled=false;
+      if(typeof CardsOfficialBridge._clearReviewerAutomation==='function')CardsOfficialBridge._clearReviewerAutomation();
+    }
   },
   toggleAutoAdvance(force){
-    const next=typeof force==='boolean'?force:!this._autoAdvanceEnabled;
-    if(!next){this._disableAutoAdvanceSilently();showToast('⏸ Auto Advance desligado');return;}
-    this._autoAdvanceEnabled=true;this._reviewAutoPending=null;clearTimeout(this._reviewAutoTimer);
-    const id=(this._reviewQueue||[])[this._reviewIdx],c=id&&DB.getCard(id);
-    if(c)this._armReviewerAutomation(c,CardsConfig.forDeck(c.deckId));
-    const b=document.getElementById('cards-auto-advance');if(b){b.classList.add('on');b.setAttribute('aria-pressed','true');b.textContent='⏩ Auto ligado';}
-    showToast('⏩ Auto Advance ligado');
-  },
-  _armReviewerAutomation(c,cfg) {
-    clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);this._reviewAutoPending=null;
-    const tick=()=>{
-      const el=document.getElementById('cards-review-timer');if(!el)return;
-      el.textContent=(this._reviewElapsedMs(cfg)/1000).toFixed(1)+'s';
-    };
-    if(cfg&&cfg.showTimer){tick();this._reviewTimer=setInterval(tick,250);}
-    if(!this._autoAdvanceEnabled)return;
-    const run=(ms,fn)=>{if(!(ms>0))return;this._reviewAutoTimer=setTimeout(()=>{if(this.tab==='revisar'&&DB.getCard(c.id))this._runAutoAdvanceAction(c,cfg,fn);},ms);};
-    if(!this._flipped&&cfg&&Number(cfg.secondsToShowQuestion)>0){
-      const rem=Math.max(0,Number(cfg.secondsToShowQuestion)*1000-(Date.now()-(Number(this._reviewStartedAt)||Date.now())));
-      run(rem,()=>{if(Number(cfg.questionAction)===0)this.flip(document.getElementById('cards-content'));else showToast('⏰ Tempo da pergunta concluído');});
-    }else if(this._flipped&&cfg&&Number(cfg.secondsToShowAnswer)>0){
-      const base=Number(this._answerShownAt)||Date.now(),rem=Math.max(0,Number(cfg.secondsToShowAnswer)*1000-(Date.now()-base));
-      run(rem,()=>{
-        const a=Number(cfg.answerAction)||0;
-        if(a===0){const b=document.getElementById('cards-act-bury');if(b)b.click();}
-        else if(a===1)this.answer('errei');
-        else if(a===2)this.answer('bom');
-        else if(a===3)this.answer('dificil');
-        else showToast('⏰ Tempo da resposta concluído');
-      });
-    }
-  },
-  /* Contagens restantes no mesmo formato conceitual do reviewer v3 do Anki:
-     novos + aprendizado + revisões. Diferente do antigo 0/20 · 0/200, estes
-     números descrevem a FILA restante e incluem o card atual. Entradas repetidas
-     de aprendizado contam novamente, como CardQueues do Anki. */
-  _reviewRemainingCounts() {
-    const out = { new: 0, learning: 0, review: 0, current: null };
-    const fila = this._reviewQueue || [];
-    const ini = Math.max(0, Math.min(Number(this._reviewIdx) || 0, fila.length));
-    for (let i = ini; i < fila.length; i++) {
-      const card = DB.getCard(fila[i]);
-      if (!card) continue;
-      const bucket = this._bucket(card);
-      if (bucket === 'new') out.new++;
-      else if (bucket === 'learn') out.learning++;
-      else out.review++;
-    }
-    const atual = fila[ini] ? DB.getCard(fila[ini]) : null;
-    out.current = atual ? this._bucket(atual) : null;
-    return out;
-  },
-  _reviewRemainingHtml(contagens) {
-    const n = contagens || { new: 0, learning: 0, review: 0, current: null };
-    const parte = (bucket, icon, value) => {
-      const numero = n.current === bucket ? '<u>' + value + '</u>' : String(value);
-      return '<span class="cards-due-count cards-due-' + bucket + '">' + icon + ' ' + numero + '</span>';
-    };
-    return parte('new', '🆕', n.new) + ' + '
-      + parte('learn', '🧠', n.learning) + ' + '
-      + parte('review', '🔄', n.review);
-  },
-  renderReviewCard(box) {
-    const total = this._reviewQueue.length;
-    const id = this._reviewQueue[this._reviewIdx];
-    const c = DB.getCard(id);
-    if (!c) { this.renderRevisar(box); return; }
-    const cfgReview=CardsConfig.forDeck(c.deckId);
-    if(String(this._reviewCardId||'')!==String(id)){
-      this._reviewCardId=id;this._reviewStartedAt=Date.now();this._answerShownAt=null;
-    }
-    const done = this._reviewIdx; // posição na fila da sessão; aprendizado pode reaparecer
-    const remaining = this._reviewRemainingCounts();
-    const remainingTitle = 'Restantes na fila: ' + remaining.new + ' novos + '
-      + remaining.learning + ' em aprendizagem + ' + remaining.review + ' revisões';
-    box.innerHTML = `
-      <div class="card cards-review-wrap">
-        <div class="cards-review-progress"><span title="Posição na fila desta sessão; inclui novos, aprendizagem e revisões">Card ${done + 1} de ${total}</span>
-          <div class="cards-review-bar"><div style="width:${((done) / total) * 100}%"></div></div>
-          <span class="cards-limit-chip cards-due-counts" title="${escapeHtml(remainingTitle)}" aria-label="${escapeHtml(remainingTitle)}">${this._reviewRemainingHtml(remaining)}</span>
-          ${cfgReview.showTimer?'<span class="cards-limit-chip" title="Tempo desta resposta (respeita o teto do preset)">⏱ <span id="cards-review-timer">0.0s</span></span>':''}
-        </div>
-        <div class="cards-review-meta">
-          <span class="lei-tag mat">${escapeHtml(this.materiaLabel(c))}</span>
-          ${c.assunto ? `<span class="lei-tag ref">${escapeHtml(c.assunto)}</span>` : ''}
-          ${c.tipo ? `<span class="cards-type-tag">${escapeHtml(c.tipo)}</span>` : ''}
-          <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" id="cards-review-fav" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
-        </div>
-        ${this.faceHtml(c)}
-        <div class="cards-review-actions" id="cards-review-actions"></div>
-        <!-- Barra de ações do reviewer do Anki (qt/aqt/reviewer.py::_shortcutKeys).
-             "Pular/Avançar" foi REMOVIDO: não existe no Anki. O equivalente de
-             lá para tirar um card da frente é ENTERRAR, que está aqui. -->
-        <div class="cards-review-nav">
-          <button type="button" class="icon-btn cards-review-edit" id="cards-review-edit" title="Editar card (E)">✎ Editar</button>
-          <button type="button" class="icon-btn" id="cards-act-mark" title="Marcar/desmarcar nota (*)">${c.favorito ? '★ Marcada' : '☆ Marcar'}</button>
-          <button type="button" class="icon-btn" id="cards-act-bury" title="Enterrar: some da fila até amanhã (−)">⤓ Enterrar</button>
-          <button type="button" class="icon-btn" id="cards-act-susp" title="Suspender: some até você reativar (@)">🚫 Suspender</button>
-          <button type="button" class="icon-btn" id="cards-act-forget" title="Resetar: volta a ser novo e preserva o histórico (Ctrl+Alt+N)">↺ Resetar</button>
-          <button type="button" class="icon-btn" id="cards-act-due" title="Definir vencimento: aceita N, A-B e A-B! (Ctrl+Shift+D)">📅 Data</button>
-          <button type="button" class="icon-btn" id="cards-act-info" title="Informações do card (I)">ℹ Info</button>
-          <button type="button" class="icon-btn ${this._autoAdvanceEnabled?'on':''}" id="cards-auto-advance" aria-pressed="${this._autoAdvanceEnabled?'true':'false'}" title="Alternar Auto Advance (Shift+A)">${this._autoAdvanceEnabled?'⏩ Auto ligado':'⏩ Auto'}</button>
-          <button type="button" class="icon-btn" id="cards-act-del" title="Excluir card (Ctrl+Del)" aria-label="Excluir card (Ctrl+Del)">🗑</button>
-          <span class="cards-flagbar" title="Bandeiras (Ctrl+1..4, Ctrl+0 remove)">
-            ${[1,2,3,4].map(n => `<button type="button" class="cards-flag ${(c.flag||0)===n?'on':''}" data-flag="${n}" style="--fl:${DB.FLAGS[n].cor}" title="${DB.FLAGS[n].nome} (Ctrl+${n})"></button>`).join('')}
-          </span>
-        </div>
-        <div class="cards-kbd-hint-row">
-          <span class="cards-kbd-hint">
-            <span class="cards-kbd-group"><kbd>Espaço</kbd> Mostrar resposta</span>
-            <span class="cards-kbd-group"><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd> Avaliar</span>
-            <span class="cards-kbd-group"><kbd>E</kbd> Editar</span>
-            <span class="cards-kbd-group"><kbd>-</kbd> Enterrar</span>
-            <span class="cards-kbd-group"><kbd>@</kbd> Suspender</span>
-            <span class="cards-kbd-group"><kbd>*</kbd> Marcar</span>
-            <span class="cards-kbd-group"><kbd>I</kbd> Info</span>
-            <span class="cards-kbd-group"><kbd>U</kbd> Desfazer</span>
-          </span>
-        </div>
-      </div>`;
-    this.renderActions(box, c);
-    /* Ligações das ações do reviewer — mesmos efeitos do Anki. Todas avançam a
-       fila depois de agir (o Anki também tira o card da frente ao enterrar,
-       suspender ou excluir). */
-    const proximo = () => {
-      CardEngine.invalidateDueCache();
-      this._reviewQueue = (this._reviewQueue || []).filter(x => x !== c.id);
-      if (this._reviewIdx > this._reviewQueue.length) this._reviewIdx = this._reviewQueue.length;
-      this.renderReviewCard(box);
-    };
-    const liga = (id, fn) => { const b = document.getElementById(id); if (b) b.addEventListener('click', fn); };
-    liga('cards-act-mark', () => { DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box); showToast(c.favorito ? 'Desmarcada' : '★ Marcada'); });
-    liga('cards-act-bury', () => { const d2 = DB.buryCard(c.id); proximo(); showToast('⤓ Enterrado até ' + formatDateShort(d2)); });
-    liga('cards-act-susp', () => { if (typeof AnkiParity !== 'undefined') AnkiParity.suspendCard(c.id); else DB.updateCard(c.id, { suspenso: true }); proximo(); showToast('🚫 Suspenso — reative em Meus cards'); });
-    const reviewRef = () => c._planId != null
-      ? 'c:' + encodeURIComponent(String(c._planId)) + '::' + encodeURIComponent(String(c.id))
-      : 'c:' + encodeURIComponent(String(c.id));
-    const refreshManual = () => {
-      CardEngine.invalidateDueCache();
-      this.invalidateReviewQueue();
-      this.renderContent();
-      this.atualizarFoco();
-    };
-    liga('cards-act-forget', () => {
-      if (window.StudyGlobalScope && StudyGlobalScope.bulkResetUi) {
-        StudyGlobalScope.bulkResetUi([reviewRef()]);
-        return;
-      }
-      UI.prompt([
-        { key: 'restore', label: 'Restaurar posição original?', type: 'select', value: 'no',
-          options: [{ value: 'no', label: 'Não — enviar ao fim da fila de novos' }, { value: 'yes', label: 'Sim — usar posição original quando disponível' }] },
-        { key: 'counts', label: 'Zerar repetições e lapsos?', type: 'select', value: 'no',
-          options: [{ value: 'no', label: 'Não — preservar contadores' }, { value: 'yes', label: 'Sim — zerar contadores' }] }
-      ], { title: '↺ Resetar card', okText: 'Resetar' }).then(v => {
-        if (!v) return;
-        DB.resetCard(c.id, { restorePosition: v.restore === 'yes', resetCounts: v.counts === 'yes', log: true });
-        refreshManual(); showToast('↺ Card voltou à fila de novos; histórico preservado ✓');
-      });
-    });
-    liga('cards-act-due', () => {
-      if (window.StudyGlobalScope && StudyGlobalScope.bulkSetDueUi) {
-        StudyGlobalScope.bulkSetDueUi([reviewRef()]);
-        return;
-      }
-      UI.prompt([{ key: 'spec', label: 'Vencimento', type: 'text', value: '1',
-        placeholder: 'ex.: 10, 60-90 ou 60-90!',
-        hint: 'A-B distribui no intervalo. ! também redefine o intervalo de cards em revisão.' }],
-        { title: '📅 Definir vencimento', okText: 'Agendar' }).then(v => {
-          if (!v) return;
-          const result = DB.setDueSpec(c.id, v.spec);
-          if (!result) { showToast('Formato inválido. Use N, A-B ou A-B!.'); return; }
-          refreshManual(); showToast('📅 Vencimento atualizado ✓');
-        });
-    });
-    liga('cards-act-info', () => this.cardInfo(c));
-    liga('cards-auto-advance', () => this.toggleAutoAdvance());
-    liga('cards-act-del', () => {
-      const irmaos = this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length;
-      const msg = irmaos > 1
-        ? 'Excluir esta nota e seus ' + irmaos + ' cards? Não há como desfazer.'
-        : 'Excluir esta nota? Não há como desfazer.';
-      UI.confirm(msg, { title: '🗑 Excluir nota', okText: 'Excluir', danger: true })
-        .then(ok => { if (!ok) return; DB.deleteNoteByCard(c.id); proximo(); showToast('Nota excluída'); });
-    });
-    document.querySelectorAll('.cards-flag').forEach(b => b.addEventListener('click', () => {
-      const n = Number(b.dataset.flag);
-      DB.setFlag(c.id, (c.flag || 0) === n ? 0 : n);
-      this.renderReviewCard(box);
-    }));
-    $id('cards-review-fav').addEventListener('click', () => {
-      DB.updateCard(c.id, { favorito: !c.favorito }); this.updateFavCount(); this.renderReviewCard(box);
-    });
-    $id('cards-review-edit').addEventListener('click', () => this.openCardModal(c.id));
-    const nx = document.getElementById('cards-next'); if (nx) nx.addEventListener('click', () => this.navCard(1));
-    this._armReviewerAutomation(c,cfgReview);
-  },
-  // renderiza as faces conforme o tipo (cloze ou básico)
-  faceHtml(c) {
-    // Cards vindos do Anki mantêm a nota/tipo/template canônicos. Renderizar
-    // daqui evita "achatar" templates importados em uma frente/verso estáticos.
-    if (typeof AnkiParity !== 'undefined') {
-      try {
-        // A Note é a fonte de verdade no reviewer, mas ela precisa vir do
-        // MESMO planejamento do card. Além disso, builds anteriores à migração
-        // completa podiam deixar Front/Text canônico vazio enquanto o cache
-        // legado ainda continha a pergunta; o reparo é conservador e só preenche
-        // campos canônicos vazios a partir de conteúdo legado claramente válido.
-        const routed = AnkiParity.repairStockNoteFromCard ? AnkiParity.repairStockNoteFromCard(c) : null;
-        const note = routed && routed.note ? routed.note : (AnkiParity.noteForCard ? AnkiParity.noteForCard(c) : AnkiParity.getNote(AnkiParity.noteId(c)));
-        const nt = routed && routed.nt ? routed.nt : (note && AnkiParity.notetypeForCard ? AnkiParity.notetypeForCard(c, note) : (note ? AnkiParity.getNotetype(note.notetypeId) : null));
-        if (note && nt && Array.isArray(nt.templates) && nt.templates.length) {
-          const ord = Number(c.ankiTemplateOrd) || 0;
-          const frontRaw = AnkiParity.renderTemplate(nt, note, ord, 'question', c, '');
-          const backRaw = AnkiParity.renderTemplate(nt, note, ord, 'answer', c, frontRaw);
-          // Note Types importados do Anki podem conter CSS, JavaScript, fontes,
-          // MathJax, TTS e HTML arbitrário. Eles rodam dentro de um iframe
-          // sandboxado de origem opaca: mantém a compatibilidade sem dar ao
-          // conteúdo do card acesso ao DOM/storage/Supabase do Study.
-          if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.renderFrame) {
-            // No reviewer do Anki, o lado da pergunta é SUBSTITUÍDO pelo lado
-            // da resposta no flip. Não mantenha o contêiner da frente visível
-            // com um placeholder vazio: além do espaço fantasma, o afmt pode
-            // trazer {{FrontSide}} e acabaria duplicando visualmente a pergunta.
-            const frontDisplay = this._flipped ? 'none' : 'block';
-            const backDisplay = this._flipped ? 'block' : 'none';
-            return '<div class="cards-face cards-front cards-anki-template" style="display:' + frontDisplay + '">' +
-              AnkiRuntime.renderFrame(nt, frontRaw, 'question', c, !this._flipped, note, CardsConfig.forDeck(c.deckId)) +
-              '</div><div class="cards-face cards-back cards-anki-template" style="display:' + backDisplay + '">' +
-              AnkiRuntime.renderFrame(nt, backRaw, 'answer', c, !!this._flipped, note, CardsConfig.forDeck(c.deckId)) + '</div>';
-          }
-          const front = _sanCard(frontRaw), back = _sanCard(backRaw);
-          return `<div class="cards-face cards-front cards-anki-template card">${front || '<em>(vazio)</em>'}</div>
-            <div class="cards-face cards-back cards-anki-template card" style="display:${this._flipped ? 'block' : 'none'}">${back || '<em>(vazio)</em>'}</div>`;
-        }
-      } catch (e) { _quiet(e, 'anki-template-render'); }
-    }
-    // Legado Study: saneia na saída e mantém o renderer local.
-    const cFrente = _sanCard(c.frente), cVerso = _sanCard(c.verso);
-    if (c.kind === 'cloze') {
-      const ord = Number(c.clozeOrd || ((c.template || '').match(/^cloze:(\\d+)$/) || [])[1]) || 1;
-      const front = CardEngine.clozeRender(cFrente, false, ord);
-      const back = CardEngine.clozeRender(cFrente, true, ord) + (CardEngine.plain(cVerso) ? `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0">${cVerso}` : '');
-      return `<div class="cards-face cards-front">${front || '<em>(vazio)</em>'}</div>
-        <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${back}</div>`;
-    }
-    return `<div class="cards-face cards-front">${cFrente || '<em style="color:var(--text-faint)">(frente vazia)</em>'}</div>
-      <div class="cards-face cards-back" style="display:${this._flipped ? 'block' : 'none'}">${cVerso || '<em style="color:var(--text-faint)">(verso vazio)</em>'}</div>`;
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.toggleAutoAdvance==='function')return CardsOfficialBridge.toggleAutoAdvance(force);
+    showToast('Auto Advance oficial indisponível.');return false;
   },
 
-  // renderiza os botões: "Mostrar resposta" OU os 4 botões de avaliação
+  renderReviewCard(box) {
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.renderCurrent==='function'){void CardsOfficialBridge.renderCurrent(box);return;}
+    if(box)box.innerHTML=this.emptyState('Motor oficial indisponível','O reviewer local está desativado.');
+  },
+  // Casca de compatibilidade: a revisão real é renderizada pelo bridge oficial.
+  // Se algum fluxo legado chamar este método, ele consome somente os estados
+  // já calculados por get_queued_cards()/describe_next_states() no backend.
   renderActions(box, c) {
-    const el = document.getElementById('cards-review-actions');
-    if (!this._flipped) {
-      el.innerHTML = `<button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta <kbd>Espaço</kbd></button>`;
-      $id('cards-flip').addEventListener('click', () => this.flip(box));
+    const el=document.getElementById('cards-review-actions');if(!el)return;
+    const bridge=window.CardsOfficialBridge,review=bridge&&bridge.review,official=review&&review.card;
+    if(!this._flipped){
+      el.innerHTML='<button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta <kbd>Espaço</kbd></button>';
+      const b=document.getElementById('cards-flip');if(b)b.addEventListener('click',()=>bridge&&bridge.showAnswer?void bridge.showAnswer():showToast('Motor oficial do Anki indisponível.'));
       return;
     }
-    /* ── FIDELIDADE AO ANKI: um card so e avaliado UMA VEZ por passagem ────────
-       No Anki nao existe "card anterior": a fila avanca e voce so pode DESFAZER
-       (Ctrl+Z). Aqui a navegacao para tras foi mantida — e util para reler o que
-       passou — mas avaliar de novo um card ja avaliado nesta sessao criaria uma
-       SEGUNDA entrada no historico. O agendamento nao quebrava (a trava de mesmo
-       dia do FSRS-6 segura a estabilidade, e o contador diario ja e por ID), mas
-       o revlog inflava e contaminava as estatisticas e o otimizador.
-       Solucao igual a do Anki: o card ja avaliado nao reoferece as notas; oferece
-       DESFAZER, que e a unica forma de mudar uma avaliacao no Anki. */
-    const iv = CardEngine.previewIntervals(c);
-    el.innerHTML = `
-      <button type="button" class="cards-ans4 a-errei" data-g="errei"><span class="a-kbd">1</span>✗ Errei<span>${CardEngine.fmtInterval(iv.errei)}</span></button>
-      <button type="button" class="cards-ans4 a-dificil" data-g="dificil"><span class="a-kbd">2</span>Difícil<span>${CardEngine.fmtInterval(iv.dificil)}</span></button>
-      <button type="button" class="cards-ans4 a-bom" data-g="bom"><span class="a-kbd">3</span>Bom<span>${CardEngine.fmtInterval(iv.bom)}</span></button>
-      <button type="button" class="cards-ans4 a-facil" data-g="facil"><span class="a-kbd">4</span>Fácil<span>${CardEngine.fmtInterval(iv.facil)}</span></button>`;
-    el.querySelectorAll('.cards-ans4').forEach(b => b.addEventListener('click', () => this.answer(b.dataset.g)));
+    const names=['Errei','Difícil','Bom','Fácil'],classes=['a-errei','a-dificil','a-bom','a-facil'],buttons=official&&Array.isArray(official.buttons)?official.buttons:[];
+    if(!buttons.length){el.innerHTML='<span class="hint">Intervalos oficiais indisponíveis.</span>';return;}
+    el.innerHTML=buttons.map(b=>'<button type="button" class="cards-ans4 '+(classes[Number(b.rating)-1]||'')+'" data-g="'+Number(b.rating)+'"><span class="a-kbd">'+Number(b.rating)+'</span>'+names[Number(b.rating)-1]+'<span>'+escapeHtml(b.label||'')+'</span></button>').join('');
+    el.querySelectorAll('[data-g]').forEach(b=>b.addEventListener('click',()=>bridge&&bridge.answer?void bridge.answer(Number(b.dataset.g)):showToast('Motor oficial do Anki indisponível.')));
   },
-  /* INFORMAÇÕES DO CARD (tecla I) — equivalente ao "Card Info" do Anki:
-     estado atual, memória do FSRS e o histórico completo de revisões. */
-  cardInfo(ref) {
-    let c = null, planId = null;
-    if (window.StudyGlobalScope && StudyGlobalScope.findCardRecord) {
-      const routed = StudyGlobalScope.findCardRecord(ref, ref && typeof ref === 'object' && ref._planId != null ? ref._planId : null);
-      if (routed) {
-        planId = routed.planId;
-        c = Object.assign({}, routed.card, { _planId: routed.planId, _planNome: StudyGlobalScope.planName(routed.planId) });
-      }
+  cardInfo(ref){
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.openCardInfo==='function'){
+      void CardsOfficialBridge.openCardInfo(ref).catch(e=>showToast('Card Info oficial indisponível: '+(e&&e.message?e.message:String(e))));
+      return;
     }
-    if (!c) {
-      const id = ref && typeof ref === 'object' ? ref.id : ref;
-      c = DB.getCard(id); if (!c) return;
-      planId = c._planId != null ? c._planId : null;
-    }
-    const id = String(c.id);
-    const baseLog = (window.StudyGlobalScope && StudyGlobalScope.revlogForCard)
-      ? StudyGlobalScope.revlogForCard(c, planId)
-      : DB.getRevlog();
-    const log = baseLog.filter(r => String(r.cardId) === id).sort((a, b) => (b.ts || 0) - (a.ts || 0));
-    const NOTA = { 1: '✗ Errei', 2: 'Difícil', 3: 'Bom', 4: 'Fácil' };
-    const FASE = { new: 'Novo', learning: 'Aprendendo', review: 'Revisão', relearning: 'Reaprendendo' };
-    const MANUAL = { 'set-due': 'Manual · Definir vencimento', reset: 'Manual · Resetar card', rescheduled: 'Reagendado' };
-    const reviewLabel = r => {
-      const kind = String(r && r.ankiReviewKind || '').toLowerCase();
-      if (Number(r && r.grade) === 0 || kind === 'manual' || kind === 'rescheduled' || kind === 'reset') {
-        return MANUAL[String(r && r.action || '').toLowerCase()] || (kind === 'rescheduled' ? 'Reagendado' : 'Manual');
-      }
-      return NOTA[r.grade] || r.grade || '—';
-    };
-    const reviewInterval = r => {
-      if (Number(r && r.grade) === 0 && r && r.ankiIvlSemantica === 2) {
-        const before = Number(r.ankiLastInterval), after = Number(r.ankiInterval);
-        if (Number.isFinite(before) && Number.isFinite(after)) return before + 'd → ' + after + 'd';
-      }
-      return r && r.elapsed != null ? r.elapsed + 'd' : '';
-    };
-    const linha = (r, v) => `<tr><td style="padding:4px 10px 4px 0;color:var(--text-faint)">${r}</td><td style="padding:4px 0;font-family:'Space Mono',monospace">${v}</td></tr>`;
-    const corpo = `
-      <table style="width:100%;font-size:12.5px;border-collapse:collapse">
-        ${linha('Estado', FASE[c.phase] || c.phase || '—')}
-        ${linha('Vencimento', c.dueTs ? new Date(c.dueTs).toLocaleString('pt-BR') : (c.due || '—'))}
-        ${linha('Estabilidade (S)', c.s != null ? Number(c.s).toFixed(2) + ' dias' : '—')}
-        ${linha('Dificuldade (D)', c.d != null ? Number(c.d).toFixed(2) + ' / 10' : '—')}
-        ${linha('Revisões', c.reps || 0)}
-        ${linha('Lapsos', c.lapses || 0)}
-        ${linha('Intervalo', c.intervalo ? c.intervalo + ' dia(s)' : '—')}
-        ${linha('Suspenso', c.suspenso ? 'sim' : 'não')}
-        ${linha('Enterrado até', c.enterradoAte || '—')}
-        ${linha('Bandeira', (c.flag && DB.FLAGS[c.flag]) ? DB.FLAGS[c.flag].nome : '—')}
-        ${linha('Criado em', (c.createdAt || '').slice(0, 10) || '—')}
-      </table>
-      <p style="margin:14px 0 6px;font-weight:700;font-size:12.5px">Histórico (${log.length})</p>
-      ${log.length ? `<div style="max-height:230px;overflow:auto">
-        <table style="width:100%;font-size:12px;border-collapse:collapse">
-          ${log.slice(0, 60).map(r => `<tr style="border-top:1px solid var(--border)">
-            <td style="padding:4px 8px 4px 0;color:var(--text-faint)">${r.date || ''}</td>
-            <td style="padding:4px 8px 4px 0">${reviewLabel(r)}</td>
-            <td style="padding:4px 0;color:var(--text-faint)">${reviewInterval(r)}</td>
-          </tr>`).join('')}
-        </table></div>` : '<p style="color:var(--text-faint);font-size:12px">Nenhuma revisão ainda.</p>'}`;
-    UI.alert(corpo, { title: 'ℹ Informações do card', html: true, okText: 'Fechar' });
+    showToast('Card Info oficial indisponível.');
   },
-  flip(box) { if(!this._flipped)this._answerShownAt=Date.now(); this._flipped = true; this.renderReviewCard(box || document.getElementById('cards-content')); },
+  flip() { if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.showAnswer==='function')void CardsOfficialBridge.showAnswer(); },
   // atalhos de teclado durante a revisão
   onKey(e) {
     // só na tela de cards, aba revisar, com um card na tela e sem modal aberto
@@ -1418,7 +446,12 @@ const CardsScreen = {
     if ((e.ctrlKey || e.metaKey) && (e.code === 'Delete' || e.code === 'Backspace')) { e.preventDefault(); clique('cards-act-del'); return; }
     if ((e.ctrlKey || e.metaKey) && /^Digit[0-4]$/.test(e.code)) {   // bandeiras
       e.preventDefault();
-      if (idAtual) { const n = Number(e.code.slice(5)); DB.setFlag(idAtual, n); this.renderReviewCard(document.getElementById('cards-content')); }
+      const n = Number(e.code.slice(5));
+      if (window.CardsOfficialBridge && CardsOfficialBridge.review && CardsOfficialBridge.review.card) {
+        void CardsOfficialBridge.action('flag', n);
+      } else {
+        showToast('Bandeira não alterada: Reviewer oficial indisponível.');
+      }
       return;
     }
     if (e.code === 'Space') {
@@ -1446,62 +479,10 @@ const CardsScreen = {
      principal vazia, o card recém-respondido não passa à frente do próximo de
      aprendizado (o vencimento da ENTRADA vira o dele + 1 s). O corte "agora" é
      o instante da resposta (update_learning_cutoff_and_count). */
-  _iniciarAprendAnki(cards) {
-    const hoje = todayCards();
-    const lista = (cards || []).filter(c => c && !c.suspenso && c.dueTs && (c.due || hoje) <= hoje)
-      .map((c, k) => ({ id: c.id, due: Math.floor(Number(c.dueTs) / 1000), semRep: (c.reps || 0) === 0, k }));
-    lista.sort((a, b) => (a.semRep - b.semRep) || (a.due - b.due) || (a.k - b.k));
-    this._aprendAnki = lista.map(({ id, due, semRep }) => ({ id, due, semRep }));
-  },
-  _inserirAprendAnki(e) {
-    const d = this._aprendAnki, cmp = (x) => ((x.semRep - e.semRep) || (x.due - e.due));
-    let size = d.length, base = 0, pos;
-    if (!size) pos = 0;
-    else {
-      while (size > 1) { const half = size >> 1, mid = base + half; base = cmp(d[mid]) > 0 ? base : mid; size -= half; }
-      const c = cmp(d[base]); pos = c === 0 ? base : base + (c < 0 ? 1 : 0);
-    }
-    d.splice(pos, 0, e);
-  },
-  _ordenarComoAnki(ultimoId) {
-    const q = this._reviewQueue || [], i = Math.min(this._reviewIdx || 0, q.length);
-    if (!this._aprendAnki) this._iniciarAprendAnki(this.currentFilteredCards());
-    const agoraS = Math.floor(Date.now() / 1000), corteS = agoraS + Math.round(this.LEARN_AHEAD_MIN * 60);
-    const vistos = new Set(), principal = [];
-    q.slice(i).forEach(id => {
-      if (vistos.has(String(id))) return; vistos.add(String(id));
-      const c = DB.getCard(id); if (c && !c.suspenso && !c.dueTs) principal.push(c.id);
-    });
-    if (ultimoId != null) {
-      this._aprendAnki = this._aprendAnki.filter(e => String(e.id) !== String(ultimoId));
-      const c = DB.getCard(ultimoId);
-      if (c && !c.suspenso && c.dueTs && (c.due || todayCards()) <= todayCards()) {
-        const e = { id: c.id, due: Math.floor(Number(c.dueTs) / 1000), semRep: (c.reps || 0) === 0 };
-        if (e.due <= corteS && !principal.length) {
-          const prox = this._aprendAnki[0];
-          if (prox && prox.due >= e.due && prox.due + 1 < corteS) e.due = prox.due + 1;
-        }
-        this._inserirAprendAnki(e);
-      }
-    }
-    this._aprendAnki = this._aprendAnki.filter(e => { const c = DB.getCard(e.id); return c && !c.suspenso && c.dueTs; });
-    const ja = this._aprendAnki.filter(e => e.due <= agoraS).map(e => e.id);
-    const adiante = this._aprendAnki.filter(e => e.due > agoraS && e.due <= corteS).map(e => e.id);
-    this._reviewQueue = q.slice(0, i).concat(ja, principal, adiante);
-    this._reviewIdx = i;
-  },
-  _skipNotDue() {
-    const q = this._reviewQueue;
-    let guard = q.length;
-    while (guard-- > 0 && this._reviewIdx < q.length) {
-      const c = DB.getCard(q[this._reviewIdx]);
-      if (!c || !c.dueTs || c.dueTs <= Date.now()) return;
-      const temOutro = q.slice(this._reviewIdx + 1).some(id => { const o = DB.getCard(id); return o && (!o.dueTs || o.dueTs <= Date.now()); });
-      if (!temOutro) return; // é o único: o Anki antecipa (learn ahead)
-      q.push(q.splice(this._reviewIdx, 1)[0]);
-    }
-  },
-  // ── Modo foco: estudar só os cards, em tela cheia ──
+  _iniciarAprendAnki(){ this._aprendAnki=null; },
+  _inserirAprendAnki(){},
+  _ordenarComoAnki(){},
+  _skipNotDue(){},
   entrarFoco() {
     this.tab = 'revisar';
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
@@ -1533,239 +514,17 @@ const CardsScreen = {
     if (u) u.disabled = !(this._undoStack || []).length;
   },
   // navega entre os cards da fila sem avaliar (pular)
-  navCard(dir) {
-    if (!this._reviewQueue || this._reviewQueue.length === 0) return;
-    /* Só AVANÇA. Voltar foi removido: no Anki não existe "card anterior" — a fila
-       anda para frente e a única forma de mudar uma nota é desfazer. Enquanto
-       existiu, dava para reavaliar o mesmo card em rajada; uma auditoria real
-       mostrou 4 cards com 178 entradas no histórico, uma delas com 28 revisões
-       do mesmo card, 164 delas com menos de 2 segundos entre si. */
-    if (dir < 0) return;
-    const ni = this._reviewIdx + dir;
-    if (ni < 0 || ni >= this._reviewQueue.length) return;
-    this._reviewIdx = ni;
-    this._flipped = false;
-    this.renderReviewCard(document.getElementById('cards-content'));
-  },
-  // DESFAZER (Anki: Ctrl+Z) — restaura o card, apaga a revisão do histórico e devolve
-  // o contador diário. Substitui o antigo "Anterior", que reavaliava o card em dobro.
   undoAnswer() {
-    const u = (this._undoStack || []).pop();
-    if (!u) { showToast('Nada para desfazer'); return; }
-    DB.updateCard(u.id, u.antes);
-    if (u.aprendAntes !== undefined) this._aprendAnki = u.aprendAntes;
-    (u.buriedSiblings || []).forEach(id => { try { DB.unburyCard(id); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); } });
-    CardEngine.invalidateDueCache(true);
-    // Medido no anki==26.09.2: depois do desfazer o LoadBalancer é relido do
-    // banco (o add_card() da resposta desfeita some; o card volta ao vencimento antigo).
-    if (typeof AnkiParity !== 'undefined' && AnkiParity._lb && AnkiParity.lbCongelar) AnkiParity.lbCongelar();
-    DB.removeRevlog(u.revTs);
-    if (u.contou) CardsConfig.unmarkIntroduced(u.contou, u.id);
-    if (this._seenThisSession && !(this._undoStack || []).some(x => x.id === u.id)) this._seenThisSession.delete(u.id);
-    // desfaz a reinserção do card na fila, se houve
-    const dup = this._reviewQueue.lastIndexOf(u.id);
-    if (dup > u.idx) this._reviewQueue.splice(dup, 1);
-    this._reviewIdx = Math.max(0, Math.min(u.idx, this._reviewQueue.length - 1));
-    if (this._reviewQueue[this._reviewIdx] !== u.id) {
-      const i = this._reviewQueue.indexOf(u.id);
-      if (i >= 0) this._reviewIdx = i; else { this._reviewQueue.splice(this._reviewIdx, 0, u.id); }
-    }
-    this._flipped = false;
-    (this._redoStack = this._redoStack || []).push(u);
-    if (this._redoStack.length > 50) this._redoStack.shift();
-    showToast('Revisão desfeita ↶');
-    this.renderReviewCard(document.getElementById('cards-content'));
-    this.atualizarFoco();
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.undo==='function')void CardsOfficialBridge.undo();
   },
   async redoAnswer() {
-    const stack=this._redoStack=this._redoStack||[],r=stack.pop();
-    if(!r){showToast('Nada para refazer');return false;}
-    const idx=this._reviewQueue.indexOf(r.id);
-    if(idx>=0)this._reviewIdx=idx;
-    else{this._reviewIdx=Math.max(0,Math.min(r.idx||0,this._reviewQueue.length));this._reviewQueue.splice(this._reviewIdx,0,r.id);}
-    this._flipped=true;
-    this._redoing=true;
-    let ok=false;
-    try{ok=await this.answer(r.grade||'bom');}
-    finally{this._redoing=false;}
-    if(ok!==true){stack.push(r);return false;}
-    showToast('Revisão refeita ↷');
-    return true;
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.redo==='function')return CardsOfficialBridge.redo();
+    return false;
   },
   async answer(grade) {
-    if (this._answering) return false;
-    this._answering = true;
-    try {
-      const id = this._reviewQueue[this._reviewIdx];
-      const c = DB.getCard(id);
-      /* Sem guarda de "já avaliado": ela estava ERRADA. Um card de aprendizado
-         respondido com "Errei" volta em 1 minuto e PRECISA ser avaliado de novo —
-         é assim que os passos do Anki funcionam. A guarda baseada no histórico de
-         desfazer bloqueava justamente essa volta legítima.
-         A proteção real contra reavaliar a MESMA apresentação é estrutural: sem
-         "voltar" e sem "pular", não existe caminho para retornar a um card já
-         avaliado na mesma posição da fila — exatamente como no Anki. */
-      let patch = null;
-      if (c) {
-        // registra no histórico (revlog) ANTES de reagendar — base para o otimizador FSRS
-        const G = CardEngine.GRADE_NUM[grade] || 3;
-        const elapsed = c.lastReview ? Math.max(0, Math.round((new Date(todayCards() + 'T00:00:00') - new Date(c.lastReview + 'T00:00:00')) / 86400000)) : 0;
-        const revTs = Date.now();
-        /* `intervalo` = o intervalo que o card TINHA ao ser respondido (o lastIvl
-           do revlog do Anki). Sem ele a tabela de Retenção Real não conseguia
-           separar card jovem de card maduro: a coluna "Maduros" ficava vazia
-           para sempre, porque a linha do histórico não guardava essa informação. */
-        /* ── COMMIT LOCAL DURÁVEL ANTES DE AVANÇAR ──────────────────────────
-           A matemática pode ser calculada antes, porque schedule() é pura para o
-           card recebido. O que NÃO pode acontecer é a fila avançar antes de haver
-           uma transação recuperável. Guardamos na outbox: revlog + estado final do
-           card. Só então aplicamos a projeção local e liberamos a interface. */
-        const bucketAntes = this._bucket(c);
-        const reviewTimeMs=this._reviewElapsedMs(CardsConfig.forDeck(c.deckId));
-        const previewPatch = (typeof AnkiParity !== 'undefined') ? AnkiParity.previewFilteredAnswer(c, grade) : null;
-        const emFiltrado = !!c.originalDeckId;
-        if (!this._seenThisSession) this._seenThisSession = new Set();
-        // O Anki contabiliza a resposta no deck FILTRADO; ela não consome o
-        // limite diário do baralho de origem.
-        const primeiraVez = !emFiltrado && !this._seenThisSession.has(id) && (bucketAntes === 'new' || bucketAntes === 'review');
-  
-        // snapshot para DESFAZER, antes de qualquer mutação.
-        const antes = {};
-        ['deckId','originalDeckId','originalDue','originalDueTs','originalPhase','filteredPosition','filteredReschedule','filteredDeckId','phase', 'learnStep', 's', 'd', 'due', 'dueTs', 'reps', 'lapses', 'ease', 'intervalo', 'status', 'lastReview', 'lastReviewTs', 'ankiMod', 'firstReviewAt', 'algo', 'leech', 'suspenso']
-          .forEach(k => { antes[k] = c[k]; });
-  
-        if (previewPatch) {
-          patch = previewPatch;
-        } else {
-          patch = CardEngine.schedule(c, grade);
-          if (typeof AnkiParity !== 'undefined' && c.originalDeckId) {
-            patch = AnkiParity.removeFromFilteredAfterReschedule(c, patch);
-          }
-        }
-        if(!c.firstReviewAt)patch.firstReviewAt=new Date(revTs).toISOString();
-        const cleanPatch = DB._semTransitorios ? DB._semTransitorios(patch) : patch;
-        const cardAfter = Object.assign({}, c, cleanPatch || {}, { updatedAt: new Date().toISOString() });
-        const cardPosition = Math.max(1, (window.StudyGlobalScope && StudyGlobalScope.cardPosition ? StudyGlobalScope.cardPosition(id) : DB.getCards().findIndex(x => String(x.id) === String(id)) + 1));
-        const easeRaw=Number(c.ease!=null?c.ease:CardsConfig.forDeck(c.deckId).initialEase),easeFactor=previewPatch?0:Math.round((easeRaw>10?easeRaw/1000:(Number.isFinite(easeRaw)&&easeRaw>0?easeRaw:2.5))*1000);
-        /* Revlog na semântica do Anki (scheduler/answering/revlog.rs): tipo pelo
-           estado ANTES da resposta; ivl/lastIvl em dias, ou -segundos nos passos
-           (maybe_as_days: passo que cruza a virada vira dias). */
-        const cfgRev=CardsConfig.forDeck(c.originalDeckId||c.deckId),ateVirada=Math.max(0,Math.round((proximaViradaTs()-revTs)/1000));
-        const comoRevlog=(secs)=>secs>=ateVirada&&ateVirada>0?Math.floor((secs-ateVirada)/86400)+1:-secs;
-        const passoAtualSecs=(lista,idx)=>{const l=Array.isArray(lista)?lista:[];if(!l.length)return 0;return Math.round(Number(l[Math.max(0,Math.min(Number(idx)||0,l.length-1))])*60);};
-        const faseAntes=c.phase||'new',dueOrigRev=c.originalDeckId&&c.originalDue?c.originalDue:null;
-        const tipoRev=previewPatch?'filtered':(faseAntes==='new'||faseAntes==='learning')?'learning':faseAntes==='relearning'?'relearning':(dueOrigRev&&dueOrigRev>todayCards())?'filtered':'review';
-        const lastIvlAnki=previewPatch?0:faseAntes==='new'?0:faseAntes==='learning'?comoRevlog(passoAtualSecs(cfgRev.learnSteps,c.learnStep)):faseAntes==='relearning'?comoRevlog(passoAtualSecs(cfgRev.relearnSteps,c.learnStep)):(Number(c.intervalo)||0);
-        const preInterval=previewPatch?0:(Number(c.intervalo)||0),postInterval=previewPatch?0:Number(patch&&patch.intervalo!=null?patch.intervalo:preInterval)||0;
-        const revRow = await DB.addRevlogDurable(
-          { ts: revTs, date: todayCards(), cardId: id, grade: G, acerto: G > 1,
-            phase: previewPatch ? 'filtered' : (c.phase || 'new'),
-            elapsed: previewPatch ? 0 : elapsed, time: reviewTimeMs,
-            // Compatibilidade: `intervalo` continua sendo o intervalo pré-resposta
-            // usado pelas estatísticas antigas; os campos Anki explícitos removem
-            // qualquer ambiguidade para FSRS/import/export daqui em diante.
-            intervalo: preInterval, lastInterval: preInterval,
-            ankiInterval: previewPatch?0:(patch&&patch._kind==='min'?comoRevlog(Math.round(Number(patch._val)*60)):postInterval),
-            ankiLastInterval: lastIvlAnki, ankiReviewKind: tipoRev, ankiIvlSemantica: 2, easeFactor,
-            s: (c.s || null), d: (c.d || null) },
-          cardAfter, cardPosition
-        );
-        if (revRow === false) {
-          showToast('⚠ Não foi possível gravar esta revisão com segurança. Libere espaço e tente de novo.');
-          return false;
-        }
-  
-        if (primeiraVez) CardsConfig.markIntroduced(bucketAntes, id);
-        this._seenThisSession.add(id);
-        if (DB.updateCard(id, patch) === false) {
-          // O card não entrou nem na projeção local: cancela o append antes de
-          // permitir qualquer replay na nuvem e devolve o contador.
-          await DB.cancelarRevlogDurable(revRow);
-          if (primeiraVez) CardsConfig.unmarkIntroduced(bucketAntes, id);
-          this._seenThisSession.delete(id);
-          showToast('⚠ Não foi possível gravar esta revisão. Libere espaço e tente de novo.');
-          return false;
-        }
-        // A partir daqui a resposta sobrevive a reload/offline. A sincronização
-        // remota pode terminar depois sem bloquear a próxima pergunta.
-        DB.kickRevlogDuravel();
-        CardEngine.invalidateDueCache(true);
-        // answering/mod.rs: card que volta à fila Review entra no LoadBalancer
-        // da fila já montada, no dia = intervalo (sem remover o vencimento antigo).
-        if (typeof AnkiParity !== 'undefined' && AnkiParity.lbAdicionarRespondido) AnkiParity.lbAdicionarRespondido(DB.getCard(id));
-        const buriedSiblings = (typeof AnkiParity !== 'undefined') ? AnkiParity.autoBurySiblings(c) : [];
-        if(!this._redoing)this._redoStack=[];
-        // Desfazer do Anki restaura também a fila de aprendizado (QueueUpdate).
-        const aprendAntes = this._aprendAnki ? this._aprendAnki.map(e => Object.assign({}, e)) : null;
-        (this._undoStack = this._undoStack || []).push({ id, antes, revTs, contou: primeiraVez ? bucketAntes : null, idx: this._reviewIdx, buriedSiblings, grade, aprendAntes });
-        if (this._undoStack.length > 50) this._undoStack.shift();
-        if (patch._leechNow) showToast(patch.suspenso ? '🚫 Card suspenso: já errou ' + patch.lapses + ' vezes' : '⚠ Card marcado como problemático (' + patch.lapses + ' erros)');
-        // O campo {{type:...}} pertence somente a esta apresentação. Limpa
-        // APÓS journal + projeção local terem sido confirmados.
-        if (typeof AnkiRuntime !== 'undefined' && AnkiRuntime.clearTyped) AnkiRuntime.clearTyped(c);
-      }
-      this._reviewIdx++;
-      this._reviewCardId=null;this._reviewStartedAt=null;this._answerShownAt=null;
-      clearInterval(this._reviewTimer);clearTimeout(this._reviewAutoTimer);
-      this._flipped = false;
-      // Anki: cards em APRENDIZADO/REAPRENDIZADO voltam à fila da sessão e reaparecem
-      // pelo HORÁRIO do passo (queue/learning.rs), não por posição.
-      // Todo card respondido sai da deque de aprendizado; se voltar hoje, é
-      // reinserido nela (requeue_learning_entry).
-      this._ordenarComoAnki(id);
-      this.atualizarFoco();
-      const box = document.getElementById('cards-content');
-      if (this._reviewIdx >= this._reviewQueue.length) {
-        /* ── FIDELIDADE AO ANKI: antecipados fazem parte da MESMA fila ───────────
-           No Anki (rslib/src/scheduler/queue/mod.rs) a ordem de apresentação é um
-           único iterador encadeado:
-               aprendizado vencido AGORA → revisões e novos → aprendizado ANTECIPADO
-           O "learn ahead" (padrão 1200s = 20 min) é o último elo desse mesmo
-           iterador — não uma fila separada. Por isso o Anki NUNCA diz "concluído"
-           para depois trazer os cards de volta: ele simplesmente continua.
-  
-           Aqui os antecipados viviam fora da fila, então ela esvaziava, aparecia o
-           🎉 e os cards ressurgiam ao reabrir a tela. Mesma matemática, sensação
-           completamente diferente — e era isto que destoava do Anki.
-           Agora eles entram no fim da fila corrente, e o encerramento só acontece
-           quando não há mais nada dentro da janela de antecipação. */
-        const antecipados = (this._learnAheadQueue() || []).filter(id => {
-          const c = DB.getCard(id);
-          return c && !c.suspenso;
-        });
-        if (antecipados.length) {
-          this._reviewQueue = this._reviewQueue.concat(antecipados.filter(x => !this._reviewQueue.slice(this._reviewIdx).includes(x)));
-          this._ordenarComoAnki(null);
-          this.renderReviewCard(box);
-          return true;
-        }
-        // conta CARDS DISTINTOS, não as repetições dos passos de aprendizado
-        const distintos = new Set(this._reviewQueue).size;
-        box.innerHTML = `<div class="card"><div class="cards-review-done"><div class="big">🎉</div><h3>Sessão concluída!</h3><p>Você revisou ${distintos} card(s). O app agendou a próxima revisão de cada um.</p><button type="button" class="btn-primary" id="cards-review-restart">Ver se há mais</button></div></div>`;
-        const rb = document.getElementById('cards-review-restart');
-        if (rb) rb.addEventListener('click', () => { this.invalidateReviewQueue(); this.renderContent(); });
-        this.updateFavCount();
-        // se ainda há passos de aprendizado pendentes, reabre a fila sozinho quando vencerem
-        const agoraFim = Date.now(), pendHoje = this.currentFilteredCards()
-          .filter(c => !c.suspenso && c.dueTs && c.dueTs > agoraFim && (c.due || todayCards()) <= todayCards())
-          .map(c => c.dueTs).sort((a, b) => a - b);
-        const prox = pendHoje.length ? pendHoje[0] : (this._queueMeta || {}).proximoTs;
-        clearTimeout(this._etaTimer);
-        // Fila vazia: como counts() do Anki, só renova o corte "agora" e segue com
-        // a MESMA lista de aprendizado (sem remontar e reordenar tudo).
-        if (prox) this._etaTimer = setTimeout(() => {
-          if (this.tab !== 'revisar') return;
-          this._ordenarComoAnki(null);
-          if (this._reviewIdx < this._reviewQueue.length) this.renderReviewCard(document.getElementById('cards-content'));
-          else { this.invalidateReviewQueue(); this.renderContent(); }
-        }, Math.max(1000, prox - Date.now() + 200));
-        return true;
-      }
-      this.renderReviewCard(box);
-      return true;
-    } finally {
-      this._answering = false;
-    }
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.answer==='function')return CardsOfficialBridge.answer(grade);
+    showToast('Motor oficial do Anki indisponível. A resposta não foi gravada.');
+    return false;
   },
   // Quantos cards a lista mostra por vez. Antes ela montava TODOS os cards
   // filtrados de uma vez — cada um com o HTML rico completo, imagens em base64
@@ -1790,7 +549,7 @@ const CardsScreen = {
             </span>
             <button type="button" class="cards-fav-star ${c.favorito ? 'on' : ''}" data-fav="${c.id}" title="Favoritar">${c.favorito ? '★' : '☆'}</button>
           </div>
-          <div class="mini-card-front">${c.kind === 'cloze' ? CardEngine.clozeRender(frenteSan, false) : (frenteSan || '<em style="color:var(--text-faint)">(vazio)</em>')}</div>
+          <div class="mini-card-front">${frenteSan || '<em style="color:var(--text-faint)">(vazio)</em>'}</div>
           <div class="mini-card-foot">
             <span class="cards-status-dot ${c.status || 'pendente'}"></span>
             <span class="mini-card-status">${c.status === 'sei' ? 'Sei' : c.status === 'naosei' ? 'Não sei' : 'Pendente'}</span>
@@ -1802,7 +561,7 @@ const CardsScreen = {
             <span style="flex:1"></span>
             ${c.suspenso ? `<button type="button" class="icon-btn" data-unsusp="${c.id}" title="Reativar card" aria-label="Reativar card">▶</button>` : ''}
             <button type="button" class="icon-btn mini-edit" data-edit="${c.id}" title="Editar" aria-label="Editar">✎</button>
-            <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir" aria-label="Excluir">×</button>
+            <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir nota" aria-label="Excluir nota">×</button>
           </div>
         </div>`;
   },
@@ -1816,7 +575,8 @@ const CardsScreen = {
       box.innerHTML = this.emptyState('Nenhum card nos filtros', 'Ajuste a busca ou os filtros acima.');
       return;
     }
-    const st = CardEngine.stats(filtered);
+    const st={pendente:0,sei:0,naosei:0,suspensos:0};
+    filtered.forEach(c=>{const k=c.status||'pendente';st[k]=(st[k]||0)+1;if(c.suspenso)st.suspensos++;});
     // Ao voltar de uma edição, mantém a quantidade que já estava aberta — senão a
     // lista "encolheria" sozinha depois de você carregar mais e mexer num card.
     // O teto existe para que um re-render nunca volte a montar milhares de cards
@@ -1891,16 +651,16 @@ const CardsScreen = {
       UI.confirm(
         'Excluir ' + qtd + ' card(s)? Esta ação não pode ser desfeita.',
         { title: '🗑 Excluir cards', okText: 'Excluir ' + qtd, danger: true }
-      ).then((ok) => {
+      ).then(async(ok) => {
         if (!ok) return;
-        const ids = new Set(sel);
-        if (window.StudyGlobalScope && StudyGlobalScope.deleteCards) StudyGlobalScope.deleteCards(ids);
-        else DB.saveCards(DB.getCards().filter(c => !ids.has(c.id)));
-        CardEngine.invalidateDueCache();
-        sel.clear();
-        this._meusMostrando = 0;
-        this.render();
-        showToast(qtd + ' card(s) excluído(s) 🗑');
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteNotesForCardRefs!=='function'){
+          showToast('Exclusão não executada: Collection oficial indisponível.');return;
+        }
+        try{
+          const out=await CardsOfficialBridge.deleteNotesForCardRefs([...sel]);
+          sel.clear();this._meusMostrando=0;this.render();
+          showToast(out.deletedNotes+' nota(s) excluída(s) pelo Anki oficial ✓');
+        }catch(e){showToast('Exclusão não executada: '+(e&&e.message?e.message:String(e)));}
       });
     });
     // Mover em massa: reatribui o baralho dos cards selecionados — sem tocar
@@ -1916,25 +676,19 @@ const CardsScreen = {
       const sourcePlanId=origins.size?[...origins][0]:null;
       const decks=this.destinationDecks(sourcePlanId);
       if (!decks.length) { showToast('Crie um baralho primeiro no planejamento de origem'); return; }
-      const opts = [{ value: '__nenhum__', label: '— Sem baralho —' }]
-        .concat(decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') })));
+      const opts = decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') }));
       UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
         { title: '📁 Mover para baralho', okText: 'Mover' }
-      ).then((v) => {
+      ).then(async(v) => {
         if (!v) return;
-        const ids = new Set(sel);
-        const deckId = v.deck === '__nenhum__' ? null : v.deck;
-        if (window.StudyGlobalScope && StudyGlobalScope.moveCards) StudyGlobalScope.moveCards(ids, deckId);
-        else {
-          const list = DB.getCards();
-          list.forEach(c => { if (ids.has(c.id)) c.deckId = deckId; });
-          DB.saveCards(list);
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.moveCardRefsToDeck!=='function'){
+          showToast('Movimentação não executada: Collection oficial indisponível.');return;
         }
-        CardEngine.invalidateDueCache();
-        sel.clear();
-        this._meusMostrando = 0;
-        this.render();
-        showToast(qtd + ' card(s) movido(s) ✓');
+        try{
+          const out=await CardsOfficialBridge.moveCardRefsToDeck([...sel],v.deck,sourcePlanId);
+          sel.clear();this._meusMostrando=0;this.render();
+          showToast(out.moved+' card(s) movido(s) pelo Anki oficial ✓');
+        }catch(e){showToast('Movimentação não executada: '+(e&&e.message?e.message:String(e)));}
       });
     });
     syncSel();
@@ -1975,15 +729,16 @@ const CardsScreen = {
       if (ed) { this.openCardModal(ed.dataset.edit); return; }
       const un = e.target.closest('[data-unsusp]');
       if (un) {
-        DB.updateCard(un.dataset.unsusp, { suspenso: false, due: todayCards(), dueTs: null });
-        CardEngine.invalidateDueCache();
-        showToast('Card reativado ✓'); this.renderMeus(box);
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.actionCards!=='function'){showToast('Scheduler oficial do Anki indisponível.');return;}
+        try{await CardsOfficialBridge.actionCards('unsuspend',[un.dataset.unsusp]);showToast('Card reativado pelo Anki oficial ✓');this.renderMeus(box);}
+        catch(err){showToast('Card não reativado: '+(err&&err.message?err.message:String(err)));}
         return;
       }
       const del = e.target.closest('[data-del]');
       if (del) {
-        if (!await UI.confirm('Excluir este card?')) return;
-        DB.deleteCard(del.dataset.del); this.render();
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteNoteForCard!=='function'){showToast('Collection oficial do Anki indisponível.');return;}
+        try{const out=await CardsOfficialBridge.deleteNoteForCard(del.dataset.del,true);if(out)showToast('Nota excluída pelo Anki oficial ✓');}
+        catch(err){showToast('Nota não excluída: '+(err&&err.message?err.message:String(err)));}
       }
     });
   },
@@ -2111,10 +866,20 @@ const CardsScreen = {
   // Há algo que se perderia ao fechar? Para as áreas ricas olha o innerHTML, não o
   // innerText: um card com apenas uma IMAGEM colada tem texto vazio e seria
   // descartado como se estivesse em branco.
+  _plainRich(html){
+    const box=document.createElement('div');box.innerHTML=String(html||'');
+    return String(box.textContent||'').replace(/\u00a0/g,' ').trim();
+  },
+  _richHasContent(html){
+    const raw=String(html||'');
+    if(this._plainRich(raw))return true;
+    return /\[sound:[^\]]+\]/i.test(raw)||/<(?:img|picture|audio|video|svg|canvas|object|embed|iframe|math)\b/i.test(raw)
+      ||/\b(?:src|poster)\s*=\s*["'][^"']+["']/i.test(raw)||/url\(\s*["']?[^)"']+/i.test(raw);
+  },
   cardTemConteudo() {
     const rico = (id) => {
       const e = document.getElementById(id);
-      return !!(e && CardEngine.hasContent(e.innerHTML || ''));
+      return !!(e && this._richHasContent(e.innerHTML || ''));
     };
     const campo = (id) => { const e = document.getElementById(id); return !!(e && (e.value || '').trim()); };
     return rico('card-frente') || rico('card-verso') || campo('card-assunto') || campo('card-materia-tec') || campo('card-banca');
@@ -2129,28 +894,21 @@ const CardsScreen = {
     this.closeCardModal();
   },
   _readCardForm() {
-    let dest = $id('card-destino').value;
-    // "novo:Nome" = baralho padrão oferecido quando o perfil ainda não tem destino
-    // nenhum. Só é criado de fato agora, quando o card vai ser salvo.
-    if (dest.startsWith('novo:')) {
-      const nome = dest.slice(5);
-      const existente = DB.getDecks().find(d => d.nome === nome);
-      const deck = existente || DB.addDeck(nome);
-      dest = 'deck:' + deck.id;
-    }
+    const dest = $id('card-destino').value;
+    // "novo:Nome" declara a intenção de criar o destino. A criação em si
+    // pertence ao DeckManager oficial e acontece no CardsOfficialBridge.
+    const newDeckName=dest.startsWith('novo:')?String(dest.slice(5)||'').trim():'';
     const kind = $id('card-kind').value;
     let frente = $id('card-frente').innerHTML.trim();
     const verso = $id('card-verso').innerHTML.trim();
     if (!dest) { showToast('Escolha o baralho'); return null; }
     if (kind === 'cloze') {
-      // Compatibilidade do editor: {{texto}} é um atalho aceito pela UI,
-      // mas o backend/Anki trabalha com {{cN::texto}}.
-      frente = CardEngine.normalizeCloze(frente);
-      if (!CardEngine.plain(frente)) { showToast('Escreva o texto do cloze'); return null; }
-      if (!CardEngine.hasCloze(frente)) { showToast('Marque ao menos um trecho para ocultar com {{ }}'); return null; }
+      if (!this._richHasContent(frente)) { showToast('Escreva o texto do cloze'); return null; }
+      // A casca não tokeniza nem normaliza Cloze: {{cN::...}} segue intacto
+      // para o NoteType/gerador de cards oficial decidir o conjunto resultante.
     } else {
-      if (!CardEngine.hasContent(frente)) { showToast('Preencha a frente'); return null; }
-      if (!CardEngine.hasContent(verso)) { showToast('Preencha o verso'); return null; }
+      if (!this._richHasContent(frente)) { showToast('Preencha a frente'); return null; }
+      if (!this._richHasContent(verso)) { showToast('Preencha o verso'); return null; }
     }
     const data = {
       assunto: $id('card-assunto').value,
@@ -2158,63 +916,29 @@ const CardsScreen = {
       banca: $id('card-banca').value,
       // "tipo" (Categoria) não tem mais campo na criação/edição — omitido de
       // propósito, para não apagar o valor de cards antigos que já tinham um.
-      kind: kind === 'cloze' ? 'cloze' : 'basic',
+      kind: ['basic_reversed','basic_optional_reversed','typing'].includes(kind) ? kind : (kind === 'cloze' ? 'cloze' : 'basic'),
       frente, verso: kind === 'cloze' ? '' : verso, deckId: null, materia: null,
-      _reversed: kind === 'basic_reversed'
+      _reversed: kind === 'basic_reversed',
+      _addReverse: kind === 'basic_optional_reversed' && !!(document.getElementById('card-add-reverse')||{}).checked
     };
     if (dest.startsWith('deck:')) data.deckId = dest.slice(5);
     else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
+    if(newDeckName)data._newDeckName=newDeckName;
     return data;
   },
   saveCard(closeAfter) {
-    const data = this._readCardForm();
-    if (!data) return;
-    const reversed = data._reversed; delete data._reversed;
-    if (this._editingId) {
-      // Editar uma das faces de "Básico + invertido" edita a NOTA: o irmão é
-      // regenerado com frente/verso trocados, mas mantém seu agendamento próprio.
-      const editId = this._editingId;
-      DB.updateCardNote(editId, data);
-      if (typeof AnkiParity !== 'undefined') {
-        AnkiParity.ensureIdentities();
-        if (data.kind === 'cloze') AnkiParity.syncClozeSiblings(editId);
-      }
-      showToast('Card atualizado ✓'); this.closeCardModal();
-    } else {
-      this._noPlanoDoBaralho(data.deckId, () => {
-        if (reversed) {
-          const noteId = DB._uid();
-          const c = DB.addCard({ ...data, noteId, template: 'forward' });
-          DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
-          if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
-          showToast('2 cards criados (normal + invertido) ✓');
-        } else {
-          const c = DB.addCard(data);
-          if (typeof AnkiParity !== 'undefined') {
-            AnkiParity.ensureIdentities();
-            if (data.kind === 'cloze' && c) {
-              const n = AnkiParity.syncClozeSiblings(c.id);
-              showToast(n + ' card(s) Cloze criado(s) ✓');
-            } else showToast('Card criado ✓');
-          } else showToast('Card criado ✓');
-        }
-      });
-      if (closeAfter) this.closeCardModal();
-      else {
-        $id('card-frente').innerHTML = '';
-        $id('card-verso').innerHTML = '';
-        $id('card-frente').focus();
-      }
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.saveSimpleCard==='function'){
+      void CardsOfficialBridge.saveSimpleCard(closeAfter).catch(e=>showToast('Card não salvo: '+(e&&e.message?e.message:String(e))));
+      return;
     }
-    this.render();
+    showToast('Card não salvo: Anki oficial indisponível.');
   },
   async deleteCard() {
-    if (!this._editingId) return;
-    const c = DB.getCard(this._editingId);
-    const irmaos = c ? this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length : 1;
-    const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
-    if (!await UI.confirm(msg)) return;
-    DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.deleteSimpleCard==='function'){
+      try{return await CardsOfficialBridge.deleteSimpleCard();}
+      catch(e){showToast('Nota não excluída: '+(e&&e.message?e.message:String(e)));return false;}
+    }
+    showToast('Nota não excluída: Anki oficial indisponível.');return false;
   },
 
   // ---- baralhos ----
@@ -2254,19 +978,27 @@ const CardsScreen = {
     }).join('');
     box.querySelectorAll('.deck-row').forEach(row => {
       const id = row.dataset.id;
-      row.querySelector('.deck-name').addEventListener('change', (e) => { DB.renameDeck(id, e.target.value); this.render(); });
+      row.querySelector('.deck-name').addEventListener('change', async (e) => {
+        const value=String(e.target.value||'').trim();
+        if(!value){this.renderDeckList();return;}
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.renameOfficialDeck!=='function'){showToast('Backend oficial do Anki indisponível.');this.renderDeckList();return;}
+        try{await CardsOfficialBridge.renameOfficialDeck(id,value);this.renderDeckList();this.render();showToast('Baralho renomeado pelo Anki oficial ✓');}
+        catch(err){showToast('Baralho não renomeado: '+(err&&err.message?err.message:String(err)));this.renderDeckList();}
+      });
       const fed = row.querySelector('.deck-filter-edit');
       if (fed) fed.addEventListener('click', () => this.openFilteredDeckModal(id));
       row.querySelector('.deck-ver').addEventListener('click', () => this.irParaBaralho(id, 'meus'));
       row.querySelector('.deck-revisar').addEventListener('click', () => this.irParaBaralho(id, 'revisar'));
       row.querySelector('.deck-del').addEventListener('click', async () => {
-        const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(id);
-        const msg = filtrado
-          ? 'Excluir este baralho filtrado? Os cards voltarão aos baralhos e agendamentos de origem.'
-          : 'Excluir este baralho? Os cards dele NÃO são apagados (ficam sem destino).';
-        if (!await UI.confirm(msg)) return;
-        this._noPlanoDoBaralho(id, () => { if (filtrado) AnkiParity.emptyFilteredDeck(id); DB.deleteDeck(id); });
-        CardEngine.invalidateDueCache(); this.renderDeckList(); this.render();
+        const filtrado = typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(id),
+          n=cards.filter(c=>String(c.deckId)===String(id)||String(c.originalDeckId||'')===String(id)).length,
+          msg=filtrado
+            ? 'Excluir este baralho filtrado? O Anki devolverá os cards aos baralhos de origem.'
+            : 'Excluir este baralho? Como no Anki, os '+n+' card(s) nele e notas que ficarem órfãs serão excluídos.';
+        if (!await UI.confirm(msg,{title:'Excluir baralho',okText:'Excluir',danger:true})) return;
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteOfficialDeck!=='function'){showToast('Backend oficial do Anki indisponível.');return;}
+        try{await CardsOfficialBridge.deleteOfficialDeck(id);this.renderDeckList();this.render();showToast('Baralho excluído pela Collection oficial do Anki ✓');}
+        catch(err){showToast('Baralho não excluído: '+(err&&err.message?err.message:String(err)));}
       });
     });
   },
@@ -2283,11 +1015,12 @@ const CardsScreen = {
     const mSel = document.getElementById('cards-f-materia');
     if (mSel) mSel.value = 'deck:' + deckId;
   },
-  addDeck() {
-    const inp = document.getElementById('deck-new-input');
-    const d = DB.addDeck(inp.value);
-    if (!d) { showToast('Digite um nome'); return; }
-    inp.value = ''; this.renderDeckList(); this.render(); showToast('Baralho criado ✓');
+  async addDeck() {
+    const inp=document.getElementById('deck-new-input'),name=String(inp&&inp.value||'').trim();
+    if(!name){showToast('Digite um nome');return;}
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.createOfficialDeck!=='function'){showToast('Backend oficial do Anki indisponível.');return;}
+    try{await CardsOfficialBridge.createOfficialDeck(name);inp.value='';this.renderDeckList();this.render();showToast('Baralho criado pela Collection oficial do Anki ✓');}
+    catch(err){showToast('Baralho não criado: '+(err&&err.message?err.message:String(err)));}
   },
 
   // ---- Estudo Personalizado / Baralhos Filtrados (Anki 26.09.2) ----
@@ -2318,32 +1051,8 @@ const CardsScreen = {
     if(delta)delta.textContent=(mode==='newLimitDelta'||mode==='reviewLimitDelta')?'Quantidade a acrescentar hoje':'Dias';
   },
   runCustomStudy() {
-    if(typeof AnkiParity==='undefined')return;
-    const deckId=(document.getElementById('cards-custom-deck')||{}).value;
-    const kind=(document.getElementById('cards-custom-mode')||{}).value;
-    if(!deckId){showToast('Escolha o baralho de origem');return;}
-    const value=Math.max(0,Number((document.getElementById('cards-custom-value')||{}).value)||0);
-    const input={deckId,kind};
-    if(kind==='cram'){
-      input.cramKind=(document.getElementById('cards-custom-cram-kind')||{}).value||'due';
-      input.limit=Math.max(0,Number((document.getElementById('cards-custom-limit')||{}).value)||0);
-      const tags=id=>String((document.getElementById(id)||{}).value||'').split(',').map(x=>x.trim()).filter(Boolean);
-      input.includeTags=tags('cards-custom-tags-in');input.excludeTags=tags('cards-custom-tags-out');
-    }else if(kind==='newLimitDelta'||kind==='reviewLimitDelta')input.delta=value;
-    else input.days=value;
-    const result=this._noPlanoDoBaralho(deckId,()=>AnkiParity.customStudy(input));
-    if(!result||!result.ok){
-      showToast(result&&result.error==='name-conflict'
-        ? 'Já existe um baralho normal chamado Estudo Personalizado'
-        : 'Nenhum card corresponde aos critérios');return;
-    }
-    document.getElementById('cards-custom-modal').style.display='none';
-    if(result.limitOnly){
-      this.invalidateReviewQueue();this.render();showToast('Limite de hoje atualizado ✓');return;
-    }
-    this.populateFilterOptions();
-    this.irParaBaralho(result.deck.id,'revisar');
-    showToast('Estudo Personalizado criado com '+result.count+' card(s) ✓');
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.runCustomStudy==='function')return CardsOfficialBridge.runCustomStudy();
+    showToast('Estudo Personalizado exige o motor oficial do Anki.');
   },
   _filteredOrderOptions(selected) {
     const vals=[
@@ -2355,24 +1064,14 @@ const CardsScreen = {
     return vals.map(x=>'<option value="'+x[0]+'"'+(Number(selected)===x[0]?' selected':'')+'>'+x[1]+'</option>').join('');
   },
   openFilteredDeckModal(deckId) {
-    if(typeof AnkiParity==='undefined')return;
-    const d=deckId?this.collectionDecks().find(x=>String(x.id)===String(deckId)):null;
-    const cfg=d?AnkiParity.filteredConfig(d):AnkiParity.filteredDefaults();
-    document.getElementById('cards-filtered-id').value=d?d.id:'';
-    document.getElementById('cards-filtered-name').value=d?d.nome:'Baralho filtrado';
-    const t1=(cfg.searchTerms&&cfg.searchTerms[0])||{search:'',limit:100,order:1};
-    const t2=(cfg.searchTerms&&cfg.searchTerms[1])||{search:'',limit:100,order:1};
-    document.getElementById('cards-filtered-search1').value=t1.search||'';
-    document.getElementById('cards-filtered-limit1').value=t1.limit==null?100:t1.limit;
-    document.getElementById('cards-filtered-order1').innerHTML=this._filteredOrderOptions(t1.order);
-    document.getElementById('cards-filtered-search2').value=t2.search||'';
-    document.getElementById('cards-filtered-limit2').value=t2.limit==null?100:t2.limit;
-    document.getElementById('cards-filtered-order2').innerHTML=this._filteredOrderOptions(t2.order);
-    document.getElementById('cards-filtered-reschedule').checked=!!cfg.reschedule;
-    document.getElementById('cards-filtered-again').value=cfg.previewAgainSecs==null?60:cfg.previewAgainSecs;
-    document.getElementById('cards-filtered-hard').value=cfg.previewHardSecs==null?600:cfg.previewHardSecs;
-    document.getElementById('cards-filtered-good').value=cfg.previewGoodSecs==null?0:cfg.previewGoodSecs;
-    document.getElementById('cards-filtered-modal').style.display='flex';
+    const set=(id,v)=>{const e=document.getElementById(id);if(e)e.value=v==null?'':String(v);};
+    set('cards-filtered-id',deckId||'');set('cards-filtered-name','Baralho filtrado');
+    set('cards-filtered-search1','');set('cards-filtered-limit1',100);set('cards-filtered-search2','');set('cards-filtered-limit2',100);
+    const o1=document.getElementById('cards-filtered-order1'),o2=document.getElementById('cards-filtered-order2');
+    if(o1)o1.innerHTML=this._filteredOrderOptions(1);if(o2)o2.innerHTML=this._filteredOrderOptions(1);
+    const res=document.getElementById('cards-filtered-reschedule');if(res)res.checked=false;
+    set('cards-filtered-again',60);set('cards-filtered-hard',600);set('cards-filtered-good',0);
+    const modal=document.getElementById('cards-filtered-modal');if(modal)modal.style.display='flex';
     this.updateFilteredDeckUI();
   },
   updateFilteredDeckUI() {
@@ -2380,28 +1079,8 @@ const CardsScreen = {
     const p=document.getElementById('cards-filtered-preview-fields');if(p)p.style.display=res?'none':'block';
   },
   saveFilteredDeckModal() {
-    if(typeof AnkiParity==='undefined')return;
-    const id=document.getElementById('cards-filtered-id').value||null;
-    const nome=document.getElementById('cards-filtered-name').value.trim();
-    if(!nome){showToast('Informe o nome do baralho');return;}
-    const term=(n)=>({
-      search:document.getElementById('cards-filtered-search'+n).value.trim(),
-      limit:Math.max(0,Number(document.getElementById('cards-filtered-limit'+n).value)||0),
-      order:Number(document.getElementById('cards-filtered-order'+n).value)||0
-    });
-    const t1=term(1),t2=term(2),terms=[t1];if(t2.search||t2.limit)terms.push(t2);
-    const cfg=AnkiParity.filteredDefaults();
-    cfg.reschedule=document.getElementById('cards-filtered-reschedule').checked;
-    cfg.searchTerms=terms;
-    cfg.previewAgainSecs=Math.max(0,Number(document.getElementById('cards-filtered-again').value)||0);
-    cfg.previewHardSecs=Math.max(0,Number(document.getElementById('cards-filtered-hard').value)||0);
-    cfg.previewGoodSecs=Math.max(0,Number(document.getElementById('cards-filtered-good').value)||0);
-    const result=id?this._noPlanoDoBaralho(id,()=>AnkiParity.saveFilteredDeck({id,nome,config:cfg,allowEmpty:true}))
-      :AnkiParity.saveFilteredDeck({id,nome,config:cfg,allowEmpty:true});
-    if(!result||!result.ok){showToast('Não foi possível construir o baralho filtrado');return;}
-    document.getElementById('cards-filtered-modal').style.display='none';
-    this.populateFilterOptions();this.renderDeckList();this.irParaBaralho(result.deck.id,'revisar');
-    showToast('Baralho filtrado reconstruído: '+result.count+' card(s) ✓');
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.saveFilteredDeckModal==='function')return CardsOfficialBridge.saveFilteredDeckModal();
+    showToast('Baralho filtrado exige o motor oficial do Anki.');
   },
 
   // ---- bancas (lista oferecida no seletor "Banca" da criação de card) ----
@@ -2473,287 +1152,185 @@ const CardsScreen = {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   },
-  exportAudit() {
+  async exportAudit() {
     try {
-    const scope = (window.StudyGlobalScope && StudyGlobalScope.cardsScope)
-      ? StudyGlobalScope.cardsScope() : 'plan';
-    // A auditoria segue exatamente o mesmo escopo que o usuário está vendo em
-    // Cards. "Todos" une a memória dos planejamentos; "Este planejamento"
-    // mantém o recorte local. Os helpers preservam _planId/_planNome.
-    /* Para auditoria global, leia as linhas físicas de todos os planos sem a
-       deduplicação visual da tela. Assim IDs antigos reutilizados em dois
-       planejamentos aparecem no arquivo e podem ser diagnosticados. */
-    const cards = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
-      ? StudyGlobalScope.allBy('cards') : this.collectionCards();
-    const revlog = this._statsRevlog(false);
-    const cfg = CardsConfig.get();
-    const daily = CardsConfig._daily();
-    const decks = (scope === 'all' && window.StudyGlobalScope && StudyGlobalScope.allBy)
-      ? StudyGlobalScope.allBy('decks') : this.collectionDecks();
-    const activePlan = (typeof PlanManager !== 'undefined' && PlanManager.getActivePlan)
-      ? PlanManager.getActivePlan() : null;
-    const activePlanId = activePlan ? activePlan.id : null;
-    const now = new Date();
+      const bridge=window.CardsOfficialBridge;
+      if(!bridge||typeof bridge.request!=='function')throw new Error('Collection oficial dos Cards indisponível.');
+      await bridge.bootstrap(false);
+      const [state,status,preferences]=await Promise.all([
+        bridge.request('/api/cards-official/collection/full-state'),
+        bridge.request('/api/cards-official/status'),
+        bridge.getOfficialPreferences()
+      ]);
+      const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan',
+        mirrors=(scope==='all'&&window.StudyGlobalScope&&StudyGlobalScope.allBy)?StudyGlobalScope.allBy('cards'):this.collectionCards(),
+        localDecks=(scope==='all'&&window.StudyGlobalScope&&StudyGlobalScope.allBy)?StudyGlobalScope.allBy('decks'):this.collectionDecks(),
+        activePlan=(typeof PlanManager!=='undefined'&&PlanManager.getActivePlan)?PlanManager.getActivePlan():null,
+        activePlanId=activePlan?activePlan.id:null,
+        officialCards=Array.isArray(state.cards)?state.cards:[],
+        officialNotes=Array.isArray(state.notes)?state.notes:[],
+        officialDecks=Array.isArray(state.decks)?state.decks:[],
+        reviewer=state.reviewer||{finished:true,counts:{},queue_ids:[]},
+        cardIds=new Set(officialCards.map(c=>String(c.id))),
+        noteIds=new Set(officialNotes.map(n=>String(n.id))),
+        queueIds=(reviewer.queue_ids||[]).map(Number);
 
-    // Em escopo global, cardId sozinho não é uma identidade segura: importações
-    // antigas ou cópias de planejamento podem reutilizar IDs. A auditoria usa
-    // planId::cardId para nunca misturar cards/históricos de origens distintas.
-    const auditKey = (planId, cardId) =>
-      String(planId == null ? '' : planId) + '::' + String(cardId == null ? '' : cardId);
-    const planIdOfCard = c => c._planId || activePlanId || null;
-
-    // Agrupa o histórico uma única vez. A versão anterior filtrava o revlog
-    // inteiro para cada card (O(cards × revisões)) e ainda copiava cada revisão
-    // novamente dentro de cards[].reviewLog, praticamente dobrando o arquivo.
-    const reviewsByCard = new Map();
-    revlog.forEach(r => {
-      if (!r) return;
-      const pid = r._planId || activePlanId || null;
-      const k = auditKey(pid, r.cardId);
-      if (!reviewsByCard.has(k)) reviewsByCard.set(k, []);
-      reviewsByCard.get(k).push(r);
-    });
-    reviewsByCard.forEach(logs => logs.sort((a,b) => (a.ts||0) - (b.ts||0)));
-
-    const byCard = {};
-    cards.forEach(c => {
-      const cardPlanId = planIdOfCard(c);
-      const cardPlanName = c._planNome || (cardPlanId && window.StudyGlobalScope && StudyGlobalScope.planName
-        ? StudyGlobalScope.planName(cardPlanId) : (activePlan && activePlan.nome) || null);
-      const key = auditKey(cardPlanId, c.id);
-      const logs = reviewsByCard.get(key) || [];
-      const schedulingLogs=logs.filter(r=>{
-        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
-        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
+      const mirrorByOfficial=new Map();
+      mirrors.forEach(c=>{
+        const oid=bridge._officialId?bridge._officialId(c):Number(c&&c.ankiId);
+        if(!Number.isFinite(Number(oid))||Number(oid)<=0)return;
+        const key=String(oid);
+        if(!mirrorByOfficial.has(key))mirrorByOfficial.set(key,[]);
+        mirrorByOfficial.get(key).push({
+          localId:c.id,
+          planId:c._planId||activePlanId||null,
+          planName:c._planNome||null,
+          materia:c.materia||null,
+          assunto:c.assunto||null,
+          banca:c.banca||null,
+          favorito:!!c.favorito
+        });
       });
-      byCard[key] = {
-        auditKey:key, id:c.id, planId:cardPlanId, planName:cardPlanName,
-        deckId:c.deckId||null, materia:c.materia||null, assunto:c.assunto||null, materiaTec:c.materiaTec||null, tipo:c.tipo||null,
-        createdAt:c.createdAt||null, updatedAt:c.updatedAt||null, phase:c.phase||null, learnStep:c.learnStep??null,
-        due:c.due||null, dueTs:c.dueTs||null, intervalo:c.intervalo??null, reps:c.reps||0, lapses:c.lapses||0,
-        ease:c.ease??null, s:c.s??null, d:c.d??null, status:c.status||null, suspenso:!!c.suspenso,
-        /* lastReview é decisivo para curto vs longo prazo no agendador. */
-        lastReview:c.lastReview||null, algo:c.algo||null,
-        leech:!!c.leech, favorito:!!c.favorito, enterradoAte:c.enterradoAte||null,
-        /* "Era" do estado de memória: identifica cards cujo S inicial veio dos
-           pesos padrão do FSRS-5 (app antigo) em vez do FSRS-6. */
-        eraFsrs: (function(){
-          if (c.s == null) return null;
-          const q = (a) => Math.abs(c.s - a) < 1e-6;
-          if (q(0.40255)||q(1.18385)||q(3.173)||q(15.69105)) return 'fsrs5-inicial';
-          if (q(0.212)||q(1.2931)||q(2.3065)||q(8.2956)) return 'fsrs6-inicial';
-          return 'derivado';
-        })(),
-        reviewCount:logs.length,
-        schedulingReviewCount:schedulingLogs.length,
-        manualReviewCount:logs.length-schedulingLogs.length
+
+      const deckOptions=[];
+      await Promise.all(officialDecks.filter(d=>!d.filtered).map(async d=>{
+        try{
+          const raw=await bridge.request('/api/cards-official/deck/'+encodeURIComponent(d.id)+'/options'),
+            ui=bridge._officialDeckOptionsUi(raw,true);
+          deckOptions.push({
+            deckId:Number(d.id),deckName:d.name||null,currentConfigId:ui.currentId,
+            hasOwnPreset:ui.hasPreset,global:ui.global,config:ui.config,raw
+          });
+        }catch(e){
+          deckOptions.push({deckId:Number(d.id),deckName:d.name||null,error:e&&e.message?e.message:String(e)});
+        }
+      }));
+      deckOptions.sort((a,b)=>Number(a.deckId)-Number(b.deckId));
+
+      const officialWithoutMirror=officialCards
+        .filter(c=>!mirrorByOfficial.has(String(c.id)))
+        .map(c=>({cardId:c.id,noteId:c.note_id,deckId:c.deck_id}));
+      const mirrorWithoutOfficial=[];
+      mirrorByOfficial.forEach((rows,id)=>{
+        if(!cardIds.has(id))mirrorWithoutOfficial.push({officialCardId:Number(id),mirrors:rows});
+      });
+      const queueUnknownIds=queueIds.filter(id=>!cardIds.has(String(id)));
+      const noteCardMissing=[];
+      officialNotes.forEach(n=>(n.card_ids||[]).forEach(id=>{
+        if(!cardIds.has(String(id)))noteCardMissing.push({noteId:n.id,cardId:id});
+      }));
+      const cardsWithMissingNote=officialCards
+        .filter(c=>!noteIds.has(String(c.note_id)))
+        .map(c=>({cardId:c.id,noteId:c.note_id}));
+
+      const rawReviewLog=[];
+      officialCards.forEach(c=>(c.review_logs||[]).forEach(r=>{
+        rawReviewLog.push(Object.assign({_official_card_id:c.id},r));
+      }));
+      rawReviewLog.sort((a,b)=>Number(a.id||a.review_time||0)-Number(b.id||b.review_time||0));
+
+      const planIds=[...new Set([]
+        .concat(mirrors.map(c=>c&&c._planId),localDecks.map(d=>d&&d._planId))
+        .filter(x=>x!=null&&String(x)!==''))];
+      const includedPlans=planIds.map(pid=>({
+        id:pid,
+        name:(window.StudyGlobalScope&&StudyGlobalScope.planName)?StudyGlobalScope.planName(pid):(String(pid)===String(activePlanId)&&activePlan?activePlan.nome:null),
+        paused:!!(typeof PlanManager!=='undefined'&&PlanManager.isPaused&&PlanManager.isPaused(pid)),
+        cardMirrors:mirrors.filter(c=>String(c._planId||activePlanId||'')===String(pid)).length,
+        deckMirrors:localDecks.filter(d=>String(d._planId||activePlanId||'')===String(pid)).length
+      }));
+
+      const anomalies=[];
+      officialWithoutMirror.forEach(x=>anomalies.push(Object.assign({type:'official_card_without_study_mirror'},x)));
+      mirrorWithoutOfficial.forEach(x=>anomalies.push(Object.assign({type:'study_mirror_without_official_card'},x)));
+      queueUnknownIds.forEach(id=>anomalies.push({type:'official_queue_unknown_card',cardId:id}));
+      noteCardMissing.forEach(x=>anomalies.push(Object.assign({type:'official_note_references_missing_card'},x)));
+      cardsWithMissingNote.forEach(x=>anomalies.push(Object.assign({type:'official_card_references_missing_note'},x)));
+      deckOptions.filter(x=>x.error).forEach(x=>anomalies.push({type:'official_deck_options_unreadable',deckId:x.deckId,error:x.error}));
+
+      const payload={
+        schema:'studynomentor-cards-official-audit',
+        version:5,
+        exportedAt:new Date().toISOString(),
+        appDate:todayCards(),
+        purpose:'Fotografia forense da Collection oficial do Anki usada pelos Cards, com metadados de espelho do Study.',
+        authority:{
+          academicState:'Anki official Collection',
+          studyRole:'UI/shell + metadados de planejamento',
+          pinnedVersion:status&&status.pinned_version||'26.09.3',
+          runtimeVersion:status&&status.runtime_version||null,
+          collection:status&&status.collection||'study-cards',
+          schedulerReplay:'disabled',
+          note:'Nenhum estado acadêmico deste arquivo é recalculado por uma implementação local.'
+        },
+        scope:{
+          mode:scope,
+          label:scope==='all'?'Todos os planejamentos':'Este planejamento',
+          activePlanId,
+          activePlanName:activePlan?activePlan.nome:null,
+          includedPlanIds:planIds,
+          includedPlans
+        },
+        environment:{
+          userAgent:navigator.userAgent,
+          language:navigator.language,
+          timezone:Intl.DateTimeFormat().resolvedOptions().timeZone,
+          online:navigator.onLine
+        },
+        official:{
+          status,
+          preferences,
+          reviewer,
+          decks:officialDecks,
+          deckOptions,
+          notetypes:Array.isArray(state.notetypes)?state.notetypes:[],
+          notes:officialNotes,
+          cards:officialCards,
+          rawReviewLog
+        },
+        studyMirror:{
+          cards:mirrors.map(c=>({
+            localId:c.id,
+            officialCardId:bridge._officialId?bridge._officialId(c):Number(c&&c.ankiId)||null,
+            planId:c._planId||activePlanId||null,
+            planName:c._planNome||null,
+            materia:c.materia||null,
+            assunto:c.assunto||null,
+            banca:c.banca||null,
+            favorito:!!c.favorito
+          })),
+          decks:localDecks.map(d=>({
+            localId:d.id,
+            officialDeckId:Number(d&&d.ankiId!=null?d.ankiId:d&&d.id)||null,
+            planId:d._planId||activePlanId||null,
+            planName:d._planNome||null,
+            nome:d.nome||null
+          })),
+          replicas:[...mirrorByOfficial.entries()].map(([officialCardId,rows])=>({officialCardId:Number(officialCardId),mirrors:rows}))
+        },
+        consistency:{
+          source:'identity/linkage checks only; scheduling truth is not recomputed',
+          officialCards:officialCards.length,
+          officialNotes:officialNotes.length,
+          officialDecks:officialDecks.length,
+          revisionEntries:rawReviewLog.length,
+          queueCount:queueIds.length,
+          queueCounts:Object.assign({new:0,learning:0,review:0},reviewer.counts||{}),
+          officialWithoutMirror,
+          mirrorWithoutOfficial,
+          queueUnknownIds,
+          noteCardMissing,
+          cardsWithMissingNote,
+          anomalies
+        }
       };
-    });
-
-    const anomalies = [];
-    cards.forEach(c => {
-      const logs = reviewsByCard.get(auditKey(planIdOfCard(c), c.id)) || [];
-      if ((c.phase === 'learning' || c.phase === 'relearning') && !c.dueTs && !c.due) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'learning_without_due'});
-      if (c.dueTs && Number(c.dueTs) < 0) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'negative_dueTs'});
-      if ((c.reps||0) > 0 && !logs.length) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'reps_without_revlog',reps:c.reps});
-      if (c.phase === 'review' && !(c.intervalo > 0)) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'review_sem_intervalo'});
-      if (typeof c.s === 'number' && (!isFinite(c.s) || c.s < 0.001 || c.s > 36500)) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'s_fora_de_faixa',s:c.s});
-      if (typeof c.d === 'number' && (!isFinite(c.d) || c.d < 1 || c.d > 10)) anomalies.push({cardId:c.id,planId:planIdOfCard(c),type:'d_fora_de_faixa',d:c.d});
-    });
-
-    // Mistura de gerações: cards agendados por pesos padrão de versões diferentes
-    const eras = { f5:0, f6:0 };
-    cards.forEach(c => {
-      if (typeof c.s !== 'number') return;
-      const q = (a) => Math.abs(c.s - a) < 1e-6;
-      if (q(0.40255)||q(1.18385)||q(3.173)||q(15.69105)) eras.f5++;
-      else if (q(0.212)||q(1.2931)||q(2.3065)||q(8.2956)) eras.f6++;
-    });
-    if (eras.f5 > 0 && eras.f6 > 0) {
-      anomalies.push({ type:'mistura_de_geracoes_fsrs', fsrs5:eras.f5, fsrs6:eras.f6,
-        detalhe:'Cards com estado de memória de gerações diferentes do FSRS convivem na coleção. '
-              + 'O mesmo desempenho gera intervalos diferentes conforme a época do card. '
-              + 'Use Configurações → Cards → "Recalcular memória pelo histórico" para uniformizar.' });
-    }
-
-    const planIds = [...new Set([]
-      .concat(cards.map(c => c._planId), decks.map(d => d._planId), revlog.map(r => r && r._planId))
-      .filter(Boolean))];
-
-    /* A configuração dos Cards é do PERFIL, enquanto cards/revlog/decks podem
-       vir de vários planejamentos. A auditoria v4 explicita isso e resolve
-       presets/pesos por baralho, para um auditor não precisar conhecer o código. */
-    const rawProfileWeights = Array.isArray(cfg.weights) && FSRS.pesosValidos(cfg.weights) ? cfg.weights : null;
-    const profileResolvedWeights = (CardsConfig.weights ? CardsConfig.weights() : FSRS.DEFAULT_W).slice();
-    const profileWeightsSource = rawProfileWeights ? 'profile' : 'fsrs-default';
-    const deckConfigurations = decks.map(d => {
-      const deckId = d.id;
-      const preset = CardsConfig.deckPreset ? CardsConfig.deckPreset(deckId) : null;
-      const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
-      const resolvedWeights = (CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights).slice();
-      const presetHasWeights = !!(preset && Array.isArray(preset.weights) && FSRS.pesosValidos(preset.weights));
-      return {
-        auditKey:auditKey(d._planId || activePlanId || null, deckId),
-        planId:d._planId || activePlanId || null,
-        planName:d._planNome || ((d._planId && window.StudyGlobalScope && StudyGlobalScope.planName) ? StudyGlobalScope.planName(d._planId) : null),
-        deckId, deckName:d.nome || null,
-        preset:preset ? JSON.parse(JSON.stringify(preset)) : null,
-        effectiveConfig:JSON.parse(JSON.stringify(effective)),
-        resolvedWeights,
-        weightsSource:presetHasWeights ? 'deck-preset' : profileWeightsSource
-      };
-    });
-
-    const includedPlans = planIds.map(pid => ({
-      id:pid,
-      name:(window.StudyGlobalScope && StudyGlobalScope.planName) ? StudyGlobalScope.planName(pid) : (String(pid) === String(activePlanId) && activePlan ? activePlan.nome : null),
-      paused:!!(typeof PlanManager !== 'undefined' && PlanManager.isPaused && PlanManager.isPaused(pid)),
-      cards:cards.filter(c => String(planIdOfCard(c)) === String(pid)).length,
-      decks:decks.filter(d => String(d._planId || activePlanId || '') === String(pid)).length,
-      revisionEntries:revlog.filter(r => String((r && r._planId) || activePlanId || '') === String(pid)).length
-    }));
-
-    /* Consistência independente do detector legado. Além das anomalias de
-       formato, verifica a identidade durável do revlog, reps×histórico e
-       recompõe S/D pelo histórico FSRS com os pesos efetivos do baralho. */
-    const cardKeys = new Set(Object.keys(byCard));
-    const orphanReviewEntries = [];
-    const historicalReviewEntriesWithoutCard = [];
-    const duplicateReviewIds = [];
-    const seenReviewIds = new Map();
-    revlog.forEach((r, index) => {
-      if (!r) return;
-      const pid = r._planId || activePlanId || null;
-      const ck = auditKey(pid, r.cardId);
-      if (r.cardId == null || String(r.cardId).trim() === '') {
-        orphanReviewEntries.push({ index, planId:pid, cardId:null, reviewId:r.reviewId || null, reason:'missing_card_id' });
-      } else if (!cardKeys.has(ck)) {
-        /* Como no Anki, excluir uma nota/card não apaga seu histórico. Essas
-           linhas são históricas válidas, não corrupção nem "órfãos" a limpar. */
-        historicalReviewEntriesWithoutCard.push({ index, planId:pid, cardId:r.cardId, reviewId:r.reviewId || null });
-      }
-      if (r.reviewId != null) {
-        const rk = auditKey(pid, r.reviewId);
-        if (seenReviewIds.has(rk)) duplicateReviewIds.push({ planId:pid, reviewId:r.reviewId, firstIndex:seenReviewIds.get(rk), duplicateIndex:index });
-        else seenReviewIds.set(rk, index);
-      }
-    });
-    const repsMismatches = [];
-    const memoryReplay = { compared:0, withinTolerance:0, maxRelativeS:0, maxAbsoluteD:0, tolerance:{relativeS:0.005,absoluteD:0.005}, divergences:[] };
-    cards.forEach(c => {
-      const pid = planIdOfCard(c), key = auditKey(pid, c.id);
-      const logs = reviewsByCard.get(key) || [];
-      const schedulingLogs=logs.filter(r=>{
-        const kind=String(r&&r.ankiReviewKind||r&&r.phase||'').toLowerCase();
-        return Number(r&&r.grade)!==0 && kind!=='manual' && kind!=='rescheduled' && kind!=='reset';
-      });
-      if ((c.reps || 0) !== schedulingLogs.length) repsMismatches.push({ planId:pid, cardId:c.id, reps:c.reps || 0, reviewCount:schedulingLogs.length, manualEntries:logs.length-schedulingLogs.length });
-      const deckId = c.originalDeckId || c.deckId;
-      const effective = CardsConfig.forDeck ? CardsConfig.forDeck(deckId) : cfg;
-      if (!effective || effective.algo !== 'fsrs' || typeof c.s !== 'number' || typeof c.d !== 'number' || !schedulingLogs.length) return;
-      const weights = CardsConfig.weightsFor ? CardsConfig.weightsFor(deckId) : profileResolvedWeights;
-      const replay = FSRS.recomputarMemoria ? FSRS.recomputarMemoria(schedulingLogs, weights) : null;
-      if (!replay) return;
-      const relS = Math.abs(c.s - replay.s) / Math.max(Math.abs(replay.s), FSRS.S_MIN || 0.001);
-      const absD = Math.abs(c.d - replay.d);
-      memoryReplay.compared++;
-      memoryReplay.maxRelativeS = Math.max(memoryReplay.maxRelativeS, relS);
-      memoryReplay.maxAbsoluteD = Math.max(memoryReplay.maxAbsoluteD, absD);
-      if (relS <= memoryReplay.tolerance.relativeS && absD <= memoryReplay.tolerance.absoluteD) memoryReplay.withinTolerance++;
-      else memoryReplay.divergences.push({ planId:pid, cardId:c.id, stored:{s:c.s,d:c.d}, replay:{s:replay.s,d:replay.d}, relativeS:relS, absoluteD:absD, reviews:replay.revisoes });
-    });
-    repsMismatches.forEach(x => anomalies.push(Object.assign({type:'reps_vs_revlog'},x)));
-    duplicateReviewIds.forEach(x => anomalies.push(Object.assign({type:'duplicate_review_id'},x)));
-    orphanReviewEntries.forEach(x => anomalies.push(Object.assign({type:'orphan_revlog'},x)));
-    memoryReplay.divergences.forEach(x => anomalies.push(Object.assign({type:'memory_replay_divergence'},x)));
-
-    const collisions = (rows) => {
-      const byId = new Map();
-      (rows || []).forEach(row => {
-        if (!row || row.id == null) return;
-        const id = String(row.id), pid = String(row._planId || activePlanId || '');
-        if (!byId.has(id)) byId.set(id, new Set());
-        byId.get(id).add(pid);
-      });
-      return [...byId.entries()].filter(([,pids]) => pids.size > 1)
-        .map(([id,pids]) => ({id,planIds:[...pids]}));
-    };
-    const cardIdCollisions = collisions(cards), deckIdCollisions = collisions(decks);
-    cardIdCollisions.forEach(x => anomalies.push(Object.assign({type:'card_id_collision_across_plans'},x)));
-    deckIdCollisions.forEach(x => anomalies.push(Object.assign({type:'deck_id_collision_across_plans'},x)));
-
-    const consistency = {
-      cardIdentity:'planId::cardId',
-      reviewIdentity:'planId::reviewId',
-      physicalRowsPreserved:scope === 'all',
-      identityCollisions:{cards:cardIdCollisions,decks:deckIdCollisions},
-      repsVsReviewLog:{checked:cards.length,mismatches:repsMismatches},
-      duplicateReviewIds,
-      orphanReviewEntries,
-      historicalReviewEntriesWithoutCard,
-      memoryReplay
-    };
-
-    const payload = {
-      schema:'diario-estudos-cards-audit', version:4, exportedAt:now.toISOString(), appDate:todayCards(),
-      purpose:'Diagnóstico forense do agendador de cards, FSRS, fila, limites diários e integridade do histórico.',
-      format:{
-        encoding:'utf-8',
-        serialization:'compact-json',
-        cardKey:'planId::cardId',
-        reviewLog:'rawReviewLog é a fonte detalhada única; cards[*].reviewCount evita duplicar o histórico no arquivo.',
-        historicalSnapshots:'rawReviewLog[*].s/d/phase são fotografias do instante da resposta e podem preservar estados de versões antigas. Para validar a memória atual, use grade+ts com configurationResolved e compare com consistency.memoryReplay.'
-      },
-      schedulerReference:{
-        algorithm:'FSRS-6',
-        studyModelVersion:FSRS.VERSAO || 6,
-        fsrsRs:'6.6.2',
-        ankiDifferentialOracle:'26.09.2',
-        latestCompatibleAnki:'26.09.3',
-        note:'Anki 26.09.3 não altera o scheduler/FSRS em relação a 26.09.2; o oráculo diferencial de agendamento permanece aplicável.'
-      },
-      scope:{
-        mode:scope,
-        label:scope === 'all' ? 'Todos os planejamentos' : 'Este planejamento',
-        activePlanId:activePlanId,
-        activePlanName:activePlan ? activePlan.nome : null,
-        includedPlanIds:planIds,
-        includedPlans
-      },
-      environment:{ userAgent:navigator.userAgent, language:navigator.language, timezone:Intl.DateTimeFormat().resolvedOptions().timeZone, online:navigator.onLine },
-      configurationScope:'profile',
-      configuration:cfg,
-      configurationResolved:{
-        profile:{baseConfig:JSON.parse(JSON.stringify(cfg)),resolvedWeights:profileResolvedWeights,weightsSource:profileWeightsSource},
-        decks:deckConfigurations
-      },
-      dailyCountersScope:'profile',
-      dailyCounters:daily,
-      decks,
-      summary:{cards:cards.length, revisionEntries:revlog.length, newCards:cards.filter(c=>CardsScreen._bucket(c)==='new').length, learningCards:cards.filter(c=>CardsScreen._bucket(c)==='learn').length, reviewCards:cards.filter(c=>CardsScreen._bucket(c)==='review').length, anomalies:anomalies.length},
-      queueSnapshot:{
-        generatedAt:now.toISOString(),
-        scope,
-        cardIds:(CardsScreen._reviewQueue || []).slice(),
-        position:CardsScreen._reviewIdx,
-        newRemaining:CardsConfig.newRemaining(),
-        reviewRemaining:CardsConfig.revRemaining(),
-        note:'A fila reflete o escopo exibido; os contadores diários são do perfil e, portanto, compartilhados entre planejamentos.'
-      },
-      consistency,
-      cards:byCard, rawReviewLog:revlog, detectedAnomalies:anomalies
-    };
-    const sufixo = scope === 'all' ? 'todos-planejamentos' : 'planejamento-atual';
-
-    // .txt é deliberado: continua sendo JSON puro, mas é tratado como arquivo
-    // de texto por apps móveis e anexadores, evitando rejeições por MIME .json.
-    // Compacto reduz bastante o tamanho sem perder nenhum dado de diagnóstico.
-    const serialized = JSON.stringify(payload);
-    this._download('auditoria-cards_' + sufixo + '_' + todayLocal() + '.json.txt', serialized, 'text/plain;charset=utf-8');
-    showToast('Auditoria exportada em texto (JSON compacto) ✓');
-    } catch (err) {
-      console.error('Falha ao exportar auditoria dos cards:', err);
-      showToast('Não foi possível exportar. Detalhe: ' + (err && err.message ? err.message : 'erro desconhecido'));
+      const sufixo=scope==='all'?'todos-planejamentos':'planejamento-atual',
+        serialized=JSON.stringify(payload);
+      this._download('auditoria-cards_'+sufixo+'_'+todayLocal()+'.json.txt',serialized,'text/plain;charset=utf-8');
+      showToast('Auditoria oficial exportada em texto (JSON compacto) ✓');
+    } catch(err) {
+      console.error('Falha ao exportar auditoria oficial dos cards:',err);
+      showToast('Não foi possível exportar. Detalhe: '+(err&&err.message?err.message:'erro desconhecido'));
     }
   },
   _exportChecked(id, fallback) {
@@ -2783,50 +1360,50 @@ const CardsScreen = {
       limit:this._ankiExportLimit()
     };
   },
-  exportAnkiNotes() {
+  async exportAnkiNotes() {
     if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
-      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextNotes!=='function')throw new Error('Exportador de notas indisponível');
-      const out=AnkiExport.buildTextNotes(this._ankiTextOptions());
-      this._download('notas-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
-      showToast('Notas do Anki exportadas: '+out.notes.toLocaleString('pt-BR')+' ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.exportOfficialText!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const out=await CardsOfficialBridge.exportOfficialText('notes',this._ankiTextOptions());
+      this._download('notas-anki_'+todayLocal()+'.txt',out.blob,'text/plain;charset=utf-8');
+      showToast('Notas exportadas pela Collection oficial do Anki: '+out.count.toLocaleString('pt-BR')+' ✓');
       $id('cards-export-modal').style.display='none';
     }catch(err){
-      console.error('Falha ao exportar notas Anki:',err);
+      console.error('Falha ao exportar notas pelo Anki oficial:',err);
       showToast('Não foi possível exportar as notas. Detalhe: '+(err&&err.message?err.message:String(err)));
     }
   },
-  exportAnki() {
+  async exportAnki() {
     if(!this.collectionCards().length){showToast('Nenhum card para exportar');return;}
     try{
-      if(typeof AnkiExport==='undefined'||typeof AnkiExport.buildTextCards!=='function')throw new Error('Exportador de cards indisponível');
-      const out=AnkiExport.buildTextCards({withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
-      this._download('cards-anki_'+todayLocal()+'.txt',out.text,'text/plain;charset=utf-8');
-      showToast('Cards do Anki exportados: '+out.cards.toLocaleString('pt-BR')+' ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.exportOfficialText!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const out=await CardsOfficialBridge.exportOfficialText('cards',{withHtml:this._exportChecked('cards-export-html',true),limit:this._ankiExportLimit()});
+      this._download('cards-anki_'+todayLocal()+'.txt',out.blob,'text/plain;charset=utf-8');
+      showToast('Cards exportados pela Collection oficial do Anki: '+out.count.toLocaleString('pt-BR')+' ✓');
       $id('cards-export-modal').style.display='none';
     }catch(err){
-      console.error('Falha ao exportar cards Anki:',err);
+      console.error('Falha ao exportar cards pelo Anki oficial:',err);
       showToast('Não foi possível exportar os cards. Detalhe: '+(err&&err.message?err.message:String(err)));
     }
   },
   async _exportAnkiPackage(kind) {
     const cards=this.collectionCards();if(!cards.length){showToast('Nenhum card para exportar');return;}
     kind=kind==='colpkg'?'colpkg':'apkg';
-    const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg');
-    const old=btn?btn.textContent:'';
-    if(btn){btn.disabled=true;btn.textContent='⏳ Gerando .'+kind+'…';}
+    const btn=document.getElementById(kind==='colpkg'?'cards-export-colpkg':'cards-export-apkg'),old=btn?btn.textContent:'';
+    if(btn){btn.disabled=true;btn.textContent='⏳ Exportando pelo Anki oficial…';}
     try{
-      if(typeof AnkiExport==='undefined')throw new Error('Exportador Anki completo indisponível');
-      const fn=kind==='colpkg'?AnkiExport.buildCollectionPackage:AnkiExport.buildPackage;
-      if(typeof fn!=='function')throw new Error('Formato .'+kind+' indisponível');
-      const pkg=await fn.call(AnkiExport,this._ankiPackageOptions());
-      this._download('cards-anki_'+todayLocal()+'.'+kind,pkg.bytes,'application/octet-stream');
-      const formato=pkg.legacy?'Legacy/schema 11':'moderno/schema 18';
-      showToast('.'+kind+' '+formato+' exportado: '+pkg.cards.toLocaleString('pt-BR')+' card(s), '+
-        pkg.notes.toLocaleString('pt-BR')+' nota(s) e '+pkg.revlog.toLocaleString('pt-BR')+' revisão(ões) ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.exportOfficialPackage!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const opts=this._ankiPackageOptions(),out=await CardsOfficialBridge.exportOfficialPackage(kind,opts);
+      this._download('cards-anki_'+todayLocal()+'.'+kind,out.blob,'application/octet-stream');
+      const count=out.cards==null
+        ?(kind==='apkg'&&opts.limit&&opts.limit.deckId
+          ?cards.filter(c=>String(c.originalDeckId||c.deckId)===String(opts.limit.deckId)).length
+          :cards.length)
+        :out.cards;
+      showToast('.'+kind+' exportado pela Collection oficial do Anki · '+Number(count||0).toLocaleString('pt-BR')+' card(s) ✓');
       $id('cards-export-modal').style.display='none';
     }catch(err){
-      console.error('Falha ao exportar .'+kind+':',err);
+      console.error('Falha ao exportar .'+kind+' pelo Anki oficial:',err);
       showToast('Não foi possível gerar o .'+kind+'. Detalhe: '+(err&&err.message?err.message:String(err)));
     }finally{
       if(btn){btn.disabled=false;btn.textContent=old||(kind==='colpkg'?'Coleção (.colpkg)':'Anki (.apkg)');}
@@ -2836,7 +1413,7 @@ const CardsScreen = {
   exportColpkg() { return this._exportAnkiPackage('colpkg'); },
   exportJson() {
     const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
-    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 3, exportedAt: new Date().toISOString(), scope, decks: this.collectionDecks(), cards: this.collectionCards(), revlog: this._statsRevlog(false) };
+    const payload = { app: 'diario-estudos', kind: 'cards-backup', version: 3, exportedAt: new Date().toISOString(), scope, decks: this.collectionDecks(), cards: this.collectionCards(), revlog: this._mirrorRevlog() };
     this._download('cards-backup_' + todayLocal() + '.json', JSON.stringify(payload, null, 2), 'application/json');
     showToast('Backup exportado ✓');
     $id('cards-export-modal').style.display = 'none';
@@ -2845,6 +1422,8 @@ const CardsScreen = {
   // ---- importar ----
   openImportModal() {
     this._importParsed = null;
+    this._importFile = null;
+    this._officialCsvMetadata = null;
     const textOpts=document.getElementById('cards-import-text-options');if(textOpts)textOpts.style.display='none';
     const mapBox=document.getElementById('cards-import-field-mapping');if(mapBox)mapBox.innerHTML='';
     const globalTags=document.getElementById('cards-import-global-tags');if(globalTags)globalTags.value='';
@@ -2890,6 +1469,7 @@ const CardsScreen = {
   },
   async handleImportFile(file) {
     if (!file) return;
+    this._importFile = file;
     const fn = document.getElementById('cards-import-name');
     fn.style.display = 'inline-flex'; fn.textContent = '📎 ' + file.name;
     const prev = document.getElementById('cards-import-preview');
@@ -2912,6 +1492,7 @@ const CardsScreen = {
       if (parsed.kind === 'json') n = parsed.cards.length;
       else if (parsed.kind === 'text') {
         n = parsed.rows.length;
+        this._officialCsvMetadata=parsed.metadata;
         const html = document.getElementById('cards-import-html');
         if (html && parsed.headers && Object.prototype.hasOwnProperty.call(parsed.headers, 'html')) html.checked = !!parsed.isHtml;
         this.renderTextImportOptions(parsed);
@@ -2921,95 +1502,15 @@ const CardsScreen = {
         n = Number(parsed.counts.cards) || 0;
         detalhe = ' · ' + (Number(parsed.counts.notes)||0) + ' nota(s)' + (parsed.counts.revlog ? ' · ' + parsed.counts.revlog + ' revisão(ões)' : '');
       }
-      if (!n) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
+      if(parsed.inspectionDeferred){prev.textContent='✓ Arquivo selecionado. O Anki oficial fará a validação e a importação.';prev.style.color='var(--ok)';}
+      else if(parsed.previewOnly){prev.textContent='✓ Prévia oficial: '+n+' linha(s) na amostra.'+detalhe;prev.style.color='var(--ok)';}
+      else if (!n) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
       else { prev.textContent = '✓ ' + n + ' card(s) reconhecido(s)' + detalhe + '.'; prev.style.color = 'var(--good)'; }
     } catch (err) {
       this._importParsed = null;
       prev.textContent = '⚠ ' + (err && err.message ? err.message : String(err));
       prev.style.color = 'var(--bad)';
     }
-  },
-  parseAnkiText(text) {
-    const src = String(text || '');
-    const rawLines = src.split(/\r?\n/);
-    let sep = null;
-    for (const line of rawLines) {
-      const m = /^#separator:(.+)$/i.exec(line.trim());
-      if (!m) continue;
-      const v = m[1].trim().toLowerCase();
-      sep = v === 'tab' ? '\t' : (v === 'comma' ? ',' : (v === 'semicolon' ? ';' : m[1]));
-      break;
-    }
-    /* ── COMENTÁRIO É SÓ NO INÍCIO DE UM CAMPO, NÃO NO MEIO DE UM ────────────
-       O Anki trata linhas iniciadas por '#' como cabeçalho. Filtrar por linha,
-       porém, descarta também a CONTINUAÇÃO de um campo entre aspas que tenha
-       uma quebra de linha seguida de '#' — e aí a linha inteira do card some,
-       sem aviso. A varredura abaixo respeita as aspas: só remove a linha
-       quando ela começa fora de um campo aberto. */
-    const dataLines = [];
-    let dentroDeAspas = false;
-    for (const line of rawLines) {
-      if (!dentroDeAspas && line.trim().startsWith('#')) continue;
-      dataLines.push(line);
-      let q = dentroDeAspas;
-      for (let i = 0; i < line.length; i++) {
-        if (line[i] !== '"') continue;
-        if (q && line[i + 1] === '"') { i++; continue; }
-        q = !q;
-      }
-      dentroDeAspas = q;
-    }
-    const data = dataLines.join('\n');
-    if (!sep) {
-      /* ── A SONDAGEM PRECISA VER O ARQUIVO, NÃO A PRIMEIRA LINHA ────────────
-         Contar separadores só na primeira linha de dados erra sempre que ela é
-         o COMEÇO de um campo entre aspas com quebra de linha: o separador real
-         está na linha seguinte, e o candidato escolhido não aparece em lugar
-         nenhum — o arquivo inteiro vira uma coluna só e todos os cards são
-         descartados por terem menos de dois campos. Aqui a contagem varre o
-         texto inteiro, ignorando o que está dentro de aspas. */
-      const countOutsideQuotes = (ch) => {
-        let n = 0, q = false;
-        for (let i = 0; i < data.length; i++) {
-          if (data[i] === '"') {
-            if (q && data[i + 1] === '"') { i++; continue; }
-            q = !q; continue;
-          }
-          if (!q && data[i] === ch) n++;
-        }
-        return n;
-      };
-      const candidatos = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]];
-      const melhor = candidatos.slice().sort((a, b) => b[1] - a[1])[0];
-      // Nenhum candidato aparece: mantém a tabulação, que é o padrão do Anki.
-      sep = melhor[1] > 0 ? melhor[0] : '\t';
-    }
-
-    const rows = [];
-    let row = [], field = '', quoted = false;
-    const pushRow = () => {
-      row.push(field); field = '';
-      if (row.length >= 2 && row.some(x => String(x).trim())) {
-        rows.push({ frente: String(row[0] || '').trim(), verso: String(row[1] || '').trim(), tags: String(row[2] || '').trim() });
-      }
-      row = [];
-    };
-    for (let i = 0; i < data.length; i++) {
-      const ch = data[i];
-      if (quoted) {
-        if (ch === '"') {
-          if (data[i + 1] === '"') { field += '"'; i++; }
-          else quoted = false;
-        } else field += ch;
-        continue;
-      }
-      if (ch === '"' && field.length === 0) { quoted = true; continue; }
-      if (ch === sep) { row.push(field); field = ''; continue; }
-      if (ch === '\n') { pushRow(); continue; }
-      if (ch !== '\r') field += ch;
-    }
-    if (field.length || row.length) pushRow();
-    return rows;
   },
   async doImport() {
     if (!this._importParsed) { showToast('Escolha um arquivo primeiro'); return; }
@@ -3032,90 +1533,44 @@ const CardsScreen = {
     const fieldColumns=[...document.querySelectorAll('.cards-import-field-col')].sort((a,b)=>Number(a.dataset.fieldOrd)-Number(b.dataset.fieldOrd)).map(x=>Number(x.value)||0);
     let count = 0;
     if (this._importParsed.kind === 'json') {
-      // Backup JSON é restauração de ESTADO, não mera recriação de conteúdo.
-      // Mantém fase, dueTs, S/D, intervalos, lapsos, flags e demais metadados.
-      const backupDecks = this._importParsed.decks || [];
-      const atuaisDecks = DB.getDecks();
-      const idMapDeck = {};
-      backupDecks.forEach(bd => {
-        let nd = atuaisDecks.find(d => String(d.nome || '') === String(bd.nome || ''));
-        if (!nd) { nd = DB.addDeck(bd.nome); if (nd) atuaisDecks.push(nd); }
-        if (nd) idMapDeck[String(bd.id)] = nd.id;
-      });
-
-      /* ── APLICAR UM BACKUP É RESTAURAR, NÃO ACUMULAR ──────────────────────
-         O id do card é a identidade dele. Antes, um id que já existisse na
-         coleção ganhava um id NOVO — de modo que aplicar o mesmo arquivo duas
-         vezes dobrava a coleção, e o segundo conjunto vinha sem histórico
-         próprio. Agora um id conhecido ATUALIZA o card no lugar, e só um id
-         desconhecido entra como card novo. Aplicar o mesmo backup duas vezes
-         passa a ser inócuo. (Importar TSV/CSV continua acrescentando: lá não
-         há id, cada linha é conteúdo novo por definição.) */
-      const existentes = DB.getCards();
-      const porId = new Map(existentes.map(x => [String(x.id), x]));
-      const usados = new Set(porId.keys());
-      const idMapCard = {};
-      this._importParsed.cards.forEach(src => {
-        const antigo = src && src.id != null ? String(src.id) : '';
-        if (antigo) { idMapCard[antigo] = src.id; usados.add(antigo); return; }
-        let nid = DB._uid();
-        while (usados.has(String(nid))) nid = DB._uid();
-        usados.add(String(nid));
-      });
-      const novos = [];
-      this._importParsed.cards.forEach(src => {
-        const antigo = src && src.id != null ? String(src.id) : '';
-        const x = Object.assign({}, src || {});
-        x.id = antigo || DB._uid();
-        x.deckId = deckId || (x.deckId != null && idMapDeck[String(x.deckId)] != null ? idMapDeck[String(x.deckId)] : x.deckId || null);
-        x.materia = materia || x.materia || null;
-        if (x.reversedOf != null && idMapCard[String(x.reversedOf)] != null) x.reversedOf = idMapCard[String(x.reversedOf)];
-        const atual = porId.get(String(x.id));
-        if (atual) Object.assign(atual, x);   // mesmo card: restaura o estado dele
-        else { porId.set(String(x.id), x); novos.push(x); }
-      });
-      DB.saveCards(existentes.concat(novos));
-      DB.sanitizeCardsInPlace();
-
-      const logs = Array.isArray(this._importParsed.revlog) ? this._importParsed.revlog : [];
-      if (logs.length) {
-        /* Mesma regra para o histórico: uma revisão é identificada pelo par
-           (card, instante). Reaplicar o backup não pode multiplicar as
-           revisões — isso falsearia retenção real, contadores e o treino dos
-           pesos. Só entram as linhas que ainda não existem. */
-        const atuaisLogs = DB.getRevlog();
-        const chave = (r) => String(r && r.cardId) + '|' + String(r && r.ts);
-        const conhecidas = new Set(atuaisLogs.map(chave));
-        const lastLog = atuaisLogs.length ? atuaisLogs[atuaisLogs.length - 1] : null;
-        let pos = Math.max(atuaisLogs.length, Number(lastLog && lastLog._position) || 0);
-        const inéditas = [];
-        logs.forEach(r => {
-          const x = Object.assign({}, r);
-          if (x.cardId != null && idMapCard[String(x.cardId)] != null) x.cardId = idMapCard[String(x.cardId)];
-          if (conhecidas.has(chave(x))) return;
-          conhecidas.add(chave(x));
-          // Rebaseia a posição ao anexar o backup a uma coleção existente.
-          // Evita colisões no caminho incremental do Supabase após a importação.
-          x._position = ++pos;
-          inéditas.push(x);
-        });
-        if (inéditas.length) DB.replaceRevlog(atuaisLogs.concat(inéditas));
-      }
-      count = this._importParsed.cards.length;
+      throw new Error('Importação de backup JSON legado foi desativada nos Cards: ela alterava agendamento fora da Collection oficial. Use .apkg/.colpkg ou TXT/CSV pelo importador oficial do Anki.');
     } else if (this._importParsed.kind === 'anki-package') {
-      const r = this._importParsed.format==='colpkg'
-        ? await AnkiImport.importCollectionPackage(this._importParsed)
-        : await AnkiImport.importPackage(this._importParsed, { deckId, withScheduling, withDeckConfigs, mergeNotetypes, updateNotes, updateNotetypes });
-      count = Number(r.cards) || 0;
+      if(!this._importFile)throw new Error('Arquivo original do pacote não está mais disponível.');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialPackage!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const kind=this._importParsed.format==='colpkg'?'colpkg':'apkg',
+        official=await CardsOfficialBridge.importOfficialPackage(this._importFile,{
+          kind,withScheduling,withDeckConfigs,mergeNotetypes,updateNotes,updateNotetypes
+        });
+      await CardsOfficialBridge.syncOfficialPackageImport(official);
+      count = Number(official.cards) || Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'mnemosyne') {
-      const r = AnkiImport.importMnemosyne(this._importParsed, { deckId });
-      count = Number(r.cards) || 0;
+      if(!this._importFile)throw new Error('Arquivo Mnemosyne original não está mais disponível.');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialMnemosyne!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const official=await CardsOfficialBridge.importOfficialMnemosyne(this._importFile,deckId);
+      await CardsOfficialBridge.syncOfficialPackageImport(official);
+      count = Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     } else if (this._importParsed.kind === 'text') {
-      let parsed=this._importParsed;
-      if(delimiterName&&parsed.source)parsed=AnkiImport.parseText(parsed.source,'texto.txt',{delimiter:delims[delimiterName]});
-      const r = AnkiImport.importText(parsed, {deckId,materia,isHtml,forceIsHtml:true,notetypeId,dupeResolution,matchScope,globalTags,updatedTags,
-        fieldColumns,notetypeColumn:readCol('cards-import-col-notetype'),deckColumn:readCol('cards-import-col-deck'),tagsColumn:readCol('cards-import-col-tags'),guidColumn:readCol('cards-import-col-guid')});
-      count = Number(r.notes+r.updated+r.preserved) || Number(r.cards) || 0;
+      if(!this._importFile)throw new Error('Arquivo original de texto não está mais disponível.');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.importOfficialCsv!=='function')throw new Error('Backend oficial do Anki indisponível.');
+      const meta=JSON.parse(JSON.stringify(this._officialCsvMetadata||{})),
+        delimiterMap={tab:0,pipe:1,semicolon:2,colon:3,comma:4,space:5},
+        nt=notetypeId?AnkiParity.getNotetype(notetypeId):null,
+        ntOfficial=nt?Number(nt.ankiId!=null?nt.ankiId:nt.id):null,
+        deckOfficial=deckId?CardsOfficialBridge._officialDeckId(deckId):null,
+        ntCol=readCol('cards-import-col-notetype'),deckCol=readCol('cards-import-col-deck'),
+        tagsCol=readCol('cards-import-col-tags'),guidCol=readCol('cards-import-col-guid');
+      if(delimiterName){meta.delimiter=delimiterMap[delimiterName];meta.force_delimiter=true;}
+      meta.is_html=!!isHtml;meta.force_is_html=true;meta.global_tags=globalTags;meta.updated_tags=updatedTags;
+      meta.dupe_resolution=dupeResolution==='preserve'?1:(dupeResolution==='duplicate'?2:0);
+      meta.match_scope=matchScope==='notetype-and-deck'?1:0;meta.tags_column=tagsCol;meta.guid_column=guidCol;
+      delete meta.global_notetype;delete meta.notetype_column;
+      if(ntCol>0)meta.notetype_column=ntCol;
+      else if(ntOfficial)meta.global_notetype={id:ntOfficial,field_columns:fieldColumns};
+      delete meta.deck_id;delete meta.deck_column;delete meta.deck_name;
+      if(deckCol>0)meta.deck_column=deckCol;else if(deckOfficial)meta.deck_id=Number(deckOfficial);
+      const official=await CardsOfficialBridge.importOfficialCsv(this._importFile,meta);
+      await CardsOfficialBridge.syncOfficialPackageImport(official);
+      count = Number(official.state&&official.state.cards&&official.state.cards.length) || 0;
     }
     $id('cards-import-modal').style.display = 'none';
     this.render();
@@ -3127,141 +1582,68 @@ CardsScreen.openAlgoConfig = function () {
   const decks = CardsScreen.collectionDecks().slice()
     .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }));
   const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
-    decks.map(d => ({ value: d.id, label: '📁 ' + CardsScreen._rotuloBaralho(d, decks) + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
+    decks.map(d => ({ value: d.id, label: '📁 ' + CardsScreen._rotuloBaralho(d, decks) }))
   );
   opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
-  opts.push({ value: '__reset__', label: '🧹 Zerar estatísticas e resíduos…' });
+  opts.push({ value: '__empty__', label: '🧹 Cards vazios · ferramenta oficial Anki…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Como no Anki: FSRS/SM-2 é global. Retenção, passos, limites e demais parâmetros podem variar por preset/baralho.' }],
     { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
       if (!v) return;
-      if (v.scope === '__reset__') { CardsScreen.zerarEstatisticas(); return; }
       if (v.scope === '__bancas__') { CardsScreen.openBancasModal(); return; }
-      CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
+      if (v.scope === '__empty__') {
+        if (window.CardsOfficialBridge && typeof CardsOfficialBridge.openEmptyCards === 'function') void CardsOfficialBridge.openEmptyCards();
+        else showToast('Ferramenta Empty Cards oficial indisponível.');
+        return;
+      }
+      void CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
     });
 };
 
-/* ── ZERAR ESTATÍSTICAS E RESÍDUOS ──────────────────────────────────────────
-   Serve para começar um teste do zero: apaga o histórico de revisões, os
-   contadores do dia e devolve TODOS os cards ao estado "novo" (como o
-   "Esquecer"/Forget do Anki, que restaura a posição na fila de novos).
-   O CONTEÚDO dos cards é preservado — frente, verso, matéria, baralho, tudo
-   fica. Some só o que é progresso.
-   Duas confirmações de propósito: a primeira explica o que vai acontecer, a
-   segunda exige digitar ZERAR. É irreversível e não passa pelo desfazer. */
-CardsScreen.zerarEstatisticas = function () {
-  const scope=(window.StudyGlobalScope&&StudyGlobalScope.cardsScope)?StudyGlobalScope.cardsScope():'plan';
-  const nCards = CardsScreen.collectionCards().length;
-  const nRev = CardsScreen._statsRevlog(false).length;
-  const scopeLabel=scope==='all'?'todos os planejamentos':'este planejamento';
-  UI.confirm(
-    'Isto vai:\n\n' +
-    '• apagar as ' + nRev.toLocaleString('pt-BR') + ' entrada(s) do histórico de revisões\n' +
-    '• devolver os ' + nCards.toLocaleString('pt-BR') + ' card(s) ao estado "novo"\n' +
-    '• zerar os contadores de hoje (novos/revisões)\n' +
-    '• limpar resíduos de cards já excluídos\n\n' +
-    'Escopo: ' + scopeLabel + '.\n' +
-    'O conteúdo dos cards NÃO é apagado — frente, verso, matéria e baralho continuam.\n' +
-    'Não há como desfazer.',
-    { title: '🧹 Zerar estatísticas dos cards', okText: 'Continuar', danger: true }
-  ).then(ok => {
-    if (!ok) return;
-    UI.prompt([{ key: 'txt', label: 'Digite ZERAR para confirmar', type: 'text', value: '',
-      hint: 'Confirmação extra porque a ação é irreversível.' }],
-      { title: '🧹 Confirmar', okText: 'Zerar agora' }).then(v => {
-        if (!v || String(v.txt || '').trim().toUpperCase() !== 'ZERAR') {
-          showToast('Cancelado — nada foi alterado');
-          return;
-        }
-        const r = (window.StudyGlobalScope&&StudyGlobalScope.zeroCardsProgress)
-          ? StudyGlobalScope.zeroCardsProgress(scope) : DB.zerarProgressoCards();
-        CardEngine.invalidateDueCache();
-        CardsScreen._meusMostrando = 0;
-        CardsScreen.invalidateReviewQueue();
-        CardsScreen._undoStack = []; CardsScreen._seenThisSession = new Set();
-        CardsScreen.render();
-        showToast('🧹 Zerado: ' + r.revlog + ' revisão(ões) e ' + r.cards + ' card(s) reiniciado(s)');
-      });
-  });
-};
+/* A antiga ação local “zerar estatísticas” foi removida: o Study não apaga/recria
+   agendamento ou revlog fora das operações expostas pelo Anki oficial. */
 CardsScreen.optimizeFsrsOfficial = async function (deckId) {
-  const globalCfg = CardsConfig.get();
-  if (globalCfg.algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
-  const cfg = CardsConfig.forDeck(deckId == null ? null : deckId);
-  if (!FSRS || typeof FSRS.optimizeOfficial !== 'function') throw new Error('Otimizador oficial FSRS indisponível.');
-
-  const out = await FSRS.optimizeOfficial(this._statsRevlog(false), { deckId: deckId == null ? null : deckId, cfg, cards:this._fsrsCardsForPreset(deckId) });
-  const patch = { weights: out.params.slice(), lastOptim: new Date().toISOString() };
-  if (deckId != null) CardsConfig.setDeckPreset(deckId, patch);
-  else CardsConfig.set(patch);
-  CardEngine.invalidateDueCache();
-  return out;
+  if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.optimizeFsrsPreset !== 'function')
+    throw new Error('Otimizador oficial do Anki indisponível.');
+  const ui=await CardsOfficialBridge.getDeckOptionsUi(deckId==null?null:deckId);
+  if(ui.global.algo!=='fsrs')throw new Error('Ative o FSRS no Anki antes de otimizar parâmetros.');
+  return CardsOfficialBridge.optimizeFsrsPreset(deckId == null ? null : deckId);
 };
 
-CardsScreen._fsrsCardsForPreset = function(deckId){
-  const cards=this.collectionCards().filter(c=>!c.suspenso);
-  if(deckId!=null)return cards.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
-  return cards.filter(c=>{const did=c.originalDeckId||c.deckId;return !(did&&CardsConfig.hasDeckPreset(did));});
-};
 CardsScreen.optimizeAllFsrsPresets = async function(){
-  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes de otimizar parâmetros.');
-  const scopes=[null,...Object.keys(CardsConfig._getPresets?CardsConfig._getPresets():{})],results=[];
-  for(const deckId of scopes){
-    const cards=this._fsrsCardsForPreset(deckId);if(!cards.length){results.push({deckId,skipped:'empty'});continue;}
-    const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId);
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.officialFsrsScopes!=='function')throw new Error('Otimizador oficial do Anki indisponível.');
+  const scopes=await CardsOfficialBridge.officialFsrsScopes(),results=[];
+  if(!scopes.length)throw new Error('Ative o FSRS no Anki antes de otimizar parâmetros.');
+  for(const scope of scopes){
+    const deckId=scope.deckId;
     try{
-      const out=await FSRS.optimizeOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
-      const patch={weights:out.params.slice(),lastOptim:new Date().toISOString()};
-      if(deckId==null)CardsConfig.set(patch);else CardsConfig.setDeckPreset(deckId,patch);
-      results.push({deckId,reviewCount:out.reviewCount,cardCount:out.cardCount,ok:true});
-    }catch(e){results.push({deckId,ok:false,error:e&&e.message?e.message:String(e)});}
-    await new Promise(r=>setTimeout(r,0));
+      const out=await CardsOfficialBridge.optimizeFsrsPreset(deckId);
+      results.push({deckId,configId:scope.configId,fsrsItems:out.fsrsItems,alreadyOptimal:out.alreadyOptimal,ok:true});
+    }catch(e){results.push({deckId,configId:scope.configId,ok:false,error:e&&e.message?e.message:String(e)});}
   }
-  CardEngine.invalidateDueCache();return results;
+  return results;
 };
 CardsScreen.fsrsHealthCheck = async function(deckId){
-  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
-  const cfg=deckId==null?CardsConfig.get():CardsConfig.forDeck(deckId),cards=deckId==null?this._fsrsCardsForPreset(null):this._fsrsCardsForPreset(deckId);
-  return FSRS.healthCheckOfficial(this._statsRevlog(false),{deckId:null,cfg,cards});
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.fsrsHealthCheck!=='function')throw new Error('Health Check oficial do Anki indisponível.');
+  const ui=await CardsOfficialBridge.getDeckOptionsUi(deckId==null?null:deckId);
+  if(ui.global.algo!=='fsrs')throw new Error('Ative o FSRS no Anki antes do Health Check.');
+  return CardsOfficialBridge.fsrsHealthCheck(deckId==null?null:deckId);
 };
-CardsScreen._rescheduleFsrsCard = function(card,cfg,rows,mod){
-  if(!card||card.suspenso||String(card.phase||'')!=='review')return null;
-  const entries=(rows||[]).filter(r=>String(r.cardId)===String(card.id)).sort((a,b)=>(Number(a.ts)||0)-(Number(b.ts)||0));
-  if(!entries.length)return null;
-  let ignoreBeforeMs=0;if(cfg.ignoreRevlogsBefore){const d=new Date(String(cfg.ignoreRevlogsBefore)+'T00:00:00');if(Number.isFinite(d.getTime()))ignoreBeforeMs=d.getTime();}
-  const data=AnkiParity.fsrsMemoryStateData(entries,null,ignoreBeforeMs,cfg.historicalRetention,card);
-  if(!data||!data.lastReviewedAtMs)return null;
-  const w=CardsConfig.weightsFor(card.originalDeckId||card.deckId),retention=Math.max(.7,Math.min(.99,Number(cfg.retention)||.9)),
-    state=FSRS.memoryStateOfficialWithModule(mod,data,w,retention),raw=state.interval,maxIv=Math.max(1,Number(cfg.maxInterval)||36500),
-    previous=data.previousInterval==null?0:Math.max(0,Number(data.previousInterval)||0),
-    min=Math.max(1,FSRS.minReviewFuzzInterval(raw,previous,maxIv)),
-    lastDate=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(Number(data.lastReviewedAtMs)):new Date(Number(data.lastReviewedAtMs)).toISOString().slice(0,10),
-    elapsed=Math.max(0,CardEngine._daysBetween(lastDate,todayCards())),seed=AnkiParity.fuzzSeed(card,true);
-  let iv=cfg.loadBalance?AnkiParity.rescheduleLoadBalance(raw,maxIv,min,seed,card,elapsed):null;
-  if(iv==null)iv=FSRS.fuzzed(raw,seed,maxIv,min);
-  const due=CardEngine.addDays(lastDate,iv),patch={s:state.s,d:state.d,intervalo:iv,dueTs:null,updatedAt:new Date().toISOString()};
-  if(card.originalDeckId)patch.originalDue=due;else patch.due=due;
-  return {patch,interval:iv,previous,due};
-};
-CardsScreen.rescheduleFsrsScope = async function(deckId){
-  const rows=this._statsRevlog(false)||[],all=this.collectionCards(),targets=deckId==null?all:all.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId)),
-    mod=await FSRS._loadOfficialOptimizer();
-  let changed=0;
-  for(const card of targets){
-    const cfg=CardsConfig.forDeck(card.originalDeckId||card.deckId),out=this._rescheduleFsrsCard(card,cfg,rows,mod);if(!out)continue;
-    DB.addRevlog({ts:Date.now()+changed,date:todayCards(),cardId:card.id,grade:0,phase:'review',ankiReviewKind:'rescheduled',intervalo:Number(card.intervalo)||0,lastInterval:Number(card.intervalo)||0,ankiLastInterval:Number(card.intervalo)||0,ankiInterval:Number(out.interval)||0,elapsed:0,time:0,s:card.s||null,d:card.d||null});
-    if(DB.updateCard(card.id,out.patch)!==false)changed++;
-  }
-  CardEngine.invalidateDueCache();return changed;
-};
-
+/* Reagendamento FSRS local removido. Reschedule Cards on Change é executado
+   exclusivamente pelo update_deck_configs/scheduler do Anki oficial. */
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
-CardsScreen.openAlgoConfigFor = function (deckId) {
+CardsScreen.openAlgoConfigFor = async function (deckId) {
   const isDeck = !!deckId;
-  const g = CardsConfig.get();
-  const cfg = isDeck ? CardsConfig.forDeck(deckId) : g;
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.getDeckOptionsUi!=='function'){
+    showToast('Deck Options oficiais indisponíveis.');return;
+  }
+  let official;
+  try{official=await CardsOfficialBridge.getDeckOptionsUi(isDeck?deckId:null);}
+  catch(e){showToast('Deck Options não carregadas do Anki oficial: '+(e&&e.message?e.message:String(e)));return;}
+  const g = official.global;
+  const cfg = official.config;
   const deckName = isDeck ? ((CardsScreen.collectionDecks().find(d => String(d.id) === String(deckId)) || {}).nome || 'baralho') : null;
-  const hasPreset = isDeck && CardsConfig.hasDeckPreset(deckId);
+  const hasPreset = !!official.hasPreset;
   const fields = [
     ...(!isDeck ? [{
       key: 'algo', label: '🧠 Algoritmo de repetição espaçada', type: 'select', value: cfg.algo,
@@ -3277,9 +1659,6 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Card novo: você o revê nesses minutos até fixar (ex.: 1 10).' },
     { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
       hint: 'Ao errar um card já aprendido, ele volta nesses minutos.' },
-    { key: 'lb', label: '⚖️ Balancear carga (Load Balancing)', type: 'select', value: cfg.loadBalance ? '1' : '0',
-      options: [{ value: '1', label: 'Ligado (distribui as revisões)' }, { value: '0', label: 'Desligado' }],
-      hint: 'Escolhe, dentro da janela de dispersão, o dia com menos revisões marcadas.' },
     { key: 'maxInterval', label: '📆 Intervalo máximo (dias)', type: 'number', value: cfg.maxInterval || 36500, min: 1, max: 36500,
       hint: 'Teto de espera entre revisões. Padrão Anki: 36500 (100 anos).' },
     { key: 'leechThreshold', label: '🚫 Erros até marcar como problemático', type: 'number', value: cfg.leechThreshold != null ? cfg.leechThreshold : 8, min: 0, max: 99,
@@ -3446,7 +1825,6 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     const patch = {
       retention: ret,
       learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]),
-      loadBalance: v.lb === '1',
       maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval, 10) || 36500)),
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'suspend' ? 'suspend' : 'tag',
@@ -3499,26 +1877,39 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       graduatingIntervalGood: Math.min(999, Math.max(1, parseInt(v.graduatingIntervalGood, 10) || 1)),
       graduatingIntervalEasy: Math.min(999, Math.max(1, parseInt(v.graduatingIntervalEasy, 10) || 4))
     };
-    if (isDeck) { CardsConfig.setDeckPreset(deckId, patch); showToast('Preset do baralho "' + deckName + '" salvo ✓'); }
-    else {
+    if (!isDeck) {
       patch.algo = v.algo === 'sm2' ? 'sm2' : 'fsrs';
       patch.newCardsIgnoreReviewLimit = v.newCardsIgnoreReviewLimit === '1';
       patch.applyAllParentLimits = v.applyAllParentLimits === '1';
-      CardsConfig.set(patch); showToast('Configuração global salva ✓');
     }
-    const shouldReschedule=v.fsrsReschedule==='1'&&patch.algo!=='sm2'&&CardsConfig.get().algo==='fsrs';
-    const rescheduled=shouldReschedule?await CardsScreen.rescheduleFsrsScope(deckId):0;
-    CardEngine.invalidateDueCache();
-    if(rescheduled)showToast('🔄 '+rescheduled.toLocaleString('pt-BR')+' card(s) reagendado(s) com FSRS ✓');
+    const desiredCfg = Object.assign({}, cfg, patch);
+    const effectiveAlgo = isDeck ? g.algo : desiredCfg.algo;
+    const shouldReschedule = v.fsrsReschedule === '1' && effectiveAlgo === 'fsrs';
+    if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.updateDeckOptions !== 'function') {
+      showToast('Deck Options não salvas: backend oficial do Anki indisponível.');
+      return;
+    }
+    try {
+      await CardsOfficialBridge.updateDeckOptions(deckId, desiredCfg, {
+        hadPreset: !!hasPreset,
+        fsrsReschedule: shouldReschedule,
+        deckName: deckName || 'Default'
+      });
+    } catch (e) {
+      showToast('Deck Options não salvas pelo Anki oficial: ' + (e && e.message ? e.message : String(e)));
+      return;
+    }
+    if (isDeck) showToast('Preset do baralho "' + deckName + '" salvo pelo Anki oficial ✓');
+    else showToast('Configuração global salva pelo Anki oficial ✓');
+    if (shouldReschedule) showToast('🔄 Reagendamento FSRS concluído pelo scheduler oficial do Anki ✓');
     if (CardsScreen.tab === 'revisar') {
       CardsScreen.invalidateReviewQueue();
       CardsScreen.renderContent();
     } else if (CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
 
-  // O Anki expõe a otimização no próprio Deck Options. Aqui o botão usa o
-  // fsrs-rs 6.6.2 vendorado localmente e salva os 21 parâmetros no mesmo
-  // escopo (global/preset) que está sendo configurado.
+  // O Anki expõe a otimização no próprio Deck Options. O botão abaixo chama
+  // compute_fsrs_params no backend oficial e salva os parâmetros no preset oficial.
   if (g.algo === 'fsrs') setTimeout(() => {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
     if (!foot || document.getElementById('cards-optimize-fsrs-btn')) return;
@@ -3530,10 +1921,11 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       const old = b.textContent; b.disabled = true; b.textContent = '⏳ Otimizando…';
       try {
         const out = await CardsScreen.optimizeFsrsOfficial(deckId);
-        showToast('FSRS otimizado com ' + out.reviewCount.toLocaleString('pt-BR') + ' revisões de ' +
-          out.cardCount.toLocaleString('pt-BR') + ' card(s) ✓');
+        showToast(out.alreadyOptimal
+          ? 'FSRS: parâmetros já estão ótimos para ' + out.fsrsItems.toLocaleString('pt-BR') + ' item(ns) ✓'
+          : 'FSRS otimizado pelo Anki oficial com ' + out.fsrsItems.toLocaleString('pt-BR') + ' item(ns) ✓');
         UI._submit(false);
-        setTimeout(() => CardsScreen.openAlgoConfigFor(deckId), 0);
+        setTimeout(() => void CardsScreen.openAlgoConfigFor(deckId), 0);
       } catch (e) {
         b.disabled = false; b.textContent = old;
         showToast('Não foi possível otimizar FSRS: ' + (e && e.message ? e.message : String(e)));
@@ -3541,14 +1933,14 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     });
     foot.insertBefore(b, foot.firstChild);
     const health=document.createElement('button');health.id='cards-fsrs-health-btn';health.type='button';health.className='btn-secondary';health.textContent='🩺 Health Check';
-    health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check: dados insuficientes ('+h.fsrsItems+' itens; requer >300)');else showToast((h.passed?'✅':'⚠')+' Health Check '+(h.passed?'aprovado':'requer atenção')+' · loss '+h.adjustedLogLoss.toFixed(2)+' · RMSE '+h.adjustedRmse.toFixed(2));}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
+    health.addEventListener('click',async()=>{const old=health.textContent;health.disabled=true;health.textContent='⏳ Avaliando…';try{const h=await CardsScreen.fsrsHealthCheck(deckId);if(h.passed==null)showToast('Health Check oficial: resultado indisponível ('+h.fsrsItems+' itens)');else showToast((h.passed?'✅':'⚠')+' Health Check oficial '+(h.passed?'aprovado':'requer atenção')+' · '+h.fsrsItems.toLocaleString('pt-BR')+' item(ns)');}catch(e){showToast('Health Check falhou: '+(e&&e.message?e.message:String(e)));}finally{health.disabled=false;health.textContent=old;}});
     foot.insertBefore(health,b.nextSibling);
     const decide=document.createElement('button');decide.id='cards-fsrs-help-decide-btn';decide.type='button';decide.className='btn-secondary';decide.textContent='🤔 Help Me Decide';
     decide.addEventListener('click',()=>{try{UI._submit(false);}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-tela-cards'); };setTimeout(()=>{if(typeof AnkiMaxStatsMedia!=='undefined'&&AnkiMaxStatsMedia.openSimulator){AnkiMaxStatsMedia.openSimulator();const x=document.getElementById('anki-sim-help');if(x)x.click();}else showToast('Simulador FSRS indisponível');},0);});
     foot.insertBefore(decide,health.nextSibling);
     if(!isDeck){
       const all=document.createElement('button');all.id='cards-optimize-all-fsrs-btn';all.type='button';all.className='btn-secondary';all.textContent='🧠 Otimizar todos os presets';
-      all.addEventListener('click',async()=>{const old=all.textContent;all.disabled=true;all.textContent='⏳ Otimizando presets…';try{const rs=await CardsScreen.optimizeAllFsrsPresets(),ok=rs.filter(x=>x.ok).length,skip=rs.length-ok;showToast('FSRS: '+ok+' preset(s) otimizado(s)'+(skip?' · '+skip+' sem dados suficientes':'')+' ✓');}catch(e){showToast('Falha ao otimizar presets: '+(e&&e.message?e.message:String(e)));}finally{all.disabled=false;all.textContent=old;}});
+      all.addEventListener('click',async()=>{const old=all.textContent;all.disabled=true;all.textContent='⏳ Otimizando presets…';try{const rs=await CardsScreen.optimizeAllFsrsPresets(),ok=rs.filter(x=>x.ok).length,fail=rs.length-ok,optimal=rs.filter(x=>x.ok&&x.alreadyOptimal).length;showToast('FSRS oficial: '+ok+' preset(s) processado(s)'+(optimal?' · '+optimal+' já ótimo(s)':'')+(fail?' · '+fail+' com erro':'')+' ✓');}catch(e){showToast('Falha ao otimizar presets: '+(e&&e.message?e.message:String(e)));}finally{all.disabled=false;all.textContent=old;}});
       foot.insertBefore(all,health.nextSibling);
     }
   }, 60);
@@ -3558,7 +1950,20 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
     if (!foot || document.getElementById('deck-inherit-btn')) return;
     const b = document.createElement('button'); b.id = 'deck-inherit-btn'; b.type = 'button'; b.className = 'btn-secondary'; b.style.marginRight = 'auto'; b.textContent = '↩ Voltar a herdar o global';
-    b.addEventListener('click', () => { UI._submit(false); CardsConfig.clearDeckPreset(deckId); showToast('Baralho "' + deckName + '" voltou a herdar o global ✓'); });
+    b.addEventListener('click', async () => {
+      if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.inheritDeckOptions !== 'function') {
+        showToast('Preset não alterado: backend oficial do Anki indisponível.'); return;
+      }
+      const oldText=b.textContent;b.disabled=true;b.textContent='⏳ Aplicando…';
+      try {
+        await CardsOfficialBridge.inheritDeckOptions(deckId);
+        UI._submit(false);
+        showToast('Baralho "' + deckName + '" voltou a herdar o global pelo Anki oficial ✓');
+      } catch (e) {
+        b.disabled=false;b.textContent=oldText;
+        showToast('Não foi possível restaurar a herança oficial: ' + (e && e.message ? e.message : String(e)));
+      }
+    });
     foot.insertBefore(b, foot.firstChild);
   }, 60);
 };

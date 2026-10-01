@@ -10,7 +10,7 @@ const documentStub={getElementById:()=>null,querySelector:()=>null,querySelector
 
 const editorCtx={console,globalThis:null,queueMicrotask:()=>{},document:documentStub,
   AnkiProductParity:{esc:s=>String(s)},AnkiParity:{},DB:{},CardsScreen:{},sessionStorage:{getItem:()=>null,setItem:()=>{}}
-};editorCtx.globalThis=editorCtx;vm.createContext(editorCtx);
+};editorCtx.window=editorCtx;editorCtx.globalThis=editorCtx;vm.createContext(editorCtx);
 vm.runInContext(readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8'),editorCtx,{filename:'44-anki-max-editor.js'});
 const E=vm.runInContext('AnkiMaxEditor',editorCtx);
 const rich=E._fieldEditorHtml({name:'Resposta',ord:1,sticky:true,rtl:true,fontName:'Noto Sans',fontSize:23,description:'Ajuda'},'<b>x</b>','x');
@@ -31,7 +31,7 @@ const io={
   _renderEditor:()=>{},_nextOrdinal(){return Math.max(0,...this.state.shapes.map(s=>Number(s.ordinal)||0))+1;}
 };
 const ioCtx={console,globalThis:null,queueMicrotask:()=>{},document:documentStub,AnkiImageOcclusion:io,UI:{prompt:()=>Promise.resolve(null)}};
-ioCtx.globalThis=ioCtx;vm.createContext(ioCtx);
+ioCtx.window=ioCtx;ioCtx.globalThis=ioCtx;vm.createContext(ioCtx);
 vm.runInContext(readFileSync(join(ROOT,'src/js/44-anki-max-image-occlusion.js'),'utf8'),ioCtx,{filename:'44-anki-max-image-occlusion.js'});
 const M=vm.runInContext('AnkiMaxImageOcclusion',ioCtx);
 
