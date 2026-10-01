@@ -1,2 +1,2 @@
 source-main: db7bf39dd8b61bc11e30d25144c05d883738a539
-reason: synchronized from validated main
+reason: retry production trigger after GitHub Actions sync was not deployed
