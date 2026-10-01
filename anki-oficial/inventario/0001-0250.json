@@ -1,0 +1,2259 @@
+{
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "range": [
+    1,
+    250
+  ],
+  "files": [
+    {
+      "index": 1,
+      "path": ".cargo/config.toml",
+      "blob_sha": "6dcfac7db201cb1130f67854de3f6d4e5e24be2b",
+      "size": 653,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 2,
+      "path": ".complexipy.toml",
+      "blob_sha": "cb57d21bcbce87570b91adb962e424fb3b4f56f2",
+      "size": 307,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 3,
+      "path": ".config/nextest.toml",
+      "blob_sha": "5f2409d02a1689704191d6056ca1f360f67b9441",
+      "size": 34,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 4,
+      "path": ".cursor/rules/building.md",
+      "blob_sha": "15326d9fa068113c6098ecde2522bf6a2bf1371b",
+      "size": 148,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 5,
+      "path": ".cursor/rules/i18n.md",
+      "blob_sha": "336c9d995110c626dd8038f25aa10b0ea14c1fcf",
+      "size": 768,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 6,
+      "path": ".deny.toml",
+      "blob_sha": "2f353e9d6f24d2d4b6a6fb04a61e4b676ba92a76",
+      "size": 1943,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 7,
+      "path": ".dockerignore",
+      "blob_sha": "08933861641c8cad62ad768ff303a052e63c6bcf",
+      "size": 26,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 8,
+      "path": ".dprint.json",
+      "blob_sha": "3a84d50230d6c3eb67d59378d6a28f4a778d011b",
+      "size": 1032,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 9,
+      "path": ".eslintrc.cjs",
+      "blob_sha": "2f7580621efa37f98ce1f32db98e4e8d9a3ad75f",
+      "size": 2250,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 10,
+      "path": ".gitattributes",
+      "blob_sha": "790be4091646ca63cb7571bd4c104e6d2e3e87ed",
+      "size": 79,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 11,
+      "path": ".github/ISSUE_TEMPLATE/bug-report.md",
+      "blob_sha": "05ba6c7d2efa16f0970110abf604db3c3234c831",
+      "size": 815,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 12,
+      "path": ".github/ISSUE_TEMPLATE/config.yml",
+      "blob_sha": "ea2e2153dea7113999e02a7b9386da734610881d",
+      "size": 576,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 13,
+      "path": ".github/actions/setup-anki/action.yml",
+      "blob_sha": "31e0a06bd51056e389864d2bf7015b4f0599e632",
+      "size": 3298,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 14,
+      "path": ".github/dependabot.yml",
+      "blob_sha": "0211340013e2bd1c982d754964f1d37005976fc0",
+      "size": 1772,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 15,
+      "path": ".github/pull_request_template.md",
+      "blob_sha": "7b60cdad25b22d8e8f6b6c6e6e455d843874b787",
+      "size": 1718,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 16,
+      "path": ".github/scripts/setup_apple_signing.sh",
+      "blob_sha": "cb80e9f271faa66fdf776c6c2cd25375bddfebb2",
+      "size": 1777,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 17,
+      "path": ".github/workflows/auto-close-missing-issue.yml",
+      "blob_sha": "dedc1aa943ca7ff14a7f9d47a89e2a4c560acee4",
+      "size": 4705,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 18,
+      "path": ".github/workflows/check-linked-issue.yml",
+      "blob_sha": "f3f2b644d09a1d027061187efceec10cc73b81c4",
+      "size": 4859,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 19,
+      "path": ".github/workflows/ci.yml",
+      "blob_sha": "60b1310841a59266a608b1f4dde48c8f938074e0",
+      "size": 21214,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 20,
+      "path": ".github/workflows/docs-site.yml",
+      "blob_sha": "5b274333281ab07de5a4365242900ef2e00616a3",
+      "size": 1178,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 21,
+      "path": ".github/workflows/prune-coverage-cache.yml",
+      "blob_sha": "d1609cac67ef2afd3780fb9ae72a38f0f630a216",
+      "size": 2091,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 22,
+      "path": ".github/workflows/publish-audio-package.yml",
+      "blob_sha": "7bdd1eeed6a01c48b10ca6b8375f62795f9c3d45",
+      "size": 4987,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 23,
+      "path": ".github/workflows/release.yml",
+      "blob_sha": "fdc7e910731a94c96829ca7462ac0da869138dbb",
+      "size": 28266,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 24,
+      "path": ".github/workflows/sonar.yml",
+      "blob_sha": "f4f9232b2488e902993bde3a4eb9338584918451",
+      "size": 11110,
+      "repository_area": "github_ci",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 25,
+      "path": ".gitignore",
+      "blob_sha": "132f6870397b9ccd410d2eb5349b98a45a1ad0c8",
+      "size": 305,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 26,
+      "path": ".gitmodules",
+      "blob_sha": "b2db8cd1a91a8fb472d8f8dd00936ac7afe87045",
+      "size": 593,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 27,
+      "path": ".idea.dist/repo.iml",
+      "blob_sha": "a9ec5ee1a6c0fd1203c00469e00f2bfb7f0067ec",
+      "size": 604,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 28,
+      "path": ".mypy.ini",
+      "blob_sha": "54e03ee33d3c0c51db23a3a9e30622158d5310d1",
+      "size": 3712,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 29,
+      "path": ".pre-commit-config.yaml",
+      "blob_sha": "5154f4642c4098d19a8eaa255c26636957c2b99f",
+      "size": 370,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 30,
+      "path": ".prettierrc",
+      "blob_sha": "3c0e2774ee328ce0b59690a2eb06a0b95e499de3",
+      "size": 176,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 31,
+      "path": ".python-version",
+      "blob_sha": "655354de3ca6932fc94e829b9b168992496fe0a6",
+      "size": 8,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 32,
+      "path": ".readthedocs.yaml",
+      "blob_sha": "9a58039569c865983f6b67a1b42b42adfd26a3a1",
+      "size": 405,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 33,
+      "path": ".ruff.toml",
+      "blob_sha": "4fa1ffea665d1936dc1d48451f830067ade97801",
+      "size": 2685,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 34,
+      "path": ".rustfmt-empty.toml",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 35,
+      "path": ".rustfmt.toml",
+      "blob_sha": "89121fe3ce83915ec6f9d3cf08b7c47fd5f82042",
+      "size": 259,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 36,
+      "path": ".version",
+      "blob_sha": "bceaafed72352b62ca9756c76fffb1829d5a1053",
+      "size": 7,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 37,
+      "path": ".vscode.dist/extensions.json",
+      "blob_sha": "5a8d30821fc9bba33f606aa94a065253bcda1bb7",
+      "size": 346,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 38,
+      "path": ".vscode.dist/launch.json",
+      "blob_sha": "daead241b5250edce0c1e69499ce6d6619df2561",
+      "size": 1399,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 39,
+      "path": ".vscode.dist/settings.json",
+      "blob_sha": "af6b315af6929b3dbda5106807bc4bfb648d7ee0",
+      "size": 1901,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 40,
+      "path": ".vscode.dist/tasks.json",
+      "blob_sha": "b89704d2e2c35bf9b8f31d267bf7385ca0f51126",
+      "size": 397,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 41,
+      "path": ".yarnrc.yml",
+      "blob_sha": "7ad34d537da745ab48352c6eaed9bd32383f28bc",
+      "size": 286,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 42,
+      "path": "AGENTS.md",
+      "blob_sha": "681311eb9cf453d0faddf3aacaec7357e97ba8e9",
+      "size": 9,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 43,
+      "path": "CLAUDE.md",
+      "blob_sha": "4722652ea06e669b137019209f1f229b3773ca72",
+      "size": 4672,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 44,
+      "path": "CONTRIBUTORS",
+      "blob_sha": "56007e37045aea2f6270e22c5bfb345353ece156",
+      "size": 14070,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 45,
+      "path": "Cargo.lock",
+      "blob_sha": "8657f234cd08526308b2850f8b85ebc97b4b6048",
+      "size": 147194,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 46,
+      "path": "Cargo.toml",
+      "blob_sha": "61b2ac7805745cfce5bf9f6c21c55373c9c3ce21",
+      "size": 5465,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 47,
+      "path": "LICENSE",
+      "blob_sha": "6aa37a76547f179fec9893a6f4b6064b2681bacb",
+      "size": 1930,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 48,
+      "path": "README.md",
+      "blob_sha": "c753fe54d0f1e64cc31e6e0bf73f50955944f6e2",
+      "size": 1183,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 49,
+      "path": "SECURITY.md",
+      "blob_sha": "c82205feb51e48e1f3658e3c2ff0d19ef168cdfd",
+      "size": 1244,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 50,
+      "path": "build/configure/Cargo.toml",
+      "blob_sha": "a41df4eea3a850c49e642e7ca09dde2f9c15eec9",
+      "size": 269,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 51,
+      "path": "build/configure/src/aqt.rs",
+      "blob_sha": "0cc71bb315f4cc42761a6e3b1bec2ebf99f476fd",
+      "size": 11755,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 52,
+      "path": "build/configure/src/audio.rs",
+      "blob_sha": "ed527455d9cf65e62446914daf4678ccf5d8b67d",
+      "size": 2827,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 53,
+      "path": "build/configure/src/cog.rs",
+      "blob_sha": "9dfa87b60012656d5be268ecb45fa5904afa42f1",
+      "size": 618,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 54,
+      "path": "build/configure/src/installer.rs",
+      "blob_sha": "b85a0bbcd6d5c76fd61610e3ec78fd2be00232cd",
+      "size": 2396,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 55,
+      "path": "build/configure/src/main.rs",
+      "blob_sha": "1a044d068c16f580d730d9044552b319fed73854",
+      "size": 1678,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 56,
+      "path": "build/configure/src/platform.rs",
+      "blob_sha": "3b0dd88e1a8b242f9f626d0b5fabe99951ba34b1",
+      "size": 811,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 57,
+      "path": "build/configure/src/pylib.rs",
+      "blob_sha": "1376fd75beed62499077b7ef359c63ce9287025e",
+      "size": 3518,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 58,
+      "path": "build/configure/src/python.rs",
+      "blob_sha": "de8fe04a66a6c51bb34e297c44e0c5eb94229027",
+      "size": 7876,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 59,
+      "path": "build/configure/src/rust.rs",
+      "blob_sha": "821057fb4a833a9da2262d2f38f69ccfd739a2c3",
+      "size": 7678,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 60,
+      "path": "build/configure/src/web.rs",
+      "blob_sha": "a4f832e5b8bb53aac8da260e1b714a2b01fd4770",
+      "size": 15438,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 61,
+      "path": "build/ninja_gen/Cargo.toml",
+      "blob_sha": "aa2ebe9936c5f102b6e6bf3d0ec93d7d5f3624cc",
+      "size": 1008,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 62,
+      "path": "build/ninja_gen/build.rs",
+      "blob_sha": "66bfc510a6c497ab60177f0fbb6d38ba8bc7e2cd",
+      "size": 551,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 63,
+      "path": "build/ninja_gen/src/action.rs",
+      "blob_sha": "14f08deb5692acb0ce577ef03dab420abb151c20",
+      "size": 2393,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 64,
+      "path": "build/ninja_gen/src/archives.rs",
+      "blob_sha": "3d2120b062a0f7805118645942646232a601bb12",
+      "size": 5546,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 65,
+      "path": "build/ninja_gen/src/bin/update_node.rs",
+      "blob_sha": "32dbf6d4addbddd832830fa53db0b79e193169f2",
+      "size": 8364,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 66,
+      "path": "build/ninja_gen/src/bin/update_protoc.rs",
+      "blob_sha": "499d71d2bcb7fece44702752a142bf7e6e46b41c",
+      "size": 4823,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 67,
+      "path": "build/ninja_gen/src/bin/update_uv.rs",
+      "blob_sha": "5a5d2d2533edfcf62aea740ea045c43d8443e8a5",
+      "size": 5322,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 68,
+      "path": "build/ninja_gen/src/build.rs",
+      "blob_sha": "f7f21a4f7fadbee4923c77619deb31a4516bfa92",
+      "size": 20699,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 69,
+      "path": "build/ninja_gen/src/cargo.rs",
+      "blob_sha": "5b4b60b2a5f6943a0ebba72bfd6e303ae6a8f61d",
+      "size": 8159,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 70,
+      "path": "build/ninja_gen/src/cog.rs",
+      "blob_sha": "19d357ca880540536897724a2002c6517f9358e1",
+      "size": 1670,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 71,
+      "path": "build/ninja_gen/src/command.rs",
+      "blob_sha": "d347a92061420a490d5f19c02c9320beda61a85c",
+      "size": 1923,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 72,
+      "path": "build/ninja_gen/src/configure.rs",
+      "blob_sha": "e93f379f71152088d77a95246dd6b0a07a73223d",
+      "size": 1347,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 73,
+      "path": "build/ninja_gen/src/copy.rs",
+      "blob_sha": "f6dce83778a6c07f7ff1dd409f7b188d99e9692e",
+      "size": 2477,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 74,
+      "path": "build/ninja_gen/src/git.rs",
+      "blob_sha": "4810b029a94bdd1c26c99be29d3d5ef796ece16a",
+      "size": 2479,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 75,
+      "path": "build/ninja_gen/src/hash.rs",
+      "blob_sha": "1f6bfc5a8e5643f00837dc69b79a890973d5c9cd",
+      "size": 368,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 76,
+      "path": "build/ninja_gen/src/input.rs",
+      "blob_sha": "d76da59e88e6db6d96c790f83a7169066ed0ef40",
+      "size": 5319,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 77,
+      "path": "build/ninja_gen/src/lib.rs",
+      "blob_sha": "0920b45366aadb3d70bf0d0f661594974f23475d",
+      "size": 1096,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 78,
+      "path": "build/ninja_gen/src/node.rs",
+      "blob_sha": "b6731e2314ce2fa9e93e1b2ccb2c1bd63dd4d086",
+      "size": 15646,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 79,
+      "path": "build/ninja_gen/src/protobuf.rs",
+      "blob_sha": "1198f653d94f9ca04c9d7a1535c1f8a00bac2c32",
+      "size": 5427,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 80,
+      "path": "build/ninja_gen/src/python.rs",
+      "blob_sha": "d8a1c8d4f71b0acdd0d0034e57611d306c0f0a3f",
+      "size": 10582,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 81,
+      "path": "build/ninja_gen/src/render.rs",
+      "blob_sha": "fd7ca445fb6d44c69189670c517cfaa854e62781",
+      "size": 2047,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 82,
+      "path": "build/ninja_gen/src/rsync.rs",
+      "blob_sha": "c1c29ca5e299824a191d8faf0ba960c4acc0bbd2",
+      "size": 2501,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 83,
+      "path": "build/ninja_gen/src/sass.rs",
+      "blob_sha": "8d651096c9425a4e52cdb94bc90012001524de59",
+      "size": 1293,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 84,
+      "path": "build/ninja_gen/win/update-tools.manifest",
+      "blob_sha": "393219254cc30872df0bdf9544465d9e9d583e3c",
+      "size": 883,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 85,
+      "path": "build/ninja_gen/win/update-tools.rc",
+      "blob_sha": "822278d5464eb211fdec5056e4c446ffdbf4a767",
+      "size": 61,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 86,
+      "path": "build/runner/Cargo.toml",
+      "blob_sha": "8b30acafed1561af2ab79e1d69af21e1763abf23",
+      "size": 788,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 87,
+      "path": "build/runner/build.rs",
+      "blob_sha": "80910ec60f976342fdd916d8c5caf83bea3624bf",
+      "size": 361,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 88,
+      "path": "build/runner/src/archive.rs",
+      "blob_sha": "03f280e37160d023170f9e6171c484b8b671a131",
+      "size": 4700,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 89,
+      "path": "build/runner/src/build.rs",
+      "blob_sha": "6dfa36663c6c09b57e75062a7af999682608442d",
+      "size": 6180,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 90,
+      "path": "build/runner/src/main.rs",
+      "blob_sha": "41cc1fa2e38bfd637423a1370782e243e6e47521",
+      "size": 1442,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 91,
+      "path": "build/runner/src/paths.rs",
+      "blob_sha": "c28dde1b9d89470829e3d995a728e93f71e6e1c7",
+      "size": 639,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 92,
+      "path": "build/runner/src/pyenv.rs",
+      "blob_sha": "30fa4f4096debd5015905b136fb00c6dd59842dd",
+      "size": 1875,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 93,
+      "path": "build/runner/src/rsync.rs",
+      "blob_sha": "8f84b37729e200dbb1ad62461966360f0de512c2",
+      "size": 1067,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 94,
+      "path": "build/runner/src/run.rs",
+      "blob_sha": "c23aa9274fe972799001569951b99b9400980306",
+      "size": 2486,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 95,
+      "path": "build/runner/src/yarn.rs",
+      "blob_sha": "7724ed04ab32e92f817c432066419896f503e8b6",
+      "size": 2023,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 96,
+      "path": "cargo/README.md",
+      "blob_sha": "84ec7a0eaa3086e86bd7cde9a4494c920c525906",
+      "size": 164,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 97,
+      "path": "cargo/format/rust-toolchain.toml",
+      "blob_sha": "42af1fe665a975f1c1da7714c11694d4f3f052dd",
+      "size": 88,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 98,
+      "path": "cargo/licenses.json",
+      "blob_sha": "79f13ddbbd6d6e891d3736d295df8b41b5b091bc",
+      "size": 138434,
+      "repository_area": "build_tools",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 99,
+      "path": "check",
+      "blob_sha": "109105e39b51ad81e35168dc74aa1d0fa74958af",
+      "size": 53,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 100,
+      "path": "docs-site/LICENSE",
+      "blob_sha": "7d4f96c54aa155a17387e64501c50b6a0469932c",
+      "size": 20137,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 101,
+      "path": "docs-site/README.md",
+      "blob_sha": "0e5a8bc94dd6750b5d4935d80b2ac0d62fe8a168",
+      "size": 443,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 102,
+      "path": "docs-site/addons/a-basic-addon.mdx",
+      "blob_sha": "91ce2a5b55b86d7c2ca5415032b8acbd1c272af2",
+      "size": 1145,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 103,
+      "path": "docs-site/addons/addon-config.mdx",
+      "blob_sha": "6b5422b308692e3a50a187d8942a2845e6326965",
+      "size": 2093,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 104,
+      "path": "docs-site/addons/addon-folders.mdx",
+      "blob_sha": "59e68b3b6625bfdfe6f70394182f103ac49099dc",
+      "size": 1695,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 105,
+      "path": "docs-site/addons/background-ops.mdx",
+      "blob_sha": "3aacdadeb0c946e491394330edeae16e0fdecb70",
+      "size": 4881,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 106,
+      "path": "docs-site/addons/command-line-use.mdx",
+      "blob_sha": "480974f9afb4dc95ff33f7a378b73b0e668767c3",
+      "size": 479,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 107,
+      "path": "docs-site/addons/console-output.mdx",
+      "blob_sha": "3ea387f0ac4c914684593351df44ba0f5e96a6dd",
+      "size": 1215,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 108,
+      "path": "docs-site/addons/debugging.mdx",
+      "blob_sha": "21379c144c282c71cc8d2209f60c5a2afe41e13d",
+      "size": 3220,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 109,
+      "path": "docs-site/addons/editor-setup.mdx",
+      "blob_sha": "cbe32526ff060a06386072eef79f6782d56fa329",
+      "size": 2252,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 110,
+      "path": "docs-site/addons/hooks-and-filters.mdx",
+      "blob_sha": "99b0400caa36d4dc106799f605eda7819640c47f",
+      "size": 9789,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 111,
+      "path": "docs-site/addons/hooks-reference.mdx",
+      "blob_sha": "63d87698f0287fb311c52b1da0a62dc5405848e1",
+      "size": 4515,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 112,
+      "path": "docs-site/addons/intro.mdx",
+      "blob_sha": "511f90cd2ddf1ba48590e087859da9a44cfa4956",
+      "size": 1259,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 113,
+      "path": "docs-site/addons/monkey-patching.mdx",
+      "blob_sha": "16a50229a9dd4ad9c087090a0c01353dc5b3dfe4",
+      "size": 3197,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 114,
+      "path": "docs-site/addons/mypy.mdx",
+      "blob_sha": "8d8f50bc23a3176f28ce6914e928fe4d1d28f7b5",
+      "size": 2691,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 115,
+      "path": "docs-site/addons/porting2.0.mdx",
+      "blob_sha": "76337d60b9bf33b66d7f2f894f090bc045a6904a",
+      "size": 6003,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 116,
+      "path": "docs-site/addons/porting2.1.x.mdx",
+      "blob_sha": "98c8a19597bd87e94a0539d5671aa51002465c16",
+      "size": 180,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 117,
+      "path": "docs-site/addons/python-modules.mdx",
+      "blob_sha": "ec2fa6fadf9f3c661e95d157ad211c745ffae6ea",
+      "size": 713,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 118,
+      "path": "docs-site/addons/qt.mdx",
+      "blob_sha": "2d02d633eeb8b3f1ccbf8c318a7f575e67f67ce5",
+      "size": 1886,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 119,
+      "path": "docs-site/addons/reviewer-javascript.mdx",
+      "blob_sha": "c58bce1e03904ad17c7ffb560034214ec03a0a9b",
+      "size": 1990,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 120,
+      "path": "docs-site/addons/sharing.mdx",
+      "blob_sha": "e86b370d72fa3921f9f9da0adaa5ea093968cd8f",
+      "size": 1817,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 121,
+      "path": "docs-site/addons/support.mdx",
+      "blob_sha": "721af3d92a03bf48dcce4c4161a650421032dfbd",
+      "size": 755,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 122,
+      "path": "docs-site/addons/the-anki-module.mdx",
+      "blob_sha": "74dcf4447c2e7f192fadb3bb330b3ff02dd3eb3e",
+      "size": 6270,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 123,
+      "path": "docs-site/ankimobile/beta-testing.mdx",
+      "blob_sha": "95f89019704aa33a7d381d7a24bcb9f806c56113",
+      "size": 1525,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 124,
+      "path": "docs-site/ankimobile/collection-transfer.mdx",
+      "blob_sha": "0212948688e8c9bdd7268d07c6f53f86215c9c47",
+      "size": 3922,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 125,
+      "path": "docs-site/ankimobile/custom-fonts.mdx",
+      "blob_sha": "28d616226442670d64bb7a85aff980a8aa18796e",
+      "size": 805,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 126,
+      "path": "docs-site/ankimobile/deck-list.mdx",
+      "blob_sha": "8e26eb0c0e130d8192565fd17bbde5ab2d2445d2",
+      "size": 1937,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 127,
+      "path": "docs-site/ankimobile/editing.mdx",
+      "blob_sha": "5e32177af46b8b77f7cf95016b520b61549765c1",
+      "size": 3389,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 128,
+      "path": "docs-site/ankimobile/interface-language.mdx",
+      "blob_sha": "7b05f7fb0982046393fedf9668a78bc7531a0186",
+      "size": 1702,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 129,
+      "path": "docs-site/ankimobile/intro.mdx",
+      "blob_sha": "81304360ea219a93d0877942d77f06c074b3e4f7",
+      "size": 782,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 130,
+      "path": "docs-site/ankimobile/mathjax.mdx",
+      "blob_sha": "9c2c80f81bd180d9a7e15d3f9b84d1cda8d854de",
+      "size": 376,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 131,
+      "path": "docs-site/ankimobile/more.mdx",
+      "blob_sha": "f8c5113ec32b834e3c73efc237abff0f32df4a6d",
+      "size": 1070,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 132,
+      "path": "docs-site/ankimobile/night-mode.mdx",
+      "blob_sha": "390517fe4f029c0467054b0b11cefa0be83c20a3",
+      "size": 460,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 133,
+      "path": "docs-site/ankimobile/preferences.mdx",
+      "blob_sha": "9f71738baefd8acb9b8d1331cd9b7f810973754f",
+      "size": 9444,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 134,
+      "path": "docs-site/ankimobile/reinstalling.mdx",
+      "blob_sha": "3073cec81ff5bbf3fc6c69000d9f81a3ac1e838d",
+      "size": 967,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 135,
+      "path": "docs-site/ankimobile/shared-decks.mdx",
+      "blob_sha": "5196333f48585e73a45d560be0eb5b930671a4b7",
+      "size": 855,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 136,
+      "path": "docs-site/ankimobile/study-screen.mdx",
+      "blob_sha": "b9bb0003b06e4c28cf0818ac93c1823f21f9618f",
+      "size": 2555,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 137,
+      "path": "docs-site/ankimobile/study-tools.mdx",
+      "blob_sha": "5d9b9e600a421485efaf53171af345f4f3a2f6be",
+      "size": 7117,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 138,
+      "path": "docs-site/ankimobile/support.mdx",
+      "blob_sha": "5fccc04a4ee34b6d222a77a065ea7fac08305fcc",
+      "size": 672,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 139,
+      "path": "docs-site/ankimobile/syncing.mdx",
+      "blob_sha": "b09213c4fe8f4f68add06d3e4524d3562933e102",
+      "size": 4527,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 140,
+      "path": "docs-site/ankimobile/tts.mdx",
+      "blob_sha": "19e0fd9ea0898a135c3fed69401688e399f32f0b",
+      "size": 914,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 141,
+      "path": "docs-site/ankimobile/url-schemes.mdx",
+      "blob_sha": "317b338c5cb5c0275d9940ec344b178358786db5",
+      "size": 5818,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 142,
+      "path": "docs-site/ar/faqs/a-deck-i-want-has-disappeared-from-ankiweb.mdx",
+      "blob_sha": "05618324f61cdafa9a76a2ba81615908a6d1cc4c",
+      "size": 486,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 143,
+      "path": "docs-site/ar/faqs/a-shared-deck-is-not-showing-images-or-playing-audio.mdx",
+      "blob_sha": "ac1c68568aafa5be8834cefc09fd2b6cfdf88463",
+      "size": 1170,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 144,
+      "path": "docs-site/ar/faqs/anki-2.0-add-ons.mdx",
+      "blob_sha": "6c8cd665ddf2ecf5ecb6e17f1e5f6618abb525d2",
+      "size": 1241,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 145,
+      "path": "docs-site/ar/faqs/anki-2.0-support-has-ended.mdx",
+      "blob_sha": "c0dfe5b4d280cd5879fa6c3aee0f3372947de95d",
+      "size": 1498,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 146,
+      "path": "docs-site/ar/faqs/anki-is-not-showing-me-all-my-cards.mdx",
+      "blob_sha": "f7ce5af208b50da55452ca75729efe153281fb41",
+      "size": 4539,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 147,
+      "path": "docs-site/ar/faqs/anki-must-be-able-to-connect-to-a-local-port.mdx",
+      "blob_sha": "48e064409b8898d8ef697af51269aea1914afff3",
+      "size": 712,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 148,
+      "path": "docs-site/ar/faqs/anki-says-my-clock-is-wrong.mdx",
+      "blob_sha": "989236fd98b1b28d26f2930f6adde25c5bcf1744",
+      "size": 2154,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 149,
+      "path": "docs-site/ar/faqs/ankidroid-has-a-separate-support-site.mdx",
+      "blob_sha": "433924904474523da85d86d9d4c29e892ff56acb",
+      "size": 240,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 150,
+      "path": "docs-site/ar/faqs/ankiuniversal-is-not-supported-here.mdx",
+      "blob_sha": "69ec512a0b560ad88e831b714098f5e14abab7fe",
+      "size": 517,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 151,
+      "path": "docs-site/ar/faqs/ankiweb-account-removal.mdx",
+      "blob_sha": "d0fc99468e78c7a6d3102a15adf7f076f121a8e4",
+      "size": 3202,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 152,
+      "path": "docs-site/ar/faqs/are-there-limits-on-file-sizes-on-ankiweb.mdx",
+      "blob_sha": "faf7c1a9cf30e67f5d762d2f08299509546bcb50",
+      "size": 1487,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 153,
+      "path": "docs-site/ar/faqs/can-i-reveal-parts-of-a-card-one-at-a-time.mdx",
+      "blob_sha": "02cedd63799c3461ccb74990afa173ac02f2193c",
+      "size": 2048,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 154,
+      "path": "docs-site/ar/faqs/can-i-sync-only-some-of-my-decks.mdx",
+      "blob_sha": "c78080cafcc5956857b28ecdf85608dcc612207f",
+      "size": 1595,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 155,
+      "path": "docs-site/ar/faqs/can-i-use-anki-in-a-company-or-school.mdx",
+      "blob_sha": "64f302ca8cd83d02b6ffb18b4ab529df77e27179",
+      "size": 2049,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 156,
+      "path": "docs-site/ar/faqs/card-template-has-a-problem.mdx",
+      "blob_sha": "c8fb0f29cf865da43bb658e94130952bede8a72e",
+      "size": 3423,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 157,
+      "path": "docs-site/ar/faqs/cards-are-being-placed-in-the-default-deck.mdx",
+      "blob_sha": "e29e16603e8fd094faea4e0186581b1a807fdb17",
+      "size": 380,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 158,
+      "path": "docs-site/ar/faqs/cards-are-reversed-appearing-twice.mdx",
+      "blob_sha": "93c8d8b53fbedc3290ea1f28e9743debc5a8b16e",
+      "size": 1183,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 159,
+      "path": "docs-site/ar/faqs/changing-the-font.mdx",
+      "blob_sha": "79c3a8820080cffffc45878f4e413eef97ff8101",
+      "size": 939,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 160,
+      "path": "docs-site/ar/faqs/changing-the-interface-language.mdx",
+      "blob_sha": "1a4390f70645cb5e522708f5e4ed18a3633916e4",
+      "size": 645,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 161,
+      "path": "docs-site/ar/faqs/characters-are-cut-off.mdx",
+      "blob_sha": "1f20691807b49b4ada48c5c3613785adb99d0a3d",
+      "size": 1272,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 162,
+      "path": "docs-site/ar/faqs/customizing-mathjax.mdx",
+      "blob_sha": "f50491a7fb555bba60b1c92990ca50ece9889ba3",
+      "size": 801,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 163,
+      "path": "docs-site/ar/faqs/due-times-after-a-break.mdx",
+      "blob_sha": "1c5078299c42e886f39735672dbbd24683fcd39f",
+      "size": 3900,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 164,
+      "path": "docs-site/ar/faqs/email-verification.mdx",
+      "blob_sha": "7dc7096dd7c6b43db0c3c7ca921d5c1d2075db06",
+      "size": 961,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 165,
+      "path": "docs-site/ar/faqs/emails-not-being-received.mdx",
+      "blob_sha": "360f1c7e9d61975205691d0f16ee4e9e29d8684d",
+      "size": 1067,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 166,
+      "path": "docs-site/ar/faqs/error-establishing-a-secure-connection-when-syncing.mdx",
+      "blob_sha": "14f164197e6b705c90a532d70d9362b93bca528a",
+      "size": 1531,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 167,
+      "path": "docs-site/ar/faqs/errors-when-recording.mdx",
+      "blob_sha": "6c20dc0e4880f9ccf87b5bcd78dcb432d2c1aafc",
+      "size": 1016,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 168,
+      "path": "docs-site/ar/faqs/extra-characters-appearing-on-cards.mdx",
+      "blob_sha": "d1aef86af6ce6e23348e1607408be1737b4583d0",
+      "size": 1480,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 169,
+      "path": "docs-site/ar/faqs/extra-copies-of-a-card-are-coming-up.mdx",
+      "blob_sha": "089f6b4bd01c19d8342872debf30ad4908d29caa",
+      "size": 757,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 170,
+      "path": "docs-site/ar/faqs/hard-good-interval-longer-than-good-easy.mdx",
+      "blob_sha": "a32df763c83600f2dfeab663a337e9ce13f55620",
+      "size": 576,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 171,
+      "path": "docs-site/ar/faqs/hiding-decks.mdx",
+      "blob_sha": "d9d607a3ae914398fe788d2d16abb2e58f00eb85",
+      "size": 2171,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 172,
+      "path": "docs-site/ar/faqs/how-can-i-donate.mdx",
+      "blob_sha": "12d47e93ba93dacf43b3cdd4ce612b46713a79ee",
+      "size": 1134,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 173,
+      "path": "docs-site/ar/faqs/how-can-i-work-with-someone-else-to-create-a-deck.mdx",
+      "blob_sha": "90d491fce44fae5f52e133fc238d7a5eb0ca5a79",
+      "size": 1898,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 174,
+      "path": "docs-site/ar/faqs/how-do-i-move-cards-between-decks.mdx",
+      "blob_sha": "88d00780b1ed24a24af3981ce526f69447857111",
+      "size": 964,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 175,
+      "path": "docs-site/ar/faqs/i-am-going-on-vacation-can-i-pause-the-scheduler.mdx",
+      "blob_sha": "374b969cadd3b049d0ace18b2786efdd2458ff44",
+      "size": 1484,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 176,
+      "path": "docs-site/ar/faqs/intro.mdx",
+      "blob_sha": "2bf87b9fde8849c9713f268a8e61bf52e3fc8505",
+      "size": 152,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 177,
+      "path": "docs-site/ar/faqs/linking-cards-together.mdx",
+      "blob_sha": "e0468985df16345e65cafa653f6024a97f91da7f",
+      "size": 4177,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 178,
+      "path": "docs-site/ar/faqs/media-files-may-take-time-to-sync.mdx",
+      "blob_sha": "8983151f89023f1aebbd2852e421b6971aaf934b",
+      "size": 3373,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 179,
+      "path": "docs-site/ar/faqs/merging-or-combining-two-decks.mdx",
+      "blob_sha": "e9e85bdc94701398c1ea05cfb5f1a7e020353a2d",
+      "size": 989,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 180,
+      "path": "docs-site/ar/faqs/multiple-choice-questions.mdx",
+      "blob_sha": "72044ce631406c4a8561172787fe4056f7e3a5e2",
+      "size": 1172,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 181,
+      "path": "docs-site/ar/faqs/my-antivirus-program-says-anki-is-infected.mdx",
+      "blob_sha": "77e9a1c739a8753d820d3e6b0d18adf44c65bcde",
+      "size": 509,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 182,
+      "path": "docs-site/ar/faqs/no-cloze-found-on-card.mdx",
+      "blob_sha": "50bd0f50f1772eba940f2f178b1ce35682f017df",
+      "size": 1433,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 183,
+      "path": "docs-site/ar/faqs/outlook-silently-discards-email.mdx",
+      "blob_sha": "691a46c1435f04dc155eb5b18102a3748d232d84",
+      "size": 882,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 184,
+      "path": "docs-site/ar/faqs/printing-cards-in-your-collection.mdx",
+      "blob_sha": "7ee60364b9009ba55dad3c47b81080d2284f2c81",
+      "size": 697,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 185,
+      "path": "docs-site/ar/faqs/removing-duplicate-note-types.mdx",
+      "blob_sha": "84d9d316b3b6c7783c7d29beb36d789c8a2d587a",
+      "size": 1500,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 186,
+      "path": "docs-site/ar/faqs/requesting-a-refund-for-ankimobile.mdx",
+      "blob_sha": "e5433394e917120951424191ea97b7f9c1b53385",
+      "size": 704,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 187,
+      "path": "docs-site/ar/faqs/resetting-progress-in-a-deck.mdx",
+      "blob_sha": "3694348f0122a9f932d46b8d12d2e1e7cc507134",
+      "size": 1729,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 188,
+      "path": "docs-site/ar/faqs/retrieving-ankimobile-crash-logs.mdx",
+      "blob_sha": "405b8a97100752bcbc9c8903569184ab1674b152",
+      "size": 491,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 189,
+      "path": "docs-site/ar/faqs/running-from-python.mdx",
+      "blob_sha": "e266b3601cc2f1960a7a4c4989f49cc3b3bed0e1",
+      "size": 1273,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 190,
+      "path": "docs-site/ar/faqs/screenshots-large-and-blurry-on-retina-displays.mdx",
+      "blob_sha": "cfe9f32a67fafec7f76cc4b609f06d28574347d8",
+      "size": 1264,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 191,
+      "path": "docs-site/ar/faqs/settings-for-using-anki-to-prepare-for-a-large-exam.mdx",
+      "blob_sha": "127c2661baa55605a56a23ddac3bc981f927e967",
+      "size": 2643,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 192,
+      "path": "docs-site/ar/faqs/shared-decks-with-broken-javascript.mdx",
+      "blob_sha": "7276aaad25c864ba25953a22aa342c898e9a2edb",
+      "size": 1551,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 193,
+      "path": "docs-site/ar/faqs/shortcut-not-working.mdx",
+      "blob_sha": "7e07da0f06a52382f858d2125d956e7440e343be",
+      "size": 678,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 194,
+      "path": "docs-site/ar/faqs/some-updates-were-ignored-because-the-note-type-has-changed.mdx",
+      "blob_sha": "4ea26021c98a1c3bc247ad84182dbd604284a9c2",
+      "size": 2330,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 195,
+      "path": "docs-site/ar/faqs/sounds-or-images-are-not-appearing-on-ankiweb-or-the-mobile-clients.mdx",
+      "blob_sha": "f55b8f87072ffe29fef62a9895156b0a210aa5b6",
+      "size": 3077,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 196,
+      "path": "docs-site/ar/faqs/sounds-or-images-have-gone-missing.mdx",
+      "blob_sha": "b2d5b48279913a541e24708730359fb8715bfcd5",
+      "size": 1842,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 197,
+      "path": "docs-site/ar/faqs/splitting-a-field-into-multiple-fields.mdx",
+      "blob_sha": "acfbb5e90891874d5146f7906a47b3ce14851e3c",
+      "size": 2077,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 198,
+      "path": "docs-site/ar/faqs/synchronizing-multiple-profiles.mdx",
+      "blob_sha": "0dcfda3a0b6da9324148db33b0adcf7456977f43",
+      "size": 1130,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 199,
+      "path": "docs-site/ar/faqs/syncing-failed-connection-timed-out-errors-when-syncing.mdx",
+      "blob_sha": "2c15f13dbdaa8ae299fc80c385c93f39fa994b14",
+      "size": 2931,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 200,
+      "path": "docs-site/ar/faqs/text-to-speech-support.mdx",
+      "blob_sha": "06de041a91f15e6f18f85073f2f43463b7b9258e",
+      "size": 2253,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 201,
+      "path": "docs-site/ar/faqs/the-2021-scheduler.mdx",
+      "blob_sha": "03312205ed35db5385122ccfda80098acc47faa1",
+      "size": 10220,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 202,
+      "path": "docs-site/ar/faqs/the-anki-2.1-scheduler.mdx",
+      "blob_sha": "6a68e31e857442ccd80f83b06fc0d47b170cea05",
+      "size": 4717,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 203,
+      "path": "docs-site/ar/faqs/the-anki-2.mdx",
+      "blob_sha": "6a68e31e857442ccd80f83b06fc0d47b170cea05",
+      "size": 4717,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 204,
+      "path": "docs-site/ar/faqs/timezone-handling-changes.mdx",
+      "blob_sha": "312de9d8af6bed6dcf2f4717af6d2f560da4a0fd",
+      "size": 1337,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 205,
+      "path": "docs-site/ar/faqs/we-do-not-make-robots.mdx",
+      "blob_sha": "7ca9c53bb11432244e01c41e263d6cc451e933e6",
+      "size": 256,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 206,
+      "path": "docs-site/ar/faqs/what-spaced-repetition-algorithm.mdx",
+      "blob_sha": "451ba4b7eae92c20571e87b978582c936c9e2d1b",
+      "size": 6771,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 207,
+      "path": "docs-site/ar/faqs/why-does-ankimobile-cost-more-than-a-typical-mobile-app.mdx",
+      "blob_sha": "73465dc9ab991be99956986fe9aab55c19d06a40",
+      "size": 5542,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 208,
+      "path": "docs-site/ar/manual/addons.mdx",
+      "blob_sha": "28064dabd6d13aa25841bf98def5e5c241c47a40",
+      "size": 1717,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 209,
+      "path": "docs-site/ar/manual/background.mdx",
+      "blob_sha": "c2fa44dd3c7d6448f80a1d4a03a1b062fde3605d",
+      "size": 10057,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 210,
+      "path": "docs-site/ar/manual/backups.mdx",
+      "blob_sha": "bbec0f1437e26dff20d39ce18bca895e827e3f19",
+      "size": 5085,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 211,
+      "path": "docs-site/ar/manual/browsing.mdx",
+      "blob_sha": "2479f19e0d6d2a0fe948b46b41a6a4ff701c3128",
+      "size": 38749,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 212,
+      "path": "docs-site/ar/manual/contrib.mdx",
+      "blob_sha": "acfdba8e1250be6b774763c9ef4cd8f41edf91b9",
+      "size": 4024,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 213,
+      "path": "docs-site/ar/manual/deck-options.mdx",
+      "blob_sha": "2bd4a4d595840503b5b58686cf5cc1dd186036c3",
+      "size": 52325,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 214,
+      "path": "docs-site/ar/manual/editing.mdx",
+      "blob_sha": "98f22a0decd2e4d3c1109ad33f2d90cf89935871",
+      "size": 30171,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 215,
+      "path": "docs-site/ar/manual/exporting.mdx",
+      "blob_sha": "7dff59a2f698d1429cf3176e8fe6f724c695df40",
+      "size": 4348,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 216,
+      "path": "docs-site/ar/manual/files.mdx",
+      "blob_sha": "a346c33ddb5ea40200b9233c5d4099020a164e36",
+      "size": 15801,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 217,
+      "path": "docs-site/ar/manual/filtered-decks.mdx",
+      "blob_sha": "648d6bd05ca5af27c594c25444e5241e5351db8e",
+      "size": 19776,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 218,
+      "path": "docs-site/ar/manual/getting-started.mdx",
+      "blob_sha": "2ee17fdf6ca72f80ebdae4abc465405ce09b4dd0",
+      "size": 17758,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 219,
+      "path": "docs-site/ar/manual/intro.mdx",
+      "blob_sha": "37accd6ffc13dd44a4f13acb0d54005aaf79df05",
+      "size": 1633,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 220,
+      "path": "docs-site/ar/manual/leeches.mdx",
+      "blob_sha": "1fd3640052659597d0a79bb68a1d83642b566f9f",
+      "size": 3060,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 221,
+      "path": "docs-site/ar/manual/math.mdx",
+      "blob_sha": "3008a1e604ea79bc0df2d1a681a8f5770587ae54",
+      "size": 14192,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 222,
+      "path": "docs-site/ar/manual/media.mdx",
+      "blob_sha": "436731fe5995f66b7770a0c90459723787d0dcd0",
+      "size": 3059,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 223,
+      "path": "docs-site/ar/manual/misc.mdx",
+      "blob_sha": "fa71bcd3d995c2403c89252ca549494efcb12e7a",
+      "size": 2497,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 224,
+      "path": "docs-site/ar/manual/platform/intro.mdx",
+      "blob_sha": "cbbcb477c8bd2f1a637ca86bbb35e65c45753d40",
+      "size": 181,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 225,
+      "path": "docs-site/ar/manual/platform/linux/blank-window.mdx",
+      "blob_sha": "62ff7b1f2439365b6b819f3edfc09c203e44f5ac",
+      "size": 930,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 226,
+      "path": "docs-site/ar/manual/platform/linux/display-issues.mdx",
+      "blob_sha": "896b516cd63e63de0c899a2ba33ec558b5a04882",
+      "size": 1088,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 227,
+      "path": "docs-site/ar/manual/platform/linux/distro-packages.mdx",
+      "blob_sha": "9ea29790856c570431e2b07f39303782c1ff7c05",
+      "size": 1645,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 228,
+      "path": "docs-site/ar/manual/platform/linux/gtk-theme.mdx",
+      "blob_sha": "26ac3d70d902d8ede4bd45ac8588b39bd4b3296f",
+      "size": 612,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 229,
+      "path": "docs-site/ar/manual/platform/linux/input-methods.mdx",
+      "blob_sha": "02ceed14b6acd8cbda0e58e9afd6dbbb82f9443d",
+      "size": 492,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 230,
+      "path": "docs-site/ar/manual/platform/linux/installing.mdx",
+      "blob_sha": "16c0633d030d94c4dc53932bc97cfd3f1c2ea4bb",
+      "size": 2631,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 231,
+      "path": "docs-site/ar/manual/platform/linux/missing-libraries.mdx",
+      "blob_sha": "f01a777d2e3596740baeb43e2c123f76d375882f",
+      "size": 712,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 232,
+      "path": "docs-site/ar/manual/platform/linux/wayland.mdx",
+      "blob_sha": "efc8c8010274a1efa9448df224021957f549f691",
+      "size": 631,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 233,
+      "path": "docs-site/ar/manual/platform/mac/display-issues.mdx",
+      "blob_sha": "214ea823b6003e5a7b0c028fe11e12cd67360028",
+      "size": 689,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 234,
+      "path": "docs-site/ar/manual/platform/mac/installing.mdx",
+      "blob_sha": "1ff40c7349360b0a9566dfcfb3338d8e10dac2ec",
+      "size": 1916,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 235,
+      "path": "docs-site/ar/manual/platform/windows/copy-and-paste.mdx",
+      "blob_sha": "c2760b21be5981db2ac8a60c9f41065d6bc07939",
+      "size": 453,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 236,
+      "path": "docs-site/ar/manual/platform/windows/display-issues.mdx",
+      "blob_sha": "124f45d03839815c97a63739cee29430fb545c19",
+      "size": 1290,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 237,
+      "path": "docs-site/ar/manual/platform/windows/installation-issues.mdx",
+      "blob_sha": "abefafeb16e892484ecfd8b9fbf4fea2c01ed4ec",
+      "size": 1066,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 238,
+      "path": "docs-site/ar/manual/platform/windows/installing.mdx",
+      "blob_sha": "14b84ecd497bcb698e32623a1d6e90c126ad12f3",
+      "size": 3841,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 239,
+      "path": "docs-site/ar/manual/platform/windows/permission-problems.mdx",
+      "blob_sha": "d451eda6aa4bdcb01e71f20aa21fdc6bab994e1d",
+      "size": 2302,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 240,
+      "path": "docs-site/ar/manual/platform/windows/startup-issues.mdx",
+      "blob_sha": "bbb7591ee2e92bc842b461e06db9b46b51f2d796",
+      "size": 4566,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 241,
+      "path": "docs-site/ar/manual/platform/windows/text-size.mdx",
+      "blob_sha": "3265e2f495dd2723742237eef764c697b75518ae",
+      "size": 1053,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 242,
+      "path": "docs-site/ar/manual/preferences.mdx",
+      "blob_sha": "79f4827eaafffe4fc06ec22b91aa179826ff615b",
+      "size": 7665,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 243,
+      "path": "docs-site/ar/manual/profiles.mdx",
+      "blob_sha": "790f9e9cfd93ed1e2f8a67a5909b818e236b9e32",
+      "size": 2413,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 244,
+      "path": "docs-site/ar/manual/resources.mdx",
+      "blob_sha": "9a06047f34e41fdb2e9ced0213e2705958501ac3",
+      "size": 1000,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 245,
+      "path": "docs-site/ar/manual/searching.mdx",
+      "blob_sha": "8d147448dfe845545635ae1c9a79efe3bb69ac70",
+      "size": 17646,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 246,
+      "path": "docs-site/ar/manual/stats.mdx",
+      "blob_sha": "f1c5b4075923959b3b45f4a1efb1b6a70e59339a",
+      "size": 14521,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 247,
+      "path": "docs-site/ar/manual/studying.mdx",
+      "blob_sha": "ab706f88678e5bdee417707208f73e3670c41bd4",
+      "size": 24454,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 248,
+      "path": "docs-site/ar/manual/sync-server.mdx",
+      "blob_sha": "0efbbe10de325e7d2bf9fc53fe6011fdd2fc9449",
+      "size": 9012,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 249,
+      "path": "docs-site/ar/manual/syncing.mdx",
+      "blob_sha": "206b2adf39cf9a2deaf5ba6e1430b080e14894ef",
+      "size": 16726,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 250,
+      "path": "docs-site/ar/manual/templates/errors.mdx",
+      "blob_sha": "47550020de71021c1ce763e656b977586bdff206",
+      "size": 8960,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    }
+  ]
+}

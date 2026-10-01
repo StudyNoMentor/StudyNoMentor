@@ -1,0 +1,2259 @@
+{
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "range": [
+    751,
+    1000
+  ],
+  "files": [
+    {
+      "index": 751,
+      "path": "qt/aqt/data/qt/icons/collection.svg",
+      "blob_sha": "2330737b76c82214e9242f2ee3ce51cc7e555fa2",
+      "size": 4133,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 752,
+      "path": "qt/aqt/data/qt/icons/deck.svg",
+      "blob_sha": "eb667570f53c7a13d9e4beff14838aff39d82788",
+      "size": 1385,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 753,
+      "path": "qt/aqt/data/qt/icons/heart.svg",
+      "blob_sha": "61ddb2de2791bfbfebd59f33e11c0d39d3765f8a",
+      "size": 1030,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 754,
+      "path": "qt/aqt/data/qt/icons/media-record.svg",
+      "blob_sha": "894787f6c84181a7cd31d822f570014e88fddc67",
+      "size": 1291,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 755,
+      "path": "qt/aqt/data/qt/icons/notetype.svg",
+      "blob_sha": "4269f6a73d5ceedc629a25a146998d77a0d16d6c",
+      "size": 1365,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 756,
+      "path": "qt/aqt/data/qt/icons/tag.svg",
+      "blob_sha": "6454cab9bf3aecb49c59d802101518ede0ae810f",
+      "size": 1072,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 757,
+      "path": "qt/aqt/data/web/css/addonconf.scss",
+      "blob_sha": "5398ea936bc98470ef949ebe111fa17193560e40",
+      "size": 180,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 758,
+      "path": "qt/aqt/data/web/css/deckbrowser.scss",
+      "blob_sha": "280b8858a1c9ed9c4a5e1305ec8967994db33761",
+      "size": 3148,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 759,
+      "path": "qt/aqt/data/web/css/overview.scss",
+      "blob_sha": "cad62fa931b7a24fca5c094bfdfbe4e4c71b0dde",
+      "size": 699,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 760,
+      "path": "qt/aqt/data/web/css/reviewer-bottom.scss",
+      "blob_sha": "59098a5fbe52761aa992e3d67e9e745070f83639",
+      "size": 1362,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 761,
+      "path": "qt/aqt/data/web/css/toolbar-bottom.scss",
+      "blob_sha": "eb7fdb9c860b5ff0ac003948bf4441e641b7028f",
+      "size": 236,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 762,
+      "path": "qt/aqt/data/web/css/toolbar.scss",
+      "blob_sha": "b46179e11f88cb162d8144d985f67433dc21d6e0",
+      "size": 3354,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 763,
+      "path": "qt/aqt/data/web/css/webview.scss",
+      "blob_sha": "f927e9f03afa3e5eacc73455a127295bda1c9121",
+      "size": 875,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 764,
+      "path": "qt/aqt/data/web/imgs/anki-logo-thin.png",
+      "blob_sha": "e0365dfdeb6470bcdc036b117c424ed2177e216d",
+      "size": 6261,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 765,
+      "path": "qt/aqt/data/web/imgs/favicon.ico",
+      "blob_sha": "257849bdc2f34b4a14b3d947646b7d706f38bc5e",
+      "size": 4286,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 766,
+      "path": "qt/aqt/data/web/imgs/gears.svg",
+      "blob_sha": "7efbeb328bde33d86cf94866a1ff417be857a6ec",
+      "size": 2065,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 767,
+      "path": "qt/aqt/data/web/imgs/media-record.png",
+      "blob_sha": "776e38f6a605b1ab654a3eb07fc508cd134388c4",
+      "size": 727,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 768,
+      "path": "qt/aqt/data/web/imgs/more.png",
+      "blob_sha": "975ce6189d9c71545b115f5700151e01a394c134",
+      "size": 261,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 769,
+      "path": "qt/aqt/data/web/imgs/paperclip.png",
+      "blob_sha": "459008a6d434d1d1b4a62df1f8eb562b32b86294",
+      "size": 811,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 770,
+      "path": "qt/aqt/data/web/imgs/refresh.svg",
+      "blob_sha": "437fcbe0d3e60acfe4968a24c9b84f88a2ac0a2c",
+      "size": 1083,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 771,
+      "path": "qt/aqt/data/web/imgs/text_bold.png",
+      "blob_sha": "60da284c6636efb0c02e41a944771e53fc87f0b6",
+      "size": 632,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 772,
+      "path": "qt/aqt/data/web/imgs/text_clear.png",
+      "blob_sha": "17ac0c6bcfcc87b26c28354a96f8ea2fc9ac2e09",
+      "size": 483,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 773,
+      "path": "qt/aqt/data/web/imgs/text_cloze.png",
+      "blob_sha": "cd4008a92c2257ce3da8ebc3bdfa5e13f7ba7c0d",
+      "size": 330,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 774,
+      "path": "qt/aqt/data/web/imgs/text_italic.png",
+      "blob_sha": "8fc9cfc5affb781ef15e491b0f2bcf1e1e3de0cb",
+      "size": 442,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 775,
+      "path": "qt/aqt/data/web/imgs/text_sub.png",
+      "blob_sha": "378d361b0b428fa5315018deee048cf60f1727cc",
+      "size": 850,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 776,
+      "path": "qt/aqt/data/web/imgs/text_super.png",
+      "blob_sha": "a96c3b0395d4fa05ff588d55e20902271aa0e8ec",
+      "size": 859,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 777,
+      "path": "qt/aqt/data/web/imgs/text_under.png",
+      "blob_sha": "de876e0ee14d40a0a8be63de5cb4c87cc36cfd1e",
+      "size": 434,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 778,
+      "path": "qt/aqt/data/web/js/deckbrowser.ts",
+      "blob_sha": "6f6360b3368a02e1b44096c61cb91944525d03ae",
+      "size": 838,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 779,
+      "path": "qt/aqt/data/web/js/pycmd.d.ts",
+      "blob_sha": "069af1a233d711615199cc34fb4c4f3fdb47bf79",
+      "size": 88,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 780,
+      "path": "qt/aqt/data/web/js/reviewer-bottom.ts",
+      "blob_sha": "4ebf3451042be4efec89154046075171aef5ba99",
+      "size": 1503,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 781,
+      "path": "qt/aqt/data/web/js/toolbar.ts",
+      "blob_sha": "e01c67920997336f45278cd78361e541ab7d1dde",
+      "size": 2933,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 782,
+      "path": "qt/aqt/data/web/js/tsconfig.json",
+      "blob_sha": "745bba127c9cc6b58eb3d0f7e378fba3de985e14",
+      "size": 522,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 783,
+      "path": "qt/aqt/data/web/js/vendor/plot.js",
+      "blob_sha": "c5e9c0807530fee51c83c05eb929581e549502f1",
+      "size": 67619,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 784,
+      "path": "qt/aqt/data/web/js/webview.ts",
+      "blob_sha": "6c812bef8a725077e3738217cb62e4fefa433830",
+      "size": 617,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 785,
+      "path": "qt/aqt/dbcheck.py",
+      "blob_sha": "be00f52b3c4e5165446ae5c21060cda6c75fb02c",
+      "size": 1608,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 786,
+      "path": "qt/aqt/debug_console.py",
+      "blob_sha": "b5e92d6c0889dd48b93476c98f977ee587c7cd70",
+      "size": 12653,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 787,
+      "path": "qt/aqt/deckbrowser.py",
+      "blob_sha": "896f2b6c23171f4f83897e8361ab56ba3ca4f3a7",
+      "size": 13565,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 788,
+      "path": "qt/aqt/deckchooser.py",
+      "blob_sha": "3f8580b540b65d6f23dbec1a9d58ad2cab50bc68",
+      "size": 4540,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 789,
+      "path": "qt/aqt/deckconf.py",
+      "blob_sha": "11dddd3cac8bf9d6b802dbfe03eefb1434db2192",
+      "size": 11494,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 790,
+      "path": "qt/aqt/deckdescription.py",
+      "blob_sha": "1132df121090f9259fe67fbc4be3f815be4a3d3a",
+      "size": 2478,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 791,
+      "path": "qt/aqt/deckoptions.py",
+      "blob_sha": "9463ef91d484a4d64690f89c92ee63c0be72e4ac",
+      "size": 4369,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 792,
+      "path": "qt/aqt/editcurrent.py",
+      "blob_sha": "e0a78d7e2fa4a388c6ba82453e36244051734454",
+      "size": 1940,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 793,
+      "path": "qt/aqt/editcurrent_legacy.py",
+      "blob_sha": "35d1b2e4127ad4423d05e81db069697fc77e332a",
+      "size": 3373,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 794,
+      "path": "qt/aqt/editor.py",
+      "blob_sha": "a97412de2113707893c18db8f70b4c3067d786f1",
+      "size": 18883,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "editor"
+    },
+    {
+      "index": 795,
+      "path": "qt/aqt/editor_legacy.py",
+      "blob_sha": "2c6eca1fffe4761915a3958b52b4b45623ffd599",
+      "size": 63325,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 796,
+      "path": "qt/aqt/emptycards.py",
+      "blob_sha": "cf8bbd4ba389ecc50e90f95f4d014feb502cdaa2",
+      "size": 3655,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "notetypes"
+    },
+    {
+      "index": 797,
+      "path": "qt/aqt/errors.py",
+      "blob_sha": "d036947d86f42df02b0208d2709f082b72423a84",
+      "size": 12458,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 798,
+      "path": "qt/aqt/fields.py",
+      "blob_sha": "cb95369630638bb49d7b53282093c8842b323507",
+      "size": 10524,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 799,
+      "path": "qt/aqt/filtered_deck.py",
+      "blob_sha": "39e168f479da4f8ea3e7cfe24af2455b532e227d",
+      "size": 12034,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 800,
+      "path": "qt/aqt/flags.py",
+      "blob_sha": "5fd3ac007e8958593d28cd23b1b4ed418151ec07",
+      "size": 4381,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 801,
+      "path": "qt/aqt/forms/__init__.py",
+      "blob_sha": "d48e7615f283b5ebdbe14eee21662388dbfc6c11",
+      "size": 607,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 802,
+      "path": "qt/aqt/forms/about.py",
+      "blob_sha": "fe66f7da3681f2a467777807ead5b21c9928b415",
+      "size": 35,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 803,
+      "path": "qt/aqt/forms/about.ui",
+      "blob_sha": "41c64f46a391af5ce83d9bc1074e7933d8be5662",
+      "size": 2303,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 804,
+      "path": "qt/aqt/forms/addcards.py",
+      "blob_sha": "8c501695e2695381251b15f722fc46d15a085ff9",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 805,
+      "path": "qt/aqt/forms/addcards.ui",
+      "blob_sha": "f682ebe09033bd91c72fb01e94ec73d2d32d039b",
+      "size": 2656,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 806,
+      "path": "qt/aqt/forms/addfield.py",
+      "blob_sha": "a2f9eed7439df31a4bbe913dd697bcca947c3c9a",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 807,
+      "path": "qt/aqt/forms/addfield.ui",
+      "blob_sha": "2f3bd310bedbc4eac9db69ee67c4fb101bce4998",
+      "size": 2965,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 808,
+      "path": "qt/aqt/forms/addmodel.py",
+      "blob_sha": "0af313a455e5b2b648df43a12ed3a629059a87cb",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 809,
+      "path": "qt/aqt/forms/addmodel.ui",
+      "blob_sha": "3a9ff622aed1f0ad6bfa3ed2df1feb1d631775dd",
+      "size": 1910,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 810,
+      "path": "qt/aqt/forms/addonconf.py",
+      "blob_sha": "d78ebb82a0762bf7c271d3228a4ed540dd53ab70",
+      "size": 39,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 811,
+      "path": "qt/aqt/forms/addonconf.ui",
+      "blob_sha": "98d491a56ca52a4be155861015430f4713741a7a",
+      "size": 2480,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 812,
+      "path": "qt/aqt/forms/addons.py",
+      "blob_sha": "46d7532b4ed690a6012483d37f609ab07a38b6ee",
+      "size": 36,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 813,
+      "path": "qt/aqt/forms/addons.ui",
+      "blob_sha": "a771e0fa5cb8e5293bcd63db2b52bc39614371f8",
+      "size": 3023,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 814,
+      "path": "qt/aqt/forms/browser.py",
+      "blob_sha": "70214ba4c6d9ab78d466b004b5d7a916f86e2c2b",
+      "size": 37,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 815,
+      "path": "qt/aqt/forms/browser.ui",
+      "blob_sha": "765a71025a9749baeba5c35d2bb6a66bc008c3d4",
+      "size": 23133,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 816,
+      "path": "qt/aqt/forms/browserdisp.py",
+      "blob_sha": "fc745a703f5e2a26c8c9acdb39f8c148c1e269cc",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 817,
+      "path": "qt/aqt/forms/browserdisp.ui",
+      "blob_sha": "b9c0394ff0c3d524932fa4631adf23097cfc3cf0",
+      "size": 3102,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 818,
+      "path": "qt/aqt/forms/browseropts.py",
+      "blob_sha": "1ae696033264efc4d477870f53fdf9bc34405c0d",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 819,
+      "path": "qt/aqt/forms/browseropts.ui",
+      "blob_sha": "4daf6080544fa38eef6a332bd0884dd65fab8bdb",
+      "size": 3596,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 820,
+      "path": "qt/aqt/forms/changemodel.py",
+      "blob_sha": "cd1931af8d4b0caac5a2bc78c06fbcb9febbcb4a",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 821,
+      "path": "qt/aqt/forms/changemodel.ui",
+      "blob_sha": "93fa5153f5e7bcfc426408952e9c49a9c9a169bf",
+      "size": 5268,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 822,
+      "path": "qt/aqt/forms/clayout_top.py",
+      "blob_sha": "1a76c882a1a50c6477d5d255e0fd74d8f4256a7a",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 823,
+      "path": "qt/aqt/forms/clayout_top.ui",
+      "blob_sha": "60bab62260c58d6cd16d2c27ca6ca917d542f370",
+      "size": 2400,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 824,
+      "path": "qt/aqt/forms/customstudy.py",
+      "blob_sha": "3bfad32ac40a3283837cfc1ce81c1ca7a72de48e",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 825,
+      "path": "qt/aqt/forms/customstudy.ui",
+      "blob_sha": "c8c8d14d4635526ab3844ae566834009a8084dd6",
+      "size": 5686,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 826,
+      "path": "qt/aqt/forms/dconf.py",
+      "blob_sha": "f39de7077ea049d43260c2559d3edc9316321978",
+      "size": 35,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 827,
+      "path": "qt/aqt/forms/dconf.ui",
+      "blob_sha": "d5d465ac567786481809061f87187b436e185883",
+      "size": 21976,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 828,
+      "path": "qt/aqt/forms/debug.py",
+      "blob_sha": "0880c49fc9632b4d2d9ca343ffbf236a52f51ce0",
+      "size": 35,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 829,
+      "path": "qt/aqt/forms/debug.ui",
+      "blob_sha": "d1290f2d28dd652511d0477c23230c4ff6f850b1",
+      "size": 3570,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 830,
+      "path": "qt/aqt/forms/editcurrent.py",
+      "blob_sha": "cfa9ab1d965b2adbb3d3c31120d927892893fcb5",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 831,
+      "path": "qt/aqt/forms/editcurrent.ui",
+      "blob_sha": "d2102e3065d6bc76e2589c860f64b3789ad7de4c",
+      "size": 1317,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 832,
+      "path": "qt/aqt/forms/edithtml.py",
+      "blob_sha": "61b9e0fd26576d63dd7bbe2370a7fdf9c2a443ce",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 833,
+      "path": "qt/aqt/forms/edithtml.ui",
+      "blob_sha": "2d91b027346bef1cafba2f5c7bba29d3f05d22a0",
+      "size": 1490,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 834,
+      "path": "qt/aqt/forms/emptycards.py",
+      "blob_sha": "1cae290fd75dc6c137b1121f7919f484344754db",
+      "size": 40,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 835,
+      "path": "qt/aqt/forms/emptycards.ui",
+      "blob_sha": "ad47dead35c20b16931f6b9dc7b3bb89c2804d0b",
+      "size": 3037,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 836,
+      "path": "qt/aqt/forms/exporting.py",
+      "blob_sha": "d09e9cdd93f688fda838c94c0626a00c5272020f",
+      "size": 39,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 837,
+      "path": "qt/aqt/forms/exporting.ui",
+      "blob_sha": "ca627f90f9c234c56537f7ad88fe2d33e1e3f84a",
+      "size": 5855,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 838,
+      "path": "qt/aqt/forms/fields.py",
+      "blob_sha": "cf7a39f759e2df3e2fda89a6e135ba4c7b0f4e26",
+      "size": 36,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 839,
+      "path": "qt/aqt/forms/fields.ui",
+      "blob_sha": "ce60f1f578fdc59b0abded59573e41fb3cd0eb05",
+      "size": 6794,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 840,
+      "path": "qt/aqt/forms/filtered_deck.py",
+      "blob_sha": "59870f5a08610b8f8ed812f2fe4246906cbaba4b",
+      "size": 43,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 841,
+      "path": "qt/aqt/forms/filtered_deck.ui",
+      "blob_sha": "a64a3968a300d88dd7c3b977af14c078fc3a44e5",
+      "size": 12586,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 842,
+      "path": "qt/aqt/forms/finddupes.py",
+      "blob_sha": "43ac3054960a4102ee8a699c893c19c08fe0ee92",
+      "size": 39,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 843,
+      "path": "qt/aqt/forms/finddupes.ui",
+      "blob_sha": "9bc8be87b43b298ab730db3755c5aff97bbe8266",
+      "size": 3869,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 844,
+      "path": "qt/aqt/forms/findreplace.py",
+      "blob_sha": "65d1f35551dc172d179452580d360685df4a10ea",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 845,
+      "path": "qt/aqt/forms/findreplace.ui",
+      "blob_sha": "b2bd4fab3ab9847b65f2ba22766da52138343552",
+      "size": 4969,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 846,
+      "path": "qt/aqt/forms/forget.py",
+      "blob_sha": "0d17803df59cc00853c16cbb7d85c4c195cf18b4",
+      "size": 36,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 847,
+      "path": "qt/aqt/forms/forget.ui",
+      "blob_sha": "5b6790f0f90c4b6ff8695b6f8aea89e8701db183",
+      "size": 2187,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 848,
+      "path": "qt/aqt/forms/getaddons.py",
+      "blob_sha": "ecb6c23ddf46ae5f4e933523946fbb22a454ab2e",
+      "size": 39,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 849,
+      "path": "qt/aqt/forms/getaddons.ui",
+      "blob_sha": "e4656637a161708184664f9146e03c6161f4af5a",
+      "size": 2302,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 850,
+      "path": "qt/aqt/forms/main.py",
+      "blob_sha": "7ec7107b34a6241729a8156e35aed5a505081728",
+      "size": 34,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 851,
+      "path": "qt/aqt/forms/main.ui",
+      "blob_sha": "d2993d4dd9223607d448eb2d036029485e49a45b",
+      "size": 8312,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 852,
+      "path": "qt/aqt/forms/modelopts.py",
+      "blob_sha": "811b1fb7b552591b11ed7c71b3ac5d90e835cce1",
+      "size": 39,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 853,
+      "path": "qt/aqt/forms/modelopts.ui",
+      "blob_sha": "d098e6e00a4ecff6599cf6dd98ed9bfd66efe289",
+      "size": 3029,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 854,
+      "path": "qt/aqt/forms/models.py",
+      "blob_sha": "43c75c62a53d8de90cec2c87b5d9ef4f713718eb",
+      "size": 36,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 855,
+      "path": "qt/aqt/forms/models.ui",
+      "blob_sha": "c58cf23dde698cd020d54f265d86bc33d7cd44e6",
+      "size": 2800,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 856,
+      "path": "qt/aqt/forms/preferences.py",
+      "blob_sha": "6fdb0bfd346027393a4bd5e02d1c3de68b4dad88",
+      "size": 41,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 857,
+      "path": "qt/aqt/forms/preferences.ui",
+      "blob_sha": "a5583c0426ec7634f5af380d75f9d834be52850c",
+      "size": 45839,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 858,
+      "path": "qt/aqt/forms/preview.py",
+      "blob_sha": "bf735bd39425a35f78482db4477684923619aab1",
+      "size": 37,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 859,
+      "path": "qt/aqt/forms/preview.ui",
+      "blob_sha": "390e0afea7b63316915a422787a9097b7dfd9269",
+      "size": 2467,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 860,
+      "path": "qt/aqt/forms/profiles.py",
+      "blob_sha": "7d5b8d6e0aa9be415af232ca6e4c6b42a690162d",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 861,
+      "path": "qt/aqt/forms/profiles.ui",
+      "blob_sha": "3c4e72947c2e88720907b132670d6a61248e453c",
+      "size": 3371,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 862,
+      "path": "qt/aqt/forms/progress.py",
+      "blob_sha": "7a2a332d558db4adcf908070ed21717c6a395841",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 863,
+      "path": "qt/aqt/forms/progress.ui",
+      "blob_sha": "2b575b398f33792d2d5c46cd044d48b57cb6815f",
+      "size": 1583,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 864,
+      "path": "qt/aqt/forms/reposition.py",
+      "blob_sha": "cfad6b55a65a7e6dc42fe44f002be95ba7f42aaf",
+      "size": 40,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 865,
+      "path": "qt/aqt/forms/reposition.ui",
+      "blob_sha": "dc6c4dc95c16e5b1c1e7e9e5550fadd9f5755c6b",
+      "size": 3606,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 866,
+      "path": "qt/aqt/forms/setgroup.py",
+      "blob_sha": "617ef3b96fc5c20c5fa76409468b904cceae38e6",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 867,
+      "path": "qt/aqt/forms/setgroup.ui",
+      "blob_sha": "22400ae6c3588e83fc3575ef18879ed35cf2ac1e",
+      "size": 1935,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 868,
+      "path": "qt/aqt/forms/setlang.py",
+      "blob_sha": "efe14343bb04a304c3c81d3c7ffba5d3d562df69",
+      "size": 37,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 869,
+      "path": "qt/aqt/forms/setlang.ui",
+      "blob_sha": "6f570d6d7e2ae6cd1cd6d13fea599bf8f649cb4d",
+      "size": 1619,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 870,
+      "path": "qt/aqt/forms/stats.py",
+      "blob_sha": "12b161f4eff40057f2752a3b5283147add39cfc7",
+      "size": 35,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 871,
+      "path": "qt/aqt/forms/stats.ui",
+      "blob_sha": "838e1da5fc1abf04d9c7c8d4372d0a7e617d4ec7",
+      "size": 4963,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 872,
+      "path": "qt/aqt/forms/studydeck.py",
+      "blob_sha": "497ab01cffc63d7c2943fccd30dccdb856b2a9ea",
+      "size": 39,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 873,
+      "path": "qt/aqt/forms/studydeck.ui",
+      "blob_sha": "8bd52bad81f644d76e0fb3c4801004eff7e75d79",
+      "size": 1817,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 874,
+      "path": "qt/aqt/forms/synclog.py",
+      "blob_sha": "ddd08456b9e977ae8bfe6d4003305f22ede9cb11",
+      "size": 37,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 875,
+      "path": "qt/aqt/forms/synclog.ui",
+      "blob_sha": "c48416bc948fdf0ce689a8b738dd6ef64aa3174e",
+      "size": 1702,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 876,
+      "path": "qt/aqt/forms/taglimit.py",
+      "blob_sha": "88262c65715a39abef06d674f50d2791c678045b",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 877,
+      "path": "qt/aqt/forms/taglimit.ui",
+      "blob_sha": "5c8008b9fb93c8fca195dfc34cdd8909da52e873",
+      "size": 3101,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 878,
+      "path": "qt/aqt/forms/template.py",
+      "blob_sha": "7540d72e023a8ddadcbec99080cacbf9cc7ea0ee",
+      "size": 38,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 879,
+      "path": "qt/aqt/forms/template.ui",
+      "blob_sha": "c0ff9c0a7ca544b0d21dd249441919dbfc9e2ae3",
+      "size": 3524,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 880,
+      "path": "qt/aqt/forms/widgets.py",
+      "blob_sha": "07dc11c6c61b1762161f79a84eb6e6b1d526322d",
+      "size": 37,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 881,
+      "path": "qt/aqt/forms/widgets.ui",
+      "blob_sha": "f82144c4896d9c96278af58a91fe0ef28a6bfe75",
+      "size": 11889,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 882,
+      "path": "qt/aqt/gui_hooks.py",
+      "blob_sha": "4912c552d90118d5d1e04b2d02619cc6a7b6e5e7",
+      "size": 281,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 883,
+      "path": "qt/aqt/import_export/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "import_export"
+    },
+    {
+      "index": 884,
+      "path": "qt/aqt/import_export/exporting.py",
+      "blob_sha": "ea7884c44198f276ef1b7ab0bd8c3507666810b7",
+      "size": 12711,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "import_export"
+    },
+    {
+      "index": 885,
+      "path": "qt/aqt/import_export/import_dialog.py",
+      "blob_sha": "cc604ea99f10737d9c9b83e8b429b4a48ac725a8",
+      "size": 2479,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "import_export"
+    },
+    {
+      "index": 886,
+      "path": "qt/aqt/import_export/importing.py",
+      "blob_sha": "29c06039cefd6c2254e7b73232b1a150cec542c2",
+      "size": 5787,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "import_export"
+    },
+    {
+      "index": 887,
+      "path": "qt/aqt/legacy.py",
+      "blob_sha": "535d70a46957365e4772cf7e7d96cfec6fe0834f",
+      "size": 1407,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 888,
+      "path": "qt/aqt/log.py",
+      "blob_sha": "9182aeeb20a2b24763aeacb9f2be12a952b122eb",
+      "size": 3699,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 889,
+      "path": "qt/aqt/main.py",
+      "blob_sha": "cfe83b2529b811b25f0dbf3f3caa9df1aae59aec",
+      "size": 66141,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 890,
+      "path": "qt/aqt/mediacheck.py",
+      "blob_sha": "71ab5a07d605f0e9a34664e9b919afe80ef59133",
+      "size": 8777,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "media"
+    },
+    {
+      "index": 891,
+      "path": "qt/aqt/mediasrv.py",
+      "blob_sha": "b848c337f7694cede51b5d7f8b0ac84895a17e61",
+      "size": 43302,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "media"
+    },
+    {
+      "index": 892,
+      "path": "qt/aqt/mediasync.py",
+      "blob_sha": "92ecbb0c9f31f2fc932c3de7e045f18c306b41c6",
+      "size": 6674,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "media"
+    },
+    {
+      "index": 893,
+      "path": "qt/aqt/modelchooser.py",
+      "blob_sha": "15c5347e4cbc9b46093f51880cc6d8b6ef935ff7",
+      "size": 3635,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 894,
+      "path": "qt/aqt/models.py",
+      "blob_sha": "6c33a3f0044f852cf61fcc1ba209247899f0cbc8",
+      "size": 10610,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 895,
+      "path": "qt/aqt/mpv.py",
+      "blob_sha": "b389df43422fc7911735406c1676428066d6c6b7",
+      "size": 21237,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 896,
+      "path": "qt/aqt/notetypechooser.py",
+      "blob_sha": "cb282109d5856da4aaf2c4c1d11bd56ea61d7a5e",
+      "size": 5852,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 897,
+      "path": "qt/aqt/operations/__init__.py",
+      "blob_sha": "b37515d026f3cd040770b075d996a9ec857c4928",
+      "size": 9164,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 898,
+      "path": "qt/aqt/operations/card.py",
+      "blob_sha": "e8b4b23a67f15b110edae8513fdce721c117ef4b",
+      "size": 1057,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 899,
+      "path": "qt/aqt/operations/collection.py",
+      "blob_sha": "d369841638634f9132731ef458872988a139b5f7",
+      "size": 1420,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 900,
+      "path": "qt/aqt/operations/deck.py",
+      "blob_sha": "1e19098c05951f28b83691e0faeb66290b3a6b18",
+      "size": 2896,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 901,
+      "path": "qt/aqt/operations/note.py",
+      "blob_sha": "e368225532222225103f1c9e48e41a58cf86e5d5",
+      "size": 1985,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 902,
+      "path": "qt/aqt/operations/notetype.py",
+      "blob_sha": "911da692e4e6b285564b80693ad94a6e8df4da35",
+      "size": 1519,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 903,
+      "path": "qt/aqt/operations/scheduling.py",
+      "blob_sha": "b9322b385504ff0b4cc347311e42f07786a2e7d8",
+      "size": 7976,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 904,
+      "path": "qt/aqt/operations/tag.py",
+      "blob_sha": "2ac4504d0b1562221face32e7777cd5273fc6f48",
+      "size": 3454,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 905,
+      "path": "qt/aqt/overview.py",
+      "blob_sha": "b1fc9a119712acc4ddb6744fa1f76e9443b07b16",
+      "size": 10524,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 906,
+      "path": "qt/aqt/package.py",
+      "blob_sha": "7bd88630d91820485b02d4c18eba7a388f62a097",
+      "size": 2065,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 907,
+      "path": "qt/aqt/preferences.py",
+      "blob_sha": "1624085d0f0eb435ccac3633636f0009f100e801",
+      "size": 19351,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 908,
+      "path": "qt/aqt/profiles.py",
+      "blob_sha": "1806f76ca8094d297ad6229f1efa53e8c45fd6a5",
+      "size": 26093,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 909,
+      "path": "qt/aqt/progress.py",
+      "blob_sha": "cc7e750de71af2efaca815176f916507a7b0b266",
+      "size": 13838,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 910,
+      "path": "qt/aqt/props.py",
+      "blob_sha": "3dcf5c0276bce3a709b09853d3ccbaa322794814",
+      "size": 281,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 911,
+      "path": "qt/aqt/py.typed",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 912,
+      "path": "qt/aqt/qt/__init__.py",
+      "blob_sha": "730bc771bb80481eb79dfbeb060a310fe269f089",
+      "size": 1484,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 913,
+      "path": "qt/aqt/qt/qt6.py",
+      "blob_sha": "dabed757bfbef3e5a2cfaa93706ac386ff0f3e5c",
+      "size": 643,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 914,
+      "path": "qt/aqt/reviewer.py",
+      "blob_sha": "59c829c475bfe4400b890358fe84cbe42cd5466d",
+      "size": 43746,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 915,
+      "path": "qt/aqt/schema_change_tracker.py",
+      "blob_sha": "5b4e203b0164e83ec00d2d37f6cce3ee18d15383",
+      "size": 990,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 916,
+      "path": "qt/aqt/sound.py",
+      "blob_sha": "3b2c7e28d47aed37a541e0e7ee7b42327e168591",
+      "size": 30636,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 917,
+      "path": "qt/aqt/stats.py",
+      "blob_sha": "34dc77ae36da03d821ce668804f6246d46fc915b",
+      "size": 8049,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 918,
+      "path": "qt/aqt/studydeck.py",
+      "blob_sha": "d1c0a5c47f505f4e645de2512911b622213f23ea",
+      "size": 6456,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 919,
+      "path": "qt/aqt/stylesheets.py",
+      "blob_sha": "6bd4000a2e650e4b6e8890ded4f58ec5c07ddaf5",
+      "size": 19276,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 920,
+      "path": "qt/aqt/switch.py",
+      "blob_sha": "cbea035a077a91b9cb959100a59f57dbeb89c8db",
+      "size": 6458,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 921,
+      "path": "qt/aqt/sync.py",
+      "blob_sha": "9fe7bbe4f92c844537a6ef28549ceeab53a15ab3",
+      "size": 11799,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 922,
+      "path": "qt/aqt/tagedit.py",
+      "blob_sha": "25bbcd2298ef2f2153dce221397364826d15f550",
+      "size": 5299,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 923,
+      "path": "qt/aqt/taglimit.py",
+      "blob_sha": "3893ed0d6753fed3cc057ba46399bb036f900784",
+      "size": 3753,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 924,
+      "path": "qt/aqt/taskman.py",
+      "blob_sha": "2ca1c66703f2c441e9bc1dbb11acf99f07b54a3e",
+      "size": 5255,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 925,
+      "path": "qt/aqt/theme.py",
+      "blob_sha": "75024c22627d34e39df2d0bed9f040efa094a9b3",
+      "size": 14031,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 926,
+      "path": "qt/aqt/toolbar.py",
+      "blob_sha": "32849802e64caadbcb309d15335d3379aa36d053",
+      "size": 15829,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 927,
+      "path": "qt/aqt/tts.py",
+      "blob_sha": "f77e5c975d57ac94ab12f893f8d75298688a49c4",
+      "size": 18604,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 928,
+      "path": "qt/aqt/undo.py",
+      "blob_sha": "8fc4f167ca77cfcbf93406ca521413ff5c17ee0f",
+      "size": 1018,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 929,
+      "path": "qt/aqt/update.py",
+      "blob_sha": "9121abaf6f3111f04d52efa65b9e297b05d0657f",
+      "size": 3938,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 930,
+      "path": "qt/aqt/url_schemes.py",
+      "blob_sha": "ea05ee3194e02a4437c16c6a8c2217472e64bf54",
+      "size": 1926,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 931,
+      "path": "qt/aqt/utils.py",
+      "blob_sha": "58dc818252bf9dfae1b65b111ff01239a8c03c7c",
+      "size": 40284,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 932,
+      "path": "qt/aqt/webview.py",
+      "blob_sha": "f40ed09dde16d35c8a6884faa1c2cfdc30692eff",
+      "size": 37167,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 933,
+      "path": "qt/aqt/widgetgallery.py",
+      "blob_sha": "19b9228399393cb52b688bc61a710bd096cbdc39",
+      "size": 1197,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 934,
+      "path": "qt/aqt/winpaths.py",
+      "blob_sha": "8b26987396bc05b489fc603f3bc93ddeb3e0c908",
+      "size": 4658,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 935,
+      "path": "qt/audio/.gitignore",
+      "blob_sha": "5eccae15464452ba58539700347e549400371534",
+      "size": 37,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 936,
+      "path": "qt/audio/.version",
+      "blob_sha": "7179039691ce07a214e7a815893fee97a97b1422",
+      "size": 6,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 937,
+      "path": "qt/audio/anki_audio/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 938,
+      "path": "qt/audio/build.sh",
+      "blob_sha": "90995f60f82b29bed36fd3e88fcdc4960455870c",
+      "size": 1330,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 939,
+      "path": "qt/audio/hatch_build.py",
+      "blob_sha": "9ec77770022a59cbf80e6e995afc7b0ffb08f08b",
+      "size": 2727,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 940,
+      "path": "qt/audio/mpv.rb",
+      "blob_sha": "1979118cc29ade11ab7d4b140a825d434ad00d11",
+      "size": 4367,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 941,
+      "path": "qt/audio/pyproject.toml",
+      "blob_sha": "b0133e3aa872b3bad52c1aaa470372f5f9998a81",
+      "size": 615,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 942,
+      "path": "qt/audio/version.py",
+      "blob_sha": "8db2f0bf43b34c2cb13dea056ca6016889b0e509",
+      "size": 341,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 943,
+      "path": "qt/hatch_build.py",
+      "blob_sha": "1bc9eccd7051986ee9e227a7f2c6a5093cd45bb4",
+      "size": 3088,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 944,
+      "path": "qt/icons/README.md",
+      "blob_sha": "de8132c7c0a3d9d6e50b5ecb8202bce3f2aac13d",
+      "size": 56,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 945,
+      "path": "qt/icons/sidebar.afdesign",
+      "blob_sha": "0e37a4ef4aea19aee75fae980a44cb262b98fb3a",
+      "size": 26793,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 946,
+      "path": "qt/installer/README.md",
+      "blob_sha": "41f6428f1b66413e12d2437d657747b015efb1df",
+      "size": 34,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 947,
+      "path": "qt/installer/app/pyproject.toml",
+      "blob_sha": "e8422e34a29714dbdb5e1aa02949068ee454b54f",
+      "size": 3241,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 948,
+      "path": "qt/installer/app/resources/anki.icns",
+      "blob_sha": "89573a4c42c9a642792311858a412bbff8dc8775",
+      "size": 410872,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 949,
+      "path": "qt/installer/app/resources/anki.ico",
+      "blob_sha": "fd03c333ea8f5f8b0d057e3541dad7e4d7ef66dc",
+      "size": 103420,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 950,
+      "path": "qt/installer/app/resources/anki.png",
+      "blob_sha": "5700121d60358ed2b6278a806835b9dcd92cdb48",
+      "size": 34595,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 951,
+      "path": "qt/installer/app/src/anki/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 952,
+      "path": "qt/installer/app/src/anki/__main__.py",
+      "blob_sha": "a6cc0d17595e08e664153b06147b51794bc0825e",
+      "size": 542,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 953,
+      "path": "qt/installer/app/src/anki/app.py",
+      "blob_sha": "445b6444280cfd914d000e4367afd9109af7c5cf",
+      "size": 171,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 954,
+      "path": "qt/installer/briefcase_plugins/pyproject.toml",
+      "blob_sha": "d185a4934896b3e8b8004d53af0d312efe877f0e",
+      "size": 301,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 955,
+      "path": "qt/installer/briefcase_plugins/src/briefcase_plugins/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 956,
+      "path": "qt/installer/briefcase_plugins/src/briefcase_plugins/platforms/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 957,
+      "path": "qt/installer/briefcase_plugins/src/briefcase_plugins/platforms/linux/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 958,
+      "path": "qt/installer/briefcase_plugins/src/briefcase_plugins/platforms/linux/zip.py",
+      "blob_sha": "25fb17cba7e1589044d5ccf9a51a1ba0833ff3f6",
+      "size": 6760,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 959,
+      "path": "qt/installer/linux-template/README.md",
+      "blob_sha": "f45928675d5534280cbaf4d4d6eb5252122b2d7b",
+      "size": 206,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 960,
+      "path": "qt/installer/linux-template/cookiecutter.json",
+      "blob_sha": "d5a6f1fed29f3923208977b6ee66b53be0d0c1d7",
+      "size": 811,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 961,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/bootstrap/Makefile",
+      "blob_sha": "4bb33096a1843d46852ec6d34e731801a6985b59",
+      "size": 835,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 962,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/bootstrap/main.c",
+      "blob_sha": "2ee858790370b67e839114dcd62960ac66e1140b",
+      "size": 12395,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 963,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/briefcase.toml",
+      "blob_sha": "9bfcb49822328ba2adb450f9f93d1d6b006f6ef4",
+      "size": 2125,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 964,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/README.md",
+      "blob_sha": "87a0b778b7f650a14e266dd64a53306ca4a8f17d",
+      "size": 564,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 965,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/anki.1",
+      "blob_sha": "c538689e028925eeb3fa8562ee753e8571a93e2b",
+      "size": 2212,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 966,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/anki.desktop",
+      "blob_sha": "f3c8482f2a50dd06117f9ae7e3ebd0ee236a374d",
+      "size": 520,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 967,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/anki.png",
+      "blob_sha": "5700121d60358ed2b6278a806835b9dcd92cdb48",
+      "size": 34595,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 968,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/anki.xml",
+      "blob_sha": "d0b716a32bee8cbd864c3239e65f682186c47ab8",
+      "size": 640,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 969,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/anki.xpm",
+      "blob_sha": "ef7c2aaef2b79885a3442f4dd55002c76313c7d2",
+      "size": 6324,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 970,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/app/README",
+      "blob_sha": "80deff1c4b16b80fcaeb47d43dbe24e9cfa65cb3",
+      "size": 165,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 971,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/app_packages/README",
+      "blob_sha": "e293e11a606b21b9e4bde97a06c3433a052a0705",
+      "size": 72,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 972,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/install.sh",
+      "blob_sha": "d5a1b9e36ae4189f02fd03c433c9fecc9a2e3870",
+      "size": 2551,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 973,
+      "path": "qt/installer/linux-template/{{ cookiecutter.format }}/{{ cookiecutter.app_name }}/uninstall.sh",
+      "blob_sha": "25c02d50b478f08e7ba7dc9105c6413a0bc53074",
+      "size": 408,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 974,
+      "path": "qt/mac/README.md",
+      "blob_sha": "b1c8d6240cdc4c5afdca2c365fbe5e2b3c1c0533",
+      "size": 49,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 975,
+      "path": "qt/mac/anki_mac_helper/__init__.py",
+      "blob_sha": "88dfedc8d6f25d718827678c3056af3ae129df0d",
+      "size": 1733,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 976,
+      "path": "qt/mac/anki_mac_helper/py.typed",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 977,
+      "path": "qt/mac/ankihelper.xcodeproj/project.pbxproj",
+      "blob_sha": "016b031927ec0aa7d72d087ca76c0ad66de6ef72",
+      "size": 10073,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 978,
+      "path": "qt/mac/ankihelper.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+      "blob_sha": "919434a6254f0e9651f402737811be6634a03e9c",
+      "size": 135,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 979,
+      "path": "qt/mac/ankihelper.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist",
+      "blob_sha": "18d981003d68d0546c4804ac2ff47dd97c6e7921",
+      "size": 238,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 980,
+      "path": "qt/mac/ankihelper.xcodeproj/project.xcworkspace/xcuserdata/dae.xcuserdatad/UserInterfaceState.xcuserstate",
+      "blob_sha": "ea5377348099ec0d5fcb046ca69fc398d11c5f20",
+      "size": 27529,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 981,
+      "path": "qt/mac/ankihelper.xcodeproj/project.xcworkspace/xcuserdata/dae.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "blob_sha": "ee3458dd76776f0b6dfd87e64f93b9d53404f758",
+      "size": 182,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 982,
+      "path": "qt/mac/ankihelper.xcodeproj/xcuserdata/dae.xcuserdatad/xcschemes/ankihelper.xcscheme",
+      "blob_sha": "998a3113d0d2e8fca26f495b129f4a32c668fd51",
+      "size": 754,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 983,
+      "path": "qt/mac/ankihelper.xcodeproj/xcuserdata/dae.xcuserdatad/xcschemes/xcschememanagement.plist",
+      "blob_sha": "888e2b255789bc7ad481ceb722d4a6a98e45e068",
+      "size": 333,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 984,
+      "path": "qt/mac/appnap.swift",
+      "blob_sha": "1e6db3d17baca9e49e298e55fd98695fd0dc18f7",
+      "size": 696,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 985,
+      "path": "qt/mac/build.sh",
+      "blob_sha": "24f155b413a335cae4e7921744391355804853f5",
+      "size": 574,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 986,
+      "path": "qt/mac/helper_build.py",
+      "blob_sha": "cfdffeb896fbe2fb90a06d6f7f227cb7602471d0",
+      "size": 1531,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 987,
+      "path": "qt/mac/pyproject.toml",
+      "blob_sha": "be1feacf8900f9c12f403e397b7d80e1ae98ad92",
+      "size": 414,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 988,
+      "path": "qt/mac/record.swift",
+      "blob_sha": "1c22d71edd2da856d626449b038e3399629107c5",
+      "size": 3261,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 989,
+      "path": "qt/mac/theme.swift",
+      "blob_sha": "dda9d6e35617fd992163c13ae805817a2f6a8779",
+      "size": 601,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 990,
+      "path": "qt/pyproject.toml",
+      "blob_sha": "376aa6b22c1f9a562050998938728722c9ea6a6b",
+      "size": 2009,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 991,
+      "path": "qt/runanki.py",
+      "blob_sha": "d0f3e0b6b266f3667ead603854ae1b4f44edc481",
+      "size": 418,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 992,
+      "path": "qt/tests/__init__.py",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 993,
+      "path": "qt/tests/launch_anki_for_e2e.py",
+      "blob_sha": "09083d8d1300a3100f7f2a4714c86f30fafdc206",
+      "size": 4308,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 994,
+      "path": "qt/tests/qwebengine_csp_smoke.py",
+      "blob_sha": "5098eda26a720a06ab94cebcdbf2d4d802934142",
+      "size": 29198,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 995,
+      "path": "qt/tests/support/dummy_package-0.1.0-py3-none-any.whl",
+      "blob_sha": "2e9c115f92920ca7f9100d18d950f95b99838f69",
+      "size": 1986,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 996,
+      "path": "qt/tests/test_addons.py",
+      "blob_sha": "8a6e4f7e83795556355527b6c7e722463ca56397",
+      "size": 5187,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 997,
+      "path": "qt/tests/test_filtered_deck.py",
+      "blob_sha": "fde2f1fceeaaf4a88cda5d37969d9c4eb03efff8",
+      "size": 5884,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 998,
+      "path": "qt/tests/test_i18n.py",
+      "blob_sha": "d24ab5f65e4ad483a717791196e0d96710856cba",
+      "size": 1061,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 999,
+      "path": "qt/tests/test_installer.py",
+      "blob_sha": "5c8f6c1a3287e62e9d0a1db2c1b865f25c89293b",
+      "size": 14422,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1000,
+      "path": "qt/tests/test_mediasrv.py",
+      "blob_sha": "b9b07ca16c3ea826077a906e7ed857097c6588d5",
+      "size": 14008,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    }
+  ]
+}

@@ -1,0 +1,2259 @@
+{
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "range": [
+    501,
+    750
+  ],
+  "files": [
+    {
+      "index": 501,
+      "path": "docs/_static/logo.png",
+      "blob_sha": "abfad1a30a2d47dd1bf447054cdd8683b7411676",
+      "size": 5555,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 502,
+      "path": "docs/api-aqt-modules.md",
+      "blob_sha": "b99819e11e947bc2dae4ec250fff93728b882b04",
+      "size": 178,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 503,
+      "path": "docs/api-python-modules.md",
+      "blob_sha": "df8b810784112e70395288f4130b0e46627550a7",
+      "size": 161,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 504,
+      "path": "docs/api-python.md",
+      "blob_sha": "5e1017d9fbe7102ff775a813599d5ef406dc133d",
+      "size": 80,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 505,
+      "path": "docs/api-rust.md",
+      "blob_sha": "d7d8918414a80b928729b7cdeac16a039d86cb72",
+      "size": 274,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 506,
+      "path": "docs/architecture.md",
+      "blob_sha": "6cc9de9128d8f63167c37ded803f3c9851789554",
+      "size": 2408,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 507,
+      "path": "docs/build.md",
+      "blob_sha": "59e1a952abb20cf3484588404c775a0ed6153483",
+      "size": 1924,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 508,
+      "path": "docs/cogdocs.py",
+      "blob_sha": "519f803fc9740529d99a68e4e19e401f59cbdb04",
+      "size": 1274,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 509,
+      "path": "docs/conf.py",
+      "blob_sha": "5897604a99e7b4efe58640e70056d23c56f295b3",
+      "size": 1306,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 510,
+      "path": "docs/contributing.md",
+      "blob_sha": "5a6e432ddd642d77dc181a4dece0b50493aa599b",
+      "size": 7904,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 511,
+      "path": "docs/dependabot.md",
+      "blob_sha": "5bca7eb3e4ea5cb9ae23db978a2fde37bad1b7e7",
+      "size": 6118,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 512,
+      "path": "docs/development.md",
+      "blob_sha": "6ab16264352f9a405f21362881e2e6fe1bd9bef1",
+      "size": 8577,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 513,
+      "path": "docs/docker/Dockerfile",
+      "blob_sha": "381d27d1cd2b0410eebcbd8c3f48a639950b22ea",
+      "size": 2554,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 514,
+      "path": "docs/docker/README.md",
+      "blob_sha": "03d003f6349ccdfb495d0761e72e9e832008f44a",
+      "size": 3654,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 515,
+      "path": "docs/e2e-testing.md",
+      "blob_sha": "fd3bcde2fc725868a2ff6279eade8a218b3bce52",
+      "size": 3106,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 516,
+      "path": "docs/editing.md",
+      "blob_sha": "ef25bf0628de187dc2c9d29ef87dac2ed6602625",
+      "size": 2177,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 517,
+      "path": "docs/index.md",
+      "blob_sha": "2498958daf3dd900a871a92f98b33886d7cb4812",
+      "size": 283,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 518,
+      "path": "docs/language_bridge.md",
+      "blob_sha": "c693e96bbc441660a790175e5cd132bab564bb76",
+      "size": 6744,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 519,
+      "path": "docs/linux.md",
+      "blob_sha": "6f4319744401be0e65452b13f6217b0a32808fdc",
+      "size": 4475,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 520,
+      "path": "docs/mac.md",
+      "blob_sha": "16e62605a14068fc6b9db9ad552483296c4bacce",
+      "size": 582,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 521,
+      "path": "docs/ninja.md",
+      "blob_sha": "39533dc9f9097a62b5a8a12b3105ddc4b40519c6",
+      "size": 966,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 522,
+      "path": "docs/protobuf.md",
+      "blob_sha": "410ad0febba5243ef50d6d63c3f83008800ae595",
+      "size": 4630,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 523,
+      "path": "docs/releasing.md",
+      "blob_sha": "297b21f92ff3142e11da0c710eeb67691e5b848a",
+      "size": 14445,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 524,
+      "path": "docs/sonarcloud.md",
+      "blob_sha": "b59007e4de2d136d3561f80a27e6e5ba26eaed5b",
+      "size": 4148,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 525,
+      "path": "docs/syncserver/Dockerfile",
+      "blob_sha": "fd003a557a0519a5e2320fe88d9fd709e10e5244",
+      "size": 1221,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 526,
+      "path": "docs/syncserver/Dockerfile.distroless",
+      "blob_sha": "f3da6684304f17d357b6da4ee0812ed3cd1af40a",
+      "size": 987,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 527,
+      "path": "docs/syncserver/README.md",
+      "blob_sha": "a041420a889f0967db49e4d617c70d4e0c384d64",
+      "size": 6798,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 528,
+      "path": "docs/syncserver/entrypoint.sh",
+      "blob_sha": "072ae15f9fd6f1edcd492c113faad435ef819603",
+      "size": 723,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 529,
+      "path": "docs/testing-coverage.md",
+      "blob_sha": "0cd6a0e6d695c587308800e0122da2b2e69e09b7",
+      "size": 4387,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 530,
+      "path": "docs/unit-testing.md",
+      "blob_sha": "c85d987720d8078928f9053e55aabeb698067a1b",
+      "size": 24929,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 531,
+      "path": "docs/windows.md",
+      "blob_sha": "fb7e277de5a4cdcf8c91b15007cc466ce0c9bae1",
+      "size": 2612,
+      "repository_area": "docs",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 532,
+      "path": "ftl/.gitignore",
+      "blob_sha": "73b4f214604e654663542966604e67b99950f4fe",
+      "size": 45,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 533,
+      "path": "ftl/Cargo.toml",
+      "blob_sha": "55252e60dd653a0e8a55cd145c07235b5c03ed89",
+      "size": 514,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 534,
+      "path": "ftl/README.md",
+      "blob_sha": "1a4e165f9870373d676089f842921a9621126a76",
+      "size": 98,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 535,
+      "path": "ftl/copy-core-string.sh",
+      "blob_sha": "2db54023371d6f91138439ba90eb5c194155ecfb",
+      "size": 352,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 536,
+      "path": "ftl/core/actions.ftl",
+      "blob_sha": "49bb6a4badd0eb8ec98c47b0b2598a81ffe3f365",
+      "size": 3586,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 537,
+      "path": "ftl/core/adding.ftl",
+      "blob_sha": "e94333008cea38f7f76c89ca2d8cce6b8741a385",
+      "size": 710,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 538,
+      "path": "ftl/core/browsing.ftl",
+      "blob_sha": "32b4aa252fd5af2ffa4ce7bc4c7326f761a0be71",
+      "size": 8838,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 539,
+      "path": "ftl/core/card-stats.ftl",
+      "blob_sha": "8591c891067c6a2dced21c52da78782e80c9cf2a",
+      "size": 1861,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 540,
+      "path": "ftl/core/card-template-rendering.ftl",
+      "blob_sha": "534f40a8dde7dc6569c417089c9dbd420c327530",
+      "size": 2005,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 541,
+      "path": "ftl/core/card-templates.ftl",
+      "blob_sha": "edb2433f9e4bfcf205f07af409e2d0c2747b211b",
+      "size": 3703,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 542,
+      "path": "ftl/core/change-notetype.ftl",
+      "blob_sha": "f21abd3d2fb2069be7e9a7129fe263c1337e1376",
+      "size": 648,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 543,
+      "path": "ftl/core/custom-study.ftl",
+      "blob_sha": "8355e3f962c6f0e6f2c947fae912b28a37674b2c",
+      "size": 2787,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 544,
+      "path": "ftl/core/database-check.ftl",
+      "blob_sha": "ce2f827cd6521c6f1af8bf33c8ecd1afd4f34304",
+      "size": 2876,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 545,
+      "path": "ftl/core/deck-config.ftl",
+      "blob_sha": "3d49e1a96499cc345924fcf97db1cadb96bec15f",
+      "size": 38084,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 546,
+      "path": "ftl/core/decks.ftl",
+      "blob_sha": "f1a99ef93905a0b82ffe5871c16938854b807fa4",
+      "size": 2970,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 547,
+      "path": "ftl/core/editing.ftl",
+      "blob_sha": "f1560250aae28e161d2e3deacbbda657b4c3e2f6",
+      "size": 4862,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 548,
+      "path": "ftl/core/empty-cards.ftl",
+      "blob_sha": "cbc9f91a9ea176acf54b102298573da9efc7925e",
+      "size": 604,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 549,
+      "path": "ftl/core/errors.ftl",
+      "blob_sha": "7807ac3a54908fa23788cfed1f50336913987109",
+      "size": 1422,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 550,
+      "path": "ftl/core/exporting.ftl",
+      "blob_sha": "4cea298420c0801c5c72aea0952c650ae6846201",
+      "size": 1893,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 551,
+      "path": "ftl/core/fields.ftl",
+      "blob_sha": "af8d45758ad5e865a1ad0b2648eebb14fc01c47c",
+      "size": 1277,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 552,
+      "path": "ftl/core/findreplace.ftl",
+      "blob_sha": "85e7ed905c47e3c3e0a7e43dd629953e32d9ef66",
+      "size": 161,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 553,
+      "path": "ftl/core/help.ftl",
+      "blob_sha": "80a08703e03d11bf6a3d3f8695922dc8696e31ed",
+      "size": 504,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 554,
+      "path": "ftl/core/importing.ftl",
+      "blob_sha": "b23d1265438d4233de5e852c6318b9e889a77c88",
+      "size": 13692,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 555,
+      "path": "ftl/core/keyboard.ftl",
+      "blob_sha": "b794276dfde1955556809feb24aa67656a59c37f",
+      "size": 44,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 556,
+      "path": "ftl/core/media-check.ftl",
+      "blob_sha": "168ca11f6336aebcee0e13fbb9ed54f465a06f3f",
+      "size": 3031,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 557,
+      "path": "ftl/core/media.ftl",
+      "blob_sha": "826ca421eb001baca0ec22afe8e71c0c3a61fd6d",
+      "size": 627,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 558,
+      "path": "ftl/core/network.ftl",
+      "blob_sha": "660e410fd6b450ced3a40bf9a56ebf5d66f0c3ca",
+      "size": 333,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 559,
+      "path": "ftl/core/notetypes.ftl",
+      "blob_sha": "5eac04485322b3b00b3b5f0491c3191bd0644ae9",
+      "size": 2390,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 560,
+      "path": "ftl/core/preferences.ftl",
+      "blob_sha": "00428eb7901d234f47cb53d75f81eb8452e2e2ed",
+      "size": 6289,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 561,
+      "path": "ftl/core/profiles.ftl",
+      "blob_sha": "bf2725443d6438f9e2eee2ba9312859a4bfee96e",
+      "size": 1540,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 562,
+      "path": "ftl/core/scheduling.ftl",
+      "blob_sha": "47abd762c63ccaa478421f2a5357268a83110986",
+      "size": 7486,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 563,
+      "path": "ftl/core/search.ftl",
+      "blob_sha": "2754970e5fefa0d814a0f93358c4d1d9f8adab9d",
+      "size": 3301,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 564,
+      "path": "ftl/core/statistics.ftl",
+      "blob_sha": "c5551ef676ee3870aa2437ebc980ac95df196303",
+      "size": 12394,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 565,
+      "path": "ftl/core/studying.ftl",
+      "blob_sha": "a317a68bae8b14f95d62431206c293980dc8e4e0",
+      "size": 2747,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 566,
+      "path": "ftl/core/sync.ftl",
+      "blob_sha": "e1d954c4a0b9933810e1530191ac4ebfa8bafd0b",
+      "size": 4359,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 567,
+      "path": "ftl/core/undo.ftl",
+      "blob_sha": "8f52f710006476ddc33b82fafed6c789e1f4b7a1",
+      "size": 348,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 568,
+      "path": "ftl/ftl",
+      "blob_sha": "1a9dc17b37daa09d13a94f720743035d7dd28afc",
+      "size": 64,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 569,
+      "path": "ftl/move-from-ankimobile",
+      "blob_sha": "fd911709be3eca4e14ac35915f8276b836f94606",
+      "size": 178,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 570,
+      "path": "ftl/qt/about.ftl",
+      "blob_sha": "b841e084357265ae4209115f1d45673ab6fb0403",
+      "size": 964,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 571,
+      "path": "ftl/qt/addons.ftl",
+      "blob_sha": "58f4c7e15f2ad602c6cd8351a08493b1b6f27b92",
+      "size": 5050,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 572,
+      "path": "ftl/qt/errors.ftl",
+      "blob_sha": "984116e1aa46d11e08c3f748463dfaa1c2a59fb2",
+      "size": 2306,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 573,
+      "path": "ftl/qt/preferences.ftl",
+      "blob_sha": "bfb1ca6802c4998cf650f4019adae05ea55b23b2",
+      "size": 508,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 574,
+      "path": "ftl/qt/profiles.ftl",
+      "blob_sha": "924f126fc15e874ba9ea1205244331fc9ec527f8",
+      "size": 279,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 575,
+      "path": "ftl/qt/qt-accel.ftl",
+      "blob_sha": "6c832b368b192478cc045f1afdb82e567378191e",
+      "size": 1543,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 576,
+      "path": "ftl/qt/qt-misc.ftl",
+      "blob_sha": "9ac298e992e7cbbed29ce1bfa3b60df93099e6a4",
+      "size": 6370,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 577,
+      "path": "ftl/remove-unused.sh",
+      "blob_sha": "ff209518909873b25e00932d9721df27ccea570e",
+      "size": 896,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 578,
+      "path": "ftl/src/garbage_collection.rs",
+      "blob_sha": "17d47e430ecf607b8e5c68c1b53ef7e8f0c90fc4",
+      "size": 8977,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 579,
+      "path": "ftl/src/main.rs",
+      "blob_sha": "36a75c4e3f9870485a4550c22e21725ef2036e9a",
+      "size": 1985,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 580,
+      "path": "ftl/src/serialize.rs",
+      "blob_sha": "73513df69072ed54b964a217387e75a88fd23180",
+      "size": 13317,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 581,
+      "path": "ftl/src/string/copy.rs",
+      "blob_sha": "c2b983303f8758ed9a743f0469abc2c9fae863bd",
+      "size": 3303,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 582,
+      "path": "ftl/src/string/mod.rs",
+      "blob_sha": "acfb2474c0305e805d4a32cd38fd00966a2a9004",
+      "size": 7479,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 583,
+      "path": "ftl/src/string/transform.rs",
+      "blob_sha": "f87113584a400c68ea9d5af2b2aa7bf1faedca79",
+      "size": 6838,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 584,
+      "path": "ftl/src/sync.rs",
+      "blob_sha": "615b9d03a2f4d7b43f5e32a5ade179c569b593e6",
+      "size": 3012,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 585,
+      "path": "ftl/update-ankidroid-usage.sh",
+      "blob_sha": "ced4ed266420bbb988354787351a03f061d242a0",
+      "size": 104,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 586,
+      "path": "ftl/update-ankimobile-usage.sh",
+      "blob_sha": "08a266e58faa766fcdfe8145765bae09337189d0",
+      "size": 194,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 587,
+      "path": "ftl/usage/no-deprecate.json",
+      "blob_sha": "d0bb64c5681bde7101313bd86316a0cdbf462f66",
+      "size": 71,
+      "repository_area": "localization",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 588,
+      "path": "justfile",
+      "blob_sha": "445e0e89f01066e01d539b77b0c124a270714e75",
+      "size": 5946,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 589,
+      "path": "ninja",
+      "blob_sha": "f1a0b837fff14e3ac6dbf8cb3ec01f586e3a06b0",
+      "size": 509,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 590,
+      "path": "package.json",
+      "blob_sha": "726fa78ebcf74f2b7b732d63f32950cce51b97e4",
+      "size": 3476,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 591,
+      "path": "playwright.config.ts",
+      "blob_sha": "986d487febfe26ea71ab03d044a42174fbfe9bec",
+      "size": 1482,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 592,
+      "path": "proto/.clang-format",
+      "blob_sha": "ea91c9ecfe066ddf3809cf85fa6b231a4eba3fe5",
+      "size": 21,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 593,
+      "path": "proto/.top_level",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 594,
+      "path": "proto/README.md",
+      "blob_sha": "21768bd118fed967600305d7af8505973b6c1857",
+      "size": 237,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 595,
+      "path": "proto/anki/ankidroid.proto",
+      "blob_sha": "49fb7d1910a2444dfc7ae36b873694f8c7a29ffa",
+      "size": 2199,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 596,
+      "path": "proto/anki/ankihub.proto",
+      "blob_sha": "bcbdc17782cbac38a1d5310ac2ddb1019be65174",
+      "size": 578,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 597,
+      "path": "proto/anki/ankiweb.proto",
+      "blob_sha": "d411a833f0ddf911889f38b53e6e0d7b0de71c39",
+      "size": 1227,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 598,
+      "path": "proto/anki/backend.proto",
+      "blob_sha": "c4be32c2ca635f3160eae3e81a1c9a2f03711918",
+      "size": 1598,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 599,
+      "path": "proto/anki/card_rendering.proto",
+      "blob_sha": "0ca8e5fdec2f49926e96816f4507c6a1b7e6ade5",
+      "size": 4894,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "card_rendering"
+    },
+    {
+      "index": 600,
+      "path": "proto/anki/cards.proto",
+      "blob_sha": "5c9838571afa4bfa53268e784b2cd3b1e81ae909",
+      "size": 1827,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "cards_notes"
+    },
+    {
+      "index": 601,
+      "path": "proto/anki/collection.proto",
+      "blob_sha": "00ea8c44e4bae79a78ee3b2768ffa5c7b6c937c5",
+      "size": 4677,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "operations"
+    },
+    {
+      "index": 602,
+      "path": "proto/anki/config.proto",
+      "blob_sha": "354229789ee3149445e253920caf11083f861124",
+      "size": 3903,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 603,
+      "path": "proto/anki/deck_config.proto",
+      "blob_sha": "181ed4e7d550772b989d126bce7290d00a831fac",
+      "size": 8389,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 604,
+      "path": "proto/anki/decks.proto",
+      "blob_sha": "e971e6946b9973b9444bb688abe8042448ed61ad",
+      "size": 5979,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 605,
+      "path": "proto/anki/frontend.proto",
+      "blob_sha": "7530461e7f4db357d0559d27da90bf673b4fb262",
+      "size": 3884,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 606,
+      "path": "proto/anki/generic.proto",
+      "blob_sha": "70de05f436645e8f829065f203126d324e58789e",
+      "size": 497,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 607,
+      "path": "proto/anki/github.proto",
+      "blob_sha": "2819f53bc583f2f90942fcaccc1d8a28adc265d6",
+      "size": 609,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 608,
+      "path": "proto/anki/i18n.proto",
+      "blob_sha": "9414e5fce38b05f98a5f6ef10bc618ccbf600d87",
+      "size": 1257,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 609,
+      "path": "proto/anki/image_occlusion.proto",
+      "blob_sha": "edbfe9ffd0889959788868500f47a0ef3939ba5a",
+      "size": 2716,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "image_occlusion"
+    },
+    {
+      "index": 610,
+      "path": "proto/anki/import_export.proto",
+      "blob_sha": "3273a57bbdd769e8658a0aba47bb3b47bc5e544d",
+      "size": 6156,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "import_export"
+    },
+    {
+      "index": 611,
+      "path": "proto/anki/links.proto",
+      "blob_sha": "6dd9ad8c6593a6ac20544b02d2eea202fabc654d",
+      "size": 1118,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 612,
+      "path": "proto/anki/media.proto",
+      "blob_sha": "58f4813795f19af578f3488303f1bdda7c140904",
+      "size": 1649,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "media"
+    },
+    {
+      "index": 613,
+      "path": "proto/anki/notes.proto",
+      "blob_sha": "f147a599dba477e1d96e17db65ec8b29105932b5",
+      "size": 2898,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "cards_notes"
+    },
+    {
+      "index": 614,
+      "path": "proto/anki/notetypes.proto",
+      "blob_sha": "06bf463bf449c7e936ffcaf7f3589d24325a22f5",
+      "size": 6886,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "notetypes"
+    },
+    {
+      "index": 615,
+      "path": "proto/anki/scheduler.proto",
+      "blob_sha": "b056d1dd99b0c727c8aa1a264fdc5b932534e621",
+      "size": 12841,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 616,
+      "path": "proto/anki/search.proto",
+      "blob_sha": "e87a063c998512a0f770b57032ccdb07081e00f5",
+      "size": 4638,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 617,
+      "path": "proto/anki/stats.proto",
+      "blob_sha": "1bd0fe630eae9c9356e7c61e365ada482a5c6358",
+      "size": 5850,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 618,
+      "path": "proto/anki/sync.proto",
+      "blob_sha": "ea3f6df196d877c09b38c0a820cd2e5176142ab6",
+      "size": 2349,
+      "repository_area": "proto",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 619,
+      "path": "proto/anki/tags.proto",
+      "blob_sha": "a31591be6817c0f82bf740873531091afadb23a4",
+      "size": 2063,
+      "repository_area": "proto",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 620,
+      "path": "pylib/.gitignore",
+      "blob_sha": "3dd6d9380b9be74043751f12a3998dd5f0349a0f",
+      "size": 109,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 621,
+      "path": "pylib/README.md",
+      "blob_sha": "c991a64bc993cb76df5aa653d883d1401c332d84",
+      "size": 1811,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 622,
+      "path": "pylib/anki/_backend.py",
+      "blob_sha": "a9aab8ab45d07e7b0e2831e308e0eb01c5ef062a",
+      "size": 8830,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 623,
+      "path": "pylib/anki/_legacy.py",
+      "blob_sha": "24456aa14cbad3290a9a4f6690b272ee335e155d",
+      "size": 7442,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 624,
+      "path": "pylib/anki/_rsbridge.pyi",
+      "blob_sha": "fe3072ed878b6e40f57905723dbd4c3f61fb9abd",
+      "size": 357,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 625,
+      "path": "pylib/anki/_vendor/stringcase.py",
+      "blob_sha": "bba23fcc299aed11e0cc112bc0a751aafcdb71d6",
+      "size": 4784,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 626,
+      "path": "pylib/anki/browser.py",
+      "blob_sha": "8563ed229b94bb6430eaa099d49af8cf4b757c62",
+      "size": 1205,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 627,
+      "path": "pylib/anki/cards.py",
+      "blob_sha": "b8154510e988883273f10987a323724c6aa99e93",
+      "size": 8428,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "cards_notes"
+    },
+    {
+      "index": 628,
+      "path": "pylib/anki/collection.py",
+      "blob_sha": "bcd9f66fdb04295dd5972cb68234b50971c8b12c",
+      "size": 47773,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 629,
+      "path": "pylib/anki/config.py",
+      "blob_sha": "775557c848ff6b0ee0247fda98b1304b269bccb7",
+      "size": 4092,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 630,
+      "path": "pylib/anki/consts.py",
+      "blob_sha": "983b0a1f5a2345294996ae972f95a36cb889b0b4",
+      "size": 2595,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 631,
+      "path": "pylib/anki/db.py",
+      "blob_sha": "f05becb08d5b7ffdffd62843b99217ae185f3558",
+      "size": 3882,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 632,
+      "path": "pylib/anki/dbproxy.py",
+      "blob_sha": "f1e114261121f9464e7ad4527a1e914d62ee41be",
+      "size": 3839,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 633,
+      "path": "pylib/anki/decks.py",
+      "blob_sha": "917e563def814ffb00c37a15ee9d89fe3e1f00fa",
+      "size": 20799,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "decks_deckconfig"
+    },
+    {
+      "index": 634,
+      "path": "pylib/anki/errors.py",
+      "blob_sha": "5641b630d073ebc68abc5fe54bd590ef328fb7d8",
+      "size": 2398,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 635,
+      "path": "pylib/anki/exporting.py",
+      "blob_sha": "cdfe9c7a7eb6db315cb860a0b3262918af73b0b8",
+      "size": 1294,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "import_export"
+    },
+    {
+      "index": 636,
+      "path": "pylib/anki/find.py",
+      "blob_sha": "106bf28760b42bd93c2c87e1ab21e4390e0b7313",
+      "size": 1831,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 637,
+      "path": "pylib/anki/foreign_data/__init__.py",
+      "blob_sha": "8aac2cc4204cc92c96568e5da16588cf3d6b5822",
+      "size": 3221,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 638,
+      "path": "pylib/anki/foreign_data/mnemosyne.py",
+      "blob_sha": "e2fc5614871efd7046f77b370a0d2423f82dae18",
+      "size": 7150,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 639,
+      "path": "pylib/anki/hooks.py",
+      "blob_sha": "13148c64924797c229e5a5c1e96c043e6398dab3",
+      "size": 2634,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 640,
+      "path": "pylib/anki/httpclient.py",
+      "blob_sha": "215d4779b4a6bec8c8490a12c94da1b1ac8512c4",
+      "size": 2948,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 641,
+      "path": "pylib/anki/importing.py",
+      "blob_sha": "ba0c2200677f570051c1f101e26f43767bc79107",
+      "size": 1212,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 642,
+      "path": "pylib/anki/lang.py",
+      "blob_sha": "1b0599a2f374272d126dd6f201a1166fef494dfd",
+      "size": 7447,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 643,
+      "path": "pylib/anki/latex.py",
+      "blob_sha": "ed8c9cce656a91b66a995e5591ca9003a34feaac",
+      "size": 4896,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 644,
+      "path": "pylib/anki/media.py",
+      "blob_sha": "8ba5d432c01ddc70acdaba1fe3709dacecd750a6",
+      "size": 8967,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "media"
+    },
+    {
+      "index": 645,
+      "path": "pylib/anki/models.py",
+      "blob_sha": "a2267663a4a7d556b133fd771f48202a46cf9402",
+      "size": 20515,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 646,
+      "path": "pylib/anki/notes.py",
+      "blob_sha": "3d09d5632de26dcb79eb473f28082a20a5f922cf",
+      "size": 6304,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "cards_notes"
+    },
+    {
+      "index": 647,
+      "path": "pylib/anki/py.typed",
+      "blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "size": 0,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 648,
+      "path": "pylib/anki/rsbackend.py",
+      "blob_sha": "093712fca0ff1eb561acc406a446609683a6e8ac",
+      "size": 551,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 649,
+      "path": "pylib/anki/scheduler/__init__.py",
+      "blob_sha": "5b7562a4cc98ce1144d520ab0575b69222619ae4",
+      "size": 399,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 650,
+      "path": "pylib/anki/scheduler/base.py",
+      "blob_sha": "ffe4a6ef9fce74802b0d93eab0f6c85f6d0261fe",
+      "size": 10860,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 651,
+      "path": "pylib/anki/scheduler/dummy.py",
+      "blob_sha": "08896b1e5da8f79cd89edd3f2611401f10d5b8a4",
+      "size": 816,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 652,
+      "path": "pylib/anki/scheduler/legacy.py",
+      "blob_sha": "35092588d1a45b26123264af7977d679c1008172",
+      "size": 4834,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 653,
+      "path": "pylib/anki/scheduler/v3.py",
+      "blob_sha": "3c1123d0b9dfd917bb648514b21da3f023c4d51c",
+      "size": 8120,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "scheduler"
+    },
+    {
+      "index": 654,
+      "path": "pylib/anki/sound.py",
+      "blob_sha": "3af584dae61522e4b922171a401965569a45f18e",
+      "size": 2091,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 655,
+      "path": "pylib/anki/stats.py",
+      "blob_sha": "e8045decb044aa16538d0202bc4b86641ed591fa",
+      "size": 36755,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "stats"
+    },
+    {
+      "index": 656,
+      "path": "pylib/anki/statsbg.py",
+      "blob_sha": "b9ebb5aa8e627597e2699ee6c0824d430ca875f2",
+      "size": 492,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 657,
+      "path": "pylib/anki/stdmodels.py",
+      "blob_sha": "4edb83a7a577aa1cc2df6770a28527312865e1b4",
+      "size": 3866,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 658,
+      "path": "pylib/anki/storage.py",
+      "blob_sha": "bf71689cd2b42210bb89dfa5a90d7082d8fba260",
+      "size": 251,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 659,
+      "path": "pylib/anki/sync.py",
+      "blob_sha": "e52611d30718f7b97c98820cd820aa0140fe77da",
+      "size": 460,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 660,
+      "path": "pylib/anki/syncserver.py",
+      "blob_sha": "6069617576cd2942d1569192486a1439fa56dfe8",
+      "size": 509,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 661,
+      "path": "pylib/anki/tags.py",
+      "blob_sha": "0c0338b82e2a39a8f45933f720f8db27a7f6a3b2",
+      "size": 7297,
+      "repository_area": "pylib",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "tags"
+    },
+    {
+      "index": 662,
+      "path": "pylib/anki/template.py",
+      "blob_sha": "bc507f0f6b3e44f0dd1f9340ef4e53f6c32c2cc6",
+      "size": 11009,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 663,
+      "path": "pylib/anki/types.py",
+      "blob_sha": "d6f1406a2764121270711e863d6172fc9e8f719b",
+      "size": 362,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 664,
+      "path": "pylib/anki/utils.py",
+      "blob_sha": "ec180ee9f675d60aaa6b1352581fb88428ade2bd",
+      "size": 9635,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 665,
+      "path": "pylib/hatch_build.py",
+      "blob_sha": "9e8ee97992fb717000ddfe011b4dc84291d1216b",
+      "size": 1909,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 666,
+      "path": "pylib/pyproject.toml",
+      "blob_sha": "1c0fc344d2fbe227b418403f2f837adfe23d93bb",
+      "size": 1199,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 667,
+      "path": "pylib/rsbridge/.gitignore",
+      "blob_sha": "a9d37c560c6ab8d4afbf47eda643e8c42e857716",
+      "size": 18,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 668,
+      "path": "pylib/rsbridge/Cargo.toml",
+      "blob_sha": "22dca83fa937edad84c95240521a8e57d0b498d1",
+      "size": 439,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 669,
+      "path": "pylib/rsbridge/build.rs",
+      "blob_sha": "4671bc296aa6e32f8637e5a333e4bb867b848de1",
+      "size": 1114,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 670,
+      "path": "pylib/rsbridge/lib.rs",
+      "blob_sha": "654bff9242773286ed13b62a294123780aed58bd",
+      "size": 2724,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 671,
+      "path": "pylib/tests/__init__.py",
+      "blob_sha": "7069f4fa71262c31dbd525f39f88fa01be1ac942",
+      "size": 178,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 672,
+      "path": "pylib/tests/shared.py",
+      "blob_sha": "6b653cf17640ca3d285903fb64ac2cc50953a178",
+      "size": 1881,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 673,
+      "path": "pylib/tests/support/anki12-broken.anki",
+      "blob_sha": "530815fefe76e76225c6179aacdb646ce4a453b6",
+      "size": 64512,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 674,
+      "path": "pylib/tests/support/anki12-due.anki",
+      "blob_sha": "9da506c7ea9284e5b8c6d0dc692fba0e09808c90",
+      "size": 60416,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 675,
+      "path": "pylib/tests/support/anki12.anki",
+      "blob_sha": "8a20fc0944adeb6036a0d1525903aa13b1c000f8",
+      "size": 64512,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 676,
+      "path": "pylib/tests/support/anki2-alpha.anki2",
+      "blob_sha": "adb9c6b88ca1250373b12f848d8d524b84750211",
+      "size": 65536,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 677,
+      "path": "pylib/tests/support/diffmodels1.anki",
+      "blob_sha": "aa2103b05a340e839959c5ddbbb6299b045f2cb2",
+      "size": 39424,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 678,
+      "path": "pylib/tests/support/diffmodels2-1.apkg",
+      "blob_sha": "e3c85af8114518bded85823215f9f1fd21b475bd",
+      "size": 3070,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 679,
+      "path": "pylib/tests/support/diffmodels2-2.apkg",
+      "blob_sha": "06534f44665ea17deabe229be43f0f6b49d4bec6",
+      "size": 3186,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 680,
+      "path": "pylib/tests/support/diffmodels2.anki",
+      "blob_sha": "0f921c90a884c6cbf8e735324c84982793953055",
+      "size": 37888,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 681,
+      "path": "pylib/tests/support/diffmodeltemplates-1.apkg",
+      "blob_sha": "e75abac3a9c64961011b339f0b83e5c3732d96f7",
+      "size": 5140,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 682,
+      "path": "pylib/tests/support/diffmodeltemplates-2.apkg",
+      "blob_sha": "acb8e11fb012285051129b9757410f685ab63095",
+      "size": 5147,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 683,
+      "path": "pylib/tests/support/fake.png",
+      "blob_sha": "8baef1b4abc478178b004d62031cf7fe6db6f903",
+      "size": 4,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 684,
+      "path": "pylib/tests/support/invalid-ords.anki",
+      "blob_sha": "f2f3df45e2c9b9ad49c7a3ab453cdcdc67748b25",
+      "size": 139264,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 685,
+      "path": "pylib/tests/support/media.apkg",
+      "blob_sha": "2a727f9a2c96e2362bc5a3ef32483815a8d15465",
+      "size": 2509,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 686,
+      "path": "pylib/tests/support/mnemo.db",
+      "blob_sha": "677ed73e5e342129840173f260e3725328c75620",
+      "size": 114688,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 687,
+      "path": "pylib/tests/support/suspended12.anki",
+      "blob_sha": "5117847dbf10c899486a1ab38f0de471b55eb0f4",
+      "size": 63488,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 688,
+      "path": "pylib/tests/support/text-2fields.txt",
+      "blob_sha": "c27ba61367f0995dbb819f95964f2e2216c1f791",
+      "size": 169,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 689,
+      "path": "pylib/tests/support/text-tags.txt",
+      "blob_sha": "c7f68a8ce0393a53c06d5505ab708cc18100c694",
+      "size": 31,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 690,
+      "path": "pylib/tests/support/text-update.txt",
+      "blob_sha": "5253c89d136aff248aaf36d1f2bbbf43453cccaa",
+      "size": 4,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 691,
+      "path": "pylib/tests/support/update1.apkg",
+      "blob_sha": "5a0643b673d44d7e362f3353792460fe5e9b1eca",
+      "size": 3137,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 692,
+      "path": "pylib/tests/support/update2.apkg",
+      "blob_sha": "5310095ce65c107d8204cf0540a40924cc960078",
+      "size": 3145,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 693,
+      "path": "pylib/tests/test_cards.py",
+      "blob_sha": "66b52912fef7ee14d262e1dcc6baef822c5bf908",
+      "size": 3231,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 694,
+      "path": "pylib/tests/test_collection.py",
+      "blob_sha": "2c316d6cb00b3df2bd98e66066977f825fefe4b6",
+      "size": 4773,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 695,
+      "path": "pylib/tests/test_config.py",
+      "blob_sha": "b6b020ef7bbf74f339cffc42b15e55e0727502a9",
+      "size": 3826,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 696,
+      "path": "pylib/tests/test_decks.py",
+      "blob_sha": "ab9b96735d68b3b8a352b8d29cd3d429ddddad84",
+      "size": 3250,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 697,
+      "path": "pylib/tests/test_find.py",
+      "blob_sha": "72e7fdb8a9380e673c1cddab25bb3fc5bf7e4e1b",
+      "size": 11491,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 698,
+      "path": "pylib/tests/test_flags.py",
+      "blob_sha": "8d4779be52cafebbaa70e853d8d6b52016daf255",
+      "size": 1063,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 699,
+      "path": "pylib/tests/test_hooks.py",
+      "blob_sha": "53681432276abfc2815b3103649e1c5ef0e89f08",
+      "size": 3538,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 700,
+      "path": "pylib/tests/test_httpclient.py",
+      "blob_sha": "3f2eda5054665c704dd34c1db4597a11ab42878b",
+      "size": 2213,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 701,
+      "path": "pylib/tests/test_importing_exporting.py",
+      "blob_sha": "bcc25cce4c7cb5894ac667b7ea06e9fbf8fe8e41",
+      "size": 4262,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 702,
+      "path": "pylib/tests/test_latex.py",
+      "blob_sha": "41dc14bf66687ef5968b5add32b87c6a04c1c865",
+      "size": 2201,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 703,
+      "path": "pylib/tests/test_media.py",
+      "blob_sha": "546e133580a0d49077a2f85e5d8d9f4c73773d49",
+      "size": 2803,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 704,
+      "path": "pylib/tests/test_models.py",
+      "blob_sha": "78afcbc6d83dcd54e941757d1bdbe01c0241837a",
+      "size": 14448,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 705,
+      "path": "pylib/tests/test_notes.py",
+      "blob_sha": "c73f01331024ebd6c8f984b72ee8ea93226cc68a",
+      "size": 4512,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 706,
+      "path": "pylib/tests/test_schedv3.py",
+      "blob_sha": "a71fa7140c0ec66426248586ba3721286b23fe8b",
+      "size": 33937,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 707,
+      "path": "pylib/tests/test_sound.py",
+      "blob_sha": "891048b4337ae5a75785873b6fa78a6ab6cd38bc",
+      "size": 2329,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 708,
+      "path": "pylib/tests/test_stats.py",
+      "blob_sha": "7b657eab680d6aec26f118a076e2f913adbda3d6",
+      "size": 958,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 709,
+      "path": "pylib/tests/test_stdmodels.py",
+      "blob_sha": "de95d92ef0aa0043389e49f55c3a59e43110dc5b",
+      "size": 4736,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 710,
+      "path": "pylib/tests/test_tags.py",
+      "blob_sha": "f1254d3eb2471937e6730a16c6eaa16b96780bc1",
+      "size": 4451,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 711,
+      "path": "pylib/tests/test_template.py",
+      "blob_sha": "3da192de1261cd5418ae8b0137c913161ba15a17",
+      "size": 469,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 712,
+      "path": "pylib/tests/test_utils.py",
+      "blob_sha": "c59db44c23366733133f2e5c90e522d1553b692a",
+      "size": 1457,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 713,
+      "path": "pylib/tools/genbuildinfo.py",
+      "blob_sha": "add188d416ef91cbe527e430b5f4d7be5b7436f5",
+      "size": 587,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 714,
+      "path": "pylib/tools/genhooks.py",
+      "blob_sha": "111722a4cfbbe00c9ea26859a68987b7e58f7cda",
+      "size": 4226,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 715,
+      "path": "pylib/tools/hookslib.py",
+      "blob_sha": "99f08fa1efdeb377bf7e0e2dad619d36e48b2e8a",
+      "size": 6391,
+      "repository_area": "pylib",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 716,
+      "path": "pyproject.toml",
+      "blob_sha": "2801d73a0135e4249821af7b4c8deac1492be618",
+      "size": 1283,
+      "repository_area": "other",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 717,
+      "path": "python/mkempty.py",
+      "blob_sha": "0b6d201ef2c27ded1983585e44598f8510080556",
+      "size": 188,
+      "repository_area": "python",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 718,
+      "path": "python/version.py",
+      "blob_sha": "5cf3c4f126f33733876b95f1e7f65696d89ef76c",
+      "size": 348,
+      "repository_area": "python",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 719,
+      "path": "qt/README.md",
+      "blob_sha": "35b15e828e462ed50021e5f11b9a0f7fdc6749ed",
+      "size": 765,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 720,
+      "path": "qt/aqt/__init__.py",
+      "blob_sha": "32caf4079c19a16048e9d52b72f49ab8cd4993c4",
+      "size": 28477,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 721,
+      "path": "qt/aqt/_macos_helper.py",
+      "blob_sha": "27b368e8001a8d1f459972722ed1116f4acc48f1",
+      "size": 280,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 722,
+      "path": "qt/aqt/about.py",
+      "blob_sha": "0278183793f782b39095545b180f994c48910f88",
+      "size": 7618,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 723,
+      "path": "qt/aqt/addcards.py",
+      "blob_sha": "57316b307f1f5a4405fdc0ace2e236ce3d18d4fd",
+      "size": 3930,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 724,
+      "path": "qt/aqt/addcards_legacy.py",
+      "blob_sha": "10cdb7eebf513675f1a721d30524f69571b9fddd",
+      "size": 15417,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 725,
+      "path": "qt/aqt/addons.py",
+      "blob_sha": "4912d786bd21fee1d5b0ac6d3e62c2aa2f6b5ba9",
+      "size": 60495,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 726,
+      "path": "qt/aqt/ankihub.py",
+      "blob_sha": "0ea9b6dacae65152122120f45f5300f97309a530",
+      "size": 4313,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 727,
+      "path": "qt/aqt/browser/__init__.py",
+      "blob_sha": "130167124746077d31f2df5a012810a48e5d8970",
+      "size": 935,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 728,
+      "path": "qt/aqt/browser/browser.py",
+      "blob_sha": "e3bc21b7efa90f8f58b675222bd669d745e7638f",
+      "size": 45801,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 729,
+      "path": "qt/aqt/browser/card_info.py",
+      "blob_sha": "86eb9cc397dbcdaddb53c0ea0581e1b54dce0611",
+      "size": 6353,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 730,
+      "path": "qt/aqt/browser/find_and_replace.py",
+      "blob_sha": "6fcad2eae5b9ffe0048cc7ea4ed13d0063e236fa",
+      "size": 6051,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 731,
+      "path": "qt/aqt/browser/find_duplicates.py",
+      "blob_sha": "ca9cdcc21c0ed481f9f056a9e60c20f467858b34",
+      "size": 4355,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 732,
+      "path": "qt/aqt/browser/layout.py",
+      "blob_sha": "4acc7600a01d2ea1a5a6a35c8af34f938d3bc180",
+      "size": 1211,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 733,
+      "path": "qt/aqt/browser/previewer.py",
+      "blob_sha": "499b631a329d7a1fd3c35f36b6b69cc6cbddf300",
+      "size": 13724,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 734,
+      "path": "qt/aqt/browser/sidebar/__init__.py",
+      "blob_sha": "555ed3cdd10f46444f4e502976376c88e3a62502",
+      "size": 429,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 735,
+      "path": "qt/aqt/browser/sidebar/item.py",
+      "blob_sha": "b51910d4b0d26ee48588fa4130f11fc3113c7111",
+      "size": 5074,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 736,
+      "path": "qt/aqt/browser/sidebar/model.py",
+      "blob_sha": "fd27926b5de3fb919e5e91ebd07e081f725b5e6c",
+      "size": 4073,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 737,
+      "path": "qt/aqt/browser/sidebar/searchbar.py",
+      "blob_sha": "cb56d74afb25dd0cc6e09510b30d2b0395de063d",
+      "size": 1280,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 738,
+      "path": "qt/aqt/browser/sidebar/toolbar.py",
+      "blob_sha": "0b16c4647ee1bc7fb34225e45dab892233b243a9",
+      "size": 2318,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 739,
+      "path": "qt/aqt/browser/sidebar/tree.py",
+      "blob_sha": "aa46fb88e8a9129c180ef3a6825cb1e554aaf4c1",
+      "size": 45650,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 740,
+      "path": "qt/aqt/browser/table/__init__.py",
+      "blob_sha": "c942dc30fc77167584254e545b256b5e000eb9da",
+      "size": 4470,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 741,
+      "path": "qt/aqt/browser/table/model.py",
+      "blob_sha": "732e8c99c94ba33332c70f9345c3ac2e4e148ce0",
+      "size": 13611,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 742,
+      "path": "qt/aqt/browser/table/state.py",
+      "blob_sha": "4faf886113749482c928ba84da805bc95e6057e4",
+      "size": 7553,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 743,
+      "path": "qt/aqt/browser/table/table.py",
+      "blob_sha": "e28075b3f27416a9006b0be68e62484c7a6dc07d",
+      "size": 26245,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "search_browser"
+    },
+    {
+      "index": 744,
+      "path": "qt/aqt/changenotetype.py",
+      "blob_sha": "70567a2e9e21fc07d092cf0fd2cfb575f6908d87",
+      "size": 2866,
+      "repository_area": "qt",
+      "cards_scope": "CARDS_RUNTIME",
+      "cards_category": "notetypes"
+    },
+    {
+      "index": 745,
+      "path": "qt/aqt/clayout.py",
+      "blob_sha": "dfe5162fd9a5bcfecd57f00dc0a0b46eebe5ce8b",
+      "size": 35008,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 746,
+      "path": "qt/aqt/colors.py",
+      "blob_sha": "a73b3b66e8c1cbea71548fdbc4e0db77b895de73",
+      "size": 154,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 747,
+      "path": "qt/aqt/customstudy.py",
+      "blob_sha": "639e87ae1ecc07e5d296f42dafe0a8e5aca978de",
+      "size": 8645,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 748,
+      "path": "qt/aqt/data/qt/icons/anki.png",
+      "blob_sha": "900a84823dabddbd05d6c3dfb86cca5465705bf9",
+      "size": 1720,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 749,
+      "path": "qt/aqt/data/qt/icons/card-state.svg",
+      "blob_sha": "54ed5eb3c22f85d3793ae971cb0bf690ee3ddb83",
+      "size": 832,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 750,
+      "path": "qt/aqt/data/qt/icons/clock.svg",
+      "blob_sha": "747eb1a472935735effca3b088235c057c59fab9",
+      "size": 2738,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    }
+  ]
+}

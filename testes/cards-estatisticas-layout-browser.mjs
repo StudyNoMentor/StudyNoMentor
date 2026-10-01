@@ -20,7 +20,7 @@ try{
     const erros=[];page.on('pageerror',e=>erros.push(e.message));
     await page.goto(`http://127.0.0.1:${server.address().port}/index.html`,{waitUntil:'domcontentloaded'});
     await page.waitForFunction(()=>window.switchScreen&&typeof CardsScreen!=='undefined'&&typeof AnkiMaxStatsMedia!=='undefined',{timeout:30000});
-    const r=await page.evaluate(()=>{
+    const r=await page.evaluate(async()=>{
       try{ProfileUI.hideGate();}catch(_){}
       const d=DB.addDeck('Estatísticas'),agora=Date.now(),dia=86400000,cards=[],log=[];
       for(let i=0;i<60;i++){
@@ -29,8 +29,38 @@ try{
         for(let k=0;k<3;k++){const ts=agora-(k*3+i%4)*dia-i*60000;log.push({cardId:c.id,ts,date:new Date(ts).toISOString().slice(0,10),grade:1+((i+k)%4),phase:k?'review':'learning',intervalo:k,elapsed:k,time:8000});}
       }
       DB.replaceRevlog(log);
-      switchScreen('cards');CardsScreen.tab='stats';CardsScreen.render();
-      const box=document.getElementById('cards-content'),vw=document.documentElement.clientWidth;
+      // Layout é testado com um payload de GraphsService, sem depender de rede,
+      // sessão ou de cálculos locais. A UI continua consumindo exatamente o
+      // contrato oficial que o backend serializa.
+      const reviewCount={},reviewTime={},added={};
+      for(let off=-59;off<=0;off++){
+        const n=1+Math.abs(off%7);
+        reviewCount[off]={learn:off%5===0?1:0,relearn:off%11===0?1:0,young:n,mature:Math.max(0,n-2),filtered:off%13===0?1:0};
+        reviewTime[off]={learn:12000,relearn:6000,young:n*9000,mature:n*5000,filtered:2000};
+        added[off]=off%4===0?2:0;
+      }
+      const graph={
+        fsrs:true,rollover_hour:4,
+        card_counts:{excluding_inactive:{newCards:8,learn:4,relearn:2,young:21,mature:23,suspended:1,buried:1}},
+        today:{answer_count:18,answer_millis:180000,correct_count:15,mature_correct:8,mature_count:9,learn_count:3,review_count:12,relearn_count:2,early_review_count:1},
+        reviews:{count:reviewCount,time:reviewTime},added:{added},
+        true_retention:{today:{young_passed:5,young_failed:1,mature_passed:8,mature_failed:1},yesterday:{young_passed:4,young_failed:1,mature_passed:7,mature_failed:1},week:{young_passed:30,young_failed:4,mature_passed:40,mature_failed:5},month:{young_passed:100,young_failed:12,mature_passed:140,mature_failed:15},year:{young_passed:300,young_failed:35,mature_passed:420,mature_failed:40},all_time:{young_passed:400,young_failed:45,mature_passed:600,mature_failed:55}},
+        buttons:{one_month:{learning:[2,3,4,5],young:[3,5,8,4],mature:[2,6,9,5]},three_months:{learning:[5,8,11,7],young:[8,15,22,13],mature:[7,18,28,16]},one_year:{learning:[12,19,26,14],young:[20,35,51,27],mature:[18,42,63,31]},all_time:{learning:[15,24,30,18],young:[25,44,62,34],mature:[22,55,80,41]}},
+        hours:{all_time:Array.from({length:24},(_,h)=>({total:h%6+1,correct:Math.max(0,h%6)}))},
+        intervals:{intervals:{1:4,7:12,30:18,90:14,365:7}},
+        retrievability:{retrievability:{20:2,40:5,60:12,80:25,100:18},average:.84},
+        stability:{intervals:{1:3,7:8,30:15,90:20,365:10}},
+        difficulty:{eases:{1:2,2:5,3:13,4:18,5:9,6:5,7:3,8:2,9:1,10:1},average:4.3}
+      };
+      CardsOfficialBridge.bootstrap=async()=>true;
+      CardsOfficialBridge.request=async path=>{
+        if(String(path).includes('/api/cards-official/stats/graphs'))return graph;
+        throw new Error('endpoint inesperado no teste de layout: '+path);
+      };
+      switchScreen('cards');CardsScreen.tab='stats';
+      const box=document.getElementById('cards-content');
+      await CardsOfficialBridge.renderStats(box);
+      const vw=document.documentElement.clientWidth;
       const titulos=[...box.querySelectorAll('.stat-card h2')].map(h=>h.textContent.replace(/[^\p{L}\s()]/gu,'').trim());
       const estouro=[...box.querySelectorAll('*')].filter(el=>{const b=el.getBoundingClientRect();return b.width&&b.right>vw+1;}).map(el=>el.className);
       const barras=[...box.querySelectorAll('.anki-ts-bar')].map(b=>b.getBoundingClientRect()).filter(b=>b.height>0);

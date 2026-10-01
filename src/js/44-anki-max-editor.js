@@ -142,7 +142,18 @@ const AnkiMaxEditor = {
   },
   _insertHtml(area,html){area.focus();try{document.execCommand('insertHTML',false,html);}catch(_){area.insertAdjacentHTML('beforeend',html);}},
   _pickMedia(area,accept,tag){
-    const inp=document.createElement('input');inp.type='file';inp.accept=accept;inp.onchange=()=>{const f=inp.files&&inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),html=tag==='video'?'<video controls preload="metadata" src="'+this.esc(src)+'"></video>':'<audio controls preload="none" src="'+this.esc(src)+'"></audio>';this._insertHtml(area,html);};r.readAsDataURL(f);};inp.click();
+    const inp=document.createElement('input');inp.type='file';inp.accept=accept;
+    inp.onchange=async()=>{
+      const f=inp.files&&inp.files[0];if(!f)return;
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.uploadOfficialMedia!=='function'){showToast('Mídia não inserida: backend oficial do Anki indisponível.');return;}
+      try{
+        const out=await CardsOfficialBridge.uploadOfficialMedia(f,f.name),
+          src=this.esc(out.filename),
+          html=tag==='video'?'<video controls preload="metadata" src="'+src+'"></video>':'<audio controls preload="none" src="'+src+'"></audio>';
+        this._insertHtml(area,html);showToast('Mídia gravada pelo Anki oficial ✓');
+      }catch(e){showToast('Mídia não inserida: '+(e&&e.message?e.message:String(e)));}
+    };
+    inp.click();
   },
   async _toggleRecordInto(area,btn){
     if(this._recorders.has(area)){
@@ -152,7 +163,16 @@ const AnkiMaxEditor = {
     try{
       const stream=await navigator.mediaDevices.getUserMedia({audio:true}),chunks=[],rec=new MediaRecorder(stream);this._recorders.set(area,{rec,stream,chunks});btn.textContent='■';btn.title='Parar gravação';
       rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
-      rec.onstop=()=>{stream.getTracks().forEach(t=>t.stop());this._recorders.delete(area);btn.textContent='🎤';btn.title='Gravar áudio';const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'}),fr=new FileReader();fr.onload=()=>this._insertHtml(area,'<audio controls preload="none" src="'+this.esc(String(fr.result||''))+'"></audio>');fr.readAsDataURL(blob);};
+      rec.onstop=async()=>{
+        stream.getTracks().forEach(t=>t.stop());this._recorders.delete(area);btn.textContent='🎤';btn.title='Gravar áudio';
+        const blob=new Blob(chunks,{type:rec.mimeType||'audio/webm'});
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.uploadOfficialMedia!=='function'){showToast('Áudio não salvo: backend oficial do Anki indisponível.');return;}
+        try{
+          const out=await CardsOfficialBridge.uploadOfficialMedia(blob,'recording-'+Date.now()+'.webm');
+          this._insertHtml(area,'<audio controls preload="none" src="'+this.esc(out.filename)+'"></audio>');
+          showToast('Áudio gravado pelo Anki oficial ✓');
+        }catch(e){showToast('Áudio não salvo: '+(e&&e.message?e.message:String(e)));}
+      };
       rec.start();
     }catch(_){showToast('Não foi possível acessar o microfone');}
   },
@@ -171,13 +191,19 @@ const AnkiMaxEditor = {
       this._decorateRichEditors(body);document.getElementById('anki-note-edit-modal').style.display='flex';
     };
   },
-  _saveRichNote(){
+  async _saveRichNote(){
     const ctx=this._richEditingNote;if(!ctx)return;const note=AnkiParity.getNote(ctx.id,ctx.planId==null?undefined:ctx.planId);if(!note)return;
-    const nt=AnkiProductParity._typeFor(note),fields={};
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.updateOfficialNote!=='function'){showToast('Nota não salva: backend oficial do Anki indisponível.');return;}
+    const fields={};
     document.querySelectorAll('#anki-note-edit-body .anki-note-field').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
-    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean),
-      saved=AnkiParity.saveNote(Object.assign({},note,{fields,tags}),ctx.planId==null?undefined:ctx.planId);
-    AnkiProductParity.reconcileNote(saved,nt);this._richEditingNote=null;document.getElementById('anki-note-edit-modal').style.display='none';AnkiProductParity.renderBrowser();AnkiProductParity.previewNote(saved.id);CardsScreen.render();showToast('Nota atualizada ✓');
+    const tags=String(document.getElementById('anki-note-tags').value||'').split(/\s+/).filter(Boolean);
+    try{
+      const res=await CardsOfficialBridge.updateOfficialNote(note,fields,tags,{planId:ctx.planId});
+      const saved=res&&res.note?res.note:note;
+      this._richEditingNote=null;document.getElementById('anki-note-edit-modal').style.display='none';
+      AnkiProductParity.renderBrowser();AnkiProductParity.previewNote(saved);CardsScreen.render();CardsScreen.updateFavCount();
+      showToast('Nota atualizada pelo Anki oficial ✓');
+    }catch(e){showToast('Nota não salva: '+(e&&e.message?e.message:String(e)));}
   },
 
   /* ───────────────── ADVANCED ADD ───────────────── */
@@ -194,19 +220,22 @@ const AnkiMaxEditor = {
       this._decorateRichEditors(box);
     };
   },
-  _saveAdvancedRich(){
+  async _saveAdvancedRich(){
     const rawNt=AnkiParity.getNotetype(document.getElementById('anki-advanced-type').value);if(!rawNt)return;const fields={};
     document.querySelectorAll('#anki-advanced-fields .anki-advanced-field-max').forEach(x=>fields[x.dataset.field]=x.isContentEditable?x.innerHTML:x.value);
     if(rawNt.kind==='cloze'&&!Object.values(fields).some(v=>/\{\{c\d+(?:,\d+)*::/.test(String(v||'')))){showToast('Adicione ao menos uma omissão Cloze, como {{c1::texto}}.');return;}
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.addOfficialNote!=='function'){showToast('Nota não criada: backend oficial do Anki indisponível.');return;}
     const deck=document.getElementById('anki-advanced-deck').value,
       rec=deck&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord?StudyGlobalScope.deckRecord(deck):null,
       planId=(rec&&rec.planId)||(window.StudyGlobalScope&&StudyGlobalScope.activePlanId?StudyGlobalScope.activePlanId():PlanManager.getActivePlanId()),
       nt=AnkiProductParity._ensureNotetypeInPlan?AnkiProductParity._ensureNotetypeInPlan(rawNt,planId):rawNt,
-      id=AnkiParity._allocId(),note=AnkiParity.saveNote({id,ankiId:id,guid:'snm-'+Number(id).toString(36),notetypeId:nt.id,fields,
-        tags:String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean),_planId:planId||undefined},planId||undefined);
-    AnkiProductParity.reconcileNote(note,nt);const cards=AnkiProductParity._cardsForNote(note,planId);
-    cards.forEach(c=>DB.updateCard(c.id,{deckId:deck||null}));this._stickyWrite(nt,fields);
-    document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();showToast('Nota adicionada · '+cards.length+' card(s) ✓');
+      tags=String(document.getElementById('anki-advanced-tags').value||'').split(/\s+/).filter(Boolean);
+    try{
+      const res=await CardsOfficialBridge.addOfficialNote({planId,deckId:deck||null,notetype:nt,fields,tags,seed:{deckId:deck||null}});
+      this._stickyWrite(nt,fields);
+      document.getElementById('anki-advanced-add-modal').style.display='none';CardsScreen.render();CardsScreen.updateFavCount();
+      showToast('Nota adicionada pelo Anki oficial · '+res.cards.length+' card(s) ✓');
+    }catch(e){showToast('Nota não criada: '+(e&&e.message?e.message:String(e)));}
   }
 };
 queueMicrotask(()=>AnkiMaxEditor.install());

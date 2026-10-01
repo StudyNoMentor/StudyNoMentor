@@ -177,6 +177,210 @@ with tempfile.TemporaryDirectory() as tmp:
         # /health não expõe caminhos do servidor.
         assert "data_dir" not in app.health()
 
+    # A tela Cards usa uma coleção OFICIAL separada do menu Anki.
+    cards_user = app.cards_pool.get("smoke-user")
+    assert cards_user.collection_path != user.collection_path
+    assert "study-cards" in str(cards_user.collection_path)
+    cards_ctx = {"id": "smoke-user"}
+    with cards_user.lock:
+        ccol = cards_user.col
+        cnt = ccol.models.current()
+        cnt_id = int(cnt["id"])
+        cards_current_deck = int(ccol.decks.get_current_id())
+        cnote = ccol.new_note(cnt)
+        ckeys = cnote.keys()
+        cnote[ckeys[0]] = "Cards bridge pergunta"
+        cnote[ckeys[1]] = "Cards bridge resposta"
+        ccol.add_note(cnote, ccol.decks.get_current_id())
+        ccid = int(cnote.cards()[0].id)
+
+    cq = app.cards_official_reviewer_next(cards_ctx)
+    assert cq["finished"] is False
+    assert ccid in cq["queue_ids"]
+    assert cq["card"]["question"]
+    assert cq["card"]["answer"]
+    assert set(cq["counts"]) == {"new", "learning", "review"}
+
+    answered = app.cards_official_reviewer_answer(
+        app.AnswerBody(card_id=ccid, rating=3, milliseconds_taken=321),
+        cards_ctx,
+    )
+    state = answered["answered"]
+    assert state["id"] == ccid
+    assert state["question"] and state["answer"]
+    assert state["reps"] >= 1
+    assert state["review_logs"], "revlog oficial precisa voltar no snapshot"
+    assert state["memory_state"] is None or {"stability", "difficulty"} <= set(state["memory_state"])
+
+    # CRUD de Note da tela Cards: criação, edição e exclusão acontecem na
+    # Collection oficial e devolvem o conjunto de cards gerado pelo Anki.
+    created_note = app.cards_official_add_note(
+        app.AddNoteBody(
+            deck_id=cards_current_deck,
+            notetype_id=cnt_id,
+            fields={ckeys[0]: "CRUD oficial pergunta", ckeys[1]: "CRUD oficial resposta"},
+            tags=["crud-official"],
+        ),
+        cards_ctx,
+    )
+    assert created_note["note"]["id"] > 0 and created_note["cards"]
+    crud_nid = int(created_note["note"]["id"])
+    crud_fields = dict(created_note["note"]["fields"])
+    crud_fields[ckeys[0]] = "CRUD oficial editado"
+    updated_note = app.cards_official_update_note(
+        crud_nid,
+        app.NoteUpdateBody(fields=crud_fields, tags=["crud-oficial-editado"]),
+        cards_ctx,
+    )
+    assert updated_note["note"]["fields"][ckeys[0]] == "CRUD oficial editado"
+    assert updated_note["cards"], "update_note oficial deve manter/gerar os cards válidos"
+    deleted_note = app.cards_official_delete_note(crud_nid, cards_ctx)
+    assert deleted_note["ok"] is True and deleted_note["deleted_note_id"] == crud_nid
+    with cards_user.lock:
+        try:
+            ccol.get_note(crud_nid)
+            raise AssertionError("nota excluída ainda existe na Collection oficial")
+        except Exception:
+            pass
+
+    # Search/sort do Browser vêm de find_cards/find_notes oficiais.
+    bcards = app.cards_official_browser_ids("cards", "Cards bridge pergunta", "", False, cards_ctx)
+    bnotes = app.cards_official_browser_ids("notes", "Cards bridge pergunta", "", False, cards_ctx)
+    assert bcards["ids"] == [ccid]
+    assert int(cnote.id) in bnotes["ids"]
+    bfacets = app.cards_official_browser_facets(cards_ctx)
+    assert bfacets["columns"] and bfacets["notetypes"]
+
+    # Stats, Deck Options, Custom Study, Filtered Decks e Empty Cards usam a
+    # MESMA coleção isolada dos Cards, não a coleção do menu Anki.
+    cgraphs = app.cards_official_collection_graphs("", 365, cards_ctx)
+    assert "card_counts" in cgraphs and "true_retention" in cgraphs
+    copts = app.cards_official_deck_options(cards_current_deck, cards_ctx)
+    assert copts["current_deck"]["name"]
+    # Um preset novo é enviado com id=0, exatamente como o frontend oficial:
+    # o backend aloca a identidade, aponta o deck para ela e devolve o estado
+    # canônico posterior à transação.
+    current_conf_id = int(copts["current_deck"]["config_id"])
+    selected = next(x for x in copts["all_config"] if int(x["config"]["id"]) == current_conf_id)
+    new_conf = dict(selected["config"])
+    new_conf["config"] = dict(new_conf.get("config") or {})
+    new_conf["id"] = 0
+    new_conf["name"] = "Cards Smoke Preset"
+    new_conf["config"]["new_per_day"] = int(new_conf["config"].get("new_per_day", 20)) + 1
+    cupdated = app.cards_official_update_deck_options(
+        cards_current_deck,
+        {
+            "configs": [new_conf],
+            "removed_config_ids": [],
+            "mode": 0,
+            "limits": dict(copts["current_deck"].get("limits") or {}),
+            "new_cards_ignore_review_limit": bool(copts.get("new_cards_ignore_review_limit", False)),
+            "fsrs": bool(copts.get("fsrs", True)),
+            "apply_all_parent_limits": bool(copts.get("apply_all_parent_limits", False)),
+            "fsrs_reschedule": False,
+            "fsrs_health_check": False,
+        },
+        cards_ctx,
+    )
+    allocated_conf_id = int(cupdated["options"]["current_deck"]["config_id"])
+    assert allocated_conf_id > 0 and allocated_conf_id != current_conf_id
+    assert cupdated["state"]["cards"] and cupdated["state"]["reviewer"]
+    inherited = app.cards_official_update_deck_options(
+        cards_current_deck,
+        {
+            "configs": [dict(selected["config"])],
+            "removed_config_ids": [],
+            "mode": 0,
+            "limits": dict(copts["current_deck"].get("limits") or {}),
+            "new_cards_ignore_review_limit": bool(copts.get("new_cards_ignore_review_limit", False)),
+            "fsrs": bool(copts.get("fsrs", True)),
+            "apply_all_parent_limits": bool(copts.get("apply_all_parent_limits", False)),
+            "fsrs_reschedule": False,
+            "fsrs_health_check": False,
+        },
+        cards_ctx,
+    )
+    assert int(inherited["options"]["current_deck"]["config_id"]) == current_conf_id
+    cdefaults = app.cards_official_custom_study_defaults(cards_current_deck, cards_ctx)
+    assert "available_new" in cdefaults and "available_review" in cdefaults
+    cfiltered = app.cards_official_get_filtered_deck(0, cards_ctx)
+    assert "deck" in cfiltered and "orders" in cfiltered
+    filtered_deck = dict(cfiltered["deck"])
+    # Proto3 omite escalares no valor padrão: um deck NOVO possui id=0 e o
+    # MessageToDict não emite a chave "id". O ID canônico só nasce no update.
+    filtered_id = int(filtered_deck.get("id", 0))
+    assert filtered_id == 0
+    filtered_deck["name"] = "Cards Smoke Filtrado"
+    filtered_deck["allow_empty"] = True
+    fconfig = dict(filtered_deck.get("config") or {})
+    fconfig["reschedule"] = True
+    fconfig["search_terms"] = [
+        {"search": "Cards bridge pergunta", "limit": 20, "order": 1}
+    ]
+    filtered_deck["config"] = fconfig
+    fupdated = app.cards_official_update_filtered_deck(filtered_id, filtered_deck, cards_ctx)
+    filtered_id = int(fupdated["deck_id"])
+    assert filtered_id > 0
+    frebuilt = app.cards_official_rebuild_filtered_deck(filtered_id, cards_ctx)
+    assert frebuilt["state"]["decks"] and frebuilt["state"]["cards"]
+    moved = next(x for x in frebuilt["state"]["cards"] if int(x["id"]) == ccid)
+    assert int(moved["deck_id"]) == filtered_id
+    assert int(moved["original_deck_id"]) == cards_current_deck
+    fstate = app.cards_official_collection_state(cards_ctx)
+    assert any(int(d["id"]) == filtered_id and d["filtered"] for d in fstate["decks"])
+    fempty = app.cards_official_empty_filtered_deck(filtered_id, cards_ctx)
+    restored = next(x for x in fempty["state"]["cards"] if int(x["id"]) == ccid)
+    assert int(restored["deck_id"]) == cards_current_deck
+    assert int(restored.get("original_deck_id", 0)) == 0
+
+    custom = app.cards_official_custom_study(
+        {"deck_id": cards_current_deck, "new_limit_delta": 1},
+        cards_ctx,
+    )
+    assert custom["ok"] is True and custom["state"]["reviewer"]
+
+    cempty = app.cards_official_empty_cards_report(cards_ctx)
+    assert isinstance(cempty, dict)
+    # Segurança: o endpoint de limpeza só aceita IDs que o EmptyCardsReport da
+    # MESMA coleção acabou de classificar como vazios. Um card normal não pode
+    # ser apagado por uma chamada forjada.
+    try:
+        app.cards_official_delete_empty_cards({"card_ids": [ccid]}, cards_ctx)
+        raise AssertionError("Empty Cards aceitou excluir um card não vazio")
+    except app.HTTPException as exc:
+        assert exc.status_code == 400
+
+    bulk = app.cards_official_browser_bulk(
+        {"action": "flag", "card_ids": [ccid], "note_ids": [], "flag": 6},
+        cards_ctx,
+    )
+    assert bulk["cards"][0]["flag"] == 6
+    tagged = app.cards_official_browser_bulk(
+        {"action": "tags_add", "card_ids": [], "note_ids": [int(cnote.id)], "tags": "cards-official"},
+        cards_ctx,
+    )
+    assert "cards-official" in tagged["notes"][0]["tags"]
+
+    # Change Notetype usa o mapa e a mutação oficiais e devolve o conjunto final de cards.
+    with cards_user.lock:
+        reversed_nt = ccol.models.by_name("Basic (and reversed card)")
+        old_nt = ccol.get_note(cnote.id).note_type()
+        old_id = int(old_nt["id"])
+        new_id = int(reversed_nt["id"])
+    info = app.cards_official_change_notetype_info(old_id, new_id, cards_ctx)
+    request = dict(info["input"])
+    request["note_ids"] = [int(cnote.id)]
+    changed = app.cards_official_change_notetype(request, cards_ctx)
+    assert changed["notes"][0]["notetype_id"] == new_id
+    assert changed["cards"], "Anki deve devolver os cards resultantes da mudança de tipo"
+
+    # Undo/redo da coleção Cards também pertencem ao backend oficial.
+    undo_out = app.cards_official_undo(cards_ctx)
+    assert undo_out["ok"] is True and "reviewer" in undo_out
+    redo_out = app.cards_official_redo(cards_ctx)
+    assert redo_out["ok"] is True and "reviewer" in redo_out
+
+    app.cards_pool.close_all()
     app.pool.close_all()
 
     # Pool com teto (LRU): coleções antigas e livres são fechadas.

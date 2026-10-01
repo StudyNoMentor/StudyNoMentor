@@ -25,8 +25,6 @@ const AnkiTotalParity = {
     this._installGlobalUndo();
     this._installStatsParity();
     this._installDeepCheck();
-    this._installMediaSync();
-    this._installCustomScheduling();
     this._installMenu();
   },
 
@@ -110,223 +108,76 @@ const AnkiTotalParity = {
     const sel=document.getElementById('anki-browser-saved-search'),id=sel&&sel.value;if(!id){showToast('Selecione uma busca salva');return;}
     const rows=this._savedSearches().filter(x=>String(x.id)!==String(id));this._writeSavedSearches(rows);this._refreshSavedSearchSelect();showToast('Busca removida');
   },
-  _normalizeDuplicate(v){return AnkiProductParity.plain(v).normalize('NFKC').trim().replace(/\s+/g,' ').toLocaleLowerCase('pt-BR');},
   _findDuplicates(){
     const names=[...new Set(AnkiParity.noteTypes().flatMap(t=>(t.fields||[]).map(f=>String(f.name||'')).filter(Boolean)))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
     if(!names.length){showToast('Nenhum campo disponível');return;}
-    UI.prompt([
-      {key:'field',label:'Campo',type:'select',value:names[0],options:names.map(n=>({value:n,label:n}))},
-      {key:'min',label:'Tamanho mínimo do texto',type:'number',value:1,min:1,max:9999}
-    ],{title:'≡ Encontrar duplicatas',okText:'Localizar'}).then(v=>{
-      if(!v)return;const min=Math.max(1,Number(v.min)||1),groups=new Map();
-      for(const n of AnkiParity.notes()){
-        const raw=n.fields&&n.fields[v.field];if(raw==null)continue;const key=this._normalizeDuplicate(raw);if(key.length<min)continue;
-        if(!groups.has(key))groups.set(key,[]);groups.get(key).push(String(n.id));
-      }
-      const ids=[...groups.values()].filter(g=>g.length>1).flat();
-      this._duplicateIds=new Set(ids);AnkiProductParity.browser.page=0;AnkiProductParity.browser.selected.clear();AnkiProductParity.renderBrowser();this._syncDuplicateButton();
-      showToast(ids.length?ids.length+' nota(s) em grupos duplicados':'Nenhuma duplicata encontrada');
-    });
+    UI.prompt([{key:'field',label:'Campo',type:'select',value:names[0],options:names.map(n=>({value:n,label:n}))}],
+      {title:'≡ Encontrar duplicatas · Anki oficial',okText:'Localizar'}).then(async v=>{
+        if(!v)return;
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.findOfficialDuplicates!=='function'){showToast('Busca de duplicatas oficial indisponível.');return;}
+        try{
+          const out=await CardsOfficialBridge.findOfficialDuplicates(v.field,String(AnkiProductParity.browser&&AnkiProductParity.browser.query||'')),
+            ids=(out.groups||[]).flatMap(g=>g.note_ids||[]).map(String);
+          this._duplicateIds=new Set(ids);AnkiProductParity.browser.page=0;AnkiProductParity.browser.selected.clear();AnkiProductParity.renderBrowser();this._syncDuplicateButton();
+          showToast(ids.length?ids.length+' nota(s) em grupos duplicados · Anki oficial ✓':'Nenhuma duplicata encontrada pelo Anki oficial');
+        }catch(e){showToast('Busca de duplicatas falhou: '+(e&&e.message?e.message:String(e)));}
+      });
   },
   _clearDuplicates(){this._duplicateIds=null;AnkiProductParity.browser.page=0;AnkiProductParity.browser.selected.clear();AnkiProductParity.renderBrowser();this._syncDuplicateButton();},
   _syncDuplicateButton(){
     const b=document.getElementById('anki-browser-clear-duplicates');if(b)b.style.display=this._duplicateIds&&this._duplicateIds.size?'':'none';
   },
 
-  /* ───────────────── UNDO/REDO TRANSVERSAL ───────────────── */
-  _entityEntries(){
-    const prefixes=[];try{prefixes.push(AnkiParity._entityKey('note',''),AnkiParity._entityKey('notetype',''));}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-    const rows=[];try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&prefixes.some(p=>k.startsWith(p)))rows.push([k,localStorage.getItem(k)]);}}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-    return {prefixes,rows};
+  /* ───────────────── UNDO/REDO TRANSVERSAL ─────────────────
+     A casca não fotografa nem restaura Cards/Revlog. O histórico pertence à
+     Collection oficial e os botões abaixo chamam Collection.undo()/redo(). */
+  checkpoint(){},
+  async undoGlobal(){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.undoCollectionOfficial!=='function'){showToast('Undo oficial indisponível.');return false;}
+    try{await CardsOfficialBridge.undoCollectionOfficial();showToast('↶ Desfeito pelo Anki oficial ✓');await this._syncUndoButtons();return true;}
+    catch(e){showToast('Nada para desfazer no Anki: '+(e&&e.message?e.message:String(e)));await this._syncUndoButtons();return false;}
   },
-  _snapshot(label){
-    const ent=this._entityEntries();
-    return {label:String(label||'Ação'),ts:Date.now(),cards:this.clone(DB.getCards()),revlog:this.clone(DB.getRevlog()),decks:this.clone(DB.getDecks()),entityPrefixes:ent.prefixes,entities:ent.rows};
+  async redoGlobal(){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.redoCollectionOfficial!=='function'){showToast('Redo oficial indisponível.');return false;}
+    try{await CardsOfficialBridge.redoCollectionOfficial();showToast('↷ Refeito pelo Anki oficial ✓');await this._syncUndoButtons();return true;}
+    catch(e){showToast('Nada para refazer no Anki: '+(e&&e.message?e.message:String(e)));await this._syncUndoButtons();return false;}
   },
-  checkpoint(label){
-    if(this._restoring)return;const now=Date.now(),last=this._undo[this._undo.length-1];
-    if(last&&last.label===label&&now-last.ts<120)return;
-    this._undo.push(this._snapshot(label));if(this._undo.length>20)this._undo.shift();this._redo=[];this._syncUndoButtons();
-  },
-  _restoreSnapshot(s){
-    if(!s)return false;this._restoring=true;
+  async _syncUndoButtons(){
+    const u=document.getElementById('anki-browser-global-undo'),r=document.getElementById('anki-browser-global-redo');
+    if(!u&&!r)return;
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.historyStatus!=='function'){if(u)u.disabled=true;if(r)r.disabled=true;return;}
     try{
-      DB.saveCards(this.clone(s.cards||[]));DB.saveDecks(this.clone(s.decks||[]));
-      if(DB.replaceRevlog)DB.replaceRevlog(this.clone(s.revlog||[]));
-      else DB.setRaw(DB.REVLOG_KEY,JSON.stringify(s.revlog||[]));
-      try{
-        const kill=[];for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&(s.entityPrefixes||[]).some(p=>k.startsWith(p)))kill.push(k);}
-        kill.forEach(k=>localStorage.removeItem(k));(s.entities||[]).forEach(([k,v])=>localStorage.setItem(k,v));
-      }catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-      CardEngine.invalidateDueCache();
-      if(typeof CardsScreen!=='undefined'&&CardsScreen.render)CardsScreen.render();
-      if(typeof AnkiProductParity!=='undefined'&&document.getElementById('anki-browser-modal')&&document.getElementById('anki-browser-modal').style.display==='flex')AnkiProductParity.renderBrowser();
-      return true;
-    }finally{this._restoring=false;this._syncUndoButtons();}
+      const status=await CardsOfficialBridge.historyStatus();
+      if(u){u.disabled=!status.undo;u.title=status.undo?'Desfazer: '+status.undo:'Nada para desfazer';}
+      if(r){r.disabled=!status.redo;r.title=status.redo?'Refazer: '+status.redo:'Nada para refazer';}
+    }catch(_){if(u)u.disabled=true;if(r)r.disabled=true;}
   },
-  undoGlobal(){
-    const s=this._undo.pop();if(!s){showToast('Nada para desfazer');return false;}this._redo.push(this._snapshot(s.label));this._restoreSnapshot(s);showToast('↶ '+s.label);return true;
-  },
-  redoGlobal(){
-    const s=this._redo.pop();if(!s){showToast('Nada para refazer');return false;}this._undo.push(this._snapshot(s.label));this._restoreSnapshot(s);showToast('↷ '+s.label);return true;
-  },
-  _syncUndoButtons(){
-    const u=document.getElementById('anki-browser-global-undo'),r=document.getElementById('anki-browser-global-redo');if(u)u.disabled=!this._undo.length;if(r)r.disabled=!this._redo.length;
-  },
-  _wrapCheckpoint(obj,name,label){
-    if(!obj||typeof obj[name]!=='function'||obj[name].__ankiUndo)return;const old=obj[name];
-    const self=this;function wrapped(...args){self.checkpoint(label);return old.apply(this,args);}wrapped.__ankiUndo=true;obj[name]=wrapped;
-  },
-  _installGlobalUndo(){
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsMove','Mover cards');
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsDue','Definir vencimento');
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsForget','Esquecer cards');
-    this._wrapCheckpoint(typeof AnkiMaxParity!=='undefined'?AnkiMaxParity:null,'_bulkCardsReposition','Reposicionar cards');
-    this._wrapCheckpoint(AnkiProductParity,'deleteNotes','Excluir notas');
-    this._wrapCheckpoint(AnkiProductParity,'bulkMark','Marcar notas');
-    this._wrapCheckpoint(AnkiProductParity,'toggleSuspend','Suspender/ativar');
-    this._wrapCheckpoint(AnkiProductParity,'bulkFlag','Alterar bandeiras');
-    this._wrapCheckpoint(AnkiProductParity,'bulkFindReplace','Localizar e substituir');
-    this._wrapCheckpoint(AnkiProductParity,'_applyNotetypeEdit','Editar tipo de nota');
-    if(typeof AnkiMaxEditor!=='undefined')this._wrapCheckpoint(AnkiMaxEditor,'_saveRichNote','Editar nota');
-    if(typeof AnkiImageOcclusion!=='undefined')this._wrapCheckpoint(AnkiImageOcclusion,'save','Editar oclusão');
-  },
+  _wrapCheckpoint(){},
+  _installGlobalUndo(){void this._syncUndoButtons();},
 
   /* Cards adicionados, contagem, tempo, facilidade, estabilidade e dificuldade
      já fazem parte da página única de estatísticas (CardsScreen.renderStats).
      Este módulo anexava cópias próprias — a tela repetia os mesmos gráficos. */
   _installStatsParity(){},
 
-  /* ───────────────── CHECK COLLECTION MAIS PROFUNDO ───────────────── */
-  deepIssues(){
-    const cards=AnkiParity._scopeCards?AnkiParity._scopeCards():DB.getCards(),logs=AnkiParity._scopeRevlog?AnkiParity._scopeRevlog():DB.getRevlog(),
-      decks=AnkiParity._scopeDecks?AnkiParity._scopeDecks():DB.getDecks(),notes=AnkiParity.notes(),types=AnkiParity.noteTypes();
-    const cardIds=new Set(cards.map(c=>String(c.id))),deckIds=new Set(decks.map(d=>String(d.id))),noteIds=new Set(notes.map(n=>String(n.id))),typeIds=new Set(types.map(t=>String(t.id)));
-    const missingNotes=cards.filter(c=>!noteIds.has(String(AnkiParity.noteId(c)))).map(c=>c.id);
-    const missingDeck=cards.filter(c=>c.deckId!=null&&!deckIds.has(String(c.deckId))).map(c=>c.id);
-    const orphanRevlog=logs.filter(r=>r.cardId!=null&&!cardIds.has(String(r.cardId)));
-    const invalidNotetype=notes.filter(n=>!typeIds.has(String(n.notetypeId))).map(n=>n.id);
-    const invalidSchedule=cards.filter(c=>{
-      const badNum=['s','d','intervalo','reps','lapses'].some(k=>c[k]!=null&&!Number.isFinite(Number(c[k])));
-      const badDate=c.due&&!/^\d{4}-\d{2}-\d{2}$/.test(String(c.due));
-      const badTs=c.dueTs!=null&&!Number.isFinite(Number(c.dueTs));return badNum||badDate||badTs;
-    }).map(c=>c.id);
-    const guid=new Map();notes.forEach(n=>{const g=String(n.guid||'');if(!g)return;if(!guid.has(g))guid.set(g,[]);guid.get(g).push(n.id);});
-    const duplicateGuid=[...guid.values()].filter(x=>x.length>1);
-    return {missingNotes,missingDeck,orphanRevlog,invalidNotetype,invalidSchedule,duplicateGuid};
-  },
-  _installDeepCheck(){
-    if(typeof AnkiMaxStatsMedia==='undefined'||typeof AnkiMaxStatsMedia.renderExtendedCheck!=='function')return;
-    const old=AnkiMaxStatsMedia.renderExtendedCheck.bind(AnkiMaxStatsMedia);
-    AnkiMaxStatsMedia.renderExtendedCheck=async()=>{await old();const host=document.getElementById('anki-check-extended');if(!host||document.getElementById('anki-check-deep'))return;const s=this.deepIssues(),d=document.createElement('div');d.id='anki-check-deep';d.innerHTML=
-      '<h3 class="anki-section-title">Integridade profunda</h3><div class="anki-check-grid">'+
-      [['Cards sem nota',s.missingNotes.length],['Cards sem baralho',s.missingDeck.length],['Revlog órfão',s.orphanRevlog.length],['Notas sem tipo',s.invalidNotetype.length],['Agendamento inválido',s.invalidSchedule.length],['GUIDs duplicados',s.duplicateGuid.length]].map(x=>'<div><span>'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('')+'</div>';host.appendChild(d);};
-    const foot=document.querySelector('#anki-check-modal .cards-modal-foot');if(foot&&!document.getElementById('anki-media-sync-now')){const b=document.createElement('button');b.type='button';b.className='btn-secondary';b.id='anki-media-sync-now';b.textContent='☁ Sincronizar mídia';b.onclick=()=>this.syncMedia(true);foot.insertBefore(b,foot.firstChild);}
-  },
+  /* ───────────────── CHECK COLLECTION ─────────────────
+     Diagnóstico/reparo acadêmico local removido. A tela principal usa
+     Collection.fix_integrity() por CardsOfficialBridge. */
+  deepIssues(){return {officialOnly:true};},
+  _installDeepCheck(){},
 
-  /* ───────────────── MEDIA SYNC MULTIDISPOSITIVO ───────────────── */
-  _mediaContext(){
-    const cs=typeof CloudStore!=='undefined'?CloudStore:null;if(!cs||!cs.isReady||!cs.isReady()||!cs.isLoggedIn||!cs.isLoggedIn())return null;
-    const profile=window.ProfileManager&&ProfileManager.getActiveProfileId?ProfileManager.getActiveProfileId():null;
-    let plan=null;try{plan=DB._activePlanId();}catch(_){ if (typeof _quiet === 'function') _quiet(_, '44-anki-total-parity'); }
-    const uid=cs.session&&cs.session.user&&cs.session.user.id;return uid&&profile&&plan?{uid,profile:String(profile),plan:String(plan)}:null;
-  },
-  _bytesToB64(bytes){const b=AnkiMediaStore._u8(bytes);let s='';const N=0x8000;for(let i=0;i<b.length;i+=N)s+=String.fromCharCode(...b.subarray(i,i+N));return btoa(s);},
-  _b64ToBytes(v){const s=atob(String(v||'')),b=new Uint8Array(s.length);for(let i=0;i<s.length;i++)b[i]=s.charCodeAt(i);return b;},
-  async _pushMedia(rec){
-    const ctx=this._mediaContext();if(!ctx||!rec||this._mediaApplying)return false;
-    const row={profile_id:ctx.profile,plan_id:ctx.plan,media_name:String(rec.name||''),mime:String(rec.mime||''),fingerprint:String(rec.fingerprint||''),size_bytes:AnkiMediaStore._u8(rec.bytes||[]).length,content_b64:rec.trashedAt?null:this._bytesToB64(rec.bytes||[]),deleted_at:rec.trashedAt?new Date(rec.trashedAt).toISOString():null,updated_at:new Date(Number(rec.updatedAt)||Date.now()).toISOString()};
-    const {error}=await CloudStore.client.from('study_anki_media').upsert(row,{onConflict:'profile_id,plan_id,media_name'});if(error)throw error;return true;
-  },
-  async syncMedia(show,force){
-    if(this._mediaSyncing)return false;
-    const ctx=this._mediaContext();
-    if(!ctx){if(show)showToast('Entre na conta para sincronizar mídia');return false;}
-    if(typeof CloudStore!=='undefined'&&CloudStore.serviceStatus==='restricted'){
-      if(show)showToast('Banco restrito por cota; mídia não foi consultada');
+  /* ───────────────── MÍDIA CANÔNICA ─────────────────
+     A mídia vive no MediaManager da Collection oficial. Não existe mais
+     espelho binário IndexedDB/Supabase nem sincronização paralela no Study. */
+  async syncMedia(show){
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.checkOfficialMedia!=='function'){
+      if(show)showToast('MediaManager oficial do Anki indisponível.');
       return false;
     }
-    const syncKey=ctx.profile+'|'+ctx.plan,now=Date.now(),last=this._mediaSyncAt.get(syncKey)||0;
-    if(!show&&!force&&last&&now-last<this.MEDIA_SYNC_MIN_MS)return false;
-
-    this._mediaSyncing=true;
-    try{
-      /* Primeiro baixa SOMENTE metadados. O payload base64 pode ser muito maior
-         que o restante do perfil e antes era transferido inteiro a cada foco. */
-      const metaRes=await CloudStore.client.from('study_anki_media')
-        .select('profile_id,plan_id,media_name,mime,fingerprint,size_bytes,deleted_at,updated_at')
-        .eq('profile_id',ctx.profile).eq('plan_id',ctx.plan);
-      if(metaRes.error)throw metaRes.error;
-      const meta=metaRes.data||[],remote=new Map(meta.map(x=>[String(x.media_name),x]));
-      const local=await AnkiMediaStore.all(true),localMap=new Map(local.map(x=>[String(x.name),x]));
-
-      /* Upload continua incremental: só o arquivo local ausente/remotamente
-         mais antigo é enviado. */
-      for(const l of local){
-        const r=remote.get(String(l.name));
-        if(!r||Number(l.updatedAt||0)>Date.parse(r.updated_at||0)+500)await this._pushMedia(l);
-      }
-
-      const needContent=[];
-      this._mediaApplying=true;
-      try{
-        for(const r of meta){
-          const name=String(r.media_name),l=localMap.get(name);
-          const rt=Date.parse(r.updated_at||0),lt=Number(l&&l.updatedAt||0);
-          if(l&&lt>rt+500)continue;
-          if(r.deleted_at){
-            if(l&&!l.trashedAt)await AnkiMediaStore._setTrash(name,true);
-            continue;
-          }
-          if(!l||l.fingerprint!==String(r.fingerprint||'')||l.trashedAt)needContent.push(name);
-        }
-
-        /* Conteúdo binário só é buscado para nomes realmente novos/alterados.
-           O lote limitado evita URLs enormes em uma primeira sincronização. */
-        for(let i=0;i<needContent.length;i+=50){
-          const names=needContent.slice(i,i+50);
-          const fullRes=await CloudStore.client.from('study_anki_media')
-            .select('media_name,mime,fingerprint,content_b64,deleted_at,updated_at')
-            .eq('profile_id',ctx.profile).eq('plan_id',ctx.plan).in('media_name',names);
-          if(fullRes.error)throw fullRes.error;
-          for(const r of (fullRes.data||[])){
-            if(r.deleted_at||!r.content_b64)continue;
-            const bytes=this._b64ToBytes(r.content_b64),fp=AnkiMediaStore.fingerprint(bytes);
-            const l=localMap.get(String(r.media_name));
-            if(!l||l.fingerprint!==fp||l.trashedAt){
-              const rec=await AnkiMediaStore.put(r.media_name,bytes,r.mime||'');
-              rec.updatedAt=Date.parse(r.updated_at||0)||Date.now();
-              const db=await AnkiMediaStore._open();
-              if(db)await new Promise(resolve=>{
-                const tx=db.transaction(AnkiMediaStore.STORE,'readwrite');
-                tx.objectStore(AnkiMediaStore.STORE).put(rec);
-                tx.oncomplete=()=>resolve();tx.onerror=()=>resolve();
-              });
-            }
-          }
-        }
-      }finally{this._mediaApplying=false;}
-
-      this._mediaSyncAt.set(syncKey,Date.now());
-      if(show)showToast(needContent.length?'Mídia sincronizada ✓':'Mídia já estava atualizada ✓');
-      return true;
-    }catch(e){
-      console.warn('Media sync',e);
-      if(show)showToast('Falha ao sincronizar mídia');
-      return false;
-    }finally{this._mediaSyncing=false;}
+    if(show)AnkiProductParity.openCheck();
+    return true;
   },
-  _installMediaSync(){
-    if(typeof AnkiMediaStore==='undefined')return;
-    const oldPut=AnkiMediaStore.put.bind(AnkiMediaStore);AnkiMediaStore.put=async(...args)=>{const rec=await oldPut(...args);if(!this._mediaApplying)this._pushMedia(rec).catch(e=>console.warn('Media upload',e));return rec;};
-    const oldTrash=AnkiMediaStore._setTrash.bind(AnkiMediaStore);AnkiMediaStore._setTrash=async(name,value)=>{const ok=await oldTrash(name,value);if(ok&&!this._mediaApplying){const rec=(await AnkiMediaStore.all(true)).find(x=>x.name===String(name));if(rec)this._pushMedia(rec).catch(e=>console.warn('Media tombstone',e));}return ok;};
-    queueMicrotask(()=>{
-      if(typeof CloudStore==='undefined')return;
-      if(typeof CloudStore.syncNow==='function'&&!CloudStore.syncNow.__ankiMedia){const orig=CloudStore.syncNow,old=orig.bind(CloudStore);const self=this;CloudStore.syncNow=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false,true);return ok;};CloudStore.syncNow.__ankiMedia=true;CloudStore.syncNow.__original=orig;}
-      if(typeof CloudStore.syncOnFocus==='function'&&!CloudStore.syncOnFocus.__ankiMedia){const old=CloudStore.syncOnFocus.bind(CloudStore);const self=this;CloudStore.syncOnFocus=async(...a)=>{const ok=await old(...a);if(ok)await self.syncMedia(false);return ok;};CloudStore.syncOnFocus.__ankiMedia=true;}
-      setTimeout(()=>this.syncMedia(false),1200);
-    });
-  },
+  _installMediaSync(){},
 
   /* ───────────────── EXTENSION API / ADD-ON WEB EQUIVALENT ───────────────── */
   _installExtensions(){
@@ -370,98 +221,12 @@ const AnkiTotalParity = {
     if(!file)return;const r=new FileReader();r.onload=()=>{const src=String(r.result||''),id='user-'+Date.now().toString(36),rows=this._extensionSources();rows.push({id,name:file.name.replace(/\.js$/i,''),source:src,enabled:false});this._saveExtensionSources(rows);this._renderExtensions();showToast('Extensão guardada — extensões locais não são executadas por segurança');};r.readAsText(file);
   },
 
-  /* ───────────────── CUSTOM SCHEDULING OPT-IN ───────────────── */
-  _customKey(){try{return AnkiParity._entityKey('custom-scheduling','config');}catch(_){return 'snm-anki-custom-scheduling';}},
-  _customCfg(){try{return Object.assign({enabled:false,source:''},JSON.parse(localStorage.getItem(this._customKey())||'{}')||{});}catch(_){return {enabled:false,source:''};}},
-  _saveCustomCfg(v){try{DB.setRaw(this._customKey(),JSON.stringify(v));}catch(_){localStorage.setItem(this._customKey(),JSON.stringify(v));}},
-  _validateSchedulePatch(base,out){
-    if(!out||typeof out!=='object')return base;const p=Object.assign({},base),allowed=['due','dueTs','intervalo','_kind','_val','customData','status','ease'];
-    for(const k of allowed)if(Object.prototype.hasOwnProperty.call(out,k))p[k]=out[k];
-    if(p.dueTs!=null&&!Number.isFinite(Number(p.dueTs)))p.dueTs=base.dueTs;
-    if(p.intervalo!=null&&!Number.isFinite(Number(p.intervalo)))p.intervalo=base.intervalo;
-    if(p._val!=null&&!Number.isFinite(Number(p._val)))p._val=base._val;
-    if(p.ease!=null&&(!Number.isFinite(Number(p.ease))||Number(p.ease)<1.3))p.ease=base.ease;
-    if(p.due&&!/^\d{4}-\d{2}-\d{2}$/.test(String(p.due)))p.due=base.due;
-    return p;
-  },
-  _customGradeKey(grade){
-    const g=String(grade||'bom').toLowerCase();return g==='errei'||g==='naosei'?'again':g==='dificil'?'hard':g==='facil'?'easy':'good';
-  },
-  _customPhase(card,patch){
-    const p=String(patch&&patch.phase||card&&card.phase||'review').toLowerCase();
-    if(p==='new')return 'new';if(p==='learning')return 'learning';if(p==='relearning')return 'relearning';return 'review';
-  },
-  _stateLeaf(card,patch){
-    patch=patch||{};const kind=patch._kind||((patch.dueTs!=null)?'min':'day'),val=Number(patch._val!=null?patch._val:patch.intervalo)||0;
-    const leaf={customData:patch.customData==null?(card&&card.customData||''):patch.customData};
-    if(kind==='min')leaf.scheduledSecs=Math.max(0,Math.round(val*60));
-    else leaf.scheduledDays=Math.max(0,Math.round(val));
-    const ease=Number(patch.ease!=null?patch.ease:card&&card.ease);if(Number.isFinite(ease))leaf.easeFactor=ease;
-    if(card&&card.s!=null&&card.d!=null)leaf.memoryState={stability:Number(card.s),difficulty:Number(card.d)};
-    return leaf;
-  },
-  _buildSchedulingStates(card,scheduler){
-    const defs=[['again','errei'],['hard','dificil'],['good','bom'],['easy','facil']],states={},patches={};
-    for(const [key,grade] of defs){
-      const patch=scheduler(card,grade),phase=this._customPhase(card,patch),leaf=this._stateLeaf(card,patch);patches[key]=patch;
-      if(card&&card.originalDeckId){
-        states[key]={filtered:(card.filteredReschedule===false?{previewing:{[phase]:leaf}}:{rescheduling:{originalState:{[phase]:leaf}}})};
-      }else states[key]={normal:{[phase]:leaf}};
-    }
-    return {states,patches};
-  },
-  _stateLeafFor(states,key,card,phase){
-    const root=states&&states[key];if(!root)return null;
-    if(card&&card.originalDeckId){
-      if(root.filtered&&root.filtered.rescheduling&&root.filtered.rescheduling.originalState)return root.filtered.rescheduling.originalState[phase]||Object.values(root.filtered.rescheduling.originalState)[0]||null;
-      if(root.filtered&&root.filtered.previewing)return root.filtered.previewing[phase]||Object.values(root.filtered.previewing)[0]||null;
-    }
-    return root.normal&&(root.normal[phase]||Object.values(root.normal)[0])||null;
-  },
-  _applyStateLeaf(base,leaf){
-    if(!leaf||typeof leaf!=='object')return base;const out=Object.assign({},base),now=Date.now(),today=(typeof todayCards==='function'?todayCards():String(base.due||'').slice(0,10));
-    if(Number.isFinite(Number(leaf.scheduledSecs))){
-      const secs=Math.max(0,Number(leaf.scheduledSecs));out.dueTs=now+Math.round(secs*1000);out.due=today;out._kind='min';out._val=secs/60;
-    }else if(Number.isFinite(Number(leaf.scheduledDays))){
-      const days=Math.max(0,Math.round(Number(leaf.scheduledDays)));out.intervalo=days;out.dueTs=null;out.due=CardEngine.addDays(today,days);out._kind='day';out._val=days;
-    }
-    if(Number.isFinite(Number(leaf.easeFactor)))out.ease=Number(leaf.easeFactor);
-    if(Object.prototype.hasOwnProperty.call(leaf,'customData'))out.customData=leaf.customData;
-    return this._validateSchedulePatch(base,out);
-  },
-  _runCustomScheduling(card,grade,patch){
-    const cfg=this._customCfg();if(!cfg.enabled||!String(cfg.source||'').trim())return patch;
-    // Ver EXECUCAO_DE_CODIGO_DESATIVADA: o agendamento padrão é sempre preservado.
-    if(this.EXECUCAO_DE_CODIGO_DESATIVADA){
-      if(!this._customSchedulingErrorShown){this._customSchedulingErrorShown=true;console.warn('Custom Scheduling não é executado por segurança.');}
-      return patch;
-    }
-    try{
-      const bundle=this._buildSchedulingStates(card,this._baseScheduler||((c,g)=>patch)),states=bundle.states,key=this._customGradeKey(grade),phase=this._customPhase(card,patch);
-      const fn=new Function('states','card','grade','patch','config','"use strict";\n'+String(cfg.source||'')+'\n;return states;');
-      const out=fn(states,this.clone(card),grade,this.clone(patch),this.clone(CardsConfig.forDeck(card.originalDeckId||card.deckId)));
-      // Compatibilidade com scripts antigos do Study que retornavam um patch.
-      if(out&&typeof out==='object'&&!out.again&&!out.hard&&!out.good&&!out.easy)return this._validateSchedulePatch(patch,out);
-      const finalStates=(out&&typeof out==='object')?out:states,leaf=this._stateLeafFor(finalStates,key,card,phase);
-      return this._applyStateLeaf(patch,leaf);
-    }catch(e){if(!this._customSchedulingErrorShown){this._customSchedulingErrorShown=true;console.warn('Custom Scheduling',e);showToast('Custom Scheduling falhou; o agendamento padrão foi preservado.');}return patch;}
-  },
-  _installCustomScheduling(){
-    if(typeof CardEngine==='undefined'||typeof CardEngine.schedule!=='function'||CardEngine.schedule.__ankiCustom)return;
-    const old=CardEngine.schedule.bind(CardEngine),self=this;this._baseScheduler=old;
-    CardEngine.schedule=function(card,grade){let p=old(card,grade);p=window.AnkiStudyExtensions?window.AnkiStudyExtensions.filter('schedule:after',p,{card,grade,config:CardsConfig.forDeck(card.originalDeckId||card.deckId)}):p;return self._runCustomScheduling(card,grade,p);};CardEngine.schedule.__ankiCustom=true;
-  },
-  openCustomScheduling(){
-    const c=this._customCfg();UI.prompt([
-      {key:'enabled',label:'Ativar Custom Scheduling',type:'select',value:c.enabled?'1':'0',options:[{value:'0',label:'Desativado'},{value:'1',label:'Ativado'}],hint:'🔒 Desativado por segurança: o código rodaria com acesso à sua sessão e aos seus dados. O script fica guardado, mas o agendamento padrão (FSRS) é sempre usado.'},
-      {key:'source',label:'Código JavaScript',type:'textarea',rows:14,value:c.source||'',hint:'Ex.: if (states.hard.normal?.learning) states.hard.normal.learning.scheduledSecs = 123 * 60; Também aceita o formato legado do Study com return { intervalo, _val, due... }.'}
-    ],{title:'🧪 Custom Scheduling',okText:'Salvar'}).then(v=>{if(!v)return;this._saveCustomCfg({enabled:v.enabled==='1',source:String(v.source||'')});this._customSchedulingErrorShown=false;showToast('Custom Scheduling salvo');});
-  },
+  /* Custom Scheduling local removido. Quando exposto no Study, o código é
+     persistido/executado exclusivamente pelo card_state_customizer oficial do Anki. */
 
   _installMenu(){
     const menu=document.getElementById('cards-more-menu');if(!menu)return;
     const add=(id,label,fn)=>{if(document.getElementById(id))return;const b=document.createElement('button');b.type='button';b.id=id;b.setAttribute('role','menuitem');b.textContent=label;b.onclick=()=>{menu.classList.remove('open');fn();};menu.appendChild(b);};
-    add('cards-custom-scheduling-btn','🧪 Custom Scheduling',()=>this.openCustomScheduling());
     add('cards-extensions-btn','🧩 Extensões dos Cards',()=>this.openExtensions());
     this._loadUserExtensions();
   }
