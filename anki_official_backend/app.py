@@ -1036,6 +1036,8 @@ def cards_official_migrate_legacy(
         return {
             "ok": True,
             "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
+            "deck_map": deck_map,
+            "notetype_map": nt_map,
             "card_map": card_map,
             "note_map": note_map,
             "state": cards_collection_full_state_payload(item.col),
