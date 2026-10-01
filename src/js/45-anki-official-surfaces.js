@@ -47,7 +47,7 @@ const AnkiOfficialSurfaces = {
   },
 
   install(){
-    if(this.installed)return;
+    if(this.installed || !document.getElementById('screen-anki'))return;
     if(!window.AnkiOfficial){setTimeout(()=>this.install(),50);return;}
     this.installed=true;this.A=window.AnkiOfficial;
     this.injectNavigation();

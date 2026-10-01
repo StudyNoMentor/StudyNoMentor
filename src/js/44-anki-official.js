@@ -825,8 +825,3 @@ const AnkiOfficial = {
 };
 
 window.AnkiOfficial = AnkiOfficial;
-window.addEventListener('screen:activated', (ev) => {
-  const screen = ev.detail && ev.detail.screen;
-  if (screen !== 'anki') document.body.classList.remove('anki-foco');
-  if (screen === 'anki') void AnkiOfficial.activate();
-});

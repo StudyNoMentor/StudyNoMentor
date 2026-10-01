@@ -188,13 +188,13 @@ const AnkiPractical10 = {
   _installPreferences(){
     const menu=document.getElementById('cards-more-menu');if(!menu)return;
     if(!document.getElementById('cards-preferences-btn')){
-      const b=document.createElement('button');b.type='button';b.id='cards-preferences-btn';b.setAttribute('role','menuitem');b.textContent='⚙ Preferências dos Cards';b.onclick=()=>void this.openPreferences();
+      const b=document.createElement('button');b.type='button';b.id='cards-preferences-btn';b.setAttribute('role','menuitem');b.textContent='⚙ Preferências do Anki';b.onclick=()=>void this.openPreferences();
       const advanced=menu.querySelector('.cards-more-group[data-group="advanced"]');if(advanced)advanced.appendChild(b);else menu.appendChild(b);
     }
   },
   async openPreferences(){
     let m=document.getElementById('anki-cards-preferences');if(!m){
-      const w=document.createElement('div');w.innerHTML='<div id="anki-cards-preferences" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>⚙ Preferências dos Cards</h2><p class="sub">Preferências globais da Collection oficial + aparência do Browser no Study.</p></div><button class="icon-btn" id="anki-pref-close">✕</button></div><div class="cards-modal-body" id="anki-pref-body"></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-pref-algo">Opções de baralho / presets</button><button class="btn-secondary" id="anki-pref-sync">Verificar mídia</button><span style="flex:1"></span><button class="btn-primary" id="anki-pref-save">Salvar</button></div></div></div>';document.body.appendChild(w);m=document.getElementById('anki-cards-preferences');
+      const w=document.createElement('div');w.innerHTML='<div id="anki-cards-preferences" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>⚙ Preferências do Anki</h2><p class="sub">Preferências globais da Collection oficial + aparência do Browser no Study.</p></div><button class="icon-btn" id="anki-pref-close">✕</button></div><div class="cards-modal-body" id="anki-pref-body"></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-pref-algo">Opções de baralho / presets</button><button class="btn-secondary" id="anki-pref-sync">Verificar mídia</button><span style="flex:1"></span><button class="btn-primary" id="anki-pref-save">Salvar</button></div></div></div>';document.body.appendChild(w);m=document.getElementById('anki-cards-preferences');
       document.getElementById('anki-pref-close').onclick=()=>m.style.display='none';
       document.getElementById('anki-pref-algo').onclick=()=>{m.style.display='none';CardsScreen.openAlgoConfig();};
       document.getElementById('anki-pref-sync').onclick=()=>{m.style.display='none';AnkiProductParity.openCheck();};
