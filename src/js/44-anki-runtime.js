@@ -291,10 +291,13 @@ const AnkiRuntime = {
     if(cmd==='edit'){document.getElementById('cards-act-edit')?.click();return true;}
     if(cmd==='more'){if(typeof AnkiPractical10!=='undefined'&&AnkiPractical10.openReviewerActionSheet)AnkiPractical10.openReviewerActionSheet();else document.getElementById('anki-review-more')?.click();return true;}
     if(/^play:[qa]:\d+$/.test(cmd)){
-      const [,side,raw]=cmd.split(':'),idx=Math.max(0,Number(raw)||0),bridge=window.CardsOfficialBridge,card=bridge&&bridge.review&&bridge.review.card;
-      if(!bridge||!card)return false;
-      const tags=(side==='q'?card.question_av_tags:card.answer_av_tags)||[],item=tags[idx];
-      if(!item)return false;void bridge.playAv([item]);return true;
+      const [,side,raw]=cmd.split(':'),idx=Math.max(0,Number(raw)||0),id=(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx],card=id&&DB.getCard(id);
+      if(!card||typeof AnkiProductParity==='undefined')return false;
+      try{
+        const note=AnkiParity.getNote(AnkiProductParity.noteId(card)),nt=note&&AnkiProductParity._typeFor(note),ord=Number(card.ankiTemplateOrd)||0;
+        if(!note||!nt)return false;const q=AnkiParity.renderTemplate(nt,note,ord,'question',card,''),a=AnkiParity.renderTemplate(nt,note,ord,'answer',card,q),
+          html=side==='q'?q:a,items=this._collectMarkupAv(html),item=items[idx];if(item)this._playSingleParentItem(item);return !!item;
+      }catch(_){return false;}
     }
     if(cmd==='repaintNeeded'||cmd==='updateToolbar'||cmd==='statesMutated')return true;
     try{if(globalThis.AnkiStudyExtensions)globalThis.AnkiStudyExtensions.emit('pycmd',{cmd,cardId:(CardsScreen._reviewQueue||[])[CardsScreen._reviewIdx]||null});}catch(_){if(typeof _quiet==='function')_quiet(_,'44-anki-runtime');}
