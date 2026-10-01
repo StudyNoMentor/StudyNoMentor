@@ -1747,7 +1747,7 @@ CardsScreen.openAlgoConfig = function () {
   const decks = CardsScreen.collectionDecks().slice()
     .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }));
   const opts = [{ value: '__global__', label: '🌐 Global (padrão de todos)' }].concat(
-    decks.map(d => ({ value: d.id, label: '📁 ' + CardsScreen._rotuloBaralho(d, decks) + (CardsConfig.hasDeckPreset(d.id) ? '  • personalizado' : '  • herda global') }))
+    decks.map(d => ({ value: d.id, label: '📁 ' + CardsScreen._rotuloBaralho(d, decks) }))
   );
   opts.push({ value: '__bancas__', label: '🏛️ Gerenciar bancas…' });
   opts.push({ value: '__empty__', label: '🧹 Cards vazios · ferramenta oficial Anki…' });
@@ -1761,50 +1761,54 @@ CardsScreen.openAlgoConfig = function () {
         else showToast('Ferramenta Empty Cards oficial indisponível.');
         return;
       }
-      CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
+      void CardsScreen.openAlgoConfigFor(v.scope === '__global__' ? null : v.scope);
     });
 };
 
 /* A antiga ação local “zerar estatísticas” foi removida: o Study não apaga/recria
    agendamento ou revlog fora das operações expostas pelo Anki oficial. */
 CardsScreen.optimizeFsrsOfficial = async function (deckId) {
-  if (CardsConfig.get().algo !== 'fsrs') throw new Error('Ative o FSRS antes de otimizar parâmetros.');
   if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.optimizeFsrsPreset !== 'function')
     throw new Error('Otimizador oficial do Anki indisponível.');
+  const ui=await CardsOfficialBridge.getDeckOptionsUi(deckId==null?null:deckId);
+  if(ui.global.algo!=='fsrs')throw new Error('Ative o FSRS no Anki antes de otimizar parâmetros.');
   return CardsOfficialBridge.optimizeFsrsPreset(deckId == null ? null : deckId);
 };
 
-CardsScreen._fsrsCardsForPreset = function(deckId){
-  const cards=this.collectionCards().filter(c=>!c.suspenso);
-  if(deckId!=null)return cards.filter(c=>String(c.originalDeckId||c.deckId||'')===String(deckId));
-  return cards.filter(c=>{const did=c.originalDeckId||c.deckId;return !(did&&CardsConfig.hasDeckPreset(did));});
-};
 CardsScreen.optimizeAllFsrsPresets = async function(){
-  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes de otimizar parâmetros.');
-  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.optimizeFsrsPreset!=='function')throw new Error('Otimizador oficial do Anki indisponível.');
-  const scopes=[null,...Object.keys(CardsConfig._getPresets?CardsConfig._getPresets():{})],results=[];
-  for(const deckId of scopes){
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.officialFsrsScopes!=='function')throw new Error('Otimizador oficial do Anki indisponível.');
+  const scopes=await CardsOfficialBridge.officialFsrsScopes(),results=[];
+  if(!scopes.length)throw new Error('Ative o FSRS no Anki antes de otimizar parâmetros.');
+  for(const scope of scopes){
+    const deckId=scope.deckId;
     try{
       const out=await CardsOfficialBridge.optimizeFsrsPreset(deckId);
-      results.push({deckId,fsrsItems:out.fsrsItems,alreadyOptimal:out.alreadyOptimal,ok:true});
-    }catch(e){results.push({deckId,ok:false,error:e&&e.message?e.message:String(e)});}
+      results.push({deckId,configId:scope.configId,fsrsItems:out.fsrsItems,alreadyOptimal:out.alreadyOptimal,ok:true});
+    }catch(e){results.push({deckId,configId:scope.configId,ok:false,error:e&&e.message?e.message:String(e)});}
   }
-  CardEngine.invalidateDueCache();return results;
+  return results;
 };
 CardsScreen.fsrsHealthCheck = async function(deckId){
-  if(CardsConfig.get().algo!=='fsrs')throw new Error('Ative o FSRS antes do Health Check.');
   if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.fsrsHealthCheck!=='function')throw new Error('Health Check oficial do Anki indisponível.');
+  const ui=await CardsOfficialBridge.getDeckOptionsUi(deckId==null?null:deckId);
+  if(ui.global.algo!=='fsrs')throw new Error('Ative o FSRS no Anki antes do Health Check.');
   return CardsOfficialBridge.fsrsHealthCheck(deckId==null?null:deckId);
 };
 /* Reagendamento FSRS local removido. Reschedule Cards on Change é executado
    exclusivamente pelo update_deck_configs/scheduler do Anki oficial. */
 // Passo 2: formulário para o escopo escolhido (deckId=null → global)
-CardsScreen.openAlgoConfigFor = function (deckId) {
+CardsScreen.openAlgoConfigFor = async function (deckId) {
   const isDeck = !!deckId;
-  const g = CardsConfig.get();
-  const cfg = isDeck ? CardsConfig.forDeck(deckId) : g;
+  if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.getDeckOptionsUi!=='function'){
+    showToast('Deck Options oficiais indisponíveis.');return;
+  }
+  let official;
+  try{official=await CardsOfficialBridge.getDeckOptionsUi(isDeck?deckId:null);}
+  catch(e){showToast('Deck Options não carregadas do Anki oficial: '+(e&&e.message?e.message:String(e)));return;}
+  const g = official.global;
+  const cfg = official.config;
   const deckName = isDeck ? ((CardsScreen.collectionDecks().find(d => String(d.id) === String(deckId)) || {}).nome || 'baralho') : null;
-  const hasPreset = isDeck && CardsConfig.hasDeckPreset(deckId);
+  const hasPreset = !!official.hasPreset;
   const fields = [
     ...(!isDeck ? [{
       key: 'algo', label: '🧠 Algoritmo de repetição espaçada', type: 'select', value: cfg.algo,
@@ -1820,9 +1824,6 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       hint: 'Card novo: você o revê nesses minutos até fixar (ex.: 1 10).' },
     { key: 'relearn', label: '🔁 Passos de reaprendizado (min)', type: 'text', value: cfg.relearnSteps.join(' '), placeholder: '10',
       hint: 'Ao errar um card já aprendido, ele volta nesses minutos.' },
-    { key: 'lb', label: '⚖️ Balancear carga (Load Balancing)', type: 'select', value: cfg.loadBalance ? '1' : '0',
-      options: [{ value: '1', label: 'Ligado (distribui as revisões)' }, { value: '0', label: 'Desligado' }],
-      hint: 'Escolhe, dentro da janela de dispersão, o dia com menos revisões marcadas.' },
     { key: 'maxInterval', label: '📆 Intervalo máximo (dias)', type: 'number', value: cfg.maxInterval || 36500, min: 1, max: 36500,
       hint: 'Teto de espera entre revisões. Padrão Anki: 36500 (100 anos).' },
     { key: 'leechThreshold', label: '🚫 Erros até marcar como problemático', type: 'number', value: cfg.leechThreshold != null ? cfg.leechThreshold : 8, min: 0, max: 99,
@@ -1989,7 +1990,6 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     const patch = {
       retention: ret,
       learnSteps: parseSteps(v.learn, [1, 10]), relearnSteps: parseSteps(v.relearn, [10]),
-      loadBalance: v.lb === '1',
       maxInterval: Math.min(36500, Math.max(1, parseInt(v.maxInterval, 10) || 36500)),
       leechThreshold: Math.max(0, Math.min(99, parseInt(v.leechThreshold, 10) != null && !isNaN(parseInt(v.leechThreshold, 10)) ? parseInt(v.leechThreshold, 10) : 8)),
       leechAction: v.leechAction === 'suspend' ? 'suspend' : 'tag',
@@ -2048,7 +2048,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       patch.applyAllParentLimits = v.applyAllParentLimits === '1';
     }
     const desiredCfg = Object.assign({}, cfg, patch);
-    const effectiveAlgo = isDeck ? CardsConfig.get().algo : desiredCfg.algo;
+    const effectiveAlgo = isDeck ? g.algo : desiredCfg.algo;
     const shouldReschedule = v.fsrsReschedule === '1' && effectiveAlgo === 'fsrs';
     if (!window.CardsOfficialBridge || typeof CardsOfficialBridge.updateDeckOptions !== 'function') {
       showToast('Deck Options não salvas: backend oficial do Anki indisponível.');
@@ -2064,14 +2064,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       showToast('Deck Options não salvas pelo Anki oficial: ' + (e && e.message ? e.message : String(e)));
       return;
     }
-    if (isDeck) {
-      CardsConfig.setDeckPreset(deckId, patch);
-      showToast('Preset do baralho "' + deckName + '" salvo pelo Anki oficial ✓');
-    } else {
-      CardsConfig.set(patch);
-      showToast('Configuração global salva pelo Anki oficial ✓');
-    }
-    CardEngine.invalidateDueCache();
+    if (isDeck) showToast('Preset do baralho "' + deckName + '" salvo pelo Anki oficial ✓');
+    else showToast('Configuração global salva pelo Anki oficial ✓');
     if (shouldReschedule) showToast('🔄 Reagendamento FSRS concluído pelo scheduler oficial do Anki ✓');
     if (CardsScreen.tab === 'revisar') {
       CardsScreen.invalidateReviewQueue();
@@ -2079,9 +2073,8 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
     } else if (CardsScreen.tab === 'stats') CardsScreen.renderContent();
   });
 
-  // O Anki expõe a otimização no próprio Deck Options. Aqui o botão usa o
-  // fsrs-rs 6.6.2 vendorado localmente e salva os 21 parâmetros no mesmo
-  // escopo (global/preset) que está sendo configurado.
+  // O Anki expõe a otimização no próprio Deck Options. O botão abaixo chama
+  // compute_fsrs_params no backend oficial e salva os parâmetros no preset oficial.
   if (g.algo === 'fsrs') setTimeout(() => {
     const foot = document.querySelector('#ui-modal .cards-modal-foot');
     if (!foot || document.getElementById('cards-optimize-fsrs-btn')) return;
@@ -2097,7 +2090,7 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
           ? 'FSRS: parâmetros já estão ótimos para ' + out.fsrsItems.toLocaleString('pt-BR') + ' item(ns) ✓'
           : 'FSRS otimizado pelo Anki oficial com ' + out.fsrsItems.toLocaleString('pt-BR') + ' item(ns) ✓');
         UI._submit(false);
-        setTimeout(() => CardsScreen.openAlgoConfigFor(deckId), 0);
+        setTimeout(() => void CardsScreen.openAlgoConfigFor(deckId), 0);
       } catch (e) {
         b.disabled = false; b.textContent = old;
         showToast('Não foi possível otimizar FSRS: ' + (e && e.message ? e.message : String(e)));
@@ -2129,7 +2122,6 @@ CardsScreen.openAlgoConfigFor = function (deckId) {
       const oldText=b.textContent;b.disabled=true;b.textContent='⏳ Aplicando…';
       try {
         await CardsOfficialBridge.inheritDeckOptions(deckId);
-        CardsConfig.clearDeckPreset(deckId);
         UI._submit(false);
         showToast('Baralho "' + deckName + '" voltou a herdar o global pelo Anki oficial ✓');
       } catch (e) {
