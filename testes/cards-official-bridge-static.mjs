@@ -65,6 +65,14 @@ assert.match(bridge,/oc\.auto_advance\|\|\{\}/,'Auto Advance deve consumir o Dec
 assert.match(bridge,/this\._elapsedMs\(\(this\.review\.card&&this\.review\.card\.auto_advance\)\|\|\{\}\)/,'tempo da resposta deve usar maxTaken e stopTimer oficiais');
 assert.ok(!/trueRetention\(|previsaoCarga\(|_statBotoes\(|_statDistribuicao\(|_statsCards\(/.test(cards),'casca Cards não pode manter Stats acadêmicos locais mortos');
 assert.ok(!/_armReviewerAutomation\(c,cfg\)|CardsConfig\.forDeck\(c\.deckId\)/.test(cards),'Auto Advance da casca não pode depender de configuração acadêmica local');
+assert.ok(!/\bCardsConfig\b/.test(cards),'tela Cards não pode manter segunda fonte acadêmica em CardsConfig');
+assert.ok(!/CardEngine\./.test(cards),'tela Cards não pode chamar o motor acadêmico legado');
+assert.match(cards,/async exportAudit\(\)[\s\S]*?\/api\/cards-official\/collection\/full-state/,'auditoria deve fotografar a Collection oficial');
+assert.doesNotMatch(cards,/async exportAudit\(\)[\s\S]*?recomputarMemoria/,'auditoria não pode reexecutar FSRS localmente');
+assert.match(cards,/CardsOfficialBridge\.deleteNotesForCardRefs\(\[\.\.\.sel\]\)/,'exclusão em lote da lista deve delegar ao Anki oficial');
+assert.match(cards,/CardsOfficialBridge\.moveCardRefsToDeck\(\[\.\.\.sel\],v\.deck,sourcePlanId\)/,'movimentação em lote da lista deve delegar ao Anki oficial');
+assert.match(bridge,/async deleteNotesForCardRefs\(refs\)[\s\S]*?action:'delete_notes'[\s\S]*?\/api\/cards-official\/browser\/bulk/,'bulk delete deve executar remove_notes pela rota oficial');
+assert.match(bridge,/async moveCardRefsToDeck\(refs,localDeckId,planId\)[\s\S]*?action:'move_deck'[\s\S]*?\/api\/cards-official\/browser\/bulk/,'bulk move deve executar set_deck pela rota oficial');
 assert.match(bridge,/mem\.stability/);
 assert.match(bridge,/mem\.difficulty/);
 
