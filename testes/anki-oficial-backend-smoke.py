@@ -498,6 +498,42 @@ with tempfile.TemporaryDirectory() as tmp:
     except app.HTTPException as exc:
         assert exc.status_code == 409
 
+    # Regressão de produção: versões antigas do espelho Study podiam trazer
+    # "Basic (and reversed card)" com qfmt duplicado. A migração deve preservar
+    # os templates stock do Anki, em vez de tentar persistir o clone inválido.
+    reversed_user = {"id": "legacy-cards-reversed-template-user"}
+    reversed_payload = {
+        "decks": [{"id": "d", "name": "Reversed"}],
+        "notetypes": [{
+            "id": "nt",
+            "name": "Basic (and reversed card)",
+            "stock_kind": "basic_reversed",
+            "kind": "normal",
+            "fields": [{"name": "Front"}, {"name": "Back"}],
+            "templates": [
+                {"name": "Card 1", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"},
+                {"name": "Card 2", "qfmt": "{{Front}}", "afmt": "{{FrontSide}}<hr id=answer>{{Back}}"},
+            ],
+        }],
+        "notes": [{
+            "id": "n",
+            "notetype_id": "nt",
+            "fields": {"Front": "Pergunta", "Back": "Resposta"},
+            "tags": [],
+        }],
+        "cards": [
+            {"id": "c1", "note_id": "n", "deck_id": "d", "template_idx": 0, "phase": "new"},
+            {"id": "c2", "note_id": "n", "deck_id": "d", "template_idx": 1, "phase": "new"},
+        ],
+        "revlog": [],
+    }
+    reversed = app.cards_official_migrate_legacy(reversed_payload, reversed_user)
+    assert reversed["ok"] is True
+    assert len(reversed["state"]["cards"]) == 2
+    questions = {str(card["question"]) for card in reversed["state"]["cards"]}
+    assert any("Pergunta" in question for question in questions)
+    assert any("Resposta" in question for question in questions)
+
     # Estado legado sem anki_* moderno: due relativo, review, S/D e
     # suspensão são traduzidos para o Card oficial sem recalcular scheduler.
     schedule_user = {"id": "legacy-cards-schedule-user"}

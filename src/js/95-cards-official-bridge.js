@@ -769,7 +769,7 @@ const CardsOfficialBridge = {
           bqfmt:String(t&&t.bqfmt||''),bafmt:String(t&&t.bafmt||''),did:t&&t.did||null,bfont:String(t&&t.bfont||''),bsize:Number(t&&t.bsize)||0
         }));
         notetypeRows.set(key,{
-          id:key,name:String(nt.name||'Study Legacy Note Type'),stock_kind:String(nt.stockKind||(nt.kind==='cloze'?'cloze':'basic')),
+          id:key,name:String(nt.name||'Study Legacy Note Type'),stock_kind:String(nt.stockKind||fallbackKind||(nt.kind==='cloze'?'cloze':'basic')),
           kind:nt.kind==='cloze'?'cloze':'normal',sortf:Math.max(0,Number(nt.sortf)||0),css:String(nt.css||''),fields,templates
         });
       }

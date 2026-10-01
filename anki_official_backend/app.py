@@ -30,6 +30,7 @@ from anki.collection import (
 )
 from anki.cards import Card
 from anki.decks import DeckId, DeckCollapseScope
+from anki.errors import CardTypeError
 from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
 from anki.sound import SoundOrVideoTag, TTSTag
@@ -836,9 +837,57 @@ def _legacy_stock_kind(row: dict[str, Any]) -> int:
 
 
 def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[str, Any]) -> None:
-    """Copia apenas dados de apresentação para objetos criados pelo NoteTypeManager oficial."""
+    """Copia a forma legada sem substituir um stock válido por um clone inválido."""
     fields = row.get("fields") if isinstance(row.get("fields"), list) else []
     templates = row.get("templates") if isinstance(row.get("templates"), list) else []
+    legacy_field_count = len(fields)
+    stock_notetype = from_json_bytes(
+        col._backend.get_stock_notetype_legacy(_legacy_stock_kind(row))
+    )
+    stock_fields = [dict(field) for field in (stock_notetype.get("flds") or [])]
+    stock_templates = [dict(template) for template in (stock_notetype.get("tmpls") or [])]
+
+    # Espelhos antigos do Study podiam persistir Basic+Reverse com duas frentes
+    # idênticas (ou vazias). O Anki 26.09.3 rejeita esse NoteType. Nesse caso,
+    # quando o shape de campos é compatível com o stock, reconstruímos o par
+    # campos+templates a partir de get_stock_notetype_legacy(). Assim os ords,
+    # qfmt/afmt e identidade estrutural continuam sendo definidos pelo Anki.
+    restore_stock_shape = False
+    if templates and stock_templates and len(templates) == len(stock_templates):
+        fronts = [str((template or {}).get("qfmt") or "").strip() for template in templates]
+        nonempty = [front for front in fronts if front]
+        invalid_fronts = any(not front for front in fronts) or len(set(nonempty)) != len(nonempty)
+        compatible_fields = not fields or len(fields) == len(stock_fields)
+        restore_stock_shape = invalid_fronts and compatible_fields
+
+    if restore_stock_shape:
+        # Preserve os objetos já persistidos em nt: eles carregam ord/identidade
+        # atribuídos pelo Anki. O stock cru devolvido pelo backend é uma fábrica
+        # e não deve substituir esses dicionários por inteiro.
+        if len(nt.get("flds") or []) != len(stock_fields) or len(nt.get("tmpls") or []) != len(stock_templates):
+            restore_stock_shape = False
+        else:
+            for idx, stock_template in enumerate(stock_templates):
+                target = nt["tmpls"][idx]
+                for key in ("qfmt", "afmt"):
+                    target[key] = str(stock_template.get(key) or "")
+                legacy_template = templates[idx] if idx < len(templates) else {}
+                if (legacy_template or {}).get("name"):
+                    target["name"] = str(legacy_template["name"])
+                for key in ("bqfmt", "bafmt", "did", "bfont", "bsize"):
+                    if key in (legacy_template or {}):
+                        target[key] = legacy_template[key]
+            for idx, field_row in enumerate(fields):
+                field = nt["flds"][idx]
+                name = str((field_row or {}).get("name") or field.get("name") or f"Field {idx + 1}")
+                if name != str(field.get("name") or ""):
+                    col.models.rename_field(nt, field, name)
+                for key in ("font", "size", "rtl", "sticky", "collapsed", "excludeFromSearch", "tag"):
+                    if key in (field_row or {}):
+                        field[key] = field_row[key]
+            fields = []
+            templates = []
+
     if fields:
         nt["flds"] = []
         for idx, field_row in enumerate(fields):
@@ -861,9 +910,8 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
             col.models.add_template(nt, template)
     if "css" in row:
         nt["css"] = str(row.get("css") or "")
-    if fields:
-        nt["sortf"] = max(0, min(len(fields) - 1, int(row.get("sortf") or 0)))
-
+    if legacy_field_count:
+        nt["sortf"] = max(0, min(legacy_field_count - 1, int(row.get("sortf") or 0)))
 
 def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
     if row.get("anki_type") is not None and row.get("anki_queue") is not None:
@@ -965,7 +1013,17 @@ def cards_official_migrate_legacy(
             if not nt:
                 raise HTTPException(500, f"Falha ao criar NoteType {name}.")
             _apply_legacy_notetype_shape(item.col, nt, row)
-            item.col.models.update_dict(nt, skip_checks=False)
+            try:
+                item.col.models.update_dict(nt, skip_checks=False)
+            except CardTypeError as exc:
+                # Erro de validação do próprio Anki deve atravessar a API como
+                # resposta estruturada (com CORS), em vez de virar um 500 que o
+                # navegador reduz a "Failed to fetch". O snapshot guard restaura
+                # a Collection antes da resposta.
+                raise HTTPException(
+                    422,
+                    f"NoteType legado incompatível com o Anki oficial ({name}): {exc}",
+                ) from exc
             claimed_nt_ids.add(int(nt["id"]))
             if legacy_id:
                 nt_map[legacy_id] = int(nt["id"])

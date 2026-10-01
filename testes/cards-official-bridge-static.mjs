@@ -55,6 +55,8 @@ assert.match(practical,/CardsOfficialBridge\.updateOfficialPreferences\(\{schedu
 assert.ok(!/CardsConfig\.set\(\{[\s\S]{0,350}disableAutoplay/.test(practical),'Preferências globais não podem duplicar Deck Options localmente');
 assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_note\(/,'migração legada deve materializar notas por objetos oficiais do Anki');
 assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'bootstrap dos Cards deve acionar a migração oficial quando a Collection estiver vazia');
+assert.match(bridge,/stock_kind:String\(nt\.stockKind\|\|fallbackKind\|\|/,'migração deve conservar o stock kind inferido pelos cards quando o espelho antigo não o armazenou');
+assert.match(backend,/except CardTypeError as exc:[\s\S]*?HTTPException\([\s\S]*?422/,'erro de template validado pelo Anki deve voltar como resposta estruturada, não 500 opaco');
 assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?this\._migrateLegacyCollection\(\)/,'Cards legados devem migrar automaticamente em vez de bloquear o reviewer');
 assert.ok(!bridge.includes('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study'),'erro antigo de migração manual não pode continuar no runtime');
 const legacyMigrationBackend=backend.slice(backend.indexOf('def cards_official_migrate_legacy'),backend.indexOf('@app.post("/api/cards-official/bootstrap")'));
