@@ -95,6 +95,8 @@ assert.ok(!product.includes('ensureCanonicalNotes('),'casca Cards não pode norm
 assert.ok(!/\bDB\.(?:addCard|updateCard|addDeck|saveCards|addRevlog)/.test(importer),'importador local deve ser apenas inspetor; mutação pertence ao Anki oficial');
 assert.ok(!/AnkiParity\.(?:saveNote|saveNotetype|ensureIdentities)/.test(importer),'importador local não pode materializar Notes/NoteTypes');
 assert.doesNotMatch(cards,/_readCardForm\(\)[\s\S]{0,1600}DB\.addDeck\(/,'primeiro baralho não pode ser criado localmente pelo formulário');
+assert.doesNotMatch(cards,/saveCard\(closeAfter\)[\s\S]{0,1600}\bDB\.(?:addCard|updateCardNote)\(/,'salvar card deve delegar para Collection oficial');
+assert.doesNotMatch(cards,/async deleteCard\(\)[\s\S]{0,900}\bDB\.deleteNoteByCard\(/,'excluir nota deve delegar para Collection oficial');
 assert.doesNotMatch(practical,/_addSubdeck\(id\)[\s\S]{0,1200}DB\.addDeck/,'subbaralho deve nascer no DeckManager oficial');
 assert.doesNotMatch(practical,/_simpleDestination\(\)[\s\S]{0,1600}DB\.addDeck/,'destino auxiliar não pode criar baralho local');
 
