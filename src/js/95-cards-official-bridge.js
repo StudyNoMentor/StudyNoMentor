@@ -1434,6 +1434,54 @@ const CardsOfficialBridge = {
     AnkiProductParity.browser.selected.clear();this.invalidate('delete-notes');
     showToast('Notas excluídas pelo Anki oficial ✓');
   },
+  _localCardsFromRefs(refs){
+    const source=CardsScreen.collectionCards?CardsScreen.collectionCards():this._scopeCards(),
+      wanted=new Set((refs||[]).map(x=>String(x&&typeof x==='object'?x.id:x)));
+    return (source||[]).filter(c=>wanted.has(String(c.id)));
+  },
+  async deleteNotesForCardRefs(refs){
+    await this.bootstrap(false);
+    const cards=this._localCardsFromRefs(refs);
+    if(!cards.length)return {deletedNotes:0,deletedCards:0};
+    const byNote=new Map();
+    for(const card of cards){
+      const pid=card._planId!=null?card._planId:this._activePlanId(),
+        note=AnkiParity.noteForCard?AnkiParity.noteForCard(card):AnkiParity.getNote(card.noteId||card.id,pid==null?undefined:pid),
+        oid=this._officialNoteId(note);
+      if(note&&oid!=null&&!byNote.has(String(oid)))byNote.set(String(oid),{note,oid,reps:this._noteReplicas(oid)});
+    }
+    const noteIds=[...byNote.values()].map(x=>x.oid);
+    if(!noteIds.length)throw new Error('Seleção sem identidade oficial de nota.');
+    const out=await this.request('/api/cards-official/browser/bulk',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'delete_notes',card_ids:[],note_ids:noteIds})
+    });
+    for(const row of byNote.values()){
+      for(const rep of row.reps){
+        const pid=rep._planId!=null?rep._planId:null,siblings=AnkiProductParity._cardsForNote(rep,pid);
+        if(siblings.length)DB.deleteNoteByCard(siblings[0].id,pid==null?undefined:pid);
+        try{localStorage.removeItem(AnkiParity._entityKey('note',rep.id,pid==null?undefined:pid));}catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-bulk-delete');}
+      }
+    }
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    this.dirty=false;this._browserCache=[];CardsScreen.updateFavCount();
+    return {deletedNotes:noteIds.length,deletedCards:cards.length,out};
+  },
+  async moveCardRefsToDeck(refs,localDeckId,planId){
+    await this.bootstrap(false);
+    const cards=this._localCardsFromRefs(refs),cardIds=[...new Set(cards.map(c=>this._officialId(c)).filter(x=>x!=null))];
+    if(!cardIds.length)throw new Error('Seleção sem identidade oficial de card.');
+    const did=this._officialDeckId(localDeckId,planId);
+    if(did==null)throw new Error('Baralho de destino sem identidade Anki canônica.');
+    const out=await this.request('/api/cards-official/browser/bulk',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'move_deck',card_ids:cardIds,note_ids:[],deck_id:did})
+    });
+    await this._syncStates(out.cards||[]);
+    if(out.reviewer)this._applyReviewer(out.reviewer);
+    this.dirty=false;this._browserCache=[];
+    return {moved:cardIds.length,out};
+  },
   async _browserMove(ids){
     const sel=this._browserOfficialSelection(ids),cards=sel.local.cards||[];if(!cards.length)return;
     const origins=new Set(cards.map(c=>String(c._planId||(window.StudyGlobalScope&&StudyGlobalScope.sourcePlanForCard?StudyGlobalScope.sourcePlanForCard(c.id):'')||'')).filter(Boolean));
