@@ -10,12 +10,11 @@ const AnkiProductParity = {
   esc(v){ return escapeHtml(String(v==null?'':v)); },
   plain(v){ try{return AnkiParity._stripHtml(String(v==null?'':v)).replace(/\s+/g,' ').trim();}catch(_){return String(v||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();} },
   noteId(card){ try{return String(AnkiParity.noteId(card));}catch(_){return String(card&&card.noteId||card&&card.id||'');} },
-  ensure(){ try{AnkiParity.ensureCanonicalNotes();}catch(e){console.warn('Falha ao normalizar notas',e);} },
+  ensure(){ return true; },
 
   install(){
     if(this._installed||typeof CardsScreen==='undefined'||typeof AnkiParity==='undefined')return;
     this._installed=true;
-    this.ensure();
     this._injectModals();
     this._installMenu();
     this._installReviewerLayer();
