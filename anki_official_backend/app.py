@@ -1026,7 +1026,8 @@ def cards_official_migrate_legacy(
             while rid in seen_rev_ids:
                 rid += 1
             seen_rev_ids.add(rid)
-            kind = int(row.get("anki_review_kind") or 1)
+            raw_kind = row.get("anki_review_kind")
+            kind = int(raw_kind) if raw_kind is not None else 1
             rev_rows.append((
                 rid, cid, -1, max(0, min(4, int(row.get("grade") or 0))),
                 int(row.get("anki_interval") or 0), int(row.get("anki_last_interval") or 0),
