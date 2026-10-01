@@ -27,9 +27,12 @@ for(const forbidden of [
 ]){
   assert.ok(!bridge.includes(forbidden),'reviewer oficial não pode cair para '+forbidden);
 }
-assert.match(bridge,/canonicalAnkiIds:true/,'bootstrap precisa deduplicar replicas pelo ankiId');
-assert.match(bridge,/canonicalAnkiIds:true,preserveFiltered:true/,'bootstrap oficial precisa preservar filtered deck e odid\/odue entre recargas');
-assert.match(bridge,/\/api\/cards-official\/bootstrap/);
+assert.match(bridge,/\/api\/cards-official\/collection\/full-state/,'bootstrap deve carregar o snapshot integral da Collection oficial persistente');
+assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
+assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
+assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
+assert.match(backend,/def cards_official_collection_full_state[\s\S]*?cards_collection_full_state_payload\(item\.col\)/,'full-state deve ser extraído da Collection oficial');
+assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_note\(/,'migração legada deve materializar notas por objetos oficiais do Anki');
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
 assert.match(bridge,/\/api\/cards-official\/undo/);
@@ -229,6 +232,7 @@ for(const path of [
   '/api/cards-official/notetypes/change-info',
   '/api/cards-official/notetypes/change',
   '/api/cards-official/collection/state',
+  '/api/cards-official/collection/full-state',
   '/api/cards-official/stats/graphs',
   '/api/cards-official/fsrs/optimize',
   '/api/cards-official/fsrs/simulate',
