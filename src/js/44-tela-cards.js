@@ -1330,54 +1330,18 @@ const CardsScreen = {
     return data;
   },
   saveCard(closeAfter) {
-    const data = this._readCardForm();
-    if (!data) return;
-    const reversed = data._reversed; delete data._reversed;
-    if (this._editingId) {
-      // Editar uma das faces de "Básico + invertido" edita a NOTA: o irmão é
-      // regenerado com frente/verso trocados, mas mantém seu agendamento próprio.
-      const editId = this._editingId;
-      DB.updateCardNote(editId, data);
-      if (typeof AnkiParity !== 'undefined') {
-        AnkiParity.ensureIdentities();
-        if (data.kind === 'cloze') AnkiParity.syncClozeSiblings(editId);
-      }
-      showToast('Card atualizado ✓'); this.closeCardModal();
-    } else {
-      this._noPlanoDoBaralho(data.deckId, () => {
-        if (reversed) {
-          const noteId = DB._uid();
-          const c = DB.addCard({ ...data, noteId, template: 'forward' });
-          DB.addCard({ ...data, noteId, template: 'reverse', frente: data.verso, verso: data.frente, reversedOf: c.id });
-          if (typeof AnkiParity !== 'undefined') AnkiParity.ensureIdentities();
-          showToast('2 cards criados (normal + invertido) ✓');
-        } else {
-          const c = DB.addCard(data);
-          if (typeof AnkiParity !== 'undefined') {
-            AnkiParity.ensureIdentities();
-            if (data.kind === 'cloze' && c) {
-              const n = AnkiParity.syncClozeSiblings(c.id);
-              showToast(n + ' card(s) Cloze criado(s) ✓');
-            } else showToast('Card criado ✓');
-          } else showToast('Card criado ✓');
-        }
-      });
-      if (closeAfter) this.closeCardModal();
-      else {
-        $id('card-frente').innerHTML = '';
-        $id('card-verso').innerHTML = '';
-        $id('card-frente').focus();
-      }
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.saveSimpleCard==='function'){
+      void CardsOfficialBridge.saveSimpleCard(closeAfter).catch(e=>showToast('Card não salvo: '+(e&&e.message?e.message:String(e))));
+      return;
     }
-    this.render();
+    showToast('Card não salvo: Anki oficial indisponível.');
   },
   async deleteCard() {
-    if (!this._editingId) return;
-    const c = DB.getCard(this._editingId);
-    const irmaos = c ? this.collectionCards().filter(x => String(x.noteId || x.id) === String(c.noteId || c.id) && (!c._planId || x._planId === c._planId)).length : 1;
-    const msg = irmaos > 1 ? 'Excluir esta nota e seus ' + irmaos + ' cards?' : 'Excluir esta nota?';
-    if (!await UI.confirm(msg)) return;
-    DB.deleteNoteByCard(this._editingId); this.closeCardModal(); this.render(); showToast('Nota excluída');
+    if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.deleteSimpleCard==='function'){
+      try{return await CardsOfficialBridge.deleteSimpleCard();}
+      catch(e){showToast('Nota não excluída: '+(e&&e.message?e.message:String(e)));return false;}
+    }
+    showToast('Nota não excluída: Anki oficial indisponível.');return false;
   },
 
   // ---- baralhos ----
