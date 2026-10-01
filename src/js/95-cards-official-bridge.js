@@ -546,18 +546,294 @@ const CardsOfficialBridge = {
     return this.request('/api/cards-official/database/optimize',{method:'POST'});
   },
 
+
+  _legacyScopedKey(kind,planId,id){
+    return String(kind||'x')+':'+encodeURIComponent(String(planId==null?'':planId))+'::'+encodeURIComponent(String(id==null?'':id));
+  },
+  _legacyCanonicalKey(kind,value,planId,id){
+    const n=Number(value);
+    return Number.isFinite(n)&&n>0?String(kind||'x')+':anki:'+String(n):this._legacyScopedKey(kind,planId,id);
+  },
+  _legacyPlanRows(planId,suffix){
+    if(window.StudyGlobalScope&&StudyGlobalScope._rows&&planId!=null)return StudyGlobalScope._rows(planId,suffix)||[];
+    if(suffix==='cards')return DB.getCards()||[];
+    if(suffix==='decks')return DB.getDecks()||[];
+    if(suffix==='revlog')return DB.getRevlog()||[];
+    return [];
+  },
+  _legacyPlans(){
+    const rows=window.StudyGlobalScope&&StudyGlobalScope.plans?StudyGlobalScope.plans():[],
+      active=this._activePlanId(),out=[],seen=new Set();
+    for(const p of rows||[]){
+      const id=p&&p.id!=null?p.id:null,k=String(id==null?'':id);
+      if(seen.has(k))continue;seen.add(k);out.push({id,name:p&&((p.nome||p.name))||k});
+    }
+    if(active!=null&&!seen.has(String(active)))out.unshift({id:active,name:window.StudyGlobalScope&&StudyGlobalScope.planName?StudyGlobalScope.planName(active):String(active)});
+    if(!out.length)out.push({id:active,name:'Planejamento atual'});
+    return out;
+  },
+  _legacyDateDelta(date){
+    const raw=String(date||'').slice(0,10),today=typeof todayCards==='function'?todayCards():new Date().toISOString().slice(0,10);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(raw)||!/^\d{4}-\d{2}-\d{2}$/.test(today))return 0;
+    const a=Date.parse(raw+'T12:00:00Z'),b=Date.parse(today+'T12:00:00Z');
+    return Number.isFinite(a)&&Number.isFinite(b)?Math.round((a-b)/86400000):0;
+  },
+  _legacyTemplateOrd(card){
+    const direct=Number(card&&card.ankiTemplateOrd);
+    if(Number.isFinite(direct)&&direct>=0)return Math.floor(direct);
+    const co=Number(card&&card.clozeOrd);
+    if(Number.isFinite(co)&&co>0)return Math.floor(co)-1;
+    const t=String(card&&card.template||'');
+    const m=/^cloze:(\d+)$/i.exec(t);if(m)return Math.max(0,Number(m[1])-1);
+    return t==='reverse'||card&&card.reversedOf?1:0;
+  },
+  _legacyScheduleRow(card,timingToday){
+    const phase=String(card&&card.phase||(((Number(card&&card.reps)||0)>0&&(Number(card&&card.intervalo)||0)>0)?'review':'new')).toLowerCase();
+    let type=Number(card&&card.ankiType),queue=Number(card&&card.ankiQueue);
+    if(!Number.isFinite(type))type=({learning:1,review:2,relearning:3})[phase]||0;
+    if(!Number.isFinite(queue))queue=({learning:1,review:2,relearning:1})[phase]||0;
+    if(card&&card.suspenso)queue=-1;
+    else if(card&&card.enterradoAte)queue=card.buryKind==='scheduler'?-2:-3;
+    let due=Number(card&&card.ankiDue);
+    if(!Number.isFinite(due)){
+      if(type===0)due=Math.max(1,Number(card&&card.posicaoNova)||1);
+      else if(queue===1||queue===4)due=Math.max(0,Math.floor((Number(card&&card.dueTs)||0)/1000));
+      else due=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card&&card.due));
+    }
+    let odue=Number(card&&card.ankiOriginalDue);
+    if(!Number.isFinite(odue)){
+      if(card&&card.originalDueTs)odue=Math.max(0,Math.floor(Number(card.originalDueTs)/1000));
+      else if(card&&card.originalDue)odue=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card.originalDue));
+      else odue=0;
+    }
+    return {type,queue,due,odue};
+  },
+  _legacyMigrationSnapshot(timingToday){
+    const plans=this._legacyPlans(),payload={decks:[],notetypes:[],notes:[],cards:[],revlog:[]},
+      deckRefs=new Map(),cardRefs=new Map(),noteRefs=new Map(),deckKeyByLocal=new Map(),cardKeyByLocal=new Map(),
+      deckRows=new Map(),cardGroups=new Map(),notetypeRows=new Map(),noteGroups=new Map(),
+      localKey=(pid,id)=>String(pid==null?'':pid)+'|'+String(id==null?'':id),
+      clone=x=>{try{return JSON.parse(JSON.stringify(x));}catch(_){return Object.assign({},x);}},
+      addRef=(map,key,ref)=>{if(!map.has(key))map.set(key,[]);map.get(key).push(ref);};
+
+    for(const p of plans){
+      const pid=p.id;
+      for(const d0 of this._legacyPlanRows(pid,'decks')){
+        if(!d0||d0.id==null)continue;
+        const d=Object.assign({},d0,pid==null?{}:{_planId:pid}),
+          key=this._legacyCanonicalKey('deck',d.ankiId,pid,d.id);
+        deckKeyByLocal.set(localKey(pid,d.id),key);addRef(deckRefs,key,{planId:pid,localId:d.id,row:d});
+        if(!deckRows.has(key))deckRows.set(key,{id:key,name:String(d.nome||d.name||'Baralho')});
+      }
+      for(const c0 of this._legacyPlanRows(pid,'cards')){
+        if(!c0||c0.id==null)continue;
+        const c=Object.assign({},c0,pid==null?{}:{_planId:pid}),
+          key=this._legacyCanonicalKey('card',c.ankiId,pid,c.id),ref={planId:pid,localId:c.id,card:c},
+          lk=localKey(pid,c.id);
+        cardKeyByLocal.set(lk,key);addRef(cardRefs,key,ref);
+        let g=cardGroups.get(key);
+        if(!g){g={key,representative:ref,refs:cardRefs.get(key)};cardGroups.set(key,g);}
+        else{
+          const a=Date.parse(g.representative.card.updatedAt||g.representative.card.createdAt||0)||0,
+            b=Date.parse(c.updatedAt||c.createdAt||0)||0;
+          if(b>a)g.representative=ref;
+          g.refs=cardRefs.get(key);
+        }
+      }
+    }
+
+    for(const row of deckRows.values())payload.decks.push(row);
+
+    const registerNotetype=(nt,pid,fallbackKind)=>{
+      if(!nt){
+        const kind=fallbackKind||'basic',key='stock:'+kind;
+        if(!notetypeRows.has(key))notetypeRows.set(key,{
+          id:key,name:kind==='cloze'?'Study Legacy Cloze':kind==='basic_reversed'?'Study Legacy Basic (and reversed card)':'Study Legacy Basic',
+          stock_kind:kind,kind:kind==='cloze'?'cloze':'normal'
+        });
+        return key;
+      }
+      const key=this._legacyCanonicalKey('notetype',nt.ankiId,pid,nt.id||nt.name||fallbackKind||'basic');
+      if(!notetypeRows.has(key)){
+        const fields=(nt.fields||[]).map((f,i)=>({
+          name:String(f&&f.name||('Field '+(i+1))),font:f&&f.font!=null?f.font:(f&&f.fontName)||'Arial',
+          size:Number(f&&f.size!=null?f.size:f&&f.fontSize)||20,rtl:!!(f&&f.rtl),sticky:!!(f&&f.sticky),
+          collapsed:!!(f&&f.collapsed),excludeFromSearch:!!(f&&f.excludeFromSearch),tag:f&&f.tag==null?null:Number(f.tag)
+        }));
+        const templates=(nt.templates||[]).map((t,i)=>({
+          name:String(t&&t.name||('Card '+(i+1))),qfmt:String(t&&t.qfmt||''),afmt:String(t&&t.afmt||''),
+          bqfmt:String(t&&t.bqfmt||''),bafmt:String(t&&t.bafmt||''),did:t&&t.did||null,bfont:String(t&&t.bfont||''),bsize:Number(t&&t.bsize)||0
+        }));
+        notetypeRows.set(key,{
+          id:key,name:String(nt.name||'Study Legacy Note Type'),stock_kind:String(nt.stockKind||(nt.kind==='cloze'?'cloze':'basic')),
+          kind:nt.kind==='cloze'?'cloze':'normal',sortf:Math.max(0,Number(nt.sortf)||0),css:String(nt.css||''),fields,templates
+        });
+      }
+      return key;
+    };
+
+    for(const group of cardGroups.values()){
+      const rep=group.representative,card=rep.card,pid=rep.planId,
+        nid=card.noteId||card.id,
+        noteKey=this._legacyCanonicalKey('note',card.ankiNoteId,pid,nid);
+      group.noteKey=noteKey;
+      if(!noteGroups.has(noteKey))noteGroups.set(noteKey,{key:noteKey,cardGroups:[],refs:[]});
+      const ng=noteGroups.get(noteKey);ng.cardGroups.push(group);
+      for(const ref of group.refs){
+        if(!ng.refs.some(x=>String(x.planId==null?'':x.planId)===String(ref.planId==null?'':ref.planId)&&String(x.localId)===String(ref.localId)))ng.refs.push(ref);
+      }
+      addRef(noteRefs,noteKey,rep);
+    }
+
+    const noteKind=ng=>{
+      const cards=ng.cardGroups.map(g=>g.representative.card);
+      if(cards.some(c=>String(c.kind||'').toLowerCase()==='cloze'||/^cloze:/i.test(String(c.template||''))))return'cloze';
+      if(cards.some(c=>String(c.template||'')==='reverse'||c.reversedOf))return'basic_reversed';
+      return'basic';
+    };
+
+    for(const ng of noteGroups.values()){
+      const refs=ng.refs,first=refs[0],pid=first&&first.planId,kind=noteKind(ng);
+      let localNote=null,localNt=null;
+      for(const ref of refs){
+        try{
+          const c=ref.card,nid=c.noteId||c.id;
+          localNote=AnkiParity.getNote(nid,ref.planId==null?undefined:ref.planId)||null;
+          if(localNote){
+            localNt=AnkiParity.getNotetype(localNote.notetypeId,ref.planId==null?undefined:ref.planId)||null;
+            if(localNt)break;
+          }
+        }catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-legacy-note');}
+      }
+      const ntKey=registerNotetype(localNt,pid,kind),
+        cards=ng.cardGroups.map(g=>g.representative.card),
+        forward=cards.find(c=>String(c.template||'')!=='reverse')||cards[0]||{},
+        fields=localNote&&localNote.fields&&Object.keys(localNote.fields).length?clone(localNote.fields):
+          (kind==='cloze'?{Text:String(forward.frente||''),'Back Extra':String(forward.verso||'')}:{Front:String(forward.frente||''),Back:String(forward.verso||'')}),
+        tags=localNote&&Array.isArray(localNote.tags)?localNote.tags.slice():[];
+      if(cards.some(c=>c.favorito)&&!tags.some(t=>String(t).toLowerCase()==='marked'))tags.push('marked');
+      payload.notes.push({id:ng.key,notetype_id:ntKey,guid:localNote&&localNote.guid||'',fields,tags:[...new Set(tags.map(String).filter(Boolean))]});
+    }
+    payload.notetypes=[...notetypeRows.values()];
+
+    for(const group of cardGroups.values()){
+      const rep=group.representative,card=rep.card,pid=rep.planId,
+        sched=this._legacyScheduleRow(card,timingToday),
+        deckKey=card.deckId==null?'':(deckKeyByLocal.get(localKey(pid,card.deckId))||this._legacyScopedKey('deck',pid,card.deckId)),
+        originalDeckKey=card.originalDeckId==null?'':(deckKeyByLocal.get(localKey(pid,card.originalDeckId))||this._legacyScopedKey('deck',pid,card.originalDeckId)),
+        replicas=group.refs.map(r=>({
+          planId:r.planId,localId:r.localId,localDeckId:r.card.deckId==null?null:r.card.deckId,
+          materia:r.card.materia||null,assunto:r.card.assunto||'',materiaTec:r.card.materiaTec||'',banca:r.card.banca||'',tipo:r.card.tipo||'',favorito:!!r.card.favorito
+        }));
+      payload.cards.push({
+        id:group.key,note_id:group.noteKey,deck_id:deckKey,template_idx:this._legacyTemplateOrd(card),
+        anki_type:sched.type,anki_queue:sched.queue,anki_due:sched.due,anki_original_due:sched.odue,
+        original_deck_id:originalDeckKey,new_position:card.posicaoNova,due_ts:Number(card.dueTs)||0,
+        interval:Math.max(0,Number(card.intervalo)||0),ease:Number(card.ease)||2.5,
+        ease_factor:Number(card.easeFactor)||0,reps:Math.max(0,Number(card.reps)||0),lapses:Math.max(0,Number(card.lapses)||0),
+        remaining_steps:Math.max(0,Number(card.ankiRemainingSteps!=null?card.ankiRemainingSteps:card.remainingSteps)||0),
+        flag:Math.max(0,Math.min(7,Number(card.flag)||0)),s:card.s==null?null:Number(card.s),d:card.d==null?null:Number(card.d),
+        materia:card.materia||null,assunto:card.assunto||'',materia_tec:card.materiaTec||'',banca:card.banca||'',tipo:card.tipo||'',
+        favorito:!!card.favorito,study_replicas:replicas
+      });
+    }
+
+    const revSeen=new Set(),kindMap={learning:0,review:1,relearning:2,filtered:3,manual:4,rescheduled:5};
+    for(const p of plans){
+      const pid=p.id,rows=pid!=null&&DB.getRevlogForPlan?DB.getRevlogForPlan(pid):this._legacyPlanRows(pid,'revlog');
+      for(const r of rows||[]){
+        const semantic=Number(r&&r.ankiIvlSemantica!=null?r.ankiIvlSemantica:r&&r.anki_ivl_semantica);
+        if(semantic!==2)continue;
+        const cardKey=cardKeyByLocal.get(localKey(pid,r.cardId));if(!cardKey)continue;
+        const revKey=String(r.reviewId||'')+'|'+cardKey+'|'+String(r.ts||'')+'|'+String(r.grade||'');
+        if(revSeen.has(revKey))continue;revSeen.add(revKey);
+        const rawKind=r.ankiReviewKind!=null?r.ankiReviewKind:r.anki_review_kind,
+          reviewKind=Number.isFinite(Number(rawKind))?Number(rawKind):(kindMap[String(rawKind||'review').toLowerCase()]??1);
+        payload.revlog.push({
+          card_id:cardKey,ts:Math.max(1,Number(r.ts)||Date.now()),grade:Math.max(0,Math.min(4,Number(r.grade)||0)),
+          anki_interval:Number(r.ankiInterval!=null?r.ankiInterval:r.anki_interval)||0,
+          anki_last_interval:Number(r.ankiLastInterval!=null?r.ankiLastInterval:r.anki_last_interval)||0,
+          ease_factor:Math.max(0,Number(r.easeFactor!=null?r.easeFactor:r.ease_factor)||0),
+          time:Math.max(0,Number(r.time)||0),anki_review_kind:reviewKind,anki_ivl_semantica:2
+        });
+      }
+    }
+    return {payload,cardRefs,deckRefs,noteRefs};
+  },
+  _studyMetaFromState(state){
+    try{
+      const raw=state&&state.custom_data;if(!raw)return{};
+      const parsed=typeof raw==='string'?JSON.parse(raw):raw;
+      return parsed&&parsed.study&&typeof parsed.study==='object'?parsed.study:{};
+    }catch(_){return{};}
+  },
+  _studyTargetsForState(state,fallbackPlanId){
+    const meta=this._studyMetaFromState(state),out=[],seen=new Set(),push=(planId,seed)=>{
+      const pid=planId!=null?planId:fallbackPlanId,k=String(pid==null?'':pid);
+      if(seen.has(k))return;seen.add(k);out.push({planId:pid,seed:seed||{}});
+    };
+    if(Array.isArray(meta.replicas)){
+      for(const r of meta.replicas||[])if(r&&typeof r==='object')push(r.planId,{
+        localId:r.localId,deckId:r.localDeckId,materia:r.materia||null,assunto:r.assunto||'',materiaTec:r.materiaTec||'',banca:r.banca||'',tipo:r.tipo||'',favorito:!!r.favorito
+      });
+    }
+    for(const rep of this._replicas(state&&state.id)||[])push(rep._planId,Object.assign({},rep));
+    if(!out.length)push(fallbackPlanId,{
+      materia:meta.materia||null,assunto:meta.assunto||'',materiaTec:meta.materiaTec||'',banca:meta.banca||'',tipo:meta.tipo||'',favorito:!!meta.favorito
+    });
+    return out;
+  },
+  _studySeedForState(state,planId){
+    const target=this._studyTargetsForState(state,planId).find(x=>String(x.planId==null?'':x.planId)===String(planId==null?'':planId));
+    return target?target.seed:{};
+  },
+  async _applyLegacyMigration(out,snapshot){
+    if(!out||!out.ok||!out.state)throw new Error('O Anki oficial não confirmou a migração dos Cards legados.');
+    this.timing=out.state.reviewer&&out.state.reviewer.timing||this.timing||null;
+    const decksById=new Map((out.state.decks||[]).map(x=>[String(x.id),x])),
+      cardsById=new Map((out.state.cards||[]).map(x=>[String(x.id),x]));
+    for(const [legacy,oid] of Object.entries(out.deck_map||{})){
+      const row=decksById.get(String(oid));if(!row)continue;
+      for(const ref of snapshot.deckRefs.get(legacy)||[])this._saveNormalDeckMirror(row,ref.planId,ref.localId);
+    }
+    for(const [legacy,oid] of Object.entries(out.card_map||{})){
+      const state=cardsById.get(String(oid));if(!state)continue;
+      for(const ref of snapshot.cardRefs.get(legacy)||[]){
+        const patch=Object.assign(this._statePatch(state,ref.card),{noteId:Number(state.note_id),ankiNoteId:Number(state.note_id),ankiId:Number(state.id)});
+        const saved=window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped
+          ?StudyGlobalScope.updateCardScoped(ref.card,patch,ref.planId):DB.updateCard(ref.localId,patch);
+        if(saved===false)throw new Error('Falha ao vincular card legado '+ref.localId+' ao card oficial '+oid+'.');
+      }
+    }
+    await this._syncOfficialFullState(out.state,this._activePlanId());
+    return out;
+  },
+  async _migrateLegacyCollection(){
+    const emptyState=await this.request('/api/cards-official/collection/state'),
+      timingToday=Number(emptyState&&emptyState.reviewer&&emptyState.reviewer.timing&&emptyState.reviewer.timing.today)||0,
+      snapshot=this._legacyMigrationSnapshot(timingToday);
+    if(!snapshot.payload.cards.length)return null;
+    const out=await this.request('/api/cards-official/migrate/legacy',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot.payload)
+    });
+    await this._applyLegacyMigration(out,snapshot);
+    return out;
+  },
+
   async bootstrap(force){
     if(this._bootPromise)return this._bootPromise;
     if(this.ready&&!this.dirty&&!force)return this.review;
     this._bootPromise=(async()=>{
       if(!this.api().token())throw new Error('Entre na conta do Study para usar o motor oficial dos Cards.');
       const status=await this.request('/api/cards-official/status'),
-        localCount=(this._scopeCards()||[]).length,
+        localCount=window.StudyGlobalScope&&StudyGlobalScope.allBy?StudyGlobalScope.allBy('cards').length:(this._scopeCards()||[]).length,
         officialCount=Math.max(Number(status&&status.cards)||0,Number(status&&status.notes)||0);
+      let state=null;
       if(!officialCount&&localCount){
-        throw new Error('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study. A migração única para o Anki oficial precisa ser concluída antes da revisão.');
-      }
-      const state=await this.request('/api/cards-official/collection/full-state');
+        const migrated=await this._migrateLegacyCollection();
+        state=migrated&&migrated.state||null;
+        if(!state)throw new Error('A migração oficial dos Cards legados não devolveu o snapshot da Collection.');
+      }else state=await this.request('/api/cards-official/collection/full-state');
       this.preferences=await this.request('/api/cards-official/preferences');
       await this._syncOfficialFullState(state,this._activePlanId());
       this.ready=true;this.dirty=false;this._sessionAnswered=0;this._sessionStartTotal=null;
@@ -2067,9 +2343,10 @@ const CardsOfficialBridge = {
           current=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
           same=current.filter(c=>String(c.ankiNoteId||c.noteId)===String(ns.id)||String(c.noteId)===String(note.id)),
           externalSeed=seedByNote&&seedByNote[String(ns.id)]||{},
-          seed=Object.assign({},same[0]||{},externalSeed),
           existingByOfficial=new Map(same.map(c=>[String(this._officialId(c)),Object.assign({},c,pid==null?{}:{_planId:pid})]));
         for(const state of officialCards){
+          const studySeed=this._studySeedForState(state,pid),
+            seed=Object.assign({},studySeed,same[0]||{},externalSeed);
           let card=existingByOfficial.get(String(state.id));
           if(!card){
             const data={
@@ -2090,8 +2367,9 @@ const CardsOfficialBridge = {
             template:nt&&nt.kind==='cloze'?'cloze:'+(Number(state.template_idx)+1):(Number(state.template_idx)===1?'reverse':'forward'),
             clozeOrd:nt&&nt.kind==='cloze'?Number(state.template_idx)+1:null
           });
-          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo']){
-            if(Object.prototype.hasOwnProperty.call(externalSeed,k))patch[k]=externalSeed[k];
+          const metaSeed=Object.assign({},this._studySeedForState(state,pid),externalSeed);
+          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo','favorito']){
+            if(Object.prototype.hasOwnProperty.call(metaSeed,k))patch[k]=metaSeed[k];
           }
           if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(card,patch,pid);
           else DB.updateCard(card.id,patch);
