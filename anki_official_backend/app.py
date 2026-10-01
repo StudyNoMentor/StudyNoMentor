@@ -30,6 +30,7 @@ from anki.collection import (
 )
 from anki.cards import Card
 from anki.decks import DeckId, DeckCollapseScope
+from anki.errors import CardTypeError
 from anki.media import media_paths_from_col_path
 from anki.scheduler.v3 import CardAnswer
 from anki.sound import SoundOrVideoTag, TTSTag
@@ -836,9 +837,22 @@ def _legacy_stock_kind(row: dict[str, Any]) -> int:
 
 
 def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[str, Any]) -> None:
-    """Copia apenas dados de apresentação para objetos criados pelo NoteTypeManager oficial."""
+    """Copia a forma legada sem substituir um template stock por uma cópia inválida."""
     fields = row.get("fields") if isinstance(row.get("fields"), list) else []
     templates = row.get("templates") if isinstance(row.get("templates"), list) else []
+    stock_templates = [dict(template) for template in (nt.get("tmpls") or [])]
+
+    # Alguns espelhos antigos do Study gravaram dois templates de "Basic (and
+    # reversed card)" com a mesma frente. O Anki rejeita corretamente esse
+    # NoteType. Quando a quantidade de templates coincide com o stock oficial e
+    # a única evidência estrutural é frente vazia/duplicada, preservamos os
+    # templates stock produzidos pelo próprio NoteTypeManager; não fabricamos
+    # qfmt/afmt em Python.
+    if templates and stock_templates and len(templates) == len(stock_templates):
+        fronts = [str((template or {}).get("qfmt") or "").strip() for template in templates]
+        nonempty = [front for front in fronts if front]
+        if any(not front for front in fronts) or len(set(nonempty)) != len(nonempty):
+            templates = []
     if fields:
         nt["flds"] = []
         for idx, field_row in enumerate(fields):
@@ -965,7 +979,17 @@ def cards_official_migrate_legacy(
             if not nt:
                 raise HTTPException(500, f"Falha ao criar NoteType {name}.")
             _apply_legacy_notetype_shape(item.col, nt, row)
-            item.col.models.update_dict(nt, skip_checks=False)
+            try:
+                item.col.models.update_dict(nt, skip_checks=False)
+            except CardTypeError as exc:
+                # Erro de validação do próprio Anki deve atravessar a API como
+                # resposta estruturada (com CORS), em vez de virar um 500 que o
+                # navegador reduz a "Failed to fetch". O snapshot guard restaura
+                # a Collection antes da resposta.
+                raise HTTPException(
+                    422,
+                    f"NoteType legado incompatível com o Anki oficial ({name}): {exc}",
+                ) from exc
             claimed_nt_ids.add(int(nt["id"]))
             if legacy_id:
                 nt_map[legacy_id] = int(nt["id"])
