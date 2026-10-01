@@ -116,11 +116,11 @@ const AnkiMaxStatsMedia = {
 
   _injectSimulator(){
     if(document.getElementById('anki-fsrs-simulator'))return;
-    const cfg=CardsConfig.get(),d=document.createElement('div');
+    const d=document.createElement('div');
     d.innerHTML='<div id="anki-fsrs-simulator" class="cards-modal anki-product-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>🧪 Simulador FSRS</h2><p class="sub">Estimativa calculada pela Collection oficial do Anki.</p></div><button class="icon-btn" id="anki-sim-close">✕</button></div><div class="cards-modal-body">'+
-      '<div class="field-group"><div class="field"><label>Dias a simular</label><input id="anki-sim-days" type="number" min="1" max="3650" value="365"></div><div class="field"><label>Retenção desejada (%)</label><input id="anki-sim-retention" type="number" min="70" max="99" value="'+Math.round((cfg.retention||.9)*100)+'"></div></div>'+
-      '<div class="field-group"><div class="field"><label>Cards novos adicionais</label><input id="anki-sim-additional" type="number" min="0" max="1000000" value="0"></div><div class="field"><label>Novos por dia</label><input id="anki-sim-new-limit" type="number" min="0" max="999999" value="'+Math.max(0,Number(cfg.newPerDay)||0)+'"></div></div>'+
-      '<div class="field-group"><div class="field"><label>Máximo de revisões/dia</label><input id="anki-sim-review-limit" type="number" min="0" max="999999" value="'+Math.max(0,Number(cfg.revPerDay)||0)+'"></div><div class="field"><label>Intervalo máximo (dias)</label><input id="anki-sim-max-interval" type="number" min="1" max="36500" value="'+Math.max(1,Number(cfg.maxInterval)||36500)+'"></div></div>'+
+      '<div class="field-group"><div class="field"><label>Dias a simular</label><input id="anki-sim-days" type="number" min="1" max="3650" value="365"></div><div class="field"><label>Retenção desejada (%)</label><input id="anki-sim-retention" type="number" min="70" max="99" value="90"></div></div>'+
+      '<div class="field-group"><div class="field"><label>Cards novos adicionais</label><input id="anki-sim-additional" type="number" min="0" max="1000000" value="0"></div><div class="field"><label>Novos por dia</label><input id="anki-sim-new-limit" type="number" min="0" max="999999" value="20"></div></div>'+
+      '<div class="field-group"><div class="field"><label>Máximo de revisões/dia</label><input id="anki-sim-review-limit" type="number" min="0" max="999999" value="200"></div><div class="field"><label>Intervalo máximo (dias)</label><input id="anki-sim-max-interval" type="number" min="1" max="36500" value="36500"></div></div>'+
       '<div class="anki-sim-actions"><button class="btn-primary" id="anki-sim-run">Simular</button><button class="btn-secondary" id="anki-sim-help">Help Me Decide</button></div><div id="anki-sim-result"></div></div></div></div>';
     document.body.appendChild(d);
     document.getElementById('anki-sim-close').onclick=()=>document.getElementById('anki-fsrs-simulator').style.display='none';
@@ -128,7 +128,21 @@ const AnkiMaxStatsMedia = {
     document.getElementById('anki-sim-help').onclick=()=>void this.runHelpMeDecide();
   },
 
-  openSimulator(){const m=document.getElementById('anki-fsrs-simulator');if(m)m.style.display='flex';},
+  async openSimulator(){
+    const m=document.getElementById('anki-fsrs-simulator');if(!m)return;
+    try{
+      if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.getDeckOptionsUi==='function'){
+        const deckId=(this._statsState||{}).scope==='deck'?this._statsSelectedDeckId():null,
+          official=await CardsOfficialBridge.getDeckOptionsUi(deckId),cfg=official.config||{};
+        const set=(id,v)=>{const el=document.getElementById(id);if(el&&Number.isFinite(Number(v)))el.value=String(v);};
+        set('anki-sim-retention',Math.round((Number(cfg.retention)||.9)*100));
+        set('anki-sim-new-limit',Math.max(0,Number(cfg.newPerDay)||0));
+        set('anki-sim-review-limit',Math.max(0,Number(cfg.revPerDay)||0));
+        set('anki-sim-max-interval',Math.max(1,Number(cfg.maxInterval)||36500));
+      }
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'anki-sim-official-options');}
+    m.style.display='flex';
+  },
 
   _simBars(arr,maxBars=90){
     const group=Math.max(1,Math.ceil(arr.length/maxBars)),xs=[];
