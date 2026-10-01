@@ -255,6 +255,22 @@ with tempfile.TemporaryDirectory() as tmp:
     # MESMA coleção isolada dos Cards, não a coleção do menu Anki.
     cgraphs = app.cards_official_collection_graphs("", 365, cards_ctx)
     assert "card_counts" in cgraphs and "true_retention" in cgraphs
+
+    # Preferences globais de scheduling pertencem à Collection oficial.
+    cprefs = app.cards_official_preferences(cards_ctx)
+    old_rollover = int(cprefs["scheduling"]["rollover"])
+    old_learn_ahead = int(cprefs["scheduling"]["learn_ahead_secs"])
+    changed_prefs = app.cards_official_update_preferences(
+        {"scheduling": {"rollover": (old_rollover + 1) % 24, "learn_ahead_secs": old_learn_ahead + 60}},
+        cards_ctx,
+    )
+    assert changed_prefs["ok"] is True
+    assert int(changed_prefs["preferences"]["scheduling"]["rollover"]) == (old_rollover + 1) % 24
+    assert int(changed_prefs["preferences"]["scheduling"]["learn_ahead_secs"]) == old_learn_ahead + 60
+    app.cards_official_update_preferences(
+        {"scheduling": {"rollover": old_rollover, "learn_ahead_secs": old_learn_ahead}},
+        cards_ctx,
+    )
     copts = app.cards_official_deck_options(cards_current_deck, cards_ctx)
     assert copts["current_deck"]["name"]
     # Um preset novo é enviado com id=0, exatamente como o frontend oficial:
