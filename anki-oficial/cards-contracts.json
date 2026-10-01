@@ -127,7 +127,6 @@
     "media": {
       "official_files": 9,
       "study_adapters": [
-        "src/js/34-anki-export.js",
         "src/js/35-anki-import.js",
         "src/js/44-anki-max-stats-media.js"
       ],
