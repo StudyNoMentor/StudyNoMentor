@@ -279,7 +279,7 @@ function progressBadgeHtml(e) {
    que faz sentido para um registro do dia. */
 function cardsRolloverHour() {
   try {
-    const h = (window.CardsConfig && CardsConfig.get) ? CardsConfig.get().rolloverHour : 4;
+    const h = window.CardsOfficialBridge&&CardsOfficialBridge.preferences&&CardsOfficialBridge.preferences.scheduling ? CardsOfficialBridge.preferences.scheduling.rollover : 4;
     return (Number.isFinite(h) && h >= 0 && h <= 23) ? Math.floor(h) : 4;
   } catch (_) { return 4; }
 }

@@ -385,13 +385,6 @@ const PlanManager = {
     const sk = DB.keysForPlan(sourceId), tk = DB.keysForPlan(targetId);
     const clone = x => { try { return JSON.parse(JSON.stringify(x)); } catch (_) { return x; } };
     const same = (a,b) => { try { return JSON.stringify(a) === JSON.stringify(b); } catch (_) { return false; } };
-    let numericSeed = Date.now();
-    const allocNumeric = () => {
-      try {
-        if (typeof AnkiParity !== 'undefined' && AnkiParity._allocId) return AnkiParity._allocId();
-      } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
-      numericSeed += 1; return numericSeed;
-    };
     const cleanTagged = x => {
       const y = clone(x); if (y && typeof y === 'object') { delete y._planId; delete y._planNome; delete y._planPaused; } return y;
     };
@@ -435,10 +428,6 @@ const PlanManager = {
       if (!x || x.id == null) return;
       const old=String(x.id), direct=targetEntityKey('notetype',x.id), existingRaw=localStorage.getItem(direct);
       let next=x.id;
-      if (existingRaw != null && existingRaw !== raw) {
-        do { next=allocNumeric(); } while (localStorage.getItem(targetEntityKey('notetype',next)) != null);
-        x.id=next; x.ankiId=next;
-      }
       ntMap.set(old,x.id);
       let ok=true;
       if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('notetype',x.id),JSON.stringify(x)) !== false;
@@ -451,10 +440,6 @@ const PlanManager = {
       if (x.notetypeId != null && ntMap.has(String(x.notetypeId))) x.notetypeId=ntMap.get(String(x.notetypeId));
       const old=String(x.id), direct=targetEntityKey('note',x.id), existingRaw=localStorage.getItem(direct);
       let next=x.id;
-      if (existingRaw != null && existingRaw !== JSON.stringify(x)) {
-        do { next=allocNumeric(); } while (localStorage.getItem(targetEntityKey('note',next)) != null);
-        x.id=next; x.ankiId=next;
-      }
       noteMap.set(old,x.id);
       let ok=true;
       if (existingRaw == null || String(next) !== old) ok = DB.setRaw(targetEntityKey('note',x.id),JSON.stringify(x)) !== false;
@@ -502,10 +487,6 @@ const PlanManager = {
       const skip=equivalent && String(next)===old;
       cardMap.set(old,card.id); cardIds.add(String(card.id));
 
-      if (!skip && card.ankiId != null && ankiIds.has(String(card.ankiId))) {
-        let aid; do { aid=allocNumeric(); } while(ankiIds.has(String(aid)));
-        card.ankiId=aid;
-      }
       if (card.ankiId != null) ankiIds.add(String(card.ankiId));
       prepared.push({old,card,skip});
     });
@@ -566,7 +547,6 @@ const PlanManager = {
       if (migratedEntityKeys.has(key)) DB.delRaw(key,'planejamento excluído após migração do Anki');
     });
     try { DB.invalidarRevlogMemoria(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
-    try { if (typeof CardEngine !== 'undefined' && CardEngine.invalidateDueCache) CardEngine.invalidateDueCache(); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '12-planos-perfis'); }
     return {ok:true,targetId,cards:sourceCards.length,decks:sourceDecks.length,revlog:sourceRev.length,entities:entityRows.length};
   },
 

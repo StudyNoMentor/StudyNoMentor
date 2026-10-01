@@ -22,6 +22,7 @@ const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8
 
 assert.match(req,/^anki==26\.09\.3$/m,'backend precisa fixar exatamente anki==26.09.3');
 assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar no build publicado');
+for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
 assert.ok(!bridge.includes('AnkiExport.'),'bridge oficial não pode depender de exportador local');
 
@@ -235,7 +236,7 @@ assert.ok(!/FSRS\.healthCheckOfficial\(this\._statsRevlog/.test(cards),'Health C
 assert.match(backend,/def cards_official_empty_cards_report[\s\S]*?item\.col\.get_empty_cards/,'Empty Cards dos Cards precisa usar Collection oficial');
 assert.match(backend,/def cards_official_delete_empty_cards[\s\S]*?before = pb\(item\.col\.get_empty_cards\(\)\)[\s\S]*?remove_cards_and_orphaned_notes\(ids\)[\s\S]*?"state": cards_collection_state_payload/,'Empty Cards deve validar o relatório atual, excluir pela Collection oficial e devolver estado canônico');
 assert.match(bridge,/async openEmptyCards\(\)[\s\S]*?\/api\/cards-official\/empty-cards[\s\S]*?cardIds\.slice\(1\)[\s\S]*?\/api\/cards-official\/empty-cards\/delete/,'UI Empty Cards deve usar o relatório oficial e preservar uma card quando a nota precisa ser mantida');
-assert.match(bridge,/StudyGlobalScope\.deleteNoteScoped\(note\)/,'nota órfã removida oficialmente deve ser espelhada em todos os planejamentos');
+assert.match(bridge,/StudyGlobalScope\._removeProjectedNote\(note\)/,'nota órfã removida oficialmente deve ser espelhada em todos os planejamentos');
 assert.match(cards,/value: '__empty__'[\s\S]*?CardsOfficialBridge\.openEmptyCards/,'ferramenta Empty Cards precisa estar acessível pela UI Cards');
 
 const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].map(m=>m[1]);

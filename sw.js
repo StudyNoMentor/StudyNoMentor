@@ -36,7 +36,7 @@
 /* O carimbo é gravado pelo build.mjs a partir de um resumo do conteúdo de src/.
    Ele muda a cada publicação real — é isso que dá um BALDE NOVO a cada versão e
    faz a faxina da ativação ter o que descartar. Não edite à mão. */
-const VERSAO = 'v823c4e7336';
+const VERSAO = 'vd429023c9b';
 
 /* Dois baldes com ciclos de vida diferentes, e a diferença é proposital:
 
@@ -138,32 +138,7 @@ async function precarregar() {
     if (m && m.ok) await c.put('./manifest.webmanifest', m.clone());
   } catch (_) { /* o manifesto é dispensável para abrir offline */ }
 
-  /* Runtimes dinâmicos que NÃO entram no index.html concatenado.
-     Sem pré-cache, o app abre offline mas a primeira otimização FSRS ou a
-     primeira exportação .apkg feita sem rede falharia justamente porque esses
-     arquivos só seriam pedidos naquele momento. */
-  const dinamicos = [
-    './src/vendor/fsrs-6.6.2/fsrs_optimizer.js',
-    './src/vendor/fsrs-6.6.2/fsrs_optimizer_bg.wasm',
-    './src/vendor/sqljs-1.2.1/sql-asm.js',
-    './src/vendor/fzstd-0.1.1/fzstd.js'
-  ];
-  for (const recurso of dinamicos) {
-    try {
-      const r = await fetch(new Request(recurso, { cache: 'reload' }));
-      if (r && r.ok) await c.put(recurso, r.clone());
-    } catch (_) { /* recurso avançado: não impede instalar a casca principal */ }
-  }
 
-  // O reviewer do Anki 26.09.2 usa MathJax 3.2.2. Guardamos exatamente o
-  // bundle usado pelos cards para que fórmulas continuem renderizando offline
-  // depois da instalação normal do app, sem depender da primeira revisão online.
-  try {
-    const cdn = await caches.open(CACHE_CDN);
-    const req = new Request(MATHJAX_ANKI, { cache: 'reload', mode: 'cors' });
-    const r = await fetch(req);
-    if (r && r.ok) await cdn.put(req, r.clone());
-  } catch (_) { /* matemática não impede a instalação da casca principal */ }
 }
 
 self.addEventListener('install', (evt) => {

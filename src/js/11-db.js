@@ -1189,7 +1189,7 @@ const DB = {
       // Identidade compatível com o Anki vive em paralelo ao UUID do Study.
       // Os campos são opcionais durante bootstrap/importação e normalizados
       // pela camada AnkiParity antes de a fila ser construída.
-      ankiId: data.ankiId || (typeof AnkiParity !== 'undefined' ? AnkiParity._allocId() : null),
+      ankiId: data.ankiId || null,
       ankiNoteId: data.ankiNoteId || null,
       ankiMod: Math.floor(Date.now() / 1000),
       noteId: data.noteId || id,
@@ -1222,17 +1222,7 @@ const DB = {
            então um lote grande se intercala com o que já estava na fila em vez
            de virar um bloco monotemático no fim.
          Reposicionar depois continua funcionando: ele reescreve posicaoNova. */
-      posicaoNova: (function () {
-        try {
-          const cfg = CardsConfig.get();
-          const novos = list.filter(c => (c.phase || 'new') === 'new');
-          const maior = novos.reduce((a, c) => Math.max(a, typeof c.posicaoNova === 'number' ? c.posicaoNova : -1), -1);
-          if ((cfg.newInsertOrder || 'sequencial') === 'aleatoria' && maior >= 0) {
-            return Math.floor(Math.random() * (maior + 2));
-          }
-          return maior + 1;
-        } catch (e) { _quiet(e, 'posicao-nova'); return Date.now(); }
-      })(),
+      posicaoNova: data.posicaoNova == null ? null : data.posicaoNova,
       createdAt: now, updatedAt: now
     };
     list.push(card); this.saveCards(list); return card;
@@ -1328,7 +1318,6 @@ const DB = {
     });
     if (this.saveCards(list) === false) return false;
     const salvo=this.getCard(id);
-    try{if(typeof AnkiParity!=='undefined'&&salvo)AnkiParity.syncCanonicalNoteFromCard(salvo);}catch(e){_quiet(e,'sync-canonical-note');}
     return salvo;
   },
   // Varredura de segurança: usada depois de IMPORTAR UM BACKUP DE PERFIL, que
@@ -1364,7 +1353,6 @@ const DB = {
   deleteCard(id) {
     const alvo=this.getCard(id);if(alvo)this._preserveDeletedCardRevlogIds([alvo]);
     if (this.saveCards(this.getCards().filter(c => String(c.id) !== String(id))) === false) return false;
-    try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
     return true;
   },
   // A interface do Anki exclui a NOTA: todos os cards/template siblings
@@ -1379,142 +1367,20 @@ const DB = {
     if (!ids.size) return 0;
     this._preserveDeletedCardRevlogIds(this.getCards().filter(c=>ids.has(String(c.id))));
     if (this.saveCards(this.getCards().filter(c => !ids.has(String(c.id)))) === false) return false;
-    try { ids.forEach(cid => CardsConfig.forgetCardId(cid)); } catch (e) { _quiet(e, 'delete-note-daily'); }
     return ids.size;
   },
   // ENTERRAR (bury, tecla "-"): tira o card da fila até o próximo dia.
   // Diferente de suspender, que o remove por tempo indeterminado.
-  buryCard(id, origem) {
-    const c = this.getCard(id); if (!c) return null;
-    const amanha = CardEngine.addDays(todayCards(), 1);
-    const buryKind = origem === 'scheduler' ? 'scheduler' : 'user';
-    // Enterrar não pode destruir o passo intradiário. Guardamos o timestamp e
-    // apenas o ocultamos enquanto o card está enterrado.
-    this.updateCard(id, { enterradoAte: amanha, buryKind,
-      dueTsAntesEnterrar: c.dueTs == null ? null : c.dueTs, dueTs: null });
-    return amanha;
-  },
-  unburyCard(id) {
-    const c = this.getCard(id); if (!c) return;
-    const patch = { enterradoAte: null, buryKind: null };
-    if (Object.prototype.hasOwnProperty.call(c, 'dueTsAntesEnterrar')) {
-      patch.dueTs = c.dueTsAntesEnterrar;
-      patch.dueTsAntesEnterrar = null;
-    }
-    this.updateCard(id, patch);
-  },
-
-  /* Registra ações manuais no mesmo espírito do revlog do Anki: rating 0 e
-     tipo Manual. Elas não entram no treino FSRS/True Retention, mas aparecem
-     no Card Info e preservam o motivo de mudanças de agenda. */
-  addManualReview(card, action, before, after) {
-    if (!card) return null;
-    const b = before || card, a = after || card, ts = Date.now();
-    const row = {
-      cardId: String(card.id), ts,
-      date: typeof todayCards === 'function' ? todayCards() : new Date(ts).toISOString().slice(0,10),
-      grade: 0, acerto: null, time: 0, elapsed: Number(b.intervalo)||0,
-      phase: 'manual', ankiReviewKind: 'manual', ankiIvlSemantica: 2,
-      ankiInterval: Number(a.intervalo)||0, ankiLastInterval: Number(b.intervalo)||0,
-      intervalo: Number(b.intervalo)||0, easeFactor: Math.round((Number(a.ease)||2.5)*1000),
-      action: String(action || 'manual')
-    };
-    if (card._planId != null) row._planId = card._planId;
-    return this.addRevlog(row);
-  },
-  parseDueSpec(spec) {
-    const raw = String(spec == null ? '' : spec).trim();
-    const m = /^(-?\d+)(?:\s*-\s*(-?\d+))?\s*(!)?$/.exec(raw);
-    if (!m) return null;
-    let min = Math.round(Number(m[1])), max = m[2] == null ? min : Math.round(Number(m[2]));
-    if (min > max) { const t=min; min=max; max=t; }
-    return { raw, min, max, forceInterval: !!m[3] };
-  },
-  _dueRangePick(cardId, parsed, opts) {
-    const p=parsed||{min:0,max:0}, span=Math.max(0,p.max-p.min), o=opts||{};
-    if (!span) return p.min;
-    if (Number.isFinite(Number(o.index)) && Number.isFinite(Number(o.total)) && Number(o.total)>1) {
-      return Math.round(p.min + span * (Number(o.index) / (Number(o.total)-1)));
-    }
-    const str=String(cardId||'');let h=2166136261;
-    for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619);}
-    return p.min + ((h>>>0) % (span+1));
-  },
-  /* Reset/Forget oficial: volta à fila de novos, preserva o revlog e permite
-     controlar posição original e contadores de reps/lapses. */
-  resetCard(id, opts) {
-    const c = this.getCard(id); if (!c) return null;
-    const o=Object.assign({restorePosition:false,resetCounts:false,log:true},opts||{}), before=Object.assign({},c);
-    const original=[c.originalPosition,c.originalPos,c.ankiOriginalPosition,c.posicaoOriginal].map(Number).find(Number.isFinite);
-    const maxPos=this.getCards().reduce((m,x)=>Math.max(m,Number(x.posicaoNova)||Number(x.ankiDue)||0),0);
-    const pos=o.restorePosition&&Number.isFinite(original)?original:maxPos+1;
-    const patch = {
-      phase:'new', learnStep:0, due:todayCards(), dueTs:null, intervalo:0,
-      s:null, d:null, lastReview:null, status:'pendente',
-      enterradoAte:null, buryKind:null, suspenso:false,
-      posicaoNova:pos, ankiDue:pos
-    };
-    if (o.resetCounts) { patch.reps=0; patch.lapses=0; patch.ease=2.5; patch.leech=false; }
-    const after=this.updateCard(id,patch);
-    try { CardsConfig.forgetCardId(id); } catch (_) { _quiet(_); }
-    if (o.log!==false && after) this.addManualReview(Object.assign({},after,{_planId:c._planId}), 'reset', before, after);
-    return after;
-  },
-  // Compatibilidade: Forget agora usa a semântica não destrutiva do Reset do Anki.
-  forgetCard(id, opts) { return this.resetCard(id, opts); },
-  /* Set Due Date oficial: aceita N, A-B e sufixo !.
-     - ranges distribuem a carga;
-     - cards novos viram review e recebem intervalo igual ao atraso;
-     - reviews mantêm o intervalo, salvo quando o usuário usa !. */
-  setDueSpec(id, spec, opts) {
-    const parsed = typeof spec === 'object' && spec && Number.isFinite(spec.min) ? spec : this.parseDueSpec(spec);
-    if (!parsed) return null;
-    const c=this.getCard(id); if(!c)return null;
-    const before=Object.assign({},c), days=this._dueRangePick(c.id,parsed,opts), wasNew=(c.phase||'new')==='new';
-    const patch={due:CardEngine.addDays(todayCards(),days),dueTs:null,enterradoAte:null,buryKind:null,phase:'review',status:c.status&&c.status!=='pendente'?c.status:'sei'};
-    if(wasNew||parsed.forceInterval)patch.intervalo=Math.max(1,Math.abs(days)||1);
-    const after=this.updateCard(id,patch);
-    if(after)this.addManualReview(Object.assign({},after,{_planId:c._planId}),'set-due',before,after);
-    return after?{card:after,days,parsed}:null;
-  },
-  setDueDays(id, dias) { return this.setDueSpec(id,String(Math.round(Number(dias)||0))); },
-  // BANDEIRAS do Anki atual: 1–7; a barra compacta do Study continua
-  // mostrando as quatro clássicas, e as adicionais ficam nas ações avançadas.
   FLAGS: [null, { nome: 'Vermelha', cor: '#e0393f' }, { nome: 'Laranja', cor: '#e07a1f' },
           { nome: 'Verde', cor: '#0f9d63' }, { nome: 'Azul', cor: '#2563eb' },
           { nome: 'Rosa', cor: '#d946ef' }, { nome: 'Turquesa', cor: '#0891b2' },
           { nome: 'Roxa', cor: '#7c3aed' }],
-  setFlag(id, n) { n=Math.round(Number(n)||0); this.updateCard(id, { flag: (n >= 1 && n <= 7) ? n : 0 }); },
-  zerarProgressoCards() {
-    const cards = this.getCards();
-    const nRev = this.getRevlog().length;
-    cards.forEach(c => {
-      c.phase = 'new'; c.learnStep = 0;
-      c.due = todayCards(); c.dueTs = null;
-      c.intervalo = 0; c.reps = 0; c.lapses = 0;
-      c.ease = 2.5; c.s = null; c.d = null;
-      c.lastReview = null; c.status = 'pendente';
-      c.leech = false; c.suspenso = false;
-      c.updatedAt = new Date().toISOString();
-    });
-    this.saveCards(cards);
-    this.replaceRevlog([]);
-    try {
-      this.setRaw(CardsConfig.DKEY, JSON.stringify({ date: todayCards(), newIds: [], revIds: [] }));
-    } catch (_) { _quiet(_); }
-    return { cards: cards.length, revlog: nRev };
-  },
-  // Faxina geral: remove do histórico e dos contadores tudo que aponta para card
-  // inexistente. Devolve quantos registros foram descartados.
   limparOrfaos() {
     /* Revlogs sem card correspondente são válidos no Anki após exclusão.
        A faxina automática limita-se aos contadores/filas transitórias. */
-    const ids = new Set(this.getCards().map(c => c.id));
     let n = 0;
-    try { n += CardsConfig.limparContadorOrfao(ids); } catch (_) { _quiet(_); }
     try { const migradas = this.migrarAproveitamentoAgregado(); if (migradas > 0) console.info('[migração] ' + migradas + ' semana(s) com aproveitamento recalculado'); } catch (e) { _quiet(e, 'mig-aprov'); }
     try { const rest = this.restaurarCumprimentoSemana(); if (rest > 0) console.info('[reparo] ' + rest + ' semana(s) do histórico com \'estudado\' e \'% cumprido\' originais restaurados'); } catch (e) { _quiet(e, 'restaurar-cumprido'); }
-    try { const curados = this.curarCardsFSRS(); if (curados > 0) console.warn('[cura FSRS] cards com metadados corrigidos:', curados); } catch (_) { _quiet(_); }
     return n;
   },
   /* CURA de cards FSRS legados (migração indolor, roda no boot).
@@ -1604,41 +1470,6 @@ const DB = {
     return n;
   },
 
-  curarCardsFSRS() {
-    const list = this.getCards();
-    let mudou = 0;
-    const daysBetween = (a, b) => {
-      try { const A = new Date(a + 'T00:00:00'), B = new Date(b + 'T00:00:00');
-        return Math.round((B - A) / 86400000); } catch (_) { return 0; }
-    };
-    list.forEach(c => {
-      let alterou = false;
-      // 1) review/relearning com intervalo<=0: reconstrói pelo due
-      if ((c.phase === 'review' || c.phase === 'relearning') && (!(c.intervalo > 0))) {
-        let iv = 0;
-        if (c.lastReview && c.due) iv = daysBetween(c.lastReview, c.due);
-        if (!(iv > 0) && c.due) iv = Math.max(1, daysBetween(todayCards(), c.due));
-        if (iv > 0) { c.intervalo = Math.min(36500, iv); alterou = true; }
-      }
-      // 2) S fora dos limites do Anki (S_MIN 0.001 · S_MAX 36500)
-      if (typeof c.s === 'number') {
-        if (!isFinite(c.s)) { c.s = 0.001; alterou = true; }
-        else if (c.s < 0.001) { c.s = 0.001; alterou = true; }
-        else if (c.s > 36500) { c.s = 36500; alterou = true; }
-      }
-      // 3) D fora de 1..10 (ou NaN)
-      if (typeof c.d === 'number') {
-        if (!isFinite(c.d)) { c.d = 5; alterou = true; }
-        else if (c.d < 1) { c.d = 1; alterou = true; }
-        else if (c.d > 10) { c.d = 10; alterou = true; }
-      }
-      if (alterou) { c.updatedAt = new Date().toISOString(); mudou++; }
-    });
-    if (mudou) this.saveCards(list);
-    return mudou;
-  },
-
-  // ---- Links úteis: [{ id, nome, url, categoria, cor, logo(dataURL|null), createdAt }] ----
   DEFAULT_LINKS: [
     { nome: 'TecConcursos', url: 'https://www.tecconcursos.com.br/', categoria: 'Questões', cor: '#29abe2' },
     { nome: 'Estratégia', url: 'https://perfil.estrategia.com/login', categoria: 'Curso', cor: '#5b4fc4' },

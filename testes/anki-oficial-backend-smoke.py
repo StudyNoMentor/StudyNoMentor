@@ -410,6 +410,27 @@ with tempfile.TemporaryDirectory() as tmp:
     assert redo_out["ok"] is True and "reviewer" in redo_out
 
     app.cards_pool.close_all()
+    # A prévia e a importação usam o mesmo parser CSV nativo, inclusive aspas,
+    # novas linhas, cabeçalho aparente dentro de um campo e Unicode.
+    import json
+
+    class CsvUpload(FakeUpload):
+        filename = "cards.tsv"
+
+    csv_user = {"id": "csv-official-user"}
+    csv_bytes = '#separator:Tab\n#html:true\n"Frente ç\n#continuação do campo"\t"Resposta <b>oficial</b>"\n'.encode("utf-8")
+    meta_out = asyncio.run(app.cards_official_csv_metadata(CsvUpload(csv_bytes), delimiter=None, user=csv_user))
+    meta = meta_out["metadata"]
+    assert meta["preview"][0]["vals"] == ["Frente ç\n#continuação do campo", "Resposta <b>oficial</b>"]
+    imported_csv = asyncio.run(app.cards_official_import_csv(CsvUpload(csv_bytes), metadata_json=json.dumps(meta), user=csv_user))
+    assert imported_csv["ok"] and len(imported_csv["state"]["notes"]) == 1
+    native_csv = app.cards_uc_for(csv_user)
+    with native_csv.lock:
+        csv_nid = native_csv.col.find_notes("Frente ç")[0]
+        csv_note = native_csv.col.get_note(csv_nid)
+        assert csv_note.fields == ["Frente ç\n#continuação do campo", "Resposta <b>oficial</b>"]
+        assert native_csv.col.card_count() == 1
+
     app.pool.close_all()
 
     # Pool com teto (LRU): coleções antigas e livres são fechadas.

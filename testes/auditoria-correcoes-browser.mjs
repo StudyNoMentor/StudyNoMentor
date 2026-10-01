@@ -42,7 +42,7 @@ async function abrir() {
   page.on('pageerror', e => erros.push(e.message));
   page.on('console', m => { if (/Content Security Policy|Refused to/i.test(m.text())) csp.push(m.text()); });
   await page.goto(url, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => typeof FSRS !== 'undefined' && typeof DB !== 'undefined' && typeof AutoTeste !== 'undefined' && typeof UI !== 'undefined', null, { timeout: 30000 });
+  await page.waitForFunction(() => typeof CardsOfficialBridge !== 'undefined' && typeof DB !== 'undefined' && typeof AutoTeste !== 'undefined' && typeof UI !== 'undefined', null, { timeout: 30000 });
   return { ctx, page, erros, csp };
 }
 
@@ -236,24 +236,6 @@ async function pontaAPonta() {
 try {
   const { ctx, page, erros, csp } = await abrir();
 
-  // ── C5: WebAssembly do fsrs-rs sob o CSP publicado ─────────────────────────
-  const wasm = await page.evaluate(async () => {
-    try {
-      const mod = await FSRS._loadOfficialOptimizer();
-      const items = [], card_ids = [];
-      for (let c = 0; c < 64; c++) for (let k = 2; k <= 7; k++) {
-        const reviews = [{ rating: 3, delta_t: 0 }];
-        for (let i = 1; i < k; i++) reviews.push({ rating: (i + c) % 11 === 0 ? 1 : 3, delta_t: Math.max(1, Math.round(Math.pow(1.7, i - 1))) });
-        items.push({ reviews }); card_ids.push(100000 + c);
-      }
-      const out = JSON.parse(mod.optimize_json(JSON.stringify({ items, card_ids, current_params: FSRS.DEFAULT_W, num_relearning_steps: 1 })));
-      const hc = JSON.parse(mod.health_check_json(JSON.stringify({ items, card_ids, num_relearning_steps: 1 })));
-      return { ok: true, n: out.params && out.params.length, hc: typeof hc };
-    } catch (e) { return { ok: false, err: String(e && e.message || e) }; }
-  });
-  ok(wasm.ok && wasm.n === 21, 'otimizador FSRS oficial (WASM) roda sob o CSP publicado: ' + JSON.stringify(wasm));
-  ok(!csp.some(t => /WebAssembly|wasm/i.test(t)), 'nenhuma recusa de WebAssembly pelo CSP');
-
   // ── C4: AutoTeste não encosta no planejamento real ──────────────────────────
   const auto = await page.evaluate(() => {
     const k = DB.KEYS.incidencia;
@@ -316,24 +298,6 @@ try {
   });
   ok(datas.utc === '2026-09-11' && datas.estudo === '2026-09-10' && datas.cal === '2026-09-10', 'datas: 22h30 em Brasília continua no dia 10 (UTC diria 11)');
   ok(datas.madrugada === '2026-09-10', 'datas: 2h da manhã ainda é o dia de estudo anterior (virada às 4h)');
-
-  // ── Médio 16: ZIP-bomba é recusado pelo teto do que sai do descompressor ───
-  const bomba = await page.evaluate(async () => {
-    const zeros = new Uint8Array(8 * 1024 * 1024);
-    const comp = new Uint8Array(await new Response(new Blob([zeros]).stream().pipeThrough(new CompressionStream('deflate-raw'))).arrayBuffer());
-    const nome = new TextEncoder().encode('collection.anki2');
-    const le16 = v => [v & 255, (v >> 8) & 255], le32 = v => [v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255];
-    const local = [...le32(0x04034b50), ...le16(20), 0, 0, ...le16(8), 0, 0, 0, 0, ...le32(0), ...le32(comp.length), ...le32(0), ...le16(nome.length), 0, 0];
-    const central = [...le32(0x02014b50), ...le16(20), ...le16(20), 0, 0, ...le16(8), 0, 0, 0, 0, ...le32(0), ...le32(comp.length), ...le32(0), ...le16(nome.length), 0, 0, 0, 0, 0, 0, 0, 0, ...le32(0), ...le32(0)];
-    const cdOff = local.length + nome.length + comp.length;
-    const eocd = [...le32(0x06054b50), 0, 0, 0, 0, ...le16(1), ...le16(1), ...le32(central.length + nome.length), ...le32(cdOff), 0, 0];
-    const zip = new Uint8Array([...local, ...nome, ...comp, ...central, ...nome, ...eocd]);
-    const teto = AnkiImport.ZIP_TETO_ENTRADA; AnkiImport.ZIP_TETO_ENTRADA = 1024 * 1024;
-    try { await AnkiImport.unzip(zip); return 'aceitou'; }
-    catch (e) { return String(e.message); }
-    finally { AnkiImport.ZIP_TETO_ENTRADA = teto; }
-  });
-  ok(/grande demais/.test(bomba), 'ZIP-bomba: descompactação passa do teto e é recusada (' + bomba + ')');
 
   // ── Médio 18: "Sem Classificação" (depth=1, sem código) não vira raiz ──────
   const incid = await page.evaluate(() => ({

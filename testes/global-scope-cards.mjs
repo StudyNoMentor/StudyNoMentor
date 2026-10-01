@@ -95,8 +95,7 @@ const ctx={
   console,DB,localStorage:ls,document,
   PlanManager:{getActivePlanId:()=>active,getPlans:()=>[{id:'A',nome:'Plano A'},{id:'B',nome:'Plano B'}]},
   ReviewJournal:{put:async op=>{journal.push(op);return true;},remove:async()=>true},
-  CardsConfig:{DKEY:'u:cards-daily',forgetCardId:()=>{},forDeck:()=>({buryNew:false,buryReviews:false,buryInterdayLearning:false}),_daily:()=>({date:'2026-09-23',newIds:[],revIds:[],usage:[]}),_saveDaily:()=>{}},
-  CardEngine:{isDue:()=>true,invalidateDueCache:()=>{}},todayCards:()=> '2026-09-23',_sanCard:x=>String(x??''),escapeHtml:x=>String(x??''),showToast:()=>{},_quiet:()=>{},
+  todayCards:()=> '2026-09-23',_sanCard:x=>String(x??''),escapeHtml:x=>String(x??''),showToast:()=>{},_quiet:()=>{},
   setTimeout:()=>{},CustomEvent:class{},addEventListener:()=>{}
 };
 ctx.window=ctx;

@@ -26,12 +26,7 @@ assert.deepEqual([...new Set(declarados)].sort(),fontes,
 // Vendors são runtimes estáticos carregados sob demanda e NÃO entram no bundle
 // concatenado. A whitelist exata mantém o gate estrito: vendor/ não vira um
 // lugar onde JS órfão pode ser escondido.
-const vendorsPermitidos=[
-  'vendor/fsrs-6.6.2/fsrs_optimizer.js',
-  // zstd do .apkg/.colpkg do Anki 2.1.50+ (35-anki-import.js, sob demanda).
-  'vendor/fzstd-0.1.1/fzstd.js',
-  'vendor/sqljs-1.2.1/sql-asm.js'
-].sort();
+const vendorsPermitidos=[];
 const vendors=vendorAbs.map(relSrc).sort();
 assert.deepEqual(vendors,vendorsPermitidos,
   'src/vendor só pode conter os runtimes estáticos explicitamente auditados');
@@ -65,7 +60,10 @@ const proibidos=[
   'testes/cards-reparo-memoria-browser.mjs',
   'testes/cards-10of10-final.mjs',
   'src/js/34-anki-export.js',
-  'src/js/44-anki-runtime.js'
+  'src/js/44-anki-runtime.js',
+  'src/js/30-fsrs.js',
+  'src/js/31-cards-config.js',
+  'src/js/32-card-engine.js'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');

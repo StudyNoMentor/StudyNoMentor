@@ -32,17 +32,31 @@ Existência de botão, função ou comentário **não** conta como paridade.
 
 ### Continuação — 2026-10-01: marca de nota no revisor
 
-Progresso deste lote: **3/4 verificações concluídas (75%)**. Isso não representa
+Progresso deste lote: **4/4 verificações concluídas (100%)**. Isso não representa
 o percentual de paridade integral dos 571 arquivos de runtime.
 
 - [x] `anki_official_backend/app.py`: ação `mark` devolve as notas afetadas com tags oficiais, uma vez por nota.
 - [x] `src/js/95-cards-official-bridge.js`: o revisor sincroniza essas notas, incluindo cards irmãos e réplicas entre planejamentos, sem calcular a marca localmente.
 - [x] `testes/cards-official-bridge-static.mjs`: contratos estáticos e execução da ponte para marca/desmarca, estado antigo do revisor e falha de rede passaram. Checagem TTS atualizada para a assinatura com token de cancelamento.
-- [ ] `testes/anki-oficial-backend-smoke.py`: acrescentadas as verificações de retorno de tags e IDs repetidos; execução com `anki==26.09.3` pendente neste ambiente (pacote ausente e proxy indisponível).
+- [x] `testes/anki-oficial-backend-smoke.py`: retorno de tags e IDs repetidos validado com o pacote real `anki==26.09.3` no CI (commit `5cc213be`).
 
 Base reconciliada: a branch já contém `main@ae54ed3d` pelo merge `71f988e5`,
 preservando a implementação Anki e a exclusão de `anki-oficial` no Pages.
 Os contratos abaixo permanecem pendentes de certificação integral.
+
+### Remoção das implementações locais — 2026-10-01
+
+- [x] Removidos `30-fsrs.js`, `31-cards-config.js` e `32-card-engine.js`.
+- [x] Removidos parser de busca, renderer de templates, geração de tipos, RNG, load balancer e filas da antiga camada `44-anki-parity.js`.
+- [x] Removidos reset, vencimento, enterro e reparos de memória executados em JavaScript.
+- [x] Prévia de CSV delegada a `Collection.get_csv_metadata()`; importação delegada a `Collection.import_csv()`.
+- [x] Removidos leitores locais de pacotes e vendors sem uso (FSRS WASM, SQLite e Zstd).
+- [x] Excluídos autotestes de motores removidos e verificações de WASM/ZIP que ficaram obsoletas.
+- [x] As ações acadêmicas do escopo global delegam à ponte oficial; o escopo mantém somente seleção e metadados do Study.
+- [ ] Validar o lote inteiro no CI, incluindo o novo round-trip CSV com o Anki real e os testes de navegador atualizados.
+
+A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um motor Anki nem certificam todas as interações da interface. A certificação por arquivo acima continua pendente; este lote não autoriza declarar paridade integral.
+
 
 - [ ] **Scheduler / FSRS / estados / filas — 67 arquivos**
   - responder Again/Hard/Good/Easy;

@@ -270,7 +270,8 @@ const CardsOfficialBridge = {
     if(!out||!out.ok)throw new Error('O Anki oficial não confirmou as preferências.');
     if(out.state)await this._syncCollectionState(out.state,this._activePlanId(),null);
     this.dirty=false;
-    return out.preferences||{};
+    this.preferences=out.preferences||{};
+    return this.preferences;
   },
 
   async historyStatus(){
@@ -557,6 +558,7 @@ const CardsOfficialBridge = {
         throw new Error('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study. A migração única para o Anki oficial precisa ser concluída antes da revisão.');
       }
       const state=await this.request('/api/cards-official/collection/full-state');
+      this.preferences=await this.request('/api/cards-official/preferences');
       await this._syncOfficialFullState(state,this._activePlanId());
       this.ready=true;this.dirty=false;this._sessionAnswered=0;this._sessionStartTotal=null;
       this._undo=[];this._redo=[];this._applyReviewer(state.reviewer||{finished:true,counts:{},queue_ids:[]});
@@ -754,9 +756,8 @@ const CardsOfficialBridge = {
   },
 
   _phase(type,queue){
-    if(typeof AnkiImport!=='undefined'&&AnkiImport._phase)return AnkiImport._phase(type,queue);
     type=Number(type);queue=Number(queue);
-    if(type===0)return'new';if(type===1||queue===1||queue===3)return'learning';if(type===3)return'relearning';return'review';
+    if(type===0)return'new';if(type===3)return'relearning';if(type===1)return'learning';return'review';
   },
   _statePatch(state,local){
     const queue=Number(state.queue),phase=this._phase(state.type,queue),mem=state.memory_state||{},timing=this.timing||{};
@@ -940,7 +941,7 @@ const CardsOfficialBridge = {
     if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a exclusão do baralho.');
     for(const nid of out.deleted_note_ids||[]){
       for(const note of this._noteReplicas(nid)){
-        if(window.StudyGlobalScope&&typeof StudyGlobalScope.deleteNoteScoped==='function')StudyGlobalScope.deleteNoteScoped(note);
+        if(window.StudyGlobalScope&&typeof StudyGlobalScope._removeProjectedNote==='function')StudyGlobalScope._removeProjectedNote(note);
         else{
           const cards=AnkiProductParity._cardsForNote(note,note._planId==null?undefined:note._planId);
           if(cards.length)DB.deleteNoteByCard(cards[0].id,note._planId==null?undefined:note._planId);
@@ -2648,7 +2649,7 @@ const CardsOfficialBridge = {
         for(const note of this._noteReplicas(row.note_id)){
           const key=String(note._planId==null?'':note._planId)+'::'+String(note.id);
           if(handledNotes.has(key))continue;handledNotes.add(key);
-          if(window.StudyGlobalScope&&typeof StudyGlobalScope.deleteNoteScoped==='function')StudyGlobalScope.deleteNoteScoped(note);
+          if(window.StudyGlobalScope&&typeof StudyGlobalScope._removeProjectedNote==='function')StudyGlobalScope._removeProjectedNote(note);
           else{
             const cards=AnkiProductParity._cardsForNote(note,note._planId==null?undefined:note._planId);
             if(cards.length)DB.deleteNoteByCard(cards[0].id,note._planId==null?undefined:note._planId);

@@ -22,13 +22,6 @@ try{
     await page.waitForFunction(()=>window.switchScreen&&typeof CardsScreen!=='undefined'&&typeof AnkiMaxStatsMedia!=='undefined',{timeout:30000});
     const r=await page.evaluate(async()=>{
       try{ProfileUI.hideGate();}catch(_){}
-      const d=DB.addDeck('Estatísticas'),agora=Date.now(),dia=86400000,cards=[],log=[];
-      for(let i=0;i<60;i++){
-        const c=DB.addCard({deckId:d.id,frente:'Q'+i,verso:'A'+i,kind:'basic'});
-        DB.updateCard(c.id,{phase:'review',reps:3,intervalo:1+(i%25),s:1+(i%30),d:1+(i%9),due:CardEngine.addDays(todayCards(),1+(i%14)),lastReview:todayCards()});
-        for(let k=0;k<3;k++){const ts=agora-(k*3+i%4)*dia-i*60000;log.push({cardId:c.id,ts,date:new Date(ts).toISOString().slice(0,10),grade:1+((i+k)%4),phase:k?'review':'learning',intervalo:k,elapsed:k,time:8000});}
-      }
-      DB.replaceRevlog(log);
       // Layout é testado com um payload de GraphsService, sem depender de rede,
       // sessão ou de cálculos locais. A UI continua consumindo exatamente o
       // contrato oficial que o backend serializa.

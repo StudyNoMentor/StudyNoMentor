@@ -1492,10 +1492,7 @@ const CardsScreen = {
       if (parsed.kind === 'json') n = parsed.cards.length;
       else if (parsed.kind === 'text') {
         n = parsed.rows.length;
-        if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.officialCsvMetadata==='function'){
-          try{this._officialCsvMetadata=await CardsOfficialBridge.officialCsvMetadata(file);}
-          catch(e){this._officialCsvMetadata=null;console.warn('CsvMetadata oficial indisponível',e);}
-        }
+        this._officialCsvMetadata=parsed.metadata;
         const html = document.getElementById('cards-import-html');
         if (html && parsed.headers && Object.prototype.hasOwnProperty.call(parsed.headers, 'html')) html.checked = !!parsed.isHtml;
         this.renderTextImportOptions(parsed);
@@ -1505,95 +1502,15 @@ const CardsScreen = {
         n = Number(parsed.counts.cards) || 0;
         detalhe = ' · ' + (Number(parsed.counts.notes)||0) + ' nota(s)' + (parsed.counts.revlog ? ' · ' + parsed.counts.revlog + ' revisão(ões)' : '');
       }
-      if (!n) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
+      if(parsed.inspectionDeferred){prev.textContent='✓ Arquivo selecionado. O Anki oficial fará a validação e a importação.';prev.style.color='var(--ok)';}
+      else if(parsed.previewOnly){prev.textContent='✓ Prévia oficial: '+n+' linha(s) na amostra.'+detalhe;prev.style.color='var(--ok)';}
+      else if (!n) { prev.textContent = '⚠ Nenhum card reconhecido no arquivo.'; prev.style.color = 'var(--warn)'; }
       else { prev.textContent = '✓ ' + n + ' card(s) reconhecido(s)' + detalhe + '.'; prev.style.color = 'var(--good)'; }
     } catch (err) {
       this._importParsed = null;
       prev.textContent = '⚠ ' + (err && err.message ? err.message : String(err));
       prev.style.color = 'var(--bad)';
     }
-  },
-  parseAnkiText(text) {
-    const src = String(text || '');
-    const rawLines = src.split(/\r?\n/);
-    let sep = null;
-    for (const line of rawLines) {
-      const m = /^#separator:(.+)$/i.exec(line.trim());
-      if (!m) continue;
-      const v = m[1].trim().toLowerCase();
-      sep = v === 'tab' ? '\t' : (v === 'comma' ? ',' : (v === 'semicolon' ? ';' : m[1]));
-      break;
-    }
-    /* ── COMENTÁRIO É SÓ NO INÍCIO DE UM CAMPO, NÃO NO MEIO DE UM ────────────
-       O Anki trata linhas iniciadas por '#' como cabeçalho. Filtrar por linha,
-       porém, descarta também a CONTINUAÇÃO de um campo entre aspas que tenha
-       uma quebra de linha seguida de '#' — e aí a linha inteira do card some,
-       sem aviso. A varredura abaixo respeita as aspas: só remove a linha
-       quando ela começa fora de um campo aberto. */
-    const dataLines = [];
-    let dentroDeAspas = false;
-    for (const line of rawLines) {
-      if (!dentroDeAspas && line.trim().startsWith('#')) continue;
-      dataLines.push(line);
-      let q = dentroDeAspas;
-      for (let i = 0; i < line.length; i++) {
-        if (line[i] !== '"') continue;
-        if (q && line[i + 1] === '"') { i++; continue; }
-        q = !q;
-      }
-      dentroDeAspas = q;
-    }
-    const data = dataLines.join('\n');
-    if (!sep) {
-      /* ── A SONDAGEM PRECISA VER O ARQUIVO, NÃO A PRIMEIRA LINHA ────────────
-         Contar separadores só na primeira linha de dados erra sempre que ela é
-         o COMEÇO de um campo entre aspas com quebra de linha: o separador real
-         está na linha seguinte, e o candidato escolhido não aparece em lugar
-         nenhum — o arquivo inteiro vira uma coluna só e todos os cards são
-         descartados por terem menos de dois campos. Aqui a contagem varre o
-         texto inteiro, ignorando o que está dentro de aspas. */
-      const countOutsideQuotes = (ch) => {
-        let n = 0, q = false;
-        for (let i = 0; i < data.length; i++) {
-          if (data[i] === '"') {
-            if (q && data[i + 1] === '"') { i++; continue; }
-            q = !q; continue;
-          }
-          if (!q && data[i] === ch) n++;
-        }
-        return n;
-      };
-      const candidatos = [['\t', countOutsideQuotes('\t')], [';', countOutsideQuotes(';')], [',', countOutsideQuotes(',')]];
-      const melhor = candidatos.slice().sort((a, b) => b[1] - a[1])[0];
-      // Nenhum candidato aparece: mantém a tabulação, que é o padrão do Anki.
-      sep = melhor[1] > 0 ? melhor[0] : '\t';
-    }
-
-    const rows = [];
-    let row = [], field = '', quoted = false;
-    const pushRow = () => {
-      row.push(field); field = '';
-      if (row.length >= 2 && row.some(x => String(x).trim())) {
-        rows.push({ frente: String(row[0] || '').trim(), verso: String(row[1] || '').trim(), tags: String(row[2] || '').trim() });
-      }
-      row = [];
-    };
-    for (let i = 0; i < data.length; i++) {
-      const ch = data[i];
-      if (quoted) {
-        if (ch === '"') {
-          if (data[i + 1] === '"') { field += '"'; i++; }
-          else quoted = false;
-        } else field += ch;
-        continue;
-      }
-      if (ch === '"' && field.length === 0) { quoted = true; continue; }
-      if (ch === sep) { row.push(field); field = ''; continue; }
-      if (ch === '\n') { pushRow(); continue; }
-      if (ch !== '\r') field += ch;
-    }
-    if (field.length || row.length) pushRow();
-    return rows;
   },
   async doImport() {
     if (!this._importParsed) { showToast('Escolha um arquivo primeiro'); return; }
