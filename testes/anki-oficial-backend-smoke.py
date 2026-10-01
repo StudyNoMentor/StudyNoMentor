@@ -245,10 +245,10 @@ with tempfile.TemporaryDirectory() as tmp:
     crud_fields[ckeys[0]] = "CRUD oficial editado"
 
     # A casca Study não usa custom_data como banco paralelo. Além do limite
-    # oficial (<100 bytes), esse campo pode pertencer a Card State Customizer.
+    # oficial (<100 bytes), esse objeto JSON pode pertencer a Card State Customizer.
     with cards_user.lock:
         protected = ccol.get_card(crud_cid)
-        protected.custom_data = "addon-owned-format"
+        protected.custom_data = '{"addon":1}'
         ccol.update_card(protected)
 
     updated_note = app.cards_official_update_note(
@@ -259,7 +259,7 @@ with tempfile.TemporaryDirectory() as tmp:
     assert updated_note["note"]["fields"][ckeys[0]] == "CRUD oficial editado"
     assert updated_note["cards"], "update_note oficial deve manter/gerar os cards válidos"
     with cards_user.lock:
-        assert ccol.get_card(crud_cid).custom_data == "addon-owned-format"
+        assert ccol.get_card(crud_cid).custom_data == '{"addon":1}'
 
     deleted_note = app.cards_official_delete_note(crud_nid, cards_ctx)
     assert deleted_note["ok"] is True and deleted_note["deleted_note_id"] == crud_nid
