@@ -425,7 +425,6 @@ class CreateDeckBody(BaseModel):
 class NoteUpdateBody(BaseModel):
     fields: dict[str, str]
     tags: list[str] = []
-    study: dict[str, Any] | None = None
 
 
 class AnswerBody(BaseModel):
@@ -449,7 +448,6 @@ class AddNoteBody(BaseModel):
     notetype_id: int | None = None
     fields: dict[str, str]
     tags: list[str] = []
-    study: dict[str, Any] | None = None
 
 
 @app.get("/health")
@@ -650,76 +648,6 @@ def note_state_payload(col: Collection, note_id: int) -> dict[str, Any]:
     }
 
 
-_STUDY_META_KEYS = ("materia", "assunto", "materiaTec", "banca", "tipo", "favorito")
-
-
-def _study_metadata_payload(raw: dict[str, Any] | None) -> dict[str, Any]:
-    if not isinstance(raw, dict):
-        return {}
-    out: dict[str, Any] = {}
-    for key in _STUDY_META_KEYS:
-        if key in raw:
-            out[key] = raw[key]
-    plans = raw.get("plan_ids") or raw.get("planIds")
-    if isinstance(plans, list):
-        out["planIds"] = list(dict.fromkeys(str(x) for x in plans if str(x)))
-    by_plan = raw.get("by_plan") or raw.get("byPlan")
-    if isinstance(by_plan, dict):
-        cleaned: dict[str, dict[str, Any]] = {}
-        for plan_id, meta in by_plan.items():
-            if not isinstance(meta, dict) or not str(plan_id):
-                continue
-            row = {key: meta[key] for key in _STUDY_META_KEYS if key in meta}
-            if row:
-                cleaned[str(plan_id)] = row
-        if cleaned:
-            out["byPlan"] = cleaned
-            out["planIds"] = list(dict.fromkeys([*(out.get("planIds") or []), *cleaned.keys()]))
-    return out
-
-
-def _apply_study_metadata_to_cards(
-    col: Collection,
-    card_ids: list[int],
-    study: dict[str, Any] | None,
-) -> None:
-    meta = _study_metadata_payload(study)
-    if not meta:
-        return
-    for cid in card_ids:
-        card = col.get_card(cid)
-        root: dict[str, Any] = {}
-        raw = str(card.custom_data or "").strip()
-        if raw:
-            try:
-                parsed = json.loads(raw)
-            except (TypeError, ValueError):
-                # customData não JSON pode pertencer a Card State Customizer/add-on.
-                # Não alteramos esse contrato para guardar metadados da casca.
-                continue
-            if not isinstance(parsed, dict):
-                continue
-            root = parsed
-        previous = root.get("study")
-        merged = dict(previous) if isinstance(previous, dict) else {}
-        old_plans = merged.get("planIds") if isinstance(merged.get("planIds"), list) else []
-        new_plans = meta.get("planIds") if isinstance(meta.get("planIds"), list) else []
-        old_by = merged.get("byPlan") if isinstance(merged.get("byPlan"), dict) else {}
-        new_by = meta.get("byPlan") if isinstance(meta.get("byPlan"), dict) else {}
-        merged.update({k: v for k, v in meta.items() if k not in ("planIds", "byPlan")})
-        merged["planIds"] = list(dict.fromkeys([*(str(x) for x in old_plans), *(str(x) for x in new_plans)]))
-        merged_by = {str(k): dict(v) for k, v in old_by.items() if isinstance(v, dict)}
-        for plan_id, row in new_by.items():
-            current = dict(merged_by.get(str(plan_id), {}))
-            current.update(row)
-            merged_by[str(plan_id)] = current
-        if merged_by:
-            merged["byPlan"] = merged_by
-        root["study"] = merged
-        card.custom_data = json.dumps(root, ensure_ascii=False, separators=(",", ":"))
-        col.update_card(card)
-
-
 @app.post("/api/cards-official/notes")
 def cards_official_add_note(
     body: AddNoteBody,
@@ -740,7 +668,6 @@ def cards_official_add_note(
         did = DeckId(body.deck_id or int(item.col.decks.get_current_id()))
         changes = item.col.add_note(note, did)
         state = note_state_payload(item.col, int(note.id))
-        _apply_study_metadata_to_cards(item.col, state["card_ids"], body.study)
         cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
         return {
             "ok": True,
@@ -769,7 +696,6 @@ def cards_official_update_note(
         note.tags = list(body.tags)
         changes = item.col.update_note(note)
         state = note_state_payload(item.col, int(note.id))
-        _apply_study_metadata_to_cards(item.col, state["card_ids"], body.study)
         cards = [card_state_payload(item.col, int(cid)) for cid in state["card_ids"]]
         return {
             "ok": True,
@@ -1107,18 +1033,9 @@ def cards_official_migrate_legacy(
                     d = float(old.get("d") or 0)
                     if s > 0 and d > 0:
                         card.memory_state = cards_pb2.FsrsMemoryState(stability=s, difficulty=d)
-                study = {
-                    "legacy_id": legacy_cid,
-                    "materia": old.get("materia"),
-                    "assunto": old.get("assunto"),
-                    "materiaTec": old.get("materia_tec"),
-                    "banca": old.get("banca"),
-                    "tipo": old.get("tipo"),
-                    "favorito": bool(old.get("favorito", False)),
-                    "planIds": [str(x) for x in (old.get("plan_ids") or []) if str(x)],
-                    "byPlan": old.get("study_by_plan") if isinstance(old.get("study_by_plan"), dict) else {},
-                }
-                card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
+                # custom_data pertence ao contrato oficial do Anki/Card State Customizer.
+                # Metadados de matéria/assunto/banca/plano ficam na casca Study,
+                # ligada ao card pelo card_map devolvido abaixo.
                 item.col.update_card(card)
                 if legacy_cid:
                     card_map[legacy_cid] = int(card.id)
