@@ -67,15 +67,15 @@ assert.equal((await Store.all(true)).filter(x=>x.trashedAt).length,1);
 await Store.restoreAll();
 assert.equal((await Store.all(true)).filter(x=>x.trashedAt).length,0);
 
+// Desde a migração para GraphsService, Stats não pode reconstruir cards/revlog
+// no JavaScript. Estes métodos permanecem vazios de propósito: a aba é tomada
+// por CardsOfficialBridge.renderStats(), que consulta a Collection oficial.
 M._statsState={scope:'deck',deckId:'d1',search:'',history:'year'};
-assert.equal(M.statsCards().length,3,'escopo de baralho deve excluir outros baralhos');
-assert.equal(M.statsRevlog().length,2,'histórico de 12 meses deve respeitar o baralho');
+assert.equal(M.statsCards().length,0,'Stats local deve permanecer desativado');
+assert.equal(M.statsRevlog().length,0,'revlog local não deve alimentar Stats');
 M._statsState={scope:'collection',deckId:null,search:'',history:'all'};
-assert.equal(M.statsCards().length,4,'escopo coleção deve incluir todos os cards');
-assert.equal(M.statsRevlog().length,3,'todo o histórico deve incluir revisões antigas');
-assert.equal(M._isAnswerRevlog({grade:3,phase:'review'}),true,'resposta real entra nos gráficos de revisão');
-assert.equal(M._isAnswerRevlog({grade:0,phase:'manual',ankiReviewKind:'manual'}),false,'Set Due/Reset Manual permanece no histórico, mas não conta como resposta');
-assert.equal(M._isAnswerRevlog({grade:0,phase:'rescheduled',ankiReviewKind:'rescheduled'}),false,'Rescheduled não infla Reviews/Review Time');
+assert.equal(M.statsCards().length,0,'escopo Collection também deve depender do GraphsService oficial');
+assert.equal(M.statsRevlog().length,0,'histórico integral deve vir do GraphsService oficial');
 
 M._statsState={scope:'collection',deckId:null,search:'',history:'year'};
 
@@ -101,6 +101,9 @@ assert.match(statsSrc,/Review Time/,'estatísticas devem expor Review Time');
 assert.match(statsSrc,/Card Ease/,'estatísticas devem expor Card Ease');
 assert.match(statsSrc,/Adicionados/,'estatísticas devem expor o gráfico Added do Anki 26.09.2');
 assert.match(statsSrc,/anki-stats-scope/,'estatísticas devem expor seletor de baralho\/coleção\/pesquisa');
+assert.match(bridgeSrc,/\/api\/cards-official\/stats\/graphs\?/,'dados de Stats devem vir do GraphsService da Collection oficial');
+assert.match(backendSrc,/item\.col\._backend\.graphs\(search=search, days=days\)/,'backend deve delegar Stats ao Graphs oficial do Anki');
+assert.doesNotMatch(bridgeSrc,/this\._orig\.renderStats\(/,'Stats oficial não pode cair para renderer local');
 assert.match(statsSrc,/Últimos 12 meses/,'estatísticas devem expor histórico padrão de 12 meses');
 assert.match(statsSrc,/Todo o histórico/,'estatísticas devem expor todo o histórico');
 
