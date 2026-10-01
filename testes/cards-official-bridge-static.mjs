@@ -45,6 +45,12 @@ for(const forbidden of [
   assert.ok(!cards.includes(forbidden),'casca Cards não pode manter motor acadêmico legado: '+forbidden);
 }
 assert.match(bridge,/\/api\/cards-official\/collection\/full-state/,'bootstrap deve carregar o snapshot integral da Collection oficial persistente');
+assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'Collection vazia deve migrar legado automaticamente pelo backend oficial');
+assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?await this\._migrateLegacyCollection\(\)/,'bootstrap deve executar migração única automática antes da revisão');
+assert.doesNotMatch(bridge,/Collection oficial dos Cards está vazia, mas existem Cards legados/,'bootstrap não pode parar exigindo migração manual');
+assert.match(bridge,/migrated!==expected/,'migração deve falhar fechada se nem todos os cards receberem identidade oficial');
+assert.match(backend,/"deck_map": deck_map/,'backend deve devolver mapa oficial de Decks');
+assert.match(backend,/"notetype_map": nt_map/,'backend deve devolver mapa oficial de NoteTypes');
 assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
 assert.match(bridge,/keptCards=.*officialCards\.has\(String\(this\._officialId\(card\)\)\)/,'espelhos Study devem ser podados pelos IDs canônicos do Anki');
 assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
