@@ -24,7 +24,7 @@ const PlanUI = {
     if (vig) {
       partes.push(`Pausado desde <strong>${escapeHtml(this._fmtDia(vig.from))}</strong>` +
         (vig.until ? ` · volta a contar em <strong>${escapeHtml(this._fmtDia(vig.until))}</strong>` : ' · sem data de retorno') +
-        '. Histórico preservado; nesses dias métricas, motores, ciclos e Extras não contam atraso nem geram atividades. Cards/Anki e Links Úteis continuam globais.');
+        '. Histórico preservado; nesses dias métricas, motores, ciclos e Extras não contam atraso nem geram atividades. Anki e Links Úteis continuam globais.');
     } else if (ag) {
       partes.push(`Pausa agendada a partir de <strong>${escapeHtml(this._fmtDia(ag.from))}</strong>` +
         (ag.until ? ` até <strong>${escapeHtml(this._fmtDia(ag.until))}</strong> (retorno)` : ' · sem data de retorno') +
@@ -63,7 +63,7 @@ const PlanUI = {
         hint: 'Deixe em branco para pausar sem data de retorno — você define ao reativar.' }
     ], {
       title: ag ? '⏸ Alterar pausa agendada' : '⏸ Pausar planejamento',
-      sub: `"${p.nome}": registros e histórico ficam preservados. Nos dias pausados não são gerados Extras, rodízio de Lei Seca ou reforços, nada conta como atraso e as métricas do planejamento ignoram esses dias. Cards/Anki e Links Úteis continuam disponíveis globalmente.`,
+      sub: `"${p.nome}": registros e histórico ficam preservados. Nos dias pausados não são gerados Extras, rodízio de Lei Seca ou reforços, nada conta como atraso e as métricas do planejamento ignoram esses dias. Anki e Links Úteis continuam disponíveis globalmente.`,
       okText: ag ? 'Salvar pausa' : 'Pausar'
     });
     if (!v) return;
@@ -261,7 +261,7 @@ const PlanUI = {
         }
         const p = plans.find(x => x.id === id);
         const entries = DB.getEntriesForPlan(id).length;
-        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nOs dados operacionais (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.\n\nCards/Anki e Links Úteis são patrimônio global do perfil e serão preservados automaticamente em outro planejamento.`,
+        if (!await UI.confirmTyped(`Excluir o planejamento "${p.nome}"?\n\nOs dados operacionais (${entries} registro(s), matérias, ciclos, histórico e trilhas) serão apagados permanentemente.\n\nAnki e Links Úteis são patrimônio global do perfil e serão preservados automaticamente em outro planejamento.`,
           { word: 'EXCLUIR', title: '🗑️ Excluir planejamento', okText: 'Excluir definitivamente' })) return;
         try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de excluir um planejamento'); } catch (_) { _quiet(_); }
         const wasActive = PlanManager.getActivePlanId() === id;

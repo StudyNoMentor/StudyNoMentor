@@ -1155,7 +1155,7 @@ const CardsScreen = {
   async exportAudit() {
     try {
       const bridge=window.CardsOfficialBridge;
-      if(!bridge||typeof bridge.request!=='function')throw new Error('Collection oficial dos Cards indisponível.');
+      if(!bridge||typeof bridge.request!=='function')throw new Error('Collection oficial do Anki indisponível.');
       await bridge.bootstrap(false);
       const [state,status,preferences]=await Promise.all([
         bridge.request('/api/cards-official/collection/full-state'),
@@ -1588,7 +1588,7 @@ CardsScreen.openAlgoConfig = function () {
   opts.push({ value: '__empty__', label: '🧹 Cards vazios · ferramenta oficial Anki…' });
   UI.prompt([{ key: 'scope', label: '⚙ Configurar qual conjunto?', type: 'select', value: '__global__', options: opts,
     hint: 'Como no Anki: FSRS/SM-2 é global. Retenção, passos, limites e demais parâmetros podem variar por preset/baralho.' }],
-    { title: '⚙ Parâmetros dos Cards', okText: 'Continuar' }).then(v => {
+    { title: '⚙ Parâmetros do Anki', okText: 'Continuar' }).then(v => {
       if (!v) return;
       if (v.scope === '__bancas__') { CardsScreen.openBancasModal(); return; }
       if (v.scope === '__empty__') {

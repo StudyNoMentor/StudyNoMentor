@@ -957,7 +957,7 @@ const CardsOfficialBridge = {
     if(this._bootPromise)return this._bootPromise;
     if(this.ready&&!this.dirty&&!force)return this.review;
     this._bootPromise=(async()=>{
-      if(!this.api().token())throw new Error('Entre na conta do Study para usar o motor oficial dos Cards.');
+      if(!this.api().token())throw new Error('Entre na conta do Study para usar o motor oficial do Anki.');
       const status=await this.request('/api/cards-official/status'),
         localCount=window.StudyGlobalScope&&StudyGlobalScope.allBy?StudyGlobalScope.allBy('cards').length:(this._scopeCards()||[]).length,
         officialCount=Math.max(Number(status&&status.cards)||0,Number(status&&status.notes)||0);
@@ -1013,7 +1013,7 @@ const CardsOfficialBridge = {
     }catch(e){
       console.error('Cards official bridge:',e);
       box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⚠</div><h3>Motor oficial indisponível</h3><p>'+
-        escapeHtml(e&&e.message?e.message:String(e))+'</p><p class="hint">O Cards não caiu para um scheduler aproximado.</p>'+
+        escapeHtml(e&&e.message?e.message:String(e))+'</p><p class="hint">O Anki não caiu para um scheduler aproximado.</p>'+
         '<button type="button" class="btn-secondary" id="cards-official-retry">Tentar novamente</button></div></div>';
       const b=document.getElementById('cards-official-retry');if(b)b.onclick=()=>{this.invalidate('retry');void this.renderRevisar(box);};
     }
@@ -1672,7 +1672,7 @@ const CardsOfficialBridge = {
   async renderStats(box){
     box=box||document.getElementById('cards-content');if(!box)return;
     if(!CardsScreen.collectionCards().length){box.innerHTML=CardsScreen.emptyState('Sem estatísticas ainda','Crie e revise alguns cards para ver seus dados.');return;}
-    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.3 está processando a coleção dos Cards.</p></div></div>';
+    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.3 está processando a coleção do Anki.</p></div></div>';
     try{
       await this.bootstrap(false);
       const qs=new URLSearchParams({search:this._statsSearch(),days:String(this._statsDays())}),
