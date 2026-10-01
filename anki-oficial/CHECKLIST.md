@@ -8,6 +8,17 @@
 
 ## Regra de conclusão
 
+**Checklist por arquivo:** [`AUDITORIA-POR-ARQUIVO.md`](AUDITORIA-POR-ARQUIVO.md).
+Ele contém os 2.107 caminhos upstream, SHAs, categorias e estados individuais.
+O inventário foi comparado à Git tree oficial da referência 26.09.3 em 2026-10-01:
+**2.107/2.107 blobs coincidem, sem divergências**. Os quatro submódulos internos
+também estão registrados em `inventario/submodules.json`.
+
+**Certificação individual:** `░░░░░░░░░░░░░░░░░░░░` **0/571 arquivos certificados**.
+Esse número conta evidências integrais por arquivo, não recursos implementados ou
+testes de categoria. O lote de marca de nota abaixo continua validado parcialmente,
+mas não certifica por inteiro nenhum arquivo do Anki.
+
 Um item só recebe **[x] PARIDADE CERTIFICADA** quando:
 1. o comportamento oficial foi identificado no upstream;
 2. o Cards usa a implementação oficial diretamente **ou** existe adapter cuja saída é comparada contra o Anki oficial;

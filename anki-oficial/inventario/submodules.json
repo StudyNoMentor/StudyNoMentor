@@ -1,0 +1,29 @@
+{
+  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "submodules": [
+    {
+      "path": "ftl/core-repo",
+      "commit": "49925703d0e1c2328cae2b7f7ade286ed147976d",
+      "repository": "ankitects/anki-core-i18n",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME"
+    },
+    {
+      "path": "ftl/qt-repo",
+      "commit": "8a58eb9663b6f78528198a1be9a72a4896ec2c83",
+      "repository": "ankitects/anki-desktop-ftl",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME"
+    },
+    {
+      "path": "qt/installer/mac-template",
+      "commit": "f1d2a7b07782cf952625c7c166e29fd9f71d37c5",
+      "repository": "ankitects/briefcase-macOS-app-template",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME"
+    },
+    {
+      "path": "qt/installer/windows-template",
+      "commit": "73d27a08cc11f0a8b89917e7c9246575d7985fb1",
+      "repository": "ankitects/briefcase-windows-VisualStudio-template",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME"
+    }
+  ]
+}

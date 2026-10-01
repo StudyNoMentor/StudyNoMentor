@@ -16,6 +16,10 @@ O commit `d1d484c8249a8266a6fe9203694f9087726c6ba2` é apenas radar do `main` po
 
 O inventário em `inventario/` enumera **2107 arquivos** do commit oficial, com caminho, SHA do blob e tamanho.
 
+Os quatro submódulos internos (traduções e instaladores) também estão registrados
+em `inventario/submodules.json`, com seus commits oficiais. Seus arquivos internos
+não são contabilizados como blobs do repositório pai.
+
 - **571** arquivos: `CARDS_RUNTIME` — entram diretamente no contrato de paridade dos Cards.
 - **1536** arquivos: `OUTSIDE_CARDS_RUNTIME` — continuam inventariados para detectar mudanças upstream, mas não são automaticamente tratados como comportamento de Cards.
 
@@ -26,3 +30,25 @@ A classificação não autoriza ignorar arquivos. Se um arquivo antes fora do ru
 Paridade perfeita significa **resultado observável igual ao Anki oficial**, não apenas função parecida. Cada categoria em `cards-contracts.json` aponta os adaptadores do Study e os testes diferenciais responsáveis.
 
 O gate `testes/cards-anki-upstream-manifest.mjs` garante que os 2107 arquivos estejam cobertos pelo inventário e que nenhum dos 571 arquivos de Cards fique sem categoria/contrato.
+
+## Auditoria individual e progresso
+
+[`AUDITORIA-POR-ARQUIVO.md`](AUDITORIA-POR-ARQUIVO.md) lista cada arquivo upstream
+com link oficial, SHA, categoria e status. O mapa de categoria indica os adapters
+e testes a inspecionar; não afirma que cada teste cobre cada arquivo.
+
+`audit-status.json` mantém somente as evidências individuais já revisadas.
+Ausência de registro significa `PENDING`. Não se atribui um percentual de paridade
+a partir da existência de APIs, botões, testes ou do inventário.
+
+Após alterar inventário, contratos ou evidências:
+
+```sh
+node tools/anki-audit-report.mjs
+node tools/anki-audit-report.mjs --check
+```
+
+O segundo comando participa do gate existente. Uma certificação exige evidência
+referenciada com SHA upstream/Study, teste, casos, resultado e relatório de execução
+versionado cobrindo estado, resultado, persistência, erro e casos comuns/extremos.
+O gate valida rastreabilidade; a cobertura integral ainda exige revisão do código.

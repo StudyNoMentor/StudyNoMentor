@@ -11,6 +11,10 @@ const lock=JSON.parse(readFileSync(join(A,'UPSTREAM.lock.json'),'utf8'));
 const contracts=JSON.parse(readFileSync(join(A,'cards-contracts.json'),'utf8'));
 const chunks=readdirSync(join(A,'inventario')).filter(x=>/^\d{4}-\d{4}\.json$/.test(x)).sort();
 const files=chunks.flatMap(x=>JSON.parse(readFileSync(join(A,'inventario',x),'utf8')).files||[]);
+const submodules=JSON.parse(readFileSync(join(A,'inventario/submodules.json'),'utf8'));
+assert.equal(submodules.upstream_commit,lock.release_commit);
+assert.equal(submodules.submodules.length,4,'submodulos internos do Anki devem ser inventariados');
+execFileSync(process.execPath,[join(ROOT,'tools/anki-audit-report.mjs'),'--check'],{cwd:ROOT,stdio:'pipe'});
 
 assert.equal(lock.schema,'studynomentor-anki-upstream-lock-v1');
 assert.equal(lock.release,'26.09.3');
@@ -59,12 +63,19 @@ const upstream=join(A,'upstream');
 if(existsSync(join(upstream,'.git'))||existsSync(join(upstream,'rslib'))){
   const head=execFileSync('git',['-C',upstream,'rev-parse','HEAD'],{cwd:ROOT,encoding:'utf8'}).trim();
   assert.equal(head,lock.release_commit,'submodule checkout em commit diferente');
+  const dirty=execFileSync('git',['-C',upstream,'status','--porcelain','--untracked-files=all'],{cwd:ROOT,encoding:'utf8'}).trim();
+  assert.equal(dirty,'','fonte upstream deve permanecer literal, sem alterações locais');
   const ls=execFileSync('git',['-C',upstream,'ls-tree','-r','HEAD'],{cwd:ROOT,encoding:'utf8',maxBuffer:32*1024*1024}).trim().split('\n').filter(Boolean);
   const map=new Map(ls.map(line=>{
     const m=/^\d+ blob ([0-9a-f]{40})\t(.+)$/.exec(line); return m?[m[2],m[1]]:null;
   }).filter(Boolean));
   assert.equal(map.size,files.length,'submodule possui quantidade diferente de blobs');
   for(const f of files) assert.equal(map.get(f.path),f.blob_sha,'blob divergiu do inventario: '+f.path);
+  const links=new Map(ls.map(line=>{
+    const m=/^160000 commit ([0-9a-f]{40})\t(.+)$/.exec(line);return m?[m[2],m[1]]:null;
+  }).filter(Boolean));
+  assert.equal(links.size,submodules.submodules.length);
+  for(const s of submodules.submodules)assert.equal(links.get(s.path),s.commit,'submodule interno divergente: '+s.path);
   console.log('ANKI UPSTREAM: 2107/2107 blobs conferidos byte-a-byte pela Git tree do submodule.');
 }else{
   console.log('ANKI UPSTREAM: gitlink conferido; submodule nao inicializado, validacao blob-a-blob fica para checkout com --recurse-submodules.');

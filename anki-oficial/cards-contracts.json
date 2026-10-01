@@ -6,10 +6,8 @@
     "scheduler": {
       "official_files": 67,
       "study_adapters": [
-        "src/js/30-fsrs.js",
-        "src/js/31-cards-config.js",
-        "src/js/32-card-engine.js",
-        "src/js/44-anki-parity.js",
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
@@ -21,8 +19,8 @@
     "card_rendering": {
       "official_files": 20,
       "study_adapters": [
-        "src/js/44-anki-runtime.js",
-        "src/js/44-anki-parity.js",
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
@@ -35,7 +33,10 @@
     "cloze": {
       "official_files": 1,
       "study_adapters": [
-        "src/js/44-anki-parity.js",
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
+        "src/js/44-anki-product-parity.js",
+        "src/js/44-anki-practical-10.js",
         "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
@@ -48,6 +49,8 @@
     "cards_notes": {
       "official_files": 10,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-parity.js",
         "src/js/44-anki-product-parity.js",
         "src/js/44-tela-cards.js"
@@ -61,6 +64,8 @@
     "notetypes": {
       "official_files": 21,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-parity.js",
         "src/js/44-anki-max-editor.js",
         "src/js/44-anki-product-parity.js"
@@ -75,10 +80,11 @@
     "decks_deckconfig": {
       "official_files": 65,
       "study_adapters": [
-        "src/js/31-cards-config.js",
-        "src/js/44-anki-parity.js",
-        "src/js/44-tela-cards.js",
-        "src/js/95-cards-official-bridge.js"
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
+        "src/js/44-anki-product-parity.js",
+        "src/js/44-anki-practical-10.js",
+        "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
         "testes/cards-official-bridge-static.mjs",
@@ -89,6 +95,8 @@
     "search_browser": {
       "official_files": 50,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-parity.js",
         "src/js/44-anki-product-parity.js",
         "src/js/44-anki-max-reviewer-browser.js"
@@ -102,6 +110,8 @@
     "editor": {
       "official_files": 90,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-max-editor.js",
         "src/js/46-sanitizacao-e-editor.js"
       ],
@@ -115,6 +125,8 @@
     "tags": {
       "official_files": 31,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-product-parity.js",
         "src/js/44-anki-max-reviewer-browser.js"
       ],
@@ -127,6 +139,8 @@
     "media": {
       "official_files": 9,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/35-anki-import.js",
         "src/js/44-anki-max-stats-media.js"
       ],
@@ -139,6 +153,8 @@
     "stats": {
       "official_files": 72,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-max-stats-media.js",
         "src/js/44-tela-cards.js"
       ],
@@ -152,8 +168,9 @@
     "import_export": {
       "official_files": 65,
       "study_adapters": [
-        "src/js/35-anki-import.js",
-        "src/js/95-cards-official-bridge.js"
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
+        "src/js/35-anki-import.js"
       ],
       "differential_tests": [
         "testes/cards-official-bridge-static.mjs",
@@ -164,6 +181,8 @@
     "image_occlusion": {
       "official_files": 61,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-image-occlusion.js",
         "src/js/44-anki-max-image-occlusion.js"
       ],
@@ -178,10 +197,11 @@
     "operations": {
       "official_files": 9,
       "study_adapters": [
+        "anki_official_backend/app.py",
+        "src/js/95-cards-official-bridge.js",
         "src/js/44-anki-total-parity.js",
         "src/js/44-anki-product-parity.js",
-        "src/js/44-tela-cards.js",
-        "src/js/95-cards-official-bridge.js"
+        "src/js/44-tela-cards.js"
       ],
       "differential_tests": [
         "testes/cards-official-bridge-static.mjs",

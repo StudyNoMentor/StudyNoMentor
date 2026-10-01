@@ -25,6 +25,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.ref }}
+          # Baixa a fonte oficial para o gate comparar todos os blobs e os
+          # quatro gitlinks internos. Estes não precisam de checkout no CI.
+          submodules: true
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
