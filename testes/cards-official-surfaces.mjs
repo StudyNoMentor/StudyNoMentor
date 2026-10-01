@@ -26,6 +26,13 @@ for(const prefix of clientPrefixes){
 }
 assert.ok(clientPrefixes.length>=25,'inventário de rotas Cards ficou pequeno demais: '+clientPrefixes.length);
 
+// One public Anki entry; keep storage/collection identifiers unchanged.
+assert.equal((html.match(/data-screen="cards"/g)||[]).length,1);
+assert.ok(!html.includes('data-screen="anki"')&&!html.includes('id="screen-anki"'));
+assert.ok(html.includes('<span class="tab-label">Anki</span>'));
+assert.ok(html.includes('<h2 class="page-title">Anki</h2>'));
+const officialLogo=html.match(/data:image\/svg\+xml;base64,([^"\s]+)/);
+assert.ok(officialLogo,'official upstream logo must be bundled for offline use');
 const start=html.indexOf('<!-- ============ TELA: CARDS DE REVISÃO');
 const end=html.indexOf('<div id="link-modal"',start);
 assert.ok(start>=0&&end>start,'segmento HTML dos Cards não encontrado');

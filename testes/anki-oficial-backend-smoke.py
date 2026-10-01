@@ -921,8 +921,10 @@ assert "openBrowserColumns" in js2 and "openRichEditNote" in js2 and "toggleAuto
 assert "Shift+A" not in js2 or "KeyA" in js2
 assert "CardEngine." not in js and "CardsConfig." not in js
 assert "CardEngine." not in js2 and "CardsConfig." not in js2
-assert 'class="cards-topbar anki-cards-topbar"' in html
-assert 'class="cards-tabs anki-cards-tabs"' in html
-assert 'id="anki-foco-btn"' in html
+assert 'id="screen-cards"' in html
+assert '<h2 class="page-title">Anki</h2>' in html
+assert 'id="screen-anki"' not in html
+assert 'data-screen="anki"' not in html
+assert 'id="cards-foco-btn"' in html
 
 print("OK: Anki 26.09.3 oficial + UI Cards avançada validados em scheduler, browser, stats, custom study, filtered deck, tipos, IO, mídia e exportação.")

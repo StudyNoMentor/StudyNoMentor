@@ -209,7 +209,7 @@ const AnkiTotalParity = {
     if(ativas.length)console.warn('Extensões locais não são executadas por segurança:',ativas.map(x=>x.name||x.id).join(', '));
   },
   openExtensions(){
-    let m=document.getElementById('anki-extensions-modal');if(!m){const d=document.createElement('div');d.innerHTML='<div id="anki-extensions-modal" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>🧩 Extensões dos Cards</h2><p class="sub">API de hooks do Study. Extensões locais executam código escolhido por você; mantenha desativado o que não conhece.</p></div><button class="icon-btn" id="anki-ext-close">✕</button></div><div class="cards-modal-body"><div id="anki-ext-list"></div><input id="anki-ext-file" type="file" accept=".js,text/javascript" hidden></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-ext-import">Importar .js</button><span style="flex:1"></span><button class="btn-primary" id="anki-ext-done">Fechar</button></div></div></div>';document.body.appendChild(d);m=document.getElementById('anki-extensions-modal');document.getElementById('anki-ext-close').onclick=document.getElementById('anki-ext-done').onclick=()=>m.style.display='none';document.getElementById('anki-ext-import').onclick=()=>document.getElementById('anki-ext-file').click();document.getElementById('anki-ext-file').onchange=e=>this._importExtensionFile(e.target.files&&e.target.files[0]);}
+    let m=document.getElementById('anki-extensions-modal');if(!m){const d=document.createElement('div');d.innerHTML='<div id="anki-extensions-modal" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>🧩 Extensões do Anki</h2><p class="sub">API de hooks do Study. Extensões locais executam código escolhido por você; mantenha desativado o que não conhece.</p></div><button class="icon-btn" id="anki-ext-close">✕</button></div><div class="cards-modal-body"><div id="anki-ext-list"></div><input id="anki-ext-file" type="file" accept=".js,text/javascript" hidden></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-ext-import">Importar .js</button><span style="flex:1"></span><button class="btn-primary" id="anki-ext-done">Fechar</button></div></div></div>';document.body.appendChild(d);m=document.getElementById('anki-extensions-modal');document.getElementById('anki-ext-close').onclick=document.getElementById('anki-ext-done').onclick=()=>m.style.display='none';document.getElementById('anki-ext-import').onclick=()=>document.getElementById('anki-ext-file').click();document.getElementById('anki-ext-file').onchange=e=>this._importExtensionFile(e.target.files&&e.target.files[0]);}
     this._renderExtensions();m.style.display='flex';
   },
   _renderExtensions(){
@@ -227,7 +227,7 @@ const AnkiTotalParity = {
   _installMenu(){
     const menu=document.getElementById('cards-more-menu');if(!menu)return;
     const add=(id,label,fn)=>{if(document.getElementById(id))return;const b=document.createElement('button');b.type='button';b.id=id;b.setAttribute('role','menuitem');b.textContent=label;b.onclick=()=>{menu.classList.remove('open');fn();};menu.appendChild(b);};
-    add('cards-extensions-btn','🧩 Extensões dos Cards',()=>this.openExtensions());
+    add('cards-extensions-btn','🧩 Extensões do Anki',()=>this.openExtensions());
     this._loadUserExtensions();
   }
 };

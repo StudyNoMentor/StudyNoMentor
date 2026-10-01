@@ -26,10 +26,22 @@ try{
     const zs=id=>parseInt(getComputedStyle(document.querySelector(id)).zIndex)||0;
     out.veu=zs('.nav-scrim');out.plano=zs('#plan-switcher');out.brand=zs('.sidebar-brand');
     document.querySelector('.nav-more-btn').click();await w(200);
-    // Configurações: "Navegação" só em Preferências
+    // Configurações: controle do menu duplicado removido; Anki permanece único.
     switchScreen('config');await w(200);
-    const nav=document.getElementById('config-anki-menu-toggle').closest('.card');
-    out.navGrupo=nav.closest('.cfg-group')?nav.closest('.cfg-group').id:'fora';
+    out.menuAntigo=!!document.getElementById('config-anki-menu-toggle');
+    const ankiTabs=[...document.querySelectorAll('#tabs .tab[data-screen="cards"]')];
+    out.ankiUnico=ankiTabs.length===1&&!document.querySelector('#tabs .tab[data-screen="anki"]');
+    out.ankiNome=ankiTabs[0]?.querySelector('.tab-label')?.textContent.trim();
+    const logo=ankiTabs[0]?.querySelector('img');
+    if(logo&&!logo.complete)await logo.decode();
+    out.ankiLogo=!!logo&&logo.naturalWidth>0&&logo.src.startsWith('data:image/svg+xml;base64,');
+    // Preferência histórica não pode ocultar o módulo sobrevivente.
+    localStorage.setItem(DB._profilePrefix()+'ui:show-anki-menu','0');
+    switchScreen('anki');await w(100);
+    out.ankiRota=document.getElementById('screen-cards').classList.contains('active')&&!document.getElementById('screen-anki');
+    out.ankiVisivel=!ankiTabs[0].hidden&&getComputedStyle(ankiTabs[0]).display!=='none';
+    localStorage.removeItem(DB._profilePrefix()+'ui:show-anki-menu');
+    switchScreen('config');await w(100);
     out.tema=document.getElementById('cfgp-tema').value;
     // matérias: nome e ações na mesma linha
     const head=document.querySelector('#config-subjects-list .csr-head');
@@ -54,7 +66,10 @@ try{
     return out;
   });
   ok(r.veu>r.plano&&r.veu>r.brand,'"Mais": escurecimento acima do topo ('+r.veu+' > '+r.plano+'/'+r.brand+')');
-  ok(r.navGrupo==='cfg-g-prefs','"Navegação" só em Preferências ('+r.navGrupo+')');
+  ok(!r.menuAntigo,'controle do antigo menu Anki Oficial removido');
+  ok(r.ankiUnico&&r.ankiNome==='Anki','uma única entrada Anki na navegação');
+  ok(r.ankiLogo,'ícone oficial incorporado carrega no navegador');
+  ok(r.ankiRota&&r.ankiVisivel,'rota antiga abre a coleção existente e preferência antiga não oculta Anki');
   ok(r.tema==='auto','tema sem escolha salva mostra "Seguir o sistema"');
   ok(r.mesmaLinha,'Configurações > Matérias: nome e ações na mesma linha');
   ok(/Inter/.test(r.hintFont),'dicas em Inter ('+r.hintFont.split(',')[0]+')');

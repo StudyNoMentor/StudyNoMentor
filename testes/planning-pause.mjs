@@ -266,6 +266,6 @@ assert.match(ui,/btn-pause-plan/,'gestão deve expor botão Pausar');
 assert.match(ui,/btn-resume-plan/,'gestão deve expor botão Reativar');
 assert.match(ui,/type: 'date'/,'pausa e reativação devem permitir escolher a data');
 assert.match(ui,/btn-cancel-pause-plan/,'pausa agendada deve poder ser cancelada');
-assert.match(ui,/Cards\/Anki e Links Úteis continuam disponíveis globalmente/,'UI deve explicar o conhecimento global preservado');
+assert.match(ui,/Anki e Links Úteis continuam disponíveis globalmente/,'UI deve explicar o conhecimento global preservado');
 
 console.log('COERÊNCIA ENTRE PLANEJAMENTOS: pausa, trajetória, ajustes por plano e preservação de conhecimento validados.');

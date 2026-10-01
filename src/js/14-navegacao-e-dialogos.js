@@ -23,6 +23,7 @@ function _anunciar(texto) {
 window._anunciar = _anunciar;
 
 function switchScreen(name) {
+  if (name === 'anki') name = 'cards';
   // Valida ANTES de desativar: com um nome inválido (link/hash quebrado), o código
   // antigo já tinha removido o 'active' de tudo e lançava erro — a tela ficava em branco.
   const alvo = document.getElementById('screen-' + name);
@@ -72,9 +73,7 @@ function switchScreen(name) {
 $id('tabs').addEventListener('click', (e) => {
   const btn = e.target.closest('.tab');
   if (!btn) return;
-  /* Links externos ficam completamente fora do Study. O caso principal é
-     "Anki Oficial": não há login, token, coleção, scheduler, sync ou fallback
-     local aqui. O clique apenas entrega o usuário ao serviço oficial. */
+  /* Links externos entregam a navegação ao serviço de destino. */
   const externalUrl = btn.dataset.externalUrl;
   if (externalUrl) {
     e.preventDefault();
