@@ -632,7 +632,7 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
     # Uma Collection recém-migrada pode manter Default (id 1) selecionado,
     # vazio, enquanto todos os cards pertencem a baralhos importados.
     # Não altere seleções explícitas de outros decks nem Default com cards.
-    if int(col.decks.get_current_id()) == 1:
+    if int(col.decks.get_current_id()) == 1 and bool(col.get_config("study_review_all_decks", True)):
         tree = col.sched.deck_due_tree()
         nodes = _deck_tree_flatten(tree)
         default = next((node for node in nodes if int(node["deck_id"]) == 1), None)
@@ -652,6 +652,28 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
             if target:
                 col.decks.select(DeckId(int(target["deck_id"])))
     out = reviewer_payload(col)
+    all_decks = bool(col.get_config("study_review_all_decks", True)) and not bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn"))
+    if out.get("finished") and all_decks and not bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn")):
+        current = int(col.decks.get_current_id())
+        for node in _deck_tree_flatten(col.sched.deck_due_tree()):
+            did = int(node["deck_id"])
+            if did in (0, current) or node["filtered"]:
+                continue
+            if int(node["new_count"]) + int(node["learn_count"]) + int(node["review_count"]) <= 0:
+                continue
+            col.decks.select(DeckId(did))
+            candidate = reviewer_payload(col)
+            if not candidate.get("finished"):
+                out = candidate
+                break
+        else:
+            col.decks.select(DeckId(current))
+    out["review_scope"] = {
+        "all_decks": all_decks,
+        "selected_deck_id": int(col.decks.get_current_id()),
+        "decks": [node for node in _deck_tree_flatten(col.sched.deck_due_tree()) if int(node["deck_id"]) > 0],
+        "total_cards": int(col.card_count()),
+    }
     fetch_limit = max(1, int(col.card_count()))
     queued = col.sched.get_queued_cards(fetch_limit=fetch_limit)
     out["queue_ids"] = [int(entry.card.id) for entry in queued.cards]
@@ -1040,7 +1062,7 @@ def cards_official_migrate_legacy(
     cards = payload.get("cards") if isinstance(payload.get("cards"), list) else []
     revlog = payload.get("revlog") if isinstance(payload.get("revlog"), list) else []
     with item.lock, _collection_snapshot_guard(item, "cards-legacy-migration"):
-        if item.col.card_count() or item.col.note_count():
+        if (item.col.card_count() or item.col.note_count()) and not payload.get("reconcile"):
             raise HTTPException(409, "A Collection oficial já contém dados; migração recusada.")
 
         deck_map: dict[str, int] = {}
@@ -1054,6 +1076,11 @@ def cards_official_migrate_legacy(
             if legacy_id:
                 deck_map[legacy_id] = did
 
+        existing_guids = {str(item.col.get_note(nid).guid): int(nid) for nid in item.col.find_notes("")} if payload.get("reconcile") else {}
+        existing_card_ids = set(int(cid) for cid in item.col.find_cards("")) if payload.get("reconcile") else set()
+        if payload.get("reconcile"):
+            needed_types = {str(row.get("notetype_id") or "") for row in notes if str(row.get("guid") or "") not in existing_guids}
+            notetypes = [row for row in notetypes if str(row.get("id") or row.get("anki_id") or "") in needed_types]
         nt_map: dict[str, int] = {}
         claimed_nt_ids: set[int] = set()
         for row in notetypes:
@@ -1114,6 +1141,16 @@ def cards_official_migrate_legacy(
             if not isinstance(row, dict):
                 continue
             legacy_nid = str(row.get("id") or row.get("anki_id") or "")
+            existing_nid = existing_guids.get(str(row.get("guid") or ""))
+            if existing_nid:
+                note_map[legacy_nid] = existing_nid
+                by_ord = {int(item.col.get_card(cid).ord): int(cid) for cid in item.col.card_ids_of_note(existing_nid)}
+                for old in cards_by_note.get(legacy_nid, []):
+                    ordinal = int(old.get("template_idx", 0))
+                    if ordinal not in by_ord:
+                        raise HTTPException(422, "Nota existente sem o ordinal legado; reconciliação interrompida para preservar revisões.")
+                    card_map[str(old.get("id") or old.get("anki_id") or "")] = by_ord[ordinal]
+                continue
             ntid = nt_map.get(str(row.get("notetype_id") or ""))
             nt = item.col.models.get(ntid) if ntid else item.col.models.current()
             if not nt:
@@ -1136,9 +1173,9 @@ def cards_official_migrate_legacy(
             by_ord = {int(card.ord): card for card in official_cards}
             for idx, old in enumerate(related):
                 ord_ = int(old.get("template_idx") or old.get("anki_template_ord") or old.get("ord") or 0)
-                card = by_ord.get(ord_) or (official_cards[min(idx, len(official_cards) - 1)] if official_cards else None)
+                card = by_ord.get(ord_)
                 if not card:
-                    continue
+                    raise HTTPException(422, f"Ordinal legado {ord_} sem card oficial; migração interrompida.")
                 legacy_cid = str(old.get("id") or old.get("anki_id") or "")
                 did2 = deck_map.get(str(old.get("deck_id") or ""), int(card.did))
                 ctype, queue = _legacy_card_type_queue(old)
@@ -1190,7 +1227,7 @@ def cards_official_migrate_legacy(
             if not isinstance(row, dict) or int(row.get("anki_ivl_semantica") or 0) != 2:
                 continue
             cid = card_map.get(str(row.get("card_id") or row.get("anki_card_id") or ""))
-            if not cid:
+            if not cid or cid in existing_card_ids:
                 continue
             rid = max(1, int(row.get("ts") or int(time.time() * 1000)))
             while rid in seen_rev_ids:
@@ -1280,6 +1317,23 @@ async def cards_official_bootstrap(
             }
     finally:
         _unlink_quiet(tmp)
+
+
+@app.post("/api/cards-official/reviewer/scope")
+def cards_official_reviewer_scope(
+    body: SelectDeckBody, user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        did = int(body.deck_id)
+        if did and not item.col.decks.get(DeckId(did), default=False):
+            raise HTTPException(404, "Baralho não encontrado.")
+        item.col.set_config("study_review_all_decks", did == 0)
+        if did:
+            item.col.decks.select(DeckId(did))
+        elif bool((item.col.decks.get(item.col.decks.get_current_id()) or {}).get("dyn")):
+            item.col.decks.select(DeckId(1))
+        return cards_reviewer_payload(item.col)
 
 
 @app.get("/api/cards-official/reviewer/next")
