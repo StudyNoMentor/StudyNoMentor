@@ -843,6 +843,19 @@ def _legacy_stock_kind(row: dict[str, Any]) -> int:
         "cloze": int(StockNotetypeKind.KIND_CLOZE),
         "image_occlusion": int(StockNotetypeKind.KIND_IMAGE_OCCLUSION),
     }
+    # Espelhos anteriores não gravavam stockKind. O snapshot pode então
+    # preencher "basic" usando apenas o primeiro card (sem o irmão reverso).
+    # Reconheça os nomes stock exatos antes desse fallback; tipos customizados
+    # não são inferidos por número de templates nem por nomes semelhantes.
+    stock_names = {
+        "basic (and reversed card)": "basic_reversed",
+        "basic (optional reversed card)": "basic_optional_reversed",
+        "basic (type in the answer)": "typing",
+        "cloze": "cloze",
+        "image occlusion": "image_occlusion",
+    }
+    if raw not in aliases or raw == "basic":
+        raw = stock_names.get(str(row.get("name") or "").strip().lower(), raw)
     return aliases.get(raw, int(StockNotetypeKind.KIND_CLOZE) if row.get("kind") == "cloze" else int(StockNotetypeKind.KIND_BASIC))
 
 
@@ -867,7 +880,7 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
         fronts = [str((template or {}).get("qfmt") or "").strip() for template in templates]
         nonempty = [front for front in fronts if front]
         invalid_fronts = any(not front for front in fronts) or len(set(nonempty)) != len(nonempty)
-        compatible_fields = not fields or len(fields) == len(stock_fields)
+        compatible_fields = not fields or len(fields) >= len(stock_fields)
         restore_stock_shape = invalid_fronts and compatible_fields
 
     if restore_stock_shape:
@@ -888,6 +901,12 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
                     if key in (legacy_template or {}):
                         target[key] = legacy_template[key]
             for idx, field_row in enumerate(fields):
+                if idx >= len(nt["flds"]):
+                    # Campos extras do espelho são dados do usuário, não
+                    # motivo para descartar o reparo dos templates stock.
+                    col.models.add_field(nt, col.models.new_field(str(
+                        (field_row or {}).get("name") or f"Field {idx + 1}"
+                    )))
                 field = nt["flds"][idx]
                 name = str((field_row or {}).get("name") or field.get("name") or f"Field {idx + 1}")
                 if name != str(field.get("name") or ""):
