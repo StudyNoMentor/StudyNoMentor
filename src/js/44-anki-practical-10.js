@@ -151,7 +151,7 @@ const AnkiPractical10 = {
     const bridge=window.CardsOfficialBridge,facets=bridge&&bridge._officialBrowserFacets;
     if(!facets){
       a.innerHTML='<div class="anki-browser-side-head"><strong>Sidebar</strong></div><p class="hint">Consultando facetas do Anki oficial…</p>';
-      if(bridge&&typeof bridge._loadOfficialBrowserFacets==='function')void bridge._loadOfficialBrowserFacets().then(()=>this._renderBrowserSidebar());
+      if(bridge&&bridge._officialBrowserFacetsError)a.innerHTML='<div class="anki-browser-side-head"><strong>Sidebar</strong></div><p class="hint">'+this.esc(bridge._officialBrowserFacetsError.message||'Facetas oficiais indisponíveis.')+'</p>';
       return;
     }
     const saved=typeof AnkiTotalParity!=='undefined'?AnkiTotalParity._savedSearches():[],

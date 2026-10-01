@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v237f46de5f">
+<meta name="diario-versao" content="v8ba0c497ad">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -36097,7 +36097,7 @@ const AnkiPractical10 = {
     const bridge=window.CardsOfficialBridge,facets=bridge&&bridge._officialBrowserFacets;
     if(!facets){
       a.innerHTML='<div class="anki-browser-side-head"><strong>Sidebar</strong></div><p class="hint">Consultando facetas do Anki oficial…</p>';
-      if(bridge&&typeof bridge._loadOfficialBrowserFacets==='function')void bridge._loadOfficialBrowserFacets().then(()=>this._renderBrowserSidebar());
+      if(bridge&&bridge._officialBrowserFacetsError)a.innerHTML='<div class="anki-browser-side-head"><strong>Sidebar</strong></div><p class="hint">'+this.esc(bridge._officialBrowserFacetsError.message||'Facetas oficiais indisponíveis.')+'</p>';
       return;
     }
     const saved=typeof AnkiTotalParity!=='undefined'?AnkiTotalParity._savedSearches():[],
@@ -58051,8 +58051,9 @@ const CardsOfficialBridge = {
         sel.innerHTML='<option value="">Todas as tags</option>'+(out.tags||[]).map(t=>'<option value="'+AnkiProductParity.esc(t)+'">'+AnkiProductParity.esc(t)+'</option>').join('');
         sel.value=current;
       }
-      this._officialBrowserFacets=out;
-    }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-browser-facets');}
+      this._officialBrowserFacets=out;this._officialBrowserFacetsError=null;
+    }catch(e){this._officialBrowserFacetsError=e;if(typeof _quiet==='function')_quiet(e,'cards-official-browser-facets');}
+    if(window.AnkiPractical10&&AnkiPractical10._renderBrowserSidebar)AnkiPractical10._renderBrowserSidebar();
   },
   _officialNoteId(note){
     const n=Number(note&&note.ankiId!=null?note.ankiId:note&&note.id);

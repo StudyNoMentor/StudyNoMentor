@@ -1380,8 +1380,9 @@ const CardsOfficialBridge = {
         sel.innerHTML='<option value="">Todas as tags</option>'+(out.tags||[]).map(t=>'<option value="'+AnkiProductParity.esc(t)+'">'+AnkiProductParity.esc(t)+'</option>').join('');
         sel.value=current;
       }
-      this._officialBrowserFacets=out;
-    }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-browser-facets');}
+      this._officialBrowserFacets=out;this._officialBrowserFacetsError=null;
+    }catch(e){this._officialBrowserFacetsError=e;if(typeof _quiet==='function')_quiet(e,'cards-official-browser-facets');}
+    if(window.AnkiPractical10&&AnkiPractical10._renderBrowserSidebar)AnkiPractical10._renderBrowserSidebar();
   },
   _officialNoteId(note){
     const n=Number(note&&note.ankiId!=null?note.ankiId:note&&note.id);

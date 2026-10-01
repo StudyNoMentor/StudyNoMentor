@@ -250,25 +250,14 @@ const ruido = [];
 pag.on('pageerror', (e) => ruido.push('excecao: ' + e.message));
 // erros de rede sao esperados num ambiente sem acesso aos CDNs; nao contam.
 pag.on('console', (m) => { if (m.type() === 'error' && !/net::|ERR_/.test(m.text())) ruido.push('console: ' + m.text().slice(0, 160)); });
-const diagnostico=await pag.context().newCDPSession(pag);
-await diagnostico.send('Debugger.enable');
-diagnostico.on('Debugger.paused',e=>console.error('Pilha da inicialização bloqueada:',e.callFrames.slice(0,8).map(f=>({funcao:f.functionName,linha:f.location.lineNumber,script:f.location.scriptId}))));
-await diagnostico.send('Profiler.enable');
-await diagnostico.send('Profiler.start');
 try {
   await pag.goto(base, { waitUntil: 'domcontentloaded' });
   await pag.waitForFunction(() => window.AutoTeste && window.switchScreen, { timeout: 30000 });
   ruido.length ? erro('erros no carregamento:\n    ' + ruido.slice(0, 8).join('\n    ')) : ok('carregou limpo');
 } catch (e) {
   erro('o app nao inicializou: ' + e.message);
-  setTimeout(()=>process.exit(1),8000).unref();
-  await diagnostico.send('Debugger.pause');
-  const {profile}=await diagnostico.send('Profiler.stop');
-  console.error('Funções ativas durante a falha:',profile.nodes.filter(n=>n.hitCount).sort((a,b)=>b.hitCount-a.hitCount).slice(0,8).map(n=>({funcao:n.callFrame.functionName,linha:n.callFrame.lineNumber,amostras:n.hitCount})));
   await nav.close();servidor.close();process.exit(1);
 }
-await diagnostico.send('Profiler.stop');
-await diagnostico.detach();
 
 console.log('\n6) telas + suite interna');
 try {
