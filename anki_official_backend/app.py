@@ -944,12 +944,18 @@ def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
         return int(row["anki_type"]), int(row["anki_queue"])
     phase = str(row.get("phase") or "new").lower()
     if phase == "learning":
-        return 1, 1
-    if phase == "review":
-        return 2, 2
-    if phase == "relearning":
-        return 3, 1
-    return 0, 0
+        ctype, queue = 1, 1
+    elif phase == "review":
+        ctype, queue = 2, 2
+    elif phase == "relearning":
+        ctype, queue = 3, 1
+    else:
+        ctype, queue = 0, 0
+    if bool(row.get("suspenso")):
+        queue = -1
+    elif row.get("bury_kind") or row.get("buried_until"):
+        queue = -3 if str(row.get("bury_kind") or "").lower() in ("user", "manual") else -2
+    return ctype, queue
 
 
 @contextmanager
@@ -1073,17 +1079,26 @@ def cards_official_migrate_legacy(
                 card.queue = type(card.queue)(int(old.get("anki_queue")) if old.get("anki_queue") is not None else queue)
                 if old.get("anki_due") is not None:
                     card.due = int(old.get("anki_due") or 0)
-                elif card.queue == type(card.queue)(0):
+                elif ctype == 0:
                     card.due = max(1, int(old.get("new_position") or old.get("posicao_nova") or card.due or 1))
-                elif card.queue == type(card.queue)(1):
-                    card.due = max(0, int((old.get("due_ts") or 0) / 1000))
+                elif ctype in (1, 3):
+                    if old.get("due_ts"):
+                        card.due = max(0, int(float(old.get("due_ts") or 0) / 1000))
+                elif ctype == 2 and old.get("due_offset_days") is not None:
+                    card.due = max(0, int(item.col.sched.today) + int(old.get("due_offset_days") or 0))
                 card.ivl = max(0, int(old.get("interval") or old.get("intervalo") or 0))
                 ease = float(old.get("ease") or 0)
                 card.factor = max(0, int(old.get("ease_factor") or (ease * 1000 if 0 < ease < 10 else ease)))
                 card.reps = max(0, int(old.get("reps") or 0))
                 card.lapses = max(0, int(old.get("lapses") or 0))
-                card.left = max(0, int(old.get("remaining_steps") or old.get("anki_remaining_steps") or 0))
-                card.odue = max(0, int(old.get("original_due") or old.get("anki_original_due") or 0))
+                if old.get("remaining_steps") is not None or old.get("anki_remaining_steps") is not None:
+                    card.left = max(0, int(old.get("remaining_steps") or old.get("anki_remaining_steps") or 0))
+                if old.get("original_due") is not None or old.get("anki_original_due") is not None:
+                    card.odue = max(0, int(old.get("original_due") or old.get("anki_original_due") or 0))
+                elif old.get("original_due_ts"):
+                    card.odue = max(0, int(float(old.get("original_due_ts") or 0) / 1000))
+                elif old.get("original_due_offset_days") is not None:
+                    card.odue = max(0, int(item.col.sched.today) + int(old.get("original_due_offset_days") or 0))
                 odid = deck_map.get(str(old.get("original_deck_id") or ""), 0)
                 card.odid = DeckId(odid)
                 card.flags = max(0, min(7, int(old.get("flag") or 0)))
