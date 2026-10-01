@@ -57,6 +57,23 @@ Base reconciliada: a branch já contém `main@ae54ed3d` pelo merge `71f988e5`,
 preservando a implementação Anki e a exclusão de `anki-oficial` no Pages.
 Os contratos abaixo permanecem pendentes de certificação integral.
 
+### Continuação — 2026-10-01: migração única Cards legado → Collection oficial
+
+Progresso deste lote: **6/6 contratos implementados**. A aprovação final deste
+lote depende do gate do PR; isto **não altera** a contagem conservadora de
+certificação individual dos 571 arquivos upstream.
+
+- [x] O bootstrap detecta `Collection` oficial vazia + Cards existentes e chama automaticamente `/api/cards-official/migrate/legacy`; o bloqueio manual anterior foi removido.
+- [x] Decks, NoteTypes, Notes e Cards legados são materializados por `DeckManager`, `NoteTypeManager`, `Collection.new_note/add_note` e `Collection.update_card` do Anki oficial.
+- [x] O UUID/local ID do Study permanece como identidade da casca; `ankiId`/`ankiNoteId` passam a referenciar as identidades canônicas geradas pelo Anki.
+- [x] Estado acadêmico existente é transportado como estado inicial: queue/type/due, interval, ease, reps, lapses, steps, flags, S/D e revlog canônico quando a semântica Anki já era conhecida.
+- [x] `custom_data.study.replicas` preserva planejamento, baralho local, matéria, assunto, matéria TEC, banca, tipo e favorito para reconstruir a projeção multi-planejamento após reload/relogin.
+- [x] O `full-state` deixou de copiar a Collection inteira para o planejamento ativo: Notes/NoteTypes/Decks/Cards são projetados somente nos planejamentos registrados para cada card; registros sem identidade oficial não são apagados por snapshot parcial.
+
+Os testes deste lote incluem uma Collection legada real migrada para
+`anki==26.09.3`, preservação de GUID/tags/FSRS/metadados e recusa de uma
+segunda migração sobre Collection já preenchida.
+
 ### Remoção das implementações locais — 2026-10-01
 
 - [x] Removidos `30-fsrs.js`, `31-cards-config.js` e `32-card-engine.js`.
