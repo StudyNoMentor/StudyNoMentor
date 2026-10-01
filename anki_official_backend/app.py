@@ -918,19 +918,33 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
             templates = []
 
     if fields:
+        existing_fields = list(nt.get("flds") or [])
         nt["flds"] = []
         for idx, field_row in enumerate(fields):
             name = str((field_row or {}).get("name") or f"Field {idx + 1}")
-            field = col.models.new_field(name)
+            # ord/id são identidades do Anki, não apenas posições de UI.
+            # Recriar todos os campos com ord=None faz o backend remover as
+            # referências antigas e inserir o primeiro campo em ambas as frentes.
+            field = dict(existing_fields[idx]) if idx < len(existing_fields) else col.models.new_field(name)
+            field["name"] = name
             for key in ("font", "size", "rtl", "sticky", "collapsed", "excludeFromSearch", "tag"):
                 if key in (field_row or {}):
                     field[key] = field_row[key]
             col.models.add_field(nt, field)
+        # Primeiro deixe o Anki renomear os templates stock com os campos.
+        # Só depois aplique qfmt/afmt legados, já escritos nos nomes finais.
+        # Isso também evita renomear duas vezes um template com campos trocados.
+        col.models.update_dict(nt, skip_checks=False)
+        refreshed = col.models.get(int(nt["id"]))
+        if refreshed:
+            nt.update(refreshed)
     if templates:
+        existing_templates = list(nt.get("tmpls") or [])
         nt["tmpls"] = []
         for idx, template_row in enumerate(templates):
             name = str((template_row or {}).get("name") or f"Card {idx + 1}")
-            template = col.models.new_template(name)
+            template = dict(existing_templates[idx]) if idx < len(existing_templates) else col.models.new_template(name)
+            template["name"] = name
             template["qfmt"] = str((template_row or {}).get("qfmt") or "")
             template["afmt"] = str((template_row or {}).get("afmt") or "")
             for key in ("bqfmt", "bafmt", "did", "bfont", "bsize"):
@@ -1050,8 +1064,8 @@ def cards_official_migrate_legacy(
                 nt = item.col.models.get(int(changes.id))
             if not nt:
                 raise HTTPException(500, f"Falha ao criar NoteType {name}.")
-            _apply_legacy_notetype_shape(item.col, nt, row)
             try:
+                _apply_legacy_notetype_shape(item.col, nt, row)
                 item.col.models.update_dict(nt, skip_checks=False)
             except CardTypeError as exc:
                 # Erro de validação do próprio Anki deve atravessar a API como
