@@ -153,8 +153,8 @@
     "import_export": {
       "official_files": 65,
       "study_adapters": [
-        "src/js/34-anki-export.js",
-        "src/js/35-anki-import.js"
+        "src/js/35-anki-import.js",
+        "src/js/95-cards-official-bridge.js"
       ],
       "differential_tests": [
         "testes/cards-official-bridge-static.mjs",
