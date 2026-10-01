@@ -271,7 +271,7 @@ with tempfile.TemporaryDirectory() as tmp:
             "select ease,ivl,lastIvl,factor,time,type from revlog where cid = ? order by id",
             official_legacy_cid,
         )
-        assert revrow == (3, 12, 5, 2500, 432, 0), revrow
+        assert list(revrow) == [3, 12, 5, 2500, 432, 0], revrow
         assert legacy_item.col.card_count() == 1
         assert legacy_item.col.note_count() == 1
 
