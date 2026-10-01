@@ -106,11 +106,14 @@ const AnkiPractical10 = {
   },
   _addSubdeck(id){
     const d=(CardsScreen._deckScope?CardsScreen._deckScope().decks:DB.getDecks()).find(x=>String(x.id)===String(id));if(!d)return;
-    UI.prompt([{key:'name',label:'Nome do subbaralho',type:'text',value:'',placeholder:'Ex.: Capítulo 1'}],{title:'＋ Criar subbaralho',okText:'Criar'}).then(v=>{
+    UI.prompt([{key:'name',label:'Nome do subbaralho',type:'text',value:'',placeholder:'Ex.: Capítulo 1'}],{title:'＋ Criar subbaralho',okText:'Criar'}).then(async v=>{
       const leaf=String(v&&v.name||'').trim();if(!leaf)return;
       if(leaf.includes('::')){showToast('Use apenas o nome do nível; a hierarquia é criada automaticamente.');return;}
-      const created=d._planId&&DB.addDeckForPlan?DB.addDeckForPlan(d._planId,String(d.nome)+'::'+leaf):DB.addDeck(String(d.nome)+'::'+leaf);if(!created){showToast('Não foi possível criar o subbaralho');return;}
-      CardsScreen.renderDeckList();CardsScreen.render();showToast('Subbaralho criado ✓');
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.createOfficialDeck!=='function'){showToast('DeckManager oficial indisponível.');return;}
+      try{
+        await CardsOfficialBridge.createOfficialDeck(String(d.nome)+'::'+leaf,d._planId);
+        CardsScreen.renderDeckList();CardsScreen.render();showToast('Subbaralho criado pelo Anki oficial ✓');
+      }catch(e){showToast('Não foi possível criar o subbaralho: '+(e&&e.message?e.message:String(e)));}
     });
   },
   _filterDeckRows(){
@@ -439,7 +442,7 @@ const AnkiPractical10 = {
     const oldSave=CardsScreen.saveCard.bind(CardsScreen);
     CardsScreen.saveCard=(closeAfter)=>{
       const sel=document.getElementById('card-kind'),kind=sel&&sel.value;
-      if(kind==='image_occlusion')return this._launchSimpleImageOcclusion();
+      if(kind==='image_occlusion'){void this._launchSimpleImageOcclusion();return;}
       this._simpleEditCanonical=null;
       return oldSave(closeAfter);
     };
@@ -502,14 +505,15 @@ const AnkiPractical10 = {
     if(close)close.style.display=isIO?'none':'';
     if(another)another.style.display=isIO?'none':(CardsScreen._editingId?'none':'inline-block');
   },
-  _simpleDestination(){
+  async _simpleDestination(){
     const el=document.getElementById('card-destino');let dest=String(el&&el.value||''),planId=CardsScreen._editingPlanId||null;
     if(!dest){showToast('Escolha o baralho');return null;}
     if(dest.startsWith('novo:')){
-      const nome=dest.slice(5),pid=planId,
-        decks=pid&&DB.getDecksForPlan?DB.getDecksForPlan(pid):DB.getDecks(),
-        existing=decks.find(d=>d.nome===nome),deck=existing||(pid&&DB.addDeckForPlan?DB.addDeckForPlan(pid,nome):DB.addDeck(nome));
-      dest='deck:'+deck.id;if(el)el.value=dest;
+      const nome=String(dest.slice(5)||'').trim();
+      if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.createOfficialDeck!=='function'){showToast('DeckManager oficial indisponível.');return null;}
+      const created=await CardsOfficialBridge.createOfficialDeck(nome,planId);
+      if(!created||!created.deck){showToast('O Anki oficial não devolveu o baralho criado.');return null;}
+      dest='deck:'+created.deck.id;planId=created.deck._planId!=null?created.deck._planId:planId;if(el)el.value=dest;
     }
     const deckId=dest.startsWith('deck:')?dest.slice(5):null;
     if(deckId&&window.StudyGlobalScope&&StudyGlobalScope.deckRecord){
@@ -523,9 +527,9 @@ const AnkiPractical10 = {
     return CardsOfficialBridge.saveSimpleCard(closeAfter);
   },
 
-  _launchSimpleImageOcclusion(){
+  async _launchSimpleImageOcclusion(){
     if(typeof AnkiImageOcclusion==='undefined'||typeof AnkiImageOcclusion.openEditor!=='function'){showToast('Editor de Oclusão de Imagem indisponível');return false;}
-    const dst=this._simpleDestination();if(!dst)return false;
+    const dst=await this._simpleDestination();if(!dst)return false;
     if(!dst.deckId){showToast('Escolha um baralho para criar a Oclusão de Imagem');return false;}
     CardsScreen.closeCardModal();AnkiImageOcclusion.openEditor(null,dst.deckId);return true;
   },
