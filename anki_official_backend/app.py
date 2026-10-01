@@ -861,18 +861,32 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
         restore_stock_shape = invalid_fronts and compatible_fields
 
     if restore_stock_shape:
-        nt["flds"] = [dict(field) for field in stock_fields]
-        nt["tmpls"] = [dict(template) for template in stock_templates]
-        for idx, field_row in enumerate(fields):
-            field = nt["flds"][idx]
-            name = str((field_row or {}).get("name") or field.get("name") or f"Field {idx + 1}")
-            if name != str(field.get("name") or ""):
-                col.models.rename_field(nt, field, name)
-            for key in ("font", "size", "rtl", "sticky", "collapsed", "excludeFromSearch", "tag"):
-                if key in (field_row or {}):
-                    field[key] = field_row[key]
-        fields = []
-        templates = []
+        # Preserve os objetos já persistidos em nt: eles carregam ord/identidade
+        # atribuídos pelo Anki. O stock cru devolvido pelo backend é uma fábrica
+        # e não deve substituir esses dicionários por inteiro.
+        if len(nt.get("flds") or []) != len(stock_fields) or len(nt.get("tmpls") or []) != len(stock_templates):
+            restore_stock_shape = False
+        else:
+            for idx, stock_template in enumerate(stock_templates):
+                target = nt["tmpls"][idx]
+                for key in ("qfmt", "afmt"):
+                    target[key] = str(stock_template.get(key) or "")
+                legacy_template = templates[idx] if idx < len(templates) else {}
+                if (legacy_template or {}).get("name"):
+                    target["name"] = str(legacy_template["name"])
+                for key in ("bqfmt", "bafmt", "did", "bfont", "bsize"):
+                    if key in (legacy_template or {}):
+                        target[key] = legacy_template[key]
+            for idx, field_row in enumerate(fields):
+                field = nt["flds"][idx]
+                name = str((field_row or {}).get("name") or field.get("name") or f"Field {idx + 1}")
+                if name != str(field.get("name") or ""):
+                    col.models.rename_field(nt, field, name)
+                for key in ("font", "size", "rtl", "sticky", "collapsed", "excludeFromSearch", "tag"):
+                    if key in (field_row or {}):
+                        field[key] = field_row[key]
+            fields = []
+            templates = []
 
     if fields:
         nt["flds"] = []
