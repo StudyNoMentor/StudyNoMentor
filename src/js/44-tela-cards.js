@@ -968,7 +968,7 @@ const CardsScreen = {
             <span style="flex:1"></span>
             ${c.suspenso ? `<button type="button" class="icon-btn" data-unsusp="${c.id}" title="Reativar card" aria-label="Reativar card">▶</button>` : ''}
             <button type="button" class="icon-btn mini-edit" data-edit="${c.id}" title="Editar" aria-label="Editar">✎</button>
-            <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir" aria-label="Excluir">×</button>
+            <button type="button" class="icon-btn danger mini-del" data-del="${c.id}" title="Excluir nota" aria-label="Excluir nota">×</button>
           </div>
         </div>`;
   },
@@ -1141,15 +1141,16 @@ const CardsScreen = {
       if (ed) { this.openCardModal(ed.dataset.edit); return; }
       const un = e.target.closest('[data-unsusp]');
       if (un) {
-        DB.updateCard(un.dataset.unsusp, { suspenso: false, due: todayCards(), dueTs: null });
-        CardEngine.invalidateDueCache();
-        showToast('Card reativado ✓'); this.renderMeus(box);
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.actionCards!=='function'){showToast('Scheduler oficial do Anki indisponível.');return;}
+        try{await CardsOfficialBridge.actionCards('unsuspend',[un.dataset.unsusp]);showToast('Card reativado pelo Anki oficial ✓');this.renderMeus(box);}
+        catch(err){showToast('Card não reativado: '+(err&&err.message?err.message:String(err)));}
         return;
       }
       const del = e.target.closest('[data-del]');
       if (del) {
-        if (!await UI.confirm('Excluir este card?')) return;
-        DB.deleteCard(del.dataset.del); this.render();
+        if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.deleteNoteForCard!=='function'){showToast('Collection oficial do Anki indisponível.');return;}
+        try{const out=await CardsOfficialBridge.deleteNoteForCard(del.dataset.del,true);if(out)showToast('Nota excluída pelo Anki oficial ✓');}
+        catch(err){showToast('Nota não excluída: '+(err&&err.message?err.message:String(err)));}
       }
     });
   },
