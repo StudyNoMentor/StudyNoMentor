@@ -996,23 +996,11 @@ def cards_official_migrate_legacy(
                     d = float(old.get("d") or 0)
                     if s > 0 and d > 0:
                         card.memory_state = cards_pb2.FsrsMemoryState(stability=s, difficulty=d)
-                study = {
-                    "legacy_id": legacy_cid,
-                    "materia": old.get("materia"),
-                    "assunto": old.get("assunto"),
-                    "materiaTec": old.get("materia_tec"),
-                    "banca": old.get("banca"),
-                    "tipo": old.get("tipo"),
-                    "favorito": bool(old.get("favorito", False)),
-                    # A Collection é global, mas a casca do Study continua podendo
-                    # projetar o MESMO card em planejamentos diferentes. Guardar
-                    # as réplicas em custom_data torna a migração reversível e
-                    # permite reconstruir a projeção sem inventar metadados.
-                    "replicas": old.get("study_replicas")
-                    if isinstance(old.get("study_replicas"), list)
-                    else [],
-                }
-                card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
+                # custom_data pertence ao scheduler do Anki e possui limite
+                # estrito (<100 bytes). Metadados da casca Study (planejamento,
+                # banca, assunto etc.) permanecem no espelho Study e são ligados
+                # aos IDs oficiais pelo card_map abaixo; nunca poluímos o estado
+                # acadêmico oficial com payload de UI.
                 item.col.update_card(card)
                 if legacy_cid:
                     card_map[legacy_cid] = int(card.id)
