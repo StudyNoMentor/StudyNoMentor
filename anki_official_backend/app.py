@@ -1000,6 +1000,14 @@ def cards_official_migrate_legacy(
                     "materiaTec": old.get("materia_tec"),
                     "banca": old.get("banca"),
                     "tipo": old.get("tipo"),
+                    "favorito": bool(old.get("favorito", False)),
+                    # A Collection é global, mas a casca do Study continua podendo
+                    # projetar o MESMO card em planejamentos diferentes. Guardar
+                    # as réplicas em custom_data torna a migração reversível e
+                    # permite reconstruir a projeção sem inventar metadados.
+                    "replicas": old.get("study_replicas")
+                    if isinstance(old.get("study_replicas"), list)
+                    else [],
                 }
                 card.custom_data = json.dumps({"study": study}, ensure_ascii=False, separators=(",", ":"))
                 item.col.update_card(card)
@@ -1036,6 +1044,8 @@ def cards_official_migrate_legacy(
         return {
             "ok": True,
             "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
+            "deck_map": deck_map,
+            "notetype_map": nt_map,
             "card_map": card_map,
             "note_map": note_map,
             "state": cards_collection_full_state_payload(item.col),
