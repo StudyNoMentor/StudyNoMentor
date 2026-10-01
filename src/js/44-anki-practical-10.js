@@ -188,54 +188,58 @@ const AnkiPractical10 = {
   _installPreferences(){
     const menu=document.getElementById('cards-more-menu');if(!menu)return;
     if(!document.getElementById('cards-preferences-btn')){
-      const b=document.createElement('button');b.type='button';b.id='cards-preferences-btn';b.setAttribute('role','menuitem');b.textContent='⚙ Preferências dos Cards';b.onclick=()=>this.openPreferences();
+      const b=document.createElement('button');b.type='button';b.id='cards-preferences-btn';b.setAttribute('role','menuitem');b.textContent='⚙ Preferências dos Cards';b.onclick=()=>void this.openPreferences();
       const advanced=menu.querySelector('.cards-more-group[data-group="advanced"]');if(advanced)advanced.appendChild(b);else menu.appendChild(b);
     }
   },
-  openPreferences(){
+  async openPreferences(){
     let m=document.getElementById('anki-cards-preferences');if(!m){
-      const w=document.createElement('div');w.innerHTML='<div id="anki-cards-preferences" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>⚙ Preferências dos Cards</h2><p class="sub">Preferências por perfil para revisão, Browser e sincronização.</p></div><button class="icon-btn" id="anki-pref-close">✕</button></div><div class="cards-modal-body" id="anki-pref-body"></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-pref-algo">Opções avançadas / presets</button><button class="btn-secondary" id="anki-pref-sync">Verificar mídia</button><span style="flex:1"></span><button class="btn-primary" id="anki-pref-save">Salvar</button></div></div></div>';document.body.appendChild(w);m=document.getElementById('anki-cards-preferences');
+      const w=document.createElement('div');w.innerHTML='<div id="anki-cards-preferences" class="cards-modal" style="display:none"><div class="cards-modal-box cards-modal-lg"><div class="cards-modal-head"><div><h2>⚙ Preferências dos Cards</h2><p class="sub">Preferências globais da Collection oficial + aparência do Browser no Study.</p></div><button class="icon-btn" id="anki-pref-close">✕</button></div><div class="cards-modal-body" id="anki-pref-body"></div><div class="cards-modal-foot"><button class="btn-secondary" id="anki-pref-algo">Opções de baralho / presets</button><button class="btn-secondary" id="anki-pref-sync">Verificar mídia</button><span style="flex:1"></span><button class="btn-primary" id="anki-pref-save">Salvar</button></div></div></div>';document.body.appendChild(w);m=document.getElementById('anki-cards-preferences');
       document.getElementById('anki-pref-close').onclick=()=>m.style.display='none';
       document.getElementById('anki-pref-algo').onclick=()=>{m.style.display='none';CardsScreen.openAlgoConfig();};
       document.getElementById('anki-pref-sync').onclick=()=>{m.style.display='none';AnkiProductParity.openCheck();};
-      document.getElementById('anki-pref-save').onclick=()=>this._savePreferences();
+      document.getElementById('anki-pref-save').onclick=()=>void this._savePreferences();
     }
-    const c=CardsConfig.get(),bp=typeof AnkiMaxParity!=='undefined'?AnkiMaxParity._loadBrowserPrefs():null,b=AnkiProductParity.browser;
+    const local=CardsConfig.get(),b=AnkiProductParity.browser;let rollover=Number(local.rolloverHour)||4,learnAhead=Math.max(0,Number(local.learnAheadMin==null?20:local.learnAheadMin));
+    try{
+      if(window.CardsOfficialBridge&&typeof CardsOfficialBridge.getOfficialPreferences==='function'){
+        const prefs=await CardsOfficialBridge.getOfficialPreferences(),s=prefs&&prefs.scheduling||{};
+        if(Number.isFinite(Number(s.rollover)))rollover=Number(s.rollover);
+        if(Number.isFinite(Number(s.learnAheadSecs)))learnAhead=Number(s.learnAheadSecs)/60;
+        else if(Number.isFinite(Number(s.learn_ahead_secs)))learnAhead=Number(s.learn_ahead_secs)/60;
+      }
+    }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-preferences-load');}
     document.getElementById('anki-pref-body').innerHTML=
-      '<h3 class="anki-section-title">Revisão</h3><div class="field-group">'+
-      this._prefSelect('pref-autoplay','Reproduzir áudio automaticamente',c.disableAutoplay?'0':'1')+
-      this._prefSelect('pref-timer','Mostrar cronômetro',c.showTimer?'1':'0')+
-      this._prefSelect('pref-stop-timer','Parar cronômetro ao responder',c.stopTimerOnAnswer?'1':'0')+
-      this._prefSelect('pref-wait-audio','Aguardar áudio antes do auto-advance',c.waitForAudio?'1':'0')+
-      '</div><div class="field-group">'+
-      '<div class="field"><label>Tempo máximo de resposta (s)</label><input id="pref-cap-time" type="number" min="0" max="86400" value="'+Number(c.capAnswerTimeToSecs||0)+'"></div>'+
-      '<div class="field"><label>Início do novo dia</label><input id="pref-rollover" type="number" min="0" max="23" value="'+Number(c.rolloverHour||0)+'"></div>'+
-      '<div class="field"><label>Limite para aprender adiantado (min)</label><input id="pref-learn-ahead" type="number" min="0" max="1440" value="'+Number(c.learnAheadMin==null?20:c.learnAheadMin)+'"></div>'+
-      '</div><h3 class="anki-section-title">Browser</h3><div class="field-group">'+
+      '<h3 class="anki-section-title">Agendamento · Anki oficial</h3><div class="field-group">'+
+      '<div class="field"><label>Início do novo dia</label><input id="pref-rollover" type="number" min="0" max="23" value="'+Math.round(rollover)+'"></div>'+
+      '<div class="field"><label>Limite para aprender adiantado (min)</label><input id="pref-learn-ahead" type="number" min="0" max="1440" value="'+Math.round(learnAhead)+'"></div>'+
+      '</div><p class="hint">Autoplay, cronômetro, Auto Advance e tempo máximo pertencem ao preset do baralho no Anki e ficam em <strong>Opções de baralho / presets</strong>.</p>'+
+      '<h3 class="anki-section-title">Browser · casca Study</h3><div class="field-group">'+
       '<div class="field"><label>Modo inicial</label><select id="pref-browser-mode"><option value="notes" '+(b.mode!=='cards'?'selected':'')+'>Notas</option><option value="cards" '+(b.mode==='cards'?'selected':'')+'>Cards</option></select></div>'+
       '<div class="field"><label>Ordenação</label><select id="pref-browser-dir"><option value="asc" '+(b.sortDir!=='desc'?'selected':'')+'>Crescente</option><option value="desc" '+(b.sortDir==='desc'?'selected':'')+'>Decrescente</option></select></div>'+
-      '</div><p class="hint">Colunas e modo do Browser continuam persistidos automaticamente por perfil. A mídia é centralizada no MediaManager oficial do Anki; não há cópia binária paralela no Study.</p>';
+      '</div><p class="hint">A mídia é centralizada no MediaManager oficial do Anki; não há cópia binária paralela no Study.</p>';
     m.style.display='flex';
   },
   _prefSelect(id,label,value){return '<div class="field"><label>'+label+'</label><select id="'+id+'"><option value="1" '+(value==='1'?'selected':'')+'>Sim</option><option value="0" '+(value==='0'?'selected':'')+'>Não</option></select></div>';},
-  _savePreferences(){
-    const val=id=>String((document.getElementById(id)||{}).value||'');
-    CardsConfig.set({
-      disableAutoplay:val('pref-autoplay')!=='1',
-      showTimer:val('pref-timer')==='1',
-      stopTimerOnAnswer:val('pref-stop-timer')==='1',
-      waitForAudio:val('pref-wait-audio')==='1',
-      capAnswerTimeToSecs:Math.max(0,Number(val('pref-cap-time'))||0),
-      rolloverHour:Math.max(0,Math.min(23,Number(val('pref-rollover'))||0)),
-      learnAheadMin:Math.max(0,Math.min(1440,Number(val('pref-learn-ahead'))||0))
-    });
-    if(typeof AnkiMaxParity!=='undefined'){
+  async _savePreferences(){
+    const val=id=>String((document.getElementById(id)||{}).value||''),
+      rollover=Math.max(0,Math.min(23,Number(val('pref-rollover'))||0)),
+      learnAhead=Math.max(0,Math.min(1440,Number(val('pref-learn-ahead'))||0));
+    if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.updateOfficialPreferences!=='function'){
+      showToast('Preferences oficial do Anki indisponível.');return;
+    }
+    try{
+      await CardsOfficialBridge.updateOfficialPreferences({scheduling:{rollover,learn_ahead_secs:Math.round(learnAhead*60)}});
+      // Estes dois campos locais são apenas espelho para partes visuais ainda
+      // carregadas antes do backend; a decisão de fila pertence à Collection.
+      CardsConfig.set({rolloverHour:rollover,learnAheadMin:learnAhead});
       AnkiProductParity.browser.mode=val('pref-browser-mode')==='cards'?'cards':'notes';
       AnkiProductParity.browser.sortDir=val('pref-browser-dir')==='desc'?'desc':'asc';
-      AnkiMaxParity._saveBrowserPrefs();
-    }
-    CardEngine.invalidateDueCache();document.getElementById('anki-cards-preferences').style.display='none';showToast('Preferências salvas ✓');
-  },
+      if(typeof AnkiMaxParity!=='undefined')AnkiMaxParity._saveBrowserPrefs();
+      document.getElementById('anki-cards-preferences').style.display='none';
+      showToast('Preferências salvas pela Collection oficial do Anki ✓');
+    }catch(e){showToast('Preferências não salvas: '+(e&&e.message?e.message:String(e)));}
+  }
 
 
   /* ───────────────── REVIEWER / MOBILE 10/10 ─────────────────
