@@ -1,11 +1,11 @@
 /* ============================================================
-   ANKI — BARALHOS COMPARTILHADOS
+   ANKI OFICIAL — BARALHOS COMPARTILHADOS
    ------------------------------------------------------------
    O catálogo permanece no AnkiWeb oficial. Esta camada só abre o
    catálogo e entrega o .apkg/.colpkg escolhido ao importador oficial
    já conectado à Collection do backend.
    ============================================================ */
-const AnkiFinalParity = {
+const AnkiSharedDecks = {
   _installed:false,
 
   install(){
@@ -54,5 +54,5 @@ const AnkiFinalParity = {
     return true;
   }
 };
-window.AnkiFinalParity=AnkiFinalParity;
-queueMicrotask(()=>AnkiFinalParity.install());
+window.AnkiSharedDecks=AnkiSharedDecks;
+queueMicrotask(()=>AnkiSharedDecks.install());

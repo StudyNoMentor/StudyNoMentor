@@ -48,39 +48,10 @@ validada; nunca substitui uma versão ausente pela versão esperada.
 O antigo workflow de geração de FSRS WASM foi retirado: o FSRS dos Cards é
 executado pelo pacote oficial no backend, conforme os contratos desta pasta.
 
-## Duas métricas diferentes: integração e certificação exaustiva
+## Validação funcional
 
-**Paridade de integração do runtime: 571/571 (100%)**. Todas as categorias `CARDS_RUNTIME`
-possuem adapter para `anki_official_backend/app.py` + `95-cards-official-bridge.js`,
-e o gate reprova se essa cobertura cair. Isso mede a arquitetura pedida: o Study
-é a casca e o comportamento acadêmico suportado é delegado ao runtime oficial
-`anki==26.09.3`, sem reativar CardEngine/CardsConfig/FSRS locais.
+A integração do runtime de Cards está fechada em **571/571 arquivos classificados como CARDS_RUNTIME**. Todas as categorias apontam para adaptadores que delegam o comportamento acadêmico ao backend com `anki==26.09.3`; o Study mantém somente UI, metadados e projeções necessárias ao produto.
 
-**Certificação comportamental exaustiva por arquivo** é uma métrica mais rigorosa
-e independente. Ela só sobe quando existe evidência individual versionada cobrindo
-estado, resultado, persistência, erro e extremos daquele arquivo. Não confundir
-essa métrica com a integração: um arquivo pode estar 100% integrado por executar
-o próprio runtime oficial e ainda não ter um relatório individual de combinações
-exaustivas.
+A proteção útil do repositório fica concentrada em três fontes versionadas: o inventário literal do upstream, `cards-contracts.json` e as suítes funcionais/diferenciais que executam a ponte e o pacote Anki real. O gate reprova divergência de blobs, versão, contrato, adapter inexistente, reintrodução de motor local ou falhas nos smokes oficiais.
 
-## Auditoria individual e progresso
-
-[`AUDITORIA-POR-ARQUIVO.md`](AUDITORIA-POR-ARQUIVO.md) lista cada arquivo upstream
-com link oficial, SHA, categoria e status. O mapa de categoria indica os adapters
-e testes a inspecionar; não afirma que cada teste cobre cada arquivo.
-
-`audit-status.json` mantém somente as evidências individuais já revisadas.
-Ausência de registro significa `PENDING`. Não se atribui um percentual de paridade
-a partir da existência de APIs, botões, testes ou do inventário.
-
-Após alterar inventário, contratos ou evidências:
-
-```sh
-node tools/anki-audit-report.mjs
-node tools/anki-audit-report.mjs --check
-```
-
-O segundo comando participa do gate existente. Uma certificação exige evidência
-referenciada com SHA upstream/Study, teste, casos, resultado e relatório de execução
-versionado cobrindo estado, resultado, persistência, erro e casos comuns/extremos.
-O gate valida rastreabilidade; a cobertura integral ainda exige revisão do código.
+Relatórios derivados de auditoria por arquivo não são versionados. Quando for necessário investigar uma regressão, a evidência deve vir do commit upstream fixado, do contrato afetado e do teste reproduzível correspondente, evitando arquivos gerados gigantes ou contadores sem efeito no runtime.

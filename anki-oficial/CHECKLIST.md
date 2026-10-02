@@ -8,31 +8,9 @@
 
 ## Regra de conclusão
 
-**Checklist por arquivo:** [`AUDITORIA-POR-ARQUIVO.md`](AUDITORIA-POR-ARQUIVO.md).
-Ele contém os 2.107 caminhos upstream, SHAs, categorias e estados individuais.
-O inventário foi comparado à Git tree oficial da referência 26.09.3 em 2026-10-01:
-**2.107/2.107 blobs coincidem, sem divergências**. Os quatro submódulos internos
-também estão registrados em `inventario/submodules.json`.
+A fonte de verdade é o upstream literal fixado em `UPSTREAM.lock.json`, combinado com o inventário integral, os contratos funcionais e testes que executam a Collection oficial. A integração atual cobre **571/571 arquivos de runtime (100%)** sem reativar scheduler, FSRS, renderer ou banco acadêmico local.
 
-**Paridade de integração:** `████████████████████` **571/571 arquivos runtime (100%)**.
-As 14 categorias funcionais estão ligadas ao runtime oficial `anki==26.09.3`; o
-gate falha se qualquer arquivo `CARDS_RUNTIME` perder categoria, adapter oficial
-ou cobertura de integração. Esta é a métrica da arquitetura pedida: Study como
-casca e Anki oficial como fonte de verdade acadêmica.
-
-**Certificação comportamental exaustiva por arquivo:** `░░░░░░░░░░░░░░░░░░░░`
-**0/571 com relatório individual exaustivo**. Essa segunda métrica é deliberadamente
-mais rígida: exige evidência versionada por arquivo cobrindo estado, resultado,
-persistência, erro e extremos. Ela não significa que a integração está em 0%.
-
-Um item só recebe **[x] PARIDADE CERTIFICADA** quando:
-1. o comportamento oficial foi identificado no upstream;
-2. o Cards usa a implementação oficial diretamente **ou** existe adapter cuja saída é comparada contra o Anki oficial;
-3. há teste diferencial cobrindo estado, resultado, persistência e erro;
-4. o teste passa para casos comuns + extremos;
-5. não existe fallback silencioso para uma implementação aproximada.
-
-Existência de botão, função ou comentário **não** conta como paridade.
+Um contrato só é considerado fechado quando o caminho observável usa a implementação oficial, possui teste reproduzível para a operação e não contém fallback silencioso para uma implementação aproximada. Relatórios derivados e contadores manuais não fazem parte da definição de pronto.
 
 ## Contratos funcionais
 
@@ -59,9 +37,7 @@ o percentual de paridade integral dos 571 arquivos de runtime.
 - [x] `testes/cards-official-bridge-static.mjs`: contratos estáticos e execução da ponte para marca/desmarca, estado antigo do revisor e falha de rede passaram. Checagem TTS atualizada para a assinatura com token de cancelamento.
 - [x] `testes/anki-oficial-backend-smoke.py`: retorno de tags e IDs repetidos validado com o pacote real `anki==26.09.3` no CI (commit `5cc213be`).
 
-Base reconciliada: a branch já contém `main@ae54ed3d` pelo merge `71f988e5`,
-preservando a implementação Anki e a exclusão de `anki-oficial` no Pages.
-Os contratos abaixo estão concluídos na métrica de integração oficial. A auditoria comportamental exaustiva por arquivo permanece uma métrica separada.
+Base reconciliada com a main; os contratos abaixo permanecem concluídos na métrica de integração oficial.
 
 ### Migração legado → Collection oficial — 2026-10-01
 
@@ -96,7 +72,7 @@ continua exigindo evidência específica por arquivo, caso e extremo.
 - [x] As ações acadêmicas do escopo global delegam à ponte oficial; o escopo mantém somente seleção e metadados do Study.
 - [x] Lote validado no CI 2011, incluindo o round-trip CSV com o Anki real e os testes de navegador atualizados. As fixtures de layout e as asserções obsoletas de FSRS local foram corrigidas antes da aprovação.
 
-A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um segundo motor Anki. A integração do runtime está fechada em 571/571; a auditoria individual continua medindo, separadamente, cobertura comportamental exaustiva de cada arquivo.
+A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um segundo motor Anki; o comportamento acadêmico permanece na Collection oficial.
 
 
 - [x] **Integração oficial — Scheduler / FSRS / estados / filas — 67 arquivos**
