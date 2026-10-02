@@ -48,6 +48,14 @@ validada; nunca substitui uma versão ausente pela versão esperada.
 O antigo workflow de geração de FSRS WASM foi retirado: o FSRS dos Cards é
 executado pelo pacote oficial no backend, conforme os contratos desta pasta.
 
+## Atualização automática de release estável
+
+O workflow `.github/workflows/auto-update-anki-stable.yml` consulta diariamente a release estável mais recente publicada por `ankitects/anki`. Quando encontra uma versão superior à fixada em `UPSTREAM.lock.json`, ele prepara uma branch e um PR com o submódulo, inventário, pin Python, contratos e artefatos publicados atualizados.
+
+A promoção é **fail-safe**: arquivos novos em áreas potencialmente funcionais entram como `UNCLASSIFIED` e bloqueiam o merge automático. Sem bloqueadores, a automação dispara a verificação completa do Study; somente um run integralmente verde permite merge. Depois do merge, o workflow de produção é disparado explicitamente e o Railway só é aceito quando `/health` reporta a mesma versão e a mesma revisão da `main`.
+
+Pré-releases, drafts, downgrades, runtime Python divergente, inventário incompleto ou qualquer falha de navegador/backend mantêm a versão anterior em produção.
+
 ## Validação funcional
 
 A integração do runtime de Cards está fechada em **571/571 arquivos classificados como CARDS_RUNTIME**. Todas as categorias apontam para adaptadores que delegam o comportamento acadêmico ao backend com `anki==26.09.3`; o Study mantém somente UI, metadados e projeções necessárias ao produto.
