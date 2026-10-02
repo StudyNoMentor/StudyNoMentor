@@ -1164,12 +1164,15 @@ assert "media-src 'self' data: blob: https:" in header
 css = (ROOT / "src" / "css" / "41-anki-official.css").read_text(encoding="utf-8")
 css2 = (ROOT / "src" / "css" / "42-anki-official-surfaces.css").read_text(encoding="utf-8")
 js = (ROOT / "src" / "js" / "44-anki-official.js").read_text(encoding="utf-8")
+bridge_js = (ROOT / "src" / "js" / "95-cards-official-bridge.js").read_text(encoding="utf-8")
 html = (ROOT / "src" / "html" / "03-corpo.html").read_text(encoding="utf-8")
 assert "anki-study-review-card" in css and "anki-study-deck-row" in css
 assert "anki-browser-row-advanced" in css2 and "anki-io-stage" in css2
 assert "anki-type-answer-box" in css2 and "anki-column-config-row" in css2
-assert "cards-review-wrap" in js and "cards-ans4" in js
+assert "cards-review-wrap" in bridge_js and "cards-ans4" in bridge_js
 assert "CardEngine." not in js and "CardsConfig." not in js
+assert "/api/anki/bootstrap?view=" not in js, "o transporte fino não pode reativar a antiga tela Anki"
+assert "renderReviewer(" not in js and "renderDecks(" not in js
 assert 'id="screen-cards"' in html
 assert '<h2 class="page-title">Anki</h2>' in html
 assert 'id="screen-anki"' not in html
