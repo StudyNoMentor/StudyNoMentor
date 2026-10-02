@@ -1555,15 +1555,29 @@ const CardsOfficialBridge = {
   },
 
   _answerRequestId(card){
-    return [this._reviewSession(),Number(card&&card.id)||0,Number(card&&card.reps)||0,
+    const key=['snm-cards-answer',Number(card&&card.id)||0,Number(card&&card.reps)||0,
       Number(card&&card.mtime_secs)||0,Number(card&&card.due)||0].join(':');
+    let id='';
+    try{id=sessionStorage.getItem(key)||'';}catch(_){/* storage opcional */}
+    if(!id){
+      const random=(window.crypto&&typeof window.crypto.randomUUID==='function')
+        ?window.crypto.randomUUID()
+        :Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);
+      id='answer-'+random;
+      try{sessionStorage.setItem(key,id);}catch(_){/* memória da página ainda protege clique/retry imediato */}
+    }
+    return {id,key};
+  },
+  _finishAnswerRequest(attempt){
+    if(!attempt)return;
+    try{if(sessionStorage.getItem(attempt.key)===attempt.id)sessionStorage.removeItem(attempt.key);}catch(_){/* opcional */}
   },
   async answer(grade){
     if(this._answering)return false;
     const rating=typeof grade==='number'?grade:({errei:1,dificil:2,bom:3,facil:4})[grade];
     if(!rating||!this.review||!this.review.card||!this._screenActive('revisar'))return false;
     this._answering=true;this._clearReviewerAutomation();
-    const current=this.review.card,requestId=this._answerRequestId(current);
+    const current=this.review.card,attempt=this._answerRequestId(current),requestId=attempt.id;
     try{
       const ms=this._elapsedMs((current&&current.auto_advance)||{});
       const out=await this.request('/api/cards-official/reviewer/answer',{
@@ -1590,6 +1604,7 @@ const CardsOfficialBridge = {
         this._reviewSessionVersion=out.reviewer.review_session?out.reviewer.review_session.version:this._reviewSessionVersion;
         this._applyReviewer(out.reviewer);
       }else await this._syncReviewScope(0);
+      this._finishAnswerRequest(attempt);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       CardsScreen.updateFavCount();return true;
     }catch(e){
