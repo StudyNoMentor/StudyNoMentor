@@ -3291,7 +3291,15 @@ def cards_official_collection_graphs_scoped(
         scope = "cid:" + (",".join(str(cid) for cid in ids) if ids else "0")
         native = str(body.search or "").strip()
         search = f"({native}) {scope}" if native else scope
-        return pb(item.col._backend.graphs(search=search, days=int(body.days)))
+        out = pb(item.col._backend.graphs(search=search, days=int(body.days)))
+        # O GraphsService continua sendo a fonte acadêmica. Este inventário só
+        # permite à casca Study reaplicar, nos MESMOS cards do gráfico, o
+        # createdAt histórico preservado antes da migração para a Collection.
+        # Isso evita que cards legados pareçam ter sido todos criados no dia em
+        # que o Anki gerou novos IDs para eles.
+        if isinstance(out, dict):
+            out["_study_scope_card_ids"] = [int(cid) for cid in item.col.find_cards(search)]
+        return out
 
 
 @app.post("/api/cards-official/fsrs/optimize")
