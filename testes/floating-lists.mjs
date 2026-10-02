@@ -18,6 +18,8 @@ assert.match(infra,/getElementById\('tabs'\)/,'deve descontar a barra móvel fix
 assert.match(infra,/_bounds\(panel\)/,'deve considerar ancestrais que recortam conteúdo');
 assert.ok(infra.includes('/(auto|scroll|hidden|clip)/.test(oy)'), 'deve reconhecer containers com overflow que recortam o menu');
 assert.match(infra,/ux-float-up/,'deve conseguir inverter a abertura para cima');
+assert.match(infra,/panel: '\\.cards-more-menu', anchor: '\\.cards-more-btn', gap: 6, preferDown: true/,'Mais do Anki deve preferir abrir para baixo');
+assert.match(infra,/if \(!preferDown && natural > abaixo\)/,'preferDown deve impedir a inversão automática do Mais');
 
 for (const sel of [
   '.ms-disc-filter-panel',
@@ -51,6 +53,8 @@ assert.match(tecJs,/banca-pick-panel,.tec-disc-pick-panel,.ms-disc-filter-panel/
 assert.match(grade,/AnchoredListViewport\._viewport/,'seletor de matéria da Grade deve compartilhar a régua do viewport');
 assert.match(grade,/const paraCima = natural > abaixo && acima > abaixo/,'seletor da Grade deve inverter quando faltar espaço embaixo');
 assert.match(gradeCss,/\.gsp-list\s*\{[^}]*overflow-y:\s*auto;[^}]*touch-action:\s*pan-y/,'lista da Grade deve rolar por toque');
+assert.match(gradeCss,/\.cards-more-wrap\s*\{[^}]*z-index:\s*var\(--z-suspenso,\s*100\)/,'wrapper do Mais deve participar da camada de menus suspensos');
+assert.match(gradeCss,/\.cards-more-menu\s*\{[^}]*z-index:\s*var\(--z-suspenso,\s*100\)/,'painel do Mais deve ficar acima do conteúdo normal');
 
 assert.match(globalScope,/installBankPickerDismiss\(\)[\s\S]*document\.addEventListener\('pointerdown'/,'filtro global de banca deve fechar ao tocar fora, inclusive com busca focada');
 assert.match(globalScope,/window\.addEventListener\('screen:activated',[^;]*closeAll\(null\)/,'troca de tela deve fechar o seletor global de bancas');
