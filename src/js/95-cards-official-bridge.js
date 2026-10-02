@@ -36,6 +36,7 @@ const CardsOfficialBridge = {
   _reviewSessionId:null,
   _reviewSessionVersion:null,
   _renderEpoch:0,
+  _frameResizeBound:false,
   _orig:{},
 
   api(){
@@ -86,7 +87,7 @@ const CardsOfficialBridge = {
       ids=[...new Set(source.map(c=>this._officialId(c)).filter(Boolean))];
     return {session_id:this._reviewSession(),deck_id:deckId,card_ids:ids,label};
   },
-  async _syncReviewScope(deckId=0){
+  async _syncReviewScope(deckId=0,resetSession=true){
     if(deckId&&!this._scopeCards().some(c=>{
       const deck=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;
       return deck&&Number(deck.ankiId||deck.id)===Number(deckId);
@@ -95,7 +96,7 @@ const CardsOfficialBridge = {
     const review=await this.request('/api/cards-official/reviewer/scope',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
     });
-    this._sessionAnswered=0;this._sessionStartTotal=null;
+    if(resetSession){this._sessionAnswered=0;this._sessionStartTotal=null;}
     this._reviewSessionVersion=review&&review.review_session?review.review_session.version:null;
     this._applyReviewer(review);
     return review;
@@ -489,6 +490,30 @@ const CardsOfficialBridge = {
     };
     for(const style of Array.from(doc.querySelectorAll('style')))style.textContent=await rewriteCss(style.textContent||'');
     for(const el of Array.from(doc.querySelectorAll('[style]')))el.setAttribute('style',await rewriteCss(el.getAttribute('style')||''));
+
+    // O iframe continua isolado (sem allow-same-origin), mas informa sua altura
+    // natural ao pai. Assim o card cresce com o conteúdo e a rolagem pertence à
+    // página, não a uma segunda área de scroll dentro do próprio card.
+    const fit=doc.createElement('script');
+    fit.textContent=`(()=>{const TYPE='study-cards-frame-size';let raf=0,last=0;
+      const request=()=>{if(raf)return;raf=requestAnimationFrame(measure);};
+      const measure=()=>{raf=0;const b=document.body;if(!b)return;
+        let top=Infinity,bottom=-Infinity;
+        const nodes=[b,...b.querySelectorAll('*')];
+        for(const el of nodes){if(!(el instanceof Element))continue;const s=getComputedStyle(el);if(s.position==='fixed'||s.display==='none')continue;
+          const r=el.getBoundingClientRect();if(!(r.width||r.height))continue;top=Math.min(top,r.top);bottom=Math.max(bottom,r.bottom);}
+        if(!Number.isFinite(top)||!Number.isFinite(bottom)){top=0;bottom=b.getBoundingClientRect().height;}
+        const cs=getComputedStyle(b),mt=parseFloat(cs.marginTop)||0,mb=parseFloat(cs.marginBottom)||0;
+        const h=Math.max(72,Math.ceil(bottom-top+mt+mb));
+        if(Math.abs(h-last)>1){last=h;parent.postMessage({type:TYPE,height:h},'*');}
+      };
+      addEventListener('load',request,true);addEventListener('resize',request);
+      if(window.ResizeObserver){const ro=new ResizeObserver(request);ro.observe(document.documentElement);if(document.body)ro.observe(document.body);}
+      if(window.MutationObserver&&document.body)new MutationObserver(request).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
+      if(document.fonts&&document.fonts.ready)document.fonts.ready.then(request).catch(()=>{});
+      request();
+    })();`;
+    doc.body.appendChild(fit);
     return '<!doctype html>'+doc.documentElement.outerHTML;
   },
   _officialTtsVoice(tag){
@@ -1117,8 +1142,25 @@ const CardsOfficialBridge = {
     }
   },
 
+  _bindFrameResize(){
+    if(this._frameResizeBound||typeof window.addEventListener!=='function')return;
+    this._frameResizeBound=true;
+    window.addEventListener('message',event=>{
+      const data=event&&event.data;
+      if(!data||data.type!=='study-cards-frame-size')return;
+      const frame=document.getElementById('cards-official-frame');
+      if(!frame||!frame.contentWindow||event.source!==frame.contentWindow)return;
+      const raw=Number(data.height);if(!Number.isFinite(raw)||raw<=0)return;
+      const height=Math.max(72,Math.min(20000,Math.ceil(raw)+2));
+      if(frame.style&&Math.abs((parseFloat(frame.style.height)||0)-height)>1)frame.style.height=height+'px';
+      if(frame.classList&&frame.classList.add)frame.classList.add('is-sized');
+    });
+  },
   async _frame(html,token){
     const frame=document.getElementById('cards-official-frame');if(!frame)return;
+    this._bindFrameResize();
+    if(frame.style){frame.style.height='160px';frame.style.minHeight='0';}
+    if(frame.classList&&frame.classList.remove)frame.classList.remove('is-sized');
     const epoch=token==null?this._renderEpoch:token,srcdoc=await this.htmlWithMedia(html);
     if(!this._renderStillCurrent(epoch,'revisar',document.getElementById('cards-content')))return;
     const current=document.getElementById('cards-official-frame');if(current)current.srcdoc=srcdoc;
@@ -1246,7 +1288,7 @@ const CardsOfficialBridge = {
       (local.assunto?'<span class="lei-tag ref">'+escapeHtml(local.assunto)+'</span>':'')+
       (local.tipo?'<span class="cards-type-tag">'+escapeHtml(local.tipo)+'</span>':'')+
       '<button type="button" class="cards-fav-star '+(oc.marked?'on':'')+'" id="cards-act-mark" title="Marcar/desmarcar nota">'+(oc.marked?'★':'☆')+'</button></div>'+
-      '<div class="cards-face cards-front anki-study-review-face" id="cards-official-face"><iframe class="anki-study-card-frame" id="cards-official-frame" sandbox="allow-scripts" title="Card Anki"></iframe></div>'+
+      '<div class="cards-face cards-front anki-study-review-face" id="cards-official-face"><iframe class="anki-study-card-frame" id="cards-official-frame" sandbox="allow-scripts" scrolling="no" title="Card Anki"></iframe></div>'+
       typeInput+
       '<div class="cards-review-actions anki-study-review-actions" id="cards-review-actions"><button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta <kbd>Espaço</kbd></button></div>'+
       '<div class="cards-review-nav">'+
@@ -1596,14 +1638,14 @@ const CardsOfficialBridge = {
         }
       }catch(localError){
         try{await this.request('/api/cards-official/history/undo',{method:'POST'});}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate');}
-        try{await this._syncReviewScope(0);}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate-rescope');}
+        try{await this._syncReviewScope(0,false);}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate-rescope');}
         throw localError;
       }
       this._sessionAnswered++;
       if(out.reviewer){
         this._reviewSessionVersion=out.reviewer.review_session?out.reviewer.review_session.version:this._reviewSessionVersion;
         this._applyReviewer(out.reviewer);
-      }else await this._syncReviewScope(0);
+      }else await this._syncReviewScope(0,false);
       this._finishAnswerRequest(attempt);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       CardsScreen.updateFavCount();return true;
@@ -1652,7 +1694,7 @@ const CardsOfficialBridge = {
         body:JSON.stringify({action,card_ids:[Number(this.review.card.id)],value:value==null?null:value})
       });
       await this._syncStates(out.cards||[]);
-      await this._syncReviewScope(0);
+      await this._syncReviewScope(0,false);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       return true;
     }catch(e){showToast('Ação não aplicada: '+(e.message||e));return false;}
@@ -1728,7 +1770,7 @@ const CardsOfficialBridge = {
         txn.redoLabel=String(out.status&&out.status.redo||txn.undoLabel||'');
         this._redo.push(txn);this._sessionAnswered=Math.max(0,this._sessionAnswered-1);
       }
-      await this._syncReviewScope(0);
+      await this._syncReviewScope(0,false);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       showToast(matches?'Revisão desfeita ↶':'Última operação oficial desfeita ↶');return true;
     }catch(e){showToast('Não foi possível desfazer: '+(e.message||e));return false;}
@@ -1749,7 +1791,7 @@ const CardsOfficialBridge = {
         replayTxn.undoLabel=String(out.status&&out.status.undo||txn.undoLabel||'');
         this._undo.push(replayTxn);if(this._undo.length>50)this._undo.shift();this._sessionAnswered++;
       }
-      await this._syncReviewScope(0);
+      await this._syncReviewScope(0,false);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       showToast(matches?'Revisão refeita ↷':'Última operação oficial refeita ↷');return true;
     }catch(e){showToast('Não foi possível refazer: '+(e.message||e));return false;}
