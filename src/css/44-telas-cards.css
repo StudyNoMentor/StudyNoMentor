@@ -25,7 +25,7 @@
    herdada de .ux-secondary-area criava um stacking context e fazia o card de
    revisão cobrir o painel no mobile. */
 #screen-cards #cards-filter-card.ux-secondary-area{opacity:1!important}
-#screen-cards #cards-filter-card:has(.cards-multi-filter.open){position:relative;z-index:230}
+#screen-cards #cards-filter-card.cards-filter-overlay-open{position:relative!important;z-index:1000!important;opacity:1!important}
 
 /* ── Revisor ───────────────────────────────────────────────────────────── */
 #screen-cards .cards-review-wrap{border-radius:18px!important;padding:14px 16px 16px!important}
@@ -213,7 +213,7 @@
 #cards-filter-body .cards-multi-filter-empty{padding:16px 10px;text-align:center;color:var(--text-faint);font-size:12px}
 @media (max-width:720px){
   #cards-filter-body{padding-left:14px!important;padding-right:14px!important}
-  #cards-filter-body .cards-multi-filter-panel{position:fixed;z-index:220;left:14px;right:14px;top:auto;bottom:calc(84px + env(safe-area-inset-bottom));max-height:min(72vh,520px)}
+  #cards-filter-body .cards-multi-filter-panel{position:fixed;z-index:1001;left:14px;right:14px;top:auto;bottom:calc(84px + env(safe-area-inset-bottom));max-height:min(72vh,520px)}
   #cards-filter-body .cards-multi-filter-options{max-height:min(50vh,360px)}
   #cards-filter-body .cards-multi-filter-btn{min-height:44px}
 }
