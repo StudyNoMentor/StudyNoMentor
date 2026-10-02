@@ -38,6 +38,9 @@ const CardsOfficialBridge = {
   _reviewScopeKey:null,
   _reviewPrepareMs:null,
   _reviewPreparePath:null,
+  _reviewPrewarmDone:false,
+  _reviewPrewarmPromise:null,
+  _reviewPrewarmTimer:null,
   _renderEpoch:0,
   _frameResizeBound:false,
   _orig:{},
@@ -73,6 +76,28 @@ const CardsOfficialBridge = {
     this._sessionAnswered=0;this._sessionStartTotal=null;
     this._undo=[];this._redo=[];
     if(reason&&typeof _quiet==='function')_quiet(new Error('Cards official invalidated: '+reason),'cards-official-invalidate');
+  },
+  _scheduleReviewPrewarm(delay=700){
+    if(this._reviewPrewarmDone||this._reviewPrewarmPromise||this.ready||this._bootPromise)return false;
+    if(!this.api().token()||!this._allCards().length)return false;
+    clearTimeout(this._reviewPrewarmTimer);
+    const run=()=>{
+      this._reviewPrewarmTimer=null;
+      if(this._reviewPrewarmDone||this._reviewPrewarmPromise||this.ready||this._bootPromise||!this.api().token()||!this._allCards().length)return;
+      const start=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
+      this._reviewPrewarmPromise=this.request('/api/cards-official/status',{retries:0,timeoutMs:6000})
+        .then(()=>{
+          this._reviewPrewarmDone=true;
+          const end=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
+          this._reviewPrewarmMs=Math.max(0,Math.round(end-start));
+        })
+        .catch(e=>{if(typeof _quiet==='function')_quiet(e,'cards-official-review-prewarm');})
+        .finally(()=>{this._reviewPrewarmPromise=null;});
+    };
+    this._reviewPrewarmTimer=setTimeout(()=>{
+      if(typeof requestIdleCallback==='function')requestIdleCallback(run,{timeout:1800});else run();
+    },Math.max(0,Number(delay)||0));
+    return true;
   },
   _allCards(){
     try{if(window.StudyGlobalScope&&StudyGlobalScope.allBy)return StudyGlobalScope.allBy('cards');}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-all');}
@@ -3766,6 +3791,15 @@ const CardsOfficialBridge = {
     // passam por estes métodos e, portanto, não causam rebuild em loop.
     ['addDeck','doImport','reposicionarNovos','resetCardStats']
       .forEach(n=>this._wrapInvalidator(n));
+
+    window.addEventListener('data:relational-hydrated',()=>{
+      // Pré-aquece transporte/auth/Collection após os cards do perfil entrarem
+      // na memória. Não cria sessão de revisão e não altera scheduling.
+      this._scheduleReviewPrewarm();
+    });
+    // Se a hidratação terminou antes da instalação desta ponte, ainda tentamos
+    // uma vez em idle; os guards acima tornam a operação barata e idempotente.
+    this._scheduleReviewPrewarm(1200);
 
     window.addEventListener('screen:activated',ev=>{
       const screen=ev.detail&&ev.detail.screen;
