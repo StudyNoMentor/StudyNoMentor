@@ -342,21 +342,6 @@
   border-style: solid;
 }
 
-/* ── 7. A PORTA DE AJUSTES DA ROTA MANUAL ───────────────────────────────────
-   Ela vive DENTRO do `<details>` da rota, logo abaixo do cabeçalho: quem não
-   abriu a rota não precisa saber que ela existe, e quem abriu encontra a
-   régua da rota junto com a rota — não misturada com o recorte que os motores
-   também leem, nem com as regras de cada motor (essas ficam em ⚙ Modelos). */
-#plano-lista > .tpm-legacy-exec > .tpm-legacy-cfg {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 12px 14px 4px;
-  padding-bottom: 12px;
-  border-bottom: 1px dashed color-mix(in srgb, var(--border) 85%, transparent);
-}
-
 /* Com motor ativo, a barra do Plano continua na tela — mas o que ela abre
    agora é só o recorte dos dados. O rótulo do botão passa a dizer isso. */
 html.tpm-motors-active #tec-panel-plano .tec-cfg-bar {
