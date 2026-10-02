@@ -1072,7 +1072,7 @@ const CardsScreen = {
     catch(err){showToast('Baralho não criado: '+(err&&err.message?err.message:String(err)));}
   },
 
-  // ---- Estudo Personalizado / Baralhos Filtrados (Anki 26.09.2) ----
+  // ---- Estudo Personalizado / Baralhos Filtrados (Collection oficial) ----
   _normalDeckOptions(selected) {
     const decks = this.collectionDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
       .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }));
@@ -1713,7 +1713,7 @@ CardsScreen.openAlgoConfigFor = async function (deckId) {
     { key: 'leechThreshold', label: '🚫 Erros até marcar como problemático', type: 'number', value: cfg.leechThreshold != null ? cfg.leechThreshold : 8, min: 0, max: 99,
       hint: 'Padrão Anki: 8. Use 0 para desativar.' },
     { key: 'leechAction', label: '🚫 O que fazer com o card problemático', type: 'select', value: cfg.leechAction || 'tag',
-      options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (padrão Anki 26.09.2)' }],
+      options: [{ value: 'suspend', label: 'Suspender (tira da fila)' }, { value: 'tag', label: 'Só marcar (padrão do Anki oficial)' }],
       hint: 'Suspenso some da revisão até você reativar em Meus cards.' },
     { key: 'showTimer', label: '⏱️ Mostrar timer no reviewer', type: 'select', value: cfg.showTimer ? '1' : '0',
       options: [{ value:'0', label:'Não' }, { value:'1', label:'Sim' }],
