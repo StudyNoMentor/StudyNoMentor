@@ -275,8 +275,6 @@ for(const path of [
   '/api/cards-official/reviewer/answer',
   '/api/cards-official/reviewer/type-answer/{card_id}',
   '/api/cards-official/card/{card_id}/state',
-  '/api/cards-official/undo',
-  '/api/cards-official/redo',
   '/api/cards-official/cards/action',
   '/api/cards-official/notes',
   '/api/cards-official/note/{note_id}',
