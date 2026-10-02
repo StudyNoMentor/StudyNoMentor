@@ -10,10 +10,12 @@ assert.equal(existsSync(join(ROOT,'src/js/44-anki-runtime.js')),false,'renderer 
 const source=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
 assert.match(source,/sandbox="allow-scripts"/,'template deve permanecer em origem isolada');
 assert.doesNotMatch(source,/sandbox="[^"]*allow-same-origin/);
-const frame={srcdoc:''},input={value:'Pariz',style:{}},face={classList:{remove(){},add(){}}};
+const frame={srcdoc:''},input={value:'Pariz',style:{}},face={classList:{remove(){},add(){}}},
+  content={},screen={classList:{contains:n=>n==='active'}};
 const context={window:{},document:{getElementById(id){
-  return {'cards-official-frame':frame,'cards-official-type-answer':input,'cards-official-face':face}[id]||null;
-}},CardsScreen:{_flipped:false},console,queueMicrotask(){}};
+  return {'cards-official-frame':frame,'cards-official-type-answer':input,'cards-official-face':face,
+    'cards-content':content,'screen-cards':screen}[id]||null;
+}},CardsScreen:{_flipped:false,tab:'revisar'},console,queueMicrotask(){}};
 runInNewContext(source,context);
 const bridge=context.window.CardsOfficialBridge;
 const officialHtml='<style>.card{color:red}</style><details open><summary>Dica</summary>Resposta</details><script>window.fromTemplate=true</script>';
@@ -25,6 +27,15 @@ assert.equal(frame.srcdoc,'<!doctype html>'+officialHtml,'iframe deve consumir o
 bridge.htmlWithMedia=async()=>{throw new Error('media indisponível');};
 await assert.rejects(()=>bridge._frame(officialHtml),/media indisponível/);
 assert.equal(frame.srcdoc,'<!doctype html>'+officialHtml,'falha não substitui o card por rendering local');
+
+let releaseLate;
+bridge.htmlWithMedia=()=>new Promise(resolve=>{releaseLate=()=>resolve('<!doctype html>late');});
+const late=bridge._frame('late');
+context.CardsScreen.tab='meus';
+releaseLate();
+await late;
+assert.notEqual(frame.srcdoc,'<!doctype html>late','render assíncrono antigo não pode substituir outra aba');
+context.CardsScreen.tab='revisar';
 
 bridge.htmlWithMedia=async html=>html;
 bridge.review={card:{id:123,answer:'resposta antes da comparação',type_answer:{enabled:true},answer_av_tags:[{kind:'sound',filename:'oficial.mp3'}]}};
