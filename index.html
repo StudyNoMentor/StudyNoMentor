@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vca83c63075">
+<meta name="diario-versao" content="va1e67be198">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -6658,10 +6658,10 @@ window.__relationalBoot = true;
 
   <!-- ============ TELA: CARDS DE REVISÃO ============ -->
   <div class="foco-bar" id="foco-bar">
-    <span class="foco-info" id="foco-info">Modo foco</span>
+    <span class="foco-info" id="foco-info" role="status" aria-live="polite" aria-atomic="true">Modo foco</span>
     <span class="foco-acoes">
       <button type="button" class="btn-secondary" id="foco-undo" title="Desfazer a última avaliação (Ctrl+Z)" aria-label="Desfazer a última avaliação (Ctrl+Z)">↶</button>
-      <button type="button" class="btn-secondary" id="foco-sair" title="Sair do modo foco (Esc)">✕ Sair</button>
+      <button type="button" class="btn-secondary" id="foco-sair" title="Sair do modo foco (Esc)" aria-label="Sair do modo foco">✕ Sair</button>
     </span>
   </div>
   <section role="region" tabindex="-1" class="screen" id="screen-cards">
@@ -16523,6 +16523,87 @@ body.anki-foco .anki-study-card-frame{min-height:46vh}
 #screen-cards .cards-review-scope-switch{display:flex;gap:8px;margin-bottom:14px}
 #screen-cards .cards-review-scope-switch button{flex:1;min-width:0;font-size:12px;padding:8px}
 #screen-cards .cards-review-scope-switch button.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
+
+
+/* ── Modo foco dos Cards: conteúdo primeiro, sem scroll interno ───────────
+   O foco não repete os controles de escopo: eles continuam disponíveis na
+   tela normal e a sessão mantém exatamente a seleção já feita. */
+#screen-cards .anki-study-review-face{
+  min-height:0!important;
+  overflow:hidden!important
+}
+#screen-cards #cards-official-frame{
+  display:block!important;
+  width:100%!important;
+  max-width:100%!important;
+  min-height:0!important;
+  height:160px;
+  overflow:hidden!important;
+  border:0!important;
+  transition:height .12s ease
+}
+#screen-cards #cards-official-frame.is-sized{transition:height .08s ease}
+
+body.cards-foco #foco-bar{
+  position:sticky!important;
+  top:0!important;
+  left:auto!important;
+  right:auto!important;
+  width:100%;
+  box-sizing:border-box;
+  z-index:70;
+  min-height:52px;
+  padding:max(8px,env(safe-area-inset-top)) 14px 8px!important;
+  flex-wrap:nowrap;
+  background:color-mix(in srgb,var(--surface) 96%,transparent)!important;
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px)
+}
+body.cards-foco #foco-bar .foco-info{
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  line-height:1.3
+}
+body.cards-foco #foco-bar .foco-acoes{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:6px
+}
+body.cards-foco #foco-undo{
+  width:40px;
+  min-width:40px;
+  padding:6px!important
+}
+body.cards-foco #foco-sair{white-space:nowrap}
+body.cards-foco #cards-content{
+  max-width:780px!important;
+  padding:12px 18px 30px!important
+}
+body.cards-foco #cards-content>.cards-review-scope{display:none!important}
+body.cards-foco #screen-cards .cards-review-progress{display:none!important}
+body.cards-foco #screen-cards .cards-review-wrap{margin-top:0!important}
+body.cards-foco #screen-cards .cards-review-meta{margin-top:0!important}
+
+@media(max-width:560px){
+  body.cards-foco #foco-bar{
+    min-height:48px;
+    gap:8px!important;
+    padding:max(7px,env(safe-area-inset-top)) 9px 7px!important
+  }
+  body.cards-foco #foco-bar .foco-info{font-size:12px!important}
+  body.cards-foco #foco-bar .foco-acoes{gap:4px}
+  body.cards-foco #foco-bar button{min-height:36px!important}
+  body.cards-foco #foco-sair{padding:6px 9px!important}
+  body.cards-foco #cards-content{padding:8px 8px 22px!important}
+  body.cards-foco #screen-cards .cards-review-wrap{
+    padding:10px!important;
+    border-radius:14px!important
+  }
+}
 
 </style>
 
@@ -31756,34 +31837,79 @@ const CardsScreen = {
   _ordenarComoAnki(){},
   _skipNotDue(){},
   entrarFoco() {
+    // Entrar/sair do foco não deve reconstruir a sessão oficial: reconstruir a
+    // tela aqui zerava o contador da sessão e refazia a fila sem necessidade.
+    const box = document.getElementById('cards-content');
+    const precisaRender = this.tab !== 'revisar' || !box || !box.children.length;
     this.tab = 'revisar';
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
     // Modos foco são mutuamente exclusivos. Uma classe antiga do Anki Oficial
     // ou da Lei Seca não pode deixar duas barras sobrepostas capturando o toque.
     document.body.classList.remove('anki-foco', 'leis-foco');
     document.body.classList.add('cards-foco');
-    this.renderContent();
+    if (precisaRender) this.renderContent();
     this.atualizarFoco();
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     showToast('Modo foco · Espaço vira · 1-4 avaliam · Esc sai');
   },
   sairFoco() {
+    if (!this.emFoco()) return;
+    // A própria classe controla o layout. Não renderizar preserva exatamente o
+    // card, o lado exibido, o cronômetro e o progresso da sessão atual.
     document.body.classList.remove('cards-foco');
-    this.renderContent();
   },
   emFoco() { return document.body.classList.contains('cards-foco'); },
   atualizarFoco() {
     if (!this.emFoco()) return;
     const el = document.getElementById('foco-info');
     if (!el) return;
-    const total = (this._reviewQueue || []).length;
-    const c = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
-    const onde = c ? (c.materia || ((window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null) || DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
-    el.textContent = total
-      ? `${Math.min(this._reviewIdx + 1, total)} de ${total}${onde ? ' · ' + onde : ''}`
-      : 'Nada para revisar agora';
+
+    const bridge = window.CardsOfficialBridge;
+    let total = 0, atual = 0, respondidos = 0, restantes = 0, card = null, escopo = '';
+
+    if (bridge && bridge.review) {
+      const counts = bridge.counts || {};
+      restantes = Number(counts.new || 0) + Number(counts.learning || 0) + Number(counts.review || 0);
+      respondidos = Math.max(0, Number(bridge._sessionAnswered) || 0);
+      total = Math.max(
+        respondidos + restantes,
+        Number(bridge._sessionStartTotal) || 0
+      );
+      atual = restantes > 0 ? Math.min(total || 1, respondidos + 1) : total;
+      if (bridge.review.card && typeof bridge._localForOfficialId === 'function') {
+        card = bridge._localForOfficialId(bridge.review.card.id);
+      }
+      escopo = String((bridge.review.review_scope || {}).label || '');
+    } else {
+      total = (this._reviewQueue || []).length;
+      atual = total ? Math.min(this._reviewIdx + 1, total) : 0;
+      card = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
+      restantes = total;
+    }
+
+    let onde = '';
+    if (card) {
+      try { onde = String(this.materiaLabel(card) || '').replace(/^📁\s*/, ''); }
+      catch (_) { onde = String(card.materia || ''); }
+    }
+
+    if (!total) el.textContent = 'Nada para revisar agora';
+    else if (!restantes && respondidos) el.textContent = `${respondidos} de ${total} · Sessão concluída`;
+    else el.textContent = `${atual} de ${total}${onde ? ' · ' + onde : ''}`;
+
+    el.title = [
+      respondidos ? `${respondidos} respondido${respondidos === 1 ? '' : 's'}` : '',
+      restantes ? `${restantes} restante${restantes === 1 ? '' : 's'}` : '',
+      escopo
+    ].filter(Boolean).join(' · ');
+
     const u = document.getElementById('foco-undo');
-    if (u) u.disabled = !(this._undoStack || []).length;
+    if (u) {
+      const podeDesfazer = bridge && Array.isArray(bridge._undo)
+        ? bridge._undo.length > 0
+        : (this._undoStack || []).length > 0;
+      u.disabled = !podeDesfazer;
+    }
   },
   // navega entre os cards da fila sem avaliar (pular)
   undoAnswer() {
@@ -55813,6 +55939,7 @@ const CardsOfficialBridge = {
   _reviewSessionId:null,
   _reviewSessionVersion:null,
   _renderEpoch:0,
+  _frameResizeBound:false,
   _orig:{},
 
   api(){
@@ -55863,7 +55990,7 @@ const CardsOfficialBridge = {
       ids=[...new Set(source.map(c=>this._officialId(c)).filter(Boolean))];
     return {session_id:this._reviewSession(),deck_id:deckId,card_ids:ids,label};
   },
-  async _syncReviewScope(deckId=0){
+  async _syncReviewScope(deckId=0,resetSession=true){
     if(deckId&&!this._scopeCards().some(c=>{
       const deck=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;
       return deck&&Number(deck.ankiId||deck.id)===Number(deckId);
@@ -55872,7 +55999,7 @@ const CardsOfficialBridge = {
     const review=await this.request('/api/cards-official/reviewer/scope',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
     });
-    this._sessionAnswered=0;this._sessionStartTotal=null;
+    if(resetSession){this._sessionAnswered=0;this._sessionStartTotal=null;}
     this._reviewSessionVersion=review&&review.review_session?review.review_session.version:null;
     this._applyReviewer(review);
     return review;
@@ -56266,6 +56393,30 @@ const CardsOfficialBridge = {
     };
     for(const style of Array.from(doc.querySelectorAll('style')))style.textContent=await rewriteCss(style.textContent||'');
     for(const el of Array.from(doc.querySelectorAll('[style]')))el.setAttribute('style',await rewriteCss(el.getAttribute('style')||''));
+
+    // O iframe continua isolado (sem allow-same-origin), mas informa sua altura
+    // natural ao pai. Assim o card cresce com o conteúdo e a rolagem pertence à
+    // página, não a uma segunda área de scroll dentro do próprio card.
+    const fit=doc.createElement('script');
+    fit.textContent=`(()=>{const TYPE='study-cards-frame-size';let raf=0,last=0;
+      const request=()=>{if(raf)return;raf=requestAnimationFrame(measure);};
+      const measure=()=>{raf=0;const b=document.body;if(!b)return;
+        let top=Infinity,bottom=-Infinity;
+        const nodes=[b,...b.querySelectorAll('*')];
+        for(const el of nodes){if(!(el instanceof Element))continue;const s=getComputedStyle(el);if(s.position==='fixed'||s.display==='none')continue;
+          const r=el.getBoundingClientRect();if(!(r.width||r.height))continue;top=Math.min(top,r.top);bottom=Math.max(bottom,r.bottom);}
+        if(!Number.isFinite(top)||!Number.isFinite(bottom)){top=0;bottom=b.getBoundingClientRect().height;}
+        const cs=getComputedStyle(b),mt=parseFloat(cs.marginTop)||0,mb=parseFloat(cs.marginBottom)||0;
+        const h=Math.max(72,Math.ceil(bottom-top+mt+mb));
+        if(Math.abs(h-last)>1){last=h;parent.postMessage({type:TYPE,height:h},'*');}
+      };
+      addEventListener('load',request,true);addEventListener('resize',request);
+      if(window.ResizeObserver){const ro=new ResizeObserver(request);ro.observe(document.documentElement);if(document.body)ro.observe(document.body);}
+      if(window.MutationObserver&&document.body)new MutationObserver(request).observe(document.body,{subtree:true,childList:true,attributes:true,characterData:true});
+      if(document.fonts&&document.fonts.ready)document.fonts.ready.then(request).catch(()=>{});
+      request();
+    })();`;
+    doc.body.appendChild(fit);
     return '<!doctype html>'+doc.documentElement.outerHTML;
   },
   _officialTtsVoice(tag){
@@ -56894,8 +57045,25 @@ const CardsOfficialBridge = {
     }
   },
 
+  _bindFrameResize(){
+    if(this._frameResizeBound||typeof window.addEventListener!=='function')return;
+    this._frameResizeBound=true;
+    window.addEventListener('message',event=>{
+      const data=event&&event.data;
+      if(!data||data.type!=='study-cards-frame-size')return;
+      const frame=document.getElementById('cards-official-frame');
+      if(!frame||!frame.contentWindow||event.source!==frame.contentWindow)return;
+      const raw=Number(data.height);if(!Number.isFinite(raw)||raw<=0)return;
+      const height=Math.max(72,Math.min(20000,Math.ceil(raw)+2));
+      if(frame.style&&Math.abs((parseFloat(frame.style.height)||0)-height)>1)frame.style.height=height+'px';
+      if(frame.classList&&frame.classList.add)frame.classList.add('is-sized');
+    });
+  },
   async _frame(html,token){
     const frame=document.getElementById('cards-official-frame');if(!frame)return;
+    this._bindFrameResize();
+    if(frame.style){frame.style.height='160px';frame.style.minHeight='0';}
+    if(frame.classList&&frame.classList.remove)frame.classList.remove('is-sized');
     const epoch=token==null?this._renderEpoch:token,srcdoc=await this.htmlWithMedia(html);
     if(!this._renderStillCurrent(epoch,'revisar',document.getElementById('cards-content')))return;
     const current=document.getElementById('cards-official-frame');if(current)current.srcdoc=srcdoc;
@@ -57023,7 +57191,7 @@ const CardsOfficialBridge = {
       (local.assunto?'<span class="lei-tag ref">'+escapeHtml(local.assunto)+'</span>':'')+
       (local.tipo?'<span class="cards-type-tag">'+escapeHtml(local.tipo)+'</span>':'')+
       '<button type="button" class="cards-fav-star '+(oc.marked?'on':'')+'" id="cards-act-mark" title="Marcar/desmarcar nota">'+(oc.marked?'★':'☆')+'</button></div>'+
-      '<div class="cards-face cards-front anki-study-review-face" id="cards-official-face"><iframe class="anki-study-card-frame" id="cards-official-frame" sandbox="allow-scripts" title="Card Anki"></iframe></div>'+
+      '<div class="cards-face cards-front anki-study-review-face" id="cards-official-face"><iframe class="anki-study-card-frame" id="cards-official-frame" sandbox="allow-scripts" scrolling="no" title="Card Anki"></iframe></div>'+
       typeInput+
       '<div class="cards-review-actions anki-study-review-actions" id="cards-review-actions"><button type="button" class="btn-primary cards-flip" id="cards-flip">Mostrar resposta <kbd>Espaço</kbd></button></div>'+
       '<div class="cards-review-nav">'+
@@ -57373,14 +57541,14 @@ const CardsOfficialBridge = {
         }
       }catch(localError){
         try{await this.request('/api/cards-official/history/undo',{method:'POST'});}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate');}
-        try{await this._syncReviewScope(0);}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate-rescope');}
+        try{await this._syncReviewScope(0,false);}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate-rescope');}
         throw localError;
       }
       this._sessionAnswered++;
       if(out.reviewer){
         this._reviewSessionVersion=out.reviewer.review_session?out.reviewer.review_session.version:this._reviewSessionVersion;
         this._applyReviewer(out.reviewer);
-      }else await this._syncReviewScope(0);
+      }else await this._syncReviewScope(0,false);
       this._finishAnswerRequest(attempt);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       CardsScreen.updateFavCount();return true;
@@ -57429,7 +57597,7 @@ const CardsOfficialBridge = {
         body:JSON.stringify({action,card_ids:[Number(this.review.card.id)],value:value==null?null:value})
       });
       await this._syncStates(out.cards||[]);
-      await this._syncReviewScope(0);
+      await this._syncReviewScope(0,false);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       return true;
     }catch(e){showToast('Ação não aplicada: '+(e.message||e));return false;}
@@ -57505,7 +57673,7 @@ const CardsOfficialBridge = {
         txn.redoLabel=String(out.status&&out.status.redo||txn.undoLabel||'');
         this._redo.push(txn);this._sessionAnswered=Math.max(0,this._sessionAnswered-1);
       }
-      await this._syncReviewScope(0);
+      await this._syncReviewScope(0,false);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       showToast(matches?'Revisão desfeita ↶':'Última operação oficial desfeita ↶');return true;
     }catch(e){showToast('Não foi possível desfazer: '+(e.message||e));return false;}
@@ -57526,7 +57694,7 @@ const CardsOfficialBridge = {
         replayTxn.undoLabel=String(out.status&&out.status.undo||txn.undoLabel||'');
         this._undo.push(replayTxn);if(this._undo.length>50)this._undo.shift();this._sessionAnswered++;
       }
-      await this._syncReviewScope(0);
+      await this._syncReviewScope(0,false);
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       showToast(matches?'Revisão refeita ↷':'Última operação oficial refeita ↷');return true;
     }catch(e){showToast('Não foi possível refazer: '+(e.message||e));return false;}
