@@ -1718,12 +1718,35 @@ def cards_official_reviewer_answer(
 
             live = item.col.get_card(int(q.card.id))
             snap = session.col.get_card(int(q.card.id))
-            signature = lambda c: (
-                int(c.type), int(c.queue), int(c.due), int(c.ivl), int(c.reps),
-                int(c.lapses), int(c.did), int(c.odid), int(c.left), int(c.mod),
-            )
-            if signature(live) != signature(snap):
-                raise HTTPException(409, "O card mudou em outro aparelho; reconstrua a sessão antes de responder.")
+            def scheduling_signature(card: Any) -> tuple[Any, ...]:
+                """Compare apenas estado que altera a próxima resposta do scheduler.
+
+                `card.mod` é um timestamp geral: edição de metadados, reconciliação
+                do espelho Study ou outras escritas não acadêmicas podem avançá-lo
+                sem mudar o agendamento. Usá-lo como trava de concorrência produz
+                falso "mudou em outro aparelho" no próprio dispositivo.
+                """
+                memory = card.memory_state
+                return (
+                    int(card.type),
+                    int(card.queue),
+                    int(card.due),
+                    int(card.odue),
+                    int(card.ivl),
+                    int(card.factor),
+                    int(card.reps),
+                    int(card.lapses),
+                    int(card.did),
+                    int(card.odid),
+                    int(card.left),
+                    None if memory is None else float(memory.stability),
+                    None if memory is None else float(memory.difficulty),
+                    None if card.desired_retention is None else float(card.desired_retention),
+                    None if card.decay is None else float(card.decay),
+                )
+
+            if scheduling_signature(live) != scheduling_signature(snap):
+                raise HTTPException(409, "O agendamento deste card mudou em outra sessão; a fila será atualizada antes da próxima resposta.")
 
             live.start_timer()
             rating = {
