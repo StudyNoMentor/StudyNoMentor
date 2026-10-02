@@ -145,7 +145,7 @@ try{
       filterCard=document.getElementById('cards-filter-card');
     return {
       position:cs.position,left:cs.left,right:cs.right,bottom:cs.bottom,
-      overflow:getComputedStyle(host.querySelector('.cards-multi-filter-options')).overflowY,
+      overflow:getComputedStyle(panel.querySelector('.cards-multi-filter-options')).overflowY,
       filterOpacity:getComputedStyle(filterCard).opacity,
       panelOnTop:!!(probe&&panel.contains(probe)),
       hit:probe?{tag:probe.tagName,id:probe.id||'',cls:String(probe.className||'').slice(0,160)}:null,
