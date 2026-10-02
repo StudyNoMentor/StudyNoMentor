@@ -334,6 +334,61 @@ with tempfile.TemporaryDirectory() as tmp:
         assert legacy_item.col.card_count() == 1
         assert legacy_item.col.note_count() == 1
 
+    # Evidências conflitantes de stock não podem escolher um schema por
+    # conveniência: isso mudaria campos/templates do registro histórico.
+    try:
+        app._legacy_stock_kind({
+            "stock_kind": "cloze",
+            "name": "Basic (and reversed card)",
+        })
+        raise AssertionError("stock_kind contraditório foi aceito")
+    except app.HTTPException as exc:
+        assert exc.status_code == 422
+        assert "ambíguo" in str(exc.detail)
+
+    # Campo histórico sem equivalente no NoteType oficial jamais pode sumir.
+    # A migração inteira deve falhar e o snapshot restaurar a Collection vazia.
+    lossless_ctx = {"id": "legacy-lossless-field-user"}
+    try:
+        app.cards_official_migrate_legacy(
+            {
+                "decks": [{"id": "deck:lossless", "name": "Lossless"}],
+                "notetypes": [{
+                    "id": "nt:lossless",
+                    "name": "Study Lossless Basic",
+                    "stock_kind": "basic",
+                }],
+                "notes": [{
+                    "id": "note:lossless",
+                    "notetype_id": "nt:lossless",
+                    "guid": "lossless-guid",
+                    "fields": {
+                        "Front": "Pergunta",
+                        "Back": "Resposta",
+                        "Campo Histórico": "NÃO PODE SUMIR",
+                    },
+                    "tags": [],
+                }],
+                "cards": [{
+                    "id": "card:lossless",
+                    "note_id": "note:lossless",
+                    "deck_id": "deck:lossless",
+                    "template_idx": 0,
+                }],
+                "revlog": [],
+            },
+            lossless_ctx,
+        )
+        raise AssertionError("campo legado sem destino oficial foi descartado silenciosamente")
+    except app.HTTPException as exc:
+        assert exc.status_code == 422
+        assert "Campo Histórico" in str(exc.detail)
+        assert "sem descartar conteúdo" in str(exc.detail)
+    lossless_item = app.cards_uc_for(lossless_ctx)
+    with lossless_item.lock:
+        assert lossless_item.col.card_count() == 0
+        assert lossless_item.col.note_count() == 0
+
     repaired = app.cards_official_reconcile_legacy_revlog(
         {
             "signature": "smoke-legacy-v1",

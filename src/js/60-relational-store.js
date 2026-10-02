@@ -66,7 +66,7 @@ const RelationalStore = {
     if (raw == null) return fallback;
     try { return JSON.parse(raw); } catch (_) { return fallback; }
   },
-  _legacyId(v) {
+  _entityId(v) {
     const s = String(v == null ? '' : v);
     return /^\d{1,15}$/.test(s) && Number.isSafeInteger(Number(s)) ? Number(s) : s;
   },
@@ -200,14 +200,14 @@ const RelationalStore = {
       statuses:{suffix:'statuses',map:r=>({id:r.status_id,nome:r.name,color:r.color,bg:r.background,done:r.done,ativo:r.active})},
       modes:{suffix:'modes',map:r=>({id:r.mode_id,nome:r.name,ativo:r.active})},
       entries:{suffix:'entries',map:r=>({
-        id:self._legacyId(r.entry_id),date:self._date(r.study_date),subject:r.subject,lesson:r.lesson||'',method:r.method||'',
+        id:self._entityId(r.entry_id),date:self._date(r.study_date),subject:r.subject,lesson:r.lesson||'',method:r.method||'',
         durationMin:r.duration_min||0,correct:r.correct||0,total:r.total||0,pageStart:r.page_start==null?null:Number(r.page_start),
         pageEnd:r.page_end==null?null:Number(r.page_end),videoStart:r.video_start==null?null:Number(r.video_start),
         videoEnd:r.video_end==null?null:Number(r.video_end),comment:r.comment||'',createdAt:r.created_at
       })},
-      decks:{suffix:'decks',map:r=>({id:self._legacyId(r.deck_id),nome:r.name,createdAt:r.created_at})},
+      decks:{suffix:'decks',map:r=>({id:self._entityId(r.deck_id),nome:r.name,createdAt:r.created_at})},
       cards:{suffix:'cards',map:r=>Object.assign({},r.extra||{},{
-        id:self._legacyId(r.card_id),deckId:r.deck_id||null,materia:r.subject||null,assunto:r.topic||null,tipo:r.card_type||null,
+        id:self._entityId(r.card_id),deckId:r.deck_id||null,materia:r.subject||null,assunto:r.topic||null,tipo:r.card_type||null,
         frente:r.front||'',verso:r.back||'',favorito:!!r.favorite,status:r.status||null,banca:r.banca||null,kind:r.kind||null,
         due:r.due||null,dueTs:r.due_ts==null?null:Number(r.due_ts),ease:r.ease==null?null:Number(r.ease),
         intervalo:r.interval_value==null?null:Number(r.interval_value),lapses:r.lapses,learnStep:r.learn_step,reps:r.reps,
@@ -216,31 +216,31 @@ const RelationalStore = {
       })},
       revlog:{suffix:'revlog',map:r=>Object.assign({},r.extra||{},{
         reviewId:r.review_id||null,
-        cardId:r.card_id==null?null:self._legacyId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
+        cardId:r.card_id==null?null:self._entityId(r.card_id),ts:r.ts==null?null:Number(r.ts),date:r.review_date,
         acerto:r.correct,grade:r.grade==null?null:Number(r.grade),elapsed:r.elapsed==null?null:Number(r.elapsed),
         phase:r.phase,intervalo:r.interval_value==null?null:Number(r.interval_value),d:r.d==null?null:Number(r.d),s:r.s==null?null:Number(r.s),
         _position:r.position==null?null:Number(r.position)
       })},
       laws:{suffix:'leis',map:r=>Object.assign({},r.extra||{},{
-        id:self._legacyId(r.law_id),titulo:r.title,referencia:r.reference,materia:r.subject,texto:r.body||'',
+        id:self._entityId(r.law_id),titulo:r.title,referencia:r.reference,materia:r.subject,texto:r.body||'',
         bookmark:r.bookmarked,bookmarkTxt:r.bookmark_text,createdAt:r.created_at,updatedAt:r.updated_at,
         opts:r.options||{},marcacoes:r.markings||[],suppressed:r.suppressed,rodizio:r.rotation
       })},
       lawKeywords:{suffix:'lei-keywords',map:r=>({t:r.term,cat:r.category,def:r.is_default})},
-      links:{suffix:'links',map:r=>({id:self._legacyId(r.link_id),nome:r.name,categoria:r.category,url:r.url,cor:r.color,logo:r.logo,createdAt:r.created_at})},
+      links:{suffix:'links',map:r=>({id:self._entityId(r.link_id),nome:r.name,categoria:r.category,url:r.url,cor:r.color,logo:r.logo,createdAt:r.created_at})},
       extras:{suffix:'extras',map:r=>{
         const p=r.provenance||{};
         return Object.assign({},r.extra||{},{
-          id:self._legacyId(r.extra_id),titulo:r.title,tipo:r.type,unidade:r.unit,marcador:r.marker,disciplina:r.discipline,
+          id:self._entityId(r.extra_id),titulo:r.title,tipo:r.type,unidade:r.unit,marcador:r.marker,disciplina:r.discipline,
           alvo:r.target==null?null:Number(r.target),progresso:r.progress==null?null:Number(r.progress),status:r.status,periodo:r.period,
           dataInicio:self._date(r.start_date),dataFim:self._date(r.end_date),contaMetricas:r.counts_metrics,createdAt:r.created_at,
           updatedAt:r.updated_at,concluidasEm:r.completed_dates||[],datas:r.dates||[],historico:r.history||[],
           origemPlano:p.origemPlano,reforcoFila:p.reforcoFila,origemLacunaGlobal:p.origemLacunaGlobal,origemLei:p.origemLei
         });
       }},
-      siglas:{suffix:'custom-siglas',map:r=>({id:self._legacyId(r.sigla_id),nome:r.name,sigla:r.sigla,color:r.color})},
+      siglas:{suffix:'custom-siglas',map:r=>({id:self._entityId(r.sigla_id),nome:r.name,sigla:r.sigla,color:r.color})},
       cycles:{suffix:'cycle-history',map:r=>Object.assign({},r.extra||{},{
-        id:self._legacyId(r.cycle_id),startDate:self._date(r.start_date),endDate:self._date(r.end_date),closedAt:r.closed_at,
+        id:self._entityId(r.cycle_id),startDate:self._date(r.start_date),endDate:self._date(r.end_date),closedAt:r.closed_at,
         sessions:r.sessions,weeklyHours:r.weekly_hours==null?null:Number(r.weekly_hours),finalizadas:r.completed_subjects,
         pctCumprido:r.completion_pct==null?null:Number(r.completion_pct),totalSubjects:r.total_subjects,
         totalTargetMin:r.total_target_min,totalStudiedMin:r.total_studied_min,
@@ -248,7 +248,7 @@ const RelationalStore = {
         avgPerformancePctLegado:r.avg_performance_legacy==null?undefined:Number(r.avg_performance_legacy),
         grade:r.grade,subjects:r.subjects
       })},
-      savedGrades:{suffix:'saved-grades',map:r=>({id:self._legacyId(r.grade_id),nome:r.name,sessions:r.sessions,grade:r.grade,createdAt:r.created_at})}
+      savedGrades:{suffix:'saved-grades',map:r=>({id:self._entityId(r.grade_id),nome:r.name,sessions:r.sessions,grade:r.grade,createdAt:r.created_at})}
     };
     return this.__coreGroupAppliers;
   },
@@ -448,7 +448,7 @@ const RelationalStore = {
       if(!trackGroups.has(r.plan_id))trackGroups.set(r.plan_id,{});
       const obj=trackGroups.get(r.plan_id); if(!obj[r.subject_name])obj[r.subject_name]=[];
       obj[r.subject_name].push(Object.assign({},r.extra||{},{
-        id:this._legacyId(r.item_id),type:r.item_type,label:r.label,text:r.item_text,status:r.status_id,resumo:r.summary,
+        id:this._entityId(r.item_id),type:r.item_type,label:r.label,text:r.item_text,status:r.status_id,resumo:r.summary,
         r1:{total:r.r1_total,acertos:r.r1_correct},rCheck:{total:r.rcheck_total,acertos:r.rcheck_correct},rRev:{total:r.rrev_total,acertos:r.rrev_correct}
       }));
     });
@@ -470,7 +470,7 @@ const RelationalStore = {
       }));
     });
     putGroups(d.tecSnapshots,'tec',r=>Object.assign({},r.extra||{},{
-      id:this._legacyId(r.snapshot_id),date:this._date(r.snapshot_date),startDate:this._date(r.start_date),endDate:this._date(r.end_date),
+      id:this._entityId(r.snapshot_id),date:this._date(r.snapshot_date),startDate:this._date(r.start_date),endDate:this._date(r.end_date),
       importedAt:r.imported_at,label:r.label,bancas:r.bancas,rows:tecRowsBy.get(r.plan_id+'\u0000'+r.snapshot_id)||[]
     }));
     putGroups(d.incidence,'incidencia',r=>Object.assign({},r.extra||{},{

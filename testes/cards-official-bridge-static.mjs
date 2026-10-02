@@ -37,6 +37,7 @@ assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar n
 for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
 assert.ok(!bridge.includes('AnkiExport.'),'bridge oficial não pode depender de exportador local');
+assert.doesNotMatch(cards,/cardTypeKey\(card\)[\s\S]{0,220}?card\.tipo/,'tipo canônico do Card deve vir de kind; fallback legado já migrado não pode voltar');
 
 // MENU MAIS — inventário e destino. O menu único da tela Cards/Anki deve manter
 // somente superfícies válidas: ações acadêmicas delegam ao backend oficial;
@@ -98,6 +99,9 @@ assert.match(backend,/def cards_official_migrate_legacy[\s\S]*?item\.col\.add_no
 assert.match(bridge,/async _migrateLegacyCollection\(\)[\s\S]*?\/api\/cards-official\/migrate\/legacy/,'bootstrap dos Cards deve acionar a migração oficial quando a Collection estiver vazia');
 assert.match(bridge,/stock_kind:String\(nt\.stockKind\|\|fallbackKind\|\|/,'migração deve conservar o stock kind inferido pelos cards quando o espelho antigo não o armazenou');
 assert.match(backend,/except CardTypeError as exc:[\s\S]*?HTTPException\([\s\S]*?422/,'erro de template validado pelo Anki deve voltar como resposta estruturada, não 500 opaco');
+assert.match(backend,/unknown_fields = sorted[\s\S]*?campos ausentes do NoteType oficial[\s\S]*?Migração interrompida sem descartar conteúdo/,'campo legado sem destino oficial deve abortar a migração, nunca sumir');
+assert.match(bridge,/comparable=x=>JSON\.stringify[\s\S]*?Conflito de NoteType durante migração oficial/,'mesma identidade de NoteType com schemas divergentes deve falhar fechado');
+assert.match(backend,/NoteType legado ambíguo:[\s\S]*?stock_kind=[\s\S]*?conflita com o nome stock/,'evidências contraditórias de stock devem abortar em vez de escolher um schema');
 assert.match(bridge,/if\(!officialCount&&localCount\)[\s\S]*?this\._migrateLegacyCollection\(\)/,'Cards legados devem migrar automaticamente em vez de bloquear o reviewer');
 assert.ok(!bridge.includes('A Collection oficial dos Cards está vazia, mas existem Cards legados no Study'),'erro antigo de migração manual não pode continuar no runtime');
 const legacyMigrationBackend=backend.slice(backend.indexOf('def cards_official_migrate_legacy'),backend.indexOf('@app.post("/api/cards-official/bootstrap")'));
