@@ -37,6 +37,7 @@ assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar n
 for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
 assert.ok(!bridge.includes('AnkiExport.'),'bridge oficial não pode depender de exportador local');
+assert.doesNotMatch(cards,/cardTypeKey\(card\)[\s\S]{0,220}?card\.tipo/,'tipo canônico do Card deve vir de kind; fallback legado já migrado não pode voltar');
 
 // MENU MAIS — inventário e destino. O menu único da tela Cards/Anki deve manter
 // somente superfícies válidas: ações acadêmicas delegam ao backend oficial;
