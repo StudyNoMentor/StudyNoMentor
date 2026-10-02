@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    ANKI OFICIAL — usa a linguagem visual da tela Cards do Study.
-   Scheduler, coleção e operações continuam no backend oficial Anki 26.09.2.
+   Scheduler, coleção e operações continuam no backend oficial validado em runtime.
    ═══════════════════════════════════════════════════════════════════════════ */
 .anki-official-tab-icon{display:inline-flex;align-items:center;justify-content:center}
 .anki-official-tab-icon img{width:20px;height:20px;display:block;object-fit:contain}
