@@ -24,13 +24,38 @@ try{
     StudyGlobalScope.setCardsScope('all');
     const dA=DB.addDeck('Deck Ativo');DB.addCard({deckId:dA.id,frente:'A',verso:'1',kind:'basic'});
     const activePlan=PlanManager.getActivePlanId();
-    const localDecks=DB.getDecks();localDecks.push({id:'defaultA',nome:'Padrão',ankiId:1});DB.saveDecks(localDecks);
+
+    // Reproduz o defeito real: várias migrações deixaram "Default" locais sem
+    // ankiId. Um deles tem card já reconhecido pela Collection; outro é órfão.
+    const localDecks=DB.getDecks();
+    localDecks.push({id:'defaultA-used',nome:'Default'},{id:'defaultA-orphan',nome:'Default'});
+    DB.saveDecks(localDecks);
+    const localCards=DB.getCards();
+    localCards.push({id:'legacy-default-card',ankiId:501,deckId:'defaultA-used',frente:'legado',verso:'default',kind:'basic'});
+    localCards.push({id:'legacy-default-card-2',ankiId:502,deckId:'defaultA-orphan',frente:'legado 2',verso:'default',kind:'basic'});
+    DB.saveCards(localCards);
+
     const B=PlanManager.createPlan({nome:'Plano B',tipo:'Outro'});
-    DB.saveDecksForPlan(B,[{id:'dkB',nome:'Deck B',ankiId:9001},{id:'defaultB',nome:'Padrão',ankiId:1}]);
+    DB.saveDecksForPlan(B,[{id:'dkB',nome:'Deck B',ankiId:9001},{id:'defaultB',nome:'Default'}]);
     DB.saveCardsForPlan(B,[{id:'cB1',deckId:'dkB',frente:'cache B',verso:'cache resposta B',phase:'new',kind:'basic'}]);
 
+    // A correção é de dados, não cosmética: o snapshot oficial vincula os
+    // espelhos legados ao deck 1, remapeia cards e elimina duplicata física.
+    const repaired=CardsOfficialBridge._reconcileLegacyDeckMirrors({
+      decks:[{id:1,name:'Default',filtered:false}],
+      cards:[{id:501,deck_id:1},{id:502,deck_id:1}]
+    });
+    const activeDefaults=DB.getDecks().filter(d=>Number(d.ankiId)===1);
+    const planBDefaults=DB.getDecksForPlan(B).filter(d=>Number(d.ankiId)===1);
+    const repairedCards=DB.getCards().filter(c=>c.id==='legacy-default-card'||c.id==='legacy-default-card-2');
+
     switchScreen('cards');
-    const out={};
+    const out={deckRepair:{
+      bound:repaired.bound,collapsed:repaired.collapsed,remappedCards:repaired.remappedCards,
+      activeCount:activeDefaults.length,planBCount:planBDefaults.length,
+      cardsOnCanonical:!!(activeDefaults[0]&&repairedCards.length===2&&repairedCards.every(c=>String(c.deckId)===String(activeDefaults[0].id))),
+      activePhysicalDefaults:DB.getDecks().filter(d=>String(d.nome)==='Default').length
+    }};
     CardsScreen.openDeckModal();
     out.lista=[...document.querySelectorAll('#deck-list .deck-row')].map(r=>r.querySelector('.deck-name').value+'|'+r.querySelector('.deck-count').textContent);
     document.getElementById('deck-modal').style.display='none';
@@ -42,8 +67,8 @@ try{
     out.destino={
       values:destOptions,
       remoteVisible:destOptions.some(o=>String(o.parsed.deckId)==='dkB'&&String(o.parsed.planId)===String(B)),
-      padraoCount:destOptions.filter(o=>String(o.label||'').includes('Padrão')).length,
-      padraoUsesActive:destOptions.some(o=>String(o.label||'').includes('Padrão')&&String(o.parsed.planId)===String(activePlan))
+      defaultCount:destOptions.filter(o=>String(o.label||'').includes('Default')).length,
+      defaultUsesActive:destOptions.some(o=>String(o.label||'').includes('Default')&&String(o.parsed.planId)===String(activePlan))
     };
     const remoteOpt=destOptions.find(o=>String(o.parsed.deckId)==='dkB');
     document.getElementById('card-destino').value=remoteOpt&&remoteOpt.value||'';
@@ -155,9 +180,13 @@ try{
   });
   ok(r.lista.some(x=>x.startsWith('Deck B|')&&x.includes('Plano B')),'Meus baralhos mostra baralho de outro plano com o nome do plano');
   ok(r.lista.some(x=>x.startsWith('Deck Ativo|')),'Meus baralhos mantém o baralho do plano ativo');
+  ok(r.deckRepair.bound===3,'reconciliação vincula todos os espelhos Default legados à identidade oficial');
+  ok(r.deckRepair.collapsed===1&&r.deckRepair.remappedCards===1,'duplicata física é consolidada e o card é remapeado para o sobrevivente');
+  ok(r.deckRepair.activeCount===1&&r.deckRepair.planBCount===1&&r.deckRepair.activePhysicalDefaults===1,'cada planejamento persiste no máximo um espelho do Default oficial');
+  ok(r.deckRepair.cardsOnCanonical,'todos os cards legados continuam apontando para o baralho canônico após a consolidação');
   ok(r.destino.remoteVisible,'Criar card oferece baralho de outro plano mesmo com escopo visual no planejamento atual');
-  ok(r.destino.padraoCount===1,'baralho oficial Padrão/Default espelhado em vários planos aparece uma única vez');
-  ok(r.destino.padraoUsesActive,'quando o mesmo baralho oficial existe no plano ativo, a criação prefere esse espelho');
+  ok(r.destino.defaultCount===1,'Criar card recebe um único Default porque os dados foram reconciliados, não ocultados');
+  ok(r.destino.defaultUsesActive,'quando o mesmo baralho oficial existe no plano ativo, a criação prefere esse espelho');
   ok(r.destinoRoutesOwner,'salvar em baralho de outro planejamento preserva o planejamento dono do destino');
   ok(r.multiHosts,'filtros de disciplina/baralho e assunto usam controles múltiplos');
   ok(r.multiDeck.size===2&&r.multiDeck.badge==='2'&&r.multiDeck.onlyChosen,'dois baralhos são combinados por OR e exibem contador');
