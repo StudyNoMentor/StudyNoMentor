@@ -39,7 +39,7 @@ try{
     // Regressão dos filtros múltiplos: duas disciplinas/baralhos e dois assuntos.
     const dC=DB.addDeck('Deck C');
     DB.addCard({deckId:dA.id,materia:'Disciplina Um',assunto:'Assunto Alfa',frente:'Filtro A',verso:'1',kind:'basic'});
-    DB.addCard({deckId:dC.id,materia:'Disciplina Dois',assunto:'Assunto Beta',frente:'Filtro B',verso:'2',kind:'basic'});
+    DB.addCard({deckId:dC.id,materia:'Disciplina Dois',assunto:'Assunto Beta',frente:'Filtro B',verso:'2',kind:'cloze'});
     CardsScreen.filters.materias=new Set();CardsScreen.filters.assuntos=new Set();CardsScreen.filters.assunto='';
     CardsScreen.render();
     document.getElementById('cards-filter-body').style.display='block';
@@ -78,8 +78,28 @@ try{
       andSemantics:bothFiltered.length===2&&bothFiltered.every(c=>['Disciplina Um','Disciplina Dois'].includes(c.materia)&&['Assunto Alfa','Assunto Beta'].includes(c.assunto))
     };
 
+    // O filtro visível de assunto deve alterar o recorte real, não só o rótulo.
     assHost.querySelector('.cards-multi-filter-clear').click();
     matHost.querySelector('.cards-multi-filter-clear').click();
+    const alpha=[...assHost.querySelectorAll('input[data-filter-value]')].find(x=>x.dataset.filterValue==='Assunto Alfa');
+    alpha.click();
+    const singleAssunto=CardsScreen.currentFilteredCards();
+    out.singleAssunto=singleAssunto.length===1&&singleAssunto[0].assunto==='Assunto Alfa';
+
+    // "Tipo" usa o formato canônico (kind). "tipo" é campo legado e não é mais
+    // gravado pela criação/edição atual.
+    assHost.querySelector('.cards-multi-filter-clear').click();
+    const typeSel=document.getElementById('cards-f-tipo');
+    out.typeOptions=[...typeSel.options].map(o=>({value:o.value,label:o.textContent}));
+    typeSel.value='cloze';typeSel.dispatchEvent(new Event('change',{bubbles:true}));
+    const clozeFiltered=CardsScreen.currentFilteredCards();
+    CardsScreen.render();
+    out.typeFilter={
+      onlyCloze:clozeFiltered.length===1&&clozeFiltered[0].kind==='cloze',
+      selectedPersists:document.getElementById('cards-f-tipo').value==='cloze'
+    };
+    CardsScreen.filters.tipo='';document.getElementById('cards-f-tipo').value='';
+
     matHost.querySelector('.cards-multi-filter-btn').click();
     const search=matHost.querySelector('.cards-multi-filter-search');
     search.value='Deck C';search.dispatchEvent(new Event('input',{bubbles:true}));
@@ -101,8 +121,16 @@ try{
     const host=document.getElementById('cards-f-assunto-multi');
     host.querySelector('.cards-multi-filter-btn').click();
     const panel=host.querySelector('.cards-multi-filter-panel');
-    const cs=getComputedStyle(panel);
-    return {position:cs.position,left:cs.left,right:cs.right,bottom:cs.bottom,overflow:getComputedStyle(host.querySelector('.cards-multi-filter-options')).overflowY};
+    const cs=getComputedStyle(panel),rect=panel.getBoundingClientRect(),
+      probe=document.elementFromPoint(Math.min(innerWidth-20,rect.left+24),Math.max(rect.top+20,rect.bottom-24)),
+      filterCard=document.getElementById('cards-filter-card');
+    return {
+      position:cs.position,left:cs.left,right:cs.right,bottom:cs.bottom,
+      overflow:getComputedStyle(host.querySelector('.cards-multi-filter-options')).overflowY,
+      filterOpacity:getComputedStyle(filterCard).opacity,
+      panelOnTop:!!(probe&&panel.contains(probe)),
+      navGap:Math.round(innerHeight-rect.bottom)
+    };
   });
   ok(r.lista.some(x=>x.startsWith('Deck B|')&&x.includes('Plano B')),'Meus baralhos mostra baralho de outro plano com o nome do plano');
   ok(r.lista.some(x=>x.startsWith('Deck Ativo|')),'Meus baralhos mantém o baralho do plano ativo');
@@ -111,10 +139,15 @@ try{
   ok(r.multiDeck.size===2&&r.multiDeck.badge==='2'&&r.multiDeck.onlyChosen,'dois baralhos são combinados por OR e exibem contador');
   ok(r.multiDisc,'duas disciplinas podem ser selecionadas simultaneamente');
   ok(r.multiAssunto.size===2&&r.multiAssunto.badge==='2'&&r.multiAssunto.andSemantics,'assuntos usam OR interno e AND com disciplinas');
+  ok(r.singleAssunto,'selecionar um assunto altera efetivamente o recorte dos cards');
+  ok(r.typeOptions.some(x=>x.value==='basic')&&r.typeOptions.some(x=>x.value==='cloze'),'Tipo lista os formatos canônicos atuais');
+  ok(r.typeFilter.onlyCloze&&r.typeFilter.selectedPersists,'Tipo filtra por kind e preserva a seleção após render');
   ok(r.searchWorks,'busca interna reduz as opções sem alterar a seleção');
   ok(r.outsideCloses,'dropdown fecha ao clicar fora');
   ok(r.escapeCloses,'dropdown fecha pela tecla Escape');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
+  ok(mobile.filterOpacity==='1'&&mobile.panelOnTop,'dropdown móvel fica acima do card de revisão, sem stacking context opaco');
+  ok(mobile.navGap>=70,'dropdown móvel termina acima da navegação inferior');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
 }finally{await browser.close();server.close();}
