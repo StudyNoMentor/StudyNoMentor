@@ -216,7 +216,7 @@ const AnchoredListViewport = {
     { panel: '.tec-disc-pick-panel', anchor: '.tec-disc-pick-btn', gap: 7 },
     { panel: '.banca-pick-panel', anchor: '.banca-pick-btn', gap: 6 },
     { panel: '.pl-disc-panel', anchor: '.pl-disc-toggle', gap: 4 },
-    { panel: '.cards-more-menu', anchor: '.cards-more-btn', gap: 6 },
+    { panel: '.cards-more-menu', anchor: '.cards-more-btn', gap: 6, preferDown: true },
     { panel: '.grade-gear-menu', anchor: '.grade-gear-btn', gap: 8 },
     { panel: '#anki-browser-columns-menu', anchor: 'summary', gap: 6 },
     { panel: '.plan-switcher-menu', anchor: '.plan-switcher-btn', gap: 6 }
@@ -283,7 +283,7 @@ const AnchoredListViewport = {
         || document.querySelector(selector);
     } catch (_) { return null; }
   },
-  fit(panel, anchor, gap) {
+  fit(panel, anchor, gap, preferDown) {
     if (!this._visible(panel) || !anchor) return false;
     gap = Number.isFinite(Number(gap)) ? Number(gap) : 6;
 
@@ -305,7 +305,7 @@ const AnchoredListViewport = {
     const natural = Math.min(cap, Math.max(panel.getBoundingClientRect().height || 0, panel.scrollHeight || 0, 80));
 
     let paraCima = false;
-    if (natural > abaixo) {
+    if (!preferDown && natural > abaixo) {
       if (natural <= acima) paraCima = true;
       else paraCima = acima > abaixo;
     }
@@ -322,7 +322,7 @@ const AnchoredListViewport = {
     this.RULES.forEach(rule => {
       document.querySelectorAll(rule.panel).forEach(panel => {
         if (!this._visible(panel)) return;
-        this.fit(panel, this._anchor(panel, rule.anchor), rule.gap);
+        this.fit(panel, this._anchor(panel, rule.anchor), rule.gap, !!rule.preferDown);
       });
     });
   },
