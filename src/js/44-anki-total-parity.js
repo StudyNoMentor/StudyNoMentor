@@ -1,6 +1,6 @@
 /* ============================================================
-   PARIDADE TOTAL ANKI — Browser / Undo / Stats / Media Sync /
-   Extensoes / Custom Scheduling
+   PARIDADE TOTAL ANKI — Browser / Undo / Stats /
+   operações auxiliares da casca Study
    Camada aditiva. Nao altera o scheduler-base: apenas expoe
    superficies equivalentes e sincroniza recursos que antes
    ficavam locais ao dispositivo.
@@ -25,7 +25,7 @@ const AnkiTotalParity = {
     this._installGlobalUndo();
     this._installStatsParity();
     this._installDeepCheck();
-    this._installMenu();
+    this._loadUserExtensions();
   },
 
   esc(v){return AnkiProductParity.esc(v);},
@@ -224,12 +224,6 @@ const AnkiTotalParity = {
   /* Custom Scheduling local removido. Quando exposto no Study, o código é
      persistido/executado exclusivamente pelo card_state_customizer oficial do Anki. */
 
-  _installMenu(){
-    const menu=document.getElementById('cards-more-menu');if(!menu)return;
-    const add=(id,label,fn)=>{if(document.getElementById(id))return;const b=document.createElement('button');b.type='button';b.id=id;b.setAttribute('role','menuitem');b.textContent=label;b.onclick=()=>{menu.classList.remove('open');fn();};menu.appendChild(b);};
-    add('cards-extensions-btn','🧩 Extensões do Anki',()=>this.openExtensions());
-    this._loadUserExtensions();
-  }
 };
 window.AnkiTotalParity=AnkiTotalParity;
 queueMicrotask(()=>AnkiTotalParity.install());
