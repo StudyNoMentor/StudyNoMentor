@@ -7,9 +7,11 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import tempfile
 import threading
 import time
+import uuid
 from collections import OrderedDict
 from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass, field
@@ -82,6 +84,7 @@ UPLOAD_CHUNK = 1024 * 1024
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     yield
+    review_sessions.close_all()
     pool.close_all()
     cards_pool.close_all()
 
@@ -133,14 +136,43 @@ def deck_tree_payload(node: Any) -> dict[str, Any]:
     }
 
 
+class ReservedCollectionLock:
+    """RLock que libera a reserva criada por CollectionPool.get() ao sair do uso.
+
+    A reserva fecha a janela get(item) -> acquire(lock): enquanto o chamador ainda
+    possui uma referência recém-entregue, a LRU não pode fechar aquela Collection.
+    """
+
+    def __init__(self, raw: threading.RLock, on_exit: Any) -> None:
+        self._raw = raw
+        self._on_exit = on_exit
+
+    def acquire(self, *args: Any, **kwargs: Any) -> bool:
+        return self._raw.acquire(*args, **kwargs)
+
+    def release(self) -> None:
+        self._raw.release()
+
+    def __enter__(self) -> "ReservedCollectionLock":
+        self._raw.acquire()
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        try:
+            self._raw.release()
+        finally:
+            self._on_exit()
+
+
 @dataclass
 class UserCollection:
     user_id: str
     root: Path
     collection_path: Path
     col: Collection
-    lock: threading.RLock
+    lock: Any
     last_used: float = field(default_factory=time.monotonic)
+    reservations: int = 0
 
 
 class CollectionPool:
@@ -160,6 +192,8 @@ class CollectionPool:
         while len(self._items) > self._max_open:
             victim_id = None
             for uid, item in self._items.items():
+                if item.reservations:
+                    continue
                 if item.lock.acquire(blocking=False):
                     try:
                         item.col.close()
@@ -178,6 +212,7 @@ class CollectionPool:
             existing = self._items.get(user_id)
             if existing:
                 existing.last_used = time.monotonic()
+                existing.reservations += 1
                 self._items.move_to_end(user_id)
                 return existing
             root = DATA_DIR / user_id
@@ -186,16 +221,34 @@ class CollectionPool:
             root.mkdir(parents=True, exist_ok=True)
             collection_path = root / "collection.anki2"
             col = Collection(str(collection_path))
+            raw_lock = threading.RLock()
             item = UserCollection(
                 user_id=user_id,
                 root=root,
                 collection_path=collection_path,
                 col=col,
-                lock=threading.RLock(),
+                lock=raw_lock,
+                reservations=1,
+            )
+            item.lock = ReservedCollectionLock(
+                raw_lock,
+                lambda uid=user_id: self._release_reservation(uid),
             )
             self._items[user_id] = item
             self._evict_locked()
             return item
+
+    def _release_reservation(self, user_id: str) -> None:
+        with self._guard:
+            item = self._items.get(user_id)
+            if item:
+                item.reservations = max(0, item.reservations - 1)
+                item.last_used = time.monotonic()
+                self._items.move_to_end(user_id)
+            self._evict_locked()
+
+    def release_unlocked_reference(self, item: UserCollection) -> None:
+        self._release_reservation(item.user_id)
 
     def close_all(self) -> None:
         with self._guard:
@@ -211,6 +264,162 @@ pool = CollectionPool()
 # Coleção isolada usada pela tela Cards. Ela executa o MESMO backend oficial
 # do Anki, mas nunca mistura os cards do Study com a coleção do menu Anki Oficial.
 cards_pool = CollectionPool(namespace="study-cards")
+
+
+@dataclass
+class ReviewSession:
+    user_id: str
+    session_id: str
+    collection_path: Path
+    col: Collection
+    card_ids: tuple[int, ...]
+    label: str
+    deck_id: int
+    version: str
+    lock: threading.RLock = field(default_factory=threading.RLock)
+    last_used: float = field(default_factory=time.monotonic)
+
+
+class ReviewSessionPool:
+    """Snapshots efêmeros por navegador/aparelho, usados só para COLETA da fila.
+
+    O snapshot contém apenas os cards do recorte. Assim o scheduler oficial aplica
+    limites e ordenação depois do filtro, sem suspender/mover/reagendar a Collection
+    real. Respostas continuam sendo gravadas somente na Collection real.
+    """
+
+    def __init__(self, max_open: int = 96) -> None:
+        self._guard = threading.RLock()
+        self._items: "OrderedDict[str, ReviewSession]" = OrderedDict()
+        self._max_open = max(4, max_open)
+
+    def _key(self, user_id: str, session_id: str) -> str:
+        return f"{user_id}:{session_id}"
+
+    @staticmethod
+    def _validate_session_id(session_id: str) -> str:
+        value = str(session_id or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9._:-]{8,160}", value):
+            raise HTTPException(400, "Identificador da sessão de revisão inválido.")
+        return value
+
+    def _close(self, session: ReviewSession) -> None:
+        try:
+            session.col.close()
+        except Exception:
+            pass
+        try:
+            session.collection_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _evict_locked(self) -> None:
+        while len(self._items) > self._max_open:
+            key, session = next(iter(self._items.items()))
+            if not session.lock.acquire(blocking=False):
+                self._items.move_to_end(key)
+                break
+            try:
+                self._items.pop(key, None)
+                self._close(session)
+            finally:
+                session.lock.release()
+
+    def drop(self, user_id: str, session_id: str) -> None:
+        key = self._key(user_id, self._validate_session_id(session_id))
+        with self._guard:
+            session = self._items.pop(key, None)
+        if session:
+            with session.lock:
+                self._close(session)
+
+    def create(
+        self,
+        source: UserCollection,
+        session_id: str,
+        card_ids: list[int] | None,
+        label: str,
+        deck_id: int,
+    ) -> ReviewSession:
+        sid = self._validate_session_id(session_id)
+        user_id = source.user_id
+        key = self._key(user_id, sid)
+        root = source.root / "review-sessions"
+        root.mkdir(parents=True, exist_ok=True)
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:24]
+        path = root / f"{digest}.anki2"
+
+        with self._guard:
+            old = self._items.pop(key, None)
+        if old:
+            with old.lock:
+                self._close(old)
+        path.unlink(missing_ok=True)
+
+        # sqlite3.backup() copia um snapshot consistente mesmo com a Collection
+        # original aberta/WAL; shutil.copy2() aqui poderia perder páginas recentes.
+        with sqlite3.connect(str(source.collection_path)) as src_db, sqlite3.connect(str(path)) as dst_db:
+            src_db.backup(dst_db)
+
+        col = Collection(str(path))
+        try:
+            all_ids = {int(cid) for cid in col.find_cards("")}
+            allowed = all_ids if card_ids is None else {int(cid) for cid in card_ids if int(cid) in all_ids}
+            remove = sorted(all_ids - allowed)
+            if remove:
+                col.remove_cards_and_orphaned_notes(remove)
+            col.set_config("study_review_card_ids", None)
+            col.set_config("study_review_scope_label", str(label or "Planejamento atual"))
+            col.set_config("study_review_all_decks", int(deck_id) == 0)
+            if deck_id:
+                if not col.decks.get(DeckId(int(deck_id)), default=False):
+                    raise HTTPException(404, "Baralho não encontrado no recorte.")
+                col.decks.select(DeckId(int(deck_id)))
+            elif bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn")):
+                col.decks.select(DeckId(1))
+            session = ReviewSession(
+                user_id=user_id,
+                session_id=sid,
+                collection_path=path,
+                col=col,
+                card_ids=tuple(sorted(allowed)),
+                label=str(label or "Planejamento atual"),
+                deck_id=int(deck_id),
+                version=uuid.uuid4().hex,
+            )
+        except BaseException:
+            try:
+                col.close()
+            except Exception:
+                pass
+            path.unlink(missing_ok=True)
+            raise
+
+        with self._guard:
+            self._items[key] = session
+            self._items.move_to_end(key)
+            self._evict_locked()
+        return session
+
+    def get(self, user_id: str, session_id: str) -> ReviewSession | None:
+        key = self._key(user_id, self._validate_session_id(session_id))
+        with self._guard:
+            session = self._items.get(key)
+            if session:
+                session.last_used = time.monotonic()
+                self._items.move_to_end(key)
+            return session
+
+    def close_all(self) -> None:
+        with self._guard:
+            sessions = list(self._items.values())
+            self._items.clear()
+        for session in sessions:
+            with session.lock:
+                self._close(session)
+
+
+review_sessions = ReviewSessionPool()
 
 # token -> (expira_em, usuario). Guardamos só o hash do token.
 _token_cache: dict[str, tuple[float, dict[str, Any]]] = {}
@@ -421,6 +630,7 @@ class SelectDeckBody(BaseModel):
 
 
 class CardsReviewScopeBody(SelectDeckBody):
+    session_id: str
     card_ids: list[int] | None = None
     label: str = "Todos os planejamentos"
 
@@ -435,9 +645,17 @@ class NoteUpdateBody(BaseModel):
 
 
 class AnswerBody(BaseModel):
+    session_id: str
+    request_id: str = Field(min_length=8, max_length=220)
     card_id: int
     rating: int = Field(ge=1, le=4)
     milliseconds_taken: int = Field(default=0, ge=0, le=86_400_000)
+
+
+class ScopedStatsBody(BaseModel):
+    search: str = ""
+    days: int = Field(default=365, ge=0, le=36500)
+    card_ids: list[int] = []
 
 
 class TypeAnswerBody(BaseModel):
@@ -650,6 +868,15 @@ def cards_scoped_queue(col: Collection):
         queued.learning_count = sum(int(entry.queue) == 1 for entry in entries)
         queued.review_count = sum(int(entry.queue) == 2 for entry in entries)
     return queued
+
+
+def review_session_payload(session: ReviewSession) -> dict[str, Any]:
+    out = cards_reviewer_payload(session.col)
+    out["review_session"] = {
+        "id": session.session_id,
+        "version": session.version,
+    }
+    return out
 
 
 def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
@@ -1370,23 +1597,31 @@ def cards_official_reviewer_scope(
         did = int(body.deck_id)
         if did and not item.col.decks.get(DeckId(did), default=False):
             raise HTTPException(404, "Baralho não encontrado.")
-        item.col.set_config("study_review_card_ids", getattr(body, "card_ids", None))
-        item.col.set_config("study_review_scope_label", getattr(body, "label", "Todos os planejamentos"))
-        item.col.set_config("study_review_all_decks", did == 0)
-        if did:
-            item.col.decks.select(DeckId(did))
-        elif bool((item.col.decks.get(item.col.decks.get_current_id()) or {}).get("dyn")):
-            item.col.decks.select(DeckId(1))
-        return cards_reviewer_payload(item.col)
+        known = {int(cid) for cid in item.col.find_cards("")}
+        ids = None if body.card_ids is None else sorted({int(cid) for cid in body.card_ids if int(cid) in known})
+        session = review_sessions.create(
+            item,
+            body.session_id,
+            ids,
+            getattr(body, "label", "Todos os planejamentos"),
+            did,
+        )
+        with session.lock:
+            return review_session_payload(session)
 
 
 @app.get("/api/cards-official/reviewer/next")
 def cards_official_reviewer_next(
+    session_id: str = Query(..., min_length=8, max_length=160),
     user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
-        return cards_reviewer_payload(item.col)
+        session = review_sessions.get(item.user_id, session_id)
+        if not session:
+            raise HTTPException(409, "Sessão de revisão expirada; reconstrua o recorte.")
+        with session.lock:
+            return review_session_payload(session)
 
 
 @app.get("/api/cards-official/card/{card_id}/state")
@@ -1427,6 +1662,26 @@ def cards_official_reviewer_type_answer(
         return {"enabled": True, "answer_html": answer_html, "comparison": comparison}
 
 
+def _answer_receipts(col: Collection) -> dict[str, Any]:
+    value = col.get_config("study_answer_receipts", {})
+    return value if isinstance(value, dict) else {}
+
+
+def _remember_answer_receipt(col: Collection, request_id: str, card_id: int, rating: int) -> None:
+    receipts = _answer_receipts(col)
+    receipts[str(request_id)] = {
+        "card_id": int(card_id),
+        "rating": int(rating),
+        "saved_at": int(time.time()),
+    }
+    if len(receipts) > 64:
+        ordered = sorted(receipts.items(), key=lambda kv: int((kv[1] or {}).get("saved_at", 0)))
+        receipts = dict(ordered[-64:])
+    # set_config() não cria undo entry por padrão, então o recibo não desloca
+    # a operação acadêmica no histórico oficial.
+    col.set_config("study_answer_receipts", receipts)
+
+
 @app.post("/api/cards-official/reviewer/answer")
 def cards_official_reviewer_answer(
     body: AnswerBody,
@@ -1434,36 +1689,85 @@ def cards_official_reviewer_answer(
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
-        queued = cards_scoped_queue(item.col)
-        if not queued.cards:
-            raise HTTPException(409, "A fila oficial dos Cards não possui card atual.")
-        q = queued.cards[0]
-        if int(q.card.id) != body.card_id:
-            raise HTTPException(409, "O card atual da fila oficial dos Cards mudou; recarregue.")
-        card = item.col.get_card(q.card.id)
-        card.start_timer()
-        rating = {
-            1: CardAnswer.AGAIN,
-            2: CardAnswer.HARD,
-            3: CardAnswer.GOOD,
-            4: CardAnswer.EASY,
-        }[body.rating]
-        answer = item.col.sched.build_answer(card=card, states=q.states, rating=rating)
-        answer.milliseconds_taken = body.milliseconds_taken
-        # Scoped review may select a later entry from the upstream queue.
-        # Clear only the cached queue before answering with its official states;
-        # the backend then rebuilds it from the updated Collection.
-        first = item.col.sched.get_queued_cards(fetch_limit=1)
-        if first.cards and int(first.cards[0].card.id) != int(card.id):
-            current_deck = item.col.decks.get_current_id()
-            item.col.decks.select(DeckId(0))
-            item.col.decks.select(current_deck)
-        item.col.sched.answer_card(answer)
-        return {
-            "ok": True,
-            "answered": card_state_payload(item.col, int(card.id)),
-            "reviewer": cards_reviewer_payload(item.col),
-        }
+        prior = _answer_receipts(item.col).get(str(body.request_id))
+        if prior:
+            if int(prior.get("card_id", 0)) != int(body.card_id) or int(prior.get("rating", 0)) != int(body.rating):
+                raise HTTPException(409, "Esta tentativa já foi aplicada com outro card ou resposta.")
+            session = review_sessions.get(item.user_id, body.session_id)
+            reviewer = None
+            if session:
+                with session.lock:
+                    reviewer = review_session_payload(session)
+            return {
+                "ok": True,
+                "idempotent": True,
+                "answered": card_state_payload(item.col, int(body.card_id)),
+                "reviewer": reviewer,
+                "undo_status": pb(item.col.undo_status()),
+            }
+
+        session = review_sessions.get(item.user_id, body.session_id)
+        if not session:
+            raise HTTPException(409, "Sessão de revisão expirada; reconstrua o recorte.")
+        with session.lock:
+            queued = session.col.sched.get_queued_cards(
+                fetch_limit=max(1, int(session.col.card_count()))
+            )
+            if not queued.cards:
+                raise HTTPException(409, "A fila oficial dos Cards não possui card atual.")
+            q = queued.cards[0]
+            if int(q.card.id) != int(body.card_id):
+                raise HTTPException(409, "O card atual desta sessão mudou; recarregue.")
+
+            live = item.col.get_card(int(q.card.id))
+            snap = session.col.get_card(int(q.card.id))
+            signature = lambda c: (
+                int(c.type), int(c.queue), int(c.due), int(c.ivl), int(c.reps),
+                int(c.lapses), int(c.did), int(c.odid), int(c.left),
+            )
+            if signature(live) != signature(snap):
+                raise HTTPException(409, "O card mudou em outro aparelho; reconstrua a sessão antes de responder.")
+
+            live.start_timer()
+            rating = {
+                1: CardAnswer.AGAIN,
+                2: CardAnswer.HARD,
+                3: CardAnswer.GOOD,
+                4: CardAnswer.EASY,
+            }[body.rating]
+            answer = item.col.sched.build_answer(card=live, states=q.states, rating=rating)
+            answer.milliseconds_taken = body.milliseconds_taken
+            item.col.sched.answer_card(answer)
+
+            # O snapshot avança com os MESMOS estados oficiais escolhidos para a
+            # resposta real. Ele nunca é fonte persistente de scheduling.
+            snap.start_timer()
+            session_answer = session.col.sched.build_answer(card=snap, states=q.states, rating=rating)
+            session_answer.answered_at_millis = answer.answered_at_millis
+            session_answer.milliseconds_taken = body.milliseconds_taken
+            try:
+                session.col.sched.answer_card(session_answer)
+            except Exception:
+                # Se o snapshot falhar, a resposta real já é canônica. Refaz a
+                # sessão a partir dela em vez de tentar compensar o scheduler.
+                replacement = review_sessions.create(
+                    item,
+                    session.session_id,
+                    list(session.card_ids),
+                    session.label,
+                    session.deck_id,
+                )
+                session = replacement
+
+            _remember_answer_receipt(item.col, body.request_id, body.card_id, body.rating)
+            reviewer = review_session_payload(session)
+            return {
+                "ok": True,
+                "idempotent": False,
+                "answered": card_state_payload(item.col, int(body.card_id)),
+                "reviewer": reviewer,
+                "undo_status": pb(item.col.undo_status()),
+            }
 
 
 @app.get("/api/cards-official/browser/ids")
@@ -2437,12 +2741,13 @@ async def editor_media(
 @app.get("/api/anki/media/{filename:path}")
 def media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     item = uc_for(user)
-    safe_name = os.path.basename(filename)
-    if safe_name != filename:
-        raise HTTPException(400, "Nome de mídia inválido.")
-    path = Path(item.col.media.dir()) / safe_name
-    if not path.is_file():
-        raise HTTPException(404, "Mídia não encontrada.")
+    with item.lock:
+        safe_name = os.path.basename(filename)
+        if safe_name != filename:
+            raise HTTPException(400, "Nome de mídia inválido.")
+        path = Path(item.col.media.dir()) / safe_name
+        if not path.is_file():
+            raise HTTPException(404, "Mídia não encontrada.")
     return FileResponse(path)
 
 
@@ -2572,12 +2877,13 @@ def cards_official_database_optimize(user: dict[str, Any] = Depends(current_user
 @app.get("/api/cards-official/media/{filename:path}")
 def cards_official_media_file(filename: str, user: dict[str, Any] = Depends(current_user)):
     item = cards_uc_for(user)
-    safe_name = os.path.basename(filename)
-    if safe_name != filename:
-        raise HTTPException(400, "Nome de mídia inválido.")
-    path = Path(item.col.media.dir()) / safe_name
-    if not path.is_file():
-        raise HTTPException(404, "Mídia não encontrada.")
+    with item.lock:
+        safe_name = os.path.basename(filename)
+        if safe_name != filename:
+            raise HTTPException(400, "Nome de mídia inválido.")
+        path = Path(item.col.media.dir()) / safe_name
+        if not path.is_file():
+            raise HTTPException(404, "Mídia não encontrada.")
     return FileResponse(path)
 
 
@@ -2836,6 +3142,23 @@ def cards_official_collection_graphs(
     item = cards_uc_for(user)
     with item.lock:
         return pb(item.col._backend.graphs(search=search, days=days))
+
+
+@app.post("/api/cards-official/stats/graphs/scoped")
+def cards_official_collection_graphs_scoped(
+    body: ScopedStatsBody,
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    item = cards_uc_for(user)
+    with item.lock:
+        known = {int(cid) for cid in item.col.find_cards("")}
+        ids = sorted({int(cid) for cid in body.card_ids if int(cid) in known})
+        # A gramática cid: é nativa do Anki e aceita múltiplos IDs. O GraphsService
+        # continua sendo a única fonte dos números; só delimitamos sua busca.
+        scope = "cid:" + (",".join(str(cid) for cid in ids) if ids else "0")
+        native = str(body.search or "").strip()
+        search = f"({native}) {scope}" if native else scope
+        return pb(item.col._backend.graphs(search=search, days=int(body.days)))
 
 
 @app.post("/api/cards-official/fsrs/optimize")
