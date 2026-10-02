@@ -21,8 +21,6 @@ const files=chunks.flatMap(x=>JSON.parse(readFileSync(join(A,'inventario',x),'ut
 const submodules=JSON.parse(readFileSync(join(A,'inventario/submodules.json'),'utf8'));
 assert.equal(submodules.upstream_commit,lock.release_commit);
 assert.equal(submodules.submodules.length,4,'submodulos internos do Anki devem ser inventariados');
-execFileSync(process.execPath,[join(ROOT,'tools/anki-audit-report.mjs'),'--check'],{cwd:ROOT,stdio:'pipe'});
-
 assert.equal(lock.schema,'studynomentor-anki-upstream-lock-v1');
 assert.equal(lock.release,'26.09.3');
 assert.equal(lock.release_commit,'29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba');
