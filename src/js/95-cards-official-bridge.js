@@ -2552,8 +2552,9 @@ const CardsOfficialBridge = {
   async saveSimpleCard(closeAfter){
     const data=CardsScreen._readCardForm();if(!data)return false;
     const reversed=!!data._reversed;delete data._reversed;
+    const requestedDeckPlan=data._deckPlanId!=null?data._deckPlanId:null;delete data._deckPlanId;
     const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId;
-    let pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId());
+    let pid=requestedDeckPlan!=null?requestedDeckPlan:(data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId()));
     if(!editId&&data._newDeckName){
       const created=await this.createOfficialDeck(data._newDeckName,pid);
       if(!created||!created.deck)throw new Error('O Anki oficial não devolveu o baralho padrão criado.');
