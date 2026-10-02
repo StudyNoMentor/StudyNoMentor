@@ -15,6 +15,7 @@ permissions:
   contents: write
   pull-requests: write
   actions: write
+  pages: write
 
 concurrency:
   group: anki-stable-auto-update
@@ -149,6 +150,34 @@ jobs:
           fi
           echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
           echo "Merged PR #$PR_NUMBER at $merge_sha."
+
+      - name: Publish rebuilt GitHub Pages shell
+        if: steps.prepare.outputs.changed == 'true' && steps.prepare.outputs.blockers_count == '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/pages/builds" >/tmp/pages-build.json
+
+          for _ in $(seq 1 90); do
+            build="$(gh api "repos/$GITHUB_REPOSITORY/pages/builds/latest")"
+            commit="$(printf '%s' "$build" | jq -r '.commit // empty')"
+            status="$(printf '%s' "$build" | jq -r '.status // empty')"
+            if [ "$commit" = "$MERGE_SHA" ] && [ "$status" = "built" ]; then
+              echo "GitHub Pages published $MERGE_SHA."
+              exit 0
+            fi
+            if [ "$commit" = "$MERGE_SHA" ] && [ "$status" = "errored" ]; then
+              printf '%s\n' "$build"
+              echo "::error::GitHub Pages failed to publish the validated Anki update."
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "::error::GitHub Pages did not publish $MERGE_SHA within the verification window."
+          exit 1
 
       - name: Deploy and verify new official runtime
         if: steps.prepare.outputs.changed == 'true' && steps.prepare.outputs.blockers_count == '0'
