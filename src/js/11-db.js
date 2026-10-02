@@ -801,7 +801,7 @@ const DB = {
     const lei = { id: this._uid(), titulo: (titulo || 'Sem título').trim(), referencia: (referencia || '').trim(),
       materia: (materia || '').trim(), texto: texto || '', marcacoes: [], suppressed: [],
       opts: { ressalvas: true, restricoes: true, competencias: true, prazos: true, efeitos: true, relacoes: true },
-      createdAt: now, updatedAt: now };
+      createdAt, updatedAt: now };
     list.push(lei);
     this.saveLeis(list);
     return lei;
@@ -1183,6 +1183,8 @@ const DB = {
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
+    const createdMs = Date.parse(data && data.createdAt || '');
+    const createdAt = Number.isFinite(createdMs) ? new Date(createdMs).toISOString() : now;
     const id = this._uid();
     const card = {
       id,
