@@ -58,7 +58,7 @@ for(const [id,source] of [
 
 for(const source of [html,practical,total,product,sharedDecks,imageOcclusion])
   assert.ok(!source.includes('cards-extensions-btn'),'Extensões locais não podem voltar ao Mais do Anki oficial');
-for(const source of [html,practical,final10])
+for(const source of [html,practical,sharedDecks])
   assert.ok(!source.includes('cards-reviewer-bindings-btn'),'Atalhos personalizados não oficiais não podem voltar ao Mais');
 
 assert.match(sanitizer,/on\('cards-empty-btn'[\s\S]{0,500}?CardsOfficialBridge\.openEmptyCards/,'Cards vazios deve delegar ao backend oficial');
