@@ -330,7 +330,9 @@ const CardsScreen = {
   // ---- conteúdo (revisar ou meus cards) ----  // ---- conteúdo (revisar ou meus cards) ----
   renderContent() {
     const box = document.getElementById('cards-content');
-    if (this.tab !== 'revisar' && this._autoAdvanceEnabled) this._disableAutoAdvanceSilently();
+    const bridge=window.CardsOfficialBridge;
+    if(bridge&&typeof bridge.cancelPendingRender==='function')bridge.cancelPendingRender();
+    if(this.tab!=='revisar'&&bridge&&typeof bridge._clearReviewerAutomation==='function')bridge._clearReviewerAutomation();
     if (this.tab === 'revisar') this.renderRevisar(box);
     else if (this.tab === 'stats') this.renderStats(box);
     else this.renderMeus(box);
@@ -677,7 +679,9 @@ const CardsScreen = {
       const decks=this.destinationDecks(sourcePlanId);
       if (!decks.length) { showToast('Crie um baralho primeiro no planejamento de origem'); return; }
       const opts = decks.map(d => ({ value: d.id, label: '📁 ' + d.nome + (d._planNome?' · '+d._planNome:'') }));
-      UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: opts[1].value, options: opts }],
+      const currentDecks=new Set(selecionados.map(c=>String(c.deckId||''))),
+        preferred=opts.find(o=>!currentDecks.has(String(o.value)))||opts[0];
+      UI.prompt([{ key: 'deck', label: 'Mover ' + qtd + ' card(s) para qual baralho?', type: 'select', value: preferred.value, options: opts }],
         { title: '📁 Mover para baralho', okText: 'Mover' }
       ).then(async(v) => {
         if (!v) return;
