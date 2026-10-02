@@ -646,6 +646,7 @@ class NoteUpdateBody(BaseModel):
 
 class AnswerBody(BaseModel):
     session_id: str
+    session_version: str = Field(min_length=8, max_length=160)
     request_id: str = Field(min_length=8, max_length=220)
     card_id: int
     rating: int = Field(ge=1, le=4)
@@ -852,22 +853,13 @@ def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
 
 
 def cards_scoped_queue(col: Collection):
-    """Intersect the official queue with Study identities; retain upstream order/states.
+    """Return the upstream queue for the collection already materialized.
 
-    No cards are moved, suspended or rescheduled to implement the UI scope.
-    Daily limits remain those applied by Anki before this intersection.
+    Study scoping now happens by pruning a per-session snapshot *before* the
+    scheduler runs. Keeping a second post-limit intersection here would re-create
+    A03 and would also honor stale study_review_card_ids left by older releases.
     """
-    queued = col.sched.get_queued_cards(fetch_limit=max(1, int(col.card_count())))
-    ids = col.get_config("study_review_card_ids", None)
-    if ids is not None:
-        allowed = set(int(cid) for cid in ids)
-        entries = [entry for entry in queued.cards if int(entry.card.id) in allowed]
-        del queued.cards[:]
-        queued.cards.extend(entries)
-        queued.new_count = sum(int(entry.queue) == 0 for entry in entries)
-        queued.learning_count = sum(int(entry.queue) == 1 for entry in entries)
-        queued.review_count = sum(int(entry.queue) == 2 for entry in entries)
-    return queued
+    return col.sched.get_queued_cards(fetch_limit=max(1, int(col.card_count())))
 
 
 def review_session_payload(session: ReviewSession) -> dict[str, Any]:
@@ -920,9 +912,7 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
                 break
         else:
             col.decks.select(DeckId(current))
-    allowed = col.get_config("study_review_card_ids", None)
-    allowed_set = None if allowed is None else set(int(cid) for cid in allowed)
-    scope_ids = [int(cid) for cid in col.find_cards("") if allowed_set is None or int(cid) in allowed_set]
+    scope_ids = [int(cid) for cid in col.find_cards("")]
     scope_cards = [col.get_card(cid) for cid in scope_ids]
     scoped_decks = {int(card.did) for card in scope_cards}
     nodes = [node for node in _deck_tree_flatten(col.sched.deck_due_tree()) if int(node["deck_id"]) in scoped_decks]
@@ -1597,6 +1587,11 @@ def cards_official_reviewer_scope(
         did = int(body.deck_id)
         if did and not item.col.decks.get(DeckId(did), default=False):
             raise HTTPException(404, "Baralho não encontrado.")
+        # Remove the persisted scope keys used by the pre-session bridge. They
+        # must never influence the real Collection after this release.
+        item.col.set_config("study_review_card_ids", None)
+        item.col.set_config("study_review_all_decks", True)
+        item.col.set_config("study_review_scope_label", "Todos os cards")
         known = {int(cid) for cid in item.col.find_cards("")}
         ids = None if body.card_ids is None else sorted({int(cid) for cid in body.card_ids if int(cid) in known})
         session = review_sessions.create(
@@ -1709,6 +1704,8 @@ def cards_official_reviewer_answer(
         session = review_sessions.get(item.user_id, body.session_id)
         if not session:
             raise HTTPException(409, "Sessão de revisão expirada; reconstrua o recorte.")
+        if str(session.version) != str(body.session_version):
+            raise HTTPException(409, "A sessão de revisão foi atualizada; recarregue antes de responder.")
         with session.lock:
             queued = session.col.sched.get_queued_cards(
                 fetch_limit=max(1, int(session.col.card_count()))
@@ -1723,7 +1720,7 @@ def cards_official_reviewer_answer(
             snap = session.col.get_card(int(q.card.id))
             signature = lambda c: (
                 int(c.type), int(c.queue), int(c.due), int(c.ivl), int(c.reps),
-                int(c.lapses), int(c.did), int(c.odid), int(c.left),
+                int(c.lapses), int(c.did), int(c.odid), int(c.left), int(c.mod),
             )
             if signature(live) != signature(snap):
                 raise HTTPException(409, "O card mudou em outro aparelho; reconstrua a sessão antes de responder.")
