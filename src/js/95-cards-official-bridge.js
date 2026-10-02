@@ -1608,10 +1608,37 @@ const CardsOfficialBridge = {
       if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       CardsScreen.updateFavCount();return true;
     }catch(e){
+      const msg=String(e&&e.message||e||'');
+      const stale=Number(e&&e.status)===409&&(
+        /sessão de revisão (?:expirada|foi atualizada)/i.test(msg)||
+        /card atual (?:desta sessão|da fila)/i.test(msg)||
+        /agendamento deste card mudou/i.test(msg)||
+        /fila oficial dos Cards não possui card atual/i.test(msg)
+      );
+      if(stale){
+        // Conflito acadêmico não é erro de transporte: nenhuma resposta foi
+        // aplicada. Recria o snapshot e obriga o usuário a conferir o card
+        // atual antes de avaliar, em vez de deixá-lo preso num retry impossível.
+        const answered=this._sessionAnswered,startTotal=this._sessionStartTotal,
+          deckId=this.review&&this.review.review_scope&&!this.review.review_scope.all_decks
+            ?Number(this.review.review_scope.selected_deck_id||0):0;
+        try{
+          await this._syncReviewScope(deckId);
+          this._sessionAnswered=answered;
+          const remaining=Number(this.counts.new||0)+Number(this.counts.learning||0)+Number(this.counts.review||0);
+          this._sessionStartTotal=Math.max(Number(startTotal)||0,answered+remaining);
+          this._finishAnswerRequest(attempt);
+          if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
+          showToast('A fila de revisão mudou e foi atualizada. Confira o card atual antes de responder.');
+        }catch(recoveryError){
+          showToast('A fila mudou e não pôde ser atualizada agora: '+(recoveryError.message||recoveryError));
+        }
+        return false;
+      }
       // Uma perda de resposta de rede pode ocorrer DEPOIS da gravação. A mesma
       // request_id é segura para retry: o backend devolve o recibo sem responder
       // o card uma segunda vez.
-      showToast('Resposta não confirmada: '+(e.message||e)+' · tente novamente com o mesmo card.');
+      showToast('Resposta não confirmada: '+msg+' · tente novamente com o mesmo card.');
       return false;
     }finally{this._answering=false;}
   },

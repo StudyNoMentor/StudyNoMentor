@@ -42,7 +42,10 @@ const AnkiOfficial = {
     const body = ct.includes('application/json') ? await r.json() : await r.text();
     if (!r.ok) {
       const msg = body && typeof body === 'object' ? (body.detail || JSON.stringify(body)) : body;
-      throw new Error(msg || ('HTTP ' + r.status));
+      const err = new Error(msg || ('HTTP ' + r.status));
+      err.status = r.status;
+      err.body = body;
+      throw err;
     }
     return body;
   },
