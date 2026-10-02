@@ -57,15 +57,18 @@ try{
       const box=document.getElementById('cards-content');
       await CardsOfficialBridge.renderStats(box);
       const vw=document.documentElement.clientWidth;
+      const zeroHtml=CardsOfficialBridge._statsOfficialCountsHtml({});
+      const zeroOk=zeroHtml.includes('Estado oficial atual · 0 card(s)');
       const titulos=[...box.querySelectorAll('.stat-card h2')].map(h=>h.textContent.replace(/[^\p{L}\s()]/gu,'').trim());
       const barras=[...box.querySelectorAll('.anki-ts-bar')].map(b=>b.getBoundingClientRect()).filter(b=>b.height>0);
       const cal=box.querySelector('.anki-calendar-grid').getBoundingClientRect(),card=box.querySelector('.anki-max-calendar').getBoundingClientRect();
       // Todo conteúdo de gráfico/tabela fica recuado da borda do card.
       const colados=[...box.querySelectorAll('.stat-card .stat-body > *')].filter(el=>{const p=el.closest('.stat-card').getBoundingClientRect(),c=el.getBoundingClientRect();return c.width&&(c.left-p.left<8||p.right-c.right<8);}).length;
-      return {titulos,scroll:document.documentElement.scrollWidth-vw,barrasLargura:Math.min(...barras.map(b=>b.width)),nBarras:barras.length,calDentro:cal.right<=card.right&&cal.left>=card.left,colados};
+      return {titulos,zeroOk,scroll:document.documentElement.scrollWidth-vw,barrasLargura:Math.min(...barras.map(b=>b.width)),nBarras:barras.length,calDentro:cal.right<=card.right&&cal.left>=card.left,colados};
     });
     const dup=r.titulos.filter((t,i)=>r.titulos.indexOf(t)!==i);
     ok(dup.length===0,`${largura}px: painéis repetidos: ${dup.join(', ')}`);
+    ok(r.zeroOk,`${largura}px: contagem vazia precisa permanecer zero`);
     for(const t of ['Hoje','Contagem de cards','Calendário','Revisões','Tempo de revisão','Retenção real (True Retention)','Botões de resposta','Intervalos','Recuperabilidade','Estabilidade','Dificuldade','Distribuição por hora','Adicionados'])
       ok(r.titulos.includes(t),`${largura}px: falta o painel ${t}`);
     ok(r.scroll<=0,`${largura}px: página tem rolagem horizontal de ${r.scroll}px`);
