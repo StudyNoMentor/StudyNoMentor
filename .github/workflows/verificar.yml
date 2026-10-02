@@ -87,7 +87,6 @@ jobs:
         run: |
           set -euo pipefail
           timeout 120s node testes/cards-runtime-anki.mjs
-          timeout 120s node testes/cards-official-surfaces.mjs
 
       - name: Concorrência multidevice
         if: github.event_name != 'push'
@@ -100,6 +99,7 @@ jobs:
           set -euo pipefail
           timeout 180s python -m pip install --disable-pip-version-check --quiet --timeout 30 --retries 2 -r anki_official_backend/requirements.txt
           ANKI_DATA_DIR="${RUNNER_TEMP}/anki-official" timeout 120s python testes/anki-oficial-backend-smoke.py
+          ANKI_DATA_DIR="${RUNNER_TEMP}/anki-review-scope" timeout 120s python testes/cards-review-scope.py
 
       - name: Sincronizar artefatos gerados na main
         if: github.event_name == 'push' && github.actor != 'github-actions[bot]'
