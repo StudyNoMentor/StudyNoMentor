@@ -45,6 +45,30 @@ const CardsScreen = {
       .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' }))
       .map(t => ({ value: String(t), label: String(t), group: 'Assuntos' }));
   },
+  cardTypeKey(card) {
+    const kind = String(card && card.kind || '').trim();
+    if (kind) return kind;
+    const legacy = String(card && card.tipo || '').trim();
+    return legacy ? 'legacy:' + legacy : '';
+  },
+  cardTypeLabel(value) {
+    const key = String(value || '');
+    if (key.indexOf('legacy:') === 0) return key.slice(7);
+    return ({
+      basic: 'Básico',
+      basic_reversed: 'Básico + cartão invertido',
+      basic_optional_reversed: 'Básico (invertido opcional)',
+      typing: 'Digitar a resposta',
+      cloze: 'Cloze — omissão de palavras',
+      image_occlusion: 'Oclusão de imagem'
+    })[key] || key;
+  },
+  cardTypeFilterOptions() {
+    const values = [...new Set(this.collectionCards().map(c => this.cardTypeKey(c)).filter(Boolean))];
+    return values
+      .sort((a, b) => this.cardTypeLabel(a).localeCompare(this.cardTypeLabel(b), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      .map(value => ({ value, label: this.cardTypeLabel(value) }));
+  },
   materiaOptionsHtml(selectedValue) {
     const opts = this.materiaFilterOptions();
     const html = (group) => opts.filter(o => o.group === group).map(o =>
@@ -249,9 +273,12 @@ const CardsScreen = {
     assuntoSel.value = oneAssunto;
     this.filters.assunto = oneAssunto;
 
-    const tipos=[...new Set(this.collectionCards().map(c=>c.tipo).filter(Boolean))]
-      .sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'}));
-    $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + tipos.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    const tipoOptions=this.cardTypeFilterOptions(), currentTipo=String(this.filters.tipo||'');
+    const visibleTipoOptions=(currentTipo&&!tipoOptions.some(o=>o.value===currentTipo))
+      ?[{value:currentTipo,label:this.cardTypeLabel(currentTipo)}].concat(tipoOptions):tipoOptions;
+    const tipoSel=$id('cards-f-tipo');
+    tipoSel.innerHTML = `<option value="">Todos os tipos</option>` + visibleTipoOptions.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    tipoSel.value=currentTipo;
 
     this._renderMultiFilter('materia', 'cards-f-materia-multi', matterOptions, 'Todas as disciplinas/baralhos', 'Buscar disciplina ou baralho…');
     this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
@@ -304,7 +331,7 @@ const CardsScreen = {
     let out=this.collectionCards().filter(c=>{
       if(materias.size&&!(c.materia&&materias.has(c.materia))&&!(c.deckId&&materias.has('deck:'+c.deckId)))return false;
       if(assuntos.size?!assuntos.has(c.assunto||''):(f.assunto&&(c.assunto||'')!==f.assunto))return false;
-      if(f.tipo&&(c.tipo||'')!==f.tipo)return false;
+      if(f.tipo&&this.cardTypeKey(c)!==f.tipo)return false;
       if(f.status&&f.status!=='todos'&&(c.status||'pendente')!==f.status)return false;
       if(f.favorito&&!c.favorito)return false;
       if(busca){
