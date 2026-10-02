@@ -2292,22 +2292,6 @@ def cards_official_browser_bulk(
         }
 
 
-@app.post("/api/cards-official/undo")
-def cards_official_undo(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
-    item = cards_uc_for(user)
-    with item.lock:
-        out = pb(item.col.undo())
-        return {"ok": True, "changes": out, "reviewer": cards_reviewer_payload(item.col)}
-
-
-@app.post("/api/cards-official/redo")
-def cards_official_redo(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
-    item = cards_uc_for(user)
-    with item.lock:
-        out = pb(item.col.redo())
-        return {"ok": True, "changes": out, "reviewer": cards_reviewer_payload(item.col)}
-
-
 @app.get("/api/cards-official/history/status")
 def cards_official_history_status(
     user: dict[str, Any] = Depends(current_user),
