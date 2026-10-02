@@ -10,7 +10,7 @@ Esta pasta ancora a paridade dos **Cards do StudyNoMentor** no repositório ofic
 
 Logo, após `git submodule update --init --recursive`, o conteúdo de `anki-oficial/upstream` é o próprio repositório oficial naquele commit — não uma transcrição manual.
 
-O commit `7a4db0038e4d5570cc3a297a2b47f8fefbfc309c` é o radar do `main` consultado em 2026-10-01. Ele está 15 commits à frente da release e não muda o alvo de produção até nova release estável.
+O campo `main_radar_commit` de `UPSTREAM.lock.json` registra apenas o estado observado do `main` upstream. Ele nunca muda o alvo de produção: somente uma release estável validada pode fazê-lo.
 
 ## Cobertura do repositório inteiro
 
