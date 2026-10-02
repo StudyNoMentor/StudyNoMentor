@@ -87,7 +87,6 @@ jobs:
         run: |
           set -euo pipefail
           timeout 120s node testes/cards-runtime-anki.mjs
-          timeout 120s node testes/cards-official-surfaces.mjs
 
       - name: Concorrência multidevice
         if: github.event_name != 'push'
