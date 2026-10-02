@@ -99,14 +99,27 @@ const CardsScreen = {
       title: picked.join(', ')
     };
   },
+  _multiFilterPanel(host) {
+    return host ? (host._cardsMultiPanel || host.querySelector('.cards-multi-filter-panel')) : null;
+  },
+  _restoreMultiFilterPanel(host) {
+    const panel=this._multiFilterPanel(host);if(!host||!panel)return;
+    if(panel.parentElement!==host)host.appendChild(panel);
+    panel.classList.remove('cards-multi-filter-portaled');
+  },
+  _portalMultiFilterPanel(host,panel) {
+    if(!host||!panel||typeof window==='undefined'||!window.matchMedia||!window.matchMedia('(max-width:720px)').matches)return;
+    panel.classList.add('cards-multi-filter-portaled');
+    document.body.appendChild(panel);
+  },
   _closeMultiFilters(except) {
     document.querySelectorAll('#cards-filter-card .cards-multi-filter.open').forEach(host => {
       if (except && host === except) return;
       host.classList.remove('open');
       const btn = host.querySelector('.cards-multi-filter-btn');
-      const panel = host.querySelector('.cards-multi-filter-panel');
+      const panel = this._multiFilterPanel(host);
       if (btn) btn.setAttribute('aria-expanded', 'false');
-      if (panel) panel.hidden = true;
+      if (panel) { panel.hidden = true; this._restoreMultiFilterPanel(host); }
     });
     const card=document.getElementById('cards-filter-card');
     if(card)card.classList.toggle('cards-filter-overlay-open',!!document.querySelector('#cards-filter-card .cards-multi-filter.open'));
@@ -120,6 +133,9 @@ const CardsScreen = {
   _renderMultiFilter(kind, hostId, options, allLabel, searchPlaceholder) {
     const host = document.getElementById(hostId);
     if (!host) return;
+    const stalePanel=host._cardsMultiPanel;
+    if(stalePanel&&stalePanel.parentElement!==host)stalePanel.remove();
+    host._cardsMultiPanel=null;
     const selected = this._filterSet(kind);
     const summary = this._filterSummary(kind, options, allLabel);
     const rows = [];
@@ -161,6 +177,7 @@ const CardsScreen = {
 
     const btn = host.querySelector('.cards-multi-filter-btn');
     const panel = host.querySelector('.cards-multi-filter-panel');
+    host._cardsMultiPanel=panel;
     const search = host.querySelector('.cards-multi-filter-search');
     const clear = host.querySelector('.cards-multi-filter-clear');
     const optionsBox = host.querySelector('.cards-multi-filter-options');
@@ -180,7 +197,7 @@ const CardsScreen = {
           btn.insertBefore(badge, btn.querySelector('.cards-multi-filter-chevron'));
         }
       } else if (oldBadge) oldBadge.remove();
-      const counter = host.querySelector('.cards-multi-filter-selected');
+      const counter = panel.querySelector('.cards-multi-filter-selected');
       if (counter) counter.textContent = selected.size ? selected.size + ' selecionado(s)' : 'Todos';
       if (clear) clear.disabled = !selected.size;
     };
@@ -199,6 +216,7 @@ const CardsScreen = {
       this._closeMultiFilters(host);
       panel.hidden = !opening;
       host.classList.toggle('open', opening);
+      if(opening)this._portalMultiFilterPanel(host,panel);else this._restoreMultiFilterPanel(host);
       const filterCard=document.getElementById('cards-filter-card');
       if(filterCard)filterCard.classList.toggle('cards-filter-overlay-open',opening);
       btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
@@ -208,12 +226,12 @@ const CardsScreen = {
     if (search) search.addEventListener('input', () => {
       const q = String(search.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
       let shown = 0;
-      host.querySelectorAll('.cards-multi-filter-option').forEach(row => {
+      panel.querySelectorAll('.cards-multi-filter-option').forEach(row => {
         const hit = !q || String(row.dataset.filterSearch || '').includes(q);
         row.hidden = !hit;
         if (hit) shown++;
       });
-      host.querySelectorAll('.cards-multi-filter-group').forEach(group => {
+      panel.querySelectorAll('.cards-multi-filter-group').forEach(group => {
         let next = group.nextElementSibling, any = false;
         while (next && !next.classList.contains('cards-multi-filter-group')) {
           if (next.classList.contains('cards-multi-filter-option') && !next.hidden) any = true;
@@ -221,7 +239,7 @@ const CardsScreen = {
         }
         group.hidden = !any;
       });
-      const empty = host.querySelector('.cards-multi-filter-empty-search');
+      const empty = panel.querySelector('.cards-multi-filter-empty-search');
       if (empty) empty.hidden = shown > 0 || options.length === 0;
     });
 
@@ -238,8 +256,8 @@ const CardsScreen = {
     if (clear) clear.addEventListener('click', () => {
       if (!selected.size) return;
       selected.clear();
-      host.querySelectorAll('input[type="checkbox"][data-filter-value]').forEach(cb => { cb.checked = false; });
-      host.querySelectorAll('.cards-multi-filter-option.selected').forEach(row => row.classList.remove('selected'));
+      panel.querySelectorAll('input[type="checkbox"][data-filter-value]').forEach(cb => { cb.checked = false; });
+      panel.querySelectorAll('.cards-multi-filter-option.selected').forEach(row => row.classList.remove('selected'));
       apply();
     });
 
@@ -247,7 +265,7 @@ const CardsScreen = {
       this._multiFilterOutsideBound = true;
       const closeOutside = (e) => {
         const open = [...document.querySelectorAll('#cards-filter-card .cards-multi-filter.open')];
-        if (open.length && !open.some(item => item.contains(e.target))) this._closeMultiFilters();
+        if (open.length && !open.some(item => item.contains(e.target) || (this._multiFilterPanel(item) && this._multiFilterPanel(item).contains(e.target)))) this._closeMultiFilters();
       };
       // pointerdown fecha antes de qualquer mudança de foco; click é fallback
       // para navegadores/webviews que sintetizam clique sem Pointer Events.
