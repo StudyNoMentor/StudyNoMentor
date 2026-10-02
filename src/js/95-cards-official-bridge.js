@@ -105,6 +105,58 @@ const CardsOfficialBridge = {
     const n=Number(card&&card.ankiId!=null?card.ankiId:card&&card.id);
     return Number.isFinite(n)&&n>0?n:null;
   },
+  _officialCreatedAt(stateOrId){
+    const id=Number(stateOrId&&typeof stateOrId==='object'?stateOrId.id:stateOrId);
+    if(!Number.isFinite(id)||id<=0)return null;
+    const d=new Date(id);
+    return Number.isFinite(d.getTime())?d.toISOString():null;
+  },
+  _originalCreatedDay(card){
+    const raw=card&&card.createdAt,ms=Date.parse(raw||'');
+    if(Number.isFinite(ms)){
+      const day=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(ms):new Date(ms).toISOString().slice(0,10);
+      if(/^\d{4}-\d{2}-\d{2}$/.test(String(day||'')))return day;
+    }
+    const official=this._officialCreatedAt(this._officialId(card));
+    if(!official)return null;
+    const oms=Date.parse(official),
+      fallback=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(oms):official.slice(0,10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(String(fallback||''))?fallback:null;
+  },
+  _statsOriginalAddedMap(scopeIds){
+    const allowed=new Set((scopeIds||[]).map(String).filter(Boolean));
+    if(!allowed.size)return{};
+    const byOfficialId=new Map();
+    for(const card of this._allCards()){
+      const oid=this._officialId(card),key=oid==null?'':String(oid);
+      if(!key||!allowed.has(key))continue;
+      const day=this._originalCreatedDay(card);
+      if(!day)continue;
+      const previous=byOfficialId.get(key);
+      // O mesmo card pode ter réplicas em vários planejamentos. A criação é
+      // propriedade do card, então usamos a data histórica mais antiga e
+      // contamos o ID oficial uma única vez.
+      if(!previous||day<previous)byOfficialId.set(key,day);
+    }
+    // Cards importados diretamente do Anki podem não ter espelho histórico
+    // antigo. Nesse caso o próprio ID oficial continua sendo o fallback
+    // canônico de criação do Anki.
+    for(const key of allowed){
+      if(byOfficialId.has(key))continue;
+      const raw=this._officialCreatedAt(Number(key)),ms=Date.parse(raw||'');
+      if(!raw||!Number.isFinite(ms))continue;
+      const day=typeof diaDeEstudoDe==='function'?diaDeEstudoDe(ms):raw.slice(0,10);
+      if(day)byOfficialId.set(key,day);
+    }
+    const today=typeof todayCards==='function'?todayCards():new Date().toISOString().slice(0,10),
+      days=this._statsDays(),out={};
+    for(const day of byOfficialId.values()){
+      const off=this._dayOffset(day,today);
+      if(off==null||off>0||(days>0&&off < -days))continue;
+      out[String(off)]=Number(out[String(off)]||0)+1;
+    }
+    return out;
+  },
   _addDays(iso,days){
     const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     if(!m)return String(iso||'');
@@ -2094,7 +2146,7 @@ const CardsOfficialBridge = {
     for(let off=min;off<=max;off++)m.set(this._addDays(todayCards(),off),Number(src[String(off)]||src[off]||0));
     const serie=M&&M._serie?M._serie([...m.entries()],x=>Number(x[1])>0):null;
     const body=serie&&serie.grupos&&serie.grupos.length?M._serieHtml(serie,g=>g.itens.reduce((a,b)=>a+Number(b||0),0),[['review',g=>g.itens.reduce((a,b)=>a+Number(b||0),0)]],n=>Number(n||0).toLocaleString('pt-BR'),''):'<div class="stat-body"><p class="hint">Sem dados.</p></div>';
-    return '<section class="card stat-card"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards adicionados por período · fonte oficial.</p></div></div>'+body+'</section>';
+    return '<section class="card stat-card"><div class="card-header"><div><h2>➕ Adicionados</h2><p class="sub">Cards adicionados por período · data original preservada do card.</p></div></div>'+body+'</section>';
   },
   async renderStats(box){
     box=box||document.getElementById('cards-content');if(!box)return;
@@ -2110,6 +2162,8 @@ const CardsOfficialBridge = {
         }),
 
         counts=data.card_counts&&data.card_counts.excluding_inactive||{},reviews=data.reviews||{},fsrs=!!data.fsrs,
+        scopedIds=Array.isArray(data._study_scope_card_ids)?data._study_scope_card_ids:(this._statsSearch()?null:this._statsScopeIds()),
+        addedMap=scopedIds===null?((data.added||{}).added||{}):this._statsOriginalAddedMap(scopedIds),
         controls=window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._statsControlsHtml?AnkiMaxStatsMedia._statsControlsHtml():'';
       if(!this._renderStillCurrent(token,'stats',box))return;
       box.innerHTML='<div class="stats-page cards-official-stats">'+controls+
@@ -2129,7 +2183,7 @@ const CardsOfficialBridge = {
           this._statsOfficialHistHtml('🧬 Estabilidade',(data.stability||{}).intervals||{},'Buckets oficiais de estabilidade FSRS.')+
           this._statsOfficialHistHtml('🧩 Dificuldade',(data.difficulty||{}).eases||{},'Buckets oficiais de dificuldade FSRS.')+
         '</div>':'')+
-        this._statsOfficialAddedHtml((data.added||{}).added||{})+
+        this._statsOfficialAddedHtml(addedMap)+
         (window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._simCardHtml?AnkiMaxStatsMedia._simCardHtml():'')+
       '</div>';
       if(window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._bindStatsUi)AnkiMaxStatsMedia._bindStatsUi();
@@ -2932,7 +2986,8 @@ const CardsOfficialBridge = {
           let card=existingByOfficial.get(String(state.id));
           if(!card){
             const data={
-              ankiId:Number(state.id),ankiNoteId:Number(state.note_id),noteId:note.id,notetypeId:note.notetypeId,
+              ankiId:Number(state.id),createdAt:this._officialCreatedAt(state),
+              ankiNoteId:Number(state.note_id),noteId:note.id,notetypeId:note.notetypeId,
               ankiTemplateOrd:Number(state.template_idx)||0,
               deckId:this._localDeckId(state.deck_id,pid,seed.deckId)||seed.deckId||null,
               materia:seed.materia||null,assunto:seed.assunto||'',materiaTec:seed.materiaTec||'',banca:seed.banca||'',tipo:seed.tipo||'',

@@ -1183,6 +1183,8 @@ const DB = {
   addCard(data) {
     const list = this.getCards();
     const now = new Date().toISOString();
+    const createdMs = Date.parse(data && data.createdAt || '');
+    const createdAt = Number.isFinite(createdMs) ? new Date(createdMs).toISOString() : now;
     const id = this._uid();
     const card = {
       id,
@@ -1223,7 +1225,7 @@ const DB = {
            de virar um bloco monotemático no fim.
          Reposicionar depois continua funcionando: ele reescreve posicaoNova. */
       posicaoNova: data.posicaoNova == null ? null : data.posicaoNova,
-      createdAt: now, updatedAt: now
+      createdAt, updatedAt: now
     };
     list.push(card); this.saveCards(list); return card;
   },
