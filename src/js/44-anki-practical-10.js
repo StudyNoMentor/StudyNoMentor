@@ -9,10 +9,10 @@ const AnkiPractical10 = {
   install(){
     if(this._installed||typeof CardsScreen==='undefined'||typeof AnkiProductParity==='undefined')return;
     this._installed=true;
+    this._installPreferences();
     this._groupMoreMenu();
     this._enhanceDeckManager();
     this._enhanceBrowserSidebar();
-    this._installPreferences();
     this._installReviewerMobileParity();
     this._installSimpleNoteTypeParity();
     this._installStatsCompleteness();
@@ -25,11 +25,11 @@ const AnkiPractical10 = {
     const menu=document.getElementById('cards-more-menu');if(!menu||menu.dataset.grouped==='1')return;
     menu.dataset.grouped='1';
     const defs=[
-      ['study','Estudo',['cards-custom-btn','cards-filtered-btn']],
+      ['study','Estudo',['cards-stats-btn','cards-custom-btn','cards-filtered-btn']],
       ['content','Conteúdo',['cards-advanced-add-btn','cards-browser-btn','cards-shared-decks-btn','cards-notetypes-btn']],
       ['io','Entrada e saída',['cards-import-btn','cards-export-btn']],
       ['maintenance','Manutenção',['cards-reviewer-bindings-btn','cards-check-collection-btn','cards-empty-btn','cards-audit-export-btn']],
-      ['advanced','Avançado',['cards-algo-btn','cards-custom-scheduling-btn','cards-extensions-btn','cards-preferences-btn']]
+      ['advanced','Avançado',['cards-algo-btn','cards-preferences-btn']]
     ];
     defs.forEach(([key,label,ids])=>{
       const buttons=ids.map(id=>document.getElementById(id)).filter(b=>b&&b.parentNode===menu);
