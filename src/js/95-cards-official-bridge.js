@@ -275,8 +275,13 @@ const CardsOfficialBridge = {
   },
   async _syncOfficialFullState(state,planId){
     if(!state||!Array.isArray(state.notetypes)||!Array.isArray(state.notes))throw new Error('Snapshot integral da Collection oficial ausente.');
-    const pid=planId!=null?planId:this._activePlanId(),
-      officialNotes=new Set((state.notes||[]).map(x=>String(x.id))),
+    const pid=planId!=null?planId:this._activePlanId();
+    // Corrige a causa dos "Default" fantasmas: espelhos legados sem ankiId
+    // precisam ser vinculados e consolidados ANTES de projetarmos o snapshot.
+    // A Collection oficial continua sendo a fonte da verdade; nada é apenas
+    // escondido no seletor.
+    this._reconcileLegacyDeckMirrors(state);
+    const officialNotes=new Set((state.notes||[]).map(x=>String(x.id))),
       officialNotetypes=new Set((state.notetypes||[]).map(x=>String(x&&x.notetype&&x.notetype.id)).filter(Boolean)),
       officialCards=new Set((state.cards||[]).map(x=>String(x.id))),
       officialDecks=new Set((state.decks||[]).map(x=>String(x&&x.id)).filter(Boolean)),
@@ -1480,6 +1485,134 @@ const CardsOfficialBridge = {
       previewGoodSecs:Math.max(0,Math.round(Number(cfg.preview_good_secs)||0))
     };
   },
+  _deckNameKey(name){
+    return String(name==null?'':name).normalize('NFKC').replace(/\s+/g,' ').trim().toLocaleLowerCase('pt-BR');
+  },
+  _reconcileLegacyDeckMirrors(state){
+    const officialRows=(state&&Array.isArray(state.decks)?state.decks:[])
+      .filter(row=>row&&!row.filtered&&Number.isFinite(Number(row.id||row.deck_id))&&Number(row.id||row.deck_id)>0);
+    const result={bound:0,collapsed:0,remappedCards:0,conflicts:[]};
+    if(!officialRows.length)return result;
+
+    const byId=new Map(),byName=new Map();
+    for(const row of officialRows){
+      const oid=Number(row.id||row.deck_id),key=this._deckNameKey(row.name);
+      byId.set(String(oid),row);
+      if(key){
+        if(!byName.has(key))byName.set(key,[]);
+        byName.get(key).push(row);
+      }
+    }
+    const officialCardDeck=new Map();
+    for(const card of state&&Array.isArray(state.cards)?state.cards:[]){
+      const cid=Number(card&&card.id),did=Number(card&&card.deck_id);
+      if(Number.isFinite(cid)&&cid>0&&Number.isFinite(did)&&did>0)officialCardDeck.set(String(cid),did);
+    }
+
+    const plans=window.StudyGlobalScope&&StudyGlobalScope.plans
+      ?StudyGlobalScope.plans()
+      :[{id:this._activePlanId()}],
+      seenPlans=new Set(),now=new Date().toISOString(),
+      clean=x=>{const y=DB._semTransitorios?DB._semTransitorios(x):Object.assign({},x);delete y._planId;delete y._planNome;return y;};
+
+    for(const p of plans){
+      const pid=p&&Object.prototype.hasOwnProperty.call(p,'id')?p.id:null,pk=String(pid==null?'':pid);
+      if(seenPlans.has(pk))continue;seenPlans.add(pk);
+      const rawDecks=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+        rawCards=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'cards'):DB.getCards(),
+        decks=(rawDecks||[]).map(x=>Object.assign({},x)),
+        cards=(rawCards||[]).map(x=>Object.assign({},x)),
+        usage=new Map();
+      for(const card of cards){
+        const lid=String(card&&card.deckId||'');
+        if(lid)usage.set(lid,(usage.get(lid)||0)+1);
+      }
+
+      let decksChanged=false,cardsChanged=false;
+      for(const deck of decks){
+        if(!deck||deck.filtered||(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(deck)))continue;
+        const current=Number(deck.ankiId);
+        if(Number.isFinite(current)&&current>0){
+          const official=byId.get(String(current));
+          if(official&&String(deck.nome||'')!==String(official.name||'')){
+            deck.nome=String(official.name||deck.nome||'Baralho');deck.updatedAt=now;decksChanged=true;
+          }
+          continue;
+        }
+
+        const evidence=new Set();
+        for(const card of cards){
+          if(String(card&&card.deckId||'')!==String(deck.id))continue;
+          const cid=Number(card&&card.ankiId),did=Number.isFinite(cid)&&cid>0?officialCardDeck.get(String(cid)):null;
+          if(did&&byId.has(String(did)))evidence.add(String(did));
+        }
+        let target=null;
+        if(evidence.size===1)target=byId.get([...evidence][0])||null;
+        else if(evidence.size>1){
+          result.conflicts.push({planId:pid,deckId:deck.id,name:deck.nome,officialDeckIds:[...evidence]});
+          continue;
+        }else{
+          const matches=byName.get(this._deckNameKey(deck.nome))||[];
+          if(matches.length===1)target=matches[0];
+        }
+        if(!target)continue;
+        const oid=Number(target.id||target.deck_id);
+        Object.assign(deck,{ankiId:oid,nome:String(target.name||deck.nome||'Baralho'),kind:'normal',filtered:false,updatedAt:now});
+        delete deck.filteredConfig;
+        result.bound++;decksChanged=true;
+      }
+
+      const groups=new Map();
+      decks.forEach((deck,index)=>{
+        if(!deck||deck.filtered)return;
+        const oid=Number(deck.ankiId);
+        if(!Number.isFinite(oid)||oid<=0||!byId.has(String(oid)))return;
+        if(!groups.has(String(oid)))groups.set(String(oid),[]);
+        groups.get(String(oid)).push(index);
+      });
+      const remove=new Set();
+      for(const [oid,indexes] of groups){
+        if(indexes.length<2)continue;
+        indexes.sort((a,b)=>{
+          const ua=usage.get(String(decks[a].id))||0,ub=usage.get(String(decks[b].id))||0;
+          return ub-ua||a-b;
+        });
+        const survivor=decks[indexes[0]],official=byId.get(String(oid));
+        if(official){
+          survivor.ankiId=Number(oid);survivor.nome=String(official.name||survivor.nome||'Baralho');
+          survivor.kind='normal';survivor.filtered=false;
+        }
+        for(const index of indexes.slice(1)){
+          const duplicate=decks[index];
+          for(const card of cards){
+            if(String(card&&card.deckId||'')!==String(duplicate.id))continue;
+            card.deckId=survivor.id;cardsChanged=true;result.remappedCards++;
+          }
+          remove.add(index);result.collapsed++;
+        }
+        decksChanged=true;
+      }
+
+      const finalDecks=remove.size?decks.filter((_,index)=>!remove.has(index)):decks;
+      if(decksChanged){
+        const payload=finalDecks.map(clean);
+        if(pid!=null&&DB.saveDecksForPlan)DB.saveDecksForPlan(pid,payload);
+        else if(pid!=null&&DB.keysForPlan)DB._set(DB.keysForPlan(pid).decks,payload);
+        else DB.saveDecks(payload);
+      }
+      if(cardsChanged){
+        const payload=cards.map(clean);
+        if(pid!=null&&DB.saveCardsForPlan)DB.saveCardsForPlan(pid,payload);
+        else if(pid!=null&&DB.keysForPlan)DB._set(DB.keysForPlan(pid).cards,payload);
+        else DB.saveCards(payload);
+      }
+    }
+    if(result.conflicts.length&&typeof console!=='undefined'&&console.warn)
+      console.warn('Cards: baralhos legados ambíguos não foram fundidos automaticamente.',result.conflicts);
+    this._lastDeckReconciliation=result;
+    return result;
+  },
+
   _saveNormalDeckMirror(row,planId,preferredLocalId){
     if(!row||row.filtered)return null;
     const oid=Number(row.id||row.deck_id);if(!Number.isFinite(oid)||oid<=0)throw new Error('Baralho oficial sem identidade válida.');
@@ -1489,6 +1622,13 @@ const CardsOfficialBridge = {
       clean=x=>{const y=DB._semTransitorios?DB._semTransitorios(x):Object.assign({},x);delete y._planId;delete y._planNome;return y;};
     let deck=list.find(x=>String(x.ankiId!=null?x.ankiId:x.id)===String(oid));
     if(!deck&&preferredLocalId!=null)deck=list.find(x=>String(x.id)===String(preferredLocalId));
+    if(!deck){
+      // Evita criar um novo espelho quando já existe exatamente um baralho
+      // legado homônimo aguardando vínculo com o DeckManager oficial.
+      const key=this._deckNameKey(row.name),
+        legacy=list.filter(x=>x&&!x.filtered&&!(Number.isFinite(Number(x.ankiId))&&Number(x.ankiId)>0)&&this._deckNameKey(x.nome)===key);
+      if(legacy.length===1)deck=legacy[0];
+    }
     const now=new Date().toISOString();
     if(!deck){deck={id:DB._uid(),createdAt:now};list.push(deck);}
     Object.assign(deck,{ankiId:oid,nome:String(row.name||deck.nome||'Baralho'),kind:'normal',filtered:false,updatedAt:now});
