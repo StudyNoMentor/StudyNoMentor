@@ -20,6 +20,8 @@ const chunks=readdirSync(join(A,'inventario')).filter(x=>/^\d{4}-\d{4}\.json$/.t
 const files=chunks.flatMap(x=>JSON.parse(readFileSync(join(A,'inventario',x),'utf8')).files||[]);
 const submodules=JSON.parse(readFileSync(join(A,'inventario/submodules.json'),'utf8'));
 assert.equal(submodules.upstream_commit,lock.release_commit);
+const submoduleUnclassified=(submodules.submodules||[]).filter(x=>x.cards_scope==='UNCLASSIFIED');
+assert.equal(submoduleUnclassified.length,0,'release upstream contém submódulo(s) não classificados: '+submoduleUnclassified.map(x=>x.path).join(', '));
 assert.equal(lock.schema,'studynomentor-anki-upstream-lock-v1');
 assert.equal(lock.repository,'ankitects/anki');
 assert.match(lock.release,/^\d+(?:\.\d+)+$/,'release estável inválida no lock');
