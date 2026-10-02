@@ -43,6 +43,22 @@ export function compareVersions(a, b) {
   return 0;
 }
 
+export function stableReleaseQuarantine(publishedAt, quarantineHours, nowMs = Date.now()) {
+  const hours = Number(quarantineHours);
+  if (!Number.isFinite(hours) || hours < 0) throw new Error('Política de quarentena inválida: '+quarantineHours);
+  const publishedMs = Date.parse(String(publishedAt || ''));
+  if (!Number.isFinite(publishedMs)) throw new Error('Release estável sem published_at oficial válido; promoção automática recusada.');
+  const eligibleMs = publishedMs + hours * 60 * 60 * 1000;
+  const remainingMs = Math.max(0, eligibleMs - Number(nowMs));
+  return {
+    quarantined: remainingMs > 0,
+    published_at: new Date(publishedMs).toISOString(),
+    eligible_at: new Date(eligibleMs).toISOString(),
+    remaining_ms: remainingMs,
+    remaining_hours: remainingMs / (60 * 60 * 1000),
+  };
+}
+
 export function inferRepositoryArea(path) {
   const p = String(path || '');
   if (p.startsWith('.github/')) return 'github_ci';
@@ -342,7 +358,7 @@ async function main() {
   const oldCommit = oldLock.release_commit;
   const targetArg = process.argv.find(x => x.startsWith('--target='));
   const requested = process.env.ANKI_TARGET_VERSION || (targetArg ? targetArg.slice('--target='.length) : '');
-  const { version, tag } = await resolveRelease(requested);
+  const { version, tag, release } = await resolveRelease(requested);
 
   if (compareVersions(version, oldVersion) < 0 && process.env.ANKI_ALLOW_DOWNGRADE !== '1') {
     throw new Error(`Release encontrada ${version} é anterior à versão fixada ${oldVersion}; downgrade automático recusado.`);
@@ -354,6 +370,27 @@ async function main() {
     setOutput('blockers_count', '0');
     return;
   }
+
+  const quarantineHours = Number(oldLock.auto_update_policy?.stable_release_quarantine_hours ?? 48);
+  const quarantine = stableReleaseQuarantine(release.published_at, quarantineHours);
+  if (quarantine.quarantined) {
+    console.log(
+      `Anki ${version} é estável, mas permanece em quarentena por ${quarantine.remaining_hours.toFixed(1)}h. ` +
+      `Elegível a partir de ${quarantine.eligible_at}.`
+    );
+    setOutput('changed', 'false');
+    setOutput('quarantined', 'true');
+    setOutput('version', version);
+    setOutput('published_at', quarantine.published_at);
+    setOutput('eligible_at', quarantine.eligible_at);
+    setOutput('quarantine_hours', String(quarantineHours));
+    setOutput('blockers_count', '0');
+    return;
+  }
+  setOutput('quarantined', 'false');
+  setOutput('published_at', quarantine.published_at);
+  setOutput('eligible_at', quarantine.eligible_at);
+  setOutput('quarantine_hours', String(quarantineHours));
 
   if (!existsSync(join(UPSTREAM, '.git')) && !existsSync(join(UPSTREAM, 'rslib'))) {
     throw new Error('Submodule anki-oficial/upstream não inicializado. Use checkout com submodules: recursive.');
