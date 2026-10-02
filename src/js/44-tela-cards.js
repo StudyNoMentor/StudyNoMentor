@@ -486,34 +486,79 @@ const CardsScreen = {
   _ordenarComoAnki(){},
   _skipNotDue(){},
   entrarFoco() {
+    // Entrar/sair do foco não deve reconstruir a sessão oficial: reconstruir a
+    // tela aqui zerava o contador da sessão e refazia a fila sem necessidade.
+    const box = document.getElementById('cards-content');
+    const precisaRender = this.tab !== 'revisar' || !box || !box.children.length;
     this.tab = 'revisar';
     document.querySelectorAll('.cards-tab').forEach(t => t.classList.toggle('active', t.dataset.ctab === 'revisar'));
     // Modos foco são mutuamente exclusivos. Uma classe antiga do Anki Oficial
     // ou da Lei Seca não pode deixar duas barras sobrepostas capturando o toque.
     document.body.classList.remove('anki-foco', 'leis-foco');
     document.body.classList.add('cards-foco');
-    this.renderContent();
+    if (precisaRender) this.renderContent();
     this.atualizarFoco();
-    window.scrollTo({ top: 0 });
+    window.scrollTo({ top: 0, behavior: 'auto' });
     showToast('Modo foco · Espaço vira · 1-4 avaliam · Esc sai');
   },
   sairFoco() {
+    if (!this.emFoco()) return;
+    // A própria classe controla o layout. Não renderizar preserva exatamente o
+    // card, o lado exibido, o cronômetro e o progresso da sessão atual.
     document.body.classList.remove('cards-foco');
-    this.renderContent();
   },
   emFoco() { return document.body.classList.contains('cards-foco'); },
   atualizarFoco() {
     if (!this.emFoco()) return;
     const el = document.getElementById('foco-info');
     if (!el) return;
-    const total = (this._reviewQueue || []).length;
-    const c = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
-    const onde = c ? (c.materia || ((window.StudyGlobalScope && StudyGlobalScope.deckForCard ? StudyGlobalScope.deckForCard(c) : null) || DB.getDecks().find(d => d.id === c.deckId) || {}).nome || '') : '';
-    el.textContent = total
-      ? `${Math.min(this._reviewIdx + 1, total)} de ${total}${onde ? ' · ' + onde : ''}`
-      : 'Nada para revisar agora';
+
+    const bridge = window.CardsOfficialBridge;
+    let total = 0, atual = 0, respondidos = 0, restantes = 0, card = null, escopo = '';
+
+    if (bridge && bridge.review) {
+      const counts = bridge.counts || {};
+      restantes = Number(counts.new || 0) + Number(counts.learning || 0) + Number(counts.review || 0);
+      respondidos = Math.max(0, Number(bridge._sessionAnswered) || 0);
+      total = Math.max(
+        respondidos + restantes,
+        Number(bridge._sessionStartTotal) || 0
+      );
+      atual = restantes > 0 ? Math.min(total || 1, respondidos + 1) : total;
+      if (bridge.review.card && typeof bridge._localForOfficialId === 'function') {
+        card = bridge._localForOfficialId(bridge.review.card.id);
+      }
+      escopo = String((bridge.review.review_scope || {}).label || '');
+    } else {
+      total = (this._reviewQueue || []).length;
+      atual = total ? Math.min(this._reviewIdx + 1, total) : 0;
+      card = total ? DB.getCard(this._reviewQueue[this._reviewIdx]) : null;
+      restantes = total;
+    }
+
+    let onde = '';
+    if (card) {
+      try { onde = String(this.materiaLabel(card) || '').replace(/^📁\s*/, ''); }
+      catch (_) { onde = String(card.materia || ''); }
+    }
+
+    if (!total) el.textContent = 'Nada para revisar agora';
+    else if (!restantes && respondidos) el.textContent = `${respondidos} de ${total} · Sessão concluída`;
+    else el.textContent = `${atual} de ${total}${onde ? ' · ' + onde : ''}`;
+
+    el.title = [
+      respondidos ? `${respondidos} respondido${respondidos === 1 ? '' : 's'}` : '',
+      restantes ? `${restantes} restante${restantes === 1 ? '' : 's'}` : '',
+      escopo
+    ].filter(Boolean).join(' · ');
+
     const u = document.getElementById('foco-undo');
-    if (u) u.disabled = !(this._undoStack || []).length;
+    if (u) {
+      const podeDesfazer = bridge && Array.isArray(bridge._undo)
+        ? bridge._undo.length > 0
+        : (this._undoStack || []).length > 0;
+      u.disabled = !podeDesfazer;
+    }
   },
   // navega entre os cards da fila sem avaliar (pular)
   undoAnswer() {
