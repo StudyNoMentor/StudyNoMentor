@@ -104,7 +104,9 @@ vm.runInContext(fs.readFileSync('src/js/94-global-scope.js','utf8'),ctx);
 
 const S=ctx.StudyGlobalScope;
 assert.ok(S,'camada global deve ser instalada');
-assert.equal(S.cardsScope(),'all','Cards nasce global por padrão');
+assert.equal(S.cardsScope(),'plan','Cards nasce no planejamento atual por padrão');
+assert.deepEqual(Array.from(S.cards(),x=>x.id),['a1']);
+S.setCardsScope('all');
 assert.deepEqual(Array.from(S.cards(),x=>x.id),['a1','b1']);
 S.setCardsScope('plan');
 assert.deepEqual(Array.from(S.cards(),x=>x.id),['a1']);
