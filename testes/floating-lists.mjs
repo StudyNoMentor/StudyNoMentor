@@ -18,7 +18,7 @@ assert.match(infra,/getElementById\('tabs'\)/,'deve descontar a barra móvel fix
 assert.match(infra,/_bounds\(panel\)/,'deve considerar ancestrais que recortam conteúdo');
 assert.ok(infra.includes('/(auto|scroll|hidden|clip)/.test(oy)'), 'deve reconhecer containers com overflow que recortam o menu');
 assert.match(infra,/ux-float-up/,'deve conseguir inverter a abertura para cima');
-assert.match(infra,/panel: '\\.cards-more-menu', anchor: '\\.cards-more-btn', gap: 6, preferDown: true/,'Mais do Anki deve preferir abrir para baixo');
+assert.match(infra,/panel: '\.cards-more-menu', anchor: '\.cards-more-btn', gap: 6, preferDown: true/,'Mais do Anki deve preferir abrir para baixo');
 assert.match(infra,/if \(!preferDown && natural > abaixo\)/,'preferDown deve impedir a inversão automática do Mais');
 
 for (const sel of [
