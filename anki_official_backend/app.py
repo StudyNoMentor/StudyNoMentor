@@ -655,7 +655,7 @@ class AnswerBody(BaseModel):
 class ScopedStatsBody(BaseModel):
     search: str = ""
     days: int = Field(default=365, ge=0, le=36500)
-    card_ids: list[int] = []
+    card_ids: list[int] = Field(default_factory=list)
 
 
 class TypeAnswerBody(BaseModel):
