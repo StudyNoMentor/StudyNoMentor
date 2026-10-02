@@ -352,181 +352,181 @@
  {
   "arquivo": "js/44-anki-official.js",
   "de": 36438,
-  "ate": 37264
+  "ate": 37267
  },
  {
   "arquivo": "js/45-autoteste.js",
-  "de": 37266,
-  "ate": 37909
+  "de": 37269,
+  "ate": 37912
  },
  {
   "arquivo": "js/46-sanitizacao-e-editor.js",
-  "de": 37911,
-  "ate": 38599
+  "de": 37914,
+  "ate": 38602
  },
  {
   "arquivo": "js/47-tela-extras.js",
-  "de": 38601,
-  "ate": 39893
+  "de": 38604,
+  "ate": 39896
  },
  {
   "arquivo": "js/48-tela-links.js",
-  "de": 39895,
-  "ate": 40103
+  "de": 39898,
+  "ate": 40106
  },
  {
   "arquivo": "js/49-tela-config.js",
-  "de": 40105,
-  "ate": 40517
+  "de": 40108,
+  "ate": 40520
  },
  {
   "arquivo": "js/50-tela-ferramentas.js",
-  "de": 40519,
-  "ate": 40750
+  "de": 40522,
+  "ate": 40753
  },
  {
   "arquivo": "js/51-tela-desempenho-tec.js",
-  "de": 40752,
-  "ate": 43409
+  "de": 40755,
+  "ate": 43412
  },
  {
   "arquivo": "js/52-tela-planejamentos.js",
-  "de": 43411,
-  "ate": 43809
+  "de": 43414,
+  "ate": 43812
  },
  {
   "arquivo": "js/53-portao-de-acesso.js",
-  "de": 43811,
-  "ate": 44500
+  "de": 43814,
+  "ate": 44503
  },
  {
   "arquivo": "js/54-reforco-fila.js",
-  "de": 44502,
-  "ate": 45149
+  "de": 44505,
+  "ate": 45152
  },
  {
   "arquivo": "js/55-extras-ui-moderna.js",
-  "de": 45151,
-  "ate": 45540
+  "de": 45154,
+  "ate": 45543
  },
  {
   "arquivo": "js/56-leis-rodizio.js",
-  "de": 45542,
-  "ate": 46008
+  "de": 45545,
+  "ate": 46011
  },
  {
   "arquivo": "js/57-extras-lei-fonte.js",
-  "de": 46010,
-  "ate": 46087
+  "de": 46013,
+  "ate": 46090
  },
  {
   "arquivo": "js/58-extras-governanca.js",
-  "de": 46089,
-  "ate": 46244
+  "de": 46092,
+  "ate": 46247
  },
  {
   "arquivo": "js/59-tec-premium.js",
-  "de": 46246,
-  "ate": 46349
+  "de": 46249,
+  "ate": 46352
  },
  {
   "arquivo": "js/59-extras-central-ui.js",
-  "de": 46351,
-  "ate": 46621
+  "de": 46354,
+  "ate": 46624
  },
  {
   "arquivo": "js/59-extras-stability.js",
-  "de": 46623,
-  "ate": 46756
+  "de": 46626,
+  "ate": 46759
  },
  {
   "arquivo": "js/59-interaction-feedback.js",
-  "de": 46758,
-  "ate": 46924
+  "de": 46761,
+  "ate": 46927
  },
  {
   "arquivo": "js/59-extras-ux100.js",
-  "de": 46926,
-  "ate": 47163
+  "de": 46929,
+  "ate": 47166
  },
  {
   "arquivo": "js/60-cloud-store.js",
-  "de": 47165,
-  "ate": 47710
+  "de": 47168,
+  "ate": 47713
  },
  {
   "arquivo": "js/60-relational-store.js",
-  "de": 47712,
-  "ate": 49156
+  "de": 47715,
+  "ate": 49159
  },
  {
   "arquivo": "js/63-cloud-ui.js",
-  "de": 49158,
-  "ate": 49682
+  "de": 49161,
+  "ate": 49685
  },
  {
   "arquivo": "js/64-info-tips.js",
-  "de": 49684,
-  "ate": 49927
+  "de": 49687,
+  "ate": 49930
  },
  {
   "arquivo": "js/66-backup-nuvem.js",
-  "de": 49929,
-  "ate": 50765
+  "de": 49932,
+  "ate": 50768
  },
  {
   "arquivo": "js/67-atualizacao.js",
-  "de": 50767,
-  "ate": 51033
+  "de": 50770,
+  "ate": 51036
  },
  {
   "arquivo": "js/70-relatorio.js",
-  "de": 51035,
-  "ate": 51582
+  "de": 51038,
+  "ate": 51585
  },
  {
   "arquivo": "js/80-ajustes-finais.js",
-  "de": 51584,
-  "ate": 52665
+  "de": 51587,
+  "ate": 52668
  },
  {
   "arquivo": "js/81-ux-stability.js",
-  "de": 52667,
-  "ate": 52960
+  "de": 52670,
+  "ate": 52963
  },
  {
   "arquivo": "js/82-startup-spinners-reforco-continuo.js",
-  "de": 52961,
-  "ate": 53191
+  "de": 52964,
+  "ate": 53194
  },
  {
   "arquivo": "js/86-motor-sugestao.js",
-  "de": 53193,
-  "ate": 53890
+  "de": 53196,
+  "ate": 53893
  },
  {
   "arquivo": "js/87-motor-ciclo.js",
-  "de": 53892,
-  "ate": 54195
+  "de": 53895,
+  "ate": 54198
  },
  {
   "arquivo": "js/93-ux-hierarquia.js",
-  "de": 54197,
-  "ate": 54539
+  "de": 54200,
+  "ate": 54542
  },
  {
   "arquivo": "js/94-global-scope.js",
-  "de": 54541,
-  "ate": 55773
+  "de": 54544,
+  "ate": 55776
  },
  {
   "arquivo": "js/95-cards-official-bridge.js",
-  "de": 55775,
-  "ate": 59170
+  "de": 55778,
+  "ate": 59200
  },
  {
   "arquivo": "html/90-rodape.html",
-  "de": 59172,
-  "ate": 59417
+  "de": 59202,
+  "ate": 59447
  }
 ]
