@@ -115,7 +115,7 @@ runtime é conferida antes de abrir qualquer coleção.
 `anki-oficial/upstream` aponta o repositório literal `ankitects/anki`, no commit
 registrado em `anki-oficial/UPSTREAM.lock.json`. Não editar os fontes desse
 submódulo. Para atualizar a referência, alinhar pacote, gitlink, inventário,
-contratos e evidências na mesma alteração.
+contratos e testes na mesma alteração.
 
 ```sh
 git submodule update --init --recursive
@@ -132,11 +132,7 @@ internos. A opção `--require-upstream`, obrigatória no CI, recusa checkout se
 a fonte oficial. O teste de versão verifica também a recusa de runtimes
 incompatíveis ou sem versão, sem exigir dependências Python externas.
 
-`anki-oficial/AUDITORIA-POR-ARQUIVO.md` contém o checklist individual.
-`audit-status.json` conserva as evidências de certificação. Conferir fontes,
-executar o motor oficial e passar testes de categoria não certifica todas as
-interações do editor, browser, reviewer, estatísticas ou Image Occlusion.
-O checklist distingue inventário completo de paridade integral demonstrada.
+O inventário, `cards-contracts.json` e as suítes oficiais são a trilha de verificação versionada. Relatórios derivados de auditoria não devem ser commitados: diagnóstico novo precisa virar teste reproduzível ou correção no contrato correspondente, evitando artefatos históricos sem efeito funcional.
 
 O `AutoTeste` no navegador continua validando as invariantes próprias do Study.
 Para diagnóstico, usar `AutoTeste.rodar()` e `__diag()`; a lista de asserções
