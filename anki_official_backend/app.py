@@ -1393,6 +1393,117 @@ def _legacy_card_type_queue(row: dict[str, Any]) -> tuple[int, int]:
     return ctype, queue
 
 
+LEGACY_REVLOG_ARCHIVE_KEY = "study_legacy_revlog_archive_v1"
+LEGACY_REVLOG_SIGNATURE_KEY = "study_legacy_revlog_signature_v1"
+
+
+def _legacy_review_kind(row: dict[str, Any]) -> int:
+    raw = row.get("anki_review_kind")
+    if raw is not None:
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            by_name = {"new": 0, "learning": 0, "review": 1, "relearning": 2, "filtered": 3, "manual": 4, "rescheduled": 5}
+            return by_name.get(str(raw).lower(), 1)
+    return {"new": 0, "learning": 0, "review": 1, "relearning": 2, "filtered": 3, "manual": 4, "rescheduled": 5}.get(
+        str(row.get("phase") or "review").lower(), 1
+    )
+
+
+def _legacy_revlog_tuple(row: dict[str, Any], cid: int, rid: int) -> tuple[int, int, int, int, int, int, int, int, int]:
+    explicit_ivl = row.get("anki_interval")
+    ivl = int(float(explicit_ivl)) if explicit_ivl is not None else int(float(row.get("interval") or row.get("intervalo") or 0))
+    explicit_last = row.get("anki_last_interval")
+    last_ivl = int(float(explicit_last)) if explicit_last is not None else int(float(row.get("last_interval") or row.get("lastInterval") or 0))
+    factor = int(float(row.get("ease_factor") or 0))
+    if factor <= 0:
+        ease = float(row.get("ease") or 0)
+        factor = int(ease * 1000) if 0 < ease < 10 else 2500
+    return (
+        int(rid), int(cid), -1, max(0, min(4, int(float(row.get("grade") or 0)))),
+        ivl, last_ivl, max(0, factor), max(0, int(float(row.get("time") or 0))),
+        _legacy_review_kind(row),
+    )
+
+
+def _legacy_revlog_archive_key(row: dict[str, Any], cid: int) -> str:
+    raw = row.get("legacy_raw") if isinstance(row.get("legacy_raw"), dict) else row
+    review_id = str(raw.get("reviewId") or raw.get("review_id") or row.get("review_id") or "")
+    if review_id:
+        return review_id
+    return f"{cid}|{int(float(row.get('ts') or 0))}|{int(float(row.get('grade') or 0))}"
+
+
+def _reconcile_legacy_revlog_rows(
+    col: Collection,
+    rows: list[dict[str, Any]],
+    resolve_cid,
+    skip_existing_cards: set[int] | None = None,
+) -> dict[str, int]:
+    """Projeta histórico Study no revlog nativo sem apagar o registro bruto.
+
+    Campos que o revlog do Anki não possui (reviewId Study, S/D históricos,
+    data textual etc.) ficam arquivados integralmente no config da Collection.
+    A projeção nativa usa somente valores existentes; ausências ficam zero/default
+    compatível, em vez de inventar intervalos ou memória FSRS.
+    """
+    skip_existing_cards = skip_existing_cards or set()
+    existing_pairs = {(int(rid), int(cid)) for rid, cid in col.db.all("select id,cid from revlog")}
+    occupied_ids = {rid for rid, _ in existing_pairs}
+    archive = col.get_config(LEGACY_REVLOG_ARCHIVE_KEY, [])
+    if not isinstance(archive, list):
+        archive = []
+    archive_keys = {
+        str(x.get("_archive_key") or "")
+        for x in archive
+        if isinstance(x, dict) and x.get("_archive_key")
+    }
+    inserts: list[tuple[int, int, int, int, int, int, int, int, int]] = []
+    archived = skipped = unresolved = 0
+
+    def order_key(row: dict[str, Any]) -> tuple[int, str]:
+        return (max(0, int(float((row or {}).get("ts") or 0))), str((row or {}).get("review_id") or ""))
+
+    for row in sorted((x for x in rows if isinstance(x, dict)), key=order_key):
+        cid = resolve_cid(row)
+        if not cid:
+            unresolved += 1
+            continue
+        cid = int(cid)
+        if cid in skip_existing_cards:
+            continue
+        ts = max(1, int(float(row.get("ts") or int(time.time() * 1000))))
+        raw = row.get("legacy_raw") if isinstance(row.get("legacy_raw"), dict) else dict(row)
+        archive_key = _legacy_revlog_archive_key(row, cid)
+        if archive_key not in archive_keys:
+            archived_row = dict(raw)
+            archived_row["_archive_key"] = archive_key
+            archived_row["_official_card_id"] = cid
+            archived_row["_native_requested_id"] = ts
+            archive.append(archived_row)
+            archive_keys.add(archive_key)
+            archived += 1
+
+        if (ts, cid) in existing_pairs:
+            skipped += 1
+            continue
+        rid = ts
+        while rid in occupied_ids:
+            rid += 1
+        occupied_ids.add(rid)
+        existing_pairs.add((rid, cid))
+        inserts.append(_legacy_revlog_tuple(row, cid, rid))
+
+    if inserts:
+        col.db.executemany(
+            "insert or ignore into revlog (id,cid,usn,ease,ivl,lastIvl,factor,time,type) values (?,?,?,?,?,?,?,?,?)",
+            inserts,
+        )
+    if archived:
+        col.set_config(LEGACY_REVLOG_ARCHIVE_KEY, archive)
+    return {"added": len(inserts), "skipped": skipped, "archived": archived, "unresolved": unresolved}
+
+
 @contextmanager
 def _collection_snapshot_guard(item: UserCollection, label: str):
     """Rollback físico para operações de migração que precisam ser atômicas."""
@@ -1593,32 +1704,15 @@ def cards_official_migrate_legacy(
                 if legacy_cid:
                     card_map[legacy_cid] = int(card.id)
 
-        # Só linhas que já carregam a semântica canônica do revlog Anki são
-        # importadas; linhas antigas ambíguas não são reinterpretadas.
-        rev_rows: list[tuple[int, int, int, int, int, int, int, int, int]] = []
-        seen_rev_ids: set[int] = set()
-        for row in revlog:
-            if not isinstance(row, dict) or int(row.get("anki_ivl_semantica") or 0) != 2:
-                continue
-            cid = card_map.get(str(row.get("card_id") or row.get("anki_card_id") or ""))
-            if not cid or cid in existing_card_ids:
-                continue
-            rid = max(1, int(row.get("ts") or int(time.time() * 1000)))
-            while rid in seen_rev_ids:
-                rid += 1
-            seen_rev_ids.add(rid)
-            raw_kind = row.get("anki_review_kind")
-            kind = int(raw_kind) if raw_kind is not None else 1
-            rev_rows.append((
-                rid, cid, -1, max(0, min(4, int(row.get("grade") or 0))),
-                int(row.get("anki_interval") or 0), int(row.get("anki_last_interval") or 0),
-                max(0, int(row.get("ease_factor") or 0)), max(0, int(row.get("time") or 0)), kind,
-            ))
-        if rev_rows:
-            item.col.db.executemany(
-                "insert or ignore into revlog (id,cid,usn,ease,ivl,lastIvl,factor,time,type) values (?,?,?,?,?,?,?,?,?)",
-                rev_rows,
-            )
+        # O histórico inteiro é preservado. Linhas já canônicas entram com
+        # seus campos Anki exatos; linhas mais antigas são projetadas somente
+        # com os valores que existiam e ficam arquivadas integralmente.
+        rev_result = _reconcile_legacy_revlog_rows(
+            item.col,
+            revlog,
+            lambda row: card_map.get(str(row.get("card_id") or row.get("anki_card_id") or "")),
+            existing_card_ids,
+        )
 
         if len(note_map) != len(notes):
             raise HTTPException(422, f"Migração incompleta: {len(note_map)}/{len(notes)} Notes foram materializadas.")
@@ -1633,12 +1727,38 @@ def cards_official_migrate_legacy(
         # clear_study_queues() não existe no pylib atual e não deve ser emulada.
         return {
             "ok": True,
-            "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": len(rev_rows)},
+            "migrated": {"decks": len(deck_map), "notetypes": len(nt_map), "notes": len(note_map), "cards": len(card_map), "revlog": rev_result["added"]},
             "deck_map": deck_map,
             "notetype_map": nt_map,
             "card_map": card_map,
             "note_map": note_map,
             "state": cards_collection_full_state_payload(item.col),
+        }
+
+
+@app.post("/api/cards-official/revlog/reconcile-legacy")
+def cards_official_reconcile_legacy_revlog(
+    payload: dict[str, Any],
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    rows = payload.get("rows") if isinstance(payload.get("rows"), list) else []
+    signature = str(payload.get("signature") or "")
+    item = cards_uc_for(user)
+    with item.lock, _collection_snapshot_guard(item, "legacy-revlog-reconcile"):
+        known = {int(cid) for cid in item.col.find_cards("")}
+        result = _reconcile_legacy_revlog_rows(
+            item.col,
+            rows,
+            lambda row: int(row.get("official_card_id") or 0) if int(row.get("official_card_id") or 0) in known else 0,
+        )
+        if signature:
+            item.col.set_config(LEGACY_REVLOG_SIGNATURE_KEY, signature)
+        return {
+            "ok": True,
+            **result,
+            "signature": signature,
+            "native_revlog_count": int(item.col.db.scalar("select count() from revlog") or 0),
+            "archive_count": len(item.col.get_config(LEGACY_REVLOG_ARCHIVE_KEY, []) or []),
         }
 
 
@@ -3263,6 +3383,7 @@ def cards_official_bootstrap_state(
             "status": _cards_official_status_payload(item),
             "state": cards_collection_full_state_payload(item.col),
             "preferences": pb(item.col.get_preferences()),
+            "legacy_review_signature": str(item.col.get_config(LEGACY_REVLOG_SIGNATURE_KEY, "") or ""),
         }
 
 

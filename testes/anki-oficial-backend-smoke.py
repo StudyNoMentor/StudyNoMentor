@@ -275,13 +275,23 @@ with tempfile.TemporaryDirectory() as tmp:
                     "time": 432,
                     "anki_review_kind": 0,
                     "anki_ivl_semantica": 2,
-                }
+                    "legacy_raw": {"reviewId": "legacy:canonical", "s": 4.0, "d": 6.2},
+                },
+                {
+                    "card_id": "card:p1",
+                    "ts": 1700000001000,
+                    "grade": 1,
+                    "phase": "relearning",
+                    "interval": 1,
+                    "anki_ivl_semantica": 0,
+                    "legacy_raw": {"reviewId": "legacy:old", "phase": "relearning", "intervalo": 1, "s": 3.2, "d": 6.8},
+                },
             ],
         },
         legacy_ctx,
     )
     assert migrated["ok"] is True
-    assert migrated["migrated"] == {"decks": 1, "notetypes": 1, "notes": 1, "cards": 1, "revlog": 1}
+    assert migrated["migrated"] == {"decks": 1, "notetypes": 1, "notes": 1, "cards": 1, "revlog": 2}
     assert migrated["deck_map"]["deck:p1"] > 0
     assert migrated["notetype_map"]["nt:basic"] > 0
     official_legacy_cid = int(migrated["card_map"]["card:p1"])
@@ -310,13 +320,53 @@ with tempfile.TemporaryDirectory() as tmp:
         # custom_data é reservado ao scheduler oficial e tem limite <100 bytes;
         # a migração não o usa como armazenamento de metadados da casca.
         assert legacy_card.custom_data == ""
-        revrow = legacy_item.col.db.first(
+        revrows = legacy_item.col.db.all(
             "select ease,ivl,lastIvl,factor,time,type from revlog where cid = ? order by id",
             official_legacy_cid,
         )
-        assert list(revrow) == [3, 12, 5, 2500, 432, 0], revrow
+        assert [list(x) for x in revrows] == [
+            [3, 12, 5, 2500, 432, 0],
+            [1, 1, 0, 2500, 0, 2],
+        ], revrows
+        archive = legacy_item.col.get_config(app.LEGACY_REVLOG_ARCHIVE_KEY, [])
+        assert {x.get("_archive_key") for x in archive} >= {"legacy:canonical", "legacy:old"}
+        assert next(x for x in archive if x.get("_archive_key") == "legacy:old")["s"] == 3.2
         assert legacy_item.col.card_count() == 1
         assert legacy_item.col.note_count() == 1
+
+    repaired = app.cards_official_reconcile_legacy_revlog(
+        {
+            "signature": "smoke-legacy-v1",
+            "rows": [{
+                "official_card_id": official_legacy_cid,
+                "review_id": "legacy:repair",
+                "ts": 1700000002000,
+                "grade": 2,
+                "phase": "review",
+                "interval": 3,
+                "legacy_raw": {"reviewId": "legacy:repair", "phase": "review", "intervalo": 3, "s": 8.1, "d": 5.4},
+            }],
+        },
+        legacy_ctx,
+    )
+    assert repaired["added"] == 1 and repaired["archived"] == 1
+    repaired_again = app.cards_official_reconcile_legacy_revlog(
+        {
+            "signature": "smoke-legacy-v1",
+            "rows": [{
+                "official_card_id": official_legacy_cid,
+                "review_id": "legacy:repair",
+                "ts": 1700000002000,
+                "grade": 2,
+                "phase": "review",
+                "interval": 3,
+                "legacy_raw": {"reviewId": "legacy:repair", "phase": "review", "intervalo": 3, "s": 8.1, "d": 5.4},
+            }],
+        },
+        legacy_ctx,
+    )
+    assert repaired_again["added"] == 0 and repaired_again["skipped"] == 1
+    assert app.cards_official_bootstrap_state(legacy_ctx)["legacy_review_signature"] == "smoke-legacy-v1"
 
     try:
         app.cards_official_migrate_legacy({"cards": []}, legacy_ctx)

@@ -105,7 +105,13 @@ assert.ok(!bridge.includes('study_replicas:replicas'),'payload enviado ao Anki n
 assert.ok(!legacyMigrationBackend.includes('card.custom_data ='),'migração não pode usar custom_data como banco de metadados do Study');
 assert.ok(backend.includes('"deck_map": deck_map')&&backend.includes('"notetype_map": nt_map')&&backend.includes('"card_map": card_map')&&backend.includes('"note_map": note_map'),'backend deve devolver todos os mapas canônicos necessários à casca');
 assert.match(legacyMigrationBackend,/claimed_nt_ids: set\[int\] = set\(\)[\s\S]*?existing_id not in claimed_nt_ids/,'NoteTypes homônimos distintos não podem sobrescrever a mesma estrutura durante a migração');
-assert.match(legacyMigrationBackend,/raw_kind = row\.get\("anki_review_kind"\)[\s\S]*?kind = int\(raw_kind\) if raw_kind is not None else 1/,'revlog Learning (kind 0) deve permanecer 0');
+assert.match(backend,/def _legacy_review_kind[\s\S]*?["']new["']:\s*0[\s\S]*?["']learning["']:\s*0/,'revlog legado deve distinguir Learning/New sem perder kind 0');
+assert.doesNotMatch(bridge,/if\(semantic!==2\)continue/,'migração não pode descartar histórico legado só por não ter semântica Anki v2');
+assert.match(backend,/def _reconcile_legacy_revlog_rows[\s\S]*?LEGACY_REVLOG_ARCHIVE_KEY/,'backend deve preservar bruto legado e projetar revlog nativo');
+assert.match(backend,/\/api\/cards-official\/revlog\/reconcile-legacy/,'backend deve expor reparo idempotente do histórico legado');
+assert.match(bridge,/_legacyReviewRepairRows\(\)[\s\S]*?semantic===2[\s\S]*?_reconcileLegacyReviewHistory/,'bridge deve reparar apenas histórico ainda não canonizado');
+assert.match(bridge,/legacy_review_signature/,'bootstrap deve evitar reenviar o mesmo reparo em toda abertura');
+assert.match(bridge,/['"]eraFsrs['"][\s\S]*?['"]firstReviewAt['"]/,'recriação de réplica deve preservar metadados históricos Study');
 assert.ok(!legacyMigrationBackend.includes('item.col.clear_study_queues('),'migração deve seguir Scheduler v3 oficial, que invalida filas automaticamente');
 assert.match(bridge,/for\(const ref of snapshot\.cardRefs\.get\(legacy\)\|\|\[\]\)[\s\S]*?StudyGlobalScope\.updateCardScoped/,'migração deve preservar metadados nas réplicas Study enquanto liga cada uma ao ID oficial');
 assert.match(bridge,/_studyTargetsForState\(state,fallbackPlanId\)[\s\S]*?this\._replicas\(state&&state\.id\)/,'full-state deve reconstruir projeções a partir dos espelhos persistentes do Study');
@@ -181,7 +187,7 @@ assert.match(db,/const createdMs = Date\.parse\(data && data\.createdAt \|\| ''\
 assert.match(db,/const createdAt = Number\.isFinite\(createdMs\) \? new Date\(createdMs\)\.toISOString\(\) : now;[\s\S]*?createdAt, updatedAt: now/,'addCard deve persistir o createdAt histórico validado');
 assert.match(bridge,/_originalCreatedDay\(card\)[\s\S]{0,900}?card&&card\.createdAt/,'Stats deve preferir a criação histórica preservada no Study');
 assert.match(bridge,/_statsOriginalAddedMap\(scopeIds\)[\s\S]{0,2600}?byOfficialId[\s\S]{0,2600}?this\._dayOffset/,'Adicionados deve reagrupar cards pela data original, deduplicando réplicas globais');
-assert.match(bridge,/createdAt:this\._officialCreatedAt\(state\)/,'cards importados do Anki devem semear o espelho Study com a criação codificada no ID oficial');
+assert.match(bridge,/createdAt:seed\.createdAt\|\|this\._officialCreatedAt\(state\)/,'réplicas devem preservar createdAt histórico quando existir e usar o ID oficial só como fallback');
 assert.match(bridge,/this\._statsOfficialAddedHtml\(addedMap\)/,'painel Adicionados deve renderizar a série histórica corrigida');
 assert.match(backend,/def cards_official_collection_graphs_scoped[\s\S]{0,2200}?_study_scope_card_ids/,'backend deve devolver os IDs exatos do recorte usado pelo GraphsService');
 assert.match(bridge,/\/api\/cards-official\/stats\/graphs\/scoped/,'Stats dos Cards devem consultar GraphsService oficial com o recorte Study');
