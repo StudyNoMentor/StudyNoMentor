@@ -275,6 +275,9 @@ assert.match(backend,/def cards_official_rename_deck[\s\S]*?item\.col\.decks\.re
 assert.match(backend,/def cards_official_delete_deck[\s\S]*?item\.col\.decks\.remove/,'excluir baralho deve usar DeckManager oficial');
 assert.match(cards,/CardsOfficialBridge\.createOfficialDeck\(name\)/,'UI de criação de baralho deve ser uma casca sobre o Anki');
 assert.match(bridge,/async createOfficialDeck\(name,planId\)[\s\S]*?\/api\/cards-official\/decks/,'qualquer criação de baralho deve passar pelo DeckManager oficial');
+assert.match(bridge,/_reconcileLegacyDeckMirrors\(state\)[\s\S]*?officialCardDeck[\s\S]*?byName[\s\S]*?remappedCards/,'espelhos legados precisam ser reconciliados por evidência oficial e nome canônico, com remapeamento real');
+assert.match(bridge,/async _syncOfficialFullState\(state,planId\)[\s\S]*?this\._reconcileLegacyDeckMirrors\(state\)[\s\S]*?_studyTargetsForState/,'reparo de baralhos precisa ocorrer antes da projeção do snapshot oficial');
+assert.match(bridge,/_saveNormalDeckMirror\(row,planId,preferredLocalId\)[\s\S]*?legacy=list\.filter/,'salvar um deck oficial deve reaproveitar espelho legado homônimo em vez de criar outro Default');
 assert.match(cards,/CardsOfficialBridge\.renameOfficialDeck\(id,value\)/,'UI de renomear baralho deve ser uma casca sobre o Anki');
 assert.match(cards,/CardsOfficialBridge\.deleteOfficialDeck\(id\)/,'UI de exclusão de baralho deve ser uma casca sobre o Anki');
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');
