@@ -60,4 +60,35 @@ bridge.request=async()=>{throw new Error('backend indisponível');};
 await assert.rejects(()=>bridge.showAnswer(),/backend indisponível/);
 assert.equal(context.CardsScreen._flipped,false,'falha oficial não revela resposta aproximada');
 
-console.log('CARDS RUNTIME: HTML oficial isolado, comparação oficial de type-answer, AV e falha sem fallback verificados.');
+// Undo reconciliado: uma flag feita depois da revisão é desfeita oficialmente,
+// mas NÃO cancela revlog/restaura o card da revisão no espelho.
+let cancelled=0,restored=0;
+context.DB={cancelarRevlogDurable:async()=>{cancelled++;}};
+context.StudyGlobalScope={updateCardScoped:()=>{restored++;}};
+context.showToast=()=>{};
+bridge._activePlanId=()=>null;
+bridge._syncOfficialFullState=async()=>{};
+bridge._syncReviewScope=async()=>{};
+bridge.renderCurrent=async()=>{};
+bridge._undo=[{undoStep:7,undoLabel:'Review',officialId:123,rows:[{id:'r'}],items:[{replica:{id:'c'},before:{id:'c'}}]}];
+bridge._redo=[];
+bridge.historyStatus=async()=>({last_step:8,undo:'Set Flag'});
+bridge.request=async path=>{
+  if(path.endsWith('/history/undo'))return {state:{},status:{redo:'Set Flag',last_step:7}};
+  throw new Error('rota inesperada '+path);
+};
+await bridge.undo();
+assert.equal(bridge._undo.length,1,'undo de flag não consome a transação local da revisão');
+assert.equal(cancelled,0,'undo de flag não cancela revlog local da revisão');
+assert.equal(restored,0,'undo de flag não restaura estado anterior da revisão');
+bridge.historyStatus=async()=>({last_step:7,undo:'Review'});
+bridge.request=async path=>{
+  if(path.endsWith('/history/undo'))return {state:{},status:{redo:'Review',last_step:6}};
+  throw new Error('rota inesperada '+path);
+};
+await bridge.undo();
+assert.equal(bridge._undo.length,0,'undo da revisão consome a transação correspondente');
+assert.equal(cancelled,1,'undo da revisão cancela seu revlog local');
+assert.equal(restored,1,'undo da revisão restaura seu espelho local');
+
+console.log('CARDS RUNTIME: HTML oficial, type-answer, render tardio e undo reconciliado verificados.');
