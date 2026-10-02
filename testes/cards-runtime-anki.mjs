@@ -16,6 +16,7 @@ const context={window:{},document:{getElementById(id){
   return {'cards-official-frame':frame,'cards-official-type-answer':input,'cards-official-face':face,
     'cards-content':content,'screen-cards':screen}[id]||null;
 }},CardsScreen:{_flipped:false,tab:'revisar'},console,queueMicrotask(){}};
+context.window.CardsScreen=context.CardsScreen;
 runInNewContext(source,context);
 const bridge=context.window.CardsOfficialBridge;
 const officialHtml='<style>.card{color:red}</style><details open><summary>Dica</summary>Resposta</details><script>window.fromTemplate=true</script>';
