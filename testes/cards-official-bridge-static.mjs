@@ -77,8 +77,8 @@ assert.match(bridge,/else\{[\s\S]*?collection\/full-state[\s\S]*?await this\._re
 assert.match(bridge,/claimed\.get\(String\(officialCard\.id\)\)[\s\S]*?Recuperação da migração oficial ambígua/,'recuperação não pode fundir silenciosamente dois cards legados no mesmo card oficial');
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
-assert.match(bridge,/\/api\/cards-official\/undo/);
-assert.match(bridge,/\/api\/cards-official\/redo/);
+assert.match(bridge,/\/api\/cards-official\/history\/undo/);
+assert.match(bridge,/\/api\/cards-official\/history\/redo/);
 assert.match(bridge,/\/api\/cards-official\/media\//);
 assert.match(bridge,/const replayTxn=await this\._persistAnswered\(state,false\)/,'redo deve criar novo journal');
 assert.match(bridge,/queue===1\|\|queue===4/,'Learn/PreviewRepeat usam timestamp oficial');
