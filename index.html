@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v9dc9dd770a">
+<meta name="diario-versao" content="vbd5a41e2cc">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -56024,23 +56024,26 @@ const CardsOfficialBridge = {
       });
     }
 
-    const revSeen=new Set(),kindMap={learning:0,review:1,relearning:2,filtered:3,manual:4,rescheduled:5};
+    const revSeen=new Set(),kindMap={new:0,learning:0,review:1,relearning:2,filtered:3,manual:4,rescheduled:5};
     for(const p of plans){
       const pid=p.id,rows=pid!=null&&DB.getRevlogForPlan?DB.getRevlogForPlan(pid):this._legacyPlanRows(pid,'revlog');
       for(const r of rows||[]){
-        const semantic=Number(r&&r.ankiIvlSemantica!=null?r.ankiIvlSemantica:r&&r.anki_ivl_semantica);
-        if(semantic!==2)continue;
-        const cardKey=cardKeyByLocal.get(localKey(pid,r.cardId));if(!cardKey)continue;
+        const semantic=Number(r&&r.ankiIvlSemantica!=null?r.ankiIvlSemantica:r&&r.anki_ivl_semantica),
+          cardKey=cardKeyByLocal.get(localKey(pid,r.cardId));if(!cardKey)continue;
         const revKey=String(r.reviewId||'')+'|'+cardKey+'|'+String(r.ts||'')+'|'+String(r.grade||'');
         if(revSeen.has(revKey))continue;revSeen.add(revKey);
         const rawKind=r.ankiReviewKind!=null?r.ankiReviewKind:r.anki_review_kind,
-          reviewKind=Number.isFinite(Number(rawKind))?Number(rawKind):(kindMap[String(rawKind||'review').toLowerCase()]??1);
+          reviewKind=Number.isFinite(Number(rawKind))?Number(rawKind):(kindMap[String(rawKind||r.phase||'review').toLowerCase()]??1),
+          ai=r.ankiInterval!=null?r.ankiInterval:r.anki_interval,
+          ali=r.ankiLastInterval!=null?r.ankiLastInterval:r.anki_last_interval,
+          ef=r.easeFactor!=null?r.easeFactor:r.ease_factor;
         payload.revlog.push({
           card_id:cardKey,ts:Math.max(1,Number(r.ts)||Date.now()),grade:Math.max(0,Math.min(4,Number(r.grade)||0)),
-          anki_interval:Number(r.ankiInterval!=null?r.ankiInterval:r.anki_interval)||0,
-          anki_last_interval:Number(r.ankiLastInterval!=null?r.ankiLastInterval:r.anki_last_interval)||0,
-          ease_factor:Math.max(0,Number(r.easeFactor!=null?r.easeFactor:r.ease_factor)||0),
-          time:Math.max(0,Number(r.time)||0),anki_review_kind:reviewKind,anki_ivl_semantica:2
+          phase:String(r.phase||''),interval:Number(r.intervalo)||0,
+          anki_interval:ai==null?null:Number(ai),anki_last_interval:ali==null?null:Number(ali),
+          ease_factor:ef==null?null:Math.max(0,Number(ef)||0),
+          time:Math.max(0,Number(r.time)||0),anki_review_kind:reviewKind,
+          anki_ivl_semantica:semantic===2?2:0,legacy_raw:clone(r)
         });
       }
     }
@@ -56141,6 +56144,48 @@ const CardsOfficialBridge = {
     await this._applyLegacyMigration(out,snapshot);
     return out;
   },
+  _legacyReviewRepairRows(){
+    const out=[],seen=new Set(),clone=x=>{try{return JSON.parse(JSON.stringify(x));}catch(_){return Object.assign({},x);}};
+    for(const p of this._legacyPlans()){
+      const pid=p.id,cards=this._legacyPlanRows(pid,'cards'),byId=new Map((cards||[]).map(c=>[String(c&&c.id),c]));
+      for(const r of this._legacyPlanRows(pid,'revlog')||[]){
+        const semantic=Number(r&&r.ankiIvlSemantica!=null?r.ankiIvlSemantica:r&&r.anki_ivl_semantica);
+        if(semantic===2)continue;
+        const card=byId.get(String(r&&r.cardId));if(!card)continue;
+        const oid=this._officialId(card);if(!oid)continue;
+        const key=String(oid)+'|'+String(r.ts||'')+'|'+String(r.grade||'');if(seen.has(key))continue;seen.add(key);
+        const rawKind=r.ankiReviewKind!=null?r.ankiReviewKind:r.anki_review_kind,
+          kindMap={new:0,learning:0,review:1,relearning:2,filtered:3,manual:4,rescheduled:5},
+          ai=r.ankiInterval!=null?r.ankiInterval:r.anki_interval,
+          ali=r.ankiLastInterval!=null?r.ankiLastInterval:r.anki_last_interval,
+          ef=r.easeFactor!=null?r.easeFactor:r.ease_factor;
+        out.push({
+          official_card_id:Number(oid),review_id:String(r.reviewId||''),ts:Math.max(1,Number(r.ts)||1),
+          grade:Math.max(0,Math.min(4,Number(r.grade)||0)),phase:String(r.phase||'review'),
+          interval:Number(r.intervalo)||0,anki_interval:ai==null?null:Number(ai),
+          anki_last_interval:ali==null?null:Number(ali),ease_factor:ef==null?null:Number(ef),
+          time:Math.max(0,Number(r.time)||0),
+          anki_review_kind:Number.isFinite(Number(rawKind))?Number(rawKind):(kindMap[String(rawKind||r.phase||'review').toLowerCase()]??1),
+          legacy_raw:clone(r)
+        });
+      }
+    }
+    return out.sort((a,b)=>a.ts-b.ts||a.official_card_id-b.official_card_id);
+  },
+  _legacyReviewSignature(rows){
+    let h=2166136261>>>0;
+    const raw=(rows||[]).map(r=>[r.official_card_id,r.review_id,r.ts,r.grade,r.phase,r.anki_interval,r.anki_last_interval].join('|')).join('~');
+    for(let i=0;i<raw.length;i++){h^=raw.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}
+    return 'v1-'+(h>>>0).toString(16)+'-'+(rows||[]).length;
+  },
+  async _reconcileLegacyReviewHistory(knownSignature){
+    const rows=this._legacyReviewRepairRows();if(!rows.length)return null;
+    const signature=this._legacyReviewSignature(rows);
+    if(String(knownSignature||'')===signature)return {ok:true,signature,added:0,skipped:rows.length,cached:true};
+    return this.request('/api/cards-official/revlog/reconcile-legacy',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({signature,rows})
+    });
+  },
 
   async bootstrap(force){
     if(this._bootPromise)return this._bootPromise;
@@ -56182,6 +56227,7 @@ const CardsOfficialBridge = {
           }
         }
       }
+      await this._reconcileLegacyReviewHistory(boot&&boot.legacy_review_signature);
       this.preferences=boot&&boot.preferences?boot.preferences:await this.request('/api/cards-official/preferences');
       await this._syncOfficialFullState(state,this._activePlanId());
       this.ready=true;this.dirty=false;this._sessionAnswered=0;this._sessionStartTotal=null;
@@ -58017,7 +58063,7 @@ const CardsOfficialBridge = {
           let card=existingByOfficial.get(String(state.id));
           if(!card){
             const data={
-              ankiId:Number(state.id),createdAt:this._officialCreatedAt(state),
+              ankiId:Number(state.id),createdAt:seed.createdAt||this._officialCreatedAt(state),
               ankiNoteId:Number(state.note_id),noteId:note.id,notetypeId:note.notetypeId,
               ankiTemplateOrd:Number(state.template_idx)||0,
               deckId:this._localDeckId(state.deck_id,pid,seed.deckId)||seed.deckId||null,
@@ -58036,7 +58082,7 @@ const CardsOfficialBridge = {
             clozeOrd:nt&&nt.kind==='cloze'?Number(state.template_idx)+1:null
           });
           const metaSeed=Object.assign({},this._studySeedForState(state,pid),externalSeed);
-          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo','favorito']){
+          for(const k of ['deckId','materia','assunto','materiaTec','banca','tipo','favorito','status','algo','eraFsrs','leech','createdAt','firstReviewAt']){
             if(Object.prototype.hasOwnProperty.call(metaSeed,k))patch[k]=metaSeed[k];
           }
           if(window.StudyGlobalScope&&StudyGlobalScope.updateCardScoped)StudyGlobalScope.updateCardScoped(card,patch,pid);
