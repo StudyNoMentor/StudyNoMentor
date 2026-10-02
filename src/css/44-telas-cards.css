@@ -21,6 +21,11 @@
 #cards-filter-card .cards-filter-head{cursor:pointer;padding:12px 16px!important;min-height:0!important}
 #cards-filter-card .cards-filter-head h2{font-size:15px!important;margin:0!important}
 #cards-filter-card.collapsed{box-shadow:none!important}
+/* O filtro contém dropdowns que precisam escapar acima da revisão. A opacidade
+   herdada de .ux-secondary-area criava um stacking context e fazia o card de
+   revisão cobrir o painel no mobile. */
+#screen-cards #cards-filter-card.ux-secondary-area{opacity:1!important}
+#screen-cards #cards-filter-card:has(.cards-multi-filter.open){position:relative;z-index:230}
 
 /* ── Revisor ───────────────────────────────────────────────────────────── */
 #screen-cards .cards-review-wrap{border-radius:18px!important;padding:14px 16px 16px!important}
@@ -208,7 +213,7 @@
 #cards-filter-body .cards-multi-filter-empty{padding:16px 10px;text-align:center;color:var(--text-faint);font-size:12px}
 @media (max-width:720px){
   #cards-filter-body{padding-left:14px!important;padding-right:14px!important}
-  #cards-filter-body .cards-multi-filter-panel{position:fixed;z-index:220;left:14px;right:14px;top:auto;bottom:18px;max-height:min(72vh,520px)}
+  #cards-filter-body .cards-multi-filter-panel{position:fixed;z-index:220;left:14px;right:14px;top:auto;bottom:calc(84px + env(safe-area-inset-bottom));max-height:min(72vh,520px)}
   #cards-filter-body .cards-multi-filter-options{max-height:min(50vh,360px)}
   #cards-filter-body .cards-multi-filter-btn{min-height:44px}
 }
@@ -243,9 +248,6 @@
 #screen-cards .cards-review-progress .cards-review-bar{min-width:100px}
 @media(max-width:560px){#screen-cards .cards-review-scope{padding:14px!important}#screen-cards .cards-review-progress .cards-review-bar{flex-basis:100%;order:3}}
 
-#screen-cards .cards-review-scope-switch{display:flex;gap:8px;margin-bottom:14px}
-#screen-cards .cards-review-scope-switch button{flex:1;min-width:0;font-size:12px;padding:8px}
-#screen-cards .cards-review-scope-switch button.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
 
 
 /* ── Modo foco dos Cards: conteúdo primeiro, sem scroll interno ───────────
