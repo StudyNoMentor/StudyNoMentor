@@ -129,6 +129,8 @@ try{
       overflow:getComputedStyle(host.querySelector('.cards-multi-filter-options')).overflowY,
       filterOpacity:getComputedStyle(filterCard).opacity,
       panelOnTop:!!(probe&&panel.contains(probe)),
+      hit:probe?{tag:probe.tagName,id:probe.id||'',cls:String(probe.className||'').slice(0,160)}:null,
+      panelRect:{top:Math.round(rect.top),bottom:Math.round(rect.bottom),left:Math.round(rect.left),right:Math.round(rect.right)},
       navGap:Math.round(innerHeight-rect.bottom)
     };
   });
@@ -147,7 +149,7 @@ try{
   ok(r.escapeCloses,'dropdown fecha pela tecla Escape');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
   ok(mobile.filterOpacity==='1','card de filtros aberto não cria stacking context por opacidade');
-  ok(mobile.panelOnTop,'dropdown móvel fica acima do card de revisão no hit-test real');
+  ok(mobile.panelOnTop,'dropdown móvel fica acima do card de revisão no hit-test real · '+JSON.stringify({hit:mobile.hit,panelRect:mobile.panelRect,navGap:mobile.navGap}));
   ok(mobile.navGap>=70,'dropdown móvel termina acima da navegação inferior');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
