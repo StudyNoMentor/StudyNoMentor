@@ -61,12 +61,24 @@ const proibidos=[
   'testes/cards-10of10-final.mjs',
   'src/js/34-anki-export.js',
   'src/js/44-anki-runtime.js',
+  'src/js/45-anki-official-surfaces.js',
   'src/js/30-fsrs.js',
   'src/js/31-cards-config.js',
   'src/js/32-card-engine.js'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
+
+// A versão anterior não deve sobreviver em código ativo, mensagens ou testes.
+// Auditorias históricas fora destes diretórios podem registrar o passado, mas
+// não entram no runtime nem na barreira funcional atual.
+const activeVersionRoots=[join(ROOT,'src'),join(ROOT,'anki_official_backend'),join(ROOT,'testes')];
+for(const dir of activeVersionRoots){
+  for(const file of walk(dir).filter(f=>/\.(?:js|mjs|py|css|html)$/.test(f))){
+    assert.equal(/\b26\.0?9\.2\b/.test(readFileSync(file,'utf8')),false,
+      `referência ativa à versão Anki descontinuada: ${relative(ROOT,file)}`);
+  }
+}
 
 const semComentarios=src=>src.replace(/\/\*[\s\S]*?\*\//g,'').replace(/(^|[^:])\/\/[^\n\r]*/g,'$1');
 const apiVersionada=/\bMotorSugestaoV\d+\b/;
