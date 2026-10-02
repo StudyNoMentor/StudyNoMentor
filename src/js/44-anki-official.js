@@ -9,7 +9,7 @@
 const AnkiOfficial = {
   apiBase() {
     const fallback = 'https://anki-official-production.up.railway.app';
-    const raw = (window.ANKI_OFFICIAL_API_URL || localStorage.getItem('ankiOfficialApiUrl') || fallback).trim();
+    const raw = (window.ANKI_OFFICIAL_API_URL || fallback).trim();
     return raw.replace(/\/$/, '');
   },
 
