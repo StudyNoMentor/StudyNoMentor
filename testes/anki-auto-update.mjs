@@ -7,7 +7,7 @@ assert.equal(normalizeVersion('26.09.4'), '26.09.4');
 assert.equal(compareVersions('26.09.4', '26.09.3'), 1);
 assert.equal(compareVersions('26.10', '26.09.10'), 1);
 assert.equal(compareVersions('26.09.3', '26.09.3'), 0);
-assert.equal(compareVersions('26.09.2', '26.09.3'), -1);
+assert.equal(compareVersions('26.09.1', '26.09.3'), -1);
 
 assert.equal(inferRepositoryArea('.github/workflows/ci.yml'), 'github_ci');
 assert.equal(inferRepositoryArea('rslib/src/scheduler/foo.rs'), 'rslib');
