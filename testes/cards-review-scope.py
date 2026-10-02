@@ -78,8 +78,7 @@ with tempfile.TemporaryDirectory() as tmp:
             live.reps, live.lapses, live.did, live.odid, live.left,
         )
         old_mod = int(live.mod)
-        live.custom_data = '{"study_meta":"reconciled"}'
-        item.col.update_card(live)
+        item.col.db.execute("update cards set mod = mod + 60 where id = ?", ids[0])
         live_after = item.col.get_card(ids[0])
         scheduling_after = (
             live_after.type, live_after.queue, live_after.due, live_after.odue,
@@ -87,7 +86,7 @@ with tempfile.TemporaryDirectory() as tmp:
             live_after.did, live_after.odid, live_after.left,
         )
         assert scheduling_after == scheduling_before
-        assert int(live_after.mod) >= old_mod
+        assert int(live_after.mod) == old_mod + 60
 
     metadata_answer = app.cards_official_reviewer_answer(
         app.AnswerBody(
