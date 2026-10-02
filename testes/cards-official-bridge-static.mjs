@@ -34,6 +34,10 @@ assert.match(official,/async _fetchResponse\(path, opts\)[\s\S]*?AbortController
 assert.doesNotMatch(official,/\/api\/anki\/bootstrap\?view=/,'cliente fino não pode reativar o bootstrap da antiga tela Anki');
 assert.doesNotMatch(official,/\b(?:root|renderReviewer|renderDecks|setView)\s*\(/,'transporte oficial não pode voltar a carregar UI/reviewer próprios');
 assert.match(bridge,/\/api\/cards-official\/bootstrap-state/,'Cards deve consolidar status, full-state e preferências');
+assert.match(bridge,/async _refreshExistingReviewScope\(deckId=0\)[\s\S]*?\/api\/cards-official\/reviewer\/next\?[\s\S]*?status\)===409/,'reentrada em Revisar deve reaproveitar a sessão oficial e reconstruir somente se ela expirar');
+assert.match(bridge,/async renderRevisar\(box\)[\s\S]*?const wasReady=this\.ready&&!this\.dirty[\s\S]*?_refreshExistingReviewScope\(deckId\)[\s\S]*?if\(!review\)await this\._syncReviewScope\(deckId\)/,'Revisar quente deve tentar sessão existente antes de recriar snapshot SQLite');
+assert.match(bridge,/setTimeout\(showLoading,140\)/,'loader de revisão não deve piscar no caminho quente');
+assert.match(bridge,/_scheduleReviewPrewarm\(delay=700\)[\s\S]*?\/api\/cards-official\/status[\s\S]*?data:relational-hydrated/,'Collection deve ser pré-aquecida em idle após hidratação sem criar fila');
 assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar no build publicado');
 for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
