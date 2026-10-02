@@ -17,7 +17,7 @@ version = next(
 module = ast.Module(body=[guard], type_ignores=[])
 code = compile(module, "app.py:verify_anki_runtime", "exec")
 
-for runtime in (version, "26.09.2", "26.10", None, "", 260903):
+for runtime in (version, "0.0.0-mismatch", "future-mismatch", None, "", 260903):
     buildinfo = SimpleNamespace() if runtime is None else SimpleNamespace(version=runtime)
     namespace = {"anki": SimpleNamespace(buildinfo=buildinfo), "ANKI_VERSION": version}
     exec(code, namespace)
