@@ -8,8 +8,8 @@
 
      1. src/ monta exatamente o index.html   (build.mjs --check)
      2. cada módulo JS de src/ tem sintaxe válida isoladamente
-     3. o agendador bate com o Anki e sobrevive a configuracao corrompida
-        (testes/paridade-anki.mjs · testes/robustez-config.mjs)
+     3. a integração dos Cards usa a Collection oficial e não reativa motor local
+        (inventário upstream + ponte oficial + contratos estáticos)
     3b. a importacao do TEC registra exatamente o que o arquivo diz, do byte
         ao total — desempenho e incidencia (testes/fidelidade-tec.mjs)
      4. o index.html publicado não tem id duplicado nem referência quebrada
@@ -25,7 +25,6 @@
 
    Uso:  node verificar.mjs              (verificação normal)
          node verificar.mjs --rapido     (só 1 a 4, sem navegador)
-         node verificar.mjs --exaustivo  (inclui auditorias históricas pesadas)
    ═══════════════════════════════════════════════════════════════════════════ */
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -36,7 +35,6 @@ import { montarApiFalsa } from './test/supabase-falso.mjs';
 import { createHash } from 'node:crypto';
 
 const RAIZ = dirname(fileURLToPath(import.meta.url));
-const EXAUSTIVO = process.argv.includes('--exaustivo');
 let falhas = 0;
 const ok = (m) => console.log('  ✓ ' + m);
 const erro = (m) => { falhas++; console.error('  ✗ ' + m); };

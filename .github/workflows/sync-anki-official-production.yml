@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'anki_official_backend/**'
+      - 'anki-oficial/UPSTREAM.lock.json'
       - '.github/workflows/sync-anki-official-production.yml'
       - 'tools/sync-anki-production.sh'
   workflow_dispatch:
@@ -62,15 +63,17 @@ jobs:
           python - <<'PY'
           import json, subprocess, time, urllib.request
           expected = subprocess.check_output(["git", "rev-parse", "origin/main"], text=True).strip()
+          with open("anki-oficial/UPSTREAM.lock.json", encoding="utf-8") as fh:
+              expected_version = json.load(fh)["release"]
           url = 'https://anki-official-production.up.railway.app/health'
           for attempt in range(50):
               try:
                   with urllib.request.urlopen(url, timeout=10) as response:
                       health = json.load(response)
                   if (health.get('ok') is True and health.get('engine') == 'anki'
-                          and health.get('runtime_version') == '26.09.3'
+                          and health.get('runtime_version') == expected_version
                           and health.get('source_main') == expected):
-                      print('Anki official production verified:', json.dumps(health))
+                      print('Anki official production verified:', expected_version, json.dumps(health))
                       break
                   print('Waiting for production revision:', health.get('source_rev'), health.get('source_main'))
               except Exception as error:

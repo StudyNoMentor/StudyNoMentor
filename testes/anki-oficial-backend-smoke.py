@@ -12,6 +12,7 @@ import jwt
 from cryptography.hazmat.primitives.asymmetric import ec
 
 ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_ANKI_VERSION = json.loads((ROOT / "anki-oficial/UPSTREAM.lock.json").read_text(encoding="utf-8"))["release"]
 sys.path.insert(0, str(ROOT / "anki_official_backend"))
 
 with tempfile.TemporaryDirectory() as tmp:
@@ -19,7 +20,7 @@ with tempfile.TemporaryDirectory() as tmp:
     import app
 
     health = app.health()
-    assert health["pinned_version"] == "26.09.3"
+    assert health["pinned_version"] == EXPECTED_ANKI_VERSION
     assert health["runtime_version"] == health["pinned_version"]
     assert "source_rev" in health and "source_branch" in health and "source_main" in health
     assert health["engine"] == "anki"
@@ -117,7 +118,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
         # Bootstrap inicial deve consolidar status + primeira fila em um único lock.
         boot = app.anki_bootstrap("review", user_ctx)
-        assert boot["status"]["runtime_version"] == "26.09.3"
+        assert boot["status"]["runtime_version"] == EXPECTED_ANKI_VERSION
         assert boot["status"]["cards"] == col.card_count()
         assert "reviewer" in boot and "counts" in boot["reviewer"]
 
@@ -1284,4 +1285,4 @@ assert 'id="screen-anki"' not in html
 assert 'data-screen="anki"' not in html
 assert 'id="cards-foco-btn"' in html
 
-print("OK: Anki 26.09.3 oficial + UI Cards avançada validados em scheduler, browser, stats, custom study, filtered deck, tipos, IO, mídia e exportação.")
+print(f"OK: Anki {EXPECTED_ANKI_VERSION} oficial + UI Cards avançada validados em scheduler, browser, stats, custom study, filtered deck, tipos, IO, mídia e exportação.")

@@ -10,18 +10,19 @@ Esta pasta ancora a paridade dos **Cards do StudyNoMentor** no repositório ofic
 
 Logo, após `git submodule update --init --recursive`, o conteúdo de `anki-oficial/upstream` é o próprio repositório oficial naquele commit — não uma transcrição manual.
 
-O commit `7a4db0038e4d5570cc3a297a2b47f8fefbfc309c` é o radar do `main` consultado em 2026-10-01. Ele está 15 commits à frente da release e não muda o alvo de produção até nova release estável.
+O campo `main_radar_commit` de `UPSTREAM.lock.json` registra apenas o estado observado do `main` upstream. Ele nunca muda o alvo de produção: somente uma release estável validada pode fazê-lo.
 
 ## Cobertura do repositório inteiro
 
-O inventário em `inventario/` enumera **2107 arquivos** do commit oficial, com caminho, SHA do blob e tamanho.
+O inventário em `inventario/` enumera todos os blobs do commit oficial, com caminho, SHA e tamanho. A contagem autoritativa da release atual vive em `UPSTREAM.lock.json`.
 
-Os quatro submódulos internos (traduções e instaladores) também estão registrados
+Os submódulos internos também estão registrados
 em `inventario/submodules.json`, com seus commits oficiais. Seus arquivos internos
 não são contabilizados como blobs do repositório pai.
 
-- **571** arquivos: `CARDS_RUNTIME` — entram diretamente no contrato de paridade dos Cards.
-- **1536** arquivos: `OUTSIDE_CARDS_RUNTIME` — continuam inventariados para detectar mudanças upstream, mas não são automaticamente tratados como comportamento de Cards.
+- `CARDS_RUNTIME` — arquivos que entram diretamente no contrato de paridade dos Cards.
+- `OUTSIDE_CARDS_RUNTIME` — arquivos inventariados que não são tratados como comportamento de Cards.
+- `UNCLASSIFIED` — permitido apenas em PR automático pendente de revisão; o gate impede merge enquanto existir.
 
 A classificação não autoriza ignorar arquivos. Se um arquivo antes fora do runtime passar a influenciar Cards numa release futura, o gate deve reclassificá-lo.
 
@@ -29,7 +30,7 @@ A classificação não autoriza ignorar arquivos. Se um arquivo antes fora do ru
 
 Paridade perfeita significa **resultado observável igual ao Anki oficial**, não apenas função parecida. Cada categoria em `cards-contracts.json` aponta os adaptadores do Study e os testes diferenciais responsáveis.
 
-O gate `testes/cards-anki-upstream-manifest.mjs` garante que os 2107 arquivos estejam cobertos pelo inventário e que nenhum dos 571 arquivos de Cards fique sem categoria/contrato.
+O gate `testes/cards-anki-upstream-manifest.mjs` garante que todo blob da release esteja coberto pelo inventário e que nenhum arquivo `CARDS_RUNTIME` fique sem categoria/contrato.
 
 No CI, o checkout é recursivo e o gate roda com `--require-upstream`: a ausência
 da fonte oficial faz a verificação falhar. Para reproduzir:
@@ -48,39 +49,18 @@ validada; nunca substitui uma versão ausente pela versão esperada.
 O antigo workflow de geração de FSRS WASM foi retirado: o FSRS dos Cards é
 executado pelo pacote oficial no backend, conforme os contratos desta pasta.
 
-## Duas métricas diferentes: integração e certificação exaustiva
+## Atualização automática de release estável
 
-**Paridade de integração do runtime: 571/571 (100%)**. Todas as categorias `CARDS_RUNTIME`
-possuem adapter para `anki_official_backend/app.py` + `95-cards-official-bridge.js`,
-e o gate reprova se essa cobertura cair. Isso mede a arquitetura pedida: o Study
-é a casca e o comportamento acadêmico suportado é delegado ao runtime oficial
-`anki==26.09.3`, sem reativar CardEngine/CardsConfig/FSRS locais.
+O workflow `.github/workflows/auto-update-anki-stable.yml` consulta diariamente a release estável mais recente publicada por `ankitects/anki`. Quando encontra uma versão superior à fixada em `UPSTREAM.lock.json`, ele prepara uma branch e um PR com o submódulo, inventário, pin Python, contratos e artefatos publicados atualizados.
 
-**Certificação comportamental exaustiva por arquivo** é uma métrica mais rigorosa
-e independente. Ela só sobe quando existe evidência individual versionada cobrindo
-estado, resultado, persistência, erro e extremos daquele arquivo. Não confundir
-essa métrica com a integração: um arquivo pode estar 100% integrado por executar
-o próprio runtime oficial e ainda não ter um relatório individual de combinações
-exaustivas.
+A promoção é **fail-safe**: arquivos novos em áreas potencialmente funcionais entram como `UNCLASSIFIED` e bloqueiam o merge automático. Sem bloqueadores, a automação dispara a verificação completa do Study; somente um run integralmente verde permite merge. Depois do merge, o workflow de produção é disparado explicitamente e o Railway só é aceito quando `/health` reporta a mesma versão e a mesma revisão da `main`.
 
-## Auditoria individual e progresso
+Pré-releases, drafts, downgrades, runtime Python divergente, inventário incompleto ou qualquer falha de navegador/backend mantêm a versão anterior em produção.
 
-[`AUDITORIA-POR-ARQUIVO.md`](AUDITORIA-POR-ARQUIVO.md) lista cada arquivo upstream
-com link oficial, SHA, categoria e status. O mapa de categoria indica os adapters
-e testes a inspecionar; não afirma que cada teste cobre cada arquivo.
+## Validação funcional
 
-`audit-status.json` mantém somente as evidências individuais já revisadas.
-Ausência de registro significa `PENDING`. Não se atribui um percentual de paridade
-a partir da existência de APIs, botões, testes ou do inventário.
+A integração do runtime de Cards exige **100% dos arquivos classificados como `CARDS_RUNTIME`**. Todas as categorias apontam para adaptadores que delegam o comportamento acadêmico ao backend com `anki==26.09.3`; o Study mantém somente UI, metadados e projeções necessárias ao produto.
 
-Após alterar inventário, contratos ou evidências:
+A proteção útil do repositório fica concentrada em três fontes versionadas: o inventário literal do upstream, `cards-contracts.json` e as suítes funcionais/diferenciais que executam a ponte e o pacote Anki real. O gate reprova divergência de blobs, versão, contrato, adapter inexistente, reintrodução de motor local ou falhas nos smokes oficiais.
 
-```sh
-node tools/anki-audit-report.mjs
-node tools/anki-audit-report.mjs --check
-```
-
-O segundo comando participa do gate existente. Uma certificação exige evidência
-referenciada com SHA upstream/Study, teste, casos, resultado e relatório de execução
-versionado cobrindo estado, resultado, persistência, erro e casos comuns/extremos.
-O gate valida rastreabilidade; a cobertura integral ainda exige revisão do código.
+Relatórios derivados de auditoria por arquivo não são versionados. Quando for necessário investigar uma regressão, a evidência deve vir do commit upstream fixado, do contrato afetado e do teste reproduzível correspondente, evitando arquivos gerados gigantes ou contadores sem efeito no runtime.

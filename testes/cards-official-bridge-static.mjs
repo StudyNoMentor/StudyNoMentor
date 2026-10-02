@@ -17,14 +17,15 @@ const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js')
 const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8');
 const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
 const practical=readFileSync(join(ROOT,'src/js/44-anki-practical-10.js'),'utf8');
-const final10=readFileSync(join(ROOT,'src/js/44-anki-10of10-final.js'),'utf8');
+const sharedDecks=readFileSync(join(ROOT,'src/js/44-anki-shared-decks.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const importer=readFileSync(join(ROOT,'src/js/35-anki-import.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
 const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
+const lock=JSON.parse(readFileSync(join(ROOT,'anki-oficial/UPSTREAM.lock.json'),'utf8'));
 
-assert.match(req,/^anki==26\.09\.3$/m,'backend precisa fixar exatamente anki==26.09.3');
+assert.ok(req.split(/\r?\n/).includes('anki=='+lock.release),'backend precisa fixar exatamente anki=='+lock.release);
 assert.match(req,/^PyJWT\[crypto\]==2\.15\.1$/m,'verificador JWT precisa estar fixado e com suporte criptográfico');
 assert.match(backend,/PyJWKClient/,'Auth rápido deve validar JWT assimétrico por JWKS');
 assert.match(backend,/max_age=86400/,'preflight CORS precisa ficar cacheável para não duplicar round-trip');
@@ -56,9 +57,9 @@ for(const [id,source] of [
   ['cards-preferences-btn',practical],
 ]) assert.ok(source.includes(id),'ação injetada do Mais ausente: '+id);
 
-for(const source of [html,practical,total,product,final10,imageOcclusion])
+for(const source of [html,practical,total,product,sharedDecks,imageOcclusion])
   assert.ok(!source.includes('cards-extensions-btn'),'Extensões locais não podem voltar ao Mais do Anki oficial');
-for(const source of [html,practical,final10])
+for(const source of [html,practical,sharedDecks])
   assert.ok(!source.includes('cards-reviewer-bindings-btn'),'Atalhos personalizados não oficiais não podem voltar ao Mais');
 
 assert.match(sanitizer,/on\('cards-empty-btn'[\s\S]{0,500}?CardsOfficialBridge\.openEmptyCards/,'Cards vazios deve delegar ao backend oficial');

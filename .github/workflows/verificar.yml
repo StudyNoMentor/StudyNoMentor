@@ -49,6 +49,7 @@ jobs:
           set -euo pipefail
           node --check build.mjs
           node --check verificar.mjs
+          node --check tools/update-anki-stable.mjs
           python testes/anki-production-sync.py
           for f in src/js/*.js; do node --check "$f"; done
           node build.mjs
@@ -136,7 +137,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for t in testes/repositorio-higiene.mjs testes/cards-image-occlusion.mjs \
+          for t in testes/repositorio-higiene.mjs testes/anki-auto-update.mjs testes/cards-image-occlusion.mjs \
                    testes/cards-max-editor-io.mjs testes/extras-estabilidade.mjs \
                    testes/governanca-premium.mjs testes/governanca-rebalanceamento.mjs testes/lei-rodizio-perf.mjs \
                    testes/reforco-fila.mjs testes/ui-organizacao-extras-tec.mjs; do
