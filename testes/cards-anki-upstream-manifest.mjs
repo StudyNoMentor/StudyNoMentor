@@ -20,12 +20,15 @@ const chunks=readdirSync(join(A,'inventario')).filter(x=>/^\d{4}-\d{4}\.json$/.t
 const files=chunks.flatMap(x=>JSON.parse(readFileSync(join(A,'inventario',x),'utf8')).files||[]);
 const submodules=JSON.parse(readFileSync(join(A,'inventario/submodules.json'),'utf8'));
 assert.equal(submodules.upstream_commit,lock.release_commit);
-assert.equal(submodules.submodules.length,4,'submodulos internos do Anki devem ser inventariados');
+const submoduleUnclassified=(submodules.submodules||[]).filter(x=>x.cards_scope==='UNCLASSIFIED');
+assert.equal(submoduleUnclassified.length,0,'release upstream contém submódulo(s) não classificados: '+submoduleUnclassified.map(x=>x.path).join(', '));
 assert.equal(lock.schema,'studynomentor-anki-upstream-lock-v1');
-assert.equal(lock.release,'26.09.3');
-assert.equal(lock.release_commit,'29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba');
+assert.equal(lock.repository,'ankitects/anki');
+assert.match(lock.release,/^\d+(?:\.\d+)+$/,'release estável inválida no lock');
+assert.match(lock.release_commit,/^[0-9a-f]{40}$/,'commit da release inválido no lock');
 assert.equal(files.length,lock.total_files,'inventario nao cobre todos os arquivos');
-assert.equal(files.length,2107,'quantidade do upstream 26.09.3 mudou sem atualizar o lock');
+assert.equal(contracts.upstream_commit,lock.release_commit,'contratos apontam outro commit upstream');
+assert.equal(contracts.integration.runtime,'anki=='+lock.release,'contratos apontam outra versão do runtime');
 
 const paths=new Set();
 for(let i=0;i<files.length;i++){
@@ -38,10 +41,14 @@ for(let i=0;i<files.length;i++){
 }
 const runtime=files.filter(f=>f.cards_scope==='CARDS_RUNTIME');
 const outside=files.filter(f=>f.cards_scope==='OUTSIDE_CARDS_RUNTIME');
+const unclassified=files.filter(f=>f.cards_scope==='UNCLASSIFIED');
 assert.equal(runtime.length,lock.cards_runtime_files);
-assert.equal(runtime.length,571,'escopo funcional de Cards esperado: 571 arquivos');
 assert.equal(outside.length,lock.outside_cards_runtime_files);
-assert.equal(outside.length,1536);
+assert.equal(unclassified.length,Number(lock.unclassified_files||0));
+assert.equal(runtime.length+outside.length+unclassified.length,files.length,'todo arquivo precisa ter escopo explícito');
+assert.equal(unclassified.length,0,'release upstream contém arquivo(s) não classificados: '+unclassified.slice(0,12).map(x=>x.path).join(', '));
+assert.equal(contracts.total_runtime_files,runtime.length,'contratos têm total runtime divergente');
+assert.equal(contracts.integration.integrated_runtime_files,runtime.length,'integração não cobre todos os arquivos runtime classificados');
 
 for(const f of runtime){
   assert.ok(f.cards_category,'arquivo runtime sem categoria: '+f.path);
@@ -80,10 +87,10 @@ if(initialized){
   }).filter(Boolean));
   assert.equal(links.size,submodules.submodules.length);
   for(const s of submodules.submodules)assert.equal(links.get(s.path),s.commit,'submodule interno divergente: '+s.path);
-  console.log('ANKI UPSTREAM: 2107/2107 blobs conferidos byte-a-byte pela Git tree do submodule.');
+  console.log('ANKI UPSTREAM: '+files.length+'/'+files.length+' blobs conferidos byte-a-byte pela Git tree do submodule.');
 }else{
   console.log('ANKI UPSTREAM: gitlink conferido; submodule nao inicializado, validacao blob-a-blob fica para checkout com --recurse-submodules.');
 }
-console.log('CARDS UPSTREAM MAP: 571/571 arquivos funcionais classificados; 1536/1536 arquivos restantes inventariados.');
+console.log('CARDS UPSTREAM MAP: '+runtime.length+'/'+runtime.length+' arquivos funcionais classificados; '+outside.length+'/'+outside.length+' arquivos restantes inventariados.');
 console.log('CARDS INTEGRATION: '+contracts.integration.integrated_runtime_files+'/'+runtime.length+' arquivos runtime delegados ao '+contracts.integration.runtime+' oficial ('+contracts.integration.coverage_percent+'%).');
 console.log('CONTRATOS: '+Object.keys(contracts.categories).length+' categorias, todas com adapter e teste declarados.');

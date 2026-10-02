@@ -10,4 +10,4 @@ O nome do secret GitHub é mantido por compatibilidade. O workflow passa seu val
 
 ## Verificação
 
-Projeto, ambiente production e serviço anki-official são definidos explicitamente no workflow. A publicação só é confirmada quando /health informa ok, motor anki, runtime 26.09.3 e source_main igual à main sincronizada. Após atualizar a credencial, reexecute o workflow Sync Anki Official production backend na aba Actions.
+Projeto, ambiente production e serviço anki-official são definidos explicitamente no workflow. A publicação só é confirmada quando `/health` informa `ok`, motor `anki`, `runtime_version` igual à release de `UPSTREAM.lock.json` e `source_main` igual à `main` sincronizada. Após atualizar a credencial, reexecute o workflow Sync Anki Official production backend na aba Actions.

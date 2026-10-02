@@ -23,8 +23,9 @@ const importer=readFileSync(join(ROOT,'src/js/35-anki-import.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
 const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
 const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
+const lock=JSON.parse(readFileSync(join(ROOT,'anki-oficial/UPSTREAM.lock.json'),'utf8'));
 
-assert.match(req,/^anki==26\.09\.3$/m,'backend precisa fixar exatamente anki==26.09.3');
+assert.ok(req.split(/\r?\n/).includes('anki=='+lock.release),'backend precisa fixar exatamente anki=='+lock.release);
 assert.match(req,/^PyJWT\[crypto\]==2\.15\.1$/m,'verificador JWT precisa estar fixado e com suporte criptográfico');
 assert.match(backend,/PyJWKClient/,'Auth rápido deve validar JWT assimétrico por JWKS');
 assert.match(backend,/max_age=86400/,'preflight CORS precisa ficar cacheável para não duplicar round-trip');

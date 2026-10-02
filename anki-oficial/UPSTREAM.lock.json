@@ -37,5 +37,11 @@
     "editor": 90,
     "cloze": 1
   },
-  "rule": "Nenhum item CARDS_RUNTIME pode ser marcado como 100% por existência de função. Exige oráculo/teste diferencial contra o upstream oficial."
+  "rule": "Nenhum item CARDS_RUNTIME pode ser marcado como 100% por existência de função. Exige oráculo/teste diferencial contra o upstream oficial.",
+  "unclassified_files": 0,
+  "auto_update": {
+    "safe_to_merge": true,
+    "blockers": [],
+    "generated_at": null
+  }
 }

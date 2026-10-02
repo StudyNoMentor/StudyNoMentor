@@ -106,8 +106,15 @@ navegador — incluindo `testes/auditoria-correcoes-browser.mjs`. Todo arquivo
 
 ## Cards e fonte oficial Anki
 
+### Atualização de versão do Anki
+
+A rotina normal não exige editar manualmente os pins. `.github/workflows/auto-update-anki-stable.yml` detecta releases estáveis e usa `tools/update-anki-stable.mjs` para gerar a atualização. Arquivo upstream novo em área funcional nunca é classificado por aproximação: fica `UNCLASSIFIED`, o PR permanece aberto e a produção continua na release anterior até revisão explícita.
+
+O merge automático só ocorre após a execução completa de `Verificacao` na branch gerada. O deploy Railway é então disparado por `workflow_dispatch` e validado pelo `UPSTREAM.lock.json`.
+
+
 Os Cards delegam scheduling, FSRS, filas, busca, rendering e operações de
-coleção ao pacote `anki==26.09.3` por `anki_official_backend/app.py` e
+coleção à versão `anki==<release>` indicada em `UPSTREAM.lock.json`, por `anki_official_backend/app.py` e
 `src/js/95-cards-official-bridge.js`. Mudanças nesses comportamentos devem usar
 as APIs oficiais e preservar os resultados na projeção do Study. A versão do
 runtime é conferida antes de abrir qualquer coleção.
@@ -127,8 +134,7 @@ python -m pip install -r anki_official_backend/requirements.txt
 python testes/anki-oficial-backend-smoke.py
 ```
 
-O gate de inventário verifica todos os 2.107 blobs e os quatro gitlinks
-internos. A opção `--require-upstream`, obrigatória no CI, recusa checkout sem
+O gate de inventário verifica todos os blobs e gitlinks declarados pela release fixada. A opção `--require-upstream`, obrigatória no CI, recusa checkout sem
 a fonte oficial. O teste de versão verifica também a recusa de runtimes
 incompatíveis ou sem versão, sem exigir dependências Python externas.
 

@@ -2,13 +2,13 @@
 
 **Fonte literal:** `anki-oficial/upstream` → `ankitects/anki@29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba`.
 
-**Inventário integral:** 2.107/2.107 arquivos.  
-**Runtime funcional de Cards:** 571 arquivos.  
-**Restante do repositório:** 1.536 arquivos, todos inventariados e monitorados.
+**Inventário integral:** contagem em `UPSTREAM.lock.json`.  
+**Runtime funcional de Cards:** contagem em `cards-contracts.json`.  
+**Restante do repositório:** totalmente inventariado; `UNCLASSIFIED` bloqueia merge.
 
 ## Regra de conclusão
 
-A fonte de verdade é o upstream literal fixado em `UPSTREAM.lock.json`, combinado com o inventário integral, os contratos funcionais e testes que executam a Collection oficial. A integração atual cobre **571/571 arquivos de runtime (100%)** sem reativar scheduler, FSRS, renderer ou banco acadêmico local.
+A fonte de verdade é o upstream literal fixado em `UPSTREAM.lock.json`, combinado com o inventário integral, os contratos funcionais e testes que executam a Collection oficial. A integração atual exige **100% dos arquivos `CARDS_RUNTIME` classificados** sem reativar scheduler, FSRS, renderer ou banco acadêmico local.
 
 Um contrato só é considerado fechado quando o caminho observável usa a implementação oficial, possui teste reproduzível para a operação e não contém fallback silencioso para uma implementação aproximada. Relatórios derivados e contadores manuais não fazem parte da definição de pronto.
 
@@ -16,7 +16,7 @@ Um contrato só é considerado fechado quando o caminho observável usa a implem
 
 ### Integridade da fonte e do runtime — 2026-10-01
 
-- [x] Conferidos os 2.107 caminhos, SHAs e tamanhos contra a Git tree oficial da referência congelada; nenhuma divergência.
+- [x] Conferidos todos os caminhos, SHAs e tamanhos do inventário contra a Git tree oficial da referência congelada; nenhuma divergência.
 - [x] Checkout recursivo e `--require-upstream` obrigatórios no job principal do CI; ausência da fonte oficial reprova o gate.
 - [x] Gate alinha a release do inventário, o pin de `requirements.txt` e a versão declarada do backend.
 - [x] Backend recusa versão instalada divergente ou ausente antes de abrir coleções; o health reporta somente a versão real validada.
@@ -30,7 +30,7 @@ certificações individuais nem incorporam patches posteriores à 26.09.3.
 ### Continuação — 2026-10-01: marca de nota no revisor
 
 Progresso deste lote: **4/4 verificações concluídas (100%)**. Isso não representa
-o percentual de paridade integral dos 571 arquivos de runtime.
+o percentual de paridade integral do runtime.
 
 - [x] `anki_official_backend/app.py`: ação `mark` devolve as notas afetadas com tags oficiais, uma vez por nota.
 - [x] `src/js/95-cards-official-bridge.js`: o revisor sincroniza essas notas, incluindo cards irmãos e réplicas entre planejamentos, sem calcular a marca localmente.
@@ -58,8 +58,7 @@ canônicos devolvidos pelo Anki.
 - [x] Gates estáticos verificam ausência de CardEngine/CardsConfig/fallbacks e o smoke real com `anki==26.09.3` valida round-trip da migração, rollback, GUID, Learning revlog e preservação de `custom_data`.
 
 Este fechamento **não altera** a métrica de certificação comportamental exaustiva
-por arquivo acima. A integração arquitetural segue 571/571; certificação individual
-continua exigindo evidência específica por arquivo, caso e extremo.
+por arquivo acima. A integração arquitetural segue integral; evidência específica continua sendo exigida para mudanças comportamentais relevantes.
 
 ### Remoção das implementações locais — 2026-10-01
 
@@ -75,7 +74,7 @@ continua exigindo evidência específica por arquivo, caso e extremo.
 A UI ainda mantém projeções de dados oficiais para relacioná-los a planejamentos, bancas e filtros. Elas não são um segundo motor Anki; o comportamento acadêmico permanece na Collection oficial.
 
 
-- [x] **Integração oficial — Scheduler / FSRS / estados / filas — 67 arquivos**
+- [x] **Integração oficial — Scheduler / FSRS / estados / filas**
   - responder Again/Hard/Good/Easy;
   - learning, relearning, review e preview;
   - queue gather/sort/mix;
@@ -85,13 +84,13 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - rollover, timing, limits e learn-ahead;
   - revlog e rescheduling;
   - FSRS params, optimization, evaluation e simulator.
-- [x] **Integração oficial — Card rendering / Reviewer / AV / TTS — 20 arquivos**
+- [x] **Integração oficial — Card rendering / Reviewer / AV / TTS**
   - question/answer rendering;
   - filters e special fields;
   - AV tags, sound, TTS;
   - type-answer;
   - reviewer actions/shortcuts/timers.
-- [x] **Integração oficial — Cloze — 1 arquivo**
+- [x] **Integração oficial — Cloze**
   - tokenizer;
   - nested cloze;
   - multi-ordinal;
@@ -99,33 +98,33 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - typing;
   - MathJax edge cases;
   - image-occlusion cloze generation.
-- [x] **Integração oficial — Cards / Notes — 10 arquivos**
+- [x] **Integração oficial — Cards / Notes**
   - identidade;
   - add/update/remove;
   - flags;
   - positions/due;
   - note/card relationships.
-- [x] **Integração oficial — Notetypes / templates / change type / empty cards — 21 arquivos**
+- [x] **Integração oficial — Notetypes / templates / change type / empty cards**
   - card generation;
   - field/template mapping;
   - schema change;
   - stock notetypes;
   - empty-card detection/removal.
-- [x] **Integração oficial — Decks / Deck Options / Filtered Decks / Custom Study — 65 arquivos**
+- [x] **Integração oficial — Decks / Deck Options / Filtered Decks / Custom Study**
   - deck tree;
   - presets;
   - parent limits;
   - filtered decks;
   - custom study;
   - every deck_config field used by scheduling/reviewer.
-- [x] **Integração oficial — Search / Browser / Card Info — 50 arquivos**
+- [x] **Integração oficial — Search / Browser / Card Info**
   - parser completo;
   - writer/normalizer;
   - SQL semantics;
   - all operators/properties/custom data;
   - browser columns/sort/selection/actions;
   - card info.
-- [x] **Integração oficial — Editor — 90 arquivos**
+- [x] **Integração oficial — Editor**
   - rich/plain/HTML editing;
   - formatting;
   - clipboard/data transfer;
@@ -134,18 +133,18 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - cloze;
   - MathJax/LaTeX;
   - field state and keyboard behavior.
-- [x] **Integração oficial — Tags — 31 arquivos**
+- [x] **Integração oficial — Tags**
   - canonicalization;
   - hierarchy;
   - rename/remove/clear;
   - editor/browser interactions.
-- [x] **Integração oficial — Media — 9 arquivos**
+- [x] **Integração oficial — Media**
   - normalized/canonical filenames;
   - checksum/collision handling;
   - check media;
   - trash/restore;
   - serving and package I/O.
-- [x] **Integração oficial — Statistics — 72 arquivos**
+- [x] **Integração oficial — Statistics**
   - all official graph data contracts;
   - today;
   - review counts/time;
@@ -154,14 +153,14 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - retention;
   - FSRS memory data;
   - simulator inputs/results.
-- [x] **Integração oficial — Import / Export — 65 arquivos**
+- [x] **Integração oficial — Import / Export**
   - APKG/COLPKG;
   - CSV/text;
   - schema versions;
   - legacy/latest packages;
   - zstd/media metadata;
   - scheduling/revlog round-trip.
-- [x] **Integração oficial — Image Occlusion — 61 arquivos**
+- [x] **Integração oficial — Image Occlusion**
   - shapes;
   - masks;
   - grouping/alignment;
@@ -169,23 +168,13 @@ A UI ainda mantém projeções de dados oficiais para relacioná-los a planejame
   - create/edit note;
   - undo/redo;
   - keyboard/touch interactions.
-- [x] **Integração oficial — Collection operations — 9 arquivos**
+- [x] **Integração oficial — Collection operations**
   - undo/redo boundaries;
   - collection mutations used by Cards;
   - transactional behavior.
 
-## Inventário 2.107/2.107
+## Inventário integral
 
-A lista exata, incluindo **SHA do blob oficial**, está em:
-
-- `inventario/0001-0250.json`
-- `inventario/0251-0500.json`
-- `inventario/0501-0750.json`
-- `inventario/0751-1000.json`
-- `inventario/1001-1250.json`
-- `inventario/1251-1500.json`
-- `inventario/1501-1750.json`
-- `inventario/1751-2000.json`
-- `inventario/2001-2107.json`
+A lista exata, incluindo **SHA do blob oficial**, é gerada em blocos sob `inventario/`; os nomes e a quantidade de blocos variam conforme a release.
 
 O gate `testes/cards-anki-upstream-manifest.mjs` falha se qualquer item sumir, duplicar, perder categoria ou apontar para um adapter/teste inexistente.

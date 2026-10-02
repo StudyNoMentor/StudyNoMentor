@@ -1,0 +1,173 @@
+name: Auto-update Anki stable
+
+on:
+  schedule:
+    # Releases estáveis não exigem polling agressivo. 09:17 UTC = 06:17 em Recife.
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão estável específica (vazio = latest estável do GitHub)'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: anki-stable-auto-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          submodules: recursive
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configure bot identity
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Detect and prepare latest stable Anki
+        id: prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ANKI_TARGET_VERSION: ${{ inputs.version || '' }}
+        run: node tools/update-anki-stable.mjs
+
+      - name: Rebuild published artifacts
+        if: steps.prepare.outputs.changed == 'true'
+        run: node build.mjs
+
+      - name: Create update branch and PR
+        if: steps.prepare.outputs.changed == 'true'
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          BODY_FILE: ${{ steps.prepare.outputs.pr_body_file }}
+        run: |
+          set -euo pipefail
+          safe_version="$(printf '%s' "$VERSION" | tr -c 'A-Za-z0-9._-' '-')"
+          branch="automation/anki-stable-$safe_version"
+
+          existing="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main --head "$branch" --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            head_sha="$(gh pr view "$existing" --repo "$GITHUB_REPOSITORY" --json headRefOid --jq .headRefOid)"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+            echo "number=$existing" >> "$GITHUB_OUTPUT"
+            echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+            echo "Existing Anki update PR #$existing will be reused without overwriting human changes."
+            exit 0
+          fi
+
+          git switch -c "$branch"
+          git add -A
+          git commit -m "chore(anki): atualizar runtime oficial para $VERSION"
+          git push origin "HEAD:$branch"
+
+          gh pr create             --repo "$GITHUB_REPOSITORY"             --base main             --head "$branch"             --title "chore(anki): atualizar para Anki $VERSION"             --body-file "$BODY_FILE"
+
+          number="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base main --head "$branch" --json number --jq '.[0].number')"
+          head_sha="$(git rev-parse HEAD)"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "number=$number" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Leave unsafe upstream changes for review
+        if: steps.prepare.outputs.changed == 'true' && steps.prepare.outputs.blockers_count != '0'
+        shell: bash
+        env:
+          BLOCKERS: ${{ steps.prepare.outputs.blockers }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+        run: |
+          {
+            echo "## Anki update requires review"
+            echo
+            echo "PR #$PR_NUMBER was created, but automatic promotion is blocked."
+            echo
+            printf '%s\n' "$BLOCKERS"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dispatch complete validation
+        if: steps.prepare.outputs.changed == 'true' && steps.prepare.outputs.blockers_count == '0'
+        id: verify
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.pr.outputs.branch }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/verificar.yml/dispatches" -f "ref=$BRANCH"
+
+          run_id=""
+          for _ in $(seq 1 60); do
+            run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/verificar.yml/runs?branch=$BRANCH&event=workflow_dispatch&per_page=10"               --jq ".workflow_runs[] | select(.head_sha == \"$HEAD_SHA\") | .id" | head -n1)"
+            [ -n "$run_id" ] && break
+            sleep 5
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::The full verification workflow was not created for $HEAD_SHA."
+            exit 1
+          fi
+
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
+
+      - name: Merge validated Anki update
+        if: steps.prepare.outputs.changed == 'true' && steps.prepare.outputs.blockers_count == '0'
+        id: merge
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          result="$(gh api -X PUT "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge"             -f "sha=$HEAD_SHA" -f "merge_method=merge")"
+          merged="$(printf '%s' "$result" | jq -r '.merged')"
+          merge_sha="$(printf '%s' "$result" | jq -r '.sha // empty')"
+          if [ "$merged" != "true" ] || [ -z "$merge_sha" ]; then
+            printf '%s\n' "$result"
+            echo "::error::Validated PR was not merged."
+            exit 1
+          fi
+          echo "sha=$merge_sha" >> "$GITHUB_OUTPUT"
+          echo "Merged PR #$PR_NUMBER at $merge_sha."
+
+      - name: Deploy and verify new official runtime
+        if: steps.prepare.outputs.changed == 'true' && steps.prepare.outputs.blockers_count == '0'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ steps.merge.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/sync-anki-official-production.yml/dispatches" -f ref=main
+
+          run_id=""
+          for _ in $(seq 1 60); do
+            run_id="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/sync-anki-official-production.yml/runs?branch=main&event=workflow_dispatch&per_page=10"               --jq ".workflow_runs[] | select(.head_sha == \"$MERGE_SHA\") | .id" | head -n1)"
+            [ -n "$run_id" ] && break
+            sleep 5
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::Production deployment workflow was not created for $MERGE_SHA."
+            exit 1
+          fi
+          gh run watch "$run_id" --repo "$GITHUB_REPOSITORY" --exit-status
