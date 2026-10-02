@@ -25,12 +25,10 @@
   const S = {
     KEY: 'study-global-scope-v1',
     BANKS_KEY: 'cards-bancas-global-v1',
-    ANKI_KEY: 'anki-bank-filter-v1',
     defaults: Object.freeze({ cardsScope: 'plan', cardsBancas: [] }),
 
     _key() { return DB._profilePrefix() + this.KEY; },
     _banksKey() { return DB._profilePrefix() + this.BANKS_KEY; },
-    _ankiKey() { return DB._profilePrefix() + this.ANKI_KEY; },
     activePlanId() { return PlanManager.getActivePlanId() || DB._activePlanId(); },
     plans() {
       const list = PlanManager.getPlans() || [];
@@ -403,66 +401,6 @@
       return removed;
     },
 
-    _ankiState() {
-      try { return Object.assign({ filteredDeckId: null, previousDeckId: null }, JSON.parse(localStorage.getItem(this._ankiKey()) || '{}')); }
-      catch (_) { return { filteredDeckId: null, previousDeckId: null }; }
-    },
-    _saveAnkiState(v) { DB.setRaw(this._ankiKey(), JSON.stringify(v || {})); },
-    _ankiTag(b) { return String(b || '').trim().replace(/\s+/g, '_').replace(/"/g, ''); },
-    async applyAnkiBankFilter(refresh) {
-      if (!window.AnkiOfficial || !AnkiOfficial.request || !AnkiOfficial.token || !AnkiOfficial.token()) return false;
-      const banks = this.selectedBanks();
-      const st = this._ankiState();
-      const decks = await AnkiOfficial.request('/api/anki/decks');
-      const current = Number(decks.current_deck_id || 0);
-      if (!banks.length) {
-        if (st.filteredDeckId) {
-          try { await AnkiOfficial.request('/api/anki/filtered-deck/' + Number(st.filteredDeckId) + '/empty', { method: 'POST' }); } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
-          const back = Number(st.previousDeckId || 0);
-          if (back && back !== Number(st.filteredDeckId)) {
-            try {
-              await AnkiOfficial.request('/api/anki/decks/select', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ deck_id: back })
-              });
-            } catch (_) { if (typeof _quiet === 'function') _quiet(_, '94-global-scope'); }
-          }
-        }
-        this._saveAnkiState({ filteredDeckId: st.filteredDeckId || null, previousDeckId: null });
-        if (refresh && AnkiOfficial.view === 'review') await AnkiOfficial.renderReviewer();
-        return true;
-      }
-
-      const fdId = Number(st.filteredDeckId || 0);
-      const data = await AnkiOfficial.request('/api/anki/filtered-deck/' + fdId);
-      const deck = data.deck || {}, cfg = deck.config || {};
-      const query = '(' + ['is:due','is:new','is:learn'].join(' OR ') + ') (' +
-        banks.map(b => 'tag:"' + this._ankiTag(b) + '"').join(' OR ') + ')';
-      const payload = {
-        id: Number(deck.id || fdId || 0),
-        name: 'Study · Bancas',
-        config: Object.assign({}, cfg, {
-          reschedule: true,
-          search_terms: [{ search: query, limit: 999999, order: 0 }]
-        }),
-        allow_empty: true
-      };
-      const saved = await AnkiOfficial.request('/api/anki/filtered-deck/' + Number(deck.id || fdId || 0), {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-      });
-      const did = Number(saved.deck_id || deck.id || 0);
-      await AnkiOfficial.request('/api/anki/filtered-deck/' + did + '/rebuild', { method: 'POST' });
-      await AnkiOfficial.request('/api/anki/decks/select', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ deck_id: did })
-      });
-      this._saveAnkiState({
-        filteredDeckId: did,
-        previousDeckId: (current && current !== did) ? current : (st.previousDeckId || null)
-      });
-      if (refresh && AnkiOfficial.view === 'review') await AnkiOfficial.renderReviewer();
-      return true;
-    },
-
     refreshCards() {
       try {
         if (!window.CardsScreen) return;
@@ -478,7 +416,7 @@
       if (s.length === 1) return s[0];
       return s.length + ' bancas selecionadas';
     },
-    renderBankPicker(host, opts) {
+    renderBankPicker(host) {
       if (!host) return;
       const catalog = this.bankCatalog(), selected = new Set(this.selectedBanks().map(norm));
       host.innerHTML = '<button type="button" class="banca-pick-btn global-bank-btn" aria-expanded="false"><span>🏛️ ' +
@@ -489,7 +427,7 @@
           '<label class="global-bank-search"><span aria-hidden="true">⌕</span><input type="search" placeholder="Buscar banca" autocomplete="off" aria-label="Buscar banca"></label>' +
           '<div class="global-bank-list">' + catalog.map(b => '<label class="global-bank-item ' + (selected.has(norm(b)) ? 'is-active' : '') + '" data-bank-n="' + escapeHtml(norm(b)) + '">' +
             '<input type="checkbox" value="' + escapeHtml(b) + '" ' + (selected.has(norm(b)) ? 'checked' : '') + '><span>' + escapeHtml(b) + '</span></label>').join('') + '</div>' +
-          '<p class="hint global-bank-hint">Vazio = todas. A seleção vale para Cards e Anki Oficial.</p>' +
+          '<p class="hint global-bank-hint">Vazio = todas. A seleção vale para a revisão do Anki.</p>' +
         '</div>';
       const btn = host.querySelector('.global-bank-btn'), panel = host.querySelector('.global-bank-panel');
       const search = host.querySelector('.global-bank-search input');
@@ -530,17 +468,11 @@
         const vals = [...host.querySelectorAll('.global-bank-item input:checked')].map(x => x.value);
         this.setSelectedBanks(vals);
         syncLocal();
-        /* O seletor atual permanece aberto para permitir marcar várias bancas.
-           Só espelhamos a escolha nos outros hosts (Cards/Anki). */
+        /* O seletor permanece aberto para permitir seleção múltipla. */
         document.querySelectorAll('[data-global-bank-host]').forEach(h => {
-          if (h !== host) this.renderBankPicker(h, { anki: h.dataset.globalBankHost === 'anki' });
+          if (h !== host) this.renderBankPicker(h);
         });
         this.refreshCards();
-        if (document.getElementById('screen-anki') && document.getElementById('screen-anki').classList.contains('active')) {
-          this.applyAnkiBankFilter(true).catch(e => {
-            if (window.AnkiOfficial && AnkiOfficial.alert) AnkiOfficial.alert('Filtro de banca: ' + (e.message || e), 'error');
-          });
-        }
       };
       host.querySelectorAll('.global-bank-item input').forEach(x => x.onchange = apply);
       const all = host.querySelector('[data-global-bank-all]');
@@ -603,19 +535,6 @@
       this.renderBankPicker(row.querySelector('[data-global-bank-host="cards"]'));
     },
 
-    installAnkiUi() {
-      const root = document.getElementById('anki-official-alert');
-      const screen = document.getElementById('screen-anki');
-      if (!root || !screen || document.getElementById('anki-global-bank-card')) return;
-      const card = document.createElement('div');
-      card.id = 'anki-global-bank-card';
-      card.className = 'card anki-global-bank-card';
-      card.innerHTML = '<div class="global-anki-bank-row"><div><b>🏛️ Bancas na revisão</b><span>O filtro usa as tags de banca da coleção e mantém o scheduler oficial.</span></div>' +
-        '<div class="global-bank-host" data-global-bank-host="anki"></div></div>';
-      screen.insertBefore(card, root);
-      this.renderBankPicker(card.querySelector('[data-global-bank-host="anki"]'), { anki: true });
-    },
-
     installStyle() {
       if (document.getElementById('study-global-scope-style')) return;
       const st = document.createElement('style'); st.id = 'study-global-scope-style';
@@ -633,9 +552,7 @@
         '.global-bank-item input[type="checkbox"]{width:20px!important;height:20px!important;min-width:20px;margin:0!important;padding:0!important;accent-color:var(--accent);cursor:pointer}',
         '.global-bank-item>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
         '.global-bank-hint{padding:6px 4px 2px;margin:0}',
-        '.anki-global-bank-card{margin-bottom:14px}.global-anki-bank-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:13px 16px}',
-        '.global-anki-bank-row>div:first-child{display:flex;flex-direction:column;gap:2px}.global-anki-bank-row span{font-size:12px;color:var(--text-faint)}',
-        '@media(max-width:680px){.global-scope-row{grid-template-columns:1fr}.global-anki-bank-row{align-items:stretch;flex-direction:column}.global-bank-btn{width:100%}.global-bank-panel{width:100%;max-width:100%}}'
+        '@media(max-width:680px){.global-scope-row{grid-template-columns:1fr}.global-bank-btn{width:100%}.global-bank-panel{width:100%;max-width:100%}}'
       ].join('');
       document.head.appendChild(st);
     }
@@ -1216,18 +1133,12 @@
 
   const boot = () => {
     S.installAnkiEntityScope(); S.installAnkiUsabilityParity(); S.ensureGlobalIdentitySafe();
-    S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi(); S.installAnkiUi();
+    S.installStyle(); S.installBankPickerDismiss(); S.bankCatalog(); S.installCardsUi();
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true });
   else boot();
   window.addEventListener('screen:activated', e => {
     const s = e && e.detail && e.detail.screen;
     if (s === 'cards') { S.installAnkiUsabilityParity(); S.ensureGlobalIdentitySafe(); S.installCardsUi(); S.refreshCards(); }
-    if (s === 'anki') {
-      S.installAnkiUi();
-      if (S.selectedBanks().length) S.applyAnkiBankFilter(false).catch(err => {
-        if (window.AnkiOfficial && AnkiOfficial.alert) AnkiOfficial.alert('Filtro de banca: ' + (err.message || err), 'error');
-      });
-    }
   });
 })();
