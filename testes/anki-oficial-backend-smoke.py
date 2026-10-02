@@ -1026,10 +1026,21 @@ with tempfile.TemporaryDirectory() as tmp:
 
     app.pool.close_all()
 
-    # Pool com teto (LRU): coleções antigas e livres são fechadas.
+    # Pool com teto (LRU): get() reserva a referência até o chamador entrar
+    # no lock. A não pode ser fechada na janela get(A) -> get(B/C) -> lock(A).
     small = app.CollectionPool(max_open=2)
-    a = small.get("lru-a"); small.get("lru-b"); small.get("lru-c")
+    a = small.get("lru-a")
+    b = small.get("lru-b")
+    c = small.get("lru-c")
+    assert "lru-a" in small._items and len(small._items) == 3
+    with a.lock:
+        assert a.col.card_count() == 0
+    # Ao liberar a reserva de A, a LRU pode voltar ao teto normalmente.
     assert "lru-a" not in small._items and len(small._items) == 2
+    with b.lock:
+        assert b.col.card_count() == 0
+    with c.lock:
+        assert c.col.card_count() == 0
     small.close_all()
 
     # Upload em blocos com teto: passa do limite -> 413, sem temporário órfão.
