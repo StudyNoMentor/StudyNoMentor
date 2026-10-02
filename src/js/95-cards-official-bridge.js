@@ -35,6 +35,12 @@ const CardsOfficialBridge = {
   _autoToken:0,
   _reviewSessionId:null,
   _reviewSessionVersion:null,
+  _reviewScopeKey:null,
+  _reviewPrepareMs:null,
+  _reviewPreparePath:null,
+  _reviewPrewarmDone:false,
+  _reviewPrewarmPromise:null,
+  _reviewPrewarmTimer:null,
   _renderEpoch:0,
   _frameResizeBound:false,
   _orig:{},
@@ -66,10 +72,32 @@ const CardsOfficialBridge = {
   },
   invalidate(reason){
     this.cancelPendingRender();
-    this.dirty=true;this.ready=false;this.review=null;this.timing=null;this._reviewSessionVersion=null;
+    this.dirty=true;this.ready=false;this.review=null;this.timing=null;this._reviewSessionVersion=null;this._reviewScopeKey=null;
     this._sessionAnswered=0;this._sessionStartTotal=null;
     this._undo=[];this._redo=[];
     if(reason&&typeof _quiet==='function')_quiet(new Error('Cards official invalidated: '+reason),'cards-official-invalidate');
+  },
+  _scheduleReviewPrewarm(delay=700){
+    if(this._reviewPrewarmDone||this._reviewPrewarmPromise||this.ready||this._bootPromise)return false;
+    if(!this.api().token()||!this._allCards().length)return false;
+    clearTimeout(this._reviewPrewarmTimer);
+    const run=()=>{
+      this._reviewPrewarmTimer=null;
+      if(this._reviewPrewarmDone||this._reviewPrewarmPromise||this.ready||this._bootPromise||!this.api().token()||!this._allCards().length)return;
+      const start=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
+      this._reviewPrewarmPromise=this.request('/api/cards-official/status',{retries:0,timeoutMs:6000})
+        .then(()=>{
+          this._reviewPrewarmDone=true;
+          const end=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
+          this._reviewPrewarmMs=Math.max(0,Math.round(end-start));
+        })
+        .catch(e=>{if(typeof _quiet==='function')_quiet(e,'cards-official-review-prewarm');})
+        .finally(()=>{this._reviewPrewarmPromise=null;});
+    };
+    this._reviewPrewarmTimer=setTimeout(()=>{
+      if(typeof requestIdleCallback==='function')requestIdleCallback(run,{timeout:1800});else run();
+    },Math.max(0,Number(delay)||0));
+    return true;
   },
   _allCards(){
     try{if(window.StudyGlobalScope&&StudyGlobalScope.allBy)return StudyGlobalScope.allBy('cards');}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-all');}
@@ -79,27 +107,57 @@ const CardsOfficialBridge = {
     try{if(window.StudyGlobalScope&&StudyGlobalScope.cards)return StudyGlobalScope.cards();}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-scope');}
     return DB.getCards();
   },
+  _normalizeReviewDeckId(deckId=0){
+    let did=Number(deckId)||0;
+    if(did&&!this._scopeCards().some(c=>{
+      const deck=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;
+      return deck&&Number(deck.ankiId||deck.id)===did;
+    }))did=0;
+    return did;
+  },
   _reviewScopePayload(deckId=0){
     const global=window.StudyGlobalScope,
       mode=global&&global.cardsScope?global.cardsScope():'plan',
       label=mode==='all'?'Todos os planejamentos':(global&&global.planName?global.planName(this._activePlanId()):'Planejamento atual'),
       source=window.CardsScreen&&typeof CardsScreen.currentFilteredCards==='function'?CardsScreen.currentFilteredCards():this._scopeCards(),
       ids=[...new Set(source.map(c=>this._officialId(c)).filter(Boolean))];
-    return {session_id:this._reviewSession(),deck_id:deckId,card_ids:ids,label};
+    return {session_id:this._reviewSession(),deck_id:this._normalizeReviewDeckId(deckId),card_ids:ids,label};
+  },
+  _reviewScopeKeyForPayload(payload){
+    const ids=[...(payload&&payload.card_ids||[])].map(Number).filter(x=>Number.isFinite(x)&&x>0).sort((a,b)=>a-b);
+    return JSON.stringify({
+      deck_id:Number(payload&&payload.deck_id)||0,
+      label:String(payload&&payload.label||''),
+      card_ids:ids
+    });
   },
   async _syncReviewScope(deckId=0,resetSession=true){
-    if(deckId&&!this._scopeCards().some(c=>{
-      const deck=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;
-      return deck&&Number(deck.ankiId||deck.id)===Number(deckId);
-    }))deckId=0;
-    const payload=this._reviewScopePayload(deckId);
+    const payload=this._reviewScopePayload(deckId),scopeKey=this._reviewScopeKeyForPayload(payload);
     const review=await this.request('/api/cards-official/reviewer/scope',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
     });
     if(resetSession){this._sessionAnswered=0;this._sessionStartTotal=null;}
     this._reviewSessionVersion=review&&review.review_session?review.review_session.version:null;
+    this._reviewScopeKey=scopeKey;
     this._applyReviewer(review);
     return review;
+  },
+  async _refreshExistingReviewScope(deckId=0){
+    const payload=this._reviewScopePayload(deckId),scopeKey=this._reviewScopeKeyForPayload(payload),
+      session=this.review&&this.review.review_session,
+      sameScope=!!session&&String(this._reviewScopeKey||'')===scopeKey;
+    if(!sameScope)return null;
+    try{
+      const qs=new URLSearchParams({session_id:String(session.id||this._reviewSession())}),
+        review=await this.request('/api/cards-official/reviewer/next?'+qs.toString(),{retries:0,timeoutMs:6000});
+      this._reviewSessionVersion=review&&review.review_session?review.review_session.version:this._reviewSessionVersion;
+      this._reviewScopeKey=scopeKey;
+      this._applyReviewer(review);
+      return review;
+    }catch(e){
+      if(Number(e&&e.status)===409)return null;
+      throw e;
+    }
   },
   _officialId(card){
     const n=Number(card&&card.ankiId!=null?card.ankiId:card&&card.id);
@@ -1236,19 +1294,38 @@ const CardsOfficialBridge = {
 
   async renderRevisar(box){
     if(!box)return;
-    const token=++this._renderEpoch;
+    const token=++this._renderEpoch,start=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
     if(!this._renderStillCurrent(token,'revisar',box))return;
     if(!CardsScreen.collectionCards().length){
       box.innerHTML=CardsScreen.emptyState('Nenhum card ainda','Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
-    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.3.</p></div></div>';
-    try{
-      await this.bootstrap(false);if(!this._renderStillCurrent(token,'revisar',box))return;
-      await this._syncReviewScope(this.review&&this.review.review_scope&&!this.review.review_scope.all_decks?Number(this.review.review_scope.selected_deck_id):0);
+    let loadingTimer=null;
+    const showLoading=()=>{
       if(!this._renderStillCurrent(token,'revisar',box))return;
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.3.</p></div></div>';
+    };
+    // Evita piscar a tela de preparação no caminho quente. Se a sessão oficial
+    // já existe, reviewer/next costuma responder antes deste pequeno limiar.
+    loadingTimer=setTimeout(showLoading,140);
+    try{
+      const wasReady=this.ready&&!this.dirty;
+      await this.bootstrap(false);if(!this._renderStillCurrent(token,'revisar',box))return;
+      const deckId=this.review&&this.review.review_scope&&!this.review.review_scope.all_decks
+        ?Number(this.review.review_scope.selected_deck_id):0;
+      let review=null,path='scope-rebuild';
+      if(wasReady){
+        review=await this._refreshExistingReviewScope(deckId);
+        if(review)path='session-reuse';
+      }
+      if(!review)await this._syncReviewScope(deckId);
+      if(!this._renderStillCurrent(token,'revisar',box))return;
+      clearTimeout(loadingTimer);loadingTimer=null;
+      const end=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
+      this._reviewPrepareMs=Math.max(0,Math.round(end-start));this._reviewPreparePath=path;
       await this.renderCurrent(box,token);
     }catch(e){
+      if(loadingTimer){clearTimeout(loadingTimer);loadingTimer=null;}
       if(!this._renderStillCurrent(token,'revisar',box))return;
       console.error('Cards official bridge:',e);
       box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⚠</div><h3>Motor oficial indisponível</h3><p>'+
@@ -3714,6 +3791,15 @@ const CardsOfficialBridge = {
     // passam por estes métodos e, portanto, não causam rebuild em loop.
     ['addDeck','doImport','reposicionarNovos','resetCardStats']
       .forEach(n=>this._wrapInvalidator(n));
+
+    window.addEventListener('data:relational-hydrated',()=>{
+      // Pré-aquece transporte/auth/Collection após os cards do perfil entrarem
+      // na memória. Não cria sessão de revisão e não altera scheduling.
+      this._scheduleReviewPrewarm();
+    });
+    // Se a hidratação terminou antes da instalação desta ponte, ainda tentamos
+    // uma vez em idle; os guards acima tornam a operação barata e idempotente.
+    this._scheduleReviewPrewarm(1200);
 
     window.addEventListener('screen:activated',ev=>{
       const screen=ev.detail&&ev.detail.screen;
