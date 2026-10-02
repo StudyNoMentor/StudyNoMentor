@@ -1252,7 +1252,8 @@ def cards_official_status(user: dict[str, Any] = Depends(current_user)) -> dict[
 
 
 def _legacy_stock_kind(row: dict[str, Any]) -> int:
-    raw = str(row.get("stock_kind") or row.get("kind") or "basic").strip().lower()
+    explicit = str(row.get("stock_kind") or "").strip().lower()
+    kind_hint = str(row.get("kind") or "").strip().lower()
     aliases = {
         "basic": int(StockNotetypeKind.KIND_BASIC),
         "basic_reversed": int(StockNotetypeKind.KIND_BASIC_AND_REVERSED),
@@ -1261,20 +1262,28 @@ def _legacy_stock_kind(row: dict[str, Any]) -> int:
         "cloze": int(StockNotetypeKind.KIND_CLOZE),
         "image_occlusion": int(StockNotetypeKind.KIND_IMAGE_OCCLUSION),
     }
-    # Espelhos anteriores não gravavam stockKind. O snapshot pode então
-    # preencher "basic" usando apenas o primeiro card (sem o irmão reverso).
-    # Reconheça os nomes stock exatos antes desse fallback; tipos customizados
-    # não são inferidos por número de templates nem por nomes semelhantes.
+    # Nomes stock exatos são evidência independente do campo stock_kind. Se os
+    # dois discordarem, não escolha um silenciosamente: isso pode trocar schema,
+    # templates e cards durante a migração. O snapshot físico faz rollback.
     stock_names = {
+        "basic": "basic",
         "basic (and reversed card)": "basic_reversed",
         "basic (optional reversed card)": "basic_optional_reversed",
         "basic (type in the answer)": "typing",
         "cloze": "cloze",
         "image occlusion": "image_occlusion",
     }
+    name_hint = stock_names.get(str(row.get("name") or "").strip().lower())
+    if explicit in aliases and name_hint and explicit != name_hint:
+        raise HTTPException(
+            422,
+            f"NoteType legado ambíguo: stock_kind={explicit!r} conflita com o nome stock {row.get('name')!r}. "
+            "Migração interrompida sem alterar a Collection.",
+        )
+    raw = explicit or kind_hint or "basic"
     if raw not in aliases or raw == "basic":
-        raw = stock_names.get(str(row.get("name") or "").strip().lower(), raw)
-    return aliases.get(raw, int(StockNotetypeKind.KIND_CLOZE) if row.get("kind") == "cloze" else int(StockNotetypeKind.KIND_BASIC))
+        raw = name_hint or raw
+    return aliases.get(raw, int(StockNotetypeKind.KIND_CLOZE) if kind_hint == "cloze" else int(StockNotetypeKind.KIND_BASIC))
 
 
 def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[str, Any]) -> None:
@@ -1645,7 +1654,17 @@ def cards_official_migrate_legacy(
             if legacy_guid:
                 note.guid = legacy_guid
             fields = row.get("fields") if isinstance(row.get("fields"), dict) else {}
-            for key in note.keys():
+            official_field_names = [str(key) for key in note.keys()]
+            official_field_set = set(official_field_names)
+            unknown_fields = sorted(str(key) for key in fields.keys() if str(key) not in official_field_set)
+            if unknown_fields:
+                raise HTTPException(
+                    422,
+                    f"Nota legada {legacy_nid} possui campos ausentes do NoteType oficial: "
+                    + ", ".join(unknown_fields)
+                    + ". Migração interrompida sem descartar conteúdo.",
+                )
+            for key in official_field_names:
                 note[key] = str(fields.get(key, ""))
             note.tags = [str(x) for x in (row.get("tags") or []) if str(x)]
             related = cards_by_note.get(legacy_nid, [])
