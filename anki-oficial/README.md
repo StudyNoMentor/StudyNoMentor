@@ -51,7 +51,7 @@ executado pelo pacote oficial no backend, conforme os contratos desta pasta.
 
 ## Atualização automática de release estável
 
-O workflow `.github/workflows/auto-update-anki-stable.yml` consulta diariamente a release estável mais recente publicada por `ankitects/anki`. Quando encontra uma versão superior à fixada em `UPSTREAM.lock.json`, ele prepara uma branch e um PR com o submódulo, inventário, pin Python, contratos e artefatos publicados atualizados.
+O workflow `.github/workflows/auto-update-anki-stable.yml` consulta diariamente a release estável mais recente publicada por `ankitects/anki`. Toda versão nova cumpre primeiro uma **quarentena mínima de 48 horas**, contada de `published_at` da release oficial. Durante esse período não há branch, PR, merge, publicação do Pages nem deploy do Railway. A política fica versionada em `UPSTREAM.lock.json` (`auto_update_policy.stable_release_quarantine_hours=48`). Depois da quarentena, se a versão continuar sendo a stable publicada e for superior à fixada, o workflow prepara a branch e o PR com submódulo, inventário, pin Python, contratos e artefatos atualizados.
 
 A promoção é **fail-safe**: arquivos novos em áreas potencialmente funcionais entram como `UNCLASSIFIED` e bloqueiam o merge automático. Sem bloqueadores, a automação dispara a verificação completa do Study; somente um run integralmente verde permite merge. Depois do merge, a automação solicita explicitamente o build do GitHub Pages e dispara o workflow de produção; o Railway só é aceito quando `/health` reporta a mesma versão e a mesma revisão da `main`.
 
