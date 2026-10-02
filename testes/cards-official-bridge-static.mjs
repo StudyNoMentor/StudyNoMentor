@@ -177,7 +177,8 @@ assert.match(backend,/item\.col\.get_browser_column\(sort_key\)/,'ordenação de
 assert.match(bridge,/\/api\/cards-official\/browser\/ids\?/,'Browser Study deve consultar IDs oficiais');
 assert.match(bridge,/AnkiProductParity\._browserRows=\(\)=>self\._browserCache/,'linhas exibidas devem vir da ordem oficial em cache');
 assert.match(bridge,/CardsScreen\.renderStats=\(box\)=>\{void this\.renderStats\(box\);\};/,'aba Stats dos Cards deve ser tomada pelo bridge oficial');
-assert.match(db,/const createdMs = Date\.parse\(data && data\.createdAt \|\| ''\);[\s\S]{0,250}?createdAt, updatedAt: now/,'addCard deve aceitar createdAt histórico fornecido por importação oficial');
+assert.match(db,/const createdMs = Date\.parse\(data && data\.createdAt \|\| ''\);/,'addCard deve ler createdAt histórico fornecido por importação oficial');
+assert.match(db,/const createdAt = Number\.isFinite\(createdMs\) \? new Date\(createdMs\)\.toISOString\(\) : now;[\s\S]*?createdAt, updatedAt: now/,'addCard deve persistir o createdAt histórico validado');
 assert.match(bridge,/_originalCreatedDay\(card\)[\s\S]{0,900}?card&&card\.createdAt/,'Stats deve preferir a criação histórica preservada no Study');
 assert.match(bridge,/_statsOriginalAddedMap\(scopeIds\)[\s\S]{0,2600}?byOfficialId[\s\S]{0,2600}?this\._dayOffset/,'Adicionados deve reagrupar cards pela data original, deduplicando réplicas globais');
 assert.match(bridge,/createdAt:this\._officialCreatedAt\(state\)/,'cards importados do Anki devem semear o espelho Study com a criação codificada no ID oficial');
