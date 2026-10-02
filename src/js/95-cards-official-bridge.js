@@ -1530,8 +1530,8 @@ const CardsOfficialBridge = {
     if(!name)throw new Error('Baralho local sem nome para migração ao Anki oficial.');
     const created=await this.createOfficialDeck(name,pid,localDeckId);
     if(!created||!created.deck)throw new Error('O Anki oficial não devolveu o baralho migrado.');
-    const officialId=this._officialDeckId(localDeckId,pid);
-    if(officialId==null)throw new Error('Falha ao vincular o baralho local à identidade Anki canônica.');
+    const officialId=Number(created.deck.ankiId);
+    if(!Number.isFinite(officialId)||officialId<=0)throw new Error('Falha ao vincular o baralho local à identidade Anki canônica.');
     return {deck:created.deck,planId:pid,officialId};
   },
   async renameOfficialDeck(localDeckId,name){
