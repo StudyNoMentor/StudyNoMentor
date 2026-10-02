@@ -131,6 +131,8 @@ assert.ok(!/_armReviewerAutomation\(c,cfg\)|CardsConfig\.forDeck\(c\.deckId\)/.t
 assert.ok(!/\bCardsConfig\b/.test(cards),'tela Cards não pode manter segunda fonte acadêmica em CardsConfig');
 assert.ok(!/CardEngine\./.test(cards),'tela Cards não pode chamar o motor acadêmico legado');
 assert.match(bridge,/source=window\.CardsScreen&&typeof CardsScreen\.currentFilteredCards===['"]function['"]\?CardsScreen\.currentFilteredCards\(\)/,'fila oficial deve usar o mesmo recorte visual dos filtros');
+assert.ok(!bridge.includes('data-review-plan-scope'),'seletor de planejamento da revisão não pode duplicar o escopo do filtro recolhível');
+assert.match(bridge,/cards-review-scope[^\n]*Baralho da revisão/,'card da revisão deve manter apenas o seletor específico de baralho e as contagens');
 assert.match(bridge,/session_version:String\(this\._reviewSessionVersion\|\|['"]['"]\)/,'resposta deve estar vinculada à versão da sessão');
 assert.match(official,/err\.status\s*=\s*r\.status/,'erros HTTP precisam preservar o status para distinguir conflito de falha de rede');
 assert.match(bridge,/Number\(e&&e\.status\)===409[\s\S]*?await this\._syncReviewScope\(deckId\)/,'conflito de sessão deve reconstruir a fila em vez de prender o usuário no retry');
