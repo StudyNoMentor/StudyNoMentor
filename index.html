@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vc17b9658df">
+<meta name="diario-versao" content="v2d5625d266">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -56535,14 +56535,33 @@ const CardsOfficialBridge = {
     return true;
   },
   async createOfficialDeck(name,planId){
+    const preferredLocalId=arguments.length>2?arguments[2]:null;
     await this.bootstrap(false);const pid=planId!=null?planId:this._activePlanId(),out=await this.request('/api/cards-official/decks',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:String(name||'').trim()})
     });
     if(!out||!out.ok)throw new Error('O Anki oficial não confirmou a criação do baralho.');
     const row=(out.state&&out.state.decks||[]).find(x=>Number(x.id||x.deck_id)===Number(out.deck_id));
     if(!row)throw new Error('O Anki oficial não devolveu o baralho criado.');
-    const deck=this._saveNormalDeckMirror(row,pid,null);
+    const deck=this._saveNormalDeckMirror(row,pid,preferredLocalId==null?null:preferredLocalId);
     this.dirty=false;return {out,deck};
+  },
+  async _ensureDeckContext(localDeckId,planId){
+    await this.bootstrap(false);
+    const pid=planId!=null?planId:this._activePlanId(),
+      rows=pid!=null&&window.StudyGlobalScope&&StudyGlobalScope._rows?StudyGlobalScope._rows(pid,'decks'):DB.getDecks(),
+      d=(rows||[]).find(x=>String(x.id)===String(localDeckId));
+    if(!d)throw new Error('Baralho local não encontrado.');
+    const oid=this._officialDeckId(localDeckId,pid);
+    if(oid!=null)return {deck:Object.assign({},d,pid==null?{}:{_planId:pid}),planId:pid,officialId:oid};
+    if(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))
+      throw new Error('Baralho filtrado legado sem identidade Anki canônica.');
+    const name=String(d.nome||d.name||'').trim();
+    if(!name)throw new Error('Baralho local sem nome para migração ao Anki oficial.');
+    const created=await this.createOfficialDeck(name,pid,localDeckId);
+    if(!created||!created.deck)throw new Error('O Anki oficial não devolveu o baralho migrado.');
+    const officialId=Number(created.deck.ankiId);
+    if(!Number.isFinite(officialId)||officialId<=0)throw new Error('Falha ao vincular o baralho local à identidade Anki canônica.');
+    return {deck:created.deck,planId:pid,officialId};
   },
   async renameOfficialDeck(localDeckId,name){
     await this.bootstrap(false);const ctx=this._deckContext(localDeckId),out=await this.request('/api/cards-official/deck/'+encodeURIComponent(ctx.officialId),{
@@ -57583,7 +57602,12 @@ const CardsOfficialBridge = {
     const reversed=!!data._reversed;delete data._reversed;
     const requestedDeckPlan=data._deckPlanId!=null?data._deckPlanId:null;delete data._deckPlanId;
     const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId;
-    let pid=requestedDeckPlan!=null?requestedDeckPlan:(data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId()));
+    await this.bootstrap(false);
+    let pid=requestedDeckPlan!=null?requestedDeckPlan:(editPlan!=null?editPlan:this._activePlanId());
+    if(data.deckId){
+      const deckCtx=await this._ensureDeckContext(data.deckId,pid);
+      pid=deckCtx.planId;data.deckId=deckCtx.deck.id;
+    }
     if(!editId&&data._newDeckName){
       const created=await this.createOfficialDeck(data._newDeckName,pid);
       if(!created||!created.deck)throw new Error('O Anki oficial não devolveu o baralho padrão criado.');
