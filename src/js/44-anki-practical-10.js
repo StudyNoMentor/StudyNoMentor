@@ -28,7 +28,7 @@ const AnkiPractical10 = {
       ['study','Estudo',['cards-stats-btn','cards-custom-btn','cards-filtered-btn']],
       ['content','Conteúdo',['cards-advanced-add-btn','cards-browser-btn','cards-shared-decks-btn','cards-notetypes-btn']],
       ['io','Entrada e saída',['cards-import-btn','cards-export-btn']],
-      ['maintenance','Manutenção',['cards-reviewer-bindings-btn','cards-check-collection-btn','cards-empty-btn','cards-audit-export-btn']],
+      ['maintenance','Manutenção',['cards-check-collection-btn','cards-empty-btn','cards-audit-export-btn']],
       ['advanced','Avançado',['cards-algo-btn','cards-preferences-btn']]
     ];
     defs.forEach(([key,label,ids])=>{
