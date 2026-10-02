@@ -7,14 +7,17 @@ import { runInNewContext } from 'node:vm';
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const bridge=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
+const db=readFileSync(join(ROOT,'src/js/11-db.js'),'utf8');
 const official=readFileSync(join(ROOT,'src/js/44-anki-official.js'),'utf8');
 const cards=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
+const html=readFileSync(join(ROOT,'src/html/03-corpo.html'),'utf8');
 const statsMedia=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
 const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
 const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
 const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8');
 const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
 const practical=readFileSync(join(ROOT,'src/js/44-anki-practical-10.js'),'utf8');
+const final10=readFileSync(join(ROOT,'src/js/44-anki-10of10-final.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const importer=readFileSync(join(ROOT,'src/js/35-anki-import.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
@@ -27,12 +30,42 @@ assert.match(backend,/PyJWKClient/,'Auth rápido deve validar JWT assimétrico p
 assert.match(backend,/max_age=86400/,'preflight CORS precisa ficar cacheável para não duplicar round-trip');
 assert.match(backend,/GZipMiddleware, minimum_size=1024/,'snapshots grandes precisam sair comprimidos');
 assert.match(official,/async _fetchResponse\(path, opts\)[\s\S]*?AbortController[\s\S]*?\[502, 503, 504\]/,'cliente Anki precisa ter timeout e retry apenas no transporte seguro de leitura');
-assert.match(official,/\/api\/anki\/bootstrap\?view=/,'abertura do Anki deve consolidar status + primeira pintura');
+assert.doesNotMatch(official,/\/api\/anki\/bootstrap\?view=/,'cliente fino não pode reativar o bootstrap da antiga tela Anki');
+assert.doesNotMatch(official,/\b(?:root|renderReviewer|renderDecks|setView)\s*\(/,'transporte oficial não pode voltar a carregar UI/reviewer próprios');
 assert.match(bridge,/\/api\/cards-official\/bootstrap-state/,'Cards deve consolidar status, full-state e preferências');
 assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar no build publicado');
 for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
 assert.ok(!bridge.includes('AnkiExport.'),'bridge oficial não pode depender de exportador local');
+
+// MENU MAIS — inventário e destino. O menu único da tela Cards/Anki deve manter
+// somente superfícies válidas: ações acadêmicas delegam ao backend oficial;
+// utilidades de casca permanecem explicitamente não acadêmicas.
+for(const id of [
+  'cards-stats-btn','cards-algo-btn','cards-custom-btn','cards-filtered-btn',
+  'cards-import-btn','cards-export-btn','cards-empty-btn','cards-audit-export-btn'
+]) assert.ok(html.includes('id="'+id+'"'),'ação base do Mais ausente: '+id);
+
+for(const [id,source] of [
+  ['cards-advanced-add-btn',imageOcclusion],
+  ['cards-browser-btn',product],
+  ['cards-shared-decks-btn',product],
+  ['cards-notetypes-btn',product],
+  ['cards-check-collection-btn',product],
+  ['cards-preferences-btn',practical],
+]) assert.ok(source.includes(id),'ação injetada do Mais ausente: '+id);
+
+for(const source of [html,practical,total,product,final10,imageOcclusion])
+  assert.ok(!source.includes('cards-extensions-btn'),'Extensões locais não podem voltar ao Mais do Anki oficial');
+for(const source of [html,practical,final10])
+  assert.ok(!source.includes('cards-reviewer-bindings-btn'),'Atalhos personalizados não oficiais não podem voltar ao Mais');
+
+assert.match(sanitizer,/on\('cards-empty-btn'[\s\S]{0,500}?CardsOfficialBridge\.openEmptyCards/,'Cards vazios deve delegar ao backend oficial');
+assert.match(product,/openSharedDecks\(\)[\s\S]{0,500}?https:\/\/ankiweb\.net\/shared\/decks\//,'Baralhos compartilhados deve abrir a fonte oficial AnkiWeb');
+assert.match(imageOcclusion,/anki-advanced-save[\s\S]{0,3000}?CardsOfficialBridge\.addOfficialNote/,'Adicionar nota avançada deve gravar pela Collection oficial');
+assert.match(practical,/openPreferences\(\)[\s\S]{0,5000}?CardsOfficialBridge\.getOfficialPreferences[\s\S]{0,5000}?CardsOfficialBridge\.updateOfficialPreferences/,'Preferências acadêmicas devem ler e salvar pela Collection oficial');
+assert.match(bridge,/async runCustomStudy\(\)[\s\S]{0,1800}?\/api\/cards-official\/custom-study/,'Estudo personalizado deve usar Custom Study oficial');
+
 
 for(const forbidden of [
   'CardEngine.schedule(',
@@ -99,6 +132,8 @@ assert.ok(!/_armReviewerAutomation\(c,cfg\)|CardsConfig\.forDeck\(c\.deckId\)/.t
 assert.ok(!/\bCardsConfig\b/.test(cards),'tela Cards não pode manter segunda fonte acadêmica em CardsConfig');
 assert.ok(!/CardEngine\./.test(cards),'tela Cards não pode chamar o motor acadêmico legado');
 assert.match(bridge,/source=window\.CardsScreen&&typeof CardsScreen\.currentFilteredCards===['"]function['"]\?CardsScreen\.currentFilteredCards\(\)/,'fila oficial deve usar o mesmo recorte visual dos filtros');
+assert.ok(!bridge.includes('data-review-plan-scope'),'seletor de planejamento da revisão não pode duplicar o escopo do filtro recolhível');
+assert.match(bridge,/cards-review-scope[^\n]*Baralho da revisão/,'card da revisão deve manter apenas o seletor específico de baralho e as contagens');
 assert.match(bridge,/session_version:String\(this\._reviewSessionVersion\|\|['"]['"]\)/,'resposta deve estar vinculada à versão da sessão');
 assert.match(official,/err\.status\s*=\s*r\.status/,'erros HTTP precisam preservar o status para distinguir conflito de falha de rede');
 assert.match(bridge,/Number\(e&&e\.status\)===409[\s\S]*?await this\._syncReviewScope\(deckId\)/,'conflito de sessão deve reconstruir a fila em vez de prender o usuário no retry');
@@ -142,6 +177,13 @@ assert.match(backend,/item\.col\.get_browser_column\(sort_key\)/,'ordenação de
 assert.match(bridge,/\/api\/cards-official\/browser\/ids\?/,'Browser Study deve consultar IDs oficiais');
 assert.match(bridge,/AnkiProductParity\._browserRows=\(\)=>self\._browserCache/,'linhas exibidas devem vir da ordem oficial em cache');
 assert.match(bridge,/CardsScreen\.renderStats=\(box\)=>\{void this\.renderStats\(box\);\};/,'aba Stats dos Cards deve ser tomada pelo bridge oficial');
+assert.match(db,/const createdMs = Date\.parse\(data && data\.createdAt \|\| ''\);/,'addCard deve ler createdAt histórico fornecido por importação oficial');
+assert.match(db,/const createdAt = Number\.isFinite\(createdMs\) \? new Date\(createdMs\)\.toISOString\(\) : now;[\s\S]*?createdAt, updatedAt: now/,'addCard deve persistir o createdAt histórico validado');
+assert.match(bridge,/_originalCreatedDay\(card\)[\s\S]{0,900}?card&&card\.createdAt/,'Stats deve preferir a criação histórica preservada no Study');
+assert.match(bridge,/_statsOriginalAddedMap\(scopeIds\)[\s\S]{0,2600}?byOfficialId[\s\S]{0,2600}?this\._dayOffset/,'Adicionados deve reagrupar cards pela data original, deduplicando réplicas globais');
+assert.match(bridge,/createdAt:this\._officialCreatedAt\(state\)/,'cards importados do Anki devem semear o espelho Study com a criação codificada no ID oficial');
+assert.match(bridge,/this\._statsOfficialAddedHtml\(addedMap\)/,'painel Adicionados deve renderizar a série histórica corrigida');
+assert.match(backend,/def cards_official_collection_graphs_scoped[\s\S]{0,2200}?_study_scope_card_ids/,'backend deve devolver os IDs exatos do recorte usado pelo GraphsService');
 assert.match(bridge,/\/api\/cards-official\/stats\/graphs\/scoped/,'Stats dos Cards devem consultar GraphsService oficial com o recorte Study');
 assert.match(bridge,/Nenhum cálculo local foi usado como fallback/,'falha de Stats não pode cair para cálculo local');
 assert.ok(!/this\._orig\.renderStats\(/.test(bridge),'Stats oficial não pode executar renderer local como fallback');
@@ -241,6 +283,9 @@ assert.match(backend,/def cards_official_rename_deck[\s\S]*?item\.col\.decks\.re
 assert.match(backend,/def cards_official_delete_deck[\s\S]*?item\.col\.decks\.remove/,'excluir baralho deve usar DeckManager oficial');
 assert.match(cards,/CardsOfficialBridge\.createOfficialDeck\(name\)/,'UI de criação de baralho deve ser uma casca sobre o Anki');
 assert.match(bridge,/async createOfficialDeck\(name,planId\)[\s\S]*?\/api\/cards-official\/decks/,'qualquer criação de baralho deve passar pelo DeckManager oficial');
+assert.match(bridge,/_reconcileLegacyDeckMirrors\(state\)[\s\S]*?officialCardDeck[\s\S]*?byName[\s\S]*?remappedCards/,'espelhos legados precisam ser reconciliados por evidência oficial e nome canônico, com remapeamento real');
+assert.match(bridge,/async _syncOfficialFullState\(state,planId\)[\s\S]*?this\._reconcileLegacyDeckMirrors\(state\)[\s\S]*?_studyTargetsForState/,'reparo de baralhos precisa ocorrer antes da projeção do snapshot oficial');
+assert.match(bridge,/_saveNormalDeckMirror\(row,planId,preferredLocalId\)[\s\S]*?legacy=list\.filter/,'salvar um deck oficial deve reaproveitar espelho legado homônimo em vez de criar outro Default');
 assert.match(cards,/CardsOfficialBridge\.renameOfficialDeck\(id,value\)/,'UI de renomear baralho deve ser uma casca sobre o Anki');
 assert.match(cards,/CardsOfficialBridge\.deleteOfficialDeck\(id\)/,'UI de exclusão de baralho deve ser uma casca sobre o Anki');
 assert.match(backend,/def cards_official_deck_options[\s\S]*?get_deck_configs_for_update/,'Deck Options dos Cards precisam vir do DeckManager oficial');

@@ -100,7 +100,8 @@ const ctx={
 };
 ctx.window=ctx;
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync('src/js/94-global-scope.js','utf8'),ctx);
+const globalScopeSource=fs.readFileSync('src/js/94-global-scope.js','utf8');
+vm.runInContext(globalScopeSource,ctx);
 
 const S=ctx.StudyGlobalScope;
 assert.ok(S,'camada global deve ser instalada');
@@ -117,40 +118,10 @@ assert.ok(banks.includes('FGV')&&banks.includes('CEBRASPE')&&banks.includes('FCC
 S.setSelectedBanks(['CEBRASPE']);
 assert.deepEqual(Array.from(S.filterCardsByBanca(S.cards()),x=>x.id),['b1'],'filtro de banca deve restringir a coleção global');
 
-// Anki Oficial: a mesma seleção de banca vira um baralho filtrado oficial,
-// preservando o baralho anterior e restaurando-o quando o filtro é limpo.
-const ankiCalls=[];
-ctx.AnkiOfficial={
-  view:'review',token:()=> 'token',
-  request:async (path,opts={})=>{
-    const body=opts.body?JSON.parse(opts.body):null;
-    ankiCalls.push({path,method:opts.method||'GET',body});
-    if(path==='/api/anki/decks') return {current_deck_id: ankiCalls.some(x=>x.path==='/api/anki/decks/select')?99:42};
-    if(path==='/api/anki/filtered-deck/0') return {deck:{id:99,name:'',config:{reschedule:true,search_terms:[]}}};
-    if(path==='/api/anki/filtered-deck/99'&&opts.method==='PUT') return {ok:true,deck_id:99};
-    return {ok:true};
-  },
-  renderReviewer:async()=>true,
-  alert:()=>{}
-};
-await S.applyAnkiBankFilter(false);
-const putFilter=ankiCalls.find(x=>x.path==='/api/anki/filtered-deck/99'&&x.method==='PUT');
-assert.ok(putFilter,'filtro de banca deve configurar baralho filtrado oficial');
-assert.match(putFilter.body.config.search_terms[0].search,/tag:"CEBRASPE"/,'query oficial deve conter a banca selecionada');
-assert.ok(ankiCalls.some(x=>x.path==='/api/anki/filtered-deck/99/rebuild'),'baralho filtrado deve ser reconstruído');
-assert.ok(ankiCalls.some(x=>x.path==='/api/anki/decks/select'&&x.body.deck_id===99),'baralho de banca deve virar o selecionado');
-
-S.setSelectedBanks([]);
-ankiCalls.length=0;
-ctx.AnkiOfficial.request=async (path,opts={})=>{
-  const body=opts.body?JSON.parse(opts.body):null;
-  ankiCalls.push({path,method:opts.method||'GET',body});
-  if(path==='/api/anki/decks') return {current_deck_id:99};
-  return {ok:true};
-};
-await S.applyAnkiBankFilter(false);
-assert.ok(ankiCalls.some(x=>x.path==='/api/anki/filtered-deck/99/empty'),'limpar banca deve esvaziar o baralho filtrado');
-assert.ok(ankiCalls.some(x=>x.path==='/api/anki/decks/select'&&x.body.deck_id===42),'limpar banca deve restaurar o baralho anterior');
+// A antiga tela #screen-anki e suas rotas /api/anki/* foram removidas.
+assert.ok(!globalScopeSource.includes('applyAnkiBankFilter'),'escopo global não pode manter filtro da tela Anki descontinuada');
+assert.ok(!globalScopeSource.includes('/api/anki/'),'escopo global deve usar somente a coleção Cards oficial atual');
+assert.ok(!globalScopeSource.includes('screen-anki'),'escopo global não pode depender da tela Anki antiga');
 
 assert.deepEqual(Array.from(S.allBy('entries'),x=>x.id),['eA','eB'],'registros realizados devem ser legíveis no perfil inteiro');
 assert.equal(ctx.DB.getEntry('eB')._planId,'B','registro antigo deve preservar a origem');
