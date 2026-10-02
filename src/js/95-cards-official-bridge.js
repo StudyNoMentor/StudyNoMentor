@@ -33,6 +33,9 @@ const CardsOfficialBridge = {
   _autoTimer:null,
   _timerTick:null,
   _autoToken:0,
+  _reviewSessionId:null,
+  _reviewSessionVersion:null,
+  _renderEpoch:0,
   _orig:{},
 
   api(){
@@ -40,8 +43,29 @@ const CardsOfficialBridge = {
     return AnkiOfficial;
   },
   request(path,opts){return this.api().request(path,opts);},
+  _reviewSession(){
+    if(!this._reviewSessionId){
+      const random=(window.crypto&&typeof window.crypto.randomUUID==='function')
+        ?window.crypto.randomUUID()
+        :Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);
+      this._reviewSessionId='cards-review-'+random;
+    }
+    return this._reviewSessionId;
+  },
+  _screenActive(tab){
+    const screen=document.getElementById('screen-cards');
+    return !!(screen&&screen.classList.contains('active')&&window.CardsScreen&&CardsScreen.tab===tab);
+  },
+  _renderStillCurrent(token,tab,box){
+    return token===this._renderEpoch&&this._screenActive(tab)&&(!box||box===document.getElementById('cards-content'));
+  },
+  cancelPendingRender(){
+    this._renderEpoch++;
+    if(typeof this._clearReviewerAutomation==='function')this._clearReviewerAutomation();
+  },
   invalidate(reason){
-    this.dirty=true;this.ready=false;this.review=null;this.timing=null;
+    this.cancelPendingRender();
+    this.dirty=true;this.ready=false;this.review=null;this.timing=null;this._reviewSessionVersion=null;
     this._sessionAnswered=0;this._sessionStartTotal=null;
     this._undo=[];this._redo=[];
     if(reason&&typeof _quiet==='function')_quiet(new Error('Cards official invalidated: '+reason),'cards-official-invalidate');
@@ -58,8 +82,9 @@ const CardsOfficialBridge = {
     const global=window.StudyGlobalScope,
       mode=global&&global.cardsScope?global.cardsScope():'plan',
       label=mode==='all'?'Todos os planejamentos':(global&&global.planName?global.planName(this._activePlanId()):'Planejamento atual'),
-      ids=[...new Set(this._scopeCards().map(c=>this._officialId(c)).filter(Boolean))];
-    return {deck_id:deckId,card_ids:ids,label};
+      source=window.CardsScreen&&typeof CardsScreen.currentFilteredCards==='function'?CardsScreen.currentFilteredCards():this._scopeCards(),
+      ids=[...new Set(source.map(c=>this._officialId(c)).filter(Boolean))];
+    return {session_id:this._reviewSession(),deck_id:deckId,card_ids:ids,label};
   },
   async _syncReviewScope(deckId=0){
     if(deckId&&!this._scopeCards().some(c=>{
@@ -71,6 +96,7 @@ const CardsOfficialBridge = {
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
     });
     this._sessionAnswered=0;this._sessionStartTotal=null;
+    this._reviewSessionVersion=review&&review.review_session?review.review_session.version:null;
     this._applyReviewer(review);
     return review;
   },
@@ -426,16 +452,43 @@ const CardsOfficialBridge = {
     if(dark&&!/\.night_?mode\b[^{}]*\{[^}]*\bbackground(?:-color)?\s*:/i.test(css)){
       const style=doc.createElement('style');style.textContent='html.nightMode body.card{background:transparent;color:#e8eaed}';doc.head.appendChild(style);
     }
-    for(const el of Array.from(doc.querySelectorAll('[src]'))){
-      const src=(el.getAttribute('src')||'').trim();
-      if(!src||/^(?:https?:|data:|blob:|about:|#)/i.test(src))continue;
-      const name=src.replace(/^\.\//,'');
-      if(!name||name.includes('/')||name.includes('\\'))continue;
+    const cache=new Map();
+    const resolveLocal=async(raw)=>{
+      let src=String(raw==null?'':raw).trim().replace(/^['"]|['"]$/g,'');
+      if(!src||/^(?:https?:|data:|blob:|about:|#)/i.test(src))return null;
+      src=src.replace(/^\.\//,'');
+      try{src=decodeURIComponent(src);}catch(_){/* nome já utilizável */}
+      if(!src||src.includes('/')||src.includes('\\'))return null;
+      if(cache.has(src))return cache.get(src);
       try{
-        const blob=await this._fetchMedia(name),url=URL.createObjectURL(blob);
-        this._blobUrls.push(url);el.setAttribute('src',url);
-      }catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-media');}
+        const blob=await this._fetchMedia(src),url=URL.createObjectURL(blob);
+        this._blobUrls.push(url);cache.set(src,url);return url;
+      }catch(e){if(typeof _quiet==='function')_quiet(e,'cards-official-media');cache.set(src,null);return null;}
+    };
+    for(const attr of ['src','poster']){
+      for(const el of Array.from(doc.querySelectorAll('['+attr+']'))){
+        const url=await resolveLocal(el.getAttribute(attr));if(url)el.setAttribute(attr,url);
+      }
     }
+    for(const el of Array.from(doc.querySelectorAll('[srcset]'))){
+      const parts=String(el.getAttribute('srcset')||'').split(',');
+      const mapped=[];
+      for(const part of parts){
+        const m=part.trim().match(/^(\S+)(\s+.*)?$/);if(!m){mapped.push(part);continue;}
+        const url=await resolveLocal(m[1]);mapped.push((url||m[1])+(m[2]||''));
+      }
+      el.setAttribute('srcset',mapped.join(', '));
+    }
+    const rewriteCss=async(text)=>{
+      let out=String(text||''),matches=[...out.matchAll(/url\(\s*(?:(["'])(.*?)\1|([^)"']+))\s*\)/gi)];
+      for(const m of matches){
+        const raw=String(m[2]!=null?m[2]:m[3]||'').trim(),url=await resolveLocal(raw);
+        if(url)out=out.replace(m[0],'url("'+url+'")');
+      }
+      return out;
+    };
+    for(const style of Array.from(doc.querySelectorAll('style')))style.textContent=await rewriteCss(style.textContent||'');
+    for(const el of Array.from(doc.querySelectorAll('[style]')))el.setAttribute('style',await rewriteCss(el.getAttribute('style')||''));
     return '<!doctype html>'+doc.documentElement.outerHTML;
   },
   _officialTtsVoice(tag){
@@ -1042,16 +1095,20 @@ const CardsOfficialBridge = {
 
   async renderRevisar(box){
     if(!box)return;
+    const token=++this._renderEpoch;
+    if(!this._renderStillCurrent(token,'revisar',box))return;
     if(!CardsScreen.collectionCards().length){
       box.innerHTML=CardsScreen.emptyState('Nenhum card ainda','Clique em <strong>＋ Criar card</strong> no topo para começar.');
       return;
     }
     box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.3.</p></div></div>';
     try{
-      await this.bootstrap(false);
+      await this.bootstrap(false);if(!this._renderStillCurrent(token,'revisar',box))return;
       await this._syncReviewScope(this.review&&this.review.review_scope&&!this.review.review_scope.all_decks?Number(this.review.review_scope.selected_deck_id):0);
-      await this.renderCurrent(box);
+      if(!this._renderStillCurrent(token,'revisar',box))return;
+      await this.renderCurrent(box,token);
     }catch(e){
+      if(!this._renderStillCurrent(token,'revisar',box))return;
       console.error('Cards official bridge:',e);
       box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⚠</div><h3>Motor oficial indisponível</h3><p>'+
         escapeHtml(e&&e.message?e.message:String(e))+'</p><p class="hint">O Anki não caiu para um scheduler aproximado.</p>'+
@@ -1082,16 +1139,21 @@ const CardsOfficialBridge = {
     if(cap>0)ms=Math.min(ms,cap);
     return Math.round(ms);
   },
-  _runWhenAudioReady(auto,token,fn){
-    if(token!==this._autoToken||!this._autoAdvanceEnabled)return;
+  _reviewUiActive(cardId,sessionVersion){
+    return this._screenActive('revisar')&&!!this.review&&!!this.review.card&&
+      Number(this.review.card.id)===Number(cardId)&&
+      (!sessionVersion||sessionVersion===this._reviewSessionVersion);
+  },
+  _runWhenAudioReady(auto,token,cardId,sessionVersion,fn){
+    if(token!==this._autoToken||!this._autoAdvanceEnabled||!this._reviewUiActive(cardId,sessionVersion))return;
     if(auto&&auto.wait_for_audio&&this.isAvPlaying()){
-      this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,fn),250);return;
+      this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,cardId,sessionVersion,fn),250);return;
     }
-    fn();
+    if(this._reviewUiActive(cardId,sessionVersion))fn();
   },
   _armReviewerAutomation(oc,answerSide){
     this._clearReviewerAutomation();if(!oc)return;
-    const auto=oc.auto_advance||{},token=this._autoToken,timer=document.getElementById('cards-review-timer');
+    const auto=oc.auto_advance||{},token=this._autoToken,cardId=Number(oc.id),sessionVersion=this._reviewSessionVersion,timer=document.getElementById('cards-review-timer');
     if(timer&&auto.show_timer){
       const tick=()=>{if(token===this._autoToken)timer.textContent=(this._elapsedMs(auto)/1000).toFixed(1)+'s';};
       tick();this._timerTick=setInterval(tick,250);
@@ -1101,8 +1163,8 @@ const CardsOfficialBridge = {
     if(!this._autoAdvanceEnabled)return;
     const seconds=Number(answerSide?auto.seconds_to_show_answer:auto.seconds_to_show_question)||0;
     if(!(seconds>0))return;
-    this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,()=>{
-      if(token!==this._autoToken||!this.review||!this.review.card||Number(this.review.card.id)!==Number(oc.id))return;
+    this._autoTimer=setTimeout(()=>this._runWhenAudioReady(auto,token,cardId,sessionVersion,()=>{
+      if(token!==this._autoToken||!this._reviewUiActive(cardId,sessionVersion))return;
       if(!answerSide){
         if(Number(auto.question_action)===0)void this.showAnswer();
         else showToast('⏰ Lembrete do Auto Advance');
@@ -1125,8 +1187,10 @@ const CardsOfficialBridge = {
     return this._autoAdvanceEnabled;
   },
 
-  async renderCurrent(box){
+  async renderCurrent(box,token){
     box=box||document.getElementById('cards-content');if(!box)return;
+    if(token==null)token=++this._renderEpoch;
+    if(!this._renderStillCurrent(token,'revisar',box))return;
     const q=this.review,scope=q&&q.review_scope||{},decks=scope.decks||[];
     const inventory=scope.inventory||{};
     const scopeHtml='<div class="card cards-review-scope"><div class="cards-review-scope-switch"><button type="button" class="btn-secondary" data-review-plan-scope="plan">Este planejamento</button><button type="button" class="btn-secondary" data-review-plan-scope="all">Todos os planejamentos</button></div><label for="cards-review-deck">Baralho da revisão</label><select id="cards-review-deck">'+
@@ -1157,7 +1221,12 @@ const CardsOfficialBridge = {
       box.innerHTML=scopeHtml+'<div class="card"><div class="cards-review-done"><div class="big">'+(answered?'🎉':'📚')+'</div><h3>'+(answered?'Sessão concluída!':'Nenhum card disponível agora')+'</h3>'+
         '<p>'+answered+' respondidos · 0 disponíveis agora.</p><p>'+(answered?'A fila oficial do Anki não possui mais cards disponíveis agora.':'O baralho selecionado não tem cards disponíveis na fila oficial. Datas de revisão, limites diários, suspensão e enterramento podem limitar a fila.')+'</p>'+
         '<button type="button" class="btn-primary" id="cards-official-restart">Ver se há mais</button></div></div>';
-      const rb=document.getElementById('cards-official-restart');if(rb)rb.onclick=async()=>{try{this._applyReviewer(await this.request('/api/cards-official/reviewer/next'));await this.renderCurrent(box);}catch(e){showToast(e.message);}};
+      const rb=document.getElementById('cards-official-restart');if(rb)rb.onclick=async()=>{try{
+        const qs=new URLSearchParams({session_id:this._reviewSession()});
+        const next=await this.request('/api/cards-official/reviewer/next?'+qs.toString());
+        this._reviewSessionVersion=next&&next.review_session?next.review_session.version:this._reviewSessionVersion;
+        this._applyReviewer(next);await this.renderCurrent(box);
+      }catch(e){showToast(e.message);}};
       bindScope();CardsScreen.updateFavCount();CardsScreen.atualizarFoco();return;
     }
     const oc=q.card,local=this._localForOfficialId(oc.id);
@@ -1483,28 +1552,51 @@ const CardsOfficialBridge = {
     return {mirrors,decks,cards,reviewer:state.reviewer||null};
   },
 
+  _answerRequestId(card){
+    return [this._reviewSession(),Number(card&&card.id)||0,Number(card&&card.reps)||0,
+      Number(card&&card.mtime_secs)||0,Number(card&&card.due)||0].join(':');
+  },
   async answer(grade){
     if(this._answering)return false;
     const rating=typeof grade==='number'?grade:({errei:1,dificil:2,bom:3,facil:4})[grade];
-    if(!rating||!this.review||!this.review.card)return false;
+    if(!rating||!this.review||!this.review.card||!this._screenActive('revisar'))return false;
     this._answering=true;this._clearReviewerAutomation();
+    const current=this.review.card,requestId=this._answerRequestId(current);
     try{
-      const ms=this._elapsedMs((this.review.card&&this.review.card.auto_advance)||{});
+      const ms=this._elapsedMs((current&&current.auto_advance)||{});
       const out=await this.request('/api/cards-official/reviewer/answer',{
         method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({card_id:Number(this.review.card.id),rating,milliseconds_taken:Math.max(0,Math.round(ms||0))})
+        body:JSON.stringify({
+          session_id:this._reviewSession(),request_id:requestId,card_id:Number(current.id),
+          rating,milliseconds_taken:Math.max(0,Math.round(ms||0))
+        })
       });
-      try{await this._persistAnswered(out.answered,true);}
-      catch(localError){
-        try{await this.request('/api/cards-official/undo',{method:'POST'});}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate');}
+      let txn=null;
+      try{
+        txn=await this._persistAnswered(out.answered,true);
+        if(txn){
+          txn.undoStep=Number(out.undo_status&&out.undo_status.last_step)||null;
+          txn.undoLabel=String(out.undo_status&&out.undo_status.undo||'');
+        }
+      }catch(localError){
+        try{await this.request('/api/cards-official/history/undo',{method:'POST'});}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate');}
+        try{await this._syncReviewScope(0);}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-compensate-rescope');}
         throw localError;
       }
       this._sessionAnswered++;
-      this._applyReviewer(out.reviewer);
-      await this.renderCurrent(document.getElementById('cards-content'));
+      if(out.reviewer){
+        this._reviewSessionVersion=out.reviewer.review_session?out.reviewer.review_session.version:this._reviewSessionVersion;
+        this._applyReviewer(out.reviewer);
+      }else await this._syncReviewScope(0);
+      if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       CardsScreen.updateFavCount();return true;
-    }catch(e){showToast('Resposta não gravada: '+(e.message||e));return false;}
-    finally{this._answering=false;}
+    }catch(e){
+      // Uma perda de resposta de rede pode ocorrer DEPOIS da gravação. A mesma
+      // request_id é segura para retry: o backend devolve o recibo sem responder
+      // o card uma segunda vez.
+      showToast('Resposta não confirmada: '+(e.message||e)+' · tente novamente com o mesmo card.');
+      return false;
+    }finally{this._answering=false;}
   },
 
   async action(action,value){
@@ -1516,8 +1608,8 @@ const CardsOfficialBridge = {
         body:JSON.stringify({action,card_ids:[Number(this.review.card.id)],value:value==null?null:value})
       });
       await this._syncStates(out.cards||[]);
-      this._applyReviewer(out.reviewer);
-      await this.renderCurrent(document.getElementById('cards-content'));
+      await this._syncReviewScope(0);
+      if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
       return true;
     }catch(e){showToast('Ação não aplicada: '+(e.message||e));return false;}
   },
@@ -1579,26 +1671,51 @@ const CardsOfficialBridge = {
   },
 
   async undo(){
-    const txn=this._undo.pop();if(!txn){showToast('Nada para desfazer');return false;}
+    const txn=this._undo[this._undo.length-1]||null;
     try{
-      const out=await this.request('/api/cards-official/undo',{method:'POST'});
-      for(const row of txn.rows)await DB.cancelarRevlogDurable(row);
-      for(const it of txn.items)StudyGlobalScope.updateCardScoped(it.replica,it.before,it.replica._planId);
-      this._redo.push(txn);this._sessionAnswered=Math.max(0,this._sessionAnswered-1);
-      this._applyReviewer(out.reviewer);await this.renderCurrent(document.getElementById('cards-content'));showToast('Revisão desfeita ↶');return true;
-    }catch(e){this._undo.push(txn);showToast('Não foi possível desfazer: '+(e.message||e));return false;}
+      const before=await this.historyStatus(),matches=!!txn&&txn.undoStep!=null&&Number(before&&before.last_step)===Number(txn.undoStep);
+      const out=await this.request('/api/cards-official/history/undo',{method:'POST'});
+      if(!out||!out.state)throw new Error('O Anki oficial não devolveu o estado após desfazer.');
+      await this._syncOfficialFullState(out.state,this._activePlanId());
+      if(matches){
+        this._undo.pop();
+        for(const row of txn.rows)await DB.cancelarRevlogDurable(row);
+        for(const it of txn.items)StudyGlobalScope.updateCardScoped(it.replica,it.before,it.replica._planId);
+        txn.redoLabel=String(out.status&&out.status.redo||txn.undoLabel||'');
+        this._redo.push(txn);this._sessionAnswered=Math.max(0,this._sessionAnswered-1);
+      }
+      await this._syncReviewScope(0);
+      if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
+      showToast(matches?'Revisão desfeita ↶':'Última operação oficial desfeita ↶');return true;
+    }catch(e){showToast('Não foi possível desfazer: '+(e.message||e));return false;}
   },
   async redo(){
-    const txn=this._redo.pop();if(!txn){showToast('Nada para refazer');return false;}
+    const txn=this._redo[this._redo.length-1]||null;
     try{
-      const out=await this.request('/api/cards-official/redo',{method:'POST'});
-      const state=await this.request('/api/cards-official/card/'+encodeURIComponent(txn.officialId)+'/state');
-      const replayTxn=await this._persistAnswered(state,false);this._undo.push(replayTxn);if(this._undo.length>50)this._undo.shift();this._sessionAnswered++;
-      this._applyReviewer(out.reviewer);await this.renderCurrent(document.getElementById('cards-content'));showToast('Revisão refeita ↷');return true;
-    }catch(e){this._redo.push(txn);showToast('Não foi possível refazer: '+(e.message||e));return false;}
+      const before=await this.historyStatus(),label=String(before&&before.redo||''),
+        matches=!!txn&&(!txn.redoLabel||!label||label===txn.redoLabel);
+      const out=await this.request('/api/cards-official/history/redo',{method:'POST'});
+      if(!out||!out.state)throw new Error('O Anki oficial não devolveu o estado após refazer.');
+      await this._syncOfficialFullState(out.state,this._activePlanId());
+      if(matches){
+        this._redo.pop();
+        const state=await this.request('/api/cards-official/card/'+encodeURIComponent(txn.officialId)+'/state');
+        const replayTxn=await this._persistAnswered(state,false);
+        replayTxn.undoStep=Number(out.status&&out.status.last_step)||null;
+        replayTxn.undoLabel=String(out.status&&out.status.undo||txn.undoLabel||'');
+        this._undo.push(replayTxn);if(this._undo.length>50)this._undo.shift();this._sessionAnswered++;
+      }
+      await this._syncReviewScope(0);
+      if(this._screenActive('revisar'))await this.renderCurrent(document.getElementById('cards-content'));
+      showToast(matches?'Revisão refeita ↷':'Última operação oficial refeita ↷');return true;
+    }catch(e){showToast('Não foi possível refazer: '+(e.message||e));return false;}
   },
 
 
+  _statsScopeIds(){
+    const cards=window.CardsScreen&&typeof CardsScreen.currentFilteredCards==='function'?CardsScreen.currentFilteredCards():this._scopeCards();
+    return [...new Set((cards||[]).map(c=>this._officialId(c)).filter(Boolean).map(Number))];
+  },
   _statsSearch(){
     const M=window.AnkiMaxStatsMedia,st=M&&M._statsState?M._statsState:{scope:'collection',history:'year',search:''};
     if(st.scope==='search')return String(st.search||'').trim();
@@ -1691,7 +1808,8 @@ const CardsOfficialBridge = {
   _statsOfficialCountsHtml(counts){
     const c=Object.assign({newCards:0,learn:0,relearn:0,young:0,mature:0,suspended:0,buried:0},counts||{}),
       items=[['Novos',c.newCards,'var(--text-faint)'],['Aprendendo',c.learn,'var(--warn)'],['Reaprendendo',c.relearn,'var(--bad)'],['Jovens',c.young,'var(--accent)'],['Maduros',c.mature,'var(--good)'],['Suspensos',c.suspended,'#e8b400'],['Enterrados',c.buried,'#8a8f98']],
-      total=items.reduce((a,x)=>a+(Number(x[1])||0),0)||1,pct=n=>(Number(n||0)/total*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+      total=items.reduce((a,x)=>a+(Number(x[1])||0),0),denom=Math.max(1,total),
+      pct=n=>(Number(n||0)/denom*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
     return '<section class="card stat-card"><div class="card-header"><div><h2>🧮 Contagem de cards</h2><p class="sub">Estado oficial atual · '+total+' card(s)</p></div></div><div class="stat-body">'+
       '<div class="stat-mat-bar">'+items.filter(x=>Number(x[1])>0).map(x=>'<span style="flex:'+Number(x[1])+';background:'+x[2]+'" title="'+x[0]+': '+Number(x[1])+'"></span>').join('')+'</div>'+
       '<div class="anki-counts">'+items.map(x=>'<div class="'+(Number(x[1])?'':'zero')+'"><i style="background:'+x[2]+'"></i><span>'+x[0]+'</span><b>'+Number(x[1]||0)+'</b><em>'+pct(x[1])+'</em></div>').join('')+'</div></div></section>';
@@ -1737,14 +1855,20 @@ const CardsOfficialBridge = {
   },
   async renderStats(box){
     box=box||document.getElementById('cards-content');if(!box)return;
+    const token=++this._renderEpoch;
+    if(!this._renderStillCurrent(token,'stats',box))return;
     if(!CardsScreen.collectionCards().length){box.innerHTML=CardsScreen.emptyState('Sem estatísticas ainda','Crie e revise alguns cards para ver seus dados.');return;}
     box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.3 está processando a coleção do Anki.</p></div></div>';
     try{
-      await this.bootstrap(false);
-      const qs=new URLSearchParams({search:this._statsSearch(),days:String(this._statsDays())}),
-        data=await this.request('/api/cards-official/stats/graphs?'+qs.toString()),
+      await this.bootstrap(false);if(!this._renderStillCurrent(token,'stats',box))return;
+      const data=await this.request('/api/cards-official/stats/graphs/scoped',{
+          method:'POST',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({search:this._statsSearch(),days:this._statsDays(),card_ids:this._statsScopeIds()})
+        }),
+
         counts=data.card_counts&&data.card_counts.excluding_inactive||{},reviews=data.reviews||{},fsrs=!!data.fsrs,
         controls=window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._statsControlsHtml?AnkiMaxStatsMedia._statsControlsHtml():'';
+      if(!this._renderStillCurrent(token,'stats',box))return;
       box.innerHTML='<div class="stats-page cards-official-stats">'+controls+
         this._statsOfficialTodayHtml(data.today||{})+
         '<div class="stat-grid">'+this._statsOfficialCountsHtml(counts)+this._statsOfficialCalendarHtml(reviews.count||{})+'</div>'+
@@ -1767,6 +1891,7 @@ const CardsOfficialBridge = {
       '</div>';
       if(window.AnkiMaxStatsMedia&&AnkiMaxStatsMedia._bindStatsUi)AnkiMaxStatsMedia._bindStatsUi();
     }catch(e){
+      if(!this._renderStillCurrent(token,'stats',box))return;
       console.error('Cards official stats:',e);
       box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⚠</div><h3>Estatísticas oficiais indisponíveis</h3><p>'+escapeHtml(e&&e.message?e.message:String(e))+'</p><p class="hint">Nenhum cálculo local foi usado como fallback.</p><button type="button" class="btn-secondary" id="cards-official-stats-retry">Tentar novamente</button></div></div>';
       const b=document.getElementById('cards-official-stats-retry');if(b)b.onclick=()=>void this.renderStats(box);
@@ -3234,7 +3359,12 @@ const CardsOfficialBridge = {
       .forEach(n=>this._wrapInvalidator(n));
 
     window.addEventListener('screen:activated',ev=>{
-      if(ev.detail&&ev.detail.screen==='cards'&&CardsScreen.tab==='revisar'&&this.dirty){
+      const screen=ev.detail&&ev.detail.screen;
+      if(screen!=='cards'||CardsScreen.tab!=='revisar'){
+        this.cancelPendingRender();
+        return;
+      }
+      if(this.dirty){
         const box=document.getElementById('cards-content');if(box)void this.renderRevisar(box);
       }
     });
