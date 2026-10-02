@@ -108,6 +108,8 @@ const CardsScreen = {
       if (btn) btn.setAttribute('aria-expanded', 'false');
       if (panel) panel.hidden = true;
     });
+    const card=document.getElementById('cards-filter-card');
+    if(card)card.classList.toggle('cards-filter-overlay-open',!!document.querySelector('#cards-filter-card .cards-multi-filter.open'));
   },
   _syncNativeFilter(kind) {
     const selected = this._filterSet(kind);
@@ -197,6 +199,8 @@ const CardsScreen = {
       this._closeMultiFilters(host);
       panel.hidden = !opening;
       host.classList.toggle('open', opening);
+      const filterCard=document.getElementById('cards-filter-card');
+      if(filterCard)filterCard.classList.toggle('cards-filter-overlay-open',opening);
       btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
       if (opening) setTimeout(() => search && search.focus(), 0);
     });
