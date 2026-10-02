@@ -914,21 +914,28 @@ const CardsOfficialBridge = {
         });
         return key;
       }
-      const key=this._legacyCanonicalKey('notetype',nt.ankiId,pid,nt.id||nt.name||fallbackKind||'basic');
-      if(!notetypeRows.has(key)){
-        const fields=(nt.fields||[]).map((f,i)=>({
+      const key=this._legacyCanonicalKey('notetype',nt.ankiId,pid,nt.id||nt.name||fallbackKind||'basic'),
+        fields=(nt.fields||[]).map((f,i)=>({
           name:String(f&&f.name||('Field '+(i+1))),font:f&&f.font!=null?f.font:(f&&f.fontName)||'Arial',
           size:Number(f&&f.size!=null?f.size:f&&f.fontSize)||20,rtl:!!(f&&f.rtl),sticky:!!(f&&f.sticky),
           collapsed:!!(f&&f.collapsed),excludeFromSearch:!!(f&&f.excludeFromSearch),tag:f&&f.tag!=null?Number(f.tag):null
-        }));
-        const templates=(nt.templates||[]).map((t,i)=>({
+        })),
+        templates=(nt.templates||[]).map((t,i)=>({
           name:String(t&&t.name||('Card '+(i+1))),qfmt:String(t&&t.qfmt||''),afmt:String(t&&t.afmt||''),
           bqfmt:String(t&&t.bqfmt||''),bafmt:String(t&&t.bafmt||''),did:t&&t.did||null,bfont:String(t&&t.bfont||''),bsize:Number(t&&t.bsize)||0
-        }));
-        notetypeRows.set(key,{
+        })),
+        candidate={
           id:key,name:String(nt.name||'Study Legacy Note Type'),stock_kind:String(nt.stockKind||fallbackKind||(nt.kind==='cloze'?'cloze':'basic')),
           kind:nt.kind==='cloze'?'cloze':'normal',sortf:Math.max(0,Number(nt.sortf)||0),css:String(nt.css||''),fields,templates
+        },
+        existing=notetypeRows.get(key),
+        comparable=x=>JSON.stringify({
+          name:String(x&&x.name||''),stock_kind:String(x&&x.stock_kind||''),kind:String(x&&x.kind||''),
+          sortf:Math.max(0,Number(x&&x.sortf)||0),css:String(x&&x.css||''),fields:x&&x.fields||[],templates:x&&x.templates||[]
         });
+      if(!existing)notetypeRows.set(key,candidate);
+      else if(comparable(existing)!==comparable(candidate)){
+        throw new Error('Conflito de NoteType durante migração oficial: a mesma identidade Anki possui schemas divergentes entre planejamentos. Migração interrompida sem descartar campos ou templates.');
       }
       return key;
     };
