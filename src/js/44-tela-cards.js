@@ -1743,13 +1743,13 @@ CardsScreen.openAlgoConfigFor = async function (deckId) {
       options: [{value:'0',label:'Não'},{value:'1',label:'Sim'}],
       hint: 'Controla se Repetir mídia no lado da resposta inclui também o áudio da pergunta.' },
     { key: 'buryNew', label: '🫥 Enterrar irmãos novos', type: 'select', value: cfg.buryNew ? '1' : '0',
-      options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
+      options: [{ value:'0', label:'Não (padrão do Anki)' }, { value:'1', label:'Sim' }],
       hint: 'Depois de responder um card, esconde até amanhã os irmãos novos da mesma nota.' },
     { key: 'buryReviews', label: '🫥 Enterrar irmãos em revisão', type: 'select', value: cfg.buryReviews ? '1' : '0',
-      options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
+      options: [{ value:'0', label:'Não (padrão do Anki)' }, { value:'1', label:'Sim' }],
       hint: 'Aplica o mesmo enterramento aos irmãos que já estão em revisão.' },
     { key: 'buryInterdayLearning', label: '🫥 Enterrar irmãos em aprendizado entre dias', type: 'select', value: cfg.buryInterdayLearning ? '1' : '0',
-      options: [{ value:'0', label:'Não (padrão 26.09.2)' }, { value:'1', label:'Sim' }],
+      options: [{ value:'0', label:'Não (padrão do Anki)' }, { value:'1', label:'Sim' }],
       hint: 'Controla os irmãos em learning/relearning que atravessaram a virada do dia.' }
   ];
   /* ── ORDENAÇÃO E MISTURA — paridade com deck_config.proto ──────────────────
