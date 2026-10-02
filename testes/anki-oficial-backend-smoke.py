@@ -407,7 +407,15 @@ with tempfile.TemporaryDirectory() as tmp:
         ccol.add_note(cnote, ccol.decks.get_current_id())
         ccid = int(cnote.cards()[0].id)
 
-    cq = app.cards_official_reviewer_next(cards_ctx)
+    cq = app.cards_official_reviewer_scope(
+        app.CardsReviewScopeBody(
+            session_id="smoke-review-session",
+            deck_id=0,
+            card_ids=[ccid],
+            label="Smoke",
+        ),
+        cards_ctx,
+    )
     assert cq["finished"] is False
     assert ccid in cq["queue_ids"]
     assert cq["card"]["question"]
@@ -427,8 +435,26 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert "marked" not in unmarked["notes"][0]["tags"]
 
+    # As ações acima alteraram o card oficial; como o frontend real faz, refazemos
+    # o snapshot antes de responder para não aceitar scheduling state obsoleto.
+    cq = app.cards_official_reviewer_scope(
+        app.CardsReviewScopeBody(
+            session_id="smoke-review-session",
+            deck_id=0,
+            card_ids=[ccid],
+            label="Smoke",
+        ),
+        cards_ctx,
+    )
     answered = app.cards_official_reviewer_answer(
-        app.AnswerBody(card_id=ccid, rating=3, milliseconds_taken=321),
+        app.AnswerBody(
+            session_id="smoke-review-session",
+            session_version=cq["review_session"]["version"],
+            request_id="smoke-review-answer-1",
+            card_id=ccid,
+            rating=3,
+            milliseconds_taken=321,
+        ),
         cards_ctx,
     )
     state = answered["answered"]
@@ -856,14 +882,18 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert selection_out["state"]["reviewer"]["queue_ids"]
     # Recupera também coleções já migradas quando Default ficou selecionado.
+    # Este bloco testa o helper nativo de seleção; o isolamento de sessão é coberto
+    # em cards-review-scope.py.
     selection_col.decks.select(app.DeckId(1))
-    recovered = app.cards_official_reviewer_next(selection_user)
+    selection_col.set_config("study_review_all_decks", True)
+    recovered = app.cards_reviewer_payload(selection_col)
     assert recovered["finished"] is False
     assert int(selection_col.decks.get_current_id()) == int(selection_out["deck_map"]["d"])
     # Não substitui a seleção explícita de outro baralho vazio.
     empty_id = selection_col.decks.add_normal_deck_with_name("Vazio escolhido").id
-    app.cards_official_reviewer_scope(app.SelectDeckBody(deck_id=int(empty_id)), selection_user)
-    empty_queue = app.cards_official_reviewer_next(selection_user)
+    selection_col.decks.select(app.DeckId(int(empty_id)))
+    selection_col.set_config("study_review_all_decks", False)
+    empty_queue = app.cards_reviewer_payload(selection_col)
     assert empty_queue["finished"] is True
     assert int(selection_col.decks.get_current_id()) == int(empty_id)
     # Default com um sub-baralho populado é um escopo de estudo válido.
@@ -873,7 +903,8 @@ with tempfile.TemporaryDirectory() as tmp:
     child_note["Front"], child_note["Back"] = "Filho pergunta", "Filho resposta"
     selection_col.add_note(child_note, app.DeckId(child_id))
     selection_col.decks.select(app.DeckId(1))
-    child_queue = app.cards_official_reviewer_next(selection_user)
+    selection_col.set_config("study_review_all_decks", False)
+    child_queue = app.cards_reviewer_payload(selection_col)
     assert child_queue["finished"] is False
     assert int(selection_col.decks.get_current_id()) == 1
 
@@ -889,7 +920,9 @@ with tempfile.TemporaryDirectory() as tmp:
             note["Front"], note["Back"] = label + str(idx), "Resposta"
             multi_col.add_note(note, app.DeckId(did))
         multi_ids.append(int(did))
-    scope = app.cards_official_reviewer_scope(app.SelectDeckBody(deck_id=0), multi_user)
+    multi_col.set_config("study_review_all_decks", True)
+    multi_col.set_config("study_review_scope_label", "Todos os cards")
+    scope = app.cards_reviewer_payload(multi_col)
     assert scope["review_scope"]["total_cards"] == 6
     visited = set()
     for _ in range(3):
@@ -901,7 +934,7 @@ with tempfile.TemporaryDirectory() as tmp:
             if int(card.did) == selected:
                 card.queue = -1
                 multi_col.update_card(card)
-        scope = app.cards_official_reviewer_next(multi_user)
+        scope = app.cards_reviewer_payload(multi_col)
     assert visited == set(multi_ids) and scope["finished"]
     assert multi_col.card_count() == 6
     assert scope["review_scope"]["total_cards"] == 6
