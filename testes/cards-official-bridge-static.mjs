@@ -51,12 +51,13 @@ for(const [id,source] of [
   ['cards-shared-decks-btn',product],
   ['cards-notetypes-btn',product],
   ['cards-check-collection-btn',product],
-  ['cards-reviewer-bindings-btn',final10],
   ['cards-preferences-btn',practical],
 ]) assert.ok(source.includes(id),'ação injetada do Mais ausente: '+id);
 
 for(const source of [html,practical,total,product,final10,imageOcclusion])
   assert.ok(!source.includes('cards-extensions-btn'),'Extensões locais não podem voltar ao Mais do Anki oficial');
+for(const source of [html,practical,final10])
+  assert.ok(!source.includes('cards-reviewer-bindings-btn'),'Atalhos personalizados não oficiais não podem voltar ao Mais');
 
 assert.match(sanitizer,/on\('cards-empty-btn'[\s\S]{0,500}?CardsOfficialBridge\.openEmptyCards/,'Cards vazios deve delegar ao backend oficial');
 assert.match(product,/openSharedDecks\(\)[\s\S]{0,500}?https:\/\/ankiweb\.net\/shared\/decks\//,'Baralhos compartilhados deve abrir a fonte oficial AnkiWeb');
