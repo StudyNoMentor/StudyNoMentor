@@ -55,6 +55,7 @@ with tempfile.TemporaryDirectory() as tmp:
     out = app.cards_official_reviewer_answer(
         app.AnswerBody(
             session_id="device-a-session",
+            session_version=a["review_session"]["version"],
             request_id=request_id,
             card_id=ids[-1],
             rating=3,
@@ -71,6 +72,7 @@ with tempfile.TemporaryDirectory() as tmp:
     retry = app.cards_official_reviewer_answer(
         app.AnswerBody(
             session_id="device-a-session",
+            session_version=a["review_session"]["version"],
             request_id=request_id,
             card_id=ids[-1],
             rating=3,
@@ -93,6 +95,16 @@ with tempfile.TemporaryDirectory() as tmp:
         user,
     )
     assert empty["finished"] and empty["review_scope"]["total_cards"] == 0
+
+    # A12: obtaining B must not close A before A acquires its lock.
+    tiny = app.CollectionPool(max_open=1, namespace="pool-regression")
+    first = tiny.get("pool-a")
+    second = tiny.get("pool-b")
+    with first.lock:
+        first.col.card_count()  # must remain open despite the LRU pressure
+    with second.lock:
+        second.col.card_count()
+    tiny.close_all()
 
     app.review_sessions.close_all()
     app.cards_pool.close_all()
