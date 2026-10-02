@@ -1734,16 +1734,6 @@
   .modality-table tbody tr:hover td { background: color-mix(in srgb, var(--accent) 4%, transparent); }
   .modality-table tbody tr:hover .mt-sticky { background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
 
-  .modality-table-legacy { table-layout: auto; min-width: 100%; width: auto; }
-  .modality-table-legacy th, .modality-table-legacy td { white-space: nowrap; padding: 8px 14px; }
-  .modality-table-legacy td:first-child, .modality-table-legacy th:first-child {
-    text-align: left;
-    width: auto;
-    position: sticky;
-    left: 0;
-    z-index: 1;
-  }
-
   /* Chips arrastáveis de matérias do ciclo + células de drop na grade */
   .grade-chip-tray {
     display: flex;
