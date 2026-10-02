@@ -32,6 +32,7 @@ try{
     DB.saveDecks(localDecks);
     const localCards=DB.getCards();
     localCards.push({id:'legacy-default-card',ankiId:501,deckId:'defaultA-used',frente:'legado',verso:'default',kind:'basic'});
+    localCards.push({id:'legacy-default-card-2',ankiId:502,deckId:'defaultA-orphan',frente:'legado 2',verso:'default',kind:'basic'});
     DB.saveCards(localCards);
 
     const B=PlanManager.createPlan({nome:'Plano B',tipo:'Outro'});
@@ -42,17 +43,17 @@ try{
     // espelhos legados ao deck 1, remapeia cards e elimina duplicata física.
     const repaired=CardsOfficialBridge._reconcileLegacyDeckMirrors({
       decks:[{id:1,name:'Default',filtered:false}],
-      cards:[{id:501,deck_id:1}]
+      cards:[{id:501,deck_id:1},{id:502,deck_id:1}]
     });
     const activeDefaults=DB.getDecks().filter(d=>Number(d.ankiId)===1);
     const planBDefaults=DB.getDecksForPlan(B).filter(d=>Number(d.ankiId)===1);
-    const repairedCard=DB.getCards().find(c=>c.id==='legacy-default-card');
+    const repairedCards=DB.getCards().filter(c=>c.id==='legacy-default-card'||c.id==='legacy-default-card-2');
 
     switchScreen('cards');
     const out={deckRepair:{
       bound:repaired.bound,collapsed:repaired.collapsed,remappedCards:repaired.remappedCards,
       activeCount:activeDefaults.length,planBCount:planBDefaults.length,
-      cardOnCanonical:!!(repairedCard&&activeDefaults[0]&&String(repairedCard.deckId)===String(activeDefaults[0].id)),
+      cardsOnCanonical:!!(activeDefaults[0]&&repairedCards.length===2&&repairedCards.every(c=>String(c.deckId)===String(activeDefaults[0].id))),
       activePhysicalDefaults:DB.getDecks().filter(d=>String(d.nome)==='Default').length
     }};
     CardsScreen.openDeckModal();
@@ -182,7 +183,7 @@ try{
   ok(r.deckRepair.bound===3,'reconciliação vincula todos os espelhos Default legados à identidade oficial');
   ok(r.deckRepair.collapsed===1&&r.deckRepair.remappedCards===1,'duplicata física é consolidada e o card é remapeado para o sobrevivente');
   ok(r.deckRepair.activeCount===1&&r.deckRepair.planBCount===1&&r.deckRepair.activePhysicalDefaults===1,'cada planejamento persiste no máximo um espelho do Default oficial');
-  ok(r.deckRepair.cardOnCanonical,'card legado continua apontando para um baralho válido após a consolidação');
+  ok(r.deckRepair.cardsOnCanonical,'todos os cards legados continuam apontando para o baralho canônico após a consolidação');
   ok(r.destino.remoteVisible,'Criar card oferece baralho de outro plano mesmo com escopo visual no planejamento atual');
   ok(r.destino.defaultCount===1,'Criar card recebe um único Default porque os dados foram reconciliados, não ocultados');
   ok(r.destino.defaultUsesActive,'quando o mesmo baralho oficial existe no plano ativo, a criação prefere esse espelho');
