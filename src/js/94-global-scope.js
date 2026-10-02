@@ -26,7 +26,7 @@
     KEY: 'study-global-scope-v1',
     BANKS_KEY: 'cards-bancas-global-v1',
     ANKI_KEY: 'anki-bank-filter-v1',
-    defaults: Object.freeze({ cardsScope: 'all', cardsBancas: [] }),
+    defaults: Object.freeze({ cardsScope: 'plan', cardsBancas: [] }),
 
     _key() { return DB._profilePrefix() + this.KEY; },
     _banksKey() { return DB._profilePrefix() + this.BANKS_KEY; },

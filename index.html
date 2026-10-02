@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vda7ab10563">
+<meta name="diario-versao" content="ve2fb66da94">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -57214,7 +57214,7 @@ const CardsOfficialBridge = {
     return Number.isFinite(a)&&Number.isFinite(b)?Math.round((a-b)/86400000):0;
   },
   _legacyTemplateOrd(card){
-    const direct=Number(card&&card.ankiTemplateOrd);
+    const direct=card&&card.ankiTemplateOrd!=null&&card.ankiTemplateOrd!==''?Number(card.ankiTemplateOrd):NaN;
     if(Number.isFinite(direct)&&direct>=0)return Math.floor(direct);
     const co=Number(card&&card.clozeOrd);
     if(Number.isFinite(co)&&co>0)return Math.floor(co)-1;
@@ -57224,18 +57224,20 @@ const CardsOfficialBridge = {
   },
   _legacyScheduleRow(card,timingToday){
     const phase=String(card&&card.phase||(((Number(card&&card.reps)||0)>0&&(Number(card&&card.intervalo)||0)>0)?'review':'new')).toLowerCase();
-    let type=Number(card&&card.ankiType),queue=Number(card&&card.ankiQueue);
+    const numberOrMissing=value=>value==null||value===''?NaN:Number(value);
+    let type=numberOrMissing(card&&card.ankiType),queue=numberOrMissing(card&&card.ankiQueue);
     if(!Number.isFinite(type))type=({learning:1,review:2,relearning:3})[phase]||0;
     if(!Number.isFinite(queue))queue=({learning:1,review:2,relearning:1})[phase]||0;
     if(card&&card.suspenso)queue=-1;
     else if(card&&card.enterradoAte)queue=card.buryKind==='scheduler'?-2:-3;
-    let due=Number(card&&card.ankiDue);
+    let due=numberOrMissing(card&&card.ankiDue);
+    if(type===2&&/^\d{4}-\d{2}-\d{2}$/.test(String(card&&card.due||'')))due=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card.due));
     if(!Number.isFinite(due)){
       if(type===0)due=Math.max(1,Number(card&&card.posicaoNova)||1);
       else if(queue===1||queue===4)due=Math.max(0,Math.floor((Number(card&&card.dueTs)||0)/1000));
       else due=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card&&card.due));
     }
-    let odue=Number(card&&card.ankiOriginalDue);
+    let odue=numberOrMissing(card&&card.ankiOriginalDue);
     if(!Number.isFinite(odue)){
       if(card&&card.originalDueTs)odue=Math.max(0,Math.floor(Number(card.originalDueTs)/1000));
       else if(card&&card.originalDue)odue=Math.max(0,(Number(timingToday)||0)+this._legacyDateDelta(card.originalDue));
@@ -57421,7 +57423,8 @@ const CardsOfficialBridge = {
   },
   async _recoverLegacyIdentityFromOfficialState(state){
     const allLocal=window.StudyGlobalScope&&StudyGlobalScope.allBy?StudyGlobalScope.allBy('cards'):(this._scopeCards()||[]),
-      pending=(allLocal||[]).filter(card=>!(Number.isFinite(Number(card&&card.ankiId))&&Number(card.ankiId)>0));
+      officialIds=new Set((state&&state.cards||[]).map(card=>String(card.id))),
+      pending=(allLocal||[]).filter(card=>!officialIds.has(String(card&&card.ankiId)));
     if(!pending.length||!state||!Array.isArray(state.notes)||!Array.isArray(state.cards))return 0;
     const timingToday=Number(state.reviewer&&state.reviewer.timing&&state.reviewer.timing.today)||0,
       snapshot=this._legacyMigrationSnapshot(timingToday),
@@ -57431,7 +57434,7 @@ const CardsOfficialBridge = {
       claimed=new Map();
     let recovered=0;
     for(const row of snapshot.payload.cards||[]){
-      const refs=(snapshot.cardRefs.get(row.id)||[]).filter(ref=>!(Number.isFinite(Number(ref&&ref.card&&ref.card.ankiId))&&Number(ref.card.ankiId)>0));
+      const refs=(snapshot.cardRefs.get(row.id)||[]).filter(ref=>!officialIds.has(String(ref&&ref.card&&ref.card.ankiId)));
       if(!refs.length)continue;
       const legacyNote=legacyNotes.get(String(row.note_id)),
         officialNote=legacyNote&&officialNotesByGuid.get(String(legacyNote.guid||'')),
@@ -57499,7 +57502,24 @@ const CardsOfficialBridge = {
         if(!state)throw new Error('A migração oficial dos Cards legados não devolveu o snapshot da Collection.');
       }else{
         state=await this.request('/api/cards-official/collection/full-state');
-        if(localCount)await this._recoverLegacyIdentityFromOfficialState(state);
+        if(localCount){
+          await this._recoverLegacyIdentityFromOfficialState(state);
+          const timingToday=Number(state.reviewer&&state.reviewer.timing&&state.reviewer.timing.today)||0,
+            snapshot=this._legacyMigrationSnapshot(timingToday),
+            officialIds=new Set((state.cards||[]).map(card=>String(card.id))),
+            pending=(snapshot.payload.cards||[]).filter(row=>(snapshot.cardRefs.get(row.id)||[]).some(ref=>!officialIds.has(String(ref.card.ankiId)))),
+            pendingNotes=new Set(pending.map(row=>String(row.note_id)));
+          if(pending.length){
+            snapshot.payload.cards=pending;
+            snapshot.payload.notes=snapshot.payload.notes.filter(row=>pendingNotes.has(String(row.id)));
+            snapshot.payload.reconcile=true;
+            const reconciled=await this.request('/api/cards-official/migrate/legacy',{
+              method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot.payload)
+            });
+            await this._applyLegacyMigration(reconciled,snapshot);
+            state=reconciled.state;
+          }
+        }
       }
       this.preferences=await this.request('/api/cards-official/preferences');
       await this._syncOfficialFullState(state,this._activePlanId());
@@ -57617,15 +57637,28 @@ const CardsOfficialBridge = {
 
   async renderCurrent(box){
     box=box||document.getElementById('cards-content');if(!box)return;
-    const q=this.review;
+    const q=this.review,scope=q&&q.review_scope||{},decks=scope.decks||[];
+    const scopeHtml='<div class="card"><label for="cards-review-deck">Baralho da revisão</label><select id="cards-review-deck">'+
+      '<option value="0"'+(scope.all_decks?' selected':'')+'>Todos os baralhos — continuar nos próximos</option>'+
+      decks.map(d=>'<option value="'+Number(d.deck_id)+'"'+(!scope.all_decks&&Number(d.deck_id)===Number(scope.selected_deck_id)?' selected':'')+'>'+escapeHtml(d.name)+' · '+Number(d.total_including_children||0)+' cards · '+(Number(d.new_count||0)+Number(d.learn_count||0)+Number(d.review_count||0))+' disponíveis</option>').join('')+'</select>'+
+      '<p>'+Number(scope.total_cards||0)+' cards na coleção. A fila e os limites são calculados pelo Anki.</p></div>';
+    const bindScope=()=>{
+      const select=document.getElementById('cards-review-deck');
+      if(select)select.onchange=async()=>{
+        try{
+          const review=await this.request('/api/cards-official/reviewer/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(select.value)})});
+          this._applyReviewer(review);await this.renderCurrent(box);
+        }catch(e){showToast(e.message);}
+      };
+    };
     if(!q||q.finished||!q.card){
       CardsScreen._reviewQueue=[];CardsScreen._reviewIdx=0;CardsScreen._flipped=false;
       const answered=Number(this._sessionAnswered)||0;
-      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">'+(answered?'🎉':'📚')+'</div><h3>'+(answered?'Sessão concluída!':'Nenhum card disponível agora')+'</h3>'+
+      box.innerHTML=scopeHtml+'<div class="card"><div class="cards-review-done"><div class="big">'+(answered?'🎉':'📚')+'</div><h3>'+(answered?'Sessão concluída!':'Nenhum card disponível agora')+'</h3>'+
         '<p>'+(answered?'A fila oficial do Anki não possui mais cards disponíveis agora.':'O baralho selecionado não tem cards disponíveis na fila oficial. Datas de revisão, limites diários, suspensão e enterramento podem limitar a fila.')+'</p>'+
         '<button type="button" class="btn-primary" id="cards-official-restart">Ver se há mais</button></div></div>';
       const rb=document.getElementById('cards-official-restart');if(rb)rb.onclick=async()=>{try{this._applyReviewer(await this.request('/api/cards-official/reviewer/next'));await this.renderCurrent(box);}catch(e){showToast(e.message);}};
-      CardsScreen.updateFavCount();CardsScreen.atualizarFoco();return;
+      bindScope();CardsScreen.updateFavCount();CardsScreen.atualizarFoco();return;
     }
     const oc=q.card,local=this._localForOfficialId(oc.id);
     if(!local)throw new Error('Card oficial '+oc.id+' não foi localizado no Study.');
@@ -57633,7 +57666,7 @@ const CardsOfficialBridge = {
     const pct=Math.max(0,Math.min(100,Math.round((this._sessionAnswered/Math.max(1,this._sessionStartTotal||remaining||1))*100)));
     const typeInput=oc.type_answer&&oc.type_answer.enabled
       ? '<div class="anki-type-answer-input-wrap"><input id="cards-official-type-answer" type="text" autocomplete="off" spellcheck="false" placeholder="Digite a resposta"></div>' : '';
-    box.innerHTML='<div class="card cards-review-wrap anki-study-review-card">'+
+    box.innerHTML=scopeHtml+'<div class="card cards-review-wrap anki-study-review-card">'+
       '<div class="cards-review-progress"><span>'+this._sessionAnswered+' respondidos</span>'+
       '<div class="cards-review-bar"><div style="width:'+pct+'%"></div></div>'+
       '<span class="cards-limit-chip cards-due-counts" title="Contagens calculadas pelo scheduler oficial">🆕 '+this.counts.new+' · 🧠 '+this.counts.learning+' · 🔄 '+this.counts.review+'</span>'+
@@ -57658,6 +57691,7 @@ const CardsOfficialBridge = {
       '<div class="cards-kbd-hint-row"><span class="cards-kbd-hint"><kbd>Espaço</kbd> resposta · <kbd>1</kbd>–<kbd>4</kbd> avaliar · <kbd>Ctrl+Z</kbd> desfazer</span></div>'+
     '</div>';
 
+    bindScope();
     const question=(oc.type_answer&&oc.type_answer.enabled&&oc.type_answer.question_html)||oc.question||'';
     await this._frame(question);
     void this.playAv(oc.question_av_tags||[]);
