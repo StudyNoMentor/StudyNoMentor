@@ -49,6 +49,26 @@ jobs:
           ANKI_TARGET_VERSION: ${{ inputs.version || '' }}
         run: node tools/update-anki-stable.mjs
 
+      - name: Report stable release quarantine
+        if: steps.prepare.outputs.quarantined == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+          PUBLISHED_AT: ${{ steps.prepare.outputs.published_at }}
+          ELIGIBLE_AT: ${{ steps.prepare.outputs.eligible_at }}
+          QUARANTINE_HOURS: ${{ steps.prepare.outputs.quarantine_hours }}
+        run: |
+          {
+            echo "## Anki stable release in quarantine"
+            echo
+            echo "Version: $VERSION"
+            echo "Published at: $PUBLISHED_AT"
+            echo "Automatic promotion eligible at: $ELIGIBLE_AT"
+            echo "Policy: $QUARANTINE_HOURS hours"
+            echo
+            echo "No PR, merge, Pages publish or Railway deploy is performed during quarantine."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Rebuild published artifacts
         if: steps.prepare.outputs.changed == 'true'
         run: node build.mjs
