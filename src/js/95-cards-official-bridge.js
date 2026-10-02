@@ -1505,7 +1505,8 @@ const CardsOfficialBridge = {
     if(saved===false)throw new Error('Falha ao remover o espelho local do baralho.');
     return true;
   },
-  async createOfficialDeck(name,planId,preferredLocalId){
+  async createOfficialDeck(name,planId){
+    const preferredLocalId=arguments.length>2?arguments[2]:null;
     await this.bootstrap(false);const pid=planId!=null?planId:this._activePlanId(),out=await this.request('/api/cards-official/decks',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:String(name||'').trim()})
     });
