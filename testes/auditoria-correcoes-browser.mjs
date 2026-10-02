@@ -311,14 +311,24 @@ try {
     document.documentElement.setAttribute('data-theme', 'dark');
     const doc = await CardsOfficialBridge.htmlWithMedia('<style>.card{background:white;color:black}.nightMode .cloze{color:lightblue}</style><span class="cloze">[...]</span>');
     const custom = await CardsOfficialBridge.htmlWithMedia('<style>.nightMode{background:#111;color:#eee}</style>Template');
+    const fetchOrig=CardsOfficialBridge._fetchMedia;
+    CardsOfficialBridge._fetchMedia=async name=>new Blob(['media:'+name],{type:'application/octet-stream'});
+    const media=await CardsOfficialBridge.htmlWithMedia(
+      '<style>.hero{background-image:url(audit-image.png)}@font-face{font-family:audit;src:url("audit.ttf")}</style>'+
+      '<img src="audit-image.png"><video poster="audit-image.png"></video><img srcset="audit-image.png 1x">'
+    );
+    CardsOfficialBridge._fetchMedia=fetchOrig;
     return {
       temFallback: /html\.nightMode body\.card\{background:transparent/.test(doc),
       nightMode: /<html class="nightMode">/.test(doc),
-      respeitaCustom: !/html\.nightMode body\.card\{background:transparent/.test(custom)
+      respeitaCustom: !/html\.nightMode body\.card\{background:transparent/.test(custom),
+      mediaCss:/background-image:url\(["']?blob:/i.test(media)&&/@font-face[^}]*url\(["']?blob:/i.test(media),
+      mediaAttrs:/src="blob:/i.test(media)&&/poster="blob:/i.test(media)&&/srcset="blob:/i.test(media)
     };
   });
   ok(fundo.temFallback && fundo.nightMode, 'HTML oficial no tema escuro recebe nightMode e fundo transparente');
   ok(fundo.respeitaCustom, 'CSS noturno do template oficial permanece soberano');
+  ok(fundo.mediaCss && fundo.mediaAttrs, 'mídia local em CSS, src, poster e srcset usa URL autenticada/blob');
 
   // ── A7: código de terceiros ────────────────────────────────────────────────
   const a7 = await page.evaluate(() => ({

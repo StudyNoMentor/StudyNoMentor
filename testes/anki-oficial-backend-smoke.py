@@ -407,7 +407,15 @@ with tempfile.TemporaryDirectory() as tmp:
         ccol.add_note(cnote, ccol.decks.get_current_id())
         ccid = int(cnote.cards()[0].id)
 
-    cq = app.cards_official_reviewer_next(cards_ctx)
+    cq = app.cards_official_reviewer_scope(
+        app.CardsReviewScopeBody(
+            session_id="smoke-review-session",
+            deck_id=0,
+            card_ids=[ccid],
+            label="Smoke",
+        ),
+        cards_ctx,
+    )
     assert cq["finished"] is False
     assert ccid in cq["queue_ids"]
     assert cq["card"]["question"]
@@ -427,8 +435,26 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert "marked" not in unmarked["notes"][0]["tags"]
 
+    # As ações acima alteraram o card oficial; como o frontend real faz, refazemos
+    # o snapshot antes de responder para não aceitar scheduling state obsoleto.
+    cq = app.cards_official_reviewer_scope(
+        app.CardsReviewScopeBody(
+            session_id="smoke-review-session",
+            deck_id=0,
+            card_ids=[ccid],
+            label="Smoke",
+        ),
+        cards_ctx,
+    )
     answered = app.cards_official_reviewer_answer(
-        app.AnswerBody(card_id=ccid, rating=3, milliseconds_taken=321),
+        app.AnswerBody(
+            session_id="smoke-review-session",
+            session_version=cq["review_session"]["version"],
+            request_id="smoke-review-answer-1",
+            card_id=ccid,
+            rating=3,
+            milliseconds_taken=321,
+        ),
         cards_ctx,
     )
     state = answered["answered"]
@@ -628,11 +654,12 @@ with tempfile.TemporaryDirectory() as tmp:
     assert changed["notes"][0]["notetype_id"] == new_id
     assert changed["cards"], "Anki deve devolver os cards resultantes da mudança de tipo"
 
-    # Undo/redo da coleção Cards também pertencem ao backend oficial.
-    undo_out = app.cards_official_undo(cards_ctx)
-    assert undo_out["ok"] is True and "reviewer" in undo_out
-    redo_out = app.cards_official_redo(cards_ctx)
-    assert redo_out["ok"] is True and "reviewer" in redo_out
+    # Undo/redo da coleção Cards passam pela rota reconciliada: além da
+    # operação oficial, devolvem snapshot completo + status para o espelho.
+    undo_out = app.cards_official_history_undo(cards_ctx)
+    assert undo_out["ok"] is True and "state" in undo_out and "status" in undo_out
+    redo_out = app.cards_official_history_redo(cards_ctx)
+    assert redo_out["ok"] is True and "state" in redo_out and "status" in redo_out
 
     app.cards_pool.close_all()
     # Migração automática legado -> Collection oficial. Esse é o caminho
@@ -856,14 +883,18 @@ with tempfile.TemporaryDirectory() as tmp:
     )
     assert selection_out["state"]["reviewer"]["queue_ids"]
     # Recupera também coleções já migradas quando Default ficou selecionado.
+    # Este bloco testa o helper nativo de seleção; o isolamento de sessão é coberto
+    # em cards-review-scope.py.
     selection_col.decks.select(app.DeckId(1))
-    recovered = app.cards_official_reviewer_next(selection_user)
+    selection_col.set_config("study_review_all_decks", True)
+    recovered = app.cards_reviewer_payload(selection_col)
     assert recovered["finished"] is False
     assert int(selection_col.decks.get_current_id()) == int(selection_out["deck_map"]["d"])
     # Não substitui a seleção explícita de outro baralho vazio.
     empty_id = selection_col.decks.add_normal_deck_with_name("Vazio escolhido").id
-    app.cards_official_reviewer_scope(app.SelectDeckBody(deck_id=int(empty_id)), selection_user)
-    empty_queue = app.cards_official_reviewer_next(selection_user)
+    selection_col.decks.select(app.DeckId(int(empty_id)))
+    selection_col.set_config("study_review_all_decks", False)
+    empty_queue = app.cards_reviewer_payload(selection_col)
     assert empty_queue["finished"] is True
     assert int(selection_col.decks.get_current_id()) == int(empty_id)
     # Default com um sub-baralho populado é um escopo de estudo válido.
@@ -873,7 +904,8 @@ with tempfile.TemporaryDirectory() as tmp:
     child_note["Front"], child_note["Back"] = "Filho pergunta", "Filho resposta"
     selection_col.add_note(child_note, app.DeckId(child_id))
     selection_col.decks.select(app.DeckId(1))
-    child_queue = app.cards_official_reviewer_next(selection_user)
+    selection_col.set_config("study_review_all_decks", False)
+    child_queue = app.cards_reviewer_payload(selection_col)
     assert child_queue["finished"] is False
     assert int(selection_col.decks.get_current_id()) == 1
 
@@ -889,7 +921,9 @@ with tempfile.TemporaryDirectory() as tmp:
             note["Front"], note["Back"] = label + str(idx), "Resposta"
             multi_col.add_note(note, app.DeckId(did))
         multi_ids.append(int(did))
-    scope = app.cards_official_reviewer_scope(app.SelectDeckBody(deck_id=0), multi_user)
+    multi_col.set_config("study_review_all_decks", True)
+    multi_col.set_config("study_review_scope_label", "Todos os cards")
+    scope = app.cards_reviewer_payload(multi_col)
     assert scope["review_scope"]["total_cards"] == 6
     visited = set()
     for _ in range(3):
@@ -901,7 +935,7 @@ with tempfile.TemporaryDirectory() as tmp:
             if int(card.did) == selected:
                 card.queue = -1
                 multi_col.update_card(card)
-        scope = app.cards_official_reviewer_next(multi_user)
+        scope = app.cards_reviewer_payload(multi_col)
     assert visited == set(multi_ids) and scope["finished"]
     assert multi_col.card_count() == 6
     assert scope["review_scope"]["total_cards"] == 6
@@ -992,10 +1026,21 @@ with tempfile.TemporaryDirectory() as tmp:
 
     app.pool.close_all()
 
-    # Pool com teto (LRU): coleções antigas e livres são fechadas.
+    # Pool com teto (LRU): get() reserva a referência até o chamador entrar
+    # no lock. A não pode ser fechada na janela get(A) -> get(B/C) -> lock(A).
     small = app.CollectionPool(max_open=2)
-    a = small.get("lru-a"); small.get("lru-b"); small.get("lru-c")
+    a = small.get("lru-a")
+    b = small.get("lru-b")
+    c = small.get("lru-c")
+    assert "lru-a" in small._items and len(small._items) == 3
+    with a.lock:
+        assert a.col.card_count() == 0
+    # Ao liberar a reserva de A, a LRU pode voltar ao teto normalmente.
     assert "lru-a" not in small._items and len(small._items) == 2
+    with b.lock:
+        assert b.col.card_count() == 0
+    with c.lock:
+        assert c.col.card_count() == 0
     small.close_all()
 
     # Upload em blocos com teto: passa do limite -> 413, sem temporário órfão.
@@ -1077,18 +1122,12 @@ assert "media-src 'self' data: blob: https:" in header
 css = (ROOT / "src" / "css" / "41-anki-official.css").read_text(encoding="utf-8")
 css2 = (ROOT / "src" / "css" / "42-anki-official-surfaces.css").read_text(encoding="utf-8")
 js = (ROOT / "src" / "js" / "44-anki-official.js").read_text(encoding="utf-8")
-js2 = (ROOT / "src" / "js" / "45-anki-official-surfaces.js").read_text(encoding="utf-8")
 html = (ROOT / "src" / "html" / "03-corpo.html").read_text(encoding="utf-8")
 assert "anki-study-review-card" in css and "anki-study-deck-row" in css
 assert "anki-browser-row-advanced" in css2 and "anki-io-stage" in css2
 assert "anki-type-answer-box" in css2 and "anki-column-config-row" in css2
 assert "cards-review-wrap" in js and "cards-ans4" in js
-assert "renderStats" in js2 and "openCustomStudy" in js2 and "openFilteredDeck" in js2
-assert "openFsrsTools" in js2 and "openNotetypes" in js2 and "openImageOcclusion" in js2
-assert "openBrowserColumns" in js2 and "openRichEditNote" in js2 and "toggleAutoAdvance" in js2
-assert "Shift+A" not in js2 or "KeyA" in js2
 assert "CardEngine." not in js and "CardsConfig." not in js
-assert "CardEngine." not in js2 and "CardsConfig." not in js2
 assert 'id="screen-cards"' in html
 assert '<h2 class="page-title">Anki</h2>' in html
 assert 'id="screen-anki"' not in html

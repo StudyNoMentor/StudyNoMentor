@@ -77,19 +77,23 @@ assert.match(bridge,/else\{[\s\S]*?collection\/full-state[\s\S]*?await this\._re
 assert.match(bridge,/claimed\.get\(String\(officialCard\.id\)\)[\s\S]*?Recuperação da migração oficial ambígua/,'recuperação não pode fundir silenciosamente dois cards legados no mesmo card oficial');
 assert.match(bridge,/\/api\/cards-official\/reviewer\/answer/);
 assert.match(bridge,/\/api\/cards-official\/reviewer\/type-answer\//);
-assert.match(bridge,/\/api\/cards-official\/undo/);
-assert.match(bridge,/\/api\/cards-official\/redo/);
+assert.match(bridge,/\/api\/cards-official\/history\/undo/);
+assert.match(bridge,/\/api\/cards-official\/history\/redo/);
 assert.match(bridge,/\/api\/cards-official\/media\//);
 assert.match(bridge,/const replayTxn=await this\._persistAnswered\(state,false\)/,'redo deve criar novo journal');
 assert.match(bridge,/queue===1\|\|queue===4/,'Learn/PreviewRepeat usam timestamp oficial');
 assert.match(bridge,/Number\(state\.due\)-\(Number\(timing\.today\)\|\|0\)/,'Review/DayLearn usam dia oficial');
 assert.match(bridge,/state\.review_logs&&state\.review_logs\[0\]/,'revlog local deve vir do log oficial');
 assert.match(bridge,/oc\.auto_advance\|\|\{\}/,'Auto Advance deve consumir o DeckConfig oficial devolvido pelo reviewer');
-assert.match(bridge,/this\._elapsedMs\(\(this\.review\.card&&this\.review\.card\.auto_advance\)\|\|\{\}\)/,'tempo da resposta deve usar maxTaken e stopTimer oficiais');
+assert.match(bridge,/this\._elapsedMs\(\(current&&current\.auto_advance\)\|\|\{\}\)/,'tempo da resposta deve usar maxTaken e stopTimer oficiais');
 assert.ok(!/trueRetention\(|previsaoCarga\(|_statBotoes\(|_statDistribuicao\(|_statsCards\(/.test(cards),'casca Cards não pode manter Stats acadêmicos locais mortos');
 assert.ok(!/_armReviewerAutomation\(c,cfg\)|CardsConfig\.forDeck\(c\.deckId\)/.test(cards),'Auto Advance da casca não pode depender de configuração acadêmica local');
 assert.ok(!/\bCardsConfig\b/.test(cards),'tela Cards não pode manter segunda fonte acadêmica em CardsConfig');
 assert.ok(!/CardEngine\./.test(cards),'tela Cards não pode chamar o motor acadêmico legado');
+assert.match(bridge,/source=window\.CardsScreen&&typeof CardsScreen\.currentFilteredCards===['"]function['"]\?CardsScreen\.currentFilteredCards\(\)/,'fila oficial deve usar o mesmo recorte visual dos filtros');
+assert.match(bridge,/session_version:String\(this\._reviewSessionVersion\|\|['"]['"]\)/,'resposta deve estar vinculada à versão da sessão');
+assert.match(bridge,/_reviewUiActive\(cardId,sessionVersion\)/,'Auto Advance precisa revalidar tela, card e sessão');
+assert.ok(!cards.includes('value: opts[1].value'),'mover em lote não pode assumir um segundo baralho');
 assert.match(cards,/async exportAudit\(\)[\s\S]*?\/api\/cards-official\/collection\/full-state/,'auditoria deve fotografar a Collection oficial');
 assert.doesNotMatch(cards,/async exportAudit\(\)[\s\S]*?recomputarMemoria/,'auditoria não pode reexecutar FSRS localmente');
 assert.match(cards,/CardsOfficialBridge\.deleteNotesForCardRefs\(\[\.\.\.sel\]\)/,'exclusão em lote da lista deve delegar ao Anki oficial');
@@ -101,9 +105,12 @@ assert.match(bridge,/mem\.difficulty/);
 
 assert.match(backend,/cards_pool = CollectionPool\(namespace="study-cards"\)/,'Cards precisa de coleção oficial isolada');
 assert.match(backend,/def cards_uc_for/);
-assert.match(backend,/item\.col\.sched\.get_queued_cards\(fetch_limit=1\)/);
-assert.match(backend,/item\.col\.sched\.build_answer\(card=card, states=q\.states, rating=rating\)/);
+assert.match(backend,/class ReviewSessionPool:/,'revisão precisa de sessão isolada por aparelho');
+assert.match(backend,/session\.col\.sched\.get_queued_cards/,'limites oficiais devem ser calculados já dentro do recorte');
+assert.match(backend,/item\.col\.sched\.build_answer\(card=live, states=q\.states, rating=rating\)/);
 assert.match(backend,/item\.col\.sched\.answer_card\(answer\)/);
+assert.match(bridge,/session_id:this\._reviewSession\(\)/,'bridge deve identificar a sessão');
+assert.match(bridge,/request_id:requestId/,'respostas precisam de chave idempotente');
 assert.match(backend,/col\.sched\.describe_next_states\(q\.states\)/);
 assert.match(backend,/col\.get_review_logs\(card\.id\)/);
 assert.match(backend,/item\.col\.compare_answer/);
@@ -125,7 +132,7 @@ assert.match(backend,/item\.col\.get_browser_column\(sort_key\)/,'ordenação de
 assert.match(bridge,/\/api\/cards-official\/browser\/ids\?/,'Browser Study deve consultar IDs oficiais');
 assert.match(bridge,/AnkiProductParity\._browserRows=\(\)=>self\._browserCache/,'linhas exibidas devem vir da ordem oficial em cache');
 assert.match(bridge,/CardsScreen\.renderStats=\(box\)=>\{void this\.renderStats\(box\);\};/,'aba Stats dos Cards deve ser tomada pelo bridge oficial');
-assert.match(bridge,/\/api\/cards-official\/stats\/graphs\?/,'Stats dos Cards devem consultar GraphsService da coleção isolada');
+assert.match(bridge,/\/api\/cards-official\/stats\/graphs\/scoped/,'Stats dos Cards devem consultar GraphsService oficial com o recorte Study');
 assert.match(bridge,/Nenhum cálculo local foi usado como fallback/,'falha de Stats não pode cair para cálculo local');
 assert.ok(!/this\._orig\.renderStats\(/.test(bridge),'Stats oficial não pode executar renderer local como fallback');
 assert.ok(!statsMedia.includes('AnkiMediaStore'),'Cards não pode manter MediaStore IndexedDB paralelo ao MediaManager oficial');
@@ -268,8 +275,6 @@ for(const path of [
   '/api/cards-official/reviewer/answer',
   '/api/cards-official/reviewer/type-answer/{card_id}',
   '/api/cards-official/card/{card_id}/state',
-  '/api/cards-official/undo',
-  '/api/cards-official/redo',
   '/api/cards-official/cards/action',
   '/api/cards-official/notes',
   '/api/cards-official/note/{note_id}',
