@@ -43,5 +43,8 @@
     "safe_to_merge": true,
     "blockers": [],
     "generated_at": null
+  },
+  "auto_update_policy": {
+    "stable_release_quarantine_hours": 48
   }
 }
