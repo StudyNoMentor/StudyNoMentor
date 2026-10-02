@@ -114,7 +114,7 @@ O merge automático só ocorre após a execução completa de `Verificacao` na b
 
 
 Os Cards delegam scheduling, FSRS, filas, busca, rendering e operações de
-coleção ao pacote `anki==26.09.3` por `anki_official_backend/app.py` e
+coleção à versão `anki==<release>` indicada em `UPSTREAM.lock.json`, por `anki_official_backend/app.py` e
 `src/js/95-cards-official-bridge.js`. Mudanças nesses comportamentos devem usar
 as APIs oficiais e preservar os resultados na projeção do Study. A versão do
 runtime é conferida antes de abrir qualquer coleção.
@@ -134,8 +134,7 @@ python -m pip install -r anki_official_backend/requirements.txt
 python testes/anki-oficial-backend-smoke.py
 ```
 
-O gate de inventário verifica todos os 2.107 blobs e os quatro gitlinks
-internos. A opção `--require-upstream`, obrigatória no CI, recusa checkout sem
+O gate de inventário verifica todos os blobs e gitlinks declarados pela release fixada. A opção `--require-upstream`, obrigatória no CI, recusa checkout sem
 a fonte oficial. O teste de versão verifica também a recusa de runtimes
 incompatíveis ou sem versão, sem exigir dependências Python externas.
 
