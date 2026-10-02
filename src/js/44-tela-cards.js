@@ -288,29 +288,63 @@ const CardsScreen = {
     this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
   },
   destinationDecks(planId) {
-    // Card global continua pertencendo ao planejamento onde nasceu. Ao editá-lo
-    // de outra visão, o seletor precisa enxergar os baralhos DA ORIGEM; usar
-    // DB.getDecks() aqui mostrava somente o plano atual e fazia o destino sumir.
+    // Edição continua no planejamento de origem do card.
     if (planId && DB.getDecksForPlan) {
       const list = DB.getDecksForPlan(planId);
       if (Array.isArray(list)) return list;
     }
     return DB.getDecks();
   },
+  destinationDeckCatalog() {
+    // Criar card é uma operação sobre a Collection global do Anki: o catálogo
+    // não pode depender do filtro visual "Este planejamento / Todos".
+    const G=window.StudyGlobalScope,
+      rows=(G&&typeof G.allBy==='function'?G.allBy('decks'):DB.getDecks().map(d=>Object.assign({},d,{_planId:PlanManager.getActivePlanId()})))
+        .filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))),
+      active=String(PlanManager.getActivePlanId()||''),groups=new Map();
+    for(const d of rows){
+      const oid=Number(d&&d.ankiId),canonical=Number.isFinite(oid)&&oid>0?'anki:'+String(oid):'local:'+String(d&&d._planId||'')+'::'+String(d&&d.id||'');
+      if(!groups.has(canonical))groups.set(canonical,[]);
+      groups.get(canonical).push(d);
+    }
+    return [...groups.values()].map(replicas=>{
+      // Se o mesmo deck oficial estiver espelhado em vários planejamentos
+      // (caso clássico do Default/Padrão), exibe UMA vez e prefere o espelho do
+      // planejamento ativo para que o novo card fique no contexto atual.
+      const chosen=replicas.find(d=>String(d&&d._planId||'')===active)||replicas[0],
+        plans=[...new Set(replicas.map(d=>String(d&&d._planId||'')).filter(Boolean))],
+        out=Object.assign({},chosen,{_replicaPlanIds:plans,_replicaCount:replicas.length});
+      return out;
+    }).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+  },
+  _deckDestinationValue(d,globalChoice) {
+    if(globalChoice&&d&&d._planId!=null)
+      return 'deckref:'+encodeURIComponent(String(d._planId))+'::'+encodeURIComponent(String(d.id));
+    return 'deck:'+String(d&&d.id||'');
+  },
+  _parseDeckDestination(dest) {
+    const raw=String(dest||'');
+    if(raw.indexOf('deckref:')===0){
+      const body=raw.slice(8),cut=body.indexOf('::');if(cut<0)return{deckId:'',planId:null};
+      let planId=body.slice(0,cut),deckId=body.slice(cut+2);
+      try{planId=decodeURIComponent(planId);deckId=decodeURIComponent(deckId);}catch(_){/* valores locais */ }
+      return {deckId,planId};
+    }
+    if(raw.indexOf('deck:')===0)return{deckId:raw.slice(5),planId:null};
+    return {deckId:'',planId:null};
+  },
   destinoOptionsHtml(selected, planId, todosOsPlanos) {
-    // O destino de um card novo é sempre um baralho ("deck:id") — a disciplina
-    // ficou pro campo Matéria (Tec), texto livre, sem duplicar o que já é feito
-    // aqui pelo baralho. Em edição global, usa o catálogo do plano de origem.
-    // Card NOVO pode nascer em qualquer baralho visível: é gravado no
-    // planejamento dono do baralho escolhido (saveCard). Edição e importação
-    // continuam presas ao plano de origem/ativo.
-    const lista = todosOsPlanos
-      ? this.collectionDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
-          .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }))
-      : this.destinationDecks(planId);
-    const deckOpts = lista.map(d =>
-      `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome && String(d._planId) !== String(PlanManager.getActivePlanId()) ? ' · ' + escapeHtml(d._planNome) : ''}</option>`
-    ).join('');
+    // Novo card vê sempre todos os baralhos canônicos da Collection, mesmo com
+    // o filtro da tela em "Este planejamento". Edição permanece na origem.
+    const lista = todosOsPlanos ? this.destinationDeckCatalog() : this.destinationDecks(planId),
+      active=String(PlanManager.getActivePlanId()||'');
+    const deckOpts = lista.map(d => {
+      const value=this._deckDestinationValue(d,!!todosOsPlanos),
+        selectedNow=selected===value||(!todosOsPlanos&&selected==='deck:'+d.id),
+        onlyElsewhere=todosOsPlanos&&d._planId!=null&&String(d._planId)!==active&&!(d._replicaPlanIds||[]).includes(active),
+        suffix=onlyElsewhere&&d._planNome?' · '+escapeHtml(d._planNome):'';
+      return `<option value="${escapeHtml(value)}"${selectedNow?' selected':''}>📁 ${escapeHtml(d.nome)}${suffix}</option>`;
+    }).join('');
     // Cards antigos podiam ter uma disciplina como destino, sem baralho nenhum
     // ("sub:Nome"). Editar um desses não pode fazer o destino atual sumir da
     // lista sozinho — mantém só essa opção, sem reoferecer as outras disciplinas.
@@ -1001,8 +1035,11 @@ const CardsScreen = {
       _reversed: kind === 'basic_reversed',
       _addReverse: kind === 'basic_optional_reversed' && !!(document.getElementById('card-add-reverse')||{}).checked
     };
-    if (dest.startsWith('deck:')) data.deckId = dest.slice(5);
-    else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
+    if (dest.startsWith('deck:') || dest.startsWith('deckref:')) {
+      const ref=this._parseDeckDestination(dest);
+      data.deckId=ref.deckId||null;
+      if(ref.planId!=null)data._deckPlanId=ref.planId;
+    } else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
     if(newDeckName)data._newDeckName=newDeckName;
     return data;
   },
