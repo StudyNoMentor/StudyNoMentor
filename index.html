@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="va1956c5d26">
+<meta name="diario-versao" content="vfad642b745">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -35635,13 +35635,13 @@ window.AnkiMaxStatsMedia=AnkiMaxStatsMedia;
 queueMicrotask(()=>AnkiMaxStatsMedia.install());
 
 /* ============================================================
-   ANKI — BARALHOS COMPARTILHADOS
+   ANKI OFICIAL — BARALHOS COMPARTILHADOS
    ------------------------------------------------------------
    O catálogo permanece no AnkiWeb oficial. Esta camada só abre o
    catálogo e entrega o .apkg/.colpkg escolhido ao importador oficial
    já conectado à Collection do backend.
    ============================================================ */
-const AnkiFinalParity = {
+const AnkiSharedDecks = {
   _installed:false,
 
   install(){
@@ -35690,8 +35690,8 @@ const AnkiFinalParity = {
     return true;
   }
 };
-window.AnkiFinalParity=AnkiFinalParity;
-queueMicrotask(()=>AnkiFinalParity.install());
+window.AnkiSharedDecks=AnkiSharedDecks;
+queueMicrotask(()=>AnkiSharedDecks.install());
 
 /* ============================================================
    PARIDADE TOTAL ANKI — Browser / Undo / Stats /
