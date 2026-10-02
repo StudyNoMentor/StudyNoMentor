@@ -488,29 +488,35 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
     aplicarFiltros(aberto);
     try { localStorage.setItem(FILTROS_KEY, aberto ? '1' : '0'); } catch (e) { if (typeof _quiet === 'function') _quiet(e, 'cards-filtros'); }
   });
+  const aplicarFiltroCards = () => {
+    CardsScreen._reviewIdx = 0;
+    CardsScreen._meusMostrando = 0;
+    if (CardsScreen.invalidateReviewQueue) CardsScreen.invalidateReviewQueue();
+    CardsScreen.renderContent();
+  };
   // busca
-  on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-search', 'input', (e) => { CardsScreen.filters.busca = e.target.value; aplicarFiltroCards(); });
   // Compatibilidade: os selects nativos ficam ocultos porque a UI principal é
   // multisseleção. Se algum fluxo legado alterar um deles, converta para Set.
   on('cards-f-materia', 'change', (e) => {
     CardsScreen.filters.materias = e.target.value ? new Set([e.target.value]) : new Set();
-    CardsScreen._reviewIdx = 0; CardsScreen.invalidateReviewQueue(); CardsScreen.renderContent();
+    aplicarFiltroCards();
   });
   on('cards-f-assunto', 'change', (e) => {
     CardsScreen.filters.assuntos = e.target.value ? new Set([e.target.value]) : new Set();
     CardsScreen.filters.assunto = e.target.value || '';
-    CardsScreen._reviewIdx = 0; CardsScreen.invalidateReviewQueue(); CardsScreen.renderContent();
+    aplicarFiltroCards();
   });
-  on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; CardsScreen._reviewIdx = 0; CardsScreen.renderContent(); });
+  on('cards-f-tipo', 'change', (e) => { CardsScreen.filters.tipo = e.target.value; aplicarFiltroCards(); });
   // status pills
   document.querySelectorAll('#cards-f-status .cards-pill').forEach(p => p.addEventListener('click', () => {
     document.querySelectorAll('#cards-f-status .cards-pill').forEach(x => x.classList.toggle('active', x === p));
-    CardsScreen.filters.status = p.dataset.status; CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+    CardsScreen.filters.status = p.dataset.status; aplicarFiltroCards();
   }));
   on('cards-f-fav', 'click', () => {
     CardsScreen.filters.favorito = !CardsScreen.filters.favorito;
     $id('cards-f-fav').classList.toggle('active', CardsScreen.filters.favorito);
-    CardsScreen._reviewIdx = 0; CardsScreen.renderContent();
+    aplicarFiltroCards();
   });
   // topo
   on('cards-algo-btn', 'click', () => CardsScreen.openAlgoConfig());
