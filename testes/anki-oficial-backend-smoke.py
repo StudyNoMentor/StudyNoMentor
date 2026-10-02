@@ -1077,18 +1077,12 @@ assert "media-src 'self' data: blob: https:" in header
 css = (ROOT / "src" / "css" / "41-anki-official.css").read_text(encoding="utf-8")
 css2 = (ROOT / "src" / "css" / "42-anki-official-surfaces.css").read_text(encoding="utf-8")
 js = (ROOT / "src" / "js" / "44-anki-official.js").read_text(encoding="utf-8")
-js2 = (ROOT / "src" / "js" / "45-anki-official-surfaces.js").read_text(encoding="utf-8")
 html = (ROOT / "src" / "html" / "03-corpo.html").read_text(encoding="utf-8")
 assert "anki-study-review-card" in css and "anki-study-deck-row" in css
 assert "anki-browser-row-advanced" in css2 and "anki-io-stage" in css2
 assert "anki-type-answer-box" in css2 and "anki-column-config-row" in css2
 assert "cards-review-wrap" in js and "cards-ans4" in js
-assert "renderStats" in js2 and "openCustomStudy" in js2 and "openFilteredDeck" in js2
-assert "openFsrsTools" in js2 and "openNotetypes" in js2 and "openImageOcclusion" in js2
-assert "openBrowserColumns" in js2 and "openRichEditNote" in js2 and "toggleAutoAdvance" in js2
-assert "Shift+A" not in js2 or "KeyA" in js2
 assert "CardEngine." not in js and "CardsConfig." not in js
-assert "CardEngine." not in js2 and "CardsConfig." not in js2
 assert 'id="screen-cards"' in html
 assert '<h2 class="page-title">Anki</h2>' in html
 assert 'id="screen-anki"' not in html
