@@ -547,6 +547,7 @@ document.querySelectorAll('.rte').forEach(buildRteToolbar);
       menu.classList.add('open');
       btn.classList.add('open');
       btn.setAttribute('aria-expanded', 'true');
+      if (window.AnchoredListViewport && AnchoredListViewport.schedule) AnchoredListViewport.schedule();
       requestAnimationFrame(() => {
         const first = items()[0];
         if (first) first.focus();
