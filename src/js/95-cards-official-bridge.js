@@ -1117,9 +1117,11 @@ const CardsOfficialBridge = {
     }
   },
 
-  async _frame(html){
+  async _frame(html,token){
     const frame=document.getElementById('cards-official-frame');if(!frame)return;
-    frame.srcdoc=await this.htmlWithMedia(html);
+    const epoch=token==null?this._renderEpoch:token,srcdoc=await this.htmlWithMedia(html);
+    if(!this._renderStillCurrent(epoch,'revisar',document.getElementById('cards-content')))return;
+    const current=document.getElementById('cards-official-frame');if(current)current.srcdoc=srcdoc;
   },
   _flagButtons(flag){
     const colors=['','#e0393f','#d97a12','#0f9d63','#2563eb','#7c3aed','#db2777','#06b6d4'];
@@ -1262,7 +1264,7 @@ const CardsOfficialBridge = {
 
     bindScope();
     const question=(oc.type_answer&&oc.type_answer.enabled&&oc.type_answer.question_html)||oc.question||'';
-    await this._frame(question);
+    await this._frame(question,token);
     void this.playAv(oc.question_av_tags||[]);
     const flip=document.getElementById('cards-flip');if(flip)flip.onclick=()=>void this.showAnswer();
     const edit=document.getElementById('cards-review-edit');if(edit)edit.onclick=()=>CardsScreen.openCardModal(local.id);
