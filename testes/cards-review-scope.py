@@ -68,6 +68,74 @@ with tempfile.TemporaryDirectory() as tmp:
         assert item.col.get_card(ids[0]).reps == 0
         revlogs = len(item.col.get_review_logs(ids[-1]))
 
+    # Escritas de metadados podem avançar card.mod sem alterar scheduling.
+    # Isso acontece na reconciliação Study e não pode simular "outro aparelho".
+    item = app.cards_uc_for(user)
+    with item.lock:
+        live = item.col.get_card(ids[0])
+        scheduling_before = (
+            live.type, live.queue, live.due, live.odue, live.ivl, live.factor,
+            live.reps, live.lapses, live.did, live.odid, live.left,
+        )
+        old_mod = int(live.mod)
+        live.custom_data = '{"study_meta":"reconciled"}'
+        item.col.update_card(live)
+        live_after = item.col.get_card(ids[0])
+        scheduling_after = (
+            live_after.type, live_after.queue, live_after.due, live_after.odue,
+            live_after.ivl, live_after.factor, live_after.reps, live_after.lapses,
+            live_after.did, live_after.odid, live_after.left,
+        )
+        assert scheduling_after == scheduling_before
+        assert int(live_after.mod) >= old_mod
+
+    metadata_answer = app.cards_official_reviewer_answer(
+        app.AnswerBody(
+            session_id="device-b-session",
+            session_version=b["review_session"]["version"],
+            request_id="device-b:metadata-only",
+            card_id=ids[0],
+            rating=3,
+        ),
+        user,
+    )
+    assert metadata_answer["idempotent"] is False
+    item = app.cards_uc_for(user)
+    with item.lock:
+        assert item.col.get_card(ids[0]).reps == 1
+
+    # Alteração real de scheduling continua protegida pela trava otimista.
+    c_session = app.cards_official_reviewer_scope(
+        app.CardsReviewScopeBody(
+            session_id="device-c-session",
+            deck_id=0,
+            card_ids=[ids[1]],
+            label="Plan C",
+        ),
+        user,
+    )
+    item = app.cards_uc_for(user)
+    with item.lock:
+        live = item.col.get_card(ids[1])
+        live.due = int(live.due) + 1
+        item.col.update_card(live)
+    try:
+        app.cards_official_reviewer_answer(
+            app.AnswerBody(
+                session_id="device-c-session",
+                session_version=c_session["review_session"]["version"],
+                request_id="device-c:scheduling-change",
+                card_id=ids[1],
+                rating=3,
+            ),
+            user,
+        )
+    except app.HTTPException as exc:
+        assert exc.status_code == 409
+        assert "agendamento" in str(exc.detail).lower()
+    else:
+        raise AssertionError("mudança real de scheduling deveria invalidar o snapshot")
+
     # Transport retry with the same request id is idempotent.
     retry = app.cards_official_reviewer_answer(
         app.AnswerBody(
