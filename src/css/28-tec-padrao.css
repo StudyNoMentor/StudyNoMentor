@@ -16,9 +16,8 @@
       adiados um quadro; sem um estado visível, o adiamento só troca "travado"
       por "nada acontece". `.tec-aba-ocupada` é esse estado.
 
-   3. SUPERFÍCIES NOVAS. O explicador de score (`.tpm-why`) e a rota manual
-      reagrupada (`.tpm-legacy-exec`) precisam nascer já dentro da linguagem
-      da tela, não como enxerto.
+   3. SUPERFÍCIES NOVAS. O explicador de score (`.tpm-why`) precisa nascer
+      já dentro da linguagem da tela, não como enxerto.
    ============================================================================ */
 
 /* ── 1. ABA OCUPADA ─────────────────────────────────────────────────────────
@@ -64,19 +63,6 @@
   width: var(--tpm-why-w, 0%);
   background: color-mix(in srgb, var(--accent) 11%, transparent);
   pointer-events: none;
-}
-
-/* ── 3. A ROTA MANUAL REAGRUPADA ────────────────────────────────────────────
-   Precisa parecer o que é: um caminho completo e válido, só não o primeiro.
-   Borda sólida (não tracejada — não é rascunho nem coisa obsoleta) e um
-   cabeçalho que diz o que há dentro, porque recolher sem rotular esconde
-   informação em vez de ruído. */
-#plano-lista > .tpm-legacy-exec {
-  margin: 4px 0 16px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  overflow: hidden;
 }
 
 /* ── 4. UMA RÉGUA SÓ ────────────────────────────────────────────────────────
