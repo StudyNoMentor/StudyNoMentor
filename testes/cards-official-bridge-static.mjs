@@ -90,6 +90,10 @@ assert.ok(!/trueRetention\(|previsaoCarga\(|_statBotoes\(|_statDistribuicao\(|_s
 assert.ok(!/_armReviewerAutomation\(c,cfg\)|CardsConfig\.forDeck\(c\.deckId\)/.test(cards),'Auto Advance da casca não pode depender de configuração acadêmica local');
 assert.ok(!/\bCardsConfig\b/.test(cards),'tela Cards não pode manter segunda fonte acadêmica em CardsConfig');
 assert.ok(!/CardEngine\./.test(cards),'tela Cards não pode chamar o motor acadêmico legado');
+assert.match(bridge,/source=window\.CardsScreen&&typeof CardsScreen\.currentFilteredCards===['"]function['"]\?CardsScreen\.currentFilteredCards\(\)/,'fila oficial deve usar o mesmo recorte visual dos filtros');
+assert.match(bridge,/session_version:String\(this\._reviewSessionVersion\|\|['"]['"]\)/,'resposta deve estar vinculada à versão da sessão');
+assert.match(bridge,/_reviewUiActive\(cardId,sessionVersion\)/,'Auto Advance precisa revalidar tela, card e sessão');
+assert.ok(!cards.includes('value: opts[1].value'),'mover em lote não pode assumir um segundo baralho');
 assert.match(cards,/async exportAudit\(\)[\s\S]*?\/api\/cards-official\/collection\/full-state/,'auditoria deve fotografar a Collection oficial');
 assert.doesNotMatch(cards,/async exportAudit\(\)[\s\S]*?recomputarMemoria/,'auditoria não pode reexecutar FSRS localmente');
 assert.match(cards,/CardsOfficialBridge\.deleteNotesForCardRefs\(\[\.\.\.sel\]\)/,'exclusão em lote da lista deve delegar ao Anki oficial');
