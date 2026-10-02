@@ -1059,16 +1059,22 @@ const CardsOfficialBridge = {
     if(this.ready&&!this.dirty&&!force)return this.review;
     this._bootPromise=(async()=>{
       if(!this.api().token())throw new Error('Entre na conta do Study para usar o motor oficial do Anki.');
-      const status=await this.request('/api/cards-official/status'),
+      let boot=null;
+      try{
+        boot=await this.request('/api/cards-official/bootstrap-state');
+      }catch(e){
+        if(Number(e&&e.status)!==404)throw e;
+      }
+      const status=boot&&boot.status?boot.status:await this.request('/api/cards-official/status'),
         localCount=window.StudyGlobalScope&&StudyGlobalScope.allBy?StudyGlobalScope.allBy('cards').length:(this._scopeCards()||[]).length,
         officialCount=Math.max(Number(status&&status.cards)||0,Number(status&&status.notes)||0);
-      let state=null;
+      let state=boot&&boot.state||null;
       if(!officialCount&&localCount){
         const migrated=await this._migrateLegacyCollection();
         state=migrated&&migrated.state||null;
         if(!state)throw new Error('A migração oficial dos Cards legados não devolveu o snapshot da Collection.');
       }else{
-        state=await this.request('/api/cards-official/collection/full-state');
+        if(!state)state=await this.request('/api/cards-official/collection/full-state');
         if(localCount){
           await this._recoverLegacyIdentityFromOfficialState(state);
           const timingToday=Number(state.reviewer&&state.reviewer.timing&&state.reviewer.timing.today)||0,
@@ -1088,7 +1094,7 @@ const CardsOfficialBridge = {
           }
         }
       }
-      this.preferences=await this.request('/api/cards-official/preferences');
+      this.preferences=boot&&boot.preferences?boot.preferences:await this.request('/api/cards-official/preferences');
       await this._syncOfficialFullState(state,this._activePlanId());
       this.ready=true;this.dirty=false;this._sessionAnswered=0;this._sessionStartTotal=null;
       this._undo=[];this._redo=[];this._applyReviewer(state.reviewer||{finished:true,counts:{},queue_ids:[]});

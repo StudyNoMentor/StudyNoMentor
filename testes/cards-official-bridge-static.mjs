@@ -22,6 +22,13 @@ const build=readFileSync(join(ROOT,'build.mjs'),'utf8');
 const req=readFileSync(join(ROOT,'anki_official_backend/requirements.txt'),'utf8');
 
 assert.match(req,/^anki==26\.09\.3$/m,'backend precisa fixar exatamente anki==26.09.3');
+assert.match(req,/^PyJWT\[crypto\]==2\.15\.1$/m,'verificador JWT precisa estar fixado e com suporte criptográfico');
+assert.match(backend,/PyJWKClient/,'Auth rápido deve validar JWT assimétrico por JWKS');
+assert.match(backend,/max_age=86400/,'preflight CORS precisa ficar cacheável para não duplicar round-trip');
+assert.match(backend,/GZipMiddleware, minimum_size=1024/,'snapshots grandes precisam sair comprimidos');
+assert.match(official,/async _fetchResponse\(path, opts\)[\s\S]*?AbortController[\s\S]*?\[502, 503, 504\]/,'cliente Anki precisa ter timeout e retry apenas no transporte seguro de leitura');
+assert.match(official,/\/api\/anki\/bootstrap\?view=/,'abertura do Anki deve consolidar status + primeira pintura');
+assert.match(bridge,/\/api\/cards-official\/bootstrap-state/,'Cards deve consolidar status, full-state e preferências');
 assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar no build publicado');
 for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
@@ -48,7 +55,7 @@ for(const forbidden of [
 assert.match(bridge,/\/api\/cards-official\/collection\/full-state/,'bootstrap deve carregar o snapshot integral da Collection oficial persistente');
 assert.match(bridge,/officialCards=new Set\(\(state\.cards\|\|\[\]\)\.map\(x=>String\(x\.id\)\)\)/,'IDs canônicos devem vir do snapshot oficial');
 assert.ok(bridge.includes('const oid=Number(card&&card.ankiId)')&&bridge.includes('officialCards.has(String(oid))'),'espelhos Study com identidade oficial devem seguir o snapshot do Anki sem apagar legado não mapeado');
-assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap"),'runtime não pode reconstruir a Collection oficial a partir do Study');
+assert.ok(!bridge.includes("this.request('/api/cards-official/bootstrap'"),'runtime não pode reconstruir a Collection oficial a partir do Study');
 assert.match(backend,/def cards_official_collection_full_state[\s\S]*?cards_collection_full_state_payload\(item\.col\)/,'full-state deve ser extraído da Collection oficial');
 assert.match(backend,/def cards_official_preferences[\s\S]*?item\.col\.get_preferences\(\)/,'Preferences devem ser lidas da Collection oficial');
 assert.match(backend,/def cards_official_update_preferences[\s\S]*?item\.col\.set_preferences\(prefs\)/,'Preferences devem ser persistidas pela Collection oficial');
@@ -274,6 +281,7 @@ const routes=[...backend.matchAll(/@app\.(?:get|post|put|delete)\("([^"]+)"/g)].
 for(const path of [
   '/api/cards-official/status',
   '/api/cards-official/bootstrap',
+  '/api/cards-official/bootstrap-state',
   '/api/cards-official/reviewer/next',
   '/api/cards-official/reviewer/answer',
   '/api/cards-official/reviewer/type-answer/{card_id}',
