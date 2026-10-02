@@ -54,6 +54,26 @@ const CardsOfficialBridge = {
     try{if(window.StudyGlobalScope&&StudyGlobalScope.cards)return StudyGlobalScope.cards();}catch(_){if(typeof _quiet==='function')_quiet(_,'cards-official-scope');}
     return DB.getCards();
   },
+  _reviewScopePayload(deckId=0){
+    const global=window.StudyGlobalScope,
+      mode=global&&global.cardsScope?global.cardsScope():'plan',
+      label=mode==='all'?'Todos os planejamentos':(global&&global.planName?global.planName(this._activePlanId()):'Planejamento atual'),
+      ids=[...new Set(this._scopeCards().map(c=>this._officialId(c)).filter(Boolean))];
+    return {deck_id:deckId,card_ids:ids,label};
+  },
+  async _syncReviewScope(deckId=0){
+    if(deckId&&!this._scopeCards().some(c=>{
+      const deck=window.StudyGlobalScope&&StudyGlobalScope.deckForCard?StudyGlobalScope.deckForCard(c):null;
+      return deck&&Number(deck.ankiId||deck.id)===Number(deckId);
+    }))deckId=0;
+    const payload=this._reviewScopePayload(deckId);
+    const review=await this.request('/api/cards-official/reviewer/scope',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)
+    });
+    this._sessionAnswered=0;this._sessionStartTotal=null;
+    this._applyReviewer(review);
+    return review;
+  },
   _officialId(card){
     const n=Number(card&&card.ankiId!=null?card.ankiId:card&&card.id);
     return Number.isFinite(n)&&n>0?n:null;
@@ -1029,6 +1049,7 @@ const CardsOfficialBridge = {
     box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.3.</p></div></div>';
     try{
       await this.bootstrap(false);
+      await this._syncReviewScope(this.review&&this.review.review_scope&&!this.review.review_scope.all_decks?Number(this.review.review_scope.selected_deck_id):0);
       await this.renderCurrent(box);
     }catch(e){
       console.error('Cards official bridge:',e);
@@ -1107,15 +1128,25 @@ const CardsOfficialBridge = {
   async renderCurrent(box){
     box=box||document.getElementById('cards-content');if(!box)return;
     const q=this.review,scope=q&&q.review_scope||{},decks=scope.decks||[];
-    const scopeHtml='<div class="card"><label for="cards-review-deck">Baralho da revisão</label><select id="cards-review-deck">'+
+    const inventory=scope.inventory||{};
+    const scopeHtml='<div class="card cards-review-scope"><div class="cards-review-scope-switch"><button type="button" class="btn-secondary" data-review-plan-scope="plan">Este planejamento</button><button type="button" class="btn-secondary" data-review-plan-scope="all">Todos os planejamentos</button></div><label for="cards-review-deck">Baralho da revisão</label><select id="cards-review-deck">'+
       '<option value="0"'+(scope.all_decks?' selected':'')+'>Todos os baralhos — continuar nos próximos</option>'+
-      decks.map(d=>'<option value="'+Number(d.deck_id)+'"'+(!scope.all_decks&&Number(d.deck_id)===Number(scope.selected_deck_id)?' selected':'')+'>'+escapeHtml(d.name)+' · '+Number(d.total_including_children||0)+' cards · '+(Number(d.new_count||0)+Number(d.learn_count||0)+Number(d.review_count||0))+' disponíveis</option>').join('')+'</select>'+
-      '<p>'+Number(scope.total_cards||0)+' cards na coleção. A fila e os limites são calculados pelo Anki.</p></div>';
+      decks.map(d=>'<option value="'+Number(d.deck_id)+'"'+(!scope.all_decks&&Number(d.deck_id)===Number(scope.selected_deck_id)?' selected':'')+'>'+escapeHtml(d.name)+' · '+Number(d.total_including_children||0)+' cards</option>').join('')+'</select>'+
+      '<p class="cards-review-scope-label">'+escapeHtml(scope.label||'Planejamento atual')+'</p>'+
+      '<div class="cards-review-totals"><span><strong>'+Number(scope.total_cards||0)+'</strong> cards no escopo</span><span><strong>'+Number(inventory.new||0)+'</strong> novos</span><span><strong>'+Number(inventory.learning||0)+'</strong> em aprendizado</span><span><strong>'+Number(inventory.review||0)+'</strong> em revisão</span></div></div>';
     const bindScope=()=>{
+      box.querySelectorAll('[data-review-plan-scope]').forEach(button=>{
+        button.classList.toggle('active',StudyGlobalScope.cardsScope()===button.dataset.reviewPlanScope);
+        button.setAttribute('aria-pressed',String(StudyGlobalScope.cardsScope()===button.dataset.reviewPlanScope));
+        button.onclick=async()=>{
+          try{StudyGlobalScope.setCardsScope(button.dataset.reviewPlanScope);document.querySelectorAll('#cards-scope-toggle [data-scope]').forEach(b=>b.classList.toggle('active',b.dataset.scope===StudyGlobalScope.cardsScope()));await this._syncReviewScope(0);await this.renderCurrent(box);}
+          catch(e){showToast(e.message);}
+        };
+      });
       const select=document.getElementById('cards-review-deck');
       if(select)select.onchange=async()=>{
         try{
-          const review=await this.request('/api/cards-official/reviewer/scope',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({deck_id:Number(select.value)})});
+          const review=await this._syncReviewScope(Number(select.value));
           this._applyReviewer(review);await this.renderCurrent(box);
         }catch(e){showToast(e.message);}
       };
@@ -1124,7 +1155,7 @@ const CardsOfficialBridge = {
       CardsScreen._reviewQueue=[];CardsScreen._reviewIdx=0;CardsScreen._flipped=false;
       const answered=Number(this._sessionAnswered)||0;
       box.innerHTML=scopeHtml+'<div class="card"><div class="cards-review-done"><div class="big">'+(answered?'🎉':'📚')+'</div><h3>'+(answered?'Sessão concluída!':'Nenhum card disponível agora')+'</h3>'+
-        '<p>'+(answered?'A fila oficial do Anki não possui mais cards disponíveis agora.':'O baralho selecionado não tem cards disponíveis na fila oficial. Datas de revisão, limites diários, suspensão e enterramento podem limitar a fila.')+'</p>'+
+        '<p>'+answered+' respondidos · 0 disponíveis agora.</p><p>'+(answered?'A fila oficial do Anki não possui mais cards disponíveis agora.':'O baralho selecionado não tem cards disponíveis na fila oficial. Datas de revisão, limites diários, suspensão e enterramento podem limitar a fila.')+'</p>'+
         '<button type="button" class="btn-primary" id="cards-official-restart">Ver se há mais</button></div></div>';
       const rb=document.getElementById('cards-official-restart');if(rb)rb.onclick=async()=>{try{this._applyReviewer(await this.request('/api/cards-official/reviewer/next'));await this.renderCurrent(box);}catch(e){showToast(e.message);}};
       bindScope();CardsScreen.updateFavCount();CardsScreen.atualizarFoco();return;
@@ -1136,9 +1167,9 @@ const CardsOfficialBridge = {
     const typeInput=oc.type_answer&&oc.type_answer.enabled
       ? '<div class="anki-type-answer-input-wrap"><input id="cards-official-type-answer" type="text" autocomplete="off" spellcheck="false" placeholder="Digite a resposta"></div>' : '';
     box.innerHTML=scopeHtml+'<div class="card cards-review-wrap anki-study-review-card">'+
-      '<div class="cards-review-progress"><span>'+this._sessionAnswered+' respondidos</span>'+
+      '<div class="cards-review-progress"><span>'+this._sessionAnswered+' respondidos · '+remaining+' restantes · '+pct+'%</span>'+
       '<div class="cards-review-bar"><div style="width:'+pct+'%"></div></div>'+
-      '<span class="cards-limit-chip cards-due-counts" title="Contagens calculadas pelo scheduler oficial">🆕 '+this.counts.new+' · 🧠 '+this.counts.learning+' · 🔄 '+this.counts.review+'</span>'+
+      '<span class="cards-limit-chip cards-due-counts" title="Disponíveis agora na fila oficial">Novos: '+this.counts.new+' · Aprendizado: '+this.counts.learning+' · Revisões: '+this.counts.review+'</span>'+
       ((oc.auto_advance||{}).show_timer?'<span class="cards-limit-chip" id="cards-review-timer">0.0s</span>':'')+'</div>'+
       '<div class="cards-review-meta"><span class="lei-tag mat">'+escapeHtml(CardsScreen.materiaLabel(local))+'</span>'+
       (local.assunto?'<span class="lei-tag ref">'+escapeHtml(local.assunto)+'</span>':'')+

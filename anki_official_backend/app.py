@@ -364,8 +364,9 @@ def av_tags(card: Card, answer: bool = False) -> list[dict[str, Any]]:
     return out
 
 
-def queued_payload(col: Collection) -> dict[str, Any]:
-    queued = col.sched.get_queued_cards(fetch_limit=1)
+def queued_payload(col: Collection, queued=None) -> dict[str, Any]:
+    if queued is None:
+        queued = col.sched.get_queued_cards(fetch_limit=1)
     counts = {
         "new": int(queued.new_count),
         "learning": int(queued.learning_count),
@@ -417,6 +418,11 @@ def queued_payload(col: Collection) -> dict[str, Any]:
 
 class SelectDeckBody(BaseModel):
     deck_id: int
+
+
+class CardsReviewScopeBody(SelectDeckBody):
+    card_ids: list[int] | None = None
+    label: str = "Todos os planejamentos"
 
 
 class CreateDeckBody(BaseModel):
@@ -582,8 +588,8 @@ def type_answer_context(col: Collection, card: Card) -> dict[str, Any] | None:
     }
 
 
-def reviewer_payload(col: Collection) -> dict[str, Any]:
-    out = queued_payload(col)
+def reviewer_payload(col: Collection, queued=None) -> dict[str, Any]:
+    out = queued_payload(col, queued)
     if not out.get("finished"):
         card = col.get_card(int(out["card"]["id"]))
         ctx = type_answer_context(col, card)
@@ -627,6 +633,25 @@ def card_state_payload(col: Collection, card_id: int) -> dict[str, Any]:
     }
 
 
+def cards_scoped_queue(col: Collection):
+    """Intersect the official queue with Study identities; retain upstream order/states.
+
+    No cards are moved, suspended or rescheduled to implement the UI scope.
+    Daily limits remain those applied by Anki before this intersection.
+    """
+    queued = col.sched.get_queued_cards(fetch_limit=max(1, int(col.card_count())))
+    ids = col.get_config("study_review_card_ids", None)
+    if ids is not None:
+        allowed = set(int(cid) for cid in ids)
+        entries = [entry for entry in queued.cards if int(entry.card.id) in allowed]
+        del queued.cards[:]
+        queued.cards.extend(entries)
+        queued.new_count = sum(int(entry.queue) == 0 for entry in entries)
+        queued.learning_count = sum(int(entry.queue) == 1 for entry in entries)
+        queued.review_count = sum(int(entry.queue) == 2 for entry in entries)
+    return queued
+
+
 def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
     """Fila completa oficial para a UI Cards, sem reordenar nada no JavaScript."""
     # Uma Collection recém-migrada pode manter Default (id 1) selecionado,
@@ -651,7 +676,7 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
             target = next(iter(available or candidates), None)
             if target:
                 col.decks.select(DeckId(int(target["deck_id"])))
-    out = reviewer_payload(col)
+    out = reviewer_payload(col, cards_scoped_queue(col))
     all_decks = bool(col.get_config("study_review_all_decks", True)) and not bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn"))
     if out.get("finished") and all_decks and not bool((col.decks.get(col.decks.get_current_id()) or {}).get("dyn")):
         current = int(col.decks.get_current_id())
@@ -662,20 +687,37 @@ def cards_reviewer_payload(col: Collection) -> dict[str, Any]:
             if int(node["new_count"]) + int(node["learn_count"]) + int(node["review_count"]) <= 0:
                 continue
             col.decks.select(DeckId(did))
-            candidate = reviewer_payload(col)
+            candidate = reviewer_payload(col, cards_scoped_queue(col))
             if not candidate.get("finished"):
                 out = candidate
                 break
         else:
             col.decks.select(DeckId(current))
+    allowed = col.get_config("study_review_card_ids", None)
+    allowed_set = None if allowed is None else set(int(cid) for cid in allowed)
+    scope_ids = [int(cid) for cid in col.find_cards("") if allowed_set is None or int(cid) in allowed_set]
+    scope_cards = [col.get_card(cid) for cid in scope_ids]
+    scoped_decks = {int(card.did) for card in scope_cards}
+    nodes = [node for node in _deck_tree_flatten(col.sched.deck_due_tree()) if int(node["deck_id"]) in scoped_decks]
+    for node in nodes:
+        name = col.decks.name(DeckId(int(node["deck_id"])))
+        node["total_including_children"] = sum(
+            col.decks.name(card.did) == name or col.decks.name(card.did).startswith(name + "::")
+            for card in scope_cards
+        )
     out["review_scope"] = {
         "all_decks": all_decks,
         "selected_deck_id": int(col.decks.get_current_id()),
-        "decks": [node for node in _deck_tree_flatten(col.sched.deck_due_tree()) if int(node["deck_id"]) > 0],
-        "total_cards": int(col.card_count()),
+        "decks": nodes,
+        "total_cards": len(scope_ids),
+        "label": str(col.get_config("study_review_scope_label", "Todos os planejamentos")),
+        "inventory": {
+            "new": sum(card.type == 0 for card in scope_cards),
+            "learning": sum(card.type in (1, 3) for card in scope_cards),
+            "review": sum(card.type == 2 for card in scope_cards),
+        },
     }
-    fetch_limit = max(1, int(col.card_count()))
-    queued = col.sched.get_queued_cards(fetch_limit=fetch_limit)
+    queued = cards_scoped_queue(col)
     out["queue_ids"] = [int(entry.card.id) for entry in queued.cards]
     out["counts"] = {
         "new": int(queued.new_count),
@@ -1321,13 +1363,15 @@ async def cards_official_bootstrap(
 
 @app.post("/api/cards-official/reviewer/scope")
 def cards_official_reviewer_scope(
-    body: SelectDeckBody, user: dict[str, Any] = Depends(current_user),
+    body: CardsReviewScopeBody, user: dict[str, Any] = Depends(current_user),
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
         did = int(body.deck_id)
         if did and not item.col.decks.get(DeckId(did), default=False):
             raise HTTPException(404, "Baralho não encontrado.")
+        item.col.set_config("study_review_card_ids", getattr(body, "card_ids", None))
+        item.col.set_config("study_review_scope_label", getattr(body, "label", "Todos os planejamentos"))
         item.col.set_config("study_review_all_decks", did == 0)
         if did:
             item.col.decks.select(DeckId(did))
@@ -1390,7 +1434,7 @@ def cards_official_reviewer_answer(
 ) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
-        queued = item.col.sched.get_queued_cards(fetch_limit=1)
+        queued = cards_scoped_queue(item.col)
         if not queued.cards:
             raise HTTPException(409, "A fila oficial dos Cards não possui card atual.")
         q = queued.cards[0]
@@ -1406,6 +1450,14 @@ def cards_official_reviewer_answer(
         }[body.rating]
         answer = item.col.sched.build_answer(card=card, states=q.states, rating=rating)
         answer.milliseconds_taken = body.milliseconds_taken
+        # Scoped review may select a later entry from the upstream queue.
+        # Clear only the cached queue before answering with its official states;
+        # the backend then rebuilds it from the updated Collection.
+        first = item.col.sched.get_queued_cards(fetch_limit=1)
+        if first.cards and int(first.cards[0].card.id) != int(card.id):
+            current_deck = item.col.decks.get_current_id()
+            item.col.decks.select(DeckId(0))
+            item.col.decks.select(current_deck)
         item.col.sched.answer_card(answer)
         return {
             "ok": True,
