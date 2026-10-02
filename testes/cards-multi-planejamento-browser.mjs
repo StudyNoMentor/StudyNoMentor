@@ -45,6 +45,12 @@ try{
       padraoCount:destOptions.filter(o=>String(o.label||'').includes('Padrão')).length,
       padraoUsesActive:destOptions.some(o=>String(o.label||'').includes('Padrão')&&String(o.parsed.planId)===String(activePlan))
     };
+    const remoteOpt=destOptions.find(o=>String(o.parsed.deckId)==='dkB');
+    document.getElementById('card-destino').value=remoteOpt&&remoteOpt.value||'';
+    document.getElementById('card-frente').innerHTML='Frente global';
+    document.getElementById('card-verso').innerHTML='Verso global';
+    const globalForm=CardsScreen._readCardForm();
+    out.destinoRoutesOwner=!!(globalForm&&String(globalForm.deckId)==='dkB'&&String(globalForm._deckPlanId)===String(B));
     document.getElementById('card-modal').style.display='none';
     StudyGlobalScope.setCardsScope('all');
 
@@ -131,6 +137,7 @@ try{
     CardsScreen.render();
     document.getElementById('cards-filter-body').style.display='block';
     const host=document.getElementById('cards-f-assunto-multi');
+    host.scrollIntoView({block:'center',inline:'nearest'});
     host.querySelector('.cards-multi-filter-btn').click();
     const panel=host.querySelector('.cards-multi-filter-panel');
     const cs=getComputedStyle(panel),rect=panel.getBoundingClientRect(),
@@ -151,6 +158,7 @@ try{
   ok(r.destino.remoteVisible,'Criar card oferece baralho de outro plano mesmo com escopo visual no planejamento atual');
   ok(r.destino.padraoCount===1,'baralho oficial Padrão/Default espelhado em vários planos aparece uma única vez');
   ok(r.destino.padraoUsesActive,'quando o mesmo baralho oficial existe no plano ativo, a criação prefere esse espelho');
+  ok(r.destinoRoutesOwner,'salvar em baralho de outro planejamento preserva o planejamento dono do destino');
   ok(r.multiHosts,'filtros de disciplina/baralho e assunto usam controles múltiplos');
   ok(r.multiDeck.size===2&&r.multiDeck.badge==='2'&&r.multiDeck.onlyChosen,'dois baralhos são combinados por OR e exibem contador');
   ok(r.multiDisc,'duas disciplinas podem ser selecionadas simultaneamente');
