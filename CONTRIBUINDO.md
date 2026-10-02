@@ -106,6 +106,13 @@ navegador — incluindo `testes/auditoria-correcoes-browser.mjs`. Todo arquivo
 
 ## Cards e fonte oficial Anki
 
+### Atualização de versão do Anki
+
+A rotina normal não exige editar manualmente os pins. `.github/workflows/auto-update-anki-stable.yml` detecta releases estáveis e usa `tools/update-anki-stable.mjs` para gerar a atualização. Arquivo upstream novo em área funcional nunca é classificado por aproximação: fica `UNCLASSIFIED`, o PR permanece aberto e a produção continua na release anterior até revisão explícita.
+
+O merge automático só ocorre após a execução completa de `Verificacao` na branch gerada. O deploy Railway é então disparado por `workflow_dispatch` e validado pelo `UPSTREAM.lock.json`.
+
+
 Os Cards delegam scheduling, FSRS, filas, busca, rendering e operações de
 coleção ao pacote `anki==26.09.3` por `anki_official_backend/app.py` e
 `src/js/95-cards-official-bridge.js`. Mudanças nesses comportamentos devem usar
