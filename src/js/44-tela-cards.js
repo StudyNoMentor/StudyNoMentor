@@ -45,6 +45,30 @@ const CardsScreen = {
       .sort((a, b) => String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' }))
       .map(t => ({ value: String(t), label: String(t), group: 'Assuntos' }));
   },
+  cardTypeKey(card) {
+    const kind = String(card && card.kind || '').trim();
+    if (kind) return kind;
+    const legacy = String(card && card.tipo || '').trim();
+    return legacy ? 'legacy:' + legacy : '';
+  },
+  cardTypeLabel(value) {
+    const key = String(value || '');
+    if (key.indexOf('legacy:') === 0) return key.slice(7);
+    return ({
+      basic: 'Básico',
+      basic_reversed: 'Básico + cartão invertido',
+      basic_optional_reversed: 'Básico (invertido opcional)',
+      typing: 'Digitar a resposta',
+      cloze: 'Cloze — omissão de palavras',
+      image_occlusion: 'Oclusão de imagem'
+    })[key] || key;
+  },
+  cardTypeFilterOptions() {
+    const values = [...new Set(this.collectionCards().map(c => this.cardTypeKey(c)).filter(Boolean))];
+    return values
+      .sort((a, b) => this.cardTypeLabel(a).localeCompare(this.cardTypeLabel(b), 'pt-BR', { numeric: true, sensitivity: 'base' }))
+      .map(value => ({ value, label: this.cardTypeLabel(value) }));
+  },
   materiaOptionsHtml(selectedValue) {
     const opts = this.materiaFilterOptions();
     const html = (group) => opts.filter(o => o.group === group).map(o =>
@@ -75,15 +99,30 @@ const CardsScreen = {
       title: picked.join(', ')
     };
   },
+  _multiFilterPanel(host) {
+    return host ? (host._cardsMultiPanel || host.querySelector('.cards-multi-filter-panel')) : null;
+  },
+  _restoreMultiFilterPanel(host) {
+    const panel=this._multiFilterPanel(host);if(!host||!panel)return;
+    if(panel.parentElement!==host)host.appendChild(panel);
+    panel.classList.remove('cards-multi-filter-portaled');
+  },
+  _portalMultiFilterPanel(host,panel) {
+    if(!host||!panel||typeof window==='undefined'||!window.matchMedia||!window.matchMedia('(max-width:720px)').matches)return;
+    panel.classList.add('cards-multi-filter-portaled');
+    document.body.appendChild(panel);
+  },
   _closeMultiFilters(except) {
     document.querySelectorAll('#cards-filter-card .cards-multi-filter.open').forEach(host => {
       if (except && host === except) return;
       host.classList.remove('open');
       const btn = host.querySelector('.cards-multi-filter-btn');
-      const panel = host.querySelector('.cards-multi-filter-panel');
+      const panel = this._multiFilterPanel(host);
       if (btn) btn.setAttribute('aria-expanded', 'false');
-      if (panel) panel.hidden = true;
+      if (panel) { panel.hidden = true; this._restoreMultiFilterPanel(host); }
     });
+    const card=document.getElementById('cards-filter-card');
+    if(card)card.classList.toggle('cards-filter-overlay-open',!!document.querySelector('#cards-filter-card .cards-multi-filter.open'));
   },
   _syncNativeFilter(kind) {
     const selected = this._filterSet(kind);
@@ -94,6 +133,9 @@ const CardsScreen = {
   _renderMultiFilter(kind, hostId, options, allLabel, searchPlaceholder) {
     const host = document.getElementById(hostId);
     if (!host) return;
+    const stalePanel=host._cardsMultiPanel;
+    if(stalePanel&&stalePanel.parentElement!==host)stalePanel.remove();
+    host._cardsMultiPanel=null;
     const selected = this._filterSet(kind);
     const summary = this._filterSummary(kind, options, allLabel);
     const rows = [];
@@ -135,6 +177,7 @@ const CardsScreen = {
 
     const btn = host.querySelector('.cards-multi-filter-btn');
     const panel = host.querySelector('.cards-multi-filter-panel');
+    host._cardsMultiPanel=panel;
     const search = host.querySelector('.cards-multi-filter-search');
     const clear = host.querySelector('.cards-multi-filter-clear');
     const optionsBox = host.querySelector('.cards-multi-filter-options');
@@ -154,7 +197,7 @@ const CardsScreen = {
           btn.insertBefore(badge, btn.querySelector('.cards-multi-filter-chevron'));
         }
       } else if (oldBadge) oldBadge.remove();
-      const counter = host.querySelector('.cards-multi-filter-selected');
+      const counter = panel.querySelector('.cards-multi-filter-selected');
       if (counter) counter.textContent = selected.size ? selected.size + ' selecionado(s)' : 'Todos';
       if (clear) clear.disabled = !selected.size;
     };
@@ -173,6 +216,9 @@ const CardsScreen = {
       this._closeMultiFilters(host);
       panel.hidden = !opening;
       host.classList.toggle('open', opening);
+      if(opening)this._portalMultiFilterPanel(host,panel);else this._restoreMultiFilterPanel(host);
+      const filterCard=document.getElementById('cards-filter-card');
+      if(filterCard)filterCard.classList.toggle('cards-filter-overlay-open',opening);
       btn.setAttribute('aria-expanded', opening ? 'true' : 'false');
       if (opening) setTimeout(() => search && search.focus(), 0);
     });
@@ -180,12 +226,12 @@ const CardsScreen = {
     if (search) search.addEventListener('input', () => {
       const q = String(search.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
       let shown = 0;
-      host.querySelectorAll('.cards-multi-filter-option').forEach(row => {
+      panel.querySelectorAll('.cards-multi-filter-option').forEach(row => {
         const hit = !q || String(row.dataset.filterSearch || '').includes(q);
         row.hidden = !hit;
         if (hit) shown++;
       });
-      host.querySelectorAll('.cards-multi-filter-group').forEach(group => {
+      panel.querySelectorAll('.cards-multi-filter-group').forEach(group => {
         let next = group.nextElementSibling, any = false;
         while (next && !next.classList.contains('cards-multi-filter-group')) {
           if (next.classList.contains('cards-multi-filter-option') && !next.hidden) any = true;
@@ -193,7 +239,7 @@ const CardsScreen = {
         }
         group.hidden = !any;
       });
-      const empty = host.querySelector('.cards-multi-filter-empty-search');
+      const empty = panel.querySelector('.cards-multi-filter-empty-search');
       if (empty) empty.hidden = shown > 0 || options.length === 0;
     });
 
@@ -210,8 +256,8 @@ const CardsScreen = {
     if (clear) clear.addEventListener('click', () => {
       if (!selected.size) return;
       selected.clear();
-      host.querySelectorAll('input[type="checkbox"][data-filter-value]').forEach(cb => { cb.checked = false; });
-      host.querySelectorAll('.cards-multi-filter-option.selected').forEach(row => row.classList.remove('selected'));
+      panel.querySelectorAll('input[type="checkbox"][data-filter-value]').forEach(cb => { cb.checked = false; });
+      panel.querySelectorAll('.cards-multi-filter-option.selected').forEach(row => row.classList.remove('selected'));
       apply();
     });
 
@@ -219,7 +265,7 @@ const CardsScreen = {
       this._multiFilterOutsideBound = true;
       const closeOutside = (e) => {
         const open = [...document.querySelectorAll('#cards-filter-card .cards-multi-filter.open')];
-        if (open.length && !open.some(item => item.contains(e.target))) this._closeMultiFilters();
+        if (open.length && !open.some(item => item.contains(e.target) || (this._multiFilterPanel(item) && this._multiFilterPanel(item).contains(e.target)))) this._closeMultiFilters();
       };
       // pointerdown fecha antes de qualquer mudança de foco; click é fallback
       // para navegadores/webviews que sintetizam clique sem Pointer Events.
@@ -249,37 +295,74 @@ const CardsScreen = {
     assuntoSel.value = oneAssunto;
     this.filters.assunto = oneAssunto;
 
-    const tipos=[...new Set(this.collectionCards().map(c=>c.tipo).filter(Boolean))]
-      .sort((a,b)=>String(a).localeCompare(String(b),'pt-BR',{numeric:true,sensitivity:'base'}));
-    $id('cards-f-tipo').innerHTML = `<option value="">Todos os tipos</option>` + tipos.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    const tipoOptions=this.cardTypeFilterOptions(), currentTipo=String(this.filters.tipo||'');
+    const visibleTipoOptions=(currentTipo&&!tipoOptions.some(o=>o.value===currentTipo))
+      ?[{value:currentTipo,label:this.cardTypeLabel(currentTipo)}].concat(tipoOptions):tipoOptions;
+    const tipoSel=$id('cards-f-tipo');
+    tipoSel.innerHTML = `<option value="">Todos os tipos</option>` + visibleTipoOptions.map(o => `<option value="${escapeHtml(o.value)}">${escapeHtml(o.label)}</option>`).join('');
+    tipoSel.value=currentTipo;
 
     this._renderMultiFilter('materia', 'cards-f-materia-multi', matterOptions, 'Todas as disciplinas/baralhos', 'Buscar disciplina ou baralho…');
     this._renderMultiFilter('assunto', 'cards-f-assunto-multi', assuntoOptions, 'Todos os assuntos', 'Buscar assunto…');
   },
   destinationDecks(planId) {
-    // Card global continua pertencendo ao planejamento onde nasceu. Ao editá-lo
-    // de outra visão, o seletor precisa enxergar os baralhos DA ORIGEM; usar
-    // DB.getDecks() aqui mostrava somente o plano atual e fazia o destino sumir.
+    // Edição continua no planejamento de origem do card.
     if (planId && DB.getDecksForPlan) {
       const list = DB.getDecksForPlan(planId);
       if (Array.isArray(list)) return list;
     }
     return DB.getDecks();
   },
+  destinationDeckCatalog() {
+    // Criar card é uma operação sobre a Collection global do Anki: o catálogo
+    // não pode depender do filtro visual "Este planejamento / Todos".
+    const G=window.StudyGlobalScope,
+      rows=(G&&typeof G.allBy==='function'?G.allBy('decks'):DB.getDecks().map(d=>Object.assign({},d,{_planId:PlanManager.getActivePlanId()})))
+        .filter(d=>!(typeof AnkiParity!=='undefined'&&AnkiParity.isFilteredDeck&&AnkiParity.isFilteredDeck(d))),
+      active=String(PlanManager.getActivePlanId()||''),groups=new Map();
+    for(const d of rows){
+      const oid=Number(d&&d.ankiId),canonical=Number.isFinite(oid)&&oid>0?'anki:'+String(oid):'local:'+String(d&&d._planId||'')+'::'+String(d&&d.id||'');
+      if(!groups.has(canonical))groups.set(canonical,[]);
+      groups.get(canonical).push(d);
+    }
+    return [...groups.values()].map(replicas=>{
+      // Se o mesmo deck oficial estiver espelhado em vários planejamentos
+      // (caso clássico do Default/Padrão), exibe UMA vez e prefere o espelho do
+      // planejamento ativo para que o novo card fique no contexto atual.
+      const chosen=replicas.find(d=>String(d&&d._planId||'')===active)||replicas[0],
+        plans=[...new Set(replicas.map(d=>String(d&&d._planId||'')).filter(Boolean))],
+        out=Object.assign({},chosen,{_replicaPlanIds:plans,_replicaCount:replicas.length});
+      return out;
+    }).sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR',{numeric:true,sensitivity:'base'}));
+  },
+  _deckDestinationValue(d,globalChoice) {
+    if(globalChoice&&d&&d._planId!=null)
+      return 'deckref:'+encodeURIComponent(String(d._planId))+'::'+encodeURIComponent(String(d.id));
+    return 'deck:'+String(d&&d.id||'');
+  },
+  _parseDeckDestination(dest) {
+    const raw=String(dest||'');
+    if(raw.indexOf('deckref:')===0){
+      const body=raw.slice(8),cut=body.indexOf('::');if(cut<0)return{deckId:'',planId:null};
+      let planId=body.slice(0,cut),deckId=body.slice(cut+2);
+      try{planId=decodeURIComponent(planId);deckId=decodeURIComponent(deckId);}catch(_){/* valores locais */ }
+      return {deckId,planId};
+    }
+    if(raw.indexOf('deck:')===0)return{deckId:raw.slice(5),planId:null};
+    return {deckId:'',planId:null};
+  },
   destinoOptionsHtml(selected, planId, todosOsPlanos) {
-    // O destino de um card novo é sempre um baralho ("deck:id") — a disciplina
-    // ficou pro campo Matéria (Tec), texto livre, sem duplicar o que já é feito
-    // aqui pelo baralho. Em edição global, usa o catálogo do plano de origem.
-    // Card NOVO pode nascer em qualquer baralho visível: é gravado no
-    // planejamento dono do baralho escolhido (saveCard). Edição e importação
-    // continuam presas ao plano de origem/ativo.
-    const lista = todosOsPlanos
-      ? this.collectionDecks().filter(d => !(typeof AnkiParity !== 'undefined' && AnkiParity.isFilteredDeck(d)))
-          .sort((a, b) => String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR', { numeric: true, sensitivity: 'base' }))
-      : this.destinationDecks(planId);
-    const deckOpts = lista.map(d =>
-      `<option value="deck:${d.id}"${selected === 'deck:' + d.id ? ' selected' : ''}>📁 ${escapeHtml(d.nome)}${d._planNome && String(d._planId) !== String(PlanManager.getActivePlanId()) ? ' · ' + escapeHtml(d._planNome) : ''}</option>`
-    ).join('');
+    // Novo card vê sempre todos os baralhos canônicos da Collection, mesmo com
+    // o filtro da tela em "Este planejamento". Edição permanece na origem.
+    const lista = todosOsPlanos ? this.destinationDeckCatalog() : this.destinationDecks(planId),
+      active=String(PlanManager.getActivePlanId()||'');
+    const deckOpts = lista.map(d => {
+      const value=this._deckDestinationValue(d,!!todosOsPlanos),
+        selectedNow=selected===value||(!todosOsPlanos&&selected==='deck:'+d.id),
+        onlyElsewhere=todosOsPlanos&&d._planId!=null&&String(d._planId)!==active&&!(d._replicaPlanIds||[]).includes(active),
+        suffix=onlyElsewhere&&d._planNome?' · '+escapeHtml(d._planNome):'';
+      return `<option value="${escapeHtml(value)}"${selectedNow?' selected':''}>📁 ${escapeHtml(d.nome)}${suffix}</option>`;
+    }).join('');
     // Cards antigos podiam ter uma disciplina como destino, sem baralho nenhum
     // ("sub:Nome"). Editar um desses não pode fazer o destino atual sumir da
     // lista sozinho — mantém só essa opção, sem reoferecer as outras disciplinas.
@@ -304,7 +387,7 @@ const CardsScreen = {
     let out=this.collectionCards().filter(c=>{
       if(materias.size&&!(c.materia&&materias.has(c.materia))&&!(c.deckId&&materias.has('deck:'+c.deckId)))return false;
       if(assuntos.size?!assuntos.has(c.assunto||''):(f.assunto&&(c.assunto||'')!==f.assunto))return false;
-      if(f.tipo&&(c.tipo||'')!==f.tipo)return false;
+      if(f.tipo&&this.cardTypeKey(c)!==f.tipo)return false;
       if(f.status&&f.status!=='todos'&&(c.status||'pendente')!==f.status)return false;
       if(f.favorito&&!c.favorito)return false;
       if(busca){
@@ -970,8 +1053,11 @@ const CardsScreen = {
       _reversed: kind === 'basic_reversed',
       _addReverse: kind === 'basic_optional_reversed' && !!(document.getElementById('card-add-reverse')||{}).checked
     };
-    if (dest.startsWith('deck:')) data.deckId = dest.slice(5);
-    else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
+    if (dest.startsWith('deck:') || dest.startsWith('deckref:')) {
+      const ref=this._parseDeckDestination(dest);
+      data.deckId=ref.deckId||null;
+      if(ref.planId!=null)data._deckPlanId=ref.planId;
+    } else if (dest.startsWith('sub:')) data.materia = dest.slice(4);
     if(newDeckName)data._newDeckName=newDeckName;
     return data;
   },

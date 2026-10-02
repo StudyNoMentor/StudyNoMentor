@@ -1243,20 +1243,12 @@ const CardsOfficialBridge = {
     if(!this._renderStillCurrent(token,'revisar',box))return;
     const q=this.review,scope=q&&q.review_scope||{},decks=scope.decks||[];
     const inventory=scope.inventory||{};
-    const scopeHtml='<div class="card cards-review-scope"><div class="cards-review-scope-switch"><button type="button" class="btn-secondary" data-review-plan-scope="plan">Este planejamento</button><button type="button" class="btn-secondary" data-review-plan-scope="all">Todos os planejamentos</button></div><label for="cards-review-deck">Baralho da revisão</label><select id="cards-review-deck">'+
+    const scopeHtml='<div class="card cards-review-scope"><label for="cards-review-deck">Baralho da revisão</label><select id="cards-review-deck">'+
       '<option value="0"'+(scope.all_decks?' selected':'')+'>Todos os baralhos — continuar nos próximos</option>'+
       decks.map(d=>'<option value="'+Number(d.deck_id)+'"'+(!scope.all_decks&&Number(d.deck_id)===Number(scope.selected_deck_id)?' selected':'')+'>'+escapeHtml(d.name)+' · '+Number(d.total_including_children||0)+' cards</option>').join('')+'</select>'+
       '<p class="cards-review-scope-label">'+escapeHtml(scope.label||'Planejamento atual')+'</p>'+
       '<div class="cards-review-totals"><span><strong>'+Number(scope.total_cards||0)+'</strong> cards no escopo</span><span><strong>'+Number(inventory.new||0)+'</strong> novos</span><span><strong>'+Number(inventory.learning||0)+'</strong> em aprendizado</span><span><strong>'+Number(inventory.review||0)+'</strong> em revisão</span></div></div>';
     const bindScope=()=>{
-      box.querySelectorAll('[data-review-plan-scope]').forEach(button=>{
-        button.classList.toggle('active',StudyGlobalScope.cardsScope()===button.dataset.reviewPlanScope);
-        button.setAttribute('aria-pressed',String(StudyGlobalScope.cardsScope()===button.dataset.reviewPlanScope));
-        button.onclick=async()=>{
-          try{StudyGlobalScope.setCardsScope(button.dataset.reviewPlanScope);document.querySelectorAll('#cards-scope-toggle [data-scope]').forEach(b=>b.classList.toggle('active',b.dataset.scope===StudyGlobalScope.cardsScope()));await this._syncReviewScope(0);await this.renderCurrent(box);}
-          catch(e){showToast(e.message);}
-        };
-      });
       const select=document.getElementById('cards-review-deck');
       if(select)select.onchange=async()=>{
         try{
@@ -2560,8 +2552,9 @@ const CardsOfficialBridge = {
   async saveSimpleCard(closeAfter){
     const data=CardsScreen._readCardForm();if(!data)return false;
     const reversed=!!data._reversed;delete data._reversed;
+    const requestedDeckPlan=data._deckPlanId!=null?data._deckPlanId:null;delete data._deckPlanId;
     const editId=CardsScreen._editingId,editPlan=CardsScreen._editingPlanId;
-    let pid=data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId());
+    let pid=requestedDeckPlan!=null?requestedDeckPlan:(data.deckId?this._deckContext(data.deckId).planId:(editPlan!=null?editPlan:this._activePlanId()));
     if(!editId&&data._newDeckName){
       const created=await this.createOfficialDeck(data._newDeckName,pid);
       if(!created||!created.deck)throw new Error('O Anki oficial não devolveu o baralho padrão criado.');
