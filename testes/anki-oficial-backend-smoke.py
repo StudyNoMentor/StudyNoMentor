@@ -4,7 +4,12 @@ import json
 import os
 import sys
 import tempfile
+import time
 from pathlib import Path
+from types import SimpleNamespace
+
+import jwt
+from cryptography.hazmat.primitives.asymmetric import ec
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "anki_official_backend"))
@@ -18,6 +23,32 @@ with tempfile.TemporaryDirectory() as tmp:
     assert health["runtime_version"] == health["pinned_version"]
     assert "source_rev" in health and "source_branch" in health and "source_main" in health
     assert health["engine"] == "anki"
+    assert health["auth"] == "jwks-local+remote-fallback"
+    assert health["compression"] == "gzip"
+
+    # Fast path de Auth: JWT assimétrico válido é conferido localmente via JWKS,
+    # sem depender de /auth/v1/user em cada abertura do Anki.
+    auth_key = ec.generate_private_key(ec.SECP256R1())
+    auth_token = jwt.encode(
+        {
+            "sub": "jwt-smoke-user",
+            "aud": "authenticated",
+            "iss": app.SUPABASE_ISSUER,
+            "exp": int(time.time()) + 120,
+            "role": "authenticated",
+        },
+        auth_key,
+        algorithm="ES256",
+        headers={"kid": "smoke-key"},
+    )
+    real_jwks = app._jwks_client
+    app._jwks_client = SimpleNamespace(
+        get_signing_key_from_jwt=lambda _token: SimpleNamespace(key=auth_key.public_key())
+    )
+    try:
+        assert app._local_jwt_user(auth_token)["id"] == "jwt-smoke-user"
+    finally:
+        app._jwks_client = real_jwks
 
     user = app.pool.get("smoke-user")
     with user.lock:
@@ -83,6 +114,12 @@ with tempfile.TemporaryDirectory() as tmp:
         created = app.create_deck(app.CreateDeckBody(name="Baralho Smoke"), user_ctx)
         assert created["deck_id"] > 0
         assert col.decks.id_for_name("Baralho Smoke")
+
+        # Bootstrap inicial deve consolidar status + primeira fila em um único lock.
+        boot = app.anki_bootstrap("review", user_ctx)
+        assert boot["status"]["runtime_version"] == "26.09.3"
+        assert boot["status"]["cards"] == col.card_count()
+        assert "reviewer" in boot and "counts" in boot["reviewer"]
 
         # Deck Manager avançado usa DeckManager oficial.
         app.manage_deck({"action": "rename", "deck_id": created["deck_id"], "name": "Baralho Smoke Renomeado"}, user_ctx)
@@ -252,6 +289,11 @@ with tempfile.TemporaryDirectory() as tmp:
     assert official_legacy_cid > 0 and official_legacy_nid > 0
     assert any(int(x["id"]) == official_legacy_cid for x in migrated["state"]["cards"])
     assert any(int(x["id"]) == official_legacy_nid for x in migrated["state"]["notes"])
+
+    consolidated = app.cards_official_bootstrap_state(legacy_ctx)
+    assert consolidated["status"]["cards"] == 1
+    assert any(int(x["id"]) == official_legacy_cid for x in consolidated["state"]["cards"])
+    assert "scheduling" in consolidated["preferences"]
 
     with legacy_item.lock:
         legacy_card = legacy_item.col.get_card(official_legacy_cid)

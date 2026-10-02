@@ -20,6 +20,8 @@ from typing import Any
 
 import anki.buildinfo
 import httpx
+import jwt
+from jwt import PyJWKClient
 from anki import cards_pb2, deck_config_pb2, import_export_pb2, scheduler_pb2, stats_pb2, notetypes_pb2
 from anki.collection import (
     Collection,
@@ -45,6 +47,7 @@ from fastapi.responses import FileResponse
 from google.protobuf.json_format import MessageToDict, ParseDict
 from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
+from starlette.middleware.gzip import GZipMiddleware
 
 ANKI_VERSION = "26.09.3"
 
@@ -64,6 +67,8 @@ ANKI_RUNTIME_VERSION = verify_anki_runtime()
 DATA_DIR = Path(os.environ.get("ANKI_DATA_DIR", "/data/anki-official")).resolve()
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://gizhxgnbmmhhniubelbz.supabase.co").rstrip("/")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+SUPABASE_ISSUER = f"{SUPABASE_URL}/auth/v1"
+SUPABASE_JWKS_URL = f"{SUPABASE_ISSUER}/.well-known/jwks.json"
 ORIGINS = [
     x.strip()
     for x in os.environ.get(
@@ -78,15 +83,43 @@ MAX_IMPORT_BYTES = int(os.environ.get("ANKI_MAX_IMPORT_BYTES", str(512 * 1024 * 
 MAX_MEDIA_BYTES = int(os.environ.get("ANKI_MAX_MEDIA_BYTES", str(100 * 1024 * 1024)))
 MAX_OPEN_COLLECTIONS = max(1, int(os.environ.get("ANKI_MAX_OPEN_COLLECTIONS", "32")))
 TOKEN_CACHE_SECONDS = max(0, int(os.environ.get("ANKI_TOKEN_CACHE_SECONDS", "60")))
+AUTH_HTTP_TIMEOUT_SECONDS = max(1.0, float(os.environ.get("ANKI_AUTH_HTTP_TIMEOUT_SECONDS", "6")))
+JWKS_CACHE_SECONDS = max(30, int(os.environ.get("ANKI_JWKS_CACHE_SECONDS", "300")))
 UPLOAD_CHUNK = 1024 * 1024
+
+_auth_client: httpx.AsyncClient | None = None
+_jwks_client = PyJWKClient(
+    SUPABASE_JWKS_URL,
+    cache_keys=False,
+    cache_jwk_set=True,
+    lifespan=JWKS_CACHE_SECONDS,
+    timeout=AUTH_HTTP_TIMEOUT_SECONDS,
+    cooldown_duration=0,
+)
+_LOCAL_JWT_ALGORITHMS = {"ES256", "RS256"}
+
+
+def _new_auth_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(
+        timeout=httpx.Timeout(AUTH_HTTP_TIMEOUT_SECONDS, connect=min(3.0, AUTH_HTTP_TIMEOUT_SECONDS)),
+        limits=httpx.Limits(max_connections=32, max_keepalive_connections=16, keepalive_expiry=30.0),
+        http2=False,
+    )
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    yield
-    review_sessions.close_all()
-    pool.close_all()
-    cards_pool.close_all()
+    global _auth_client
+    _auth_client = _new_auth_client()
+    try:
+        yield
+    finally:
+        client, _auth_client = _auth_client, None
+        if client is not None:
+            await client.aclose()
+        review_sessions.close_all()
+        pool.close_all()
+        cards_pool.close_all()
 
 
 app = FastAPI(
@@ -101,7 +134,9 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
+    max_age=86400,
 )
+app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=4)
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -507,28 +542,77 @@ def _new_tempfile(suffix: str) -> str:
     return tmp
 
 
+def _local_jwt_user(token: str) -> dict[str, Any] | None:
+    """Valida JWT assimétrico localmente; retorna None quando o projeto/token exige fallback remoto."""
+    try:
+        header = jwt.get_unverified_header(token)
+    except jwt.PyJWTError as exc:
+        raise HTTPException(401, "Sessão do Study inválida ou expirada.") from exc
+    algorithm = str(header.get("alg") or "")
+    if algorithm not in _LOCAL_JWT_ALGORITHMS:
+        return None
+    try:
+        signing_key = _jwks_client.get_signing_key_from_jwt(token)
+    except Exception:
+        # JWKS indisponível/rotacionando: o endpoint Auth continua sendo a fonte de fallback.
+        return None
+    try:
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=[algorithm],
+            audience="authenticated",
+            issuer=SUPABASE_ISSUER,
+            options={"require": ["exp", "sub"]},
+        )
+    except jwt.PyJWTError as exc:
+        raise HTTPException(401, "Sessão do Study inválida ou expirada.") from exc
+    uid = str(claims.get("sub") or "")
+    if not uid:
+        raise HTTPException(401, "Usuário do Study não identificado.")
+    return {
+        "id": uid,
+        "email": claims.get("email"),
+        "role": claims.get("role"),
+        "aud": claims.get("aud"),
+        "_auth_source": "jwks",
+    }
+
+
 async def current_user(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(401, "Sessão do Study ausente.")
-    if not SUPABASE_ANON_KEY:
-        raise HTTPException(503, "SUPABASE_ANON_KEY não configurada no backend.")
     token = authorization.split(" ", 1)[1].strip()
     cached = _cache_get(token)
     if cached is not None:
         return cached
+
+    local_user = await asyncio.to_thread(_local_jwt_user, token)
+    if local_user is not None:
+        _cache_put(token, local_user)
+        return local_user
+
+    if not SUPABASE_ANON_KEY:
+        raise HTTPException(503, "SUPABASE_ANON_KEY não configurada no backend.")
+    client = _auth_client
+    owns_client = client is None or client.is_closed
+    if owns_client:
+        client = _new_auth_client()
     try:
-        async with httpx.AsyncClient(timeout=12.0) as client:
-            response = await client.get(
-                f"{SUPABASE_URL}/auth/v1/user",
-                headers={
-                    "apikey": SUPABASE_ANON_KEY,
-                    "Authorization": f"Bearer {token}",
-                },
-            )
+        response = await client.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_ANON_KEY,
+                "Authorization": f"Bearer {token}",
+            },
+        )
     except httpx.HTTPError as exc:
         raise HTTPException(503, f"Falha ao validar sessão do Study: {exc}") from exc
+    finally:
+        if owns_client and client is not None:
+            await client.aclose()
     if response.status_code != 200:
         raise HTTPException(401, "Sessão do Study inválida ou expirada.")
     user = response.json()
@@ -694,43 +778,70 @@ def health() -> dict[str, Any]:
         "source_rev": os.getenv("RAILWAY_GIT_COMMIT_SHA") or os.getenv("STUDY_BACKEND_SOURCE_REV"),
         "source_branch": os.getenv("RAILWAY_GIT_BRANCH"),
         "source_main": source_main,
+        "auth": "jwks-local+remote-fallback",
+        "compression": "gzip",
     }
+
+
+def _anki_status_payload(item: UserCollection) -> dict[str, Any]:
+    return {
+        "connected": True,
+        "engine": "Anki official",
+        "pinned_version": ANKI_VERSION,
+        "runtime_version": ANKI_RUNTIME_VERSION,
+        "collection_path": item.collection_path.name,
+        "cards": int(item.col.card_count()),
+        "notes": int(item.col.note_count()),
+        "current_deck_id": int(item.col.decks.get_current_id()),
+        "qt_gui": False,
+        "traditional_qt_addons": False,
+    }
+
+
+def _anki_decks_payload(item: UserCollection) -> dict[str, Any]:
+    values = item.col.decks.all_names_and_ids()
+    due_tree = item.col.sched.deck_due_tree()
+    return {
+        "current_deck_id": int(item.col.decks.get_current_id()),
+        "decks": [
+            {"id": int(getattr(d, "id", 0)), "name": d.name}
+            for d in values
+        ],
+        # A mesma árvore que abastece a lista de decks do Anki: hierarquia,
+        # estado collapsed e contagens já submetidas aos limites do scheduler.
+        "deck_tree": deck_tree_payload(due_tree),
+    }
+
+
+@app.get("/api/anki/bootstrap")
+def anki_bootstrap(
+    view: str = Query(default="review"),
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Uma autenticação + um lock para a primeira pintura da tela Anki."""
+    normalized = view if view in {"review", "decks", "browser", "add", "options", "tools"} else "review"
+    item = uc_for(user)
+    with item.lock:
+        out: dict[str, Any] = {"status": _anki_status_payload(item), "view": normalized}
+        if normalized == "review":
+            out["reviewer"] = reviewer_payload(item.col)
+        elif normalized == "decks":
+            out["decks"] = _anki_decks_payload(item)
+        return out
 
 
 @app.get("/api/anki/status")
 def status(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        return {
-            "connected": True,
-            "engine": "Anki official",
-            "pinned_version": ANKI_VERSION,
-            "runtime_version": ANKI_RUNTIME_VERSION,
-            "collection_path": item.collection_path.name,
-            "cards": int(item.col.card_count()),
-            "notes": int(item.col.note_count()),
-            "current_deck_id": int(item.col.decks.get_current_id()),
-            "qt_gui": False,
-            "traditional_qt_addons": False,
-        }
+        return _anki_status_payload(item)
 
 
 @app.get("/api/anki/decks")
 def decks(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = uc_for(user)
     with item.lock:
-        values = item.col.decks.all_names_and_ids()
-        due_tree = item.col.sched.deck_due_tree()
-        return {
-            "current_deck_id": int(item.col.decks.get_current_id()),
-            "decks": [
-                {"id": int(getattr(d, "id", 0)), "name": d.name}
-                for d in values
-            ],
-            # A mesma árvore que abastece a lista de decks do Anki: hierarquia,
-            # estado collapsed e contagens já submetidas aos limites do scheduler.
-            "deck_tree": deck_tree_payload(due_tree),
-        }
+        return _anki_decks_payload(item)
 
 
 @app.post("/api/anki/decks/create")
@@ -1120,20 +1231,24 @@ def reviewer_answer(body: AnswerBody, user: dict[str, Any] = Depends(current_use
 # Cards do Study executados pelo backend OFICIAL do Anki
 # ---------------------------------------------------------------------------
 
+def _cards_official_status_payload(item: UserCollection) -> dict[str, Any]:
+    return {
+        "connected": True,
+        "engine": "Anki official",
+        "collection": "study-cards",
+        "pinned_version": ANKI_VERSION,
+        "runtime_version": ANKI_RUNTIME_VERSION,
+        "cards": int(item.col.card_count()),
+        "notes": int(item.col.note_count()),
+        "current_deck_id": int(item.col.decks.get_current_id()),
+    }
+
+
 @app.get("/api/cards-official/status")
 def cards_official_status(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
     item = cards_uc_for(user)
     with item.lock:
-        return {
-            "connected": True,
-            "engine": "Anki official",
-            "collection": "study-cards",
-            "pinned_version": ANKI_VERSION,
-            "runtime_version": ANKI_RUNTIME_VERSION,
-            "cards": int(item.col.card_count()),
-            "notes": int(item.col.note_count()),
-            "current_deck_id": int(item.col.decks.get_current_id()),
-        }
+        return _cards_official_status_payload(item)
 
 
 def _legacy_stock_kind(row: dict[str, Any]) -> int:
@@ -3135,6 +3250,20 @@ def cards_official_collection_full_state(
     item = cards_uc_for(user)
     with item.lock:
         return cards_collection_full_state_payload(item.col)
+
+
+@app.get("/api/cards-official/bootstrap-state")
+def cards_official_bootstrap_state(
+    user: dict[str, Any] = Depends(current_user),
+) -> dict[str, Any]:
+    """Snapshot inicial consolidado: uma autenticação, um round-trip e um lock."""
+    item = cards_uc_for(user)
+    with item.lock:
+        return {
+            "status": _cards_official_status_payload(item),
+            "state": cards_collection_full_state_payload(item.col),
+            "preferences": pb(item.col.get_preferences()),
+        }
 
 
 @app.get("/api/cards-official/stats/graphs")
