@@ -9,12 +9,14 @@ const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const bridge=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
 const official=readFileSync(join(ROOT,'src/js/44-anki-official.js'),'utf8');
 const cards=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
+const html=readFileSync(join(ROOT,'src/html/03-corpo.html'),'utf8');
 const statsMedia=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
 const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
 const imageOcclusion=readFileSync(join(ROOT,'src/js/44-anki-image-occlusion.js'),'utf8');
 const product=readFileSync(join(ROOT,'src/js/44-anki-product-parity.js'),'utf8');
 const total=readFileSync(join(ROOT,'src/js/44-anki-total-parity.js'),'utf8');
 const practical=readFileSync(join(ROOT,'src/js/44-anki-practical-10.js'),'utf8');
+const final10=readFileSync(join(ROOT,'src/js/44-anki-10of10-final.js'),'utf8');
 const sanitizer=readFileSync(join(ROOT,'src/js/46-sanitizacao-e-editor.js'),'utf8');
 const importer=readFileSync(join(ROOT,'src/js/35-anki-import.js'),'utf8');
 const backend=readFileSync(join(ROOT,'anki_official_backend/app.py'),'utf8');
@@ -27,12 +29,41 @@ assert.match(backend,/PyJWKClient/,'Auth rápido deve validar JWT assimétrico p
 assert.match(backend,/max_age=86400/,'preflight CORS precisa ficar cacheável para não duplicar round-trip');
 assert.match(backend,/GZipMiddleware, minimum_size=1024/,'snapshots grandes precisam sair comprimidos');
 assert.match(official,/async _fetchResponse\(path, opts\)[\s\S]*?AbortController[\s\S]*?\[502, 503, 504\]/,'cliente Anki precisa ter timeout e retry apenas no transporte seguro de leitura');
-assert.match(official,/\/api\/anki\/bootstrap\?view=/,'abertura do Anki deve consolidar status + primeira pintura');
+assert.doesNotMatch(official,/\/api\/anki\/bootstrap\?view=/,'cliente fino não pode reativar o bootstrap da antiga tela Anki');
+assert.doesNotMatch(official,/\b(?:root|renderReviewer|renderDecks|setView)\s*\(/,'transporte oficial não pode voltar a carregar UI/reviewer próprios');
 assert.match(bridge,/\/api\/cards-official\/bootstrap-state/,'Cards deve consolidar status, full-state e preferências');
 assert.match(build,/'js\/95-cards-official-bridge\.js'/,'bridge precisa entrar no build publicado');
 for(const removed of ['30-fsrs.js','31-cards-config.js','32-card-engine.js'])assert.ok(!build.includes('js/'+removed),'motor local não pode voltar ao build: '+removed);
 assert.ok(!build.includes('js/34-anki-export.js'),'gerador APKG local não pode voltar ao build');
 assert.ok(!bridge.includes('AnkiExport.'),'bridge oficial não pode depender de exportador local');
+
+// MENU MAIS — inventário e destino. O menu único da tela Cards/Anki deve manter
+// somente superfícies válidas: ações acadêmicas delegam ao backend oficial;
+// utilidades de casca permanecem explicitamente não acadêmicas.
+for(const id of [
+  'cards-stats-btn','cards-algo-btn','cards-custom-btn','cards-filtered-btn',
+  'cards-import-btn','cards-export-btn','cards-empty-btn','cards-audit-export-btn'
+]) assert.ok(html.includes('id="'+id+'"'),'ação base do Mais ausente: '+id);
+
+for(const [id,source] of [
+  ['cards-advanced-add-btn',imageOcclusion],
+  ['cards-browser-btn',product],
+  ['cards-shared-decks-btn',product],
+  ['cards-notetypes-btn',product],
+  ['cards-check-collection-btn',product],
+  ['cards-reviewer-bindings-btn',final10],
+  ['cards-preferences-btn',practical],
+]) assert.ok(source.includes(id),'ação injetada do Mais ausente: '+id);
+
+for(const source of [html,practical,total,product,final10,imageOcclusion])
+  assert.ok(!source.includes('cards-extensions-btn'),'Extensões locais não podem voltar ao Mais do Anki oficial');
+
+assert.match(sanitizer,/on\('cards-empty-btn'[\s\S]{0,500}?CardsOfficialBridge\.openEmptyCards/,'Cards vazios deve delegar ao backend oficial');
+assert.match(product,/openSharedDecks\(\)[\s\S]{0,500}?https:\/\/ankiweb\.net\/shared\/decks\//,'Baralhos compartilhados deve abrir a fonte oficial AnkiWeb');
+assert.match(imageOcclusion,/anki-advanced-save[\s\S]{0,3000}?CardsOfficialBridge\.addOfficialNote/,'Adicionar nota avançada deve gravar pela Collection oficial');
+assert.match(practical,/openPreferences\(\)[\s\S]{0,5000}?CardsOfficialBridge\.getOfficialPreferences[\s\S]{0,5000}?CardsOfficialBridge\.updateOfficialPreferences/,'Preferências acadêmicas devem ler e salvar pela Collection oficial');
+assert.match(bridge,/async runCustomStudy\(\)[\s\S]{0,1800}?\/api\/cards-official\/custom-study/,'Estudo personalizado deve usar Custom Study oficial');
+
 
 for(const forbidden of [
   'CardEngine.schedule(',
