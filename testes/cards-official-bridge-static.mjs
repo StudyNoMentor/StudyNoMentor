@@ -7,6 +7,7 @@ import { runInNewContext } from 'node:vm';
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
 const bridge=readFileSync(join(ROOT,'src/js/95-cards-official-bridge.js'),'utf8');
+const official=readFileSync(join(ROOT,'src/js/44-anki-official.js'),'utf8');
 const cards=readFileSync(join(ROOT,'src/js/44-tela-cards.js'),'utf8');
 const statsMedia=readFileSync(join(ROOT,'src/js/44-anki-max-stats-media.js'),'utf8');
 const maxEditor=readFileSync(join(ROOT,'src/js/44-anki-max-editor.js'),'utf8');
@@ -92,6 +93,8 @@ assert.ok(!/\bCardsConfig\b/.test(cards),'tela Cards não pode manter segunda fo
 assert.ok(!/CardEngine\./.test(cards),'tela Cards não pode chamar o motor acadêmico legado');
 assert.match(bridge,/source=window\.CardsScreen&&typeof CardsScreen\.currentFilteredCards===['"]function['"]\?CardsScreen\.currentFilteredCards\(\)/,'fila oficial deve usar o mesmo recorte visual dos filtros');
 assert.match(bridge,/session_version:String\(this\._reviewSessionVersion\|\|['"]['"]\)/,'resposta deve estar vinculada à versão da sessão');
+assert.match(official,/err\.status\s*=\s*r\.status/,'erros HTTP precisam preservar o status para distinguir conflito de falha de rede');
+assert.match(bridge,/Number\(e&&e\.status\)===409[\s\S]*?await this\._syncReviewScope\(deckId\)/,'conflito de sessão deve reconstruir a fila em vez de prender o usuário no retry');
 assert.match(bridge,/_reviewUiActive\(cardId,sessionVersion\)/,'Auto Advance precisa revalidar tela, card e sessão');
 assert.ok(!cards.includes('value: opts[1].value'),'mover em lote não pode assumir um segundo baralho');
 assert.match(cards,/async exportAudit\(\)[\s\S]*?\/api\/cards-official\/collection\/full-state/,'auditoria deve fotografar a Collection oficial');
