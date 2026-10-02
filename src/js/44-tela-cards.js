@@ -46,14 +46,10 @@ const CardsScreen = {
       .map(t => ({ value: String(t), label: String(t), group: 'Assuntos' }));
   },
   cardTypeKey(card) {
-    const kind = String(card && card.kind || '').trim();
-    if (kind) return kind;
-    const legacy = String(card && card.tipo || '').trim();
-    return legacy ? 'legacy:' + legacy : '';
+    return String(card && card.kind || '').trim();
   },
   cardTypeLabel(value) {
     const key = String(value || '');
-    if (key.indexOf('legacy:') === 0) return key.slice(7);
     return ({
       basic: 'Básico',
       basic_reversed: 'Básico + cartão invertido',
