@@ -187,7 +187,7 @@ assert.match(db,/const createdMs = Date\.parse\(data && data\.createdAt \|\| ''\
 assert.match(db,/const createdAt = Number\.isFinite\(createdMs\) \? new Date\(createdMs\)\.toISOString\(\) : now;[\s\S]*?createdAt, updatedAt: now/,'addCard deve persistir o createdAt histórico validado');
 assert.match(bridge,/_originalCreatedDay\(card\)[\s\S]{0,900}?card&&card\.createdAt/,'Stats deve preferir a criação histórica preservada no Study');
 assert.match(bridge,/_statsOriginalAddedMap\(scopeIds\)[\s\S]{0,2600}?byOfficialId[\s\S]{0,2600}?this\._dayOffset/,'Adicionados deve reagrupar cards pela data original, deduplicando réplicas globais');
-assert.match(bridge,/createdAt:this\._officialCreatedAt\(state\)/,'cards importados do Anki devem semear o espelho Study com a criação codificada no ID oficial');
+assert.match(bridge,/createdAt:seed\.createdAt\|\|this\._officialCreatedAt\(state\)/,'réplicas devem preservar createdAt histórico quando existir e usar o ID oficial só como fallback');
 assert.match(bridge,/this\._statsOfficialAddedHtml\(addedMap\)/,'painel Adicionados deve renderizar a série histórica corrigida');
 assert.match(backend,/def cards_official_collection_graphs_scoped[\s\S]{0,2200}?_study_scope_card_ids/,'backend deve devolver os IDs exatos do recorte usado pelo GraphsService');
 assert.match(bridge,/\/api\/cards-official\/stats\/graphs\/scoped/,'Stats dos Cards devem consultar GraphsService oficial com o recorte Study');
