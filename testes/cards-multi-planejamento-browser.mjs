@@ -139,7 +139,7 @@ try{
     const host=document.getElementById('cards-f-assunto-multi');
     host.scrollIntoView({block:'center',inline:'nearest'});
     host.querySelector('.cards-multi-filter-btn').click();
-    const panel=host.querySelector('.cards-multi-filter-panel');
+    const panel=host._cardsMultiPanel||host.querySelector('.cards-multi-filter-panel');
     const cs=getComputedStyle(panel),rect=panel.getBoundingClientRect(),
       probe=document.elementFromPoint(Math.min(innerWidth-20,rect.left+24),Math.max(rect.top+20,rect.bottom-24)),
       filterCard=document.getElementById('cards-filter-card');
