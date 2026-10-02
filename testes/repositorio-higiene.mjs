@@ -63,6 +63,12 @@ const proibidos=[
   'testes/cards-foco-edicao-browser.mjs',
   'testes/cards-reparo-memoria-browser.mjs',
   'testes/cards-10of10-final.mjs',
+  '.tmp-build-map-1.json',
+  '.tmp-build-map-2.json',
+  'anki-oficial/AUDITORIA-POR-ARQUIVO.md',
+  'anki-oficial/audit-status.json',
+  'tools/anki-audit-report.mjs',
+  'src/js/44-anki-10of10-final.js',
   'src/js/34-anki-export.js',
   'src/js/44-anki-runtime.js',
   'src/js/45-anki-official-surfaces.js',
@@ -71,6 +77,8 @@ const proibidos=[
   'src/js/32-card-engine.js'
 ];
 for(const p of proibidos)assert.equal(existsSync(join(ROOT,p)),false,`artefato obsoleto voltou: ${p}`);
+const temporariosBuild=readdirSync(ROOT).filter(n=>/^\.tmp-build-map-.*\.json$/.test(n));
+assert.deepEqual(temporariosBuild,[],'mapas temporários de build não podem ser versionados');
 assert.equal(existsSync(join(ROOT,'testes','evidencias')),false,'evidências geradas não devem ser versionadas');
 assert.equal(existsSync(join(ROOT,'audit')),false,'auditorias históricas de motores removidos não devem voltar ao repositório');
 const ankiTransport=readFileSync(join(ROOT,'src','js','44-anki-official.js'),'utf8');
