@@ -1583,7 +1583,7 @@ const CardsOfficialBridge = {
       const out=await this.request('/api/cards-official/reviewer/answer',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({
-          session_id:this._reviewSession(),request_id:requestId,card_id:Number(current.id),
+          session_id:this._reviewSession(),session_version:String(this._reviewSessionVersion||''),request_id:requestId,card_id:Number(current.id),
           rating,milliseconds_taken:Math.max(0,Math.round(ms||0))
         })
       });
