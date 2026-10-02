@@ -146,7 +146,8 @@ try{
   ok(r.outsideCloses,'dropdown fecha ao clicar fora');
   ok(r.escapeCloses,'dropdown fecha pela tecla Escape');
   ok(mobile.position==='fixed'&&mobile.bottom!=='auto'&&mobile.overflow==='auto','dropdown móvel fica preso à viewport e mantém rolagem interna');
-  ok(mobile.filterOpacity==='1'&&mobile.panelOnTop,'dropdown móvel fica acima do card de revisão, sem stacking context opaco');
+  ok(mobile.filterOpacity==='1','card de filtros aberto não cria stacking context por opacidade');
+  ok(mobile.panelOnTop,'dropdown móvel fica acima do card de revisão no hit-test real');
   ok(mobile.navGap>=70,'dropdown móvel termina acima da navegação inferior');
   ok(erros.length===0,'sem erros de página: '+erros.join(' | '));
   console.log(`CARDS MULTI-PLANEJAMENTO OK — ${n} invariantes.`);
