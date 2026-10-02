@@ -801,7 +801,7 @@ const DB = {
     const lei = { id: this._uid(), titulo: (titulo || 'Sem título').trim(), referencia: (referencia || '').trim(),
       materia: (materia || '').trim(), texto: texto || '', marcacoes: [], suppressed: [],
       opts: { ressalvas: true, restricoes: true, competencias: true, prazos: true, efeitos: true, relacoes: true },
-      createdAt, updatedAt: now };
+      createdAt: now, updatedAt: now };
     list.push(lei);
     this.saveLeis(list);
     return lei;
@@ -1225,7 +1225,7 @@ const DB = {
            de virar um bloco monotemático no fim.
          Reposicionar depois continua funcionando: ele reescreve posicaoNova. */
       posicaoNova: data.posicaoNova == null ? null : data.posicaoNova,
-      createdAt: now, updatedAt: now
+      createdAt, updatedAt: now
     };
     list.push(card); this.saveCards(list); return card;
   },
