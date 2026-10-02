@@ -24,6 +24,7 @@ const submoduleUnclassified=(submodules.submodules||[]).filter(x=>x.cards_scope=
 assert.equal(submoduleUnclassified.length,0,'release upstream contém submódulo(s) não classificados: '+submoduleUnclassified.map(x=>x.path).join(', '));
 assert.equal(lock.schema,'studynomentor-anki-upstream-lock-v1');
 assert.equal(lock.repository,'ankitects/anki');
+assert.equal(lock.auto_update_policy?.stable_release_quarantine_hours,48,'quarentena mínima de release estável deve permanecer em 48h');
 assert.match(lock.release,/^\d+(?:\.\d+)+$/,'release estável inválida no lock');
 assert.match(lock.release_commit,/^[0-9a-f]{40}$/,'commit da release inválido no lock');
 assert.equal(files.length,lock.total_files,'inventario nao cobre todos os arquivos');
