@@ -1274,7 +1274,11 @@ def _legacy_stock_kind(row: dict[str, Any]) -> int:
         "image occlusion": "image_occlusion",
     }
     name_hint = stock_names.get(str(row.get("name") or "").strip().lower())
-    if explicit in aliases and name_hint and explicit != name_hint:
+    # Espelhos antigos preenchiam "basic" como valor genérico mesmo para
+    # tipos stock reversos; nesse caso o nome stock exato é a evidência histórica
+    # mais específica. Conflitos entre tipos explícitos não genéricos continuam
+    # proibidos para evitar conversão silenciosa de schema.
+    if explicit in aliases and explicit != "basic" and name_hint and explicit != name_hint:
         raise HTTPException(
             422,
             f"NoteType legado ambíguo: stock_kind={explicit!r} conflita com o nome stock {row.get('name')!r}. "
