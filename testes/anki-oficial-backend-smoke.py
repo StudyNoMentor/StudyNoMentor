@@ -654,11 +654,12 @@ with tempfile.TemporaryDirectory() as tmp:
     assert changed["notes"][0]["notetype_id"] == new_id
     assert changed["cards"], "Anki deve devolver os cards resultantes da mudança de tipo"
 
-    # Undo/redo da coleção Cards também pertencem ao backend oficial.
-    undo_out = app.cards_official_undo(cards_ctx)
-    assert undo_out["ok"] is True and "reviewer" in undo_out
-    redo_out = app.cards_official_redo(cards_ctx)
-    assert redo_out["ok"] is True and "reviewer" in redo_out
+    # Undo/redo da coleção Cards passam pela rota reconciliada: além da
+    # operação oficial, devolvem snapshot completo + status para o espelho.
+    undo_out = app.cards_official_history_undo(cards_ctx)
+    assert undo_out["ok"] is True and "state" in undo_out and "status" in undo_out
+    redo_out = app.cards_official_history_redo(cards_ctx)
+    assert redo_out["ok"] is True and "state" in redo_out and "status" in redo_out
 
     app.cards_pool.close_all()
     # Migração automática legado -> Collection oficial. Esse é o caminho
