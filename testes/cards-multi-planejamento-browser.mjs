@@ -23,8 +23,10 @@ try{
     try{ProfileUI.hideGate();}catch(_){}
     StudyGlobalScope.setCardsScope('all');
     const dA=DB.addDeck('Deck Ativo');DB.addCard({deckId:dA.id,frente:'A',verso:'1',kind:'basic'});
+    const activePlan=PlanManager.getActivePlanId();
+    const localDecks=DB.getDecks();localDecks.push({id:'defaultA',nome:'Padrão',ankiId:1});DB.saveDecks(localDecks);
     const B=PlanManager.createPlan({nome:'Plano B',tipo:'Outro'});
-    DB.saveDecksForPlan(B,[{id:'dkB',nome:'Deck B'}]);
+    DB.saveDecksForPlan(B,[{id:'dkB',nome:'Deck B',ankiId:9001},{id:'defaultB',nome:'Padrão',ankiId:1}]);
     DB.saveCardsForPlan(B,[{id:'cB1',deckId:'dkB',frente:'cache B',verso:'cache resposta B',phase:'new',kind:'basic'}]);
 
     switchScreen('cards');
@@ -32,9 +34,19 @@ try{
     CardsScreen.openDeckModal();
     out.lista=[...document.querySelectorAll('#deck-list .deck-row')].map(r=>r.querySelector('.deck-name').value+'|'+r.querySelector('.deck-count').textContent);
     document.getElementById('deck-modal').style.display='none';
+    StudyGlobalScope.setCardsScope('plan');
     CardsScreen.openCardModal();
-    out.destino=[...document.getElementById('card-destino').options].map(o=>o.value);
+    const destOptions=[...document.getElementById('card-destino').options].filter(o=>o.value).map(o=>({
+      value:o.value,label:o.textContent,parsed:CardsScreen._parseDeckDestination(o.value)
+    }));
+    out.destino={
+      values:destOptions,
+      remoteVisible:destOptions.some(o=>String(o.parsed.deckId)==='dkB'&&String(o.parsed.planId)===String(B)),
+      padraoCount:destOptions.filter(o=>String(o.label||'').includes('Padrão')).length,
+      padraoUsesActive:destOptions.some(o=>String(o.label||'').includes('Padrão')&&String(o.parsed.planId)===String(activePlan))
+    };
     document.getElementById('card-modal').style.display='none';
+    StudyGlobalScope.setCardsScope('all');
 
     // Regressão dos filtros múltiplos: duas disciplinas/baralhos e dois assuntos.
     const dC=DB.addDeck('Deck C');
@@ -136,7 +148,9 @@ try{
   });
   ok(r.lista.some(x=>x.startsWith('Deck B|')&&x.includes('Plano B')),'Meus baralhos mostra baralho de outro plano com o nome do plano');
   ok(r.lista.some(x=>x.startsWith('Deck Ativo|')),'Meus baralhos mantém o baralho do plano ativo');
-  ok(r.destino.includes('deck:dkB'),'Criar card oferece baralho de outro plano');
+  ok(r.destino.remoteVisible,'Criar card oferece baralho de outro plano mesmo com escopo visual no planejamento atual');
+  ok(r.destino.padraoCount===1,'baralho oficial Padrão/Default espelhado em vários planos aparece uma única vez');
+  ok(r.destino.padraoUsesActive,'quando o mesmo baralho oficial existe no plano ativo, a criação prefere esse espelho');
   ok(r.multiHosts,'filtros de disciplina/baralho e assunto usam controles múltiplos');
   ok(r.multiDeck.size===2&&r.multiDeck.badge==='2'&&r.multiDeck.onlyChosen,'dois baralhos são combinados por OR e exibem contador');
   ok(r.multiDisc,'duas disciplinas podem ser selecionadas simultaneamente');
