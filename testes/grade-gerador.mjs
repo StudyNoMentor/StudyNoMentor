@@ -59,4 +59,30 @@ ok(rf.grade.Segunda.filter(Boolean).reduce((s, c) => s + c.minutes, 0) <= 120, '
 // Mesma semente → mesma grade; outra semente → alternativa válida.
 ok(JSON.stringify(G.gerar({ materias: M, dias, semente: 3 }).grade) === JSON.stringify(G.gerar({ materias: M, dias, semente: 3 }).grade), 'determinístico por semente');
 ok(G.pareceCalculo('Contabilidade Geral') && G.pareceCalculo('Raciocínio Lógico') && !G.pareceCalculo('Direito Tributário'), 'palpite de cálculo');
+// Limites individuais: sessões fixas e faixas coexistem com o padrão global.
+const individuais = [
+  { nome: 'A', minutos: 360, minSess: 120, maxSess: 120, prioritaria: true },
+  { nome: 'B', minutos: 180, minSess: 60, maxSess: 60 },
+  { nome: 'C', minutos: 200, minSess: 90, maxSess: 120 },
+  { nome: 'Padrão', minutos: 150 }
+];
+const amplo = G.DIAS.map(dia => ({ dia, minutos: 240 }));
+const ri = G.gerar({ materias: individuais, dias: amplo });
+for (const m of individuais) {
+  const cells = Object.values(ri.grade).flat().filter(c => c && c.subject === m.nome);
+  ok(cells.every(c => c.minutes >= (m.minSess ?? 60) && c.minutes <= (m.maxSess ?? 120)), 'respeita limites individuais de ' + m.nome);
+  ok(cells.reduce((a, c) => a + c.minutes, 0) === m.minutos, 'preserva meta de ' + m.nome);
+}
+for (const [minutos, minSess, maxSess] of [[150,120,120], [30,120,120], [200,120,60]]) {
+  const r = G.gerar({ materias: [{ nome: 'X', minutos, minSess, maxSess }], dias: amplo });
+  const aloc = Object.values(r.grade).flat().filter(Boolean).reduce((a, c) => a + c.minutes, 0);
+  ok(aloc + r.sobras.reduce((a, c) => a + c.minutos, 0) === minutos, 'meta incompatível fica em sobra, sem aumentar ou perder tempo');
+  ok(r.avisos.length > 0, 'avisa limites incompatíveis');
+}
+const curto = G.gerar({ materias: [{ nome: 'X', minutos: 240, minSess: 120, maxSess: 120 }], dias: G.DIAS.map(dia => ({ dia, minutos: 60 })) });
+ok(Object.values(curto.grade).flat().filter(Boolean).length === 0 && curto.sobras.reduce((a, c) => a + c.minutos, 0) === 240, 'não quebra sessão de duas horas para caber em dia de uma hora');
+const herdado = G.gerar({ minSess: 90, maxSess: 150, materias: [{ nome: 'Parcial', minutos: 240, maxSess: 120 }], dias: amplo });
+ok(Object.values(herdado.grade).flat().filter(Boolean).every(c => c.minutes === 120), 'limite omitido herda o padrão global');
+const fechado = G.gerar({ materias: [{ nome: 'X', minutos: 150, minSess: 120, maxSess: 120 }], dias: [] });
+ok(fechado.sobras.reduce((a, c) => a + c.minutos, 0) === 150, 'sem dias disponíveis preserva sessões e resto incompatível');
 console.log(`GRADE GERADOR OK — ${n} invariantes.`);
