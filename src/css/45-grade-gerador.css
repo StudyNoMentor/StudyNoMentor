@@ -66,3 +66,12 @@
 .grade-prioridades-modal .gp-mats{max-height:none}
 .grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto}
 @media(max-width:640px){.grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:none}.grade-prioridades-modal .gp-mat .gg-mat-nome{grid-area:auto}}
+
+/* Limites individuais: segunda linha mantém os campos legíveis no celular. */
+.grade-gerador-modal .gg-mat-limites{order:5;grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--text-soft)}
+.grade-gerador-modal .gg-mat-limites label{display:inline-flex;align-items:center;gap:6px}
+.grade-gerador-modal .gg-in input[aria-invalid="true"]{border-color:var(--warn-text,#8a5300)}
+@media(max-width:640px){
+  .grade-gerador-modal .gg-mat-limits{grid-template-areas:"nome nome nome" "min pri calc" "limites limites limites"}
+  .grade-gerador-modal .gg-mat-limites{grid-area:limites}
+}
