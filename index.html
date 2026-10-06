@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="vef33266381">
+<meta name="diario-versao" content="v18b4e7de3f">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -16641,6 +16641,15 @@ body.cards-foco #screen-cards .cards-review-meta{margin-top:0!important}
 .grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto}
 @media(max-width:640px){.grade-prioridades-modal .gp-mat{grid-template-columns:minmax(0,1fr) auto auto;grid-template-areas:none}.grade-prioridades-modal .gp-mat .gg-mat-nome{grid-area:auto}}
 
+/* Limites individuais: segunda linha mantém os campos legíveis no celular. */
+.grade-gerador-modal .gg-mat-limites{order:5;grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12px;color:var(--text-soft)}
+.grade-gerador-modal .gg-mat-limites label{display:inline-flex;align-items:center;gap:6px}
+.grade-gerador-modal .gg-in input[aria-invalid="true"]{border-color:var(--warn-text,#8a5300)}
+@media(max-width:640px){
+  .grade-gerador-modal .gg-mat-limits{grid-template-areas:"nome nome nome" "min pri calc" "limites limites limites"}
+  .grade-gerador-modal .gg-mat-limites{grid-area:limites}
+}
+
 </style>
 
 <style id="telas-estudo">
@@ -26721,7 +26730,8 @@ function planCycleMode() {
    Transforma as metas semanais do Ciclo (minutos por matéria) em uma grade
    pronta, seguindo as regras de montagem:
 
-   • Sessões de 60 a 120 min, sempre preferindo 60. O que sobra de uma meta
+   • Sessões conforme os limites da matéria (padrão: 60 a 120 min),
+     sempre preferindo o mínimo. O que sobra de uma meta
      (ex.: 150 min) vai para UMA sessão maior (60 + 90), nunca fatia menor
      que o mínimo.
    • Repetições da mesma matéria espaçadas ao longo da semana (3 sessões em
@@ -26789,9 +26799,21 @@ function planCycleMode() {
     const materias = (opts.materias || [])
       .filter(m => m && String(m.nome || '').trim() && Number(m.minutos) > 0)
       .map((m, i) => {
-        const div = dividir(m.minutos, min, max);
-        if (div.arredondado) avisos.push(`${m.nome}: meta de ${Math.round(m.minutos)} min arredondada para uma sessão de ${min} min.`);
-        if (div.perdido > 0) avisos.push(`${m.nome}: ${div.perdido} min da meta não couberam em sessões de ${min}–${max} min e ficaram de fora.`);
+        const personalizado = m.minSess != null || m.maxSess != null;
+        const minimo = m.minSess == null ? min : Number(m.minSess);
+        const maximo = m.maxSess == null ? max : Number(m.maxSess);
+        if (!Number.isFinite(minimo) || !Number.isFinite(maximo) || minimo < 5 || maximo < minimo) {
+          avisos.push(`${m.nome}: informe uma sessão mínima válida e uma máxima maior ou igual à mínima.`);
+          sobras.push({ nome: m.nome, minutos: Math.round(Number(m.minutos)) });
+          return { nome: String(m.nome).trim(), minutos: Math.round(Number(m.minutos)), sessoes: [], _ord: i, _r: rand() };
+        }
+        // Limites individuais não aumentam a meta semanal para forçar uma sessão.
+        const div = personalizado && Number(m.minutos) < minimo
+          ? { sessoes: [], perdido: Math.round(Number(m.minutos)) }
+          : dividir(m.minutos, minimo, maximo);
+        if (div.arredondado) avisos.push(`${m.nome}: meta de ${Math.round(m.minutos)} min arredondada para uma sessão de ${minimo} min.`);
+        if (div.perdido > 0) avisos.push(`${m.nome}: ${div.perdido} min da meta não couberam em sessões de ${minimo}–${maximo} min e ficaram de fora.`);
+        if (div.perdido > 0) sobras.push({ nome: m.nome, minutos: div.perdido });
         return { nome: String(m.nome).trim(), minutos: Math.round(Number(m.minutos)), prioritaria: !!m.prioritaria, calculo: !!m.calculo, sessoes: div.sessoes, _ord: i, _r: rand() };
       })
       // mais restritas primeiro: prioritárias, depois as com mais sessões
@@ -26814,6 +26836,7 @@ function planCycleMode() {
 
     materias.forEach(m => {
       const n = m.sessoes.length;
+      if (!n) return;
       if (n > L) avisos.push(`${m.nome}: ${n} sessões em ${L} dia(s) — a matéria se repete em algum dia.`);
       // Testa cada ponto de partida e fica com a distribuição mais espaçada
       // e que usa os dias mais folgados.
@@ -26881,7 +26904,7 @@ function planCycleMode() {
     });
     if (sobras.length) {
       const porMat = {}; sobras.forEach(s => { porMat[s.nome] = (porMat[s.nome] || 0) + s.minutos; });
-      avisos.push('Não couberam no tempo disponível: ' + Object.keys(porMat).map(k => `${k} (${porMat[k]} min)`).join(', ') + '.');
+      avisos.push('Não couberam na grade com os limites e o tempo disponíveis: ' + Object.keys(porMat).map(k => `${k} (${porMat[k]} min)`).join(', ') + '.');
     }
     return { grade: out, sessoes: Math.max(1, sessoes), sobras, avisos };
   }
@@ -26943,7 +26966,7 @@ function planCycleMode() {
       dias,
       materias: metas.map(m => {
         const k = nk(m.nome), s = marc[k];
-        return { nome: m.nome, minutos: m.minutos, prioritaria: s ? !!s.prioritaria : false, calculo: s ? !!s.calculo : false };
+        return { nome: m.nome, minutos: m.minutos, prioritaria: s ? !!s.prioritaria : false, calculo: s ? !!s.calculo : false, minSess: s && s.minSess != null ? s.minSess : null, maxSess: s && s.maxSess != null ? s.maxSess : null };
       })
     };
   }
@@ -26958,7 +26981,7 @@ function planCycleMode() {
         <div class="siglas-modal-head">
           <div>
             <h2 id="gg-titulo">✨ Sugerir grade</h2>
-            <p class="sub">Distribui as metas do ciclo na semana: sessões de 60 min (até o máximo), repetições espaçadas, cálculo alternado e prioritárias nos primeiros horários.</p>
+            <p class="sub">Distribui as metas do ciclo na semana: sessões conforme os limites de cada disciplina, repetições espaçadas, cálculo alternado e prioritárias nos primeiros horários.</p>
           </div>
           <button type="button" class="icon-btn" data-gg-fechar title="Fechar" aria-label="Fechar">✕</button>
         </div>
@@ -26967,13 +26990,14 @@ function planCycleMode() {
             <h3 class="gg-h">Tempo disponível por dia</h3>
             <div class="gg-dias" id="gg-dias"></div>
             <div class="gg-sess">
-              <label>Sessão mínima <span class="gg-in"><input type="number" id="gg-min" min="15" max="240" step="5"> min</span></label>
-              <label>Sessão máxima <span class="gg-in"><input type="number" id="gg-max" min="15" max="240" step="5"> min</span></label>
+              <label>Mínima padrão <span class="gg-in"><input type="number" id="gg-min" required min="15" max="240" step="5"> min</span></label>
+              <label>Máxima padrão <span class="gg-in"><input type="number" id="gg-max" required min="15" max="240" step="5"> min</span></label>
             </div>
           </section>
           <section class="gg-sec">
             <div class="gg-prev-head"><h3 class="gg-h">Matérias da semana</h3><button type="button" class="btn-link gg-sugerir-calc" id="gg-sugerir-calc">🧮 Sugerir cálculo pelo nome</button></div>
             <p class="gg-hint">⭐ Prioritária = vai para os primeiros horários do dia. 🧮 Cálculo = não fica em sequência com outra de cálculo. As marcações também ficam em ⚙ Opções → Prioridades e cálculo.</p>
+            <p class="gg-hint">Mín. e máx. são minutos por sessão, separados da meta semanal. Deixe em branco para usar o padrão. Para sessões de 2 h, use 120 nos dois campos; para 1 h, use 60.</p>
             <div class="gg-mats" id="gg-mats"></div>
           </section>
           <section class="gg-sec">
@@ -27016,9 +27040,13 @@ function planCycleMode() {
     const mats = document.getElementById('gg-mats');
     if (!s.materias.length) { mats.innerHTML = '<p class="gg-hint">Monte o ciclo da semana (ou cadastre matérias) para ter metas a distribuir.</p>'; return; }
     mats.innerHTML = s.materias.map((m, i) => `
-      <div class="gg-mat">
+      <div class="gg-mat gg-mat-limits">
         <span class="gg-mat-nome" title="${esc(m.nome)}"><b>${esc(sigla(m.nome))}</b> ${esc(m.nome)}</span>
-        <span class="gg-in gg-mat-min"><input type="number" data-mat-min="${i}" min="0" step="15" value="${m.minutos}" aria-label="Minutos por semana de ${esc(m.nome)}"> min</span>
+        <span class="gg-in gg-mat-min"><input type="number" data-mat-min="${i}" min="0" step="15" value="${m.minutos}" aria-label="Minutos por semana de ${esc(m.nome)}"> min/sem</span>
+        <div class="gg-mat-limites">
+          <label>Mín. <span class="gg-in"><input type="number" data-mat-sess-min="${i}" min="15" max="240" step="5" value="${m.minSess == null ? '' : esc(m.minSess)}" placeholder="${s.minSess}" aria-label="Sessão mínima em minutos de ${esc(m.nome)}"> min</span></label>
+          <label>Máx. <span class="gg-in"><input type="number" data-mat-sess-max="${i}" min="15" max="240" step="5" value="${m.maxSess == null ? '' : esc(m.maxSess)}" placeholder="${s.maxSess}" aria-label="Sessão máxima em minutos de ${esc(m.nome)}"> min</span></label>
+        </div>
         <label class="gg-tog" title="Prioritária: primeiros horários do dia"><input type="checkbox" data-mat-pri="${i}" ${m.prioritaria ? 'checked' : ''}><span>⭐</span></label>
         <label class="gg-tog" title="Matéria de cálculo"><input type="checkbox" data-mat-calc="${i}" ${m.calculo ? 'checked' : ''}><span>🧮</span></label>
       </div>`).join('');
@@ -27026,16 +27054,24 @@ function planCycleMode() {
 
   function lerForm() {
     const s = st.form, q = sel => document.querySelectorAll(sel);
-    s.minSess = Math.max(15, Number(document.getElementById('gg-min').value) || 60);
-    s.maxSess = Math.max(s.minSess, Number(document.getElementById('gg-max').value) || 120);
+    s.minSess = Number(document.getElementById('gg-min').value);
+    s.maxSess = Number(document.getElementById('gg-max').value);
     q('[data-dia-ativo]').forEach(el => { const d = s.dias[+el.dataset.diaAtivo]; d.ativo = el.checked; el.closest('.gg-dia').classList.toggle('off', !el.checked); const h = el.closest('.gg-dia').querySelector('[data-dia-h]'); if (h) h.disabled = !el.checked; });
     q('[data-dia-h]').forEach(el => { s.dias[+el.dataset.diaH].minutos = Math.max(0, Math.round((Number(el.value) || 0) * 60)); });
     q('[data-mat-min]').forEach(el => { s.materias[+el.dataset.matMin].minutos = Math.max(0, Math.round(Number(el.value) || 0)); });
     q('[data-mat-pri]').forEach(el => { s.materias[+el.dataset.matPri].prioritaria = el.checked; });
     q('[data-mat-calc]').forEach(el => { s.materias[+el.dataset.matCalc].calculo = el.checked; });
+    q('[data-mat-sess-min], [data-mat-sess-max]').forEach(el => {
+      const minimo = el.hasAttribute('data-mat-sess-min');
+      const i = +(minimo ? el.dataset.matSessMin : el.dataset.matSessMax);
+      s.materias[i][minimo ? 'minSess' : 'maxSess'] = el.value === '' ? null : Number(el.value);
+    });
+    // Os padrões são mostrados também nos campos individuais que os herdam.
+    q('[data-mat-sess-min]').forEach(el => { el.placeholder = s.minSess; });
+    q('[data-mat-sess-max]').forEach(el => { el.placeholder = s.maxSess; });
     const dias = {}; s.dias.forEach(d => { dias[d.dia] = { ativo: d.ativo, minutos: d.minutos }; });
     // funde com as marcações de matérias que não estão nesta semana
-    const materias = Object.assign({}, lerPrefs().materias || {}); s.materias.forEach(m => { materias[nk(m.nome)] = { prioritaria: m.prioritaria, calculo: m.calculo }; });
+    const materias = Object.assign({}, lerPrefs().materias || {}); s.materias.forEach(m => { materias[nk(m.nome)] = Object.assign({}, materias[nk(m.nome)], { prioritaria: m.prioritaria, calculo: m.calculo, minSess: m.minSess, maxSess: m.maxSess }); });
     gravarPrefsAdiado({ minSess: s.minSess, maxSess: s.maxSess, dias, materias });
   }
   /* Cada tecla disparava um upsert no banco. Agora a gravação espera a
@@ -27055,6 +27091,20 @@ function planCycleMode() {
 
   function gerarPrevia() {
     const s = st.form;
+    let invalido = false;
+    document.querySelectorAll('#gg-min, #gg-max').forEach(el => {
+      const erro = !el.checkValidity() || s.maxSess < s.minSess;
+      el.setAttribute('aria-invalid', erro ? 'true' : 'false');
+      if (erro) invalido = true;
+    });
+    document.querySelectorAll('[data-mat-sess-min], [data-mat-sess-max]').forEach(el => {
+      const i = +(el.dataset.matSessMin ?? el.dataset.matSessMax), m = s.materias[i];
+      const min = m.minSess == null ? s.minSess : m.minSess;
+      const max = m.maxSess == null ? s.maxSess : m.maxSess;
+      const erro = !el.checkValidity() || max < min;
+      el.setAttribute('aria-invalid', erro ? 'true' : 'false');
+      if (erro) invalido = true;
+    });
     const r = G.gerar({ minSess: s.minSess, maxSess: s.maxSess, semente: st.semente,
       dias: s.dias.map(d => ({ dia: d.dia, minutos: d.ativo ? d.minutos : 0 })), materias: s.materias });
     st.ultimo = r;
@@ -27062,7 +27112,7 @@ function planCycleMode() {
     const disp = s.dias.reduce((a, d) => a + (d.ativo ? d.minutos : 0), 0);
     const aloc = DIAS.reduce((a, d) => a + r.grade[d].reduce((x, c) => x + (c ? c.minutes : 0), 0), 0);
     document.getElementById('gg-resumo').textContent = `${fmt(aloc)} alocadas · meta ${fmt(meta)} · disponível ${fmt(disp)}`;
-    document.getElementById('gg-avisos').innerHTML = r.avisos.map(a => `<p class="gg-aviso">⚠ ${esc(a)}</p>`).join('');
+    document.getElementById('gg-avisos').innerHTML = (invalido ? ['Revise os limites padrão e por disciplina: use 15 a 240 min, em passos de 5, com máxima maior ou igual à mínima.', ...r.avisos] : r.avisos).map(a => `<p class="gg-aviso">⚠ ${esc(a)}</p>`).join('');
     const cor = n => CE() ? CE().colorForSubject(n) : '';
     let h = '<table class="gg-tab"><thead><tr><th></th>' + DIAS.map(d => `<th>${d.slice(0, 3)}</th>`).join('') + '</tr></thead><tbody>';
     for (let i = 0; i < r.sessoes; i++) {
@@ -27075,12 +27125,12 @@ function planCycleMode() {
     }
     h += '</tbody></table>';
     document.getElementById('gg-prev').innerHTML = aloc ? h : '<p class="gg-hint">Nada para distribuir ainda: informe as metas das matérias e o tempo dos dias.</p>';
-    document.getElementById('gg-aplicar').disabled = !aloc;
+    document.getElementById('gg-aplicar').disabled = !aloc || invalido;
   }
 
   async function aplicar() {
     gravarPrefsAgora();
-    const r = st.ultimo; if (!r) return;
+    const r = st.ultimo; if (!r || document.getElementById('gg-aplicar').disabled) return;
     const t = DB.getGradeTemplate();
     const temAlgo = DIAS.some(d => (t.grade && t.grade[d] || []).some(Boolean));
     if (temAlgo) {
@@ -27164,7 +27214,7 @@ function planCycleMode() {
     document.querySelectorAll('[data-gp-pri]').forEach(el => { l[+el.dataset.gpPri].prioritaria = el.checked; });
     document.querySelectorAll('[data-gp-calc]').forEach(el => { l[+el.dataset.gpCalc].calculo = el.checked; });
     const p = lerPrefs(); p.materias = Object.assign({}, p.materias || {});
-    l.forEach(x => { p.materias[nk(x.nome)] = { prioritaria: x.prioritaria, calculo: x.calculo }; });
+    l.forEach(x => { p.materias[nk(x.nome)] = Object.assign({}, p.materias[nk(x.nome)], { prioritaria: x.prioritaria, calculo: x.calculo }); });
     gravarPrefs(p); resumoPrioridades();
   }
 
