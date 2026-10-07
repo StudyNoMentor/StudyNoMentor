@@ -822,7 +822,7 @@ function planCycleMode() {
 
   // Fonte da grade = MODELO PERSISTENTE (rotina reutilizável entre ciclos)
   function gradeGet() { return DB.getGradeTemplate(); }
-  function gradeSave(t) { DB.saveGradeTemplate(t); }
+  function gradeSave(t) { return DB.saveGradeTemplate(t); }
   /* ---- Preferências de exibição da Grade (por PERFIL e sincronizadas na nuvem) ----
      Antes ficavam em chaves globais do navegador: não acompanhavam o perfil nem iam
      para o backup, então "voltavam ao padrão" ao trocar de dispositivo/recarregar. */
@@ -915,14 +915,11 @@ function planCycleMode() {
   /* ---- Grade × registros de estudo ----
      Cada sessão da grade é preenchida pelos minutos REGISTRADOS da matéria na
      semana corrente. Calculado na hora (nada é gravado): apagar ou editar um
-     registro corrige a grade sozinho. Duas passadas:
-       1) o registro cobre primeiro a sessão da MESMA matéria no MESMO dia — quem
-          estudou hoje o que estava previsto para hoje vê a missão de hoje
-          concluída (antes o minuto ia para a primeira sessão da semana e a
-          missão do dia continuava pendente);
-       2) o que sobra vale a meta da semana, como no Ciclo: cobre as sessões
-          ainda abertas em ordem cronológica — primeiro as atrasadas, depois
-          adianta as próximas.
+     registro corrige a grade sozinho. Os minutos de cada matéria cobrem as
+     sessões pendentes em ordem cronológica, começando pela mais antiga,
+     independentemente do dia em que o estudo foi registrado. Dentro do mesmo
+     dia vale a ordem das sessões. O saldo completa parcialmente a próxima.
+     Sessões concluídas manualmente não consomem esses minutos.
      O ✓ manual continua existindo e vale na semana em que foi marcado. */
   const _DOW = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
   const _iso = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -946,34 +943,32 @@ function planCycleMode() {
       const d = new Date(y, m - 1, dd + i);
       return { iso: _iso(d), dia: _DOW[d.getDay()] };
     });
-    const isoDoDia = {}; dias.forEach(d => { isoDoDia[d.iso] = true; });
     let entries = [];
     try { entries = DB.getEntries() || []; } catch (e) { _quiet(e); }
-    const noDia = {}, sobra = {};   // noDia[iso][matéria] | sobra[matéria]
+    const saldo = {};
     entries.forEach(e => {
       if (!e || !e.subject || !(e.date >= ini && e.date <= fim)) return;
       const k = CycleEngine.normKey(e.subject), min = Number(e.durationMin) || 0;
-      if (isoDoDia[e.date]) { const b = noDia[e.date] || (noDia[e.date] = {}); b[k] = (b[k] || 0) + min; }
-      else sobra[k] = (sobra[k] || 0) + min;   // ciclo com mais de 7 dias
+      saldo[k] = (saldo[k] || 0) + min;
     });
     const celulas = [];
     dias.forEach(d => (tmpl.grade[d.dia] || []).forEach((raw, idx) => {
       const c = normalizeCell(raw); if (!c || !c.subject) return;
-      celulas.push({ dia: d.dia, iso: d.iso, idx, k: CycleEngine.normKey(c.subject), meta: Math.max(0, Number(c.minutes) || 0), feito: 0 });
+      const manual = c.done && (!c.doneWeek || c.doneWeek === ini);
+      celulas.push({ dia: d.dia, idx, k: CycleEngine.normKey(c.subject), meta: Math.max(0, Number(c.minutes) || 0), feito: 0, manual, desmarcada: c.uncheckedWeek === ini });
     }));
-    // 1) mesmo dia, mesma matéria
+    // A primeira sessão disponível da matéria recebe os minutos antes das seguintes.
     celulas.forEach(c => {
-      const b = noDia[c.iso]; const disp = (b && b[c.k]) || 0;
-      const usa = Math.min(c.meta, disp); c.feito = usa; if (usa) b[c.k] = disp - usa;
-    });
-    // 2) o que sobrou cobre as sessões abertas, da mais antiga para a mais nova
-    Object.keys(noDia).forEach(iso => Object.keys(noDia[iso]).forEach(k => { sobra[k] = (sobra[k] || 0) + noDia[iso][k]; }));
-    celulas.forEach(c => {
-      const disp = sobra[c.k] || 0; if (!disp || c.feito >= c.meta) return;
-      const usa = Math.min(c.meta - c.feito, disp); c.feito += usa; sobra[c.k] = disp - usa;
+      const disp = saldo[c.k] || 0; if (c.manual || disp <= 0) return;
+      const usa = Math.min(c.meta, disp); c.feito = usa; saldo[c.k] = disp - usa;
     });
     const mapa = {};
-    celulas.forEach(c => { mapa[c.dia + '|' + c.idx] = { feito: c.feito, meta: c.meta, completo: c.meta > 0 && c.feito >= c.meta }; });
+    celulas.forEach(c => {
+      const automatico = c.meta > 0 && c.feito >= c.meta;
+      // A decisão do usuário prevalece nesta semana. Os minutos continuam
+      // reservados à sessão original: desmarcar não conclui outra por engano.
+      mapa[c.dia + '|' + c.idx] = { feito: c.desmarcada ? 0 : c.feito, meta: c.meta, completo: automatico && !c.desmarcada, automatico };
+    });
     return { ini, fim, mapa, dias };
   }
   /* O ✓ manual fica gravado no MODELO da grade, que é reaproveitado toda
@@ -1114,7 +1109,7 @@ function planCycleMode() {
         </div>
         <div class="chip-bottom-row">
           <span class="chip-duration-wrap"><input type="text" inputmode="numeric" class="chip-duration-input" value="${minutes}" title="Duração em minutos" aria-label="Duração em minutos"></span>
-          <button type="button" class="chip-done-toggle" title="${auto ? 'Concluída pelos registros de estudo' : (done ? 'Marcar como não concluída' : 'Marcar como concluída')}">${CHECK_ICON}</button>
+          <button type="button" class="chip-done-toggle" title="${concluida ? 'Marcar como não concluída' : 'Marcar como concluída'}" aria-pressed="${concluida}">${CHECK_ICON}</button>
         </div>
         ${prog.feito > 0 && !concluida ? `<span class="chip-prog" aria-label="${prog.feito} de ${prog.meta} minutos registrados"></span>` : ''}
       </div>
@@ -1123,7 +1118,7 @@ function planCycleMode() {
     chip.addEventListener('dragstart', (e) => {
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', JSON.stringify({
-        subject, acronym, minutes, done, doneWeek: cellData.doneWeek, from: 'cell', fromDia: dia, fromIdx: idx
+        subject, acronym, minutes, done, doneWeek: cellData.doneWeek, uncheckedWeek: cellData.uncheckedWeek, from: 'cell', fromDia: dia, fromIdx: idx
       }));
       chip.classList.add('dragging');
     });
@@ -1146,9 +1141,7 @@ function planCycleMode() {
       // lê o estado ATUAL do armazenamento (não o do closure, que ficava desatualizado
       // e impedia desmarcar) e re-renderiza a célula para refletir/rebindar corretamente
       if (!alternarMarcacao(dia, idx)) return;
-      renderCellContent(cell);
-      updateDaySummary();
-      updateUncheckAllBtn(); // <- FIX: reflete no botão "Desmarcar concluídos"
+      renderGrade(); // a mudança também pode redistribuir minutos nas outras sessões
     });
 
     cell.querySelector('.chip-remove').addEventListener('click', async () => {
@@ -1169,15 +1162,12 @@ function planCycleMode() {
     const t = gradeGet();
     const cur = normalizeCell(t && t.grade[dia] && t.grade[dia][idx]);
     if (!cur) return false;
-    const marcada = marcadaNaSemana(cur);
-    if (!marcada && progressoCelula(dia, idx).completo) {
-      showToast('Esta sessão já está concluída pelos estudos registrados na semana.');
-      return false;
-    }
-    const nova = Object.assign({}, cur, { done: !marcada });
-    if (nova.done) nova.doneWeek = gradeSemanaAtual().ini; else delete nova.doneWeek;
-    setCellData(dia, idx, nova);
-    return true;
+    _gp = gradeProgresso();
+    const p = progressoCelula(dia, idx), marcada = marcadaNaSemana(cur) || p.completo;
+    const nova = Object.assign({}, cur, { done: !marcada && !p.automatico });
+    if (nova.done) nova.doneWeek = _gp.ini; else delete nova.doneWeek;
+    if (marcada) nova.uncheckedWeek = _gp.ini; else delete nova.uncheckedWeek;
+    return setCellData(dia, idx, nova);
   }
 
   function setCellData(dia, idx, cellData) {
@@ -1185,8 +1175,9 @@ function planCycleMode() {
     if (!Array.isArray(t.grade[dia])) t.grade[dia] = [];
     while (t.grade[dia].length <= idx) t.grade[dia].push(''); // garante slot p/ sessões dinâmicas
     t.grade[dia][idx] = cellData; // objeto {subject, minutes, done} ou null
-    gradeSave(t);
+    const salvo = gradeSave(t);
     _gp = null;
+    return salvo !== false;
   }
 
   function bindDropZones(container) {
@@ -1210,6 +1201,7 @@ function planCycleMode() {
       const done = data.from === 'cell' ? !!data.done : false;
       const nova = { subject: data.subject, minutes, done };
       if (done && data.doneWeek) nova.doneWeek = data.doneWeek;
+      if (data.from === 'cell' && data.uncheckedWeek) nova.uncheckedWeek = data.uncheckedWeek;
       setCellData(targetDia, targetIdx, nova);
       renderGradeScreen(); // re-renderiza a grade para refletir a movimentação
     }
@@ -1538,7 +1530,7 @@ function planCycleMode() {
         <div class="gp-m-acoes">
           ${x.feita ? '' : `<button type="button" class="gp-reg" data-gp-reg="${chave}" title="Abrir Registrar estudo com ${escapeHtml(x.subject)} · ${fmt(x.falta || x.meta)}">▶ ${verbo}</button>`}
           <button type="button" class="gp-check ${x.feita ? 'on' : ''} ${x.auto ? 'auto' : ''}" data-gp-check="${chave}" aria-pressed="${x.feita ? 'true' : 'false'}"
-            title="${x.auto ? 'Concluída pelos registros de estudo' : (x.feita ? 'Desmarcar' : 'Marcar como feita')}" aria-label="${x.feita ? 'Concluída' : 'Marcar como feita'}: ${escapeHtml(x.subject)}">${CHECK_ICON}</button>
+            title="${x.feita ? 'Desmarcar' : 'Marcar como feita'}" aria-label="${x.feita ? 'Desmarcar' : 'Marcar como feita'}: ${escapeHtml(x.subject)}">${CHECK_ICON}</button>
         </div>
       </li>`;
   }
@@ -1872,8 +1864,8 @@ function planCycleMode() {
 
   // --- Desmarcar todos os concluídos da grade ---
   function countDoneCells() {
-    const t = gradeGet(); let n = 0;
-    DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach(c => { const nc = normalizeCell(c); if (nc && nc.done) n++; }));
+    const t = gradeGet(); _gp = gradeProgresso(); let n = 0;
+    DIAS_SEMANA.forEach(d => (t.grade[d] || []).forEach((c, i) => { const nc = normalizeCell(c); if (nc && (marcadaNaSemana(nc) || progressoCelula(d, i).completo)) n++; }));
     return n;
   }
   function updateUncheckAllBtn() {
@@ -1920,12 +1912,20 @@ function planCycleMode() {
     if (!await UI.confirm(`Desmarcar as ${n} célula(s) concluída(s)?\n\nAs matérias e durações da grade são mantidas.`,
       { title: '↺ Desmarcar concluídos', okText: 'Desmarcar' })) return;
     try { if (window.CloudBackup) await CloudBackup.protegerAgora('antes de desmarcar a grade'); } catch (_) { _quiet(_); }
-    const t = gradeGet();
+    const t = gradeGet(); _gp = gradeProgresso();
     DIAS_SEMANA.forEach(d => {
       if (!Array.isArray(t.grade[d])) return;
-      t.grade[d].forEach((c, i) => { const nc = normalizeCell(c); if (nc && nc.done) { nc.done = false; t.grade[d][i] = nc; } });
+      t.grade[d].forEach((c, i) => {
+        const nc = normalizeCell(c);
+        // Mantém toda a grade aberta nesta semana, inclusive se a remoção de
+        // um ✓ manual redistribuir minutos para uma célula antes pendente.
+        if (nc) {
+          nc.done = false; delete nc.doneWeek; nc.uncheckedWeek = _gp.ini; t.grade[d][i] = nc;
+        }
+      });
     });
-    gradeSave(t);
+    if (gradeSave(t) === false) return;
+    _gp = null;
     applyGradeView();
     showToast('Concluídos desmarcados ✓');
   });
