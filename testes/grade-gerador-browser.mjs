@@ -77,7 +77,7 @@ try{
     GradeScreen.registrarSessao('Contabilidade Geral',60);
     await new Promise(r=>setTimeout(r,300));
     out.reg={s:(document.getElementById('subject')||{}).value,h:(document.getElementById('duration-h')||{}).value,m:(document.getElementById('duration-m')||{}).value};
-    // painel: o registro cobre primeiro a sessão do MESMO dia; o ✓ manual de
+    // painel: o registro cobre primeiro a sessão mais antiga; o ✓ manual de
     // outra semana não vale nesta
     const D=['Segunda','Terça','Quarta','Quinta','Sexta','Sábado','Domingo'];
     const g={};D.forEach(d=>g[d]=['']);
@@ -89,7 +89,7 @@ try{
     const qua=new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+2);
     DB.saveEntry({id:'e2',date:iso(qua),subject:'Direito Civil',durationMin:60,method:'Teoria'});
     const m2=GradeScreen.progresso().mapa;
-    out.mesmoDia={seg:m2['Segunda|0'].completo,qua:m2['Quarta|0'].completo};
+    out.maisAntiga={seg:m2['Segunda|0'].completo,qua:m2['Quarta|0'].completo};
     GradeScreen.setView('painel');await new Promise(r=>setTimeout(r,100));
     // A escolha sobrevive à navegação e ao formato reidratado da conta.
     switchScreen('registrar'); switchScreen('grade');
@@ -161,6 +161,91 @@ try{
   ok(datas.segunda==='2026-10-05'&&datas.montar===datas.segunda&&datas.acompanhar===datas.segunda&&datas.atrasada===datas.segunda,'Montar, Acompanhar e atrasadas preservam a data da sessão selecionada');
   ok(datas.progresso.segunda&&!datas.progresso.terca,'registro da sessão de segunda conclui segunda e mantém terça pendente');
   ok(datas.dias.every(Boolean)&&datas.hoje==='2026-10-06','sete dias da semana e atalho sem sessão usam datas locais, mesmo após a virada UTC');
+  // Um registro já salvo na terça deve preencher segunda sem alterar sua data.
+  const ordem=await page.evaluate(async()=>{
+    const out={}, esperar=()=>new Promise(r=>setTimeout(r,100));
+    const grade={
+      Segunda:[{subject:'Vendas',minutes:60,done:false},{subject:'Vendas',minutes:60,done:false}],
+      Terça:[{subject:'Vendas',minutes:60,done:false},{subject:'Outra matéria',minutes:60,done:false}]
+    };
+    const salvar=min=>DB.getEntry('grade-ordem')
+      ? DB.updateEntry('grade-ordem',{durationMin:min})
+      : DB.saveEntry({id:'grade-ordem',date:'2026-10-06',subject:'Vendas',durationMin:min,method:'Teoria'});
+    const minutos=()=>{const p=GradeScreen.progresso().mapa;return [p['Segunda|0'].feito,p['Segunda|1'].feito,p['Terça|0'].feito,p['Terça|1'].feito];};
+    DB.saveGradeTemplate({grade,sessions:2});
+    salvar(60);out.antigo=minutos();
+    out.data=DB.getEntries().find(e=>e.id==='grade-ordem').date;
+    GradeScreen.setView('semana');switchScreen('grade');await esperar();
+    out.chips=[...document.querySelectorAll('.grade-cell-drop .subject-chip.auto-done')].map(c=>c.closest('.grade-cell-drop').dataset.dia);
+    GradeScreen.setView('painel');await esperar();
+    document.querySelector('[data-gp-dia="2026-10-05"]').click();await esperar();
+    out.painelSegunda=document.querySelectorAll('.gp-missoes .gp-m.st-feita').length;
+    document.querySelector('[data-gp-dia="2026-10-06"]').click();await esperar();
+    out.painelTerca=document.querySelectorAll('.gp-missoes .gp-m.st-feita').length;
+    salvar(90);out.parcial=minutos();
+    salvar(150);out.seguinte=minutos();
+    DB.saveEntry({id:'grade-fora-semana',date:'2026-09-29',subject:'Vendas',durationMin:600});
+    out.foraSemana=minutos();DB.deleteEntry('grade-fora-semana');
+    DB.deleteEntry('grade-ordem');out.excluido=minutos();
+    grade.Segunda[0].done=true;grade.Segunda[0].doneWeek=GradeScreen.progresso().ini;
+    DB.saveGradeTemplate({grade,sessions:2});salvar(90);out.manual=minutos();
+    grade.Segunda[0].doneWeek='2000-01-03';
+    DB.saveGradeTemplate({grade,sessions:2});out.manualOutraSemana=minutos();
+    DB.deleteEntry('grade-ordem');
+    return out;
+  });
+  ok(ordem.antigo.join()==='60,0,0,0'&&ordem.data==='2026-10-06','registro já salvo na terça preenche a primeira sessão de segunda sem mudar a data');
+  ok(ordem.chips.join()==='Segunda'&&ordem.painelSegunda===1&&ordem.painelTerca===0,'Montar e Acompanhar mostram a mesma sessão mais antiga concluída');
+  ok(ordem.parcial.join()==='60,30,0,0'&&ordem.seguinte.join()==='60,60,30,0','sessões do mesmo dia precedem as seguintes, com saldo parcial e isolamento por matéria: '+JSON.stringify(ordem));
+  ok(ordem.foraSemana.join()===ordem.seguinte.join()&&ordem.excluido.every(x=>x===0),'registros de outra semana não contam e excluir o registro recalcula o progresso');
+  ok(ordem.manual.join()==='0,60,30,0'&&ordem.manualOutraSemana.join()==='60,30,0,0','pula sessão marcada manualmente nesta semana; marca antiga não impede preencher a mais antiga');
+  const livre=await page.evaluate(async()=>{
+    const out={}, esperar=()=>new Promise(r=>setTimeout(r,100));
+    DB.upsertSubjectName('Marcação livre');
+    DB.saveGradeTemplate({grade:{Segunda:[{subject:'Marcação livre',minutes:60,done:false}],Terça:[{subject:'Marcação livre',minutes:60,done:false}]},sessions:1});
+    DB.saveEntry({id:'grade-livre',date:'2026-10-06',subject:'Marcação livre',durationMin:60});
+    GradeScreen.setView('semana');switchScreen('grade');await esperar();
+    const chip=()=>document.querySelector('.grade-cell-drop[data-dia="Segunda"] .subject-chip');
+    out.autoInicial=chip().classList.contains('auto-done');
+    out.botaoLote=!document.getElementById('btn-uncheck-all').disabled;
+    chip().querySelector('.chip-done-toggle').click();await esperar();
+    const p=GradeScreen.progresso().mapa;
+    out.desmarcou=!chip().classList.contains('done')&&!p['Segunda|0'].completo&&!p['Terça|0'].completo;
+    out.semana=DB.getGradeTemplate().grade.Segunda[0].uncheckedWeek===GradeScreen.progresso().ini;
+    // Reidratação do modelo e navegação precisam respeitar a decisão salva.
+    DB.saveGradeTemplate(JSON.parse(JSON.stringify(DB.getGradeTemplate())));
+    switchScreen('registrar');switchScreen('grade');await esperar();
+    out.persistiu=!chip().classList.contains('done');
+    GradeScreen.setView('painel');await esperar();
+    document.querySelector('[data-gp-dia="2026-10-05"]').click();await esperar();
+    out.painelAberto=document.querySelector('.gp-missoes [data-gp-check]').getAttribute('aria-pressed')==='false';
+    document.querySelector('.gp-missoes [data-gp-check]').click();await esperar();
+    out.remarcou=document.querySelector('.gp-missoes [data-gp-check]').getAttribute('aria-pressed')==='true';
+    out.naoDuplicou=GradeScreen.progresso().mapa['Terça|0'].feito===0;
+    document.querySelector('.gp-missoes [data-gp-check]').click();await esperar();
+    out.desmarcouPainel=document.querySelector('.gp-missoes [data-gp-check]').getAttribute('aria-pressed')==='false';
+    // Uma escolha da semana anterior não bloqueia a conclusão desta semana.
+    const t=DB.getGradeTemplate();t.grade.Segunda[0].uncheckedWeek='2000-01-03';DB.saveGradeTemplate(t);
+    GradeScreen.render();await esperar();
+    out.expirou=GradeScreen.progresso().mapa['Segunda|0'].completo;
+    const backup=window.CloudBackup&&CloudBackup.protegerAgora;
+    if(window.CloudBackup) CloudBackup.protegerAgora=async()=>{};
+    document.getElementById('btn-uncheck-all').click();await esperar();
+    if(window.CloudBackup) CloudBackup.protegerAgora=backup;
+    out.lote=!GradeScreen.progresso().mapa['Segunda|0'].completo&&!document.querySelector('.gp-missoes .st-feita');
+    document.querySelector('[data-gp-dia="2026-10-06"]').click();await esperar();
+    document.querySelector('.gp-missoes [data-gp-check]').click();await esperar();
+    out.manual=document.querySelector('.gp-missoes [data-gp-check]').getAttribute('aria-pressed')==='true';
+    document.querySelector('.gp-missoes [data-gp-check]').click();await esperar();
+    out.manualDesmarcada=document.querySelector('.gp-missoes [data-gp-check]').getAttribute('aria-pressed')==='false';
+    out.registro=DB.getEntry('grade-livre').date==='2026-10-06'&&DB.getEntry('grade-livre').durationMin===60;
+    DB.deleteEntry('grade-livre');
+    return out;
+  });
+  ok(livre.autoInicial&&livre.desmarcou&&livre.semana&&livre.persistiu,'desmarca conclusão automática em Montar e respeita a escolha salva após reidratar e navegar');
+  ok(livre.painelAberto&&livre.remarcou&&livre.naoDuplicou&&livre.desmarcouPainel,'Acompanhar permite remarcar e desmarcar sem duplicar minutos na próxima sessão');
+  ok(livre.botaoLote&&livre.lote,'Desmarcar concluídos também inclui as sessões automáticas');
+  ok(livre.expirou&&livre.manual&&livre.manualDesmarcada&&livre.registro,'override vale somente nesta semana; marcar/desmarcar sessões manuais preserva o registro original');
   // Limites por disciplina no app real: aplicação, persistência e isolamento.
   const limites=await page.evaluate(async()=>{
     const out={}, plano=DB._activePlanId();
@@ -225,7 +310,7 @@ try{
   ok(r.autoDone===1&&r.parcial===1,'chips mostram concluída pelos registros e parcial');
   ok(r.reg.s==='Contabilidade Geral'&&r.reg.h==='1'&&r.reg.m==='0','Registrar estudo aberto já preenchido');
   ok(r.modoPadrao==='painel'&&r.painel,'grade montada abre no Acompanhar, com resumo e os 7 dias');
-  ok(r.mesmoDia.qua&&!r.mesmoDia.seg,'registro cobre primeiro a missão do mesmo dia');
+  ok(r.maisAntiga.seg&&!r.maisAntiga.qua,'registro cobre primeiro a missão mais antiga, independentemente do dia salvo');
   ok(r.velhaSemana===0,'✓ manual de outra semana não vale nesta');
   ok(r.marcou.done&&r.marcou.semana&&r.marcou.feitas===1,'✓ pelo painel marca a missão na semana atual');
   ok(r.regPainel.s==='Estatística Básica'&&r.regPainel.h==='1','▶ Registrar do painel abre o formulário preenchido');
