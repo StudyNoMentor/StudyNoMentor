@@ -12,7 +12,9 @@ const MIME={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=u
 const server=createServer((req,res)=>{const raw=(req.url||'/').split('?')[0],name=raw==='/'?'/index.html':raw;try{const body=readFileSync(join(ROOT,decodeURIComponent(name).replace(/^\/+/,'')));res.writeHead(200,{'Content-Type':MIME[extname(name)]||'application/octet-stream'});res.end(body);}catch{res.writeHead(404).end('nao encontrado');}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch(process.env.PLAYWRIGHT_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH } : {});
-const page=await browser.newPage({viewport:{width:412,height:900}});
+const page=await browser.newPage({viewport:{width:412,height:900},timezoneId:'America/Fortaleza'});
+// Terça à noite no Brasil, já quarta em UTC: datas da grade são locais.
+await page.clock.setFixedTime(new Date('2026-10-06T23:30:00-03:00'));
 const erros=[];page.on('pageerror',e=>erros.push(e.message));
 let n=0;const ok=(v,m)=>{n++;assert.ok(v,m);};
 try{
@@ -120,6 +122,45 @@ try{
     out.vazio=!!document.querySelector('#ciclo-grade .gp-vazio [data-gp-acao="montar"]');
     return out;
   });
+  // Recuperar a sessão de segunda na terça preserva a data nas duas telas.
+  const datas=await page.evaluate(async()=>{
+    const out={}, esperar=()=>new Promise(r=>setTimeout(r,100));
+    DB.upsertSubjectName('Vendas');
+    DB.saveGradeTemplate({grade:{
+      Segunda:[{subject:'Vendas',minutes:60,done:false}],
+      Terça:[{subject:'Vendas',minutes:60,done:false}]
+    },sessions:1});
+    const semana=GradeScreen.progresso();
+    out.segunda=semana.dias.find(d=>d.dia==='Segunda').iso;
+    GradeScreen.setView('semana');switchScreen('grade');await esperar();
+    document.querySelector('.grade-cell-drop[data-dia="Segunda"] .chip-acronym-label').click();
+    document.querySelector('[data-registrar]').click();await esperar();
+    out.montar=document.getElementById('date').value;
+    DB.saveEntry({id:'grade-data-segunda',date:out.montar,subject:'Vendas',durationMin:60,method:'Teoria'});
+    const progresso=GradeScreen.progresso().mapa;
+    out.progresso={segunda:progresso['Segunda|0'].completo,terca:progresso['Terça|0'].completo};
+    DB.deleteEntry('grade-data-segunda');
+    GradeScreen.setView('painel');switchScreen('grade');await esperar();
+    document.querySelector('[data-gp-dia="'+out.segunda+'"]').click();
+    document.querySelector('.gp-missoes [data-gp-reg]').click();await esperar();
+    out.acompanhar=document.getElementById('date').value;
+    // A seção de atrasadas também deve abrir segunda, sem trocar para hoje.
+    switchScreen('grade');await esperar();
+    document.querySelector('[data-gp-dia="2026-10-06"]').click();
+    document.querySelector('.gp-atrasadas [data-gp-reg]').click();await esperar();
+    out.atrasada=document.getElementById('date').value;
+    out.dias=[];
+    for(const d of semana.dias){
+      GradeScreen.registrarSessao('Vendas',60,d.dia);await esperar();
+      out.dias.push(document.getElementById('date').value===d.iso);
+    }
+    GradeScreen.registrarSessao('Vendas',60);await esperar();
+    out.hoje=document.getElementById('date').value;
+    return out;
+  });
+  ok(datas.segunda==='2026-10-05'&&datas.montar===datas.segunda&&datas.acompanhar===datas.segunda&&datas.atrasada===datas.segunda,'Montar, Acompanhar e atrasadas preservam a data da sessão selecionada');
+  ok(datas.progresso.segunda&&!datas.progresso.terca,'registro da sessão de segunda conclui segunda e mantém terça pendente');
+  ok(datas.dias.every(Boolean)&&datas.hoje==='2026-10-06','sete dias da semana e atalho sem sessão usam datas locais, mesmo após a virada UTC');
   // Limites por disciplina no app real: aplicação, persistência e isolamento.
   const limites=await page.evaluate(async()=>{
     const out={}, plano=DB._activePlanId();

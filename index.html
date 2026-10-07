@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v18b4e7de3f">
+<meta name="diario-versao" content="ve21b0f1536">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -25518,15 +25518,19 @@ function planCycleMode() {
   }
   // Abre "Registrar estudo" já preenchido com a sessão da grade. Salvar o
   // registro traz a pessoa de volta para a grade, já com a missão atualizada.
+  // A data vem do dia escolhido na semana exibida, inclusive ao recuperar
+  // uma sessão atrasada. Sem uma sessão específica, mantém a data de hoje.
   let _voltarParaGrade = null;
-  function registrarSessao(subject, minutes) {
+  function registrarSessao(subject, minutes, dia) {
+    const sessao = dia && gradeProgresso().dias.find(d => d.dia === dia);
+    const dataRegistro = sessao ? sessao.iso : _iso(new Date());
     if (typeof switchScreen === 'function') switchScreen('registrar');
     _voltarParaGrade = { subject, ate: Date.now() + 45 * 60000 };
     setTimeout(() => {
       const fire = (el, ev) => el && el.dispatchEvent(new Event(ev, { bubbles: true }));
       const s = document.getElementById('subject');
       if (s && [...s.options].some(o => o.value === subject)) { s.value = subject; fire(s, 'change'); }
-      const d = document.getElementById('date'); if (d) { d.value = _iso(new Date()); fire(d, 'change'); }
+      const d = document.getElementById('date'); if (d) { d.value = dataRegistro; fire(d, 'change'); }
       const h = document.getElementById('duration-h'), m = document.getElementById('duration-m');
       if (h && m) { h.value = String(Math.floor(minutes / 60)); m.value = String(minutes % 60); fire(h, 'input'); fire(m, 'input'); fire(h, 'change'); fire(m, 'change'); }
       if (typeof showToast === 'function') showToast('Registro preenchido com a sessão da grade');
@@ -25829,7 +25833,7 @@ function planCycleMode() {
       renderCellContent(cell); updateDaySummary(); updateUncheckAllBtn();
     }));
     const rg = pop.querySelector('[data-registrar]');
-    if (rg) rg.addEventListener('click', () => { closeSiglaPicker(); registrarSessao(cur.subject, Number(cur.minutes) || GRADE_DEFAULT_MIN); });
+    if (rg) rg.addEventListener('click', () => { closeSiglaPicker(); registrarSessao(cur.subject, Number(cur.minutes) || GRADE_DEFAULT_MIN, dia); });
     const rm = pop.querySelector('[data-remove]');
     if (rm) rm.addEventListener('click', () => {
       setCellData(dia, idx, null);
@@ -26203,7 +26207,7 @@ function planCycleMode() {
         if (reg) {
           _gp = null;
           const p = progressoCelula(d, idx);
-          registrarSessao(c.subject, Math.max(5, (p.meta - p.feito) || Number(c.minutes) || GRADE_DEFAULT_MIN));
+          registrarSessao(c.subject, Math.max(5, (p.meta - p.feito) || Number(c.minutes) || GRADE_DEFAULT_MIN), d);
         } else if (alternarMarcacao(d, idx)) {
           renderGradePainel();
           updateUncheckAllBtn();
