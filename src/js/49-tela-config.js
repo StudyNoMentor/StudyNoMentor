@@ -8,6 +8,25 @@ const ConfigScreen = {
     this.renderPhases();
     this.renderStatuses();
     this.renderModes();
+    this.renderIntegrations();
+  },
+
+  // ---------- Integrações ----------
+  renderIntegrations() {
+    const toggle = document.getElementById('cfg-anki-enabled');
+    if (!toggle || !window.AnkiOfficial) return;
+    toggle.checked = AnkiOfficial.isEnabled();
+    toggle.onchange = () => {
+      try {
+        AnkiOfficial.setEnabled(toggle.checked);
+        showToast(toggle.checked
+          ? 'Integração com o Anki reativada.'
+          : 'Anki desativado. Nenhuma chamada ao backend oficial será iniciada.');
+      } catch (e) {
+        toggle.checked = AnkiOfficial.isEnabled();
+        showToast('Não foi possível alterar a integração: ' + (e && e.message ? e.message : String(e)));
+      }
+    };
   },
 
   // ---------- Matérias ----------
