@@ -88,6 +88,21 @@
       </div>
     </section>
 
+    <section class="card" id="cfg-integrations-card">
+      <div class="card-header">
+        <div>
+          <h2>Integrações</h2>
+          <p class="sub">Controle serviços externos sem apagar seus dados do Study.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <label class="co-check" style="margin:0;align-items:flex-start;">
+          <input type="checkbox" id="cfg-anki-enabled" checked>
+          <span><strong>Manter integração com o Anki Oficial ativada</strong><br><span class="hint">Desative para impedir chamadas ao backend oficial do Anki no Railway, inclusive carregamento antecipado, revisão, estatísticas e mídia. A sincronização dos cartões, baralhos e histórico pelo Supabase continua ativa para preservar seus dados e o acesso em outros dispositivos; portanto, esta opção não elimina o egress do Supabase dessas tabelas.</span></span>
+        </label>
+      </div>
+    </section>
+
     <!-- ────────── Sincronização na nuvem (Supabase) ────────── -->
     <!-- A exibição das Leis Secas NÃO mora mais aqui: ela agora é o botão
          "⚙️ Ajustes" da própria tela de Leis, ao lado de "＋ Nova lei". Um
