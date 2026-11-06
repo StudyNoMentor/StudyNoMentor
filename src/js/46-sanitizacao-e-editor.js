@@ -408,7 +408,7 @@ function buildRteToolbar(rte) {
     const dentro = !!(sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode));
     const t = dentro ? String(sel).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    // Upstream Anki 26.09.3: ts/routes/editor/ClozeButtons.svelte
+    // Upstream Anki 26.09.4: ts/routes/editor/ClozeButtons.svelte
     // clozePattern + getCurrentHighestCloze(). A escolha do ordinal é lógica
     // oficial do próprio editor web do Anki, não um parser acadêmico do Study.
     const clozePattern=/\{\{c(\d+)::/gu,

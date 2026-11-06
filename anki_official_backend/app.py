@@ -49,7 +49,7 @@ from pydantic import BaseModel, Field
 from starlette.background import BackgroundTask
 from starlette.middleware.gzip import GZipMiddleware
 
-ANKI_VERSION = "26.09.3"
+ANKI_VERSION = "26.09.4"
 
 
 def verify_anki_runtime() -> str:
@@ -126,7 +126,7 @@ app = FastAPI(
     lifespan=lifespan,
     title="StudyNoMentor — Anki Official Bridge",
     version=ANKI_VERSION,
-    description="Thin authenticated bridge to the upstream Anki 26.09.3 Python/Rust backend.",
+    description="Thin authenticated bridge to the upstream Anki 26.09.4 Python/Rust backend.",
 )
 app.add_middleware(
     CORSMiddleware,
@@ -1302,7 +1302,7 @@ def _apply_legacy_notetype_shape(col: Collection, nt: dict[str, Any], row: dict[
     stock_templates = [dict(template) for template in (stock_notetype.get("tmpls") or [])]
 
     # Espelhos antigos do Study podiam persistir Basic+Reverse com duas frentes
-    # idênticas (ou vazias). O Anki 26.09.3 rejeita esse NoteType. Nesse caso,
+    # idênticas (ou vazias). O Anki 26.09.4 rejeita esse NoteType. Nesse caso,
     # quando o shape de campos é compatível com o stock, reconstruímos o par
     # campos+templates a partir de get_stock_notetype_legacy(). Assim os ords,
     # qfmt/afmt e identidade estrutural continuam sendo definidos pelo Anki.
@@ -1745,7 +1745,7 @@ def cards_official_migrate_legacy(
                 f"Migração incompleta: {len(card_map)}/{len(cards)} Cards foram mapeados de forma única.",
             )
 
-        # Scheduler v3 do Anki 26.09.3 invalida/reconstrói as filas
+        # Scheduler v3 do Anki 26.09.4 invalida/reconstrói as filas
         # automaticamente após operações da Collection. A antiga API
         # clear_study_queues() não existe no pylib atual e não deve ser emulada.
         return {

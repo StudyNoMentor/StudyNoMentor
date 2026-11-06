@@ -4,9 +4,9 @@ Esta pasta ancora a paridade dos **Cards do StudyNoMentor** no repositório ofic
 
 ## Upstream literal
 
-`anki-oficial/upstream` é um **git submodule/gitlink**, fixado no commit oficial da release **Anki 26.09.3**:
+`anki-oficial/upstream` é um **git submodule/gitlink**, fixado no commit oficial da release **Anki 26.09.4**:
 
-`29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba`
+`c06370ff4d87cb48d825f90cc83e02b9a4e84ecd`
 
 Logo, após `git submodule update --init --recursive`, o conteúdo de `anki-oficial/upstream` é o próprio repositório oficial naquele commit — não uma transcrição manual.
 
@@ -59,7 +59,7 @@ Pré-releases, drafts, downgrades, runtime Python divergente, inventário incomp
 
 ## Validação funcional
 
-A integração do runtime de Cards exige **100% dos arquivos classificados como `CARDS_RUNTIME`**. Todas as categorias apontam para adaptadores que delegam o comportamento acadêmico ao backend com `anki==26.09.3`; o Study mantém somente UI, metadados e projeções necessárias ao produto.
+A integração do runtime de Cards exige **100% dos arquivos classificados como `CARDS_RUNTIME`**. Todas as categorias apontam para adaptadores que delegam o comportamento acadêmico ao backend com `anki==26.09.4`; o Study mantém somente UI, metadados e projeções necessárias ao produto.
 
 A proteção útil do repositório fica concentrada em três fontes versionadas: o inventário literal do upstream, `cards-contracts.json` e as suítes funcionais/diferenciais que executam a ponte e o pacote Anki real. O gate reprova divergência de blobs, versão, contrato, adapter inexistente, reintrodução de motor local ou falhas nos smokes oficiais.
 

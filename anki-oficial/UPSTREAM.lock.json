@@ -1,23 +1,23 @@
 {
   "schema": "studynomentor-anki-upstream-lock-v1",
   "repository": "ankitects/anki",
-  "release": "26.09.3",
-  "release_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
-  "main_radar_commit": "7a4db0038e4d5570cc3a297a2b47f8fefbfc309c",
-  "total_files": 2107,
+  "release": "26.09.4",
+  "release_commit": "c06370ff4d87cb48d825f90cc83e02b9a4e84ecd",
+  "main_radar_commit": "63b419ef63c7910b8d8f5b6aad57ef26ae506771",
+  "total_files": 2110,
   "cards_runtime_files": 571,
-  "outside_cards_runtime_files": 1536,
+  "outside_cards_runtime_files": 1538,
   "inventory_chunk_size": 250,
   "repository_area_counts": {
     "other": 51,
-    "github_ci": 14,
+    "github_ci": 16,
     "build_tools": 90,
     "docs": 432,
     "localization": 56,
     "proto": 28,
     "pylib": 96,
     "python": 2,
-    "qt": 292,
+    "qt": 293,
     "rslib": 484,
     "ts": 562
   },
@@ -38,11 +38,13 @@
     "cloze": 1
   },
   "rule": "Nenhum item CARDS_RUNTIME pode ser marcado como 100% por existência de função. Exige oráculo/teste diferencial contra o upstream oficial.",
-  "unclassified_files": 0,
+  "unclassified_files": 1,
   "auto_update": {
-    "safe_to_merge": true,
-    "blockers": [],
-    "generated_at": null
+    "safe_to_merge": false,
+    "blockers": [
+      "Classificar arquivo upstream novo/renomeado: qt/tests/test_utils.py"
+    ],
+    "generated_at": "2026-11-06T16:47:01.135Z"
   },
   "auto_update_policy": {
     "stable_release_quarantine_hours": 48

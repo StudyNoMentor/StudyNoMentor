@@ -2,7 +2,7 @@
    CARDS — CASCA DE STATS / SIMULADOR / CHECK MEDIA
    ------------------------------------------------------------
    Nenhum dado acadêmico é calculado aqui. Graphs, FSRS e Media
-   vêm exclusivamente da Collection oficial do Anki 26.09.3.
+   vêm exclusivamente da Collection oficial do Anki 26.09.4.
    ============================================================ */
 const AnkiMaxStatsMedia = {
   _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
@@ -110,7 +110,7 @@ const AnkiMaxStatsMedia = {
       newLimit:Number(r.payload&&r.payload.new_limit)||0,
       reviewLimit:Number(r.payload&&r.payload.review_limit)||0,
       maxInterval:Number(r.payload&&r.payload.max_interval)||36500,
-      engine:'Anki 26.09.3 · simulate_fsrs_review',search:r.search,preset:r.presetName
+      engine:'Anki 26.09.4 · simulate_fsrs_review',search:r.search,preset:r.presetName
     };
   },
 
@@ -165,7 +165,7 @@ const AnkiMaxStatsMedia = {
       retention=(Number((document.getElementById('anki-sim-retention')||{}).value)||90)/100,
       out=document.getElementById('anki-sim-result');
     if(!out)return;
-    out.innerHTML='<p class="hint">Simulando pela Collection oficial do Anki 26.09.3…</p>';
+    out.innerHTML='<p class="hint">Simulando pela Collection oficial do Anki 26.09.4…</p>';
     try{
       const sim=await this.simulateOfficial(days,retention,this._simOptions()),
         total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),
@@ -185,7 +185,7 @@ const AnkiMaxStatsMedia = {
       opts=this._simOptions(),
       state=this._statsState||{},deckId=state.scope==='deck'?this._statsSelectedDeckId():null;
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.simulateFsrsPreset!=='function')throw new Error('Help Me Decide oficial indisponível.');
-    out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.3…</p>';
+    out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.4…</p>';
     try{
       const r=await CardsOfficialBridge.simulateFsrsPreset(deckId,days,retention,opts,'optimal'),
         rawOptimal=Number(r.out&&r.out.optimal_retention);
@@ -217,7 +217,7 @@ const AnkiMaxStatsMedia = {
   async renderExtendedCheck(){
     const body=document.getElementById('anki-check-body');if(!body)return;
     const wrap=document.createElement('div');wrap.id='anki-check-extended';
-    wrap.innerHTML='<p class="hint">Executando Check Media pela Collection oficial do Anki 26.09.3…</p>';body.appendChild(wrap);
+    wrap.innerHTML='<p class="hint">Executando Check Media pela Collection oficial do Anki 26.09.4…</p>';body.appendChild(wrap);
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.checkOfficialMedia!=='function'){
       wrap.innerHTML='<p class="hint tone-bad">Backend oficial do Anki indisponível. Nenhuma verificação local foi usada como substituta.</p>';return;
     }

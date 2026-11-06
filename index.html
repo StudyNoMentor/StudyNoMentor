@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v8e5bc6b12c">
+<meta name="diario-versao" content="vc05d29c320">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -32774,7 +32774,7 @@ const CardsScreen = {
         authority:{
           academicState:'Anki official Collection',
           studyRole:'UI/shell + metadados de planejamento',
-          pinnedVersion:status&&status.pinned_version||'26.09.3',
+          pinnedVersion:status&&status.pinned_version||'26.09.4',
           runtimeVersion:status&&status.runtime_version||null,
           collection:status&&status.collection||'study-cards',
           schedulerReplay:'disabled',
@@ -35416,7 +35416,7 @@ queueMicrotask(()=>AnkiMaxImageOcclusion.install());
    CARDS — CASCA DE STATS / SIMULADOR / CHECK MEDIA
    ------------------------------------------------------------
    Nenhum dado acadêmico é calculado aqui. Graphs, FSRS e Media
-   vêm exclusivamente da Collection oficial do Anki 26.09.3.
+   vêm exclusivamente da Collection oficial do Anki 26.09.4.
    ============================================================ */
 const AnkiMaxStatsMedia = {
   _statsState:{scope:'deck',deckId:null,search:'',history:'year'},
@@ -35524,7 +35524,7 @@ const AnkiMaxStatsMedia = {
       newLimit:Number(r.payload&&r.payload.new_limit)||0,
       reviewLimit:Number(r.payload&&r.payload.review_limit)||0,
       maxInterval:Number(r.payload&&r.payload.max_interval)||36500,
-      engine:'Anki 26.09.3 · simulate_fsrs_review',search:r.search,preset:r.presetName
+      engine:'Anki 26.09.4 · simulate_fsrs_review',search:r.search,preset:r.presetName
     };
   },
 
@@ -35579,7 +35579,7 @@ const AnkiMaxStatsMedia = {
       retention=(Number((document.getElementById('anki-sim-retention')||{}).value)||90)/100,
       out=document.getElementById('anki-sim-result');
     if(!out)return;
-    out.innerHTML='<p class="hint">Simulando pela Collection oficial do Anki 26.09.3…</p>';
+    out.innerHTML='<p class="hint">Simulando pela Collection oficial do Anki 26.09.4…</p>';
     try{
       const sim=await this.simulateOfficial(days,retention,this._simOptions()),
         total=sim.reviews.reduce((a,b)=>a+b,0)+sim.news.reduce((a,b)=>a+b,0),
@@ -35599,7 +35599,7 @@ const AnkiMaxStatsMedia = {
       opts=this._simOptions(),
       state=this._statsState||{},deckId=state.scope==='deck'?this._statsSelectedDeckId():null;
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.simulateFsrsPreset!=='function')throw new Error('Help Me Decide oficial indisponível.');
-    out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.3…</p>';
+    out.innerHTML='<p class="hint">Calculando retenção ótima pela Collection oficial do Anki 26.09.4…</p>';
     try{
       const r=await CardsOfficialBridge.simulateFsrsPreset(deckId,days,retention,opts,'optimal'),
         rawOptimal=Number(r.out&&r.out.optimal_retention);
@@ -35631,7 +35631,7 @@ const AnkiMaxStatsMedia = {
   async renderExtendedCheck(){
     const body=document.getElementById('anki-check-body');if(!body)return;
     const wrap=document.createElement('div');wrap.id='anki-check-extended';
-    wrap.innerHTML='<p class="hint">Executando Check Media pela Collection oficial do Anki 26.09.3…</p>';body.appendChild(wrap);
+    wrap.innerHTML='<p class="hint">Executando Check Media pela Collection oficial do Anki 26.09.4…</p>';body.appendChild(wrap);
     if(!window.CardsOfficialBridge||typeof CardsOfficialBridge.checkOfficialMedia!=='function'){
       wrap.innerHTML='<p class="hint tone-bad">Backend oficial do Anki indisponível. Nenhuma verificação local foi usada como substituta.</p>';return;
     }
@@ -37711,7 +37711,7 @@ function buildRteToolbar(rte) {
     const dentro = !!(sel && sel.rangeCount && area.contains(sel.anchorNode) && area.contains(sel.focusNode));
     const t = dentro ? String(sel).trim() : '';
     if (!t) { showToast('Selecione o trecho que deseja ocultar'); return; }
-    // Upstream Anki 26.09.3: ts/routes/editor/ClozeButtons.svelte
+    // Upstream Anki 26.09.4: ts/routes/editor/ClozeButtons.svelte
     // clozePattern + getCurrentHighestCloze(). A escolha do ordinal é lógica
     // oficial do próprio editor web do Anki, não um parser acadêmico do Study.
     const clozePattern=/\{\{c(\d+)::/gu,
@@ -54985,7 +54985,7 @@ else CloudStore.init();
   };
 
 
-  /* ── Paridade de uso real com Anki 26.09.3: identidade e ações manuais. ── */
+  /* ── Paridade de uso real com Anki 26.09.4: identidade e ações manuais. ── */
   S.updateCardScoped = function(ref, patch, planId) {
     const r=this.findCardRecord(ref,planId);if(!r)return null;
     let p=DB._semTransitorios?DB._semTransitorios(patch):patch;
@@ -55103,11 +55103,11 @@ else CloudStore.init();
 })();
 
 /* ============================================================================
-   CARDS -> ANKI OFICIAL 26.09.3
+   CARDS -> ANKI OFICIAL 26.09.4
    ----------------------------------------------------------------------------
    O Cards preserva a UI/escopo/metadados do Study, mas scheduler, fila,
    rendering, type-answer, revlog e ações acadêmicas são executados na coleção
-   isolada /api/cards-official, pelo pacote upstream anki==26.09.3.
+   isolada /api/cards-official, pelo pacote upstream anki==26.09.4.
 
    Regra: quando esta ponte está ativa NÃO existe fallback para CardEngine nas
    operações acadêmicas certificadas. Falha do backend aparece ao usuário e a
@@ -56413,7 +56413,7 @@ const CardsOfficialBridge = {
     let loadingTimer=null;
     const showLoading=()=>{
       if(!this._renderStillCurrent(token,'revisar',box))return;
-      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.3.</p></div></div>';
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.4.</p></div></div>';
     };
     // Evita piscar a tela de preparação no caminho quente. Se a sessão oficial
     // já existe, reviewer/next costuma responder antes deste pequeno limiar.
@@ -57393,7 +57393,7 @@ const CardsOfficialBridge = {
     const token=++this._renderEpoch;
     if(!this._renderStillCurrent(token,'stats',box))return;
     if(!CardsScreen.collectionCards().length){box.innerHTML=CardsScreen.emptyState('Sem estatísticas ainda','Crie e revise alguns cards para ver seus dados.');return;}
-    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.3 está processando a coleção do Anki.</p></div></div>';
+    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.4 está processando a coleção do Anki.</p></div></div>';
     try{
       await this.bootstrap(false);if(!this._renderStillCurrent(token,'stats',box))return;
       const data=await this.request('/api/cards-official/stats/graphs/scoped',{
@@ -58835,7 +58835,7 @@ const CardsOfficialBridge = {
           options:[{value:'no',label:'Não — excluir a nota se todos os cards estiverem vazios'},{value:'yes',label:'Sim — manter um card vazio para preservar a nota'}],
           hint:'Mesma opção “Preserve notes” da ferramenta Empty Cards do Anki.'},
         {key:'report',label:'Relatório oficial',type:'textarea',rows:10,value:plain||('Cards vazios: '+total),
-          hint:'Gerado por Collection.get_empty_cards() do Anki 26.09.3.'}
+          hint:'Gerado por Collection.get_empty_cards() do Anki 26.09.4.'}
       ],{title:'🧹 Cards vazios · Anki oficial',okText:'Continuar',
         sub:total+' card(s) vazio(s) em '+notes.length+' nota(s)'+(doomedNotes?' · '+doomedNotes+' nota(s) ficariam sem cards':'')});
       if(!v)return;

@@ -1,5 +1,5 @@
 {
-  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "upstream_commit": "c06370ff4d87cb48d825f90cc83e02b9a4e84ecd",
   "submodules": [
     {
       "path": "ftl/core-repo",
@@ -15,13 +15,13 @@
     },
     {
       "path": "qt/installer/mac-template",
-      "commit": "f1d2a7b07782cf952625c7c166e29fd9f71d37c5",
+      "commit": "57f2b6deaeeb5c2be9747a7f31d21dfcf1846d2b",
       "repository": "ankitects/briefcase-macOS-app-template",
       "cards_scope": "OUTSIDE_CARDS_RUNTIME"
     },
     {
       "path": "qt/installer/windows-template",
-      "commit": "73d27a08cc11f0a8b89917e7c9246575d7985fb1",
+      "commit": "0c95589acd343267f1254404db0c75e291ebd6ea",
       "repository": "ankitects/briefcase-windows-VisualStudio-template",
       "cards_scope": "OUTSIDE_CARDS_RUNTIME"
     }

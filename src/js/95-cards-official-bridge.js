@@ -1,9 +1,9 @@
 /* ============================================================================
-   CARDS -> ANKI OFICIAL 26.09.3
+   CARDS -> ANKI OFICIAL 26.09.4
    ----------------------------------------------------------------------------
    O Cards preserva a UI/escopo/metadados do Study, mas scheduler, fila,
    rendering, type-answer, revlog e ações acadêmicas são executados na coleção
-   isolada /api/cards-official, pelo pacote upstream anki==26.09.3.
+   isolada /api/cards-official, pelo pacote upstream anki==26.09.4.
 
    Regra: quando esta ponte está ativa NÃO existe fallback para CardEngine nas
    operações acadêmicas certificadas. Falha do backend aparece ao usuário e a
@@ -1309,7 +1309,7 @@ const CardsOfficialBridge = {
     let loadingTimer=null;
     const showLoading=()=>{
       if(!this._renderStillCurrent(token,'revisar',box))return;
-      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.3.</p></div></div>';
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏳</div><h3>Preparando revisão oficial…</h3><p>Fila, rendering e intervalos vêm do Anki 26.09.4.</p></div></div>';
     };
     // Evita piscar a tela de preparação no caminho quente. Se a sessão oficial
     // já existe, reviewer/next costuma responder antes deste pequeno limiar.
@@ -2289,7 +2289,7 @@ const CardsOfficialBridge = {
     const token=++this._renderEpoch;
     if(!this._renderStillCurrent(token,'stats',box))return;
     if(!CardsScreen.collectionCards().length){box.innerHTML=CardsScreen.emptyState('Sem estatísticas ainda','Crie e revise alguns cards para ver seus dados.');return;}
-    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.3 está processando a coleção do Anki.</p></div></div>';
+    box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">📊</div><h3>Calculando estatísticas oficiais…</h3><p>O GraphsService do Anki 26.09.4 está processando a coleção do Anki.</p></div></div>';
     try{
       await this.bootstrap(false);if(!this._renderStillCurrent(token,'stats',box))return;
       const data=await this.request('/api/cards-official/stats/graphs/scoped',{
@@ -3731,7 +3731,7 @@ const CardsOfficialBridge = {
           options:[{value:'no',label:'Não — excluir a nota se todos os cards estiverem vazios'},{value:'yes',label:'Sim — manter um card vazio para preservar a nota'}],
           hint:'Mesma opção “Preserve notes” da ferramenta Empty Cards do Anki.'},
         {key:'report',label:'Relatório oficial',type:'textarea',rows:10,value:plain||('Cards vazios: '+total),
-          hint:'Gerado por Collection.get_empty_cards() do Anki 26.09.3.'}
+          hint:'Gerado por Collection.get_empty_cards() do Anki 26.09.4.'}
       ],{title:'🧹 Cards vazios · Anki oficial',okText:'Continuar',
         sub:total+' card(s) vazio(s) em '+notes.length+' nota(s)'+(doomedNotes?' · '+doomedNotes+' nota(s) ficariam sem cards':'')});
       if(!v)return;

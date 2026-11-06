@@ -1026,7 +1026,7 @@
   };
 
 
-  /* ── Paridade de uso real com Anki 26.09.3: identidade e ações manuais. ── */
+  /* ── Paridade de uso real com Anki 26.09.4: identidade e ações manuais. ── */
   S.updateCardScoped = function(ref, patch, planId) {
     const r=this.findCardRecord(ref,planId);if(!r)return null;
     let p=DB._semTransitorios?DB._semTransitorios(patch):patch;

@@ -1,6 +1,6 @@
-# Checklist mestre — Cards × Anki Original 26.09.3
+# Checklist mestre — Cards × Anki Original 26.09.4
 
-**Fonte literal:** `anki-oficial/upstream` → `ankitects/anki@29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba`.
+**Fonte literal:** `anki-oficial/upstream` → `ankitects/anki@c06370ff4d87cb48d825f90cc83e02b9a4e84ecd`.
 
 **Inventário integral:** contagem em `UPSTREAM.lock.json`.  
 **Runtime funcional de Cards:** contagem em `cards-contracts.json`.  
@@ -25,7 +25,7 @@ Um contrato só é considerado fechado quando o caminho observável usa a implem
 - [x] Smoke com o pacote Anki real e todas as suítes de navegador aprovados no [CI 2011](https://github.com/StudyNoMentor/StudyNoMentor/actions/runs/36854806093), código `70a5bc2999022d5fb5c09f2b4b28db82f9cb87a2`.
 
 Esses itens verificam integridade e rastreabilidade. Não alteram a contagem de
-certificações individuais nem incorporam patches posteriores à 26.09.3.
+certificações individuais nem incorporam patches posteriores à 26.09.4.
 
 ### Continuação — 2026-10-01: marca de nota no revisor
 
@@ -35,7 +35,7 @@ o percentual de paridade integral do runtime.
 - [x] `anki_official_backend/app.py`: ação `mark` devolve as notas afetadas com tags oficiais, uma vez por nota.
 - [x] `src/js/95-cards-official-bridge.js`: o revisor sincroniza essas notas, incluindo cards irmãos e réplicas entre planejamentos, sem calcular a marca localmente.
 - [x] `testes/cards-official-bridge-static.mjs`: contratos estáticos e execução da ponte para marca/desmarca, estado antigo do revisor e falha de rede passaram. Checagem TTS atualizada para a assinatura com token de cancelamento.
-- [x] `testes/anki-oficial-backend-smoke.py`: retorno de tags e IDs repetidos validado com o pacote real `anki==26.09.3` no CI (commit `5cc213be`).
+- [x] `testes/anki-oficial-backend-smoke.py`: retorno de tags e IDs repetidos validado com o pacote real `anki==26.09.4` no CI (commit `5cc213be`).
 
 Base reconciliada com a main; os contratos abaixo permanecem concluídos na métrica de integração oficial.
 
@@ -54,8 +54,8 @@ canônicos devolvidos pelo Anki.
 - [x] `anki_review_kind=0` é preservado como Learning; NoteTypes homônimos distintos não reutilizam silenciosamente a mesma estrutura durante a migração.
 - [x] `card.custom_data` não é usado como banco de planejamento/banca/assunto. O campo permanece pertencendo ao contrato oficial do Anki/add-ons; compatibilidade antiga é somente leitura.
 - [x] Se a Collection já foi migrada mas houve interrupção antes de todos os espelhos Study receberem `ankiId`, o bootstrap recupera o vínculo por GUID + template ordinal e falha fechado em caso ambíguo, sem remigrar a Collection.
-- [x] Não existe emulação de `clear_study_queues()`: o Scheduler v3 do Anki 26.09.3 invalida/reconstrói suas filas conforme o runtime oficial.
-- [x] Gates estáticos verificam ausência de CardEngine/CardsConfig/fallbacks e o smoke real com `anki==26.09.3` valida round-trip da migração, rollback, GUID, Learning revlog e preservação de `custom_data`.
+- [x] Não existe emulação de `clear_study_queues()`: o Scheduler v3 do Anki 26.09.4 invalida/reconstrói suas filas conforme o runtime oficial.
+- [x] Gates estáticos verificam ausência de CardEngine/CardsConfig/fallbacks e o smoke real com `anki==26.09.4` valida round-trip da migração, rollback, GUID, Learning revlog e preservação de `custom_data`.
 
 Este fechamento **não altera** a métrica de certificação comportamental exaustiva
 por arquivo acima. A integração arquitetural segue integral; evidência específica continua sendo exigida para mudanças comportamentais relevantes.

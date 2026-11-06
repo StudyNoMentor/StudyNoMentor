@@ -1,5 +1,5 @@
 {
-  "upstream_commit": "29bb700b951e3f0c0cb69b77c0180fc1fe33e6ba",
+  "upstream_commit": "c06370ff4d87cb48d825f90cc83e02b9a4e84ecd",
   "range": [
     1001,
     1250
@@ -7,6 +7,24 @@
   "files": [
     {
       "index": 1001,
+      "path": "qt/tests/test_installer.py",
+      "blob_sha": "5c8f6c1a3287e62e9d0a1db2c1b865f25c89293b",
+      "size": 14422,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1002,
+      "path": "qt/tests/test_mediasrv.py",
+      "blob_sha": "b7ea433847d0513cbb8ce396cd77e8b2ae3c3471",
+      "size": 18431,
+      "repository_area": "qt",
+      "cards_scope": "OUTSIDE_CARDS_RUNTIME",
+      "cards_category": null
+    },
+    {
+      "index": 1003,
       "path": "qt/tests/test_preferences.py",
       "blob_sha": "96f864f299445d65f6af63b5d39851664fece3df",
       "size": 4486,
@@ -15,7 +33,7 @@
       "cards_category": null
     },
     {
-      "index": 1002,
+      "index": 1004,
       "path": "qt/tests/test_sound.py",
       "blob_sha": "8b2679ffbdb6edc6fb734f58a95967d8ff3e150e",
       "size": 3917,
@@ -24,7 +42,7 @@
       "cards_category": null
     },
     {
-      "index": 1003,
+      "index": 1005,
       "path": "qt/tests/test_toolbar.py",
       "blob_sha": "6b5696ab0485b6b288f9849b17ade8be6a3e424d",
       "size": 1466,
@@ -33,16 +51,25 @@
       "cards_category": null
     },
     {
-      "index": 1004,
+      "index": 1006,
+      "path": "qt/tests/test_utils.py",
+      "blob_sha": "b9840f4c521e9b9ad25d658e3ba98cf6e3fb8de2",
+      "size": 954,
+      "repository_area": "qt",
+      "cards_scope": "UNCLASSIFIED",
+      "cards_category": null
+    },
+    {
+      "index": 1007,
       "path": "qt/tools/build_installer.py",
-      "blob_sha": "f411d85dae70dfdfaca2f78d5d4618311e361418",
+      "blob_sha": "2507516c88e63f1891a84dd93db902bf93c57a34",
       "size": 13442,
       "repository_area": "qt",
       "cards_scope": "OUTSIDE_CARDS_RUNTIME",
       "cards_category": null
     },
     {
-      "index": 1005,
+      "index": 1008,
       "path": "qt/tools/build_qrc.py",
       "blob_sha": "6ac3dc19bdd7972398af99d9b7f93342948421f9",
       "size": 641,
@@ -51,7 +78,7 @@
       "cards_category": null
     },
     {
-      "index": 1006,
+      "index": 1009,
       "path": "qt/tools/build_ui.py",
       "blob_sha": "b87031213209e958eea271eed3dead62846970d6",
       "size": 2166,
@@ -60,7 +87,7 @@
       "cards_category": null
     },
     {
-      "index": 1007,
+      "index": 1010,
       "path": "qt/tools/color_svg.py",
       "blob_sha": "b9b0520b42f5d9e68c5900abf280887217319b00",
       "size": 1379,
@@ -69,7 +96,7 @@
       "cards_category": null
     },
     {
-      "index": 1008,
+      "index": 1011,
       "path": "qt/tools/extract_sass_vars.py",
       "blob_sha": "c8da77ce1f11a4fcc5fdc9c06a7f8207e4cc0f4e",
       "size": 2625,
@@ -78,7 +105,7 @@
       "cards_category": null
     },
     {
-      "index": 1009,
+      "index": 1012,
       "path": "qt/tools/genhooks_gui.py",
       "blob_sha": "19d960e3c120d60725fa9c756297a6fe7fc55a1e",
       "size": 50461,
@@ -87,7 +114,7 @@
       "cards_category": null
     },
     {
-      "index": 1010,
+      "index": 1013,
       "path": "qt/tools/runanki.system.in",
       "blob_sha": "b098984c2fe960ed31be557fcf61a32462c66e38",
       "size": 98,
@@ -96,7 +123,7 @@
       "cards_category": null
     },
     {
-      "index": 1011,
+      "index": 1014,
       "path": "release.just",
       "blob_sha": "01352f54425f12423203f053b70388b022d1aa7d",
       "size": 2420,
@@ -105,7 +132,7 @@
       "cards_category": null
     },
     {
-      "index": 1012,
+      "index": 1015,
       "path": "rslib/.gitignore",
       "blob_sha": "51613a3d089bcf64006296c9acd41adc61e0d307",
       "size": 25,
@@ -114,7 +141,7 @@
       "cards_category": null
     },
     {
-      "index": 1013,
+      "index": 1016,
       "path": "rslib/Cargo.toml",
       "blob_sha": "bd3d7eb4abec7255505b506fb64f6989f5368a83",
       "size": 2935,
@@ -123,7 +150,7 @@
       "cards_category": null
     },
     {
-      "index": 1014,
+      "index": 1017,
       "path": "rslib/README.md",
       "blob_sha": "fa77e94cd2371af4b4d9a2fad1eedb8f521e535c",
       "size": 18,
@@ -132,7 +159,7 @@
       "cards_category": null
     },
     {
-      "index": 1015,
+      "index": 1018,
       "path": "rslib/bench.sh",
       "blob_sha": "6def386cc7d1ff8f7829b7b87b8cef07b3b2d486",
       "size": 118,
@@ -141,7 +168,7 @@
       "cards_category": null
     },
     {
-      "index": 1016,
+      "index": 1019,
       "path": "rslib/benches/benchmark.rs",
       "blob_sha": "ebb0c97543aa65ffd4a9f0cafa5100c1508df5a7",
       "size": 480,
@@ -150,7 +177,7 @@
       "cards_category": null
     },
     {
-      "index": 1017,
+      "index": 1020,
       "path": "rslib/benches/fsrs.rs",
       "blob_sha": "dd8477961ef309be6445b7294c5043e22365680f",
       "size": 3016,
@@ -159,7 +186,7 @@
       "cards_category": null
     },
     {
-      "index": 1018,
+      "index": 1021,
       "path": "rslib/build.rs",
       "blob_sha": "061c88ca26840cf4a8918d5b9956da239cd9514f",
       "size": 742,
@@ -168,7 +195,7 @@
       "cards_category": null
     },
     {
-      "index": 1019,
+      "index": 1022,
       "path": "rslib/i18n/Cargo.toml",
       "blob_sha": "cce8bfe6f35a2c08bbcaefaac5efa330e87b6bcd",
       "size": 783,
@@ -177,7 +204,7 @@
       "cards_category": null
     },
     {
-      "index": 1020,
+      "index": 1023,
       "path": "rslib/i18n/build.rs",
       "blob_sha": "b52675ab3145d6a17fed50060ca612bb117282b2",
       "size": 1182,
@@ -186,7 +213,7 @@
       "cards_category": null
     },
     {
-      "index": 1021,
+      "index": 1024,
       "path": "rslib/i18n/check.rs",
       "blob_sha": "6f6af0e81501df027a3bfa8ca577c94d5d49b47e",
       "size": 1126,
@@ -195,7 +222,7 @@
       "cards_category": null
     },
     {
-      "index": 1022,
+      "index": 1025,
       "path": "rslib/i18n/extract.rs",
       "blob_sha": "66d0bedc9c99d77b5aef660c8f4b4c4610e53d2e",
       "size": 6587,
@@ -204,7 +231,7 @@
       "cards_category": null
     },
     {
-      "index": 1023,
+      "index": 1026,
       "path": "rslib/i18n/gather.rs",
       "blob_sha": "d1aa6af499c05b2ea836bf886584edf50f414aed",
       "size": 3360,
@@ -213,7 +240,7 @@
       "cards_category": null
     },
     {
-      "index": 1024,
+      "index": 1027,
       "path": "rslib/i18n/python.rs",
       "blob_sha": "a564de48d95e3a97449850680d570a581065e4ee",
       "size": 3088,
@@ -222,7 +249,7 @@
       "cards_category": null
     },
     {
-      "index": 1025,
+      "index": 1028,
       "path": "rslib/i18n/src/generated.rs",
       "blob_sha": "7463a594e0f43ded1411cfe36e9eb73a09a02ec8",
       "size": 432,
@@ -231,7 +258,7 @@
       "cards_category": null
     },
     {
-      "index": 1026,
+      "index": 1029,
       "path": "rslib/i18n/src/lib.rs",
       "blob_sha": "58be6bf5fa71b5e45897d3884d0f6144abb687ca",
       "size": 16086,
@@ -240,7 +267,7 @@
       "cards_category": null
     },
     {
-      "index": 1027,
+      "index": 1030,
       "path": "rslib/i18n/typescript.rs",
       "blob_sha": "dc6e4ebdb3a0481bdeee822178dd2272ee346776",
       "size": 3455,
@@ -249,7 +276,7 @@
       "cards_category": null
     },
     {
-      "index": 1028,
+      "index": 1031,
       "path": "rslib/i18n/write_strings.rs",
       "blob_sha": "007bd5afa8097e3d7e23dcb99a7316921e4442be",
       "size": 6511,
@@ -258,7 +285,7 @@
       "cards_category": null
     },
     {
-      "index": 1029,
+      "index": 1032,
       "path": "rslib/io/Cargo.toml",
       "blob_sha": "78605efb4061ffcc55faf96765a2d2c869ae2d0e",
       "size": 337,
@@ -267,7 +294,7 @@
       "cards_category": null
     },
     {
-      "index": 1030,
+      "index": 1033,
       "path": "rslib/io/src/error.rs",
       "blob_sha": "c33ad5c83c27e43266572b61edae301068ad7cbe",
       "size": 2714,
@@ -276,7 +303,7 @@
       "cards_category": null
     },
     {
-      "index": 1031,
+      "index": 1034,
       "path": "rslib/io/src/lib.rs",
       "blob_sha": "16b951e31b42fbe67540f8a29ec8911fd3a632fb",
       "size": 13774,
@@ -285,7 +312,7 @@
       "cards_category": null
     },
     {
-      "index": 1032,
+      "index": 1035,
       "path": "rslib/linkchecker/Cargo.toml",
       "blob_sha": "70ff2204329e1515da826b8d5e3fcbf122223d2d",
       "size": 503,
@@ -294,7 +321,7 @@
       "cards_category": null
     },
     {
-      "index": 1033,
+      "index": 1036,
       "path": "rslib/linkchecker/src/lib.rs",
       "blob_sha": "cf499d04790daa1598ca6a3173283496189b48e6",
       "size": 129,
@@ -303,7 +330,7 @@
       "cards_category": null
     },
     {
-      "index": 1034,
+      "index": 1037,
       "path": "rslib/linkchecker/tests/links.rs",
       "blob_sha": "39201de7884a4e9099f70bef0b72992caa6e1763",
       "size": 3975,
@@ -312,7 +339,7 @@
       "cards_category": null
     },
     {
-      "index": 1035,
+      "index": 1038,
       "path": "rslib/process/Cargo.toml",
       "blob_sha": "f89b13d2febfb6ce80b7d12459d06b9a0810ac2f",
       "size": 301,
@@ -321,7 +348,7 @@
       "cards_category": null
     },
     {
-      "index": 1036,
+      "index": 1039,
       "path": "rslib/process/src/lib.rs",
       "blob_sha": "2a82bb9cc65e97198aa61cdd8e60b29ac3a5b332",
       "size": 4830,
@@ -330,7 +357,7 @@
       "cards_category": null
     },
     {
-      "index": 1037,
+      "index": 1040,
       "path": "rslib/proto/Cargo.toml",
       "blob_sha": "4fc739a75d4a680fa88dd6e0afbfecc94db2ed44",
       "size": 582,
@@ -339,7 +366,7 @@
       "cards_category": null
     },
     {
-      "index": 1038,
+      "index": 1041,
       "path": "rslib/proto/build.rs",
       "blob_sha": "feb84d410e1c0777cce61ef99b1902985123d7e3",
       "size": 562,
@@ -348,7 +375,7 @@
       "cards_category": null
     },
     {
-      "index": 1039,
+      "index": 1042,
       "path": "rslib/proto/python.rs",
       "blob_sha": "593512b52f75a1f14c1f76d13a8b9df8f08039ed",
       "size": 8215,
@@ -357,7 +384,7 @@
       "cards_category": null
     },
     {
-      "index": 1040,
+      "index": 1043,
       "path": "rslib/proto/rust.rs",
       "blob_sha": "85834f19fee1845a5fb8d15e43499bc7f94c49b4",
       "size": 3590,
@@ -366,7 +393,7 @@
       "cards_category": null
     },
     {
-      "index": 1041,
+      "index": 1044,
       "path": "rslib/proto/src/generic_helpers.rs",
       "blob_sha": "0784a83d9db3381ef218fc5beb618d3ee43b0f8a",
       "size": 1169,
@@ -375,7 +402,7 @@
       "cards_category": null
     },
     {
-      "index": 1042,
+      "index": 1045,
       "path": "rslib/proto/src/lib.rs",
       "blob_sha": "2a1ab2800858032adddb91774c056744e0da8622",
       "size": 1172,
@@ -384,7 +411,7 @@
       "cards_category": null
     },
     {
-      "index": 1043,
+      "index": 1046,
       "path": "rslib/proto/typescript.rs",
       "blob_sha": "e5802fdab363fc39522e20e5e09cea654a87cf39",
       "size": 5088,
@@ -393,7 +420,7 @@
       "cards_category": null
     },
     {
-      "index": 1044,
+      "index": 1047,
       "path": "rslib/proto_gen/Cargo.toml",
       "blob_sha": "5f1ee981774f9eaf9ff0c080fe72c644741ba22e",
       "size": 488,
@@ -402,7 +429,7 @@
       "cards_category": null
     },
     {
-      "index": 1045,
+      "index": 1048,
       "path": "rslib/proto_gen/src/lib.rs",
       "blob_sha": "83bbc5f10a4155bbde0305c723ce3760ee310095",
       "size": 9562,
@@ -411,7 +438,7 @@
       "cards_category": null
     },
     {
-      "index": 1046,
+      "index": 1049,
       "path": "rslib/rust_interface.rs",
       "blob_sha": "6861df7dc40033f75f2bca0ef274b2da7ee38282",
       "size": 9250,
@@ -420,7 +447,7 @@
       "cards_category": null
     },
     {
-      "index": 1047,
+      "index": 1050,
       "path": "rslib/src/adding.rs",
       "blob_sha": "ec6513086ba2e8281b486bdde22271a4b73b1ca8",
       "size": 9010,
@@ -429,7 +456,7 @@
       "cards_category": null
     },
     {
-      "index": 1048,
+      "index": 1051,
       "path": "rslib/src/ankidroid/db.rs",
       "blob_sha": "e143550740d0962c73ba4c618689364dc31ce90b",
       "size": 12433,
@@ -438,7 +465,7 @@
       "cards_category": null
     },
     {
-      "index": 1049,
+      "index": 1052,
       "path": "rslib/src/ankidroid/error.rs",
       "blob_sha": "2e8dd162a65c264e390bc2ab45480e1f2687ee06",
       "size": 4479,
@@ -447,7 +474,7 @@
       "cards_category": null
     },
     {
-      "index": 1050,
+      "index": 1053,
       "path": "rslib/src/ankidroid/mod.rs",
       "blob_sha": "1d76ab6acddfc2dc0cbde369e47fa3d3de6bbc0d",
       "size": 187,
@@ -456,7 +483,7 @@
       "cards_category": null
     },
     {
-      "index": 1051,
+      "index": 1054,
       "path": "rslib/src/ankidroid/service.rs",
       "blob_sha": "e4414620401ef3947cde54bc43a6cb5ce3ece7f7",
       "size": 2426,
@@ -465,7 +492,7 @@
       "cards_category": null
     },
     {
-      "index": 1052,
+      "index": 1055,
       "path": "rslib/src/ankihub/http_client/mod.rs",
       "blob_sha": "00d275c90ae4abfac3dcd44f5b5f7d9b3f8160ef",
       "size": 1874,
@@ -474,7 +501,7 @@
       "cards_category": null
     },
     {
-      "index": 1053,
+      "index": 1056,
       "path": "rslib/src/ankihub/login.rs",
       "blob_sha": "972d00f09a7631c7a3bf937f5d954d1b4386bb35",
       "size": 1640,
@@ -483,7 +510,7 @@
       "cards_category": null
     },
     {
-      "index": 1054,
+      "index": 1057,
       "path": "rslib/src/ankihub/mod.rs",
       "blob_sha": "0a06c5533293dc3de5acd9c372045c89484829da",
       "size": 166,
@@ -492,7 +519,7 @@
       "cards_category": null
     },
     {
-      "index": 1055,
+      "index": 1058,
       "path": "rslib/src/backend/adding.rs",
       "blob_sha": "b041b3189e0116ec9916a163a73f4eddec88dede",
       "size": 453,
@@ -501,7 +528,7 @@
       "cards_category": null
     },
     {
-      "index": 1056,
+      "index": 1059,
       "path": "rslib/src/backend/ankidroid.rs",
       "blob_sha": "f3342331748364520f6333f782888b10a42f7957",
       "size": 2097,
@@ -510,7 +537,7 @@
       "cards_category": null
     },
     {
-      "index": 1057,
+      "index": 1060,
       "path": "rslib/src/backend/ankihub.rs",
       "blob_sha": "e48e35e59f2ac1f0b8a225e9aad0dc73304ed4f3",
       "size": 1122,
@@ -519,7 +546,7 @@
       "cards_category": null
     },
     {
-      "index": 1058,
+      "index": 1061,
       "path": "rslib/src/backend/ankiweb.rs",
       "blob_sha": "e6dcd4e5e62b7e936d06289803c7fe6dba566ccf",
       "size": 2088,
@@ -528,7 +555,7 @@
       "cards_category": null
     },
     {
-      "index": 1059,
+      "index": 1062,
       "path": "rslib/src/backend/card_rendering.rs",
       "blob_sha": "609268e50affc79dd9325a1fd33894018faec2e9",
       "size": 1174,
@@ -537,7 +564,7 @@
       "cards_category": null
     },
     {
-      "index": 1060,
+      "index": 1063,
       "path": "rslib/src/backend/collection.rs",
       "blob_sha": "5cef74381a12faf23832ddd8cb873f801d06893f",
       "size": 3600,
@@ -546,7 +573,7 @@
       "cards_category": null
     },
     {
-      "index": 1061,
+      "index": 1064,
       "path": "rslib/src/backend/config.rs",
       "blob_sha": "b6e81ce2ad7d42f5e7611f0ade172761f6e6e96a",
       "size": 5831,
@@ -555,7 +582,7 @@
       "cards_category": null
     },
     {
-      "index": 1062,
+      "index": 1065,
       "path": "rslib/src/backend/dbproxy.rs",
       "blob_sha": "ecaadbdade72ca4ad3bdb8a7ee9e171c8249c710",
       "size": 7186,
@@ -564,7 +591,7 @@
       "cards_category": null
     },
     {
-      "index": 1063,
+      "index": 1066,
       "path": "rslib/src/backend/error.rs",
       "blob_sha": "e69bb7f06ae4eebba6c3d7fd695b611c270eafcd",
       "size": 3366,
@@ -573,7 +600,7 @@
       "cards_category": null
     },
     {
-      "index": 1064,
+      "index": 1067,
       "path": "rslib/src/backend/github.rs",
       "blob_sha": "d8df6dfe8505a6b93d83cc430d001bf65ccdaca0",
       "size": 5865,
@@ -582,7 +609,7 @@
       "cards_category": null
     },
     {
-      "index": 1065,
+      "index": 1068,
       "path": "rslib/src/backend/i18n.rs",
       "blob_sha": "f21af7110274914ae6b4d33fb2d596dbf0059c0d",
       "size": 945,
@@ -591,7 +618,7 @@
       "cards_category": null
     },
     {
-      "index": 1066,
+      "index": 1069,
       "path": "rslib/src/backend/import_export.rs",
       "blob_sha": "6b2a6cb2f12117cfdab3291610defe9ef6da18b4",
       "size": 1147,
@@ -600,7 +627,7 @@
       "cards_category": null
     },
     {
-      "index": 1067,
+      "index": 1070,
       "path": "rslib/src/backend/media.rs",
       "blob_sha": "8b2f6a3949701073bd3f45a22665630a41c6a0c6",
       "size": 1354,
@@ -609,7 +636,7 @@
       "cards_category": null
     },
     {
-      "index": 1068,
+      "index": 1071,
       "path": "rslib/src/backend/mod.rs",
       "blob_sha": "b7f75c7d61e795da732dc32fa3e3b8b79955c18c",
       "size": 5580,
@@ -618,7 +645,7 @@
       "cards_category": null
     },
     {
-      "index": 1069,
+      "index": 1072,
       "path": "rslib/src/backend/ops.rs",
       "blob_sha": "510e4fc8fac13e85b788643f1742fe87219edec3",
       "size": 2468,
@@ -627,7 +654,7 @@
       "cards_category": null
     },
     {
-      "index": 1070,
+      "index": 1073,
       "path": "rslib/src/backend/sync.rs",
       "blob_sha": "8e30defee1aee292bf4b4fddc1190f66660cf1a4",
       "size": 16566,
@@ -636,7 +663,7 @@
       "cards_category": null
     },
     {
-      "index": 1071,
+      "index": 1074,
       "path": "rslib/src/browser_table.rs",
       "blob_sha": "c3aff06a3757e55af3bda739c3dc5c8deaf88383",
       "size": 22866,
@@ -645,7 +672,7 @@
       "cards_category": null
     },
     {
-      "index": 1072,
+      "index": 1075,
       "path": "rslib/src/card/mod.rs",
       "blob_sha": "8e1336ac72812f96908106bb92d0eb7834b1dab8",
       "size": 27897,
@@ -654,7 +681,7 @@
       "cards_category": "cards_notes"
     },
     {
-      "index": 1073,
+      "index": 1076,
       "path": "rslib/src/card/service.rs",
       "blob_sha": "cd83b66ef3c2f167fc2f475718c1832f114d4c45",
       "size": 6652,
@@ -663,7 +690,7 @@
       "cards_category": "cards_notes"
     },
     {
-      "index": 1074,
+      "index": 1077,
       "path": "rslib/src/card/undo.rs",
       "blob_sha": "8f95829e0aed22a6a0de65b3c8a639e7f6880c5d",
       "size": 3047,
@@ -672,7 +699,7 @@
       "cards_category": "cards_notes"
     },
     {
-      "index": 1075,
+      "index": 1078,
       "path": "rslib/src/card_rendering/mod.rs",
       "blob_sha": "262f2a7c9b80779a3b66aca7ad3af11666733ea2",
       "size": 4563,
@@ -681,7 +708,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1076,
+      "index": 1079,
       "path": "rslib/src/card_rendering/parser.rs",
       "blob_sha": "0ee66a9b172ec5b579d8b7194f4b2de86afc160d",
       "size": 9999,
@@ -690,7 +717,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1077,
+      "index": 1080,
       "path": "rslib/src/card_rendering/service.rs",
       "blob_sha": "84dbbe28baa52a76f08b17c1c6020f94fa87515b",
       "size": 26861,
@@ -699,7 +726,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1078,
+      "index": 1081,
       "path": "rslib/src/card_rendering/tts/mod.rs",
       "blob_sha": "1477c61b672189894fde0fab9184a39845362fdc",
       "size": 565,
@@ -708,7 +735,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1079,
+      "index": 1082,
       "path": "rslib/src/card_rendering/tts/other.rs",
       "blob_sha": "61174765961021af3e4e33cd7f608721025742fc",
       "size": 497,
@@ -717,7 +744,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1080,
+      "index": 1083,
       "path": "rslib/src/card_rendering/tts/windows.rs",
       "blob_sha": "5afb5cc2d6234f6a3f5ffbfa41986fdc6e6c6293",
       "size": 3886,
@@ -726,7 +753,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1081,
+      "index": 1084,
       "path": "rslib/src/card_rendering/writer.rs",
       "blob_sha": "22fb1fb341456b45a35b14a0a6373ef71a5f7254",
       "size": 7294,
@@ -735,7 +762,7 @@
       "cards_category": "card_rendering"
     },
     {
-      "index": 1082,
+      "index": 1085,
       "path": "rslib/src/cloze.rs",
       "blob_sha": "d56236cc266305d8b754a882a69741a94d7680b5",
       "size": 28101,
@@ -744,7 +771,7 @@
       "cards_category": "cloze"
     },
     {
-      "index": 1083,
+      "index": 1086,
       "path": "rslib/src/collection/backup.rs",
       "blob_sha": "a2e6bcc7e5e5371ce86beb3a2dd908178a7c9106",
       "size": 12039,
@@ -753,7 +780,7 @@
       "cards_category": null
     },
     {
-      "index": 1084,
+      "index": 1087,
       "path": "rslib/src/collection/mod.rs",
       "blob_sha": "8acefd447fdbd9cc830c682a55ff50ca30295613",
       "size": 7299,
@@ -762,7 +789,7 @@
       "cards_category": null
     },
     {
-      "index": 1085,
+      "index": 1088,
       "path": "rslib/src/collection/service.rs",
       "blob_sha": "a37360782ec0967ea4ee9e4b1b75203b21a9eb52",
       "size": 2641,
@@ -771,7 +798,7 @@
       "cards_category": null
     },
     {
-      "index": 1086,
+      "index": 1089,
       "path": "rslib/src/collection/timestamps.rs",
       "blob_sha": "7ea5fd9ccb8297f91b73f1456dfedf048eae60dc",
       "size": 1846,
@@ -780,7 +807,7 @@
       "cards_category": null
     },
     {
-      "index": 1087,
+      "index": 1090,
       "path": "rslib/src/collection/transact.rs",
       "blob_sha": "2d98b6679599a9b2dc27b28661e9cd7e8141f60f",
       "size": 2668,
@@ -789,7 +816,7 @@
       "cards_category": null
     },
     {
-      "index": 1088,
+      "index": 1091,
       "path": "rslib/src/collection/undo.rs",
       "blob_sha": "ef2480e94ca26d50aa4b47141abbeff36b80aa49",
       "size": 1500,
@@ -798,7 +825,7 @@
       "cards_category": null
     },
     {
-      "index": 1089,
+      "index": 1092,
       "path": "rslib/src/config/bool.rs",
       "blob_sha": "1be9b2556984386ecb5861f8ef64ec25a99bf96e",
       "size": 2828,
@@ -807,7 +834,7 @@
       "cards_category": null
     },
     {
-      "index": 1090,
+      "index": 1093,
       "path": "rslib/src/config/deck.rs",
       "blob_sha": "a88ca61a7b5cce5f3e4a034cc05db8963a199562",
       "size": 1284,
@@ -816,7 +843,7 @@
       "cards_category": null
     },
     {
-      "index": 1091,
+      "index": 1094,
       "path": "rslib/src/config/mod.rs",
       "blob_sha": "1e507281ac8fd8a3d16ec02129f1aafb42be0cc9",
       "size": 10617,
@@ -825,7 +852,7 @@
       "cards_category": null
     },
     {
-      "index": 1092,
+      "index": 1095,
       "path": "rslib/src/config/notetype.rs",
       "blob_sha": "f9b70292d049b5fb5f182f5dd098fe786719c738",
       "size": 2337,
@@ -834,7 +861,7 @@
       "cards_category": null
     },
     {
-      "index": 1093,
+      "index": 1096,
       "path": "rslib/src/config/number.rs",
       "blob_sha": "f7a0f7491c24376edaf20a9d858d5a3e91820025",
       "size": 750,
@@ -843,7 +870,7 @@
       "cards_category": null
     },
     {
-      "index": 1094,
+      "index": 1097,
       "path": "rslib/src/config/schema11.rs",
       "blob_sha": "afbc398e6858dc579ab7799cf3b7be36b6c72881",
       "size": 1012,
@@ -852,7 +879,7 @@
       "cards_category": null
     },
     {
-      "index": 1095,
+      "index": 1098,
       "path": "rslib/src/config/string.rs",
       "blob_sha": "ea7d5c739111da780ad9176c2d7816aab817eccf",
       "size": 1261,
@@ -861,7 +888,7 @@
       "cards_category": null
     },
     {
-      "index": 1096,
+      "index": 1099,
       "path": "rslib/src/config/undo.rs",
       "blob_sha": "8de01fc8ed31f68df4b63bb22f9d51caf263fce6",
       "size": 3675,
@@ -870,7 +897,7 @@
       "cards_category": null
     },
     {
-      "index": 1097,
+      "index": 1100,
       "path": "rslib/src/dbcheck.rs",
       "blob_sha": "383ade482fe91b75b45359d1b2f7046e4999613a",
       "size": 22877,
@@ -879,7 +906,7 @@
       "cards_category": null
     },
     {
-      "index": 1098,
+      "index": 1101,
       "path": "rslib/src/deckconfig/mod.rs",
       "blob_sha": "3f4f888cce11aeb045d619593f63d3f9026fd385",
       "size": 9988,
@@ -888,7 +915,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1099,
+      "index": 1102,
       "path": "rslib/src/deckconfig/schema11.rs",
       "blob_sha": "b7ed0acaa806aac2ed0dddd0b8a61a0ab3322e56",
       "size": 20141,
@@ -897,7 +924,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1100,
+      "index": 1103,
       "path": "rslib/src/deckconfig/service.rs",
       "blob_sha": "2817cf61961f193b89827ede2a616d35fbf9c9cc",
       "size": 7188,
@@ -906,7 +933,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1101,
+      "index": 1104,
       "path": "rslib/src/deckconfig/undo.rs",
       "blob_sha": "fcffa9ed01ef9ed51de6d567049126b7181b41e6",
       "size": 2350,
@@ -915,7 +942,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1102,
+      "index": 1105,
       "path": "rslib/src/deckconfig/update.rs",
       "blob_sha": "f7c4ee3256febea1945c818868b1a3930f8a8ba6",
       "size": 29580,
@@ -924,7 +951,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1103,
+      "index": 1106,
       "path": "rslib/src/decks/addupdate.rs",
       "blob_sha": "bc36ce84b8e5bb047da88ae0373c67019fe87cba",
       "size": 6465,
@@ -933,7 +960,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1104,
+      "index": 1107,
       "path": "rslib/src/decks/counts.rs",
       "blob_sha": "b1907b01e98520c530cca680d267c243b1846cb9",
       "size": 1549,
@@ -942,7 +969,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1105,
+      "index": 1108,
       "path": "rslib/src/decks/current.rs",
       "blob_sha": "b8d9fd81e31dcb8f2aa54ecaa2fadb9405d2548e",
       "size": 1358,
@@ -951,7 +978,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1106,
+      "index": 1109,
       "path": "rslib/src/decks/filtered.rs",
       "blob_sha": "250df60ae425fc58c694ab24fd1af59c3de1b8f9",
       "size": 2525,
@@ -960,7 +987,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1107,
+      "index": 1110,
       "path": "rslib/src/decks/limits.rs",
       "blob_sha": "0866a214c770ded1a45ac6fdd19346b82011f573",
       "size": 12452,
@@ -969,7 +996,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1108,
+      "index": 1111,
       "path": "rslib/src/decks/mod.rs",
       "blob_sha": "44b5d9e593b2ce7ee2168faaba29682144c18645",
       "size": 10569,
@@ -978,7 +1005,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1109,
+      "index": 1112,
       "path": "rslib/src/decks/name.rs",
       "blob_sha": "c7e79a78265c158871de9724b17875f6815e60a6",
       "size": 9649,
@@ -987,7 +1014,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1110,
+      "index": 1113,
       "path": "rslib/src/decks/remove.rs",
       "blob_sha": "a3bc78209b2350e4289859396de7234c65d4da1d",
       "size": 2255,
@@ -996,7 +1023,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1111,
+      "index": 1114,
       "path": "rslib/src/decks/reparent.rs",
       "blob_sha": "bfb3fee0505ed7c8eb7f9c1673c10e35b1a3e3bc",
       "size": 2175,
@@ -1005,7 +1032,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1112,
+      "index": 1115,
       "path": "rslib/src/decks/schema11.rs",
       "blob_sha": "3d4e30b96bc41694845b550ab0bfb1f7a9d3c145",
       "size": 15387,
@@ -1014,7 +1041,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1113,
+      "index": 1116,
       "path": "rslib/src/decks/service.rs",
       "blob_sha": "43d42460b8b0eafbf867ddd7469368fddc5ea056",
       "size": 37115,
@@ -1023,7 +1050,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1114,
+      "index": 1117,
       "path": "rslib/src/decks/stats.rs",
       "blob_sha": "4169e6494953805f85beb662fa163e2190d61790",
       "size": 2885,
@@ -1032,7 +1059,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1115,
+      "index": 1118,
       "path": "rslib/src/decks/tree.rs",
       "blob_sha": "3d59a6d535069d3932b367c56ebe66b246bdf7f1",
       "size": 16732,
@@ -1041,7 +1068,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1116,
+      "index": 1119,
       "path": "rslib/src/decks/undo.rs",
       "blob_sha": "a1ca3e171f12cee5d9254f0e7f2b7f074eec59ea",
       "size": 3459,
@@ -1050,7 +1077,7 @@
       "cards_category": "decks_deckconfig"
     },
     {
-      "index": 1117,
+      "index": 1120,
       "path": "rslib/src/editor.rs",
       "blob_sha": "4503a28c9cd18faf3a43ec235d678d9bf2dbab47",
       "size": 3533,
@@ -1059,7 +1086,7 @@
       "cards_category": null
     },
     {
-      "index": 1118,
+      "index": 1121,
       "path": "rslib/src/error/db.rs",
       "blob_sha": "a36cd1a605e9ba57fecaf95ec313e483f1676a79",
       "size": 2942,
@@ -1068,7 +1095,7 @@
       "cards_category": null
     },
     {
-      "index": 1119,
+      "index": 1122,
       "path": "rslib/src/error/filtered.rs",
       "blob_sha": "c43b2c5d213579bb6cc54e283f7912d0906f9200",
       "size": 1269,
@@ -1077,7 +1104,7 @@
       "cards_category": null
     },
     {
-      "index": 1120,
+      "index": 1123,
       "path": "rslib/src/error/invalid_input.rs",
       "blob_sha": "970e1c692e6db5e6ae4a1976b53742b9b09f8fac",
       "size": 3008,
@@ -1086,7 +1113,7 @@
       "cards_category": null
     },
     {
-      "index": 1121,
+      "index": 1124,
       "path": "rslib/src/error/mod.rs",
       "blob_sha": "cdc3f4b03dd9d5cd85e3e84322f3d4f8dd22cbda",
       "size": 10276,
@@ -1095,7 +1122,7 @@
       "cards_category": null
     },
     {
-      "index": 1122,
+      "index": 1125,
       "path": "rslib/src/error/network.rs",
       "blob_sha": "bd2282ab95fd30c14a98aabc2325452bb06f0889",
       "size": 8440,
@@ -1104,7 +1131,7 @@
       "cards_category": null
     },
     {
-      "index": 1123,
+      "index": 1126,
       "path": "rslib/src/error/not_found.rs",
       "blob_sha": "aef05f63cbaf086169ce48d1c41f07847cd9ef23",
       "size": 1987,
@@ -1113,7 +1140,7 @@
       "cards_category": null
     },
     {
-      "index": 1124,
+      "index": 1127,
       "path": "rslib/src/error/search.rs",
       "blob_sha": "3eac7f994f6686373f8bd314d3c6a7f387632d11",
       "size": 4967,
@@ -1122,7 +1149,7 @@
       "cards_category": null
     },
     {
-      "index": 1125,
+      "index": 1128,
       "path": "rslib/src/error/windows.rs",
       "blob_sha": "5a757ecde30d9d0dd91327c88e785114facea404",
       "size": 791,
@@ -1131,7 +1158,7 @@
       "cards_category": null
     },
     {
-      "index": 1126,
+      "index": 1129,
       "path": "rslib/src/findreplace.rs",
       "blob_sha": "e0f0d9332f7139aac675d47fa6c621f7133c9319",
       "size": 5161,
@@ -1140,7 +1167,7 @@
       "cards_category": null
     },
     {
-      "index": 1127,
+      "index": 1130,
       "path": "rslib/src/i18n/mod.rs",
       "blob_sha": "fa79e1463484479502d3785a3ec63626b8efeb90",
       "size": 153,
@@ -1149,7 +1176,7 @@
       "cards_category": null
     },
     {
-      "index": 1128,
+      "index": 1131,
       "path": "rslib/src/i18n/service.rs",
       "blob_sha": "8aa8e9bb5aba23a2409e63fe63bc34b0659e7fb9",
       "size": 2761,
@@ -1158,7 +1185,7 @@
       "cards_category": null
     },
     {
-      "index": 1129,
+      "index": 1132,
       "path": "rslib/src/image_occlusion/imagedata.rs",
       "blob_sha": "770144b7e8ae7e637b9f921cebbc328c571b6e0b",
       "size": 7787,
@@ -1167,7 +1194,7 @@
       "cards_category": "image_occlusion"
     },
     {
-      "index": 1130,
+      "index": 1133,
       "path": "rslib/src/image_occlusion/imageocclusion.rs",
       "blob_sha": "55b1c99507a5bc002d6329b7fb93ed0b7b7d921c",
       "size": 6137,
@@ -1176,7 +1203,7 @@
       "cards_category": "image_occlusion"
     },
     {
-      "index": 1131,
+      "index": 1134,
       "path": "rslib/src/image_occlusion/mod.rs",
       "blob_sha": "3dc23167beee4f523584c78993349511b567668e",
       "size": 211,
@@ -1185,7 +1212,7 @@
       "cards_category": "image_occlusion"
     },
     {
-      "index": 1132,
+      "index": 1135,
       "path": "rslib/src/image_occlusion/notetype.css",
       "blob_sha": "fbd34ad90e509b8d3d464ec83491b8d67f3bcc04",
       "size": 392,
@@ -1194,7 +1221,7 @@
       "cards_category": "image_occlusion"
     },
     {
-      "index": 1133,
+      "index": 1136,
       "path": "rslib/src/image_occlusion/notetype.rs",
       "blob_sha": "5537c90faa0541e6a0ccbc97b078a42235c6a09b",
       "size": 4407,
@@ -1203,7 +1230,7 @@
       "cards_category": "image_occlusion"
     },
     {
-      "index": 1134,
+      "index": 1137,
       "path": "rslib/src/image_occlusion/service.rs",
       "blob_sha": "ee17d074c0765ea48bf5606c2be8726862a028bd",
       "size": 2356,
@@ -1212,7 +1239,7 @@
       "cards_category": "image_occlusion"
     },
     {
-      "index": 1135,
+      "index": 1138,
       "path": "rslib/src/import_export/gather.rs",
       "blob_sha": "70e4b3f4ad88f32aea46cdcb372d891581a5c8b2",
       "size": 13625,
@@ -1221,7 +1248,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1136,
+      "index": 1139,
       "path": "rslib/src/import_export/insert.rs",
       "blob_sha": "476ad42bc499b0270e9c974a1943fc73ffe2ed8e",
       "size": 1842,
@@ -1230,7 +1257,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1137,
+      "index": 1140,
       "path": "rslib/src/import_export/mod.rs",
       "blob_sha": "6d4108e0d200400af930113c2ee339a29d21a983",
       "size": 2599,
@@ -1239,7 +1266,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1138,
+      "index": 1141,
       "path": "rslib/src/import_export/package/apkg/export.rs",
       "blob_sha": "eeb60a369514c55470103d0d4054256f8c4f8358",
       "size": 3435,
@@ -1248,7 +1275,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1139,
+      "index": 1142,
       "path": "rslib/src/import_export/package/apkg/import/cards.rs",
       "blob_sha": "e91695e143dc6d0cac731fa41ae16d1852cc8f39",
       "size": 6302,
@@ -1257,7 +1284,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1140,
+      "index": 1143,
       "path": "rslib/src/import_export/package/apkg/import/decks.rs",
       "blob_sha": "38a62dc922f9c9aa814b8a4dd279d270260fa8b0",
       "size": 9956,
@@ -1266,7 +1293,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1141,
+      "index": 1144,
       "path": "rslib/src/import_export/package/apkg/import/media.rs",
       "blob_sha": "20543e07498d67e4b75c8d91c8c7092c429f6de1",
       "size": 5027,
@@ -1275,7 +1302,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1142,
+      "index": 1145,
       "path": "rslib/src/import_export/package/apkg/import/mod.rs",
       "blob_sha": "9c8e707ccf828641ba0cdf1e88207baeba831d85",
       "size": 5518,
@@ -1284,7 +1311,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1143,
+      "index": 1146,
       "path": "rslib/src/import_export/package/apkg/import/notes.rs",
       "blob_sha": "d4464c04d5d43252bc8bb6ce9fffd4dc235a296e",
       "size": 39033,
@@ -1293,7 +1320,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1144,
+      "index": 1147,
       "path": "rslib/src/import_export/package/apkg/mod.rs",
       "blob_sha": "0ac21fac7f7da49a5fb2d20173ccff27dc703e10",
       "size": 199,
@@ -1302,7 +1329,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1145,
+      "index": 1148,
       "path": "rslib/src/import_export/package/apkg/tests.rs",
       "blob_sha": "68f982b99edd0ca47680c9e9a7e280153f7d2fd4",
       "size": 7804,
@@ -1311,7 +1338,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1146,
+      "index": 1149,
       "path": "rslib/src/import_export/package/colpkg/export.rs",
       "blob_sha": "20f25a1c1a6a028a8c847041662a0860329dc81b",
       "size": 9774,
@@ -1320,7 +1347,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1147,
+      "index": 1150,
       "path": "rslib/src/import_export/package/colpkg/import.rs",
       "blob_sha": "5ae8b4c8e417faddcbc432c689acd5a6c039822e",
       "size": 5450,
@@ -1329,7 +1356,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1148,
+      "index": 1151,
       "path": "rslib/src/import_export/package/colpkg/mod.rs",
       "blob_sha": "5416047de2623b41fee01af1612312aa9417ca9c",
       "size": 187,
@@ -1338,7 +1365,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1149,
+      "index": 1152,
       "path": "rslib/src/import_export/package/colpkg/tests.rs",
       "blob_sha": "ccfe9adaf718864f614d236ea3aed344b844400e",
       "size": 3220,
@@ -1347,7 +1374,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1150,
+      "index": 1153,
       "path": "rslib/src/import_export/package/media.rs",
       "blob_sha": "8a7e5b72608389993aeee9397b71b893cbfa957a",
       "size": 10887,
@@ -1356,7 +1383,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1151,
+      "index": 1154,
       "path": "rslib/src/import_export/package/meta.rs",
       "blob_sha": "1b8797471e51cb1633ed4648cc2ab3c8a4c50ab7",
       "size": 3797,
@@ -1365,7 +1392,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1152,
+      "index": 1155,
       "path": "rslib/src/import_export/package/mod.rs",
       "blob_sha": "935fc7e9cac5ffd9025ba25fb12bd919e96c7f13",
       "size": 736,
@@ -1374,7 +1401,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1153,
+      "index": 1156,
       "path": "rslib/src/import_export/service.rs",
       "blob_sha": "7754d5d8db016360d5da28002b7cca6a755e3fec",
       "size": 16107,
@@ -1383,7 +1410,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1154,
+      "index": 1157,
       "path": "rslib/src/import_export/text/csv/export.rs",
       "blob_sha": "5cb902b1fb43223d9a7d649e4be48d1569426eb3",
       "size": 23450,
@@ -1392,7 +1419,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1155,
+      "index": 1158,
       "path": "rslib/src/import_export/text/csv/import.rs",
       "blob_sha": "31dee84e498df99093c29efdf46b7cfb0a90811a",
       "size": 12533,
@@ -1401,7 +1428,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1156,
+      "index": 1159,
       "path": "rslib/src/import_export/text/csv/metadata.rs",
       "blob_sha": "ba6add45392409dfdf73d639fdfe254a2dd979fc",
       "size": 31389,
@@ -1410,7 +1437,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1157,
+      "index": 1160,
       "path": "rslib/src/import_export/text/csv/mod.rs",
       "blob_sha": "ba4e309bb5611a8bd35d5c72ed7f610a038c7675",
       "size": 172,
@@ -1419,7 +1446,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1158,
+      "index": 1161,
       "path": "rslib/src/import_export/text/import.rs",
       "blob_sha": "1e6f85b3f2a71c6513d1c7127c379d6c1136d3e6",
       "size": 28933,
@@ -1428,7 +1455,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1159,
+      "index": 1162,
       "path": "rslib/src/import_export/text/json.rs",
       "blob_sha": "1abf49f5f0a8d936ee9bf34c7b26180b288f26c3",
       "size": 798,
@@ -1437,7 +1464,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1160,
+      "index": 1163,
       "path": "rslib/src/import_export/text/mod.rs",
       "blob_sha": "fdf94971acbf9d89a9cc06ee7e826f94ec71c1b3",
       "size": 2502,
@@ -1446,7 +1473,7 @@
       "cards_category": "import_export"
     },
     {
-      "index": 1161,
+      "index": 1164,
       "path": "rslib/src/latex.rs",
       "blob_sha": "02056b7219e225bebd59d30a7528194e009ba0c9",
       "size": 4301,
@@ -1455,7 +1482,7 @@
       "cards_category": null
     },
     {
-      "index": 1162,
+      "index": 1165,
       "path": "rslib/src/lib.rs",
       "blob_sha": "2d6484ab0ddfeabfc073401a579680b2e5894249",
       "size": 1144,
@@ -1464,7 +1491,7 @@
       "cards_category": null
     },
     {
-      "index": 1163,
+      "index": 1166,
       "path": "rslib/src/links.rs",
       "blob_sha": "5b72c2b62d17de07c8454e302d04e86f05551186",
       "size": 2382,
@@ -1473,7 +1500,7 @@
       "cards_category": null
     },
     {
-      "index": 1164,
+      "index": 1167,
       "path": "rslib/src/log.rs",
       "blob_sha": "fedc597c4c248f2fb538f3fbb0cfaaaa5c8d1b8b",
       "size": 2598,
@@ -1482,7 +1509,7 @@
       "cards_category": null
     },
     {
-      "index": 1165,
+      "index": 1168,
       "path": "rslib/src/markdown.rs",
       "blob_sha": "88bb211f30c3d080a7fcf65ef422e60232068bb1",
       "size": 389,
@@ -1491,7 +1518,7 @@
       "cards_category": null
     },
     {
-      "index": 1166,
+      "index": 1169,
       "path": "rslib/src/media/check.rs",
       "blob_sha": "470cade283850cb012a81dd2b89c40c4950d51f9",
       "size": 35622,
@@ -1500,7 +1527,7 @@
       "cards_category": "media"
     },
     {
-      "index": 1167,
+      "index": 1170,
       "path": "rslib/src/media/files.rs",
       "blob_sha": "29ad81ff2281930abd2300178e7fee4b541e13ea",
       "size": 17220,
@@ -1509,7 +1536,7 @@
       "cards_category": "media"
     },
     {
-      "index": 1168,
+      "index": 1171,
       "path": "rslib/src/media/mod.rs",
       "blob_sha": "8a599fbecc483aad4e3327aad0a6ca3be0d52626",
       "size": 6036,
@@ -1518,7 +1545,7 @@
       "cards_category": "media"
     },
     {
-      "index": 1169,
+      "index": 1172,
       "path": "rslib/src/media/service.rs",
       "blob_sha": "e25282b81ac269ea3074314040dd086bd1999c95",
       "size": 9737,
@@ -1527,7 +1554,7 @@
       "cards_category": "media"
     },
     {
-      "index": 1170,
+      "index": 1173,
       "path": "rslib/src/notes/mod.rs",
       "blob_sha": "32e282705ebf3b04df524c34211a86bc4cc6af74",
       "size": 38737,
@@ -1536,7 +1563,7 @@
       "cards_category": "cards_notes"
     },
     {
-      "index": 1171,
+      "index": 1174,
       "path": "rslib/src/notes/service.rs",
       "blob_sha": "674b114034b7cf6fd1e38456013c370a3b3264dc",
       "size": 17742,
@@ -1545,7 +1572,7 @@
       "cards_category": "cards_notes"
     },
     {
-      "index": 1172,
+      "index": 1175,
       "path": "rslib/src/notes/undo.rs",
       "blob_sha": "7807042d8e0f3b99fabec843f21034480f2b4d71",
       "size": 5099,
@@ -1554,7 +1581,7 @@
       "cards_category": "cards_notes"
     },
     {
-      "index": 1173,
+      "index": 1176,
       "path": "rslib/src/notetype/cardgen.rs",
       "blob_sha": "bb6db2d7d8987529f2280e5b309cff9ae8bdf5a1",
       "size": 19178,
@@ -1563,7 +1590,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1174,
+      "index": 1177,
       "path": "rslib/src/notetype/checks.rs",
       "blob_sha": "5442d1b443600fb962efa8052fdf851741a0d44d",
       "size": 3928,
@@ -1572,7 +1599,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1175,
+      "index": 1178,
       "path": "rslib/src/notetype/cloze_styling.css",
       "blob_sha": "10b20b6cacb7e4d5ce986e9c8da2aaaa08f38d8a",
       "size": 95,
@@ -1581,7 +1608,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1176,
+      "index": 1179,
       "path": "rslib/src/notetype/emptycards.rs",
       "blob_sha": "741d456e090eb977d7b7b525babe1260097675dc",
       "size": 8098,
@@ -1590,7 +1617,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1177,
+      "index": 1180,
       "path": "rslib/src/notetype/fields.rs",
       "blob_sha": "2d3419d73ab0e5ab08dcf6e1b30ac5b342fe720a",
       "size": 2509,
@@ -1599,7 +1626,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1178,
+      "index": 1181,
       "path": "rslib/src/notetype/header.tex",
       "blob_sha": "0191618753c564fe9c3dbb6582192f54061019d1",
       "size": 178,
@@ -1608,7 +1635,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1179,
+      "index": 1182,
       "path": "rslib/src/notetype/merge.rs",
       "blob_sha": "a15e0844928372eae964cbe75b5dc40c1edf736c",
       "size": 8085,
@@ -1617,7 +1644,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1180,
+      "index": 1183,
       "path": "rslib/src/notetype/mod.rs",
       "blob_sha": "c43739cdef9956c5403139c05addbda66822898d",
       "size": 32625,
@@ -1626,7 +1653,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1181,
+      "index": 1184,
       "path": "rslib/src/notetype/notetypechange.rs",
       "blob_sha": "7076a9ec62e449bef127c1b52323685d366f1ac8",
       "size": 17873,
@@ -1635,7 +1662,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1182,
+      "index": 1185,
       "path": "rslib/src/notetype/render.rs",
       "blob_sha": "19f5208dc071ab511b3a81e97d67ac91d1578fa2",
       "size": 8421,
@@ -1644,7 +1671,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1183,
+      "index": 1186,
       "path": "rslib/src/notetype/restore.rs",
       "blob_sha": "38ce51a06945a948709155aa8e1739758c9ffb74",
       "size": 3600,
@@ -1653,7 +1680,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1184,
+      "index": 1187,
       "path": "rslib/src/notetype/schema11.rs",
       "blob_sha": "8d713cbe7dc9e48afeab4f1fecd95345a2ac741a",
       "size": 14053,
@@ -1662,7 +1689,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1185,
+      "index": 1188,
       "path": "rslib/src/notetype/schemachange.rs",
       "blob_sha": "1d1a72d65b9f7e0d8838cc20afa438ff78e8c5cb",
       "size": 11129,
@@ -1671,7 +1698,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1186,
+      "index": 1189,
       "path": "rslib/src/notetype/service.rs",
       "blob_sha": "9cbc382ffae687afe480d2f2ffd8ea84fc4c4c49",
       "size": 33069,
@@ -1680,7 +1707,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1187,
+      "index": 1190,
       "path": "rslib/src/notetype/stock.rs",
       "blob_sha": "b27881809fa6e2e6dd62a4bceeb786c0c35a0baf",
       "size": 6295,
@@ -1689,7 +1716,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1188,
+      "index": 1191,
       "path": "rslib/src/notetype/styling.css",
       "blob_sha": "b14c636533977ad6e7b37b16a35247189bc23900",
       "size": 148,
@@ -1698,7 +1725,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1189,
+      "index": 1192,
       "path": "rslib/src/notetype/templates.rs",
       "blob_sha": "26f6c3de2d0d31cb575c40a8c536e8ee850bf6bd",
       "size": 3623,
@@ -1707,7 +1734,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1190,
+      "index": 1193,
       "path": "rslib/src/notetype/undo.rs",
       "blob_sha": "99f76f944fac1a2046b246a5c4f08ddc22b2cec0",
       "size": 2499,
@@ -1716,7 +1743,7 @@
       "cards_category": "notetypes"
     },
     {
-      "index": 1191,
+      "index": 1194,
       "path": "rslib/src/ops.rs",
       "blob_sha": "be27b649a6e0a0810529aa9af61b2b5fbaa7e25b",
       "size": 5752,
@@ -1725,7 +1752,7 @@
       "cards_category": null
     },
     {
-      "index": 1192,
+      "index": 1195,
       "path": "rslib/src/preferences.rs",
       "blob_sha": "96be8e46120f3523f1053e9c99454e424b399399",
       "size": 6650,
@@ -1734,7 +1761,7 @@
       "cards_category": null
     },
     {
-      "index": 1193,
+      "index": 1196,
       "path": "rslib/src/prelude.rs",
       "blob_sha": "ee6255f7f1c4144b50c8b4b708d8d0ed0094a8be",
       "size": 1258,
@@ -1743,7 +1770,7 @@
       "cards_category": null
     },
     {
-      "index": 1194,
+      "index": 1197,
       "path": "rslib/src/progress.rs",
       "blob_sha": "97d98615b46dc915f729e00bdfa4e5c948bd6432",
       "size": 13581,
@@ -1752,7 +1779,7 @@
       "cards_category": null
     },
     {
-      "index": 1195,
+      "index": 1198,
       "path": "rslib/src/revlog/mod.rs",
       "blob_sha": "3e22890b10c1cb5f15acd08d53351e1d36b39b8e",
       "size": 6074,
@@ -1761,7 +1788,7 @@
       "cards_category": null
     },
     {
-      "index": 1196,
+      "index": 1199,
       "path": "rslib/src/revlog/undo.rs",
       "blob_sha": "71602f0cc28674a95241035f7995c016cb086bc4",
       "size": 1605,
@@ -1770,7 +1797,7 @@
       "cards_category": null
     },
     {
-      "index": 1197,
+      "index": 1200,
       "path": "rslib/src/scheduler/answering/current.rs",
       "blob_sha": "65eb8704498acb52efc09442a43412317f128191",
       "size": 5418,
@@ -1779,7 +1806,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1198,
+      "index": 1201,
       "path": "rslib/src/scheduler/answering/learning.rs",
       "blob_sha": "3283dc3ee466089a2105cded86592c1d5bbf196b",
       "size": 3125,
@@ -1788,7 +1815,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1199,
+      "index": 1202,
       "path": "rslib/src/scheduler/answering/mod.rs",
       "blob_sha": "ff81d86fa67f8cf24efce1c27d199f7e80522856",
       "size": 38739,
@@ -1797,7 +1824,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1200,
+      "index": 1203,
       "path": "rslib/src/scheduler/answering/preview.rs",
       "blob_sha": "586223af95c9909157e7fd165c0c1a4b22ab2323",
       "size": 4453,
@@ -1806,7 +1833,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1201,
+      "index": 1204,
       "path": "rslib/src/scheduler/answering/relearning.rs",
       "blob_sha": "ec74a5fec2d36d4945752fa70e88a5d192ad56c2",
       "size": 1843,
@@ -1815,7 +1842,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1202,
+      "index": 1205,
       "path": "rslib/src/scheduler/answering/review.rs",
       "blob_sha": "ef7aec616d725f0a98553c49b0190e57d3e68f69",
       "size": 1332,
@@ -1824,7 +1851,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1203,
+      "index": 1206,
       "path": "rslib/src/scheduler/answering/revlog.rs",
       "blob_sha": "db14e60becba48e294f482540dd486f5d3c43ba9",
       "size": 1623,
@@ -1833,7 +1860,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1204,
+      "index": 1207,
       "path": "rslib/src/scheduler/bury_and_suspend.rs",
       "blob_sha": "8511995086d210afe1a43803d5dfe9209c3fe278",
       "size": 6989,
@@ -1842,7 +1869,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1205,
+      "index": 1208,
       "path": "rslib/src/scheduler/congrats.rs",
       "blob_sha": "721bd417b4a911a20efcbbf29859d16016ad767f",
       "size": 2239,
@@ -1851,7 +1878,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1206,
+      "index": 1209,
       "path": "rslib/src/scheduler/filtered/card.rs",
       "blob_sha": "d07aeabeb38546ea3993a4774938c353eac715c6",
       "size": 2659,
@@ -1860,7 +1887,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1207,
+      "index": 1210,
       "path": "rslib/src/scheduler/filtered/custom_study.rs",
       "blob_sha": "e8e085c49ab6384f6382ebd129919ad7ebc31df0",
       "size": 13598,
@@ -1869,7 +1896,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1208,
+      "index": 1211,
       "path": "rslib/src/scheduler/filtered/mod.rs",
       "blob_sha": "8d009c954c1f2bb8f52ef52d73ce2d32b8c05490",
       "size": 8754,
@@ -1878,7 +1905,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1209,
+      "index": 1212,
       "path": "rslib/src/scheduler/fsrs/error.rs",
       "blob_sha": "404ee36054a216b0aa5434d7ff0f182a717b0b8c",
       "size": 984,
@@ -1887,7 +1914,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1210,
+      "index": 1213,
       "path": "rslib/src/scheduler/fsrs/memory_state.rs",
       "blob_sha": "0ed80bcb41902743ea913323e0d2a70a6c2e7a42",
       "size": 27113,
@@ -1896,7 +1923,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1211,
+      "index": 1214,
       "path": "rslib/src/scheduler/fsrs/mod.rs",
       "blob_sha": "859adabf9cd90a38fa453cfa936a3498b5be7de6",
       "size": 259,
@@ -1905,7 +1932,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1212,
+      "index": 1215,
       "path": "rslib/src/scheduler/fsrs/params.rs",
       "blob_sha": "22d1c3054b76b6366ab8cf1e6bc88114654e8362",
       "size": 32255,
@@ -1914,7 +1941,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1213,
+      "index": 1216,
       "path": "rslib/src/scheduler/fsrs/rescheduler.rs",
       "blob_sha": "37c824230eb9e78c0e7d96fe252bccb9f63c6070",
       "size": 6844,
@@ -1923,7 +1950,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1214,
+      "index": 1217,
       "path": "rslib/src/scheduler/fsrs/retention.rs",
       "blob_sha": "fac58455f8d209d8ace40ae11f6eaf1061f42309",
       "size": 2786,
@@ -1932,7 +1959,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1215,
+      "index": 1218,
       "path": "rslib/src/scheduler/fsrs/simulator.rs",
       "blob_sha": "cdf35838c178d4811ac7ccb426074ffd3e650578",
       "size": 18471,
@@ -1941,7 +1968,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1216,
+      "index": 1219,
       "path": "rslib/src/scheduler/fsrs/try_collect.rs",
       "blob_sha": "fbd69d7662c58bfec2b5b813358418a187662fab",
       "size": 948,
@@ -1950,7 +1977,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1217,
+      "index": 1220,
       "path": "rslib/src/scheduler/mod.rs",
       "blob_sha": "93aee3c9b8467f08a42ca7824117f09e60acca81",
       "size": 4503,
@@ -1959,7 +1986,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1218,
+      "index": 1221,
       "path": "rslib/src/scheduler/new.rs",
       "blob_sha": "541d8d55ead5977cb4eddd19f40c34e74116daf0",
       "size": 12381,
@@ -1968,7 +1995,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1219,
+      "index": 1222,
       "path": "rslib/src/scheduler/queue/builder/burying.rs",
       "blob_sha": "2bd843a948c2fdb7065bff4cc7d5e504286c456a",
       "size": 2721,
@@ -1977,7 +2004,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1220,
+      "index": 1223,
       "path": "rslib/src/scheduler/queue/builder/gathering.rs",
       "blob_sha": "293b50dc4fab87085af117bbf5a967831b11ee86",
       "size": 6169,
@@ -1986,7 +2013,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1221,
+      "index": 1224,
       "path": "rslib/src/scheduler/queue/builder/intersperser.rs",
       "blob_sha": "c7434187c6b59a1d4cb19552c22d0f99af99b10b",
       "size": 3391,
@@ -1995,7 +2022,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1222,
+      "index": 1225,
       "path": "rslib/src/scheduler/queue/builder/mod.rs",
       "blob_sha": "1f12450b1970cdaac6f93aba781f67f7bda891e8",
       "size": 18708,
@@ -2004,7 +2031,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1223,
+      "index": 1226,
       "path": "rslib/src/scheduler/queue/builder/sized_chain.rs",
       "blob_sha": "9cb34da9eeaf33c8dde75d7084596bf5171fc662",
       "size": 1890,
@@ -2013,7 +2040,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1224,
+      "index": 1227,
       "path": "rslib/src/scheduler/queue/builder/sorting.rs",
       "blob_sha": "969a5f45915d02551c8c02d73a7c3e721d7efa3e",
       "size": 2542,
@@ -2022,7 +2049,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1225,
+      "index": 1228,
       "path": "rslib/src/scheduler/queue/entry.rs",
       "blob_sha": "1ca9de47899ad01b80c597ffefe245c88c8fd653",
       "size": 2695,
@@ -2031,7 +2058,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1226,
+      "index": 1229,
       "path": "rslib/src/scheduler/queue/learning.rs",
       "blob_sha": "169b65ae47e7643e5ce7ecda544760ec5860f82c",
       "size": 6484,
@@ -2040,7 +2067,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1227,
+      "index": 1230,
       "path": "rslib/src/scheduler/queue/main.rs",
       "blob_sha": "39129fe7ef5419473f58c7a8fc26c3a66405237d",
       "size": 1630,
@@ -2049,7 +2076,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1228,
+      "index": 1231,
       "path": "rslib/src/scheduler/queue/mod.rs",
       "blob_sha": "6a8357142df04cc80e2b9a0a0e422402958b76ec",
       "size": 9760,
@@ -2058,7 +2085,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1229,
+      "index": 1232,
       "path": "rslib/src/scheduler/queue/undo.rs",
       "blob_sha": "02046eebcff233e096bc92e353ce0786b7da49db",
       "size": 9793,
@@ -2067,7 +2094,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1230,
+      "index": 1233,
       "path": "rslib/src/scheduler/reviews.rs",
       "blob_sha": "1bf3e309ddeb006932a17dd8607b2df103d44197",
       "size": 10674,
@@ -2076,7 +2103,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1231,
+      "index": 1234,
       "path": "rslib/src/scheduler/service/answering.rs",
       "blob_sha": "778cf49a1b66d437a0d9e3d7749ae71fd21d47fd",
       "size": 2788,
@@ -2085,7 +2112,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1232,
+      "index": 1235,
       "path": "rslib/src/scheduler/service/mod.rs",
       "blob_sha": "073706ce81982afb217547c5759b6d8706d92db3",
       "size": 60466,
@@ -2094,7 +2121,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1233,
+      "index": 1236,
       "path": "rslib/src/scheduler/service/states/filtered.rs",
       "blob_sha": "26cfb4ae06f78dcc11a5bc18293b8d1fcbe80679",
       "size": 1482,
@@ -2103,7 +2130,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1234,
+      "index": 1237,
       "path": "rslib/src/scheduler/service/states/learning.rs",
       "blob_sha": "a52c674c829c06c69acc972c3a57e364dceb5ae3",
       "size": 988,
@@ -2112,7 +2139,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1235,
+      "index": 1238,
       "path": "rslib/src/scheduler/service/states/mod.rs",
       "blob_sha": "ba03c1fa18c19997b7329531bf457a06e11e81fe",
       "size": 2535,
@@ -2121,7 +2148,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1236,
+      "index": 1239,
       "path": "rslib/src/scheduler/service/states/new.rs",
       "blob_sha": "9a814371add104dba44f2ed8d0fe04f670aa0dd6",
       "size": 614,
@@ -2130,7 +2157,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1237,
+      "index": 1240,
       "path": "rslib/src/scheduler/service/states/normal.rs",
       "blob_sha": "4b932e389c0dcd05ac0bc5188b03270ba0c3669d",
       "size": 2005,
@@ -2139,7 +2166,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1238,
+      "index": 1241,
       "path": "rslib/src/scheduler/service/states/preview.rs",
       "blob_sha": "0220e36e0f74f963c9f0117662799260169543fc",
       "size": 750,
@@ -2148,7 +2175,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1239,
+      "index": 1242,
       "path": "rslib/src/scheduler/service/states/relearning.rs",
       "blob_sha": "f4633f8230a5a5142932f7e5df1b4d83c60b12e1",
       "size": 810,
@@ -2157,7 +2184,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1240,
+      "index": 1243,
       "path": "rslib/src/scheduler/service/states/rescheduling.rs",
       "blob_sha": "2708f8ce9a6b96a0c86c0fd39bef60460b2c1024",
       "size": 813,
@@ -2166,7 +2193,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1241,
+      "index": 1244,
       "path": "rslib/src/scheduler/service/states/review.rs",
       "blob_sha": "f9c713aa7c819551f10b810b1b374554572db898",
       "size": 1109,
@@ -2175,7 +2202,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1242,
+      "index": 1245,
       "path": "rslib/src/scheduler/states/filtered.rs",
       "blob_sha": "1fba3da9763eb7f394761531960f1f467b4d66f5",
       "size": 1454,
@@ -2184,7 +2211,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1243,
+      "index": 1246,
       "path": "rslib/src/scheduler/states/fuzz.rs",
       "blob_sha": "73f6eda8ea09938f41fcc64efc543bfbf851b88c",
       "size": 7244,
@@ -2193,7 +2220,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1244,
+      "index": 1247,
       "path": "rslib/src/scheduler/states/interval_kind.rs",
       "blob_sha": "5272f2367cb2d84a4528bde5b1e309ff8ca276c0",
       "size": 1194,
@@ -2202,7 +2229,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1245,
+      "index": 1248,
       "path": "rslib/src/scheduler/states/learning.rs",
       "blob_sha": "96cf91eac82b5ba72a673fbe182bbab5312e3141",
       "size": 13531,
@@ -2211,7 +2238,7 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1246,
+      "index": 1249,
       "path": "rslib/src/scheduler/states/load_balancer.rs",
       "blob_sha": "86969af3f4ea6a518b9990387e26706830b42ec0",
       "size": 16382,
@@ -2220,37 +2247,10 @@
       "cards_category": "scheduler"
     },
     {
-      "index": 1247,
+      "index": 1250,
       "path": "rslib/src/scheduler/states/mod.rs",
       "blob_sha": "9a4aa7c3c120a83b0cfda5360ceb5fed84f020ca",
       "size": 6697,
-      "repository_area": "rslib",
-      "cards_scope": "CARDS_RUNTIME",
-      "cards_category": "scheduler"
-    },
-    {
-      "index": 1248,
-      "path": "rslib/src/scheduler/states/new.rs",
-      "blob_sha": "2ac8a480e0411b6903a1664c68323a35eac76129",
-      "size": 717,
-      "repository_area": "rslib",
-      "cards_scope": "CARDS_RUNTIME",
-      "cards_category": "scheduler"
-    },
-    {
-      "index": 1249,
-      "path": "rslib/src/scheduler/states/normal.rs",
-      "blob_sha": "c41f7e9cb5d25ede957bcfd9daa706778b8c35fa",
-      "size": 3114,
-      "repository_area": "rslib",
-      "cards_scope": "CARDS_RUNTIME",
-      "cards_category": "scheduler"
-    },
-    {
-      "index": 1250,
-      "path": "rslib/src/scheduler/states/preview_filter.rs",
-      "blob_sha": "93965cf25fbde8e3fd064c3aa4b606ec8dd17a1b",
-      "size": 1301,
       "repository_area": "rslib",
       "cards_scope": "CARDS_RUNTIME",
       "cards_category": "scheduler"

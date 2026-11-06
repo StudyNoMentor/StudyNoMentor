@@ -1388,7 +1388,7 @@ const CardsScreen = {
         authority:{
           academicState:'Anki official Collection',
           studyRole:'UI/shell + metadados de planejamento',
-          pinnedVersion:status&&status.pinned_version||'26.09.3',
+          pinnedVersion:status&&status.pinned_version||'26.09.4',
           runtimeVersion:status&&status.runtime_version||null,
           collection:status&&status.collection||'study-cards',
           schedulerReplay:'disabled',
