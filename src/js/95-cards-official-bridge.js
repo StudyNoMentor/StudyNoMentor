@@ -78,6 +78,7 @@ const CardsOfficialBridge = {
     if(reason&&typeof _quiet==='function')_quiet(new Error('Cards official invalidated: '+reason),'cards-official-invalidate');
   },
   _scheduleReviewPrewarm(delay=700){
+    if(!this.api().isEnabled())return false;
     if(this._reviewPrewarmDone||this._reviewPrewarmPromise||this.ready||this._bootPromise)return false;
     if(!this.api().token()||!this._allCards().length)return false;
     clearTimeout(this._reviewPrewarmTimer);
@@ -1222,6 +1223,7 @@ const CardsOfficialBridge = {
   },
 
   async bootstrap(force){
+    if(!this.api().isEnabled())throw new Error('A integração com o Anki está desativada nas Configurações do Study.');
     if(this._bootPromise)return this._bootPromise;
     if(this.ready&&!this.dirty&&!force)return this.review;
     this._bootPromise=(async()=>{
@@ -1294,6 +1296,10 @@ const CardsOfficialBridge = {
 
   async renderRevisar(box){
     if(!box)return;
+    if(!this.api().isEnabled()){
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏸</div><h3>Anki desativado</h3><p>A integração com o Anki Oficial está desligada. Seus cartões e históricos foram preservados. Para voltar a revisar, reative a integração em Configurações.</p></div></div>';
+      return;
+    }
     const token=++this._renderEpoch,start=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
     if(!this._renderStillCurrent(token,'revisar',box))return;
     if(!CardsScreen.collectionCards().length){
