@@ -60,7 +60,7 @@
      novo, e o antigo é descartado sozinho na ativação) e o que permite ao app
      dizer qual versão está rodando. Em src/ fica "dev" de propósito: a versão
      é gerada na montagem, não editada à mão. -->
-<meta name="diario-versao" content="v2f574c2c8b">
+<meta name="diario-versao" content="v8e5bc6b12c">
 <script>
 /* Persistência de estudo NÃO usa mais IndexedDB/localStorage.
    O Supabase relacional é a fonte de verdade; a compatibilidade síncrona das
@@ -7373,6 +7373,21 @@ window.__relationalBoot = true;
           <input type="text" id="new-mode-input" placeholder="Ex.: Revisão por questões">
           <button class="btn-secondary" id="btn-add-mode" type="button">Adicionar</button>
         </div>
+      </div>
+    </section>
+
+    <section class="card" id="cfg-integrations-card">
+      <div class="card-header">
+        <div>
+          <h2>Integrações</h2>
+          <p class="sub">Controle serviços externos sem apagar seus dados do Study.</p>
+        </div>
+      </div>
+      <div style="padding: 16px 28px 24px;">
+        <label class="co-check" style="margin:0;align-items:flex-start;">
+          <input type="checkbox" id="cfg-anki-enabled" checked>
+          <span><strong>Manter integração com o Anki Oficial ativada</strong><br><span class="hint">Desative para impedir chamadas ao backend oficial do Anki no Railway, inclusive carregamento antecipado, revisão, estatísticas e mídia. A sincronização dos cartões, baralhos e histórico pelo Supabase continua ativa para preservar seus dados e o acesso em outros dispositivos; portanto, esta opção não elimina o egress do Supabase dessas tabelas.</span></span>
+        </label>
       </div>
     </section>
 
@@ -36525,7 +36540,35 @@ queueMicrotask(()=>AnkiPractical10.install());
    scheduler, renderer, browser ou estado de revisão alternativo neste cliente.
    ═══════════════════════════════════════════════════════════════════════════ */
 const AnkiOfficial = {
+  integrationKey() {
+    try { return DB._profilePrefix() + 'anki-integration-enabled-v1'; }
+    catch (_) { return 'study:anki-integration-enabled-v1'; }
+  },
+
+  isEnabled() {
+    try {
+      const raw = localStorage.getItem(this.integrationKey());
+      if (raw == null) return true; // compatibilidade: instalações existentes continuam ativas
+      return JSON.parse(raw) !== false;
+    } catch (_) { return true; }
+  },
+
+  setEnabled(enabled) {
+    const value = !!enabled, key = this.integrationKey(), raw = JSON.stringify(value);
+    if (typeof DB !== 'undefined' && DB && typeof DB.setRaw === 'function') DB.setRaw(key, raw);
+    else localStorage.setItem(key, raw);
+    if (!value && window.CardsOfficialBridge) {
+      clearTimeout(window.CardsOfficialBridge._reviewPrewarmTimer);
+      window.CardsOfficialBridge._reviewPrewarmTimer = null;
+      window.CardsOfficialBridge._reviewPrewarmPromise = null;
+      window.CardsOfficialBridge._reviewPrewarmDone = false;
+      window.CardsOfficialBridge.invalidate('integration-disabled');
+    }
+    return value;
+  },
+
   apiBase() {
+    if (!this.isEnabled()) throw new Error('A integração com o Anki está desativada nas Configurações do Study.');
     const fallback = 'https://anki-official-production.up.railway.app';
     const raw = (window.ANKI_OFFICIAL_API_URL || fallback).trim();
     return raw.replace(/\/$/, '');
@@ -39469,6 +39512,25 @@ const ConfigScreen = {
     this.renderPhases();
     this.renderStatuses();
     this.renderModes();
+    this.renderIntegrations();
+  },
+
+  // ---------- Integrações ----------
+  renderIntegrations() {
+    const toggle = document.getElementById('cfg-anki-enabled');
+    if (!toggle || !window.AnkiOfficial) return;
+    toggle.checked = AnkiOfficial.isEnabled();
+    toggle.onchange = () => {
+      try {
+        AnkiOfficial.setEnabled(toggle.checked);
+        showToast(toggle.checked
+          ? 'Integração com o Anki reativada.'
+          : 'Anki desativado. Nenhuma chamada ao backend oficial será iniciada.');
+      } catch (e) {
+        toggle.checked = AnkiOfficial.isEnabled();
+        showToast('Não foi possível alterar a integração: ' + (e && e.message ? e.message : String(e)));
+      }
+    };
   },
 
   // ---------- Matérias ----------
@@ -55120,6 +55182,7 @@ const CardsOfficialBridge = {
     if(reason&&typeof _quiet==='function')_quiet(new Error('Cards official invalidated: '+reason),'cards-official-invalidate');
   },
   _scheduleReviewPrewarm(delay=700){
+    if(!this.api().isEnabled())return false;
     if(this._reviewPrewarmDone||this._reviewPrewarmPromise||this.ready||this._bootPromise)return false;
     if(!this.api().token()||!this._allCards().length)return false;
     clearTimeout(this._reviewPrewarmTimer);
@@ -56264,6 +56327,7 @@ const CardsOfficialBridge = {
   },
 
   async bootstrap(force){
+    if(!this.api().isEnabled())throw new Error('A integração com o Anki está desativada nas Configurações do Study.');
     if(this._bootPromise)return this._bootPromise;
     if(this.ready&&!this.dirty&&!force)return this.review;
     this._bootPromise=(async()=>{
@@ -56336,6 +56400,10 @@ const CardsOfficialBridge = {
 
   async renderRevisar(box){
     if(!box)return;
+    if(!this.api().isEnabled()){
+      box.innerHTML='<div class="card"><div class="cards-review-done"><div class="big">⏸</div><h3>Anki desativado</h3><p>A integração com o Anki Oficial está desligada. Seus cartões e históricos foram preservados. Para voltar a revisar, reative a integração em Configurações.</p></div></div>';
+      return;
+    }
     const token=++this._renderEpoch,start=typeof performance!=='undefined'&&performance.now?performance.now():Date.now();
     if(!this._renderStillCurrent(token,'revisar',box))return;
     if(!CardsScreen.collectionCards().length){
