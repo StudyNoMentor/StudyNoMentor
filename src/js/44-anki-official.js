@@ -7,7 +7,35 @@
    scheduler, renderer, browser ou estado de revisão alternativo neste cliente.
    ═══════════════════════════════════════════════════════════════════════════ */
 const AnkiOfficial = {
+  integrationKey() {
+    try { return DB._profilePrefix() + 'anki-integration-enabled-v1'; }
+    catch (_) { return 'study:anki-integration-enabled-v1'; }
+  },
+
+  isEnabled() {
+    try {
+      const raw = localStorage.getItem(this.integrationKey());
+      if (raw == null) return true; // compatibilidade: instalações existentes continuam ativas
+      return JSON.parse(raw) !== false;
+    } catch (_) { return true; }
+  },
+
+  setEnabled(enabled) {
+    const value = !!enabled, key = this.integrationKey(), raw = JSON.stringify(value);
+    if (typeof DB !== 'undefined' && DB && typeof DB.setRaw === 'function') DB.setRaw(key, raw);
+    else localStorage.setItem(key, raw);
+    if (!value && window.CardsOfficialBridge) {
+      clearTimeout(window.CardsOfficialBridge._reviewPrewarmTimer);
+      window.CardsOfficialBridge._reviewPrewarmTimer = null;
+      window.CardsOfficialBridge._reviewPrewarmPromise = null;
+      window.CardsOfficialBridge._reviewPrewarmDone = false;
+      window.CardsOfficialBridge.invalidate('integration-disabled');
+    }
+    return value;
+  },
+
   apiBase() {
+    if (!this.isEnabled()) throw new Error('A integração com o Anki está desativada nas Configurações do Study.');
     const fallback = 'https://anki-official-production.up.railway.app';
     const raw = (window.ANKI_OFFICIAL_API_URL || fallback).trim();
     return raw.replace(/\/$/, '');
