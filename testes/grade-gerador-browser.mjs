@@ -73,6 +73,33 @@ try{
     const chips=[...document.querySelectorAll('.grade-cell-drop .subject-chip[data-subject="Direito Tributário"]')];
     out.autoDone=chips.filter(x=>x.classList.contains('auto-done')).length;
     out.parcial=chips.filter(x=>x.classList.contains('parcial')).length;
+    // A preferência desliga só o vínculo automático: registros preservados,
+    // marcação manual disponível e recálculo imediato ao reativar.
+    const autoPrefKey=DB._profilePrefix()+'pref-grade-auto-progress';
+    const autoPrefAntes=localStorage.getItem(autoPrefKey);
+    const autoBtn=document.getElementById('btn-grade-auto-progress');
+    out.autoControleDefault=!!autoBtn&&autoBtn.getAttribute('aria-pressed')==='true';
+    autoBtn.click();await new Promise(r=>setTimeout(r,100));
+    const pOff=GradeScreen.progresso().mapa;
+    out.autoDesligado=localStorage.getItem(autoPrefKey)==='0'&&dt.every(c=>{
+      const x=pOff[c.d+'|'+c.i];return x&&x.feito===0&&!x.completo&&!x.automatico;
+    });
+    switchScreen('registrar');switchScreen('grade');await new Promise(r=>setTimeout(r,100));
+    out.autoPersisteNavegacao=localStorage.getItem(autoPrefKey)==='0'&&dt.every(c=>GradeScreen.progresso().mapa[c.d+'|'+c.i].feito===0);
+    const alvoManual=dt.find(c=>!GradeScreen.progresso().mapa[c.d+'|'+c.i].completo);
+    if(alvoManual){
+      const seletor='.grade-cell-drop[data-dia="'+alvoManual.d+'"][data-idx="'+alvoManual.i+'"] .chip-done-toggle';
+      const manualBtn=document.querySelector(seletor);if(manualBtn)manualBtn.click();
+      await new Promise(r=>setTimeout(r,100));
+      const manualData=DB.getGradeTemplate().grade[alvoManual.d][alvoManual.i];
+      const manualProg=GradeScreen.progresso().mapa[alvoManual.d+'|'+alvoManual.i];
+      out.manualComAutoOff=!!manualData.done&&manualData.doneWeek===GradeScreen.progresso().ini&&!manualProg.completo&&manualProg.feito===0;
+    }
+    autoBtn.click();await new Promise(r=>setTimeout(r,100));
+    const pOn=GradeScreen.progresso().mapa;
+    out.autoReativado=localStorage.getItem(autoPrefKey)==='1'&&dt.some(c=>pOn[c.d+'|'+c.i].feito>0||pOn[c.d+'|'+c.i].completo);
+    if(autoPrefAntes==null)DB.delRaw(autoPrefKey,'restauração de preferência de teste');else DB.setRaw(autoPrefKey,autoPrefAntes);
+    GradeScreen.render();await new Promise(r=>setTimeout(r,100));
     // atalho: registrar a partir da sessão
     GradeScreen.registrarSessao('Contabilidade Geral',60);
     await new Promise(r=>setTimeout(r,300));
@@ -308,6 +335,7 @@ try{
   ok(r.prefs,'preferências da janela lembradas por planejamento');
   ok(r.prog.filter(x=>x.completo).length===1&&r.prog.some(x=>x.feito===30),'90 min registrados = 1 sessão completa + 30/60 na seguinte');
   ok(r.autoDone===1&&r.parcial===1,'chips mostram concluída pelos registros e parcial');
+  ok(r.autoControleDefault&&r.autoDesligado&&r.autoPersisteNavegacao&&r.manualComAutoOff&&r.autoReativado,'controle automático persiste, permite marcação manual desligado e recalcula ao reativar');
   ok(r.reg.s==='Contabilidade Geral'&&r.reg.h==='1'&&r.reg.m==='0','Registrar estudo aberto já preenchido');
   ok(r.modoPadrao==='painel'&&r.painel,'grade montada abre no Acompanhar, com resumo e os 7 dias');
   ok(r.maisAntiga.seg&&!r.maisAntiga.qua,'registro cobre primeiro a missão mais antiga, independentemente do dia salvo');

@@ -842,7 +842,16 @@ function planCycleMode() {
     } catch (e) { _quiet(e); }
     return fallback;
   }
-  function gradePrefSet(name, value) { DB.setRaw(_gradePrefKey(name), String(value)); }
+  function gradePrefSet(name, value) { return DB.setRaw(_gradePrefKey(name), String(value)); }
+  // Registros podem preencher a grade, mas a pessoa pode preferir controlar tudo manualmente.
+  // Sem preferência gravada, mantém o comportamento histórico: automático ligado.
+  function gradeAutoProgressEnabled() {
+    const value = gradePrefGet('grade-auto-progress', null, '1');
+    return value !== '0' && value !== 'false';
+  }
+  function setGradeAutoProgressEnabled(enabled) {
+    return gradePrefSet('grade-auto-progress', enabled ? '1' : '0');
+  }
   // preferência de início da semana ('mon' = segunda | 'sun' = domingo) — só afeta a ORDEM de exibição
   function gradeWeekStart() { return gradePrefGet('grade-weekstart', GRADE_WS_LEGACY, 'mon') === 'sun' ? 'sun' : 'mon'; }
   function setGradeWeekStart(v) { gradePrefSet('grade-weekstart', v === 'sun' ? 'sun' : 'mon'); }
@@ -943,8 +952,13 @@ function planCycleMode() {
       const d = new Date(y, m - 1, dd + i);
       return { iso: _iso(d), dia: _DOW[d.getDay()] };
     });
+    const automaticoAtivo = gradeAutoProgressEnabled();
     let entries = [];
-    try { entries = DB.getEntries() || []; } catch (e) { _quiet(e); }
+    // Com a opção desligada, os registros continuam intactos no Diário, mas
+    // não participam do cálculo da grade. A marcação manual segue independente.
+    if (automaticoAtivo) {
+      try { entries = DB.getEntries() || []; } catch (e) { _quiet(e); }
+    }
     const saldo = {};
     entries.forEach(e => {
       if (!e || !e.subject || !(e.date >= ini && e.date <= fim)) return;
@@ -959,7 +973,8 @@ function planCycleMode() {
     }));
     // A primeira sessão disponível da matéria recebe os minutos antes das seguintes.
     celulas.forEach(c => {
-      const disp = saldo[c.k] || 0; if (c.manual || disp <= 0) return;
+      const disp = automaticoAtivo ? (saldo[c.k] || 0) : 0;
+      if (c.manual || disp <= 0) return;
       const usa = Math.min(c.meta, disp); c.feito = usa; saldo[c.k] = disp - usa;
     });
     const mapa = {};
@@ -1726,6 +1741,8 @@ function planCycleMode() {
   function renderGradeScreen() {
     const ws = document.getElementById('grade-weekstart-select');
     if (ws) ws.value = gradeWeekStart();
+    // Rele a preferência ao abrir a tela: ela pode ter chegado da nuvem após o boot.
+    updateGradeAutoProgressButton();
     applyGradeView();
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
@@ -1878,6 +1895,35 @@ function planCycleMode() {
     const lbl = n > 0 ? `Desmarcar ${n} concluído${n === 1 ? '' : 's'}` : 'Desmarcar concluídos';
     btn.innerHTML = `<span class="gg-ic">↺</span>${lbl}`;
   }
+  // Liga/desliga somente a leitura dos registros pela grade; o Diário não é afetado.
+  function updateGradeAutoProgressButton() {
+    const btn = document.getElementById('btn-grade-auto-progress');
+    if (!btn) return;
+    const enabled = gradeAutoProgressEnabled();
+    btn.classList.toggle('active', enabled);
+    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    btn.innerHTML = `<span class="gg-ic">${enabled ? '↻' : '✎'}</span>Automático: ${enabled ? 'ligado' : 'desligado'}`;
+    btn.title = enabled
+      ? 'Os registros da semana preenchem o progresso e concluem sessões automaticamente. Clique para usar marcação manual.'
+      : 'Os registros não alteram a grade. Marque e desmarque as sessões manualmente. Clique para reativar o automático.';
+  }
+  const _autoProgressBtn = document.getElementById('btn-grade-auto-progress');
+  if (_autoProgressBtn) _autoProgressBtn.addEventListener('click', () => {
+    const enabled = !gradeAutoProgressEnabled();
+    if (setGradeAutoProgressEnabled(enabled) === false) {
+      updateGradeAutoProgressButton();
+      showToast('Não foi possível salvar a preferência da grade.');
+      return;
+    }
+    _gp = null;
+    updateGradeAutoProgressButton();
+    applyGradeView();
+    showToast(enabled
+      ? 'Preenchimento automático pelos registros ativado.'
+      : 'Preenchimento automático desligado. A grade pode ser marcada manualmente.');
+  });
+  updateGradeAutoProgressButton();
+
   // minimizar/expandir a bandeja de siglas (lembra a preferência)
   // [NOVO] Botão que mostra/oculta o saldo de horas do ciclo na Grade (estado salvo por perfil).
   const _budgetBtn = document.getElementById('btn-toggle-budget');
