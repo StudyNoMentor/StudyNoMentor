@@ -1741,6 +1741,8 @@ function planCycleMode() {
   function renderGradeScreen() {
     const ws = document.getElementById('grade-weekstart-select');
     if (ws) ws.value = gradeWeekStart();
+    // Rele a preferência ao abrir a tela: ela pode ter chegado da nuvem após o boot.
+    updateGradeAutoProgressButton();
     applyGradeView();
     // o gerenciador só é renderizado quando o modal abre (renderCustomSiglaManager)
   }
