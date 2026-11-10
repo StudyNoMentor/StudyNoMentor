@@ -1902,7 +1902,7 @@ function planCycleMode() {
     const enabled = gradeAutoProgressEnabled();
     btn.classList.toggle('active', enabled);
     btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-    btn.innerHTML = `<span class="gg-ic">${enabled ? '↻' : '✎'}</span>${enabled ? 'Registros: automático ligado' : 'Preencher manualmente'}`;
+    btn.innerHTML = `<span class="gg-ic">${enabled ? '↻' : '✎'}</span>Automático: ${enabled ? 'ligado' : 'desligado'}`;
     btn.title = enabled
       ? 'Os registros da semana preenchem o progresso e concluem sessões automaticamente. Clique para usar marcação manual.'
       : 'Os registros não alteram a grade. Marque e desmarque as sessões manualmente. Clique para reativar o automático.';
